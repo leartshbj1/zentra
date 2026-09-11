@@ -11,6 +11,8 @@ import {
 import { desktopApi } from './bridge';
 import { PayrollSetup } from './PayrollSetup';
 import { PayrollProblem } from './PayrollProblem';
+import { PayrollPreparation } from './PayrollPreparation';
+import { payrollPreparationTasks } from './payrollPreparationTasks';
 import { usePayrollFieldGuide } from './PayrollFieldGuide';
 import { revealPayrollField } from './payrollNavigation';
 import type { PayrollHelpTarget } from './payrollHelp';
@@ -70,16 +72,30 @@ export function DetailedPayslipForm({
   busy,
   close,
   act,
+  initialEmployeeId,
+  initialPeriod,
+  initialPaymentDate,
+  onAddEmployee,
 }: {
   item?: Payslip;
   workspace: Workspace;
   busy: boolean;
   close: () => void;
   act: ActionRunner;
+  initialEmployeeId?: string;
+  initialPeriod?: string;
+  initialPaymentDate?: string;
+  onAddEmployee?: (period: string, paymentDate: string) => void;
 }) {
-  const activeEmployees = workspace.employees.filter(employee => employee.active);
-  const initialEmployee = !item && activeEmployees.length === 1 ? activeEmployees[0] : undefined;
+  const activeEmployees = workspace.employees.filter(
+    (employee) => employee.active,
+  );
+  const initialEmployee = !item
+    ? (activeEmployees.find((employee) => employee.id === initialEmployeeId) ??
+      (activeEmployees.length === 1 ? activeEmployees[0] : undefined))
+    : undefined;
   const [step, setStep] = useState(0);
+  const [preparing, setPreparing] = useState(false);
   const [setup, setSetup] = useState<PayrollHelpTarget | null>(null);
   const [setupSelector, setSetupSelector] = useState<string | undefined>();
   const [arrivalSelector, setArrivalSelector] = useState<string | undefined>();
@@ -87,8 +103,12 @@ export function DetailedPayslipForm({
   const [configurationUpdated, setConfigurationUpdated] = useState(false);
   const fieldGuide = usePayrollFieldGuide();
   function fixPayroll(target: PayrollHelpTarget, selector?: string) {
-    setArrivalSelector(selector ?? (target === 'salary' ? '[data-payroll-selection]' : undefined));
-    setArrivalRevision(value => value + 1);
+    if (['salary', 'review', 'period'].includes(target)) setPreparing(false);
+    setArrivalSelector(
+      selector ??
+        (target === 'salary' ? '[data-payroll-selection]' : undefined),
+    );
+    setArrivalRevision((value) => value + 1);
     setSetupSelector(selector);
     if (target === 'salary') {
       setStep(1);
@@ -105,7 +125,13 @@ export function DetailedPayslipForm({
   const formRef = useRef<HTMLFormElement>(null);
   const headingRef = useRef<HTMLDivElement>(null);
   const [lines, setLines] = useState<PayslipLine[]>(
-    item?.lines.map((line) => ({ ...line })) ?? recurringSalary(initialEmployee, workspace.employeePayrollTemplates.find(template => template.employeeId === initialEmployee?.id)).map(line => ({ ...line, id: createId(), kind: 'earning' as const })),
+    item?.lines.map((line) => ({ ...line })) ??
+      recurringSalary(
+        initialEmployee,
+        workspace.employeePayrollTemplates.find(
+          (template) => template.employeeId === initialEmployee?.id,
+        ),
+      ).map((line) => ({ ...line, id: createId(), kind: 'earning' as const })),
   );
   const [definitions, setDefinitions] = useState<
     PayrollContributionDefinition[]
@@ -127,10 +153,15 @@ export function DetailedPayslipForm({
   const [calculationError, setCalculationError] = useState('');
   const [period, setPeriod] = useState(
     item?.period ??
+      initialPeriod ??
       `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
   );
-  const [employeeId, setEmployeeId] = useState(item?.employeeId ?? initialEmployee?.id ?? '');
-  const [paymentDate, setPaymentDate] = useState(item?.paymentDate ?? '');
+  const [employeeId, setEmployeeId] = useState(
+    item?.employeeId ?? initialEmployee?.id ?? '',
+  );
+  const [paymentDate, setPaymentDate] = useState(
+    item?.paymentDate ?? initialPaymentDate ?? '',
+  );
   const [loadingRates, setLoadingRates] = useState(true);
   const [existingBlocked, setExistingBlocked] = useState(false);
   const [localError, setLocalError] = useState('');
@@ -188,13 +219,13 @@ export function DetailedPayslipForm({
   );
 
   useEffect(() => {
-    if (setup) return;
+    if (setup || preparing) return;
     headingRef.current?.focus({ preventScroll: true });
     headingRef.current
       ?.closest('.modal__body')
       ?.scrollTo({ top: 0, behavior: 'instant' });
     if (arrivalSelector) revealPayrollField(formRef.current, arrivalSelector);
-  }, [step, setup, arrivalSelector, arrivalRevision]);
+  }, [step, setup, preparing, arrivalSelector, arrivalRevision]);
 
   const selections = useMemo(
     () =>
@@ -396,17 +427,48 @@ export function DetailedPayslipForm({
     ],
   );
 
-  useAssistantScreen({screen:'Création de fiche de salaire',scope:`paie:${employeeId}:${period}`,facts:{
-    'Étape':['Collaborateur et période','Salaire et cotisations','Vérification'][step], 'Période':period, 'Canton de paie':referenceCanton,
-    'Collaborateur sélectionné':Boolean(employee), 'Salaire brut saisi (CHF)':(totals.earnings/100).toFixed(2),
-    'Calcul à jour':hasCurrentCalculation, 'Points bloquants':eligibility.blockers.join(' ; ').slice(0,700),
-    'Points à vérifier':eligibility.warnings.join(' ; ').slice(0,500), 'Erreur affichée':[localError,calculationError,ratesError,accountingError].filter(Boolean).join(' ; ').slice(0,600),
-  },actions:[
-    {label:'Vérifier le collaborateur',run:()=>fixPayroll('person')},
-    {label:'Vérifier les assurances',run:()=>fixPayroll('insurance')},
-    {label:'Vérifier le plan LPP',run:()=>fixPayroll('pension-plan')},
-    {label:'Revenir au salaire',run:()=>fixPayroll('salary')},
-  ]},30);
+  useAssistantScreen(
+    {
+      screen: 'Création de fiche de salaire',
+      scope: `paie:${employeeId}:${period}`,
+      facts: {
+        Étape: [
+          'Collaborateur et période',
+          'Salaire et cotisations',
+          'Vérification',
+        ][step],
+        Période: period,
+        'Canton de paie': referenceCanton,
+        'Collaborateur sélectionné': Boolean(employee),
+        'Salaire brut saisi (CHF)': (totals.earnings / 100).toFixed(2),
+        'Calcul à jour': hasCurrentCalculation,
+        'Points bloquants': eligibility.blockers.join(' ; ').slice(0, 700),
+        'Points à vérifier': eligibility.warnings.join(' ; ').slice(0, 500),
+        'Erreur affichée': [
+          localError,
+          calculationError,
+          ratesError,
+          accountingError,
+        ]
+          .filter(Boolean)
+          .join(' ; ')
+          .slice(0, 600),
+      },
+      actions: [
+        { label: 'Vérifier le collaborateur', run: () => fixPayroll('person') },
+        {
+          label: 'Vérifier les assurances',
+          run: () => fixPayroll('insurance'),
+        },
+        {
+          label: 'Vérifier le plan LPP',
+          run: () => fixPayroll('pension-plan'),
+        },
+        { label: 'Revenir au salaire', run: () => fixPayroll('salary') },
+      ],
+    },
+    30,
+  );
 
   useEffect(() => {
     const coordinatedIds = definitions
@@ -681,17 +743,25 @@ export function DetailedPayslipForm({
     setSelections(next);
   }
 
-  const missingProposals = proposal.filter(definition => !selections[definition.id]);
+  const missingProposals = proposal.filter(
+    (definition) => !selections[definition.id],
+  );
   function addMissingProposals() {
     // An explicit action adds the new applicable lines without resetting manual bases.
     invalidateCalculation();
     const next = { ...selectionDrafts };
     const automatic = new Set(automaticBases);
     for (const definition of missingProposals) {
-      next[definition.id] = { basisCents: definition.basisKind === 'coordinated'
-        ? (eligibility.coordinatedAnnualSalaryCents ?? undefined)
-        : definition.basisKind === 'gross' ? totals.earnings
-          : definition.basisKind === 'ahv_salary' ? guidedBasis.amountCents : undefined };
+      next[definition.id] = {
+        basisCents:
+          definition.basisKind === 'coordinated'
+            ? (eligibility.coordinatedAnnualSalaryCents ?? undefined)
+            : definition.basisKind === 'gross'
+              ? totals.earnings
+              : definition.basisKind === 'ahv_salary'
+                ? guidedBasis.amountCents
+                : undefined,
+      };
       if (definition.basisKind === 'ahv_salary') automatic.add(definition.id);
     }
     setSelections(next);
@@ -744,6 +814,10 @@ export function DetailedPayslipForm({
       invalid.reportValidity();
       return;
     }
+    if (eligibility.blockers.length) {
+      setPreparing(true);
+      return;
+    }
     if (
       selectedItems.length &&
       !hasCurrentCalculation &&
@@ -789,7 +863,9 @@ export function DetailedPayslipForm({
           selected.yearToDateBasisCents === undefined)
       ) {
         setCalculationError(
-          definition.category === 'lpp' && definition.basisKind === 'coordinated' && selected.basisCents === undefined
+          definition.category === 'lpp' &&
+            definition.basisKind === 'coordinated' &&
+            selected.basisCents === undefined
             ? 'Confirmez le salaire annuel LPP du collaborateur pour calculer sa base de pension.'
             : `Complétez la base${definition.annualCeilingCents ? ' et le cumul annuel' : ''} pour ${definition.label}.`,
         );
@@ -837,6 +913,60 @@ export function DetailedPayslipForm({
     }
   }
 
+  async function saveSalaryDraft() {
+    if (item || busy || calculating) return;
+    setLocalError('');
+    if (!employeeId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+      setPreparing(false);
+      setStep(0);
+      setLocalError(
+        'Choisissez le collaborateur et le mois avant de conserver un brouillon.',
+      );
+      return;
+    }
+    if (
+      totals.earnings <= 0 ||
+      lines.some(
+        (line) =>
+          !line.label.trim() ||
+          !Number.isSafeInteger(line.amountCents) ||
+          line.amountCents < 0,
+      )
+    ) {
+      setPreparing(false);
+      setStep(1);
+      setLocalError(
+        'Indiquez le salaire brut et complétez les montants ajoutés avant de conserver le brouillon.',
+      );
+      return;
+    }
+    const notes =
+      formRef.current?.querySelector<HTMLTextAreaElement>('[name=notes]')
+        ?.value ?? '';
+    await act(
+      () =>
+        desktopApi.savePayslipWithContributions(
+          { employeeId, period, paymentDate, notes, status: 'draft' },
+          lines,
+          undefined,
+          period,
+          [],
+        ),
+      'Brouillon enregistré. Retrouvez-le dans les fiches de salaire pour continuer.',
+      true,
+      (reason) => {
+        setPreparing(false);
+        setStep(1);
+        setLocalError(
+          errorMessage(
+            reason,
+            'Le brouillon n’a pas pu être enregistré. Votre salaire reste dans ce formulaire.',
+          ),
+        );
+      },
+    );
+  }
+
   return (
     <Modal
       title={
@@ -865,6 +995,7 @@ export function DetailedPayslipForm({
           busy={busy}
           act={act}
           onClose={() => setSetup(null)}
+          guided={preparing}
           onSaved={() => {
             setLocalError('');
             setConfigurationUpdated(true);
@@ -873,7 +1004,23 @@ export function DetailedPayslipForm({
           }}
         />
       )}
-      <div hidden={setup !== null}>
+      {preparing && !setup && (
+        <PayrollPreparation
+          employeeName={employee?.name ?? 'votre collaborateur'}
+          tasks={payrollPreparationTasks(eligibility.blockers)}
+          proposals={missingProposals.map((definition) => definition.label)}
+          onApplyProposals={addMissingProposals}
+          onSaveDraft={item ? undefined : () => void saveSalaryDraft()}
+          busy={busy || calculating || loadingRates || loadingAccounting}
+          onFix={fixPayroll}
+          onBack={() => setPreparing(false)}
+          onContinue={() => {
+            setPreparing(false);
+            setStep(1);
+          }}
+        />
+      )}
+      <div hidden={setup !== null || preparing}>
         <form
           className="payroll-form payroll-wizard"
           ref={formRef}
@@ -1017,7 +1164,11 @@ export function DetailedPayslipForm({
             </p>
           </div>
           {fieldGuide.guide}
-          {(loadingRates || loadingAccounting) && <p className="payroll-callout" role="status">Chargement des réglages du salaire… Votre saisie reste conservée.</p>}
+          {(loadingRates || loadingAccounting) && (
+            <p className="payroll-callout" role="status">
+              Chargement des réglages du salaire… Votre saisie reste conservée.
+            </p>
+          )}
           {localError || calculationError ? (
             <PayrollProblem
               messages={[localError, calculationError]}
@@ -1028,7 +1179,11 @@ export function DetailedPayslipForm({
           ) : null}
           {accountingError || ratesError ? (
             <div>
-              <PayrollProblem messages={[accountingError, ratesError]} onFix={fixPayroll} disabled={busy || calculating} />
+              <PayrollProblem
+                messages={[accountingError, ratesError]}
+                onFix={fixPayroll}
+                disabled={busy || calculating}
+              />
               <Button
                 type="button"
                 variant="secondary"
@@ -1070,13 +1225,35 @@ export function DetailedPayslipForm({
                   required
                 >
                   <option value="">Choisir un collaborateur</option>
-                  {workspace.employees.filter(employee => employee.active || employee.id === item?.employeeId).map((employee) => (
-                    <option value={employee.id} key={employee.id}>
-                      {employee.name}
-                    </option>
-                  ))}
+                  {workspace.employees
+                    .filter(
+                      (employee) =>
+                        employee.active || employee.id === item?.employeeId,
+                    )
+                    .map((employee) => (
+                      <option value={employee.id} key={employee.id}>
+                        {employee.name}
+                      </option>
+                    ))}
                 </select>
               </Field>
+              {!item && !employeeId && onAddEmployee && (
+                <div className="payroll-first-person">
+                  <p>
+                    {activeEmployees.length
+                      ? 'Cette personne n’est pas encore dans votre liste ?'
+                      : 'Commencez par ajouter la personne à qui vous versez ce salaire.'}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => onAddEmployee(period, paymentDate)}
+                  >
+                    <Plus size={16} /> Ajouter le collaborateur et continuer
+                  </Button>
+                </div>
+              )}
               <Field label="Période" required>
                 <input
                   name="period"
@@ -1130,9 +1307,12 @@ export function DetailedPayslipForm({
                   variant="secondary"
                   size="small"
                   disabled={busy}
-                  onClick={() => setSetup('person')}
+                  onClick={() => {
+                    if (!item && !selectedItems.length) applyProposal();
+                    setPreparing(true);
+                  }}
                 >
-                  Préparer ou corriger les informations de paie
+                  Me guider pour préparer cette fiche
                 </Button>
               </div>
             ) : null}
@@ -1529,7 +1709,15 @@ export function DetailedPayslipForm({
                 Ajouter une cotisation depuis mon contrat
               </Button>
               {guidedBasis.requiresClassification ? (
-                <div className="payroll-basis-confirmation"><p>Ce salaire contient plusieurs éléments. Dans le détail des cotisations, indiquez le montant soumis à chaque assurance d’après votre contrat ou votre fiduciaire. Les allocations et les remboursements ne se traitent pas tous comme du salaire.</p></div>
+                <div className="payroll-basis-confirmation">
+                  <p>
+                    Ce salaire contient plusieurs éléments. Dans le détail des
+                    cotisations, indiquez le montant soumis à chaque assurance
+                    d’après votre contrat ou votre fiduciaire. Les allocations
+                    et les remboursements ne se traitent pas tous comme du
+                    salaire.
+                  </p>
+                </div>
               ) : null}
               <details
                 className="payroll-details"
@@ -1633,10 +1821,13 @@ export function DetailedPayslipForm({
                                     }
                                     onChange={(event) =>
                                       patchSelection(definition.id, {
-                                        basisCents: event.target.value === '' ? undefined : Math.round(
-                                          (event.target.valueAsNumber || 0) *
-                                            100,
-                                        ),
+                                        basisCents:
+                                          event.target.value === ''
+                                            ? undefined
+                                            : Math.round(
+                                                (event.target.valueAsNumber ||
+                                                  0) * 100,
+                                              ),
                                       })
                                     }
                                     readOnly={
@@ -1668,10 +1859,13 @@ export function DetailedPayslipForm({
                                       }
                                       onChange={(event) =>
                                         patchSelection(definition.id, {
-                                          yearToDateBasisCents: event.target.value === '' ? undefined : Math.round(
-                                            (event.target.valueAsNumber || 0) *
-                                              100,
-                                          ),
+                                          yearToDateBasisCents:
+                                            event.target.value === ''
+                                              ? undefined
+                                              : Math.round(
+                                                  (event.target.valueAsNumber ||
+                                                    0) * 100,
+                                                ),
                                         })
                                       }
                                       required
@@ -1719,18 +1913,49 @@ export function DetailedPayslipForm({
             hidden={step !== 2}
             disabled={step !== 2 || busy}
           >
-            {(configurationUpdated || (selectedItems.length > 0 && !hasCurrentCalculation)) && (
+            {(configurationUpdated ||
+              (selectedItems.length > 0 && !hasCurrentCalculation)) && (
               <section className="payroll-next-action" role="status">
-                <strong>{configurationUpdated ? 'Réglage enregistré. Vérifions son effet sur le salaire.' : 'Votre salaire a changé. Actualisons le net.'}</strong>
-                <p>Le salaire saisi et vos notes sont conservés. Cliquez sur « Recalculer le salaire » en bas, puis contrôlez le nouveau net avant d’enregistrer.</p>
+                <strong>
+                  {configurationUpdated
+                    ? 'Réglage enregistré. Vérifions son effet sur le salaire.'
+                    : 'Votre salaire a changé. Actualisons le net.'}
+                </strong>
+                <p>
+                  Le salaire saisi et vos notes sont conservés. Cliquez sur «
+                  Recalculer le salaire » en bas, puis contrôlez le nouveau net
+                  avant d’enregistrer.
+                </p>
               </section>
             )}
             {missingProposals.length > 0 && (
               <section className="payroll-next-action">
-                <strong>{missingProposals.length} cotisation{missingProposals.length > 1 ? 's' : ''} du profil à ajouter à cette fiche</strong>
-                <p>Ces cotisations sont enregistrées et proposées pour cette personne et ce mois. Vérifiez la liste avant de les appliquer. Vos bases déjà saisies restent conservées.</p>
-                <details><summary>Voir les cotisations proposées</summary><ul>{missingProposals.map(definition => <li key={definition.id}>{definition.label}</li>)}</ul></details>
-                <Button type="button" variant="secondary" disabled={busy || calculating || loadingRates} onClick={addMissingProposals}>Appliquer les nouvelles cotisations</Button>
+                <strong>
+                  {missingProposals.length} cotisation
+                  {missingProposals.length > 1 ? 's' : ''} du profil à ajouter à
+                  cette fiche
+                </strong>
+                <p>
+                  Ces cotisations sont enregistrées et proposées pour cette
+                  personne et ce mois. Vérifiez la liste avant de les appliquer.
+                  Vos bases déjà saisies restent conservées.
+                </p>
+                <details>
+                  <summary>Voir les cotisations proposées</summary>
+                  <ul>
+                    {missingProposals.map((definition) => (
+                      <li key={definition.id}>{definition.label}</li>
+                    ))}
+                  </ul>
+                </details>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={busy || calculating || loadingRates}
+                  onClick={addMissingProposals}
+                >
+                  Appliquer les nouvelles cotisations
+                </Button>
               </section>
             )}
             <div className="payroll-net" aria-live="polite">
@@ -1762,8 +1987,9 @@ export function DetailedPayslipForm({
               <div className="payroll-issues">
                 <strong>Terminons la préparation</strong>
                 <p>
-                  Commençons par le premier point. Le bouton ouvre le bon réglage,
-                  puis vous revenez ici sans perdre votre salaire ni vos notes.
+                  Commençons par le premier point. Le bouton ouvre le bon
+                  réglage, puis vous revenez ici sans perdre votre salaire ni
+                  vos notes.
                 </p>
                 <PayrollProblem
                   messages={
@@ -2117,7 +2343,13 @@ export function DetailedPayslipForm({
               <FormActions
                 onCancel={close}
                 busy={busy}
-                submitLabel={calculating ? 'Calcul en cours…' : selectedItems.length > 0 && !hasCurrentCalculation ? 'Recalculer le salaire' : 'Enregistrer la fiche'}
+                submitLabel={
+                  calculating
+                    ? 'Calcul en cours…'
+                    : selectedItems.length > 0 && !hasCurrentCalculation
+                      ? 'Recalculer le salaire'
+                      : 'Enregistrer la fiche'
+                }
                 disabled={
                   calculating ||
                   loadingRates ||

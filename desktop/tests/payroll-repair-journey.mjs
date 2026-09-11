@@ -94,9 +94,6 @@ for (const [engine, type] of [
           .getByRole('button', { name: 'Vérifier le salaire', exact: true })
           .click();
         await modal
-          .locator('[name=notes]')
-          .fill('Salaire corrigé\nNotes conservées');
-        await modal
           .getByRole('button', {
             name: 'Corriger la date de confirmation',
             exact: true,
@@ -109,7 +106,7 @@ for (const [engine, type] of [
         );
         await setup
           .getByRole('button', {
-            name: 'Enregistrer et revenir au salaire',
+            name: 'Enregistrer et continuer',
             exact: true,
           })
           .click();
@@ -126,18 +123,16 @@ for (const [engine, type] of [
         await decision.fill('2026-01-15');
         await setup
           .getByRole('button', {
-            name: 'Enregistrer et revenir au salaire',
+            name: 'Enregistrer et continuer',
             exact: true,
           })
           .click();
         await setup.waitFor({ state: 'hidden' });
-        assert.equal(
-          await modal.locator('[name=notes]').inputValue(),
-          'Salaire corrigé\nNotes conservées',
-        );
+        await modal.getByRole('button', { name: 'Continuer vers mon salaire', exact: true }).click();
         await modal
-          .getByRole('button', { name: 'Recalculer le salaire', exact: true })
+          .getByRole('button', { name: 'Vérifier le salaire', exact: true })
           .click();
+        await modal.locator('[name=notes]').fill('Salaire corrigé\nNotes conservées');
         assert.equal(await modal.locator('.payroll-issues').count(), 0);
         await modal
           .locator('.modal__body')

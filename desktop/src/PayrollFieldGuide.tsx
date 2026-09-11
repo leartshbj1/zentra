@@ -51,7 +51,7 @@ export function usePayrollFieldGuide() {
     setIssue({ label, message });
     reveal();
   }
-  function check(form: HTMLFormElement) {
+  function check(form: HTMLElement) {
     const field = form.querySelector<Control>(
       'input:invalid, select:invalid, textarea:invalid',
     );
@@ -64,19 +64,22 @@ export function usePayrollFieldGuide() {
       field instanceof HTMLInputElement && field.type === 'date'
         ? text.split('-').reverse().join('.')
         : text;
-    const dateRange = field instanceof HTMLInputElement && field.type === 'date' && (validity.rangeUnderflow || validity.rangeOverflow);
+    const dateRange =
+      field instanceof HTMLInputElement &&
+      field.type === 'date' &&
+      (validity.rangeUnderflow || validity.rangeOverflow);
     const message = dateRange
       ? `La date saisie est le ${value(field.value)}. Choisissez une date${field.min ? ` à partir du ${value(field.min)}` : ''}${field.max ? ` et au plus tard le ${value(field.max)}` : ''}.${field.name === 'decisionDate' ? ' Recopiez le jour où le choix de cotisation a été confirmé sur votre déclaration ou confirmation écrite pour cette année.' : ' Recopiez la date indiquée sur votre document.'}`
       : validity.valueMissing
-      ? field instanceof HTMLSelectElement
-        ? 'Choisissez une réponse dans la liste pour continuer.'
-        : 'Complétez ce champ pour continuer. Les autres informations restent conservées.'
-      : field instanceof HTMLInputElement &&
-          (validity.rangeUnderflow || validity.rangeOverflow)
-        ? `La valeur doit respecter ${field.min ? `le minimum ${value(field.min)}` : ''}${field.min && field.max ? ' et ' : ''}${field.max ? `le maximum ${value(field.max)}` : ''}. Vérifiez votre document avant de la corriger.`
-        : validity.stepMismatch
-          ? 'Indiquez le montant ou la valeur avec la précision demandée sous ce champ. Ne changez pas un taux de contrat pour le faire accepter.'
-          : 'Vérifiez le format de cette information. Pour une date, utilisez le calendrier ; pour un montant, saisissez uniquement un nombre.';
+        ? field instanceof HTMLSelectElement
+          ? 'Choisissez une réponse dans la liste pour continuer.'
+          : 'Complétez ce champ pour continuer. Les autres informations restent conservées.'
+        : field instanceof HTMLInputElement &&
+            (validity.rangeUnderflow || validity.rangeOverflow)
+          ? `La valeur doit respecter ${field.min ? `le minimum ${value(field.min)}` : ''}${field.min && field.max ? ' et ' : ''}${field.max ? `le maximum ${value(field.max)}` : ''}. Vérifiez votre document avant de la corriger.`
+          : validity.stepMismatch
+            ? 'Indiquez le montant ou la valeur avec la précision demandée sous ce champ. Ne changez pas un taux de contrat pour le faire accepter.'
+            : 'Vérifiez le format de cette information. Pour une date, utilisez le calendrier ; pour un montant, saisissez uniquement un nombre.';
     reject(field, message);
     return false;
   }

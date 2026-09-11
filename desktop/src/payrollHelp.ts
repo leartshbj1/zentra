@@ -23,6 +23,39 @@ export type PayrollHelp = {
 };
 const rules: [RegExp, PayrollHelp][] = [
   [
+    /atteint 8 h\/semaine.*couverture AANP.*configur|couverture AANP.*manqu/i,
+    {
+      title: 'Préparez l’assurance accidents hors travail',
+      explanation:
+        'L’horaire est déjà renseigné. Il reste à ajouter la cotisation accidents hors travail du contrat de votre entreprise.',
+      target: 'contributions',
+      selector: '[data-payroll-preset="aanp"]',
+      action: 'Renseigner les accidents hors travail',
+    },
+  ],
+  [
+    /prime accidents professionnels AAP doit être configurée/i,
+    {
+      title: 'Préparez l’assurance accidents au travail',
+      explanation:
+        'Recopiez le taux de la part entreprise sur votre police d’assurance accidents. Cette cotisation s’ajoute au coût du salaire pour l’entreprise.',
+      target: 'contributions',
+      selector: '[data-payroll-preset="aap"]',
+      action: 'Renseigner les accidents au travail',
+    },
+  ],
+  [
+    /cotisation CAF doit utiliser/i,
+    {
+      title: 'Vérifiez le tarif des allocations familiales',
+      explanation:
+        'Recopiez le taux indiqué par votre caisse d’allocations familiales. Le salaire soumis à l’AVS sert au calcul de cette cotisation.',
+      target: 'contributions',
+      selector: '[data-payroll-preset="family_allowance"]',
+      action: 'Corriger les allocations familiales',
+    },
+  ],
+  [
     /source de chaque définition LPP|référence.*correspondre exactement/i,
     {
       title: 'Reliez la cotisation au règlement de pension',

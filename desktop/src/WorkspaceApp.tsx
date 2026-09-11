@@ -341,13 +341,13 @@ type ModalState =
   | { type: 'invoiceCorrection'; invoice: Invoice }
   | { type: 'time'; item?: TimeEntry }
   | { type: 'timeBilling' }
-  | { type: 'employee'; item?: Employee }
+  | { type: 'employee'; item?: Employee; returnToPayslip?: { period: string; paymentDate: string } }
   | { type: 'expense'; item?: Expense }
   | { type: 'legacyExpenseDetail'; expense: Expense }
   | { type: 'supplierInvoice'; item?: SupplierInvoice }
   | { type: 'supplierInvoiceDetail'; invoice: SupplierInvoice }
   | { type: 'supplierPayment'; invoice: SupplierInvoice }
-  | { type: 'payslip'; item?: Payslip }
+  | { type: 'payslip'; item?: Payslip; initialEmployeeId?: string; initialPeriod?: string; initialPaymentDate?: string }
   | { type: 'payrollImport' }
   | { type: 'payslipPayment'; payslip: Payslip }
   | { type: 'payment'; invoice: Invoice }
@@ -4354,11 +4354,9 @@ function TeamScreen({
                     </em>
                   ) : null}
                 </Button>
-                {workspace.employees.length ? (
-                  <Button disabled={busy} onClick={onCreatePayslip}>
-                    <Plus size={16} /> Nouvelle fiche
-                  </Button>
-                ) : null}
+                <Button disabled={busy} onClick={onCreatePayslip}>
+                  <Plus size={16} /> Nouvelle fiche
+                </Button>
               </div>
             ) : null
           }
@@ -4438,8 +4436,8 @@ function TeamScreen({
                     <strong>{formatMoney(totals.earnings)}</strong>
                   </div>
                   <div>
-                    <small>Net calculé</small>
-                    <strong>{formatMoney(totals.net)}</strong>
+                    <small>{payslip.status === 'draft' ? 'Cotisations à préparer' : 'Net calculé'}</small>
+                    <strong>{payslip.status === 'draft' ? 'À calculer' : formatMoney(totals.net)}</strong>
                   </div>
                   <StatusBadge
                     status={payslip.status}
@@ -4453,12 +4451,12 @@ function TeamScreen({
                     {!locked ? (
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size={payslip.status === 'draft' ? 'small' : 'icon'}
                         disabled={busy}
                         onClick={() => onEditPayslip(payslip)}
-                        title="Modifier"
+                        title={payslip.status === 'draft' ? 'Reprendre le brouillon' : 'Modifier'}
                       >
-                        <Pencil size={15} />
+                        <Pencil size={15} />{payslip.status === 'draft' ? 'Reprendre' : null}
                       </Button>
                     ) : null}
                     {payslip.status === 'validated' ? (
@@ -6013,11 +6011,7 @@ function WorkspaceModal({
   busy: boolean;
   close: () => void;
   replace: Dispatch<SetStateAction<ModalState>>;
-  act: (
-    action: () => Promise<Workspace>,
-    message: string,
-    close?: boolean,
-  ) => Promise<boolean>;
+  act: ActionRunner;
   onOpenInvoices: () => void;
   onOpenAccounting: () => void;
   onConvertQuote: (
@@ -6145,10 +6139,34 @@ function WorkspaceModal({
         onCreated={onOpenInvoices}
       />
     );
-  if (state.type === 'employee')
+  if (state.type === 'employee') {
+    const returnToPayslip = state.returnToPayslip;
+    const resumePayslip = (employeeId?: string) => replace({
+      type: 'payslip',
+      initialEmployeeId: employeeId,
+      initialPeriod: returnToPayslip?.period,
+      initialPaymentDate: returnToPayslip?.paymentDate,
+    });
     return (
-      <EmployeeForm item={state.item} busy={busy} close={close} act={act} />
+      <EmployeeForm
+        item={state.item}
+        busy={busy}
+        close={returnToPayslip ? () => resumePayslip() : close}
+        act={returnToPayslip ? async (action, message, _close, onError) => {
+          let employeeId: string | undefined;
+          const success = await act(async () => {
+            const next = await action();
+            employeeId = next.employees.find(employee =>
+              !workspace.employees.some(previous => previous.id === employee.id),
+            )?.id;
+            return next;
+          }, message, false, onError);
+          if (success) resumePayslip(employeeId);
+          return success;
+        } : act}
+      />
     );
+  }
   if (state.type === 'expense')
     return (
       <ExpenseForm
@@ -6209,6 +6227,10 @@ function WorkspaceModal({
         busy={busy}
         close={close}
         act={act}
+        initialEmployeeId={state.initialEmployeeId}
+        initialPeriod={state.initialPeriod}
+        initialPaymentDate={state.initialPaymentDate}
+        onAddEmployee={(period, paymentDate) => replace({type:'employee', returnToPayslip:{period, paymentDate}})}
       />
     );
   if (state.type === 'payrollImport')
@@ -7147,8 +7169,7 @@ function EmployeeForm({
           ) : null}
           <Field
             label="Coût d’une heure pour l’entreprise (CHF)"
-            hint="Utilisé pour le coût des projets. Recopiez le coût convenu avec votre entreprise, charges comprises. Ce montant ne remplace pas le salaire brut."
-            required
+            hint="Facultatif pour la paie. Vous pourrez le compléter plus tard pour calculer le coût des heures sur les projets. Si vous laissez ce champ vide, ces heures seront valorisées à 0 CHF jusqu’à ce qu’un coût soit renseigné."
           >
             <input
               name="hourlyCost"
@@ -7156,7 +7177,6 @@ function EmployeeForm({
               min="0"
               step="0.01"
               defaultValue={item ? item.hourlyCostCents / 100 : ''}
-              required
             />
           </Field>
 </div>

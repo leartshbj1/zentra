@@ -3,7 +3,10 @@ import { desktopApi } from './bridge';
 import { PayrollOrganisationField } from './PayrollOrganisationField';
 import { PayrollProblem } from './PayrollProblem';
 import { usePayrollFieldGuide } from './PayrollFieldGuide';
-import { parseSmallSalaryEmployeeForm, SmallSalaryFormError } from './smallSalaryAssessment';
+import {
+  parseSmallSalaryEmployeeForm,
+  SmallSalaryFormError,
+} from './smallSalaryAssessment';
 import { PayrollContractSetup } from './PayrollContractSetup';
 import { PayrollContributionsPanel } from './PayrollContributionsPanel';
 import {
@@ -50,6 +53,7 @@ export function PayrollSetup({
   act,
   onClose,
   onSaved,
+  guided = false,
 }: {
   initial: PayrollHelpTarget;
   initialSelector?: string;
@@ -60,6 +64,7 @@ export function PayrollSetup({
   act: Runner;
   onClose: () => void;
   onSaved: () => void;
+  guided?: boolean;
 }) {
   const [section, setSection] = useState<Section>(
     payrollDestination(initial).section,
@@ -167,6 +172,42 @@ export function PayrollSetup({
   );
   const [canton, setCanton] = useState(settings.payroll.payrollCanton);
   const [exception, setException] = useState(employee?.lppExceptionCode ?? '');
+  const pensionOnly = guided && destination.target === 'pension-person';
+  const pensionPlanOnly = guided && destination.target === 'pension-plan';
+  const [question, setQuestion] = useState(0);
+  const questionCount =
+    section === 'person'
+      ? pensionOnly
+        ? 1
+        : 3
+      : section === 'history'
+        ? 3
+        : section === 'insurance' && !pensionPlanOnly
+          ? 2
+          : 1;
+  useEffect(() => {
+    const target = container.current?.querySelector(
+      destination.selector ?? payrollDestination(destination.target).selector,
+    );
+    const name =
+      target?.closest<HTMLElement>('[data-payroll-question]')?.dataset
+        .payrollQuestion ?? '';
+    const index = Number(name.match(/-(\d+)/)?.[1] ?? 0);
+    setQuestion(Math.min(index, questionCount - 1));
+  }, [destination, questionCount]);
+  useEffect(() => {
+    if (!guided) return;
+    const area = container.current?.querySelector<HTMLElement>(
+      `[data-payroll-question="${section}-${question}"]`,
+    );
+    const focus =
+      area?.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+      area?.querySelector<HTMLElement>(
+        'input:not([disabled]), select:not([disabled]), summary',
+      );
+    focus?.focus({ preventScroll: true });
+    area?.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }, [question, section, guided]);
   async function save(form: FormData) {
     if (disabled || loadingAccounts || lock.current) return;
     lock.current = true;
@@ -178,7 +219,10 @@ export function PayrollSetup({
         return typeof value === 'string' ? value.trim() : '';
       };
       const data: Record<string, unknown> = {};
-      if (section === 'person' && employee) {
+      if (section === 'person' && employee && pensionOnly) {
+        data.lppAnnualSalaryCents = centsFromInput(form.get('lppAnnualSalary'));
+        data.lppAssessmentYear = year;
+      } else if (section === 'person' && employee) {
         data.birthDate = text('birthDate');
         data.employmentStartDate = text('employmentStartDate');
         data.employmentContractKind = text('employmentContractKind') || null;
@@ -221,13 +265,19 @@ export function PayrollSetup({
           throw new Error(
             'Choisissez si des salaires ont été établis avant Zentra cette année.',
           );
-        Object.assign(data, parseSmallSalaryEmployeeForm({
-          assessmentYear: String(year), sector: text('sector'),
-          employeeRequestedContributions: text('requested'), decisionDate: text('decisionDate'),
-          evidenceReference: text('evidence'),
-          openingGross: history === 'none' ? '0' : text('openingGross'),
-          openingContributedBasis: history === 'none' ? '0' : text('openingAvs'),
-        }));
+        Object.assign(
+          data,
+          parseSmallSalaryEmployeeForm({
+            assessmentYear: String(year),
+            sector: text('sector'),
+            employeeRequestedContributions: text('requested'),
+            decisionDate: text('decisionDate'),
+            evidenceReference: text('evidence'),
+            openingGross: history === 'none' ? '0' : text('openingGross'),
+            openingContributedBasis:
+              history === 'none' ? '0' : text('openingAvs'),
+          }),
+        );
         data.acOpeningYear = year;
         data.acOpeningBasisCents =
           history === 'none' ? 0 : centsFromInput(form.get('openingAc'));
@@ -287,8 +337,10 @@ export function PayrollSetup({
                 'Les assurances ont changé pendant votre saisie. Revenez à la fiche puis rouvrez les assurances pour retrouver les dernières informations.',
               );
             const payroll = { ...fresh.settings.payroll };
-            payroll.payrollCanton = canton;
-            for (const [field] of funds) payroll[field] = text(field);
+            if (!pensionPlanOnly) payroll.payrollCanton = canton;
+            for (const [field] of funds)
+              if (!pensionPlanOnly || field === 'pensionFund')
+                payroll[field] = text(field);
             // Naming a fund never enables a module or marks a professional review complete.
             if (
               text('contractNumber') ||
@@ -339,9 +391,21 @@ export function PayrollSetup({
       }
     } catch (reason) {
       if (reason instanceof SmallSalaryFormError) {
-        const names: Record<string, string> = { smallSalarySector: 'sector', smallSalaryEmployeeRequestedContributions: 'requested', smallSalaryDecisionDate: 'decisionDate', smallSalaryEvidenceReference: 'evidence', smallSalaryOpeningGross: 'openingGross', smallSalaryOpeningContributedBasis: 'openingAvs' };
-        const field = container.current?.querySelector<HTMLInputElement>(`[name="${names[reason.field]}"]`);
-        if (field) { fieldGuide.reject(field, reason.message); return; }
+        const names: Record<string, string> = {
+          smallSalarySector: 'sector',
+          smallSalaryEmployeeRequestedContributions: 'requested',
+          smallSalaryDecisionDate: 'decisionDate',
+          smallSalaryEvidenceReference: 'evidence',
+          smallSalaryOpeningGross: 'openingGross',
+          smallSalaryOpeningContributedBasis: 'openingAvs',
+        };
+        const field = container.current?.querySelector<HTMLInputElement>(
+          `[name="${names[reason.field]}"]`,
+        );
+        if (field) {
+          fieldGuide.reject(field, reason.message);
+          return;
+        }
       }
       setError(
         errorMessage(
@@ -354,7 +418,10 @@ export function PayrollSetup({
     }
   }
   return (
-    <div className="payroll-setup" ref={container}>
+    <div
+      className={`payroll-setup${guided ? ' payroll-setup--guided' : ''}`}
+      ref={container}
+    >
       <header ref={heading} tabIndex={-1}>
         <Button
           type="button"
@@ -362,11 +429,15 @@ export function PayrollSetup({
           disabled={disabled}
           onClick={onClose}
         >
-          ← Revenir au salaire
+          {guided ? '← Revenir à ma préparation' : '← Revenir au salaire'}
         </Button>
         <small>Votre salaire en cours reste conservé.</small>
       </header>
-      <nav className="payroll-setup-nav" aria-label="Préparation de la paie">
+      <nav
+        className="payroll-setup-nav"
+        aria-label="Préparation de la paie"
+        hidden={guided}
+      >
         {sections.map(([id, label]) => (
           <button
             key={id}
@@ -382,6 +453,16 @@ export function PayrollSetup({
           </button>
         ))}
       </nav>
+      {guided && questionCount > 1 && (
+        <p className="payroll-question-progress" role="status">
+          {section === 'person'
+            ? 'Son contrat de travail'
+            : section === 'history'
+              ? 'Les informations de début d’année'
+              : 'Vos assurances'}{' '}
+          · {question + 1} sur {questionCount}
+        </p>
+      )}
       {error && (
         <PayrollProblem
           messages={[error]}
@@ -410,7 +491,29 @@ export function PayrollSetup({
           section === 'contributions' || section === 'advanced-contributions'
         }
         onSubmit={(event) => {
-          if (!fieldGuide.check(event.currentTarget)) { event.preventDefault(); return; }
+          if (guided && question < questionCount - 1) {
+            event.preventDefault();
+            const area = event.currentTarget.querySelector<HTMLElement>(
+              `[data-payroll-question="${section}-${question}"]`,
+            );
+            if (!area || fieldGuide.check(area))
+              setQuestion((value) => value + 1);
+            return;
+          }
+          const invalid = event.currentTarget.querySelector<HTMLElement>(
+            'input:invalid, select:invalid, textarea:invalid',
+          );
+          if (guided && invalid) {
+            const name =
+              invalid.closest<HTMLElement>('[data-payroll-question]')?.dataset
+                .payrollQuestion ?? '';
+            const index = name.match(/-(\d+)/)?.[1];
+            if (index) setQuestion(Math.min(Number(index), questionCount - 1));
+          }
+          if (!fieldGuide.check(event.currentTarget)) {
+            event.preventDefault();
+            return;
+          }
           return submitForm(save)(event);
         }}
       >
@@ -419,78 +522,101 @@ export function PayrollSetup({
           disabled={busy || section !== 'person'}
           hidden={section !== 'person'}
         >
-          <h3>Le contrat de {employee?.name ?? 'votre collaborateur'}</h3>
+          <h3>
+            {pensionOnly
+              ? 'Quel salaire annuel avez-vous annoncé à la caisse ?'
+              : `Le contrat de ${employee?.name ?? 'votre collaborateur'}`}
+          </h3>
           {!employee ? (
             <p>Choisissez d’abord le collaborateur à l’étape précédente.</p>
           ) : (
             <>
-              <p>
+              <p hidden={pensionOnly}>
                 Gardez son contrat et sa date de naissance à portée de main.
               </p>
-              <div className="form-grid">
-                <Field label="Date de naissance" required>
-                  <input
-                    name="birthDate"
-                    type="date"
-                    defaultValue={employee.birthDate}
-                    required
-                  />
-                </Field>
-                <Field label="Premier jour dans l’entreprise" required>
-                  <input
-                    name="employmentStartDate"
-                    type="date"
-                    defaultValue={employee.employmentStart}
-                    required
-                  />
-                </Field>
-                <Field
-                  label="Heures de travail par semaine"
-                  required
-                  hint="Horaire contractuel régulier. Pour un horaire variable, utilisez une moyenne représentative confirmée."
+              <fieldset disabled={pensionOnly} hidden={pensionOnly}>
+                <div
+                  className="form-grid"
+                  data-payroll-question="person-0"
+                  hidden={guided && question !== 0}
                 >
-                  <input
-                    name="weeklyHours"
-                    type="number"
-                    inputMode="decimal"
-                    min="0.01"
-                    max="168"
-                    step="0.01"
-                    defaultValue={
-                      employee.contractualWeeklyMinutes == null
-                        ? ''
-                        : employee.contractualWeeklyMinutes / 60
-                    }
+                  <Field label="Date de naissance" required>
+                    <input
+                      name="birthDate"
+                      type="date"
+                      defaultValue={employee.birthDate}
+                      required
+                    />
+                  </Field>
+                </div>
+                <div
+                  className="form-grid"
+                  data-payroll-question="person-1"
+                  hidden={guided && question !== 1}
+                >
+                  <Field label="Premier jour dans l’entreprise" required>
+                    <input
+                      name="employmentStartDate"
+                      type="date"
+                      defaultValue={employee.employmentStart}
+                      required
+                    />
+                  </Field>
+                  <Field
+                    label="Heures de travail par semaine"
                     required
-                  />
-                </Field>
-                <Field label="Type de contrat" required>
-                  <select
-                    name="employmentContractKind"
-                    defaultValue={employee.employmentContractKind ?? ''}
-                    required
+                    hint="Horaire contractuel régulier. Pour un horaire variable, utilisez une moyenne représentative confirmée."
                   >
-                    <option value="">Choisir</option>
-                    <option value="indefinite">Sans date de fin (CDI)</option>
-                    <option value="fixed">Avec une date de fin (CDD)</option>
-                  </select>
-                </Field>
-                <Field
-                  label="Dernier jour prévu"
-                  hint="À remplir pour un contrat avec une date de fin."
-                >
-                  <input
-                    name="employmentEndDate"
-                    type="date"
-                    defaultValue={employee.employmentEnd}
-                  />
-                </Field>
+                    <input
+                      name="weeklyHours"
+                      type="number"
+                      inputMode="decimal"
+                      min="0.01"
+                      max="168"
+                      step="0.01"
+                      defaultValue={
+                        employee.contractualWeeklyMinutes == null
+                          ? ''
+                          : employee.contractualWeeklyMinutes / 60
+                      }
+                      required
+                    />
+                  </Field>
+                  <Field label="Type de contrat" required>
+                    <select
+                      name="employmentContractKind"
+                      defaultValue={employee.employmentContractKind ?? ''}
+                      required
+                    >
+                      <option value="">Choisir</option>
+                      <option value="indefinite">Sans date de fin (CDI)</option>
+                      <option value="fixed">Avec une date de fin (CDD)</option>
+                    </select>
+                  </Field>
+                  <Field
+                    label="Dernier jour prévu"
+                    hint="À remplir pour un contrat avec une date de fin."
+                  >
+                    <input
+                      name="employmentEndDate"
+                      type="date"
+                      defaultValue={employee.employmentEnd}
+                    />
+                  </Field>
+                </div>
+              </fieldset>
+              <div
+                data-payroll-question={pensionOnly ? 'person-0' : 'person-2'}
+                hidden={guided && !pensionOnly && question !== 2}
+              >
                 <Field
                   label={`Salaire annuel annoncé à la caisse de pension · ${year}`}
+                  required={pensionOnly}
                   hint="Montant brut annuel confirmé pour ce contrat. Laissez vide si vous devez encore le demander."
                 >
                   <input
                     name="lppAnnualSalary"
+                    required={pensionOnly}
                     type="number"
                     inputMode="decimal"
                     min="0"
@@ -505,74 +631,85 @@ export function PayrollSetup({
                   />
                 </Field>
               </div>
-              <details className="payroll-simple-guide" data-payroll-situation>
-                <summary>Retraite ou exception de caisse de pension</summary>
-                <p>
-                  À compléter uniquement si cela concerne cette personne,
-                  d’après les documents de sa caisse.
-                </p>
-                <Field
-                  label="Date de référence pour la retraite"
-                  hint="Demandez la date applicable à la caisse AVS si vous ne la connaissez pas."
+              <fieldset
+                data-payroll-question="person-2-situation"
+                disabled={pensionOnly}
+                hidden={pensionOnly || (guided && question !== 2)}
+              >
+                <details
+                  className="payroll-simple-guide"
+                  data-payroll-situation
                 >
-                  <input
-                    name="referenceAgeDate"
-                    type="date"
-                    defaultValue={employee.referenceAgeDate}
-                  />
-                </Field>
-                <Field label="Franchise AVS après l’âge de référence">
-                  <select
-                    name="avsAllowanceWaived"
-                    defaultValue={
-                      employee.avsAllowanceWaived == null
-                        ? ''
-                        : employee.avsAllowanceWaived
-                          ? 'yes'
-                          : 'no'
-                    }
-                  >
-                    <option value="">À confirmer / pas concerné</option>
-                    <option value="no">Le salarié conserve la franchise</option>
-                    <option value="yes">
-                      Le salarié renonce à la franchise
-                    </option>
-                  </select>
-                </Field>
-                <Field label="Exception de pension confirmée">
-                  <select
-                    name="lppExceptionCode"
-                    value={exception}
-                    onChange={(event) =>
-                      setException(event.target.value as typeof exception)
-                    }
-                  >
-                    <option value="">Aucune exception</option>
-                    <option value="short_fixed_contract">
-                      Contrat à durée déterminée de trois mois au maximum
-                    </option>
-                    <option value="other_legal">
-                      Autre exception légale confirmée
-                    </option>
-                  </select>
-                </Field>
-                {exception && (
+                  <summary>Retraite ou exception de caisse de pension</summary>
+                  <p>
+                    À compléter uniquement si cela concerne cette personne,
+                    d’après les documents de sa caisse.
+                  </p>
                   <Field
-                    label="Document qui confirme l’exception"
-                    required
-                    hint="Référence du contrat signé ou de la décision écrite de la caisse."
+                    label="Date de référence pour la retraite"
+                    hint="Demandez la date applicable à la caisse AVS si vous ne la connaissez pas."
                   >
                     <input
-                      name="lppExceptionEvidenceReference"
-                      required
-                      maxLength={500}
-                      defaultValue={
-                        employee.lppExceptionEvidenceReference ?? ''
-                      }
+                      name="referenceAgeDate"
+                      type="date"
+                      defaultValue={employee.referenceAgeDate}
                     />
                   </Field>
-                )}
-              </details>
+                  <Field label="Franchise AVS après l’âge de référence">
+                    <select
+                      name="avsAllowanceWaived"
+                      defaultValue={
+                        employee.avsAllowanceWaived == null
+                          ? ''
+                          : employee.avsAllowanceWaived
+                            ? 'yes'
+                            : 'no'
+                      }
+                    >
+                      <option value="">À confirmer / pas concerné</option>
+                      <option value="no">
+                        Le salarié conserve la franchise
+                      </option>
+                      <option value="yes">
+                        Le salarié renonce à la franchise
+                      </option>
+                    </select>
+                  </Field>
+                  <Field label="Exception de pension confirmée">
+                    <select
+                      name="lppExceptionCode"
+                      value={exception}
+                      onChange={(event) =>
+                        setException(event.target.value as typeof exception)
+                      }
+                    >
+                      <option value="">Aucune exception</option>
+                      <option value="short_fixed_contract">
+                        Contrat à durée déterminée de trois mois au maximum
+                      </option>
+                      <option value="other_legal">
+                        Autre exception légale confirmée
+                      </option>
+                    </select>
+                  </Field>
+                  {exception && (
+                    <Field
+                      label="Document qui confirme l’exception"
+                      required
+                      hint="Référence du contrat signé ou de la décision écrite de la caisse."
+                    >
+                      <input
+                        name="lppExceptionEvidenceReference"
+                        required
+                        maxLength={500}
+                        defaultValue={
+                          employee.lppExceptionEvidenceReference ?? ''
+                        }
+                      />
+                    </Field>
+                  )}
+                </details>
+              </fieldset>
             </>
           )}
         </fieldset>
@@ -586,263 +723,314 @@ export function PayrollSetup({
             Pour {employee?.name}, en {year}. Reprenez les fiches établies avant
             ce mois qui ne sont pas dans Zentra.
           </p>
-          <details className="payroll-simple-guide">
-            <summary>Quels montants faut-il reprendre ?</summary>
-            <p>
-              Comptez uniquement les salaires de votre entreprise, même s’ils ne
-              sont pas encore payés. Les fiches déjà dans Zentra sont ajoutées
-              automatiquement : ne les recopiez pas ici.
-            </p>
-          </details>
-          <Field label="Y a-t-il des salaires à reprendre ?" required>
-            <select
-              value={history}
-              onChange={(event) => setHistory(event.target.value)}
-              required
-            >
-              <option value="">Je dois encore vérifier</option>
-              <option value="none">
-                Non, aucun salaire avant Zentra cette année
-              </option>
-              <option value="previous">
-                Oui, des fiches ont été faites dans un autre système
-              </option>
-            </select>
-          </Field>
-          {history === 'none' && (
-            <p className="payroll-callout">
-              Les quatre montants de départ seront enregistrés à CHF 0. Les
-              salaires déjà saisis dans Zentra restent conservés.
-            </p>
-          )}
-          <div className="form-grid" hidden={history !== 'previous'}>
-            {[
-              [
-                'openingGross',
-                'Total brut des fiches précédentes',
-                employee?.smallSalaryOpeningGrossCents,
-                sameYear,
-              ],
-              [
-                'openingAvs',
-                'Salaire déjà soumis à l’AVS',
-                employee?.smallSalaryOpeningContributedBasisCents,
-                sameYear,
-              ],
-              [
-                'openingAc',
-                'Salaire déjà soumis au chômage',
-                employee?.acOpeningBasisCents,
-                employee?.acOpeningYear === year,
-              ],
-              [
-                'openingLaa',
-                'Salaire déjà soumis aux accidents',
-                employee?.laaOpeningBasisCents,
-                employee?.laaOpeningYear === year,
-              ],
-            ].map(([name, label, amount, current]) => (
-              <Field
-                key={String(name)}
-                label={String(label)}
+          <div
+            data-payroll-question="history-0"
+            hidden={guided && question !== 0}
+          >
+            <details className="payroll-simple-guide">
+              <summary>Quels montants faut-il reprendre ?</summary>
+              <p>
+                Comptez uniquement les salaires de votre entreprise, même s’ils
+                ne sont pas encore payés. Les fiches déjà dans Zentra sont
+                ajoutées automatiquement : ne les recopiez pas ici.
+              </p>
+            </details>
+            <Field label="Y a-t-il des salaires à reprendre ?" required>
+              <select
+                value={history}
+                onChange={(event) => setHistory(event.target.value)}
                 required
-                hint="Recopiez le cumul de salaire du dernier décompte, pas le montant des cotisations retenues."
               >
-                <input
-                  name={String(name)}
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.01"
-                  disabled={history !== 'previous'}
-                  required={history === 'previous'}
-                  defaultValue={
-                    current && typeof amount === 'number' ? amount / 100 : ''
-                  }
-                  placeholder="CHF"
-                />
-              </Field>
-            ))}
+                <option value="">Je dois encore vérifier</option>
+                <option value="none">
+                  Non, aucun salaire avant Zentra cette année
+                </option>
+                <option value="previous">
+                  Oui, des fiches ont été faites dans un autre système
+                </option>
+              </select>
+            </Field>
+            {history === 'none' && (
+              <p className="payroll-callout">
+                Les quatre montants de départ seront enregistrés à CHF 0. Les
+                salaires déjà saisis dans Zentra restent conservés.
+              </p>
+            )}
+            <div className="form-grid" hidden={history !== 'previous'}>
+              {[
+                [
+                  'openingGross',
+                  'Total brut des fiches précédentes',
+                  employee?.smallSalaryOpeningGrossCents,
+                  sameYear,
+                ],
+                [
+                  'openingAvs',
+                  'Salaire déjà soumis à l’AVS',
+                  employee?.smallSalaryOpeningContributedBasisCents,
+                  sameYear,
+                ],
+                [
+                  'openingAc',
+                  'Salaire déjà soumis au chômage',
+                  employee?.acOpeningBasisCents,
+                  employee?.acOpeningYear === year,
+                ],
+                [
+                  'openingLaa',
+                  'Salaire déjà soumis aux accidents',
+                  employee?.laaOpeningBasisCents,
+                  employee?.laaOpeningYear === year,
+                ],
+              ].map(([name, label, amount, current]) => (
+                <Field
+                  key={String(name)}
+                  label={String(label)}
+                  required
+                  hint="Recopiez le cumul de salaire du dernier décompte, pas le montant des cotisations retenues."
+                >
+                  <input
+                    name={String(name)}
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    disabled={history !== 'previous'}
+                    required={history === 'previous'}
+                    defaultValue={
+                      current && typeof amount === 'number' ? amount / 100 : ''
+                    }
+                    placeholder="CHF"
+                  />
+                </Field>
+              ))}
+            </div>
           </div>
-          <Field
-            label="Dans quel cadre cette personne travaille-t-elle ?"
-            required
+          <div
+            data-payroll-question="history-1"
+            hidden={guided && question !== 1}
           >
-            <select
-              name="sector"
-              defaultValue={employee?.smallSalarySector ?? ''}
+            <Field
+              label="Dans quel cadre cette personne travaille-t-elle ?"
               required
             >
-              <option value="">Choisir le cadre de travail</option>
-              <option value="ordinary">Entreprise : activité habituelle</option>
-              <option value="private_household">
-                Ménage privé : emploi à domicile
-              </option>
-              <option value="arts_culture">
-                Activité dans les arts ou la culture
-              </option>
-            </select>
-          </Field>
-          <Field
-            label="Le salarié a-t-il demandé de cotiser même pour un petit salaire ?"
-            required
-            hint="Cette question concerne la dispense éventuelle pour les faibles salaires annuels. Au-dessus du seuil applicable, les cotisations restent dues."
-          >
-            <select
-              name="requested"
-              defaultValue={
-                sameYear &&
-                employee?.smallSalaryEmployeeRequestedContributions != null
-                  ? employee.smallSalaryEmployeeRequestedContributions
-                    ? 'yes'
-                    : 'no'
-                  : ''
-              }
+              <select
+                name="sector"
+                defaultValue={employee?.smallSalarySector ?? ''}
+                required
+              >
+                <option value="">Choisir le cadre de travail</option>
+                <option value="ordinary">
+                  Entreprise : activité habituelle
+                </option>
+                <option value="private_household">
+                  Ménage privé : emploi à domicile
+                </option>
+                <option value="arts_culture">
+                  Activité dans les arts ou la culture
+                </option>
+              </select>
+            </Field>
+            <Field
+              label="Le salarié a-t-il demandé de cotiser même pour un petit salaire ?"
               required
+              hint="Cette question concerne la dispense éventuelle pour les faibles salaires annuels. Au-dessus du seuil applicable, les cotisations restent dues."
             >
-              <option value="">À confirmer avec le salarié</option>
-              <option value="no">Non, aucune demande particulière</option>
-              <option value="yes">Oui, il a demandé à cotiser</option>
-            </select>
-          </Field>
-          <Field label={`Date du choix de cotisation · ${year}`} required hint={`Recopiez la date de la déclaration ou de la confirmation écrite pour ${year}. Ce n’est pas automatiquement la date de création de la fiche. Si vous n’avez pas ce document, demandez-le au salarié ou à votre caisse AVS.`}>
-            <input
-              name="decisionDate"
-              type="date"
-              min={`${year}-01-01`}
-              max={`${year}-12-31`}
-              defaultValue={sameYear ? employee?.smallSalaryDecisionDate : ''}
-              required
-            />
-          </Field>
-          <Field
-            label="Document ou confirmation utilisée"
-            required
-            hint="Par exemple : décompte août 2026, ou confirmation du début d’activité. Conservez ce document."
+              <select
+                name="requested"
+                defaultValue={
+                  sameYear &&
+                  employee?.smallSalaryEmployeeRequestedContributions != null
+                    ? employee.smallSalaryEmployeeRequestedContributions
+                      ? 'yes'
+                      : 'no'
+                    : ''
+                }
+                required
+              >
+                <option value="">À confirmer avec le salarié</option>
+                <option value="no">Non, aucune demande particulière</option>
+                <option value="yes">Oui, il a demandé à cotiser</option>
+              </select>
+            </Field>
+          </div>
+          <div
+            data-payroll-question="history-2"
+            hidden={guided && question !== 2}
           >
-            <input
-              name="evidence"
-              maxLength={500}
-              defaultValue={
-                sameYear ? employee?.smallSalaryEvidenceReference : ''
-              }
+            <Field
+              label={`Date du choix de cotisation · ${year}`}
               required
-            />
-          </Field>
+              hint={`Indiquez quand le choix ci-dessus a été confirmé. La date figure sur votre déclaration ou confirmation écrite de ${year}. Si vous ne la connaissez pas, demandez-la au salarié ou à votre caisse AVS.`}
+            >
+              <input
+                name="decisionDate"
+                type="date"
+                min={`${year}-01-01`}
+                max={`${year}-12-31`}
+                defaultValue={sameYear ? employee?.smallSalaryDecisionDate : ''}
+                required
+              />
+            </Field>
+            <Field
+              label="Document ou confirmation utilisée"
+              required
+              hint="Par exemple : décompte août 2026, ou confirmation du début d’activité. Conservez ce document."
+            >
+              <input
+                name="evidence"
+                maxLength={500}
+                defaultValue={
+                  sameYear ? employee?.smallSalaryEvidenceReference : ''
+                }
+                required
+              />
+            </Field>
+          </div>
         </fieldset>
         <fieldset
           disabled={busy || section !== 'insurance'}
           hidden={section !== 'insurance'}
         >
-          <h3>Les assurances de l’entreprise</h3>
+          <h3>
+            {pensionPlanOnly
+              ? 'Le contrat de votre caisse de pension'
+              : 'Les assurances de l’entreprise'}
+          </h3>
           <p>
             Recopiez les noms de vos contrats ou recherchez votre caisse dans la
             liste.
           </p>
-          <Field label="Canton de paie" required>
-            <select
-              value={canton}
-              onChange={(event) => setCanton(event.target.value)}
-              required
-            >
-              <option value="">Choisir un canton</option>
-              {SWISS_FAMILY_ALLOWANCES_2026.map((item) => (
-                <option key={item.canton} value={item.canton}>
-                  {item.name}
-                </option>
+          <div
+            data-payroll-question="insurance-0"
+            hidden={guided && !pensionPlanOnly && question !== 0}
+          >
+            {!pensionPlanOnly && (
+              <Field label="Canton de paie" required>
+                <select
+                  value={canton}
+                  onChange={(event) => setCanton(event.target.value)}
+                  required
+                >
+                  <option value="">Choisir un canton</option>
+                  {SWISS_FAMILY_ALLOWANCES_2026.map((item) => (
+                    <option key={item.canton} value={item.canton}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {funds
+              .filter(([field]) => !pensionPlanOnly || field === 'pensionFund')
+              .map(([field, kind]) => (
+                <PayrollOrganisationField
+                  key={field}
+                  kind={kind}
+                  name={field}
+                  defaultValue={settings.payroll[field]}
+                  canton={canton}
+                  disabled={busy}
+                />
               ))}
-            </select>
-          </Field>
-          {funds.map(([field, kind]) => (
-            <PayrollOrganisationField
-              key={field}
-              kind={kind}
-              name={field}
-              defaultValue={settings.payroll[field]}
-              canton={canton}
-              disabled={busy}
-            />
-          ))}
-          <details className="payroll-simple-guide" data-pension-plan>
-            <summary>Contrat de la caisse de pension</summary>
-            <p>
-              Ces informations figurent dans le règlement de prévoyance. Elles
-              sont nécessaires avant de valider des cotisations LPP.
-            </p>
-            <ol>
-              <li>Indiquez le nom de la caisse ci-dessus.</li>
-              <li>
-                Recopiez le numéro, la référence et la validité du contrat
-                ci-dessous.
-              </li>
-              <li>
-                Dans les cotisations, indiquez les montants mensuels de chaque
-                personne.
-              </li>
-            </ol>
-            <Field label="Numéro du contrat LPP">
-              <input
-                name="contractNumber"
-                defaultValue={settings.payroll.lppPlanEvidence?.contractNumber}
-              />
-            </Field>
-            <Field label="Référence du règlement">
-              <input
-                name="regulationReference"
-                minLength={8}
-                maxLength={500}
-                defaultValue={
-                  settings.payroll.lppPlanEvidence?.regulationReference
-                }
-              />
-            </Field>
-            <div className="form-grid">
-              <Field label="Valable dès le">
-                <input
-                  name="lppFrom"
-                  type="date"
-                  defaultValue={settings.payroll.lppPlanEvidence?.effectiveFrom}
-                />
-              </Field>
-              <Field
-                label="Fin de la période confirmée"
-                hint="Date de fin de validité des informations reçues de la caisse."
-              >
-                <input
-                  name="lppTo"
-                  type="date"
-                  defaultValue={settings.payroll.lppPlanEvidence?.effectiveTo}
-                />
-              </Field>
-            </div>
-            <label className="check-card">
-              <input
-                name="lppParity"
-                type="checkbox"
-                defaultChecked={
-                  settings.payroll.lppPlanEvidence
-                    ?.employerAggregateShareConfirmed
-                }
-              />
-              <span>
-                Le règlement confirme que l’employeur finance au moins la moitié
-                des cotisations de l’ensemble du personnel assuré.
-              </span>
-            </label>
-            <details>
-              <summary>Je ne trouve pas ces informations</summary>
+          </div>
+          <div
+            data-payroll-question={
+              pensionPlanOnly ? 'insurance-0-plan' : 'insurance-1'
+            }
+            hidden={guided && !pensionPlanOnly && question !== 1}
+          >
+            <details
+              className="payroll-simple-guide"
+              data-pension-plan
+              open={
+                pensionPlanOnly || (guided && question === 1) ? true : undefined
+              }
+            >
+              <summary>Contrat de la caisse de pension</summary>
               <p>
-                Demandez à votre caisse le contrat d’affiliation, le règlement
-                en vigueur et le certificat de prévoyance de votre
-                collaborateur. Demandez les montants mensuels à prélever et la
-                part à payer par l’entreprise. Vous pouvez revenir au salaire et
-                conserver une fiche à compléter.
+                Ces informations figurent dans le règlement de prévoyance. Elles
+                sont nécessaires avant de valider des cotisations LPP.
               </p>
-              <a href={PENSION_GUIDE_SOURCE} target="_blank" rel="noreferrer">
-                Comprendre les cotisations de pension — OFAS
-              </a>
+              <ol>
+                <li>Indiquez le nom de la caisse ci-dessus.</li>
+                <li>
+                  Recopiez le numéro, la référence et la validité du contrat
+                  ci-dessous.
+                </li>
+                <li>
+                  Dans les cotisations, indiquez les montants mensuels de chaque
+                  personne.
+                </li>
+              </ol>
+              <Field label="Numéro du contrat LPP">
+                <input
+                  name="contractNumber"
+                  defaultValue={
+                    settings.payroll.lppPlanEvidence?.contractNumber
+                  }
+                />
+              </Field>
+              <Field label="Référence du règlement">
+                <input
+                  name="regulationReference"
+                  minLength={8}
+                  maxLength={500}
+                  defaultValue={
+                    settings.payroll.lppPlanEvidence?.regulationReference
+                  }
+                />
+              </Field>
+              <div className="form-grid">
+                <Field label="Valable dès le">
+                  <input
+                    name="lppFrom"
+                    type="date"
+                    defaultValue={
+                      settings.payroll.lppPlanEvidence?.effectiveFrom
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Fin de la période confirmée"
+                  hint="Date de fin de validité des informations reçues de la caisse."
+                >
+                  <input
+                    name="lppTo"
+                    type="date"
+                    defaultValue={settings.payroll.lppPlanEvidence?.effectiveTo}
+                  />
+                </Field>
+              </div>
+              <label className="check-card">
+                <input
+                  name="lppParity"
+                  type="checkbox"
+                  defaultChecked={
+                    settings.payroll.lppPlanEvidence
+                      ?.employerAggregateShareConfirmed
+                  }
+                />
+                <span>
+                  Le règlement confirme que l’employeur finance au moins la
+                  moitié des cotisations de l’ensemble du personnel assuré.
+                </span>
+              </label>
+              <details>
+                <summary>Je ne trouve pas ces informations</summary>
+                <p>
+                  Demandez à votre caisse le contrat d’affiliation, le règlement
+                  en vigueur et le certificat de prévoyance de votre
+                  collaborateur. Demandez les montants mensuels à prélever et la
+                  part à payer par l’entreprise. Vous pouvez revenir au salaire
+                  et conserver une fiche à compléter.
+                </p>
+                <a href={PENSION_GUIDE_SOURCE} target="_blank" rel="noreferrer">
+                  Comprendre les cotisations de pension — OFAS
+                </a>
+              </details>
             </details>
-          </details>
+          </div>
           <small>
             Choisir un nom ne souscrit aucune assurance et ne fixe aucun taux.
             Une modification remet la configuration à contrôler avant de valider
@@ -904,10 +1092,17 @@ export function PayrollSetup({
           <Button
             type="button"
             variant="ghost"
-            onClick={onClose}
+            onClick={() => {
+              if (guided && question > 0) {
+                fieldGuide.clear();
+                setQuestion((value) => value - 1);
+              } else onClose();
+            }}
             disabled={disabled}
           >
-            Revenir sans enregistrer
+            {guided && question > 0
+              ? 'Étape précédente'
+              : 'Revenir sans enregistrer'}
           </Button>
           <Button
             type="submit"
@@ -917,7 +1112,13 @@ export function PayrollSetup({
               (!['insurance', 'accounts'].includes(section) && !employee)
             }
           >
-            {busy ? 'Enregistrement…' : 'Enregistrer et revenir au salaire'}
+            {busy
+              ? 'Enregistrement…'
+              : guided && question < questionCount - 1
+                ? 'Continuer'
+                : guided
+                  ? 'Enregistrer et continuer'
+                  : 'Enregistrer et revenir au salaire'}
           </Button>
         </div>
       </form>
@@ -929,9 +1130,14 @@ export function PayrollSetup({
           busy={busy}
           act={act}
           destination={destination}
+          guided={guided}
           onFix={navigate}
           onSaved={() => {
             onSaved();
+            if (guided) {
+              onClose();
+              return;
+            }
             setNotice(
               'Cotisation enregistrée. Revenez au salaire pour choisir les cotisations à appliquer.',
             );

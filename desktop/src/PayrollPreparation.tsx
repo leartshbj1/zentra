@@ -1,0 +1,202 @@
+import { useEffect, useRef } from 'react';
+import { ArrowLeft, ArrowRight, CheckCircle2, FileText } from 'lucide-react';
+import { Button } from './ui';
+import type { PayrollHelpTarget } from './payrollHelp';
+import type { PayrollPreparationTask } from './payrollPreparationTasks';
+import './payroll-preparation.css';
+
+export function PayrollPreparation({
+  employeeName,
+  tasks,
+  busy,
+  proposals,
+  onApplyProposals,
+  onSaveDraft,
+  onFix,
+  onBack,
+  onContinue,
+}: {
+  employeeName: string;
+  tasks: PayrollPreparationTask[];
+  busy: boolean;
+  proposals: string[];
+  onApplyProposals: () => void;
+  onSaveDraft?: () => void;
+  onFix: (target: PayrollHelpTarget, selector?: string) => void;
+  onBack: () => void;
+  onContinue: () => void;
+}) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  const useProfile =
+    proposals.length > 0 &&
+    (!tasks[0] ||
+      ['contributions', 'salary', 'pension-contributions'].includes(
+        tasks[0].target,
+      ));
+  const next = useProfile ? undefined : tasks[0];
+  useEffect(() => {
+    heading.current?.focus({ preventScroll: true });
+    heading.current?.scrollIntoView({ block: 'start' });
+  }, [next?.id]);
+  return (
+    <section
+      className="payroll-preparation"
+      aria-label="Préparer ma première fiche"
+    >
+      <Button type="button" variant="ghost" onClick={onBack} disabled={busy}>
+        <ArrowLeft size={16} /> Revenir à mon salaire
+      </Button>
+      <header>
+        <span className="payroll-preparation__eyebrow">
+          La paie de {employeeName}
+        </span>
+        <h3 ref={heading} tabIndex={-1}>
+          {next || useProfile
+            ? 'On prépare votre fiche ensemble.'
+            : busy
+              ? 'Vérification de vos réglages…'
+              : 'Les informations sont prêtes.'}
+        </h3>
+        <p>
+          {next || useProfile
+            ? 'Complétez un point à la fois. Votre saisie reste dans cette fiche.'
+            : 'Revenez au salaire pour contrôler le montant du mois, puis calculer le net.'}
+        </p>
+      </header>
+      <div className="payroll-preparation__status" role="status">
+        {busy ? (
+          'Actualisation des informations…'
+        ) : tasks.length || useProfile ? (
+          `${tasks.length || 1} point${tasks.length > 1 ? 's' : ''} repéré${tasks.length > 1 ? 's' : ''} à préparer`
+        ) : (
+          <>
+            <CheckCircle2 size={18} /> Préparation terminée
+          </>
+        )}
+      </div>
+      {useProfile && (
+        <article className="payroll-preparation__next">
+          <span>Vos réglages sont déjà enregistrés</span>
+          <h4>Reprendre les cotisations de cette personne</h4>
+          <p>
+            Zentra a trouvé les cotisations de vos contrats pour ce mois. Elles
+            serviront à calculer les retenues et la part de l’entreprise.
+          </p>
+          <details>
+            <summary>Voir les {proposals.length} cotisations proposées</summary>
+            <ul>
+              {proposals.map((label, index) => (
+                <li key={`${index}-${label}`}>{label}</li>
+              ))}
+            </ul>
+          </details>
+          <Button type="button" disabled={busy} onClick={onApplyProposals}>
+            Utiliser ces cotisations
+            <ArrowRight size={17} />
+          </Button>
+        </article>
+      )}
+      {next ? (
+        <article className="payroll-preparation__next" key={next.id}>
+          <span>La prochaine action</span>
+          <h4>{next.title}</h4>
+          <p>{next.explanation}</p>
+          <div className="payroll-preparation__document">
+            <FileText size={20} />
+            <div>
+              <strong>À avoir sous les yeux</strong>
+              <p>{next.document}</p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={() => onFix(next.target, next.selector)}
+          >
+            {next.action || 'Ouvrir ce point'}
+            <ArrowRight size={17} />
+          </Button>
+          {next.steps && (
+            <details>
+              <summary>Comment compléter ce point</summary>
+              <ol>
+                {next.steps.map((text) => (
+                  <li key={text}>{text}</li>
+                ))}
+              </ol>
+            </details>
+          )}
+          <details>
+            <summary>Pourquoi ce point est demandé</summary>
+            <ul>
+              {next.messages.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+          </details>
+          <details>
+            <summary>Je n’ai pas encore cette information</summary>
+            <p>
+              Demandez le document indiqué à votre caisse ou à la personne qui
+              prépare habituellement vos salaires.
+            </p>
+            {onSaveDraft ? (
+              <>
+                <p>
+                  Vous pouvez déjà conserver les lignes de salaire et les notes
+                  dans un brouillon. Les cotisations resteront à préparer à la
+                  reprise.
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={onSaveDraft}
+                >
+                  Enregistrer le salaire en brouillon
+                </Button>
+              </>
+            ) : (
+              <p>
+                Revenez au salaire pour continuer votre saisie. Les réglages
+                déjà enregistrés sont conservés.
+              </p>
+            )}
+          </details>
+        </article>
+      ) : (
+        !useProfile && (
+          <Button type="button" onClick={onContinue} disabled={busy}>
+            Continuer vers mon salaire
+            <ArrowRight size={17} />
+          </Button>
+        )
+      )}
+      {tasks.length > 1 && (
+        <details className="payroll-preparation__remaining">
+          <summary>Voir les autres points à préparer</summary>
+          <ol>
+            {tasks.slice(1).map((task) => (
+              <li key={task.id}>
+                <span>{task.title}</span>
+                <Button
+                  type="button"
+                  size="small"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => onFix(task.target, task.selector)}
+                >
+                  Ouvrir
+                </Button>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+      <p className="payroll-preparation__footnote">
+        Les réglages du contrat et des assurances serviront aussi aux prochaines
+        fiches.
+      </p>
+    </section>
+  );
+}
