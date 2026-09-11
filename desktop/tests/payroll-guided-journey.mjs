@@ -81,7 +81,7 @@ try {
     await modal.locator('input[name=validated]').check();
     await page.evaluate(() => sessionStorage.setItem('qa-payroll-refuse-save', '1'));
     await modal.getByRole('button', { name: 'Enregistrer la fiche', exact: true }).click();
-    await modal.getByText('Le compte comptable n’est plus utilisable', { exact: true }).waitFor();
+    await modal.getByText('Choisissez les comptes du salaire', { exact: true }).waitFor();
     await modal.locator('.payroll-problem').filter({ hasText: 'Le compte des salaires à payer est inactif' }).getByText('Voir le message détaillé', { exact: true }).click();
     await modal.getByText(/Le compte des salaires à payer est inactif/).waitFor();
     assert.match(await modal.locator('textarea[name=notes]').inputValue(), /\nMerci/);

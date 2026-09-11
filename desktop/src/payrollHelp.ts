@@ -18,8 +18,95 @@ export type PayrollHelp = {
   explanation: string;
   target: PayrollHelpTarget;
   action: string;
+  selector?: string;
+  steps?: string[];
 };
 const rules: [RegExp, PayrollHelp][] = [
+  [
+    /source de chaque définition LPP|référence.*correspondre exactement/i,
+    {
+      title: 'Reliez la cotisation au règlement de pension',
+      explanation:
+        'Recopiez exactement la référence du règlement enregistrée dans les assurances de l’entreprise. Elle relie le montant du salarié au bon contrat de pension.',
+      target: 'pension-contributions',
+      selector: '[name=source]',
+      action: 'Corriger la référence de pension',
+    },
+  ],
+  [
+    /dates réelles du contrat|dates.*cotisation|période d[’']effet de chaque définition/i,
+    {
+      title: 'Vérifiez les dates de cette cotisation',
+      explanation:
+        'Recopiez les dates de validité du contrat d’assurance. Pour la pension, elles doivent rester dans la période du règlement de l’entreprise.',
+      target: 'contributions',
+      selector: '[name=from]',
+      action: 'Corriger les dates du contrat',
+    },
+  ],
+  [
+    /référence de contrat assez précise/i,
+    {
+      title: 'Indiquez le document qui justifie cette cotisation',
+      explanation:
+        'Recopiez une référence permettant de retrouver le taux ou le montant : assureur, numéro de police et année. Pour la pension, utilisez exactement la référence du règlement enregistrée pour l’entreprise.',
+      target: 'contributions',
+      selector: '[name=source]',
+      action: 'Corriger la référence du contrat',
+    },
+  ],
+  [
+    /(?:date.*(?:décision|demande)|année d[’']évaluation).*petits salaires|date de décision\/demande|small_salary_decision_date/i,
+    {
+      title: 'Confirmez la date du choix de cotisation',
+      explanation:
+        'Cette date vient de la déclaration ou de la confirmation écrite concernant les cotisations du salarié. Elle doit appartenir à l’année de la fiche. Ne saisissez pas une date au hasard.',
+      target: 'history',
+      selector: '[name=decisionDate]',
+      action: 'Corriger la date de confirmation',
+    },
+  ],
+  [
+    /momentanément|storage unavailable|SQLITE_BUSY|database locked|timeout|network/i,
+    {
+      title: 'Le chargement ou l’enregistrement a été interrompu',
+      explanation:
+        'Votre saisie reste dans cet écran. Réessayez avec le bouton de chargement ou d’enregistrement. Si cela échoue encore, transmettez le message détaillé au support.',
+      target: 'review',
+      action: '',
+    },
+  ],
+  [
+    /données.*changé|recalcul|changed|périm|stale/i,
+    {
+      title: 'Le salaire doit être recalculé',
+      explanation:
+        'Une information a changé depuis la dernière vérification. Relancez le calcul pour afficher le nouveau net avant d’enregistrer.',
+      target: 'review',
+      action: 'Revenir à la vérification',
+    },
+  ],
+  [
+    /Complétez la base|plusieurs éléments.*base|Classez comptablement la ligne/i,
+    {
+      title: 'Complétez le détail du salaire',
+      explanation:
+        'Ouvrez le détail pour corriger la ligne indiquée. La base est la partie du salaire soumise à cette assurance ; ce n’est pas le montant de la retenue.',
+      target: 'salary',
+      action: 'Ouvrir le détail du salaire',
+    },
+  ],
+  [
+    /Choisissez les cotisations applicables|sélectionnez le profil fédéral|retirez ces définitions/i,
+    {
+      title: 'Vérifiez les cotisations choisies pour ce mois',
+      explanation:
+        'Les contrats sont enregistrés, mais les cotisations choisies doivent correspondre au collaborateur et à ce mois. Reprenez les réglages de son profil, puis contrôlez le résultat.',
+      target: 'salary',
+      action: 'Choisir les cotisations du mois',
+      selector: '[data-payroll-selection]',
+    },
+  ],
   [
     /(?:LPP|pension).*(?:uniquement 2026|couvre uniquement)|(?:période LPP|période de paie|payment_date|date de paiement|format AAAA-MM)/i,
     {
@@ -31,7 +118,7 @@ const rules: [RegExp, PayrollHelp][] = [
     },
   ],
   [
-    /(?:année d[’']évaluation|évaluation salariale LPP|salaire annuel.*(?:LPP|pension)|lpp_assessment_year|lpp_annual_salary)/i,
+    /(?:évaluation salariale LPP|année d[’']évaluation.*LPP|salaire annuel.*(?:LPP|pension)|lpp_assessment_year|lpp_annual_salary)/i,
     {
       title: 'Complétez le salaire annuel pour la pension',
       explanation:
@@ -128,6 +215,7 @@ const rules: [RegExp, PayrollHelp][] = [
         'Recopiez le pourcentage exact de votre contrat, pour la part du salarié ou de l’entreprise choisie.',
       target: 'contributions',
       action: 'Revoir la cotisation',
+      selector: '[name=rate]',
     },
   ],
   [
@@ -193,9 +281,9 @@ const rules: [RegExp, PayrollHelp][] = [
   [
     /minime importance|petits salaires|small_salary|\bouverture\b|opening_|cumul.*antérieur/i,
     {
-      title: 'Complétez les salaires déjà versés cette année',
+      title: 'Complétez les salaires établis avant Zentra',
       explanation:
-        'Les montants d’avant Zentra sont nécessaires pour éviter de prélever trop ou trop peu de cotisations. Indiquez zéro seulement si aucun montant n’est à reprendre.',
+        'Reprenez les salaires établis par votre entreprise avant Zentra cette année, même s’ils ne sont pas encore payés. Ne recopiez pas les fiches déjà présentes. Indiquez zéro seulement si aucun montant n’est à reprendre.',
       target: 'history',
       action: 'Renseigner le début d’année',
     },
@@ -294,7 +382,7 @@ const rules: [RegExp, PayrollHelp][] = [
 
 export function payrollHelp(message: string): PayrollHelp {
   const known = rules.find(([pattern]) => pattern.test(message))?.[1];
-  if (known) return known;
+  if (known) return { ...known, steps: payrollSteps[known.target] };
   if (
     /^(Indiquez|Choisissez|Complétez|Vérifiez|Les assurances ont changé|La fiche collaborateur a changé|Cette cotisation a changé)/.test(
       message,
@@ -315,6 +403,48 @@ export function payrollHelp(message: string): PayrollHelp {
     action: 'Revoir la fiche',
   };
 }
+
+const payrollSteps: Partial<Record<PayrollHelpTarget, string[]>> = {
+  person: [
+    'Ouvrez le contrat signé ou la fiche du collaborateur.',
+    'Complétez le champ indiqué, puis enregistrez pour revenir au salaire.',
+  ],
+  history: [
+    'Vérifiez si des salaires de votre entreprise ont été établis avant Zentra cette année.',
+    'Choisissez « Non » si aucun montant n’est à reprendre, sinon recopiez les cumuls du dernier décompte.',
+    'Confirmez le choix de cotisation, sa date et le document utilisé.',
+  ],
+  insurance: [
+    'Prenez le contrat d’affiliation ou le courrier de la caisse.',
+    'Recopiez le nom de l’organisme ; les primes se renseignent séparément depuis le contrat.',
+  ],
+  contributions: [
+    'Les taux fédéraux AVS et chômage se préparent avec le profil suisse inclus.',
+    'Pour les autres assurances, recopiez votre contrat : part du salarié ou de l’entreprise, taux et dates.',
+    'Revenez à la fiche et appliquez les cotisations proposées.',
+  ],
+  'pension-person': [
+    'Prenez le certificat ou la confirmation de votre caisse de pension.',
+    'Recopiez le salaire brut annuel annoncé pour cette personne et cette année.',
+  ],
+  'pension-plan': [
+    'Prenez le contrat de prévoyance de l’entreprise.',
+    'Complétez le numéro, la référence du règlement, ses dates et la confirmation de la participation employeur.',
+  ],
+  'pension-contributions': [
+    'Sur le certificat du salarié, repérez les deux montants mensuels : salarié et employeur.',
+    'Enregistrez chaque part séparément, avec sa couverture et la référence du règlement.',
+    'Revenez au salaire pour appliquer les nouvelles cotisations et recalculer.',
+  ],
+  salary: [
+    'Corrigez la ligne ou la cotisation concernée dans le détail.',
+    'Cliquez sur « Vérifier le salaire » pour obtenir le nouveau montant net.',
+  ],
+  accounts: [
+    'Choisissez un compte actif de charges de personnel et un compte de salaires à payer.',
+    'Enregistrez, puis recalculez la fiche avant de confirmer.',
+  ],
+};
 
 export function groupedPayrollHelp(messages: string[]) {
   const groups = new Map<string, PayrollHelp & { messages: string[] }>();

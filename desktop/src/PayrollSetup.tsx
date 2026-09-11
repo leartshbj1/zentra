@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { desktopApi } from './bridge';
 import { PayrollOrganisationField } from './PayrollOrganisationField';
 import { PayrollProblem } from './PayrollProblem';
+import { usePayrollFieldGuide } from './PayrollFieldGuide';
+import { parseSmallSalaryEmployeeForm, SmallSalaryFormError } from './smallSalaryAssessment';
 import { PayrollContractSetup } from './PayrollContractSetup';
 import { PayrollContributionsPanel } from './PayrollContributionsPanel';
 import {
@@ -40,6 +42,7 @@ const funds = [
 
 export function PayrollSetup({
   initial,
+  initialSelector,
   employeeId,
   period,
   workspace,
@@ -49,6 +52,7 @@ export function PayrollSetup({
   onSaved,
 }: {
   initial: PayrollHelpTarget;
+  initialSelector?: string;
   employeeId: string;
   period: string;
   workspace: Workspace;
@@ -62,6 +66,7 @@ export function PayrollSetup({
   );
   const [destination, setDestination] = useState({
     target: initial,
+    selector: initialSelector,
     revision: 0,
   });
   const container = useRef<HTMLDivElement>(null);
@@ -75,8 +80,9 @@ export function PayrollSetup({
   );
   const [advancedBusy, setAdvancedBusy] = useState(false);
   const disabled = busy || advancedBusy;
-  function navigate(target: PayrollHelpTarget) {
+  function navigate(target: PayrollHelpTarget, selector?: string) {
     if (disabled) return;
+    fieldGuide.clear();
     if (['review', 'salary', 'period'].includes(target)) {
       onClose();
       return;
@@ -84,9 +90,10 @@ export function PayrollSetup({
     setSection(payrollDestination(target).section);
     setLoadingAccounts(target === 'accounts');
     if (target === 'advanced-contributions') setAdvancedOpened(true);
-    setDestination((old) => ({ target, revision: old.revision + 1 }));
+    setDestination((old) => ({ target, selector, revision: old.revision + 1 }));
   }
   const [error, setError] = useState('');
+  const fieldGuide = usePayrollFieldGuide();
   const [notice, setNotice] = useState('');
   useEffect(() => {
     if (notice) revealPayrollField(container.current, '[data-setup-notice]');
@@ -100,7 +107,7 @@ export function PayrollSetup({
   useEffect(() => {
     revealPayrollField(
       container.current,
-      payrollDestination(destination.target).selector,
+      destination.selector ?? payrollDestination(destination.target).selector,
     );
   }, [destination, loadingAccounts]);
   useEffect(() => {
@@ -214,16 +221,13 @@ export function PayrollSetup({
           throw new Error(
             'Choisissez si des salaires ont été établis avant Zentra cette année.',
           );
-        data.smallSalaryAssessmentYear = year;
-        data.smallSalarySector = text('sector');
-        data.smallSalaryEmployeeRequestedContributions =
-          text('requested') === 'yes';
-        data.smallSalaryDecisionDate = text('decisionDate');
-        data.smallSalaryEvidenceReference = text('evidence');
-        data.smallSalaryOpeningGrossCents =
-          history === 'none' ? 0 : centsFromInput(form.get('openingGross'));
-        data.smallSalaryOpeningContributedBasisCents =
-          history === 'none' ? 0 : centsFromInput(form.get('openingAvs'));
+        Object.assign(data, parseSmallSalaryEmployeeForm({
+          assessmentYear: String(year), sector: text('sector'),
+          employeeRequestedContributions: text('requested'), decisionDate: text('decisionDate'),
+          evidenceReference: text('evidence'),
+          openingGross: history === 'none' ? '0' : text('openingGross'),
+          openingContributedBasis: history === 'none' ? '0' : text('openingAvs'),
+        }));
         data.acOpeningYear = year;
         data.acOpeningBasisCents =
           history === 'none' ? 0 : centsFromInput(form.get('openingAc'));
@@ -334,6 +338,11 @@ export function PayrollSetup({
         onClose();
       }
     } catch (reason) {
+      if (reason instanceof SmallSalaryFormError) {
+        const names: Record<string, string> = { smallSalarySector: 'sector', smallSalaryEmployeeRequestedContributions: 'requested', smallSalaryDecisionDate: 'decisionDate', smallSalaryEvidenceReference: 'evidence', smallSalaryOpeningGross: 'openingGross', smallSalaryOpeningContributedBasis: 'openingAvs' };
+        const field = container.current?.querySelector<HTMLInputElement>(`[name="${names[reason.field]}"]`);
+        if (field) { fieldGuide.reject(field, reason.message); return; }
+      }
       setError(
         errorMessage(
           reason,
@@ -396,11 +405,16 @@ export function PayrollSetup({
         </output>
       )}
       <form
+        noValidate
         hidden={
           section === 'contributions' || section === 'advanced-contributions'
         }
-        onSubmit={(event) => submitForm(save)(event)}
+        onSubmit={(event) => {
+          if (!fieldGuide.check(event.currentTarget)) { event.preventDefault(); return; }
+          return submitForm(save)(event);
+        }}
       >
+        {fieldGuide.guide}
         <fieldset
           disabled={busy || section !== 'person'}
           hidden={section !== 'person'}
@@ -691,7 +705,7 @@ export function PayrollSetup({
               <option value="yes">Oui, il a demandé à cotiser</option>
             </select>
           </Field>
-          <Field label="Date de confirmation" required>
+          <Field label={`Date du choix de cotisation · ${year}`} required hint={`Recopiez la date de la déclaration ou de la confirmation écrite pour ${year}. Ce n’est pas automatiquement la date de création de la fiche. Si vous n’avez pas ce document, demandez-le au salarié ou à votre caisse AVS.`}>
             <input
               name="decisionDate"
               type="date"

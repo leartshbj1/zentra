@@ -284,6 +284,57 @@
 .payroll-dialog .payroll-setup select {
   font-size: 1rem;
 }
+.payroll-field-guide,
+.payroll-next-action {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  margin: 0 0 18px;
+  border: 1px solid #cbdcda;
+  border-radius: 18px;
+  background: #f0f6f5;
+  color: #243f3a;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.payroll-field-guide {
+  background: #fff7ed;
+  border-color: #e8d5ba;
+  color: #624724;
+}
+.payroll-field-guide p,
+.payroll-next-action p {
+  margin: 0;
+  line-height: 1.65;
+}
+.payroll-field-guide .button,
+.payroll-next-action .button {
+  justify-self: start;
+  white-space: normal;
+  height: auto;
+  min-height: 44px;
+  max-width: 100%;
+}
+.payroll-problem-guide {
+  margin: 10px 0 14px;
+}
+.payroll-problem-guide summary,
+.payroll-next-action summary {
+  cursor: pointer;
+  font-weight: 550;
+  padding: 8px 0;
+}
+.payroll-problem-guide ol {
+  padding-left: 22px;
+  line-height: 1.7;
+}
+.payroll-problem-guide li + li {
+  margin-top: 8px;
+}
+.payroll-dialog [aria-invalid='true'] {
+  outline: 2px solid #b0712f;
+  outline-offset: 2px;
+}
 @media (max-width: 600px) {
   .payroll-setup .form-grid {
     grid-template-columns: minmax(0, 1fr);

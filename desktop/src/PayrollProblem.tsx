@@ -9,7 +9,7 @@ export function PayrollProblem({
   reveal = false,
 }: {
   messages: string[];
-  onFix?: (target: PayrollHelpTarget) => void;
+  onFix?: (target: PayrollHelpTarget, selector?: string) => void;
   disabled?: boolean;
   reveal?: boolean;
 }) {
@@ -20,8 +20,33 @@ export function PayrollProblem({
     <section key={help.title} className="payroll-problem">
       <strong>{help.title}</strong>
       <p>{help.explanation}</p>
-      {onFix && help.action && <Button type="button" size="small" variant="secondary" disabled={disabled} onClick={() => onFix(help.target)}>{help.action}</Button>}
-      <details><summary>Voir le message détaillé</summary>{help.messages.map(message => <p key={message}>{message}</p>)}</details>
+      {help.steps && (
+        <details className="payroll-problem-guide">
+          <summary>Comment faire, étape par étape</summary>
+          <ol>
+            {help.steps.map((text) => (
+              <li key={text}>{text}</li>
+            ))}
+          </ol>
+        </details>
+      )}
+      {onFix && help.action && (
+        <Button
+          type="button"
+          size="small"
+          variant="secondary"
+          disabled={disabled}
+          onClick={() => onFix(help.target, help.selector)}
+        >
+          {help.action}
+        </Button>
+      )}
+      <details>
+        <summary>Voir le message détaillé</summary>
+        {help.messages.map((message) => (
+          <p key={message}>{message}</p>
+        ))}
+      </details>
     </section>
   );
   useEffect(() => {
@@ -41,11 +66,18 @@ export function PayrollProblem({
       aria-live="polite"
     >
       {helpItems[0] && renderHelp(helpItems[0])}
-      {helpItems.length > 1 && <details className="payroll-remaining" key={helpItems[0].title}>
-        <summary>Voir les {helpItems.length - 1} autres points à compléter</summary>
-        <p>Vous pouvez commencer par le premier point. Votre saisie reste dans ce formulaire pendant les corrections.</p>
-        {helpItems.slice(1).map(renderHelp)}
-      </details>}
+      {helpItems.length > 1 && (
+        <details className="payroll-remaining" key="remaining-problems">
+          <summary>
+            Voir les {helpItems.length - 1} autres points à compléter
+          </summary>
+          <p>
+            Vous pouvez commencer par le premier point. Votre saisie reste dans
+            ce formulaire pendant les corrections.
+          </p>
+          {helpItems.slice(1).map(renderHelp)}
+        </details>
+      )}
     </div>
   );
 }

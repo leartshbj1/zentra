@@ -3,6 +3,7 @@ import { desktopApi } from './bridge';
 import { Button, Field, submitForm } from './ui';
 import { createId, centsFromInput, errorMessage } from './utils';
 import { PayrollProblem } from './PayrollProblem';
+import { usePayrollFieldGuide } from './PayrollFieldGuide';
 import type { PayrollHelpTarget } from './payrollHelp';
 import { revealPayrollField } from './payrollNavigation';
 import { pensionPlanComplete } from './payrollPension';
@@ -41,7 +42,7 @@ export function PayrollContractSetup({
   ) => Promise<boolean>;
   onSaved: () => void;
   destination?: { target: PayrollHelpTarget; revision: number };
-  onFix?: (target: PayrollHelpTarget) => void;
+  onFix?: (target: PayrollHelpTarget, selector?: string) => void;
 }) {
   const [category, setCategory] = useState<ContractPreset>(
     destination?.target === 'pension-contributions' ? 'lpp' : 'aap',
@@ -58,6 +59,7 @@ export function PayrollContractSetup({
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const fieldGuide = usePayrollFieldGuide();
   const [revision, setRevision] = useState(0);
   const [id, setId] = useState(createId);
   const [editing, setEditing] = useState<PayrollContributionDefinition | null>(
@@ -163,10 +165,10 @@ export function PayrollContractSetup({
             messages={[error]}
             reveal
             disabled={busy || loading}
-            onFix={(target) => {
+            onFix={(target, selector) => {
               if (['contributions', 'review', 'salary'].includes(target))
-                revealPayrollField(container.current, 'form');
-              else onFix?.(target);
+                revealPayrollField(container.current, selector ?? 'form');
+              else onFix?.(target, selector);
             }}
           />
           <Button
@@ -231,6 +233,7 @@ export function PayrollContractSetup({
           value={category}
           disabled={busy}
           onChange={(event) => {
+            fieldGuide.clear();
             setCategory(event.target.value as ContractPreset);
             setEditing(null);
             setId(createId());
@@ -376,9 +379,11 @@ export function PayrollContractSetup({
         </output>
       )}
       <form
+        noValidate
         key={`${category}-${id}`}
-        onSubmit={(event) =>
-          submitForm(async (form) => {
+        onSubmit={(event) => {
+          if (!fieldGuide.check(event.currentTarget)) { event.preventDefault(); return; }
+          return submitForm(async (form) => {
             try {
               const text = (name: string) => {
                 const value = form.get(name);
@@ -449,9 +454,10 @@ export function PayrollContractSetup({
                 errorMessage(reason, 'Vérifiez les informations du contrat.'),
               );
             }
-          })(event)
-        }
+          })(event);
+        }}
       >
+        {fieldGuide.guide}
         <fieldset disabled={busy || loading || year !== 2026}>
           <div className="form-grid">
             <Field label="Qui paie cette part ?" required>

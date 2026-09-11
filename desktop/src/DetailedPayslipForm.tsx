@@ -11,6 +11,8 @@ import {
 import { desktopApi } from './bridge';
 import { PayrollSetup } from './PayrollSetup';
 import { PayrollProblem } from './PayrollProblem';
+import { usePayrollFieldGuide } from './PayrollFieldGuide';
+import { revealPayrollField } from './payrollNavigation';
 import type { PayrollHelpTarget } from './payrollHelp';
 import {
   PAYROLL_STEPS,
@@ -79,7 +81,15 @@ export function DetailedPayslipForm({
   const initialEmployee = !item && activeEmployees.length === 1 ? activeEmployees[0] : undefined;
   const [step, setStep] = useState(0);
   const [setup, setSetup] = useState<PayrollHelpTarget | null>(null);
-  function fixPayroll(target: PayrollHelpTarget) {
+  const [setupSelector, setSetupSelector] = useState<string | undefined>();
+  const [arrivalSelector, setArrivalSelector] = useState<string | undefined>();
+  const [arrivalRevision, setArrivalRevision] = useState(0);
+  const [configurationUpdated, setConfigurationUpdated] = useState(false);
+  const fieldGuide = usePayrollFieldGuide();
+  function fixPayroll(target: PayrollHelpTarget, selector?: string) {
+    setArrivalSelector(selector ?? (target === 'salary' ? '[data-payroll-selection]' : undefined));
+    setArrivalRevision(value => value + 1);
+    setSetupSelector(selector);
     if (target === 'salary') {
       setStep(1);
       setShowContributions(true);
@@ -183,7 +193,8 @@ export function DetailedPayslipForm({
     headingRef.current
       ?.closest('.modal__body')
       ?.scrollTo({ top: 0, behavior: 'instant' });
-  }, [step, setup]);
+    if (arrivalSelector) revealPayrollField(formRef.current, arrivalSelector);
+  }, [step, setup, arrivalSelector, arrivalRevision]);
 
   const selections = useMemo(
     () =>
@@ -670,8 +681,26 @@ export function DetailedPayslipForm({
     setSelections(next);
   }
 
+  const missingProposals = proposal.filter(definition => !selections[definition.id]);
+  function addMissingProposals() {
+    // An explicit action adds the new applicable lines without resetting manual bases.
+    invalidateCalculation();
+    const next = { ...selectionDrafts };
+    const automatic = new Set(automaticBases);
+    for (const definition of missingProposals) {
+      next[definition.id] = { basisCents: definition.basisKind === 'coordinated'
+        ? (eligibility.coordinatedAnnualSalaryCents ?? undefined)
+        : definition.basisKind === 'gross' ? totals.earnings
+          : definition.basisKind === 'ahv_salary' ? guidedBasis.amountCents : undefined };
+      if (definition.basisKind === 'ahv_salary') automatic.add(definition.id);
+    }
+    setSelections(next);
+    setAutomaticBases(automatic);
+  }
+
   async function nextStep() {
     setLocalError('');
+    if (formRef.current && !fieldGuide.check(formRef.current)) return;
     if (step === 0) {
       const fields = formRef.current?.querySelectorAll<
         HTMLInputElement | HTMLSelectElement
@@ -760,7 +789,9 @@ export function DetailedPayslipForm({
           selected.yearToDateBasisCents === undefined)
       ) {
         setCalculationError(
-          `Complétez la base${definition.annualCeilingCents ? ' et le cumul annuel' : ''} pour ${definition.label}.`,
+          definition.category === 'lpp' && definition.basisKind === 'coordinated' && selected.basisCents === undefined
+            ? 'Confirmez le salaire annuel LPP du collaborateur pour calculer sa base de pension.'
+            : `Complétez la base${definition.annualCeilingCents ? ' et le cumul annuel' : ''} pour ${definition.label}.`,
         );
         return false;
       }
@@ -791,6 +822,7 @@ export function DetailedPayslipForm({
       }
       setCalculation(result);
       setCalculatedFingerprint(requestFingerprint);
+      setConfigurationUpdated(false);
       return true;
     } catch (reason) {
       if (request !== calculationRequest.current) return false;
@@ -826,6 +858,7 @@ export function DetailedPayslipForm({
       {setup && (
         <PayrollSetup
           initial={setup}
+          initialSelector={setupSelector}
           employeeId={employeeId}
           period={period}
           workspace={workspace}
@@ -834,6 +867,7 @@ export function DetailedPayslipForm({
           onClose={() => setSetup(null)}
           onSaved={() => {
             setLocalError('');
+            setConfigurationUpdated(true);
             invalidateCalculation();
             setConfigurationReload((value) => value + 1);
           }}
@@ -845,11 +879,13 @@ export function DetailedPayslipForm({
           ref={formRef}
           noValidate
           onSubmit={submitForm(async (form) => {
+            if (busy || calculating) return;
             if (step < 2) {
               await nextStep();
               return;
             }
             setLocalError('');
+            if (formRef.current && !fieldGuide.check(formRef.current)) return;
             if (!employeeId || !period) {
               setStep(0);
               return;
@@ -898,9 +934,7 @@ export function DetailedPayslipForm({
               return;
             }
             if (selectedItems.length && !hasCurrentCalculation) {
-              setLocalError(
-                'Les données de paie ont changé. Recalculez et contrôlez les cotisations avant d’enregistrer.',
-              );
+              await calculate();
               return;
             }
             const wantsValidation =
@@ -982,6 +1016,8 @@ export function DetailedPayslipForm({
               }
             </p>
           </div>
+          {fieldGuide.guide}
+          {(loadingRates || loadingAccounting) && <p className="payroll-callout" role="status">Chargement des réglages du salaire… Votre saisie reste conservée.</p>}
           {localError || calculationError ? (
             <PayrollProblem
               messages={[localError, calculationError]}
@@ -1422,7 +1458,7 @@ export function DetailedPayslipForm({
                 </a>
               </div>
             </details>
-            <section className="payroll-selection">
+            <section className="payroll-selection" data-payroll-selection>
               <header>
                 <div>
                   <strong>Ce qui sera retenu sur le salaire</strong>
@@ -1468,7 +1504,7 @@ export function DetailedPayslipForm({
                     type="button"
                     variant="secondary"
                     disabled={busy}
-                    onClick={() => setSetup('contributions')}
+                    onClick={() => fixPayroll('contributions')}
                   >
                     Préparer les cotisations avec l’assistant
                   </Button>
@@ -1479,7 +1515,7 @@ export function DetailedPayslipForm({
                 variant="ghost"
                 size="small"
                 disabled={busy || calculating}
-                onClick={() => setSetup('insurance')}
+                onClick={() => fixPayroll('insurance')}
               >
                 Mes caisses et assurances
               </Button>
@@ -1488,7 +1524,7 @@ export function DetailedPayslipForm({
                 variant="ghost"
                 size="small"
                 disabled={busy || calculating}
-                onClick={() => setSetup('contributions')}
+                onClick={() => fixPayroll('contributions')}
               >
                 Ajouter une cotisation depuis mon contrat
               </Button>
@@ -1576,13 +1612,13 @@ export function DetailedPayslipForm({
                                     definition.category === 'lpp' &&
                                     definition.basisKind === 'coordinated'
                                       ? 'Salaire coordonné annuel 2026 (CHF)'
-                                      : 'Base de calcul (CHF)'
+                                      : `Base de calcul (CHF) · ${definition.label}`
                                   }
                                   hint={
                                     definition.category === 'lpp' &&
                                     definition.basisKind === 'coordinated'
                                       ? 'Calculé automatiquement depuis le salaire annuel LPP et les bornes légales 2026.'
-                                      : undefined
+                                      : 'Part du salaire soumise à cette assurance, avant retenue. Montant en CHF, deux décimales maximum. Ne mettez pas zéro si le montant est inconnu.'
                                   }
                                   required
                                 >
@@ -1597,7 +1633,7 @@ export function DetailedPayslipForm({
                                     }
                                     onChange={(event) =>
                                       patchSelection(definition.id, {
-                                        basisCents: Math.round(
+                                        basisCents: event.target.value === '' ? undefined : Math.round(
                                           (event.target.valueAsNumber || 0) *
                                             100,
                                         ),
@@ -1632,7 +1668,7 @@ export function DetailedPayslipForm({
                                       }
                                       onChange={(event) =>
                                         patchSelection(definition.id, {
-                                          yearToDateBasisCents: Math.round(
+                                          yearToDateBasisCents: event.target.value === '' ? undefined : Math.round(
                                             (event.target.valueAsNumber || 0) *
                                               100,
                                           ),
@@ -1683,6 +1719,20 @@ export function DetailedPayslipForm({
             hidden={step !== 2}
             disabled={step !== 2 || busy}
           >
+            {(configurationUpdated || (selectedItems.length > 0 && !hasCurrentCalculation)) && (
+              <section className="payroll-next-action" role="status">
+                <strong>{configurationUpdated ? 'Réglage enregistré. Vérifions son effet sur le salaire.' : 'Votre salaire a changé. Actualisons le net.'}</strong>
+                <p>Le salaire saisi et vos notes sont conservés. Cliquez sur « Recalculer le salaire » en bas, puis contrôlez le nouveau net avant d’enregistrer.</p>
+              </section>
+            )}
+            {missingProposals.length > 0 && (
+              <section className="payroll-next-action">
+                <strong>{missingProposals.length} cotisation{missingProposals.length > 1 ? 's' : ''} du profil à ajouter à cette fiche</strong>
+                <p>Ces cotisations sont enregistrées et proposées pour cette personne et ce mois. Vérifiez la liste avant de les appliquer. Vos bases déjà saisies restent conservées.</p>
+                <details><summary>Voir les cotisations proposées</summary><ul>{missingProposals.map(definition => <li key={definition.id}>{definition.label}</li>)}</ul></details>
+                <Button type="button" variant="secondary" disabled={busy || calculating || loadingRates} onClick={addMissingProposals}>Appliquer les nouvelles cotisations</Button>
+              </section>
+            )}
             <div className="payroll-net" aria-live="polite">
               <span>Net à payer à {employee?.name}</span>
               <strong>
@@ -2067,13 +2117,13 @@ export function DetailedPayslipForm({
               <FormActions
                 onCancel={close}
                 busy={busy}
-                submitLabel="Enregistrer la fiche"
+                submitLabel={calculating ? 'Calcul en cours…' : selectedItems.length > 0 && !hasCurrentCalculation ? 'Recalculer le salaire' : 'Enregistrer la fiche'}
                 disabled={
+                  calculating ||
                   loadingRates ||
                   loadingAccounting ||
                   existingBlocked ||
-                  Boolean(accountingError) ||
-                  (selectedItems.length > 0 && !hasCurrentCalculation)
+                  Boolean(accountingError)
                 }
               />
             )}

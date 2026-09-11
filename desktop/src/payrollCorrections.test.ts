@@ -7,6 +7,22 @@ import type { PayrollSettings } from './types';
 describe('orientation vers le bon réglage de paie', () => {
   it.each([
     [
+      'La date de décision/demande doit être une date réelle dans l’année d’évaluation des petits salaires.',
+      'history',
+      'history',
+    ],
+    [
+      'La décision des petits salaires concerne 2025; confirmez-la pour 2026.',
+      'history',
+      'history',
+    ],
+    [
+      'Les données de paie ont changé. Recalculez les cotisations.',
+      'review',
+      'contributions',
+    ],
+    ['Complétez la base pour AVS EMPLOYEE.', 'salary', 'contributions'],
+    [
       'Confirmez ensemble l’année d’évaluation et le salaire annuel LPP sur la fiche collaborateur, zéro compris.',
       'pension-person',
       'person',
@@ -72,6 +88,11 @@ describe('orientation vers le bon réglage de paie', () => {
     expect(help.target).toBe(target);
     expect(help.action).not.toBe('');
     expect(payrollDestination(help.target).section).toBe(section);
+  });
+  it('propose de réessayer une panne sans rediriger vers une assurance à modifier', () => {
+    expect(
+      payrollHelp('payroll.accident_insurer: storage unavailable'),
+    ).toMatchObject({ target: 'review', action: '' });
   });
   it('ne fusionne pas les trois étapes pension sous un bouton ambigu', () => {
     const errors = [

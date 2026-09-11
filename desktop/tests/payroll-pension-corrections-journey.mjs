@@ -35,6 +35,7 @@ try {
     await setup.locator('input[name=lppAnnualSalary]').fill('60000');
     await setup.getByRole('button', { name: 'Enregistrer et revenir au salaire', exact: true }).click();
     await setup.waitFor({ state: 'hidden' });
+    assert.equal(await modal.getByRole('button', { name: 'Recalculer le salaire', exact: true }).isEnabled(), true);
     await modal.getByRole('button', { name: 'Régler les montants de pension', exact: true }).click();
     assert.equal(await contracts.getByRole('combobox', { name: 'Quelle cotisation souhaitez-vous préparer ?' }).inputValue(), 'lpp');
     await contracts.getByRole('button', { name: 'Compléter le contrat de pension', exact: true }).click();
@@ -67,10 +68,9 @@ try {
     assert.deepEqual(overflow, []);
     await setup.getByRole('button', { name: '← Revenir au salaire', exact: true }).click();
     assert.equal(await modal.locator('textarea[name=notes]').inputValue(), 'Pension à corriger\nConserver ma saisie');
-    await modal.getByRole('button', { name: 'Retour', exact: true }).click();
-    assert.equal(await salary.inputValue(), '5123.45');
-    await modal.getByRole('button', { name: 'Reprendre les réglages du profil', exact: true }).click();
-    await modal.getByRole('button', { name: 'Vérifier le salaire', exact: true }).click();
+    assert.equal(await modal.getByRole('spinbutton', { name: 'Salaire brut du mois (CHF)', exact: true, includeHidden: true }).inputValue(), '5123.45');
+    await modal.getByRole('button', { name: 'Appliquer les nouvelles cotisations', exact: true }).click();
+    await modal.getByRole('button', { name: 'Recalculer le salaire', exact: true }).click();
     assert.equal(await modal.locator('.payroll-issues').count(), 0);
     await page.evaluate(() => sessionStorage.setItem('qa-payroll-refuse-save', '1'));
     await modal.getByRole('button', { name: 'Enregistrer la fiche', exact: true }).click();
@@ -84,8 +84,7 @@ try {
     assert.equal(accountChanges[0].wagesExpenseAccountId, 'expense-qa');
     assert.equal(accountChanges[0].wagesPayableAccountId, 'social-qa');
     await page.evaluate(() => sessionStorage.setItem('qa-payroll-refuse-save', '0'));
-    await modal.getByRole('button', { name: 'Retour', exact: true }).click();
-    await modal.getByRole('button', { name: 'Vérifier le salaire', exact: true }).click();
+    await modal.getByRole('button', { name: 'Recalculer le salaire', exact: true }).click();
     await modal.getByRole('button', { name: 'Enregistrer la fiche', exact: true }).click();
     await modal.waitFor({ state: 'hidden' });
     const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-payroll-save') || '[]').at(-1));
