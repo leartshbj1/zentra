@@ -1,3 +1,4 @@
+import { useScreenArrival } from './useScreenArrival';
 import { PayrollOrganisationField } from './PayrollOrganisationField';
 import { CompanyLogo } from './CompanyLogo';
 import { useProjectSyncBackground } from './projectSync';
@@ -505,6 +506,7 @@ export function WorkspaceApp({
   );
   const sidebarHidden = compactSidebarHidden(compactNavigation || (isNativeMacOS && nativeNavigation), menuOpen);
   const navigationRef = useRef<HTMLElement>(null);
+  const screenArrivalRef = useScreenArrival(view);
   const mobileNavigationRef = useRef<HTMLElement>(null);
   const navigationDrawerOpen = menuOpen && (compactNavigation || (isNativeMacOS && nativeNavigation));
   useNavigationDrawer(navigationDrawerOpen, navigationRef, () => setMenuOpen(false));
@@ -1637,7 +1639,7 @@ export function WorkspaceApp({
           </div>
         ) : null}
 
-        <section className="page-content" key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
+        <section className="page-content" ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -2303,6 +2305,10 @@ function Dashboard({
     );
   return (
     <div className="dashboard-grid">
+      <div className="dashboard-overview-heading">
+        <h2>Votre activité en un regard</h2>
+        <span>Toutes périodes · devises séparées</span>
+      </div>
       <div className="metric-grid dashboard-summary" role="group" aria-label="Résumé de votre activité">
         <MetricCard
           label="Factures émises · TTC"
@@ -6738,6 +6744,15 @@ function EmployeeForm({
   close: () => void;
   act: ActionRunner;
 }) {
+  const [step, setStep] = useState(0);
+  const [review, setReview] = useState<Record<string, string>>({});
+  const stepHeading = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (step > 0) {
+      stepHeading.current?.focus({ preventScroll: true });
+      stepHeading.current?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [step]);
   const [salaryMode, setSalaryMode] = useState<Employee['salaryMode'] | ''>(
     item?.salaryMode ?? '',
   );
@@ -6768,15 +6783,37 @@ function EmployeeForm({
   return (
     <Modal
       title={item ? 'Modifier le collaborateur' : 'Nouveau collaborateur'}
-      description="Renseignez les informations du collaborateur ou importez une fiche existante."
+      description="Trois étapes pour enregistrer la personne. Les réglages de paie pourront être complétés ensuite."
       onClose={close}
       wide
     >
       <form
-        className="employee-form"
+        className="employee-form employee-wizard"
+        noValidate
         ref={formElement}
         onSubmit={submitForm(async (form) => {
           setLocalError('');
+          const fields = formElement.current?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+            step < 2 ? `[data-employee-step="${step}"] input, [data-employee-step="${step}"] select, [data-employee-step="${step}"] textarea` : 'input, select, textarea',
+          );
+          const invalid = Array.from(fields ?? []).find((field) => !field.checkValidity());
+          if (invalid) {
+            const owner = invalid.closest<HTMLElement>('[data-employee-step]');
+            if (owner) setStep(Number(owner.dataset.employeeStep));
+            let parent = invalid.parentElement;
+            while (parent) {
+              if (parent instanceof HTMLDetailsElement) parent.open = true;
+              parent = parent.parentElement;
+            }
+            setLocalError('Complétez le champ indiqué pour continuer. Votre saisie est conservée.');
+            requestAnimationFrame(() => { invalid.focus(); invalid.reportValidity(); });
+            return;
+          }
+          if (step < 2) {
+            setReview(Object.fromEntries(Array.from(form.entries()).map(([key, value]) => [key, String(value)])));
+            setStep(step + 1);
+            return;
+          }
           try {
             const allowanceChoice = String(form.get('avsAllowanceWaived') ?? '');
             const contractualHours = String(
@@ -6920,11 +6957,19 @@ function EmployeeForm({
           } catch (reason) { setLocalError(errorMessage(reason, 'Le collaborateur n’a pas pu être enregistré.')); }
         })}
       >
-        {localError ? <ErrorPanel message={localError} reveal /> : null}
-        <EmployeeDocumentImport onRead={applyDocument} disabled={busy} />
+        <ol className="payroll-steps" aria-label="Étapes du collaborateur">
+          {['La personne', 'Le travail', 'Vérifier'].map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}
+        </ol>
+        <div className="payroll-step-intro" ref={stepHeading} tabIndex={-1}>
+          <h3>{['Qui rejoint votre équipe ?', 'Quel travail et quel salaire ?', 'Tout est prêt pour enregistrer'][step]}</h3>
+          <p>{['Commencez par le nom et la fonction. Les coordonnées sont facultatives.', 'Recopiez les informations du contrat. Brut signifie avant les retenues.', 'Relisez les informations. Vous pourrez compléter les assurances lors de la première fiche de salaire.'][step]}</p>
+        </div>
+        {localError ? <ErrorPanel title="Vérifions ce point ensemble" message={localError} reveal /> : null}
+        <fieldset className="employee-step" data-employee-step="0" hidden={step !== 0}>
+          <details className="payroll-details"><summary>Préremplir avec une fiche de salaire existante</summary>        <EmployeeDocumentImport onRead={applyDocument} disabled={busy} />
         {prefill?.warnings.length ? <div className="employee-prefill-notes" role="status">{prefill.warnings.map(warning => <p key={warning}>{warning}</p>)}</div> : null}
-        <div className="form-grid">
-          <Field label="Nom complet" required wide>
+</details>
+          <div className="form-grid">          <Field label="Nom complet" required wide>
             <input name="name" defaultValue={item?.name} required autoFocus />
           </Field>
           <Field label="Numéro de collaborateur">
@@ -6933,35 +6978,8 @@ function EmployeeForm({
           <Field label="Fonction" required>
             <input name="role" defaultValue={item?.role} required />
           </Field>
-          <Field label="Taux d’activité (%)" required>
-            <input
-              name="employmentRate"
-              type="number"
-              min="0.01"
-              max="100"
-              step="0.01"
-              defaultValue={item?.employmentRate || ''}
-              required
-            />
-          </Field>
-          <Field
-            label="Horaire AANP confirmé (h/semaine)"
-            hint="Saisissez l’horaire contractuel régulier ou, pour un horaire irrégulier, une moyenne hebdomadaire représentative documentée. Laissez vide tant que cette moyenne n’est pas confirmée: la décision AANP restera bloquée."
-          >
-            <input
-              name="contractualWeeklyHours"
-              type="number"
-              min="0.01"
-              max="168"
-              step="0.01"
-              defaultValue={
-                item?.contractualWeeklyMinutes
-                  ? item.contractualWeeklyMinutes / 60
-                  : ''
-              }
-            />
-          </Field>
-          <Field label="E-mail">
+</div>
+          <details className="payroll-details"><summary>Ajouter les coordonnées · facultatif</summary><div className="form-grid">          <Field label="E-mail">
             <input name="email" type="email" defaultValue={item?.email} />
           </Field>
           <Field label="Téléphone">
@@ -6982,7 +7000,7 @@ function EmployeeForm({
           <Field label="Canton">
             <input name="canton" defaultValue={item?.canton} />
           </Field>
-          <Field label="Pays (code ISO, 2 lettres)">
+          <Field label="Pays (CH pour la Suisse)">
             <input
               name="country"
               minLength={2}
@@ -6990,18 +7008,36 @@ function EmployeeForm({
               defaultValue={item?.country}
             />
           </Field>
-          <Field label="Date de naissance">
+</div></details>
+        </fieldset>
+        <fieldset className="employee-step" data-employee-step="1" hidden={step !== 1}>
+          <div className="form-grid">          <Field label="Taux d’activité (%)" required>
             <input
-              name="birthDate"
-              type="date"
-              defaultValue={item?.birthDate}
+              name="employmentRate"
+              type="number"
+              min="0.01"
+              max="100"
+              step="0.01"
+              defaultValue={item?.employmentRate || ''}
+              required
             />
           </Field>
-          <Field label="Numéro AVS">
-            <input name="avsNumber" defaultValue={item?.avsNumber} />
-          </Field>
-          <Field label="IBAN du collaborateur">
-            <input name="iban" defaultValue={item?.iban} />
+          <Field
+            label="Heures de travail par semaine"
+            hint="Recopiez les heures du contrat. Pour un horaire variable, utilisez une moyenne documentée. Cette information servira au contrôle de l’assurance accidents."
+          >
+            <input
+              name="contractualWeeklyHours"
+              type="number"
+              min="0.01"
+              max="168"
+              step="0.01"
+              defaultValue={
+                item?.contractualWeeklyMinutes
+                  ? item.contractualWeeklyMinutes / 60
+                  : ''
+              }
+            />
           </Field>
           <Field label="Début du contrat">
             <input
@@ -7018,8 +7054,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Nature du contrat pour la LPP"
-            hint="Confirmez la nature réelle du contrat. Zentra ne la déduit ni des dates ni du salaire."
+            label="Type de contrat"
+            hint="Recopiez le type indiqué sur le contrat de travail."
           >
             <select
               name="employmentContractKind"
@@ -7035,7 +7071,85 @@ function EmployeeForm({
               <option value="fixed">Durée déterminée</option>
             </select>
           </Field>
+          <Field label="Comment cette personne est-elle payée ?" required>
+            <select
+              value={salaryMode}
+              onChange={(event) =>
+                setSalaryMode(event.target.value as Employee['salaryMode'] | '')
+              }
+              required
+            >
+              <option value="">Choisir le type</option>
+              <option value="hourly">Salaire horaire</option>
+              <option value="monthly">Salaire mensuel</option>
+            </select>
+          </Field>
+          {salaryMode === 'monthly' ? (
+            <Field label="Salaire mensuel brut (CHF)" required>
+              <input
+                name="grossSalary"
+                type="number"
+                min="0"
+                step="0.01"
+                defaultValue={
+                  item?.grossSalaryCents ? item.grossSalaryCents / 100 : ''
+                }
+                required
+              />
+            </Field>
+          ) : null}
           <Field
+            label="Coût d’une heure pour l’entreprise (CHF)"
+            hint="Utilisé pour le coût des projets. Recopiez le coût convenu avec votre entreprise, charges comprises. Ce montant ne remplace pas le salaire brut."
+            required
+          >
+            <input
+              name="hourlyCost"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={item ? item.hourlyCostCents / 100 : ''}
+              required
+            />
+          </Field>
+</div>
+        </fieldset>
+        <fieldset className="employee-step" data-employee-step="2" hidden={step !== 2}>
+          <dl className="employee-review">
+            <div><dt>Collaborateur</dt><dd>{review.name} · {review.role}</dd></div>
+            <div><dt>Activité</dt><dd>{review.employmentRate} %{review.contractualWeeklyHours ? ` · ${review.contractualWeeklyHours} h / semaine` : ''}</dd></div>
+            <div><dt>Salaire</dt><dd>{salaryMode === 'monthly' ? `${review.grossSalary || '0'} CHF brut / mois` : 'À l’heure · le brut sera renseigné sur chaque fiche'}</dd></div>
+          </dl>
+          <div className="form-grid">          <Field label="Statut du collaborateur" required>
+            <select
+              name="status"
+              defaultValue={item ? (item.active ? 'actif' : 'inactif') : 'actif'}
+              required
+            >
+              <option value="">Choisir le statut</option>
+              <option value="actif">Actif</option>
+              <option value="inactif">Inactif</option>
+            </select>
+          </Field>
+          <Field label="Notes internes" wide>
+            <textarea name="notes" rows={3} defaultValue={item?.notes} />
+          </Field>
+</div>
+          <details className="payroll-details"><summary>Identité et coordonnées de paiement · à compléter pour la paie</summary><p>Préparez la date de naissance, le numéro AVS et l’IBAN du collaborateur.</p><div className="form-grid">          <Field label="Date de naissance">
+            <input
+              name="birthDate"
+              type="date"
+              defaultValue={item?.birthDate}
+            />
+          </Field>
+          <Field label="Numéro AVS">
+            <input name="avsNumber" defaultValue={item?.avsNumber} />
+          </Field>
+          <Field label="IBAN du collaborateur">
+            <input name="iban" defaultValue={item?.iban} />
+          </Field>
+</div></details>
+          <details className="payroll-details"><summary>Réglages de paie particuliers · pension, reprise et retraite</summary><p>Vous pouvez les compléter plus tard depuis la fiche de salaire. Ne devinez pas les montants : utilisez les documents de votre caisse ou de votre fiduciaire.</p><div className="form-grid">          <Field
             label="Année d’évaluation LPP"
             hint="À confirmer avec le salaire annuel LPP, pour chaque année contrôlée."
           >
@@ -7360,63 +7474,12 @@ function EmployeeForm({
               </p>
             </div>
           </section>
-          <Field label="Type de rémunération" required>
-            <select
-              value={salaryMode}
-              onChange={(event) =>
-                setSalaryMode(event.target.value as Employee['salaryMode'] | '')
-              }
-              required
-            >
-              <option value="">Choisir le type</option>
-              <option value="hourly">Salaire horaire</option>
-              <option value="monthly">Salaire mensuel</option>
-            </select>
-          </Field>
-          {salaryMode === 'monthly' ? (
-            <Field label="Salaire mensuel brut (CHF)" required>
-              <input
-                name="grossSalary"
-                type="number"
-                min="0"
-                step="0.01"
-                defaultValue={
-                  item?.grossSalaryCents ? item.grossSalaryCents / 100 : ''
-                }
-                required
-              />
-            </Field>
-          ) : null}
-          <Field
-            label="Coût horaire chargé (CHF)"
-            hint="Saisissez le coût réellement défini par l’entreprise."
-            required
-          >
-            <input
-              name="hourlyCost"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={item ? item.hourlyCostCents / 100 : ''}
-              required
-            />
-          </Field>
-          <Field label="Statut du collaborateur" required>
-            <select
-              name="status"
-              defaultValue={item ? (item.active ? 'actif' : 'inactif') : ''}
-              required
-            >
-              <option value="">Choisir le statut</option>
-              <option value="actif">Actif</option>
-              <option value="inactif">Inactif</option>
-            </select>
-          </Field>
-          <Field label="Notes internes" wide>
-            <textarea name="notes" rows={3} defaultValue={item?.notes} />
-          </Field>
+</div></details>
+        </fieldset>
+        <div className="payroll-actions">
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => step > 0 ? setStep(step - 1) : close()}>{step > 0 ? 'Retour' : 'Annuler'}</Button>
+          <Button type="submit" disabled={busy}>{busy ? 'Enregistrement…' : step < 2 ? 'Continuer' : item ? 'Enregistrer les modifications' : 'Ajouter le collaborateur'}</Button>
         </div>
-        <FormActions onCancel={close} busy={busy} />
       </form>
     </Modal>
   );

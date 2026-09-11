@@ -12,6 +12,14 @@ try {
 for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,height:390},{width:1440,height:900}]) {
  page=await browser.newPage({viewport,hasTouch:viewport.width<900});
  page.setDefaultTimeout(12000);
+ await page.addInitScript(() => {
+  window.__qaScreenAnimations = [];
+  const animate = Element.prototype.animate;
+  Element.prototype.animate = function (frames, options) {
+   if (this.classList.contains('page-content')) window.__qaScreenAnimations.push(options);
+   return animate.call(this, frames, options);
+  };
+ });
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&wizard=1`);
  const tour=page.getByRole('button',{name:'Découvrir plus tard',exact:true});
@@ -45,8 +53,7 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  };
  await shot('dashboard');
  await nav('Devis');
- assert.equal(await page.locator('.page-content').evaluate(el=>getComputedStyle(el).animationName),'workspace-arrive');
- assert.equal(await page.locator('.page-content').evaluate(el=>getComputedStyle(el).animationDuration),'0.32s');
+ assert.equal(await page.evaluate(()=>window.__qaScreenAnimations.at(-1)?.duration),320);
  await shot('quotes');
  await page.getByRole('button',{name:'Nouveau devis',exact:true}).click();
  await step(0);await shot('client');
@@ -124,7 +131,9 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  await dialog.getByRole('button',{name:'Enregistrer le brouillon',exact:true}).click();await dialog.waitFor({state:'detached'});
  saved=(await calls())[2];assert.equal(saved[1].type,'credit_note');assert.equal(saved[1].originalInvoiceId,'invoice-2');assert.equal(saved[1].currency,'EUR');assert.equal(saved[1].dueDate,'');
  // Reduced motion removes all page and step animations.
+ const arrivals=await page.evaluate(()=>window.__qaScreenAnimations.length);
  await page.emulateMedia({reducedMotion:'reduce'});await nav('Devis');
+ assert.equal(await page.evaluate(()=>window.__qaScreenAnimations.length),arrivals);
  assert.equal(await page.locator('.page-content').evaluate(el=>getComputedStyle(el).animationName),'none');
  await page.getByRole('button',{name:'Nouveau devis',exact:true}).click();
  assert.equal(await dialog.locator('[data-document-step="0"]').evaluate(el=>getComputedStyle(el).animationName),'none');

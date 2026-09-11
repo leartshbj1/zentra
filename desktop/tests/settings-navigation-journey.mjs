@@ -54,8 +54,11 @@ try {
       await category('company').waitFor({ state: 'visible' });
     }
     await page.getByRole('button', { name: 'Ouvrir les mises à jour de Zentra', exact: true }).click();
-    await category('storage').waitFor({ state: 'visible' });
-    assert.equal(await category('company').isVisible(), false, 'External shortcut opens only its category');
+    const updater = page.getByRole('dialog', { name: 'Mise à jour de Zentra', exact: true });
+    await updater.waitFor({ state: 'visible' });
+    await updater.getByRole('button', { name: 'Fermer « Mise à jour de Zentra »', exact: true }).click();
+    assert.equal(await page.getByRole('textbox', { name: 'Raison sociale' }).inputValue(), 'Brouillon conservé', 'Updater dialog preserves settings drafts');
+    await open('storage');
     if (viewport.width <= 1100) {
       await back.click();
       assert.equal(await page.locator('[data-settings-link="storage"]').evaluate(el => el === document.activeElement), true, 'Shortcut return focuses the actual category');

@@ -74,6 +74,8 @@ export function DetailedPayslipForm({
   close: () => void;
   act: ActionRunner;
 }) {
+  const activeEmployees = workspace.employees.filter(employee => employee.active);
+  const initialEmployee = !item && activeEmployees.length === 1 ? activeEmployees[0] : undefined;
   const [step, setStep] = useState(0);
   const [setup, setSetup] = useState<PayrollHelpTarget | null>(null);
   function fixPayroll(target: PayrollHelpTarget) {
@@ -92,7 +94,7 @@ export function DetailedPayslipForm({
   const formRef = useRef<HTMLFormElement>(null);
   const headingRef = useRef<HTMLDivElement>(null);
   const [lines, setLines] = useState<PayslipLine[]>(
-    item?.lines.map((line) => ({ ...line })) ?? [],
+    item?.lines.map((line) => ({ ...line })) ?? recurringSalary(initialEmployee, workspace.employeePayrollTemplates.find(template => template.employeeId === initialEmployee?.id)).map(line => ({ ...line, id: createId(), kind: 'earning' as const })),
   );
   const [definitions, setDefinitions] = useState<
     PayrollContributionDefinition[]
@@ -116,7 +118,7 @@ export function DetailedPayslipForm({
     item?.period ??
       `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
   );
-  const [employeeId, setEmployeeId] = useState(item?.employeeId ?? '');
+  const [employeeId, setEmployeeId] = useState(item?.employeeId ?? initialEmployee?.id ?? '');
   const [paymentDate, setPaymentDate] = useState(item?.paymentDate ?? '');
   const [loadingRates, setLoadingRates] = useState(true);
   const [existingBlocked, setExistingBlocked] = useState(false);
@@ -1019,7 +1021,7 @@ export function DetailedPayslipForm({
                   required
                 >
                   <option value="">Choisir un collaborateur</option>
-                  {workspace.employees.map((employee) => (
+                  {workspace.employees.filter(employee => employee.active || employee.id === item?.employeeId).map((employee) => (
                     <option value={employee.id} key={employee.id}>
                       {employee.name}
                     </option>
@@ -1697,8 +1699,8 @@ export function DetailedPayslipForm({
               <div className="payroll-issues">
                 <strong>Terminons la préparation</strong>
                 <p>
-                  Complétez les points ci-dessous. Vous pourrez ensuite vérifier
-                  le montant à verser.
+                  Commençons par le premier point. Le bouton ouvre le bon réglage,
+                  puis vous revenez ici sans perdre votre salaire ni vos notes.
                 </p>
                 <PayrollProblem
                   messages={

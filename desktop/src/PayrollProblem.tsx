@@ -15,6 +15,15 @@ export function PayrollProblem({
 }) {
   const container = useRef<HTMLDivElement>(null);
   const messageKey = messages.filter(Boolean).join('\n');
+  const helpItems = groupedPayrollHelp(messages.filter(Boolean));
+  const renderHelp = (help: (typeof helpItems)[number]) => (
+    <section key={help.title} className="payroll-problem">
+      <strong>{help.title}</strong>
+      <p>{help.explanation}</p>
+      {onFix && help.action && <Button type="button" size="small" variant="secondary" disabled={disabled} onClick={() => onFix(help.target)}>{help.action}</Button>}
+      <details><summary>Voir le message détaillé</summary>{help.messages.map(message => <p key={message}>{message}</p>)}</details>
+    </section>
+  );
   useEffect(() => {
     if (!reveal || !messageKey || container.current?.closest('[hidden]'))
       return;
@@ -31,29 +40,12 @@ export function PayrollProblem({
       className="payroll-problems"
       aria-live="polite"
     >
-      {groupedPayrollHelp(messages.filter(Boolean)).map((help) => (
-        <section key={help.title} className="payroll-problem">
-          <strong>{help.title}</strong>
-          <p>{help.explanation}</p>
-          {onFix && help.action && (
-            <Button
-              type="button"
-              size="small"
-              variant="secondary"
-              disabled={disabled}
-              onClick={() => onFix(help.target)}
-            >
-              {help.action}
-            </Button>
-          )}
-          <details>
-            <summary>Voir le message détaillé</summary>
-            {help.messages.map((message) => (
-              <p key={message}>{message}</p>
-            ))}
-          </details>
-        </section>
-      ))}
+      {helpItems[0] && renderHelp(helpItems[0])}
+      {helpItems.length > 1 && <details className="payroll-remaining" key={helpItems[0].title}>
+        <summary>Voir les {helpItems.length - 1} autres points à compléter</summary>
+        <p>Vous pouvez commencer par le premier point. Votre saisie reste dans ce formulaire pendant les corrections.</p>
+        {helpItems.slice(1).map(renderHelp)}
+      </details>}
     </div>
   );
 }
