@@ -70,7 +70,7 @@ def main():
     # The launcher creates this path on a disposable runner; reject broad paths.
     assert any(part.startswith('zentra-installer-') for part in profile.parts)
     assert profile.name == 'profile'
-    expected_schema = {'1.45.0': 58, '1.46.0': 59, '1.46.1': 59, '1.50.0': 59, '1.51.0': 59, '1.51.1': 59, '1.52.0': 59}[version]
+    expected_schema = {'1.45.0': 58, '1.46.0': 59, '1.46.1': 59, '1.50.0': 59, '1.51.0': 59, '1.51.1': 59, '1.52.0': 59, '1.53.0': 59}[version]
     database = profile / 'helvichantier.sqlite3'
     identity = profile / 'installation-identity.dpapi'
     uri = database.as_uri() + ('?mode=rw' if mode == 'seed' else '?mode=ro')

@@ -21,6 +21,10 @@ Recette `payroll-repair-journey.mjs` : Edge et WebKit, 390 et 1440 px. Base effa
 
 Recette `payroll-pension-corrections-journey.mjs` : 320, 390, 1440 px. Salaire annuel, contrat de pension incomplet puis corrigé, deux parts mensuelles, ajout depuis le récapitulatif, correction comptable, recalcul et sauvegarde.
 
+Recette `payroll-guided-journey.mjs` : 320, 390, 768, 1024, 1440 px. Création, références cantonales, résultat tardif rejeté, modification du salaire, retour entre étapes, erreur puis nouvel enregistrement, isolation entre collaborateurs et reprise après indisponibilité des cotisations. Son ancien libellé d’erreur comptable a été actualisé.
+
+L’ancienne recette `payroll-form-journey.mjs`, antérieure au formulaire guidé, s’arrête sur le tutoriel actuel et n’est pas présentée comme réussie. Les trois recettes ci-dessus couvrent le parcours de paie livré. Report dans le dossier principal effectué par patch ciblé ; TypeScript, 86 tests et la recette de correction Edge/WebKit y réussissent aussi.
+
 Ces recettes utilisent des données synthétiques. Elles ne constituent pas une certification de paie, une preuve d’installation native ou une mise à niveau réelle d’un profil client. Aucun changement des taux, règles cantonales ou écritures du moteur natif dans cette version.
 
 ## Références de l’aide
@@ -29,4 +33,14 @@ Consultées le 11 septembre 2026 : [mémento AVS, petits salaires](https://www.a
 
 ## Publication
 
-Compilation et publication en cours. Les preuves de l’artefact et du manifeste seront ajoutées après vérification publique. Pas de publication macOS/iOS dans cette livraison Windows.
+Publié le 11 septembre 2026, source compilée `a29b39f50990ec3c3cef7ca4d8f3b272ce8e1fa2`.
+
+- Installateur `Zentra_1.53.0_x64-setup.exe` : 22 719 743 octets.
+- SHA-256 : `3BD035F7E0300BC72B40B10BE75FB8AB72F19A8FC99D79F7B44A3A8F5D1CA14B`.
+- Exécutable embarqué : `0086C21763F8CF43842087039C168204CBA9ACDBF30077BA3CB8E4F0A23D0084`.
+- Signature directe Tauri/Ed25519 vérifiée sur le fichier téléchargé depuis Supabase avec la clé de confiance existante. Empreinte identique sur GitHub.
+- Canal `latest-windows.json` vérifié publiquement en 1.53.0 ; signature identique au fichier public. Précédent canal conservé sous `latest-windows-before-1.53.json` et comparé au fichier d’origine. `latest.json` partagé inchangé.
+- [GitHub v1.53.0](https://github.com/leartshbj1/zentra/releases/tag/v1.53.0), accès anticipé publié avec l’installateur, sa signature et son SHA-256.
+- [Site Zentra](https://elyko.alb-leart1.chatgpt.site), version 119, source `1014d3a174f1d66c2a2d5dee96ce57b9eb0cc676`, déploiement `appgdep_6aa3f1f7bb788191a353fcff783a8ba3` réussi.
+
+Authenticode indisponible ; installation neuve et mise à niveau d’un profil réel non attestées. Schéma SQLite de livraison conservé à 59. Pas de publication macOS/iOS dans cette livraison Windows.
