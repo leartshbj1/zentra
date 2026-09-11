@@ -203,6 +203,13 @@
 @media screen {
   .employee-step { border: 0; margin: 0; padding: 0; min-width: 0; }
   .employee-step[hidden] { display: none; }
+  .employee-annual-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .employee-annual-fields[hidden] { display: none; }
+  .employee-annual-choice { padding: 16px 0; }
+  .employee-annual-choice p { font-size: 13px; line-height: 1.6; color: #59665e; }
+  .employee-annual-error { background: #fff6e8; border: 1px solid #e6c99d; border-radius: 14px; padding: 16px; color: #694b22; }
+  .employee-annual-error p { margin: 8px 0 0; line-height: 1.6; }
+  .employee-annual-fields [aria-invalid=true] { border-color: #aa702c; outline: 2px solid #e6c99d; outline-offset: 2px; }
   .employee-wizard > .payroll-step-intro { margin: 16px 0; }
   .employee-wizard .payroll-details { margin: 16px 0; }
   .employee-wizard .payroll-details > p { color: #59665e; line-height: 1.55; }

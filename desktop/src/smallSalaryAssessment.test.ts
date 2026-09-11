@@ -4,6 +4,7 @@ import {
   parseSmallSalaryEmployeeForm,
   recordedSmallSalaryGrossBeforePeriod,
   smallSalaryReasonLabel,
+  SmallSalaryFormError,
 } from './smallSalaryAssessment';
 import type { Payslip } from './types';
 
@@ -59,7 +60,7 @@ describe('formulaire annuel des petits salaires', () => {
         ...completeDraft,
         employeeRequestedContributions: '',
       }),
-    ).toThrow(/Complétez toute la décision annuelle/);
+    ).toThrow(/Complétez « Choix du collaborateur/);
   });
 
   it('exige une date civile réelle dans la même année', () => {
@@ -68,13 +69,25 @@ describe('formulaire annuel des petits salaires', () => {
         ...completeDraft,
         decisionDate: '2025-12-31',
       }),
-    ).toThrow(/dans l’année d’évaluation/);
+    ).toThrow(/L’année choisie est 2026, mais la date saisie est le 31.12.2025/);
     expect(() =>
       parseSmallSalaryEmployeeForm({
         ...completeDraft,
         decisionDate: '2026-02-30',
       }),
-    ).toThrow(/date réelle/);
+    ).toThrow(/date valide dans le calendrier pour 2026/);
+  });
+
+  it('identifie le champ de date à ouvrir sans modifier le choix enregistré', () => {
+    const draft = { ...completeDraft, decisionDate: '2025-12-31' };
+    try {
+      parseSmallSalaryEmployeeForm(draft);
+      throw new Error('Expected date validation error');
+    } catch (error) {
+      expect(error).toBeInstanceOf(SmallSalaryFormError);
+      expect(error).toMatchObject({ field: 'smallSalaryDecisionDate' });
+      expect(draft.decisionDate).toBe('2025-12-31');
+    }
   });
 
   it('refuse une base déjà cotisée supérieure au brut d’ouverture', () => {

@@ -126,7 +126,7 @@ import {
   SupplierPaymentForm,
 } from './PurchasesScreen';
 import { DetailedPayslipForm } from './DetailedPayslipForm';
-import { parseSmallSalaryEmployeeForm } from './smallSalaryAssessment';
+import { parseSmallSalaryEmployeeForm, SmallSalaryFormError } from './smallSalaryAssessment';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
 import { NavigationPalette } from './NavigationPalette';
@@ -6765,9 +6765,43 @@ function EmployeeForm({
   const [smallSalarySector, setSmallSalarySector] = useState<
     '' | NonNullable<Employee['smallSalarySector']>
   >(item?.smallSalarySector ?? '');
+  const [annualIssue, setAnnualIssue] = useState<SmallSalaryFormError | null>(null);
+  const [deferAnnual, setDeferAnnual] = useState(false);
+  const [assessmentYear, setAssessmentYear] = useState(String(item?.smallSalaryAssessmentYear ?? ''));
   const [localError, setLocalError] = useState('');
   const formElement = useRef<HTMLFormElement>(null);
   const [prefill, setPrefill] = useState<EmployeeDocumentDraft | null>(null);
+  useEffect(() => {
+    if (!annualIssue) return;
+    const field = formElement.current?.elements.namedItem(annualIssue.field);
+    if (!(field instanceof HTMLElement)) return;
+    setStep(2);
+    let parent = field.parentElement;
+    while (parent) {
+      if (parent instanceof HTMLDetailsElement) parent.open = true;
+      parent = parent.parentElement;
+    }
+    const previousDescription = field.getAttribute('aria-describedby');
+    field.setAttribute('aria-invalid', 'true');
+    field.setAttribute('aria-describedby', [previousDescription, 'employee-annual-error'].filter(Boolean).join(' '));
+    const frame = requestAnimationFrame(() => {
+      field.focus({ preventScroll: true });
+      field.scrollIntoView({ block: 'center', behavior: 'instant' });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      field.removeAttribute('aria-invalid');
+      if (previousDescription) field.setAttribute('aria-describedby', previousDescription);
+      else field.removeAttribute('aria-describedby');
+    };
+  }, [annualIssue]);
+  function reportEmployeeError(reason: unknown) {
+    if (reason instanceof SmallSalaryFormError) {
+      setAnnualIssue(reason);
+      setLocalError('');
+    } else setLocalError(errorMessage(reason, 'Le collaborateur n’a pas pu être enregistré.'));
+  }
+
   useLayoutEffect(() => {
     if (!prefill || !formElement.current) return;
     for (const [name, value] of Object.entries(prefill.fields)) {
@@ -6793,6 +6827,7 @@ function EmployeeForm({
         ref={formElement}
         onSubmit={submitForm(async (form) => {
           setLocalError('');
+          setAnnualIssue(null);
           const fields = formElement.current?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
             step < 2 ? `[data-employee-step="${step}"] input, [data-employee-step="${step}"] select, [data-employee-step="${step}"] textarea` : 'input, select, textarea',
           );
@@ -6952,17 +6987,17 @@ function EmployeeForm({
                 ? 'Le collaborateur a été mis à jour.'
                 : 'Le collaborateur a été ajouté.',
               true,
-              (reason) => setLocalError(errorMessage(reason, 'Le collaborateur n’a pas pu être enregistré.')),
+              reportEmployeeError,
             );
-          } catch (reason) { setLocalError(errorMessage(reason, 'Le collaborateur n’a pas pu être enregistré.')); }
+          } catch (reason) { reportEmployeeError(reason); }
         })}
       >
         <ol className="payroll-steps" aria-label="Étapes du collaborateur">
           {['La personne', 'Le travail', 'Vérifier'].map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}
         </ol>
         <div className="payroll-step-intro" ref={stepHeading} tabIndex={-1}>
-          <h3>{['Qui rejoint votre équipe ?', 'Quel travail et quel salaire ?', 'Tout est prêt pour enregistrer'][step]}</h3>
-          <p>{['Commencez par le nom et la fonction. Les coordonnées sont facultatives.', 'Recopiez les informations du contrat. Brut signifie avant les retenues.', 'Relisez les informations. Vous pourrez compléter les assurances lors de la première fiche de salaire.'][step]}</p>
+          <h3>{['Qui rejoint votre équipe ?', 'Quel travail et quel salaire ?', 'Relisez avant d’enregistrer'][step]}</h3>
+          <p>{['Commencez par le nom et la fonction. Les coordonnées sont facultatives.', 'Recopiez les informations du contrat. Brut signifie avant les retenues.', 'Les informations principales suffisent pour ajouter la personne. Les réglages de paie se préparent ensuite, avec les documents de vos caisses.'][step]}</p>
         </div>
         {localError ? <ErrorPanel title="Vérifions ce point ensemble" message={localError} reveal /> : null}
         <fieldset className="employee-step" data-employee-step="0" hidden={step !== 0}>
@@ -7321,18 +7356,26 @@ function EmployeeForm({
             <header>
               <ShieldCheck size={18} />
               <div>
-                <strong>Décision annuelle · salaires de minime importance</strong>
+                <strong>Choix de cotisation pour l’année</strong>
                 <p>
-                  Documentez les faits réels une fois par année. Zentra
-                  recalcule ensuite le cumul depuis la base locale; cette
-                  section n’est pas une attestation de conformité.
+                  Ce réglage aide à déterminer les cotisations sur les petits
+                  salaires. Recopiez les informations de votre déclaration ou
+                  de la confirmation écrite de votre caisse.
                 </p>
               </div>
             </header>
+            {!item && <div className="employee-annual-choice">
+              <Button type="button" variant="secondary" disabled={busy} onClick={() => { setDeferAnnual(value => !value); setAnnualIssue(null); }}>
+                {deferAnnual ? 'Reprendre ce réglage maintenant' : 'Compléter ce réglage plus tard'}
+              </Button>
+              <p>{deferAnnual ? 'Vous pouvez ajouter le collaborateur. Ce réglage restera à compléter pour la paie. Vos réponses restent disponibles ici jusqu’à la fermeture du formulaire.' : 'Vous n’avez pas encore ce document ? Vous pouvez ajouter la personne et préparer ce réglage plus tard.'}</p>
+            </div>}
+            <fieldset className="employee-annual-fields" disabled={busy || deferAnnual} hidden={deferAnnual}>
+            {annualIssue && annualIssue.field !== 'smallSalaryDecisionDate' && <div id="employee-annual-error" className="employee-annual-error" role="alert"><strong>Une information reste à compléter</strong><p>{annualIssue.message}</p></div>}
             <div className="form-grid">
               <Field
-                label="Année d’évaluation"
-                hint="Complétez toute la section pour l’année contrôlée, ou laissez-la entièrement vide."
+                label="Année concernée"
+                hint="L’année pour laquelle vous confirmez ce choix, par exemple 2026."
               >
                 <input
                   name="smallSalaryAssessmentYear"
@@ -7340,11 +7383,12 @@ function EmployeeForm({
                   min="2000"
                   max="9999"
                   step="1"
-                  defaultValue={item?.smallSalaryAssessmentYear ?? ''}
+                  value={assessmentYear}
+                  onChange={event => setAssessmentYear(event.target.value)}
                 />
               </Field>
               <Field
-                label="Secteur déterminant"
+                label="Secteur d’activité"
                 hint="Le ménage privé et les arts/culture suivent des règles renforcées."
               >
                 <select
@@ -7365,7 +7409,7 @@ function EmployeeForm({
                 </select>
               </Field>
               <Field
-                label="Demande du salarié"
+                label="Le collaborateur a-t-il demandé à cotiser ?"
                 hint="Confirmez oui ou non. Une demande peut passer de non à oui pour l’avenir avec une nouvelle date; elle ne peut pas être retirée après coup."
               >
                 <select
@@ -7390,9 +7434,10 @@ function EmployeeForm({
                   <option value="yes">Oui, demande confirmée</option>
                 </select>
               </Field>
+              {annualIssue?.field === 'smallSalaryDecisionDate' && <div id="employee-annual-error" className="employee-annual-error field--wide" role="alert"><strong>Vérifiez la date du choix de cotisation</strong><p>{annualIssue.message}</p></div>}
               <Field
-                label="Date de la décision/demande"
-                hint="Date réelle de la décision annuelle ou, si le salarié demande ensuite les cotisations, date prospective de cette demande."
+                label="Date du choix de cotisation"
+                hint={`Recopiez la date figurant sur la déclaration ou la confirmation écrite de ce choix${/^\d{4}$/.test(assessmentYear) ? ` pour ${assessmentYear}` : ''}. Exemple : si ce choix a été confirmé le 12 janvier, sélectionnez le 12 janvier de l’année concernée.`}
               >
                 <input
                   name="smallSalaryDecisionDate"
@@ -7401,7 +7446,7 @@ function EmployeeForm({
                 />
               </Field>
               <Field
-                label="Brut versé avant Zentra (CHF)"
+                label="Salaire brut déjà versé avant Zentra (CHF)"
                 hint="Brut déjà payé durant cette année hors Zentra; saisissez 0 si aucun."
               >
                 <input
@@ -7417,7 +7462,7 @@ function EmployeeForm({
                 />
               </Field>
               <Field
-                label="Base déjà cotisée avant Zentra (CHF)"
+                label="Salaire déjà soumis aux cotisations avant Zentra (CHF)"
                 hint="Part du brut d’ouverture déjà soumise; saisissez 0 si aucune."
               >
                 <input
@@ -7433,7 +7478,7 @@ function EmployeeForm({
                 />
               </Field>
               <Field
-                label="Référence de la preuve"
+                label="Document qui confirme ce choix"
                 hint="Ex. déclaration du salarié datée, décompte précédent ou contrôle écrit de la caisse."
                 wide
               >
@@ -7444,7 +7489,7 @@ function EmployeeForm({
                 />
               </Field>
             </div>
-            <div className="employee-small-salary-section__rules">
+            <details className="employee-small-salary-section__rules"><summary>Comprendre ce réglage de cotisation</summary>
               <p>
                 <strong>Secteur ordinaire.</strong> Jusqu’à CHF 2’500 par an,
                 aucune cotisation sans demande; au dépassement, le rattrapage
@@ -7472,7 +7517,8 @@ function EmployeeForm({
                 antérieurs; le retour de « oui » à « non » est refusé par le
                 moteur.
               </p>
-            </div>
+            </details>
+            </fieldset>
           </section>
 </div></details>
         </fieldset>

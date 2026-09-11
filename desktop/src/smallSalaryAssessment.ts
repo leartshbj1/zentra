@@ -31,16 +31,23 @@ const EMPTY_SMALL_SALARY_FIELDS: SmallSalaryEmployeeFields = {
   smallSalaryEvidenceReference: '',
 };
 
-function parseFrancAmount(value: string, label: string): number {
+export class SmallSalaryFormError extends Error {
+  constructor(public readonly field: string, message: string) {
+    super(message);
+    this.name = 'SmallSalaryFormError';
+  }
+}
+
+function parseFrancAmount(value: string, label: string, field: string): number {
   const normalized = value
     .trim()
     .replace(/[\s'’]/g, '')
     .replace(',', '.');
   if (!/^\d+(?:\.\d{1,2})?$/.test(normalized))
-    throw new Error(`${label} doit être un montant positif avec au maximum deux décimales.`);
+    throw new SmallSalaryFormError(field, `${label} : indiquez le montant en CHF, par exemple 1250.50. Saisissez 0 si aucun montant n’a été versé.`);
   const francs = Number(normalized);
   if (!Number.isFinite(francs) || francs < 0)
-    throw new Error(`${label} doit être un montant positif ou zéro.`);
+    throw new SmallSalaryFormError(field, `${label} doit être un montant positif ou zéro.`);
   return Math.round(francs * 100);
 }
 
@@ -80,19 +87,20 @@ export function parseSmallSalaryEmployeeForm(
     return { ...EMPTY_SMALL_SALARY_FIELDS };
 
   const missing = [
-    ['année', normalized.assessmentYear],
-    ['secteur', normalized.sector],
-    ['choix du salarié', normalized.employeeRequestedContributions],
-    ['date de décision', normalized.decisionDate],
-    ['brut d’ouverture', normalized.openingGross],
-    ['base déjà cotisée', normalized.openingContributedBasis],
-    ['référence de preuve', normalized.evidenceReference],
+    ['Année concernée', normalized.assessmentYear, 'smallSalaryAssessmentYear'],
+    ['Secteur d’activité', normalized.sector, 'smallSalarySector'],
+    ['Choix du collaborateur concernant les cotisations', normalized.employeeRequestedContributions, 'smallSalaryEmployeeRequestedContributions'],
+    ['Date du choix de cotisation', normalized.decisionDate, 'smallSalaryDecisionDate'],
+    ['Salaire brut déjà versé avant Zentra', normalized.openingGross, 'smallSalaryOpeningGross'],
+    ['Salaire déjà soumis aux cotisations avant Zentra', normalized.openingContributedBasis, 'smallSalaryOpeningContributedBasis'],
+    ['Document qui confirme ce choix', normalized.evidenceReference, 'smallSalaryEvidenceReference'],
   ]
     .filter(([, value]) => value === '')
-    .map(([label]) => label);
+    ;
   if (missing.length)
-    throw new Error(
-      `Complétez toute la décision annuelle « salaire de minime importance » : ${missing.join(', ')}. Saisissez 0 lorsqu’une ouverture est réellement nulle.`,
+    throw new SmallSalaryFormError(
+      missing[0][2],
+      `Complétez « ${missing[0][0]} ». Vous avez commencé ce réglage de cotisation : ses informations doivent être complétées ensemble. Utilisez votre déclaration ou la confirmation de votre caisse.`,
     );
 
   const assessmentYear = Number(normalized.assessmentYear);
@@ -102,41 +110,47 @@ export function parseSmallSalaryEmployeeForm(
     assessmentYear < 2000 ||
     assessmentYear > 9999
   )
-    throw new Error('L’année d’évaluation des petits salaires doit contenir quatre chiffres.');
+    throw new SmallSalaryFormError('smallSalaryAssessmentYear', 'Indiquez l’année concernée en quatre chiffres, par exemple 2026.');
 
   if (
     normalized.sector !== 'ordinary' &&
     normalized.sector !== 'private_household' &&
     normalized.sector !== 'arts_culture'
   )
-    throw new Error('Choisissez le secteur réel pour la décision annuelle.');
+    throw new SmallSalaryFormError('smallSalarySector', 'Choisissez le secteur d’activité qui correspond à ce travail.');
   if (
     normalized.employeeRequestedContributions !== 'yes' &&
     normalized.employeeRequestedContributions !== 'no'
   )
-    throw new Error('Confirmez explicitement si le salarié a demandé les cotisations.');
+    throw new SmallSalaryFormError('smallSalaryEmployeeRequestedContributions', 'Indiquez si le collaborateur a demandé à cotiser. Recopiez son choix confirmé, oui ou non.');
   if (
     !isRealIsoDate(normalized.decisionDate) ||
     normalized.decisionDate.slice(0, 4) !== normalized.assessmentYear
   )
-    throw new Error(
-      'La date de décision/demande doit être une date réelle dans l’année d’évaluation.',
+    throw new SmallSalaryFormError(
+      'smallSalaryDecisionDate',
+      !isRealIsoDate(normalized.decisionDate)
+        ? `Choisissez une date valide dans le calendrier pour ${assessmentYear}. Il s’agit du jour où le choix concernant les cotisations a été confirmé, indiqué sur votre déclaration ou confirmation écrite.`
+        : `L’année choisie est ${assessmentYear}, mais la date saisie est le ${normalized.decisionDate.split('-').reverse().join('.')}. Recopiez la date du choix de cotisation confirmé pour ${assessmentYear}. Si votre document concerne une autre année, corrigez aussi « Année concernée ».`,
     );
 
   const openingGrossCents = parseFrancAmount(
     normalized.openingGross,
-    'Le brut d’ouverture',
+    'Salaire brut déjà versé avant Zentra',
+    'smallSalaryOpeningGross',
   );
   const openingContributedBasisCents = parseFrancAmount(
     normalized.openingContributedBasis,
-    'La base déjà cotisée',
+    'Salaire déjà soumis aux cotisations avant Zentra',
+    'smallSalaryOpeningContributedBasis',
   );
   if (openingContributedBasisCents > openingGrossCents)
-    throw new Error(
-      'La base déjà cotisée ne peut pas dépasser le brut d’ouverture de la même année.',
+    throw new SmallSalaryFormError(
+      'smallSalaryOpeningContributedBasis',
+      'Le salaire déjà soumis aux cotisations ne peut pas dépasser le salaire brut déjà versé. Vérifiez ces deux montants sur votre ancien décompte.',
     );
   if (normalized.evidenceReference.length > 500)
-    throw new Error('La référence de preuve est limitée à 500 caractères.');
+    throw new SmallSalaryFormError('smallSalaryEvidenceReference', 'Le nom ou la référence du document doit tenir en 500 caractères.');
 
   return {
     smallSalaryAssessmentYear: assessmentYear,
