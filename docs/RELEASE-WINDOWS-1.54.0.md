@@ -28,4 +28,15 @@ Références de l’aide consultées le 11 septembre 2026 : [AVS, cotisations 20
 
 ## Distribution
 
-La compilation et la publication seront consignées ici après vérification des artefacts.
+Publié le 11 septembre 2026. Source compilée : `39af84e5e0fbb0e07454e3c3f2fdedb008c7dd9f`.
+
+- Installateur `Zentra_1.54.0_x64-setup.exe` : 22 780 650 octets, SHA-256 `2BDD3326EFD55326D1DA80D5A5386C9F6EDD8C3ECB741069BCFCC784565392DE`.
+- Exécutable embarqué : SHA-256 `9DDD851B00B7FE4C67DFBB91B856BA0BA5C92A0E50D69AC1E96B06EA88760069`.
+- [GitHub v1.54.0](https://github.com/leartshbj1/zentra/releases/tag/v1.54.0), accès anticipé, avec installateur, signature et empreinte. Digest public GitHub comparé au fichier compilé.
+- Installateur, signature et empreinte téléchargés publiquement depuis Supabase et comparés aux octets préparés. Vérification Ed25519 réussie avec la clé de confiance existante.
+- Canal `latest-windows.json` public vérifié en 1.54.0, URL et signature concordantes. Ancien canal conservé sous `latest-windows-before-1.54.json` et comparé à l’original ; canal partagé `latest.json` inchangé.
+- [Site Zentra](https://elyko.alb-leart1.chatgpt.site) publié, version 120, source `9d3c9e1c6631571a345b8e23d9b15ba579257ff3`, déploiement `appgdep_6aa43906a43c8191b9e77781a7cc5c25` réussi. Le lien Windows et son empreinte correspondent au nouvel installateur.
+
+Les deux tests natifs `incomplete_employee_can_calculate_a_draft_without_statutory_contributions` et `atomic_payslip_save_rolls_back_create_and_update_on_contribution_error` réussissent sur cette source. Report ciblé dans le dossier principal : TypeScript et la recette complète première fiche Edge/WebKit passent aussi sur un serveur neuf ; les travaux natifs et la classification des revenus déjà présents ont été conservés.
+
+Authenticode indisponible. Installation neuve et mise à niveau d’un profil client réel non attestées. Cette livraison publie Windows ; aucun nouvel IPA ni paquet macOS n’a été généré. Les améliorations de l’interface mobile sont dans le code partagé, testées dans WebKit.
