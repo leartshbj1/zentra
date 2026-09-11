@@ -1,3 +1,4 @@
+import { useAssistantScreen } from './assistantContext';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
@@ -383,6 +384,18 @@ export function DetailedPayslipForm({
       workspace.settings,
     ],
   );
+
+  useAssistantScreen({screen:'Création de fiche de salaire',scope:`paie:${employeeId}:${period}`,facts:{
+    'Étape':['Collaborateur et période','Salaire et cotisations','Vérification'][step], 'Période':period, 'Canton de paie':referenceCanton,
+    'Collaborateur sélectionné':Boolean(employee), 'Salaire brut saisi (CHF)':(totals.earnings/100).toFixed(2),
+    'Calcul à jour':hasCurrentCalculation, 'Points bloquants':eligibility.blockers.join(' ; ').slice(0,700),
+    'Points à vérifier':eligibility.warnings.join(' ; ').slice(0,500), 'Erreur affichée':[localError,calculationError,ratesError,accountingError].filter(Boolean).join(' ; ').slice(0,600),
+  },actions:[
+    {label:'Vérifier le collaborateur',run:()=>fixPayroll('person')},
+    {label:'Vérifier les assurances',run:()=>fixPayroll('insurance')},
+    {label:'Vérifier le plan LPP',run:()=>fixPayroll('pension-plan')},
+    {label:'Revenir au salaire',run:()=>fixPayroll('salary')},
+  ]},30);
 
   useEffect(() => {
     const coordinatedIds = definitions

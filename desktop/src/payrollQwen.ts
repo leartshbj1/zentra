@@ -5,6 +5,7 @@ import compatWasm from '@wllama/wllama-compat/wasm/wllama.wasm?url';
 import compatWorker from '@wllama/wllama-compat/wasm/wllama.js?raw';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { PAYROLL_AI_MODEL_BYTES, PAYROLL_AI_MODEL_SHA256, PAYROLL_AI_MODEL_URL } from './payrollAiModel';
+import type { AssistantMessage } from './assistantGuide';
 
 type Progress = (label: string, percent: number | null) => void;
 
@@ -24,8 +25,18 @@ export class PayslipQwen {
     engine.setCompat({ wasm: compatWasm, worker: { code: compatWorker } });
     return engine;
   }
-  async load(onProgress: Progress, signal?: AbortSignal) {
+  async cached() {
+    return (await this.engine.modelManager.getModels()).some(model => model.url === PAYROLL_AI_MODEL_URL && model.size === PAYROLL_AI_MODEL_BYTES);
+  }
+  async removeModel() {
+    await this.dispose();
+    for (const model of await this.engine.modelManager.getModels({ includeInvalid: true })) {
+      if (model.url === PAYROLL_AI_MODEL_URL) await model.remove();
+    }
+  }
+  async load(onProgress: Progress, signal?: AbortSignal, allowDownload = true) {
     if (this.engine.isModelLoaded()) return;
+    if (!allowDownload && !await this.cached()) throw new Error('Qwen n’est plus installé sur cet appareil. Ouvrez Assistant local pour le télécharger à nouveau.');
     const model = await this.engine.modelManager.getModelOrDownload({ url: PAYROLL_AI_MODEL_URL }, {
       signal,
       progressCallback: ({ loaded, total }) => onProgress('Téléchargement de Qwen · 429 Mo, une seule fois', total ? loaded / total * 100 : null),
@@ -53,7 +64,7 @@ export class PayslipQwen {
     let gpu = false;
     try { gpu = !this.forceCpu && Boolean(await (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu?.requestAdapter()); } catch { /* CPU remains available. */ }
     const parameters = {
-      n_ctx: 2048, n_batch: 256, n_ubatch: 128, n_threads: 1, n_gpu_layers: gpu ? 99 : 0,
+      n_ctx: 4096, n_batch: 256, n_ubatch: 128, n_threads: 1, n_gpu_layers: gpu ? 99 : 0,
       reasoning: false, reasoning_format: 'none' as const, default_template_kwargs: { enable_thinking: false },
     };
     try {
@@ -66,6 +77,33 @@ export class PayslipQwen {
       onProgress('Préparation du mode compatible', null);
       await this.engine.loadModel(blobs, { ...parameters, n_gpu_layers: 0 });
     }
+  }
+  async chat(messages: Array<AssistantMessage | { role: 'system'; content: string }>, onChunk: (text: string) => void) {
+    try { return await this.generateChat(messages,onChunk); }
+    catch(error) {
+      if (this.mode !== 'webgpu') throw error;
+      try { await this.engine.exit(); } catch { /* Replace this failed runtime. */ }
+      this.engine=this.createEngine(); this.forceCpu=true; this.mode='wasm';
+      await this.load(()=>{},undefined,false);
+      onChunk('');
+      return this.generateChat(messages,onChunk);
+    }
+  }
+  private async generateChat(messages: Array<AssistantMessage | { role: 'system'; content: string }>, onChunk: (text: string) => void) {
+    const response = await this.engine.createChatCompletion({
+      messages, stream: true, return_progress: true, max_tokens: 320,
+      temperature: 0.7, top_p: 0.8, penalty_present: 1.5,
+      chat_template_kwargs: { enable_thinking: false },
+    });
+    let output = ''; let truncated = false;
+    for await (const chunk of response) {
+      const choice = chunk.choices[0];
+      output += choice?.delta.content ?? '';
+      truncated ||= choice?.finish_reason === 'length';
+      onChunk(output);
+    }
+    if (!output.trim()) throw new Error('Qwen n’a pas produit de réponse. Posez une question plus courte ou relancez l’assistant.');
+    return { output, truncated };
   }
   async extract(text: string, onProgress: Progress, signal?: AbortSignal): Promise<string> {
     try { return await this.generate(text, onProgress, signal); }

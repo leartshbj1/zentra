@@ -1,3 +1,4 @@
+import type { AssistantFacts, AssistantMessage } from './assistantGuide';
 import { PAYROLL_AI_MODEL_ID, PAYROLL_AI_MODEL_REVISION } from './payrollAiModel';
 import type { EmployeeDocumentDraft } from './employeeDocumentDraft';
 
@@ -28,6 +29,32 @@ export type PayrollAiMode = 'webgpu' | 'wasm' | 'unavailable';
 
 class PayrollLocalAi {
   private worker: Worker | null = null;
+  private assistantRequests = new Map<string, {
+    resolve: (value: WorkerPayload) => void; reject: (reason: Error) => void;
+    onChunk?: (text: string) => void; timeout: ReturnType<typeof setTimeout>;
+  }>();
+  isBusy() { return this.loadWaiters.length > 0 || this.analyses.size > 0 || this.assistantRequests.size > 0; }
+  releaseIfIdle() { if (!this.isBusy()) { this.worker?.terminate(); this.worker = null; } }
+  private assistantRequest(type: string, input: WorkerPayload = {}, onChunk?: (text: string) => void): Promise<WorkerPayload> {
+    if (this.isBusy()) return Promise.reject(new Error('Qwen est déjà utilisé pour une lecture ou un téléchargement. Attendez la fin de cette opération.'));
+    return new Promise((resolve,reject) => {
+      const requestId = crypto.randomUUID();
+      const timeout = setTimeout(() => {
+        if (!this.assistantRequests.has(requestId)) return;
+        this.worker?.terminate(); this.worker = null;
+        this.rejectAll(new Error('La réponse prend trop de temps sur cet appareil. Réessayez avec une question plus courte.'));
+      }, type === 'assistant_chat' ? 180_000 : 30_000);
+      this.assistantRequests.set(requestId, {resolve,reject,timeout,onChunk});
+      try { this.ensureWorker().postMessage({type,requestId,...input}); }
+      catch (error) { clearTimeout(timeout); this.assistantRequests.delete(requestId); reject(error); }
+    });
+  }
+  async inspectModel() { return (await this.assistantRequest('assistant_cache')).cached === true; }
+  async removeModel() { await this.assistantRequest('assistant_remove'); this.releaseIfIdle(); }
+  async chat(input: { question: string; screen: string; facts: AssistantFacts; history: AssistantMessage[] }, onChunk: (text: string) => void) {
+    const result = await this.assistantRequest('assistant_chat', input, onChunk);
+    return {output: String(result.output ?? ''), truncated: result.truncated === true, source: result.source === 'guide' ? 'guide' as const : 'qwen' as const};
+  }
   private checkWaiters: Array<{
     resolve: (mode: PayrollAiMode) => void;
     timeout: ReturnType<typeof setTimeout>;
@@ -76,6 +103,16 @@ class PayrollLocalAi {
 
   private handleMessage(message: WorkerPayload) {
     const type = typeof message.type === 'string' ? message.type : '';
+    if (type.startsWith('assistant_')) {
+      const requestId = String(message.requestId ?? '');
+      const pending = this.assistantRequests.get(requestId);
+      if (!pending) return;
+      if (type === 'assistant_chunk') { pending.onChunk?.(String(message.output ?? '')); return; }
+      clearTimeout(pending.timeout); this.assistantRequests.delete(requestId);
+      if (type === 'assistant_error') pending.reject(new Error(String(message.error || 'L’assistant local n’a pas pu répondre.')));
+      else pending.resolve(message);
+      return;
+    }
     if (type === 'check') {
       const mode = message.mode === 'webgpu' || message.mode === 'wasm' ? message.mode : 'unavailable';
       this.checkWaiters.splice(0).forEach(({ resolve, timeout }) => {
@@ -152,6 +189,8 @@ class PayrollLocalAi {
   }
 
   private rejectAll(error: Error) {
+    for (const pending of this.assistantRequests.values()) { clearTimeout(pending.timeout); pending.reject(error); }
+    this.assistantRequests.clear();
     this.loadWaiters.splice(0).forEach(({ reject, timeout }) => {
       clearTimeout(timeout);
       reject(error);
@@ -214,6 +253,7 @@ class PayrollLocalAi {
   }
 
   load(): Promise<PayrollAiMode> {
+    if (this.isBusy()) return Promise.reject(new Error('Qwen est déjà utilisé. Attendez la fin de la réponse ou de la lecture en cours.'));
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         const worker = this.worker;
@@ -234,6 +274,7 @@ class PayrollLocalAi {
   }
 
   analyze(input: { imageUrls?: string[]; extractedText?: string; pageStart?: number; pageEnd?: number }): Promise<PayrollAiAnalysis> {
+    if (this.isBusy()) return Promise.reject(new Error('Qwen est déjà utilisé. Attendez la fin de la réponse ou de la lecture en cours.'));
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
       this.analyses.set(requestId, { resolve, reject, timeout: null });

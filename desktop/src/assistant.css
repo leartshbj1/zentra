@@ -1,0 +1,71 @@
+@media screen {
+  .assistant-launcher,.assistant-help {display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #d9e1dc;color:#244b38;background:#fff;cursor:pointer;font:inherit;font-weight:600;min-height:44px;padding:10px 16px;border-radius:24px;transition:background .18s,box-shadow .18s;}
+  .assistant-launcher {position:fixed;right:24px;bottom:24px;z-index:39;box-shadow:0 4px 22px #23432d1a;}
+  .assistant-launcher:hover,.assistant-help:hover {background:#f1f5f2;box-shadow:0 4px 18px #23432d14;}
+  body:has(.modal) .assistant-launcher {display:none;}
+  .assistant-help--compact {padding:10px;min-width:44px;flex:none;}
+  .modal__header-actions {display:flex;align-items:center;gap:8px;flex:none;}
+  .local-assistant-setup {border:1px solid #dfe6e1;border-radius:20px;padding:24px;background:#fafcfb;min-width:0;display:grid;gap:14px;margin:16px 0;}
+  .local-assistant-setup__heading {display:flex;gap:14px;align-items:center;}
+  .local-assistant-setup__heading>span {display:grid;place-items:center;width:48px;height:48px;flex:none;border-radius:15px;background:#e7efe9;color:#315741;}
+  .local-assistant-setup h3 {font-size:20px;line-height:1.25;letter-spacing:-.4px;margin:0;}
+  .local-assistant-setup p,.local-assistant-setup small {margin:0;line-height:1.55;overflow-wrap:anywhere;}
+  .local-assistant-setup__privacy,.local-assistant-setup small {font-size:13px;color:#68756c;}
+  .local-assistant-setup__ready {display:flex;align-items:center;gap:7px;color:#24633c;}
+  .local-assistant-setup__actions {display:flex;flex-wrap:wrap;gap:10px;}
+  .local-assistant-setup__actions button {white-space:normal;line-height:1.35;}
+  .local-assistant-setup progress {width:100%;accent-color:#386346;margin-top:8px;}
+  .modal-backdrop:has(.zentra-assistant-dialog) {display:flex;z-index:10020;justify-content:flex-end;align-items:stretch;padding:16px;background:#17281e24;backdrop-filter:blur(3px);}
+  .zentra-assistant-dialog {width:min(480px,100%);max-width:100%;max-height:calc(100dvh - 32px);height:100%;border-radius:24px;animation:assistant-arrive .2s ease-out;}
+  .zentra-assistant-dialog .modal__header {padding:22px 24px;border-bottom:1px solid #edf0ed;}
+  .zentra-assistant-dialog .modal__body {display:flex;flex-direction:column;gap:12px;padding:18px 22px;min-height:0;overflow-y:auto;}
+  .assistant-context {font-size:12px;color:#637066;display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+  .assistant-context>span {display:flex;align-items:center;gap:6px;max-width:100%;overflow-wrap:anywhere;}
+  .assistant-status-dot {height:7px;width:7px;background:#709979;border-radius:50%;flex:none;}
+  .assistant-context details {max-width:100%;}
+  .assistant-context summary {cursor:pointer;}
+  .assistant-context dl {margin:8px 0;background:#f5f7f5;border-radius:12px;padding:12px;}
+  .assistant-context dl>div {margin:8px 0;}
+  .assistant-context dd {margin:2px 0 0;overflow-wrap:anywhere;color:#34433a;}
+  .assistant-local-note {font-size:12px;line-height:1.5;color:#7b857d;margin:0;}
+  .assistant-conversation {flex:1 1 auto;min-height:160px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;}
+  .assistant-welcome {padding:24px 0;color:#344a3c;}
+  .assistant-welcome h3 {font-size:24px;letter-spacing:-.6px;line-height:1.2;margin:14px 0 8px;}
+  .assistant-welcome p {font-size:14px;line-height:1.55;color:#778178;}
+  .assistant-suggestions {display:flex;flex-direction:column;gap:8px;margin-top:20px;}
+  .assistant-suggestions button {font:inherit;font-size:13px;line-height:1.4;text-align:left;border:1px solid #e0e6e0;background:#fff;border-radius:12px;padding:12px;color:#3e5745;cursor:pointer;}
+  .assistant-message {position:relative;margin:10px 0;padding:14px;border-radius:16px;overflow-wrap:anywhere;}
+  .assistant-message>span {font-size:11px;color:#7b857d;font-weight:600;}
+  .assistant-message p {font-size:14px;line-height:1.65;white-space:pre-wrap;margin:6px 0;color:#263c2e;}
+  .assistant-message--user {background:#eef3ef;margin-left:26px;}
+  .assistant-message--assistant {background:#fafbf9;border:1px solid #e8ece7;}
+  .assistant-message small {font-size:11px;color:#806740;line-height:1.5;}
+  .assistant-copy,.assistant-footer button {border:0;background:transparent;cursor:pointer;color:#657468;min-width:36px;min-height:36px;}
+  .assistant-error {border-radius:12px;background:#fff3e5;color:#895b26;padding:12px;font-size:13px;line-height:1.5;overflow-wrap:anywhere;}
+  .assistant-guide {font-size:12px;color:#596d5f;flex:none;}
+  .assistant-guide summary {display:flex;gap:8px;align-items:center;cursor:pointer;min-height:36px;}
+  .assistant-guide p {line-height:1.6;white-space:pre-wrap;}
+  .assistant-guide h4 {font-size:13px;margin:12px 0 5px;}
+  .assistant-guide .button {display:flex;width:100%;margin:7px 0;white-space:normal;}
+  .assistant-composer {display:flex;align-items:flex-end;gap:10px;flex:none;border:1px solid #d7e0d8;border-radius:18px;padding:10px;background:#fff;}
+  .assistant-composer textarea {min-width:0;flex:1;border:0!important;box-shadow:none!important;border-radius:10px;resize:vertical;max-height:120px;min-height:52px;padding:5px;font-size:15px;line-height:1.5;background:transparent;}
+  .assistant-composer>button {border:0;background:#315b40;color:#fff;border-radius:50%;width:42px;height:42px;display:grid;place-items:center;flex:none;cursor:pointer;}
+  .assistant-composer>button:disabled {opacity:.4;cursor:default;}
+  .assistant-footer {display:flex;align-items:center;gap:10px;flex:none;}
+  .assistant-footer small {font-size:11px;line-height:1.45;color:#879087;}
+  .zentra-assistant-dialog .local-assistant-setup {padding:16px;margin:0;flex:none;}
+  .zentra-assistant-dialog .local-assistant-setup h3 {font-size:17px;}
+  @keyframes assistant-arrive {from {opacity:0;transform:translateX(16px)} to {opacity:1;transform:translateX(0)}}
+  @media(max-width:700px) {
+    .assistant-launcher {right:14px;bottom:calc(86px + env(safe-area-inset-bottom));min-height:44px;padding:10px 13px;font-size:13px;}
+    .modal-backdrop:has(.zentra-assistant-dialog) {padding:0;}
+    .zentra-assistant-dialog {width:100%;max-height:100dvh;height:100dvh;border-radius:0;}
+    .zentra-assistant-dialog .modal__header {padding:calc(15px + env(safe-area-inset-top)) 16px 15px;}
+    .zentra-assistant-dialog .modal__body {padding:12px 16px calc(12px + env(safe-area-inset-bottom));}
+    .local-assistant-setup {padding:18px;}
+    .local-assistant-setup__heading>span {width:38px;height:38px;}
+    .local-assistant-setup__actions button {width:100%;}
+  }
+  @media(prefers-reduced-motion:reduce) {.assistant-launcher,.assistant-help {transition:none}.zentra-assistant-dialog {animation:none}}
+}
+@media print {.assistant-launcher,.assistant-help,.local-assistant-setup,.zentra-assistant-dialog {display:none!important}}

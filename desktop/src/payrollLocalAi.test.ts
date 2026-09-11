@@ -57,6 +57,40 @@ class ControlledWorker {
   }
 }
 
+describe('assistant local partagé avec la lecture des fiches', () => {
+  afterEach(()=>{payrollLocalAi.cancel();vi.useRealTimers();vi.unstubAllGlobals();ControlledWorker.instances=[];});
+  it('diffuse les fragments et refuse une lecture simultanée sans interrompre la réponse',async()=>{
+    vi.stubGlobal('Worker',ControlledWorker);
+    const chunks:string[]=[];
+    const response=payrollLocalAi.chat({question:'Aide LPP',screen:'Paie',facts:{},history:[]},text=>chunks.push(text));
+    const worker=ControlledWorker.instances[0];
+    const requestId=worker.posted[0].requestId;
+    await expect(payrollLocalAi.analyze({extractedText:'document'})).rejects.toThrow(/déjà utilisé/);
+    worker.emitMessage({type:'assistant_chunk',requestId,output:'Ouvrez'});
+    worker.emitMessage({type:'assistant_result',requestId,output:'Ouvrez les réglages.',truncated:false});
+    expect(await response).toEqual({output:'Ouvrez les réglages.',truncated:false,source:'qwen'});
+    expect(chunks).toEqual(['Ouvrez']); expect(worker.terminated).toBe(false);
+  });
+  it('ignore une réponse ancienne après annulation et redémarrage',async()=>{
+    vi.stubGlobal('Worker',ControlledWorker);
+    const first=payrollLocalAi.chat({question:'test',screen:'Paie',facts:{},history:[]},()=>{});
+    const rejected=expect(first).rejects.toThrow(/annulée/);
+    const old=ControlledWorker.instances[0]; payrollLocalAi.cancel();await rejected;
+    const next=payrollLocalAi.inspectModel(); const current=ControlledWorker.instances[1];
+    old.emitMessage({type:'assistant_result',requestId:current.posted[0].requestId,cached:true});
+    current.emitMessage({type:'assistant_result',requestId:current.posted[0].requestId,cached:false});
+    expect(await next).toBe(false);
+  });
+  it('arrête un moteur bloqué pendant une réponse',async()=>{
+    vi.useFakeTimers();vi.stubGlobal('Worker',ControlledWorker);
+    const request=payrollLocalAi.chat({question:'test',screen:'Paie',facts:{},history:[]},()=>{});
+    const failure=expect(request).rejects.toThrow(/prend trop de temps/);
+    await vi.advanceTimersByTimeAsync(180000);await failure;
+    expect(ControlledWorker.instances[0].terminated).toBe(true);
+    expect(payrollLocalAi.isBusy()).toBe(false);
+  });
+});
+
 describe('chargement du modèle IA local', () => {
   afterEach(() => {
     payrollLocalAi.cancel();

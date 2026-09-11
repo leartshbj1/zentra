@@ -1,3 +1,4 @@
+import { AssistantHelpButton, useAssistantScreen } from './assistantContext';
 import { createContext, useContext, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { ButtonHTMLAttributes, FormEvent, KeyboardEvent, ReactNode } from 'react';
@@ -131,8 +132,10 @@ export function Modal({
   wide = false,
   dismissible = true,
   className = '',
+  assistantHelp = true,
 }: {
   title: string;
+  assistantHelp?: boolean;
   description?: string;
   onClose: () => void;
   children: ReactNode;
@@ -223,14 +226,16 @@ export function Modal({
         tabIndex={-1}
         onKeyDown={handleDialogKeyDown}
       >
+        {assistantHelp && <ModalAssistantContext title={title} />}
         <header className="modal__header">
           <div>
             <h2 id={titleId}>{title}</h2>
             {description ? <p id={descriptionId}>{description}</p> : null}
           </div>
+          <div className="modal__header-actions">{assistantHelp && <AssistantHelpButton compact />}
           {dismissible ? <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label={`Fermer « ${title} »`}>
             <X size={19} />
-          </Button> : null}
+          </Button> : null}</div>
         </header>
         <div className="modal__body">{children}</div>
       </section>
@@ -238,6 +243,11 @@ export function Modal({
   );
   // Cover the viewport even inside a scrolling or transformed card.
   return typeof document === 'undefined' ? content : createPortal(content, document.body);
+}
+
+function ModalAssistantContext({ title }: { title: string }) {
+  useAssistantScreen({screen:title,actions:[]},10);
+  return null;
 }
 
 const ReadOnlyFormContext = createContext(false);

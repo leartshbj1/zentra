@@ -1,20 +1,34 @@
 /// <reference lib="webworker" />
+import { assistantPrompt, groundedAssistantAnswer, type AssistantFacts, type AssistantMessage } from './assistantGuide';
 import { PayslipQwen } from './payrollQwen';
 import { readPayslipImages } from './payrollOcr';
 import { employeeDocumentDraft } from './employeeDocumentDraft';
 import { payrollCoreFromLocalText, payrollLinesFromLocalText } from './payrollAiTextFallback';
 import { PAYROLL_AI_MODEL_ID, PAYROLL_AI_MODEL_REVISION } from './payrollAiModel';
 
-type Request = { type: 'check' | 'load' | 'analyze'; requestId?: string; imageUrls?: string[]; extractedText?: string; pageStart?: number; assetBase?: string };
+type Request = { type: 'check' | 'load' | 'analyze' | 'assistant_chat' | 'assistant_cache' | 'assistant_remove'; requestId?: string; imageUrls?: string[]; extractedText?: string; pageStart?: number; assetBase?: string; question?: string; screen?: string; facts?: AssistantFacts; history?: AssistantMessage[] };
 let engine: PayslipQwen | null = null;
 let busy = false;
 const post = (value: Record<string, unknown>) => self.postMessage(value);
 self.onmessage = async ({ data }: MessageEvent<Request>) => {
   if (data.type === 'check') { post({ type: 'check', mode: typeof WebAssembly === 'undefined' ? 'unavailable' : 'wasm' }); return; }
-  if (busy) { post({ type: data.type === 'load' ? 'load_error' : 'analysis_error', requestId: data.requestId, error: 'Une lecture est déjà en cours. Patientez ou annulez-la.' }); return; }
+  const errorType = data.type.startsWith('assistant_') ? 'assistant_error' : data.type === 'load' ? 'load_error' : 'analysis_error';
+  if (busy) { post({ type: errorType, requestId: data.requestId, error: 'Une lecture est déjà en cours. Patientez ou annulez-la.' }); return; }
   busy = true;
   const progress = (label: string, percent: number | null) => post({ type: 'analysis_stage', requestId: data.requestId, label, percent });
   try {
+    if (data.type.startsWith('assistant_')) {
+      engine ??= new PayslipQwen();
+      if (data.type === 'assistant_cache') { post({ type: 'assistant_result', requestId: data.requestId, cached: await engine.cached() }); return; }
+      if (data.type === 'assistant_remove') { await engine.removeModel(); engine = null; post({ type: 'assistant_result', requestId: data.requestId, cached: false }); return; }
+      // Asking a question never authorizes a new model download.
+      await engine.load(progress, undefined, false);
+      const prompt = assistantPrompt(data.question ?? '', data.screen ?? '', data.facts ?? {}, data.history ?? []);
+      const result = await engine.chat(prompt.messages, () => progress('Qwen prépare une réponse adaptée à Zentra…', null));
+      const grounded=groundedAssistantAnswer(data.question ?? '', data.screen ?? '', data.facts ?? {},result.output);
+      post({ type: 'assistant_result', requestId: data.requestId, ...grounded, truncated: grounded.source === 'qwen' && result.truncated });
+      return;
+    }
     let text = data.extractedText?.trim() ?? '';
     let corroboratingText: string | undefined;
     if (data.type === 'analyze' && text.replace(/\s/g, '').length < 80) {
@@ -52,6 +66,6 @@ self.onmessage = async ({ data }: MessageEvent<Request>) => {
     });
     post({ type: 'analysis', requestId: data.requestId, primaryOutput: output, verifiedOutput: '', employeeDraft, extractedText: text, modelId: PAYROLL_AI_MODEL_ID, modelVersion: PAYROLL_AI_MODEL_REVISION, mode: engine.mode });
   } catch (error) {
-    post({ type: data.type === 'load' ? 'load_error' : 'analysis_error', requestId: data.requestId, error: error instanceof Error ? error.message : 'La lecture locale a échoué. Réessayez avec une seule fiche.' });
+    post({ type: errorType, requestId: data.requestId, error: error instanceof Error ? error.message : 'La lecture locale a échoué. Réessayez avec une seule fiche.' });
   } finally { busy = false; }
 };

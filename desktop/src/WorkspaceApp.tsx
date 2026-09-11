@@ -1,3 +1,5 @@
+import { LocalAssistantSetup } from './LocalAssistantSetup';
+import { useAssistantScreen } from './assistantContext';
 import { useScreenArrival } from './useScreenArrival';
 import { PayrollOrganisationField } from './PayrollOrganisationField';
 import { CompanyLogo } from './CompanyLogo';
@@ -56,6 +58,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   Menu,
+  MessageCircle,
   MessageSquareWarning,
   Mail,
   MapPin,
@@ -438,6 +441,12 @@ export function WorkspaceApp({
   const [view, setView] = useState<View>('dashboard');
   useProjectSyncBackground(setWorkspace);
   const [modal, setModal] = useState<ModalState>(null);
+  useAssistantScreen({screen: viewTitles[view]?.[0] ?? view, scope: `${workspace.settings?.organization.legalName ?? 'entreprise'}:${view}`, facts: {
+    'Rubrique':view,'Canton de paie':workspace.settings?.payroll.payrollCanton,'Entreprise assujettie à la TVA':workspace.settings?.organization.vatRegistered,'Mode lecture seule':readOnly,
+  }, actions: [
+    {label:'Ouvrir Équipe & salaires',run:()=>setView('team')},
+    {label:'Ouvrir les paramètres',run:()=>setView('settings')},
+  ]});
   const [search, setSearch] = useState('');
   const [projectFolderId, setProjectFolderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -5166,6 +5175,7 @@ function SettingsScreen({
       </section>
 
       </SettingsCategory>
+      <SettingsCategory id="assistant" lazy title="Assistant local" description="Installer Qwen et obtenir de l’aide dans Zentra" icon={MessageCircle}><LocalAssistantSetup /></SettingsCategory>
       <SettingsCategory id="documents" lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
         <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={() => void execute(() => desktopApi.saveSettings(settings), 'Les présentations des documents ont été enregistrées.')} />
       </SettingsCategory>
@@ -6771,6 +6781,8 @@ function EmployeeForm({
   const [localError, setLocalError] = useState('');
   const formElement = useRef<HTMLFormElement>(null);
   const [prefill, setPrefill] = useState<EmployeeDocumentDraft | null>(null);
+  useAssistantScreen({screen:'Ajouter ou modifier un collaborateur',scope:`collaborateur:${item?.id ?? 'nouveau'}`, facts:{'Étape':['Identité','Travail et salaire','Vérification'][step],'Nouveau collaborateur':!item,'Année du choix de cotisation':assessmentYear,'Réglage annuel reporté':deferAnnual,'Point à corriger':annualIssue?.message || localError || 'Aucun message affiché'},actions:[]},20);
+
   useEffect(() => {
     if (!annualIssue) return;
     const field = formElement.current?.elements.namedItem(annualIssue.field);

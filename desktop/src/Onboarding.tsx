@@ -1,3 +1,5 @@
+import { LocalAssistantSetup } from './LocalAssistantSetup';
+import { useAssistantScreen } from './assistantContext';
 import { PayrollOrganisationField } from './PayrollOrganisationField';
 import { CompanyLogo } from './CompanyLogo';
 import { CloudBackupPanel } from './CloudBackupPanel';
@@ -162,6 +164,7 @@ export function Onboarding({
     () => [...allIssues.filter((issue) => validatedSteps.includes(issue.step)), ...backendIssues],
     [allIssues, backendIssues, validatedSteps],
   );
+  useAssistantScreen({screen:`Configuration · ${steps[step].label}`,scope:'configuration',facts:{'Étape':steps[step].label,'Canton':settings.organization.address.canton,'Points à corriger':visibleIssues.map(issue=>issue.message).join(' ; ').slice(0,700)}});
   const currentIssues = visibleIssues.filter((issue) => issue.step === step);
   const currentIssueMap = issuesByField(currentIssues);
 
@@ -355,6 +358,7 @@ export function Onboarding({
               await onCloudRestore(id);
               try { window.localStorage.removeItem(ONBOARDING_DRAFT_KEY); } catch { /* La restauration reste valide. */ }
             }} /> : null}
+            {step === 0 ? <LocalAssistantSetup onboarding /> : null}
             {step === 1 ? <IdentityStep settings={settings} setSettings={setSettings} catalog={nogaCatalog} catalogError={nogaError} onRetryCatalog={() => void loadNogaCatalog()} issues={currentIssueMap} /> : null}
             {step === 2 ? <BillingStep settings={settings} setSettings={setSettings} vatText={vatText} setVatText={setVatText} issues={currentIssueMap} /> : null}
             {step === 3 ? <WorkStep settings={settings} setSettings={setSettings} categoriesText={categoriesText} setCategoriesText={setCategoriesText} issues={currentIssueMap} /> : null}
