@@ -133,8 +133,8 @@ export default function DownloadPage() {
           <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_PREVIEW_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Votre équipe et vos salaires, pas à pas.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Ajoutez un collaborateur en trois étapes. Une date à corriger ? Zentra ouvre le champ concerné et explique quoi renseigner. Vous pouvez compléter les réglages de cotisation plus tard et votre saisie reste conservée pendant les corrections. Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Pour une version plus ancienne, téléchargez l’installateur ci-contre.</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Un assistant à vos côtés.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Installez Qwen si vous le souhaitez, au démarrage ou dans les paramètres. Le bouton Assistant vous aide dans chaque écran et dans vos fiches de salaire, avec le contexte de votre travail et les étapes vérifiées du guide Zentra. Les échanges restent sur votre appareil. Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Pour une version plus ancienne, téléchargez l’installateur ci-contre.</p>
             </div>
             <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
               <a href={ZENTRA_WINDOWS_PREVIEW_PATH} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#315f47] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#173d2c]">
