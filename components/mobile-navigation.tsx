@@ -1,7 +1,8 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { Menu, X, ArrowUpRight } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { SiteNavLink } from '@/components/site-nav-link';
 
 const links = [
   ['/#workflow', 'Produit'],
@@ -34,6 +35,7 @@ export function MobileNavigation() {
       }
       if (event.key !== 'Tab' || !navRef.current) return;
       const focusable = [
+        ...(buttonRef.current ? [buttonRef.current] : []),
         ...navRef.current.querySelectorAll<HTMLAnchorElement>('a[href]'),
       ];
       if (!focusable.length) return;
@@ -71,15 +73,13 @@ export function MobileNavigation() {
         aria-controls="zentra-mobile-navigation"
         onClick={() => setOpen((current) => !current)}
       >
-        <Plus
-          aria-hidden="true"
-          className={`size-5 transition-transform duration-200 ${open ? 'rotate-45' : ''}`}
-        />
+        {open ? <X aria-hidden="true" className="size-5" /> : <Menu aria-hidden="true" className="size-5" />}
       </button>
       <button
         type="button"
         className="site-mobile-nav__backdrop fixed inset-0 z-40 bg-[#10271b]/18 backdrop-blur-[2px]"
         aria-label="Fermer le menu"
+        aria-hidden={!open}
         tabIndex={open ? 0 : -1}
         onClick={() => {
           setOpen(false);
@@ -95,7 +95,7 @@ export function MobileNavigation() {
         inert={!open}
       >
         {links.map(([href, label]) => (
-          <a
+          <SiteNavLink
             key={href}
             href={href}
             tabIndex={open ? undefined : -1}
@@ -105,7 +105,8 @@ export function MobileNavigation() {
             }}
           >
             {label}
-          </a>
+            <ArrowUpRight aria-hidden="true" className="size-4" />
+          </SiteNavLink>
         ))}
       </nav>
     </div>

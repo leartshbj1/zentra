@@ -8,13 +8,13 @@ import {
 
 export function PricingPlans() {
   return (
-    <div>
+    <div className="pricing-plans">
       <div className="grid gap-4 md:grid-cols-3">
         {ZENTRA_PLANS.map((plan) => (
           <article
             key={plan.id}
             id={plan.id}
-            className="flex scroll-mt-28 flex-col rounded-3xl border border-[#d6d2c8] bg-white p-6 text-[#173d2c] sm:p-8"
+            className="pricing-plan flex scroll-mt-28 flex-col rounded-3xl border border-[#d6d2c8] bg-white p-6 text-[#173d2c] sm:p-8"
           >
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-semibold tracking-tight">

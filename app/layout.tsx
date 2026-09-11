@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { ScrollExperience } from '@/components/scroll-experience';
 import { publicSiteUrl } from '@/lib/site-url';
 import './globals.css';
+import './refined.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

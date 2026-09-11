@@ -4,6 +4,7 @@ import { MobileNavigation } from '@/components/mobile-navigation';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AccountLink } from '@/components/account-link';
+import { SiteNavLink } from '@/components/site-nav-link';
 
 const navigation = [
   ['/#workflow', 'Produit'],
@@ -15,8 +16,8 @@ const navigation = [
 
 export function SiteHeader() {
   return (
-    <header className="site-header sticky top-0 z-40 border-b border-[#dedee3]/75 bg-[#f5f5f7]/92 backdrop-blur-xl">
-      <div className="mx-auto flex min-h-[68px] w-full max-w-7xl items-center justify-between gap-4 px-5 lg:px-8">
+    <header className="site-header site-header--floating sticky top-0 z-40">
+      <div className="site-header__surface mx-auto flex w-full items-center justify-between gap-4">
         <a
           href="/"
           className="flex min-h-11 shrink-0 items-center"
@@ -30,13 +31,13 @@ export function SiteHeader() {
           aria-label="Navigation principale"
         >
           {navigation.map(([href, label]) => (
-            <a
+            <SiteNavLink
               key={href}
               href={href}
               className="inline-flex min-h-11 items-center whitespace-nowrap transition-colors hover:text-[#173d2c]"
             >
               {label}
-            </a>
+            </SiteNavLink>
           ))}
         </nav>
 

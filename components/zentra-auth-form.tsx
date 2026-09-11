@@ -106,7 +106,7 @@ export function ZentraAuthForm({
   }
 
   return (
-    <div className="w-full min-w-0 max-w-md">
+    <div className="auth-surface w-full min-w-0 max-w-md">
       <div className="rounded-[2rem] border border-[#e5e5e9] bg-white p-6 shadow-[0_8px_40px_rgba(29,29,31,.04)] sm:p-8">
         <div
           className="grid grid-cols-2 rounded-full bg-[#eeeef0] p-1"

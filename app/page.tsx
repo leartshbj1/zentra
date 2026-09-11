@@ -219,15 +219,15 @@ export default function Home() {
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-6 lg:grid-cols-[.75fr_1.25fr] lg:items-end">
               <div>
-                <p className="site-eyebrow">Un seul flux</p>
+                <p className="site-eyebrow">Du premier devis au paiement</p>
                 <h2 id="workflow-title" className="site-section-title mt-4">
                   Chaque étape prépare la suivante.
                 </h2>
               </div>
               <p className="max-w-2xl text-lg leading-8 text-[#657068] lg:justify-self-end">
-                Les modules ne sont pas simplement côte à côte. Les documents,
-                paiements et écritures gardent leur lien, avec une validation
-                aux étapes sensibles.
+                Retrouvez les mêmes informations à chaque étape. Les documents
+                et les paiements restent liés, et vous gardez la main sur leur
+                validation.
               </p>
             </div>
 
@@ -279,8 +279,8 @@ export default function Home() {
                   L’essentiel pour gérer une PME suisse.
                 </h2>
                 <p className="mt-5 text-lg leading-8 text-[#617068]">
-                  Six espaces forts, reliés par les mêmes clients, fournisseurs,
-                  documents et écritures.
+                  Vos clients, vos documents et vos chiffres se retrouvent.
+                  Chaque espace vous aide à passer à la prochaine action.
                 </p>
               </div>
               <a
