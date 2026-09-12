@@ -35,3 +35,22 @@ export function timerBlockReason(prerequisites: WorkspacePrerequisites, timerAct
   if (timerActive) return 'Un pointage est déjà en cours.';
   return creationBlockReason('time', prerequisites);
 }
+
+export type CreationHelpTarget = 'client' | 'projects' | 'employee' | 'supplier' | 'billing' | 'work';
+
+/** Follow the same order as the guards: resolve one prerequisite at a time. */
+export function creationHelp(view: CreationView, prerequisites: WorkspacePrerequisites): { target: CreationHelpTarget; label: string } | null {
+  if (!creationBlockReason(view, prerequisites)) return null;
+  if (view === 'projects') return { target: 'client', label: 'Ajouter le client' };
+  if (view === 'quotes' || view === 'invoices') return { target: 'billing', label: 'Compléter la facturation' };
+  if (view === 'time') {
+    if (prerequisites.workSetupDeferred) return { target: 'work', label: 'Compléter les règles de temps' };
+    if (!prerequisites.trackableProjects) return { target: 'projects', label: 'Ouvrir les projets' };
+    return { target: 'employee', label: 'Ajouter le collaborateur' };
+  }
+  if (view === 'expenses') {
+    if (!prerequisites.activeSuppliers) return { target: 'supplier', label: 'Ajouter le fournisseur' };
+    return { target: 'work', label: 'Compléter les catégories de coûts' };
+  }
+  return null;
+}

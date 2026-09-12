@@ -579,3 +579,8 @@
   .payroll-print-preview .print-totals strong { flex-shrink: 0; }
   .payroll-print-preview .print-footer { flex-direction: column; gap: 12px; margin-top: 24px; }
 }
+.creation-action { display: grid; justify-items: end; gap: 10px; min-width: 0; max-width: 360px; }
+.creation-action__help { width: 100%; padding: 12px 14px; border: 1px solid var(--border, #e0e6e5); border-radius: 14px; background: var(--paper, #fff); text-align: left; }
+.creation-action__help p { margin: 0 0 8px; font-size: 13px; line-height: 1.6; color: var(--text-muted, #626970); overflow-wrap: anywhere; }
+.creation-action__help .button { height: auto; min-height: 40px; white-space: normal; text-align: left; }
+@media (max-width: 600px) { .creation-action { width: 100%; max-width: none; justify-items: stretch; } }

@@ -4893,7 +4893,7 @@ export const desktopApi = {
     data: T,
   ) {
     await createRecord(entityToBackend[entity], toBackendData(data));
-    return entity === 'employees' ? refreshWorkspaceAfterMutation(loadWorkspace) : loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveProject(data: Record<string, unknown>, id?: string): Promise<string> {
     if (id) {
@@ -4928,7 +4928,7 @@ export const desktopApi = {
       id,
       data: toBackendData(data),
     });
-    return entity === 'employees' ? refreshWorkspaceAfterMutation(loadWorkspace) : loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveProjectMilestone(input: {
     id?: string;
@@ -4954,11 +4954,11 @@ export const desktopApi = {
         employee_id: input.employeeId,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async deleteProjectMilestone(id: string) {
     await invoke('delete_project_milestone', { id });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveProjectTask(input: {
     id?: string;
@@ -4984,15 +4984,15 @@ export const desktopApi = {
         employee_id: input.employeeId,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async setProjectTaskStatus(id: string, status: ProjectTask['status']) {
     await invoke('set_project_task_status', { id, status });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async deleteProjectTask(id: string) {
     await invoke('delete_project_task', { id });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveAgendaEvent(input: {
     id: string;
@@ -5078,7 +5078,7 @@ export const desktopApi = {
   async archiveEntity(entity: EntityKind, id: string) {
     const mutation = archiveEntityMutation(entity, id);
     await invoke(mutation.command, mutation.args);
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async importCatalogItems(
     rows: CatalogImportRow[],
@@ -5877,11 +5877,11 @@ export const desktopApi = {
   },
   async startTimer(data: Record<string, unknown>) {
     await invoke('start_timer', { input: toBackendData(data) });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async stopTimer() {
     await invoke('stop_timer');
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async createInvoiceFromTimeEntries(input: {
     requestId: string;

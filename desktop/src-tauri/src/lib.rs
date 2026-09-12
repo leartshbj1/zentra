@@ -10167,6 +10167,44 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn incomplete_payroll_draft_can_be_reopened_and_updated_without_duplicates() {
+        let (_temporary, store) = initialized_store();
+        let employee_id = value_id(&store.create_record("employees", json!({"name":"Camille Brouillon"})).unwrap());
+        let input = |id, amount, notes: &str| SavePayslipWithContributionsInput {
+            id,
+            employee_id: employee_id.clone(),
+            period: "2026-09".into(),
+            status: "brouillon".into(),
+            payment_date: Some("2026-09-30".into()),
+            notes: Some(notes.into()),
+            lines: vec![PayslipManualLineInput {
+                id: Some("draft-salary-line".into()),
+                label: "Salaire mensuel".into(),
+                kind: "earning".into(),
+                amount_cents: amount,
+                posting_account_id: None,
+                expense_account_id: None,
+            }],
+            contributions: Vec::new(),
+        };
+        let first = store.save_payslip_with_contributions(input(None, 512_345, "Contrat à compléter")).unwrap();
+        let id = value_id(&first["payslip"]);
+        let updated = store.save_payslip_with_contributions(input(Some(id.clone()), 534_567, "Montant corrigé\nAssurance en attente")).unwrap();
+        assert_eq!(updated["payslip"]["id"], id);
+        assert_eq!(updated["payslip"]["status"], "brouillon");
+        assert_eq!(updated["payslip"]["gross_cents"], 534_567);
+        assert_eq!(updated["payslip"]["created_at"], first["payslip"]["created_at"]);
+        // Read back from a new database connection, not just the command response.
+        let connection = store.connect().unwrap();
+        let persisted: (i64, i64, i64, String) = connection.query_row(
+            "SELECT (SELECT COUNT(*) FROM payslips),(SELECT COUNT(*) FROM payslip_items),(SELECT COUNT(*) FROM payslip_contributions),notes FROM payslips WHERE id=?",
+            rusqlite::params![id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        ).unwrap();
+        assert_eq!(persisted, (1, 1, 0, "Montant corrigé\nAssurance en attente".into()));
+    }
+
+    #[test]
     fn reimbursement_increases_net_without_inflating_gross_or_employer_costs() {
         let (_temporary, store) = initialized_store();
         let employee_id = value_id(

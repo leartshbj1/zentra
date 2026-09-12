@@ -59,3 +59,30 @@
   .payroll-actions > .form-actions { flex: 1 1 100%; }
   .payroll-wizard .payroll-canton-facts { grid-template-columns: 1fr; }
 }
+.payroll-save-later {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #dde4e6;
+  border-radius: 16px;
+  background: #f7f9fa;
+}
+.payroll-save-later strong {
+  font-size: 14px;
+}
+.payroll-save-later p {
+  margin: 6px 0 0;
+  color: var(--text-muted, #626970);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.payroll-save-later .button {
+  justify-self: start;
+  max-width: 100%;
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}

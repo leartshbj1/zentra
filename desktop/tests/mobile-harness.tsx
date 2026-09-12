@@ -1,4 +1,5 @@
 import { installAssistantFixture } from './assistant-fixture';
+import { installEntityRecoveryFixture } from './entity-recovery-fixture';
 import { ZentraAssistantProvider } from '../src/ZentraAssistant';
 import { Onboarding } from '../src/Onboarding';
 import { installExpenseJournalFixture } from './expense-journal-fixture';
@@ -183,6 +184,12 @@ if (new URLSearchParams(location.search).has('wizard')) {
   };
 }
 if (new URLSearchParams(location.search).has('assistantFixture')) installAssistantFixture();
+if (new URLSearchParams(location.search).has('entityRecovery')) installEntityRecoveryFixture(() => data);
+if (new URLSearchParams(location.search).has('workflowHelp')) {
+  data.clients = [];
+  data.settings!.setupDeferred = { ...data.settings!.setupDeferred, billing: true, work: false, backup: false };
+  installEntityRecoveryFixture(() => data, false);
+}
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);

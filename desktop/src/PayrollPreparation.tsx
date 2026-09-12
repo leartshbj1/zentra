@@ -140,23 +140,7 @@ export function PayrollPreparation({
               Demandez le document indiqué à votre caisse ou à la personne qui
               prépare habituellement vos salaires.
             </p>
-            {onSaveDraft ? (
-              <>
-                <p>
-                  Vous pouvez déjà conserver les lignes de salaire et les notes
-                  dans un brouillon. Les cotisations resteront à préparer à la
-                  reprise.
-                </p>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={onSaveDraft}
-                >
-                  Enregistrer le salaire en brouillon
-                </Button>
-              </>
-            ) : (
+            {!onSaveDraft && (
               <p>
                 Revenez au salaire pour continuer votre saisie. Les réglages
                 déjà enregistrés sont conservés.
@@ -192,6 +176,26 @@ export function PayrollPreparation({
             ))}
           </ol>
         </details>
+      )}
+      {onSaveDraft && (
+        <aside className="payroll-save-later" aria-label="Continuer plus tard">
+          <div>
+            <strong>Il vous manque un document ?</strong>
+            <p>
+              Enregistrez votre salaire en brouillon et reprenez cette même
+              fiche quand vous aurez les informations. Les cotisations resteront
+              à calculer.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy}
+            onClick={onSaveDraft}
+          >
+            Enregistrer le salaire en brouillon
+          </Button>
+        </aside>
       )}
       <p className="payroll-preparation__footnote">
         Les réglages du contrat et des assurances serviront aussi aux prochaines

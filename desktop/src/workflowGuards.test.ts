@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { creationBlockReason, timerBlockReason, type WorkspacePrerequisites } from './workflowGuards';
+import { creationBlockReason, creationHelp, timerBlockReason, type WorkspacePrerequisites } from './workflowGuards';
 
 const ready: WorkspacePrerequisites = { clients: 1, projects: 1, trackableProjects: 1, activeEmployees: 1, activeSuppliers: 1, costCategories: 1 };
 
 describe('prérequis des actions de création', () => {
+  it('ouvre le réglage ou la fiche manquante, dans le même ordre que les contrôles', () => {
+    expect(creationHelp('projects', { ...ready, clients: 0 })?.target).toBe('client');
+    for (const view of ['quotes', 'invoices'] as const) {
+      expect(creationHelp(view, { ...ready, billingSetupDeferred: true })?.target).toBe('billing');
+    }
+    expect(creationHelp('time', { ...ready, workSetupDeferred: true, trackableProjects: 0, activeEmployees: 0 })?.target).toBe('work');
+    expect(creationHelp('time', { ...ready, trackableProjects: 0, activeEmployees: 0 })?.target).toBe('projects');
+    expect(creationHelp('time', { ...ready, activeEmployees: 0 })?.target).toBe('employee');
+    expect(creationHelp('expenses', { ...ready, activeSuppliers: 0, costCategories: 0 })?.target).toBe('supplier');
+    expect(creationHelp('expenses', { ...ready, costCategories: 0 })?.target).toBe('work');
+    for (const view of ['projects', 'catalog', 'quotes', 'invoices', 'time', 'team', 'expenses'] as const) {
+      expect(creationHelp(view, ready)).toBeNull();
+    }
+  });
   it('empêche les fenêtres sans choix possible et garde les documents accessibles au premier contact', () => {
     const empty: WorkspacePrerequisites = { clients: 0, projects: 0, trackableProjects: 0, activeEmployees: 0, activeSuppliers: 0, costCategories: 0 };
     expect(creationBlockReason('projects', empty)).toBe('Ajoutez d’abord un client.');

@@ -163,6 +163,10 @@ export function DetailedPayslipForm({
     item?.paymentDate ?? initialPaymentDate ?? '',
   );
   const [loadingRates, setLoadingRates] = useState(true);
+  const [storedContributionCount, setStoredContributionCount] = useState<
+    number | null
+  >(null);
+  const draftSaveInProgress = useRef(false);
   const [existingBlocked, setExistingBlocked] = useState(false);
   const [localError, setLocalError] = useState('');
   const [accountingError, setAccountingError] = useState('');
@@ -274,6 +278,7 @@ export function DetailedPayslipForm({
   useEffect(() => {
     let active = true;
     setLoadingRates(true);
+    setStoredContributionCount(null);
     setRatesError('');
     const contributionDate =
       paymentDate || (period ? `${period}-01` : undefined);
@@ -283,6 +288,7 @@ export function DetailedPayslipForm({
     ])
       .then(([items, snapshots]) => {
         if (!active) return;
+        setStoredContributionCount(snapshots.length);
         const available = items.filter((definition) => definition.active);
         const linkedItems = new Set(
           snapshots.map((snapshot) => snapshot.payslipItemId),
@@ -913,8 +919,21 @@ export function DetailedPayslipForm({
     }
   }
 
+  // A partial save must never erase contributions already recorded on a slip.
+  const canSaveSalaryDraft =
+    !item ||
+    (['draft', 'incomplete'].includes(item.status) &&
+      storedContributionCount === 0 &&
+      !loadingRates &&
+      !existingBlocked);
   async function saveSalaryDraft() {
-    if (item || busy || calculating) return;
+    if (
+      !canSaveSalaryDraft ||
+      busy ||
+      calculating ||
+      draftSaveInProgress.current
+    )
+      return;
     setLocalError('');
     if (!employeeId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
       setPreparing(false);
@@ -943,28 +962,33 @@ export function DetailedPayslipForm({
     const notes =
       formRef.current?.querySelector<HTMLTextAreaElement>('[name=notes]')
         ?.value ?? '';
-    await act(
-      () =>
-        desktopApi.savePayslipWithContributions(
-          { employeeId, period, paymentDate, notes, status: 'draft' },
-          lines,
-          undefined,
-          period,
-          [],
-        ),
-      'Brouillon enregistré. Retrouvez-le dans les fiches de salaire pour continuer.',
-      true,
-      (reason) => {
-        setPreparing(false);
-        setStep(1);
-        setLocalError(
-          errorMessage(
-            reason,
-            'Le brouillon n’a pas pu être enregistré. Votre salaire reste dans ce formulaire.',
+    draftSaveInProgress.current = true;
+    try {
+      await act(
+        () =>
+          desktopApi.savePayslipWithContributions(
+            { employeeId, period, paymentDate, notes, status: 'draft' },
+            lines,
+            item,
+            period,
+            [],
           ),
-        );
-      },
-    );
+        'Brouillon enregistré. Retrouvez-le dans les fiches de salaire pour continuer.',
+        true,
+        (reason) => {
+          setPreparing(false);
+          setStep(1);
+          setLocalError(
+            errorMessage(
+              reason,
+              'Le brouillon n’a pas pu être enregistré. Votre salaire reste dans ce formulaire.',
+            ),
+          );
+        },
+      );
+    } finally {
+      draftSaveInProgress.current = false;
+    }
   }
 
   return (
@@ -983,6 +1007,7 @@ export function DetailedPayslipForm({
       }
       className="payroll-dialog"
       onClose={close}
+      dismissible={!busy && !calculating}
       wide
     >
       {setup && (
@@ -1010,7 +1035,9 @@ export function DetailedPayslipForm({
           tasks={payrollPreparationTasks(eligibility.blockers)}
           proposals={missingProposals.map((definition) => definition.label)}
           onApplyProposals={addMissingProposals}
-          onSaveDraft={item ? undefined : () => void saveSalaryDraft()}
+          onSaveDraft={
+            canSaveSalaryDraft ? () => void saveSalaryDraft() : undefined
+          }
           busy={busy || calculating || loadingRates || loadingAccounting}
           onFix={fixPayroll}
           onBack={() => setPreparing(false)}
@@ -2297,6 +2324,29 @@ export function DetailedPayslipForm({
               </div>
             )}
           </fieldset>
+          {step > 0 && canSaveSalaryDraft && (
+            <aside
+              className="payroll-save-later"
+              aria-label="Continuer plus tard"
+            >
+              <div>
+                <strong>Vous pouvez continuer plus tard.</strong>
+                <p>
+                  Conservez le salaire saisi, même si les assurances ne sont pas
+                  encore prêtes. Le brouillon restera à calculer avant de
+                  pouvoir être payé.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy || calculating}
+                onClick={() => void saveSalaryDraft()}
+              >
+                Enregistrer le salaire en brouillon
+              </Button>
+            </aside>
+          )}
           <div className="payroll-actions">
             {step > 0 ? (
               <Button

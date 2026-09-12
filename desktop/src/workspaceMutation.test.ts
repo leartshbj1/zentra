@@ -3,9 +3,22 @@ const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ Channel: class {}, invoke: invokeMock }));
 import { desktopApi } from './bridge';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
+import type { EntityKind } from './types';
 
 const request = '39c85c22-7fc0-42d0-95f9-c1ad536fe2cf';
 const operations = [
+  ...(['clients', 'catalogItems', 'suppliers', 'projects', 'quotes', 'invoices', 'employees', 'timeEntries', 'expenses', 'payslips'] as EntityKind[]).flatMap(entity => [
+    { command: 'create_record', run: () => desktopApi.createEntity(entity, { name: 'Recette de reprise' }) },
+    { command: 'update_record', run: () => desktopApi.updateEntity(entity, request, { notes: 'Correction conservée' }) },
+    { command: ['clients', 'catalogItems', 'suppliers'].includes(entity) ? 'update_record' : 'delete_record', run: () => desktopApi.archiveEntity(entity, request) },
+  ]),
+  { command: 'save_project_task', run: () => desktopApi.saveProjectTask({ projectId: 'project', milestoneId: null, title: 'Étude', description: '', dueDate: null, priority: 'normal', sortOrder: 0, employeeId: null }) },
+  { command: 'set_project_task_status', run: () => desktopApi.setProjectTaskStatus('task', 'done') },
+  { command: 'delete_project_task', run: () => desktopApi.deleteProjectTask('task') },
+  { command: 'save_project_milestone', run: () => desktopApi.saveProjectMilestone({ projectId: 'project', title: 'Livraison', description: '', dueDate: null, status: 'todo', priority: 'normal', sortOrder: 0, employeeId: null }) },
+  { command: 'delete_project_milestone', run: () => desktopApi.deleteProjectMilestone('milestone') },
+  { command: 'start_timer', run: () => desktopApi.startTimer({ projectId: 'project', employeeId: 'employee' }) },
+  { command: 'stop_timer', run: () => desktopApi.stopTimer() },
   { command: 'create_recurrence_schedule', run: () => desktopApi.createRecurrenceSchedule({ requestId: request, sourceSalesOrderId: 'order', frequency: 'monthly', startDate: '2026-09-01', endDate: null, paymentTermsDays: 30 }) },
   { command: 'update_recurrence_schedule', run: () => desktopApi.updateRecurrenceSchedule({ requestId: request, scheduleId: 'schedule', status: 'paused', endDate: null }) },
   { command: 'generate_recurrence_occurrences', run: () => desktopApi.generateRecurrenceOccurrences({ requestId: request, scheduleId: 'schedule', throughDate: '2026-09-05' }) },

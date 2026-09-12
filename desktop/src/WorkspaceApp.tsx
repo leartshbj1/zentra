@@ -258,6 +258,8 @@ import {
 } from './compactNavigation';
 import {
   creationBlockReason,
+  creationHelp,
+  type CreationHelpTarget,
   timerBlockReason,
   type WorkspacePrerequisites,
 } from './workflowGuards';
@@ -1618,6 +1620,17 @@ export function WorkspaceApp({
                 prerequisites={prerequisites}
                 readOnly={readOnly}
                 readOnlyReason={readOnlyMutationMessage}
+                onResolve={(target) => {
+                  if (readOnly) return;
+                  if (target === 'client' || target === 'employee' || target === 'supplier') {
+                    setModal({ type: target });
+                  } else if (target === 'projects') {
+                    navigateTour('projects');
+                  } else {
+                    navigateTour('settings');
+                    setSettingsFocusTarget(SETTINGS_READINESS_TARGETS[target]);
+                  }
+                }}
               />
             ) : null}
           </div>
@@ -2178,6 +2191,7 @@ function CreateButton({
   prerequisites,
   readOnly,
   readOnlyReason,
+  onResolve,
 }: {
   view: View;
   onClick: Dispatch<SetStateAction<ModalState>>;
@@ -2185,6 +2199,7 @@ function CreateButton({
   prerequisites: WorkspacePrerequisites;
   readOnly: boolean;
   readOnlyReason: string;
+  onResolve: (target: CreationHelpTarget) => void;
 }) {
   const map: Partial<Record<View, [string, ModalState]>> = {
     projects: [`Nouveau ${terminology.singular}`, { type: 'project' }],
@@ -2205,14 +2220,26 @@ function CreateButton({
           prerequisites,
         )
       : '';
+  const help = !readOnly && current ? creationHelp(view as Parameters<typeof creationHelp>[0], prerequisites) : null;
   return current ? (
+    <div className="creation-action">
     <Button
       disabled={Boolean(blockReason)}
+      aria-describedby={help ? `creation-help-${view}` : undefined}
       title={blockReason || current[0]}
       onClick={() => onClick(current[1])}
     >
       <Plus size={16} /> {current[0]}
     </Button>
+    {help && (
+      <div className="creation-action__help" aria-label="Pour continuer">
+        <p id={`creation-help-${view}`}>{blockReason}</p>
+        <Button type="button" variant="ghost" size="small" onClick={() => onResolve(help.target)}>
+          {help.label} <ArrowRight size={15} />
+        </Button>
+      </div>
+    )}
+    </div>
   ) : null;
 }
 
@@ -2638,9 +2665,9 @@ function ProjectsScreen({
         actionLabel={
           hasActiveClient
             ? `Créer un ${terminology.singular}`
-            : 'Ajoutez d’abord un client'
+            : undefined
         }
-        onAction={onCreate}
+        onAction={hasActiveClient ? onCreate : undefined}
         disabled={busy || readOnly || !hasActiveClient}
       />
     );
@@ -4405,7 +4432,7 @@ function TeamScreen({
           </button>
         ) : null}
         {workspace.payslips.length ? <div className="sales-list-toolbar payroll-list-toolbar">
-          <label><span>État des fiches</span><select aria-label="État des fiches de salaire" value={payrollStatus} onChange={(event) => setPayrollStatus(event.target.value)}><option value="all">Tous les états</option><option value="incomplete">À contrôler</option><option value="validated">Validées</option><option value="posted">À payer</option><option value="paid">Payées</option></select></label>
+          <label><span>État des fiches</span><select aria-label="État des fiches de salaire" value={payrollStatus} onChange={(event) => setPayrollStatus(event.target.value)}><option value="all">Tous les états</option><option value="draft">Brouillons · à compléter</option><option value="incomplete">À contrôler</option><option value="validated">Validées</option><option value="posted">À payer</option><option value="paid">Payées</option></select></label>
           <span role="status">{filteredPayslips.length} / {workspace.payslips.length} · Plus récentes d’abord</span>
         </div> : null}
         {filteredPayslips.length ? (
