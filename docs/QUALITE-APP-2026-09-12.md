@@ -83,6 +83,14 @@ Les logs et images de ces vérifications se trouvent dans `.qa/` du dossier de t
 
 ## Distribution
 
-Ce lot est intégré au code ; il n'est pas encore publié comme nouvel installateur ou IPA. La version précédemment livrée reste 1.54.0 pour Windows et 1.53.0 pour l'IPA non signé. Le présent audit n'atteste ni installation client, ni nouvelles versions macOS/Android.
+Ces améliorations sont publiées pour Windows en version 1.55.0, avec signature Tauri vérifiée, canal de mise à jour et page de téléchargement publics. L'IPA non signé reste en 1.53.0. Le présent audit n'atteste ni installation client, ni nouvelles versions macOS/Android. Voir RELEASE-WINDOWS-1.55.0.md pour les artefacts et preuves.
 
 Le premier chargement contient encore un module `WorkspaceApp` d'environ 732 ko minifiés. Son découpage et les temps de réponse sur appareil mobile restent à examiner, en maintenant l'accès hors ligne aux fonctionnalités.
+
+## Livraison Windows 1.55.0
+
+Publication vérifiée le 12 septembre 2026 : installateur Windows 1.55.0, signature Tauri et empreinte disponibles sur GitHub et Supabase. Le fichier téléchargé publiquement correspond à l'artefact compilé et sa signature Ed25519 a été vérifiée. Le manifeste public `latest-windows.json` pointe vers cette version ; le canal partagé `latest.json` est inchangé et le manifeste Windows précédent est conservé.
+
+La page de téléchargement publique est publiée via Sites, version 121. Le lien Windows, l'empreinte et le texte de présentation ont été relus dans le HTML public. Source binaire : `a303f0777828cbe698beaa054bbcaafa65dd4706` ; source du site : `4ce11f1d1d0a975631228fd6ccf7156e6301857b`. Détails : [RELEASE-WINDOWS-1.55.0.md](RELEASE-WINDOWS-1.55.0.md).
+
+Cette publication ne constitue pas une validation sur un profil client réel. Authenticode reste indisponible. Aucun nouvel IPA ou paquet macOS/Android n'est inclus.
