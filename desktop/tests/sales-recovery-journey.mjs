@@ -47,9 +47,9 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
           await editor.locator('[name=clientId]').selectOption('client-qa');
           await editor.getByRole('button', { name: 'Continuer', exact: true }).click();
           await editor.getByRole('textbox', { name: 'Description', exact: true }).fill('Travail de recette');
-          await editor.getByRole('spinbutton', { name: 'Quantité', exact: true }).fill('2');
-          await editor.getByRole('textbox', { name: 'Unité', exact: true }).fill('h');
-          await editor.getByRole('spinbutton', { name: 'Prix unitaire', exact: true }).fill('125');
+          await editor.getByRole('textbox', { name: 'Quantité', exact: true }).fill('2');
+          await editor.getByLabel('Unité', { exact: true }).fill('h');
+          await editor.getByRole('textbox', { name: 'Prix unitaire', exact: true }).fill('125');
           await editor.getByRole('button', { name: 'Continuer', exact: true }).click();
           await editor.locator('[name=notes]').fill('Conditions conservées\nDeuxième ligne.');
           await editor.getByRole('button', { name: 'Continuer', exact: true }).click();

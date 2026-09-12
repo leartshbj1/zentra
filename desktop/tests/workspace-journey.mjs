@@ -54,9 +54,9 @@ try {
   assert.ok(await page.locator('select[name=projectId]').inputValue());
   await page.getByRole('button', { name: 'Continuer', exact: true }).click();
   await page.getByRole('textbox', { name: 'Description', exact: true }).fill('Étude du projet');
-  await page.getByRole('spinbutton', { name: 'Quantité', exact: true }).fill('1');
-  await page.getByRole('textbox', { name: 'Unité', exact: true }).fill('forfait');
-  await page.getByRole('spinbutton', { name: 'Prix unitaire', exact: true }).fill('200');
+  await page.getByRole('textbox', { name: 'Quantité', exact: true }).fill('1');
+  await page.getByLabel('Unité', { exact: true }).fill('forfait');
+  await page.getByRole('textbox', { name: 'Prix unitaire', exact: true }).fill('200');
   await page.locator('.line-editor').scrollIntoViewIfNeeded();
   await capture('390-quote-editor');
   await page.getByRole('button', { name: 'Continuer', exact: true }).click();
@@ -74,9 +74,9 @@ try {
   assert.ok(await page.locator('select[name=projectId]').inputValue());
   await page.getByRole('button', { name: 'Continuer', exact: true }).click();
   await page.getByRole('textbox', { name: 'Description', exact: true }).fill('Prestation du projet');
-  await page.getByRole('spinbutton', { name: 'Quantité', exact: true }).fill('1');
-  await page.getByRole('textbox', { name: 'Unité', exact: true }).fill('forfait');
-  await page.getByRole('spinbutton', { name: 'Prix unitaire', exact: true }).fill('250');
+  await page.getByRole('textbox', { name: 'Quantité', exact: true }).fill('1');
+  await page.getByLabel('Unité', { exact: true }).fill('forfait');
+  await page.getByRole('textbox', { name: 'Prix unitaire', exact: true }).fill('250');
   await page.getByRole('button', { name: 'Continuer', exact: true }).click();
   if (await page.getByLabel('Début de la prestation').isVisible()) {
     await page.getByLabel('Début de la prestation').fill('2026-09-05');

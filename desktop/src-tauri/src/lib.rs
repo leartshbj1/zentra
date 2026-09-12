@@ -2584,6 +2584,36 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn sales_entry_preserves_free_lines_and_decimal_amounts_through_final_pdf() {
+        let (temporary, store) = initialized_store();
+        let client = value_id(&store.create_record("clients", test_client("Client saisie décimale")).unwrap());
+        for entity in ["quotes", "invoices"] {
+            let mut data = json!({"client_id":client,"title":"Prestations et conseil offert","currency":"CHF","issue_date":"2026-09-12","notes":"Conditions sur deux lignes.\nMerci de votre confiance."});
+            if entity == "quotes" { data["valid_until"] = json!("2026-10-12"); }
+            else { data["due_date"] = json!("2026-10-12"); data["service_date_from"] = json!("2026-09-12"); data["service_date_to"] = json!("2026-09-12"); }
+            let saved = store.save_document_with_items(SaveDocumentWithItemsInput { entity:entity.into(), id:None, data, items:vec![
+                json!({"description":"Prestation détaillée","quantity":2.125,"unit":"h","unit_price_cents":123456,"discount_bp":1250,"vat_bp":810}),
+                json!({"description":"Conseil offert","quantity":1,"unit":"forfait","unit_price_cents":0,"discount_bp":0,"vat_bp":810}),
+            ] }).unwrap();
+            assert_eq!(saved["document"]["subtotal_cents"], 262344);
+            assert_eq!(saved["document"]["discount_cents"], 32793);
+            assert_eq!(saved["document"]["vat_cents"], 18594);
+            assert_eq!(saved["document"]["total_cents"], 248145);
+            assert_eq!(saved["items"].as_array().unwrap().len(), 2);
+            let id = saved["document"]["id"].as_str().unwrap();
+            if entity == "quotes" { store.issue_quote(id, Some("2026-09-12".into()), Some("2026-10-12".into())).unwrap(); }
+            else { store.issue_invoice(id, Some("2026-09-12".into()), Some("2026-10-12".into())).unwrap(); }
+            let path = temporary.path().join(format!("{entity}-decimal.pdf"));
+            store.generate_sales_document_pdf(GenerateSalesDocumentPdfInput { entity:entity.into(), document_id:id.into(), destination_path:path.to_string_lossy().into_owned() }).unwrap();
+            let pdf = lopdf::Document::load(&path).unwrap();
+            let text = pdf.extract_text(&pdf.get_pages().keys().copied().collect::<Vec<_>>()).unwrap();
+            assert!(text.contains("Conseil offert"));
+            assert!(text.contains("2'481.45"));
+            assert!(text.contains("0.00"));
+        }
+    }
+
+    #[test]
     fn document_and_all_lines_are_saved_in_one_transaction() {
         let (_temporary, store) = initialized_store();
         let client_id = value_id(

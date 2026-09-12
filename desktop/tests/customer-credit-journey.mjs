@@ -60,7 +60,7 @@ try {
     await page.screenshot({ path: `${out}/${width}-dates.png` });
     await date.fill('2026-02-15');
     await rate.scrollIntoViewIfNeeded();
-    assert.equal(await dialog.getByRole('spinbutton', { name: 'Prix unitaire', exact: true }).inputValue(), '100');
+    assert.equal(await dialog.getByRole('textbox', { name: 'Prix unitaire', exact: true }).inputValue(), '100');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.ok(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
     await page.screenshot({ path: `${out}/${width}-rate.png` });

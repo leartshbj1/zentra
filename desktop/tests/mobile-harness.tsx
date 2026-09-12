@@ -175,6 +175,7 @@ if (new URLSearchParams(location.search).has('readOnlyAudit')) { installPayrollF
 if (new URLSearchParams(location.search).has('wizard')) {
   const saveDocument = desktopApi.saveDocument;
   desktopApi.saveDocument = async (...args) => {
+    if (sessionStorage.getItem('wizard-refuse-save') === '1') throw new Error('Enregistrement momentanément indisponible. Votre saisie est conservée.');
     const calls = JSON.parse(sessionStorage.getItem('wizard-documents') || '[]');
     calls.push(args);
     sessionStorage.setItem('wizard-documents', JSON.stringify(calls));

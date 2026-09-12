@@ -324,7 +324,7 @@ describe('interactions des documents', () => {
     };
     expect(documentLinesValidationError([line])).toBe('');
     expect(documentLinesValidationError([{ ...line, vatRateBp: -1 }])).toContain(
-      'Complétez chaque ligne',
+      'Ligne 1 : choisissez le taux de TVA',
     );
     expect(documentLinesValidationError([{ ...line, discountBp: 10_001 }])).toContain(
       'remise',

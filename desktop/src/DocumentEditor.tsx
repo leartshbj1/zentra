@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { DocumentNumberInput } from './DocumentNumberInput';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Archive,
   Check,
@@ -34,6 +35,7 @@ import {
 import {
   DOCUMENT_CATALOG_RESULT_LIMIT,
   documentLinesValidationError,
+  documentLineIssue,
   documentVatRateFromInput,
   prepareDocumentQuickClient,
   salesDocumentDateError,
@@ -72,6 +74,7 @@ export function DocumentEditor({
   act: ActionRunner;
 }) {
   const settings = workspace.settings!;
+  const unitsId = useId();
   const terminology = projectTerminology(settings.business.nogaSection);
   const current = item ?? quoteSource;
   const currentInvoice = entity === 'invoices' ? (item as Invoice | undefined) : undefined;
@@ -97,6 +100,7 @@ export function DocumentEditor({
       },
     ],
   );
+  const [savedLineIds] = useState(() => new Set(current ? lines.map(line => line.id) : []));
   const catalogItems = useMemo(
     () => activeCatalogItems(workspace.catalogItems),
     [workspace.catalogItems],
@@ -162,6 +166,10 @@ export function DocumentEditor({
   const [footerTemplateId, setFooterTemplateId] = useState('');
   const [footerTemplateName, setFooterTemplateName] = useState('');
   const [localError, setLocalError] = useState('');
+  const [numberErrors, setNumberErrors] = useState<Record<string, string>>({});
+  const numberValidity = useCallback((id: string, error: string) => {
+    setNumberErrors(previous => { if ((previous[id] || '') === error) return previous; const next = { ...previous }; if (error) next[id] = error; else delete next[id]; return next; });
+  }, []);
   const [saveAttempt, setSaveAttempt] = useState(0);
   const [step, setStep] = useState(0);
   const [documentTitle, setDocumentTitle] = useState(current?.title ?? '');
@@ -178,6 +186,7 @@ export function DocumentEditor({
       : lines;
   const baseTotals = documentTotals(lines);
   const totals = documentTotals(depositLines);
+  const totalsReady = !Object.keys(numberErrors).length && !documentLinesValidationError(lines);
   const isLocked = Boolean(
     item && (item.status !== 'draft' || readOnlyReason),
   );
@@ -203,38 +212,45 @@ export function DocumentEditor({
   const stepHints = ['Choisissez votre client et retrouvez tous ses documents dans le même projet.', 'Ajoutez vos prestations ou retrouvez-les dans votre catalogue.', 'Précisez les dates et le message qui accompagnera votre document.', 'Relisez votre document. Vous pourrez encore le modifier avant de l’émettre.'];
 
   useEffect(() => {
-    if (previousStep.current === step) return;
+    const changed = previousStep.current !== step;
     previousStep.current = step;
-    const panel = formRef.current?.querySelector<HTMLElement>(`[data-document-step="${step}"]`);
-    const scroller = formRef.current?.querySelector('.document-form');
-    if (scroller) scroller.scrollTop = 0;
-    (pendingFocus.current || panel?.querySelector<HTMLElement>('h3'))?.focus({ preventScroll: true });
-    pendingFocus.current?.scrollIntoView({ block: 'nearest' });
-    pendingFocus.current = null;
-  }, [step]);
+    if (!changed && !pendingFocus.current) return;
+    // Wait until the error banner has its final height before positioning the field.
+    const frame = requestAnimationFrame(() => {
+      const panel = formRef.current?.querySelector<HTMLElement>(`[data-document-step="${step}"]`);
+      const scroller = formRef.current?.querySelector('.document-form');
+      if (changed && scroller) scroller.scrollTop = 0;
+      (pendingFocus.current || panel?.querySelector<HTMLElement>('h3'))?.focus({ preventScroll: true });
+      pendingFocus.current?.scrollIntoView({ block: 'center', behavior: 'instant' });
+      pendingFocus.current = null;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [step, saveAttempt]);
 
   function showStepError(index: number, message: string, field?: HTMLElement) {
+    pendingFocus.current = field || null;
     setLocalError(message);
     setSaveAttempt((attempt) => attempt + 1);
-    if (step !== index) {
-      pendingFocus.current = field || null;
-      setStep(index);
-    } else if (field) {
-      field.focus();
-      field.scrollIntoView({ block: 'nearest' });
-    }
+    if (step !== index) setStep(index);
     return false;
   }
 
   function validateStep(index: number) {
     const fields = formRef.current?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(`[data-document-step="${index}"] input, [data-document-step="${index}"] select, [data-document-step="${index}"] textarea`);
     const invalid = [...(fields || [])].find((field) => !field.checkValidity());
-    if (invalid) return showStepError(index, 'Complétez le champ indiqué pour continuer.', invalid);
+    if (invalid) {
+      const row = invalid.closest<HTMLElement>('[data-line-number]');
+      const label = invalid.getAttribute('aria-label') || invalid.labels?.[0]?.querySelector('.field__label')?.textContent?.trim() || invalid.labels?.[0]?.textContent?.trim().split('\n')[0] || 'ce champ';
+      const message = invalid.validity.customError ? invalid.validationMessage : invalid.validity.valueMissing ? `Complétez « ${label.replace(/\s*\*$/, '')} » pour continuer.` : `Vérifiez « ${label} » : la valeur saisie n’est pas valide.`;
+      return showStepError(index, `${row ? `Ligne ${row.dataset.lineNumber} : ` : ''}${message}`, invalid);
+    }
     if (index === 0 && quickClientOpen) return showStepError(0, 'Ajoutez le nouveau contact ou fermez sa fiche pour continuer.');
     if (index === 0 && !documentTitle.trim()) return showStepError(0, 'Donnez un titre à votre document.', formRef.current?.querySelector<HTMLInputElement>('[name="title"]') || undefined);
     if (index === 1) {
-      const error = documentLinesValidationError(lines);
-      if (error) return showStepError(1, error);
+      const issue = documentLineIssue(lines);
+      if (issue) return showStepError(1, issue.message, formRef.current?.querySelector<HTMLElement>(`[data-line-number="${issue.index + 1}"] [aria-label="${issue.field}"]`) || undefined);
+      const invalidVat = settings.organization.vatRegistered ? lines.findIndex(line => !documentVatRates.includes(line.vatRateBp)) : -1;
+      if (invalidVat >= 0) return showStepError(1, `Ligne ${invalidVat + 1} : choisissez un taux de TVA disponible pour ce document.`, formRef.current?.querySelector<HTMLElement>(`[data-line-number="${invalidVat + 1}"] [aria-label="Taux TVA"]`) || undefined);
     }
     if (index === 2) {
       const error = entity === 'quotes' || invoiceType !== 'credit_note' ? salesDocumentDateError(entity, issueDate, dueDate) : '';
@@ -698,12 +714,14 @@ export function DocumentEditor({
           <section className="document-step" data-document-step="1" hidden={!isLocked && step !== 1}>
             {stepHeading(1)}
           <section className="line-editor">
+            <datalist id={unitsId}>{['h', 'jour', 'pièce', 'forfait', 'm', 'm²', 'm³', 'kg'].map(unit => <option key={unit} value={unit} />)}</datalist>
             <header>
               <div>
                 <strong>{invoiceType === 'deposit' ? 'Base de calcul de l’acompte' : 'Lignes du document'}</strong>
                 <small className={currency !== 'CHF' ? 'document-currency-hint' : undefined}>
                   {currency === 'CHF' ? (catalogItems.length ? 'Retrouvez une prestation du catalogue ou ajoutez une ligne libre.' : 'Décrivez vos prestations, leur quantité et leur prix.') : `Saisissez les prix en ${currency}. Les prix du catalogue sont en CHF et ne sont pas convertis automatiquement.`}
                 </small>
+                <small>{settings.organization.vatRegistered ? 'Prix hors TVA. ' : ''}Virgule ou point acceptés. Saisissez 0 pour une prestation offerte.</small>
               </div>
               <div className="line-editor__actions">
                 {catalogItems.length > 0 && <div className="catalog-line-picker">
@@ -787,8 +805,8 @@ export function DocumentEditor({
               <span>TVA</span>
               <span />
             </div>
-            {lines.map((line) => (
-              <div className="line-editor__row" key={line.id}>
+            {lines.map((line, index) => (
+              <div className="line-editor__row" key={line.id} role="group" aria-label={`Prestation ${index + 1}`} data-line-number={index + 1}>
                 <label className="document-line-field" data-label="Description">
                 <input
                   value={line.description}
@@ -800,23 +818,13 @@ export function DocumentEditor({
                 />
                 </label>
                 <label className="document-line-field" data-label="Quantité">
-                <input
-                  type="number"
-                  min="0.0001"
-                  step="0.0001"
-                  value={line.quantity || ''}
-                  onChange={(event) =>
-                    updateLine(line.id, {
-                      quantity: event.target.valueAsNumber || 0,
-                    })
-                  }
-                  aria-label="Quantité"
-                  required
-                />
+                  <DocumentNumberInput id={`${line.id}-quantity`} kind="quantity" label="Quantité" value={line.quantity} startEmpty={line.quantity === 0 && !savedLineIds.has(line.id)} onChange={quantity => updateLine(line.id, { quantity })} onValidityChange={numberValidity} />
                 </label>
                 <label className="document-line-field" data-label="Unité">
                 <input
                   value={line.unit}
+                  list={unitsId}
+                  placeholder="h, pièce, forfait…"
                   onChange={(event) =>
                     updateLine(line.id, { unit: event.target.value })
                   }
@@ -825,39 +833,11 @@ export function DocumentEditor({
                 />
                 </label>
                 <label className="money-input" data-label="Prix unitaire">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={line.unitPriceCents ? line.unitPriceCents / 100 : ''}
-                    onChange={(event) =>
-                      updateLine(line.id, {
-                        unitPriceCents: Math.round(
-                          (event.target.valueAsNumber || 0) * 100,
-                        ),
-                      })
-                    }
-                    aria-label="Prix unitaire"
-                    required
-                  />
+                  <DocumentNumberInput id={`${line.id}-price`} kind="price" label="Prix unitaire" value={line.unitPriceCents} startEmpty={!line.catalogItemId && !savedLineIds.has(line.id)} onChange={unitPriceCents => updateLine(line.id, { unitPriceCents })} onValidityChange={numberValidity} />
                   <span>{currency}</span>
                 </label>
                 <label className="percent-input" data-label="Remise">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={(line.discountBp ?? 0) / 100}
-                    onChange={(event) =>
-                      updateLine(line.id, {
-                        discountBp: Math.round(
-                          (event.target.valueAsNumber || 0) * 100,
-                        ),
-                      })
-                    }
-                    aria-label="Remise en pour cent"
-                  />
+                  <DocumentNumberInput id={`${line.id}-discount`} kind="discount" label="Remise en pour cent" value={line.discountBp ?? 0} onChange={discountBp => updateLine(line.id, { discountBp })} onValidityChange={numberValidity} />
                   <span>%</span>
                 </label>
                 {settings.organization.vatRegistered ? (
@@ -948,11 +928,11 @@ export function DocumentEditor({
             ) : null}
             {entity === 'invoices' ? (
               <>
-                <Field label="Début de la prestation" required>
+                <Field label="Début de la prestation" required hint="Pour une journée, la même date est proposée en fin. Modifiez-la si la prestation dure plus longtemps.">
                   <input
                     type="date"
                     value={serviceDateFrom}
-                    onChange={(event) => setServiceDateFrom(event.target.value)}
+                    onChange={(event) => { const next = event.target.value; setServiceDateFrom(next); if (!serviceDateTo || serviceDateTo === serviceDateFrom) setServiceDateTo(next); }}
                     required
                   />
                 </Field>
@@ -979,22 +959,13 @@ export function DocumentEditor({
               </div>
               <Field label="Pourcentage de l’acompte" required>
                 <label className="percent-input">
-                  <input
-                    type="number"
-                    min="0.01"
-                    max="100"
-                    step="0.01"
-                    value={depositPercentage}
-                    onChange={(event) => setDepositPercentage(event.target.value)}
-                    aria-label="Pourcentage de l’acompte"
-                    required
-                  />
+                  <DocumentNumberInput id="deposit-percentage" kind="deposit" label="Pourcentage de l’acompte" value={depositPercentageBp} onChange={value => setDepositPercentage(String(value / 100))} onValidityChange={numberValidity} />
                   <span>%</span>
                 </label>
               </Field>
               <div className="deposit-builder__summary" aria-live="polite">
                 <span>Base TTC <strong>{formatMoney(baseTotals.totalCents, currency)}</strong></span>
-                <span>Acompte TTC <strong>{formatMoney(totals.totalCents, currency)}</strong></span>
+                <span>Acompte TTC <strong>{totalsReady ? formatMoney(totals.totalCents, currency) : 'À compléter'}</strong></span>
               </div>
             </section>
           ) : null}
@@ -1143,7 +1114,7 @@ export function DocumentEditor({
           </div>
         ) : (
           <div className="document-wizard-footer">
-            <div className="document-wizard-footer__total"><span>{invoiceType === 'credit_note' ? 'Montant de l’avoir' : 'Total TTC'}</span><strong>{formatMoney(totals.totalCents, currency)}</strong></div>
+            <div className="document-wizard-footer__total"><span>{invoiceType === 'credit_note' ? 'Montant de l’avoir' : 'Total TTC'}</span><strong>{totalsReady ? formatMoney(totals.totalCents, currency) : 'À compléter'}</strong></div>
             <FormActions
               onCancel={step ? () => goToStep(step - 1) : close}
               cancelLabel={step ? 'Retour' : 'Annuler'}

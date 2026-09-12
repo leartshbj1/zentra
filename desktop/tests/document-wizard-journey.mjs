@@ -46,9 +46,9 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  const calls=()=>page.evaluate(()=>JSON.parse(sessionStorage.getItem('wizard-documents')||'[]'));
  const line=async()=>{
   await dialog.getByRole('textbox',{name:'Description',exact:true}).fill('Préparation et finition des murs');
-  await dialog.getByRole('spinbutton',{name:'Quantité',exact:true}).fill('2');
-  await dialog.getByRole('textbox',{name:'Unité',exact:true}).fill('h');
-  await dialog.getByRole('spinbutton',{name:'Prix unitaire',exact:true}).fill('125');
+  await dialog.getByRole('textbox',{name:'Quantité',exact:true}).fill('2');
+  await dialog.getByLabel('Unité', { exact: true }).fill('h');
+  await dialog.getByRole('textbox',{name:'Prix unitaire',exact:true}).fill('125');
   await dialog.getByRole('combobox',{name:'Taux TVA',exact:true}).selectOption('810');
  };
  await shot('dashboard');
@@ -95,7 +95,7 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  await next();await step(2);assert.equal((await calls()).length,1);
  await dialog.getByLabel('Début de la prestation').fill('2026-09-08');
  await dialog.getByLabel('Fin de la prestation').fill('2026-09-12');
- await dialog.getByRole('spinbutton',{name:'Pourcentage de l’acompte',exact:true}).fill('30');
+ await dialog.getByRole('textbox',{name:'Pourcentage de l’acompte',exact:true}).fill('30');
  await next();await step(3);await shot('deposit-review');
  await dialog.getByRole('button',{name:'Enregistrer le brouillon',exact:true}).click();await dialog.waitFor({state:'detached'});
  saved=(await calls())[1];assert.equal(saved[1].depositPercentageBp,3000);assert.equal(saved[1].depositBasisLines[0].unitPriceCents,12500);assert.equal(saved[1].totalCents,8108);assert.equal(saved[2].length,1);

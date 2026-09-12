@@ -2,6 +2,16 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : saisie compréhensible des prestations commerciales
+
+Les quantités, prix, remises et pourcentages d’acompte conservent le texte saisi pendant l’édition. La virgule, le point et les séparateurs suisses de milliers sont acceptés ; une précision excessive ou un nombre ambigu est signalé avant l’enregistrement. Un prix vide demande une saisie, tandis qu’un zéro explicite conserve une prestation offerte. Une remise vide vaut zéro. Les unités courantes sont proposées tout en restant libres. Les erreurs indiquent le numéro de ligne et rejoignent le champ concerné ; les anciens taux TVA indisponibles demandent un choix explicite. Le total principal reste « À compléter » tant qu’une saisie numérique est invalide. Pour une prestation d’une journée, la date de fin reprend le début tant qu’elle n’a pas été personnalisée.
+
+Les prix déjà enregistrés, y compris ceux de la base d’un acompte dont les identifiants diffèrent des lignes facturées, sont préremplis. Une ligne invalide supprimée ne bloque pas les suivantes. Les tests couvrent le retour dans les étapes, la réouverture d’un brouillon, le refus d’une sauvegarde et sa reprise avec les mêmes valeurs. Les calculs et règles fiscales natifs ne sont pas modifiés.
+
+Validation source : TypeScript, Vite et **127 fichiers / 1 043 tests d’interface réussis**. Douze parcours de saisie Edge/WebKit à 320/390/1440 px, huit parcours d’assistant sur téléphone, paysage et ordinateur, et 24 parcours de reprise commerciale réussis. Le contrôle natif enregistre puis émet un devis et une facture contenant 2,125 unités à 1 234,56 CHF, une remise de 12,50 %, une TVA de 8,1 % et une prestation offerte ; le total de 2 481,45 CHF et la ligne gratuite se retrouvent dans les PDF finaux. Les captures mobiles de refus ont été inspectées. Ces parcours utilisent des fixtures dédiées et ne remplacent pas une recette sur profil client.
+
+Intégration du dossier principal vérifiée : TypeScript, Vite, 22 tests ciblés, contrôle Rust et six parcours Edge réussis. Une sauvegarde précède les changements dans `.qa/document-number-20260912-before/`. Le positionnement du champ erroné est vérifié après affichage du message pour qu’il reste dans la zone visible, y compris à 320 px. Aucun installateur ni IPA publié dans ce lot.
+
 ## Lot : édition de texte et reprise des exports PDF
 
 Le gras, l’italique et le soulignement peuvent être activés avant la saisie ; la barre indique le style actif. La liste à puces bascule uniquement sur les paragraphes sélectionnés. Les retours à la ligne sont conservés lorsque le navigateur remplace un passage mis en forme. Les limites de 60 paragraphes et de 500 changements de style ne coupent plus le contenu : l’éditeur refuse explicitement la modification excessive et garde le texte précédent. Les segments adjacents de même style sont regroupés sans perte.

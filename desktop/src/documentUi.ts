@@ -15,26 +15,22 @@ export function documentVatRateFromInput(value: string): number {
 }
 
 export function documentLinesValidationError(lines: DocumentLine[]): string {
-  const invalid =
-    !lines.length ||
-    lines.some(
-      (line) =>
-        !line.description.trim() ||
-        !Number.isFinite(line.quantity) ||
-        line.quantity <= 0 ||
-        !line.unit.trim() ||
-        !Number.isSafeInteger(line.unitPriceCents) ||
-        line.unitPriceCents < 0 ||
-        !Number.isInteger(line.discountBp ?? 0) ||
-        (line.discountBp ?? 0) < 0 ||
-        (line.discountBp ?? 0) > 10_000 ||
-        !Number.isInteger(line.vatRateBp) ||
-        line.vatRateBp < 0 ||
-        line.vatRateBp > 10_000,
-    );
-  return invalid
-    ? 'Complétez chaque ligne et vérifiez que la remise reste comprise entre 0 et 100 %.'
-    : '';
+  return documentLineIssue(lines)?.message || '';
+}
+
+export function documentLineIssue(lines: DocumentLine[]): { index: number; field: string; message: string } | null {
+  if (!lines.length) return { index: 0, field: 'Description', message: 'Ajoutez au moins une prestation.' };
+  for (const [index, line] of lines.entries()) {
+    const issue = (field: string, message: string) => ({ index, field, message: `Ligne ${index + 1} : ${message}` });
+    if (!line.description.trim()) return issue('Description', 'décrivez la prestation ou l’article.');
+    if (!Number.isFinite(line.quantity) || line.quantity <= 0) return issue('Quantité', 'indiquez une quantité supérieure à zéro.');
+    if (!line.unit.trim()) return issue('Unité', 'indiquez une unité, par exemple h, pièce ou forfait.');
+    if (!Number.isSafeInteger(line.unitPriceCents) || line.unitPriceCents < 0) return issue('Prix unitaire', 'indiquez un prix positif, ou 0 pour une prestation offerte.');
+    if (!Number.isSafeInteger(Math.round(line.quantity * line.unitPriceCents))) return issue('Prix unitaire', 'le montant calculé est trop grand. Vérifiez la quantité et le prix.');
+    if (!Number.isInteger(line.discountBp ?? 0) || (line.discountBp ?? 0) < 0 || (line.discountBp ?? 0) > 10000) return issue('Remise en pour cent', 'la remise doit être comprise entre 0 et 100 %.');
+    if (!Number.isInteger(line.vatRateBp) || line.vatRateBp < 0 || line.vatRateBp > 10000) return issue('Taux TVA', 'choisissez le taux de TVA de cette prestation.');
+  }
+  return null;
 }
 
 export type DocumentQuickClientDraft = {

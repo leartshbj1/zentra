@@ -230,8 +230,8 @@ describe('éditeur devis et factures', () => {
       depositPercentageBp: 3_000,
       depositBasisLines: [
         {
-          id: 'invoice-line-1',
-          catalogItemId: 'catalog-1',
+          id: 'original-base-line',
+          catalogItemId: null,
           description: 'Intervention',
           quantity: 2,
           unit: 'heure',
@@ -279,6 +279,7 @@ describe('éditeur devis et factures', () => {
     expect(html).toContain('value="30"');
     expect(html).toContain('value="2"');
     expect(html).toContain('value="heure"');
+    expect(html.match(/<input[^>]*aria-label="Prix unitaire"[^>]*>/)?.[0]).toContain('value="50"');
     expect(html).toContain('100.00 CHF');
     expect(html).toContain('30.00 CHF');
   });
