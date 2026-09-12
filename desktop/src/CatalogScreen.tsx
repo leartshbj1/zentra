@@ -101,6 +101,7 @@ export function CatalogScreen({
   onImport: (
     rows: CatalogImportRow[],
     conflictPolicy: CatalogImportConflictPolicy,
+    onError?: (reason: unknown) => void,
   ) => Promise<boolean>;
 }) {
   const [kind, setKind] = useState<CatalogKindFilter>('all');

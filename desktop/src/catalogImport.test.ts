@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { Workbook } from 'exceljs';
 import {
   applyCatalogVatFallback,
+  catalogRowFromEdit,
+  recheckCatalogRows,
   previewCatalogFile,
   previewCatalogGrid,
   previewCatalogXlsxBuffer,
@@ -10,6 +12,27 @@ import {
 const cells = (...values: unknown[]) => values.map((value) => ({ value }));
 
 describe('catalogue fournisseur', () => {
+  it.each(['sur devis', '12abc', '25 EUR', 'USD 17', '$12'])('ne transforme pas un prix d’achat illisible %s en zéro importable', purchase => {
+    const preview = previewCatalogGrid('prix.csv', 'Catalogue', [cells('Référence', 'Nom', 'Prix achat', 'Prix de vente'), cells('A', 'Article', purchase, '30')]);
+    expect(preview.rows[0].errors).toContain('Prix d’achat invalide');
+  });
+  it('respecte les petits pourcentages explicites et les fractions Excel', () => {
+    const rows = previewCatalogGrid('taux.csv', 'Catalogue', [cells('Référence', 'Nom', 'Prix de vente', 'TVA'), cells('A', 'Article', 10, '0,5 %'), cells('B', 'Article', 10, '1 %'), [...cells('C', 'Article', 10), { value: 0.005, numberFormat: '0.0%' }]]).rows;
+    expect(rows.map(row => row.vatBp)).toEqual([50, 100, 50]);
+  });
+  it('corrige une ligne sans perdre les autres erreurs ni conserver un ancien doublon', () => {
+    const initial = previewCatalogGrid('tarif.csv', 'Catalogue', [cells('Référence', 'Nom', 'Prix achat', 'Prix de vente'), cells('A', 'Premier', 'invalide', 20), cells('a', 'Second', 10, 30)]).rows;
+    const corrected = catalogRowFromEdit(3, { sku: 'B', name: 'Second corrigé', description: '', unit: 'pièce', purchase: '12,50', sale: '30', vat: '0,5', kind: 'product' });
+    const rows = recheckCatalogRows([initial[0], corrected]);
+    expect(rows[0].errors).toContain('Prix d’achat invalide');
+    expect(rows[1]).toMatchObject({ rowNumber: 3, sku: 'B', purchaseCostCents: 1250, vatBp: 50, errors: [] });
+    expect(catalogRowFromEdit(3, { sku: 'B', name: 'Second', description: '', unit: 'pièce', purchase: '', sale: '30', vat: '', kind: 'product' }).errors).toContain('Prix d’achat requis : indiquez 0 si cet achat n’a pas de coût');
+  });
+  it('signale les textes trop longs et les prix hors de la plage native', () => {
+    const row = previewCatalogGrid('tarif.csv', 'Catalogue', [cells('Référence', 'Nom', 'Prix de vente'), cells('A'.repeat(81), 'Article', 1e16)]).rows[0];
+    expect(row.errors).toContain('Référence : 80 caractères maximum');
+    expect(row.errors).toContain('Prix de vente invalide');
+  });
   it('détecte des en-têtes français et conserve les valeurs réelles', () => {
     const preview = previewCatalogGrid('tarif.xlsx', 'Produits', [
       cells('Catalogue fournisseur 2026'),

@@ -212,8 +212,10 @@ function priceCents(cell: GridCell): number | null {
   if (!raw) return null;
   let normalized = raw
     .replace(/[\s\u00a0'’]/g, '')
-    .replace(/(?:chf|fr\.?|eur|€|\$)/gi, '')
-    .replace(/[^0-9,.-]/g, '');
+    .replace(/^(?:chf|fr\.?)|(?:chf|fr\.?)$/gi, '');
+  // A catalogue stores CHF prices. Never remove unknown text or a foreign
+  // currency to turn an unreadable source value into a plausible amount.
+  if (!/^-?[0-9.,]+$/.test(normalized)) return null;
   if (!/\d/.test(normalized)) return null;
   const comma = normalized.lastIndexOf(',');
   const dot = normalized.lastIndexOf('.');
@@ -225,7 +227,8 @@ function priceCents(cell: GridCell): number | null {
     normalized = normalized.replace(/,/g, '.');
   }
   const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? Math.round(parsed * 100) : null;
+  const cents = Math.round(parsed * 100);
+  return Number.isSafeInteger(cents) ? cents : null;
 }
 
 function vatBasisPoints(cell: GridCell): number | null {
@@ -235,7 +238,8 @@ function vatBasisPoints(cell: GridCell): number | null {
     : Number(cellText(cell.value).replace('%', '').replace(',', '.').trim());
   if (!Number.isFinite(raw)) return null;
   const formattedAsPercent = cell.numberFormat?.includes('%') === true;
-  const percentage = formattedAsPercent || (raw > 0 && raw <= 1) ? raw * 100 : raw;
+  const explicitPercent = typeof cell.value === 'string' && cell.value.includes('%');
+  const percentage = !explicitPercent && (formattedAsPercent || (raw > 0 && raw <= 1)) ? raw * 100 : raw;
   return Math.round(percentage * 100);
 }
 
@@ -268,6 +272,38 @@ function findHeader(rows: GridRow[]): { rowIndex: number; columns: Map<CatalogIm
 function rowCell(row: GridRow, columns: Map<CatalogImportColumn, number>, key: CatalogImportColumn): GridCell {
   const index = columns.get(key);
   return index === undefined ? { value: null } : (row[index] ?? { value: null });
+}
+
+export function recheckCatalogRows(rows: CatalogImportPreviewRow[]): CatalogImportPreviewRow[] {
+  const seen = new Set<string>();
+  return rows.map(row => {
+    const errors = row.errors.filter(error => error !== 'Référence dupliquée dans le fichier');
+    const key = row.sku.trim().toLocaleLowerCase('fr-CH');
+    if (key && seen.has(key)) errors.push('Référence dupliquée dans le fichier');
+    if (key) seen.add(key);
+    for (const [label, text, max, multiline] of [
+      ['Référence', row.sku, 80, false], ['Désignation', row.name, 200, false],
+      ['Description', row.description, 10000, true], ['Unité', row.unit, 40, false],
+    ] as const) {
+      if ([...text.trim()].length > max) errors.push(`${label} : ${max} caractères maximum`);
+      if ((multiline ? /[\x00-\x09\x0b-\x1f\x7f-\x9f]/ : /[\x00-\x1f\x7f-\x9f]/).test(text.trim())) errors.push(`${label} : retirez les caractères invisibles`);
+    }
+    if (!Number.isSafeInteger(row.purchaseCostCents) || row.purchaseCostCents > 9_000_000_000_000_000) errors.push('Prix d’achat invalide');
+    if (!Number.isSafeInteger(row.salesPriceCents) || row.salesPriceCents > 9_000_000_000_000_000) errors.push('Prix de vente invalide');
+    return { ...row, errors: [...new Set(errors)] };
+  });
+}
+
+export type CatalogRowEdit = { sku: string; name: string; description: string; unit: string; purchase: string; sale: string; vat: string; kind: CatalogItem['kind'] };
+
+export function catalogRowFromEdit(rowNumber: number, edit: CatalogRowEdit): CatalogImportPreviewRow {
+  const values = ['Référence', 'Désignation', 'Description', 'Unité', 'Prix achat', 'Prix de vente', 'TVA', 'Type'];
+  const row = previewCatalogGrid('Correction', 'Catalogue', [
+    values.map(value => ({ value })),
+    [edit.sku, edit.name, edit.description, edit.unit, edit.purchase, edit.sale, edit.vat.trim() ? `${edit.vat.replace(/%/g, '').trim()} %` : '', edit.kind].map(value => ({ value })),
+  ]).rows[0];
+  if (!edit.purchase.trim()) row.errors.push('Prix d’achat requis : indiquez 0 si cet achat n’a pas de coût');
+  return { ...row, rowNumber };
 }
 
 export function previewCatalogGrid(
@@ -311,7 +347,7 @@ export function previewCatalogGrid(
     if (!sku) errors.push('Référence manquante');
     if (!name) errors.push('Désignation manquante');
     if (sale === null || sale < 0) errors.push('Prix de vente invalide');
-    if (purchase !== null && purchase < 0) errors.push('Prix d’achat invalide');
+    if ((purchase === null && visibleCellText(rowCell(source, columns, 'purchaseCostCents')) !== '') || (purchase !== null && purchase < 0)) errors.push('Prix d’achat invalide');
     if (!vatCellIsEmpty && (vat === null || vat < 0 || vat > 10_000)) {
       errors.push('Taux TVA invalide');
     }
@@ -350,7 +386,7 @@ export function previewCatalogGrid(
         visibleCellText(rows[headerIndex][index] ?? { value: null }),
       ]),
     ),
-    rows: parsedRows,
+    rows: recheckCatalogRows(parsedRows),
     ignoredRows,
     warnings,
   };

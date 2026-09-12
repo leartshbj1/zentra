@@ -505,8 +505,11 @@ export function LegacyExpenseDetail({ expense: initialExpense, workspace, close,
 }
 
 export function SupplierForm({ item, busy, close, act }: { item?: Supplier; busy: boolean; close: () => void; act: ActionRunner }) {
-  return <Modal title={item ? `Modifier ${item.name}` : 'Nouveau fournisseur'} description="Ces coordonnées restent dans la base locale Zentra et servent à accélérer la saisie des achats." onClose={close} wide>
+  const [formError, setFormError] = useState('');
+  return <Modal title={item ? `Modifier ${item.name}` : 'Nouveau fournisseur'} description="Ces coordonnées restent dans la base locale Zentra et servent à accélérer la saisie des achats." onClose={close} dismissible={!busy} wide>
     <form onSubmit={submitForm(async (form) => {
+          if (busy) return;
+          setFormError('');
       const data = {
         name: String(form.get('name')).trim(),
         contactName: String(form.get('contactName')).trim(),
@@ -522,9 +525,11 @@ export function SupplierForm({ item, busy, close, act }: { item?: Supplier; busy
       await act(
         () => item ? desktopApi.updateEntity('suppliers', item.id, data) : desktopApi.createEntity('suppliers', data),
         item ? 'Le fournisseur a été mis à jour.' : 'Le fournisseur a été ajouté.',
+            true,
+            (reason) => setFormError(errorMessage(reason, 'Les coordonnées n’ont pas pu être enregistrées. Votre saisie est conservée.')),
       );
     })}>
-      <div className="form-grid">
+      <fieldset disabled={busy}><div className="form-grid">
         <Field label="Raison sociale / nom" required wide><input name="name" defaultValue={item?.name} maxLength={200} required autoFocus /></Field>
         <Field label="Personne de contact"><input name="contactName" defaultValue={item?.contactName} maxLength={200} /></Field>
         <Field label="E-mail"><input name="email" type="email" defaultValue={item?.email} maxLength={254} /></Field>
@@ -537,7 +542,9 @@ export function SupplierForm({ item, busy, close, act }: { item?: Supplier; busy
         <Field label="Notes internes" wide><textarea name="notes" rows={3} defaultValue={item?.notes} maxLength={10_000} /></Field>
       </div>
       {item?.archivedAt ? <div className="info-strip"><Archive size={17} /><span>Ce fournisseur est archivé. Il reste visible dans l’historique, mais n’est plus proposé pour les nouveaux achats.</span></div> : null}
-      <FormActions onCancel={close} busy={busy} submitLabel={item ? 'Enregistrer les modifications' : 'Ajouter le fournisseur'} />
+      </fieldset>
+        {formError ? <ErrorPanel title="Vérifions les coordonnées" message={formError} reveal /> : null}
+        <FormActions onCancel={close} busy={busy} submitLabel={item ? 'Enregistrer les modifications' : 'Ajouter le fournisseur'} />
     </form>
   </Modal>;
 }

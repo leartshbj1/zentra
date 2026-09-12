@@ -2,6 +2,19 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : importer le catalogue et reprendre les coordonnées
+
+L'import montre toutes les lignes par pages et propose un filtre sur les points à corriger. Une erreur après la ligne 100 n'est plus invisible. Chaque ligne peut être corrigée dans l'application : référence, désignation, prix, unité, type et TVA. La correction conserve le numéro de ligne d'origine et relance le contrôle des doublons. Le fichier fourni n'est pas modifié. Sur mobile, les lignes sont présentées en fiches lisibles, avec les montants et leur contrôle ; les textes et boutons de pagination ont été ajustés après inspection des captures.
+
+Les prix d'achat texte illisibles ne deviennent plus des zéros importables. Les caractères inconnus ou devises étrangères présentes dans un prix texte sont refusés, et les montants hors de la plage native sont signalés. Un pourcentage explicite comme « 0,5 % » conserve son sens ; les fractions numériques Excel restent prises en charge. La correction d'une ligne conserve les autres erreurs du fichier. Les longueurs et caractères de contrôle sont vérifiés avant l'envoi au moteur natif.
+
+Le choix « Conserver les fiches actuelles » affiche le bon résultat dans l'aperçu. La transformation d'un produit suivi en stock en service est signalée avant l'import en mode mise à jour. Un enregistrement confirmé suivi d'une lecture interrompue attend uniquement une relecture : le fichier n'est pas réimporté. Fichier, choix et corrections restent disponibles après un refus. Les formulaires client et fournisseur affichent leur erreur sur place et protègent la saisie pendant l'enregistrement. La recherche d'écran retrouve désormais le catalogue avec le mot « catalogue ».
+
+Validation : **118 fichiers / 994 tests d'interface réussis**, TypeScript et compilation Vite réussis. Les 6 parcours Edge/WebKit à 320/390/1440 px importent un CSV de 105 références, corrigent la ligne 103, vérifient le mode de conservation, les prix, le stock et l'état archivé, puis provoquent un refus et plusieurs échecs de lecture sans deuxième import. Ils couvrent également le refus de création client/fournisseur, la conservation des coordonnées et l'archivage/réactivation du client. Les captures mobiles ont été inspectées après ajustement de la lisibilité.
+
+Les deux tests natifs d'import catalogue (atomicité, références, stock et charges invalides) et le test natif d'archivage du client passent. Le moteur natif n'est pas modifié dans ce lot. Après intégration au dossier principal, TypeScript, 188 tests ciblés et les 6 parcours navigateur passent également. Sauvegarde : `.qa/directory-20260912-before/`. Les données navigateur sont synthétiques et ne remplacent pas une recette sur un profil client installé.
+
+Ces corrections, comme le lot achats précédent, ne sont **pas encore publiées**. La version Windows distribuée reste 1.55.0. Le module `WorkspaceApp` atteint environ 763 ko minifiés ; son découpage reste nécessaire pour améliorer le premier chargement.
 ## Lot : achats, justificatifs et paiements compréhensibles
 
 Les achats utilisent les catégories de départ déjà proposées par leur éditeur : l'absence de catégories personnalisées ne bloque plus la première facture. Le formulaire situe les étapes « Recopier », « Joindre l’original » et « Valider ». Après enregistrement, le justificatif devient visible et une seule action « Terminer » clôt la saisie. Les modifications ultérieures, y compris l'ajout ou le retrait de lignes, demandent à nouveau un enregistrement.
@@ -96,7 +109,7 @@ Les logs et images de ces vérifications se trouvent dans `.qa/` du dossier de t
 
 ## Distribution
 
-Les lots de paie et de reprise commerciale livrés précédemment sont publiés pour Windows en version 1.55.0, avec signature Tauri vérifiée, canal de mise à jour et page de téléchargement publics. Le lot achats/justificatifs ajouté ensuite n'est pas encore distribué. L'IPA non signé reste en 1.53.0. Le présent audit n'atteste ni installation client, ni nouvelles versions macOS/Android. Voir RELEASE-WINDOWS-1.55.0.md pour les artefacts et preuves de la version publiée.
+Les lots de paie et de reprise commerciale livrés précédemment sont publiés pour Windows en version 1.55.0, avec signature Tauri vérifiée, canal de mise à jour et page de téléchargement publics. Les lots achats/justificatifs et catalogue/coordonnées ajoutés ensuite ne sont pas encore distribués. L'IPA non signé reste en 1.53.0. Le présent audit n'atteste ni installation client, ni nouvelles versions macOS/Android. Voir RELEASE-WINDOWS-1.55.0.md pour les artefacts et preuves de la version publiée.
 
 Le premier chargement contient encore un module `WorkspaceApp` d'environ 732 ko minifiés. Son découpage et les temps de réponse sur appareil mobile restent à examiner, en maintenant l'accès hors ligne aux fonctionnalités.
 

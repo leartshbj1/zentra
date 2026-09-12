@@ -402,7 +402,7 @@ const viewTitles: Record<View, [string, string]> = {
   clients: ['Clients', 'Coordonnées et historique des travaux'],
   catalog: [
     'Produits & services',
-    'Références réutilisables pour vos devis et factures',
+    'Catalogue, prix et références pour vos devis et factures',
   ],
   quotes: ['Ventes', 'Devis, commandes, livraisons et factures sans ressaisie'],
   orders: ['Ventes', 'Commandes, réservations et livraisons partielles'],
@@ -1843,11 +1843,12 @@ export function WorkspaceApp({
               }
               onArchive={(item) => void archiveCatalogItem(item)}
               onRestore={(item) => void restoreCatalogItem(item)}
-              onImport={(rows, conflictPolicy) =>
+              onImport={(rows, conflictPolicy, onError) =>
                 act(
                   () => desktopApi.importCatalogItems(rows, conflictPolicy),
                   `Catalogue importé : ${rows.length} référence${rows.length > 1 ? 's contrôlées' : ' contrôlée'}.`,
                   false,
+                  onError,
                 )
               }
             />
@@ -6308,14 +6309,17 @@ function ClientForm({
   close: () => void;
   act: ActionRunner;
 }) {
+  const [formError, setFormError] = useState('');
   return (
     <Modal
       title={item ? 'Modifier le client' : 'Nouveau client'}
       description="Saisissez uniquement les coordonnées réelles à utiliser sur les documents."
-      onClose={close}
+      onClose={close} dismissible={!busy}
     >
       <form
         onSubmit={submitForm(async (form) => {
+          if (busy) return;
+          setFormError('');
           const contactPerson = String(form.get('contactPerson'));
           const company = String(form.get('company'));
           const data = {
@@ -6338,10 +6342,12 @@ function ClientForm({
                 ? desktopApi.updateEntity('clients', item.id, data)
                 : desktopApi.createEntity('clients', data),
             item ? 'Le client a été mis à jour.' : 'Le client a été ajouté.',
+            true,
+            (reason) => setFormError(errorMessage(reason, 'Les coordonnées n’ont pas pu être enregistrées. Votre saisie est conservée.')),
           );
         })}
       >
-        <div className="form-grid">
+        <fieldset disabled={busy}><div className="form-grid">
           <Field label="Nom du contact" required>
             <input
               name="contactPerson"
@@ -6387,6 +6393,8 @@ function ClientForm({
             <textarea name="notes" rows={3} defaultValue={item?.notes} />
           </Field>
         </div>
+        </fieldset>
+        {formError ? <ErrorPanel title="Vérifions les coordonnées" message={formError} reveal /> : null}
         <FormActions onCancel={close} busy={busy} />
       </form>
     </Modal>

@@ -5087,7 +5087,7 @@ export const desktopApi = {
   ) {
     const mutation = importCatalogItemsMutation(rows, conflictPolicy);
     await invoke(mutation.command, mutation.args);
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveSupplierOrderDraft(input: {
     id?: string;

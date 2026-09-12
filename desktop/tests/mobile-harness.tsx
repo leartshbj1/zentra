@@ -36,6 +36,7 @@ import { installBankRefundFixture } from './bank-refund-fixture';
 import { installBankRefundCreateFixture } from './bank-refund-create-fixture';
 import { installSalesFulfillmentFixture } from './sales-fulfillment-fixture';
 import { installPurchaseFulfillmentFixture } from './purchase-fulfillment-fixture';
+import { installDirectoryRecoveryFixture } from './directory-recovery-fixture';
 import { installRecurrenceFixture } from './recurrence-fixture';
 import { DevelopmentNotice } from '../src/DevelopmentNotice';
 import { StandaloneUpdaterAccess } from '../src/App';
@@ -155,6 +156,7 @@ if (new URLSearchParams(location.search).has('projectCosts')) installProjectCost
 if (new URLSearchParams(location.search).has('expenseRefund')) installExpenseRefundFixture(data);
 if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfillmentFixture(data);
+if (new URLSearchParams(location.search).has('directoryRecovery')) installDirectoryRecoveryFixture(data);
 if (new URLSearchParams(location.search).has('creditDates')) installCreditSettlementFixture(data);
 if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFixture(data);
 if (['updater', 'updaterBadge'].some(key => new URLSearchParams(location.search).has(key))) installUpdaterFixture();

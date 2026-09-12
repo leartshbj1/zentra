@@ -1,0 +1,27 @@
+.catalog-import-wizard > fieldset { display: grid; gap: 16px; min-width: 0; }
+.catalog-import-modal .catalog-import-table td, .catalog-import-modal .catalog-import-table th { font-size: 14px; line-height: 1.55; }
+.catalog-import-modal .catalog-import-table td strong, .catalog-import-modal .catalog-import-table td code { font-size: 14px; }
+.catalog-import-modal .catalog-import-table td small, .catalog-import-modal .catalog-import-table-wrap > p { font-size: 13px; }
+.catalog-import-modal .catalog-import-summary span, .catalog-import-modal .catalog-import-warning, .catalog-import-modal .catalog-import-source small { font-size: 13px; line-height: 1.5; }
+.catalog-import-modal .catalog-import-summary strong { font-size: 22px; }
+.catalog-import-modal .catalog-import-source strong { font-size: 14px; overflow-wrap: anywhere; }
+.catalog-import-modal .catalog-import-warning > svg, .catalog-import-modal .catalog-import-source > svg { flex-shrink: 0; }
+.catalog-import-review-tools { display: grid; gap: 6px; }
+.catalog-import-review-tools label { display: flex; align-items: center; gap: 9px; min-height: 44px; font-size: 14px; }
+.catalog-import-review-tools input { width: 18px; height: 18px; flex-shrink: 0; }
+.catalog-import-review-tools p, .catalog-row-correction > div > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.catalog-import-pagination { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; }
+.catalog-import-pagination > span { white-space: nowrap; }
+.catalog-import-pagination > button { font-size: 12px; padding-inline: 10px; white-space: nowrap; }
+.catalog-row-correction { display: grid; gap: 18px; }
+.catalog-row-correction h3 { margin: 0 0 6px; }
+@media (max-width: 760px) {
+  .catalog-import-modal .catalog-import-table { min-width: 0; width: 100%; }
+  .catalog-import-modal .catalog-import-table thead { display: none; }
+  .catalog-import-modal .catalog-import-table tbody { display: grid; gap: 12px; }
+  .catalog-import-modal .catalog-import-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
+  .catalog-import-modal .catalog-import-table td { display: block; min-width: 0; padding: 7px; border: 0; white-space: normal; overflow-wrap: anywhere; }
+  .catalog-import-modal .catalog-import-table td::before { content: attr(data-label); display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
+  .catalog-import-modal .catalog-import-table td:nth-child(3), .catalog-import-modal .catalog-import-table td:nth-child(9), .catalog-import-modal .catalog-import-table td:nth-child(10) { grid-column: 1 / -1; }
+  .catalog-import-modal .catalog-import-table td:last-child button { width: 100%; }
+}

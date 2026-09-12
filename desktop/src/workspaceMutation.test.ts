@@ -50,6 +50,7 @@ const operations = [
   { command: 'reverse_supplier_credit_allocation', run: () => desktopApi.reverseSupplierCreditAllocation(request, 'allocation', 'Correction de facture', '2026-09-03') },
   { command: 'reclassify_supplier_invoice_expense', run: () => desktopApi.reclassifySupplierInvoiceExpense({ requestId: request, supplierInvoiceId: 'invoice', effectiveDate: '2026-09-02', reason: 'Correction de compte', lines: [] }) },
   { command: 'validate_supplier_invoice', run: () => desktopApi.validateSupplierInvoice('invoice') },
+  { command: 'import_catalog_items', run: () => desktopApi.importCatalogItems([{ rowNumber: 2, sku: 'A', name: 'Article', description: '', unit: 'pièce', purchaseCostCents: 100, salesPriceCents: 200, vatBp: 810, kind: 'product', errors: [] }], 'skip') },
   { command: 'save_supplier_invoice_draft', run: () => desktopApi.saveSupplierInvoiceDraft({ id: request, supplierId: 'supplier', date: '2026-09-01', dueDate: '2026-09-30', items: [], vatTreatment: 'non_deductible' }) },
   { command: 'import_supplier_email_invoice_draft', run: () => desktopApi.saveSupplierInvoiceDraftFromEmail({ id: request, supplierId: 'supplier', date: '2026-09-01', dueDate: '2026-09-30', items: [] }, { sourcePath: 'invoice.eml', sourceSha256: 'email-hash', attachmentSha256: 'pdf-hash' }) },
   { command: 'record_supplier_payment', run: () => desktopApi.recordSupplierPayment({ requestId: request, supplierInvoiceId: 'invoice', amountCents: 5000, date: '2026-09-05' }) },
