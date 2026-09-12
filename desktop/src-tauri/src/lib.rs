@@ -5103,6 +5103,10 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(paid["supplier"], "Matériaux Léman SA");
     }
 
+    mod workspace_creation {
+        include!("workspace_creation_tests.rs");
+    }
+
     mod supplier_draft_vat {
         use super::*;
         include!("supplier_draft_vat_tests.rs");

@@ -3,6 +3,7 @@ const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ Channel: class {}, invoke: invokeMock }));
 import { desktopApi } from './bridge';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
+import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
 import type { EntityKind, Quote } from './types';
 
 const request = '39c85c22-7fc0-42d0-95f9-c1ad536fe2cf';
@@ -94,7 +95,11 @@ describe('reprise des ventes et achats après écriture locale confirmée', () =
   it.each(operations)('$command ne présente jamais un refus natif comme une écriture réussie', async ({ command, run }) => {
     const error = new Error('Période fermée');
     invokeMock.mockRejectedValue(error);
-    await expect(run()).rejects.toBe(error);
+    if (command === 'create_record') {
+      const failure = await run().catch(reason => reason);
+      expect(failure).toBeInstanceOf(WorkspaceCreationOutcomeUnknownError);
+      expect(failure.mutationCause).toBe(error);
+    } else await expect(run()).rejects.toBe(error);
     expect(invokeMock).toHaveBeenCalledTimes(1);
     expect(invokeMock.mock.calls[0][0]).toBe(command);
   });

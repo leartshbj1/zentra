@@ -28,4 +28,6 @@ L’IBAN CH ou LI peut être recopié avec ses espaces. S’il est incorrect, co
 
 Après une écriture confirmée suivie d’une lecture interrompue, utilisez **Actualiser les données** : Zentra relit les fiches sans répéter la création.
 
+Si la réponse de création elle-même s’interrompt, Zentra recherche la fiche déjà créée. Si les données sont encore inaccessibles, **Vérifier l’enregistrement → Vérifier maintenant** relance uniquement la lecture. La saisie reste conservée pendant cette vérification. Un refus confirmé rend le formulaire modifiable avec le problème à corriger. Voir [Retrouver une création interrompue](REPRISE-ENREGISTREMENT.md).
+
 Ces changements sont intégrés au code. Aucun nouvel installateur ou IPA n’est publié dans ce lot.

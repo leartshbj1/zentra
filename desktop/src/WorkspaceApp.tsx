@@ -96,6 +96,7 @@ import {
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { WorkspaceRefreshAfterMutationError, refreshWorkspaceAfterMutation } from './workspaceMutation';
+import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
 import { paymentInput } from './salesFormValidation';
 import { PayslipPostingRefreshError } from './payrollMutation';
 import { filterPayrollList } from './payrollList';
@@ -531,7 +532,7 @@ export function WorkspaceApp({
   }, next => projectWorkspaceReceiver.current(next)), [cloudAccount?.organizationId]);
   useLayoutEffect(() => { projectFileSessions.start(); return () => projectFileSessions.stop(); }, [projectFileSessions]);
   useLayoutEffect(() => { projectFileSessions.setWritable(!readOnly); }, [projectFileSessions, readOnly]);
-  const { reason: workspaceRecoveryReason, waitForRefresh, retry: retryWorkspaceRefresh, isPending: isWorkspaceRecoveryPending } = useWorkspaceRecovery(desktopApi.loadWorkspace);
+  const { reason: workspaceRecoveryReason, checkingCreation, waitForRefresh, retry: retryWorkspaceRefresh, isPending: isWorkspaceRecoveryPending } = useWorkspaceRecovery(desktopApi.loadWorkspace);
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const quoteRevisionInFlight = useRef(new Set<string>());
   const guidedTour = useGuidedTour();
@@ -933,29 +934,34 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
+      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError ? reason : null;
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
+        validateCreationRead(refreshedWorkspace);
       } catch (refreshCause) {
-        // Once the native write is acknowledged, only retry reads. Keep this
-        // action pending even if its original form has already been closed.
-        if (reason instanceof WorkspaceRefreshAfterMutationError) {
-          refreshedWorkspace = await waitForRefresh(refreshCause);
+        refreshedWorkspace = null;
+        // Hold the action until its outcome can be established. Recovery only
+        // reads; it never resends the creation, even after a lost response.
+        if (reason instanceof WorkspaceRefreshAfterMutationError || uncertainCreation) {
+          refreshedWorkspace = await waitForRefresh(refreshCause, !!uncertainCreation, validateCreationRead);
         }
       }
       if (refreshedWorkspace) {
         workspaceRef.current = refreshedWorkspace;
         setWorkspace(refreshedWorkspace);
-        if (reason instanceof WorkspaceRefreshAfterMutationError) {
+        if (reason instanceof WorkspaceRefreshAfterMutationError || uncertainCreation?.wasRecorded(refreshedWorkspace)) {
           setNotice({ tone: 'success', text: message });
           if (close) setModal(null);
           return true;
         }
       }
-      onError?.(reason);
+      const failure = uncertainCreation?.mutationCause ?? reason;
+      onError?.(failure);
       if (!onError) setNotice({
         tone: 'error',
-        text: errorMessage(reason, 'L’action locale a échoué.'),
+        text: errorMessage(failure, 'L’action locale a échoué.'),
       });
       return false;
     } finally {
@@ -2337,7 +2343,7 @@ export function WorkspaceApp({
         onClose={guidedTour.close}
         onNavigate={navigateTour}
       />
-      {workspaceRecoveryReason !== null ? <WorkspaceRecoveryDialog reason={workspaceRecoveryReason} onReload={retryWorkspaceRefresh} /> : null}
+      {workspaceRecoveryReason !== null ? <WorkspaceRecoveryDialog reason={workspaceRecoveryReason} checkingCreation={checkingCreation} onReload={retryWorkspaceRefresh} /> : null}
     </div>
   );
 }

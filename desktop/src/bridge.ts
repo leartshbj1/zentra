@@ -12,6 +12,7 @@ import { fileBase64 } from './projectDocuments';
 import type { ProjectSyncStatus } from './projectSync';
 import type { CloudBackupState } from './cloudBackup';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
+import { createWorkspaceEntity } from './workspaceCreation';
 import { PayslipPostingRefreshError } from './payrollMutation';
 import { isMobileRuntime, materializeMobileFile, shareMobileExport } from './mobileRuntime';
 import type {
@@ -4901,8 +4902,7 @@ export const desktopApi = {
     entity: EntityKind,
     data: T,
   ) {
-    await createRecord(entityToBackend[entity], toBackendData(data));
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    return createWorkspaceEntity(entity, data, input => createRecord(entityToBackend[entity], toBackendData(input)), loadWorkspace);
   },
   async saveProject(data: Record<string, unknown>, id?: string): Promise<string> {
     if (id) {

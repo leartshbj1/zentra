@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Search, RefreshCw } from 'lucide-react';
 import { Button, ErrorPanel, Modal } from './ui';
 import { errorMessage } from './utils';
 import './WorkspaceRecoveryDialog.css';
 
-export function WorkspaceRecoveryDialog({ reason, onReload }: { reason: string; onReload: () => Promise<void> }) {
+export function WorkspaceRecoveryDialog({ reason, checkingCreation = false, onReload }: { reason: string; checkingCreation?: boolean; onReload: () => Promise<void> }) {
   const contentRef = useRef<HTMLFormElement>(null);
   const inFlight = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -33,7 +33,7 @@ export function WorkspaceRecoveryDialog({ reason, onReload }: { reason: string; 
       }
     };
   }, []);
-  return <Modal title="Enregistrement effectué" description="Les données doivent être actualisées avant de continuer." dismissible={false} onClose={() => {}}>
+  return <Modal title={checkingCreation ? 'Vérifier l’enregistrement' : 'Enregistrement effectué'} description={checkingCreation ? 'La réponse a été interrompue. Votre saisie est conservée dans cette fenêtre.' : 'Les données doivent être actualisées avant de continuer.'} dismissible={false} onClose={() => {}}>
     <form ref={contentRef} className="workspace-recovery" onSubmit={async (event) => {
       event.preventDefault();
       if (inFlight.current) return;
@@ -44,11 +44,11 @@ export function WorkspaceRecoveryDialog({ reason, onReload }: { reason: string; 
       catch (cause) { setRetryError(errorMessage(cause, 'La lecture des données reste indisponible.')); }
       finally { inFlight.current = false; setBusy(false); }
     }}>
-      <div className="workspace-recovery__saved"><CheckCircle2 size={28} /><p>Votre opération est sauvegardée. L’actualisation relira les données sans recommencer l’enregistrement.</p></div>
-      <p>La consultation et les modifications reprendront dès que les données enregistrées seront chargées.</p>
+      <div className={`workspace-recovery__saved${checkingCreation ? ' workspace-recovery__checking' : ''}`}>{checkingCreation ? <Search size={28} /> : <CheckCircle2 size={28} />}<p>{checkingCreation ? 'Votre élément a peut-être déjà été créé. La vérification le recherchera sans le créer une deuxième fois.' : 'Votre opération est sauvegardée. L’actualisation relira les données sans recommencer l’enregistrement.'}</p></div>
+      <p>{checkingCreation ? 'S’il est retrouvé, vous pourrez continuer. Sinon, vous retrouverez votre formulaire avec les informations à corriger.' : 'La consultation et les modifications reprendront dès que les données enregistrées seront chargées.'}</p>
       <details><summary>Détail du problème</summary><p>{reason}</p></details>
-      {retryError ? <ErrorPanel title="Actualisation impossible" message={retryError} reveal /> : null}
-      <div className="form-actions"><Button type="submit" disabled={busy} data-modal-initial-focus><RefreshCw size={18} className={busy ? 'spin' : undefined} />{busy ? 'Actualisation…' : 'Actualiser les données'}</Button></div>
+      {retryError ? <ErrorPanel title={checkingCreation ? 'Vérification encore indisponible' : 'Actualisation impossible'} message={retryError} reveal /> : null}
+      <div className="form-actions"><Button type="submit" disabled={busy} data-modal-initial-focus><RefreshCw size={18} className={busy ? 'spin' : undefined} />{checkingCreation ? busy ? 'Vérification…' : 'Vérifier maintenant' : busy ? 'Actualisation…' : 'Actualiser les données'}</Button></div>
     </form>
   </Modal>;
 }
