@@ -1111,6 +1111,51 @@ mod tests {
     }
 
     #[test]
+    fn accounting_period_editor_preserves_identity_and_rejects_overlaps_without_writes() {
+        let (_temporary, store) = initialized_store();
+        let id = uuid::Uuid::new_v4().to_string();
+        let input = |name: &str, from: &str, to: &str| AccountingPeriodInput {
+            id: Some(id.clone()), name: name.into(), date_from: from.into(), date_to: to.into(),
+        };
+        let created = store.upsert_accounting_period(input("Premier exercice", "2026-01-01", "2026-12-31")).unwrap();
+        store.upsert_accounting_period(input("Premier exercice", "2026-01-01", "2026-12-31")).unwrap();
+        let edited = store.upsert_accounting_period(input("Exercice décalé", "2026-07-01", "2027-06-30")).unwrap();
+        assert_eq!(edited["id"], id);
+        assert_eq!(edited["created_at"], created["created_at"]);
+        assert_eq!(edited["status"], "open");
+        assert_eq!(store.list_accounting_periods().unwrap().as_array().unwrap().len(), 1);
+        let connection = store.connect().unwrap();
+        let audit_before: i64 = connection.query_row("SELECT COUNT(*) FROM audit_log", [], |row| row.get(0)).unwrap();
+        drop(connection);
+        let overlapping = AccountingPeriodInput { id: Some(uuid::Uuid::new_v4().to_string()), name: "Chevauchement".into(), date_from: "2027-06-30".into(), date_to: "2027-12-31".into() };
+        assert!(store.upsert_accounting_period(overlapping).unwrap_err().to_string().contains("chevauche"));
+        assert!(store.upsert_accounting_period(input("Dates inversées", "2027-07-01", "2027-06-30")).is_err());
+        assert!(store.upsert_accounting_period(input("Date impossible", "2026-02-29", "2026-12-31")).is_err());
+        assert_eq!(store.list_accounting_periods().unwrap(), json!([edited]));
+        let connection = store.connect().unwrap();
+        let audit_after: i64 = connection.query_row("SELECT COUNT(*) FROM audit_log", [], |row| row.get(0)).unwrap();
+        assert_eq!(audit_after, audit_before);
+    }
+
+    #[test]
+    fn accounting_period_editor_respects_cumulative_closed_boundary() {
+        let (_temporary, store) = initialized_store();
+        let create = |id: &str, name: &str, from: &str, to: &str| store.upsert_accounting_period(AccountingPeriodInput { id: Some(id.into()), name: name.into(), date_from: from.into(), date_to: to.into() });
+        let older = uuid::Uuid::new_v4().to_string();
+        let closed = uuid::Uuid::new_v4().to_string();
+        create(&older, "Historique", "2023-01-01", "2023-12-31").unwrap();
+        create(&closed, "Exercice 2025", "2025-01-01", "2025-12-31").unwrap();
+        store.close_accounting_period(&closed).unwrap();
+        let before = store.list_accounting_periods().unwrap();
+        assert!(create(&closed, "Renommer la clôture", "2025-01-01", "2025-12-31").unwrap_err().to_string().contains("clôturée"));
+        assert!(create(&older, "Renommer l’historique", "2023-01-01", "2023-12-31").unwrap_err().to_string().contains("cumulativement"));
+        assert!(create(&uuid::Uuid::new_v4().to_string(), "Avant la limite", "2024-01-01", "2024-12-31").unwrap_err().to_string().contains("cumulativement"));
+        assert_eq!(store.list_accounting_periods().unwrap(), before);
+        create(&uuid::Uuid::new_v4().to_string(), "Suite", "2026-01-01", "2026-12-31").unwrap();
+        assert_eq!(store.list_accounting_periods().unwrap().as_array().unwrap().len(), 3);
+    }
+
+    #[test]
     fn accounting_requires_seven_core_mappings_until_payroll_is_enabled() {
         let (_temporary, store) = initialized_store();
         let accounts = accounting_accounts(&store);

@@ -4,6 +4,14 @@ import type { AccountingPeriod, FiduciaryClosingReview, StatementRow } from '../
 
 export function installClosingFixture() {
   const periods: AccountingPeriod[] = [2025, 2026].map((year) => ({ id: `year-${year}`, name: `Exercice ${year}`, dateFrom: `${year}-01-01`, dateTo: `${year}-12-31`, status: 'open', closedAt: '', createdAt: '', updatedAt: '' }));
+  const guidedPeriods = new URLSearchParams(location.search).has('periodGuide');
+  if (guidedPeriods) {
+    const saved = sessionStorage.getItem('qa-period-snapshot');
+    if (saved) periods.splice(0, periods.length, ...JSON.parse(saved));
+    else periods.push({ id: 'year-2024', name: 'Exercice 2024', dateFrom: '2024-01-01', dateTo: '2024-12-31', status: 'closed', closedAt: '2025-04-01', createdAt: '', updatedAt: '' });
+  }
+  const persistPeriods = () => { if (guidedPeriods) sessionStorage.setItem('qa-period-snapshot', JSON.stringify(periods)); };
+  persistPeriods();
   const reviews = new Map<string, FiduciaryClosingReview>();
   const consumed = new Set<string>();
   const attempts = (name: string, input: unknown) => {
@@ -22,8 +30,20 @@ export function installClosingFixture() {
     });
   }
   const getContinuity = desktopApi.getAccountingContinuity;
-  desktopApi.getAccountingContinuity = async () => ({ ...await getContinuity(), enabled: true, mappingReady: true, starterAvailable: false, journalEntryCount: 14 });
-  desktopApi.listAccountingPeriods = async () => structuredClone(periods);
+  desktopApi.getAccountingContinuity = async () => ({ ...await getContinuity(), enabled: true, mappingReady: true, starterAvailable: false, journalEntryCount: 14, ...(sessionStorage.getItem('qa-closing-continuity-blocked') === '1' ? { totalAnomalies: 1, totalMissing: 1, missingInvoices: 1 } : {}) });
+  desktopApi.listAccountingPeriods = async () => { if (sessionStorage.getItem('qa-closing-fail-period-read') === '1') throw new Error('Liste des exercices temporairement indisponible.'); return structuredClone(periods); };
+  desktopApi.upsertAccountingPeriod = async input => {
+    attempts('period-save', input); await hold('period-save');
+    if (sessionStorage.getItem('qa-closing-refuse-period') === '1') throw new Error('L’exercice n’a pas pu être enregistré. Vérifiez les dates, puis réessayez.');
+    const old = periods.find(period => period.id === input.id);
+    const boundary = periods.filter(period => period.status === 'closed').map(period => period.dateTo).sort().at(-1) || '';
+    if (old?.status === 'closed' || input.dateFrom <= boundary) throw new Error('Cet historique est verrouillé.');
+    if (periods.some(period => period.id !== input.id && period.dateTo >= input.dateFrom && period.dateFrom <= input.dateTo)) throw new Error('Ces dates chevauchent une période existante.');
+    const row: AccountingPeriod = { id: input.id || crypto.randomUUID(), name: input.name, dateFrom: input.dateFrom, dateTo: input.dateTo, status: 'open', closedAt: '', createdAt: old?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+    if (old) periods.splice(periods.indexOf(old), 1, row); else periods.push(row);
+    persistPeriods();
+    if (sessionStorage.getItem('qa-closing-recover-period') === '1') sessionStorage.setItem('qa-closing-fail-period-read', '1');
+  };
   const originalBalance = desktopApi.getBalanceSheet;
   const originalIncome = desktopApi.getIncomeStatement;
   const scope = (dateFrom = '2026-01-01', dateTo = '2026-12-31') => ({ dateFrom, dateTo, previousDateFrom: `${Number(dateFrom.slice(0, 4)) - 1}-01-01`, previousDateTo: `${Number(dateTo.slice(0, 4)) - 1}-12-31`, comparisonLabel: 'Exercice précédent', comparisonSource: 'registered_period' as const, previousHasActivity: true });
@@ -42,7 +62,7 @@ export function installClosingFixture() {
     attempts('prepare', filter);
     const period = periods.find((item) => item.dateFrom === filter.dateFrom && item.dateTo === filter.dateTo);
     if (!period) throw new Error('Sélectionnez un exercice enregistré.');
-    const blocked = sessionStorage.getItem('qa-closing-blocked') === '1';
+    const blocked = sessionStorage.getItem('qa-closing-blocked') === '1' || sessionStorage.getItem('qa-closing-continuity-blocked') === '1';
     const review: FiduciaryClosingReview = {
       schema: 'elyko.fiduciary-pre-closing.v1', reviewId: crypto.randomUUID(), preparedAt: new Date().toISOString(), period: structuredClone(period), sourceSha256: 'a'.repeat(64), packageStatusIfExported: period.status === 'closed' ? 'FINAL' : 'DRAFT',
       checks: { readyForFinal: !blocked, journalBalanced: true, balanceSheetBalanced: true, auditChainValid: true, attachmentsTotal: 28, attachmentsVerified: blocked ? 27 : 28, attachmentIssues: blocked ? [{ attachmentId: 'missing', originalName: 'Facture-fournisseur-marchandises-pour-le-projet-de-renovation-du-batiment-principal.pdf', issue: 'missing_or_unreadable_file' }] : [], continuity: await desktopApi.getAccountingContinuity() },
@@ -58,7 +78,7 @@ export function installClosingFixture() {
     if (sessionStorage.getItem('qa-closing-stale') === '1') throw new Error('Les données ont changé depuis le contrôle. Préparez un nouveau contrôle.');
     if (!review.checks.readyForFinal || consumed.has(reviewId) || review.period.id !== periodId) throw new Error('Clôture refusée.');
     const period = periods.find((item) => item.id === periodId)!;
-    period.status = 'closed'; period.closedAt = new Date().toISOString();
+    period.status = 'closed'; period.closedAt = new Date().toISOString(); persistPeriods();
     await hold('finalize');
     return { schema: 'elyko.fiduciary-period-finalization.v1', reviewId, sourceSha256: review.sourceSha256, period: structuredClone(period) };
   };

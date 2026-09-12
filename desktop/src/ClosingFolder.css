@@ -224,6 +224,14 @@
 .closing-confirmation label { display: grid; gap: .35rem; }
 .closing-confirmation label span { font-size: .82rem; font-weight: 750; }
 .closing-confirmation input { width: 100%; }
+.closing-confirmation-modal .closing-confirmation { border:0; padding:0; background:transparent; gap:20px; font-size:15px; line-height:1.65; }
+.closing-confirmation-modal .closing-confirmation p { margin:0; font-size:15px; line-height:1.65; }
+.closing-confirmation__period strong { display:block; font-size:18px; line-height:1.5; overflow-wrap:anywhere; }
+.closing-confirmation__effect { padding:16px; border:1px solid #e8c9bc; border-radius:13px; background:#fff8f2; }
+.closing-confirmation-modal .closing-confirmation summary { cursor:pointer; min-height:44px; font-size:14px; padding-block:10px; }
+.closing-confirmation-modal .closing-confirmation input { font-size:16px; min-height:46px; }
+.closing-confirmation-modal .button { min-height:44px; white-space:normal; }
+@media(max-width:600px) { .closing-confirmation-modal .form-actions { display:grid; grid-template-columns:minmax(0,1fr); } .closing-inline-warning { flex-wrap:wrap; } }
 .closing-export-card { background: color-mix(in srgb, #e6f7ef 80%, var(--surface, #fff)); }
 .closing-export-card svg { flex: 0 0 auto; color: #167a51; }
 .closing-export-card p { margin: .16rem 0; }

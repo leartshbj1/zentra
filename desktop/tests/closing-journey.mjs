@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { expandAccountingPeriodFilters } from './accounting-navigation.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
 const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
@@ -14,14 +15,16 @@ async function open(width) {
   page.on('pageerror', (error) => report.push({ error: error.stack }));
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(`${base}/tests/mobile-harness.html?closing=1`);
-  const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-  if (await tour.isVisible()) await tour.click();
+  await page.getByRole('button', { name: 'Fermer le guide automatique', exact: true }).click();
   await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
   await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Comptabilité');
   await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Comptabilité', { exact: true }) }).click();
+  await page.locator('.accounting-toolbar').waitFor();
+  const tab = page.getByRole('tab', { name: 'Dossier de clôture', exact: true });
+  if (await tab.isVisible()) await tab.click();
+  else await page.getByRole('combobox', { name: 'Section comptable', exact: true }).selectOption('closing');
+  await expandAccountingPeriodFilters(page);
   await page.getByLabel('Exercice ou période comptable').selectOption('year-2026');
-  if (width <= 800) await page.getByRole('combobox', { name: 'Section comptable', exact: true }).selectOption('closing');
-  else await page.getByRole('tab', { name: 'Dossier de clôture', exact: true }).click();
   await page.getByRole('button', { name: 'Préparer le contrôle', exact: true }).waitFor();
   return page;
 }
@@ -75,13 +78,13 @@ try {
     assert.equal(await confirm.inputValue(), 'Exercice 2026', 'A rejected closure preserves the confirmation');
     await capture(page, `${width}-stale-refusal`);
     await set(page, 'stale', '0');
-    await page.getByRole('button', { name: 'Repréparer le contrôle', exact: true }).click();
+    await page.getByRole('button', { name: 'Refaire le contrôle', exact: true }).click();
     await page.getByRole('button', { name: 'Clôturer définitivement', exact: true }).click();
     await confirm.fill('Exercice 2026');
     await set(page, 'hold-finalize');
     await page.getByRole('button', { name: 'Verrouiller l’exercice', exact: true }).click();
     await page.waitForFunction(() => sessionStorage.getItem('qa-closing-waiting-finalize') === '1');
-    assert.equal(await page.getByRole('button', { name: 'Verrouiller l’exercice', exact: true }).isEnabled(), false);
+    assert.equal(await page.locator('.closing-confirmation button[type=submit]').isEnabled(), false);
     await set(page, 'fail-refresh');
     await set(page, 'hold-finalize', '0');
     await page.getByText(/La période est bien verrouillée, mais les états/).waitFor();
@@ -130,7 +133,9 @@ try {
     await set(page, 'hold-finalize');
     await page.getByRole('button', { name: 'Verrouiller l’exercice', exact: true }).click();
     await page.waitForFunction(() => sessionStorage.getItem('qa-closing-waiting-finalize') === '1');
-    await page.getByLabel('Exercice ou période comptable').selectOption('year-2026');
+    // The modal locks normal navigation. Simulate an external scope change to
+    // retain the late-response isolation check independently of pointer access.
+    await page.getByLabel('Exercice ou période comptable', { exact: true, includeHidden: true }).evaluate(select => { select.value = 'year-2026'; select.dispatchEvent(new Event('change', { bubbles: true })); });
     await set(page, 'hold-finalize', '0');
     await page.waitForFunction(() => !sessionStorage.getItem('qa-closing-waiting-finalize'));
     await page.waitForTimeout(70);

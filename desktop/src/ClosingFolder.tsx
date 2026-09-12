@@ -5,7 +5,7 @@ import { isMobileRuntime } from './mobileRuntime';
 import type { AccountingPeriod, FiduciaryClosingReview, FiduciaryPackageExport, PeriodFilter, TrialBalanceReport } from './types';
 import { buildClosingChecks, closingReadiness, type ComparativeBalanceSheet, type ComparativeIncomeStatement } from './accountingClosure';
 import { errorMessage, formatDate, formatMoney } from './utils';
-import { Button, EmptyState, ErrorPanel, SectionHeading } from './ui';
+import { Button, EmptyState, ErrorPanel, Field, Modal, SectionHeading } from './ui';
 import './ClosingFolder.css';
 
 export function ClosingFolder({
@@ -15,6 +15,8 @@ export function ClosingFolder({
   balance,
   income,
   loading = false,
+  readOnly = false,
+  onNavigate,
   onAccountingChanged,
 }: {
   filter: PeriodFilter;
@@ -23,6 +25,8 @@ export function ClosingFolder({
   balance: ComparativeBalanceSheet | null;
   income: ComparativeIncomeStatement | null;
   loading?: boolean;
+  readOnly?: boolean;
+  onNavigate?: (target: 'periods' | 'accounts' | 'journal') => void;
   onAccountingChanged?: () => Promise<void>;
 }) {
   const [review, setReview] = useState<FiduciaryClosingReview | null>(null);
@@ -68,7 +72,7 @@ export function ClosingFolder({
   }
 
   async function prepareReview() {
-    if (needsRefresh) return;
+    if (needsRefresh || readOnly) return;
     const request = startOperation();
     if (request === null) return;
     setReview(null);
@@ -96,7 +100,7 @@ export function ClosingFolder({
   }
 
   async function finalizePeriod() {
-    if (!review || review.period.id !== period?.id || needsRefresh) return;
+    if (readOnly || !review || !review.checks.readyForFinal || review.period.status !== 'open' || review.period.id !== period?.id || needsRefresh) return;
     const targetPeriod = review.period;
     if (confirmation.trim() !== targetPeriod.name) {
       setError(`Saisissez exactement « ${targetPeriod.name} » pour confirmer le verrouillage définitif.`);
@@ -182,7 +186,7 @@ export function ClosingFolder({
   }
 
   if (!filter.dateFrom || !filter.dateTo) {
-    return <section className="panel closing-folder"><EmptyState icon={<FileCheck2 />} title="Choisissez un exercice" text="Le dossier de clôture exige une date de début et une date de fin explicites. Sélectionnez un exercice enregistré ou complétez les deux dates dans la barre supérieure." /></section>;
+    return <section className="panel closing-folder"><EmptyState icon={<FileCheck2 />} title="Choisissez un exercice" text="Ouvrez un exercice enregistré, ou créez-le en indiquant ses dates. Vous pourrez ensuite préparer les contrôles et exporter le dossier." />{onNavigate && <Button disabled={loading || busy} onClick={() => onNavigate('periods')}>Choisir ou créer un exercice</Button>}</section>;
   }
 
   return <section className="panel closing-folder" aria-busy={busy || loading}>
@@ -203,24 +207,31 @@ export function ClosingFolder({
     <section className="closing-workflow" aria-labelledby="closing-workflow-title">
       <header>
         <div><span>Clôture de l’exercice</span><h3 id="closing-workflow-title">Préparer le dossier</h3><p>Vérifiez les écritures et les pièces. Toute modification des données impose un nouveau contrôle avant la clôture.</p></div>
-        <Button disabled={busy || loading || needsRefresh || !period || !filter.dateFrom || !filter.dateTo} onClick={() => void prepareReview()}><Fingerprint size={16} /> {review ? 'Repréparer le contrôle' : 'Préparer le contrôle'}</Button>
+        <Button disabled={busy || loading || readOnly || needsRefresh || !period || !filter.dateFrom || !filter.dateTo} onClick={() => void prepareReview()}><Fingerprint size={16} /> {review ? 'Repréparer le contrôle' : 'Préparer le contrôle'}</Button>
       </header>
-      {!period ? <div className="closing-inline-warning"><AlertTriangle size={18} /><p>Enregistrez puis sélectionnez un exercice exact pour créer une pré-clôture traçable.</p></div> : null}
-      {error ? <ErrorPanel message={error} reveal /> : null}
+      {!period ? <div className="closing-inline-warning"><AlertTriangle size={18} /><p>Ces dates ne correspondent pas à un exercice sélectionné. Ouvrez ou créez un exercice pour préparer le contrôle.</p>{onNavigate && <Button disabled={busy || loading} onClick={() => onNavigate('periods')}>Choisir ou créer un exercice</Button>}</div> : null}
+      {readOnly && <p className="closing-inline-warning">La préparation d’un contrôle et la clôture nécessitent l’accès en modification. Les états et le partage d’un dossier déjà exporté restent consultables.</p>}
+      {error && !confirming ? <ErrorPanel message={error} reveal /> : null}
       {needsRefresh ? <Button variant="secondary" disabled={busy || loading} onClick={() => void refreshClosedPeriod()}>Actualiser les états</Button> : null}
       {notice ? <div className="notice notice--success" role="status" aria-live="polite"><CheckCircle2 size={17} />{notice}</div> : null}
       {review ? <div className="closing-review-card">
         <div className="closing-review-head"><div><span>Contrôle {review.checks.readyForFinal ? 'prêt' : 'à corriger'}</span><strong>{review.period.name}</strong><small>Empreinte {review.sourceSha256.slice(0, 16)}… · {review.summary.journalEntries} écriture{review.summary.journalEntries > 1 ? 's' : ''} · {review.checks.attachmentsVerified}/{review.checks.attachmentsTotal} pièce{review.checks.attachmentsTotal > 1 ? 's' : ''} vérifiée{review.checks.attachmentsVerified > 1 ? 's' : ''}</small></div><span className={`closing-review-badge ${review.checks.readyForFinal ? 'is-ready' : 'is-blocked'}`}>{review.checks.readyForFinal ? 'Prêt pour décision' : 'Bloqué'}</span></div>
         <ClosingReviewChecks review={review} />
+        {onNavigate && (review.checks.continuity.totalAnomalies > 0 || !review.checks.journalBalanced || !review.checks.balanceSheetBalanced) && <div className="closing-review-actions">{review.checks.continuity.totalAnomalies > 0 && <Button variant="secondary" disabled={busy || loading || needsRefresh} onClick={() => onNavigate('accounts')}>Vérifier les comptes et les opérations manquantes</Button>}{(!review.checks.journalBalanced || !review.checks.balanceSheetBalanced) && <Button variant="secondary" disabled={busy || loading || needsRefresh} onClick={() => onNavigate('journal')}>Examiner le journal</Button>}</div>}
         <div className="closing-review-actions">
           <Button variant="secondary" disabled={busy || loading || needsRefresh} onClick={() => void exportPackage()}><Download size={16} /> Exporter {review.period.status === 'closed' || review.packageStatusIfExported === 'FINAL' ? 'le dossier définitif' : 'un dossier provisoire'}</Button>
-          {review.period.status === 'open' && review.checks.readyForFinal ? <Button disabled={busy || loading} onClick={() => setConfirming(true)}><LockKeyhole size={16} /> Clôturer définitivement</Button> : null}
+          {review.period.status === 'open' && review.checks.readyForFinal ? <Button disabled={busy || loading || readOnly || needsRefresh} onClick={() => setConfirming(true)}><LockKeyhole size={16} /> Clôturer définitivement</Button> : null}
         </div>
-        {confirming ? <div className="closing-confirmation">
-          <div><strong>Dernière confirmation</strong><p id="closing-confirmation-help">Cette action bloque toute nouvelle écriture du {formatDate(review.period.dateFrom)} au {formatDate(review.period.dateTo)}. Saisissez le nom exact de l’exercice.</p></div>
-          <label><span>{review.period.name}</span><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} aria-describedby="closing-confirmation-help" autoComplete="off" spellCheck={false} autoFocus /></label>
-          <div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => { setConfirming(false); setConfirmation(''); setError(''); }}>Annuler</Button><Button disabled={busy || confirmation.trim() !== review.period.name} onClick={() => void finalizePeriod()}><LockKeyhole size={15} /> Verrouiller l’exercice</Button></div>
-        </div> : null}
+        {confirming ? <Modal title="Clôturer cet exercice" onClose={() => { setConfirming(false); setConfirmation(''); setError(''); }} dismissible={!busy && !loading} className="closing-confirmation-modal"><form className="closing-confirmation" onSubmit={event => { event.preventDefault(); void finalizePeriod(); }}>
+          <div className="closing-confirmation__period"><strong>{review.period.name}</strong><p>{formatDate(review.period.dateFrom)} → {formatDate(review.period.dateTo)}</p></div>
+          <p id="closing-confirmation-help" className="closing-confirmation__effect">Cette action verrouille définitivement les comptes jusqu’au <strong>{formatDate(review.period.dateTo)} inclus</strong>, y compris les dates antérieures au début de cet exercice. Vous ne pourrez plus ajouter d’écriture à ces dates. Vérifiez aussi votre historique avant de continuer.</p>
+          {error && <ErrorPanel title="Vérifions ce point" message={error} reveal />}
+          <Field label={`Recopiez « ${review.period.name} » pour confirmer`}><input value={confirmation} disabled={busy || loading || readOnly} onChange={(event) => setConfirmation(event.target.value)} aria-describedby="closing-confirmation-help" autoComplete="off" spellCheck={false} /></Field>
+          {readOnly && <p>La clôture est indisponible en lecture seule.</p>}
+          {error && <Button type="button" variant="secondary" disabled={busy || loading || readOnly} onClick={() => void prepareReview()}>Refaire le contrôle</Button>}
+          <details><summary>Faire vérifier le dossier avant de décider</summary><p>Annulez cette confirmation et choisissez « Exporter un dossier provisoire ». Vous pourrez le faire contrôler avant de clôturer.</p></details>
+          <div className="form-actions"><Button type="button" variant="secondary" disabled={busy || loading} onClick={() => { setConfirming(false); setConfirmation(''); setError(''); }}>Annuler</Button><Button type="submit" disabled={busy || loading || readOnly || confirmation.trim() !== review.period.name}><LockKeyhole size={15} /> {busy ? 'Clôture en cours…' : 'Verrouiller l’exercice'}</Button></div>
+        </form></Modal> : null}
       </div> : null}
       {exported ? <div className="closing-export-card"><PackageCheck size={20} /><div><strong>Dossier {exported.packageStatus === 'FINAL' ? 'définitif' : 'provisoire'} exporté</strong><p>{exported.fileName} · {exported.fileCount} fichiers</p><small>{exported.path}</small><details><summary>Vérification du dossier</summary><small>Empreinte du manifeste : {exported.manifestSha256}</small></details>{isMobileRuntime() || exported.deliveryWarning ? <Button variant="secondary" disabled={busy || loading} onClick={() => void sharePackage()}>Partager le dossier</Button> : null}</div></div> : null}
     </section>

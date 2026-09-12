@@ -1,3 +1,5 @@
+import { AccountingPeriodsPanel } from './AccountingPeriodsPanel';
+import type { PeriodDraft } from './accountingPeriods';
 import { AccountingSetupPanel } from './AccountingSetupPanel';
 import { AccountingSetupDialog } from './AccountingSetupDialog';
 import { accountingMappingFields, accountingMappingIssues } from './accountingSetup';
@@ -93,6 +95,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const [savedSettings, setSavedSettings] = useState<AccountingSettings>(emptyAccountingSettings);
   const [setupReview, setSetupReview] = useState<{ mode: 'starter' | 'mapping'; settings: AccountingSettings } | null>(null);
   const [manualPlanOpen, setManualPlanOpen] = useState(false);
+  const [returnToClosing, setReturnToClosing] = useState(false);
   const mappingFields = accountingMappingFields(continuity.mappingRequirements, payrollFallback);
   const mappingCountLabel = String(mappingFields.filter(field => field.required).length);
   const [periods, setPeriods] = useState<AccountingPeriod[]>([]);
@@ -294,6 +297,21 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     void run(() => refreshReports(nextFilter), period ? `Les états de « ${period.name} » sont affichés.` : 'La période libre est affichée.');
   }
 
+  async function refreshSavedPeriod(saved: PeriodDraft) {
+    const nextFilter = { dateFrom: saved.dateFrom, dateTo: saved.dateTo };
+    await run(async () => {
+      const accountId = await loadBase();
+      await refreshReports(nextFilter, accountId);
+      setPeriodId(saved.id); setFilter(nextFilter);
+    }, 'L’exercice et ses états ont été actualisés.', true);
+  }
+
+  function openClosingPeriod(id: string) {
+    if (busy) return;
+    if (!periods.some(period => period.id === id)) { setError('Cet exercice n’est pas dans la liste chargée. Actualisez les données pour le retrouver.'); return; }
+    setReturnToClosing(false); choosePeriod(id); setTab('closing');
+  }
+
   function changeFreeFilter(patch: Partial<PeriodFilter>) {
     const nextFilter = { ...filter, ...patch };
     setPeriodId('');
@@ -447,7 +465,8 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     {tab === 'balance' ? <FinancialStatement title="Bilan" state={reportState} rows={balance?.rows ?? []} summary={[['Actifs', balance?.assetsCents, balance?.previousAssetsCents], ['Dettes', balance?.liabilitiesCents, balance?.previousLiabilitiesCents], ['Fonds propres', balance?.equityCents, balance?.previousEquityCents], ['Résultats antérieurs non affectés', balance?.unallocatedPriorResultsCents, balance?.previousUnallocatedPriorResultsCents], ['Résultat de l’exercice', balance?.currentResultCents, balance?.previousCurrentResultCents]]} comparisonLabel={balance?.scope.comparisonLabel} previousHasActivity={balance?.scope.previousHasActivity} currency={balance?.currency.baseCurrency} balanced={balance?.balanced} /> : null}
     {tab === 'income' ? <FinancialStatement title="Compte de résultat" state={reportState} rows={income?.rows ?? []} summary={[['Produits', income?.revenueCents, income?.previousRevenueCents], ['Charges', income?.expenseCents, income?.previousExpenseCents], ['Résultat', income?.profitCents, income?.previousProfitCents]]} comparisonLabel={income?.scope.comparisonLabel} previousHasActivity={income?.scope.previousHasActivity} currency={income?.currency.baseCurrency} /> : null}
     {tab === 'vat' ? <VatCenter filter={filter} workspace={workspace} readOnly={readOnly} onAccountingChanged={reloadAll} onOpenJournal={(id)=>void openLinkedJournal(id)} /> : null}
-    {tab === 'closing' ? <ClosingFolder filter={filter} period={selectedPeriod} loading={busy} trial={busy ? null : trial} balance={busy ? null : balance} income={busy ? null : income} onAccountingChanged={() => reloadAll('Les états et le statut de l’exercice ont été actualisés.', true)} /> : null}
+    {returnToClosing && tab !== 'closing' && <div className="report-callout"><FileCheck2 size={20} /><div><strong>Reprendre le contrôle de l’exercice</strong><p>Après vos corrections, préparez un nouveau contrôle avant toute clôture.</p></div><Button disabled={busy} onClick={() => { setReturnToClosing(false); setTab('closing'); }}>Revenir au dossier de clôture</Button></div>}
+    {tab === 'closing' ? <ClosingFolder readOnly={readOnly} onNavigate={target => { setReturnToClosing(target !== 'periods'); setTab(target); }} filter={filter} period={selectedPeriod} loading={busy} trial={busy ? null : trial} balance={busy ? null : balance} income={busy ? null : income} onAccountingChanged={() => reloadAll('Les états et le statut de l’exercice ont été actualisés.', true)} /> : null}
 
     {tab === 'accounts' ? <div className="stack-layout">
       <CustomerCreditAccountingIssues issues={continuity.customerCreditIssues} busy={busy} onOpenJournal={(id)=>void openLinkedJournal(id)}/>
@@ -457,7 +476,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     </div> : null}
     {setupReview && <AccountingSetupDialog mode={setupReview.mode} settings={setupReview.settings} accounts={accounts} fields={mappingFields} continuity={continuity} busy={busy} readOnly={readOnly} onClose={() => setSetupReview(null)} onCommit={commitAccountingSetup} onRefresh={refreshAccountingSetup} />}
 
-    {tab === 'periods' ? <AccountingPeriods periods={periods} busy={busy} onRefresh={async (message) => { await reloadAll(message); }} onError={setError} /> : null}
+    {tab === 'periods' ? <AccountingPeriodsPanel periods={periods} busy={busy} readOnly={readOnly} onRefresh={refreshSavedPeriod} onOpenClosing={openClosingPeriod} /> : null}
   </div>;
 }
 
@@ -502,14 +521,4 @@ function balanceSideLabel(debitCents: number, creditCents: number) {
 
 function FinancialStatement({ title, state, rows, summary, comparisonLabel, previousHasActivity, currency, balanced }: { title: string; state: string; rows: StatementRow[]; summary: Array<[string, number | undefined, number | undefined]>; comparisonLabel?: string; previousHasActivity?: boolean; currency?: string; balanced?: boolean }) {
   return <section className="panel"><SectionHeading eyebrow={`${state} · ${currency || 'CHF'}`} title={title} description="Les valeurs de l’exercice précédent figurent en regard des valeurs courantes. Les agrégations multi-devises sans cours traçable sont bloquées." />{rows.length ? <><div className="summary-strip">{summary.map(([label, amount, previous]) => <div key={label}><span>{label}</span><strong>{formatMoney(amount)}</strong><small>{comparisonLabel || 'Exercice précédent'} · {formatMoney(previous)}</small></div>)}</div><div className="table-panel"><table><thead><tr><th>Compte</th><th>Rubrique</th><th>Exercice sous revue</th><th>{comparisonLabel || 'Exercice précédent'}</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td><strong>{row.code}</strong><small>{row.name}</small></td><td>{reportSections.find(([value]) => value === row.reportSection)?.[1] || row.reportSection}</td><td>{formatMoney(row.amountCents)}</td><td>{formatMoney(row.previousAmountCents)}</td></tr>)}</tbody></table></div>{previousHasActivity === false ? <div className="report-callout is-warning"><FileCheck2 size={20} /><div><strong>Comparatif sans mouvements</strong><p>Les colonnes précédentes restent visibles à zéro; aucune écriture n’a été trouvée dans l’exercice comparatif.</p></div></div> : null}{balanced !== undefined ? <div className={`report-callout ${balanced ? '' : 'is-warning'}`}><Scale size={20} /><div><strong>{balanced ? 'Bilan équilibré' : 'Bilan non équilibré'}</strong><p>{balanced ? 'Actifs = dettes + fonds propres + résultats antérieurs non affectés + résultat de l’exercice.' : 'Contrôlez le plan, les reports et les écritures avant clôture.'}</p></div></div> : null}</> : <EmptyState icon={<Landmark />} title={`${title} vide`} text="Aucune écriture ne permet encore de produire cet état." />}</section>;
-}
-
-function AccountingPeriods({ periods, busy, onRefresh, onError }: { periods: AccountingPeriod[]; busy: boolean; onRefresh: (message: string) => Promise<void>; onError: (message: string) => void }) {
-  const [editing, setEditing] = useState<AccountingPeriod | null>(null);
-  const [creating, setCreating] = useState(false);
-  async function save(form: FormData) {
-    try { await desktopApi.upsertAccountingPeriod({ id: editing?.id, name: String(form.get('name')), dateFrom: String(form.get('dateFrom')), dateTo: String(form.get('dateTo')) }); setEditing(null); setCreating(false); await onRefresh('La période comptable a été enregistrée.'); }
-    catch (reason) { onError(errorMessage(reason, 'La période n’a pas pu être enregistrée.')); }
-  }
-  return <section className="panel"><SectionHeading eyebrow="Exercices et périodes" title="Clôtures comptables" description="Créez vos exercices ici. La pré-clôture contrôlée et le verrouillage définitif se font dans « Dossier de clôture »." action={<Button onClick={() => { setEditing(null); setCreating(true); }}><Plus size={15} /> Nouvelle période</Button>} />{creating || editing ? <form className="account-inline-form" onSubmit={submitForm(save)}><Field label="Nom" required><input name="name" defaultValue={editing?.name} required /></Field><Field label="Du" required><input name="dateFrom" type="date" defaultValue={editing?.dateFrom} required /></Field><Field label="Au" required><input name="dateTo" type="date" defaultValue={editing?.dateTo} required /></Field><div className="form-actions"><Button type="button" variant="secondary" onClick={() => { setCreating(false); setEditing(null); }}>Annuler</Button><Button type="submit" disabled={busy}>Enregistrer</Button></div></form> : null}{periods.length ? <div className="period-list">{periods.map((period) => <article key={period.id}><div><strong>{period.name}</strong><span>{formatDate(period.dateFrom)} → {formatDate(period.dateTo)}</span>{period.closedAt ? <small>Clôturé le {formatDate(period.closedAt)}</small> : <small>Préparez le contrôle depuis le dossier de clôture.</small>}</div><StatusBadge status={period.status === 'closed' ? 'validated' : 'in_progress'} />{period.status === 'open' ? <Button variant="ghost" size="small" onClick={() => setEditing(period)}>Modifier</Button> : <span className="locked-label"><LockKeyhole size={14} /> Verrouillée</span>}</article>)}</div> : <EmptyState title="Aucune période comptable" text="Créez un exercice ou une période réelle; aucun calendrier n’est prérempli." />}</section>;
 }

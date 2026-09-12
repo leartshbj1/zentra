@@ -1,0 +1,30 @@
+.accounting-periods { display:grid; gap:24px; min-width:0; }
+.accounting-periods__guide { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; list-style:none; padding:0; margin:0; }
+.accounting-periods__guide li { display:flex; gap:12px; min-width:0; }
+.accounting-periods__guide li > span { flex:0 0 30px; height:30px; display:grid; place-items:center; border-radius:50%; background:#e9f1e9; color:#35563c; font-weight:600; }
+.accounting-periods__guide strong { font-size:15px; line-height:1.6; }
+.accounting-periods__guide p { margin:6px 0 0; font-size:14px; color:#58635c; line-height:1.65; }
+.accounting-periods__boundary, .accounting-period-editor__summary { display:flex; align-items:flex-start; gap:12px; margin:0; padding:16px; border-radius:12px; background:#f3f6f1; line-height:1.7; font-size:14px; }
+.accounting-periods__boundary svg, .accounting-period-editor__summary svg { flex-shrink:0; margin-top:3px; }
+.accounting-periods__list { display:grid; gap:12px; }
+.accounting-periods__list article { display:flex; align-items:center; justify-content:space-between; gap:20px; border:1px solid #dde5dc; border-radius:16px; padding:20px; scroll-margin-block:110px; }
+.accounting-periods__list article > div { min-width:0; }
+.accounting-periods__list h3 { margin:6px 0; font-size:18px; overflow-wrap:anywhere; line-height:1.4; }
+.accounting-periods__list p { margin:0; font-size:15px; line-height:1.6; }
+.accounting-periods__list small { display:block; margin-top:6px; }
+.accounting-periods__list .is-highlighted { border-color:#64866a; background:#f7faf5; }
+.accounting-periods__status { font-size:13px; color:#47634c; }
+.accounting-periods__actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:10px; }
+.accounting-period-editor__form { display:grid; gap:22px; font-size:15px; line-height:1.65; }
+.accounting-period-editor__form p { margin:0; }
+.accounting-period-editor__form fieldset { padding:0; margin:0; border:0; min-width:0; display:grid; gap:20px; }
+.accounting-period-editor__form input { min-height:46px; font-size:16px; }
+.accounting-period-editor__presets { display:grid; gap:9px; padding:18px; border-radius:14px; background:#f2f6f0; }
+.accounting-period-editor__presets > div { display:flex; gap:12px; flex-wrap:wrap; }
+.accounting-period-editor__dates { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.accounting-period-editor__saved { display:grid; gap:14px; }
+.accounting-period-editor__saved h3 { margin:0; overflow-wrap:anywhere; }
+.accounting-period-editor__help { color:#705524; }
+.accounting-period-editor .button, .accounting-periods .button { min-height:44px; white-space:normal; }
+@media(max-width:700px) { .accounting-periods__guide { grid-template-columns:minmax(0,1fr); } .accounting-periods__list article { align-items:stretch; flex-direction:column; padding:16px; } .accounting-periods__actions { justify-content:flex-start; } }
+@media(max-width:480px) { .accounting-period-editor__dates, .accounting-period-editor .form-actions { display:grid; grid-template-columns:minmax(0,1fr); } .accounting-periods__actions { display:grid; grid-template-columns:minmax(0,1fr); } }
