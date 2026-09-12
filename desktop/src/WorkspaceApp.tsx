@@ -1,3 +1,4 @@
+import { deferView } from './DeferredView';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { useAssistantScreen } from './assistantContext';
 import { useScreenArrival } from './useScreenArrival';
@@ -6,12 +7,10 @@ import { CompanyLogo } from './CompanyLogo';
 import { useProjectSyncBackground } from './projectSync';
 import { useCloudBackupBackground } from './cloudBackup';
 import { CloudBackupPanel } from './CloudBackupPanel';
-import { DocumentDesignStudio } from './DocumentDesignStudio';
-import { EmployeeDocumentImport } from './EmployeeDocumentImport';
-import { SalaryCertificates } from './SalaryCertificates';
+
 import type { EmployeeDocumentDraft } from './employeeDocumentDraft';
 import { documentAppearance, documentStyleVariables } from './documentAppearance';
-import { ReportsScreen } from './ProjectReports';
+
 import {
   Fragment,
   Suspense,
@@ -109,32 +108,16 @@ import {
   PaymentAccountingProofs,
   type AccountingEntryFocus,
 } from './PaymentAccountingProofs';
-import { PayrollContributionsPanel } from './PayrollContributionsPanel';
+
 import { assessPayrollPaymentDate } from './payrollPaymentDate';
-import { SwissPayrollRulesPanel } from './SwissPayrollRulesPanel';
-import { DocumentEditor } from './DocumentEditor';
+
 import { DocumentPreviewFrame } from './DocumentPreviewFrame';
-import { QuoteConversionModal } from './QuoteConversionModal';
-import { PairedInvoiceEditor, QuoteInvoiceFolder } from './QuoteInvoiceFolder';
-import {
-  CatalogItemForm,
-  CatalogScreen,
-  StockMovementForm,
-} from './CatalogScreen';
-import {
-  ExpenseForm,
-  LegacyExpenseDetail,
-  SupplierForm,
-  SupplierInvoiceDetail,
-  SupplierInvoiceForm,
-  SupplierPaymentForm,
-} from './PurchasesScreen';
-import { DetailedPayslipForm } from './DetailedPayslipForm';
+
 import { parseSmallSalaryEmployeeForm, SmallSalaryFormError } from './smallSalaryAssessment';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
 import { NavigationPalette } from './NavigationPalette';
-import { SettingsBrowser, SettingsCategory, revealSettingsTarget } from './SettingsCategory';
+import { SettingsBrowser, SettingsCategory, SettingsAfterOpen, revealSettingsTarget } from './SettingsCategory';
 import { DocumentListToolbar } from './DocumentListToolbar';
 import { ScreenHelp } from './ScreenHelp';
 import {
@@ -148,19 +131,8 @@ import {
   confirmDeferredSetup,
 } from './SetupReadinessCenter';
 
-import { TimeBillingWizard } from './TimeBillingWizard';
-import {
-  DeliveryNotePrintPreview,
-  SalesOrderPrintPreview,
-  SalesOrdersScreen,
-  SalesTabs,
-  type SalesView,
-} from './SalesOrdersScreen';
-import {
-  ProjectPlanningPanel,
-  type ProjectMilestoneDraft,
-  type ProjectTaskDraft,
-} from './ProjectPlanningPanel';
+import { SalesTabs, type SalesView } from './SalesNavigation';
+import type { ProjectMilestoneDraft, ProjectTaskDraft } from './ProjectPlanningPanel';
 import {
   processRecurrenceScheduleBatch,
   recurrenceSchedulesDue,
@@ -247,7 +219,7 @@ import {
   submitForm,
 } from './ui';
 import { projectTerminology } from './terminology';
-import { ProjectFolder } from './ProjectFolder';
+
 import { ProjectFilesPicker } from './ProjectFilesPicker';
 import { isMobileRuntime } from './mobileRuntime';
 import { isNativeMacOS, useNativeNavigation } from './useNativeNavigation';
@@ -277,6 +249,33 @@ import {
   clearQuoteRevisionAttempt,
   prepareQuoteRevisionAttempt,
 } from './quoteRevisionAttempt';
+
+const DetailedPayslipForm = deferView(() => import('./DetailedPayslipForm').then(module => ({ default: module.DetailedPayslipForm })), { label: 'Ouverture de la fiche de salaire…', close: props => props.close });
+const DocumentEditor = deferView(() => import('./DocumentEditor').then(module => ({ default: module.DocumentEditor })), { label: 'Ouverture du document…', close: props => props.close });
+const PairedInvoiceEditor = deferView(() => import('./QuoteInvoiceFolder').then(module => ({ default: module.PairedInvoiceEditor })), { label: 'Ouverture du dossier de facturation…', close: props => props.close });
+const QuoteInvoiceFolder = deferView(() => import('./QuoteInvoiceFolder').then(module => ({ default: module.QuoteInvoiceFolder })), { label: 'Ouverture du dossier de facturation…', close: props => props.close });
+const QuoteConversionModal = deferView(() => import('./QuoteConversionModal').then(module => ({ default: module.QuoteConversionModal })), { label: 'Ouverture de la conversion du devis…', close: props => props.close });
+const CatalogScreen = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogScreen })), { label: 'Ouverture du catalogue…' });
+const CatalogItemForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogItemForm })), { label: 'Ouverture du catalogue…', close: props => props.close });
+const StockMovementForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.StockMovementForm })), { label: 'Ouverture du catalogue…', close: props => props.close });
+const ExpenseForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.ExpenseForm })), { label: 'Ouverture des achats…', close: props => props.close });
+const LegacyExpenseDetail = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.LegacyExpenseDetail })), { label: 'Ouverture des achats…', close: props => props.close });
+const SupplierForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierForm })), { label: 'Ouverture des achats…', close: props => props.close });
+const SupplierInvoiceDetail = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierInvoiceDetail })), { label: 'Ouverture des achats…', close: props => props.close });
+const SupplierInvoiceForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierInvoiceForm })), { label: 'Ouverture des achats…', close: props => props.close });
+const SupplierPaymentForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierPaymentForm })), { label: 'Ouverture des achats…', close: props => props.close });
+const SalesOrdersScreen = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.SalesOrdersScreen })), { label: 'Ouverture des commandes…' });
+const DeliveryNotePrintPreview = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.DeliveryNotePrintPreview })), { label: 'Ouverture des commandes…', close: props => props.onClose });
+const SalesOrderPrintPreview = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.SalesOrderPrintPreview })), { label: 'Ouverture des commandes…', close: props => props.onClose });
+const ProjectPlanningPanel = deferView(() => import('./ProjectPlanningPanel').then(module => ({ default: module.ProjectPlanningPanel })), { label: 'Ouverture du planning…' });
+const ProjectFolder = deferView(() => import('./ProjectFolder').then(module => ({ default: module.ProjectFolder })), { label: 'Ouverture du projet…' });
+const ReportsScreen = deferView(() => import('./ProjectReports').then(module => ({ default: module.ReportsScreen })), { label: 'Ouverture des rapports…' });
+const SalaryCertificates = deferView(() => import('./SalaryCertificates').then(module => ({ default: module.SalaryCertificates })), { label: 'Ouverture des certificats de salaire…' });
+const DocumentDesignStudio = deferView(() => import('./DocumentDesignStudio').then(module => ({ default: module.DocumentDesignStudio })), { label: 'Ouverture de la présentation des documents…' });
+const EmployeeDocumentImport = deferView(() => import('./EmployeeDocumentImport').then(module => ({ default: module.EmployeeDocumentImport })), { label: 'Ouverture de la lecture de fiche…' });
+const PayrollContributionsPanel = deferView(() => import('./PayrollContributionsPanel').then(module => ({ default: module.PayrollContributionsPanel })), { label: 'Ouverture des cotisations…' });
+const SwissPayrollRulesPanel = deferView(() => import('./SwissPayrollRulesPanel').then(module => ({ default: module.SwissPayrollRulesPanel })), { label: 'Ouverture des règles de paie…' });
+const TimeBillingWizard = deferView(() => import('./TimeBillingWizard').then(module => ({ default: module.TimeBillingWizard })), { label: 'Ouverture de la facturation des heures…', close: props => props.close });
 
 const PayrollImportWizard = lazy(() =>
   import('./PayrollImportWizard').then((module) => ({
@@ -639,7 +638,12 @@ export function WorkspaceApp({
       secondFrame = window.requestAnimationFrame(() => {
         const target = document.getElementById(settingsFocusTarget);
         revealSettingsTarget(target);
-        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const isField = target?.matches('input, select, textarea, button');
+        const scrollTarget = isField ? target?.closest('.field, label') ?? target : target;
+        scrollTarget?.scrollIntoView({
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+          block: isField ? 'center' : 'start',
+        });
         target?.focus({ preventScroll: true });
         setSettingsFocusTarget(null);
       });
@@ -5421,10 +5425,6 @@ function SettingsScreen({
         </div>
       </section>
 
-      <SwissPayrollRulesPanel settings={settings} />
-
-      <PayrollContributionsPanel />
-
       <section
         id={SETTINGS_READINESS_TARGETS.payroll}
         className="panel settings-card settings-card--wide settings-scroll-target"
@@ -5433,7 +5433,7 @@ function SettingsScreen({
         <SectionHeading
           eyebrow="Paie"
           title="Organismes et validation"
-          description="Les cotisations de calcul se configurent dans le moteur de paie ci-dessus; cette section conserve les organismes et la validation fiduciaire."
+          description="Renseignez vos organismes sociaux. Confirmez le contrôle de votre configuration uniquement après sa validation professionnelle. Les cotisations détaillées se trouvent plus bas."
         />
         <form
           onSubmit={submitForm(async (form) => {
@@ -5790,6 +5790,10 @@ function SettingsScreen({
         </form>
       </section>
 
+      <SettingsAfterOpen>
+        <SwissPayrollRulesPanel settings={settings} />
+        <PayrollContributionsPanel />
+      </SettingsAfterOpen>
       </SettingsCategory>
       <SettingsCategory id="storage" title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>
       <AppUpdater />

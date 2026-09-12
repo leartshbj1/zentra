@@ -1,0 +1,17 @@
+.deferred-view {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--border, #e4e7e6);
+  border-radius: 18px;
+  color: var(--ink, #26312d);
+  background: var(--surface, #fff);
+}
+.deferred-view > svg { flex: 0 0 auto; }
+.deferred-view > div { min-width: 0; flex: 1 1 180px; }
+.deferred-view strong { font-size: 15px; line-height: 1.5; }
+.deferred-view p { margin: 8px 0 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.deferred-view .button { max-width: 100%; white-space: normal; }

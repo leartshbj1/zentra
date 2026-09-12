@@ -1,4 +1,4 @@
-import { Children, cloneElement, isValidElement, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { Children, cloneElement, createContext, isValidElement, useContext, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 
 type CategoryProps = {
@@ -12,6 +12,13 @@ type CategoryProps = {
   initiallyOpen?: boolean;
   onOpenChange?: (id: string, open: boolean) => void;
 };
+
+const CategoryVisited = createContext(true);
+
+/** Keep settings targets available, while expensive panels wait for their category's first visit. */
+export function SettingsAfterOpen({ children }: { children: ReactNode }) {
+  return useContext(CategoryVisited) ? children : null;
+}
 
 function openSettingsCategory(detail: HTMLDetailsElement) {
   const browser = detail.closest<HTMLElement>('.settings-browser');
@@ -80,7 +87,7 @@ export function SettingsCategory({ id, title, description, icon: Icon, children,
     onOpenChange?.(id, open);
   }}>
     <summary><Icon size={22} aria-hidden="true" /><span><strong>{title}</strong><small>{description}</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
-    <div className="settings-category__content settings-layout">{!lazy || visited ? children : null}</div>
+    <div className="settings-category__content settings-layout"><CategoryVisited.Provider value={visited || initiallyOpen}>{!lazy || visited ? children : null}</CategoryVisited.Provider></div>
   </details>;
 }
 

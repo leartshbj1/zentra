@@ -34,7 +34,7 @@ try {
     await navigate('Paramètres');
     await capture('overview');
     const ids = await page.locator('[data-settings-link]').evaluateAll(elements => elements.map(el => el.dataset.settingsLink));
-    assert.equal(ids.length, 8);
+    assert.deepEqual(ids, ['readiness', 'account', 'company', 'assistant', 'documents', 'accounting', 'time', 'payroll', 'storage']);
     await page.locator('.settings-category').evaluateAll(elements => elements.forEach(el => el.removeAttribute('name')));
     for (const id of ids) { await open(id); await capture(id); }
     await open('documents');
