@@ -7,7 +7,7 @@ Les raccourcis **Logo**, **Titre**, **Introduction**, **Mise en page**, **Condit
 1. **Style** : partez du modèle Moderne, Classique ou Éditorial. Choisissez la police du document, la couleur, le style et la taille du titre.
 2. **Mise en page** : placez le logo à gauche, au centre ou à droite, adaptez sa taille, les marges, l’interligne et le tableau. Pour les documents concernés, placez les totaux avant ou après les conditions.
 3. **Textes** : choisissez l’introduction, les conditions ou le pied de page. Sélectionnez des mots pour changer leur police, leur taille, leur couleur, leur surlignage, le gras, l’italique ou le soulignement. Sans sélection, le style choisi s’applique à la suite de votre saisie. Entrée crée une nouvelle ligne ; l’alignement et les puces s’appliquent aux paragraphes sélectionnés.
-4. Vérifiez l’aperçu PDF, puis utilisez **Enregistrer les présentations**. **Exporter cet exemple** permet de contrôler un document fictif. **Réutiliser cette présentation** copie les réglages et les textes vers une autre catégorie ; enregistrez ensuite.
+4. Vérifiez l’aperçu PDF, puis utilisez **Enregistrer les présentations**. **Exporter cet exemple** permet de contrôler un document fictif. **Réutiliser cette présentation** copie les réglages vers une autre catégorie en conservant ses textes. Cochez **Copier aussi les textes** pour remplacer également son introduction, ses conditions ou commentaires et son pied de page ; enregistrez ensuite.
 
 Pour rédiger confortablement, ouvrez **Textes → Agrandir l’espace d’écriture**. L’éditeur occupe la largeur disponible ; **Voir le rendu PDF** revient au document. Vous pouvez continuer à changer de zone de texte sans perdre votre rédaction.
 
@@ -20,6 +20,22 @@ Un collage trop long est refusé avec une explication et le texte précédent re
 Les polices proposées sont Helvetica, Times et Courier, avec leurs variantes en gras et en italique. La taille d’un passage va de 8 à 24 points. L’option « Du document » rétablit l’héritage des réglages généraux ; « Mixte » signale une sélection comportant différentes polices ou tailles. **Effacer la mise en forme** rétablit le texte normal du passage sélectionné. Les boutons **Annuler** et **Rétablir** permettent de revenir sur les modifications.
 
 Les textes de cet atelier sont des textes modèles pour la catégorie choisie. Les remarques propres au devis ou à la facture restent présentes. Les montants, références et données comptables sont calculés par l’application. Les documents émis et les fiches comptabilisées conservent leur présentation enregistrée.
+
+## Retrouver et modifier un passage
+
+Dans **Textes**, ouvrez **Rechercher et remplacer**. Sur ordinateur, Ctrl+F ou Cmd+F depuis le texte ouvre aussi cet outil. La recherche concerne uniquement la zone affichée : introduction, conditions/commentaire ou pied de page.
+
+Saisissez un mot ou une phrase. Les flèches parcourent les résultats ; touchez l’extrait pour sélectionner le passage dans le texte. L’option **Respecter les majuscules et minuscules** affine la recherche. Indiquez le nouveau texte puis choisissez **Remplacer ce résultat** ou **Tout remplacer**. Un remplacement vide supprime le passage. Le style du premier caractère trouvé est repris et le texte autour reste en place.
+
+**Annuler la modification du texte** retire tous les remplacements du dernier clic en une fois. Si le résultat dépasse la place autorisée, aucun remplacement n’est appliqué : raccourcissez le nouveau texte puis réessayez. Échap ferme la recherche.
+
+## Réutiliser ou recommencer sans perdre ses textes
+
+La copie vers une autre catégorie et **Revenir au style de départ** conservent ses textes par défaut. Pour effacer aussi les textes modèles au moment de réinitialiser, cochez l’option correspondante. Ces changements restent annulables dans la barre **Annuler / Rétablir** de l’atelier.
+
+L’historique de présentation concerne les catégories modifiées. Il conserve les autres réglages de l’entreprise actualisés entre-temps. Si la même présentation a été actualisée ailleurs, l’atelier la conserve et explique pourquoi l’ancien historique ne peut plus être appliqué. Après un changement de texte par cet historique, l’historique interne de l’éditeur est remis à zéro pour éviter de réintroduire l’ancien texte.
+
+Cette extension de recherche, copie et annulation est intégrée au code local. Elle n’est pas encore distribuée dans un nouvel installateur ou IPA.
 
 ## Validation de l’extension de typographie du 12 septembre 2026
 

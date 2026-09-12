@@ -333,3 +333,20 @@ Validation dans chaque dossier : 23 tests d’interface ciblés, 4 tests natifs,
 TypeScript et Vite compilent dans les deux dossiers. Les captures sur petits écrans, notamment les erreurs de date et la fenêtre de clôture, ont été inspectées. Intégration par fusion à trois versions avec sauvegarde dans `.qa/period-guided-before`. Un conflit de recette a été résolu en conservant les commandes du chronomètre et en ajoutant celles des exercices/clôtures. Les travaux préexistants du dossier principal sont préservés.
 
 Guide : [EXERCICES-ET-CLOTURE.md](EXERCICES-ET-CLOTURE.md). Aucune règle fiscale, logique de clôture native ou migration n’est modifiée. Données de recette uniquement ; aucun nouvel installateur ni IPA publié dans ce lot.
+
+
+## Lot : recherche dans les textes et réutilisation des présentations
+
+L’atelier des factures, devis, bilans et fiches de salaire permet de rechercher une phrase dans la zone de texte affichée, de parcourir les résultats et de remplacer un passage ou tous les résultats en une action annulable. La recherche traite les caractères saisis comme du texte, conserve les positions des caractères Unicode et propose le respect des majuscules/minuscules. Ctrl+F ou Cmd+F reprend aussi le passage sélectionné lorsque la recherche est déjà ouverte. Échap la ferme.
+
+Les remplacements conservent le style du premier caractère trouvé, les paragraphes, les listes et la mise en forme des textes voisins. Les occurrences ajoutées ne sont pas remplacées en boucle. Les limites de texte, notamment du pied de page, refusent l’opération entière sans perte ; une expansion trop grande est rejetée avant sa construction. Les remplacements sont désactivés pendant l’enregistrement.
+
+La copie de présentation conserve maintenant par défaut les textes de la catégorie cible. La case « Copier aussi les textes » rend explicite le remplacement de l’introduction, des conditions/commentaires et du pied de page, y compris sa version simple. Le retour au style de départ conserve aussi les textes, avec une option explicite pour les effacer. Ces opérations restent annulables.
+
+L’historique de l’atelier mémorise uniquement les catégories de documents modifiées. L’annulation préserve les réglages de l’entreprise et les autres catégories actualisés entre-temps. Si la catégorie concernée a changé ailleurs, son état actuel est conservé et l’ancien historique est écarté avec une explication. L’historique interne du texte est remis à zéro après une modification externe pour éviter de réintroduire un ancien texte par « Rétablir ».
+
+Validation dans chaque dossier : 35 tests unitaires ciblés, 8 tests natifs de composition et d’exemples PDF, 8 parcours Edge/WebKit aux formats 320×568, 390×844, 844×390 et 1440×1000. Chaque parcours vérifie les quatre catégories, les sélections, les remplacements, l’annulation, la lecture pendant le verrouillage, les limites du pied de page, la copie et la réinitialisation, une actualisation du nom de l’entreprise, la sauvegarde/rechargement et les données envoyées à l’export. Les anciens parcours de collage Word/Docs passent aussi dans Edge et WebKit sur la base de livraison (6 parcours), ainsi que ceux de composition, typographie et couleurs (9 parcours Edge) et les 8 contrôles de l’atelier initial.
+
+TypeScript et Vite compilent dans les deux dossiers. Les captures des petits écrans ont été inspectées. Les tests de navigateur utilisent des données synthétiques, des PDF de recette et un stockage de test ; ils ne prouvent pas une installation physique. Les tests natifs vérifient notamment les polices/couleurs, les logos, la pagination et la préservation des valeurs comptables. Aucun moteur PDF, calcul financier ou schéma de données n’a changé.
+
+Intégration dans le dossier principal par fusion à trois versions sans conflit ; sauvegarde dans `.qa/document-tools-before`. Les autres travaux du dossier principal sont conservés. Guide : [PERSONNALISATION-DOCUMENTS.md](PERSONNALISATION-DOCUMENTS.md). Aucun nouvel installateur ou IPA n’est publié dans ce lot.

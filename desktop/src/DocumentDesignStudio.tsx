@@ -3,13 +3,14 @@ import type { PdfExportReceipt as Receipt } from './pdfExportDelivery';
 import { useEffect, useRef, useState } from 'react';
 import { Check, Download, LoaderCircle, RotateCcw, ZoomIn, ZoomOut, Undo2, Redo2, Copy, Bold, Italic } from 'lucide-react';
 import { desktopApi } from './bridge';
-import { documentAppearance, defaultDocumentStyle, type DocumentDesignKind } from './documentAppearance';
+import { documentAppearance, type DocumentDesignKind } from './documentAppearance';
 import type { AppSettings } from './types';
 import { Button } from './ui';
 import './DocumentDesignStudio.css';
 import { normalizeComposition, documentFontCss, type DocumentComposition } from './documentComposition';
 import { RichTextEditor } from './RichTextEditor';
 import { DocumentDesignMap, type DesignSection } from './DocumentDesignMap';
+import { copyDocumentDesign, designChange, resetDocumentDesign, restoreDesignChange, type DesignChange } from './documentDesignEditing';
 
 const labels = { invoices: 'Factures', quotes: 'Devis', accounts: 'Bilan', payslips: 'Fiches de salaire' };
 const colors = ['#134d33', '#182b49', '#793c32', '#66523f', '#563d73', '#242424', '#d7b878'];
@@ -25,10 +26,11 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
   const composition = settings.documentComposition?.[kind];
   const design = normalizeComposition(composition);
   const style = { ...baseStyle, ...(composition ? { composition: design } : {}) };
-  const history = useRef<AppSettings[]>([]);
-  const future = useRef<AppSettings[]>([]);
+  const history = useRef<DesignChange[]>([]);
+  const future = useRef<DesignChange[]>([]);
   const [panel, setPanel] = useState<'style' | 'layout' | 'text'>('style');
   const [copyTarget, setCopyTarget] = useState<DocumentDesignKind>('quotes');
+  const [copyText, setCopyText] = useState(false), [resetText, setResetText] = useState(false);
   const [retry, setRetry] = useState(0);
   const [textZone, setTextZone] = useState<'intro' | 'closing' | 'footerText'>('closing');
   const [preview, setPreview] = useState<{ key: string; pages: string[]; pageCount: number } | null>(null);
@@ -57,17 +59,36 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
     return () => { active = false; clearTimeout(timer); };
   }, [requestKey, retry]);
   function change(next: AppSettings) {
-    history.current.push(settings); if (history.current.length > 50) history.current.shift(); future.current = [];
+    if (busy) return;
+    const entry = designChange(settings, next); if (!entry) return;
+    history.current.push(entry); if (history.current.length > 50) history.current.shift(); future.current = [];
     setNotice(''); onChange(next);
   }
   function patch(value: Partial<typeof baseStyle>) { change({ ...settings, documentAppearance: { ...appearance, [kind]: { ...baseStyle, ...value } } }); }
   function compose(value: Partial<DocumentComposition>) { change({ ...settings, documentComposition: { ...settings.documentComposition, [kind]: normalizeComposition({ ...design, ...value }) } }); }
-  function undo(redo = false) { const from = redo ? future.current : history.current, to = redo ? history.current : future.current; const next = from.pop(); if (next) { to.push(settings); onChange(next); setNotice(redo ? 'Modification rétablie.' : 'Modification annulée.'); } }
+  function undo(redo = false) {
+    if (busy) return;
+    const from = redo ? future.current : history.current, to = redo ? history.current : future.current;
+    const entry = from.at(-1); if (!entry) return;
+    const next = restoreDesignChange(settings, entry, redo);
+    if (!next) { history.current = []; future.current = []; setNotice('Cette présentation a été actualisée ailleurs. Son état actuel est conservé ; vous pouvez continuer à la personnaliser.'); return; }
+    from.pop(); to.push(entry); onChange(next); setNotice(redo ? 'Modification rétablie.' : 'Modification annulée.');
+  }
   function preset(value: 'modern' | 'classic' | 'editorial') {
     const selected = value === 'classic' ? { fontFamily: 'times' as const, titleAlign: 'center' as const, logoPosition: 'center' as const, tableStyle: 'lines' as const, marginMm: 20, titleSize: 28 } : value === 'editorial' ? { fontFamily: 'helvetica' as const, titleAlign: 'left' as const, logoPosition: 'right' as const, tableStyle: 'striped' as const, marginMm: 18, titleSize: 30 } : { fontFamily: 'helvetica' as const, titleAlign: 'left' as const, logoPosition: 'left' as const, tableStyle: 'band' as const, marginMm: 15, titleSize: 24 };
     compose(selected);
   }
-  function copy() { if (copyTarget === kind) return; change({ ...settings, documentAppearance: { ...appearance, [copyTarget]: { ...baseStyle } }, documentComposition: { ...settings.documentComposition, [copyTarget]: composition ? structuredClone(design) : undefined } }); setNotice(`Présentation copiée vers ${labels[copyTarget].toLowerCase()}. Pensez à enregistrer.`); }
+  function copy() {
+    if (busy || copyTarget === kind) return;
+    change(copyDocumentDesign(settings, kind, copyTarget, copyText));
+    setNotice(`Présentation copiée vers ${labels[copyTarget].toLowerCase()}. ${copyText ? 'Les textes modèles ont aussi été remplacés.' : 'Les textes de cette catégorie sont conservés.'} Pensez à enregistrer.`);
+  }
+  function reset() {
+    if (busy) return;
+    change(resetDocumentDesign(settings, kind, resetText));
+    setNotice(`Présentation réinitialisée. ${resetText ? 'Les textes modèles ont été effacés.' : 'Vos textes sont conservés.'} Annuler permet de revenir en arrière.`);
+    setResetText(false);
+  }
   function revealTools(selector: string) {
     requestAnimationFrame(() => {
       const target = toolsElement.current?.querySelector<HTMLElement>(selector);
@@ -139,9 +160,10 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
         <label>Une phrase en pied de page<input aria-label="Une phrase en pied de page" value={style.footer} maxLength={100} disabled={busy} placeholder="Merci pour votre confiance." onChange={event => patch({ footer: event.target.value })} /><small>{style.footer.length}/100 caractères · les mentions obligatoires restent présentes.</small></label>
         </details>
         </div>
-        <details className="design-studio__copy"><summary>Réutiliser cette présentation</summary><label>Copier vers<select aria-label="Copier vers" value={copyTarget} onChange={e => setCopyTarget(e.target.value as DocumentDesignKind)}>{(Object.keys(labels) as DocumentDesignKind[]).map(k => <option key={k} value={k}>{labels[k]}</option>)}</select></label><Button variant="secondary" disabled={busy || copyTarget === kind} onClick={copy}><Copy size={16} /> Copier la présentation</Button><small>Remplace le style et les textes de la catégorie choisie. Annuler permet de revenir en arrière.</small></details>
+        <details className="design-studio__copy"><summary>Réutiliser cette présentation</summary><p className="design-studio__hint">Copiez les polices, couleurs et la mise en page. Les textes de la catégorie choisie restent présents.</p><label>Copier vers<select aria-label="Copier vers" value={copyTarget} disabled={busy} onChange={e => { setCopyTarget(e.target.value as DocumentDesignKind); setCopyText(false); }}>{(Object.keys(labels) as DocumentDesignKind[]).map(k => <option key={k} value={k}>{labels[k]}</option>)}</select></label><label className="design-studio__choice"><input type="checkbox" checked={copyText} disabled={busy} onChange={e => setCopyText(e.target.checked)} /> Copier aussi les textes</label>{copyText && <p className="design-studio__hint">L’introduction, les conditions ou commentaires et le pied de page de {labels[copyTarget].toLowerCase()} seront remplacés. Annuler permet de les retrouver.</p>}<Button variant="secondary" disabled={busy || copyTarget === kind} onClick={copy}><Copy size={16} /> Copier la présentation</Button></details>
         <Button className="design-studio__jump" variant="secondary" onClick={showPreview}>Voir le résultat</Button>
-        <div className="design-studio__actions"><Button disabled={busy || loading || !!error} onClick={onSave}>{busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />} Enregistrer les présentations</Button><Button variant="secondary" disabled={exporting || loading || !!error} onClick={() => void exportExample()}><Download size={16} /> Exporter cet exemple</Button><Button variant="ghost" disabled={busy} onClick={() => { const next = { ...settings.documentComposition }; delete next[kind]; change({ ...settings, documentAppearance: { ...appearance, [kind]: { ...defaultDocumentStyle } }, documentComposition: next }); }}><RotateCcw size={15} /> Réinitialiser {labels[kind].toLowerCase()}</Button></div>
+        <div className="design-studio__actions"><Button disabled={busy || loading || !!error} onClick={onSave}>{busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />} Enregistrer les présentations</Button><Button variant="secondary" disabled={exporting || loading || !!error} onClick={() => void exportExample()}><Download size={16} /> Exporter cet exemple</Button></div>
+        <details className="design-studio__reset"><summary>Revenir au style de départ</summary><p className="design-studio__hint">Rétablit les polices, couleurs, marges et la position du logo. Vos textes restent présents.</p><label className="design-studio__choice"><input type="checkbox" checked={resetText} disabled={busy} onChange={e => setResetText(e.target.checked)} /> Effacer aussi les textes modèles</label><Button variant="ghost" disabled={busy} onClick={reset}><RotateCcw size={15} /> Réinitialiser {labels[kind].toLowerCase()}</Button></details>
         <p className="design-studio__hint">Les réglages s’appliquent aux brouillons et aux prochains documents. Les documents émis et les fiches comptabilisées conservent leur présentation.</p>
         {notice && <p role="status">{notice}</p>}
         {exportError && <p role="alert">L’export n’a pas abouti. Vos réglages sont conservés. {exportError} Réessayez avec « Exporter cet exemple ».</p>}

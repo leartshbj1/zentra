@@ -75,6 +75,7 @@ try {
     await page.getByText('Réutiliser cette présentation', { exact: true }).click();
     for (const target of ['quotes', 'accounts', 'payslips']) {
       await page.getByLabel('Copier vers', { exact: true }).selectOption(target);
+      await page.getByLabel('Copier aussi les textes', { exact: true }).check();
       await page.getByRole('button', { name: 'Copier la présentation', exact: true }).click();
       const draft = await page.evaluate(() => JSON.parse(sessionStorage.getItem('design-draft')));
       assert.deepEqual(draft.documentComposition[target], design);

@@ -1,5 +1,5 @@
 // Development-only: visual tests consume PDFs produced by the native renderer.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import StyledDocumentPreview from '../src/StyledDocumentPreview';
 import { DocumentDesignStudio } from '../src/DocumentDesignStudio';
@@ -48,6 +48,21 @@ function PreviewHarness() {
 function Harness() {
   const [settings, setSettings] = useState<AppSettings>(() => JSON.parse(localStorage.getItem('design-settings') || 'null') || { ...initialOnboardingSettings, organization: { ...initialOnboardingSettings.organization, legalName: 'Atelier du Léman Sàrl', vatRegistered: true } });
   const [saved, setSaved] = useState(false);
-  return <main style={{ padding: 'clamp(12px,3vw,40px)', maxWidth: 1300, margin: 'auto' }}><DocumentDesignStudio settings={settings} onChange={next => { sessionStorage.setItem('design-draft', JSON.stringify(next)); setSettings(next); setSaved(false); }} busy={false} onSave={() => { localStorage.setItem('design-settings', JSON.stringify(settings)); setSaved(true); }} />{saved && <p role="status">Présentations enregistrées.</p>}</main>;
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    // Explicit fixture events model settings refreshed elsewhere and a write lock.
+    if (!new URLSearchParams(location.search).has('tools')) return;
+    const update = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (typeof detail.busy === 'boolean') setBusy(detail.busy);
+      if (detail.settings) setSettings(previous => {
+        const next = { ...previous, ...detail.settings };
+        sessionStorage.setItem('design-draft', JSON.stringify(next)); return next;
+      });
+    };
+    window.addEventListener('design-fixture-update', update);
+    return () => window.removeEventListener('design-fixture-update', update);
+  }, []);
+  return <main style={{ padding: 'clamp(12px,3vw,40px)', maxWidth: 1300, margin: 'auto' }}><DocumentDesignStudio settings={settings} onChange={next => { sessionStorage.setItem('design-draft', JSON.stringify(next)); setSettings(next); setSaved(false); }} busy={busy} onSave={() => { localStorage.setItem('design-settings', JSON.stringify(settings)); setSaved(true); }} />{saved && <p role="status">Présentations enregistrées.</p>}</main>;
 }
 createRoot(document.getElementById('root')!).render(previewKind ? <PreviewHarness /> : <Harness />);

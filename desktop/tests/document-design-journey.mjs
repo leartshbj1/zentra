@@ -43,6 +43,8 @@ try {
   await page.getByRole('button', { name: 'Enregistrer les présentations' }).click();
   await page.reload(); await ready();
   assert.deepEqual((await request()).style, { accentColor: '#d7b878', layout: 'minimal', logoWidth: 150, footer: 'Merci pour votre confiance.' });
+  await page.getByText('Revenir au style de départ', { exact: true }).click();
+  await page.getByLabel('Effacer aussi les textes modèles', { exact: true }).check();
   await page.getByRole('button', { name: 'Réinitialiser factures', exact: true }).click(); await ready();
   assert.equal((await request()).style.layout, 'signature');
   await page.getByRole('button', { name: 'Devis', exact: true }).click(); await ready();

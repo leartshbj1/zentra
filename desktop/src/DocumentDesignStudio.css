@@ -12,6 +12,20 @@
 .design-studio__presets button[aria-pressed=true] {background:#e9f1e7;border-color:#71937a;}
 .design-studio__tools summary {cursor:pointer;min-height:44px;padding:10px 0;font-weight:600;font-size:13px;}
 .design-studio__copy[open] {display:grid;gap:12px;}
+.design-studio__reset[open] {display:grid;gap:12px;}
+.design-studio__choice,.rich-search__choice {display:flex!important;align-items:center;gap:10px;min-height:44px;font-size:13px;line-height:1.5;}
+.design-studio .design-studio__choice input[type=checkbox],.design-studio .rich-search__choice input[type=checkbox] {width:18px;height:18px;min-height:18px;flex:none;padding:0;accent-color:#326548;}
+.rich-editor__search-toggle {display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px;border:1px solid #dce2dc;border-radius:10px;background:#fff;color:#34483b;cursor:pointer;font-size:13px;}
+.rich-search {display:grid;gap:10px;padding:12px;background:#f2f5ef;border:1px solid #d7dfd4;border-radius:12px;min-width:0;font:13px/1.5 Arial,sans-serif;}
+.rich-search__heading,.rich-search__results {display:flex;align-items:center;gap:8px;min-width:0;}
+.rich-search__heading strong,.rich-search__results > span {flex:1;min-width:0;overflow-wrap:anywhere;}
+.rich-search p {margin:0;color:#526255;overflow-wrap:anywhere;}
+.rich-search button {min-height:44px;padding:8px 10px;background:#fff;color:#34483b;border:1px solid #d5ddd3;border-radius:8px;cursor:pointer;}
+.rich-search__heading button,.rich-search__results button {display:grid;place-content:center;width:44px;flex:none;}
+.rich-search__excerpt {text-align:left;overflow-wrap:anywhere;white-space:pre-wrap;max-height:120px;overflow:auto;}
+.rich-search__excerpt mark {background:#fff0a6;color:#242424;}
+.rich-search__actions {display:flex;gap:8px;flex-wrap:wrap;}
+.rich-search__actions button {flex:1 1 120px;}
 .design-studio__tools button:disabled {opacity:.45;cursor:default;}
 .design-studio__preview {position:sticky;top:20px;max-height:calc(100vh - 40px);overflow:auto;}
 .design-studio__error {display:grid;gap:10px;padding:20px;background:#fff;border-radius:12px;}

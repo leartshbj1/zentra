@@ -61,6 +61,7 @@ try {
     assert.ok(saved[0].runs.some(r => r.text === 'sous 30' && r.color === '#793c32' && r.highlight === '#fff0a6'));
     await page.getByText('Réutiliser cette présentation', { exact: true }).click();
     await page.getByLabel('Copier vers', { exact: true }).selectOption('accounts');
+    await page.getByLabel('Copier aussi les textes', { exact: true }).check();
     await page.getByRole('button', { name: 'Copier la présentation', exact: true }).click();
     await page.getByRole('button', { name: 'Bilan', exact: true }).click(); await ready();
     await page.getByRole('button', { name: 'Exporter cet exemple', exact: true }).click();

@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, Undo2, Redo2, Highlighter, Baseline, RemoveFormatting } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, Undo2, Redo2, Highlighter, Baseline, RemoveFormatting, Search } from 'lucide-react';
 import { normalizeRichText, richPlainText, richColor, richFont, richFontSize, documentFontCss, type RichRun, type RichText } from './documentComposition';
 import { insertedTextRange, marksAtSelection, noTextMarks, paragraphStyleMarks, replaceRichSelection, richTextLimit, selectedParagraphs, setParagraphStyle, setRichMarks, typographyAtSelection, type ParagraphStyle, type TextMarks } from './richTextEditing';
 import { richTextFromClipboard } from './richTextClipboard';
+import { RichTextSearchPanel } from './RichTextSearchPanel';
 
 type Mark = 'bold' | 'italic' | 'underline';
 type Bookmark = { start: number; end: number };
@@ -86,6 +87,8 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   const [activeBullet, setActiveBullet] = useState(false);
   const [colorTool, setColorTool] = useState<'color' | 'highlight' | null>(null);
   const [keepPasteStyle, setKeepPasteStyle] = useState(true);
+  const [search, setSearch] = useState<{ query: string; id: number } | null>(null);
+  const searchSession = useRef(0);
   function showMarks(marks: TextMarks) {
     setActiveMarks(old => old.bold === marks.bold && old.italic === marks.italic && old.underline === marks.underline && old.color === marks.color && old.highlight === marks.highlight && old.fontFamily === marks.fontFamily && old.fontSize === marks.fontSize ? old : marks);
     const next = pendingMarks.current ? { fontFamily: marks.fontFamily || '', fontSize: marks.fontSize || '' } : typographyAtSelection(current.current, saved.current);
@@ -93,9 +96,18 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   }
   useLayoutEffect(() => {
     const el = root.current; if (!el || composing.current) return;
+    if (JSON.stringify(value) !== JSON.stringify(current.current)) {
+      // An outer undo, copied presentation or refreshed settings replaces the zone.
+      // Discard local redo entries from the old text instead of resurrecting them.
+      history.current = []; future.current = []; pendingMarks.current = null;
+      const length = richPlainText(value).length;
+      saved.current = { start: Math.min(saved.current.start, length), end: Math.min(saved.current.end, length) };
+      setMessage(''); setRevision(r => r + 1);
+    }
     const focused = document.activeElement === el;
     paint(el, value); if (focused) restore(el, saved.current);
     current.current = value;
+    showMarks(pendingMarks.current?.marks || marksAtSelection(value, saved.current));
   }, [value, revision]);
   useEffect(() => {
     const listener = () => {
@@ -187,9 +199,27 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
       setMessage('Texte collé avec sa mise en forme. Les polices sont adaptées aux trois polices du document.');
     } else saved.current = previous;
   }
-  function undo(redo = false) { pendingMarks.current = null; const from = redo ? future.current : history.current, to = redo ? history.current : future.current; const next = from.pop(); if (next) { to.push(current.current); commit(next, false); root.current?.focus(); } }
+  function undo(redo = false) { if (disabled) return; pendingMarks.current = null; const from = redo ? future.current : history.current, to = redo ? history.current : future.current; const next = from.pop(); if (next) { to.push(current.current); const length = richPlainText(next).length; saved.current = { start: Math.min(saved.current.start, length), end: Math.min(saved.current.end, length) }; commit(next, false); root.current?.focus(); } }
+  function openSearch() {
+    saved.current = bookmark(root.current!) || saved.current;
+    const selected = richPlainText(current.current).slice(saved.current.start, saved.current.end);
+    setSearch({ query: selected.length <= 120 && !selected.includes('\n') ? selected : '', id: ++searchSession.current });
+    setColorTool(null);
+  }
+  function selectMatch(selection: Bookmark) {
+    saved.current = selection; pendingMarks.current = null;
+    root.current?.focus(); restore(root.current!, selection);
+    const node = window.getSelection()?.anchorNode;
+    (node instanceof HTMLElement ? node : node?.parentElement)?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  }
   return <div className="rich-editor">
     <div className="rich-editor__label">{label}</div>
+    <button type="button" className="rich-editor__search-toggle" aria-expanded={!!search} onClick={() => search ? setSearch(null) : openSearch()}><Search size={17} /> Rechercher et remplacer</button>
+    {search && <RichTextSearchPanel key={search.id} value={value} initialQuery={search.query} disabled={disabled} maxLength={maxLength} onSelect={selectMatch} onClose={() => { setSearch(null); selectMatch(saved.current); }} onReplace={(next, selection) => {
+      if (disabled) return false;
+      pendingMarks.current = null; saved.current = selection;
+      return commit(next);
+    }} />}
     <div className="rich-editor__styles" role="group" aria-label={`Styles de paragraphe : ${label}`} onMouseDown={event => { if ((event.target as HTMLElement).closest('button')) event.preventDefault(); }}>
       <span>Style du paragraphe</span>
       {([['normal', 'Texte normal'], ['heading', 'Titre de section'], ['subheading', 'Sous-titre']] as const).map(([style, title]) => <button type="button" key={style} disabled={disabled} className={`rich-editor__style--${style}`} onClick={() => paragraphStyle(style)}>{title}</button>)}
@@ -219,7 +249,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
       onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; input(); }}
       onBeforeInput={event => { const type = (event.nativeEvent as InputEvent).inputType; if (['insertParagraph', 'insertLineBreak'].includes(type)) { event.preventDefault(); insert('\n'); } else if (type === 'historyUndo' || type === 'historyRedo') { event.preventDefault(); undo(type === 'historyRedo'); } }}
       onPaste={event => { event.preventDefault(); paste(event.clipboardData.getData('text/html'), event.clipboardData.getData('text/plain')); }} onDrop={event => event.preventDefault()}
-      onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); insert('\n'); } if (event.ctrlKey || event.metaKey) { const key = event.key.toLowerCase(); if (['b','i','u','z','y'].includes(key)) { event.preventDefault(); if (key === 'z' || key === 'y') undo(key === 'y' || event.shiftKey); else mark(({ b:'bold', i:'italic', u:'underline' } as const)[key as 'b'|'i'|'u']); } } }} />
+      onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); if (!disabled) insert('\n'); } if (event.ctrlKey || event.metaKey) { const key = event.key.toLowerCase(); if (key === 'f') { event.preventDefault(); openSearch(); } if (['b','i','u','z','y'].includes(key)) { event.preventDefault(); if (key === 'z' || key === 'y') undo(key === 'y' || event.shiftKey); else mark(({ b:'bold', i:'italic', u:'underline' } as const)[key as 'b'|'i'|'u']); } } }} />
     <small>Sélectionnez des mots, ou activez un style avant d’écrire. Entrée ajoute une ligne. {richPlainText(value).length}/{maxLength}</small>
     <label className="rich-editor__paste-choice"><input type="checkbox" checked={keepPasteStyle} disabled={disabled} onChange={event => setKeepPasteStyle(event.target.checked)} /> Conserver la mise en forme du texte collé</label>
     {message && <p role="status">{message}</p>}

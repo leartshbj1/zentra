@@ -55,9 +55,12 @@ try {
   await page.getByRole('button',{name:'Enregistrer les présentations',exact:true}).click();
   await page.reload();await ready();assert.equal((await request()).style.composition.logoPosition,'right');
   await page.getByText('Réutiliser cette présentation',{exact:true}).click();await page.getByLabel('Copier vers',{exact:true}).selectOption('quotes');
+  await page.getByLabel('Copier aussi les textes',{exact:true}).check();
   await page.getByRole('button',{name:'Copier la présentation',exact:true}).click();
   await page.getByRole('button',{name:'Devis',exact:true}).click();await ready();assert.equal((await request()).style.composition.fontFamily,'times');
   await page.getByRole('button',{name:'Exporter cet exemple',exact:true}).click();assert.deepEqual(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('design-export'))),await request());
+  await page.getByText('Revenir au style de départ',{exact:true}).click();
+  await page.getByLabel('Effacer aussi les textes modèles',{exact:true}).check();
   await page.getByRole('button',{name:'Réinitialiser devis',exact:true}).click();await ready();assert.equal((await request()).style.composition,undefined);
   await page.getByRole('button',{name:'Factures',exact:true}).click();await ready();assert.equal((await request()).style.composition.fontFamily,'times');
   await page.getByRole('button',{name:'Textes',exact:true}).click();await page.getByText('Pied de page simple',{exact:true}).click();

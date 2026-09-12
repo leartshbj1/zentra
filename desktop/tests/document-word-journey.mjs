@@ -107,6 +107,7 @@ try {
     await page.getByText('Réutiliser cette présentation', { exact: true }).click();
     for (const [kind, label] of [['quotes', 'Devis'], ['accounts', 'Bilan'], ['payslips', 'Fiches de salaire']]) {
       await page.getByLabel('Copier vers', { exact: true }).selectOption(kind);
+      await page.getByLabel('Copier aussi les textes', { exact: true }).check();
       await page.getByRole('button', { name: 'Copier la présentation', exact: true }).click();
       await page.getByRole('button', { name: label, exact: true }).click(); await ready();
       await page.getByRole('button', { name: 'Exporter cet exemple', exact: true }).click();
