@@ -24,6 +24,8 @@ import {
 import { Button, ErrorPanel, StatusBadge } from './ui';
 import { createId } from './utils';
 import './RecurringDocumentsPanel.css';
+import { RecurringCalendarPreview } from './RecurringCalendarPreview';
+import { RecurringScheduleEditor } from './RecurringScheduleEditor';
 
 export type RecurringDocumentOrderStatus =
   | 'draft'
@@ -347,6 +349,7 @@ export function RecurringDocumentsPanel({
   const [showErrors, setShowErrors] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [editSchedule, setEditSchedule] = useState<'endDate' | 'finish' | null>(null);
   const actionInFlight = useRef(false);
   const statusRequestIds = useRef<
     Partial<Record<'active' | 'paused' | 'completed', string>>
@@ -421,13 +424,7 @@ export function RecurringDocumentsPanel({
     >,
   ) {
     if (!schedule || disabled || readOnly || actionInFlight.current || schedule.sourceSalesOrderId !== order.id) return;
-    if (
-      nextStatus === 'completed' &&
-      !window.confirm(
-        'Terminer définitivement cette planification ? Les brouillons déjà créés resteront disponibles, mais aucune nouvelle échéance ne sera préparée.',
-      )
-    )
-      return;
+    if (nextStatus === 'completed') { setEditSchedule('finish'); return; }
     const requestId =
       statusRequestIds.current[nextStatus] ?? createRecurringRequestId();
     statusRequestIds.current[nextStatus] = requestId;
@@ -518,6 +515,7 @@ export function RecurringDocumentsPanel({
           readOnly={readOnly}
           onStatusChange={(status) => void changeStatus(status)}
           onOpenDraftInvoice={onOpenDraftInvoice}
+          onEditEndDate={() => setEditSchedule('endDate')}
         />
       ) : orderBlockers.length ? (
         <BlockedOrderState order={order} messages={orderBlockers} />
@@ -598,7 +596,7 @@ export function RecurringDocumentsPanel({
             <RecurringField
               id={`${formHeadingId}-start-date`}
               label="Première échéance"
-              hint="Cette date fixe le jour d’ancrage de la planification."
+              hint="La première facture sera préparée à cette date. Les suivantes garderont le même rythme."
               error={showErrors ? validationErrors.startDate : undefined}
               required
             >
@@ -638,7 +636,7 @@ export function RecurringDocumentsPanel({
             <RecurringField
               id={`${formHeadingId}-payment-terms`}
               label="Délai de paiement"
-              hint="Ajouté à la date du futur brouillon."
+              hint="Nombre de jours entre la date de la facture et son échéance de paiement."
               error={showErrors ? validationErrors.paymentTermsDays : undefined}
               suffix="jours"
               required
@@ -665,14 +663,14 @@ export function RecurringDocumentsPanel({
             </RecurringField>
           </div>
 
+          {!validationErrorCount && <RecurringCalendarPreview {...draft} today={today} catchUpLimit={safeCatchUpLimit} />}
           <details className="recurring-documents__rules">
             <summary>Règles de planification et de rattrapage</summary>
             <div className="recurring-documents__anchor-note" role="note">
               <CalendarClock size={18} aria-hidden="true" />
               <p>
-                Le jour de la date de début devient l’ancrage. Si elle est le
-                dernier jour du mois, les échéances suivantes restent en fin de
-                mois.
+                La date de départ fixe le jour habituel. Si elle est le dernier
+                jour du mois, les prochaines dates restent en fin de mois.
               </p>
             </div>
 
@@ -715,6 +713,7 @@ export function RecurringDocumentsPanel({
           onCreate={() => setCreateOpen(true)}
         />
       )}
+      {editSchedule && schedule && <RecurringScheduleEditor key={`${schedule.id}-${editSchedule}`} mode={editSchedule} order={order} schedule={schedule} today={today} busy={disabled} readOnly={readOnly} onClose={() => setEditSchedule(null)} onSave={onUpdate} />}
     </section>
   );
 }
@@ -778,6 +777,7 @@ function RecurringScheduleView({
   readOnly,
   onStatusChange,
   onOpenDraftInvoice,
+  onEditEndDate,
 }: {
   order: RecurringDocumentOrder;
   schedule: RecurringDocumentSchedule;
@@ -791,6 +791,7 @@ function RecurringScheduleView({
     >,
   ) => void;
   onOpenDraftInvoice?: (occurrence: RecurringDocumentOccurrence) => void;
+  onEditEndDate: () => void;
 }) {
   const catchUpReviewId = useId();
   const mismatch = schedule.sourceSalesOrderId !== order.id;
@@ -892,6 +893,7 @@ function RecurringScheduleView({
       ) : null}
 
       <div className="recurring-documents__schedule-actions">
+        {schedule.status !== 'completed' && <Button type="button" variant="secondary" onClick={onEditEndDate} disabled={disabled || readOnly || mismatch}><CalendarClock size={16} /> Modifier la date de fin</Button>}
         {schedule.status === 'active' ? (
           <Button
             type="button"

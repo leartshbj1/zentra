@@ -69,13 +69,20 @@ export function installRecurrenceFixture(initial: Workspace) {
     return afterWrite(mode);
   };
   desktopApi.updateRecurrenceSchedule = async (input) => {
-    log('update', input); const mode = failure('update');
+    log('update', input);
+    if (sessionStorage.getItem('qa-recurrence-hold-next-update') === '1') {
+      sessionStorage.removeItem('qa-recurrence-hold-next-update');
+      await new Promise<void>(resolve => window.addEventListener('qa-release-recurrence-update', () => resolve(), { once: true }));
+    }
+    const mode = failure('update');
     if (!requests.has(input.requestId)) {
       const schedule = persisted.recurrenceSchedules.find((item) => item.id === input.scheduleId)!;
       if (schedule.status === 'completed') throw new Error('Une planification terminée ne peut pas reprendre.');
+      if (input.endDate && (input.endDate < schedule.anchorDate || persisted.recurrenceOccurrences.some(row => row.scheduleId === schedule.id && row.scheduledFor > input.endDate!))) throw new Error('La fin ne peut pas précéder une facture déjà préparée.');
       schedule.status = input.status; schedule.endDate = input.endDate || null; schedule.reviewReason = null;
+      if (schedule.endDate && schedule.nextScheduledFor > schedule.endDate) schedule.status = 'completed';
       schedule.updatedAt = new Date().toISOString();
-      if (input.status === 'completed') schedule.completedAt = now;
+      if (schedule.status === 'completed') schedule.completedAt = now;
       requests.set(input.requestId, schedule.id);
     }
     return afterWrite(mode);

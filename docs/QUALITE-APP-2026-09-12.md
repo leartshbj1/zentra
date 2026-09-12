@@ -273,3 +273,15 @@ Validation : 168 tests d’interface du planning et des mutations dans chaque do
 Les ajouts récents de l’atelier de documents ont également été reportés dans la base de livraison avec une fusion à trois versions : collage mis en forme, styles de paragraphe, espace d’écriture et accès aux éléments du document. Leurs 22 tests d’interface et leurs six parcours Edge/WebKit passent après intégration ; cela porte la sélection d’interface de ce lot à 190 tests dans chaque dossier. TypeScript et Vite passent dans les deux dossiers. Voir [PERSONNALISATION-DOCUMENTS.md](PERSONNALISATION-DOCUMENTS.md).
 
 Aucun nouveau binaire Windows, macOS, iOS ou Android n’a été construit ou publié dans ce lot. La synchronisation réelle du planning, les conflits entre appareils et la recette sur application installée restent à vérifier.
+
+## Lot : dates des factures récurrentes et arrêt expliqué
+
+La création d’une planification affiche les prochaines dates de brouillon et de paiement, ainsi que le nombre de dates à rattraper et la limite du premier lot. Le calcul reprend le jour original et le repère de fin de mois.
+
+Les planifications existantes disposent de **Modifier la date de fin**. Le formulaire valide le début et les occurrences existantes, propose la première date compatible et conserve la saisie après refus. Prolonger ou retirer la fin ne réactive pas une planification en pause ; une planification à vérifier reste en pause. Une fin antérieure à la prochaine occurrence est expliquée comme un arrêt définitif avant confirmation. L’arrêt direct utilise désormais une fenêtre de l’application.
+
+L’enregistrement garde un identifiant stable pendant les essais du même choix. Le formulaire est verrouillé pendant l’écriture ; la reprise après un succès suivi d’une erreur de lecture relit les données sans répéter la modification. Les factures existantes restent intactes.
+
+Validation : 36 tests d’interface et 6 tests natifs dans chaque dossier, 8 parcours Edge/WebKit dans chaque dossier aux quatre formats 320×568, 390×844, 844×390 et 1440×900, et 10 parcours existants dans Edge sur la base de livraison. Les essais couvrent notamment l’année bissextile, le rattrapage, le refus d’une date, le double clic, l’erreur de lecture persistante puis sa reprise, la pause, l’arrêt par date et l’historique. Les anciennes recettes ont été adaptées au guide automatique et à l’étape Prestations de l’éditeur actuel. TypeScript et Vite compilent dans les deux dossiers ; les captures ont été inspectées.
+
+Intégration dans le dossier principal par fusion à trois versions sans conflit, avec sauvegarde dans `.qa/recurrence-dates-before`. Le moteur natif et le schéma sont inchangés. Guide : [FACTURES-RECURRENTES.md](FACTURES-RECURRENTES.md). Aucune donnée client modifiée, aucun nouvel installateur ni IPA publié dans ce lot.

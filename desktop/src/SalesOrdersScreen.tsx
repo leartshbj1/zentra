@@ -605,7 +605,9 @@ function SalesOrderDetail({
         onUpdate={async (input) => {
           let localReason: unknown;
           const message =
-            input.status === 'completed'
+            input.endDate !== recurrenceSchedule?.endDate
+              ? input.status === 'completed' ? 'La date de fin est enregistrée. La planification est terminée ; les factures existantes restent disponibles.' : 'La date de fin de la planification est enregistrée.'
+              : input.status === 'completed'
               ? 'La planification est terminée définitivement. Son historique reste disponible.'
               : input.status === 'paused'
                 ? 'La planification est en pause.'

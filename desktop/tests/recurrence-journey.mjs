@@ -14,7 +14,7 @@ try {
       page.on('pageerror', (error) => errors.push(error.message));
       page.on('dialog', (dialog) => dialog.accept());
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      await page.goto(`http://127.0.0.1:5175/tests/mobile-harness.html?recurrence=1${automatic ? '&automatic=1' : ''}`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${process.env.ZENTRA_QA_URL || 'http://127.0.0.1:5271'}/tests/mobile-harness.html?recurrence=1${automatic ? '&automatic=1' : ''}`, { waitUntil: 'domcontentloaded' });
       const persisted = () => page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-recurrence-persisted')));
       const attempts = (operation) => page.evaluate((operation) => JSON.parse(sessionStorage.getItem(`qa-recurrence-${operation}-attempts`) || '[]'), operation);
       const mode = (operation, value) => page.evaluate(({ operation, value }) => sessionStorage.setItem(`qa-recurrence-${operation}-failure`, value), { operation, value });
@@ -24,8 +24,7 @@ try {
         await page.locator('.navigation-palette__results button').filter({ has: page.getByText(name, { exact: true }) }).click();
         await page.locator('.navigation-palette').waitFor({ state: 'detached' });
       };
-      const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-      if (await tour.isVisible()) await tour.click();
+      await page.getByRole('button', { name: 'Fermer le guide automatique', exact: true }).click();
       const capture = async (name) => {
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}-${name}: horizontal overflow`);
         const clipped = await page.locator('.recurring-documents button, .recurring-documents time, .recurring-documents summary').evaluateAll((nodes) => nodes.filter((node) => node.getClientRects().length && node.getBoundingClientRect().right > node.closest('.recurring-documents').getBoundingClientRect().right + 1).map((node) => node.textContent));
@@ -121,12 +120,14 @@ try {
         await panel.getByRole('button', { name: 'Reprendre la planification', exact: true }).click();
         await panel.getByText('Planification active', { exact: true }).waitFor();
         await panel.getByRole('button', { name: 'Terminer définitivement', exact: true }).click();
+        await page.getByRole('dialog', { name: 'Terminer cette planification', exact: true }).getByRole('button', { name: 'Terminer la planification', exact: true }).click();
         await panel.getByText('Terminée', { exact: true }).waitFor();
         assert.equal((await persisted()).invoices.length, 20);
         assert.equal(await panel.getByRole('button', { name: 'Mettre en pause', exact: true }).count(), 0);
         await panel.getByRole('button', { name: 'Ouvrir la facture 2026-08-31', exact: true }).click();
         const dialog = page.getByRole('dialog');
         await dialog.waitFor();
+        await dialog.getByRole('button', { name: '2. Prestations', exact: true }).click();
         assert.equal(await dialog.getByRole('textbox', { name: 'Description', exact: true }).first().inputValue(), 'Maintenance et assistance');
         await capture('draft-open');
         await page.keyboard.press('Escape');
