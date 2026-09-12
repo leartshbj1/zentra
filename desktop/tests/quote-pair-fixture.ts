@@ -2,6 +2,7 @@
 import { desktopApi } from '../src/bridge';
 import { buildDepositLines } from '../src/deposit';
 import { refreshWorkspaceAfterMutation } from '../src/workspaceMutation';
+import { documentTotals } from '../src/utils';
 import type { Invoice, Project, Quote, Workspace } from '../src/types';
 
 export function installQuotePairFixture(data: Workspace) {
@@ -12,6 +13,7 @@ export function installQuotePairFixture(data: Workspace) {
   const afterWrite = (kind: string) => {
     const events = JSON.parse(sessionStorage.getItem('qa-pair-writes') || '[]'); events.push(kind);
     sessionStorage.setItem('qa-pair-writes', JSON.stringify(events));
+    sessionStorage.setItem('qa-pair-snapshot', JSON.stringify(data));
     if (sessionStorage.getItem('qa-pair-recover') === kind) sessionStorage.setItem('qa-pair-block-reads', '1');
     return refreshWorkspaceAfterMutation(desktopApi.loadWorkspace);
   };
@@ -37,10 +39,25 @@ export function installQuotePairFixture(data: Workspace) {
   };
   desktopApi.issueDocument = async (entity, id) => {
     if (entity !== 'invoices') throw new Error('Unexpected fixture issue');
+    if (sessionStorage.getItem('qa-pair-refuse-issue') === '1') throw Error('La période de facturation est fermée. Vérifiez la date d’émission.');
+    if (sessionStorage.getItem('qa-pair-hold-issue') === '1') await new Promise(resolve => window.addEventListener('qa-release-pair-issue', resolve, { once: true }));
     const invoice = data.invoices.find((invoice) => invoice.id === id)!;
     if (!invoice.serviceDateFrom) throw new Error('Complétez les dates de prestation.');
     invoice.status = 'issued'; invoice.number = invoice.type === 'deposit' ? 'F-2026-0042' : 'F-2026-0043';
-    return structuredClone(data);
+    // Synthetic issued-invoice snapshot with a credit allocated from another dossier.
+    if (invoice.id === pair.balanceInvoiceId && new URLSearchParams(location.search).has('folderCredit')) invoice.creditedCents = 20000;
+    return afterWrite('issue');
+  };
+  const accountingSettings = desktopApi.getAccountingSettings;
+  desktopApi.getAccountingSettings = async () => ({ ...await accountingSettings(), enabled: true });
+  desktopApi.addPayment = async (id, input) => {
+    if (sessionStorage.getItem('qa-pair-refuse-payment') === '1') throw Error('Le paiement n’a pas été enregistré. Réessayez.');
+    if (data.payments.some(payment => payment.id === input.requestId)) throw Error('Duplicate payment attempt');
+    const invoice = data.invoices.find(invoice => invoice.id === id)!;
+    data.payments.push({ ...input, id: input.requestId, invoiceId: id });
+    invoice.paidCents = data.payments.filter(payment => payment.invoiceId === id).reduce((sum, payment) => sum + payment.amountCents, 0);
+    invoice.status = invoice.paidCents + (invoice.creditedCents ?? 0) === documentTotals(invoice.lines).totalCents ? 'paid' : 'partially_paid';
+    return afterWrite('payment');
   };
   if (new URLSearchParams(location.search).has('legacyPair')) data.invoices = [depositFor(3000)];
 }

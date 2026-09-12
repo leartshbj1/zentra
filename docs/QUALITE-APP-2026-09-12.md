@@ -2,6 +2,18 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : terminer la facturation depuis le dossier du devis
+
+Le dossier propose l’émission de l’acompte, puis celle du solde, après renseignement de leurs dates. Chaque facture émise montre les paiements reçus, les avoirs appliqués et ce qui reste à recevoir. Le paiement s’ouvre depuis cette facture et revient au dossier après enregistrement ou annulation ; une relecture interrompue reprend au même endroit sans répéter le paiement. Les refus d’émission restent visibles dans le dossier. Pendant une action, les autres actions et la fermeture sont bloquées ; la lecture seule conserve la consultation.
+
+La synthèse distingue le montant du devis, les paiements reçus et le reste dû des seules factures émises. Les brouillons sont annoncés séparément. Les avoirs réellement affectés sont repris depuis les soldes du moteur, y compris ceux provenant d’un autre dossier ; un avoir non affecté n’est pas déduit arbitrairement. Les devises différentes ne sont pas additionnées dans une synthèse commune. La déduction de l’acompte et les règles d’émission/calcul natives restent inchangées.
+
+Validation source : TypeScript, Vite et **183 tests ciblés** réussis. Huit nouveaux parcours Edge/WebKit couvrent 320×568, 390×844, 844×390 et 1440×900 : conversion avec deux factures, préparation, ordre d’émission, paiement partiel, annulation, refus puis reprise, avoir affecté, lecture seule et lecture interrompue après encaissement. Les captures mobiles et ordinateur ont été inspectées. Le contrôle natif `quote_invoice_pair_rounding_payment_pdf_and_backup` réussit sur les huit combinaisons de pourcentage et méthode de décompte déjà présentes : arrondis, déduction, émission, paiements, TVA, PDF et sauvegarde/restauration, dont un acompte de 100 %. Les parcours navigateur utilisent des données synthétiques et ne prouvent pas un règlement bancaire réel.
+
+Les huit parcours de paire acompte/solde et les 24 parcours de reprise commerciale précédents passent également, soit 40 parcours navigateur sur la base isolée. L’intégration du dossier principal passe TypeScript, Vite, les 183 tests ciblés et les huit nouveaux parcours Edge/WebKit. Les travaux existants sont conservés ; sauvegarde préalable dans `.qa/quote-folder-20260912-before/`.
+
+Ce lot ne publie aucun nouvel installateur ni IPA ; la version Windows distribuée reste 1.56.0.
+
 ## Lot : corrections guidées du collaborateur
 
 Les champs manquants ou mal renseignés reçoivent une explication dans le formulaire, à côté du champ concerné. L’étape nécessaire s’affiche et les rubriques fermées s’ouvrent automatiquement. Les dates d’un contrat déterminé sont contrôlées dès l’étape Travail. Les couples année/montant de pension, chômage et accidents indiquent ce qui manque et le document à consulter ; une valeur inconnue n’est pas remplacée par zéro. Un message bancaire identifié lors de l’enregistrement rejoint l’IBAN. Les autres erreurs de sauvegarde restent affichées avec la saisie conservée. L’assistant reçoit le message de correction courant dans son contexte d’écran.

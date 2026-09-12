@@ -1,45 +1,73 @@
 import { FileCheck2, FolderOpen, Receipt } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { desktopApi } from './bridge';
 import type { Invoice, Quote, Workspace } from './types';
 import { Button, ErrorPanel, Field, FormActions, Modal, StatusBadge, submitForm } from './ui';
-import { addDaysIso, documentTotals, errorMessage, formatMoney, invoicePaid, todayIso } from './utils';
+import { addDaysIso, documentTotals, errorMessage, formatMoney, invoiceCredited, invoiceOpenBalance, invoicePaid, todayIso } from './utils';
 import { invoiceDatesError } from './salesFormValidation';
+import { quoteFolderInvoiceStep, quoteFolderProgress } from './quoteFolderProgress';
 import './QuoteInvoiceFolder.css';
 
 type Act = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
 
-export function QuoteInvoiceFolder({ quote, workspace, busy, close, onOpen, act }: {
-  quote: Quote; workspace: Workspace; busy: boolean; close: () => void;
-  onOpen: (entity: 'quotes' | 'invoices', document: Quote | Invoice) => void; act: Act;
+export function QuoteInvoiceFolder({ quote, workspace, busy, readOnly = false, close, onOpen, onIssue, onPayment, act }: {
+  quote: Quote; workspace: Workspace; busy: boolean; readOnly?: boolean; close: () => void;
+  onOpen: (entity: 'quotes' | 'invoices', document: Quote | Invoice) => void;
+  onIssue: (invoice: Invoice, onError: (reason: unknown) => void) => Promise<void>;
+  onPayment: (invoice: Invoice) => void; act: Act;
 }) {
-  const invoices = workspace.invoices.filter((invoice) => invoice.quoteId === quote.id);
-  const ordered = [...invoices].sort((a, b) => (a.type === 'deposit' ? 0 : 1) - (b.type === 'deposit' ? 0 : 1));
+  const progress = quoteFolderProgress(quote, workspace.invoices, workspace.payments);
+  const invoices = progress.invoices;
   const deposit = invoices.find((invoice) => invoice.type === 'deposit');
   const canComplete = invoices.length === 1 && deposit && deposit.status !== 'cancelled' && !deposit.billingPair;
-  const total = documentTotals(quote.lines).totalCents;
-  const received = invoices.reduce((sum, invoice) => sum + invoicePaid(invoice.id, workspace.payments), 0);
-  const credits = invoices.filter((invoice) => invoice.type === 'credit_note' && invoice.status !== 'draft' && invoice.status !== 'cancelled').reduce((sum, invoice) => sum + documentTotals(invoice.lines).totalCents, 0);
+  const [localError, setLocalError] = useState('');
+  const [working, setWorking] = useState(false);
+  const inFlight = useRef(false);
+  const pending = busy || working;
+  const reportError = (reason: unknown) => setLocalError(errorMessage(reason, 'L’action n’a pas pu être terminée. Le dossier est conservé ; vous pouvez réessayer.'));
+  async function perform(action: () => Promise<unknown>) {
+    if (pending || readOnly || inFlight.current) return;
+    inFlight.current = true; setWorking(true); setLocalError('');
+    try { await action(); } catch (reason) { reportError(reason); }
+    finally { inFlight.current = false; setWorking(false); }
+  }
   const project = workspace.projects.find((project) => project.id === quote.projectId);
-  return <Modal title={`Dossier ${quote.number || quote.title}`} description={project?.name || quote.title} onClose={close} wide>
+  return <Modal title={`Dossier ${quote.number || quote.title}`} description={project?.name || quote.title} onClose={() => { if (!pending && !inFlight.current) close(); }} dismissible={!pending} wide>
     <div className="quote-invoice-folder">
+      {localError && <ErrorPanel title="Vérifions ce document" message={localError} reveal />}
       <div className="quote-invoice-folder__totals">
-        <div><span>Montant du devis</span><strong>{formatMoney(total, quote.currency)}</strong></div>
-        <div><span>Encaissé</span><strong>{formatMoney(received, quote.currency)}</strong></div>
-        <div><span>Reste à encaisser sur le devis</span><strong>{formatMoney(Math.max(0, total + credits - received), quote.currency)}</strong></div>
+        <div><span>Montant du devis</span><strong>{formatMoney(progress.quoteCents, quote.currency)}</strong></div>
+        <div><span>Paiements reçus</span><strong>{progress.sameCurrency ? formatMoney(progress.receivedCents, quote.currency) : 'Voir chaque facture'}</strong></div>
+        <div><span>À encaisser · factures émises</span><strong>{progress.sameCurrency ? formatMoney(progress.openCents, quote.currency) : 'Plusieurs devises'}</strong></div>
       </div>
-      <button className="quote-invoice-folder__document" onClick={() => onOpen('quotes', quote)}>
+      <div className="quote-invoice-folder__progress" aria-live="polite">
+        {progress.draftCount > 0 && <p><strong>{progress.draftCount} {progress.draftCount === 1 ? 'brouillon à préparer' : 'brouillons à préparer'}{progress.sameCurrency ? ` · ${formatMoney(progress.draftCents, quote.currency)}` : ''}</strong><span>Ces montants ne sont pas encore inclus dans les factures à encaisser.</span></p>}
+        {progress.creditedCents > 0 && progress.sameCurrency && <p><strong>Avoirs appliqués · {formatMoney(progress.creditedCents, quote.currency)}</strong><span>Déjà déduits du montant à encaisser.</span></p>}
+        {!progress.sameCurrency && <p>Les documents utilisent plusieurs devises. Consultez les montants sur chaque facture.</p>}
+      </div>
+      <button className="quote-invoice-folder__document" disabled={pending} onClick={() => onOpen('quotes', quote)}>
         <FileCheck2 size={22}/><span><strong>Devis {quote.number}</strong><small>{quote.title}</small></span><StatusBadge status={quote.status}/>
       </button>
-      <div className="quote-invoice-folder__invoices">{ordered.map((invoice) => <article key={invoice.id}>
+      <div className="quote-invoice-folder__invoices">{invoices.map((invoice) => {
+        const step = quoteFolderInvoiceStep(invoice, workspace.invoices, workspace.payments);
+        const open = invoiceOpenBalance(invoice, workspace.invoices, workspace.payments);
+        const paid = invoicePaid(invoice.id, workspace.payments);
+        const credited = invoiceCredited(invoice.id, workspace.invoices);
+        const issued = !['draft', 'cancelled'].includes(invoice.status) && invoice.type !== 'credit_note';
+        return <article key={invoice.id} data-invoice-id={invoice.id}>
         <Receipt size={22}/><h3>{invoice.type === 'deposit' ? 'Facture d’acompte' : invoice.billingPair ? 'Facture de solde' : invoice.type === 'credit_note' ? 'Avoir' : 'Facture'}</h3>
         <p>{invoice.number || 'Brouillon · numéro à l’émission'}</p>
         <strong className="quote-invoice-folder__amount">{formatMoney(documentTotals(invoice.lines).totalCents, invoice.currency)}</strong>
         <StatusBadge status={invoice.status}/>
-        <p>{invoice.type === 'deposit' ? 'Premier versement prévu au devis.' : invoice.billingPair ? 'Montant du devis, moins l’acompte facturé.' : invoice.title}</p>
-        <Button variant="secondary" onClick={() => onOpen('invoices', invoice)}><FolderOpen size={17}/> Ouvrir {invoice.type === 'deposit' ? 'l’acompte' : invoice.billingPair ? 'le solde' : 'la facture'}</Button>
-      </article>)}</div>
-      {canComplete ? <div className="info-strip"><span>Ce devis possède un acompte, mais sa facture de solde n’a pas encore été créée.</span><Button disabled={busy} onClick={() => void act(() => desktopApi.createQuoteBalance(quote.id), 'La facture de solde a été ajoutée au dossier.', false)}>Créer la facture de solde</Button></div> : null}
+        {issued && <dl className="quote-invoice-folder__settlement"><div><dt>Reçu</dt><dd>{formatMoney(paid, invoice.currency)}</dd></div>{credited > 0 && <div><dt>Avoirs appliqués</dt><dd>{formatMoney(credited, invoice.currency)}</dd></div>}<div><dt>Reste à recevoir</dt><dd>{formatMoney(open, invoice.currency)}</dd></div></dl>}
+        <p className="quote-invoice-folder__next">{step.message}</p>
+        <div className="quote-invoice-folder__actions">
+          {step.kind === 'issue' && <Button disabled={pending || readOnly} onClick={() => void perform(() => onIssue(invoice, reportError))}>Émettre {invoice.type === 'deposit' ? 'l’acompte' : invoice.billingPair ? 'le solde' : 'la facture'}</Button>}
+          {step.kind === 'pay' && <Button disabled={pending || readOnly} onClick={() => { if (!pending && !inFlight.current) onPayment(invoice); }}>Enregistrer un paiement</Button>}
+          <Button variant="secondary" disabled={pending} onClick={() => onOpen('invoices', invoice)}><FolderOpen size={17}/> Ouvrir {invoice.type === 'deposit' ? 'l’acompte' : invoice.billingPair ? 'le solde' : invoice.type === 'credit_note' ? 'l’avoir' : 'la facture'}</Button>
+        </div>
+      </article>; })}</div>
+      {canComplete ? <div className="info-strip"><span>Ce devis possède un acompte, mais sa facture de solde n’a pas encore été créée.</span><Button disabled={pending || readOnly} onClick={() => void perform(() => act(() => desktopApi.createQuoteBalance(quote.id), 'La facture de solde a été ajoutée au dossier.', false, reportError))}>Créer la facture de solde</Button></div> : null}
       <p className="quote-conversion-note">Chaque facture a son propre numéro et son propre suivi de paiement. La déduction de l’acompte sur le solde ne signifie pas que l’acompte a été payé.</p>
     </div>
   </Modal>;

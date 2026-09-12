@@ -357,7 +357,7 @@ type ModalState =
   | { type: 'payslip'; item?: Payslip; initialEmployeeId?: string; initialPeriod?: string; initialPaymentDate?: string }
   | { type: 'payrollImport' }
   | { type: 'payslipPayment'; payslip: Payslip }
-  | { type: 'payment'; invoice: Invoice }
+  | { type: 'payment'; invoice: Invoice; returnToQuoteId?: string }
   | { type: 'qrPrint'; invoice: Invoice }
   | { type: 'timer' }
   | null;
@@ -974,7 +974,7 @@ export function WorkspaceApp({
     }
   }
 
-  async function issueInvoice(item: Invoice) {
+  async function issueInvoice(item: Invoice, onError?: (reason: unknown) => void) {
     if (
       !window.confirm(
         'Émettre cette facture maintenant ? Le numéro, les lignes, le client, les dates et les montants seront figés. Toute correction ultérieure devra passer par un avoir et une nouvelle facture.',
@@ -991,6 +991,7 @@ export function WorkspaceApp({
         ),
       'La facture a été émise, numérotée et verrouillée.',
       false,
+      onError,
     );
     if (issued && cloudAccount?.status === 'connected') {
       await archiveInvoiceToCloud(item, true);
@@ -2190,6 +2191,7 @@ export function WorkspaceApp({
             convertAcceptedQuote(quote, depositPercentageBp)
           }
           onCreateInvoiceCorrection={createInvoiceCorrection}
+          onIssueInvoice={issueInvoice}
           onQrReady={(invoice, qr) => {
             setModal(null);
             setPrintTarget({ entity: 'invoices', value: invoice, qr });
@@ -6032,6 +6034,7 @@ function WorkspaceModal({
   onOpenAccounting,
   onConvertQuote,
   onCreateInvoiceCorrection,
+  onIssueInvoice,
   onQrReady,
 }: {
   state: Exclude<ModalState, null>;
@@ -6048,6 +6051,7 @@ function WorkspaceModal({
     depositPercentageBp: number | null,
   ) => Promise<boolean>;
   onCreateInvoiceCorrection: (invoice: Invoice, reason: string, onError: (reason: unknown) => void) => Promise<void>;
+  onIssueInvoice: (invoice: Invoice, onError?: (reason: unknown) => void) => Promise<void>;
   onQrReady: (invoice: Invoice, qr: StoredSwissQrBill) => void;
 }) {
   if (state.type === 'client')
@@ -6101,7 +6105,7 @@ function WorkspaceModal({
   if (state.type === 'quoteInvoiceFolder') {
     const quote = workspace.quotes.find((quote) => quote.id === state.quoteId);
     if (!quote) return null;
-    return <QuoteInvoiceFolder quote={quote} workspace={workspace} busy={busy || readOnly} close={close} act={act} onOpen={(entity, item) => replace({ type: 'document', entity, item })}/>;
+    return <QuoteInvoiceFolder quote={quote} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} onIssue={onIssueInvoice} onPayment={invoice => replace({ type: 'payment', invoice, returnToQuoteId: quote.id })} onOpen={(entity, item) => replace({ type: 'document', entity, item })}/>;
   }
   if (state.type === 'document' && state.entity === 'invoices' && (state.item as Invoice | undefined)?.billingPair && state.item?.status === 'draft') {
     const invoice = workspace.invoices.find((invoice) => invoice.id === state.item?.id) ?? state.item as Invoice;
@@ -6289,11 +6293,15 @@ function WorkspaceModal({
   if (state.type === 'payment')
     return (
       <PaymentForm
-        invoice={state.invoice}
+        invoice={workspace.invoices.find(invoice => invoice.id === state.invoice.id) ?? state.invoice}
         workspace={workspace}
         busy={busy}
-        close={close}
-        act={act}
+        close={state.returnToQuoteId ? () => replace({ type: 'quoteInvoiceFolder', quoteId: state.returnToQuoteId! }) : close}
+        act={state.returnToQuoteId ? async (action, message, _close, onError) => {
+          const saved = await act(action, message, false, onError);
+          if (saved) replace({ type: 'quoteInvoiceFolder', quoteId: state.returnToQuoteId! });
+          return saved;
+        } : act}
         onOpenAccounting={onOpenAccounting}
       />
     );
