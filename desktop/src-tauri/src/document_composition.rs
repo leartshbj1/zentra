@@ -196,7 +196,7 @@ fn wrap(
     text: &RichText,
     width: f32,
     size: f32,
-) -> AppResult<Vec<(Vec<Glyph>, String, bool)>> {
+) -> AppResult<Vec<(Vec<Glyph>, String, bool, bool)>> {
     let mut result = Vec::new();
     for paragraph in text {
         let mut glyphs = Vec::new();
@@ -212,7 +212,12 @@ fn wrap(
         let mut start = 0;
         let mut first = true;
         if glyphs.is_empty() {
-            result.push((vec![], paragraph.align.clone(), paragraph.bullet));
+            result.push((
+                vec![],
+                paragraph.align.clone(),
+                paragraph.bullet,
+                paragraph.bullet,
+            ));
         }
         while start < glyphs.len() {
             let mut end = start;
@@ -241,6 +246,7 @@ fn wrap(
                 glyphs[start..end].to_vec(),
                 paragraph.align.clone(),
                 paragraph.bullet && first,
+                paragraph.bullet,
             ));
             first = false;
             start = if explicit { next + 1 } else { next };
@@ -322,7 +328,7 @@ pub(crate) struct Composer<'a> {
     identity: String,
     title: String,
     payment_pages: Vec<usize>,
-    footer: Vec<(Vec<Glyph>, String, bool)>,
+    footer: Vec<(Vec<Glyph>, String, bool, bool)>,
     bottom: f32,
 }
 impl<'a> Composer<'a> {
@@ -359,7 +365,11 @@ impl<'a> Composer<'a> {
             y: 0.,
             style,
             design,
-            logo,
+            logo: if design.logo_position == "hidden" {
+                None
+            } else {
+                logo
+            },
             identity: identity.into(),
             title: title.into(),
             payment_pages: vec![],
@@ -466,7 +476,7 @@ impl<'a> Composer<'a> {
     fn rich_sized(&mut self, text: &RichText, size: f32, color: [f32; 3]) -> AppResult<()> {
         let lines = wrap(self.design, text, self.width(), size)?;
         let leading = size * self.design.line_spacing;
-        for (line, align, bullet) in lines {
+        for (line, align, bullet, indent) in lines {
             self.ensure(leading)?;
             self.y -= size;
             let x = self.left()
@@ -474,7 +484,7 @@ impl<'a> Composer<'a> {
                     "center" => (self.width() - measure(&line, size)) / 2.,
                     "right" => self.width() - measure(&line, size),
                     _ => {
-                        if bullet {
+                        if indent {
                             size * 1.5
                         } else {
                             0.
@@ -595,7 +605,7 @@ impl<'a> Composer<'a> {
             let color = if band { self.style.on_accent() } else { INK };
             let mut x = left;
             for (column, (lines, f)) in wrapped.iter().zip(fractions).enumerate() {
-                for (row, (line, _, _)) in lines.iter().enumerate().take(end).skip(start) {
+                for (row, (line, _, _, _)) in lines.iter().enumerate().take(end).skip(start) {
                     let cell_x = if column > 0 && (!header || cells.len() == 2) {
                         x + width * f - padding - measure(line, size)
                     } else {
@@ -676,14 +686,34 @@ impl<'a> Composer<'a> {
             } else {
                 self.bottom - 14.
             };
-            for (line, align, _) in &self.footer {
+            for (line, align, bullet, indent) in &self.footer {
                 let x = left
                     + match align.as_str() {
                         "center" => (width - measure(line, 8.)) / 2.,
                         "right" => width - measure(line, 8.),
-                        _ => 0.,
+                        _ => {
+                            if *indent {
+                                12.
+                            } else {
+                                0.
+                            }
+                        }
                     };
                 draw(ops, line, x, y, 8., self.style.ink());
+                if *bullet {
+                    draw(
+                        ops,
+                        &[Glyph {
+                            byte: 149,
+                            font: self.design.font(false, false),
+                            underline: false,
+                        }],
+                        left,
+                        y,
+                        8.,
+                        self.style.ink(),
+                    );
+                }
                 y -= 11.;
             }
             let footer = format!("Zentra · {}/{}", index + 1, count);
@@ -736,6 +766,57 @@ pub(crate) fn write_pdf(path: &Path, bytes: &[u8]) -> AppResult<()> {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn document_composition_bullets_keep_their_hanging_indent_and_print_in_the_footer() {
+        let design: Composition = serde_json::from_value(json!({"closing":[{"bullet":true,"runs":[{"text":"Une condition détaillée. ".repeat(20)}]}],"footerText":[{"bullet":true,"runs":[{"text":"Un pied de page en liste."}]}]})).unwrap();
+        let lines = wrap(&design, &design.closing, 160., 10.).unwrap();
+        assert!(lines.len() > 3);
+        assert!(lines[0].2);
+        assert!(lines.iter().skip(1).all(|line| !line.2));
+        assert!(lines.iter().all(|line| line.3));
+        let mut style = DocumentStyle::default();
+        style.composition = Some(design.clone());
+        let mut writer =
+            Composer::new(&style, None, "Atelier du Léman", "Contrôle des listes").unwrap();
+        let expected_left = writer.left() + design.body_size * 1.5;
+        writer.rich(&design.closing).unwrap();
+        let (bytes, _) = writer.finish("Contrôle").unwrap();
+        let pdf = Document::load_mem(&bytes).unwrap();
+        let content = Content::decode(
+            &pdf.get_page_content(*pdf.get_pages().values().next().unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+        let mut position = (0., 0.);
+        let mut bullets = 0;
+        let mut body_lines = 0;
+        for op in content.operations {
+            if op.operator == "Tm" {
+                position = (
+                    op.operands[4].as_float().unwrap(),
+                    op.operands[5].as_float().unwrap(),
+                );
+            }
+            if op.operator == "Tj" {
+                let text = op.operands[0].as_str().unwrap();
+                if text == [149] {
+                    bullets += 1;
+                }
+                if text.starts_with(b"Une")
+                    || text.starts_with(b"condition")
+                    || text.starts_with(b"d\xe9taill\xe9e")
+                {
+                    assert!((position.0 - expected_left).abs() < 0.1);
+                    body_lines += 1;
+                }
+            }
+        }
+        assert!(body_lines > 1);
+        assert_eq!(bullets, 2, "one body bullet and one footer bullet");
+        if let Some(directory) = std::env::var_os("ZENTRA_DESIGN_SAMPLES") {
+            std::fs::write(Path::new(&directory).join("bullet-layout.pdf"), bytes).unwrap();
+        }
+    }
     #[test]
     fn composition_rejects_unknown_format_and_keeps_html_as_literal_text() {
         for value in [

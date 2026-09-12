@@ -1,3 +1,5 @@
+import { PdfExportReceipt } from './PdfExportReceipt';
+import type { PdfExportReceipt as PdfReceipt } from './pdfExportDelivery';
 import { deferView } from './DeferredView';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { useAssistantScreen } from './assistantContext';
@@ -8867,9 +8869,12 @@ function SalesPdfExportControl({
   const [exporting, setExporting] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [failed, setFailed] = useState(false);
+  const flight = useRef(false);
+  const [exportedPdf, setExportedPdf] = useState<PdfReceipt | null>(null);
 
   const exportPdf = async () => {
-    if (exporting) return;
+    if (flight.current || exporting) return;
+    flight.current = true;
     setExporting(true);
     setFailed(false);
     setFeedback('');
@@ -8880,6 +8885,7 @@ function SalesPdfExportControl({
         suggestedFileName,
       );
       if (result) {
+        setExportedPdf(result);
         setFeedback(
           `${result.finalDocument ? 'PDF final' : 'PDF brouillon'} enregistré (${result.pages} ${result.pages > 1 ? 'pages' : 'page'}) : ${result.path}`,
         );
@@ -8893,6 +8899,7 @@ function SalesPdfExportControl({
         ),
       );
     } finally {
+      flight.current = false;
       setExporting(false);
     }
   };
@@ -8904,13 +8911,13 @@ function SalesPdfExportControl({
         title={feedback || idleMessage}
         style={{
           minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          overflowWrap: 'anywhere',
+          whiteSpace: 'normal',
         }}
       >
         {feedback || idleMessage}
       </span>
+      {exportedPdf && <PdfExportReceipt result={exportedPdf} disabled={exporting} onBusyChange={setExporting} />}
       <Button
         variant="secondary"
         disabled={exporting}

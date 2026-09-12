@@ -574,8 +574,8 @@ fn render_composed_payslip(
     branding_dir: Option<&Path>,
 ) -> AppResult<usize> {
     use crate::document_composition::{write_pdf, Composer};
-    let logo = load_document_logo(&data.logo_path, branding_dir);
-    if !data.logo_path.is_empty() && logo.is_none() {
+    let logo = if data.style.logo_visible() { load_document_logo(&data.logo_path, branding_dir) } else { None };
+    if data.style.logo_visible() && !data.logo_path.is_empty() && logo.is_none() {
         return Err(AppError::Validation(
             "Le logo de la fiche de salaire est introuvable. Réimportez-le dans les paramètres."
                 .into(),

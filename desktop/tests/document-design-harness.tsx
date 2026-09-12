@@ -20,7 +20,16 @@ desktopApi.documentDesignExample = async input => {
 };
 desktopApi.exportDocumentDesignExample = async input => {
   sessionStorage.setItem('design-export', JSON.stringify(input));
-  return 'example.pdf';
+  sessionStorage.setItem('design-export-count', String(Number(sessionStorage.getItem('design-export-count') || 0) + 1));
+  if (sessionStorage.getItem('design-export-mode') === 'error') throw new Error('Le dossier choisi est indisponible. Choisissez un autre emplacement.');
+  if (sessionStorage.getItem('design-export-mode') === 'share-error') return { path: 'example.pdf', deliveryWarning: 'Le PDF a été créé, mais le partage n’a pas abouti.' };
+  return { path: 'example.pdf' };
+};
+desktopApi.shareExistingExport = async path => {
+  sessionStorage.setItem('design-share-path', path);
+  const count = Number(sessionStorage.getItem('design-share-count') || 0) + 1;
+  sessionStorage.setItem('design-share-count', String(count));
+  if (count === 1) throw new Error('Partage indisponible');
 };
 const previewKind = new URLSearchParams(location.search).get('preview') as 'quotes' | 'invoices' | 'payslips' | null;
 let previewAttempts = 0;
@@ -39,6 +48,6 @@ function PreviewHarness() {
 function Harness() {
   const [settings, setSettings] = useState<AppSettings>(() => JSON.parse(localStorage.getItem('design-settings') || 'null') || { ...initialOnboardingSettings, organization: { ...initialOnboardingSettings.organization, legalName: 'Atelier du Léman Sàrl', vatRegistered: true } });
   const [saved, setSaved] = useState(false);
-  return <main style={{ padding: 'clamp(12px,3vw,40px)', maxWidth: 1300, margin: 'auto' }}><DocumentDesignStudio settings={settings} onChange={next => { setSettings(next); setSaved(false); }} busy={false} onSave={() => { localStorage.setItem('design-settings', JSON.stringify(settings)); setSaved(true); }} />{saved && <p role="status">Présentations enregistrées.</p>}</main>;
+  return <main style={{ padding: 'clamp(12px,3vw,40px)', maxWidth: 1300, margin: 'auto' }}><DocumentDesignStudio settings={settings} onChange={next => { sessionStorage.setItem('design-draft', JSON.stringify(next)); setSettings(next); setSaved(false); }} busy={false} onSave={() => { localStorage.setItem('design-settings', JSON.stringify(settings)); setSaved(true); }} />{saved && <p role="status">Présentations enregistrées.</p>}</main>;
 }
 createRoot(document.getElementById('root')!).render(previewKind ? <PreviewHarness /> : <Harness />);

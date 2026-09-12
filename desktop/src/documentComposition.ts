@@ -31,10 +31,17 @@ const choice = <T extends string>(value: unknown, choices: readonly T[], fallbac
 const bounded = (value: unknown, min: number, max: number, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
 export function normalizeRichText(value: unknown): RichText {
   if (!Array.isArray(value)) return [];
-  return value.filter(p => p && typeof p === 'object' && Array.isArray(p.runs)).slice(0, 60).map(p => ({
-    align: choice(p.align, ['left', 'center', 'right'] as const, 'left'), bullet: p.bullet === true,
-    runs: p.runs.filter((r: RichRun) => r && typeof r.text === 'string').slice(0, 500).map((r: RichRun) => ({ text: r.text.replace(/\r\n?/g, '\n'), bold: r.bold === true, italic: r.italic === true, underline: r.underline === true })),
-  }));
+  return value.filter(p => p && typeof p === 'object' && Array.isArray(p.runs)).map(p => {
+    const runs: RichRun[] = [];
+    for (const raw of p.runs) {
+      if (!raw || typeof raw.text !== 'string' || !raw.text) continue;
+      const run = { text: raw.text.replace(/\r\n?/g, '\n'), bold: raw.bold === true, italic: raw.italic === true, underline: raw.underline === true };
+      const previous = runs.at(-1);
+      if (previous && previous.bold === run.bold && previous.italic === run.italic && previous.underline === run.underline) previous.text += run.text;
+      else runs.push(run);
+    }
+    return { align: choice(p.align, ['left', 'center', 'right'] as const, 'left'), bullet: p.bullet === true, runs };
+  });
 }
 export function normalizeComposition(value?: Partial<DocumentComposition>): DocumentComposition {
   const d = defaultDocumentComposition;

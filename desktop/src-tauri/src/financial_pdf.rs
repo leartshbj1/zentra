@@ -439,8 +439,8 @@ fn render_composed_accounts(
     style: &DocumentStyle,
 ) -> AppResult<(Vec<u8>, usize)> {
     use crate::document_composition::Composer;
-    let logo = load_pdf_logo(string(issuer, "logo_path"));
-    if !string(issuer, "logo_path").is_empty() && logo.is_none() {
+    let logo = if style.logo_visible() { load_pdf_logo(string(issuer, "logo_path")) } else { None };
+    if style.logo_visible() && !string(issuer, "logo_path").is_empty() && logo.is_none() {
         return Err(AppError::Validation(
             "Le logo du bilan est introuvable. Réimportez-le dans les paramètres.".into(),
         ));

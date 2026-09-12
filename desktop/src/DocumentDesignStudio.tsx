@@ -1,3 +1,5 @@
+import { PdfExportReceipt } from './PdfExportReceipt';
+import type { PdfExportReceipt as Receipt } from './pdfExportDelivery';
 import { useEffect, useRef, useState } from 'react';
 import { Check, Download, LoaderCircle, RotateCcw, ZoomIn, ZoomOut, Undo2, Redo2, Copy, Bold, Italic } from 'lucide-react';
 import { desktopApi } from './bridge';
@@ -29,6 +31,9 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
   const [preview, setPreview] = useState<{ key: string; pages: string[]; pageCount: number } | null>(null);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const exportFlight = useRef(false);
+  const [exportError, setExportError] = useState('');
+  const [exported, setExported] = useState<{ key: string; result: Receipt } | null>(null);
   const [zoomed, setZoomed] = useState(false);
   const [notice, setNotice] = useState('');
   const issuer = desktopApi.designExampleIssuer(settings);
@@ -62,16 +67,17 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
   function copy() { if (copyTarget === kind) return; change({ ...settings, documentAppearance: { ...appearance, [copyTarget]: { ...baseStyle } }, documentComposition: { ...settings.documentComposition, [copyTarget]: composition ? structuredClone(design) : undefined } }); setNotice(`Présentation copiée vers ${labels[copyTarget].toLowerCase()}. Pensez à enregistrer.`); }
 
   async function exportExample() {
-    setExporting(true); setNotice('');
+    if (exportFlight.current || exporting) return;
+    exportFlight.current = true; setExporting(true); setNotice(''); setExportError('');
     try {
-      const path = await desktopApi.exportDocumentDesignExample({ kind, style, issuer });
-      if (path) setNotice('Exemple PDF exporté.');
-    } catch (reason) { setError(String(reason instanceof Error ? reason.message : reason)); }
-    finally { setExporting(false); }
+      const result = await desktopApi.exportDocumentDesignExample({ kind, style, issuer });
+      if (result) setExported({ key: requestKey, result });
+    } catch (reason) { setExportError(String(reason instanceof Error ? reason.message : reason)); }
+    finally { exportFlight.current = false; setExporting(false); }
   }
   return <section className="design-studio settings-card--wide" aria-label="Personnalisation des documents">
     <div className="design-studio__heading"><p className="eyebrow">Votre signature</p><h2>Des documents à votre image</h2><p>Un atelier simple pour composer vos documents. Choisissez un style, ajustez la page, puis écrivez vos textes comme dans un traitement de texte.</p></div>
-    <div className="design-studio__tabs" role="group" aria-label="Document à personnaliser">{(Object.keys(labels) as DocumentDesignKind[]).map(value => <button type="button" key={value} aria-pressed={kind === value} onClick={() => { setKind(value); setNotice(''); }}>{labels[value]}</button>)}</div>
+    <div className="design-studio__tabs" role="group" aria-label="Document à personnaliser">{(Object.keys(labels) as DocumentDesignKind[]).map(value => <button type="button" key={value} disabled={exporting} aria-pressed={kind === value} onClick={() => { setKind(value); setNotice(''); setExportError(''); setExported(null); }}>{labels[value]}</button>)}</div>
     <div className="design-studio__commandbar" role="group" aria-label="Historique de la présentation">
       <button type="button" disabled={busy || !history.current.length} onClick={() => undo()}><Undo2 size={17} /> Annuler</button>
       <button type="button" disabled={busy || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /> Rétablir</button>
@@ -112,6 +118,8 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
         <div className="design-studio__actions"><Button disabled={busy || loading || !!error} onClick={onSave}>{busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />} Enregistrer les présentations</Button><Button variant="secondary" disabled={exporting || loading || !!error} onClick={() => void exportExample()}><Download size={16} /> Exporter cet exemple</Button><Button variant="ghost" disabled={busy} onClick={() => { const next = { ...settings.documentComposition }; delete next[kind]; change({ ...settings, documentAppearance: { ...appearance, [kind]: { ...defaultDocumentStyle } }, documentComposition: next }); }}><RotateCcw size={15} /> Réinitialiser {labels[kind].toLowerCase()}</Button></div>
         <p className="design-studio__hint">Les réglages s’appliquent aux brouillons et aux prochains documents. Les documents émis et les fiches comptabilisées conservent leur présentation.</p>
         {notice && <p role="status">{notice}</p>}
+        {exportError && <p role="alert">L’export n’a pas abouti. Vos réglages sont conservés. {exportError} Réessayez avec « Exporter cet exemple ».</p>}
+        {exported?.key === requestKey && <PdfExportReceipt result={exported.result} disabled={exporting} onBusyChange={setExporting} />}
       </div>
       <div ref={previewElement} className="design-studio__preview" aria-label={`Exemple ${labels[kind]}`} aria-busy={loading && !error}>
         <div className="design-studio__preview-label"><span>Exemple fictif · A4</span>{loading && !error ? <span role="status"><LoaderCircle size={14} className="spin" /> Mise à jour…</span> : <span>Rendu PDF{preview ? ` · ${preview.pageCount} page${preview.pageCount > 1 ? 's' : ''}` : ''}</span>}<button type="button" aria-label={zoomed ? 'Ajuster l’aperçu' : 'Agrandir l’aperçu'} aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)}>{zoomed ? <ZoomOut size={18} /> : <ZoomIn size={18} />}</button></div>

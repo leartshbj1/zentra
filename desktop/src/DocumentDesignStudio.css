@@ -80,3 +80,5 @@
 .rich-editor__paragraph { display:block; min-height:1.55em; position:relative; }
 .rich-editor__paragraph[data-bullet=true] { padding-left:1.1em; }
 .rich-editor__paragraph[data-bullet=true]::before { content:"•"; position:absolute; left:0; }
+
+.rich-editor__toolbar button[aria-pressed=true] { background:#dce8d7; color:#153d24; box-shadow:inset 0 0 0 1px #73966f; }

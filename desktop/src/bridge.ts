@@ -1,3 +1,4 @@
+import { deliverPdfExport } from './pdfExportDelivery';
 import { documentCompositions } from './documentComposition';
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
 import type { CertificateDraft, CertificateInput } from './salaryCertificate';
@@ -4875,8 +4876,7 @@ export const desktopApi = {
     const selected = await chooseSaveFile({ title: 'Exporter un exemple de présentation', defaultPath: `Zentra-exemple-${input.kind}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
     if (!selected) return null;
     const path = await invoke<string>('export_document_design_example', { ...input, destination: pdfDestinationPath(selected) });
-    await shareMobileExport(path);
-    return path;
+    return deliverPdfExport({ path });
   },
   salaryCertificateDraft(employeeId: string, year: number) {
     return invoke<CertificateDraft>('salary_certificate_draft', { employeeId, year });
@@ -6414,8 +6414,7 @@ export const desktopApi = {
     const selected = await chooseSaveFile({ title: 'Exporter le bilan et le résultat', defaultPath: `Zentra-bilan-${filter.dateTo || new Date().toISOString().slice(0, 10)}.pdf`, filters: [{ name: 'Bilan et compte de résultat PDF', extensions: ['pdf'] }] });
     if (!selected) return null;
     const raw = await invoke<RawRecord>('export_annual_accounts_pdf', { filter: periodFilterToRaw(filter), destinationPath: pdfDestinationPath(selected) });
-    await shareMobileExport(stringValue(raw.path));
-    return { path: stringValue(raw.path), pages: numberValue(raw.pages), closed: boolValue(raw.closed), balanced: boolValue(raw.balanced) };
+    return deliverPdfExport({ path: stringValue(raw.path), pages: numberValue(raw.pages), closed: boolValue(raw.closed), balanced: boolValue(raw.balanced) });
   },
   async getBalanceSheet(filter: PeriodFilter): Promise<BalanceSheetReport> {
     const raw = await invoke<RawRecord>('get_balance_sheet', {
@@ -6982,9 +6981,7 @@ export const desktopApi = {
       pages: numberValue(raw.pages),
       finalDocument: boolValue(raw.final_document),
     };
-    try { await shareMobileExport(result.path); }
-    catch { result.deliveryWarning = 'Le PDF a été créé, mais le partage n’a pas abouti. Utilisez « Partager le PDF » pour réessayer.'; }
-    return result;
+    return deliverPdfExport(result);
   },
   async exportSalesDocumentPdf(
     entity: SalesPdfEntity,
@@ -6995,6 +6992,7 @@ export const desktopApi = {
     pages: number;
     finalDocument: boolean;
     hasQr: boolean;
+    deliveryWarning?: string;
     documentType: 'quote' | 'invoice' | 'credit_note';
   } | null> {
     const selected = await chooseSaveFile({
@@ -7011,8 +7009,7 @@ export const desktopApi = {
       'generate_sales_document_pdf',
       salesPdfInvokeInput(entity, documentId, destinationPath),
     );
-    await shareMobileExport(stringValue(raw.path));
-    return {
+    return deliverPdfExport({
       path: stringValue(raw.path),
       pages: numberValue(raw.pages),
       finalDocument: boolValue(raw.final_document),
@@ -7021,7 +7018,7 @@ export const desktopApi = {
         | 'quote'
         | 'invoice'
         | 'credit_note',
-    };
+    });
   },
   async saveInvoiceQrBill(
     invoiceId: string,

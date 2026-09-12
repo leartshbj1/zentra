@@ -1,3 +1,5 @@
+import { PdfExportReceipt } from './PdfExportReceipt';
+import type { PdfExportReceipt as Receipt } from './pdfExportDelivery';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Archive, BookOpen, CheckCircle2, ChevronDown, FileCheck2, Landmark, ListChecks, LockKeyhole, Plus, ReceiptText, RefreshCw, RotateCcw, Scale, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
 import { desktopApi } from './bridge';
@@ -129,6 +131,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [exportedPdf, setExportedPdf] = useState<Receipt | null>(null);
   const [activeEntryFocus, setActiveEntryFocus] = useState<ActiveEntryFocus | null>(null);
   const reportRequest = useRef(0);
   const actionRequest = useRef(0);
@@ -423,6 +426,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   async function exportAccounts() {
     await run(async () => {
       const result = await desktopApi.exportAnnualAccountsPdf({ dateFrom: balance?.scope.dateFrom || filter.dateFrom, dateTo: balance?.scope.dateTo || filter.dateTo });
+      if (result) setExportedPdf(result);
       if (result) setNotice(`Bilan et résultat exportés en PDF (${result.pages} pages). ${result.closed ? 'Exercice clôturé.' : 'Document provisoire : l’exercice reste ouvert.'}`);
     });
   }
@@ -449,6 +453,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     {['balance', 'income', 'closing'].includes(tab) ? <section className="panel accounting-export-bar"><div><strong>Bilan et compte de résultat</strong><p>Présentation suisse, détails par rubrique et comparaison avec l’exercice précédent.</p></div><Button disabled={busy || !balance || !income} onClick={() => void exportAccounts()}><FileCheck2 size={17} /> Exporter le bilan PDF</Button></section> : null}
     {error ? <ErrorPanel message={error} /> : null}{notice ? <div className="notice notice--success" role="status" aria-live="polite"><span><CheckCircle2 size={18} />{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Fermer le message"><X size={15} /></button></div> : null}
 
+    {exportedPdf && <PdfExportReceipt result={exportedPdf} disabled={busy} onBusyChange={setBusy} />}
     {tab === 'overview' ? <FinanceOverview workspace={workspace} income={income} continuity={continuity} busy={busy} periodLabel={periodLabel} readOnly={readOnly} onSection={setTab} onWorkspaceChange={onWorkspaceChange} onInstallStarter={installStarter}/> : null}
     {accountingExplanations[tab]?<aside className="finance-reading-note"><BookOpen size={19}/><div><h2>{accountingExplanations[tab].title}</h2><p>{accountingExplanations[tab].text}</p></div></aside>:null}
     {reversalRefreshRequired ? <div className="report-callout is-warning" role="status"><RefreshCw size={20}/><div><strong>Correction enregistrée · actualisation nécessaire</strong><p>Rechargez les états avant une nouvelle écriture.</p></div><Button disabled={busy} onClick={()=>void run(async()=>{const accountId=await loadBase();await refreshReports(filter,accountId);setReversalRefreshRequired(false);},'Les états sont actualisés.')}>Actualiser les états</Button></div> : null}

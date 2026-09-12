@@ -2,6 +2,16 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : édition de texte et reprise des exports PDF
+
+Le gras, l’italique et le soulignement peuvent être activés avant la saisie ; la barre indique le style actif. La liste à puces bascule uniquement sur les paragraphes sélectionnés. Les retours à la ligne sont conservés lorsque le navigateur remplace un passage mis en forme. Les limites de 60 paragraphes et de 500 changements de style ne coupent plus le contenu : l’éditeur refuse explicitement la modification excessive et garde le texte précédent. Les segments adjacents de même style sont regroupés sans perte.
+
+Les listes exportées conservent le retrait des lignes suivantes et leurs puces en pied de page. Un logo masqué n’est ni chargé ni incorporé au PDF. L’export des devis, factures, bilans, fiches de salaire et exemples conserve le chemin du fichier après un échec du partage mobile. Les contrôles concernés permettent de partager ce fichier à nouveau. Une erreur d’export d’exemple ne bloque plus l’enregistrement du style ni un nouvel essai. Les messages du contrôle PDF commercial ne sont plus tronqués.
+
+Validation source : TypeScript, Vite et 126 fichiers / 1 039 tests réussis ; 19 contrôles natifs liés aux documents, 27 commerciaux, 7 salariaux et 2 comptables réussis (certains filtres se recoupent). Six nouveaux parcours Edge/WebKit à 320/390/1440 px couvrent les styles avant saisie, listes, retour arrière, annulation/rétablissement, lignes vides, conservation après collage excessif, export refusé puis reprise du partage sans seconde génération. Le PDF de contrôle des listes a été rendu et inspecté. Les tests utilisent des fixtures séparées ; ils ne prouvent pas le fonctionnement du dialogue de partage sur un iPhone physique.
+
+Les six parcours de composition précédents passent encore sur Edge/WebKit. Intégration du dossier principal vérifiée : TypeScript, Vite, 18 tests ciblés, contrôle Rust et trois parcours Edge à 320/390/1440 px réussis. Les travaux existants sont conservés ; sauvegarde de cette intégration dans `.qa/document-editor-20260912-before/`. Aucun installateur ni IPA publié dans ce lot.
+
 ## Lot : atelier de personnalisation des documents
 
 Les paramètres proposent trois onglets : Style, Mise en page et Textes, pour les devis, factures, bilans et fiches de salaire. Trois points de départ conservent les textes et la couleur. L’utilisateur choisit une famille de police (Helvetica, Times ou Courier), les tailles du corps et du titre, le gras et l’italique du titre, son alignement, les marges et l’interligne. Le logo peut être placé à gauche, au centre, à droite ou masqué ; sa largeur et sa hauteur restent proportionnelles. Le tableau propose un en-tête coloré, des lignes alternées ou des séparateurs, ainsi que quatre densités. Les totaux des documents commerciaux et salariaux peuvent précéder ou suivre les conditions.

@@ -1082,8 +1082,8 @@ fn render_composed_sales(
     use crate::document_composition::{write_pdf, Composer};
     // Reuse validated values and the original QR renderer, including its fixed geometry.
     validate_qr_visible_layout(data)?;
-    let logo = load_document_logo(&data.issuer.logo_path, branding_dir);
-    if !data.issuer.logo_path.is_empty() && logo.is_none() {
+    let logo = if data.style.logo_visible() { load_document_logo(&data.issuer.logo_path, branding_dir) } else { None };
+    if data.style.logo_visible() && !data.issuer.logo_path.is_empty() && logo.is_none() {
         return Err(AppError::Validation(
             "Le logo du document est introuvable. Réimportez-le dans les paramètres.".into(),
         ));

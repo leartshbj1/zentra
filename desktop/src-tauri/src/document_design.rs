@@ -29,7 +29,9 @@ impl Default for DocumentStyle {
 }
 impl DocumentStyle {
     pub fn validate(&self) -> AppResult<()> {
-        if let Some(composition) = &self.composition { composition.validate()?; }
+        if let Some(composition) = &self.composition {
+            composition.validate()?;
+        }
         if self.accent_color.len() != 7
             || !self.accent_color.starts_with('#')
             || !self.accent_color[1..]
@@ -78,6 +80,11 @@ impl DocumentStyle {
     pub fn pale(&self) -> [f32; 3] {
         self.accent().map(|v| v * 0.08 + 0.92)
     }
+    pub fn logo_visible(&self) -> bool {
+        self.composition
+            .as_ref()
+            .map_or(true, |design| design.logo_position != "hidden")
+    }
     pub fn logo_height(&self) -> f32 {
         match self.logo_width {
             150 => 40.0,
@@ -103,10 +110,15 @@ impl DocumentStyle {
 
 pub(crate) fn validate_appearance(extra: &Value) -> AppResult<()> {
     if let Some(value) = extra.get("documentComposition") {
-        let styles = value.as_object().ok_or_else(|| AppError::Validation("Présentation des documents invalide.".into()))?;
+        let styles = value
+            .as_object()
+            .ok_or_else(|| AppError::Validation("Présentation des documents invalide.".into()))?;
         for (kind, value) in styles {
-            if !["quotes", "invoices", "accounts", "payslips"].contains(&kind.as_str()) { return Err(AppError::Validation("Type de document inconnu.".into())); }
-            serde_json::from_value::<crate::document_composition::Composition>(value.clone())?.validate()?;
+            if !["quotes", "invoices", "accounts", "payslips"].contains(&kind.as_str()) {
+                return Err(AppError::Validation("Type de document inconnu.".into()));
+            }
+            serde_json::from_value::<crate::document_composition::Composition>(value.clone())?
+                .validate()?;
         }
     }
     if let Some(appearance) = extra.get("documentAppearance") {
@@ -131,8 +143,19 @@ impl LocalStore {
         let path = directory.path().join("preview.pdf");
         let destination_path = path.to_string_lossy().into_owned();
         match kind {
-            "quotes" | "invoices" => { self.generate_sales_document_pdf(crate::models::GenerateSalesDocumentPdfInput { entity:kind.into(), document_id:id.into(), destination_path })?; },
-            "payslips" => { self.generate_payslip_pdf(crate::models::GeneratePayslipPdfInput { payslip_id:id.into(), destination_path })?; },
+            "quotes" | "invoices" => {
+                self.generate_sales_document_pdf(crate::models::GenerateSalesDocumentPdfInput {
+                    entity: kind.into(),
+                    document_id: id.into(),
+                    destination_path,
+                })?;
+            }
+            "payslips" => {
+                self.generate_payslip_pdf(crate::models::GeneratePayslipPdfInput {
+                    payslip_id: id.into(),
+                    destination_path,
+                })?;
+            }
             _ => return Err(AppError::Validation("Type de document inconnu.".into())),
         }
         Ok(std::fs::read(path)?)
@@ -151,6 +174,9 @@ impl LocalStore {
         }
         if !issuer.is_object() {
             return Err(AppError::Validation("Entreprise invalide.".into()));
+        }
+        if !design.logo_visible() {
+            issuer["logo_path"] = Value::String(String::new());
         }
         issuer["extra_settings_json"] =
             Value::String(serde_json::json!({"documentAppearance":{kind:design}}).to_string());
@@ -191,6 +217,37 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn document_design_hidden_logo_ignores_an_unavailable_asset_for_every_document() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temp.path().join("profile")).unwrap();
+        let issuer = json!({"company_name":"Atelier du Léman", "logo_path":temp.path().join("missing.png").to_str().unwrap()});
+        for kind in ["quotes", "invoices", "accounts", "payslips"] {
+            let bytes = store
+                .document_design_example(
+                    kind,
+                    json!({"composition":{"logoPosition":"hidden"}}),
+                    issuer.clone(),
+                )
+                .unwrap();
+            let pdf = Document::load_mem(&bytes).unwrap();
+            assert!(!pdf
+                .objects
+                .values()
+                .any(|object| object.as_stream().is_ok_and(|stream| stream
+                    .dict
+                    .get(b"Subtype")
+                    .is_ok_and(|value| value.as_name().is_ok_and(|name| name == b"Image")))));
+            assert!(store
+                .document_design_example(
+                    kind,
+                    json!({"composition":{"logoPosition":"left"}}),
+                    issuer.clone()
+                )
+                .is_err());
+        }
+    }
+
+    #[test]
     fn document_design_examples_embed_the_logo_preserve_totals_and_write_no_business_records() {
         let temp = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temp.path().join("profile")).unwrap();
@@ -216,9 +273,17 @@ mod tests {
         );
         let issuer = json!({"company_name":"Atelier du Léman Sàrl","legal_form":"Sàrl","address_line1":"Rue du Lac 12","postal_code":"1000","city":"Lausanne","country":"CH","vat_registered":true,"uid_number":"CHE-123.456.789","vat_number":"CHE-123.456.789 TVA","logo_path":logo});
         for kind in ["quotes", "invoices", "accounts", "payslips"] {
-            for (layout, color, font) in [("signature", "#182b49", ""), ("minimal", "#d7b878", ""), ("signature", "#182b49", "helvetica"), ("minimal", "#d7b878", "times"), ("minimal", "#182b49", "courier")] {
+            for (layout, color, font) in [
+                ("signature", "#182b49", ""),
+                ("minimal", "#d7b878", ""),
+                ("signature", "#182b49", "helvetica"),
+                ("minimal", "#d7b878", "times"),
+                ("minimal", "#182b49", "courier"),
+            ] {
                 let mut style = json!({"accentColor":color,"layout":layout,"logoWidth":150,"footer":"Merci pour votre confiance."});
-                if !font.is_empty() { style["composition"] = json!({"version":1,"fontFamily":font,"logoPosition":if font=="times"{"center"}else{"right"},"bodySize":if font=="courier"{12}else{9},"marginMm":if font=="courier"{25}else{15},"titleSize":28,"titleItalic":true,"tableStyle":"striped","intro":[{"runs":[{"text":"Une présentation "},{"text":"personnalisée","bold":true,"italic":true,"underline":true}]}],"closing":[{"bullet":true,"align":"left","runs":[{"text":"Première condition : paiement selon accord.","bold":true}]},{"align":"right","runs":[{"text":"Une seconde ligne de conditions."}]}]}); }
+                if !font.is_empty() {
+                    style["composition"] = json!({"version":1,"fontFamily":font,"logoPosition":if font=="times"{"center"}else{"right"},"bodySize":if font=="courier"{12}else{9},"marginMm":if font=="courier"{25}else{15},"titleSize":28,"titleItalic":true,"tableStyle":"striped","intro":[{"runs":[{"text":"Une présentation "},{"text":"personnalisée","bold":true,"italic":true,"underline":true}]}],"closing":[{"bullet":true,"align":"left","runs":[{"text":"Première condition : paiement selon accord.","bold":true}]},{"align":"right","runs":[{"text":"Une seconde ligne de conditions."}]}]});
+                }
                 let bytes = store
                     .document_design_example(kind, style, issuer.clone())
                     .unwrap();
@@ -248,7 +313,11 @@ mod tests {
                 if let Some(directory) = std::env::var_os("ZENTRA_DESIGN_SAMPLES") {
                     std::fs::create_dir_all(&directory).unwrap();
                     std::fs::write(
-                        std::path::Path::new(&directory).join(if font.is_empty(){format!("{kind}-{layout}.pdf")}else{format!("{kind}-{font}.pdf")}),
+                        std::path::Path::new(&directory).join(if font.is_empty() {
+                            format!("{kind}-{layout}.pdf")
+                        } else {
+                            format!("{kind}-{font}.pdf")
+                        }),
                         bytes,
                     )
                     .unwrap();
