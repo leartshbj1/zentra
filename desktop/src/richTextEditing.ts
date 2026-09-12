@@ -78,3 +78,48 @@ export function richTextLimit(value: RichText, maxLength: number): string | null
   if (value.some(p => p.runs.length > 500)) return 'Ce paragraphe comporte trop de changements de mise en forme. Simplifiez quelques passages. Le texte précédent est conservé.';
   return null;
 }
+
+/** Replace a selection structurally, so pasted paragraphs keep their own formatting. */
+export function replaceRichSelection(value: RichText, selection: TextSelection, inserted: RichText): RichText {
+  const source = value.length ? value : [{ runs: [] }];
+  const length = richPlainText(source).length;
+  const start = Math.max(0, Math.min(length, Math.min(selection.start, selection.end)));
+  const end = Math.max(start, Math.min(length, Math.max(selection.start, selection.end)));
+  function point(target: number) {
+    for (let i = 0; i < source.length; i++) {
+      const size = richPlainText([source[i]]).length;
+      if (target <= size || i === source.length - 1) return { index: i, offset: target };
+      target -= size + 1;
+    }
+    return { index: 0, offset: 0 };
+  }
+  function slice(runs: RichRun[], from: number, to: number) {
+    let offset = 0;
+    return runs.flatMap(run => {
+      const start = offset; offset += run.text.length;
+      const a = Math.max(0, from - start), b = Math.min(run.text.length, to - start);
+      return b > a ? [{ ...run, text: run.text.slice(a, b) }] : [];
+    });
+  }
+  const a = point(start), b = point(end);
+  const prefix = slice(source[a.index].runs, 0, a.offset);
+  const suffix = slice(source[b.index].runs, b.offset, Infinity);
+  const middle = (inserted.length ? inserted : [{ ...source[a.index], runs: [] }]).map(p => ({ ...p, runs: [...p.runs] }));
+  if (prefix.length) middle[0] = { ...source[a.index], runs: [...prefix, ...middle[0].runs] };
+  middle[middle.length - 1].runs.push(...suffix);
+  return normalizeRichText([...source.slice(0, a.index), ...middle, ...source.slice(b.index + 1)]);
+}
+
+export type ParagraphStyle = 'normal' | 'heading' | 'subheading';
+export const paragraphStyleMarks: Record<ParagraphStyle, Partial<TextMarks>> = {
+  normal: { bold: false, italic: false, underline: false, fontSize: undefined, fontFamily: undefined },
+  heading: { bold: true, italic: false, underline: false, fontSize: 18 },
+  subheading: { bold: true, italic: false, underline: false, fontSize: 12 },
+};
+export function setParagraphStyle(value: RichText, selection: TextSelection, style: ParagraphStyle): RichText {
+  const source = value.length ? value : [{ runs: [] }];
+  const selected = selectedParagraphs(source, selection);
+  return normalizeRichText(source.map((p, i) => selected.includes(i)
+    ? { ...p, runs: p.runs.map(run => ({ ...run, ...paragraphStyleMarks[style] })) }
+    : p));
+}

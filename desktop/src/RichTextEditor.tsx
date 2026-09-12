@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, Undo2, Redo2, Highlighter, Baseline, RemoveFormatting } from 'lucide-react';
 import { normalizeRichText, richPlainText, richColor, richFont, richFontSize, documentFontCss, type RichRun, type RichText } from './documentComposition';
-import { insertedTextRange, marksAtSelection, noTextMarks, richTextLimit, selectedParagraphs, setRichMarks, typographyAtSelection, type TextMarks } from './richTextEditing';
+import { insertedTextRange, marksAtSelection, noTextMarks, paragraphStyleMarks, replaceRichSelection, richTextLimit, selectedParagraphs, setParagraphStyle, setRichMarks, typographyAtSelection, type ParagraphStyle, type TextMarks } from './richTextEditing';
+import { richTextFromClipboard } from './richTextClipboard';
 
 type Mark = 'bold' | 'italic' | 'underline';
 type Bookmark = { start: number; end: number };
@@ -13,6 +14,9 @@ export function formatRichSelection(value: RichText, selection: Bookmark, mark: 
 }
 
 function readEditor(root: HTMLElement, previous: RichText): RichText {
+  // Browsers leave a native <br> when Select all / Delete empties the editor.
+  // It is a caret placeholder, not an additional paragraph to save.
+  if (!root.textContent) return normalizeRichText([{ ...previous[0], runs: [] }]);
   const paragraphs: RichText = [{ runs: [] }];
   const append = (text: string, marks: Omit<RichRun, 'text'>) => {
     text.replace(/\r\n?/g, '\n').split('\n').forEach((part, i) => {
@@ -81,6 +85,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   const [typography, setTypography] = useState<ReturnType<typeof typographyAtSelection>>({ fontFamily: '', fontSize: '' });
   const [activeBullet, setActiveBullet] = useState(false);
   const [colorTool, setColorTool] = useState<'color' | 'highlight' | null>(null);
+  const [keepPasteStyle, setKeepPasteStyle] = useState(true);
   function showMarks(marks: TextMarks) {
     setActiveMarks(old => old.bold === marks.bold && old.italic === marks.italic && old.underline === marks.underline && old.color === marks.color && old.highlight === marks.highlight && old.fontFamily === marks.fontFamily && old.fontSize === marks.fontSize ? old : marks);
     const next = pendingMarks.current ? { fontFamily: marks.fontFamily || '', fontSize: marks.fontSize || '' } : typographyAtSelection(current.current, saved.current);
@@ -104,12 +109,13 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     document.addEventListener('selectionchange', listener); return () => document.removeEventListener('selectionchange', listener);
   }, []);
   function commit(next: RichText, remember = true) {
-    if (disabled) return;
+    if (disabled) return false;
     next = normalizeRichText(next);
     const limit = richTextLimit(next, maxLength);
-    if (limit) { setMessage(limit); paint(root.current!, current.current); restore(root.current!, saved.current); return; }
+    if (limit) { setMessage(limit); paint(root.current!, current.current); restore(root.current!, saved.current); return false; }
     if (remember) { history.current.push(current.current); if (history.current.length > 60) history.current.shift(); future.current = []; }
     current.current = next; setMessage(''); onChange(next); setRevision(r => r + 1);
+    return true;
   }
   function input() {
     if (composing.current || !root.current) return;
@@ -155,9 +161,39 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     const next = value.map((p, index) => selected.includes(index) ? { ...p, ...patch } : p);
     commit(next); setActiveBullet(!!selected.length && selected.every(i => next[i].bullet)); root.current?.focus();
   }
+  function paragraphStyle(style: ParagraphStyle) {
+    if (disabled) return;
+    saved.current = bookmark(root.current!) || saved.current;
+    const next = setParagraphStyle(current.current, saved.current, style);
+    if (commit(next)) {
+      if (saved.current.start === saved.current.end) pendingMarks.current = { position: saved.current.start, marks: { ...marksAtSelection(next, saved.current), ...paragraphStyleMarks[style] } };
+      showMarks(pendingMarks.current?.marks || marksAtSelection(next, saved.current));
+      root.current?.focus();
+    }
+  }
+  function paste(html: string, plain: string) {
+    if (disabled) return;
+    const rich = keepPasteStyle ? richTextFromClipboard(html) : null;
+    if (!rich) { insert(plain); return; }
+    saved.current = bookmark(root.current!) || saved.current;
+    const previous = saved.current;
+    const next = replaceRichSelection(current.current, previous, rich);
+    if (richTextLimit(next, maxLength)) { commit(next); return; }
+    pendingMarks.current = null;
+    const position = previous.start + richPlainText(rich).length;
+    saved.current = { start: position, end: position };
+    if (commit(next)) {
+      showMarks(marksAtSelection(next, saved.current));
+      setMessage('Texte collé avec sa mise en forme. Les polices sont adaptées aux trois polices du document.');
+    } else saved.current = previous;
+  }
   function undo(redo = false) { pendingMarks.current = null; const from = redo ? future.current : history.current, to = redo ? history.current : future.current; const next = from.pop(); if (next) { to.push(current.current); commit(next, false); root.current?.focus(); } }
   return <div className="rich-editor">
     <div className="rich-editor__label">{label}</div>
+    <div className="rich-editor__styles" role="group" aria-label={`Styles de paragraphe : ${label}`} onMouseDown={event => { if ((event.target as HTMLElement).closest('button')) event.preventDefault(); }}>
+      <span>Style du paragraphe</span>
+      {([['normal', 'Texte normal'], ['heading', 'Titre de section'], ['subheading', 'Sous-titre']] as const).map(([style, title]) => <button type="button" key={style} disabled={disabled} className={`rich-editor__style--${style}`} onClick={() => paragraphStyle(style)}>{title}</button>)}
+    </div>
     <div className="rich-editor__typography" role="group" aria-label={`Police et taille : ${label}`}>
       <label>Police du passage<select aria-label="Police du passage" value={typography.fontFamily} disabled={disabled} onChange={event => applyMarks({ fontFamily: richFont(event.target.value) })}><option value="">Du document</option>{typography.fontFamily === 'mixed' && <option value="mixed" disabled>Mixte</option>}<option value="helvetica">Helvetica</option><option value="times">Times</option><option value="courier">Courier</option></select></label>
       <label>Taille du passage<select aria-label="Taille du passage" value={typography.fontSize} disabled={disabled} onChange={event => applyMarks({ fontSize: richFontSize(Number(event.target.value)) })}><option value="">Du document</option>{typography.fontSize === 'mixed' && <option value="mixed" disabled>Mixte</option>}{[8,9,10,11,12,14,16,18,20,24].map(size => <option key={size} value={size}>{size} pt</option>)}{activeMarks.fontSize && ![8,9,10,11,12,14,16,18,20,24].includes(activeMarks.fontSize) && <option value={activeMarks.fontSize}>{activeMarks.fontSize} pt</option>}</select></label>
@@ -182,9 +218,10 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     <div ref={root} className="rich-editor__surface" style={{ fontFamily, '--rich-editor-point': `${15 / baseFontSize}px` } as CSSProperties} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label={label} aria-multiline="true" aria-disabled={disabled} spellCheck onInput={input}
       onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; input(); }}
       onBeforeInput={event => { const type = (event.nativeEvent as InputEvent).inputType; if (['insertParagraph', 'insertLineBreak'].includes(type)) { event.preventDefault(); insert('\n'); } else if (type === 'historyUndo' || type === 'historyRedo') { event.preventDefault(); undo(type === 'historyRedo'); } }}
-      onPaste={event => { event.preventDefault(); insert(event.clipboardData.getData('text/plain')); }} onDrop={event => event.preventDefault()}
+      onPaste={event => { event.preventDefault(); paste(event.clipboardData.getData('text/html'), event.clipboardData.getData('text/plain')); }} onDrop={event => event.preventDefault()}
       onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); insert('\n'); } if (event.ctrlKey || event.metaKey) { const key = event.key.toLowerCase(); if (['b','i','u','z','y'].includes(key)) { event.preventDefault(); if (key === 'z' || key === 'y') undo(key === 'y' || event.shiftKey); else mark(({ b:'bold', i:'italic', u:'underline' } as const)[key as 'b'|'i'|'u']); } } }} />
     <small>Sélectionnez des mots, ou activez un style avant d’écrire. Entrée ajoute une ligne. {richPlainText(value).length}/{maxLength}</small>
+    <label className="rich-editor__paste-choice"><input type="checkbox" checked={keepPasteStyle} disabled={disabled} onChange={event => setKeepPasteStyle(event.target.checked)} /> Conserver la mise en forme du texte collé</label>
     {message && <p role="status">{message}</p>}
   </div>;
 }
