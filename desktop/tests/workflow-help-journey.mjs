@@ -28,7 +28,7 @@ try {
       await page.screenshot({ path: `${output}/${width}-project-start.png` });
       await help.getByRole('button', { name: 'Ajouter le client', exact: true }).click();
       const client = page.getByRole('dialog', { name: 'Nouveau client', exact: true });
-      for (const [name, value] of Object.entries({ contactPerson: 'Alex Départ', company: 'Atelier Départ', street: 'Rue du test', postalCode: '1000', city: 'Lausanne', country: 'CH' })) await client.locator(`[name=${name}]`).fill(value);
+      for (const [name, value] of Object.entries({ contactPerson: 'Alex Départ', company: 'Atelier Départ', street: 'Rue du test', postalCode: '1000', city: 'Lausanne' })) await client.locator(`[name=${name}]`).fill(value);
       await client.getByRole('button', { name: 'Enregistrer', exact: true }).click();
       await client.waitFor({ state: 'hidden' });
       assert.equal(await help.count(), 0);
@@ -37,7 +37,7 @@ try {
       await help.getByRole('button', { name: 'Compléter la facturation', exact: true }).click();
       await page.locator('#settings-company-billing').waitFor();
       await page.waitForFunction(() => {
-        const target = document.getElementById('settings-company-billing').getBoundingClientRect();
+        const target = document.getElementById('settings-company-billing').querySelector('h3').getBoundingClientRect();
         const topbar = document.querySelector('.topbar').getBoundingClientRect();
         const dock = document.querySelector('.mobile-navigation').getBoundingClientRect();
         return target.top >= topbar.bottom && target.bottom <= (dock.height ? dock.top : innerHeight);
@@ -46,8 +46,10 @@ try {
       assert.ok(await page.locator('#settings-company-billing').isVisible());
       await navigate(page, 'Achats & fournisseurs');
       await help.getByRole('button', { name: 'Ajouter le fournisseur', exact: true }).click();
-      await page.getByRole('dialog', { name: 'Nouveau fournisseur', exact: true }).waitFor();
+      const supplier = page.getByRole('dialog', { name: 'Nouveau fournisseur', exact: true });
+      await supplier.locator('[name=name]').focus();
       await page.keyboard.press('Escape');
+      await supplier.waitFor({ state: 'hidden' });
       await navigate(page, 'Temps');
       await help.getByRole('button', { name: 'Ouvrir les projets', exact: true }).click();
       assert.ok(await page.locator('.creation-action > button').isEnabled());
@@ -55,6 +57,7 @@ try {
       assert.deepEqual(errors, []);
       report.push({ width, clientUnblocksProject: true, exactBillingSettings: true, supplierShortcut: true, projectShortcut: true });
     } catch (error) {
+      await writeFile(`${output}/${width}-failure-layout.json`, JSON.stringify(await page.evaluate(() => Object.fromEntries(['#settings-company-billing h3','.topbar','.mobile-navigation'].map(selector => { const node=document.querySelector(selector); return [selector,node ? {rect:node.getBoundingClientRect().toJSON(),style:getComputedStyle(node).position,display:getComputedStyle(node).display} : null]; }))),null,2));
       await page.screenshot({ path: `${output}/${width}-failure.png` });
       throw error;
     } finally { await page.close(); }

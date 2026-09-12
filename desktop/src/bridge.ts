@@ -2201,6 +2201,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const clients: Client[] = (raw.clients ?? []).map((row) => ({
     id: stringValue(row.id),
     name: stringValue(row.contact_person) || stringValue(row.name),
+    contactPerson: row.contact_person == null ? stringValue(row.company) ? '' : stringValue(row.name) : stringValue(row.contact_person),
     company: stringValue(row.company),
     email: stringValue(row.email),
     phone: stringValue(row.phone),

@@ -204,6 +204,7 @@ export type AppSettings = {
 export type Client = {
   id: Identifier;
   name: string;
+  contactPerson?: string;
   company: string;
   email: string;
   phone: string;

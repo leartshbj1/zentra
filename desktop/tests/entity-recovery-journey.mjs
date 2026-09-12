@@ -52,7 +52,6 @@ try {
         street: 'Rue du test',
         postalCode: '1000',
         city: 'Lausanne',
-        country: 'CH',
       })) {
         await modal.locator(`[name=${name}]`).fill(value);
       }

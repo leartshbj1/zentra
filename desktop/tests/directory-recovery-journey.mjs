@@ -78,7 +78,7 @@ for (const [engine, type] of [['edge', chromium], ['webkit', webkit]]) {
         await navigate('Clients');
         await page.getByRole('button', { name: 'Nouveau client', exact: true }).click();
         let form = page.getByRole('dialog', { name: 'Nouveau client', exact: true });
-        for (const [name, value] of Object.entries({ contactPerson: 'Camille Exemple', company: 'Atelier Annuaire', street: 'Rue du test', postalCode: '1000', city: 'Lausanne', country: 'CH' })) await form.locator(`[name=${name}]`).fill(value);
+        for (const [name, value] of Object.entries({ contactPerson: 'Camille Exemple', company: 'Atelier Annuaire', street: 'Rue du test', postalCode: '1000', city: 'Lausanne' })) await form.locator(`[name=${name}]`).fill(value);
         await page.evaluate(() => sessionStorage.setItem('qa-directory-refuse', '1'));
         await form.getByRole('button', { name: 'Enregistrer', exact: true }).click();
         await form.getByRole('alert').waitFor();

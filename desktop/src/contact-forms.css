@@ -1,0 +1,28 @@
+.contact-form-modal form {display:grid;gap:20px;min-width:0;}
+.contact-form-modal fieldset {display:grid;gap:24px;min-width:0;}
+.contact-form-section {min-width:0;padding-bottom:22px;border-bottom:1px solid #e6eae5;}
+.contact-form-section h3 {margin:0 0 8px;font-size:18px;line-height:1.4;}
+.contact-form-section > p {font-size:14px;line-height:1.65;color:#627067;margin:0 0 18px;}
+.contact-form-section .form-grid {margin:0;}
+.contact-form-choices {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+.contact-form-choices .button {min-height:44px;}
+.contact-form-choices [aria-pressed=true] {background:#e9f1e8;border-color:#71927a;color:#254e37;}
+.contact-form-failure {padding:16px;border:1px solid #e5d1bd;background:#fff8f1;border-radius:14px;overflow-wrap:anywhere;font-size:14px;line-height:1.65;}
+.contact-form-failure summary {cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600;}
+.client-folder-return {display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;padding:16px;border:1px solid #dde5dc;border-radius:14px;background:#f2f6f1;}
+.client-folder-return > span {flex:1 1 220px;line-height:1.6;font-size:14px;}
+.client-folder-modal .client-360-documents .client-document-open {grid-column:1/-1;justify-self:start;min-height:44px;}
+.client-folder-modal .client-360-projects .client-project-open {grid-column:1/-1;justify-self:start;min-height:44px;}
+.client-folder-tools {display:grid;gap:10px;padding:12px 0;}
+.client-folder-tools .field {min-width:0;}
+.client-folder-modal .client-360-identity p,.client-folder-modal .client-360-links a,.client-folder-modal .client-360-links span {font-size:14px;line-height:1.6;overflow-wrap:anywhere;}
+.client-folder-modal .client-360-links :is(a,span) {min-width:0;}
+.client-folder-modal .client-360-links svg {flex:none;}
+.client-folder-modal .client-360-metrics span,.client-folder-modal .client-360-metrics small {font-size:13px;line-height:1.55;overflow-wrap:anywhere;}
+.client-folder-modal .client-360-metrics strong {font-size:23px;line-height:1.35;overflow-wrap:anywhere;}
+.client-folder-modal .client-360-grid > section > header strong {font-size:16px;}
+.client-folder-modal .client-360-grid > section > header small {font-size:13px;line-height:1.5;}
+.client-folder-modal .client-360-projects :is(strong,small),.client-folder-modal .client-360-documents :is(strong,small),.client-folder-modal .client-360-projects > article > span,.client-folder-modal .client-360-documents > article > span {font-size:14px;line-height:1.5;overflow-wrap:anywhere;}
+.client-folder-modal .client-360-empty {font-size:14px;line-height:1.6;}
+@media(max-width:860px) {.client-folder-modal .client-360-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}.client-folder-modal .client-360-documents article {grid-template-columns:minmax(0,1fr) auto;}.client-folder-modal .client-360-documents article > div {grid-column:1/-1;}.client-folder-modal .client-360-projects article {grid-template-columns:minmax(0,1fr);}}
+@media(max-width:600px) {.contact-form-modal .form-actions {display:grid;grid-template-columns:minmax(0,1fr);}.contact-form-section {padding-bottom:18px;}}

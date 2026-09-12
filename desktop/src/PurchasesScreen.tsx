@@ -516,50 +516,7 @@ export function LegacyExpenseDetail({ expense: initialExpense, workspace, close,
   </Modal>;
 }
 
-export function SupplierForm({ item, busy, close, act }: { item?: Supplier; busy: boolean; close: () => void; act: ActionRunner }) {
-  const [formError, setFormError] = useState('');
-  return <Modal title={item ? `Modifier ${item.name}` : 'Nouveau fournisseur'} description="Ces coordonnées restent dans la base locale Zentra et servent à accélérer la saisie des achats." onClose={close} dismissible={!busy} wide>
-    <form onSubmit={submitForm(async (form) => {
-          if (busy) return;
-          setFormError('');
-      const data = {
-        name: String(form.get('name')).trim(),
-        contactName: String(form.get('contactName')).trim(),
-        email: String(form.get('email')).trim(),
-        phone: String(form.get('phone')).trim(),
-        address: String(form.get('address')).trim(),
-        uidNumber: String(form.get('uidNumber')).trim(),
-        iban: String(form.get('iban')).trim(),
-        currency: 'CHF',
-        paymentTermsDays: Math.round(numberFromInput(form.get('paymentTermsDays'))),
-        notes: String(form.get('notes')).trim(),
-      };
-      await act(
-        () => item ? desktopApi.updateEntity('suppliers', item.id, data) : desktopApi.createEntity('suppliers', data),
-        item ? 'Le fournisseur a été mis à jour.' : 'Le fournisseur a été ajouté.',
-            true,
-            (reason) => setFormError(errorMessage(reason, 'Les coordonnées n’ont pas pu être enregistrées. Votre saisie est conservée.')),
-      );
-    })}>
-      <fieldset disabled={busy}><div className="form-grid">
-        <Field label="Raison sociale / nom" required wide><input name="name" defaultValue={item?.name} maxLength={200} required autoFocus /></Field>
-        <Field label="Personne de contact"><input name="contactName" defaultValue={item?.contactName} maxLength={200} /></Field>
-        <Field label="E-mail"><input name="email" type="email" defaultValue={item?.email} maxLength={254} /></Field>
-        <Field label="Téléphone"><input name="phone" type="tel" defaultValue={item?.phone} maxLength={80} /></Field>
-        <Field label="Numéro IDE"><input name="uidNumber" defaultValue={item?.uidNumber} maxLength={80} /></Field>
-        <Field label="Adresse" wide><textarea name="address" rows={3} defaultValue={item?.address} maxLength={1_000} /></Field>
-        <Field label="IBAN CH / LI" hint="Facultatif; il n’est utilisé pour aucun paiement automatique."><input name="iban" defaultValue={item?.iban} autoCapitalize="characters" /></Field>
-        <Field label="Devise"><output className="field-output">CHF</output></Field>
-        <Field label="Délai de paiement (jours)" required><input name="paymentTermsDays" type="number" min="0" step="1" defaultValue={item?.paymentTermsDays ?? 30} required /></Field>
-        <Field label="Notes internes" wide><textarea name="notes" rows={3} defaultValue={item?.notes} maxLength={10_000} /></Field>
-      </div>
-      {item?.archivedAt ? <div className="info-strip"><Archive size={17} /><span>Ce fournisseur est archivé. Il reste visible dans l’historique, mais n’est plus proposé pour les nouveaux achats.</span></div> : null}
-      </fieldset>
-        {formError ? <ErrorPanel title="Vérifions les coordonnées" message={formError} reveal /> : null}
-        <FormActions onCancel={close} busy={busy} submitLabel={item ? 'Enregistrer les modifications' : 'Ajouter le fournisseur'} />
-    </form>
-  </Modal>;
-}
+export { SupplierForm } from './ContactForms';
 
 export function ExpenseForm({ item, workspace, busy, close, act, onOpenAccounting }: { item?: Expense; workspace: Workspace; busy: boolean; close: () => void; act: ActionRunner; onOpenAccounting: () => void }) {
   const settings = workspace.settings!;

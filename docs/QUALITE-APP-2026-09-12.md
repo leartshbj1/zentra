@@ -367,3 +367,22 @@ Validation dans chaque dossier : 68 tests unitaires ciblés, 4 tests natifs, 8 p
 Les contrôles natifs vérifient les écritures atomiques, l’immuabilité après validation, les périodes fermées, les paiements sans doublon et les arrondis sur plusieurs commandes. TypeScript et Vite compilent dans les deux dossiers. Les captures ont été inspectées, notamment le montant restant, les actions et les erreurs sur petit écran. Les tests de navigateur utilisent des données synthétiques.
 
 Intégration dans le dossier principal par fusion à trois versions sans conflit, avec sauvegarde dans `.qa/supplier-review-before`. Les travaux de synchronisation et les recettes du chronomètre présents dans ce dossier sont conservés. Guide : [ACHATS-ET-VALIDATION.md](ACHATS-ET-VALIDATION.md). Aucun calcul fiscal, moteur natif ou schéma ne change. Aucun nouvel installateur ou IPA n’est publié dans ce lot.
+
+
+## Lot : coordonnées guidées et dossier client utilisable
+
+Les formulaires client et fournisseur regroupent l’identité, l’adresse et les réglages de paiement. Une nouvelle fiche client propose la Suisse par défaut, avec choix explicite d’un autre pays ; les fiches existantes conservent leur pays. Un contact, une entreprise ou les deux sont acceptés. Le contact reste distinct du nom d’affichage après lecture de la base, y compris pour une entreprise sans contact renseigné et les anciens particuliers.
+
+Les erreurs de saisie dirigent vers le champ concerné. L’explication reste visible au-dessus des actions sur petit écran. L’e-mail et l’IBAN sont facultatifs ; un IBAN renseigné doit passer le contrôle CH/LI existant. Le fournisseur propose des délais habituels et un nombre de jours personnalisé. Les valeurs décimales, négatives, vides ou hors précision sûre sont signalées sans arrondi ni remplacement silencieux. Les champs techniques des refus natifs sont traduits en accès au champ ; le message original reste dépliable.
+
+Les formulaires conservent les données après refus, bloquent la lecture seule et les doubles validations, et utilisent la reprise de lecture après écriture acquittée. Les parcours de recette vérifient une seule création après plusieurs actualisations, puis la persistance après rechargement. Ils n’attestent pas une réponse native perdue avant acquittement.
+
+Le dossier client affiche des coordonnées et indicateurs lisibles. Sa liste combine devis, factures et avoirs par date de création récente, avec recherche dans l’ensemble de l’historique et affichage des documents au-delà des huit premiers. Les actions ouvrent le document, son dossier de facturation lié ou son projet. Fermer un document retrouve le client ; après enregistrement ou consultation du projet, une action revient au dossier actualisé. Ce retour appartient au parcours qui l’a ouvert et ne détourne pas la fermeture d’un autre formulaire.
+
+Les tests des raccourcis ont aussi révélé un titre de réglage partiellement masqué par la barre supérieure. Les accès aux rubriques tiennent maintenant compte de sa hauteur. La recette vérifie le titre réellement visible et attend que le champ fournisseur reçoive le focus avant de tester Échap.
+
+Validation dans chaque dossier : 198 tests unitaires ciblés, deux tests natifs et 21 parcours navigateur. Les huit nouveaux parcours couvrent Edge et WebKit à 320×568, 390×844, 844×390 et 1440×1000 ; les treize parcours existants couvrent l’import du catalogue, les refus client/fournisseur, l’archive/réactivation, la création client après interruption et les raccourcis de prérequis. Le test du pont natif vérifie les contacts réels, absents et historiques. Les tests SQLite vérifient l’archivage et la conservation des données historiques des fournisseurs dans leurs achats.
+
+TypeScript et Vite compilent dans les deux dossiers. Les captures de champs en erreur et du dossier client ont été inspectées. Les parcours navigateur utilisent uniquement des données synthétiques et ne prouvent pas une installation client.
+
+Intégration par fusion à trois versions avec sauvegarde dans `.qa/contact-folder-before`. Le conflit du fichier de recette mobile a été résolu en conservant le chronomètre et en ajoutant le dossier client. Les autres travaux du dossier principal sont préservés. Aucun calcul financier, moteur natif ou schéma ne change. Guide : [CLIENTS-ET-FOURNISSEURS.md](CLIENTS-ET-FOURNISSEURS.md). Aucun nouvel installateur ni IPA n’est publié dans ce lot.

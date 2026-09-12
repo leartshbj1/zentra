@@ -1,4 +1,6 @@
 import { TimeForm, TimerForm } from './WorkTimeForms';
+import { clientFolderDocuments } from './clientFolder';
+import './contact-forms.css';
 import { readyTimeEntries } from './timeBilling';
 import { PdfExportReceipt } from './PdfExportReceipt';
 import type { PdfExportReceipt as PdfReceipt } from './pdfExportDelivery';
@@ -272,7 +274,8 @@ const CatalogItemForm = deferView(() => import('./CatalogScreen').then(module =>
 const StockMovementForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.StockMovementForm })), { label: 'Ouverture du catalogue…', close: props => props.close });
 const ExpenseForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.ExpenseForm })), { label: 'Ouverture des achats…', close: props => props.close });
 const LegacyExpenseDetail = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.LegacyExpenseDetail })), { label: 'Ouverture des achats…', close: props => props.close });
-const SupplierForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierForm })), { label: 'Ouverture des achats…', close: props => props.close });
+const SupplierForm = deferView(() => import('./ContactForms').then(module => ({ default: module.SupplierForm })), { label: 'Ouverture de la fiche fournisseur…', close: props => props.close });
+const ClientForm = deferView(() => import('./ContactForms').then(module => ({ default: module.ClientForm })), { label: 'Ouverture de la fiche client…', close: props => props.close });
 const SupplierInvoiceDetail = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierInvoiceDetail })), { label: 'Ouverture des achats…', close: props => props.close });
 const SupplierInvoiceForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierInvoiceForm })), { label: 'Ouverture des achats…', close: props => props.close });
 const SupplierPaymentForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierPaymentForm })), { label: 'Ouverture des achats…', close: props => props.close });
@@ -330,7 +333,7 @@ function ViewLoading({ label }: { label: string }) {
 }
 
 type View = TourView | 'orders' | 'agenda';
-type ModalState =
+type ModalState = (
   | { type: 'client'; item?: Client }
   | { type: 'clientDetail'; client: Client }
   | { type: 'catalogItem'; item?: CatalogItem }
@@ -368,7 +371,7 @@ type ModalState =
   | { type: 'payment'; invoice: Invoice; returnToQuoteId?: string }
   | { type: 'qrPrint'; invoice: Invoice }
   | { type: 'timer' }
-  | null;
+  ) & { returnToClientId?: string } | null;
 
 type PrintTarget =
   | { entity: 'quotes'; value: Quote }
@@ -501,6 +504,7 @@ export function WorkspaceApp({
   const [supplierInvoiceReviewId, setSupplierInvoiceReviewId] = useState<string | null>(null);
   const [supplierReviewReturnId, setSupplierReviewReturnId] = useState<string | null>(null);
   const [supplierMatchToOpenId, setSupplierMatchToOpenId] = useState<string | null>(null);
+  const [clientFolderReturnId, setClientFolderReturnId] = useState<string | null>(null);
   const [bankAutoReconcile, setBankAutoReconcile] = useState(true);
   const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods'>();
   const clearAccountingStartTab = useCallback(() => setAccountingStartTab(undefined), []);
@@ -668,6 +672,7 @@ export function WorkspaceApp({
         revealSettingsTarget(target);
         const isField = target?.matches('input, select, textarea, button');
         const scrollTarget = isField ? target?.closest('.field, label') ?? target : target;
+        if (!isField && scrollTarget instanceof HTMLElement) scrollTarget.style.scrollMarginTop = `${(document.querySelector('.topbar')?.getBoundingClientRect().height || 0) + 16}px`;
         scrollTarget?.scrollIntoView({
           behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
           block: isField ? 'center' : 'start',
@@ -1324,6 +1329,31 @@ export function WorkspaceApp({
     );
   }
 
+  function returnToClientFolder(id = clientFolderReturnId) {
+    const client = workspaceRef.current.clients.find(row => row.id === id);
+    setClientFolderReturnId(null);
+    setView('clients'); setSearch('');
+    setModal(client ? { type: 'clientDetail', client } : null);
+    if (!client) setNotice({ tone: 'error', text: 'Cette fiche client n’est plus disponible. Actualisez la liste des clients.' });
+  }
+
+  function openClientEntry(kind: 'client' | 'project' | 'quotes' | 'invoices', clientId: string, id: string) {
+    if (busy || actionInFlight.current) return;
+    const client = workspaceRef.current.clients.find(row => row.id === clientId);
+    if (!client) return;
+    setClientFolderReturnId(clientId);
+    if (kind === 'client') { setModal({ type: 'client', item: client, returnToClientId: clientId }); return; }
+    if (kind === 'project') {
+      const project = workspaceRef.current.projects.find(row => row.id === id && row.clientId === clientId);
+      if (project) { setModal(null); setProjectFolderId(id); setSearch(''); setView('projects'); }
+      return;
+    }
+    const item = workspaceRef.current[kind].find(row => row.id === id && row.clientId === clientId);
+    if (!item) return;
+    const quoteId = kind === 'invoices' ? (item as Invoice).quoteId : workspaceRef.current.invoices.some(row => row.quoteId === id) ? id : null;
+    setModal(quoteId ? { type: 'quoteInvoiceFolder', quoteId, returnToClientId: clientId } : { type: 'document', entity: kind, item, returnToClientId: clientId });
+  }
+
   async function archiveClient(item: Client) {
     if (
       !window.confirm(
@@ -1760,6 +1790,7 @@ export function WorkspaceApp({
         <ProjectFileActivity key={cloudAccount?.organizationId ?? 'local'} sessions={projectFileSessions} disabled={busy || readOnly} projects={workspace.projects} currentProjectId={view === 'projects' ? projectFolderId : null} onOpen={id => { setProjectFolderId(id); setView('projects'); setSearch(''); }} />
         {invoiceIssueReturnId && !invoiceToIssueId && <div className="invoice-issue-resume" role="region" aria-label="Reprendre la facture"><span>Votre facture reste disponible. Après les corrections, reprenez sa vérification avant de l’émettre.</span><Button disabled={busy} onClick={() => { const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceIssueReturnId); if (invoice) { setView('invoices'); setSearch(''); setModal(invoice.quoteId ? { type: 'quoteInvoiceFolder', quoteId: invoice.quoteId } : null); setInvoiceToIssueId(invoice.id); } else setNotice({ tone: 'error', text: 'Cette facture n’est plus disponible. Actualisez la liste des factures.' }); }}>Reprendre la facture</Button><Button variant="ghost" disabled={busy} onClick={() => setInvoiceIssueReturnId(null)}>Plus tard</Button></div>}
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label="Reprendre la facture fournisseur"><span>Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>Reprendre la facture fournisseur</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>Plus tard</Button></div>}
+        {clientFolderReturnId && !modal && <div className="client-folder-return"><span>Retrouvez les coordonnées et les autres documents de ce client.</span><Button disabled={busy} onClick={() => returnToClientFolder()}>Revenir au dossier client</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>Plus tard</Button></div>}
         <section className="page-content" ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
@@ -2261,9 +2292,10 @@ export function WorkspaceApp({
           readOnly={readOnly}
           workspace={workspace}
           busy={busy}
-          close={() => setModal(null)}
-          replace={setModal}
+          close={() => { if (modal.returnToClientId) returnToClientFolder(modal.returnToClientId); else setModal(null); }}
+          replace={next => setModal(current => { const value = typeof next === 'function' ? next(current) : next; return value && current?.returnToClientId ? { ...value, returnToClientId: current.returnToClientId } : value; })}
           act={act}
+          onOpenClientEntry={openClientEntry}
           onOpenInvoices={() => {
             setModal(null);
             setView('invoices');
@@ -3189,13 +3221,17 @@ function ClientDetail({
   workspace,
   close,
   onEdit,
+  onOpenEntry,
 }: {
   client: Client;
   mutationsDisabled: boolean;
   workspace: Workspace;
   close: () => void;
   onEdit: () => void;
+  onOpenEntry: (kind: 'project' | 'quotes' | 'invoices', id: string) => void;
 }) {
+  const [documentQuery, setDocumentQuery] = useState('');
+  const [documentLimit, setDocumentLimit] = useState(8);
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
@@ -3221,33 +3257,13 @@ function ClientDetail({
       invoice.dueDate &&
       invoice.dueDate < todayIso(),
   );
-  const documents = [
-    ...quotes.map((quote) => ({
-      id: quote.id,
-      kind: 'Devis',
-      number: quote.number || 'Brouillon',
-      title: quote.title,
-      date: quote.issueDate,
-      status: quote.status,
-      totalCents: documentTotals(quote.lines).totalCents,
-      currency: quote.currency,
-    })),
-    ...invoices.map((invoice) => ({
-      id: invoice.id,
-      kind: invoice.type === 'credit_note' ? 'Avoir' : 'Facture',
-      number: invoice.number || 'Brouillon',
-      title: invoice.title,
-      date: invoice.issueDate,
-      status: invoice.status,
-      totalCents: documentTotals(invoice.lines).totalCents,
-      currency: invoice.currency,
-    })),
-  ].sort((left, right) => right.date.localeCompare(left.date));
+  const documents = clientFolderDocuments(client.id, workspace, documentQuery);
 
   return (
     <Modal
       title={client.company || client.name}
-      description="Dossier client local : coordonnées, activité commerciale, projets et soldes ouverts réunis au même endroit."
+      description="Coordonnées, projets et documents de ce client."
+      className="client-folder-modal"
       onClose={close}
       wide
     >
@@ -3365,6 +3381,7 @@ function ClientDetail({
                         ? formatMinutes(stats.minutes)
                         : 'Aucun temps'}
                     </span>
+                    <Button type="button" variant="secondary" size="small" className="client-project-open" onClick={() => onOpenEntry('project', project.id)}>Ouvrir le projet</Button>
                   </article>
                 );
               })}
@@ -3377,29 +3394,32 @@ function ClientDetail({
         </section>
         <section>
           <header>
-            <strong>Documents récents</strong>
+            <strong>Devis, factures et avoirs</strong>
             <small>
               {quotes.length} devis · {invoices.length} facture
               {invoices.length > 1 ? 's' : ''}
             </small>
           </header>
+          <div className="client-folder-tools"><Field label="Rechercher dans les documents"><input type="search" value={documentQuery} onChange={event => { setDocumentQuery(event.target.value); setDocumentLimit(8); }} placeholder="Numéro, titre, date…" /></Field><small>Création récente d’abord · {documents.length} résultat{documents.length > 1 ? 's' : ''}</small></div>
           {documents.length ? (
             <div className="client-360-documents">
-              {documents.slice(0, 8).map((document) => (
+              {documents.slice(0, documentLimit).map((document) => (
                 <article key={`${document.kind}-${document.id}`}>
                   <span>{document.kind}</span>
                   <div>
-                    <strong>{document.number}</strong>
-                    <small>{document.title || formatDate(document.date)}</small>
+                    <strong>{document.number || 'Brouillon'}</strong>
+                    <small>{document.title || formatDate(document.issueDate)}</small>
                   </div>
                   <strong>{formatMoney(document.totalCents, document.currency)}</strong>
                   <StatusBadge status={document.status} />
+                  <Button type="button" variant="secondary" size="small" className="client-document-open" onClick={() => onOpenEntry(document.entity, document.id)}>Ouvrir {document.kind === 'Devis' ? 'le devis' : document.kind === 'Avoir' ? 'l’avoir' : 'la facture'} {document.number || 'brouillon'}</Button>
                 </article>
               ))}
             </div>
           ) : (
-            <div className="client-360-empty">Aucun devis ni facture.</div>
+            <div className="client-360-empty">{documentQuery ? 'Aucun document ne correspond à cette recherche.' : 'Aucun devis ni facture.'}</div>
           )}
+          {documents.length > documentLimit && <Button type="button" variant="secondary" onClick={() => setDocumentLimit(value => value + 8)}>Afficher plus de documents ({documents.length - documentLimit})</Button>}
         </section>
       </div>
       {client.notes ? (
@@ -4726,6 +4746,7 @@ function SettingsScreen({
     const target = document.getElementById(targetId);
     if (!(target instanceof HTMLElement)) return;
     revealSettingsTarget(target);
+    target.style.scrollMarginTop = `${(document.querySelector('.topbar')?.getBoundingClientRect().height || 0) + 16}px`;
     const reducedMotion = window.matchMedia?.(
       '(prefers-reduced-motion: reduce)',
     ).matches;
@@ -6134,6 +6155,7 @@ function WorkspaceModal({
   onCreateInvoiceCorrection,
   onIssueInvoice,
   onQrReady,
+  onOpenClientEntry,
 }: {
   state: Exclude<ModalState, null>;
   readOnly: boolean;
@@ -6152,19 +6174,25 @@ function WorkspaceModal({
   onCreateInvoiceCorrection: (invoice: Invoice, reason: string, onError: (reason: unknown) => void) => Promise<void>;
   onIssueInvoice: (invoice: Invoice, onError?: (reason: unknown) => void) => Promise<void>;
   onQrReady: (invoice: Invoice, qr: StoredSwissQrBill) => void;
+  onOpenClientEntry: (kind: 'client' | 'project' | 'quotes' | 'invoices', clientId: string, id: string) => void;
 }) {
   if (state.type === 'client')
-    return <ClientForm item={state.item} busy={busy} close={close} act={act} />;
-  if (state.type === 'clientDetail')
+    return <ClientForm item={state.item} busy={busy} readOnly={readOnly} close={close} act={act} />;
+  if (state.type === 'clientDetail') {
+    const client = workspace.clients.find(row => row.id === state.client.id);
+    if (!client) return <Modal title="Client indisponible" onClose={close}><p>Cette fiche n’est plus dans les données chargées. Revenez à la liste des clients.</p><Button onClick={close}>Fermer</Button></Modal>;
     return (
       <ClientDetail
-        client={state.client}
+        key={client.id}
+        client={client}
         mutationsDisabled={busy || readOnly}
         workspace={workspace}
         close={close}
-        onEdit={() => replace({ type: 'client', item: state.client })}
+        onEdit={() => onOpenClientEntry('client', client.id, client.id)}
+        onOpenEntry={(kind, id) => onOpenClientEntry(kind, client.id, id)}
       />
     );
+  }
   if (state.type === 'catalogItem')
     return (
       <CatalogItemForm
@@ -6189,7 +6217,7 @@ function WorkspaceModal({
     );
   if (state.type === 'supplier')
     return (
-      <SupplierForm item={state.item} busy={busy} close={close} act={act} />
+      <SupplierForm item={state.item} busy={busy} readOnly={readOnly} close={close} act={act} />
     );
   if (state.type === 'project')
     return (
@@ -6417,109 +6445,6 @@ function WorkspaceModal({
     );
   return (
     <TimerForm workspace={workspace} busy={busy} close={close} act={act} />
-  );
-}
-
-function ClientForm({
-  item,
-  busy,
-  close,
-  act,
-}: {
-  item?: Client;
-  busy: boolean;
-  close: () => void;
-  act: ActionRunner;
-}) {
-  const [formError, setFormError] = useState('');
-  return (
-    <Modal
-      title={item ? 'Modifier le client' : 'Nouveau client'}
-      description="Saisissez uniquement les coordonnées réelles à utiliser sur les documents."
-      onClose={close} dismissible={!busy}
-    >
-      <form
-        onSubmit={submitForm(async (form) => {
-          if (busy) return;
-          setFormError('');
-          const contactPerson = String(form.get('contactPerson'));
-          const company = String(form.get('company'));
-          const data = {
-            name: company || contactPerson,
-            contactPerson,
-            company,
-            email: String(form.get('email')),
-            phone: String(form.get('phone')),
-            addressLine1: String(form.get('street')),
-            addressLine2: String(form.get('buildingNumber')),
-            postalCode: String(form.get('postalCode')),
-            city: String(form.get('city')),
-            canton: String(form.get('canton')),
-            country: String(form.get('country')).trim().toUpperCase(),
-            notes: String(form.get('notes')),
-          };
-          await act(
-            () =>
-              item
-                ? desktopApi.updateEntity('clients', item.id, data)
-                : desktopApi.createEntity('clients', data),
-            item ? 'Le client a été mis à jour.' : 'Le client a été ajouté.',
-            true,
-            (reason) => setFormError(errorMessage(reason, 'Les coordonnées n’ont pas pu être enregistrées. Votre saisie est conservée.')),
-          );
-        })}
-      >
-        <fieldset disabled={busy}><div className="form-grid">
-          <Field label="Nom du contact" required>
-            <input
-              name="contactPerson"
-              defaultValue={item?.name}
-              required
-              autoFocus
-            />
-          </Field>
-          <Field label="Entreprise">
-            <input name="company" defaultValue={item?.company} />
-          </Field>
-          <Field label="E-mail">
-            <input name="email" type="email" defaultValue={item?.email} />
-          </Field>
-          <Field label="Téléphone">
-            <input name="phone" defaultValue={item?.phone} />
-          </Field>
-          <Field label="Rue / case postale" required wide>
-            <input name="street" defaultValue={item?.addressLine1} required />
-          </Field>
-          <Field label="Numéro de bâtiment">
-            <input name="buildingNumber" defaultValue={item?.buildingNumber} />
-          </Field>
-          <Field label="NPA" required>
-            <input name="postalCode" defaultValue={item?.postalCode} required />
-          </Field>
-          <Field label="Localité" required>
-            <input name="city" defaultValue={item?.city} required />
-          </Field>
-          <Field label="Canton">
-            <input name="canton" defaultValue={item?.canton} />
-          </Field>
-          <Field label="Pays (code ISO, 2 lettres)" required>
-            <input
-              name="country"
-              defaultValue={item?.country}
-              minLength={2}
-              maxLength={2}
-              required
-            />
-          </Field>
-          <Field label="Notes internes" wide>
-            <textarea name="notes" rows={3} defaultValue={item?.notes} />
-          </Field>
-        </div>
-        </fieldset>
-        {formError ? <ErrorPanel title="Vérifions les coordonnées" message={formError} reveal /> : null}
-        <FormActions onCancel={close} busy={busy} />
-      </form>
-    </Modal>
   );
 }
 

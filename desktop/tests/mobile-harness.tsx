@@ -47,6 +47,7 @@ import { DevelopmentNotice } from '../src/DevelopmentNotice';
 import { StandaloneUpdaterAccess } from '../src/App';
 import { installUpdaterFixture } from './updater-fixture';
 import { installCreditSettlementFixture } from './credit-settlement-fixture';
+import { installContactFolderFixture } from './contact-folder-fixture';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -205,6 +206,7 @@ if (new URLSearchParams(location.search).has('workflowHelp')) {
   data.settings!.setupDeferred = { ...data.settings!.setupDeferred, billing: true, work: false, backup: false };
   installEntityRecoveryFixture(() => data, false);
 }
+if (new URLSearchParams(location.search).has('contactFolder')) installContactFolderFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
@@ -224,7 +226,7 @@ function Harness() {
     },
   });
   if (new URLSearchParams(location.search).has('assistantOnboarding')) return <Onboarding onComplete={async()=>{}} onRestore={async()=>{}} />;
-  if (['readOnlyAudit', 'wizard', 'quotePair', 'accountingSetup', 'periodGuide', 'closing'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
+  if (['contactFolder', 'readOnlyAudit', 'wizard', 'quotePair', 'accountingSetup', 'periodGuide', 'closing'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
   if (new URLSearchParams(location.search).has('updater')) return <main><h1>Accueil de recette</h1><button type="button">Action de fond</button><StandaloneUpdaterAccess /></main>;
   return <><WorkspaceApp cloudAccount={projectAccount ? { status: 'connected', organizationId: projectAccount } : undefined} readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; if (new URLSearchParams(location.search).has('projectNavigation')) window.projectNavigation.publications++; }} />
     {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}

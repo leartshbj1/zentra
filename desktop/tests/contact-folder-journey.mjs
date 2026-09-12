@@ -1,0 +1,72 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+const { chromium, webkit } = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
+const base = process.env.ZENTRA_QA_URL || 'http://127.0.0.1:5271';
+const output = '.qa/contact-folder'; await mkdir(output, { recursive: true }); const report = [];
+for (const [engine, driver] of [['edge', chromium], ['webkit', webkit]]) {
+ const browser = await driver.launch({ headless: true, ...(engine === 'edge' && process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+ try { for (const [width, height] of [[320,568],[390,844],[844,390],[1440,1000]]) {
+  const page = await browser.newPage({ viewport: { width, height }, reducedMotion: 'reduce' }); page.setDefaultTimeout(15000);
+  const errors=[]; page.on('pageerror', error => errors.push(error.message));
+  const store = () => page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-contact-store')));
+  const writes = () => page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-contact-writes') || '[]'));
+  const fail = mode => page.evaluate(mode => sessionStorage.setItem('qa-contact-failure', mode), mode);
+  const navigate = async title => { await page.getByRole('button',{name:'Aller à un écran',exact:true}).click(); await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill(title); await page.locator('.navigation-palette__results button').filter({has:page.getByText(title,{exact:true})}).click(); };
+  const capture = async name => { if (['email-error','supplier-days'].includes(name)) await page.waitForFunction(() => { const dialog=document.querySelector('.contact-form-modal'); const field=dialog?.querySelector('.field--error')?.getBoundingClientRect(); const header=dialog?.querySelector('.modal__header')?.getBoundingClientRect(); const actions=dialog?.querySelector('.form-actions')?.getBoundingClientRect(); return field && header && actions && field.top >= header.bottom - 1 && field.bottom <= actions.top + 1; }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1 || [...document.querySelectorAll('.modal,.modal__body')].some(el => el.scrollWidth > el.clientWidth + 1)),false,`${engine} ${width} ${name}: overflow`); await page.screenshot({path:`${output}/${engine}-${width}-${name}.png`}); };
+  const close = async dialog => { await dialog.locator('.modal__header').getByRole('button',{name:/^Fermer «/}).click(); };
+  try {
+   await page.goto(`${base}/tests/mobile-harness.html?contactFolder=1`);
+   await page.getByRole('button',{name:'Fermer le guide automatique',exact:true}).click();
+   await navigate('Clients'); await page.getByRole('button',{name:'Nouveau client',exact:true}).click();
+   let form=page.getByRole('dialog',{name:'Nouveau client',exact:true});
+   assert.equal(await form.locator('[name=country]').inputValue(),'CH');
+   await form.getByRole('button',{name:'Enregistrer',exact:true}).click();
+   await page.waitForFunction(()=>document.activeElement?.getAttribute('name')==='contactPerson'); assert.equal((await writes()).length,0);
+   await form.locator('[name=company]').fill('Entreprise sans contact');
+   for(const [name,value] of Object.entries({street:'Rue du test',postalCode:'1000',city:'Lausanne'}))await form.locator(`[name=${name}]`).fill(value);
+   await form.locator('[name=email]').fill('adresse incorrecte'); await form.getByRole('button',{name:'Enregistrer',exact:true}).click();
+   await page.waitForFunction(()=>document.activeElement?.getAttribute('name')==='email'); await capture('email-error');
+   await form.locator('[name=email]').fill(''); await form.locator('[name=country]').selectOption('__other');
+   await form.locator('[name=countryCustom]').fill('es'); await form.locator('[name=postalCode]').fill('28001'); await form.locator('[name=city]').fill('Madrid');
+   await fail('reject'); await form.getByRole('button',{name:'Enregistrer',exact:true}).click(); await form.getByText('La fiche n’a pas pu être enregistrée.',{exact:true}).waitFor();
+   assert.equal(await form.locator('[name=countryCustom]').inputValue(),'es'); assert.equal(await form.locator('[name=company]').inputValue(),'Entreprise sans contact');
+   await fail('refresh'); await form.getByRole('button',{name:'Enregistrer',exact:true}).dblclick();
+   const recovery=page.getByRole('dialog',{name:'Enregistrement effectué',exact:true}); await recovery.waitFor(); assert.equal((await writes()).length,1);
+   await recovery.getByRole('button',{name:'Actualiser les données',exact:true}).click(); await recovery.getByText('Actualisation impossible',{exact:true}).waitFor();
+   await page.evaluate(()=>sessionStorage.removeItem('qa-contact-block-reads')); await recovery.getByRole('button',{name:'Actualiser les données',exact:true}).click(); await form.waitFor({state:'hidden'});
+   let client=(await store()).clients.find(row=>row.company==='Entreprise sans contact'); assert.equal(client.contactPerson,''); assert.equal(client.country,'ES');
+   await page.locator('tr').filter({hasText:'Entreprise sans contact'}).getByRole('button',{name:/^Modifier/}).click();
+   form=page.getByRole('dialog',{name:'Modifier le client',exact:true}); await form.waitFor(); assert.equal(await form.locator('[name=contactPerson]').inputValue(),''); assert.equal(await form.locator('[name=country]').inputValue(),'ES'); await close(form);
+   await page.locator('tr').filter({hasText:'Atelier du Lac'}).getByRole('button',{name:/Dossier|Consulter|Voir/}).click();
+   const folder=()=>page.getByRole('dialog',{name:'Atelier du Lac',exact:true}); await folder().waitFor();
+   assert.equal(await folder().locator('.client-360-documents article').count(),8);
+   assert.equal(await folder().locator('.client-360-documents article').first().getByText('F-LIEE',{exact:true}).count(),1);
+   assert.equal(await folder().getByText('AUTRE-CLIENT',{exact:true}).count(),0);
+   await folder().getByRole('button',{name:/^Afficher plus de documents/}).click(); assert.equal(await folder().locator('.client-360-documents article').count(),14);
+   await folder().getByRole('searchbox',{name:'Rechercher dans les documents'}).fill('ancien'); assert.equal(await folder().locator('.client-360-documents article').count(),1);
+   await folder().getByRole('button',{name:'Ouvrir le devis D-11',exact:true}).click();
+   let document=page.getByRole('dialog',{name:'Modifier devis',exact:true}); await document.waitFor(); await close(document); await folder().waitFor();
+   await folder().getByRole('button',{name:'Ouvrir la facture F-1',exact:true}).click(); document=page.getByRole('dialog',{name:'Modifier facture',exact:true}); await document.waitFor(); await close(document); await folder().waitFor();
+   await folder().getByRole('button',{name:'Ouvrir la facture F-LIEE',exact:true}).click(); const pair=page.getByRole('dialog',{name:'Dossier D-1',exact:true}); await pair.waitFor(); await pair.getByText('F-LIEE',{exact:true}).waitFor(); await close(pair); await folder().waitFor();
+   await page.evaluate(()=>window.__qaSetReadOnly(true)); await page.waitForFunction(()=>[...document.querySelectorAll('.modal button')].find(button=>button.textContent.includes('Modifier la fiche'))?.disabled);
+   await folder().getByRole('button',{name:'Ouvrir le projet',exact:true}).click(); await page.getByRole('heading',{name:'Projet du Lac',exact:true}).waitFor();
+   await page.evaluate(()=>window.__qaSetReadOnly(false)); await navigate('Clients'); await page.getByRole('button',{name:'Nouveau client',exact:true}).click(); await close(page.getByRole('dialog',{name:'Nouveau client',exact:true})); assert.equal(await folder().count(),0);
+   await page.getByRole('button',{name:'Revenir au dossier client',exact:true}).click(); await folder().waitFor(); await capture('folder');
+   await page.evaluate(()=>window.__qaSetReadOnly(false)); await folder().getByRole('button',{name:'Modifier la fiche',exact:true}).click(); form=page.getByRole('dialog',{name:'Modifier le client',exact:true}); await form.locator('[name=phone]').fill('021 555 10 10'); await form.getByRole('button',{name:'Enregistrer',exact:true}).click(); await form.waitFor({state:'hidden'});
+   await page.getByRole('button',{name:'Revenir au dossier client',exact:true}).click(); await folder().getByText('021 555 10 10',{exact:true}).waitFor(); await close(folder());
+   await navigate('Achats & fournisseurs'); await page.locator('#purchase-tab-suppliers').waitFor({state:'attached'});
+   if(width<=860)await page.getByRole('combobox',{name:'Section des achats',exact:true}).selectOption('suppliers');else await page.locator('#purchase-tab-suppliers').click();
+   await page.getByRole('button',{name:'Nouveau fournisseur',exact:true}).click(); form=page.getByRole('dialog',{name:'Nouveau fournisseur',exact:true});
+   await form.locator('[name=name]').fill('Fournisseur guidé'); await form.locator('[name=paymentTermsDays]').fill('30,5'); await form.getByRole('button',{name:'Ajouter le fournisseur',exact:true}).click(); await page.waitForFunction(()=>document.activeElement?.getAttribute('name')==='paymentTermsDays'); await capture('supplier-days');
+   await form.getByRole('button',{name:'Immédiat',exact:true}).click(); await form.locator('[name=iban]').fill('CH9300762011623852956'); await form.getByRole('button',{name:'Ajouter le fournisseur',exact:true}).click(); await page.waitForFunction(()=>document.activeElement?.getAttribute('name')==='iban');
+   await form.locator('[name=iban]').fill('CH93 0076 2011 6238 5295 7'); await fail('iban'); await form.getByRole('button',{name:'Ajouter le fournisseur',exact:true}).click(); await form.getByText(/L’IBAN a été refusé/).waitFor();
+   await form.locator('[name=iban]').fill(''); await fail('refresh'); await form.getByRole('button',{name:'Ajouter le fournisseur',exact:true}).dblclick(); await recovery.waitFor();
+   assert.equal((await writes()).filter(row=>row.entity==='suppliers').length,1); await page.evaluate(()=>sessionStorage.removeItem('qa-contact-block-reads')); await recovery.getByRole('button',{name:'Actualiser les données',exact:true}).click(); await form.waitFor({state:'hidden'});
+   assert.equal((await store()).suppliers[0].paymentTermsDays,0); await page.reload(); await navigate('Achats & fournisseurs'); if(width<=860)await page.getByRole('combobox',{name:'Section des achats',exact:true}).selectOption('suppliers');else await page.locator('#purchase-tab-suppliers').click();
+   await page.getByText('Fournisseur guidé',{exact:true}).waitFor(); assert.equal((await store()).clients.find(row=>row.id==='client-folder').phone,'021 555 10 10');
+   assert.deepEqual(errors,[]); report.push({engine,width,height,result:'PASS field guidance, company without contact, foreign country, persistence, refusal/read recovery once, full client history sorted by creation, old document search, quote/invoice/pair/project access and return, read-only, exact payment days and optional IBAN'});
+  }catch(error){await page.screenshot({path:`${output}/${engine}-${width}-failure.png`});await writeFile(`${output}/${engine}-${width}-failure.html`,await page.content());throw error;}finally{await page.close();}
+ }}catch(error){report.push({engine,fatal:error.stack});process.exitCode=1;}finally{await browser.close();}
+}
+await writeFile(`${output}/report.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
