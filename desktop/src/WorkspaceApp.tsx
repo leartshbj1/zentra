@@ -142,6 +142,7 @@ import {
 
 import { SalesTabs, type SalesView } from './SalesNavigation';
 import type { ProjectMilestoneDraft, ProjectTaskDraft } from './ProjectPlanningPanel';
+import type { PlanningErrorHandler } from './planningForm';
 import {
   processRecurrenceScheduleBatch,
   recurrenceSchedulesDue,
@@ -1764,6 +1765,8 @@ export function WorkspaceApp({
               fileSessions={projectFileSessions}
               onFolderChange={setProjectFolderId}
               query={search}
+              onClearSearch={() => setSearch('')}
+              onOpenTime={() => { setView('time'); setSearch(''); }}
               busy={busy}
               readOnly={readOnly}
               onEdit={(item) => setModal({ type: 'project', item })}
@@ -1773,25 +1776,27 @@ export function WorkspaceApp({
               onOpenExpense={openExpenseSource}
               onOpenDocument={(entity, item) => setModal(entity === 'quotes' && workspace.invoices.some((invoice) => invoice.quoteId === item.id) ? { type: 'quoteInvoiceFolder', quoteId: item.id } : { type: 'document', entity, item })}
               onCreateDocument={(entity, initialProject) => setModal({ type: 'document', entity, initialProject })}
-              onSaveTask={(input) =>
+              onSaveTask={(input, onError) =>
                 act(
                   () => desktopApi.saveProjectTask(input),
                   input.id
                     ? 'La tâche a été mise à jour.'
                     : 'La tâche a été ajoutée au planning.',
                   false,
+                  onError,
                 )
               }
-              onSaveMilestone={(input) =>
+              onSaveMilestone={(input, onError) =>
                 act(
                   () => desktopApi.saveProjectMilestone(input),
                   input.id
                     ? 'Le jalon a été mis à jour.'
                     : 'Le jalon a été ajouté au projet.',
                   false,
+                  onError,
                 )
               }
-              onSetTaskStatus={(item, status) =>
+              onSetTaskStatus={(item, status, onError) =>
                 act(
                   () => desktopApi.setProjectTaskStatus(item.id, status),
                   status === 'done'
@@ -1802,9 +1807,10 @@ export function WorkspaceApp({
                         ? 'La tâche a été annulée.'
                         : 'La tâche a été rouverte.',
                   false,
+                  onError,
                 )
               }
-              onDeleteTask={async (item) => {
+              onDeleteTask={async (item, onError) => {
                 if (
                   !window.confirm(
                     `Supprimer définitivement la tâche « ${item.title} » ?`,
@@ -1815,9 +1821,10 @@ export function WorkspaceApp({
                   () => desktopApi.deleteProjectTask(item.id),
                   'La tâche a été supprimée.',
                   false,
+                  onError,
                 );
               }}
-              onDeleteMilestone={async (item) => {
+              onDeleteMilestone={async (item, onError) => {
                 if (
                   !window.confirm(
                     `Supprimer définitivement le jalon « ${item.title} » ?`,
@@ -1828,6 +1835,7 @@ export function WorkspaceApp({
                   () => desktopApi.deleteProjectMilestone(item.id),
                   'Le jalon a été supprimé.',
                   false,
+                  onError,
                 );
               }}
               agendaPlanningTarget={agendaPlanningTarget}
@@ -2641,6 +2649,8 @@ function ProjectsScreen({
   fileSessions,
   onFolderChange,
   query,
+  onClearSearch,
+  onOpenTime,
   busy,
   readOnly,
   onEdit,
@@ -2663,6 +2673,8 @@ function ProjectsScreen({
   fileSessions: ProjectFileSessions;
   onFolderChange: (id: string | null) => void;
   query: string;
+  onClearSearch: () => void;
+  onOpenTime: () => void;
   busy: boolean;
   readOnly: boolean;
   onEdit: (item: Project) => void;
@@ -2672,14 +2684,15 @@ function ProjectsScreen({
   onOpenDocument: (entity: 'quotes' | 'invoices', item: Quote | Invoice) => void;
   onOpenExpense: (expenseId: string) => void;
   onCreateDocument: (entity: 'quotes' | 'invoices', project: Project) => void;
-  onSaveTask: (input: ProjectTaskDraft) => Promise<boolean>;
-  onSaveMilestone: (input: ProjectMilestoneDraft) => Promise<boolean>;
+  onSaveTask: (input: ProjectTaskDraft, onError?: PlanningErrorHandler) => Promise<boolean>;
+  onSaveMilestone: (input: ProjectMilestoneDraft, onError?: PlanningErrorHandler) => Promise<boolean>;
   onSetTaskStatus: (
     item: ProjectTask,
     status: ProjectPlanningStatus,
+    onError?: PlanningErrorHandler,
   ) => Promise<boolean>;
-  onDeleteTask: (item: ProjectTask) => Promise<boolean>;
-  onDeleteMilestone: (item: ProjectMilestone) => Promise<boolean>;
+  onDeleteTask: (item: ProjectTask, onError?: PlanningErrorHandler) => Promise<boolean>;
+  onDeleteMilestone: (item: ProjectMilestone, onError?: PlanningErrorHandler) => Promise<boolean>;
   agendaPlanningTarget: string | null;
   onAgendaPlanningTargetHandled: () => void;
 }) {
@@ -2781,6 +2794,9 @@ function ProjectsScreen({
 
       {mode === 'planning' ? (
         <ProjectPlanningPanel
+          onClearSearch={onClearSearch}
+          onOpenTime={onOpenTime}
+          onCreateProject={onCreate}
           workspace={workspace}
           query={query}
           busy={busy}

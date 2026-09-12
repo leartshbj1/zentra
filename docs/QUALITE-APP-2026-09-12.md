@@ -259,3 +259,17 @@ Les confirmations client, fournisseur et d’association de compte utilisent des
 Validation : TypeScript et Vite dans les deux dossiers ; 30 tests bancaires d’interface dans chacun, 46 tests comptabilité/trop-perçus supplémentaires dans le dossier principal, 72 tests natifs bancaires. Les huit parcours guidés Edge/WebKit passent dans chaque dossier (320×568, 390×844, 844×390, 1440×900) et les cinq parcours bancaires existants passent sur la base de livraison. Les captures ont été inspectées. La fusion préserve la gestion des trop-perçus et ses blocages dans le dossier principal ; sauvegardes dans .qa/bank-guided-before, .qa/bank-accounting-navigation-before et .qa/bank-import-choice-before.
 
 Le moteur et le schéma restent inchangés. Données de recette uniquement ; aucune publication d’installateur ou d’IPA dans ce lot. La livraison Windows reste 1.58.0. Guide : [BANQUE-PAIEMENTS.md](BANQUE-PAIEMENTS.md).
+
+## Lot : tâches et étapes avec corrections accessibles
+
+La création et la modification de tâches et d’étapes utilisent un formulaire contrôlé. Un titre et un projet suffisent ; les informations secondaires sont facultatives et les précisions sont regroupées. Les refus conservent la saisie. Les dates incompatibles expliquent le lien avec l’étape ou une tâche et proposent une correction explicite. Le défilement tient compte des actions fixes en bas de la fenêtre mobile : le bouton de correction reste accessible avec l’explication.
+
+Le planning oriente vers les tâches qui empêchent de terminer une étape, vers l’étape à rouvrir ou vers le chronomètre en cours. Les compteurs suivent le filtre d’étape. Après un enregistrement, la recherche et les filtres restrictifs sont retirés pour afficher l’élément enregistré. Les libellés des actions et les textes du planning ont été agrandis.
+
+Intégration dans le dossier principal avec fusion à trois versions. Le seul conflit concernait l’import de la recette de planning à côté d’un import existant de l’assistant ; les deux recettes ont été conservées sans doublon. Sauvegarde du contenu précédent dans `.qa/planning-guided-before`. Les évolutions commerciales et de synchronisation du dossier principal sont conservées ; aucun changement de schéma natif dans ce lot.
+
+Validation : 168 tests d’interface du planning et des mutations dans chaque dossier, 6 tests natifs du planning dans chaque dossier, et 8 parcours Edge/WebKit dans chaque dossier aux quatre formats 320×568, 390×844, 844×390 et 1440×900. Les captures ont été inspectées, dont la visibilité de l’aide à la date au-dessus des actions fixes. Guide : [PLANNING-PROJETS.md](PLANNING-PROJETS.md).
+
+Les ajouts récents de l’atelier de documents ont également été reportés dans la base de livraison avec une fusion à trois versions : collage mis en forme, styles de paragraphe, espace d’écriture et accès aux éléments du document. Leurs 22 tests d’interface et leurs six parcours Edge/WebKit passent après intégration ; cela porte la sélection d’interface de ce lot à 190 tests dans chaque dossier. TypeScript et Vite passent dans les deux dossiers. Voir [PERSONNALISATION-DOCUMENTS.md](PERSONNALISATION-DOCUMENTS.md).
+
+Aucun nouveau binaire Windows, macOS, iOS ou Android n’a été construit ou publié dans ce lot. La synchronisation réelle du planning, les conflits entre appareils et la recette sur application installée restent à vérifier.

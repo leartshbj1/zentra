@@ -1,0 +1,50 @@
+.planning-editor, .planning-editor fieldset { display: grid; gap: 20px; min-width: 0; }
+.planning-editor fieldset { padding: 0; margin: 0; border: 0; }
+.planning-editor input, .planning-editor textarea, .planning-editor select { font-size: 16px; min-width: 0; max-width: 100%; }
+.planning-editor .button { min-height: 44px; white-space: normal; }
+.planning-editor-more { border-block: 1px solid var(--line, #dce5df); }
+.planning-editor-more summary { cursor: pointer; min-height: 44px; padding: 12px 0; font-size: 14px; font-weight: 600; }
+.planning-editor-more .form-grid { padding-block: 10px 16px; }
+.planning-date-suggestion { grid-column: 1 / -1; }
+.planning-form-error { padding: 14px 16px; border-left: 3px solid #a84030; background: #fff5f0; border-radius: 10px; scroll-margin-block: 18px; }
+.planning-form-error strong { font-size: 15px; }
+.planning-form-error p { margin: 6px 0 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.planning-task-help { grid-column: 1 / -1; padding: 12px; border-radius: 10px; background: var(--surface-soft, #f4f6f8); }
+.planning-task-help p { margin: 0 0 8px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.planning-task-help .button { min-height: 44px; white-space: normal; }
+.planning-filter-notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--surface-soft, #f4f6f8); border-radius: 12px; font-size: 14px; }
+.planning-layout .planning-action-message { scroll-margin-block: 100px; }
+@media (max-width: 600px) { .planning-editor .form-actions { display: grid; grid-template-columns: minmax(0, 1fr); } }
+.planning-layout .planning-overview small { font-size: 13px; line-height: 1.5; }
+.planning-layout .planning-overview strong { font-size: 26px; }
+.planning-layout .planning-filters label > span { font-size: 14px; }
+.planning-layout .planning-filters select { min-height: 44px; font-size: 16px; max-width: 100%; }
+.planning-layout .planning-toolbar__actions .button { min-height: 44px; font-size: 14px; }
+.planning-layout .planning-group > header strong { font-size: 15px; }
+.planning-layout .planning-group > header span { font-size: 13px; }
+.planning-layout .planning-task__body strong { font-size: 15px; white-space: normal; overflow-wrap: anywhere; }
+.planning-layout .planning-task__body p, .planning-layout .planning-task__body p span { font-size: 13px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
+.planning-layout .priority-label { font-size: 12px; }
+.planning-layout .planning-task__check { display: inline-flex; justify-content: center; gap: 6px; width: auto; min-width: 44px; height: 44px; padding: 8px; font-size: 13px; font-weight: 600; }
+.planning-layout .planning-task__actions .button { min-width: 44px; min-height: 44px; }
+.planning-layout .planning-milestones > header { background: var(--surface-soft, #f4f6f8); color: var(--ink, #202923); }
+.planning-layout .planning-milestones > header span { font-size: 12px; color: var(--muted); }
+.planning-layout .planning-milestones > header strong { font-size: 17px; }
+.planning-layout .milestone-list__top strong { font-size: 15px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
+.planning-layout .milestone-list__top small { font-size: 13px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
+.planning-layout .milestone-list__progress small { font-size: 13px; }
+.planning-layout .milestone-list__progress { margin-block: 14px; }
+.planning-layout .milestone-list footer { flex-wrap: wrap; }
+.planning-layout .milestone-list footer > span { font-size: 13px; line-height: 1.5; flex-basis: 100%; flex-wrap: wrap; }
+.planning-layout .milestone-list footer > div { flex-wrap: wrap; gap: 2px; }
+.planning-layout .milestone-list footer .button { min-width: 44px; min-height: 44px; }
+.planning-layout .milestone-list footer .button:first-child { width: auto; padding-inline: 10px; gap: 6px; }
+.planning-layout .planning-milestones__empty { font-size: 14px; }
+@media (max-width: 900px) {
+  .planning-layout .planning-task { grid-template-columns: minmax(0, 1fr) auto; }
+  .planning-layout .planning-task__body { grid-column: 1 / -1; grid-row: 1; }
+  .planning-layout .planning-task__check { grid-column: 1; grid-row: 2; justify-self: start; }
+  .planning-layout .planning-task > .status { grid-column: 2; grid-row: 2; }
+  .planning-layout .planning-task__actions { grid-column: 1 / -1; grid-row: 3; justify-self: end; display: flex; }
+}
+.planning-date-field { grid-column: 1 / -1; display: grid; gap: 10px; min-width: 0; }

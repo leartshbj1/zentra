@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   Ban,
@@ -30,17 +30,16 @@ import type {
   ProjectTask,
   Workspace,
 } from './types';
-import { formatDate, searchText, todayIso } from './utils';
+import { errorMessage, formatDate, searchText, todayIso } from './utils';
 import {
   Button,
   EmptyState,
-  Field,
-  FormActions,
   ReadOnlyFormScope,
-  Modal,
   StatusBadge,
-  submitForm,
 } from './ui';
+
+import { PlanningEditor as GuidedPlanningEditor } from './PlanningEditor';
+import { planningTaskBlock, type PlanningErrorHandler } from './planningForm';
 
 export type ProjectTaskDraft = {
   id?: string;
@@ -136,26 +135,46 @@ export function ProjectPlanningPanel({
   onDeleteMilestone,
   focusItemId,
   onFocusItemHandled,
+  onClearSearch,
+  onOpenTime,
+  onCreateProject,
 }: {
   workspace: Workspace;
   query: string;
   busy: boolean;
   readOnly: boolean;
-  onSaveTask: (input: ProjectTaskDraft) => Promise<boolean>;
-  onSaveMilestone: (input: ProjectMilestoneDraft) => Promise<boolean>;
+  onSaveTask: (input: ProjectTaskDraft, onError?: PlanningErrorHandler) => Promise<boolean>;
+  onSaveMilestone: (input: ProjectMilestoneDraft, onError?: PlanningErrorHandler) => Promise<boolean>;
   onSetTaskStatus: (
     item: ProjectTask,
     status: ProjectPlanningStatus,
+    onError?: PlanningErrorHandler,
   ) => Promise<boolean>;
-  onDeleteTask: (item: ProjectTask) => Promise<boolean>;
-  onDeleteMilestone: (item: ProjectMilestone) => Promise<boolean>;
+  onDeleteTask: (item: ProjectTask, onError?: PlanningErrorHandler) => Promise<boolean>;
+  onDeleteMilestone: (item: ProjectMilestone, onError?: PlanningErrorHandler) => Promise<boolean>;
   focusItemId: string | null;
   onFocusItemHandled: () => void;
+  onClearSearch?: () => void;
+  onOpenTime?: () => void;
+  onCreateProject?: () => void;
 }) {
   const initialFocus = planningFocusSelection(workspace, focusItemId);
   const [editor, setEditor] = useState<PlanningEditor>(null);
   const [projectId, setProjectId] = useState(initialFocus?.projectId || '');
   const [employeeId, setEmployeeId] = useState('');
+  const [milestoneFilter, setMilestoneFilter] = useState('');
+  const [actionError, setActionError] = useState('');
+  const actionErrorRef = useRef<HTMLDivElement>(null), actionInFlight = useRef(false);
+  useEffect(() => { if (actionError && !busy) { actionErrorRef.current?.focus(); actionErrorRef.current?.scrollIntoView({ block: 'nearest' }); } }, [actionError, busy]);
+  async function runAction(action: (onError: PlanningErrorHandler) => Promise<boolean>) {
+    if (busy || readOnly || actionInFlight.current) return;
+    actionInFlight.current = true; setActionError('');
+    try { await action(reason => setActionError(errorMessage(reason, 'Le planning n’a pas pu être mis à jour. Réessayez après vérification.'))); }
+    catch (reason) { setActionError(errorMessage(reason, 'Le planning n’a pas pu être mis à jour.')); }
+    finally { actionInFlight.current = false; }
+  }
+  function revealProject(id: string) { setProjectId(id); setEmployeeId(''); setStatus('open'); setMilestoneFilter(''); onClearSearch?.(); }
+  function showMilestone(id: string) { const target = workspace.projectMilestones.find(row => row.id === id); if (target) { revealProject(target.projectId); setStatus(target.status); setFocusedItemId(target.id); } }
   const [status, setStatus] = useState<ProjectTask['status'] | 'open'>(
     initialFocus?.status || 'open',
   );
@@ -169,6 +188,7 @@ export function ProjectPlanningPanel({
     if (target) {
       setProjectId(target.projectId);
       setEmployeeId('');
+      setMilestoneFilter('');
       setStatus(target.status);
       setFocusedItemId(target.id);
     }
@@ -216,18 +236,19 @@ export function ProjectPlanningPanel({
       workspace.projects,
     ],
   );
+  const milestoneTasks = useMemo(() => milestoneFilter ? searchableTasks.filter(row => row.milestoneId === milestoneFilter) : searchableTasks, [searchableTasks, milestoneFilter]);
   const tasks = useMemo(
     () =>
       filteredPlanningTasks({
-        tasks: searchableTasks,
+        tasks: milestoneTasks,
         projectId: projectId || undefined,
         employeeId: employeeId || undefined,
         status,
       }),
-    [employeeId, projectId, searchableTasks, status],
+    [employeeId, projectId, milestoneTasks, status],
   );
   const summaryTasks = filteredPlanningTasks({
-    tasks: searchableTasks,
+    tasks: milestoneTasks,
     projectId: projectId || undefined,
     employeeId: employeeId || undefined,
   });
@@ -331,12 +352,14 @@ export function ProjectPlanningPanel({
       <EmptyState
         icon={<ListChecks />}
         title="Créez d’abord un projet"
-        text="Une tâche doit toujours appartenir à un projet réel. Aucun exemple n’est ajouté automatiquement."
+        text="Créez le dossier du projet pour y retrouver ses tâches, documents et factures."
+        actionLabel={onCreateProject ? "Créer un projet" : undefined} onAction={onCreateProject} disabled={busy || readOnly}
       />
     );
 
   return (
     <div className="planning-layout">
+      {actionError && <div className="planning-form-error planning-action-message" role="alert" tabIndex={-1} ref={actionErrorRef}><strong>Le planning demande une vérification</strong><p>{actionError}</p></div>}
       <section className="planning-overview" aria-label="Résumé des tâches">
         <PlanningMetric label="Ouvertes" value={summary.open} icon={<Circle />} />
         <PlanningMetric
@@ -357,7 +380,7 @@ export function ProjectPlanningPanel({
         <div className="planning-filters">
           <label>
             <span>Projet</span>
-            <select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+            <select value={projectId} onChange={(event) => { setProjectId(event.target.value); setMilestoneFilter(''); }}>
               <option value="">Tous les projets</option>
               {workspace.projects.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -416,6 +439,7 @@ export function ProjectPlanningPanel({
         </div>
       </section>
 
+      {milestoneFilter && <div className="planning-filter-notice"><span>Tâches de « {workspace.projectMilestones.find(row => row.id === milestoneFilter)?.title || 'Étape indisponible'} »</span><Button variant="ghost" size="small" onClick={() => setMilestoneFilter('')}>Toutes les tâches du projet</Button></div>}
       <div className="planning-columns">
         <section className="planning-task-groups">
           {buckets.length ? (
@@ -435,16 +459,13 @@ export function ProjectPlanningPanel({
                       busy={busy}
                       readOnly={readOnly}
                       onEdit={() => setEditor({ kind: 'task', item: task })}
-                      onAdvance={async () => {
-                        await onSetTaskStatus(
-                          task,
-                          nextProjectTaskStatus(task.status),
-                        );
-                      }}
+                      onOpenTime={onOpenTime}
+                      onOpenMilestone={() => task.milestoneId && showMilestone(task.milestoneId)}
+                      onAdvance={() => runAction(onError => onSetTaskStatus(task, nextProjectTaskStatus(task.status), onError))}
                       onCancel={() =>
-                        void onSetTaskStatus(task, 'cancelled')
+                        void runAction(onError => onSetTaskStatus(task, 'cancelled', onError))
                       }
-                      onDelete={() => void onDeleteTask(task)}
+                      onDelete={() => void runAction(onError => onDeleteTask(task, onError))}
                     />
                   ))}
                 </div>
@@ -470,7 +491,7 @@ export function ProjectPlanningPanel({
           <header>
             <div>
               <span>Étapes clés</span>
-              <strong>Jalons</strong>
+              <strong>Étapes du projet</strong>
             </div>
             <Target size={18} />
           </header>
@@ -529,6 +550,7 @@ export function ProjectPlanningPanel({
                         {progress.total > 1 ? 's' : ''}
                       </small>
                     </div>
+                    {!canClose && <div className="planning-task-help"><p>Terminez ou annulez les tâches ouvertes avant de terminer cette étape.</p><Button variant="secondary" size="small" onClick={() => { revealProject(milestone.projectId); setMilestoneFilter(milestone.id); }}>Voir les tâches à terminer</Button></div>}
                     <footer>
                       <span>
                         <CalendarCheck2 size={13} />{' '}
@@ -557,9 +579,7 @@ export function ProjectPlanningPanel({
                                   : 'Terminer le jalon'
                           }
                           onClick={() =>
-                            void onSaveMilestone(
-                              milestoneDraftWithStatus(milestone, nextStatus),
-                            )
+                            void runAction(onError => onSaveMilestone(milestoneDraftWithStatus(milestone, nextStatus), onError))
                           }
                           aria-label={`Changer l’état du jalon ${milestone.title}`}
                         >
@@ -568,6 +588,7 @@ export function ProjectPlanningPanel({
                           ) : (
                             <Circle size={14} />
                           )}
+                          <span>{milestone.status === 'done' || milestone.status === 'cancelled' ? 'Rouvrir' : milestone.status === 'todo' ? 'Commencer' : 'Terminer'}</span>
                         </Button>
                         <Button
                           variant="ghost"
@@ -585,9 +606,7 @@ export function ProjectPlanningPanel({
                               : 'Terminez ou annulez d’abord les tâches actives'
                           }
                           onClick={() =>
-                            void onSaveMilestone(
-                              milestoneDraftWithStatus(milestone, 'cancelled'),
-                            )
+                            void runAction(onError => onSaveMilestone(milestoneDraftWithStatus(milestone, 'cancelled'), onError))
                           }
                           aria-label={`Annuler le jalon ${milestone.title}`}
                         >
@@ -629,7 +648,7 @@ export function ProjectPlanningPanel({
                               ? 'Déplacez ou supprimez d’abord les tâches liées à ce jalon'
                               : 'Supprimer le jalon'
                           }
-                          onClick={() => void onDeleteMilestone(milestone)}
+                          onClick={() => void runAction(onError => onDeleteMilestone(milestone, onError))}
                           aria-label={`Supprimer le jalon ${milestone.title}`}
                         >
                           <Trash2 size={14} />
@@ -650,26 +669,30 @@ export function ProjectPlanningPanel({
 
       <ReadOnlyFormScope readOnly={readOnly}>
       {editor?.kind === 'task' ? (
-        <TaskEditor
+        <GuidedPlanningEditor kind="task" readOnly={readOnly}
           item={editor.item}
           defaultProjectId={editor.projectId}
           workspace={workspace}
           busy={busy}
           onClose={() => setEditor(null)}
-          onSave={async (input) => {
-            if (await onSaveTask(input)) setEditor(null);
+          onSave={async (input, onError) => {
+            const saved = await onSaveTask(input, onError);
+            if (saved) { setEditor(null); revealProject(input.projectId); }
+            return saved;
           }}
         />
       ) : null}
       {editor?.kind === 'milestone' ? (
-        <MilestoneEditor
+        <GuidedPlanningEditor kind="milestone" readOnly={readOnly}
           item={editor.item}
           defaultProjectId={editor.projectId}
           workspace={workspace}
           busy={busy}
           onClose={() => setEditor(null)}
-          onSave={async (input) => {
-            if (await onSaveMilestone(input)) setEditor(null);
+          onSave={async (input, onError) => {
+            const saved = await onSaveMilestone(input, onError);
+            if (saved) { setEditor(null); revealProject(input.projectId); }
+            return saved;
           }}
         />
       ) : null}
@@ -710,6 +733,8 @@ function TaskRow({
   onAdvance,
   onCancel,
   onDelete,
+  onOpenTime,
+  onOpenMilestone,
 }: {
   task: ProjectTask;
   focused: boolean;
@@ -720,12 +745,18 @@ function TaskRow({
   onAdvance: () => Promise<void>;
   onCancel: () => void;
   onDelete: () => void;
+  onOpenTime?: () => void;
+  onOpenMilestone: () => void;
 }) {
   const project = workspace.projects.find((item) => item.id === task.projectId);
   const employee = workspace.employees.find((item) => item.id === task.employeeId);
   const milestone = workspace.projectMilestones.find(
     (item) => item.id === task.milestoneId,
   );
+  const advanceBlock = planningTaskBlock(task, nextProjectTaskStatus(task.status), workspace);
+  const cancelBlock = planningTaskBlock(task, 'cancelled', workspace);
+  const taskBlock = advanceBlock || cancelBlock;
+  const hasActiveTimer = workspace.activeTimer?.taskId === task.id;
   const hasTimeEntries = workspace.timeEntries.some(
     (entry) => entry.taskId === task.id,
   );
@@ -739,7 +770,7 @@ function TaskRow({
       <button
         type="button"
         className="planning-task__check"
-        disabled={busy || readOnly}
+        disabled={busy || readOnly || Boolean(advanceBlock)}
         onClick={() => void onAdvance()}
         aria-label={
           task.status === 'done'
@@ -752,6 +783,7 @@ function TaskRow({
         }
       >
         {task.status === 'done' ? <Check size={15} /> : <Circle size={15} />}
+        <span>{task.status === 'done' || task.status === 'cancelled' ? 'Rouvrir' : task.status === 'todo' ? 'Commencer' : 'Terminer'}</span>
       </button>
       <div className="planning-task__body">
         <div>
@@ -781,9 +813,9 @@ function TaskRow({
             busy ||
             readOnly ||
             task.status === 'done' ||
-            task.status === 'cancelled'
+            task.status === 'cancelled' || Boolean(cancelBlock)
           }
-          title="Annuler la tâche"
+          title={cancelBlock?.message || "Annuler la tâche"}
           onClick={onCancel}
           aria-label={`Annuler ${task.title}`}
         >
@@ -812,7 +844,7 @@ function TaskRow({
           variant="ghost"
           size="icon"
           disabled={
-            busy || readOnly || task.status !== 'todo' || hasTimeEntries
+            busy || readOnly || task.status !== 'todo' || hasTimeEntries || hasActiveTimer
           }
           title={
             task.status !== 'todo'
@@ -827,199 +859,7 @@ function TaskRow({
           <Trash2 size={14} />
         </Button>
       </div>
+      {taskBlock && <div className="planning-task-help"><p>{taskBlock.message}</p>{taskBlock.target === 'timer' ? onOpenTime && <Button size="small" variant="secondary" onClick={onOpenTime}>Ouvrir le chronomètre</Button> : <Button size="small" variant="secondary" onClick={onOpenMilestone}>Voir l’étape à rouvrir</Button>}</div>}
     </div>
-  );
-}
-
-function TaskEditor({
-  item,
-  defaultProjectId,
-  workspace,
-  busy,
-  onClose,
-  onSave,
-}: {
-  item?: ProjectTask;
-  defaultProjectId?: string;
-  workspace: Workspace;
-  busy: boolean;
-  onClose: () => void;
-  onSave: (input: ProjectTaskDraft) => Promise<void>;
-}) {
-  const [selectedProjectId, setSelectedProjectId] = useState(
-    item?.projectId || defaultProjectId || '',
-  );
-  const milestones = workspace.projectMilestones.filter(
-    (milestone) =>
-      milestone.projectId === selectedProjectId &&
-      (['todo', 'in_progress'].includes(milestone.status) ||
-        milestone.id === item?.milestoneId),
-  );
-  return (
-    <Modal
-      title={item ? 'Modifier la tâche' : 'Nouvelle tâche'}
-      description="Une prochaine action claire, liée à un seul projet et éventuellement à un jalon."
-      onClose={onClose}
-      wide
-    >
-      <form
-        onSubmit={submitForm(async (form) =>
-          onSave({
-            id: item?.id,
-            projectId: item?.projectId ?? selectedProjectId,
-            milestoneId: String(form.get('milestoneId')) || null,
-            employeeId: String(form.get('employeeId')) || null,
-            title: String(form.get('title')).trim(),
-            description: String(form.get('description')).trim(),
-            dueDate: String(form.get('dueDate')) || null,
-            priority: String(form.get('priority')) as ProjectPlanningPriority,
-            sortOrder: item?.sortOrder ?? 0,
-          }),
-        )}
-      >
-        <div className="form-grid">
-          <Field label="Tâche" required wide>
-            <input name="title" defaultValue={item?.title} maxLength={200} required autoFocus />
-          </Field>
-          <Field label="Projet" required>
-            <select
-              name="projectId"
-              value={selectedProjectId}
-              onChange={(event) => setSelectedProjectId(event.target.value)}
-              disabled={Boolean(item)}
-              required
-            >
-              <option value="">Choisir un projet</option>
-              {workspace.projects
-                .filter(
-                  (project) =>
-                    project.status !== 'closed' || project.id === item?.projectId,
-                )
-                .map((project) => (
-                  <option key={project.id} value={project.id}>{project.name}</option>
-                ))}
-            </select>
-          </Field>
-          <Field label="Jalon">
-            <select name="milestoneId" defaultValue={item?.milestoneId ?? ''}>
-              <option value="">Sans jalon</option>
-              {milestones.map((milestone) => (
-                <option key={milestone.id} value={milestone.id}>{milestone.title}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Responsable">
-            <select name="employeeId" defaultValue={item?.employeeId ?? ''}>
-              <option value="">Non attribuée</option>
-              {workspace.employees
-                .filter((employee) => employee.active || employee.id === item?.employeeId)
-                .map((employee) => (
-                  <option key={employee.id} value={employee.id}>{employee.name}</option>
-                ))}
-            </select>
-          </Field>
-          <Field label="Échéance">
-            <input name="dueDate" type="date" defaultValue={item?.dueDate} />
-          </Field>
-          <Field label="Priorité" required>
-            <select name="priority" defaultValue={item?.priority ?? 'normal'}>
-              {Object.entries(priorityLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Description" wide>
-            <textarea name="description" rows={4} maxLength={20000} defaultValue={item?.description} />
-          </Field>
-        </div>
-        <FormActions onCancel={onClose} busy={busy} />
-      </form>
-    </Modal>
-  );
-}
-
-function MilestoneEditor({
-  item,
-  defaultProjectId,
-  workspace,
-  busy,
-  onClose,
-  onSave,
-}: {
-  item?: ProjectMilestone;
-  defaultProjectId?: string;
-  workspace: Workspace;
-  busy: boolean;
-  onClose: () => void;
-  onSave: (input: ProjectMilestoneDraft) => Promise<void>;
-}) {
-  return (
-    <Modal
-      title={item ? 'Modifier le jalon' : 'Nouveau jalon'}
-      description="Un jalon représente une étape vérifiable; ses tâches ouvertes doivent être terminées avant sa clôture."
-      onClose={onClose}
-      wide
-    >
-      <form
-        onSubmit={submitForm(async (form) =>
-          onSave({
-            id: item?.id,
-            projectId:
-              item?.projectId ??
-              String(form.get('projectId') || defaultProjectId || ''),
-            employeeId: String(form.get('employeeId')) || null,
-            title: String(form.get('title')).trim(),
-            description: String(form.get('description')).trim(),
-            dueDate: String(form.get('dueDate')) || null,
-            status: item?.status ?? 'todo',
-            priority: String(form.get('priority')) as ProjectPlanningPriority,
-            sortOrder: item?.sortOrder ?? 0,
-          }),
-        )}
-      >
-        <div className="form-grid">
-          <Field label="Jalon" required wide>
-            <input name="title" defaultValue={item?.title} maxLength={200} required autoFocus />
-          </Field>
-          <Field label="Projet" required>
-            <select name="projectId" defaultValue={item?.projectId || defaultProjectId || ''} disabled={Boolean(item)} required>
-              <option value="">Choisir un projet</option>
-              {workspace.projects
-                .filter(
-                  (project) =>
-                    project.status !== 'closed' || project.id === item?.projectId,
-                )
-                .map((project) => (
-                  <option key={project.id} value={project.id}>{project.name}</option>
-                ))}
-            </select>
-          </Field>
-          <Field label="Responsable">
-            <select name="employeeId" defaultValue={item?.employeeId ?? ''}>
-              <option value="">Non attribué</option>
-              {workspace.employees
-                .filter((employee) => employee.active || employee.id === item?.employeeId)
-                .map((employee) => (
-                  <option key={employee.id} value={employee.id}>{employee.name}</option>
-                ))}
-            </select>
-          </Field>
-          <Field label="Échéance">
-            <input name="dueDate" type="date" defaultValue={item?.dueDate} />
-          </Field>
-          <Field label="Priorité" required>
-            <select name="priority" defaultValue={item?.priority ?? 'normal'}>
-              {Object.entries(priorityLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Description" wide>
-            <textarea name="description" rows={4} maxLength={20000} defaultValue={item?.description} />
-          </Field>
-        </div>
-        <FormActions onCancel={onClose} busy={busy} />
-      </form>
-    </Modal>
   );
 }

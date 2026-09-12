@@ -1,3 +1,4 @@
+import { installPlanningGuidedFixture } from './planning-guided-fixture';
 import { installAssistantFixture } from './assistant-fixture';
 import { installTimeFlowFixture } from './time-flow-fixture';
 import { installProjectRecoveryFixture } from './project-recovery-fixture';
@@ -196,6 +197,7 @@ if (new URLSearchParams(location.search).has('salesRecovery')) installSalesRecov
 if (new URLSearchParams(location.search).has('projectRecovery')) installProjectRecoveryFixture();
 if (new URLSearchParams(location.search).has('projectNavigation')) installProjectNavigationFixture(data);
 if (new URLSearchParams(location.search).has('timeFlow')) installTimeFlowFixture(data);
+if (new URLSearchParams(location.search).has('planningGuided')) installPlanningGuidedFixture(data);
 if (new URLSearchParams(location.search).has('workflowHelp')) {
   data.clients = [];
   data.settings!.setupDeferred = { ...data.settings!.setupDeferred, billing: true, work: false, backup: false };
