@@ -282,7 +282,7 @@ mod tests {
             ] {
                 let mut style = json!({"accentColor":color,"layout":layout,"logoWidth":150,"footer":"Merci pour votre confiance."});
                 if !font.is_empty() {
-                    style["composition"] = json!({"version":1,"fontFamily":font,"logoPosition":if font=="times"{"center"}else{"right"},"bodySize":if font=="courier"{12}else{9},"marginMm":if font=="courier"{25}else{15},"titleSize":28,"titleItalic":true,"tableStyle":"striped","intro":[{"runs":[{"text":"Une présentation "},{"text":"personnalisée","bold":true,"italic":true,"underline":true}]}],"closing":[{"bullet":true,"align":"left","runs":[{"text":"Première condition : paiement selon accord.","bold":true}]},{"align":"right","runs":[{"text":"Une seconde ligne de conditions."}]}]});
+                    style["composition"] = json!({"version":1,"fontFamily":font,"logoPosition":if font=="times"{"center"}else{"right"},"bodySize":if font=="courier"{12}else{9},"marginMm":if font=="courier"{25}else{15},"titleSize":28,"titleItalic":true,"tableStyle":"striped","intro":[{"runs":[{"text":"Une présentation "},{"text":"personnalisée","bold":true,"italic":true,"underline":true,"color":"#793c32","highlight":"#fff0a6"}]}],"closing":[{"bullet":true,"align":"left","runs":[{"text":"Première condition : paiement selon accord.","bold":true}]},{"align":"right","runs":[{"text":"Une seconde ligne de conditions."}]}]});
                 }
                 let bytes = store
                     .document_design_example(kind, style, issuer.clone())

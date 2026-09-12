@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, Undo2, Redo2 } from 'lucide-react';
-import { normalizeRichText, richPlainText, type RichRun, type RichText } from './documentComposition';
+import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, Undo2, Redo2, Highlighter, Baseline, RemoveFormatting } from 'lucide-react';
+import { normalizeRichText, richPlainText, richColor, type RichRun, type RichText } from './documentComposition';
 import { insertedTextRange, marksAtSelection, noTextMarks, richTextLimit, selectedParagraphs, setRichMarks, type TextMarks } from './richTextEditing';
 
 type Mark = 'bold' | 'italic' | 'underline';
 type Bookmark = { start: number; end: number };
+const textColors = [['#242424', 'Noir'], ['#134d33', 'Vert forêt'], ['#182b49', 'Bleu marine'], ['#793c32', 'Bordeaux'], ['#563d73', 'Prune'], ['#66523f', 'Brun']] as const;
+const highlightColors = [['#fff0a6', 'Jaune'], ['#dcebd7', 'Vert clair'], ['#dceafc', 'Bleu clair'], ['#f8dddd', 'Rose'], ['#e8def5', 'Lavande'], ['#ededed', 'Gris clair']] as const;
 export function formatRichSelection(value: RichText, selection: Bookmark, mark: Mark): RichText {
   if (selection.start === selection.end) return value;
   return setRichMarks(value, selection, { [mark]: !marksAtSelection(value, selection)[mark] });
@@ -22,7 +24,7 @@ function readEditor(root: HTMLElement, previous: RichText): RichText {
     if (node.nodeType === Node.TEXT_NODE) { append(node.textContent || '', marks); return; }
     if (!(node instanceof HTMLElement)) return;
     if (node.tagName === 'BR') { if (node.dataset.placeholder !== 'true') append('\n', marks); return; }
-    const next = { bold: marks.bold || /^(B|STRONG)$/.test(node.tagName) || node.dataset.bold === 'true', italic: marks.italic || /^(I|EM)$/.test(node.tagName) || node.dataset.italic === 'true', underline: marks.underline || node.tagName === 'U' || node.dataset.underline === 'true' };
+    const next = { bold: marks.bold || /^(B|STRONG)$/.test(node.tagName) || node.dataset.bold === 'true', italic: marks.italic || /^(I|EM)$/.test(node.tagName) || node.dataset.italic === 'true', underline: marks.underline || node.tagName === 'U' || node.dataset.underline === 'true', color: richColor(node.dataset.color) || marks.color, highlight: richColor(node.dataset.highlight) || marks.highlight };
     const isParagraph = (element: HTMLElement) => /^(DIV|P)$/.test(element.tagName) || element.classList.contains('rich-editor__paragraph');
     // Native editing can clone our block spans without the hidden separator.
     // Preserve that boundary, including an empty preceding paragraph.
@@ -60,6 +62,8 @@ function paint(root: HTMLElement, value: RichText) {
       const span = document.createElement('span'); span.textContent = run.text;
       for (const key of ['bold', 'italic', 'underline'] as const) span.dataset[key] = String(!!run[key]);
       span.style.fontWeight = run.bold ? '700' : '400'; span.style.fontStyle = run.italic ? 'italic' : 'normal'; span.style.textDecoration = run.underline ? 'underline' : 'none';
+      if (run.color) { span.dataset.color = run.color; span.style.color = run.color; }
+      if (run.highlight) { span.dataset.highlight = run.highlight; span.style.backgroundColor = run.highlight; }
       paragraph.appendChild(span);
     }); if (!paragraph.childNodes.length) { paragraph.appendChild(document.createTextNode('')); const placeholder = document.createElement('br'); placeholder.dataset.placeholder = 'true'; paragraph.appendChild(placeholder); } root.appendChild(paragraph);
   });
@@ -73,7 +77,8 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   const pendingMarks = useRef<{ position: number; marks: TextMarks } | null>(null);
   const [activeMarks, setActiveMarks] = useState<TextMarks>(noTextMarks);
   const [activeBullet, setActiveBullet] = useState(false);
-  function showMarks(marks: TextMarks) { setActiveMarks(old => old.bold === marks.bold && old.italic === marks.italic && old.underline === marks.underline ? old : marks); }
+  const [colorTool, setColorTool] = useState<'color' | 'highlight' | null>(null);
+  function showMarks(marks: TextMarks) { setActiveMarks(old => old.bold === marks.bold && old.italic === marks.italic && old.underline === marks.underline && old.color === marks.color && old.highlight === marks.highlight ? old : marks); }
   useLayoutEffect(() => {
     const el = root.current; if (!el || composing.current) return;
     const focused = document.activeElement === el;
@@ -119,13 +124,20 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   }
   function mark(key: Mark) {
     saved.current = bookmark(root.current!) || saved.current;
+    const marks = pendingMarks.current?.marks || marksAtSelection(current.current, saved.current);
+    applyMarks({ [key]: !marks[key] });
+  }
+  function applyMarks(patch: Partial<TextMarks>) {
+    if (disabled) return;
+    saved.current = bookmark(root.current!) || saved.current;
     if (saved.current.start === saved.current.end) {
       const marks = pendingMarks.current?.marks || marksAtSelection(current.current, saved.current);
-      const next = { ...marks, [key]: !marks[key] };
+      const next = { ...marks, ...patch };
       pendingMarks.current = { position: saved.current.start, marks: next }; showMarks(next); setMessage('');
       root.current?.focus(); restore(root.current!, saved.current); return;
     }
-    const next = formatRichSelection(current.current, saved.current, key);
+    pendingMarks.current = null;
+    const next = setRichMarks(current.current, saved.current, patch);
     commit(next); showMarks(marksAtSelection(next, saved.current)); root.current?.focus();
   }
   function paragraph(change: { align?: 'left' | 'center' | 'right'; bullet?: boolean }) {
@@ -143,9 +155,19 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
       {([['bold', Bold, 'Gras'], ['italic', Italic, 'Italique'], ['underline', Underline, 'Souligner']] as const).map(([key, Icon, title]) => <button key={key} type="button" title={title} aria-label={title} aria-pressed={activeMarks[key]} disabled={disabled} onClick={() => mark(key)}><Icon size={17} /></button>)}
       {([['left', AlignLeft, 'Aligner à gauche'], ['center', AlignCenter, 'Centrer'], ['right', AlignRight, 'Aligner à droite']] as const).map(([align, Icon, title]) => <button key={align} type="button" title={title} aria-label={title} disabled={disabled} onClick={() => paragraph({ align })}><Icon size={17} /></button>)}
       <button type="button" aria-label="Liste à puces" title="Liste à puces" aria-pressed={activeBullet} disabled={disabled} onClick={() => paragraph({ bullet: true })}><List size={17} /></button>
+      <button type="button" aria-label="Couleur du texte" title="Couleur du texte" aria-expanded={colorTool === 'color'} disabled={disabled} onClick={() => setColorTool(colorTool === 'color' ? null : 'color')}><Baseline size={17} style={{ color: activeMarks.color }} /></button>
+      <button type="button" aria-label="Surligner le texte" title="Surligner le texte" aria-expanded={colorTool === 'highlight'} disabled={disabled} onClick={() => setColorTool(colorTool === 'highlight' ? null : 'highlight')}><Highlighter size={17} /></button>
+      <button type="button" aria-label="Effacer la mise en forme" title="Effacer la mise en forme des mots sélectionnés" disabled={disabled} onClick={() => applyMarks({ ...noTextMarks, color: undefined, highlight: undefined })}><RemoveFormatting size={17} /></button>
       <button type="button" aria-label="Annuler la modification du texte" title="Annuler" disabled={disabled || !history.current.length} onClick={() => undo()}><Undo2 size={17} /></button>
       <button type="button" aria-label="Rétablir la modification du texte" title="Rétablir" disabled={disabled || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /></button>
     </div>
+    {colorTool && <div className="rich-editor__colors" role="group" aria-label={colorTool === 'color' ? 'Choisir la couleur du texte' : 'Choisir le surlignage'} onMouseDown={e => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
+      <span>{colorTool === 'color' ? 'Couleur des mots sélectionnés' : 'Surlignage des mots sélectionnés'}</span>
+      <div className="rich-editor__swatches">{(colorTool === 'color' ? textColors : highlightColors).map(([color, name]) => <button type="button" key={color} aria-label={name} title={name} aria-pressed={activeMarks[colorTool] === color} disabled={disabled} style={{ backgroundColor: color }} onClick={() => applyMarks({ [colorTool]: color })} />)}</div>
+      <label>Couleur personnalisée<input type="color" aria-label={colorTool === 'color' ? 'Couleur de texte personnalisée' : 'Couleur de surlignage personnalisée'} value={activeMarks[colorTool] || (colorTool === 'color' ? '#242424' : '#fff0a6')} disabled={disabled} onChange={e => applyMarks({ [colorTool]: e.target.value })} /></label>
+      <button type="button" disabled={disabled} onClick={() => applyMarks({ [colorTool]: undefined })}>{colorTool === 'color' ? 'Couleur automatique' : 'Sans surlignage'}</button>
+      <button type="button" onClick={() => { setColorTool(null); root.current?.focus(); restore(root.current!, saved.current); }}>Fermer les couleurs</button>
+    </div>}
     <div ref={root} className="rich-editor__surface" style={{ fontFamily }} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label={label} aria-multiline="true" aria-disabled={disabled} spellCheck onInput={input}
       onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; input(); }}
       onBeforeInput={event => { const type = (event.nativeEvent as InputEvent).inputType; if (['insertParagraph', 'insertLineBreak'].includes(type)) { event.preventDefault(); insert('\n'); } else if (type === 'historyUndo' || type === 'historyRedo') { event.preventDefault(); undo(type === 'historyRedo'); } }}

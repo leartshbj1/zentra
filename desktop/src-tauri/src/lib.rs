@@ -3401,7 +3401,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         for advanced in [false,true] {
         let (temp, store) = initialized_store();
         let appearance = json!({"invoices":{"accentColor":"#793c32","layout":"signature","logoWidth":150,"footer":"Présentation initiale."},"quotes":{"accentColor":"#182b49","layout":"minimal","logoWidth":88,"footer":"Devis initial."}});
-        let extra = if advanced {json!({"documentAppearance":appearance,"documentComposition":{"quotes":{"fontFamily":"times","intro":[{"runs":[{"text":"Texte figé","bold":true}]}]},"invoices":{"fontFamily":"courier"}}})}else{json!({"documentAppearance":appearance})};
+        let extra = if advanced {json!({"documentAppearance":appearance,"documentComposition":{"quotes":{"fontFamily":"times","intro":[{"runs":[{"text":"Texte figé","bold":true,"color":"#793c32","highlight":"#fff0a6"}]}]},"invoices":{"fontFamily":"courier"}}})}else{json!({"documentAppearance":appearance})};
         store.update_settings(json!({"extra_settings_json":extra})).unwrap();
         let client = value_id(&store.create_record("clients",json!({"name":"Client exemple","address_line1":"Rue du Test 1","postal_code":"1000","city":"Lausanne","country":"CH"})).unwrap());
         let mut originals = Vec::new();

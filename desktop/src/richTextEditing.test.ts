@@ -39,4 +39,23 @@ describe('rich text editing without losing content', () => {
     expect(insertedTextRange('ABC', 'AXYC')).toEqual({ start: 1, end: 3 });
     expect(insertedTextRange('ABC', 'AC')).toEqual({ start: 1, end: 1 });
   });
+  it('colors only selected words and clears their formatting without changing the rest', () => {
+    const value = normalizeRichText([{ runs: [{ text: 'Paiement sous 30 jours.', bold: true }] }, { runs: [{ text: 'Merci.', italic: true }] }]);
+    const colored = setRichMarks(value, { start: 9, end: 16 }, { color: '#793c32', highlight: '#fff0a6' });
+    expect(colored[0].runs.map(r => [r.text, r.color, r.highlight])).toEqual([
+      ['Paiement ', undefined, undefined], ['sous 30', '#793c32', '#fff0a6'], [' jours.', undefined, undefined],
+    ]);
+    expect(marksAtSelection(colored, { start: 9, end: 16 })).toMatchObject({ color: '#793c32', highlight: '#fff0a6', bold: true });
+    expect(marksAtSelection(colored, { start: 0, end: 16 }).color).toBeUndefined();
+    const cleared = setRichMarks(colored, { start: 9, end: 16 }, { bold: false, italic: false, underline: false, color: undefined, highlight: undefined });
+    expect(richPlainText(cleared)).toBe(richPlainText(value));
+    expect(cleared[0].runs[0].bold).toBe(true);
+    expect(cleared[0].runs[1]).toEqual({ text: 'sous 30', bold: false, italic: false, underline: false });
+    expect(cleared[1]).toEqual(value[1]);
+  });
+  it('normalizes color codes without merging differently colored words', () => {
+    const value = normalizeRichText([{ runs: [{ text: 'a', color: '#AABBCC' }, { text: 'b', color: '#aabbcc' }, { text: 'c', color: '#123456' }, { text: 'd', color: 'url(remote)', highlight: '#abcd' }] }]);
+    expect(value[0].runs.map(r => [r.text, r.color])).toEqual([['ab', '#aabbcc'], ['c', '#123456'], ['d', undefined]]);
+    expect(value[0].runs[2].highlight).toBeUndefined();
+  });
 });

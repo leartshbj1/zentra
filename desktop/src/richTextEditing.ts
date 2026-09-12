@@ -1,7 +1,7 @@
 import { normalizeRichText, richPlainText, type RichRun, type RichText } from './documentComposition';
 
 export type TextSelection = { start: number; end: number };
-export type TextMarks = Required<Pick<RichRun, 'bold' | 'italic' | 'underline'>>;
+export type TextMarks = Required<Pick<RichRun, 'bold' | 'italic' | 'underline'>> & Pick<RichRun, 'color' | 'highlight'>;
 export const noTextMarks: TextMarks = { bold: false, italic: false, underline: false };
 
 export function selectedParagraphs(value: RichText, selection: TextSelection): number[] {
@@ -29,7 +29,8 @@ export function marksAtSelection(value: RichText, selection: TextSelection): Tex
     }
     offset++;
   }
-  return { bold: !!runs.length && runs.every(r => r.bold), italic: !!runs.length && runs.every(r => r.italic), underline: !!runs.length && runs.every(r => r.underline) };
+  const color = runs[0]?.color, highlight = runs[0]?.highlight;
+  return { bold: !!runs.length && runs.every(r => r.bold), italic: !!runs.length && runs.every(r => r.italic), underline: !!runs.length && runs.every(r => r.underline), ...(color && runs.every(r => r.color === color) ? { color } : {}), ...(highlight && runs.every(r => r.highlight === highlight) ? { highlight } : {}) };
 }
 
 /** Apply explicit marks without toggling other formatting or removing any text. */

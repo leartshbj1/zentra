@@ -1,5 +1,5 @@
 /** Structured text only: never store HTML, executable markup or document totals here. */
-export type RichRun = { text: string; bold?: boolean; italic?: boolean; underline?: boolean };
+export type RichRun = { text: string; bold?: boolean; italic?: boolean; underline?: boolean; color?: string; highlight?: string };
 export type RichParagraph = { runs: RichRun[]; align?: 'left' | 'center' | 'right'; bullet?: boolean };
 export type RichText = RichParagraph[];
 export type DocumentComposition = {
@@ -29,15 +29,17 @@ export const defaultDocumentComposition: DocumentComposition = {
 };
 const choice = <T extends string>(value: unknown, choices: readonly T[], fallback: T): T => choices.includes(value as T) ? value as T : fallback;
 const bounded = (value: unknown, min: number, max: number, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+export const richColor = (value: unknown): string | undefined => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : undefined;
 export function normalizeRichText(value: unknown): RichText {
   if (!Array.isArray(value)) return [];
   return value.filter(p => p && typeof p === 'object' && Array.isArray(p.runs)).map(p => {
     const runs: RichRun[] = [];
     for (const raw of p.runs) {
       if (!raw || typeof raw.text !== 'string' || !raw.text) continue;
-      const run = { text: raw.text.replace(/\r\n?/g, '\n'), bold: raw.bold === true, italic: raw.italic === true, underline: raw.underline === true };
+      const color = richColor(raw.color), highlight = richColor(raw.highlight);
+      const run: RichRun = { text: raw.text.replace(/\r\n?/g, '\n'), bold: raw.bold === true, italic: raw.italic === true, underline: raw.underline === true, ...(color ? { color } : {}), ...(highlight ? { highlight } : {}) };
       const previous = runs.at(-1);
-      if (previous && previous.bold === run.bold && previous.italic === run.italic && previous.underline === run.underline) previous.text += run.text;
+      if (previous && previous.bold === run.bold && previous.italic === run.italic && previous.underline === run.underline && previous.color === run.color && previous.highlight === run.highlight) previous.text += run.text;
       else runs.push(run);
     }
     return { align: choice(p.align, ['left', 'center', 'right'] as const, 'left'), bullet: p.bullet === true, runs };

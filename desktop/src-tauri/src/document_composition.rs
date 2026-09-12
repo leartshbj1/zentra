@@ -25,6 +25,10 @@ pub(crate) struct RichRun {
     pub bold: bool,
     pub italic: bool,
     pub underline: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub highlight: Option<String>,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
@@ -90,6 +94,18 @@ impl Default for Composition {
 fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
 }
+fn text_color(value: &str) -> AppResult<[f32; 3]> {
+    if value.len() != 7
+        || !value.starts_with('#')
+        || !value.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
+    {
+        return Err(invalid(
+            "Choisissez une couleur de texte ou de surlignage dans la palette.",
+        ));
+    }
+    Ok([1, 3, 5]
+        .map(|start| u8::from_str_radix(&value[start..start + 2], 16).unwrap() as f32 / 255.))
+}
 fn encoded(value: &str) -> AppResult<Vec<u8>> {
     let value = value
         .replace('\t', "    ")
@@ -138,6 +154,9 @@ impl Composition {
                     return Err(invalid("Mise en forme du texte invalide."));
                 }
                 for run in &p.runs {
+                    for value in [&run.color, &run.highlight].into_iter().flatten() {
+                        text_color(value)?;
+                    }
                     count += run.text.chars().count();
                     if run
                         .text
@@ -180,11 +199,13 @@ pub(crate) fn plain(value: &str) -> RichText {
         })
         .collect()
 }
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct Glyph {
     byte: u8,
     font: usize,
     underline: bool,
+    color: Option<[f32; 3]>,
+    highlight: Option<[f32; 3]>,
 }
 fn measure(line: &[Glyph], size: f32) -> f32 {
     line.iter()
@@ -202,10 +223,14 @@ fn wrap(
         let mut glyphs = Vec::new();
         for run in &paragraph.runs {
             let font = style.font(run.bold, run.italic);
+            let color = run.color.as_deref().map(text_color).transpose()?;
+            let highlight = run.highlight.as_deref().map(text_color).transpose()?;
             glyphs.extend(encoded(&run.text)?.into_iter().map(|byte| Glyph {
                 byte,
                 font,
                 underline: run.underline,
+                color,
+                highlight,
             }));
         }
         let available = width - if paragraph.bullet { size * 1.5 } else { 0. };
@@ -269,10 +294,17 @@ fn draw(ops: &mut Vec<Operation>, glyphs: &[Glyph], x: f32, y: f32, size: f32, c
         while end < glyphs.len()
             && glyphs[end].font == glyphs[start].font
             && glyphs[end].underline == glyphs[start].underline
+            && glyphs[end].color == glyphs[start].color
+            && glyphs[end].highlight == glyphs[start].highlight
         {
             end += 1;
         }
         let run = &glyphs[start..end];
+        let ink = run[0].color.unwrap_or(color);
+        let width = measure(run, size);
+        if let Some(highlight) = run[0].highlight {
+            rect(ops, offset, y - size * 0.22, width, size * 1.15, highlight);
+        }
         ops.extend([
             Operation::new("BT", vec![]),
             Operation::new(
@@ -282,7 +314,7 @@ fn draw(ops: &mut Vec<Operation>, glyphs: &[Glyph], x: f32, y: f32, size: f32, c
                     size.into(),
                 ],
             ),
-            Operation::new("rg", color.into_iter().map(Object::from).collect()),
+            Operation::new("rg", ink.into_iter().map(Object::from).collect()),
             Operation::new(
                 "Tm",
                 vec![
@@ -303,7 +335,6 @@ fn draw(ops: &mut Vec<Operation>, glyphs: &[Glyph], x: f32, y: f32, size: f32, c
             ),
             Operation::new("ET", vec![]),
         ]);
-        let width = measure(run, size);
         if run[0].underline {
             rect(
                 ops,
@@ -311,7 +342,7 @@ fn draw(ops: &mut Vec<Operation>, glyphs: &[Glyph], x: f32, y: f32, size: f32, c
                 y - size * 0.15,
                 width,
                 (size * 0.055).max(0.4),
-                color,
+                ink,
             );
         }
         offset += width;
@@ -461,6 +492,7 @@ impl<'a> Composer<'a> {
                 bold: self.design.title_bold,
                 italic: self.design.title_italic,
                 underline: false,
+                ..Default::default()
             }],
             align: self.design.title_align.clone(),
             bullet: false,
@@ -498,6 +530,7 @@ impl<'a> Composer<'a> {
                     byte: 149,
                     font: self.design.font(false, false),
                     underline: false,
+                    ..Default::default()
                 };
                 let left = self.left();
                 draw(self.ops(), &[glyph], left, y, size, color);
@@ -707,6 +740,7 @@ impl<'a> Composer<'a> {
                             byte: 149,
                             font: self.design.font(false, false),
                             underline: false,
+                            ..Default::default()
                         }],
                         left,
                         y,
@@ -767,6 +801,67 @@ mod tests {
     use super::*;
     use serde_json::json;
     #[test]
+    fn selected_text_colors_and_highlights_survive_pdf_export_without_changing_values() {
+        let design: Composition = serde_json::from_value(json!({"closing":[{"runs":[
+            {"text":"Conditions de paiement : ","bold":true},
+            {"text":"sous 30 jours","color":"#793c32","highlight":"#fff0a6","underline":true},
+            {"text":". Merci de votre confiance."}
+        ]}]}))
+        .unwrap();
+        let mut style = DocumentStyle::default();
+        style.composition = Some(design.clone());
+        let mut writer =
+            Composer::new(&style, None, "Atelier du Léman", "Facture de contrôle").unwrap();
+        writer.heading("Facture de contrôle").unwrap();
+        writer.total("TOTAL TTC", "CHF 1'245.90", true).unwrap();
+        writer.rich(&design.closing).unwrap();
+        let (bytes, _) = writer.finish("Contrôle des couleurs").unwrap();
+        let pdf = Document::load_mem(&bytes).unwrap();
+        assert!(pdf.extract_text(&[1]).unwrap().contains("1'245.90"));
+        let content = Content::decode(
+            &pdf.get_page_content(*pdf.get_pages().values().next().unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+        let mut ink = INK;
+        let mut selected_ink = None;
+        let mut following_ink = None;
+        let mut highlight_rectangle = false;
+        for op in content.operations {
+            if op.operator == "rg" {
+                ink = std::array::from_fn(|i| op.operands[i].as_float().unwrap());
+            }
+            if op.operator == "re" && ink == text_color("#fff0a6").unwrap() {
+                highlight_rectangle = true;
+            }
+            if op.operator == "Tj" {
+                let text = op.operands[0].as_str().unwrap();
+                if text == b"sous 30 jours" {
+                    selected_ink = Some(ink);
+                }
+                if text == b". Merci de votre confiance." {
+                    following_ink = Some(ink);
+                }
+            }
+        }
+        assert_eq!(selected_ink, Some(text_color("#793c32").unwrap()));
+        assert_eq!(following_ink, Some(INK));
+        assert!(highlight_rectangle);
+        let restored: Composition =
+            serde_json::from_value(serde_json::to_value(&design).unwrap()).unwrap();
+        assert_eq!(
+            restored.closing[0].runs[1].highlight.as_deref(),
+            Some("#fff0a6")
+        );
+        if let Some(directory) = std::env::var_os("ZENTRA_DESIGN_SAMPLES") {
+            std::fs::write(
+                Path::new(&directory).join("selected-text-colors.pdf"),
+                bytes,
+            )
+            .unwrap();
+        }
+    }
+    #[test]
     fn document_composition_bullets_keep_their_hanging_indent_and_print_in_the_footer() {
         let design: Composition = serde_json::from_value(json!({"closing":[{"bullet":true,"runs":[{"text":"Une condition détaillée. ".repeat(20)}]}],"footerText":[{"bullet":true,"runs":[{"text":"Un pied de page en liste."}]}]})).unwrap();
         let lines = wrap(&design, &design.closing, 160., 10.).unwrap();
@@ -826,6 +921,8 @@ mod tests {
             json!({"fontFamily":"url(remote)"}),
             json!({"footerText":[{"runs":[{"text":"a".repeat(181)}]}]}),
             json!({"closing":[{"runs":[{"text":"😀"}]}]}),
+            json!({"closing":[{"runs":[{"text":"texte","color":"url(remote)"}]}]}),
+            json!({"closing":[{"runs":[{"text":"texte","highlight":"#ééé"}]}]}),
         ] {
             let style: Composition = serde_json::from_value(value).unwrap();
             assert!(style.validate().is_err());
@@ -863,6 +960,7 @@ mod tests {
                     bold: true,
                     italic: true,
                     underline: true,
+                    ..Default::default()
                 }],
                 align: "center".into(),
                 bullet: false,

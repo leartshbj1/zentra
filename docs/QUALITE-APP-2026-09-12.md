@@ -2,6 +2,16 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : couleur et surlignage dans l’atelier de documents
+
+Dans Paramètres → Présentation des documents, les zones d’introduction, de conditions/commentaires et de pied de page proposent maintenant une couleur de texte et un surlignage, avec palettes et couleur personnalisée. Les outils agissent sur les mots sélectionnés ou sur la prochaine saisie. « Effacer la mise en forme » retire les styles des mots sélectionnés ; l’annulation les restitue. Ces outils complètent les polices, tailles, marges, interlignes, positions du logo, tableaux et modèles déjà disponibles pour devis, factures, bilans et fiches de salaire.
+
+Les couleurs sont des valeurs structurées validées, conservées à l’enregistrement et dans les instantanés des documents émis. Le moteur PDF imprime le fond de surlignage avant les caractères, puis rétablit la couleur pour le texte suivant. Le contenu et les valeurs comptables restent issus du moteur existant. Aucun nouveau module externe n’est ajouté.
+
+Validation source : TypeScript, compilation Vite, 12 tests ciblés et 9 contrôles natifs réussis. Les exemples natifs couvrent les quatre familles de documents et les trois polices ; les PDF émis restent identiques après modification des paramètres, et les opérations du QR suisse sont conservées. 18 parcours Edge/WebKit à 320/390/1440 px couvrent sélection, saisie avec style, suppression des styles, annulation, sauvegarde/rechargement, copie vers le bilan, export, listes et reprises d’erreur. Le PDF de contrôle des couleurs et les captures mobiles/ordinateur ont été inspectés.
+
+L’intégration au dossier principal passe TypeScript, Vite, les 12 tests ciblés, le contrôle Rust et trois parcours Edge supplémentaires. Sauvegarde préalable dans `.qa/document-text-colors-20260912-before/`. Les essais navigateur utilisent un environnement de recette et les PDF natifs de référence. Ce lot ne comprend pas l’import de fichiers Word, de polices externes, ni le déplacement libre des champs comptables. Aucun nouvel installateur ni IPA publié.
+
 ## Lot : terminer la facturation depuis le dossier du devis
 
 Le dossier propose l’émission de l’acompte, puis celle du solde, après renseignement de leurs dates. Chaque facture émise montre les paiements reçus, les avoirs appliqués et ce qui reste à recevoir. Le paiement s’ouvre depuis cette facture et revient au dossier après enregistrement ou annulation ; une relecture interrompue reprend au même endroit sans répéter le paiement. Les refus d’émission restent visibles dans le dossier. Pendant une action, les autres actions et la fermeture sont bloquées ; la lecture seule conserve la consultation.
