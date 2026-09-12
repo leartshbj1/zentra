@@ -112,6 +112,7 @@ import {
 import { assessPayrollPaymentDate } from './payrollPaymentDate';
 
 import { DocumentPreviewFrame } from './DocumentPreviewFrame';
+const StyledDocumentPreview = deferView(() => import('./StyledDocumentPreview'), { label: 'Ouverture du document', close: props => props.onClose });
 
 import { parseSmallSalaryEmployeeForm, SmallSalaryFormError } from './smallSalaryAssessment';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
@@ -8415,6 +8416,7 @@ function settingsForSnapshot(
   return {
     ...current,
     documentAppearance: documentAppearance(issuer.documentAppearance),
+    documentComposition: issuer.documentComposition,
     organization: {
       ...current.organization,
       legalName: issuer.companyName,
@@ -8934,6 +8936,11 @@ function PrintSheet({
   workspace: Workspace;
   onClose: () => void;
 }) {
+  if (target.entity === 'quotes' || target.entity === 'invoices' || target.entity === 'payslips') {
+    const issuer = target.value.snapshot?.issuer;
+    const composition = issuer ? issuer.documentComposition : workspace.settings?.documentComposition;
+    if (composition?.[target.entity]) return <StyledDocumentPreview kind={target.entity} id={target.value.id} title={target.entity === 'payslips' ? `Fiche de salaire ${target.value.period}` : `${target.entity === 'quotes' ? 'Devis' : target.value.type === 'credit_note' ? 'Avoir' : target.value.type === 'deposit' ? 'Facture d’acompte' : 'Facture'} ${target.value.number || 'brouillon'}`} onClose={onClose} />;
+  }
   if (target.entity === 'delivery_notes')
     return (
       <DeliveryNotePrintPreview

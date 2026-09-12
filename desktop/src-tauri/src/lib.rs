@@ -17,6 +17,7 @@ mod cloud_backup;
 mod bank_import;
 mod branding;
 mod document_design;
+mod document_composition;
 mod catalog_import;
 mod commands;
 mod customer_credit_validation;
@@ -233,6 +234,7 @@ pub fn run() {
             stage_company_logo,
             company_logo_preview,
             document_design_example,
+            document_pdf_preview,
             export_document_design_example,
             save_document_with_items,
             issue_quote,
@@ -3366,9 +3368,11 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
 
     #[test]
     fn document_design_settings_are_validated_and_issued_sales_keep_their_original_pdf() {
+        for advanced in [false,true] {
         let (temp, store) = initialized_store();
         let appearance = json!({"invoices":{"accentColor":"#793c32","layout":"signature","logoWidth":150,"footer":"Présentation initiale."},"quotes":{"accentColor":"#182b49","layout":"minimal","logoWidth":88,"footer":"Devis initial."}});
-        store.update_settings(json!({"extra_settings_json":{"documentAppearance":appearance}})).unwrap();
+        let extra = if advanced {json!({"documentAppearance":appearance,"documentComposition":{"quotes":{"fontFamily":"times","intro":[{"runs":[{"text":"Texte figé","bold":true}]}]},"invoices":{"fontFamily":"courier"}}})}else{json!({"documentAppearance":appearance})};
+        store.update_settings(json!({"extra_settings_json":extra})).unwrap();
         let client = value_id(&store.create_record("clients",json!({"name":"Client exemple","address_line1":"Rue du Test 1","postal_code":"1000","city":"Lausanne","country":"CH"})).unwrap());
         let mut originals = Vec::new();
         for entity in ["quotes","invoices"] {
@@ -3379,6 +3383,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             else { store.issue_invoice(&id,Some("2026-03-01".into()),Some("2026-03-31".into())).unwrap(); }
             let path = temp.path().join(format!("{entity}.pdf"));
             store.generate_sales_document_pdf(GenerateSalesDocumentPdfInput { entity: entity.into(), document_id:id.clone(),destination_path:path.to_string_lossy().into_owned() }).unwrap();
+            assert_eq!(store.document_pdf_preview(entity,&id).unwrap(),fs::read(&path).unwrap());
             originals.push((entity,id,path.clone(),fs::read(path).unwrap()));
         }
         assert!(store.update_settings(json!({"extra_settings_json":{"documentAppearance":{"invoices":{"accentColor":"invalid"}}}})).is_err());
@@ -3386,6 +3391,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         for (entity,id,path,original) in originals {
             store.generate_sales_document_pdf(GenerateSalesDocumentPdfInput { entity: entity.into(), document_id:id,destination_path:path.to_string_lossy().into_owned() }).unwrap();
             assert_eq!(fs::read(&path).unwrap(),original,"{entity}: settings changes must not change the issued PDF");
+        }
         }
     }
 

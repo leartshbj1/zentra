@@ -13,6 +13,8 @@ pub(crate) struct DocumentStyle {
     pub layout: String,
     pub logo_width: u32,
     pub footer: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub composition: Option<crate::document_composition::Composition>,
 }
 impl Default for DocumentStyle {
     fn default() -> Self {
@@ -21,11 +23,13 @@ impl Default for DocumentStyle {
             layout: "signature".into(),
             logo_width: 88,
             footer: String::new(),
+            composition: None,
         }
     }
 }
 impl DocumentStyle {
     pub fn validate(&self) -> AppResult<()> {
+        if let Some(composition) = &self.composition { composition.validate()?; }
         if self.accent_color.len() != 7
             || !self.accent_color.starts_with('#')
             || !self.accent_color[1..]
@@ -85,16 +89,26 @@ impl DocumentStyle {
         let extra: Value =
             serde_json::from_str(issuer["extra_settings_json"].as_str().unwrap_or("{}"))?;
         let style = extra.pointer(&format!("/documentAppearance/{kind}"));
-        let result: Self = match style {
+        let mut result: Self = match style {
             Some(v) if !v.is_null() => serde_json::from_value(v.clone())?,
             _ => Self::default(),
         };
+        if let Some(value) = extra.pointer(&format!("/documentComposition/{kind}")) {
+            result.composition = Some(serde_json::from_value(value.clone())?);
+        }
         result.validate()?;
         Ok(result)
     }
 }
 
 pub(crate) fn validate_appearance(extra: &Value) -> AppResult<()> {
+    if let Some(value) = extra.get("documentComposition") {
+        let styles = value.as_object().ok_or_else(|| AppError::Validation("Présentation des documents invalide.".into()))?;
+        for (kind, value) in styles {
+            if !["quotes", "invoices", "accounts", "payslips"].contains(&kind.as_str()) { return Err(AppError::Validation("Type de document inconnu.".into())); }
+            serde_json::from_value::<crate::document_composition::Composition>(value.clone())?.validate()?;
+        }
+    }
     if let Some(appearance) = extra.get("documentAppearance") {
         let styles = appearance
             .as_object()
@@ -110,6 +124,19 @@ pub(crate) fn validate_appearance(extra: &Value) -> AppResult<()> {
 }
 
 impl LocalStore {
+    /// The preview uses the same snapshot, validation and renderer as the exported file.
+    /// Temporary PDF files are removed with the directory, including on errors.
+    pub fn document_pdf_preview(&self, kind: &str, id: &str) -> AppResult<Vec<u8>> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("preview.pdf");
+        let destination_path = path.to_string_lossy().into_owned();
+        match kind {
+            "quotes" | "invoices" => { self.generate_sales_document_pdf(crate::models::GenerateSalesDocumentPdfInput { entity:kind.into(), document_id:id.into(), destination_path })?; },
+            "payslips" => { self.generate_payslip_pdf(crate::models::GeneratePayslipPdfInput { payslip_id:id.into(), destination_path })?; },
+            _ => return Err(AppError::Validation("Type de document inconnu.".into())),
+        }
+        Ok(std::fs::read(path)?)
+    }
     /// Exemples sans écriture comptable, sans numérotation et sans modification des réglages.
     pub fn document_design_example(
         &self,
@@ -189,8 +216,9 @@ mod tests {
         );
         let issuer = json!({"company_name":"Atelier du Léman Sàrl","legal_form":"Sàrl","address_line1":"Rue du Lac 12","postal_code":"1000","city":"Lausanne","country":"CH","vat_registered":true,"uid_number":"CHE-123.456.789","vat_number":"CHE-123.456.789 TVA","logo_path":logo});
         for kind in ["quotes", "invoices", "accounts", "payslips"] {
-            for (layout, color) in [("signature", "#182b49"), ("minimal", "#d7b878")] {
-                let style = json!({"accentColor":color,"layout":layout,"logoWidth":150,"footer":"Merci pour votre confiance."});
+            for (layout, color, font) in [("signature", "#182b49", ""), ("minimal", "#d7b878", ""), ("signature", "#182b49", "helvetica"), ("minimal", "#d7b878", "times"), ("minimal", "#182b49", "courier")] {
+                let mut style = json!({"accentColor":color,"layout":layout,"logoWidth":150,"footer":"Merci pour votre confiance."});
+                if !font.is_empty() { style["composition"] = json!({"version":1,"fontFamily":font,"logoPosition":if font=="times"{"center"}else{"right"},"bodySize":if font=="courier"{12}else{9},"marginMm":if font=="courier"{25}else{15},"titleSize":28,"titleItalic":true,"tableStyle":"striped","intro":[{"runs":[{"text":"Une présentation "},{"text":"personnalisée","bold":true,"italic":true,"underline":true}]}],"closing":[{"bullet":true,"align":"left","runs":[{"text":"Première condition : paiement selon accord.","bold":true}]},{"align":"right","runs":[{"text":"Une seconde ligne de conditions."}]}]}); }
                 let bytes = store
                     .document_design_example(kind, style, issuer.clone())
                     .unwrap();
@@ -220,7 +248,7 @@ mod tests {
                 if let Some(directory) = std::env::var_os("ZENTRA_DESIGN_SAMPLES") {
                     std::fs::create_dir_all(&directory).unwrap();
                     std::fs::write(
-                        std::path::Path::new(&directory).join(format!("{kind}-{layout}.pdf")),
+                        std::path::Path::new(&directory).join(if font.is_empty(){format!("{kind}-{layout}.pdf")}else{format!("{kind}-{font}.pdf")}),
                         bytes,
                     )
                     .unwrap();

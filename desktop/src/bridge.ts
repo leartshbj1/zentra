@@ -1,3 +1,4 @@
+import { documentCompositions } from './documentComposition';
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
 import type { CertificateDraft, CertificateInput } from './salaryCertificate';
 import { Channel, invoke } from '@tauri-apps/api/core';
@@ -1259,6 +1260,7 @@ function settingsFromRaw(
       logoPath: rebaseStoredBrandingPath(row.logo_path, dataDir) || undefined,
     },
     documentAppearance: documentAppearance(extra.documentAppearance),
+    documentComposition: documentCompositions(extra.documentComposition),
     business: {
       nogaSection: (/^[A-V]$/.test(stringValue(row.noga_section))
         ? stringValue(row.noga_section)
@@ -2008,6 +2010,7 @@ function frozenIssuerFromRaw(row: RawRecord, dataDir = ''): FrozenIssuer {
     currency: stringValue(row.currency) || 'CHF',
     logoPath: rebaseStoredBrandingPath(row.logo_path, dataDir),
     documentAppearance: documentAppearance(extra.documentAppearance),
+    documentComposition: documentCompositions(extra.documentComposition),
   };
 }
 
@@ -3121,6 +3124,7 @@ async function loadWorkspace(): Promise<Workspace> {
 function backendExtra(settings: AppSettings): string {
   return JSON.stringify({
     documentAppearance: documentAppearance(settings.documentAppearance),
+    documentComposition: documentCompositions(settings.documentComposition),
     organization: {
       website: settings.organization.website,
       address: {
@@ -4863,10 +4867,11 @@ export const desktopApi = {
     const org = settings.organization;
     return { company_name: org.legalName || 'Votre entreprise', legal_form: org.legalForm, address_line1: [org.address.street, org.address.buildingNumber].filter(Boolean).join(' '), postal_code: org.address.postalCode, city: org.address.city, country: org.address.country, uid_number: org.uidNumber, vat_number: org.vatNumber, vat_registered: org.vatRegistered, logo_path: org.logoPath || '' };
   },
-  async documentDesignExample(input: { kind: DocumentDesignKind; style: DocumentStyle; issuer: RawRecord }) {
+  documentPdfPreview(kind: 'quotes' | 'invoices' | 'payslips', id: string) { return invoke<number[]>('document_pdf_preview', { kind, id }); },
+  async documentDesignExample(input: { kind: DocumentDesignKind; style: DocumentStyle & { composition?: import('./documentComposition').DocumentComposition }; issuer: RawRecord }) {
     return invoke<number[]>('document_design_example', input);
   },
-  async exportDocumentDesignExample(input: { kind: DocumentDesignKind; style: DocumentStyle; issuer: RawRecord }) {
+  async exportDocumentDesignExample(input: { kind: DocumentDesignKind; style: DocumentStyle & { composition?: import('./documentComposition').DocumentComposition }; issuer: RawRecord }) {
     const selected = await chooseSaveFile({ title: 'Exporter un exemple de présentation', defaultPath: `Zentra-exemple-${input.kind}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
     if (!selected) return null;
     const path = await invoke<string>('export_document_design_example', { ...input, destination: pdfDestinationPath(selected) });

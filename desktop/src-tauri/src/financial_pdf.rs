@@ -307,6 +307,7 @@ pub(crate) fn render_accounts_pdf(
     captured_at: &str,
 ) -> AppResult<(Vec<u8>, usize)> {
     let style = DocumentStyle::from_issuer(issuer, "accounts")?;
+    if style.composition.is_some() { return render_composed_accounts(issuer, balance, income, closed, captured_at, &style); }
     let logo = load_pdf_logo(string(issuer, "logo_path"));
     if !string(issuer, "logo_path").is_empty() && logo.is_none() { return Err(AppError::Validation("Le logo du bilan est introuvable. Réimportez-le dans les paramètres.".into())); }
     let mut sheet = PageWriter::new(issuer, balance, "Bilan", closed)?;
@@ -429,6 +430,199 @@ pub(crate) fn render_accounts_pdf(
     Ok((bytes, count))
 }
 
+fn render_composed_accounts(
+    issuer: &Value,
+    balance: &Value,
+    income: &Value,
+    closed: bool,
+    captured_at: &str,
+    style: &DocumentStyle,
+) -> AppResult<(Vec<u8>, usize)> {
+    use crate::document_composition::Composer;
+    let logo = load_pdf_logo(string(issuer, "logo_path"));
+    if !string(issuer, "logo_path").is_empty() && logo.is_none() {
+        return Err(AppError::Validation(
+            "Le logo du bilan est introuvable. Réimportez-le dans les paramètres.".into(),
+        ));
+    }
+    let design = style.composition.as_ref().unwrap();
+    let mut page = Composer::new(
+        style,
+        logo.as_ref(),
+        string(issuer, "company_name"),
+        "Bilan et compte de résultat",
+    )?;
+    page.paragraph(
+        &format!(
+            "{} · {} {}",
+            string(issuer, "address_line1"),
+            string(issuer, "postal_code"),
+            string(issuer, "city")
+        ),
+        design.body_size,
+        false,
+    )?;
+    page.rich(&design.intro)?;
+    let sets: [(&Value, &str, Vec<(&str, &str)>); 2] = [
+        (
+            balance,
+            "Bilan",
+            vec![
+                ("current_assets", "Actifs circulants"),
+                ("fixed_assets", "Actifs immobilisés"),
+                ("short_term_liabilities", "Dettes à court terme"),
+                ("long_term_liabilities", "Dettes à long terme"),
+                ("equity", "Fonds propres"),
+            ],
+        ),
+        (
+            income,
+            "Compte de résultat",
+            vec![
+                ("net_revenue", "Chiffre d’affaires net"),
+                ("cost_of_goods", "Achats et coût des marchandises"),
+                ("personnel_expense", "Charges de personnel"),
+                ("other_operating_expense", "Autres charges d’exploitation"),
+                ("depreciation", "Amortissements"),
+                ("financial_result", "Résultat financier"),
+                ("non_operating_result", "Résultat hors exploitation"),
+                ("exceptional_result", "Résultat exceptionnel"),
+                ("taxes", "Impôts directs"),
+            ],
+        ),
+    ];
+    for (index, (report, title, sections)) in sets.into_iter().enumerate() {
+        if index > 0 {
+            page.page(true)?;
+        }
+        page.heading(title)?;
+        page.paragraph(
+            &format!(
+                "Du {} au {} · {} · {}",
+                string(&report["scope"], "date_from"),
+                string(&report["scope"], "date_to"),
+                string(&report["currency"], "base_currency"),
+                if closed {
+                    "Exercice clôturé"
+                } else {
+                    "Provisoire"
+                }
+            ),
+            design.body_size,
+            false,
+        )?;
+        page.gap(12.);
+        let mut rows = vec![];
+        for (key, label) in sections {
+            let entries = report["rows"]
+                .as_array()
+                .map(|r| {
+                    r.iter()
+                        .filter(|r| string(r, "report_section") == key)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if index > 0 && entries.is_empty() {
+                continue;
+            }
+            rows.push((vec![label.into(), String::new(), String::new()], true));
+            for row in entries {
+                rows.push((
+                    vec![
+                        format!("{}   {}", string(row, "code"), string(row, "name")),
+                        money(amount(row, "amount_cents")),
+                        money(amount(row, "previous_amount_cents")),
+                    ],
+                    false,
+                ));
+            }
+            rows.push((
+                vec![
+                    format!("Total {label}"),
+                    money(amount(&report["sections"], key)),
+                    money(amount(&report["previous_sections"], key)),
+                ],
+                true,
+            ));
+        }
+        let totals = if index == 0 {
+            vec![
+                ("TOTAL ACTIFS", "assets_cents"),
+                (
+                    "Résultats antérieurs non affectés",
+                    "unallocated_prior_results_cents",
+                ),
+                ("Résultat de l’exercice", "current_result_cents"),
+            ]
+        } else {
+            vec![
+                ("Total des produits", "revenue_cents"),
+                ("Total des charges", "expense_cents"),
+                ("BÉNÉFICE / PERTE DE L’EXERCICE", "profit_cents"),
+            ]
+        };
+        for (label, key) in totals {
+            rows.push((
+                vec![
+                    label.into(),
+                    money(amount(report, key)),
+                    money(amount(report, &format!("previous_{key}"))),
+                ],
+                true,
+            ));
+        }
+        if index == 0 {
+            let sum = |prefix: &str| -> AppResult<i64> {
+                [
+                    "liabilities_cents",
+                    "equity_cents",
+                    "unallocated_prior_results_cents",
+                    "current_result_cents",
+                ]
+                .iter()
+                .try_fold(0_i64, |sum, key| {
+                    sum.checked_add(amount(report, &format!("{prefix}{key}")))
+                        .ok_or_else(|| {
+                            AppError::Validation("Total du passif hors capacité monétaire.".into())
+                        })
+                })
+            };
+            rows.push((
+                vec![
+                    "TOTAL PASSIFS".into(),
+                    money(sum("")?),
+                    money(sum("previous_")?),
+                ],
+                true,
+            ));
+        }
+        page.table(
+            &[
+                "Comptes / libellés",
+                string(&report["scope"], "date_to"),
+                string(&report["scope"], "previous_date_to"),
+            ],
+            &[0.56, 0.22, 0.22],
+            &rows,
+        )?;
+        if index == 0 {
+            page.paragraph(
+                if balance["balanced"] == true {
+                    "Contrôle : actifs = passifs"
+                } else {
+                    "Bilan non équilibré - écritures à contrôler"
+                },
+                design.body_size,
+                true,
+            )?;
+        }
+    }
+    page.rich(&design.closing)?;
+    page.gap(10.);
+    page.paragraph("Bilan et résultat issus du journal local. Annexe et approbation à joindre selon vos obligations.",8.,false)?;
+    page.paragraph(&format!("Édité le {captured_at}"), 8., false)?;
+    page.finish("Bilan et résultat issus du journal local")
+}
 
     fn row(code: &str, name: &str, section: &str, current: i64, previous: i64) -> Value {
         json!({"code":code,"name":name,"report_section":section,"amount_cents":current*100,"previous_amount_cents":previous*100})

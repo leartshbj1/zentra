@@ -477,6 +477,7 @@ fn render_payslip_pdf(
     data: &PayslipPdfData,
     branding_dir: Option<&Path>,
 ) -> AppResult<usize> {
+    if data.style.composition.is_some() { return render_composed_payslip(path, data, branding_dir); }
     let mut ordered_lines = Vec::with_capacity(data.lines.len());
     for kind in ["earning", "reimbursement", "deduction", "employer"] {
         ordered_lines.extend(data.lines.iter().filter(|line| line.kind == kind).cloned());
@@ -565,6 +566,130 @@ fn render_payslip_pdf(
         return Err(error);
     }
     Ok(total_pages)
+}
+
+fn render_composed_payslip(
+    path: &Path,
+    data: &PayslipPdfData,
+    branding_dir: Option<&Path>,
+) -> AppResult<usize> {
+    use crate::document_composition::{write_pdf, Composer};
+    let logo = load_document_logo(&data.logo_path, branding_dir);
+    if !data.logo_path.is_empty() && logo.is_none() {
+        return Err(AppError::Validation(
+            "Le logo de la fiche de salaire est introuvable. Réimportez-le dans les paramètres."
+                .into(),
+        ));
+    }
+    let design = data.style.composition.as_ref().unwrap();
+    let title = format!("Fiche de salaire · {}", format_period(&data.period));
+    let mut page = Composer::new(&data.style, logo.as_ref(), &data.company_name, &title)?;
+    for line in &data.company_address {
+        page.paragraph(line, design.body_size, false)?;
+    }
+    if !data.uid_number.is_empty() {
+        page.paragraph(&format!("IDE {}", data.uid_number), design.body_size, false)?;
+    }
+    page.heading(&title)?;
+    page.paragraph(
+        payslip_status_label(&data.status, data.final_document),
+        8.,
+        true,
+    )?;
+    page.gap(12.);
+    page.paragraph(&data.employee_name, design.body_size + 2., true)?;
+    for line in &data.employee_address {
+        page.paragraph(line, design.body_size, false)?;
+    }
+    for (label, value) in [
+        ("N° employé", data.employee_number.clone()),
+        ("Fonction", data.employee_role.clone()),
+        ("Taux", format!("{} %", data.employment_rate)),
+        ("N° AVS", data.avs_number.clone()),
+        ("Paiement", format_date(&data.payment_date)),
+        ("IBAN", data.employee_iban.clone()),
+    ] {
+        if !value.is_empty() {
+            page.paragraph(&format!("{label} : {value}"), design.body_size, false)?;
+        }
+    }
+    page.gap(12.);
+    page.rich(&design.intro)?;
+    for kind in ["earning", "reimbursement", "deduction", "employer"] {
+        let rows = data
+            .lines
+            .iter()
+            .filter(|l| l.kind == kind)
+            .map(|l| {
+                (
+                    vec![
+                        l.label.clone(),
+                        l.detail.clone(),
+                        format_amount(l.amount_cents),
+                    ],
+                    false,
+                )
+            })
+            .collect::<Vec<_>>();
+        if !rows.is_empty() {
+            page.ensure(65.)?;
+            page.paragraph(category_style(kind).0, design.body_size, true)?;
+            page.gap(6.);
+            page.table(
+                &["Élément", "Base / calcul", "Montant CHF"],
+                &[0.40, 0.40, 0.20],
+                &rows,
+            )?;
+        }
+    }
+    let notes = |page: &mut Composer<'_>| -> AppResult<()> {
+        if !data.notes.is_empty() {
+            page.gap(10.);
+            page.paragraph(&data.notes, design.body_size, false)?;
+        }
+        page.rich(&design.closing)?;
+        page.gap(10.);
+        Ok(())
+    };
+    if design.totals_position == "afterNotes" {
+        notes(&mut page)?;
+    }
+    page.ensure(5. * (design.body_size * design.line_spacing + design.table_padding))?;
+    for (label, value) in [
+        ("Gains bruts", data.gross_cents),
+        ("Remboursements de frais", data.reimbursements_cents),
+        ("Retenues employé (-)", data.deductions_cents),
+        ("Employeur (hors net)", data.employer_costs_cents),
+    ] {
+        page.total(label, &format_money(value), false)?;
+    }
+    page.total("NET À PAYER", &format_money(data.net_cents), true)?;
+    if design.totals_position == "beforeNotes" {
+        notes(&mut page)?;
+    }
+    page.paragraph("Gains + frais - retenues = net à payer. Les cotisations employeur sont informatives et exclues du net.",8.,false)?;
+    let proof = if data.final_document {
+        format!(
+            "Valeurs comptabilisées et figées localement · {}",
+            data.captured_at
+        )
+    } else {
+        "Aperçu local - à contrôler avant comptabilisation".into()
+    };
+    page.paragraph(&proof, 8., false)?;
+    if !data.source_import_evidence_sha256.is_empty() {
+        page.paragraph(
+            &format!(
+                "Import contrôlé le {} · preuve {}",
+                data.source_import_attested_at, data.source_import_evidence_sha256
+            ),
+            8.,
+            false,
+        )?;
+    }
+    let (bytes, count) = page.finish(&proof)?;
+    write_pdf(path, &bytes)?;
+    Ok(count)
 }
 
 /// Charge un logo de document sans jamais contourner le condensat porté par

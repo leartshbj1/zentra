@@ -960,6 +960,7 @@ fn render_sales_pdf(
     branding_dir: Option<&Path>,
 ) -> AppResult<usize> {
     validate_visible_texts(data)?;
+    if data.style.composition.is_some() { return render_composed_sales(path, data, branding_dir); }
     validate_layout_capacity(data)?;
     let all_notes = notes_lines(data);
     let dedicated_notes = all_notes.len() > 6;
@@ -1071,6 +1072,231 @@ fn render_sales_pdf(
         return Err(error);
     }
     Ok(total_pages)
+}
+
+fn render_composed_sales(
+    path: &Path,
+    data: &SalesPdfData,
+    branding_dir: Option<&Path>,
+) -> AppResult<usize> {
+    use crate::document_composition::{write_pdf, Composer};
+    // Reuse validated values and the original QR renderer, including its fixed geometry.
+    validate_qr_visible_layout(data)?;
+    let logo = load_document_logo(&data.issuer.logo_path, branding_dir);
+    if !data.issuer.logo_path.is_empty() && logo.is_none() {
+        return Err(AppError::Validation(
+            "Le logo du document est introuvable. Réimportez-le dans les paramètres.".into(),
+        ));
+    }
+    let design = data.style.composition.as_ref().unwrap();
+    let title = format!("{} {}", document_label(data), fallback(&data.number));
+    let mut page = Composer::new(
+        &data.style,
+        logo.as_ref(),
+        &data.issuer.company_name,
+        &title,
+    )?;
+    for line in [&data.issuer.legal_form]
+        .into_iter()
+        .chain(data.issuer.address.iter())
+    {
+        if !line.is_empty() {
+            page.paragraph(line, design.body_size, false)?;
+        }
+    }
+    if !data.issuer.uid_number.is_empty() {
+        page.paragraph(
+            &format!("IDE {}", data.issuer.uid_number),
+            design.body_size,
+            false,
+        )?;
+    }
+    if data.issuer.vat_registered && !data.issuer.vat_number.is_empty() {
+        page.paragraph(
+            &format!("TVA {}", data.issuer.vat_number),
+            design.body_size,
+            false,
+        )?;
+    }
+    page.heading(&title)?;
+    page.paragraph(
+        if data.final_document {
+            "DOCUMENT FIGÉ"
+        } else {
+            "BROUILLON - NON ÉMIS"
+        },
+        8.,
+        true,
+    )?;
+    if let Some(percent) = data.deposit_percentage_bp {
+        page.paragraph(
+            &format!("Acompte {}", format_basis_points_percentage(percent)),
+            design.body_size,
+            true,
+        )?;
+    }
+    page.paragraph(
+        &format!(
+            "Émis le {} · {} : {}",
+            format_date(&data.issue_date),
+            if data.kind == SalesDocumentKind::Quote {
+                "Valable jusqu’au"
+            } else if is_credit_note(&data.document_type) {
+                "Facture corrigée"
+            } else {
+                "Échéance"
+            },
+            if is_credit_note(&data.document_type) {
+                fallback(&data.original_invoice_number)
+            } else {
+                format_date(&data.deadline_date)
+            }
+        ),
+        design.body_size,
+        false,
+    )?;
+    if data.kind == SalesDocumentKind::Invoice && !is_credit_note(&data.document_type) {
+        page.paragraph(
+            &format!(
+                "Prestations du {} au {}",
+                format_date(&data.service_date_from),
+                format_date(&data.service_date_to)
+            ),
+            design.body_size,
+            false,
+        )?;
+    }
+    page.gap(14.);
+    page.paragraph("DESTINATAIRE", 8., true)?;
+    page.paragraph(&data.customer.name, design.body_size + 1., true)?;
+    for line in &data.customer.address {
+        page.paragraph(line, design.body_size, false)?;
+    }
+    if !data.customer.email.is_empty() {
+        page.paragraph(&data.customer.email, design.body_size, false)?;
+    }
+    page.gap(14.);
+    if !data.title.is_empty() {
+        page.paragraph(&data.title, design.body_size + 2., true)?;
+        page.gap(8.);
+    }
+    page.rich(&design.intro)?;
+    if !design.intro.is_empty() {
+        page.gap(10.);
+    }
+    let rows = data
+        .lines
+        .iter()
+        .map(|line| {
+            (
+                vec![
+                    line.description.clone(),
+                    format!("{} {}", format_quantity(line.quantity), line.unit),
+                    format_amount(line.unit_price_cents),
+                    format_percent(line.discount_bp),
+                    format_percent(line.vat_bp),
+                    format_amount(line.net_cents),
+                ],
+                false,
+            )
+        })
+        .collect::<Vec<_>>();
+    page.table(
+        &[
+            "Description",
+            "Quantité",
+            "Prix unit.",
+            "Remise",
+            "TVA",
+            "Total net",
+        ],
+        &[0.35, 0.12, 0.15, 0.10, 0.10, 0.18],
+        &rows,
+    )?;
+    let notes = |page: &mut Composer<'_>| -> AppResult<()> {
+        if !data.notes.is_empty() || !data.terms.is_empty() {
+            page.gap(10.);
+            page.paragraph("Remarques et conditions", design.body_size, true)?;
+        }
+        if !data.notes.is_empty() {
+            page.paragraph(&data.notes, design.body_size, false)?;
+            page.gap(6.);
+        }
+        if !data.terms.is_empty() {
+            page.paragraph(&data.terms, design.body_size, false)?;
+            page.gap(6.);
+        }
+        page.rich(&design.closing)?;
+        page.gap(10.);
+        Ok(())
+    };
+    if design.totals_position == "afterNotes" {
+        notes(&mut page)?;
+    }
+    page.ensure(
+        (6 + vat_groups(data).len()) as f32
+            * (design.body_size * design.line_spacing + design.table_padding),
+    )?;
+    for (label, amount) in [
+        ("Sous-total avant remise", data.totals.subtotal_cents),
+        ("Remises", -data.totals.discount_cents),
+        ("Total net", data.totals.net_cents),
+    ] {
+        page.total(label, &format_money(&data.currency, amount), false)?;
+    }
+    for (rate, (basis, vat)) in vat_groups(data) {
+        page.total(
+            &format!(
+                "TVA {} sur {}",
+                format_percent(rate),
+                format_money(&data.currency, basis)
+            ),
+            &format_money(&data.currency, vat),
+            false,
+        )?;
+    }
+    page.total(
+        "TVA totale",
+        &format_money(&data.currency, data.totals.vat_cents),
+        false,
+    )?;
+    page.total(
+        if is_credit_note(&data.document_type) {
+            "TOTAL AVOIR"
+        } else {
+            "TOTAL TTC"
+        },
+        &format_money(&data.currency, data.totals.total_cents),
+        true,
+    )?;
+    if design.totals_position == "beforeNotes" {
+        notes(&mut page)?;
+    }
+    if !data.issuer.iban.is_empty() && !is_credit_note(&data.document_type) {
+        page.paragraph(
+            &format!("IBAN {}", grouped_iban(&data.issuer.iban)),
+            design.body_size,
+            true,
+        )?;
+    }
+    page.gap(10.);
+    let proof = if data.final_document {
+        format!(
+            "Document et valeurs figés localement · {}",
+            data.captured_at
+        )
+    } else {
+        "Brouillon - sans valeur de facture émise".into()
+    };
+    page.paragraph(&proof, 8., false)?;
+    if let Some(qr) = &data.qr {
+        let mut ops = vec![];
+        render_qr_section(&mut ops, qr)?;
+        page.payment_page(ops)?;
+    }
+    let (bytes, count) = page.finish(&proof)?;
+    write_pdf(path, &bytes)?;
+    Ok(count)
 }
 
 /// Charge un logo de document sans jamais contourner le condensat porté par
@@ -3236,6 +3462,21 @@ mod tests {
             payload,
             frozen_at: "2026-09-01T10:00:00Z".into(),
         }
+    }
+
+    #[test]
+    fn composed_invoice_keeps_the_exact_swiss_qr_operations_and_fonts() {
+        let temp=tempfile::tempdir().unwrap();
+        let mut data=sample_data(35,true);
+        data.style.composition=Some(crate::document_composition::Composition {font_family:"times".into(),body_size:12.,margin_mm:25.,title_size:34.,footer_text:crate::document_composition::plain("Un pied de page qui reste en dehors de la section de paiement."),..Default::default()});
+        let path=temp.path().join("styled-qr.pdf");
+        render_sales_pdf(&path,&data,None).unwrap();
+        let bytes=std::fs::read(&path).unwrap();let pdf=Document::load_mem(&bytes).unwrap();
+        let mut expected=vec![];render_qr_section(&mut expected,data.qr.as_ref().unwrap()).unwrap();let expected=Content {operations:expected}.encode().unwrap();
+        assert!(pdf.get_pages().values().any(|id|pdf.get_page_content(*id).unwrap().windows(expected.len()).any(|part|part==expected)));
+        let last=*pdf.get_pages().values().last().unwrap();let resource_id=pdf.get_object(last).unwrap().as_dict().unwrap().get(b"Resources").unwrap().as_reference().unwrap();let fonts=pdf.get_object(resource_id).unwrap().as_dict().unwrap().get(b"Font").unwrap().as_dict().unwrap();
+        for(key,name)in [(b"F1",b"Helvetica".as_slice()),(b"F2",b"Helvetica-Bold".as_slice())]{let id=fonts.get(key).unwrap().as_reference().unwrap();assert_eq!(pdf.get_object(id).unwrap().as_dict().unwrap().get(b"BaseFont").unwrap().as_name().unwrap(),name);}
+        if let Some(directory)=std::env::var_os("ZENTRA_DESIGN_SAMPLES"){std::fs::write(Path::new(&directory).join("styled-qr.pdf"),bytes).unwrap();}
     }
 
     fn sample_data(line_count: usize, qr: bool) -> SalesPdfData {

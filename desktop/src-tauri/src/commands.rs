@@ -1891,6 +1891,11 @@ pub fn document_design_example(state: State<'_, LocalStore>, kind: String, style
     state.document_design_example(&kind, style, issuer).map_err(command_error)
 }
 #[tauri::command]
+pub fn document_pdf_preview(state: State<'_, LocalStore>, kind: String, id: String) -> Result<Vec<u8>, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    state.document_pdf_preview(&kind, &id).map_err(command_error)
+}
+#[tauri::command]
 pub fn export_document_design_example(state: State<'_, LocalStore>, kind: String, style: Value, issuer: Value, destination: String) -> Result<String, String> {
     let _guard = state.lock().map_err(command_error)?;
     state.export_document_design_example(&kind, style, issuer, &destination).map_err(command_error)

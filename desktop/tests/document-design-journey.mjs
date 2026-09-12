@@ -13,7 +13,7 @@ page.on('pageerror', error => errors.push(error.message));
 await page.route('**/native-design-fixture/*.pdf', async route => {
   const file = new URL(route.request().url()).pathname.split('/').at(-1);
   assert.match(file, /^(quotes|invoices|accounts)-(signature|minimal)\.pdf$/);
-  await route.fulfill({ status: 200, contentType: 'application/pdf', body: await readFile(`.qa/design-142-pdfs/${file}`) });
+  await route.fulfill({ status: 200, contentType: 'application/pdf', body: await readFile(`.qa/composition-pdfs/${file}`) });
 });
 async function ready() { await page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({ timeout: 20000 }); }
 async function request() { return page.evaluate(() => JSON.parse(sessionStorage.getItem('design-request'))); }
@@ -22,9 +22,13 @@ try {
   await ready();
   for (const [kind,label] of [['invoices','Factures'],['quotes','Devis'],['accounts','Bilan']]) {
     await page.getByRole('button', { name: label, exact: true }).click();
+    await page.getByRole('button', { name: 'Style', exact: true }).click();
     await page.getByRole('button', { name: 'Épurée Des lignes simples et légères', exact: true }).click();
     await page.getByRole('button', { name: 'Couleur #d7b878', exact: true }).click();
-    await page.getByLabel('Taille du logo').selectOption('150');
+    await page.getByRole('button', { name: 'Mise en page', exact: true }).click();
+    await page.getByLabel('Taille du logo', { exact: true }).selectOption('150');
+    await page.getByRole('button', { name: 'Textes', exact: true }).click();
+    if (!(await page.locator('.design-studio__panel details').evaluate(el => el.open))) await page.getByText('Pied de page simple', { exact: true }).click();
     await page.getByLabel('Une phrase en pied de page').fill('Merci pour votre confiance.');
     await ready();
     const input = await request();
@@ -43,6 +47,8 @@ try {
   assert.equal((await request()).style.layout, 'signature');
   await page.getByRole('button', { name: 'Devis', exact: true }).click(); await ready();
   assert.equal((await request()).style.layout, 'minimal', 'reset only changes the selected document');
+  await page.getByRole('button', { name: 'Textes', exact: true }).click();
+  await page.getByText('Pied de page simple', { exact: true }).click();
   await page.getByLabel('Une phrase en pied de page').fill('Erreur de recette');
   await page.getByRole('alert').waitFor();
   assert.equal(await page.getByRole('button', { name: 'Exporter cet exemple' }).isDisabled(), true);

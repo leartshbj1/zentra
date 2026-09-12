@@ -182,6 +182,7 @@ export type NogaCatalog = {
 
 export type AppSettings = {
   documentAppearance?: import('./documentAppearance').DocumentAppearance;
+  documentComposition?: import('./documentComposition').DocumentCompositions;
   organization: Organization;
   business: BusinessProfile;
   billing: BillingSettings;
@@ -364,6 +365,7 @@ export type DocumentLine = {
 
 export type FrozenIssuer = {
   documentAppearance?: import('./documentAppearance').DocumentAppearance;
+  documentComposition?: import('./documentComposition').DocumentCompositions;
   companyName: string;
   legalForm: string;
   ownerName: string;
