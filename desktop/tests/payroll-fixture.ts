@@ -102,6 +102,10 @@ export function installPayrollFixture(workspace: Workspace) {
     const id = input.id || definitions.find((item) => item.code === input.code)?.id || crypto.randomUUID();
     const index = definitions.findIndex((item) => item.id === id);
     if (index < 0) definitions.push({ ...input, id }); else definitions[index] = { ...input, id };
+    if (input.category === 'lpp' && input.side === 'employer' && sessionStorage.getItem('qa-payroll-fail-rates-after-pension') === '1') {
+      sessionStorage.removeItem('qa-payroll-fail-rates-after-pension');
+      sessionStorage.setItem('qa-payroll-fail-rates', '1');
+    }
   };
   desktopApi.updateEntity = async (entity, id, data) => {
     if (entity !== 'employees') throw new Error('Recette limitée aux salariés.');

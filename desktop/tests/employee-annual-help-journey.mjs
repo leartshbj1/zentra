@@ -64,7 +64,7 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
       await modal.getByRole('button', { name: 'Ajouter le collaborateur', exact: true }).click();
       const date = modal.locator('input[name=smallSalaryDecisionDate]');
       await date.waitFor({ state: 'visible' });
-      assert.equal(await date.evaluate(el => el === document.activeElement), true);
+      await page.waitForFunction(() => document.activeElement?.getAttribute('name') === 'smallSalaryDecisionDate');
       assert.match(await modal.locator('#employee-annual-error').innerText(), /2026.*31.12.2025/s);
       assert.equal(await date.getAttribute('aria-invalid'), 'true');
       assert.equal(await date.inputValue(), '2025-12-31');

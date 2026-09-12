@@ -15,6 +15,7 @@ import { PayrollPreparation } from './PayrollPreparation';
 import { PayrollMonthOverview } from './PayrollMonthOverview';
 import { PayrollBasisGuide } from './PayrollBasisGuide';
 import { PayrollHourlySalary } from './PayrollHourlySalary';
+import { mergePayrollProposals } from './payrollProposalMerge';
 import { missingPayrollBasis, payrollBasisQuestions } from './payrollSalaryEntry';
 import { payrollPreparationTasks } from './payrollPreparationTasks';
 import { usePayrollFieldGuide } from './PayrollFieldGuide';
@@ -110,6 +111,10 @@ export function DetailedPayslipForm({
   const [arrivalSelector, setArrivalSelector] = useState<string | undefined>();
   const [arrivalRevision, setArrivalRevision] = useState(0);
   const [configurationUpdated, setConfigurationUpdated] = useState(false);
+  const setupProposalContext = useRef<{ ids: Set<string>; employeeId: string; period: string; paymentDate: string } | null>(null);
+  const [pendingSetupProposal, setPendingSetupProposal] = useState<(NonNullable<typeof setupProposalContext.current> & { revision: number }) | null>(null);
+  const [loadedRatesRevision, setLoadedRatesRevision] = useState(-1);
+  const [setupProposalNotice, setSetupProposalNotice] = useState('');
   const fieldGuide = usePayrollFieldGuide();
   function fixPayroll(target: PayrollHelpTarget, selector?: string) {
     if (['salary', 'review', 'period'].includes(target)) { setPreparing(false); setEditingBases(false); }
@@ -124,7 +129,11 @@ export function DetailedPayslipForm({
       setShowContributions(true);
     } else if (target === 'review') setStep(2);
     else if (target === 'period') setStep(0);
-    else setSetup(target);
+    else {
+      setupProposalContext.current = { ids: new Set(proposal.map(definition => definition.id)), employeeId, period, paymentDate };
+      setSetupProposalNotice('');
+      setSetup(target);
+    }
   }
   const [showContributions, setShowContributions] = useState(false);
   const [automaticBases, setAutomaticBases] = useState<Set<string>>(new Set());
@@ -317,6 +326,7 @@ export function DetailedPayslipForm({
             ),
         );
         setDefinitions(available);
+        setLoadedRatesRevision(configurationReload);
         const hydrateItem = item && hydratedPayslipIdRef.current !== item.id;
         if (hydrateItem) {
           setLines(
@@ -774,26 +784,30 @@ export function DetailedPayslipForm({
     (definition) => !selections[definition.id],
   );
   function addMissingProposals() {
-    // An explicit action adds the new applicable lines without resetting manual bases.
-    invalidateCalculation();
-    const next = { ...selectionDrafts };
-    const automatic = new Set(automaticBases);
-    for (const definition of missingProposals) {
-      next[definition.id] = {
-        basisCents:
-          definition.basisKind === 'coordinated'
-            ? (eligibility.coordinatedAnnualSalaryCents ?? undefined)
-            : definition.basisKind === 'gross'
-              ? totals.earnings
-              : definition.basisKind === 'ahv_salary'
-                ? guidedBasis.amountCents
-                : undefined,
-      };
-      if (definition.basisKind === 'ahv_salary') automatic.add(definition.id);
-    }
-    setSelections(next);
-    setAutomaticBases(automatic);
+    addApprovedProposals(new Set(missingProposals.map(definition => definition.id)));
   }
+  function addApprovedProposals(approvedIds: ReadonlySet<string>) {
+    const merged = mergePayrollProposals({
+      current: selectionDrafts, automaticIds: automaticBases, proposals: proposal, approvedIds,
+      grossCents: totals.earnings, ahvBasisCents: guidedBasis.amountCents,
+      coordinatedAnnualCents: eligibility.coordinatedAnnualSalaryCents ?? undefined,
+    });
+    if (!merged.addedIds.length) return 0;
+    invalidateCalculation();
+    setSelections(merged.selections);
+    setAutomaticBases(merged.automaticIds);
+    return merged.addedIds.length;
+  }
+
+  useEffect(() => {
+    if (!pendingSetupProposal || setup || busy || loadingRates || loadingAccounting || ratesError || accountingError || existingBlocked ||
+        loadedRatesRevision < pendingSetupProposal.revision) return;
+    setPendingSetupProposal(null);
+    if (pendingSetupProposal.employeeId !== employeeId || pendingSetupProposal.period !== period || pendingSetupProposal.paymentDate !== paymentDate) return;
+    // Saving a correction includes its newly applicable proposals, never a previously omitted one.
+    const count = addApprovedProposals(new Set(proposal.filter(definition => !pendingSetupProposal.ids.has(definition.id)).map(definition => definition.id)));
+    if (count) setSetupProposalNotice(`${count} cotisation${count > 1 ? 's' : ''} reprise${count > 1 ? 's' : ''} dans cette fiche après votre correction. Vous pourrez les vérifier avec le calcul du net.`);
+  }, [pendingSetupProposal, setup, busy, loadingRates, loadingAccounting, ratesError, accountingError, existingBlocked, loadedRatesRevision, employeeId, period, paymentDate, proposal]);
 
   function requireHourlyAmount() {
     if (!hourlyPending) return false;
@@ -1072,6 +1086,7 @@ export function DetailedPayslipForm({
           initialSelector={setupSelector}
           employeeId={employeeId}
           period={period}
+          contributionDate={paymentDate || `${period}-01`}
           workspace={workspace}
           busy={busy}
           act={act}
@@ -1083,19 +1098,21 @@ export function DetailedPayslipForm({
             setConfigurationUpdated(true);
             invalidateCalculation();
             setConfigurationReload((value) => value + 1);
+            if (setupProposalContext.current) setPendingSetupProposal({ ...setupProposalContext.current, revision: configurationReload + 1 });
           }}
         />
       )}
       {preparing && !setup && (
         <PayrollPreparation
           employeeName={employee?.name ?? 'votre collaborateur'}
+          savedNotice={setupProposalNotice}
           tasks={payrollPreparationTasks(eligibility.blockers)}
           proposals={missingProposals.map((definition) => definition.label)}
           onApplyProposals={addMissingProposals}
           onSaveDraft={
             canSaveSalaryDraft ? () => void saveSalaryDraft() : undefined
           }
-          busy={busy || calculating || loadingRates || loadingAccounting}
+          busy={busy || calculating || loadingRates || loadingAccounting || Boolean(pendingSetupProposal)}
           unavailable={Boolean(accountingError || ratesError || existingBlocked)}
           continueLabel={step === 1 ? 'Calculer le net' : 'Continuer vers mon salaire'}
           onFix={fixPayroll}
@@ -2406,8 +2423,7 @@ export function DetailedPayslipForm({
                 <div>
                   <strong>La fiche restera à contrôler</strong>
                   <p>
-                    La configuration de paie n’est pas marquée comme validée par
-                    une fiduciaire.
+                    Enregistrez cette fiche pour conserver votre travail. Après le contrôle des réglages par votre fiduciaire, ouvrez les paramètres de paie depuis la liste, puis reprenez cette fiche pour la valider et obtenir son PDF.
                   </p>
                 </div>
               </div>

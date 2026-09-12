@@ -71,9 +71,11 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
         await modal.getByRole('region', { name: 'Reprendre le chargement' }).waitFor({ state: 'hidden' });
         const actions = [];
         for (let turn = 0; turn < 12; turn++) {
-          if (await guide.getByRole('button', { name: 'Calculer le net', exact: true }).count()) break;
-          const next = guide.locator('.payroll-preparation__next > button');
-          const label = await next.innerText(); actions.push(label.trim());
+          const next = guide.locator('.payroll-preparation__next > button').or(guide.getByRole('button', { name: 'Calculer le net', exact: true })).first();
+          await next.waitFor();
+          const label = await next.innerText();
+          if (label.trim() === 'Calculer le net') break;
+          actions.push(label.trim());
           await next.click();
           if (label.includes('Utiliser ces cotisations')) continue;
           if (await setup.locator('[name=contractNumber]:visible').count()) {
@@ -128,8 +130,13 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
         const pensionWrites = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-payroll-definition')).filter(d => d.category === 'lpp'));
         assert.equal(pensionWrites.length, 2);
         assert.deepEqual(pensionWrites.map(d => d.fixedAmountCents), [24550, 26000]);
+        assert.equal(actions.filter(label => label === 'Utiliser ces cotisations').length, 0, 'Newly applicable contributions after explicit setup saves are carried into the same slip');
         assert.deepEqual(errors, []);
         reports.push({ engine, width, firstPayslip: true, salaryPreserved: true, pensionRetry: true, actions });
+      } catch (error) {
+        await page.screenshot({ path: `${output}/${engine}-${width}-failure.png` });
+        await writeFile(`${output}/failure.txt`, `${error.stack}\n${await page.locator('body').innerText()}`);
+        throw error;
       } finally { await page.close(); }
     }
     // Save a useful draft before all insurance data exists, then reopen the same slip.

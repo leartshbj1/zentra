@@ -14,7 +14,7 @@ import {
   revealPayrollField,
   type PayrollSetupSection,
 } from './payrollNavigation';
-import { pensionPlanComplete, PENSION_GUIDE_SOURCE } from './payrollPension';
+import { pensionPlanIssue, PENSION_GUIDE_SOURCE } from './payrollPension';
 import { SWISS_FAMILY_ALLOWANCES_2026 } from './swissFamilyAllowances2026';
 import { Button, Field, submitForm } from './ui';
 import { centsFromInput, errorMessage } from './utils';
@@ -48,6 +48,7 @@ export function PayrollSetup({
   initialSelector,
   employeeId,
   period,
+  contributionDate,
   workspace,
   busy,
   act,
@@ -60,6 +61,7 @@ export function PayrollSetup({
   initialSelector?: string;
   employeeId: string;
   period: string;
+  contributionDate?: string;
   workspace: Workspace;
   busy: boolean;
   act: Runner;
@@ -106,6 +108,14 @@ export function PayrollSetup({
     if (notice) revealPayrollField(container.current, '[data-setup-notice]');
   }, [notice]);
   const lock = useRef(false);
+  function rejectField(name: string, message: string) {
+    const field = container.current?.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
+    if (!field) return;
+    const questionId = field.closest<HTMLElement>('[data-payroll-question]')?.dataset.payrollQuestion;
+    const index = Number(questionId?.match(/-(\d+)/)?.[1] ?? 0);
+    if (guided) setQuestion(Math.min(index, questionCount - 1));
+    fieldGuide.reject(field, message);
+  }
   const heading = useRef<HTMLDivElement>(null);
   useEffect(() => {
     heading.current?.focus();
@@ -221,6 +231,19 @@ export function PayrollSetup({
         return typeof value === 'string' ? value.trim() : '';
       };
       const data: Record<string, unknown> = {};
+      if (section === 'insurance') {
+        const hasPlan = pensionPlanOnly || ['contractNumber', 'regulationReference', 'lppFrom', 'lppTo'].some(name => text(name)) || form.get('lppParity');
+        if (hasPlan) {
+          const plan = { contractNumber: text('contractNumber'), regulationReference: text('regulationReference'),
+            effectiveFrom: text('lppFrom'), effectiveTo: text('lppTo'), employerAggregateShareConfirmed: form.get('lppParity') === 'on' };
+          const checkDate = pensionPlanOnly || JSON.stringify(plan) !== JSON.stringify(settings.payroll.lppPlanEvidence);
+          const issue = pensionPlanIssue({
+            ...settings.payroll, pensionFund: text('pensionFund'),
+            lppPlanEvidence: plan,
+          }, checkDate ? contributionDate ?? `${period}-01` : undefined);
+          if (issue) { rejectField(issue.field, issue.message); return; }
+        }
+      }
       if (section === 'person' && employee && pensionOnly) {
         data.lppAnnualSalaryCents = centsFromInput(form.get('lppAnnualSalary'));
         data.lppAssessmentYear = year;
@@ -358,10 +381,6 @@ export function PayrollSetup({
                 effectiveTo: text('lppTo'),
                 employerAggregateShareConfirmed: form.get('lppParity') === 'on',
               };
-              if (!pensionPlanComplete(payroll))
-                throw new Error(
-                  'Contrat de pension incomplet : renseignez la caisse, le numéro, une référence de règlement précise (8 caractères minimum), les dates et la confirmation de la part employeur.',
-                );
             }
             if (
               JSON.stringify(payroll) !== JSON.stringify(fresh.settings.payroll)
@@ -401,14 +420,8 @@ export function PayrollSetup({
           smallSalaryOpeningGross: 'openingGross',
           smallSalaryOpeningContributedBasis: 'openingAvs',
         };
-        const field = container.current?.querySelector<HTMLInputElement>(
-          `[name="${names[reason.field]}"]`,
-        );
-        if (field) {
-          const questionId = field.closest<HTMLElement>('[data-payroll-question]')?.dataset.payrollQuestion;
-          const index = Number(questionId?.match(/-(\d+)/)?.[1] ?? 0);
-          if (guided) setQuestion(Math.min(index, questionCount - 1));
-          fieldGuide.reject(field, reason.message);
+        if (names[reason.field]) {
+          rejectField(names[reason.field], reason.message);
           return;
         }
       }
@@ -436,7 +449,7 @@ export function PayrollSetup({
         >
           {returnToPreparation ? '← Revenir à ma préparation' : '← Revenir au salaire'}
         </Button>
-        <small>Votre salaire en cours reste conservé.</small>
+        <small>Votre salaire reste conservé. Les nouvelles cotisations applicables seront reprises après l’enregistrement.</small>
       </header>
       <nav
         className="payroll-setup-nav"
@@ -723,7 +736,7 @@ export function PayrollSetup({
           hidden={section !== 'history'}
           data-payroll-history
         >
-          <h3>Avant la première fiche dans Zentra</h3>
+          <h3>{!guided || question === 0 ? 'Les salaires déjà établis cette année' : question === 1 ? 'La situation de votre collaborateur' : 'La confirmation de ces informations'}</h3>
           <p>
             Pour {employee?.name}, en {year}. Reprenez les fiches établies avant
             ce mois qui ne sont pas dans Zentra.
@@ -863,6 +876,7 @@ export function PayrollSetup({
             data-payroll-question="history-2"
             hidden={guided && question !== 2}
           >
+            <p className="payroll-question-explanation">Ces deux champs servent à retrouver le choix confirmé avec le salarié et les montants de départ. Recopiez la date et le nom de votre document ; ce n’est pas la date de création de la fiche.</p>
             <Field
               label={`Date du choix de cotisation · ${year}`}
               required
@@ -878,7 +892,7 @@ export function PayrollSetup({
               />
             </Field>
             <Field
-              label="Document ou confirmation utilisée"
+              label="Nom du document ou de la confirmation"
               required
               hint="Par exemple : décompte août 2026, ou confirmation du début d’activité. Conservez ce document."
             >
@@ -889,6 +903,7 @@ export function PayrollSetup({
                   sameYear ? employee?.smallSalaryEvidenceReference : ''
                 }
                 required
+                placeholder={`Ex. : confirmation du début d’activité ${year}`}
               />
             </Field>
           </div>
@@ -968,7 +983,7 @@ export function PayrollSetup({
                   personne.
                 </li>
               </ol>
-              <Field label="Numéro du contrat LPP">
+              <Field label="Numéro du contrat LPP" hint="Le numéro d’affiliation de votre entreprise auprès de cette caisse.">
                 <input
                   name="contractNumber"
                   defaultValue={
@@ -976,18 +991,18 @@ export function PayrollSetup({
                   }
                 />
               </Field>
-              <Field label="Référence du règlement">
+              <Field label="Référence du règlement" hint="Le titre et l’année ou la version du règlement reçu de la caisse.">
                 <input
                   name="regulationReference"
-                  minLength={8}
                   maxLength={500}
+                  placeholder="Ex. : règlement de prévoyance 2026"
                   defaultValue={
                     settings.payroll.lppPlanEvidence?.regulationReference
                   }
                 />
               </Field>
               <div className="form-grid">
-                <Field label="Valable dès le">
+              <Field label="Valable dès le" hint="La date de début indiquée dans les documents de la caisse.">
                   <input
                     name="lppFrom"
                     type="date"
@@ -1010,6 +1025,7 @@ export function PayrollSetup({
               <label className="check-card">
                 <input
                   name="lppParity"
+                  aria-label="Part de l’entreprise confirmée dans le règlement"
                   type="checkbox"
                   defaultChecked={
                     settings.payroll.lppPlanEvidence

@@ -1,4 +1,5 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from './ui';
 import { revealPayrollField } from './payrollNavigation';
 
@@ -8,15 +9,20 @@ type Control = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 export function usePayrollFieldGuide() {
   const id = useId();
   const control = useRef<Control | null>(null);
+  const cleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => cleanup.current?.(), []);
   const [issue, setIssue] = useState<{ label: string; message: string } | null>(
     null,
   );
+  useLayoutEffect(() => { if (issue) reveal(); }, [issue]);
   function clear() {
+    cleanup.current?.();
+    cleanup.current = null;
     control.current?.removeAttribute('aria-invalid');
     if (control.current) {
       const remaining = (control.current.getAttribute('aria-describedby') ?? '')
         .split(' ')
-        .filter((value) => value && value !== id);
+        .filter((value) => value && value !== id && value !== `${id}-inline`);
       if (remaining.length)
         control.current.setAttribute('aria-describedby', remaining.join(' '));
       else control.current.removeAttribute('aria-describedby');
@@ -38,18 +44,31 @@ export function usePayrollFieldGuide() {
     field.setAttribute('aria-invalid', 'true');
     field.setAttribute(
       'aria-describedby',
-      [field.getAttribute('aria-describedby'), id].filter(Boolean).join(' '),
+      [field.getAttribute('aria-describedby'), field.closest('.field') ? `${id}-inline` : id].filter(Boolean).join(' '),
     );
+    // Let React commit a controlled input's new value before removing the diagnostic.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const editing = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { if (control.current === field) clear(); }, 0);
+    };
+    field.addEventListener('input', editing);
+    field.addEventListener('change', editing);
+    cleanup.current = () => {
+      field.removeEventListener('input', editing);
+      field.removeEventListener('change', editing);
+      clearTimeout(timer);
+    };
     const label =
       field
-        .closest('label')
+        .closest('.field')
         ?.querySelector('.field__label')
         ?.textContent?.replace(/obligatoire\s*$/, '')
         .trim() ||
       field.getAttribute('aria-label') ||
+      field.labels?.[0]?.textContent?.trim() ||
       'Ce champ';
     setIssue({ label, message });
-    reveal();
   }
   function check(form: HTMLElement) {
     const field = form.querySelector<Control>(
@@ -87,7 +106,7 @@ export function usePayrollFieldGuide() {
     check,
     reject,
     clear,
-    guide: issue ? (
+    guide: issue ? (<>
       <section className="payroll-field-guide" role="alert" id={id}>
         <strong>À compléter : {issue.label}</strong>
         <p>{issue.message}</p>
@@ -95,6 +114,11 @@ export function usePayrollFieldGuide() {
           Aller au champ à corriger
         </Button>
       </section>
+      {control.current?.closest('.field') && createPortal(
+        <span id={`${id}-inline`} className="payroll-inline-error">{issue.message}</span>,
+        control.current.closest('.field')!,
+      )}
+      </>
     ) : null,
   };
 }

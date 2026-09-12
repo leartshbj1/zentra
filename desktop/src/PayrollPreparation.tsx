@@ -7,6 +7,7 @@ import './payroll-preparation.css';
 
 export function PayrollPreparation({
   employeeName,
+  savedNotice,
   tasks,
   busy,
   unavailable = false,
@@ -19,6 +20,7 @@ export function PayrollPreparation({
   onContinue,
 }: {
   employeeName: string;
+  savedNotice?: string;
   tasks: PayrollPreparationTask[];
   busy: boolean;
   unavailable?: boolean;
@@ -46,6 +48,7 @@ export function PayrollPreparation({
     <section
       className="payroll-preparation"
       aria-label="Préparer ma première fiche"
+      aria-busy={busy}
     >
       <Button type="button" variant="ghost" onClick={onBack} disabled={busy}>
         <ArrowLeft size={16} /> Revenir à mon salaire
@@ -55,11 +58,9 @@ export function PayrollPreparation({
           La paie de {employeeName}
         </span>
         <h3 ref={heading} tabIndex={-1}>
-          {unavailable ? 'Reprenons la lecture des réglages.' : next || useProfile
+          {unavailable ? 'Reprenons la lecture des réglages.' : busy ? 'Vérification de vos réglages…' : next || useProfile
             ? 'On prépare votre fiche ensemble.'
-            : busy
-              ? 'Vérification de vos réglages…'
-              : 'Les informations sont prêtes.'}
+            : 'Les informations sont prêtes.'}
         </h3>
         <p>
           {unavailable ? 'Votre saisie est conservée. Réessayez le chargement avec le bouton au-dessus.' : next || useProfile
@@ -69,6 +70,7 @@ export function PayrollPreparation({
               : 'Revenez au salaire pour contrôler le montant du mois, puis calculer le net.'}
         </p>
       </header>
+      {savedNotice && <p className="payroll-preparation__saved" role="status"><CheckCircle2 size={18} aria-hidden="true" />{savedNotice}</p>}
       <div className="payroll-preparation__status" role="status">
         {unavailable ? 'Lecture des réglages à reprendre' : busy ? (
           'Actualisation des informations…'
@@ -80,7 +82,7 @@ export function PayrollPreparation({
           </>
         )}
       </div>
-      {useProfile && (
+      {!busy && !unavailable && useProfile && (
         <article className="payroll-preparation__next">
           <span>Vos réglages sont déjà enregistrés</span>
           <h4>Reprendre les cotisations de cette personne</h4>
@@ -102,7 +104,7 @@ export function PayrollPreparation({
           </Button>
         </article>
       )}
-      {next ? (
+      {!busy && !unavailable && (next ? (
         <article className="payroll-preparation__next" key={next.id}>
           <span>La prochaine action</span>
           <h4>{next.title}</h4>
@@ -161,7 +163,7 @@ export function PayrollPreparation({
             <ArrowRight size={17} />
           </Button>
         )
-      )}
+      ))}
       {tasks.length > 1 && (
         <details className="payroll-preparation__remaining">
           <summary>Voir les autres points à préparer</summary>

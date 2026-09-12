@@ -34,6 +34,14 @@
   font-size: 13px;
   margin-bottom: 16px;
 }
+.payroll-preparation__saved {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #245b68;
+  font-size: 14px;
+}
+.payroll-preparation__saved svg { flex: 0 0 auto; margin-top: 3px; }
 .payroll-preparation__next {
   border: 1px solid #dde4e6;
   border-radius: 22px;

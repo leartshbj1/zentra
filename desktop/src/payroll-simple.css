@@ -156,6 +156,18 @@
 .payroll-setup .form-grid {
   align-items: start;
 }
+.payroll-inline-error {
+  display: block;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #8b361e;
+  padding: 10px 12px;
+  background: #fff6ee;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.payroll-question-explanation { color: var(--text-muted, #626970); font-size: 14px; }
 .payroll-setup-actions {
   display: flex;
   flex-wrap: wrap;

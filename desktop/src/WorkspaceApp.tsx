@@ -2025,6 +2025,7 @@ export function WorkspaceApp({
               onCreateEmployee={() => setModal({ type: 'employee' })}
               onEditEmployee={(item) => setModal({ type: 'employee', item })}
               onCreatePayslip={() => setModal({ type: 'payslip' })}
+              onPayrollSettings={() => { setSettingsFocusTarget('settings-payroll-review'); setView('settings'); }}
               onImportPayslips={() => setModal({ type: 'payrollImport' })}
               onEditPayslip={(item) => setModal({ type: 'payslip', item })}
               onPostPayslip={(item) => void postPayslip(item)}
@@ -4231,6 +4232,7 @@ function TeamScreen({
   onCreateEmployee,
   onEditEmployee,
   onCreatePayslip,
+  onPayrollSettings,
   onImportPayslips,
   onEditPayslip,
   onPostPayslip,
@@ -4245,6 +4247,7 @@ function TeamScreen({
   onCreateEmployee: () => void;
   onEditEmployee: (item: Employee) => void;
   onCreatePayslip: () => void;
+  onPayrollSettings: () => void;
   onImportPayslips: () => void;
   onEditPayslip: (item: Payslip) => void;
   onPostPayslip: (item: Payslip) => void;
@@ -4384,7 +4387,7 @@ function TeamScreen({
       <section className="panel payroll-panel">
         <SectionHeading
           title="Fiches de salaire"
-          description="Importez les anciennes fiches, contrôlez les données détectées puis générez les suivantes depuis un modèle confirmé."
+          description="Choisissez une personne et le mois, indiquez le salaire brut, puis vérifiez le montant à verser. Les réglages sont réutilisés les mois suivants."
           action={
             payrollEnabled ? (
               <div className="payroll-heading-actions">
@@ -4426,9 +4429,9 @@ function TeamScreen({
             <div>
               <strong>Configuration à faire valider</strong>
               <p>
-                Les fiches restent incomplètes jusqu’à confirmation du contrôle
-                par votre fiduciaire.
+                Vous pouvez préparer et enregistrer vos fiches. Pour les valider et obtenir leur PDF, faites contrôler les réglages par votre fiduciaire, puis confirmez ce contrôle dans les paramètres de paie.
               </p>
+              <Button variant="secondary" size="small" disabled={busy} onClick={onPayrollSettings}>Ouvrir les paramètres de paie</Button>
             </div>
           </div>
         ) : null}
@@ -4499,12 +4502,12 @@ function TeamScreen({
                     {!locked ? (
                       <Button
                         variant="ghost"
-                        size={payslip.status === 'draft' ? 'small' : 'icon'}
+                        size="small"
                         disabled={busy}
                         onClick={() => onEditPayslip(payslip)}
                         title={payslip.status === 'draft' ? 'Reprendre le brouillon' : 'Modifier'}
                       >
-                        <Pencil size={15} />{payslip.status === 'draft' ? 'Reprendre' : null}
+                        <Pencil size={15} />{payslip.status === 'draft' ? 'Reprendre' : payslip.status === 'incomplete' ? 'Contrôler la fiche' : 'Modifier'}
                       </Button>
                     ) : null}
                     {payslip.status === 'validated' ? (
@@ -4539,11 +4542,11 @@ function TeamScreen({
                     ) ? (
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="small"
                         onClick={() => onPrint(payslip)}
-                        title="Imprimer"
+                        title="Ouvrir l’aperçu et exporter le PDF"
                       >
-                        <Printer size={15} />
+                        <Printer size={15} /> Voir le PDF
                       </Button>
                     ) : null}
                     {!locked ? (
@@ -5568,6 +5571,7 @@ function SettingsScreen({
             <label className="check-card">
               <input
                 name="fiduciaryValidated"
+                id="settings-payroll-review"
                 type="checkbox"
                 defaultChecked={settings.payroll.fiduciaryValidated}
               />
