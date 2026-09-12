@@ -259,7 +259,7 @@ function SupplierInvoiceAttachments({ invoice, canEdit, busy, act }: { invoice?:
   </section>;
 }
 
-export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { item?: SupplierInvoice; workspace: Workspace; busy: boolean; close: () => void; act: ActionRunner }) {
+export function SupplierInvoiceForm({ item, initialTarget, workspace, busy, close, act }: { item?: SupplierInvoice; initialTarget?: 'reference' | 'attachments'; workspace: Workspace; busy: boolean; close: () => void; act: ActionRunner }) {
   const settings = workspace.settings!;
   const terminology = projectTerminology(settings.business.nogaSection);
   const supplierChoices = selectableSuppliers(workspace.suppliers, item?.supplierId);
@@ -268,6 +268,15 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
   const [formError, setFormError] = useState('');
   const [hasChanges, setHasChanges] = useState(!item);
   const attachmentStep = useRef<HTMLDivElement>(null);
+  const formElement = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (!initialTarget) return;
+    const frame = requestAnimationFrame(() => {
+      const target = initialTarget === 'reference' ? formElement.current?.querySelector<HTMLInputElement>('[name=reference]') : attachmentStep.current;
+      target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'center' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [initialTarget]);
   const wasSaved = useRef(Boolean(item));
   const [vatTreatment, setVatTreatment] = useState<'' | 'input_materials' | 'input_investments' | 'non_deductible'>('');
   const [supplierId, setSupplierId] = useState(initialSupplier?.id ?? '');
@@ -289,6 +298,7 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
     }))
     : [newSupplierInvoiceLine(workspace)]);
   const currentInvoice = workspace.supplierInvoices.find((invoice) => invoice.id === draftId);
+  const hasMatching = workspace.supplierInvoiceMatches.some(match => match.supplierInvoiceId === draftId);
   useEffect(() => {
     if (!currentInvoice || wasSaved.current) return;
     wasSaved.current = true;
@@ -316,10 +326,11 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
   }
 
   return <Modal className="purchase-entry-modal" title={item ? 'Modifier le brouillon fournisseur' : 'Nouvelle facture fournisseur'} description="Recopiez la facture reçue, puis joignez son PDF ou sa photo. Vous la validerez après vérification." onClose={close} dismissible={!busy} wide>
-    <form noValidate onSubmit={submitForm(async (form) => {
+    <form ref={formElement} noValidate onSubmit={submitForm(async (form) => {
       if (busy) return;
       if (currentInvoice && !hasChanges) { close(); return; }
       setFormError('');
+      if (hasMatching) { setFormError('Ce brouillon est déjà rapproché. Retirez les liens dans le rapprochement avant de modifier ses informations. Les justificatifs restent accessibles ci-dessous.'); return; }
       const invalid = supplierDraftError(supplierId, documentDate, dueDate, lines, vatRates, totals.totalCents);
       if (invalid) { setFormError(invalid); return; }
       const saved = await act(
@@ -356,7 +367,8 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
         <li aria-current={currentInvoice ? 'step' : undefined}><span>2</span><div><strong>Joindre l’original</strong><small>Un PDF ou une photo</small></div></li>
         <li><span>3</span><div><strong>Valider</strong><small>Depuis la liste des achats</small></div></li>
       </ol>
-      <fieldset disabled={busy} onChange={() => setHasChanges(true)}>
+      {hasMatching && <p className="info-strip">Les informations rapprochées sont protégées. Vous pouvez encore ajouter les justificatifs avant validation.</p>}
+      <fieldset disabled={busy || hasMatching} onChange={() => setHasChanges(true)}>
       {!settings.organization.vatRegistered ? <div className="info-strip"><ReceiptText size={17} /><span>{nonRegisteredPurchaseVatHint}</span></div> : null}
       <div className="form-grid">
         <Field label="Fournisseur" required wide><select value={supplierId} onChange={(event) => chooseSupplier(event.target.value)} required autoFocus><option value="">Choisir un fournisseur</option>{supplierChoices.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}{supplier.archivedAt ? ' · archivé (historique)' : ''}</option>)}</select></Field>
@@ -391,12 +403,12 @@ export function SupplierInvoiceForm({ item, workspace, busy, close, act }: { ite
 
       <div className="supplier-invoice-total"><div><span>Net</span><strong>{formatMoney(totals.netCents)}</strong></div><div><span>TVA</span><strong>{formatMoney(totals.vatCents)}</strong></div><div><span>Total TTC</span><strong>{formatMoney(totals.totalCents)}</strong></div></div>
       <div className="form-grid"><Field label="Note interne" wide><textarea name="note" rows={3} defaultValue={item?.note} maxLength={10_000} /></Field></div>
-      <div ref={attachmentStep}>
+      </fieldset>
+      <div ref={attachmentStep} tabIndex={-1}>
         {currentInvoice ? <div className="purchase-entry-saved" role="status"><CheckCircle2 size={18} /><div><strong>{hasChanges ? 'Modifications à enregistrer' : 'Brouillon enregistré'}</strong><p>{hasChanges ? 'Enregistrez les changements avant de terminer.' : 'Ajoutez le justificatif ci-dessous, puis terminez. Votre facture sera à vérifier dans les brouillons des achats.'}</p></div></div> : null}
         <SupplierInvoiceAttachments invoice={currentInvoice} canEdit busy={busy} act={act} />
       </div>
       <div className="info-strip"><ReceiptText size={17} /><span>Un brouillon reste modifiable et n’entre pas dans les comptes. Après validation, le document et ses montants seront figés.</span></div>
-      </fieldset>
       {formError ? <ErrorPanel title="Vérifions la facture" message={formError} reveal /> : null}
       {currentInvoice && !hasChanges ? <div className="form-actions"><Button type="button" disabled={busy} onClick={close}>Terminer</Button></div> : <FormActions onCancel={close} busy={busy} cancelLabel={currentInvoice ? 'Fermer' : 'Annuler'} submitLabel={currentInvoice ? 'Mettre à jour le brouillon' : 'Enregistrer le brouillon'} />}
     </form>

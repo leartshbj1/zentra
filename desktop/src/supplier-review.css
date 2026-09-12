@@ -1,0 +1,27 @@
+.supplier-review {display:grid;gap:20px;min-width:0;}
+.supplier-review__total {display:grid;gap:7px;padding:20px;border:1px solid #dfe8df;border-radius:14px;background:#f2f6f2;}
+.supplier-review__total > span {font-size:14px;color:#526059;}
+.supplier-review__total > strong {font-size:30px;line-height:1.25;letter-spacing:-.04em;overflow-wrap:anywhere;}
+.supplier-review p {font-size:14px;line-height:1.65;margin:6px 0;color:#526059;overflow-wrap:anywhere;}
+.supplier-review__summary {display:grid;margin:0;}
+.supplier-review__summary > div {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid #e9eeea;font-size:14px;line-height:1.6;}
+.supplier-review__summary dt {color:#526059;}
+.supplier-review__summary dd {margin:0;text-align:right;font-weight:600;overflow-wrap:anywhere;}
+.supplier-review :is(.supplier-review__problem,.supplier-review__attachments,.supplier-review__matching) {padding:16px;border:1px solid #dfe6df;border-radius:14px;min-width:0;}
+.supplier-review__problem {background:#fff6ed!important;border-color:#ebd9c5!important;overflow-wrap:anywhere;}
+.supplier-review h3 {display:flex;align-items:center;gap:8px;font-size:15px;line-height:1.5;margin:0 0 9px;}
+.supplier-review section label {display:flex;align-items:flex-start;gap:10px;margin-top:14px;font-size:14px;line-height:1.6;min-height:44px;}
+.supplier-review section input[type=checkbox] {width:18px;height:18px;min-height:18px;flex:none;margin-top:3px;accent-color:#326548;}
+.supplier-review ul {list-style:none;padding:0;margin:8px 0;}
+.supplier-review li {padding:9px 0;border-bottom:1px solid #e9eeea;overflow-wrap:anywhere;font-size:14px;line-height:1.5;}
+.supplier-review__lines {padding:0 16px;border:1px solid #dfe6df;border-radius:12px;}
+.supplier-review summary {display:flex;align-items:center;min-height:44px;font-size:14px;font-weight:600;cursor:pointer;}
+.supplier-review__lines li {display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 18px;}
+.supplier-review__lines li > span {flex:1 1 180px;white-space:pre-wrap;}
+.supplier-review__lines small {display:block;color:#637169;}
+.supplier-review .button {white-space:normal;min-height:44px;}
+.supplier-review__success {display:grid;gap:12px;padding:18px;border-radius:14px;background:#eff6ed;color:#326548;}
+.supplier-review-resume {display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;margin-bottom:18px;padding:16px 20px;border:1px solid #dbe5dc;border-radius:14px;background:#f2f7f2;}
+.supplier-review-resume > span {flex:1 1 220px;font-size:14px;line-height:1.6;}
+@media(max-width:600px) {.supplier-review .form-actions {display:grid;grid-template-columns:minmax(0,1fr);}}
+@media(max-width:860px) {.supplier-review-modal .supplier-review > .form-actions {position:sticky;bottom:calc(-1 * max(16px, env(safe-area-inset-bottom)));z-index:3;padding:12px 0 max(12px, env(safe-area-inset-bottom));background:var(--paper);margin-bottom:0;}}

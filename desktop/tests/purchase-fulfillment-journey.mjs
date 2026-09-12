@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { confirmSupplierReview } from './supplier-review-navigation.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
 const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
@@ -13,9 +14,8 @@ try {
     page.on('pageerror', (error) => report.push({ width, error: error.message }));
     page.on('dialog', (dialog) => dialog.accept());
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?purchasing=1');
-    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-    if (await tour.isVisible()) await tour.click();
+    await page.goto(`${process.env.ZENTRA_QA_URL || 'http://127.0.0.1:5271'}/tests/mobile-harness.html?purchasing=1`);
+    await page.getByRole('button', { name: 'Fermer le guide automatique', exact: true }).click();
     await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Achats');
     await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Achats & fournisseurs', { exact: true }) }).click();
@@ -143,6 +143,7 @@ try {
     await capture('invoice-matched');
     await mode('validate', 'refresh_once');
     await page.getByRole('button', { name: 'Valider', exact: true }).click();
+    await confirmSupplierReview(page);
     await page.getByRole('button', { name: 'Paiement', exact: true }).waitFor();
     assert.equal((await attempts('validate')).length, 1); assert.equal((await persisted()).validated, 1); assert.equal((await persisted()).stock, 7000);
     await capture('invoice-validated');
@@ -153,9 +154,8 @@ try {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     page.on('pageerror', (error) => report.push({ width, error: error.message }));
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?purchasing=1&oldVat=1');
-    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-    if (await tour.isVisible()) await tour.click();
+    await page.goto(`${process.env.ZENTRA_QA_URL || 'http://127.0.0.1:5271'}/tests/mobile-harness.html?purchasing=1&oldVat=1`);
+    await page.getByRole('button', { name: 'Fermer le guide automatique', exact: true }).click();
     await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Achats');
     await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Achats & fournisseurs', { exact: true }) }).click();

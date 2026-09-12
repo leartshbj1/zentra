@@ -350,3 +350,20 @@ Validation dans chaque dossier : 35 tests unitaires ciblés, 8 tests natifs de c
 TypeScript et Vite compilent dans les deux dossiers. Les captures des petits écrans ont été inspectées. Les tests de navigateur utilisent des données synthétiques, des PDF de recette et un stockage de test ; ils ne prouvent pas une installation physique. Les tests natifs vérifient notamment les polices/couleurs, les logos, la pagination et la préservation des valeurs comptables. Aucun moteur PDF, calcul financier ou schéma de données n’a changé.
 
 Intégration dans le dossier principal par fusion à trois versions sans conflit ; sauvegarde dans `.qa/document-tools-before`. Les autres travaux du dossier principal sont conservés. Guide : [PERSONNALISATION-DOCUMENTS.md](PERSONNALISATION-DOCUMENTS.md). Aucun nouvel installateur ou IPA n’est publié dans ce lot.
+
+
+## Lot : vérification guidée des factures fournisseurs
+
+La validation d’un brouillon utilise une fenêtre de l’application : total à comparer avec le document reçu, dates, hors TVA, TVA, détail des achats et justificatifs. Les boutons de validation restent accessibles depuis les achats lorsqu’une correction est nécessaire ; la fenêtre explique le problème et bloque la comptabilisation tant que les données contrôlées sont incohérentes.
+
+Le numéro manquant ouvre directement le champ concerné. Les autres corrections dirigent vers les comptes, les exercices, les justificatifs ou le rapprochement des commandes et réceptions. Une action « Reprendre la facture fournisseur » retrouve ensuite le même achat avec les données actualisées. Les informations d’un brouillon rapproché restent protégées ; ses justificatifs sont encore accessibles avant validation.
+
+Continuer sans justificatif ou conserver une facture indépendante d’une commande ouverte demande un choix explicite. Ces choix sont remis à zéro si le document ou ses liens changent, même lorsque les anciennes valeurs reviennent. La confirmation distingue la comptabilisation et le paiement : elle affiche d’abord le reste à payer, puis propose d’enregistrer un règlement. Le total et les actions restent visibles sur les petits écrans.
+
+Les doubles clics et les actions pendant l’écriture sont bloqués. Un refus conserve la fenêtre avec une explication, un accès à la correction et le message complet dépliable. Une lecture interrompue après une écriture acquittée se reprend par actualisation. Après une réponse perdue, l’état enregistré de la facture évite de proposer inutilement une seconde validation.
+
+Validation dans chaque dossier : 68 tests unitaires ciblés, 4 tests natifs, 8 parcours Edge/WebKit aux formats 320×568, 390×844, 844×390 et 1440×900, puis 6 parcours existants de saisie, justificatif, validation et paiement partiel/complet. Douze parcours supplémentaires passent dans Edge sur la base de livraison : commandes, réceptions partielles, rapprochement de plusieurs commandes, écarts, TVA du catalogue à corriger, refus et reprises. Les recettes existantes suivent désormais la vérification dans l’application et utilisent l’adresse de test configurée.
+
+Les contrôles natifs vérifient les écritures atomiques, l’immuabilité après validation, les périodes fermées, les paiements sans doublon et les arrondis sur plusieurs commandes. TypeScript et Vite compilent dans les deux dossiers. Les captures ont été inspectées, notamment le montant restant, les actions et les erreurs sur petit écran. Les tests de navigateur utilisent des données synthétiques.
+
+Intégration dans le dossier principal par fusion à trois versions sans conflit, avec sauvegarde dans `.qa/supplier-review-before`. Les travaux de synchronisation et les recettes du chronomètre présents dans ce dossier sont conservés. Guide : [ACHATS-ET-VALIDATION.md](ACHATS-ET-VALIDATION.md). Aucun calcul fiscal, moteur natif ou schéma ne change. Aucun nouvel installateur ou IPA n’est publié dans ce lot.

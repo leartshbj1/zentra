@@ -209,6 +209,10 @@ function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
   const [readOnly, setReadOnly] = useState(new URLSearchParams(location.search).has('readOnly'));
+  if (new URLSearchParams(location.search).has('supplierReview')) Object.assign(window, {
+    __qaSetReadOnly: setReadOnly,
+    __qaReloadPurchases: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; return next; },
+  });
   const [projectAccount, setProjectAccount] = useState('');
   if (new URLSearchParams(location.search).has('projectNavigation')) Object.assign(window, {
     __qaSetReadOnly: setReadOnly, __qaSetProjectAccount: setProjectAccount,

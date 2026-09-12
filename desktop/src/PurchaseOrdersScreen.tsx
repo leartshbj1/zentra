@@ -563,6 +563,8 @@ export function nextMatchClearConfirmation(
 }
 
 export function PurchaseOrdersScreen({
+  openInvoiceMatchId,
+  onOpenInvoiceMatchHandled,
   openCreditId,
   onOpenCreditHandled,
   workspace,
@@ -587,6 +589,8 @@ export function PurchaseOrdersScreen({
   onRestoreSupplier,
   onOpenAccounting,
 }: {
+  openInvoiceMatchId?: string | null;
+  onOpenInvoiceMatchHandled?: () => void;
   openCreditId?:string|null;
   onOpenCreditHandled?:()=>void;
   workspace: Workspace;
@@ -637,6 +641,17 @@ export function PurchaseOrdersScreen({
     setModalState(next ? { ...next, requestId: createId() } : null);
     setModalFailure(null);
   };
+  useEffect(() => {
+    if (!openInvoiceMatchId || busy) return;
+    const invoice = workspace.supplierInvoices.find(row => row.id === openInvoiceMatchId);
+    const linked = workspace.supplierInvoiceMatches.find(row => row.supplierInvoiceId === openInvoiceMatchId);
+    const order = workspace.supplierOrders.find(row => row.id === linked?.supplierOrderId)
+      || workspace.supplierOrders.find(row => row.supplierId === invoice?.supplierId && row.currency === invoice?.currency && row.status === 'confirmed');
+    setSection('documents'); onQueryChange(invoice?.reference || '');
+    if (invoice?.documentStatus === 'draft' && order) setModal({ type: 'match', invoice, order });
+    else if (invoice?.documentStatus === 'draft') onEditSupplierInvoice(invoice);
+    onOpenInvoiceMatchHandled?.();
+  }, [openInvoiceMatchId, busy]);
   const today = todayIso();
   const activeSuppliers = workspace.suppliers.filter(
     (supplier) => !supplier.archivedAt,
@@ -1476,7 +1491,7 @@ function PurchaseInbox({
             ) : invoice.documentStatus === 'draft' ? (
               <Button
                 size="small"
-                disabled={busy || !accountingReady || validationMismatch}
+                disabled={busy}
                 title={
                   !accountingReady
                     ? 'Configurez d’abord les comptes fournisseurs et de TVA.'
@@ -2032,7 +2047,7 @@ function DocumentsSection({
                     variant={
                       shouldOfferMatching && !linkedMatch ? 'ghost' : 'primary'
                     }
-                    disabled={busy || !accountingReady || validationMismatch}
+                    disabled={busy}
                     title={
                       !accountingReady
                         ? 'Configurez d’abord les comptes fournisseurs et de TVA.'

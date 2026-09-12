@@ -266,6 +266,7 @@ const PairedInvoiceEditor = deferView(() => import('./QuoteInvoiceFolder').then(
 const QuoteInvoiceFolder = deferView(() => import('./QuoteInvoiceFolder').then(module => ({ default: module.QuoteInvoiceFolder })), { label: 'Ouverture du dossier de facturation…', close: props => props.close });
 const QuoteConversionModal = deferView(() => import('./QuoteConversionModal').then(module => ({ default: module.QuoteConversionModal })), { label: 'Ouverture de la conversion du devis…', close: props => props.close });
 const InvoiceIssueDialog = deferView(() => import('./InvoiceIssueDialog').then(module => ({ default: module.InvoiceIssueDialog })), { label: 'Préparation de la vérification de facture…', close: props => props.close });
+const SupplierInvoiceReviewDialog = deferView(() => import('./SupplierInvoiceReviewDialog').then(module => ({ default: module.SupplierInvoiceReviewDialog })), { label: 'Vérification de la facture fournisseur…', close: props => props.close });
 const CatalogScreen = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogScreen })), { label: 'Ouverture du catalogue…' });
 const CatalogItemForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogItemForm })), { label: 'Ouverture du catalogue…', close: props => props.close });
 const StockMovementForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.StockMovementForm })), { label: 'Ouverture du catalogue…', close: props => props.close });
@@ -358,7 +359,7 @@ type ModalState =
   | { type: 'employee'; item?: Employee; returnToPayslip?: { period: string; paymentDate: string } }
   | { type: 'expense'; item?: Expense }
   | { type: 'legacyExpenseDetail'; expense: Expense }
-  | { type: 'supplierInvoice'; item?: SupplierInvoice }
+  | { type: 'supplierInvoice'; item?: SupplierInvoice; initialTarget?: 'reference' | 'attachments' }
   | { type: 'supplierInvoiceDetail'; invoice: SupplierInvoice }
   | { type: 'supplierPayment'; invoice: SupplierInvoice }
   | { type: 'payslip'; item?: Payslip; initialEmployeeId?: string; initialPeriod?: string; initialPaymentDate?: string }
@@ -497,6 +498,9 @@ export function WorkspaceApp({
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
   const [invoiceToIssueId, setInvoiceToIssueId] = useState<string | null>(null);
   const [invoiceIssueReturnId, setInvoiceIssueReturnId] = useState<string | null>(null);
+  const [supplierInvoiceReviewId, setSupplierInvoiceReviewId] = useState<string | null>(null);
+  const [supplierReviewReturnId, setSupplierReviewReturnId] = useState<string | null>(null);
+  const [supplierMatchToOpenId, setSupplierMatchToOpenId] = useState<string | null>(null);
   const [bankAutoReconcile, setBankAutoReconcile] = useState(true);
   const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods'>();
   const clearAccountingStartTab = useCallback(() => setAccountingStartTab(undefined), []);
@@ -1384,20 +1388,40 @@ export function WorkspaceApp({
   }
 
   async function validateSupplierInvoice(item: SupplierInvoice) {
-    const attachmentWarning = item.attachments.length
-      ? ''
-      : '\n\nAucun justificatif n’est joint. Vous pourrez toujours valider, mais le document original ne sera pas archivé avec cette facture.';
-    if (
-      !window.confirm(
-        `Valider la facture fournisseur « ${item.reference || item.supplierName} » ? Le fournisseur, les lignes, les montants et les justificatifs seront figés, puis l’écriture comptable sera créée.${attachmentWarning}`,
-      )
-    )
-      return;
-    await act(
+    if (busy || actionInFlight.current || isWorkspaceRecoveryPending()) return;
+    setSupplierInvoiceReviewId(item.id);
+  }
+
+  async function confirmSupplierInvoiceReview(item: SupplierInvoice) {
+    const current = workspaceRef.current.supplierInvoices.find(row => row.id === item.id);
+    if (!current) throw new Error('Cette facture n’est plus disponible dans les achats.');
+    if (current.documentStatus === 'validated') return;
+    let issueReason: unknown;
+    const saved = await act(
       () => desktopApi.validateSupplierInvoice(item.id),
       'La facture fournisseur a été validée, verrouillée et comptabilisée.',
       false,
+      reason => { issueReason = reason; },
     );
+    // A lost native response can be recovered by the existing read in act().
+    // The current stored state determines whether a second write is necessary.
+    const confirmed = workspaceRef.current.supplierInvoices.find(row => row.id === item.id)?.documentStatus === 'validated';
+    if (!saved && !confirmed) throw issueReason || new Error('La validation n’a pas été effectuée. Réessayez après actualisation.');
+    setSupplierReviewReturnId(null);
+  }
+
+  function resolveSupplierReview(invoice: SupplierInvoice, target: import('./supplierInvoiceReview').SupplierReviewTarget) {
+    if (busy || actionInFlight.current) return;
+    const current = workspaceRef.current.supplierInvoices.find(row => row.id === invoice.id);
+    setSupplierInvoiceReviewId(null); setModal(null); setSearch(''); setMenuOpen(false);
+    setSupplierReviewReturnId(current?.id || null);
+    if (!current) { setView('expenses'); return; }
+    if (target === 'accounts' || target === 'periods') { setAccountingStartTab(target); setAccountingEntryFocus(null); setView('accounting'); }
+    else {
+      setView('expenses');
+      if (target === 'matching' || (target === 'document' || target === 'reference') && workspaceRef.current.supplierInvoiceMatches.some(row => row.supplierInvoiceId === current.id)) setSupplierMatchToOpenId(current.id);
+      else if (target !== 'invoices') setModal({ type: 'supplierInvoice', item: current, initialTarget: target === 'reference' || target === 'attachments' ? target : undefined });
+    }
   }
 
   async function deleteSupplierInvoiceDraft(item: SupplierInvoice) {
@@ -1735,6 +1759,7 @@ export function WorkspaceApp({
 
         <ProjectFileActivity key={cloudAccount?.organizationId ?? 'local'} sessions={projectFileSessions} disabled={busy || readOnly} projects={workspace.projects} currentProjectId={view === 'projects' ? projectFolderId : null} onOpen={id => { setProjectFolderId(id); setView('projects'); setSearch(''); }} />
         {invoiceIssueReturnId && !invoiceToIssueId && <div className="invoice-issue-resume" role="region" aria-label="Reprendre la facture"><span>Votre facture reste disponible. Après les corrections, reprenez sa vérification avant de l’émettre.</span><Button disabled={busy} onClick={() => { const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceIssueReturnId); if (invoice) { setView('invoices'); setSearch(''); setModal(invoice.quoteId ? { type: 'quoteInvoiceFolder', quoteId: invoice.quoteId } : null); setInvoiceToIssueId(invoice.id); } else setNotice({ tone: 'error', text: 'Cette facture n’est plus disponible. Actualisez la liste des factures.' }); }}>Reprendre la facture</Button><Button variant="ghost" disabled={busy} onClick={() => setInvoiceIssueReturnId(null)}>Plus tard</Button></div>}
+        {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label="Reprendre la facture fournisseur"><span>Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>Reprendre la facture fournisseur</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>Plus tard</Button></div>}
         <section className="page-content" ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
@@ -2110,6 +2135,8 @@ export function WorkspaceApp({
           {view === 'expenses' ? (
             <Suspense fallback={<ViewLoading label="Ouverture des achats…" />}>
               <PurchaseOrdersScreen
+                openInvoiceMatchId={supplierMatchToOpenId}
+                onOpenInvoiceMatchHandled={() => setSupplierMatchToOpenId(null)}
                 openCreditId={supplierCreditToOpenId}
                 onOpenCreditHandled={()=>setSupplierCreditToOpenId(null)}
                 workspace={workspace}
@@ -2227,7 +2254,7 @@ export function WorkspaceApp({
         <button type="button" aria-label="Tous les modules" aria-current={!['dashboard', 'projects', 'quotes', 'orders', 'invoices'].includes(view) ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} /><span>Menu</span></button>
       </nav>
 
-      {modal && !invoiceToIssueId ? (
+      {modal && !invoiceToIssueId && !supplierInvoiceReviewId ? (
         <ReadOnlyFormScope readOnly={readOnly && modal.type !== 'qrPrint'}>
         <WorkspaceModal
           state={modal}
@@ -2260,6 +2287,10 @@ export function WorkspaceApp({
       {invoiceToIssueId && (() => {
         const invoice = workspace.invoices.find(row => row.id === invoiceToIssueId);
         return invoice ? <InvoiceIssueDialog key={invoice.id} invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={() => setInvoiceToIssueId(null)} onConfirm={confirmInvoiceIssue} onResolve={target => resolveInvoiceIssue(invoice, target)} /> : <Modal title="Facture indisponible" onClose={() => setInvoiceToIssueId(null)}><p>Ce document n’est plus présent dans les données chargées. Revenez à la liste des factures pour vérifier son état.</p><Button onClick={() => { setInvoiceToIssueId(null); setModal(null); setView('invoices'); setSearch(''); }}>Voir les factures</Button></Modal>;
+      })()}
+      {supplierInvoiceReviewId && (() => {
+        const invoice = workspace.supplierInvoices.find(row => row.id === supplierInvoiceReviewId);
+        return invoice ? <SupplierInvoiceReviewDialog key={invoice.id} invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={() => setSupplierInvoiceReviewId(null)} onConfirm={confirmSupplierInvoiceReview} onResolve={target => resolveSupplierReview(invoice, target)} onPayment={() => { setSupplierInvoiceReviewId(null); setModal({ type: 'supplierPayment', invoice }); }} /> : <Modal title="Facture fournisseur indisponible" onClose={() => setSupplierInvoiceReviewId(null)}><p>Cette facture n’est plus dans les données chargées. Consultez les achats pour vérifier son état.</p><Button onClick={() => { setSupplierInvoiceReviewId(null); setSupplierReviewReturnId(null); setView('expenses'); setSearch(''); }}>Voir les achats</Button></Modal>;
       })()}
       {printTarget ? (
         <PrintSheet
@@ -6294,6 +6325,7 @@ function WorkspaceModal({
     return (
       <SupplierInvoiceForm
         item={state.item}
+        initialTarget={state.initialTarget}
         workspace={workspace}
         busy={busy}
         close={close}

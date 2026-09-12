@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { confirmSupplierReview } from './supplier-review-navigation.mjs';
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 const { chromium, webkit } = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
@@ -86,6 +87,7 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
         else await page.locator('#purchase-tab-documents').click();
         const card = page.locator('.purchase-document-card').filter({ hasText: 'ACHAT-RECETTE' });
         await card.getByRole('button', { name: 'Valider', exact: true }).click();
+        await confirmSupplierReview(page);
         await card.getByRole('button', { name: 'Paiement', exact: true }).click();
         const payment = page.getByRole('dialog', { name: 'Enregistrer un paiement fournisseur', exact: true });
         await payment.getByRole('textbox', { name: /^Montant payé/ }).fill('108,11');

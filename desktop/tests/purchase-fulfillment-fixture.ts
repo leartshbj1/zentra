@@ -18,7 +18,10 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
   };
   initial.supplierInvoices = [invoice];
   if (new URLSearchParams(location.search).has('multiOrders')) seedMultiOrderPurchase(initial, invoice);
+  const review = new URLSearchParams(location.search).has('supplierReview');
+  if (review && !new URLSearchParams(location.search).has('multiOrders')) invoice.reference = '';
   let persisted = structuredClone(initial);
+  if (review) sessionStorage.setItem('qa-purchase-documents', JSON.stringify(persisted.supplierInvoices));
   let readFailures = 0;
   const writes = new Set<string>();
   const reminderSettings = desktopApi.getReminderSettings;
@@ -34,9 +37,15 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     const mode = sessionStorage.getItem(`qa-purchase-${operation}-failure`);
     sessionStorage.removeItem(`qa-purchase-${operation}-failure`);
     if (mode === 'reject') throw new Error(`Refus ${operation} : la période comptable est fermée.`);
+    if (mode === 'accounts') throw new Error('Le compte de charges doit être actif et correctement relié.');
     return mode;
   };
   desktopApi.loadWorkspace = async () => {
+    if (review && sessionStorage.getItem('qa-purchase-workspace-patch')) {
+      persisted = { ...persisted, ...JSON.parse(sessionStorage.getItem('qa-purchase-workspace-patch')!) };
+      sessionStorage.removeItem('qa-purchase-workspace-patch');
+      sessionStorage.setItem('qa-purchase-documents', JSON.stringify(persisted.supplierInvoices));
+    }
     sessionStorage.setItem('qa-purchase-read-count', String(Number(sessionStorage.getItem('qa-purchase-read-count') || 0) + 1));
     if (sessionStorage.getItem('qa-purchase-hold-next-read') === '1') {
       sessionStorage.removeItem('qa-purchase-hold-next-read');
@@ -60,6 +69,8 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     log('invoice-draft', input); const mode = failure('invoice-draft'); const id = input.id || crypto.randomUUID();
     const lines = input.items.map((line, position) => ({ ...line, ...supplierDraftLineTotals({ ...line, discountBp: line.discountBp ?? 0 }), id: line.id || `${id}-line-${position}`, supplierInvoiceId: id, position, postedExpenseAccountId: null }));
     const row = { ...structuredClone(invoice), id, supplierId: input.supplierId, documentDate: input.date, dueDate: input.dueDate, reference: input.reference || '', note: input.note || '', projectId: input.projectId || null, lines, netCents: lines.reduce((sum, line) => sum + line.netCents, 0), vatCents: lines.reduce((sum, line) => sum + line.vatCents, 0), totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0) } as SupplierInvoice;
+    const previous = persisted.supplierInvoices.find(entry => entry.id === id);
+    if (previous) row.attachments = previous.attachments;
     row.balanceCents = row.totalCents;
     persisted.supplierInvoices = [...persisted.supplierInvoices.filter((entry) => entry.id !== id), row];
     sessionStorage.setItem('qa-purchase-saved-invoice', JSON.stringify(row));
@@ -132,6 +143,7 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
   desktopApi.addSupplierInvoiceAttachment = async (id, sourcePath) => {
     log('attachment', { id, sourcePath }); const mode = failure('attachment');
     const row = persisted.supplierInvoices.find((entry) => entry.id === id)!;
+    if (row.documentStatus !== 'draft') throw new Error('Cette facture fournisseur est déjà validée et verrouillée.');
     row.attachments.push({ id: crypto.randomUUID(), projectId: row.projectId, entityType: 'supplier_invoice', entityId: id, originalName: 'facture-originale.pdf', mimeType: 'application/pdf', sizeBytes: 12000, sha256: 'a'.repeat(64), createdAt: now, updatedAt: now });
     return afterWrite(mode);
   };
