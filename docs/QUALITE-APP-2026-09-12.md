@@ -299,3 +299,20 @@ Validation dans les deux dossiers : 45 tests d’interface, 8 parcours de factur
 TypeScript et Vite compilent dans les deux dossiers. Les captures du total et des corrections sur petit écran ont été inspectées. Intégration par fusion à trois versions sans conflit ; sauvegarde du dossier principal dans `.qa/invoice-issue-before`. Les évolutions de synchronisation et de comptabilité du dossier principal sont conservées.
 
 Guide : [DEVIS-FACTURES.md](DEVIS-FACTURES.md). Aucun nouvel installateur ni IPA n’est publié dans ce lot ; l’installation physique et les échanges entre appareils restent à vérifier.
+
+
+## Lot : démarrer et corriger la configuration comptable
+
+Le rapport natif indique désormais si les comptes de paie et de TVA différée sont requis. L’écran suit ces besoins (7, 8, 11 ou 12 comptes), y compris lorsqu’un ancien profil de TVA sur les encaissements existe. Il ne demande plus systématiquement le compte de TVA différée. Une réponse native ancienne conserve une vérification prudente et une explication visible. Les règles fiscales, les écritures et le schéma de données ne sont pas modifiés.
+
+Le démarrage avec la base essentielle devient visible avant le plan complet. Une fenêtre présente les effets avant activation : 12 comptes de base, leurs liaisons et la reprise des opérations manquantes des périodes ouvertes. Elle distingue les périodes fermées qui nécessitent un contrôle des soldes d’ouverture. Le guide des délais commerciaux arrive dans cette même confirmation, sans empiler les fenêtres ni activer silencieusement la comptabilité.
+
+Le réglage manuel est regroupé par ventes, achats, TVA et salaires. Les listes proposent les comptes actifs du type attendu. Un ancien choix incompatible reste identifiable ; la vérification ouvre et cible le champ à corriger. Les comptes qui doivent être distincts sont contrôlés avant envoi. La création d’un compte manquant ouvre le formulaire et conserve les choix de liaison déjà saisis.
+
+La confirmation garde un résultat d’enregistrement acquitté. En cas d’échec des lectures ou des rapports, la reprise relit uniquement les comptes, l’espace de travail et les états : elle ne répète pas la configuration ou l’installation. Les doubles validations et la fermeture pendant le traitement sont bloquées ; la reprise des lectures reste accessible en lecture seule. Les compteurs du résultat sont présentés comme ceux de l’enregistrement, sans les confondre avec une résolution de tous les contrôles historiques.
+
+Validation dans chaque dossier : 20 tests d’interface ciblés, 3 tests natifs, 16 parcours Edge/WebKit de configuration aux formats 320×568, 390×844, 844×390 et 1440×900 ; 4 parcours supplémentaires depuis le guide de configuration ; 8 parcours d’émission de facture vérifient le lien vers les comptes et la reprise de la facture. Les tests natifs couvrent les exigences hors paie/avec paie, le profil historique de TVA reçue, la préservation des réglages après refus et l’intégration d’une facture existante avant encaissement. Les recettes d’interface vérifient notamment le focus sur l’erreur, les types de compte proposés, la conservation des choix, le refus, le double clic, la lecture seule, les pannes de lecture et de rapport et la configuration retrouvée après rechargement. TypeScript et Vite compilent dans les deux dossiers. Les captures sur petit écran ont été inspectées.
+
+Intégration dans le dossier principal par fusion à trois versions, avec sauvegarde dans `.qa/accounting-setup-before`. Deux conflits du fichier de recette ont été résolus en conservant l’import de l’assistant une seule fois et les commandes de lecture seule pour le chronomètre et la nouvelle configuration. Les autres travaux du dossier principal sont conservés.
+
+Guide : [COMPTABILITE-DEMARRAGE.md](COMPTABILITE-DEMARRAGE.md). Données synthétiques uniquement ; aucun nouvel installateur ou IPA publié dans ce lot. Ces recettes ne remplacent ni le contrôle comptable de l’entreprise ni une vérification sur une installation physique.

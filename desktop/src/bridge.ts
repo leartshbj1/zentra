@@ -161,6 +161,7 @@ import type {
 import type { SupplierEmailInspection } from './supplierEmail';
 import type { ManualJournalSubmission } from './accountingManualJournal';
 import type { OnboardingValidationScope } from './onboardingValidation';
+import { accountingRequirementsFromRaw } from './accountingSetup';
 import type { CatalogImportRow } from './catalogImport';
 import { validDepositPercentageBp } from './deposit';
 import {
@@ -3647,6 +3648,7 @@ function accountingContinuityFromRaw(
   return {
     enabled: boolValue(row?.enabled),
     mappingReady: boolValue(row?.mapping_ready),
+    mappingRequirements: accountingRequirementsFromRaw(row?.mapping_requirements),
     starterAvailable: boolValue(row?.starter_available),
     journalEntryCount: numberValue(row?.journal_entry_count),
     missingInvoices: numberValue(row?.missing_invoices),

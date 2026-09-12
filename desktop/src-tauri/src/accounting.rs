@@ -1480,6 +1480,11 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
     )?;
     let blocked_payments = blocked_unposted_payments(connection, false)?;
     let payroll_mappings_required = payroll_accounting_mappings_required(connection)?;
+    let received_vat_mapping_required: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM vat_profiles WHERE form_of_reporting='received')",
+        [],
+        |row| row.get(0),
+    )?;
     let mapping_ready_sql = if payroll_mappings_required {
         "SELECT EXISTS(SELECT 1 FROM accounting_settings s
             JOIN accounts ar ON ar.id=s.ar_account_id AND ar.active=1 AND ar.account_type='asset'
@@ -1559,6 +1564,7 @@ fn accounting_continuity_report(connection: &Connection) -> AppResult<Value> {
     Ok(json!({
         "enabled": enabled,
         "mapping_ready": mapping_ready,
+        "mapping_requirements": { "payroll": payroll_mappings_required, "deferred_vat": received_vat_mapping_required },
         "starter_available": !configured_mappings && journal_entry_count == 0,
         "journal_entry_count": journal_entry_count,
         "missing_invoices": missing_invoices,

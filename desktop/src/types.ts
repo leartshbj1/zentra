@@ -1848,6 +1848,7 @@ export type CustomerCreditAccountingIssue = {
 };
 
 export type AccountingContinuity = {
+  mappingRequirements?: { payroll: boolean; deferredVat: boolean };
   enabled: boolean;
   mappingReady: boolean;
   starterAvailable: boolean;

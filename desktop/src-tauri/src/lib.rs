@@ -1119,7 +1119,7 @@ mod tests {
             ar_account_id: Some(accounts["ar"].clone()),
             revenue_account_id: Some(accounts["revenue"].clone()),
             vat_payable_account_id: Some(accounts["vat_payable"].clone()),
-            vat_deferred_payable_account_id: Some(accounts["vat_deferred_payable"].clone()),
+            vat_deferred_payable_account_id: None,
             bank_account_id: Some(accounts["bank"].clone()),
             expense_account_id: Some(accounts["expense"].clone()),
             vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
@@ -1131,6 +1131,7 @@ mod tests {
         };
 
         store.configure_accounting(core_only()).unwrap();
+        assert_eq!(store.get_accounting_continuity().unwrap()["mapping_requirements"], json!({"payroll": false, "deferred_vat": false}));
         assert_eq!(
             store.get_accounting_continuity().unwrap()["mapping_ready"],
             true
@@ -1151,12 +1152,59 @@ mod tests {
             .unwrap();
         drop(connection);
 
+        assert_eq!(store.get_accounting_continuity().unwrap()["mapping_requirements"], json!({"payroll": true, "deferred_vat": false}));
         assert_eq!(
             store.get_accounting_continuity().unwrap()["mapping_ready"],
             false
         );
         let error = store.configure_accounting(core_only()).unwrap_err();
         assert!(error.to_string().contains("onze comptes"));
+        let mut with_payroll = core_only();
+        with_payroll.wages_expense_account_id = Some(accounts["wages_expense"].clone());
+        with_payroll.wages_payable_account_id = Some(accounts["wages_payable"].clone());
+        with_payroll.social_expense_account_id = Some(accounts["social_expense"].clone());
+        with_payroll.social_payable_account_id = Some(accounts["social_payable"].clone());
+        store.configure_accounting(with_payroll).unwrap();
+        assert_eq!(store.get_accounting_continuity().unwrap()["mapping_ready"], true);
+    }
+
+    #[test]
+    fn accounting_mapping_requirements_include_historical_received_vat_profiles() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        store.create_vat_profile(VatProfileInput {
+            id: Some("historical-received-requirement".into()),
+            effective_from: "2025-01-01".into(), effective_to: Some("2025-12-31".into()),
+            reporting_method: "effective".into(), form_of_reporting: "received".into(),
+            periodicity: "quarterly".into(), gross_or_net: "net".into(),
+            tdfn_activity_id: None, tdfn_rate_bp: None, afc_authorization_confirmed: true,
+            notes: None, close_previous_open_profile: false,
+        }).unwrap();
+        let continuity = store.get_accounting_continuity().unwrap();
+        assert_eq!(continuity["mapping_requirements"]["deferred_vat"], true);
+        assert_eq!(continuity["mapping_ready"], true);
+        let settings = || AccountingSettingsInput {
+            enabled: true,
+            ar_account_id: Some(accounts["ar"].clone()), revenue_account_id: Some(accounts["revenue"].clone()),
+            vat_payable_account_id: Some(accounts["vat_payable"].clone()), vat_deferred_payable_account_id: None,
+            bank_account_id: Some(accounts["bank"].clone()), expense_account_id: Some(accounts["expense"].clone()),
+            vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
+            wages_expense_account_id: Some(accounts["wages_expense"].clone()), wages_payable_account_id: Some(accounts["wages_payable"].clone()),
+            social_expense_account_id: Some(accounts["social_expense"].clone()), social_payable_account_id: Some(accounts["social_payable"].clone()),
+            supplier_payable_account_id: Some(accounts["supplier_payable"].clone()),
+        };
+        assert!(store.configure_accounting(settings()).is_err());
+        // A refused configuration preserves the complete mapping already saved.
+        assert_eq!(store.get_accounting_continuity().unwrap()["mapping_ready"], true);
+        let mut complete = settings();
+        complete.vat_deferred_payable_account_id = Some(accounts["vat_deferred_payable"].clone());
+        store.configure_accounting(complete).unwrap();
+        store.connect().unwrap().execute("UPDATE settings SET extra_settings_json=json_set(extra_settings_json,'$.payroll.enabled',1) WHERE id=1", []).unwrap();
+        assert_eq!(store.get_accounting_continuity().unwrap()["mapping_requirements"], json!({"payroll": true, "deferred_vat": true}));
+        let mut with_payroll = settings();
+        with_payroll.vat_deferred_payable_account_id = Some(accounts["vat_deferred_payable"].clone());
+        store.configure_accounting(with_payroll).unwrap();
+        assert_eq!(store.get_accounting_continuity().unwrap()["mapping_ready"], true);
     }
 
     #[test]
