@@ -3,10 +3,19 @@ const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ Channel: class {}, invoke: invokeMock }));
 import { desktopApi } from './bridge';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
-import type { EntityKind } from './types';
+import type { EntityKind, Quote } from './types';
 
 const request = '39c85c22-7fc0-42d0-95f9-c1ad536fe2cf';
 const operations = [
+  { command: 'save_document_with_items', run: () => desktopApi.saveDocument('quotes', { title: 'Devis de recette' }, []) },
+  { command: 'save_document_with_items', run: () => desktopApi.saveDocument('invoices', { title: 'Facture de recette' }, []) },
+  { command: 'issue_quote', run: () => desktopApi.issueDocument('quotes', request, '2026-09-01', '2026-09-30') },
+  { command: 'issue_invoice', run: () => desktopApi.issueDocument('invoices', request, '2026-09-01', '2026-09-30') },
+  { command: 'update_quote_status', run: () => desktopApi.updateQuoteStatus(request, 'accepted') },
+  { command: 'convert_quote_to_invoice', run: () => desktopApi.convertQuote({ id: request, title: 'Devis' } as Quote, 3000) },
+  { command: 'create_quote_balance_invoice', run: () => desktopApi.createQuoteBalance(request) },
+  { command: 'abandon_invoice_correction', run: () => desktopApi.abandonInvoiceCorrection(request) },
+  { command: 'record_payment', run: () => desktopApi.addPayment(request, { requestId: request, amountCents: 12345, date: '2026-09-02', method: 'Virement bancaire', reference: 'Ref-123', notes: 'Versement partiel' }) },
   ...(['clients', 'catalogItems', 'suppliers', 'projects', 'quotes', 'invoices', 'employees', 'timeEntries', 'expenses', 'payslips'] as EntityKind[]).flatMap(entity => [
     { command: 'create_record', run: () => desktopApi.createEntity(entity, { name: 'Recette de reprise' }) },
     { command: 'update_record', run: () => desktopApi.updateEntity(entity, request, { notes: 'Correction conservée' }) },
@@ -45,6 +54,16 @@ const operations = [
 
 describe('reprise des ventes et achats après écriture locale confirmée', () => {
   beforeEach(() => { invokeMock.mockReset(); });
+  it('transmet les identifiants créés avant toute lecture susceptible d’échouer', async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'create_quote_revision') return { revision: { id: 'revision' } };
+      if (command === 'create_invoice_correction') return { workflow_id: 'flow', credit_note_id: 'credit', replacement_invoice_id: 'replacement' };
+      throw new Error('La lecture doit être lancée par le parcours après réception des identifiants');
+    });
+    expect(await desktopApi.createQuoteRevision(request, 'quote')).toEqual({ revisionId: 'revision' });
+    expect(await desktopApi.createInvoiceCorrection('invoice', 'Quantité corrigée')).toEqual({ workflowId: 'flow', creditNoteId: 'credit', replacementInvoiceId: 'replacement' });
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual(['create_quote_revision', 'create_invoice_correction']);
+  });
   it.each(operations)('$command distingue une écriture confirmée d’une lecture interrompue', async ({ command, run }) => {
     const cause = new Error('Lecture interrompue');
     invokeMock.mockImplementation(async (name: string) => {

@@ -2,6 +2,13 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : conserver les devis, corrections et règlements après une interruption
+
+Les commandes de devis/factures, émission, conversion, solde et paiement distinguent une écriture réussie d'une lecture interrompue. Les identifiants de révision et de facture de remplacement sont récupérés avant la relecture : reprendre ouvre le document créé sans relancer la commande. Les erreurs de saisie et les refus natifs restent dans le formulaire.
+
+Le règlement propose le solde restant, la date de réception et un libellé de moyen de paiement ; le montant, la date et les dépassements sont expliqués avant l'envoi. Les dates et notes d'une facture liée sont enregistrées avant de rejoindre son dossier. La consultation en lecture seule reste refermable.
+
+Validation : 117 fichiers / 960 tests d'interface, TypeScript et compilation réussis. 24 parcours de récupération sur Edge/WebKit à 320/390/1440 px, 8 parcours de factures liées et 4 parcours de l'assistant de devis réussis. Les tests natifs de paire acompte/solde avec PDF et sauvegarde, de correction d'une facture payée et d'atomicité paiement/écriture comptable réussissent. L'intégration au dossier principal passe TypeScript, 161 tests ciblés et les 32 parcours de récupération/paire. Sauvegarde préalable : `.qa/sales-20260912-before/`. Les recettes navigateur sont synthétiques ; aucune installation ou publication nouvelle n'est attestée.
 ## Lot : comprendre les compléments et les salaires horaires
 
 La priorité est revenue à la création de paie à la demande de l'utilisateur. Les changements de ce lot partent de `24d92fb` sur la base de livraison 1.54.0.

@@ -18,6 +18,7 @@ import {
   addDaysIso,
   createId,
   documentTotals,
+  errorMessage,
   formatDate,
   formatMoney,
   invoicePaid,
@@ -44,6 +45,7 @@ type ActionRunner = (
   action: () => Promise<Workspace>,
   message: string,
   close?: boolean,
+  onError?: (reason: unknown) => void,
 ) => Promise<boolean>;
 
 export function DocumentEditor({
@@ -403,6 +405,7 @@ export function DocumentEditor({
           : 'Un document clair, en quatre étapes.'
       }
       onClose={close}
+      dismissible={!busy}
       className={!isLocked ? "document-editor-dialog" : undefined}
       wide
     >
@@ -500,6 +503,8 @@ export function DocumentEditor({
             item
               ? 'Le brouillon a été mis à jour.'
               : `${entity === 'quotes' ? 'Le devis' : invoiceType === 'credit_note' ? 'L’avoir' : 'La facture'} a été enregistré en brouillon.`,
+            true,
+            reason => setLocalError(errorMessage(reason, 'Le document n’a pas pu être enregistré. Votre saisie est conservée.')),
           );
         })}
       >
@@ -509,7 +514,7 @@ export function DocumentEditor({
           <div className="document-stepper__track"><span style={{ transform: `scaleX(${(step + 1) / 4})` }} /></div>
           <p className="document-stepper__note">Vous pourrez modifier le brouillon avant de l’émettre.</p>
         </nav>}
-        {localError ? <ErrorPanel key={saveAttempt} title="Encore un détail" message={localError} /> : null}
+        {localError ? <ErrorPanel key={saveAttempt} title="Encore un détail" message={localError} reveal /> : null}
         <fieldset disabled={busy || isLocked} className="document-form">
           <section className="document-step" data-document-step="0" hidden={!isLocked && step !== 0}>
             {stepHeading(0)}

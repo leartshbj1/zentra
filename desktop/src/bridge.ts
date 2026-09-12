@@ -3452,7 +3452,7 @@ async function saveDocument(
       ),
     },
   });
-  return loadWorkspace();
+  return refreshWorkspaceAfterMutation(loadWorkspace);
 }
 
 async function chooseFile(
@@ -5494,7 +5494,6 @@ export const desktopApi = {
       },
     });
     return {
-      workspace: await loadWorkspace(),
       workflowId: stringValue(raw.workflow_id),
       creditNoteId: stringValue(raw.credit_note_id),
       replacementInvoiceId: stringValue(raw.replacement_invoice_id),
@@ -5504,7 +5503,7 @@ export const desktopApi = {
     await invoke('abandon_invoice_correction', {
       input: { workflow_id: workflowId },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async issueDocument(
     entity: 'quotes' | 'invoices',
@@ -5515,31 +5514,29 @@ export const desktopApi = {
     if (entity === 'quotes')
       await invoke('issue_quote', { id, issueDate, validUntil: dueDate });
     else await invoke('issue_invoice', { id, issueDate, dueDate });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async updateQuoteStatus(
     id: string,
     status: 'accepted' | 'refused' | 'expired' | 'cancelled',
   ) {
     await invoke('update_quote_status', { id, status });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async createQuoteRevision(requestId: string, id: string) {
     const raw = await invoke<RawRecord>('create_quote_revision', { requestId, id });
     const revisionId = stringValue(recordValue(raw.revision).id);
-    if (!revisionId) {
-      throw new Error('La révision créée n’a pas renvoyé d’identifiant exploitable.');
-    }
-    return { revisionId, workspace: await loadWorkspace() };
+    // Return the acknowledged identity before the caller refreshes the workspace.
+    return { revisionId };
   },
   async convertQuote(quote: Quote, depositPercentageBp: number | null = null) {
     const mutation = convertQuoteMutation(quote, depositPercentageBp);
     await invoke(mutation.command, mutation.args);
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async createQuoteBalance(quoteId: string) {
     await invoke('create_quote_balance_invoice', { quoteId });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async convertQuoteToSalesOrder(requestId: string, quoteId: string) {
     await invoke('convert_quote_to_sales_order', {
@@ -5791,7 +5788,7 @@ export const desktopApi = {
     await invoke('record_payment', {
       input: { invoice_id: invoiceId, ...toBackendData(data) },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async savePayslip(
     data: Record<string, unknown>,

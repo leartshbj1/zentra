@@ -22,7 +22,7 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  });
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&wizard=1`);
- const tour=page.getByRole('button',{name:'Découvrir plus tard',exact:true});
+ const tour=page.getByRole('button',{name:'Fermer le guide automatique',exact:true});
  await tour.click();
  const nav=async(name)=>{
   await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();

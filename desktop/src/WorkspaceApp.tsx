@@ -86,7 +86,8 @@ import {
   X,
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
-import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
+import { WorkspaceRefreshAfterMutationError, refreshWorkspaceAfterMutation } from './workspaceMutation';
+import { paymentInput } from './salesFormValidation';
 import { PayslipPostingRefreshError } from './payrollMutation';
 import { filterPayrollList } from './payrollList';
 import { useWorkspaceRecovery } from './useWorkspaceRecovery';
@@ -1030,21 +1031,20 @@ export function WorkspaceApp({
         });
         return;
       }
-      let revision: Quote | null = null;
+      let revisionId = '';
       const revised = await act(
         async () => {
           const result = await desktopApi.createQuoteRevision(
             attempt.requestId,
             item.id,
           );
-          revision = result.workspace.quotes.find(
-            (candidate) => candidate.id === result.revisionId,
-          ) ?? null;
-          return result.workspace;
+          revisionId = result.revisionId;
+          return refreshWorkspaceAfterMutation(desktopApi.loadWorkspace);
         },
         `Le devis ${item.number || item.title} est conservé dans l’historique. Sa nouvelle version est prête à être modifiée.`,
         false,
       );
+      const revision = workspaceRef.current.quotes.find(candidate => candidate.id === revisionId);
       if (revised && revision) {
         try {
           clearQuoteRevisionAttempt(attempt);
@@ -1059,9 +1059,28 @@ export function WorkspaceApp({
           return;
         }
         setModal({ type: 'document', entity: 'quotes', item: revision });
+      } else if (revised) {
+        setNotice({ tone: 'error', text: 'La révision est enregistrée, mais sa nouvelle version n’a pas pu être retrouvée. Consultez la liste des devis ; aucun second devis n’a été créé.' });
       }
     } finally {
       quoteRevisionInFlight.current.delete(item.id);
+    }
+  }
+
+  async function createInvoiceCorrection(invoice: Invoice, reason: string, onError: (reason: unknown) => void) {
+    let replacementId = '';
+    const created = await act(async () => {
+      const result = await desktopApi.createInvoiceCorrection(invoice.id, reason);
+      replacementId = result.replacementInvoiceId;
+      return refreshWorkspaceAfterMutation(desktopApi.loadWorkspace);
+    }, 'La version modifiable est prête. Corrigez-la, puis émettez d’abord l’avoir et ensuite la nouvelle facture.', false, onError);
+    if (!created) return;
+    const replacement = workspaceRef.current.invoices.find(candidate => candidate.id === replacementId);
+    if (replacement) setModal({ type: 'document', entity: 'invoices', item: replacement });
+    else {
+      setModal(null);
+      setView('invoices');
+      setNotice({ tone: 'error', text: 'La correction est enregistrée, mais sa facture de remplacement n’a pas pu être ouverte. Retrouvez les documents dans la liste des factures.' });
     }
   }
 
@@ -2159,6 +2178,7 @@ export function WorkspaceApp({
           onConvertQuote={(quote, depositPercentageBp) =>
             convertAcceptedQuote(quote, depositPercentageBp)
           }
+          onCreateInvoiceCorrection={createInvoiceCorrection}
           onQrReady={(invoice, qr) => {
             setModal(null);
             setPrintTarget({ entity: 'invoices', value: invoice, qr });
@@ -5902,18 +5922,12 @@ function InvoiceCorrectionModal({
   invoice,
   busy,
   close,
-  replace,
-  act,
+  onCreate,
 }: {
   invoice: Invoice;
   busy: boolean;
   close: () => void;
-  replace: Dispatch<SetStateAction<ModalState>>;
-  act: (
-    action: () => Promise<Workspace>,
-    message: string,
-    close?: boolean,
-  ) => Promise<boolean>;
+  onCreate: (invoice: Invoice, reason: string, onError: (reason: unknown) => void) => Promise<void>;
 }) {
   const [localError, setLocalError] = useState('');
   return (
@@ -5921,6 +5935,7 @@ function InvoiceCorrectionModal({
       title={`Modifier ${invoice.number || 'la facture'}`}
       description="Même payée, la facture peut être modifiée. Zentra conserve l’original et prépare automatiquement la trace de correction."
       onClose={close}
+      dismissible={!busy}
     >
       <form
         onSubmit={submitForm(async (form) => {
@@ -5930,36 +5945,7 @@ function InvoiceCorrectionModal({
             return;
           }
           setLocalError('');
-          let nextWorkspace: Workspace | null = null;
-          let replacementInvoiceId = '';
-          const created = await act(
-            async () => {
-              const result = await desktopApi.createInvoiceCorrection(
-                invoice.id,
-                reason,
-              );
-              nextWorkspace = result.workspace;
-              replacementInvoiceId = result.replacementInvoiceId;
-              return result.workspace;
-            },
-            'La version modifiable est prête. Corrigez-la, puis émettez d’abord l’avoir et ensuite la nouvelle facture.',
-            false,
-          );
-          if (!created || !nextWorkspace || !replacementInvoiceId) return;
-          const replacement = (nextWorkspace as Workspace).invoices.find(
-            (candidate) => candidate.id === replacementInvoiceId,
-          );
-          if (!replacement) {
-            setLocalError(
-              'Les brouillons ont été créés, mais la facture de remplacement doit être rouverte depuis la liste.',
-            );
-            return;
-          }
-          replace({
-            type: 'document',
-            entity: 'invoices',
-            item: replacement,
-          });
+          await onCreate(invoice, reason, error => setLocalError(errorMessage(error, 'La correction n’a pas pu être préparée. Votre motif est conservé.')));
         })}
       >
         <div className="correction-flow">
@@ -5993,6 +5979,7 @@ function InvoiceCorrectionModal({
             minLength={5}
             maxLength={1_000}
             rows={4}
+            disabled={busy}
             placeholder="Ex. quantité facturée incorrecte et description à préciser"
             required
           />
@@ -6030,6 +6017,7 @@ function WorkspaceModal({
   onOpenInvoices,
   onOpenAccounting,
   onConvertQuote,
+  onCreateInvoiceCorrection,
   onQrReady,
 }: {
   state: Exclude<ModalState, null>;
@@ -6045,6 +6033,7 @@ function WorkspaceModal({
     quote: Quote,
     depositPercentageBp: number | null,
   ) => Promise<boolean>;
+  onCreateInvoiceCorrection: (invoice: Invoice, reason: string, onError: (reason: unknown) => void) => Promise<void>;
   onQrReady: (invoice: Invoice, qr: StoredSwissQrBill) => void;
 }) {
   if (state.type === 'client')
@@ -6102,7 +6091,7 @@ function WorkspaceModal({
   }
   if (state.type === 'document' && state.entity === 'invoices' && (state.item as Invoice | undefined)?.billingPair && state.item?.status === 'draft') {
     const invoice = workspace.invoices.find((invoice) => invoice.id === state.item?.id) ?? state.item as Invoice;
-    return <PairedInvoiceEditor invoice={invoice} workspace={workspace} busy={busy || readOnly} close={close} act={act} onFolder={() => replace({ type: 'quoteInvoiceFolder', quoteId: invoice.quoteId! })}/>;
+    return <PairedInvoiceEditor invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} onFolder={() => replace({ type: 'quoteInvoiceFolder', quoteId: invoice.quoteId! })}/>;
   }
   if (state.type === 'document')
     return (
@@ -6142,8 +6131,7 @@ function WorkspaceModal({
         invoice={state.invoice}
         busy={busy}
         close={close}
-        replace={replace}
-        act={act}
+        onCreate={onCreateInvoiceCorrection}
       />
     );
   if (state.type === 'time')
@@ -7863,6 +7851,8 @@ function PaymentForm({
   onOpenAccounting: () => void;
 }) {
   const [requestId] = useState(() => createId());
+  const [localError, setLocalError] = useState('');
+  const [accountingReload, setAccountingReload] = useState(0);
   const [accountingState, setAccountingState] = useState<
     'loading' | 'enabled' | 'disabled' | 'error'
   >('loading');
@@ -7877,6 +7867,7 @@ function PaymentForm({
 
   useEffect(() => {
     let active = true;
+    setAccountingState('loading');
     void desktopApi
       .getAccountingSettings()
       .then((settings) => {
@@ -7889,19 +7880,23 @@ function PaymentForm({
     return () => {
       active = false;
     };
-  }, []);
+  }, [accountingReload]);
 
   return (
     <Modal
       title="Enregistrer un paiement"
       description={`${invoice.number || 'Facture'} · solde ouvert ${formatMoney(balance, invoice.currency)}`}
       onClose={close}
+      dismissible={!busy}
     >
       <form
+        noValidate
         onSubmit={submitForm(async (form) => {
-          if (accountingState !== 'enabled') return;
-          const amountCents = centsFromInput(form.get('amount'));
-          if (amountCents <= 0 || amountCents > balance) return;
+          if (busy || accountingState !== 'enabled') return;
+          setLocalError('');
+          const { amountCents, error } = paymentInput(String(form.get('amount') ?? ''), String(form.get('date') ?? ''), invoice.issueDate, balance);
+          if (error) { setLocalError(error); return; }
+          if (!String(form.get('method') ?? '').trim()) { setLocalError('Choisissez ou indiquez le mode de paiement.'); return; }
           await act(
             () =>
               desktopApi.addPayment(invoice.id, {
@@ -7912,10 +7907,14 @@ function PaymentForm({
                 reference: String(form.get('reference')),
                 notes: String(form.get('notes')),
               }),
-            'Le paiement, le nouveau solde et l’écriture banque contre débiteurs ont été enregistrés ensemble.',
+            'Le paiement est enregistré et le solde de la facture a été actualisé.',
+            true,
+            reason => setLocalError(errorMessage(reason, 'Le paiement n’a pas pu être enregistré. Les informations saisies sont conservées.')),
           );
         })}
       >
+        {localError && <ErrorPanel title="Vérifions ce paiement" message={localError} reveal />}
+        {balance <= 0 && <p className="info-strip">Cette facture est déjà soldée. Aucun paiement supplémentaire n’est à enregistrer.</p>}
         <div className="payment-summary">
           <div>
             <span>Total facture</span>
@@ -7938,8 +7937,8 @@ function PaymentForm({
           <div className="info-strip">
             <Landmark size={17} />
             <span>
-              Le paiement et l’écriture banque contre débiteurs seront
-              enregistrés ensemble dans une transaction locale.
+              Enregistrez ici l’argent déjà reçu. Le solde et la comptabilité
+              seront mis à jour ensemble. Cette action ne déclenche aucun virement.
             </span>
           </div>
         ) : accountingState === 'disabled' ? (
@@ -7966,48 +7965,50 @@ function PaymentForm({
           <div className="warning-card">
             <MessageSquareWarning size={18} />
             <div>
-              <strong>État comptable non vérifié</strong>
+              <strong>Le chargement a été interrompu</strong>
               <p>
-                L’encaissement reste bloqué pour éviter une facture payée sans
-                écriture.
+                Vos informations sont conservées. Relancez la vérification pour enregistrer le paiement.
               </p>
+              <Button type="button" variant="secondary" disabled={busy} onClick={() => setAccountingReload(value => value + 1)}>Réessayer la vérification</Button>
             </div>
           </div>
         ) : (
           <div className="info-strip">
             <LoaderCircle className="spin" size={17} />
-            <span>Vérification de la chaîne comptable locale…</span>
+            <span>Chargement des réglages de paiement…</span>
           </div>
         )}
-        <div className="form-grid">
-          <Field label="Montant encaissé (CHF)" required>
+        <fieldset disabled={busy} className="document-form"><div className="form-grid">
+          <Field label={`Montant encaissé (${invoice.currency})`} hint="Le solde est prérempli. Modifiez-le si le client n’a payé qu’une partie." required>
             <input
               name="amount"
               type="number"
               min="0.01"
               max={balance / 100}
               step="0.01"
+              defaultValue={(balance / 100).toFixed(2)}
               required
               autoFocus
             />
           </Field>
-          <Field label="Date" required>
-            <input name="date" type="date" defaultValue={todayIso()} required />
+          <Field label="Date de réception" required>
+            <input name="date" type="date" min={invoice.issueDate} defaultValue={todayIso()} required />
           </Field>
-          <Field label="Mode de paiement" required>
-            <input name="method" required />
+          <Field label="Mode de paiement" hint="Cette indication ne change pas le compte d’encaissement configuré." required>
+            <input name="method" list="invoice-payment-methods" maxLength={80} defaultValue="Virement bancaire" required />
+            <datalist id="invoice-payment-methods"><option value="Virement bancaire" /><option value="Carte bancaire" /><option value="TWINT" /></datalist>
           </Field>
           <Field label="Référence">
-            <input name="reference" />
+            <input name="reference" maxLength={160} />
           </Field>
           <Field label="Note" wide>
-            <textarea name="notes" rows={2} />
+            <textarea name="notes" rows={2} maxLength={5000} />
           </Field>
-        </div>
+        </div></fieldset>
         <FormActions
           onCancel={close}
           busy={busy}
-          disabled={accountingState !== 'enabled'}
+          disabled={accountingState !== 'enabled' || balance <= 0}
           submitLabel="Enregistrer le paiement"
         />
       </form>
