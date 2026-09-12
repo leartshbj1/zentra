@@ -12,6 +12,7 @@ import { desktopApi } from './bridge';
 import { PayrollSetup } from './PayrollSetup';
 import { PayrollProblem } from './PayrollProblem';
 import { PayrollPreparation } from './PayrollPreparation';
+import { PayrollMonthOverview } from './PayrollMonthOverview';
 import { PayrollBasisGuide } from './PayrollBasisGuide';
 import { PayrollHourlySalary } from './PayrollHourlySalary';
 import { missingPayrollBasis, payrollBasisQuestions } from './payrollSalaryEntry';
@@ -198,6 +199,10 @@ export function DetailedPayslipForm({
     (candidate) => candidate.id === employeeId,
   );
   const primaryLine = lines.find((line) => line.kind === 'earning');
+  const periodLabel = /^\d{4}-(0[1-9]|1[0-2])$/.test(period)
+    ? new Intl.DateTimeFormat('fr-CH', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+        .format(new Date(`${period}-01T12:00:00Z`))
+    : period;
   const guidedBasis = guidedAhvBasis(lines);
   const cantonReference = familyAllowanceReferenceForCanton(referenceCanton);
   const recordedGrossBeforePeriodCents = useMemo(() => {
@@ -799,6 +804,7 @@ export function DetailedPayslipForm({
   }
 
   async function nextStep() {
+    if (busy || calculating || loadingRates || loadingAccounting || ratesError || accountingError || existingBlocked) return;
     setLocalError('');
     // Entry fields come first. Missing insurance bases have their own guided step.
     const entry = formRef.current?.querySelector<HTMLElement>(
@@ -870,7 +876,7 @@ export function DetailedPayslipForm({
   }
 
   async function calculate() {
-    if (calculating || loadingRates || busy) return false;
+    if (calculating || loadingRates || loadingAccounting || ratesError || accountingError || busy) return false;
     if (requireHourlyAmount()) return false;
     setLocalError('');
     setCalculationError('');
@@ -1050,6 +1056,16 @@ export function DetailedPayslipForm({
       dismissible={!busy && !calculating}
       wide
     >
+      {(accountingError || ratesError) && (
+        <section className="payroll-load-recovery" aria-label="Reprendre le chargement">
+          <PayrollProblem messages={[accountingError, ratesError]} onFix={fixPayroll}
+            disabled={busy || calculating || loadingRates || loadingAccounting} reveal />
+          <Button type="button" variant="secondary" disabled={busy || calculating || loadingRates || loadingAccounting}
+            onClick={() => setConfigurationReload(value => value + 1)}>
+            Réessayer le chargement
+          </Button>
+        </section>
+      )}
       {setup && (
         <PayrollSetup
           initial={setup}
@@ -1060,7 +1076,8 @@ export function DetailedPayslipForm({
           busy={busy}
           act={act}
           onClose={() => setSetup(null)}
-          guided={preparing}
+          guided
+          returnToPreparation={preparing}
           onSaved={() => {
             setLocalError('');
             setConfigurationUpdated(true);
@@ -1079,11 +1096,14 @@ export function DetailedPayslipForm({
             canSaveSalaryDraft ? () => void saveSalaryDraft() : undefined
           }
           busy={busy || calculating || loadingRates || loadingAccounting}
+          unavailable={Boolean(accountingError || ratesError || existingBlocked)}
+          continueLabel={step === 1 ? 'Calculer le net' : 'Continuer vers mon salaire'}
           onFix={fixPayroll}
           onBack={() => setPreparing(false)}
           onContinue={() => {
             setPreparing(false);
-            setStep(1);
+            if (step === 1) void nextStep();
+            else setStep(1);
           }}
         />
       )}
@@ -1120,7 +1140,8 @@ export function DetailedPayslipForm({
               loadingRates ||
               loadingAccounting ||
               existingBlocked ||
-              accountingError
+              accountingError ||
+              ratesError
             ) {
               setLocalError(
                 'Les cotisations et les comptes de paie doivent être disponibles avant l’enregistrement.',
@@ -1223,6 +1244,7 @@ export function DetailedPayslipForm({
             ))}
           </ol>
           <div className="payroll-step-intro" ref={headingRef} tabIndex={-1}>
+            {step > 0 && <p className="payroll-current-person">{employee?.name} · {periodLabel}</p>}
             <h3>
               {
                 [
@@ -1259,23 +1281,6 @@ export function DetailedPayslipForm({
               onFix={fixPayroll}
               disabled={busy || calculating}
             />
-          ) : null}
-          {accountingError || ratesError ? (
-            <div>
-              <PayrollProblem
-                messages={[accountingError, ratesError]}
-                onFix={fixPayroll}
-                disabled={busy || calculating}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={busy || loadingRates || loadingAccounting}
-                onClick={() => setConfigurationReload((value) => value + 1)}
-              >
-                Réessayer le chargement
-              </Button>
-            </div>
           ) : null}
           <fieldset
             className="payroll-step"
@@ -1337,7 +1342,7 @@ export function DetailedPayslipForm({
                   </Button>
                 </div>
               )}
-              <Field label="Période" required>
+              <Field label="Période" required hint="Le mois auquel correspond ce salaire.">
                 <input
                   name="period"
                   type="month"
@@ -1350,7 +1355,7 @@ export function DetailedPayslipForm({
                   required
                 />
               </Field>
-              <Field label="Date de paiement">
+              <Field label="Date de paiement" hint="Facultatif : la date prévue du versement. Créer la fiche ne déclenche aucun virement.">
                 <input
                   name="paymentDate"
                   type="date"
@@ -1733,7 +1738,19 @@ export function DetailedPayslipForm({
               </div>
             </details>
             </div>
-            <section className="payroll-selection" data-payroll-selection>
+            <PayrollMonthOverview tasks={payrollPreparationTasks(eligibility.blockers)}
+              hasContributions={selectedItems.length > 0}
+              needsBasis={basisQuestions.some(missingPayrollBasis) || basisNeedsReview}
+              loading={loadingRates || loadingAccounting}
+              unavailable={Boolean(accountingError || ratesError || existingBlocked)}
+              busy={busy || calculating}
+              onPrepare={() => {
+                fieldGuide.clear();
+                if (!eligibility.blockers.length && selectedItems.length > 0 && (basisQuestions.some(missingPayrollBasis) || basisNeedsReview)) setEditingBases(true);
+                else setPreparing(true);
+              }} />
+            <details className="payroll-details payroll-selection" data-payroll-selection>
+              <summary>Mes cotisations et assurances</summary>
               <header>
                 <div>
                   <strong>Ce qui sera retenu sur le salaire</strong>
@@ -2004,7 +2021,7 @@ export function DetailedPayslipForm({
                   </div>
                 )}
               </details>
-            </section>
+            </details>
           </fieldset>
           <fieldset
             className="payroll-step"
@@ -2396,7 +2413,7 @@ export function DetailedPayslipForm({
               </div>
             )}
           </fieldset>
-          {step > 0 && canSaveSalaryDraft && (
+          {step > 0 && canSaveSalaryDraft && (step === 1 || !hasCurrentCalculation) && (
             <aside
               className="payroll-save-later"
               aria-label="Continuer plus tard"
@@ -2451,7 +2468,7 @@ export function DetailedPayslipForm({
                   loadingRates ||
                   loadingAccounting ||
                   existingBlocked ||
-                  Boolean(accountingError)
+                  Boolean(accountingError || ratesError)
                 }
               >
                 {calculating
@@ -2477,7 +2494,7 @@ export function DetailedPayslipForm({
                   loadingRates ||
                   loadingAccounting ||
                   existingBlocked ||
-                  Boolean(accountingError)
+                  Boolean(accountingError || ratesError)
                 }
               />
             )}

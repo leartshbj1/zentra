@@ -9,6 +9,8 @@ export function PayrollPreparation({
   employeeName,
   tasks,
   busy,
+  unavailable = false,
+  continueLabel = 'Continuer vers mon salaire',
   proposals,
   onApplyProposals,
   onSaveDraft,
@@ -19,6 +21,8 @@ export function PayrollPreparation({
   employeeName: string;
   tasks: PayrollPreparationTask[];
   busy: boolean;
+  unavailable?: boolean;
+  continueLabel?: string;
   proposals: string[];
   onApplyProposals: () => void;
   onSaveDraft?: () => void;
@@ -51,20 +55,22 @@ export function PayrollPreparation({
           La paie de {employeeName}
         </span>
         <h3 ref={heading} tabIndex={-1}>
-          {next || useProfile
+          {unavailable ? 'Reprenons la lecture des réglages.' : next || useProfile
             ? 'On prépare votre fiche ensemble.'
             : busy
               ? 'Vérification de vos réglages…'
               : 'Les informations sont prêtes.'}
         </h3>
         <p>
-          {next || useProfile
+          {unavailable ? 'Votre saisie est conservée. Réessayez le chargement avec le bouton au-dessus.' : next || useProfile
             ? 'Complétez un point à la fois. Votre saisie reste dans cette fiche.'
-            : 'Revenez au salaire pour contrôler le montant du mois, puis calculer le net.'}
+            : continueLabel === 'Calculer le net'
+              ? 'Le salaire saisi est conservé. Calculez maintenant les retenues et le montant à verser.'
+              : 'Revenez au salaire pour contrôler le montant du mois, puis calculer le net.'}
         </p>
       </header>
       <div className="payroll-preparation__status" role="status">
-        {busy ? (
+        {unavailable ? 'Lecture des réglages à reprendre' : busy ? (
           'Actualisation des informations…'
         ) : tasks.length || useProfile ? (
           `${tasks.length || 1} point${tasks.length > 1 ? 's' : ''} repéré${tasks.length > 1 ? 's' : ''} à préparer`
@@ -90,7 +96,7 @@ export function PayrollPreparation({
               ))}
             </ul>
           </details>
-          <Button type="button" disabled={busy} onClick={onApplyProposals}>
+          <Button type="button" disabled={busy || unavailable} onClick={onApplyProposals}>
             Utiliser ces cotisations
             <ArrowRight size={17} />
           </Button>
@@ -110,7 +116,7 @@ export function PayrollPreparation({
           </div>
           <Button
             type="button"
-            disabled={busy}
+            disabled={busy || unavailable}
             onClick={() => onFix(next.target, next.selector)}
           >
             {next.action || 'Ouvrir ce point'}
@@ -150,8 +156,8 @@ export function PayrollPreparation({
         </article>
       ) : (
         !useProfile && (
-          <Button type="button" onClick={onContinue} disabled={busy}>
-            Continuer vers mon salaire
+          <Button type="button" onClick={onContinue} disabled={busy || unavailable}>
+            {continueLabel}
             <ArrowRight size={17} />
           </Button>
         )
@@ -167,7 +173,7 @@ export function PayrollPreparation({
                   type="button"
                   size="small"
                   variant="ghost"
-                  disabled={busy}
+                  disabled={busy || unavailable}
                   onClick={() => onFix(task.target, task.selector)}
                 >
                   Ouvrir

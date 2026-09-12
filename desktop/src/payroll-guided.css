@@ -1,4 +1,12 @@
 .payroll-wizard { --payroll-accent: #245b68; }
+.payroll-month-overview { padding: 20px; margin: 20px 0; border: 1px solid #dce6e4; border-radius: 18px; background: #f3f7f6; }
+.payroll-month-overview__heading { display: flex; align-items: center; gap: 10px; color: #245b68; }
+.payroll-month-overview__heading svg { flex-shrink: 0; }
+.payroll-month-overview p { color: var(--text-muted, #626970); line-height: 1.6; font-size: 14px; margin: 10px 0; }
+.payroll-month-overview .button { margin-top: 8px; white-space: normal; max-width: 100%; min-height: 44px; }
+.payroll-load-recovery { padding: 16px; margin-bottom: 20px; border: 1px solid #e4d9bd; border-radius: 16px; background: #fffbf2; }
+.payroll-load-recovery .button { white-space: normal; max-width: 100%; min-height: 44px; }
+.payroll-step-intro .payroll-current-person { font-size: 13px; margin-bottom: 10px; overflow-wrap: anywhere; }
 .payroll-dialog { display: flex; flex-direction: column; overflow: hidden; max-height: calc(100dvh - 32px); }
 .payroll-dialog .modal__header { position: relative; flex-shrink: 0; }
 .payroll-dialog .modal__body { overflow-y: auto; min-height: 0; overscroll-behavior: contain; padding: 24px; }

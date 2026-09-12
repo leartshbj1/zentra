@@ -58,11 +58,20 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
         await setup.locator('[name=weeklyHours]').fill('40');
         await button('Continuer').click();
         await setup.locator('[name=lppAnnualSalary]').fill('60000');
+        await page.evaluate(() => sessionStorage.setItem('qa-payroll-fail-rates', '1'));
         await button('Enregistrer et continuer').click();
         await guide.waitFor();
+        await modal.getByRole('region', { name: 'Reprendre le chargement' }).waitFor();
+        assert.equal(await guide.getByText('Préparation terminée', { exact: true }).count(), 0);
+        await modal.getByRole('button', { name: 'Réessayer le chargement', exact: true }).click();
+        await page.waitForFunction(() => !document.querySelector('.payroll-load-recovery > button')?.disabled);
+        assert.equal(await guide.locator('.payroll-preparation__next > button:enabled').count(), 0);
+        await page.evaluate(() => sessionStorage.removeItem('qa-payroll-fail-rates'));
+        await modal.getByRole('button', { name: 'Réessayer le chargement', exact: true }).click();
+        await modal.getByRole('region', { name: 'Reprendre le chargement' }).waitFor({ state: 'hidden' });
         const actions = [];
         for (let turn = 0; turn < 12; turn++) {
-          if (await guide.getByRole('button', { name: 'Continuer vers mon salaire', exact: true }).count()) break;
+          if (await guide.getByRole('button', { name: 'Calculer le net', exact: true }).count()) break;
           const next = guide.locator('.payroll-preparation__next > button');
           const label = await next.innerText(); actions.push(label.trim());
           await next.click();
@@ -94,17 +103,7 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
             await geometry(page);
             await page.screenshot({ path: `${output}/${engine}-${width}-pension.png` });
             // The two existing API writes can fail separately. Retry must not duplicate the first.
-            await page.evaluate(async () => {
-              const { desktopApi } = await import('/src/bridge.ts');
-              const original = desktopApi.upsertPayrollContributionDefinition;
-              let fail = true;
-              desktopApi.upsertPayrollContributionDefinition = async input => {
-                if (input.category === 'lpp' && input.side === 'employer' && fail) {
-                  fail = false; throw Error('Enregistrement momentanément indisponible. Réessayez.');
-                }
-                return original(input);
-              };
-            });
+            await page.evaluate(() => sessionStorage.setItem('qa-payroll-refuse-pension-employer-once', '1'));
             await button('Enregistrer les deux montants').click();
             await setup.locator('.payroll-problem').waitFor();
             await setup.getByText('Voir le message détaillé', { exact: true }).click();
@@ -114,9 +113,9 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
           } else throw Error(`Unknown preparation action: ${label}`);
           await guide.waitFor();
         }
-        await guide.getByRole('button', { name: 'Continuer vers mon salaire', exact: true }).click();
-        assert.equal(await modal.getByRole('spinbutton', { name: 'Salaire brut du mois (CHF)', exact: true }).inputValue(), '5123.45');
-        await modal.getByRole('button', { name: 'Vérifier le salaire', exact: true }).click();
+        await guide.getByRole('button', { name: 'Calculer le net', exact: true }).click();
+        await modal.locator('[data-payroll-step="2"]:visible').waitFor();
+        assert.equal(await modal.getByRole('spinbutton', { name: 'Salaire brut du mois (CHF)', exact: true, includeHidden: true }).inputValue(), '5123.45');
         await modal.locator('[name=notes]').fill('Première fiche guidée\nConserver les notes');
         await geometry(page);
         await page.screenshot({ path: `${output}/${engine}-${width}-review.png` });

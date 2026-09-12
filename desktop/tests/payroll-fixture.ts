@@ -92,6 +92,10 @@ export function installPayrollFixture(workspace: Workspace) {
   }
   desktopApi.getPayrollRegulatoryProfiles = async () => [{ id: 'CH-2026', label: 'Référentiel de recette 2026', source: 'Référentiel synthétique de recette', effectiveFrom: '2026-01-01', effectiveTo: '2026-12-31', definitions: federalDefinitions, notIncluded: ['lpp', 'ijm', 'aap', 'aanp'] }];
   desktopApi.upsertPayrollContributionDefinition = async (input) => {
+    if (input.category === 'lpp' && input.side === 'employer' && sessionStorage.getItem('qa-payroll-refuse-pension-employer-once') === '1') {
+      sessionStorage.removeItem('qa-payroll-refuse-pension-employer-once');
+      throw Error('Enregistrement momentanément indisponible. Réessayez.');
+    }
     counter('definition', input);
     await hold('definition');
     if (sessionStorage.getItem('qa-payroll-fail-definition') === '1') throw new Error('rate_bp: invalid payroll contribution definition');
@@ -130,6 +134,10 @@ export function installPayrollFixture(workspace: Workspace) {
     return result;
   };
   desktopApi.savePayslipWithContributions = async (data, lines, existing, period, selections) => {
+    if (sessionStorage.getItem('qa-payroll-refuse-line-once') === '1') {
+      sessionStorage.removeItem('qa-payroll-refuse-line-once');
+      throw Error('Classez comptablement la ligne « Frais » avant l’enregistrement.');
+    }
     counter('save', { data, lines, existingId: existing?.id, period, selections });
     if (sessionStorage.getItem('qa-payroll-refuse-save') === '1') throw new Error('Le compte des salaires à payer est inactif. Aucune fiche enregistrée.');
     const id = existing?.id || crypto.randomUUID();

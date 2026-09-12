@@ -54,6 +54,7 @@ export function PayrollSetup({
   onClose,
   onSaved,
   guided = false,
+  returnToPreparation = false,
 }: {
   initial: PayrollHelpTarget;
   initialSelector?: string;
@@ -65,6 +66,7 @@ export function PayrollSetup({
   onClose: () => void;
   onSaved: () => void;
   guided?: boolean;
+  returnToPreparation?: boolean;
 }) {
   const [section, setSection] = useState<Section>(
     payrollDestination(initial).section,
@@ -403,6 +405,9 @@ export function PayrollSetup({
           `[name="${names[reason.field]}"]`,
         );
         if (field) {
+          const questionId = field.closest<HTMLElement>('[data-payroll-question]')?.dataset.payrollQuestion;
+          const index = Number(questionId?.match(/-(\d+)/)?.[1] ?? 0);
+          if (guided) setQuestion(Math.min(index, questionCount - 1));
           fieldGuide.reject(field, reason.message);
           return;
         }
@@ -429,7 +434,7 @@ export function PayrollSetup({
           disabled={disabled}
           onClick={onClose}
         >
-          {guided ? '← Revenir à ma préparation' : '← Revenir au salaire'}
+          {returnToPreparation ? '← Revenir à ma préparation' : '← Revenir au salaire'}
         </Button>
         <small>Votre salaire en cours reste conservé.</small>
       </header>

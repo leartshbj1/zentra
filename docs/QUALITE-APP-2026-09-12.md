@@ -2,6 +2,15 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : un chemin plus clair vers le salaire net
+
+Le salaire du mois est séparé des réglages détaillés, rangés sous « Mes cotisations et assurances ». Un résumé annonce la prochaine action réelle : compléter les informations manquantes, confirmer une base ou calculer le net. Le collaborateur et le mois restent visibles. Les corrections ouvertes depuis le salaire utilisent aussi le guide par questions ; une ligne à classer renvoie à ses propres champs.
+
+Le chargement interrompu des cotisations et comptes est affiché en dehors des étapes masquées. La reprise reste accessible depuis la préparation ; tant que les informations sont indisponibles, celle-ci n'annonce pas une préparation terminée et ne laisse pas calculer. Les réponses déjà enregistrées ne sont pas réécrites lors du réessai. Après le dernier réglage, le bouton « Calculer le net » rejoint directement la vérification. La vérification calculée propose une seule sauvegarde de fiche ; le brouillon reste disponible pendant la saisie.
+
+Validation : 117 fichiers / 960 tests d'interface, TypeScript et compilation Vite réussis. Les 6 scénarios `payroll-clear-path`, 10 de première fiche et 12 de salaire horaire/compléments réussissent sur Edge et WebKit. Les erreurs de lecture, refus de sauvegarde et écriture partielle des deux cotisations de pension sont injectés dans la fixture synthétique. Les captures mobiles sont inspectées. Après intégration au dossier principal, TypeScript, 87 tests ciblés et les 16 scénarios de chemin clair/première fiche réussissent. Sauvegarde : `.qa/payroll-clear-20260912-before/`.
+
+Le moteur natif et ses taux ne changent pas. Ces résultats ne constituent pas un essai d'installation sur iPhone. Le module `WorkspaceApp` représente environ 751 ko minifiés. La publication Windows de ce lot est suivie séparément.
 ## Lot : conserver les devis, corrections et règlements après une interruption
 
 Les commandes de devis/factures, émission, conversion, solde et paiement distinguent une écriture réussie d'une lecture interrompue. Les identifiants de révision et de facture de remplacement sont récupérés avant la relecture : reprendre ouvre le document créé sans relancer la commande. Les erreurs de saisie et les refus natifs restent dans le formulaire.

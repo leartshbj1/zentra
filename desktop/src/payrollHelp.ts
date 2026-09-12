@@ -23,6 +23,22 @@ export type PayrollHelp = {
 };
 const rules: [RegExp, PayrollHelp][] = [
   [
+    /Classez comptablement la ligne/i,
+    {
+      title: 'Choisissez le compte de cette ligne',
+      explanation: 'Le salaire et vos montants sont conservés. Dans la ligne indiquée, choisissez le compte demandé pour enregistrer cette retenue, ce remboursement ou cette charge.',
+      target: 'salary', selector: '.pay-line-list', action: 'Compléter la ligne concernée',
+    },
+  ],
+  [
+    /libellé|lignes valides|sans libellé/i,
+    {
+      title: 'Donnez un nom à chaque élément du salaire',
+      explanation: 'Chaque montant ajouté doit avoir un nom compréhensible sur la fiche, par exemple « Prime de septembre ». Complétez la ligne vide ou supprimez-la si elle est inutile.',
+      target: 'salary', selector: '.pay-line-list', action: 'Revoir les éléments du salaire',
+    },
+  ],
+  [
     /Les heures ou le tarif ont changé/i,
     {
       title: 'Reportez les heures dans le salaire',
@@ -130,7 +146,7 @@ const rules: [RegExp, PayrollHelp][] = [
     },
   ],
   [
-    /Complétez la base|plusieurs éléments.*base|Classez comptablement la ligne/i,
+    /Complétez la base|plusieurs éléments.*base/i,
     {
       title: 'Complétez le détail du salaire',
       explanation:
