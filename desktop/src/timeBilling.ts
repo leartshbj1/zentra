@@ -31,6 +31,13 @@ export function eligibleTimeEntries(workspace: Workspace, projectId?: string) {
   );
 }
 
+/** The native invoice creation needs an existing client linked to the project. */
+export function readyTimeEntries(workspace: Workspace) {
+  const clients = new Set(workspace.clients.map(client => client.id));
+  const projects = new Set(workspace.projects.filter(project => project.clientId && clients.has(project.clientId)).map(project => project.id));
+  return eligibleTimeEntries(workspace).filter(entry => projects.has(entry.projectId));
+}
+
 export function timeEntryNetCents(entry: TimeEntry) {
   return roundedRatio(entry.minutes * (entry.billingRateCents ?? 0), 60);
 }

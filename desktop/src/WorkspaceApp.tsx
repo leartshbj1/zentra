@@ -1,3 +1,5 @@
+import { TimeForm, TimerForm } from './WorkTimeForms';
+import { readyTimeEntries } from './timeBilling';
 import { PdfExportReceipt } from './PdfExportReceipt';
 import type { PdfExportReceipt as PdfReceipt } from './pdfExportDelivery';
 import { deferView } from './DeferredView';
@@ -4062,13 +4064,7 @@ function TimeScreen({
     prerequisites,
     Boolean(workspace.activeTimer),
   );
-  const readyToBill = workspace.timeEntries.filter(
-    (entry) =>
-      entry.status === 'approved' &&
-      entry.billable &&
-      (entry.billingRateCents ?? 0) > 0 &&
-      entry.billingStatus === 'unbilled',
-  ).length;
+  const readyToBill = readyTimeEntries(workspace).length;
   return (
     <div className="stack-layout">
       <section className="time-hero">
@@ -4099,7 +4095,7 @@ function TimeScreen({
             title={
               readyToBill
                 ? `${readyToBill} saisie(s) prête(s)`
-                : 'Approuvez d’abord une heure facturable avec un tarif'
+                : 'Approuvez une heure facturable avec un tarif, dans un projet lié à un client'
             }
           >
             <Receipt size={17} /> Facturer les heures
@@ -4131,6 +4127,7 @@ function TimeScreen({
       </div>
       {workspace.timeEntries.length ? (
         <div className="panel table-panel">
+          <p className="time-billing-help">Pour créer une facture, ouvrez les heures à vérifier, renseignez le prix pour le client puis choisissez « Approuvées ». Le projet doit être lié à un client.</p>
           <table>
             <thead>
               <tr>
@@ -4163,7 +4160,7 @@ function TimeScreen({
                       ? 'Réservée dans un brouillon'
                       : entry.billable
                         ? entry.status === 'approved'
-                          ? 'À facturer'
+                          ? (entry.billingRateCents ?? 0) <= 0 ? 'Tarif à renseigner' : !project?.clientId || !workspace.clients.some(client => client.id === project.clientId) ? 'Client du projet à renseigner' : 'À facturer'
                           : 'À approuver'
                         : 'Interne';
                 return (
@@ -6634,213 +6631,6 @@ function ProjectForm({
   );
 }
 
-function TimeForm({
-  item,
-  workspace,
-  busy,
-  close,
-  act,
-}: {
-  item?: TimeEntry;
-  workspace: Workspace;
-  busy: boolean;
-  close: () => void;
-  act: ActionRunner;
-}) {
-  const terminology = projectTerminology(
-    workspace.settings!.business.nogaSection,
-  );
-  const [billable, setBillable] = useState<'' | 'yes' | 'no'>(
-    item ? (item.billable ? 'yes' : 'no') : '',
-  );
-  const [projectId, setProjectId] = useState(item?.projectId ?? '');
-  const [taskId, setTaskId] = useState(item?.taskId ?? '');
-  const availableTasks = workspace.projectTasks.filter(
-    (task) =>
-      task.projectId === projectId &&
-      ((!['done', 'cancelled'].includes(task.status) &&
-        workspace.projects.some((project) => project.id === task.projectId)) ||
-        task.id === item?.taskId),
-  );
-  return (
-    <Modal
-      title={item ? 'Modifier les heures' : 'Saisir des heures'}
-      description="La durée et le coût proviennent uniquement de cette saisie et du collaborateur choisi."
-      onClose={close}
-    >
-      <form
-        onSubmit={submitForm(async (form) => {
-          const data = {
-            projectId: String(form.get('projectId')),
-            taskId: String(form.get('taskId')) || null,
-            employeeId: String(form.get('employeeId')),
-            date: String(form.get('date')),
-            minutes: Math.round(numberFromInput(form.get('hours')) * 60),
-            breakMinutes: numberFromInput(form.get('breakMinutes')),
-            billable: billable === 'yes',
-            billingRateCents:
-              billable === 'yes' ? centsFromInput(form.get('billingRate')) : 0,
-            costRateCents: centsFromInput(form.get('costRate')),
-            note: String(form.get('note')),
-            status: String(form.get('status')),
-          };
-          await act(
-            () =>
-              item
-                ? desktopApi.updateEntity('timeEntries', item.id, data)
-                : desktopApi.createEntity('timeEntries', data),
-            item
-              ? 'La saisie de temps a été mise à jour.'
-              : 'Les heures ont été enregistrées.',
-          );
-        })}
-      >
-        <div className="form-grid">
-          <Field label={terminology.singularTitle} required wide>
-            <select
-              name="projectId"
-              value={projectId}
-              onChange={(event) => {
-                setProjectId(event.target.value);
-                setTaskId('');
-              }}
-              required
-              autoFocus
-            >
-              <option value="">Choisir un {terminology.singular}</option>
-              {workspace.projects
-                .filter(
-                  (project) =>
-                    project.status !== 'closed' ||
-                    project.id === item?.projectId,
-                )
-                .map((project) => (
-                  <option value={project.id} key={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
-          <Field
-            label="Tâche liée"
-            hint="Facultatif : relie ces heures à une action précise du planning."
-            wide
-          >
-            <select
-              name="taskId"
-              value={taskId}
-              onChange={(event) => setTaskId(event.target.value)}
-              disabled={!projectId}
-            >
-              <option value="">Sans tâche précise</option>
-              {availableTasks.map((task) => (
-                <option key={task.id} value={task.id}>
-                  {task.title}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Collaborateur" required>
-            <select name="employeeId" defaultValue={item?.employeeId} required>
-              <option value="">Choisir un collaborateur</option>
-              {workspace.employees
-                .filter(
-                  (employee) =>
-                    employee.active || employee.id === item?.employeeId,
-                )
-                .map((employee) => (
-                  <option value={employee.id} key={employee.id}>
-                    {employee.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
-          <Field label="Date" required>
-            <input
-              name="date"
-              type="date"
-              defaultValue={item?.date || todayIso()}
-              required
-            />
-          </Field>
-          <Field label="Durée travaillée (heures)" required>
-            <input
-              name="hours"
-              type="number"
-              min="0.01"
-              step="0.01"
-              defaultValue={item?.minutes ? item.minutes / 60 : ''}
-              required
-            />
-          </Field>
-          <Field label="Pause non travaillée (minutes)" required>
-            <input
-              name="breakMinutes"
-              type="number"
-              min="0"
-              step="1"
-              defaultValue={item ? item.breakMinutes : ''}
-              required
-            />
-          </Field>
-          <Field label="Temps facturable au client ?" required>
-            <select
-              value={billable}
-              onChange={(event) =>
-                setBillable(event.target.value as '' | 'yes' | 'no')
-              }
-              required
-            >
-              <option value="">Choisir</option>
-              <option value="yes">Oui, facturable</option>
-              <option value="no">Non, interne</option>
-            </select>
-          </Field>
-          {billable === 'yes' ? (
-            <Field label="Tarif de facturation (CHF/h)" required>
-              <input
-                name="billingRate"
-                type="number"
-                min="0"
-                step="0.01"
-                defaultValue={
-                  item?.billingRateCents ? item.billingRateCents / 100 : ''
-                }
-                required
-              />
-            </Field>
-          ) : null}
-          <Field
-            label="Coût horaire appliqué (CHF/h)"
-            required
-            hint={`Saisissez le coût confirmé pour ce ${terminology.singular}.`}
-          >
-            <input
-              name="costRate"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={item ? item.hourlyCostCents / 100 : ''}
-              required
-            />
-          </Field>
-          <Field label="Statut" required>
-            <select name="status" defaultValue={item?.status ?? ''} required>
-              <option value="">Choisir le statut</option>
-              <option value="entered">Saisi</option>
-              <option value="approved">Approuvé</option>
-              <option value="locked">Verrouillé</option>
-            </select>
-          </Field>
-          <Field label="Note" wide>
-            <textarea name="note" rows={3} defaultValue={item?.note} />
-          </Field>
-        </div>
-        <FormActions onCancel={close} busy={busy} />
-      </form>
-    </Modal>
-  );
-}
 
 function EmployeeForm({
   item,
@@ -8279,162 +8069,6 @@ function PayslipPaymentForm({
   );
 }
 
-function TimerForm({
-  workspace,
-  busy,
-  close,
-  act,
-}: {
-  workspace: Workspace;
-  busy: boolean;
-  close: () => void;
-  act: ActionRunner;
-}) {
-  const terminology = projectTerminology(
-    workspace.settings!.business.nogaSection,
-  );
-  const [projectId, setProjectId] = useState('');
-  const [taskId, setTaskId] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
-  const [billable, setBillable] = useState<'' | 'yes' | 'no'>('');
-  const employee = workspace.employees.find((item) => item.id === employeeId);
-  const availableTasks = workspace.projectTasks.filter(
-    (task) =>
-      task.projectId === projectId &&
-      (task.status === 'todo' || task.status === 'in_progress'),
-  );
-  return (
-    <Modal
-      title="Démarrer un pointage"
-      description="Choisissez le projet, éventuellement une tâche, puis le collaborateur. Le coût horaire vient de sa fiche réelle."
-      onClose={close}
-    >
-      <form
-        onSubmit={submitForm(async (form) => {
-          await act(
-            () =>
-              desktopApi.startTimer({
-                projectId,
-                taskId: taskId || null,
-                employeeId,
-                note: String(form.get('note')),
-                billable: billable === 'yes',
-                billingRateCents:
-                  billable === 'yes'
-                    ? centsFromInput(form.get('billingRate'))
-                    : 0,
-                costRateCents: employee?.hourlyCostCents ?? 0,
-              }),
-            'Le pointage a démarré.',
-          );
-        })}
-      >
-        <div className="timer-modal-icon">
-          <Play size={25} />
-        </div>
-        <div className="form-grid">
-          <Field label={terminology.singularTitle} required wide>
-            <select
-              name="projectId"
-              value={projectId}
-              onChange={(event) => {
-                setProjectId(event.target.value);
-                setTaskId('');
-              }}
-              required
-              autoFocus
-            >
-              <option value="">Choisir un {terminology.singular}</option>
-              {workspace.projects
-                .filter((project) => project.status !== 'closed')
-                .map((project) => (
-                  <option value={project.id} key={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
-          <Field
-            label="Tâche liée"
-            hint="Facultatif : le temps sera rattaché à cette tâche à l’arrêt."
-            wide
-          >
-            <select
-              value={taskId}
-              onChange={(event) => setTaskId(event.target.value)}
-              disabled={!projectId}
-            >
-              <option value="">Sans tâche précise</option>
-              {availableTasks.map((task) => (
-                <option key={task.id} value={task.id}>
-                  {task.title}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Collaborateur" required wide>
-            <select
-              value={employeeId}
-              onChange={(event) => setEmployeeId(event.target.value)}
-              required
-            >
-              <option value="">Choisir un collaborateur</option>
-              {workspace.employees
-                .filter((item) => item.active)
-                .map((item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
-          <Field label="Temps facturable au client ?" required>
-            <select
-              value={billable}
-              onChange={(event) =>
-                setBillable(event.target.value as '' | 'yes' | 'no')
-              }
-              required
-            >
-              <option value="">Choisir</option>
-              <option value="yes">Oui, facturable</option>
-              <option value="no">Non, interne</option>
-            </select>
-          </Field>
-          {billable === 'yes' ? (
-            <Field label="Tarif de facturation (CHF/h)" required>
-              <input
-                name="billingRate"
-                type="number"
-                min="0"
-                step="0.01"
-                required
-              />
-            </Field>
-          ) : null}
-          <Field label="Note de travail" wide>
-            <textarea name="note" rows={3} />
-          </Field>
-        </div>
-        {employeeId ? (
-          <div className="info-strip">
-            <Clock3 size={17} />
-            <span>
-              Coût horaire appliqué :{' '}
-              {formatMoney(employee?.hourlyCostCents ?? 0)}. Cette valeur
-              provient de la fiche du collaborateur.
-            </span>
-          </div>
-        ) : null}
-        <FormActions
-          onCancel={close}
-          busy={busy}
-          submitLabel="Démarrer le chronomètre"
-        />
-      </form>
-    </Modal>
-  );
-}
 
 function settingsForSnapshot(
   current: AppSettings,

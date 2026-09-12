@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -7,13 +7,14 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import './work-time-forms.css';
 import {
-  eligibleTimeEntries,
+  readyTimeEntries,
   summarizeTimeBilling,
   timeEntryNetCents,
 } from './timeBilling';
 import type { Workspace } from './types';
-import { formatDate, formatMinutes, formatMoney } from './utils';
+import { errorMessage, formatDate, formatMinutes, formatMoney } from './utils';
 import {
   Button,
   EmptyState,
@@ -27,6 +28,7 @@ type ActionRunner = (
   action: () => Promise<Workspace>,
   message: string,
   close?: boolean,
+  onError?: (reason: unknown) => void,
 ) => Promise<boolean>;
 
 export function TimeBillingWizard({
@@ -42,7 +44,7 @@ export function TimeBillingWizard({
   act: ActionRunner;
   onCreated: () => void;
 }) {
-  const eligible = useMemo(() => eligibleTimeEntries(workspace), [workspace]);
+  const eligible = useMemo(() => readyTimeEntries(workspace), [workspace]);
   const projects = useMemo(
     () =>
       workspace.projects
@@ -60,26 +62,39 @@ export function TimeBillingWizard({
     () => eligible.filter((entry) => entry.projectId === projectId),
     [eligible, projectId],
   );
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selections, setSelections] = useState<Record<string, string[]>>(() => ({ [projects[0]?.id ?? '']: eligible.filter(entry => entry.projectId === projects[0]?.id).map(entry => entry.id) }));
+  const selectedIds = selections[projectId] ?? [];
+  const setSelectedIds = (ids: string[] | ((current: string[]) => string[])) => setSelections(current => ({ ...current, [projectId]: typeof ids === 'function' ? ids(current[projectId] ?? []) : ids }));
+  const [saveError, setSaveError] = useState('');
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const locked = busy || saving;
+  useEffect(() => {
+    if (saveError && !locked && errorRef.current) {
+      errorRef.current.focus(); errorRef.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, [saveError, locked]);
   const vatRates = workspace.settings!.organization.vatRegistered
     ? workspace.settings!.billing.vatRatesBp.filter((rate) => rate > 0)
     : [0];
-  const [vatBp, setVatBp] = useState(vatRates[0] ?? 0);
-
-  useEffect(() => {
-    setSelectedIds(projectEntries.map((entry) => entry.id));
-  }, [projectEntries]);
+  const [selectedVatBp, setVatBp] = useState(vatRates[0] ?? 0);
+  const vatBp = workspace.settings!.organization.vatRegistered ? selectedVatBp : 0;
 
   const selectedEntries = projectEntries.filter((entry) =>
     selectedIds.includes(entry.id),
   );
   const summary = summarizeTimeBilling(selectedEntries, vatBp);
-  const project = workspace.projects.find(
+  const project = projects.find(
     (candidate) => candidate.id === projectId,
   );
   const client = workspace.clients.find(
     (candidate) => candidate.id === project?.clientId,
   );
+  const savedBatch = workspace.timeBillingBatches.find(batch => batch.requestId === requestId);
+  const allSelected = projectEntries.length > 0 && projectEntries.every(entry => selectedIds.includes(entry.id));
 
   function toggleEntry(id: string) {
     setSelectedIds((current) =>
@@ -92,11 +107,13 @@ export function TimeBillingWizard({
   return (
     <Modal
       title="Facturer les heures"
-      description="Choisissez les heures approuvées. Zentra crée une facture brouillon et réserve chaque saisie pour empêcher toute double facturation."
+      description="Choisissez les heures à inclure. Vous pourrez vérifier la facture avant de l’émettre."
       onClose={close}
+      dismissible={!locked}
+      className="time-billing-modal"
       wide
     >
-      {!projects.length ? (
+      {savedBatch ? <div className="stack-layout" role="status"><h3>La facture brouillon a été créée</h3><p>Les heures sont réservées dans cette facture. Vous pouvez la retrouver et la vérifier avant de l’émettre.</p><Button onClick={onCreated} disabled={locked}>Ouvrir les factures</Button></div> : !projects.length ? (
         <EmptyState
           icon={<Clock3 />}
           title="Aucune heure prête à facturer"
@@ -105,8 +122,10 @@ export function TimeBillingWizard({
       ) : (
         <form
           onSubmit={submitForm(async (form) => {
-            if (!selectedEntries.length || !projectId || !vatRates.length)
+            if (locked || inFlight.current || !selectedEntries.length || !project || !client || !vatRates.includes(vatBp))
               return;
+            inFlight.current = true; setSaving(true); setSaveError('');
+            try {
             const created = await act(
               () =>
                 desktopApi.createInvoiceFromTimeEntries({
@@ -118,18 +137,30 @@ export function TimeBillingWizard({
                   notes: String(form.get('notes')),
                 }),
               'La facture brouillon a été créée. Les heures sélectionnées y sont réservées sans double facturation.',
+              true,
+              reason => setSaveError(errorMessage(reason, 'La facture n’a pas pu être créée. Votre sélection est conservée.')),
             );
             if (created) onCreated();
+            else setSaveError(current => current || 'La création n’est pas disponible pour le moment. Votre sélection est conservée.');
+            } catch (reason) { setSaveError(errorMessage(reason, 'La création a été interrompue. Votre sélection est conservée.')); }
+            finally { inFlight.current = false; setSaving(false); }
           })}
         >
+          {saveError && <div ref={errorRef} tabIndex={-1} className="warning-card" role="alert"><div><strong>La facture n’a pas pu être créée</strong><p>{saveError}</p><p>Vérifiez les informations puis réessayez. Les heures décochées le restent.</p></div></div>}
+          <fieldset className="work-time-fields" disabled={locked}>
           <div className="form-grid time-billing-config">
             <Field label="Projet à facturer" required wide>
               <select
-                value={projectId}
-                onChange={(event) => setProjectId(event.target.value)}
+                value={project ? projectId : ''}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setSelections(current => next in current ? current : { ...current, [next]: eligible.filter(entry => entry.projectId === next).map(entry => entry.id) });
+                  setProjectId(next);
+                }}
                 required
                 autoFocus
               >
+                {!project && <option value="">Choisir un projet disponible</option>}
                 {projects.map((candidate) => (
                   <option value={candidate.id} key={candidate.id}>
                     {candidate.name}
@@ -146,11 +177,12 @@ export function TimeBillingWizard({
             </Field>
             <Field label="TVA" required>
               <select
-                value={vatBp}
+                value={vatRates.includes(vatBp) ? vatBp : ''}
                 onChange={(event) => setVatBp(Number(event.target.value))}
                 required
                 disabled={!workspace.settings!.organization.vatRegistered}
               >
+                {!vatRates.includes(vatBp) && <option value="">Choisir un taux disponible</option>}
                 {vatRates.map((rate) => (
                   <option value={rate} key={rate}>
                     {(rate / 100).toLocaleString('fr-CH', {
@@ -168,6 +200,8 @@ export function TimeBillingWizard({
             >
               <input
                 name="title"
+                value={title}
+                onChange={event => setTitle(event.target.value)}
                 maxLength={200}
                 placeholder={`Heures — ${project?.name ?? ''}`}
               />
@@ -205,13 +239,13 @@ export function TimeBillingWizard({
                 size="small"
                 onClick={() =>
                   setSelectedIds(
-                    selectedIds.length === projectEntries.length
+                    allSelected
                       ? []
                       : projectEntries.map((entry) => entry.id),
                   )
                 }
               >
-                {selectedIds.length === projectEntries.length
+                {allSelected
                   ? 'Tout désélectionner'
                   : 'Tout sélectionner'}
               </Button>
@@ -285,8 +319,9 @@ export function TimeBillingWizard({
           </div>
 
           <Field label="Note sur la facture" wide>
-            <textarea name="notes" rows={2} maxLength={5000} />
+            <textarea name="notes" rows={2} maxLength={5000} value={notes} onChange={event => setNotes(event.target.value)} />
           </Field>
+          </fieldset>
           <div className="info-strip">
             <FileText size={17} />
             <span>
@@ -296,8 +331,8 @@ export function TimeBillingWizard({
           </div>
           <FormActions
             onCancel={close}
-            busy={busy}
-            disabled={!selectedEntries.length || !vatRates.length}
+            busy={locked}
+            disabled={!selectedEntries.length || !project || !client || !vatRates.includes(vatBp)}
             submitLabel="Créer la facture brouillon"
           />
           <div className="time-billing-next" aria-hidden="true">

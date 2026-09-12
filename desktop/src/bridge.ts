@@ -5908,7 +5908,7 @@ export const desktopApi = {
         notes: input.notes?.trim() || null,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async createBackup(destination?: string) {
     const path = await invoke<string>('create_backup', { destination: isMobileRuntime() ? undefined : destination });

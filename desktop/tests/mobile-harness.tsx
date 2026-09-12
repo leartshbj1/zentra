@@ -1,4 +1,5 @@
 import { installAssistantFixture } from './assistant-fixture';
+import { installTimeFlowFixture } from './time-flow-fixture';
 import { installProjectRecoveryFixture } from './project-recovery-fixture';
 import { installProjectNavigationFixture } from './project-navigation-fixture';
 import { installEntityRecoveryFixture } from './entity-recovery-fixture';
@@ -194,6 +195,7 @@ if (new URLSearchParams(location.search).has('entityRecovery')) installEntityRec
 if (new URLSearchParams(location.search).has('salesRecovery')) installSalesRecoveryFixture(data);
 if (new URLSearchParams(location.search).has('projectRecovery')) installProjectRecoveryFixture();
 if (new URLSearchParams(location.search).has('projectNavigation')) installProjectNavigationFixture(data);
+if (new URLSearchParams(location.search).has('timeFlow')) installTimeFlowFixture(data);
 if (new URLSearchParams(location.search).has('workflowHelp')) {
   data.clients = [];
   data.settings!.setupDeferred = { ...data.settings!.setupDeferred, billing: true, work: false, backup: false };
