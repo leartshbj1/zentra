@@ -36,6 +36,16 @@ export function usePayrollFieldGuide() {
       field.dataset.payrollInvalid = 'true';
       revealPayrollField(field.form, '[data-payroll-invalid]');
       delete field.dataset.payrollInvalid;
+      // Keep the explanation beside the input visible in a scrolling mobile sheet.
+      const group = field.closest<HTMLElement>('.field');
+      const body = field.closest<HTMLElement>('.modal__body');
+      if (group?.querySelector('.payroll-inline-error') && body && body.scrollHeight > body.clientHeight) {
+        const bounds = body.getBoundingClientRect();
+        const top = Math.max(0, bounds.top) + 12;
+        const available = Math.min(window.innerHeight, bounds.bottom) - top - 12;
+        const content = group.getBoundingClientRect();
+        body.scrollTop += content.top - top - Math.max(0, (available - content.height) / 2);
+      }
     }
   }
   function reject(field: Control, message: string) {
@@ -87,7 +97,9 @@ export function usePayrollFieldGuide() {
       field instanceof HTMLInputElement &&
       field.type === 'date' &&
       (validity.rangeUnderflow || validity.rangeOverflow);
-    const message = dateRange
+    const message = field instanceof HTMLInputElement && field.type === 'email' && validity.typeMismatch
+      ? `Indiquez une adresse e-mail complète, par exemple nom@exemple.ch.${!field.required ? ' Vous pouvez aussi laisser ce champ facultatif vide.' : ''}`
+      : dateRange
       ? `La date saisie est le ${value(field.value)}. Choisissez une date${field.min ? ` à partir du ${value(field.min)}` : ''}${field.max ? ` et au plus tard le ${value(field.max)}` : ''}.${field.name === 'decisionDate' ? ' Recopiez le jour où le choix de cotisation a été confirmé sur votre déclaration ou confirmation écrite pour cette année.' : ' Recopiez la date indiquée sur votre document.'}`
       : validity.valueMissing
         ? field instanceof HTMLSelectElement
@@ -106,6 +118,7 @@ export function usePayrollFieldGuide() {
     check,
     reject,
     clear,
+    message: issue?.message ?? '',
     guide: issue ? (<>
       <section className="payroll-field-guide" role="alert" id={id}>
         <strong>À compléter : {issue.label}</strong>

@@ -5,6 +5,8 @@ import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { useAssistantScreen } from './assistantContext';
 import { useScreenArrival } from './useScreenArrival';
 import { PayrollOrganisationField } from './PayrollOrganisationField';
+import { usePayrollFieldGuide } from './PayrollFieldGuide';
+import { employeeFormIssue, employeeNativeFieldIssue, type EmployeeFieldIssue } from './employeeFormValidation';
 import { CompanyLogo } from './CompanyLogo';
 import { useProjectSyncBackground } from './projectSync';
 import { useCloudBackupBackground } from './cloudBackup';
@@ -6850,7 +6852,12 @@ function EmployeeForm({
   const [localError, setLocalError] = useState('');
   const formElement = useRef<HTMLFormElement>(null);
   const [prefill, setPrefill] = useState<EmployeeDocumentDraft | null>(null);
-  useAssistantScreen({screen:'Ajouter ou modifier un collaborateur',scope:`collaborateur:${item?.id ?? 'nouveau'}`, facts:{'Étape':['Identité','Travail et salaire','Vérification'][step],'Nouveau collaborateur':!item,'Année du choix de cotisation':assessmentYear,'Réglage annuel reporté':deferAnnual,'Point à corriger':annualIssue?.message || localError || 'Aucun message affiché'},actions:[]},20);
+  const fieldGuide = usePayrollFieldGuide();
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const pending = busy || saving;
+  const [salaryDraft, setSalaryDraft] = useState(item ? String(item.grossSalaryCents / 100) : '');
+  useAssistantScreen({screen:'Ajouter ou modifier un collaborateur',scope:`collaborateur:${item?.id ?? 'nouveau'}`, facts:{'Étape':['Identité','Travail et salaire','Vérification'][step],'Nouveau collaborateur':!item,'Année du choix de cotisation':assessmentYear,'Réglage annuel reporté':deferAnnual,'Point à corriger':annualIssue?.message || fieldGuide.message || localError || 'Aucun message affiché'},actions:[]},20);
 
   useEffect(() => {
     if (!annualIssue) return;
@@ -6876,22 +6883,39 @@ function EmployeeForm({
       else field.removeAttribute('aria-describedby');
     };
   }, [annualIssue]);
+  function revealEmployeeIssue(issue: EmployeeFieldIssue) {
+    const field = formElement.current?.elements.namedItem(issue.field);
+    if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return false;
+    const owner = field.closest<HTMLElement>('[data-employee-step]');
+    if (owner) setStep(Number(owner.dataset.employeeStep));
+    setLocalError('');
+    setAnnualIssue(null);
+    fieldGuide.reject(field, issue.message);
+    return true;
+  }
   function reportEmployeeError(reason: unknown) {
     if (reason instanceof SmallSalaryFormError) {
+      fieldGuide.clear();
       setAnnualIssue(reason);
       setLocalError('');
-    } else setLocalError(errorMessage(reason, 'Le collaborateur n’a pas pu être enregistré.'));
+    } else {
+      const message = errorMessage(reason, 'Le collaborateur n’a pas pu être enregistré.');
+      const issue = employeeNativeFieldIssue(message);
+      if (!issue || !revealEmployeeIssue(issue)) setLocalError(message);
+    }
   }
 
   useLayoutEffect(() => {
     if (!prefill || !formElement.current) return;
     for (const [name, value] of Object.entries(prefill.fields)) {
+      if (name === 'grossSalary') continue; // Controlled separately, including after a salary-mode change.
       const input = formElement.current.elements.namedItem(name);
       if ((input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) && !input.value.trim()) input.value = value ?? '';
     }
   }, [prefill]);
   function applyDocument(draft: EmployeeDocumentDraft) {
     if (!salaryMode && draft.fields.salaryMode === 'monthly') setSalaryMode('monthly');
+    if (!salaryDraft && draft.fields.grossSalary) setSalaryDraft(draft.fields.grossSalary);
     setPrefill(draft);
   }
 
@@ -6899,7 +6923,8 @@ function EmployeeForm({
     <Modal
       title={item ? 'Modifier le collaborateur' : 'Nouveau collaborateur'}
       description="Trois étapes pour enregistrer la personne. Les réglages de paie pourront être complétés ensuite."
-      onClose={close}
+      onClose={() => { if (!busy && !savingRef.current) close(); }}
+      dismissible={!pending}
       wide
     >
       <form
@@ -6907,24 +6932,21 @@ function EmployeeForm({
         noValidate
         ref={formElement}
         onSubmit={submitForm(async (form) => {
+          if (pending || savingRef.current) return;
           setLocalError('');
           setAnnualIssue(null);
-          const fields = formElement.current?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
-            step < 2 ? `[data-employee-step="${step}"] input, [data-employee-step="${step}"] select, [data-employee-step="${step}"] textarea` : 'input, select, textarea',
-          );
-          const invalid = Array.from(fields ?? []).find((field) => !field.checkValidity());
+          const scope = step < 2 ? formElement.current?.querySelector<HTMLElement>(`[data-employee-step="${step}"]`) : formElement.current;
+          if (!scope) return;
+          const invalid = scope.querySelector<HTMLElement>('input:invalid, select:invalid, textarea:invalid');
           if (invalid) {
             const owner = invalid.closest<HTMLElement>('[data-employee-step]');
             if (owner) setStep(Number(owner.dataset.employeeStep));
-            let parent = invalid.parentElement;
-            while (parent) {
-              if (parent instanceof HTMLDetailsElement) parent.open = true;
-              parent = parent.parentElement;
-            }
-            setLocalError('Complétez le champ indiqué pour continuer. Votre saisie est conservée.');
-            requestAnimationFrame(() => { invalid.focus(); invalid.reportValidity(); });
+            fieldGuide.check(scope);
             return;
           }
+          fieldGuide.clear();
+          const issue = step > 0 ? employeeFormIssue(form, step === 1 ? 'work' : 'all', !item) : null;
+          if (issue && revealEmployeeIssue(issue)) return;
           if (step < 2) {
             setReview(Object.fromEntries(Array.from(form.entries()).map(([key, value]) => [key, String(value)])));
             setStep(step + 1);
@@ -6973,33 +6995,6 @@ function EmployeeForm({
                 form.get('smallSalaryEvidenceReference') ?? '',
               ),
             });
-            if (Boolean(lppAssessmentYear) !== Boolean(lppAnnualSalary))
-              throw new Error(
-                'L’année et le salaire annuel LPP doivent être confirmés ensemble, zéro compris.',
-              );
-            if (Boolean(acOpeningYear) !== Boolean(acOpeningBasis))
-              throw new Error(
-                'L’année et la base d’ouverture AC doivent être confirmées ensemble, zéro compris.',
-              );
-            if (Boolean(laaOpeningYear) !== Boolean(laaOpeningBasis))
-              throw new Error(
-                'L’année et la base d’ouverture LAA doivent être confirmées ensemble, zéro compris.',
-              );
-            if (
-              employmentContractKind === 'fixed' &&
-              (!String(form.get('employmentStart')) ||
-                !String(form.get('employmentEnd')))
-            )
-              throw new Error(
-                'Un contrat à durée déterminée exige ses dates de début et de fin.',
-              );
-            if (
-              Boolean(lppExceptionCode) !==
-              Boolean(lppExceptionEvidenceReference)
-            )
-              throw new Error(
-                'Une exception LPP exige son motif et la référence de la preuve.',
-              );
             const data = {
               employeeNumber: String(form.get('employeeNumber')),
               name: String(form.get('name')),
@@ -7059,6 +7054,8 @@ function EmployeeForm({
               status: String(form.get('status')),
               notes: String(form.get('notes')),
             };
+            savingRef.current = true;
+            setSaving(true);
             await act(
               () =>
                 item
@@ -7071,6 +7068,7 @@ function EmployeeForm({
               reportEmployeeError,
             );
           } catch (reason) { reportEmployeeError(reason); }
+          finally { savingRef.current = false; setSaving(false); }
         })}
       >
         <ol className="payroll-steps" aria-label="Étapes du collaborateur">
@@ -7081,8 +7079,9 @@ function EmployeeForm({
           <p>{['Commencez par le nom et la fonction. Les coordonnées sont facultatives.', 'Recopiez les informations du contrat. Brut signifie avant les retenues.', 'Les informations principales suffisent pour ajouter la personne. Les réglages de paie se préparent ensuite, avec les documents de vos caisses.'][step]}</p>
         </div>
         {localError ? <ErrorPanel title="Vérifions ce point ensemble" message={localError} reveal /> : null}
-        <fieldset className="employee-step" data-employee-step="0" hidden={step !== 0}>
-          <details className="payroll-details"><summary>Préremplir avec une fiche de salaire existante</summary>        <EmployeeDocumentImport onRead={applyDocument} disabled={busy} />
+        {fieldGuide.guide}
+        <fieldset className="employee-step" data-employee-step="0" hidden={step !== 0} disabled={pending}>
+          <details className="payroll-details"><summary>Préremplir avec une fiche de salaire existante</summary>        <EmployeeDocumentImport onRead={applyDocument} disabled={pending} />
         {prefill?.warnings.length ? <div className="employee-prefill-notes" role="status">{prefill.warnings.map(warning => <p key={warning}>{warning}</p>)}</div> : null}
 </details>
           <div className="form-grid">          <Field label="Nom complet" required wide>
@@ -7126,7 +7125,7 @@ function EmployeeForm({
           </Field>
 </div></details>
         </fieldset>
-        <fieldset className="employee-step" data-employee-step="1" hidden={step !== 1}>
+        <fieldset className="employee-step" data-employee-step="1" hidden={step !== 1} disabled={pending}>
           <div className="form-grid">          <Field label="Taux d’activité (%)" required>
             <input
               name="employmentRate"
@@ -7189,6 +7188,7 @@ function EmployeeForm({
           </Field>
           <Field label="Comment cette personne est-elle payée ?" required>
             <select
+              name="salaryMode"
               value={salaryMode}
               onChange={(event) =>
                 setSalaryMode(event.target.value as Employee['salaryMode'] | '')
@@ -7207,9 +7207,8 @@ function EmployeeForm({
                 type="number"
                 min="0"
                 step="0.01"
-                defaultValue={
-                  item?.grossSalaryCents ? item.grossSalaryCents / 100 : ''
-                }
+                value={salaryDraft}
+                onChange={event => setSalaryDraft(event.target.value)}
                 required
               />
             </Field>
@@ -7228,7 +7227,7 @@ function EmployeeForm({
           </Field>
 </div>
         </fieldset>
-        <fieldset className="employee-step" data-employee-step="2" hidden={step !== 2}>
+        <fieldset className="employee-step" data-employee-step="2" hidden={step !== 2} disabled={pending}>
           <dl className="employee-review">
             <div><dt>Collaborateur</dt><dd>{review.name} · {review.role}</dd></div>
             <div><dt>Activité</dt><dd>{review.employmentRate} %{review.contractualWeeklyHours ? ` · ${review.contractualWeeklyHours} h / semaine` : ''}</dd></div>
@@ -7602,8 +7601,8 @@ function EmployeeForm({
 </div></details>
         </fieldset>
         <div className="payroll-actions">
-          <Button type="button" variant="ghost" disabled={busy} onClick={() => step > 0 ? setStep(step - 1) : close()}>{step > 0 ? 'Retour' : 'Annuler'}</Button>
-          <Button type="submit" disabled={busy}>{busy ? 'Enregistrement…' : step < 2 ? 'Continuer' : item ? 'Enregistrer les modifications' : 'Ajouter le collaborateur'}</Button>
+          <Button type="button" variant="ghost" disabled={pending} onClick={() => { if (savingRef.current) return; fieldGuide.clear(); setAnnualIssue(null); setLocalError(''); if (step > 0) setStep(step - 1); else close(); }}>{step > 0 ? 'Retour' : 'Annuler'}</Button>
+          <Button type="submit" disabled={pending}>{pending ? 'Enregistrement…' : step < 2 ? 'Continuer' : item ? 'Enregistrer les modifications' : 'Ajouter le collaborateur'}</Button>
         </div>
       </form>
     </Modal>

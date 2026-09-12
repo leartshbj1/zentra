@@ -2,6 +2,18 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : corrections guidées du collaborateur
+
+Les champs manquants ou mal renseignés reçoivent une explication dans le formulaire, à côté du champ concerné. L’étape nécessaire s’affiche et les rubriques fermées s’ouvrent automatiquement. Les dates d’un contrat déterminé sont contrôlées dès l’étape Travail. Les couples année/montant de pension, chômage et accidents indiquent ce qui manque et le document à consulter ; une valeur inconnue n’est pas remplacée par zéro. Un message bancaire identifié lors de l’enregistrement rejoint l’IBAN. Les autres erreurs de sauvegarde restent affichées avec la saisie conservée. L’assistant reçoit le message de correction courant dans son contexte d’écran.
+
+Le salaire mensuel saisi est conservé lors d’un passage temporaire au paiement horaire. Pendant la sauvegarde, les champs, le retour, la fermeture et les doubles soumissions sont bloqués jusqu’à la réponse. Un refus réactive le formulaire sans effacer les informations. Sur les petites fenêtres, le défilement tient compte du champ et de son explication.
+
+Validation sur la source isolée : TypeScript et Vite réussis ; **103 tests ciblés** et **34 parcours Edge/WebKit** réussis. Les huit nouveaux parcours couvrent 320×568, 390×844, 844×390 et 1440×900, les dates manquantes/inversées, l’e-mail facultatif invalide, les trois montants manquants, le zéro explicite, un refus bancaire, la fermeture pendant une sauvegarde et une seule écriture malgré plusieurs soumissions. Les 26 parcours précédents de création, de choix annuel et de première fiche de salaire passent également. Les captures de correction à 320 px ont été inspectées : le champ et son explication sont visibles. Données synthétiques uniquement ; moteur fiscal et schéma natif inchangés. Rapports dans `desktop/.qa/employee-corrections/` et les dossiers des parcours associés.
+
+Intégration du dossier principal vérifiée : TypeScript, Vite, les 103 tests ciblés et 18 parcours Edge/WebKit réussis (corrections du collaborateur et première fiche de salaire). Les différences propres au dossier principal sont conservées. Sauvegarde préalable : `.qa/employee-corrections-20260912-before/`.
+
+Ce lot est préparé après la publication Windows 1.56.0. Il ne reconstruit ni ne publie d’installateur ou d’IPA.
+
 ## Lot : saisie compréhensible des prestations commerciales
 
 Les quantités, prix, remises et pourcentages d’acompte conservent le texte saisi pendant l’édition. La virgule, le point et les séparateurs suisses de milliers sont acceptés ; une précision excessive ou un nombre ambigu est signalé avant l’enregistrement. Un prix vide demande une saisie, tandis qu’un zéro explicite conserve une prestation offerte. Une remise vide vaut zéro. Les unités courantes sont proposées tout en restant libres. Les erreurs indiquent le numéro de ligne et rejoignent le champ concerné ; les anciens taux TVA indisponibles demandent un choix explicite. Le total principal reste « À compléter » tant qu’une saisie numérique est invalide. Pour une prestation d’une journée, la date de fin reprend le début tant qu’elle n’a pas été personnalisée.
