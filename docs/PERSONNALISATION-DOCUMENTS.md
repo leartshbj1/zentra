@@ -17,4 +17,4 @@ Les textes de cet atelier sont des textes modèles pour la catégorie choisie. L
 - PDF natifs : mélange de polices et tailles, retours à la ligne, pagination des documents longs, pied de page, conservation des totaux et des documents déjà émis.
 - Parcours Edge et WebKit à 320, 390 et 1 440 pixels : sélection et saisie avec un style actif, annulation, sauvegarde/rechargement, copie entre les quatre catégories et transmission des réglages à l’export.
 
-Cette extension doit être incluse dans une prochaine version native ; elle ne modifie pas les installateurs 1.57.0 déjà publiés.
+Cette extension est incluse dans la préversion Windows 1.58.0, publiée le 12 septembre 2026. Consultez [la note de livraison](RELEASE-WINDOWS-1.58.0.md) pour les vérifications et leurs limites. Aucun nouveau lot macOS, iOS ou Android n’a été publié avec cette version Windows.
