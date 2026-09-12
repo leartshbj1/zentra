@@ -285,3 +285,17 @@ L’enregistrement garde un identifiant stable pendant les essais du même choix
 Validation : 36 tests d’interface et 6 tests natifs dans chaque dossier, 8 parcours Edge/WebKit dans chaque dossier aux quatre formats 320×568, 390×844, 844×390 et 1440×900, et 10 parcours existants dans Edge sur la base de livraison. Les essais couvrent notamment l’année bissextile, le rattrapage, le refus d’une date, le double clic, l’erreur de lecture persistante puis sa reprise, la pause, l’arrêt par date et l’historique. Les anciennes recettes ont été adaptées au guide automatique et à l’étape Prestations de l’éditeur actuel. TypeScript et Vite compilent dans les deux dossiers ; les captures ont été inspectées.
 
 Intégration dans le dossier principal par fusion à trois versions sans conflit, avec sauvegarde dans `.qa/recurrence-dates-before`. Le moteur natif et le schéma sont inchangés. Guide : [FACTURES-RECURRENTES.md](FACTURES-RECURRENTES.md). Aucune donnée client modifiée, aucun nouvel installateur ni IPA publié dans ce lot.
+
+## Lot : vérifier une facture et reprendre ses corrections
+
+L’émission d’une facture utilise une fenêtre de l’application avec le total en premier, le client, les dates, la prestation, le hors TVA et la TVA. Le détail des lignes est dépliable. La confirmation indique l’attribution d’un numéro et le verrouillage du document. Annuler ne modifie rien ; l’émission n’envoie aucun e-mail et ne crée pas de paiement.
+
+Les dates manquantes ou incompatibles dirigent directement vers Conditions, ou vers les dates de la facture liée. Un IBAN manquant dirige vers la rubrique de facturation. Les refus liés à une période fermée proposent les exercices et la correction de la date du brouillon ; les comptes manquants dirigent vers Plan & liaisons. Un rappel permet de reprendre la vérification de la même facture après avoir enregistré une correction. Les valeurs courantes sont relues depuis l’espace de travail. Le message natif complet reste accessible.
+
+La conversion du devis conserve maintenant le choix et le pourcentage après refus, montre l’erreur dans sa fenêtre et empêche la modification ou la fermeture pendant l’écriture. La confirmation d’émission empêche les doubles clics, tient compte de la lecture seule et utilise la reprise existante des lectures après une écriture confirmée.
+
+Validation dans les deux dossiers : 45 tests d’interface, 8 parcours de facture simple Edge/WebKit et 8 parcours de dossier avec acompte Edge/WebKit (320×568, 390×844, 844×390, 1440×900). Huit parcours existants dans Edge passent aussi sur la base de livraison, pour les dossiers neufs et les anciens acomptes à compléter. Deux tests natifs dans chaque dossier vérifient plusieurs pourcentages, les arrondis, la déduction, les numéros, les paiements, les PDF, les écritures, les deux formes de comptabilisation de TVA déjà implémentées et la restauration. Il s’agit de données synthétiques et de tests de non-régression ; aucun calcul fiscal ni schéma natif n’a changé.
+
+TypeScript et Vite compilent dans les deux dossiers. Les captures du total et des corrections sur petit écran ont été inspectées. Intégration par fusion à trois versions sans conflit ; sauvegarde du dossier principal dans `.qa/invoice-issue-before`. Les évolutions de synchronisation et de comptabilité du dossier principal sont conservées.
+
+Guide : [DEVIS-FACTURES.md](DEVIS-FACTURES.md). Aucun nouvel installateur ni IPA n’est publié dans ce lot ; l’installation physique et les échanges entre appareils restent à vérifier.

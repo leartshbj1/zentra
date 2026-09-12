@@ -1,13 +1,13 @@
 import { CircleDollarSign } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Quote } from './types';
-import { formatMoney } from './utils';
+import { errorMessage, formatMoney } from './utils';
 import {
   DEFAULT_QUOTE_DEPOSIT_PERCENTAGE,
   quoteConversionPreview,
   quoteConversionSelection,
 } from './quoteConversion';
-import { Field, FormActions, Modal, submitForm } from './ui';
+import { ErrorPanel, Field, FormActions, Modal, submitForm } from './ui';
 
 export function QuoteConversionModal({
   quote,
@@ -18,10 +18,13 @@ export function QuoteConversionModal({
   quote: Quote;
   busy: boolean;
   close: () => void;
-  onConvert: (quote: Quote, depositPercentageBp: number | null) => Promise<boolean>;
+  onConvert: (quote: Quote, depositPercentageBp: number | null, onError?: (reason: unknown) => void) => Promise<boolean>;
 }) {
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [percentage, setPercentage] = useState(DEFAULT_QUOTE_DEPOSIT_PERCENTAGE);
+  const [error, setError] = useState(''), [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
+  const locked = busy || saving;
   const selection = quoteConversionSelection(depositEnabled, percentage);
   const preview = useMemo(
     () =>
@@ -44,13 +47,19 @@ export function QuoteConversionModal({
       title="Créer la facture"
       description={`Devis ${quote.number || quote.title} : une facture complète ou un dossier avec acompte et solde.`}
       onClose={close}
+      dismissible={!locked}
     >
       <form
         onSubmit={submitForm(async () => {
-          if (validationError) return;
-          await onConvert(quote, selection.depositPercentageBp);
+          if (validationError || locked || inFlight.current) return;
+          inFlight.current = true; setSaving(true); setError('');
+          let reason: unknown;
+          try { const converted = await onConvert(quote, selection.depositPercentageBp, value => { reason = value; }); if (!converted) setError(errorMessage(reason, 'Les factures n’ont pas pu être créées. Votre choix est conservé ; réessayez.')); }
+          catch (value) { setError(errorMessage(value, 'Les factures n’ont pas pu être créées. Votre choix est conservé ; réessayez.')); }
+          finally { inFlight.current = false; setSaving(false); }
         })}
       >
+        {error && <ErrorPanel title="La création demande une vérification" message={error} reveal />}
         <div className="quote-conversion-intro">
           <span>Montant du devis</span>
           <strong>{formatMoney(preview.quoteTotalCents, quote.currency)}</strong>
@@ -59,6 +68,7 @@ export function QuoteConversionModal({
         <label className="module-toggle quote-conversion-toggle">
           <input
             type="checkbox"
+            disabled={locked}
             checked={depositEnabled}
             onChange={(event) => {
               setDepositEnabled(event.target.checked);
@@ -84,6 +94,7 @@ export function QuoteConversionModal({
               <span className="percent-input">
                 <input
                   name="depositPercentage"
+                  disabled={locked}
                   type="text"
                   inputMode="decimal"
                   value={percentage}
@@ -131,7 +142,7 @@ export function QuoteConversionModal({
 
         <FormActions
           onCancel={close}
-          busy={busy}
+          busy={locked}
           disabled={Boolean(validationError)}
           submitLabel={
             depositEnabled

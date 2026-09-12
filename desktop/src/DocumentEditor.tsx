@@ -55,6 +55,7 @@ export function DocumentEditor({
   item,
   quoteSource,
   initialProject,
+  initialStep = 0,
   workspace,
   busy,
   readOnlyReason,
@@ -66,6 +67,7 @@ export function DocumentEditor({
   item?: Quote | Invoice;
   quoteSource?: Quote;
   initialProject?: Project;
+  initialStep?: 0 | 1 | 2 | 3;
   workspace: Workspace;
   busy: boolean;
   readOnlyReason?: string;
@@ -171,7 +173,7 @@ export function DocumentEditor({
     setNumberErrors(previous => { if ((previous[id] || '') === error) return previous; const next = { ...previous }; if (error) next[id] = error; else delete next[id]; return next; });
   }, []);
   const [saveAttempt, setSaveAttempt] = useState(0);
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<number>(initialStep);
   const [documentTitle, setDocumentTitle] = useState(current?.title ?? '');
   const [documentNotes, setDocumentNotes] = useState(current?.notes ?? '');
   const formRef = useRef<HTMLFormElement>(null);

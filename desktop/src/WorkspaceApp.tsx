@@ -265,6 +265,7 @@ const DocumentEditor = deferView(() => import('./DocumentEditor').then(module =>
 const PairedInvoiceEditor = deferView(() => import('./QuoteInvoiceFolder').then(module => ({ default: module.PairedInvoiceEditor })), { label: 'Ouverture du dossier de facturation…', close: props => props.close });
 const QuoteInvoiceFolder = deferView(() => import('./QuoteInvoiceFolder').then(module => ({ default: module.QuoteInvoiceFolder })), { label: 'Ouverture du dossier de facturation…', close: props => props.close });
 const QuoteConversionModal = deferView(() => import('./QuoteConversionModal').then(module => ({ default: module.QuoteConversionModal })), { label: 'Ouverture de la conversion du devis…', close: props => props.close });
+const InvoiceIssueDialog = deferView(() => import('./InvoiceIssueDialog').then(module => ({ default: module.InvoiceIssueDialog })), { label: 'Préparation de la vérification de facture…', close: props => props.close });
 const CatalogScreen = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogScreen })), { label: 'Ouverture du catalogue…' });
 const CatalogItemForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogItemForm })), { label: 'Ouverture du catalogue…', close: props => props.close });
 const StockMovementForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.StockMovementForm })), { label: 'Ouverture du catalogue…', close: props => props.close });
@@ -347,6 +348,7 @@ type ModalState =
       item?: Quote | Invoice;
       quoteSource?: Quote;
       initialProject?: Project;
+      initialStep?: 0 | 1 | 2 | 3;
     }
   | { type: 'quoteConversion'; quote: Quote }
   | { type: 'quoteInvoiceFolder'; quoteId: string }
@@ -493,6 +495,8 @@ export function WorkspaceApp({
   }
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
+  const [invoiceToIssueId, setInvoiceToIssueId] = useState<string | null>(null);
+  const [invoiceIssueReturnId, setInvoiceIssueReturnId] = useState<string | null>(null);
   const [bankAutoReconcile, setBankAutoReconcile] = useState(true);
   const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods'>();
   const clearAccountingStartTab = useCallback(() => setAccountingStartTab(undefined), []);
@@ -989,33 +993,50 @@ export function WorkspaceApp({
     }
   }
 
-  async function issueInvoice(item: Invoice, onError?: (reason: unknown) => void) {
-    if (
-      !window.confirm(
-        'Émettre cette facture maintenant ? Le numéro, les lignes, le client, les dates et les montants seront figés. Toute correction ultérieure devra passer par un avoir et une nouvelle facture.',
-      )
-    )
-      return;
+  async function issueInvoice(item: Invoice, _onError?: (reason: unknown) => void) {
+    if (busy || readOnly || actionInFlight.current || isWorkspaceRecoveryPending()) return;
+    setInvoiceToIssueId(item.id);
+  }
+
+  async function confirmInvoiceIssue(item: Invoice) {
+    const current = workspaceRef.current.invoices.find(invoice => invoice.id === item.id);
+    if (!current || current.status !== 'draft' || current.number) throw new Error('Le document a changé. Revenez aux factures pour vérifier son état.');
+    let issueReason: unknown;
     const issued = await act(
       () =>
         desktopApi.issueDocument(
           'invoices',
           item.id,
-          item.issueDate,
-          item.dueDate,
+          current.issueDate,
+          current.dueDate,
         ),
       'La facture a été émise, numérotée et verrouillée.',
       false,
-      onError,
+      reason => { issueReason = reason; },
     );
+    if (!issued) throw issueReason || new Error('L’émission n’a pas été effectuée. Actualisez les données puis réessayez.');
+    setInvoiceToIssueId(null);
+    setInvoiceIssueReturnId(null);
     if (issued && cloudAccount?.status === 'connected') {
       await archiveInvoiceToCloud(item, true);
     }
   }
 
+  function resolveInvoiceIssue(invoice: Invoice, target: import('./invoiceIssueHelp').InvoiceIssueTarget) {
+    if (busy || actionInFlight.current) return;
+    setInvoiceToIssueId(null); setModal(null); setSearch(''); setMenuOpen(false);
+    setInvoiceIssueReturnId(invoice.id);
+    if (target === 'document' || target === 'dates') setModal({ type: 'document', entity: 'invoices', item: invoice, initialStep: target === 'dates' ? 2 : 1 });
+    else if (target === 'folder' && invoice.quoteId) { setView('invoices'); setModal({ type: 'quoteInvoiceFolder', quoteId: invoice.quoteId }); }
+    else if (target === 'billing') { setView('settings'); setSettingsFocusTarget(SETTINGS_READINESS_TARGETS.billing); }
+    else if (target === 'periods' || target === 'accounts') { setAccountingStartTab(target); setAccountingEntryFocus(null); setView('accounting'); }
+    else setView('invoices');
+  }
+
   async function convertAcceptedQuote(
     item: Quote,
     depositPercentageBp: number | null,
+    onError?: (reason: unknown) => void,
   ) {
     const converted = await act(
       () => desktopApi.convertQuote(item, depositPercentageBp),
@@ -1023,6 +1044,7 @@ export function WorkspaceApp({
         ? 'La facture complète a été créée en brouillon. Complétez ses dates de prestation puis contrôlez-la avant émission.'
         : 'Les factures d’acompte et de solde ont été créées en brouillon dans le dossier du devis.',
       false,
+      onError,
     );
     if (converted) {
       setModal(depositPercentageBp === null ? null : { type: 'quoteInvoiceFolder', quoteId: item.id });
@@ -1712,6 +1734,7 @@ export function WorkspaceApp({
         ) : null}
 
         <ProjectFileActivity key={cloudAccount?.organizationId ?? 'local'} sessions={projectFileSessions} disabled={busy || readOnly} projects={workspace.projects} currentProjectId={view === 'projects' ? projectFolderId : null} onOpen={id => { setProjectFolderId(id); setView('projects'); setSearch(''); }} />
+        {invoiceIssueReturnId && !invoiceToIssueId && <div className="invoice-issue-resume" role="region" aria-label="Reprendre la facture"><span>Votre facture reste disponible. Après les corrections, reprenez sa vérification avant de l’émettre.</span><Button disabled={busy} onClick={() => { const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceIssueReturnId); if (invoice) { setView('invoices'); setSearch(''); setModal(invoice.quoteId ? { type: 'quoteInvoiceFolder', quoteId: invoice.quoteId } : null); setInvoiceToIssueId(invoice.id); } else setNotice({ tone: 'error', text: 'Cette facture n’est plus disponible. Actualisez la liste des factures.' }); }}>Reprendre la facture</Button><Button variant="ghost" disabled={busy} onClick={() => setInvoiceIssueReturnId(null)}>Plus tard</Button></div>}
         <section className="page-content" ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
@@ -2204,7 +2227,7 @@ export function WorkspaceApp({
         <button type="button" aria-label="Tous les modules" aria-current={!['dashboard', 'projects', 'quotes', 'orders', 'invoices'].includes(view) ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} /><span>Menu</span></button>
       </nav>
 
-      {modal ? (
+      {modal && !invoiceToIssueId ? (
         <ReadOnlyFormScope readOnly={readOnly && modal.type !== 'qrPrint'}>
         <WorkspaceModal
           state={modal}
@@ -2224,9 +2247,7 @@ export function WorkspaceApp({
             setView('accounting');
             setSearch('');
           }}
-          onConvertQuote={(quote, depositPercentageBp) =>
-            convertAcceptedQuote(quote, depositPercentageBp)
-          }
+          onConvertQuote={convertAcceptedQuote}
           onCreateInvoiceCorrection={createInvoiceCorrection}
           onIssueInvoice={issueInvoice}
           onQrReady={(invoice, qr) => {
@@ -2236,6 +2257,10 @@ export function WorkspaceApp({
         />
         </ReadOnlyFormScope>
       ) : null}
+      {invoiceToIssueId && (() => {
+        const invoice = workspace.invoices.find(row => row.id === invoiceToIssueId);
+        return invoice ? <InvoiceIssueDialog key={invoice.id} invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={() => setInvoiceToIssueId(null)} onConfirm={confirmInvoiceIssue} onResolve={target => resolveInvoiceIssue(invoice, target)} /> : <Modal title="Facture indisponible" onClose={() => setInvoiceToIssueId(null)}><p>Ce document n’est plus présent dans les données chargées. Revenez à la liste des factures pour vérifier son état.</p><Button onClick={() => { setInvoiceToIssueId(null); setModal(null); setView('invoices'); setSearch(''); }}>Voir les factures</Button></Modal>;
+      })()}
       {printTarget ? (
         <PrintSheet
           target={printTarget}
@@ -6091,6 +6116,7 @@ function WorkspaceModal({
   onConvertQuote: (
     quote: Quote,
     depositPercentageBp: number | null,
+    onError?: (reason: unknown) => void,
   ) => Promise<boolean>;
   onCreateInvoiceCorrection: (invoice: Invoice, reason: string, onError: (reason: unknown) => void) => Promise<void>;
   onIssueInvoice: (invoice: Invoice, onError?: (reason: unknown) => void) => Promise<void>;
@@ -6158,6 +6184,7 @@ function WorkspaceModal({
       <DocumentEditor
         entity={state.entity}
         initialProject={state.initialProject}
+        initialStep={state.initialStep}
         item={state.item}
         quoteSource={state.quoteSource}
         workspace={workspace}

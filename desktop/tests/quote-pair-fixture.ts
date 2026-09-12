@@ -29,7 +29,11 @@ export function installQuotePairFixture(data: Workspace) {
     data.invoices.push({ ...deposit, id: pair.balanceInvoiceId, type: 'final', title: `Solde — ${quote.title}`, depositPercentageBp: null, depositBasisLines: null, lines: [...quote.lines.map((line) => ({ ...line, id: `balance-${line.id}` })), ...deposit.lines.map((line) => ({ ...line, id: `minus-${line.id}`, description: `Déduction — ${line.description}`, unitPriceCents: -line.unitPriceCents }))] });
     return structuredClone(data);
   };
-  desktopApi.convertQuote = async (_, bp) => { data.invoices = [depositFor(bp ?? 10000)]; complete(); return afterWrite('convert'); };
+  desktopApi.convertQuote = async (_, bp) => {
+    if (sessionStorage.getItem('qa-pair-refuse-convert') === '1') throw Error('La conversion n’a pas été enregistrée. Réessayez.');
+    if (sessionStorage.getItem('qa-pair-hold-convert') === '1') await new Promise(resolve => window.addEventListener('qa-release-pair-convert', resolve, { once: true }));
+    data.invoices = [depositFor(bp ?? 10000)]; complete(); return afterWrite('convert');
+  };
   desktopApi.createQuoteBalance = async () => { complete(); return afterWrite('balance'); };
   desktopApi.updateEntity = async (entity, id, patch) => {
     if (entity !== 'invoices') throw new Error('Unexpected fixture mutation');
@@ -39,6 +43,9 @@ export function installQuotePairFixture(data: Workspace) {
   };
   desktopApi.issueDocument = async (entity, id) => {
     if (entity !== 'invoices') throw new Error('Unexpected fixture issue');
+    sessionStorage.setItem('qa-pair-issue-attempts', String(Number(sessionStorage.getItem('qa-pair-issue-attempts') || 0) + 1));
+    const customIssue = sessionStorage.getItem('qa-pair-issue-message');
+    if (customIssue) throw Error(customIssue);
     if (sessionStorage.getItem('qa-pair-refuse-issue') === '1') throw Error('La période de facturation est fermée. Vérifiez la date d’émission.');
     if (sessionStorage.getItem('qa-pair-hold-issue') === '1') await new Promise(resolve => window.addEventListener('qa-release-pair-issue', resolve, { once: true }));
     const invoice = data.invoices.find((invoice) => invoice.id === id)!;
@@ -60,4 +67,10 @@ export function installQuotePairFixture(data: Workspace) {
     return afterWrite('payment');
   };
   if (new URLSearchParams(location.search).has('legacyPair')) data.invoices = [depositFor(3000)];
+  if (new URLSearchParams(location.search).has('issueGuide')) {
+    data.invoices = [{ ...depositFor(10000), id: 'single-guide', type: 'standard', quoteId: null, title: 'Installation complète et accompagnement du client pour la mise en service', depositPercentageBp: null, depositBasisLines: null, lines: structuredClone(quote.lines), notes: 'Conserver cette note\nEt cette deuxième ligne' }];
+    data.settings!.billing.iban = '';
+    desktopApi.saveSettings = async settings => { data.settings = structuredClone(settings); return afterWrite('settings'); };
+    sessionStorage.setItem('qa-pair-snapshot', JSON.stringify(data));
+  }
 }

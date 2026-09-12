@@ -88,6 +88,7 @@ try {
       await navigate('Factures');
       assert.equal(await page.locator('.sales-documents tbody tr').count(), 2);
       await page.locator('.sales-documents tbody tr').filter({ hasText: /Acompte .* %/ }).getByRole('button', { name: 'Émettre', exact: true }).click();
+      await page.getByRole('dialog', { name: 'Émettre l’acompte', exact: true }).getByRole('button', { name: 'Confirmer et émettre l’acompte', exact: true }).click();
       await page.getByText('F-2026-0042', { exact: true }).waitFor();
       await page.getByRole('button', { name: 'Voir le dossier du devis', exact: true }).first().click();
       assert.match(await page.locator('.quote-invoice-folder__invoices').innerText(), /F-2026-0042/);
