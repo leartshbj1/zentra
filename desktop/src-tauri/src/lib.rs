@@ -6475,6 +6475,19 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(posting_balance, (523_000, 523_000));
         drop(connection);
 
+        let repeated_post = store.post_payslip(PostPayslipInput {
+            payslip_id: payslip_id.clone(), entry_date: None,
+        }).unwrap();
+        assert_eq!(repeated_post["payslip"]["snapshot_json"], posted["payslip"]["snapshot_json"]);
+        assert_eq!(repeated_post["journal"], serde_json::Value::Null);
+        let post_proof: (i64, i64, String) = store.connect().unwrap().query_row(
+            "SELECT (SELECT COUNT(*) FROM journal_entries WHERE source_type='payslip' AND source_id=?1),
+            (SELECT COUNT(*) FROM audit_log WHERE action='post' AND entity_type='payslip' AND entity_id=?1),
+            (SELECT entry_date FROM journal_entries WHERE source_type='payslip' AND source_id=?1)",
+            rusqlite::params![payslip_id], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
+        ).unwrap();
+        assert_eq!(post_proof, (1, 1, "2026-08-31".into()));
+
         let replacement_wages_payable = value_id(
             &store
                 .upsert_account(AccountInput {

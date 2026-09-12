@@ -483,7 +483,7 @@
 }
 
 @media screen {
-  .notice--floating.notice--success { z-index: 90; }
+  .notice--floating.notice--success, .notice--floating.notice--warning { z-index: 90; }
   .supplier-invoice-lines > header small,
   .supplier-invoice-line__footer,
   .supplier-invoice-total span,

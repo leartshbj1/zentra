@@ -269,6 +269,7 @@ const PairedInvoiceEditor = deferView(() => import('./QuoteInvoiceFolder').then(
 const QuoteInvoiceFolder = deferView(() => import('./QuoteInvoiceFolder').then(module => ({ default: module.QuoteInvoiceFolder })), { label: 'Ouverture du dossier de facturation…', close: props => props.close });
 const QuoteConversionModal = deferView(() => import('./QuoteConversionModal').then(module => ({ default: module.QuoteConversionModal })), { label: 'Ouverture de la conversion du devis…', close: props => props.close });
 const InvoiceIssueDialog = deferView(() => import('./InvoiceIssueDialog').then(module => ({ default: module.InvoiceIssueDialog })), { label: 'Préparation de la vérification de facture…', close: props => props.close });
+const PayslipPostingDialog = deferView(() => import('./PayslipPostingDialog').then(module => ({ default: module.PayslipPostingDialog })), { label: 'Vérification du salaire…', close: props => props.close });
 const SupplierInvoiceReviewDialog = deferView(() => import('./SupplierInvoiceReviewDialog').then(module => ({ default: module.SupplierInvoiceReviewDialog })), { label: 'Vérification de la facture fournisseur…', close: props => props.close });
 const CatalogScreen = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogScreen })), { label: 'Ouverture du catalogue…' });
 const CatalogItemForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogItemForm })), { label: 'Ouverture du catalogue…', close: props => props.close });
@@ -368,7 +369,7 @@ type ModalState = (
   | { type: 'supplierPayment'; invoice: SupplierInvoice }
   | { type: 'payslip'; item?: Payslip; initialEmployeeId?: string; initialPeriod?: string; initialPaymentDate?: string }
   | { type: 'payrollImport' }
-  | { type: 'payslipPayment'; payslip: Payslip }
+  | { type: 'payslipPayment'; payslip: Payslip; returnToPosting?: boolean }
   | { type: 'payment'; invoice: Invoice; returnToQuoteId?: string }
   | { type: 'qrPrint'; invoice: Invoice }
   | { type: 'timer' }
@@ -502,6 +503,11 @@ export function WorkspaceApp({
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
   const [invoiceToIssueId, setInvoiceToIssueId] = useState<string | null>(null);
   const [invoiceIssueReturnId, setInvoiceIssueReturnId] = useState<string | null>(null);
+  const [payslipPostingId, setPayslipPostingId] = useState<string | null>(null);
+  const [payslipPostingReturnId, setPayslipPostingReturnId] = useState<string | null>(null);
+  const [payslipPostingFeedback, setPayslipPostingFeedback] = useState<import('./payslipPosting').PayslipPostingFeedback | null>(null);
+  const [teamStartSection, setTeamStartSection] = useState<'payslips' | undefined>();
+  const clearTeamStartSection = useCallback(() => setTeamStartSection(undefined), []);
   const [supplierInvoiceReviewId, setSupplierInvoiceReviewId] = useState<string | null>(null);
   const [supplierReviewReturnId, setSupplierReviewReturnId] = useState<string | null>(null);
   const [supplierMatchToOpenId, setSupplierMatchToOpenId] = useState<string | null>(null);
@@ -1178,6 +1184,10 @@ export function WorkspaceApp({
   }
 
   async function postPayslip(item: Payslip) {
+    const current = workspaceRef.current.payslips.find(payslip => payslip.id === item.id);
+    if (!current) throw new Error('Cette fiche n’est plus disponible. Revenez à la liste des salaires.');
+    if (current.status !== 'validated') throw new Error('Seule une fiche validée peut être finalisée. Reprenez son contrôle avant de continuer.');
+    let failure: unknown;
     let fallbacks: Awaited<ReturnType<typeof desktopApi.postPayslip>>['accountingFallbacks'] = [];
     const saved = await act(
       async () => {
@@ -1194,16 +1204,29 @@ export function WorkspaceApp({
       },
       'La fiche a été comptabilisée et verrouillée.',
       false,
+      reason => { failure = reason; },
     );
+    const recorded = workspaceRef.current.payslips.find(payslip => payslip.id === item.id);
+    if (!saved && !['posted','paid'].includes(recorded?.status || '')) throw failure || new Error('La finalisation n’a pas pu être confirmée. Réessayez lorsque les données sont disponibles.');
+    setPayslipPostingFeedback({ payslipId: item.id, accountingFallbacks: fallbacks, recovered: !saved });
+    setPayslipPostingReturnId(null);
+    if (!saved) setNotice({ tone: 'warning', text: 'La fiche a été retrouvée en comptabilité après l’interruption. Vérifiez les comptes utilisés dans l’écriture.' });
     if (saved && fallbacks.length) {
-      const details = fallbacks
-        .map((fallback) => `${fallback.contribution || 'Cotisation'} : compte de ${fallback.field === 'expense_account_id' ? 'charge' : 'dette'} général ${fallback.accountId}`)
-        .join(' · ');
       setNotice({
         tone: 'warning',
-        text: `La fiche a été comptabilisée et verrouillée. Des comptes généraux ont été utilisés pour ${fallbacks.length} liaison(s) : ${details}. Vérifiez l’écriture comptable.`,
+        text: 'La fiche a été comptabilisée et verrouillée. Des comptes généraux ont été utilisés pour certaines cotisations. Le détail figure dans le récapitulatif du salaire.',
       });
     }
+  }
+
+  function resolvePayslipPosting(item: Payslip, target: import('./payslipPosting').PayslipPostingTarget) {
+    if (busy || actionInFlight.current) return;
+    setPayslipPostingId(null); setModal(null); setSearch(''); setMenuOpen(false);
+    setPayslipPostingReturnId(item.id);
+    if (target === 'salary') { setView('team'); setTeamStartSection('payslips'); setModal({ type: 'payslip', item }); }
+    else if (target === 'payroll-settings') { setView('settings'); setSettingsFocusTarget('settings-payroll-review'); }
+    else if (target === 'accounts' || target === 'periods') { setView('accounting'); setAccountingStartTab(target); setAccountingEntryFocus(null); }
+    else { setView('team'); setTeamStartSection('payslips'); }
   }
 
   async function archive(entity: EntityKind, id: string, label: string) {
@@ -1795,6 +1818,7 @@ export function WorkspaceApp({
 
         <ProjectFileActivity key={cloudAccount?.organizationId ?? 'local'} sessions={projectFileSessions} disabled={busy || readOnly} projects={workspace.projects} currentProjectId={view === 'projects' ? projectFolderId : null} onOpen={id => { setProjectFolderId(id); setView('projects'); setSearch(''); }} />
         {invoiceIssueReturnId && !invoiceToIssueId && <div className="invoice-issue-resume" role="region" aria-label="Reprendre la facture"><span>Votre facture reste disponible. Après les corrections, reprenez sa vérification avant de l’émettre.</span><Button disabled={busy} onClick={() => { const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceIssueReturnId); if (invoice) { setView('invoices'); setSearch(''); setModal(invoice.quoteId ? { type: 'quoteInvoiceFolder', quoteId: invoice.quoteId } : null); setInvoiceToIssueId(invoice.id); } else setNotice({ tone: 'error', text: 'Cette facture n’est plus disponible. Actualisez la liste des factures.' }); }}>Reprendre la facture</Button><Button variant="ghost" disabled={busy} onClick={() => setInvoiceIssueReturnId(null)}>Plus tard</Button></div>}
+        {payslipPostingReturnId && !payslipPostingId && <div className="payslip-posting-resume" role="region" aria-label="Reprendre la finalisation du salaire"><span>Après vos corrections, reprenez la vérification de la même fiche de salaire.</span><Button disabled={busy} onClick={() => { setModal(null); setSearch(''); setView('team'); setTeamStartSection('payslips'); setPayslipPostingId(payslipPostingReturnId); }}>Reprendre la finalisation du salaire</Button><Button variant="ghost" disabled={busy} onClick={() => setPayslipPostingReturnId(null)}>Plus tard</Button></div>}
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label="Reprendre la facture fournisseur"><span>Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>Reprendre la facture fournisseur</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>Plus tard</Button></div>}
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>Retrouvez les coordonnées et les autres documents de ce client.</span><Button disabled={busy} onClick={() => returnToClientFolder()}>Revenir au dossier client</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>Plus tard</Button></div>}
         <section className="page-content" ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
@@ -2154,7 +2178,9 @@ export function WorkspaceApp({
               onPayrollSettings={() => { setSettingsFocusTarget('settings-payroll-review'); setView('settings'); }}
               onImportPayslips={() => setModal({ type: 'payrollImport' })}
               onEditPayslip={(item) => setModal({ type: 'payslip', item })}
-              onPostPayslip={(item) => void postPayslip(item)}
+              onPostPayslip={(item) => setPayslipPostingId(item.id)}
+              initialSection={teamStartSection}
+              onInitialSectionHandled={clearTeamStartSection}
               onPayPayslip={(item) =>
                 setModal({ type: 'payslipPayment', payslip: item })
               }
@@ -2291,14 +2317,14 @@ export function WorkspaceApp({
         <button type="button" aria-label="Tous les modules" aria-current={!['dashboard', 'projects', 'quotes', 'orders', 'invoices'].includes(view) ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} /><span>Menu</span></button>
       </nav>
 
-      {modal && !invoiceToIssueId && !supplierInvoiceReviewId ? (
+      {modal && !invoiceToIssueId && !supplierInvoiceReviewId && !payslipPostingId ? (
         <ReadOnlyFormScope readOnly={readOnly && modal.type !== 'qrPrint'}>
         <WorkspaceModal
           state={modal}
           readOnly={readOnly}
           workspace={workspace}
           busy={busy}
-          close={() => { if (modal.returnToClientId) returnToClientFolder(modal.returnToClientId); else setModal(null); }}
+          close={() => { if (modal.type === 'payslipPayment' && modal.returnToPosting) { setModal(null); setPayslipPostingId(modal.payslip.id); } else if (modal.returnToClientId) returnToClientFolder(modal.returnToClientId); else setModal(null); }}
           replace={next => setModal(current => { const value = typeof next === 'function' ? next(current) : next; return value && current?.returnToClientId ? { ...value, returnToClientId: current.returnToClientId } : value; })}
           act={act}
           onOpenClientEntry={openClientEntry}
@@ -2337,6 +2363,10 @@ export function WorkspaceApp({
           onClose={() => setPrintTarget(null)}
         />
       ) : null}
+      {payslipPostingId && (() => {
+        const payslip = workspace.payslips.find(item => item.id === payslipPostingId);
+        return payslip ? <PayslipPostingDialog key={payslip.id} payslip={payslip} workspace={workspace} busy={busy} readOnly={readOnly} feedback={payslipPostingFeedback} close={() => { setPayslipPostingId(null); setPayslipPostingReturnId(null); }} onConfirm={postPayslip} onResolve={target => resolvePayslipPosting(payslip, target)} onPayment={() => { setPayslipPostingId(null); setModal({ type: 'payslipPayment', payslip, returnToPosting: true }); }} onPreview={() => { setPayslipPostingId(null); setPrintTarget({ entity: 'payslips', value: payslip }); }} /> : <Modal title="Fiche de salaire indisponible" onClose={() => setPayslipPostingId(null)}><p>Cette fiche n’est plus dans les données chargées. Revenez aux salaires pour vérifier son état.</p><Button onClick={() => { setPayslipPostingId(null); setPayslipPostingReturnId(null); setView('team'); setTeamStartSection('payslips'); setSearch(''); }}>Voir les fiches de salaire</Button></Modal>;
+      })()}
       <GuidedTour
         open={guidedTour.open}
         mode={guidedTour.mode}
@@ -4375,6 +4405,8 @@ function TeamScreen({
   onPrint,
   onArchiveEmployee,
   onArchivePayslip,
+  initialSection,
+  onInitialSectionHandled,
 }: {
   workspace: Workspace;
   busy: boolean;
@@ -4390,12 +4422,15 @@ function TeamScreen({
   onPrint: (item: Payslip) => void;
   onArchiveEmployee: (item: Employee) => void;
   onArchivePayslip: (item: Payslip) => void;
+  initialSection?: 'payslips';
+  onInitialSectionHandled: () => void;
 }) {
   const employees = workspace.employees.filter((employee) =>
     searchText([employee.name, employee.role, employee.email], query),
   );
   const [payrollStatus, setPayrollStatus] = useState('all');
   const [teamSection, setTeamSection] = useState<'employees' | 'payslips' | 'certificates'>('employees');
+  useEffect(() => { if (initialSection) { setTeamSection(initialSection); onInitialSectionHandled(); } }, [initialSection, onInitialSectionHandled]);
   const filteredPayslips = useMemo(() => filterPayrollList(workspace.payslips, workspace.employees, query, payrollStatus), [workspace.payslips, workspace.employees, query, payrollStatus]);
   const pageKey = JSON.stringify([query, payrollStatus]);
   const [pagination, setPagination] = useState({ key: pageKey, page: 0 });
@@ -4650,16 +4685,9 @@ function TeamScreen({
                         variant="secondary"
                         size="small"
                         disabled={busy}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Comptabiliser et verrouiller définitivement la fiche ${payslip.period} ?`,
-                            )
-                          )
-                            onPostPayslip(payslip);
-                        }}
+                        onClick={() => onPostPayslip(payslip)}
                       >
-                        <LockKeyhole size={14} /> Comptabiliser et verrouiller
+                        <LockKeyhole size={14} /> Finaliser la fiche
                       </Button>
                     ) : null}
                     {payslip.status === 'posted' ? (
@@ -6415,16 +6443,19 @@ function WorkspaceModal({
         <PayrollImportWizard workspace={workspace} close={close} act={act} />
       </Suspense>
     );
-  if (state.type === 'payslipPayment')
+  if (state.type === 'payslipPayment') {
+    const currentPayslip = workspace.payslips.find(item => item.id === state.payslip.id);
+    if (!currentPayslip || !['posted','paid'].includes(currentPayslip.status)) return <Modal title="Vérifier la fiche avant le paiement" onClose={close}><p>La fiche a changé ou n’est plus disponible. Consultez son état actuel dans les salaires avant d’enregistrer le paiement.</p><Button onClick={close}>Revenir aux salaires</Button></Modal>;
     return (
       <PayslipPaymentForm
-        payslip={state.payslip}
+        payslip={currentPayslip}
         workspace={workspace}
         busy={busy}
         close={close}
         act={act}
       />
     );
+  }
   if (state.type === 'payment')
     return (
       <PaymentForm
