@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeRichText, richPlainText, type RichText } from './documentComposition';
-import { insertedTextRange, marksAtSelection, richTextLimit, selectedParagraphs, setRichMarks } from './richTextEditing';
+import { insertedTextRange, marksAtSelection, richTextLimit, selectedParagraphs, setRichMarks, typographyAtSelection } from './richTextEditing';
 
 describe('rich text editing without losing content', () => {
+  it('changes the font and size of a selection and keeps surrounding text and paragraphs intact', () => {
+    const original = normalizeRichText([{ runs: [{ text: 'Titre et conditions', bold: true }] }, { runs: [{ text: 'Deuxième ligne' }] }]);
+    const selected = setRichMarks(original, { start: 0, end: 5 }, { fontFamily: 'times', fontSize: 18 });
+    expect(richPlainText(selected)).toBe(richPlainText(original));
+    expect(selected[0].runs[0]).toMatchObject({ text: 'Titre', bold: true, fontFamily: 'times', fontSize: 18 });
+    expect(selected[0].runs[1].fontFamily).toBeUndefined();
+    expect(selected[1]).toEqual(original[1]);
+    expect(marksAtSelection(selected, { start: 1, end: 4 })).toMatchObject({ fontFamily: 'times', fontSize: 18 });
+    expect(marksAtSelection(selected, { start: 0, end: 9 }).fontSize).toBeUndefined();
+    expect(typographyAtSelection(selected, { start: 0, end: 9 })).toEqual({ fontFamily: 'mixed', fontSize: 'mixed' });
+    expect(typographyAtSelection(selected, { start: 1, end: 4 })).toEqual({ fontFamily: 'times', fontSize: 18 });
+    const inherited = setRichMarks(selected, { start: 0, end: 5 }, { fontFamily: undefined, fontSize: undefined });
+    expect(inherited).toEqual(original);
+  });
+  it('keeps distinct fonts and sizes and discards unsupported typography', () => {
+    const result = normalizeRichText([{ runs: [{ text: 'a', fontSize: 18, fontFamily: 'times' }, { text: 'b', fontSize: 18, fontFamily: 'times' }, { text: 'c', fontSize: 12, fontFamily: 'times' }, { text: 'd', fontFamily: 'url(remote)', fontSize: Infinity }, { text: 'e', fontSize: 25 }] }]);
+    expect(result[0].runs.map(r => [r.text, r.fontSize, r.fontFamily])).toEqual([['ab', 18, 'times'], ['c', 12, 'times'], ['de', undefined, undefined]]);
+  });
   it('retains an oversized paste so the editor can reject it explicitly', () => {
     const value = Array.from({ length: 65 }, (_, i) => ({ runs: [{ text: `Ligne ${i}` }] }));
     const normalized = normalizeRichText(value);

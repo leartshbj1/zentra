@@ -64,7 +64,9 @@ try {
     assert.equal(await page.evaluate(() => sessionStorage.getItem('design-export-count')), '2');
     assert.equal(await page.evaluate(() => sessionStorage.getItem('design-share-count')), '2');
     assert.equal(await page.evaluate(() => sessionStorage.getItem('design-share-path')), 'example.pdf');
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+    const overflow = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, elements: [...document.querySelectorAll('body *')].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 12).map(el => ({ tag: el.tagName, class: el.className, right: el.getBoundingClientRect().right, text: el.textContent.slice(0, 90) })) }));
+    if (overflow.scroll > overflow.width + 1) await page.screenshot({ path: `.qa/editor-overflow-${engine}-${width}.png`, fullPage: true });
+    assert.ok(overflow.scroll <= overflow.width + 1, JSON.stringify(overflow));
     assert.deepEqual(errors, []); await page.close(); console.log(JSON.stringify({ engine, width, typedMarks: true, bulletToggle: true, undo: true, blankLines: true, oversizedPasteRetained: true }));
   }
 } finally { await browser.close(); }

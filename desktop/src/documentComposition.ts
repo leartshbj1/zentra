@@ -1,5 +1,6 @@
 /** Structured text only: never store HTML, executable markup or document totals here. */
-export type RichRun = { text: string; bold?: boolean; italic?: boolean; underline?: boolean; color?: string; highlight?: string };
+export type DocumentFont = 'helvetica' | 'times' | 'courier';
+export type RichRun = { text: string; bold?: boolean; italic?: boolean; underline?: boolean; color?: string; highlight?: string; fontFamily?: DocumentFont; fontSize?: number };
 export type RichParagraph = { runs: RichRun[]; align?: 'left' | 'center' | 'right'; bullet?: boolean };
 export type RichText = RichParagraph[];
 export type DocumentComposition = {
@@ -30,16 +31,18 @@ export const defaultDocumentComposition: DocumentComposition = {
 const choice = <T extends string>(value: unknown, choices: readonly T[], fallback: T): T => choices.includes(value as T) ? value as T : fallback;
 const bounded = (value: unknown, min: number, max: number, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
 export const richColor = (value: unknown): string | undefined => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : undefined;
+export const richFont = (value: unknown): DocumentFont | undefined => ['helvetica', 'times', 'courier'].includes(value as string) ? value as DocumentFont : undefined;
+export const richFontSize = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) && value >= 8 && value <= 24 ? value : undefined;
 export function normalizeRichText(value: unknown): RichText {
   if (!Array.isArray(value)) return [];
   return value.filter(p => p && typeof p === 'object' && Array.isArray(p.runs)).map(p => {
     const runs: RichRun[] = [];
     for (const raw of p.runs) {
       if (!raw || typeof raw.text !== 'string' || !raw.text) continue;
-      const color = richColor(raw.color), highlight = richColor(raw.highlight);
-      const run: RichRun = { text: raw.text.replace(/\r\n?/g, '\n'), bold: raw.bold === true, italic: raw.italic === true, underline: raw.underline === true, ...(color ? { color } : {}), ...(highlight ? { highlight } : {}) };
+      const color = richColor(raw.color), highlight = richColor(raw.highlight), fontFamily = richFont(raw.fontFamily), fontSize = richFontSize(raw.fontSize);
+      const run: RichRun = { text: raw.text.replace(/\r\n?/g, '\n'), bold: raw.bold === true, italic: raw.italic === true, underline: raw.underline === true, ...(color ? { color } : {}), ...(highlight ? { highlight } : {}), ...(fontFamily ? { fontFamily } : {}), ...(fontSize ? { fontSize } : {}) };
       const previous = runs.at(-1);
-      if (previous && previous.bold === run.bold && previous.italic === run.italic && previous.underline === run.underline && previous.color === run.color && previous.highlight === run.highlight) previous.text += run.text;
+      if (previous && previous.bold === run.bold && previous.italic === run.italic && previous.underline === run.underline && previous.color === run.color && previous.highlight === run.highlight && previous.fontFamily === run.fontFamily && previous.fontSize === run.fontSize) previous.text += run.text;
       else runs.push(run);
     }
     return { align: choice(p.align, ['left', 'center', 'right'] as const, 'left'), bullet: p.bullet === true, runs };

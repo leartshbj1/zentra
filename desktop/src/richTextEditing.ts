@@ -1,7 +1,7 @@
 import { normalizeRichText, richPlainText, type RichRun, type RichText } from './documentComposition';
 
 export type TextSelection = { start: number; end: number };
-export type TextMarks = Required<Pick<RichRun, 'bold' | 'italic' | 'underline'>> & Pick<RichRun, 'color' | 'highlight'>;
+export type TextMarks = Required<Pick<RichRun, 'bold' | 'italic' | 'underline'>> & Pick<RichRun, 'color' | 'highlight' | 'fontFamily' | 'fontSize'>;
 export const noTextMarks: TextMarks = { bold: false, italic: false, underline: false };
 
 export function selectedParagraphs(value: RichText, selection: TextSelection): number[] {
@@ -16,7 +16,7 @@ export function selectedParagraphs(value: RichText, selection: TextSelection): n
   });
 }
 
-export function marksAtSelection(value: RichText, selection: TextSelection): TextMarks {
+function runsAtSelection(value: RichText, selection: TextSelection): RichRun[] {
   let offset = 0;
   const runs: RichRun[] = [];
   for (const p of value) {
@@ -29,8 +29,19 @@ export function marksAtSelection(value: RichText, selection: TextSelection): Tex
     }
     offset++;
   }
-  const color = runs[0]?.color, highlight = runs[0]?.highlight;
-  return { bold: !!runs.length && runs.every(r => r.bold), italic: !!runs.length && runs.every(r => r.italic), underline: !!runs.length && runs.every(r => r.underline), ...(color && runs.every(r => r.color === color) ? { color } : {}), ...(highlight && runs.every(r => r.highlight === highlight) ? { highlight } : {}) };
+  return runs;
+}
+
+export function typographyAtSelection(value: RichText, selection: TextSelection) {
+  const runs = runsAtSelection(value, selection);
+  const family = runs[0]?.fontFamily, size = runs[0]?.fontSize;
+  return { fontFamily: runs.every(r => r.fontFamily === family) ? family || '' : 'mixed', fontSize: runs.every(r => r.fontSize === size) ? size || '' : 'mixed' };
+}
+
+export function marksAtSelection(value: RichText, selection: TextSelection): TextMarks {
+  const runs = runsAtSelection(value, selection);
+  const color = runs[0]?.color, highlight = runs[0]?.highlight, fontFamily = runs[0]?.fontFamily, fontSize = runs[0]?.fontSize;
+  return { bold: !!runs.length && runs.every(r => r.bold), italic: !!runs.length && runs.every(r => r.italic), underline: !!runs.length && runs.every(r => r.underline), ...(color && runs.every(r => r.color === color) ? { color } : {}), ...(highlight && runs.every(r => r.highlight === highlight) ? { highlight } : {}), ...(fontFamily && runs.every(r => r.fontFamily === fontFamily) ? { fontFamily } : {}), ...(fontSize && runs.every(r => r.fontSize === fontSize) ? { fontSize } : {}) };
 }
 
 /** Apply explicit marks without toggling other formatting or removing any text. */

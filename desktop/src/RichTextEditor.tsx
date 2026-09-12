@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, Undo2, Redo2, Highlighter, Baseline, RemoveFormatting } from 'lucide-react';
-import { normalizeRichText, richPlainText, richColor, type RichRun, type RichText } from './documentComposition';
-import { insertedTextRange, marksAtSelection, noTextMarks, richTextLimit, selectedParagraphs, setRichMarks, type TextMarks } from './richTextEditing';
+import { normalizeRichText, richPlainText, richColor, richFont, richFontSize, documentFontCss, type RichRun, type RichText } from './documentComposition';
+import { insertedTextRange, marksAtSelection, noTextMarks, richTextLimit, selectedParagraphs, setRichMarks, typographyAtSelection, type TextMarks } from './richTextEditing';
 
 type Mark = 'bold' | 'italic' | 'underline';
 type Bookmark = { start: number; end: number };
@@ -24,7 +24,7 @@ function readEditor(root: HTMLElement, previous: RichText): RichText {
     if (node.nodeType === Node.TEXT_NODE) { append(node.textContent || '', marks); return; }
     if (!(node instanceof HTMLElement)) return;
     if (node.tagName === 'BR') { if (node.dataset.placeholder !== 'true') append('\n', marks); return; }
-    const next = { bold: marks.bold || /^(B|STRONG)$/.test(node.tagName) || node.dataset.bold === 'true', italic: marks.italic || /^(I|EM)$/.test(node.tagName) || node.dataset.italic === 'true', underline: marks.underline || node.tagName === 'U' || node.dataset.underline === 'true', color: richColor(node.dataset.color) || marks.color, highlight: richColor(node.dataset.highlight) || marks.highlight };
+    const next = { bold: marks.bold || /^(B|STRONG)$/.test(node.tagName) || node.dataset.bold === 'true', italic: marks.italic || /^(I|EM)$/.test(node.tagName) || node.dataset.italic === 'true', underline: marks.underline || node.tagName === 'U' || node.dataset.underline === 'true', color: richColor(node.dataset.color) || marks.color, highlight: richColor(node.dataset.highlight) || marks.highlight, fontFamily: richFont(node.dataset.fontFamily) || marks.fontFamily, fontSize: richFontSize(Number(node.dataset.fontSize)) || marks.fontSize };
     const isParagraph = (element: HTMLElement) => /^(DIV|P)$/.test(element.tagName) || element.classList.contains('rich-editor__paragraph');
     // Native editing can clone our block spans without the hidden separator.
     // Preserve that boundary, including an empty preceding paragraph.
@@ -64,21 +64,28 @@ function paint(root: HTMLElement, value: RichText) {
       span.style.fontWeight = run.bold ? '700' : '400'; span.style.fontStyle = run.italic ? 'italic' : 'normal'; span.style.textDecoration = run.underline ? 'underline' : 'none';
       if (run.color) { span.dataset.color = run.color; span.style.color = run.color; }
       if (run.highlight) { span.dataset.highlight = run.highlight; span.style.backgroundColor = run.highlight; }
+      if (run.fontFamily) { span.dataset.fontFamily = run.fontFamily; span.style.fontFamily = documentFontCss[run.fontFamily]; }
+      if (run.fontSize) { span.dataset.fontSize = String(run.fontSize); span.style.fontSize = `calc(${run.fontSize} * var(--rich-editor-point, 1px))`; }
       paragraph.appendChild(span);
     }); if (!paragraph.childNodes.length) { paragraph.appendChild(document.createTextNode('')); const placeholder = document.createElement('br'); placeholder.dataset.placeholder = 'true'; paragraph.appendChild(placeholder); } root.appendChild(paragraph);
   });
 }
 
-export function RichTextEditor({ label, value, onChange, disabled = false, maxLength = 5000, fontFamily }: { label: string; value: RichText; onChange: (value: RichText) => void; disabled?: boolean; maxLength?: number; fontFamily?: string }) {
+export function RichTextEditor({ label, value, onChange, disabled = false, maxLength = 5000, fontFamily, baseFontSize = 9 }: { label: string; value: RichText; onChange: (value: RichText) => void; disabled?: boolean; maxLength?: number; fontFamily?: string; baseFontSize?: number }) {
   const root = useRef<HTMLDivElement>(null), saved = useRef<Bookmark>({ start: 0, end: 0 });
   const current = useRef(value), composing = useRef(false);
   const history = useRef<RichText[]>([]), future = useRef<RichText[]>([]);
   const [revision, setRevision] = useState(0), [message, setMessage] = useState('');
   const pendingMarks = useRef<{ position: number; marks: TextMarks } | null>(null);
   const [activeMarks, setActiveMarks] = useState<TextMarks>(noTextMarks);
+  const [typography, setTypography] = useState<ReturnType<typeof typographyAtSelection>>({ fontFamily: '', fontSize: '' });
   const [activeBullet, setActiveBullet] = useState(false);
   const [colorTool, setColorTool] = useState<'color' | 'highlight' | null>(null);
-  function showMarks(marks: TextMarks) { setActiveMarks(old => old.bold === marks.bold && old.italic === marks.italic && old.underline === marks.underline && old.color === marks.color && old.highlight === marks.highlight ? old : marks); }
+  function showMarks(marks: TextMarks) {
+    setActiveMarks(old => old.bold === marks.bold && old.italic === marks.italic && old.underline === marks.underline && old.color === marks.color && old.highlight === marks.highlight && old.fontFamily === marks.fontFamily && old.fontSize === marks.fontSize ? old : marks);
+    const next = pendingMarks.current ? { fontFamily: marks.fontFamily || '', fontSize: marks.fontSize || '' } : typographyAtSelection(current.current, saved.current);
+    setTypography(old => old.fontFamily === next.fontFamily && old.fontSize === next.fontSize ? old : next);
+  }
   useLayoutEffect(() => {
     const el = root.current; if (!el || composing.current) return;
     const focused = document.activeElement === el;
@@ -151,13 +158,17 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   function undo(redo = false) { pendingMarks.current = null; const from = redo ? future.current : history.current, to = redo ? history.current : future.current; const next = from.pop(); if (next) { to.push(current.current); commit(next, false); root.current?.focus(); } }
   return <div className="rich-editor">
     <div className="rich-editor__label">{label}</div>
+    <div className="rich-editor__typography" role="group" aria-label={`Police et taille : ${label}`}>
+      <label>Police du passage<select aria-label="Police du passage" value={typography.fontFamily} disabled={disabled} onChange={event => applyMarks({ fontFamily: richFont(event.target.value) })}><option value="">Du document</option>{typography.fontFamily === 'mixed' && <option value="mixed" disabled>Mixte</option>}<option value="helvetica">Helvetica</option><option value="times">Times</option><option value="courier">Courier</option></select></label>
+      <label>Taille du passage<select aria-label="Taille du passage" value={typography.fontSize} disabled={disabled} onChange={event => applyMarks({ fontSize: richFontSize(Number(event.target.value)) })}><option value="">Du document</option>{typography.fontSize === 'mixed' && <option value="mixed" disabled>Mixte</option>}{[8,9,10,11,12,14,16,18,20,24].map(size => <option key={size} value={size}>{size} pt</option>)}{activeMarks.fontSize && ![8,9,10,11,12,14,16,18,20,24].includes(activeMarks.fontSize) && <option value={activeMarks.fontSize}>{activeMarks.fontSize} pt</option>}</select></label>
+    </div>
     <div className="rich-editor__toolbar" role="group" aria-label={`Mise en forme : ${label}`} onMouseDown={e => e.preventDefault()}>
       {([['bold', Bold, 'Gras'], ['italic', Italic, 'Italique'], ['underline', Underline, 'Souligner']] as const).map(([key, Icon, title]) => <button key={key} type="button" title={title} aria-label={title} aria-pressed={activeMarks[key]} disabled={disabled} onClick={() => mark(key)}><Icon size={17} /></button>)}
       {([['left', AlignLeft, 'Aligner à gauche'], ['center', AlignCenter, 'Centrer'], ['right', AlignRight, 'Aligner à droite']] as const).map(([align, Icon, title]) => <button key={align} type="button" title={title} aria-label={title} disabled={disabled} onClick={() => paragraph({ align })}><Icon size={17} /></button>)}
       <button type="button" aria-label="Liste à puces" title="Liste à puces" aria-pressed={activeBullet} disabled={disabled} onClick={() => paragraph({ bullet: true })}><List size={17} /></button>
       <button type="button" aria-label="Couleur du texte" title="Couleur du texte" aria-expanded={colorTool === 'color'} disabled={disabled} onClick={() => setColorTool(colorTool === 'color' ? null : 'color')}><Baseline size={17} style={{ color: activeMarks.color }} /></button>
       <button type="button" aria-label="Surligner le texte" title="Surligner le texte" aria-expanded={colorTool === 'highlight'} disabled={disabled} onClick={() => setColorTool(colorTool === 'highlight' ? null : 'highlight')}><Highlighter size={17} /></button>
-      <button type="button" aria-label="Effacer la mise en forme" title="Effacer la mise en forme des mots sélectionnés" disabled={disabled} onClick={() => applyMarks({ ...noTextMarks, color: undefined, highlight: undefined })}><RemoveFormatting size={17} /></button>
+      <button type="button" aria-label="Effacer la mise en forme" title="Effacer la mise en forme des mots sélectionnés" disabled={disabled} onClick={() => applyMarks({ ...noTextMarks, color: undefined, highlight: undefined, fontFamily: undefined, fontSize: undefined })}><RemoveFormatting size={17} /></button>
       <button type="button" aria-label="Annuler la modification du texte" title="Annuler" disabled={disabled || !history.current.length} onClick={() => undo()}><Undo2 size={17} /></button>
       <button type="button" aria-label="Rétablir la modification du texte" title="Rétablir" disabled={disabled || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /></button>
     </div>
@@ -168,7 +179,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
       <button type="button" disabled={disabled} onClick={() => applyMarks({ [colorTool]: undefined })}>{colorTool === 'color' ? 'Couleur automatique' : 'Sans surlignage'}</button>
       <button type="button" onClick={() => { setColorTool(null); root.current?.focus(); restore(root.current!, saved.current); }}>Fermer les couleurs</button>
     </div>}
-    <div ref={root} className="rich-editor__surface" style={{ fontFamily }} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label={label} aria-multiline="true" aria-disabled={disabled} spellCheck onInput={input}
+    <div ref={root} className="rich-editor__surface" style={{ fontFamily, '--rich-editor-point': `${15 / baseFontSize}px` } as CSSProperties} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label={label} aria-multiline="true" aria-disabled={disabled} spellCheck onInput={input}
       onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; input(); }}
       onBeforeInput={event => { const type = (event.nativeEvent as InputEvent).inputType; if (['insertParagraph', 'insertLineBreak'].includes(type)) { event.preventDefault(); insert('\n'); } else if (type === 'historyUndo' || type === 'historyRedo') { event.preventDefault(); undo(type === 'historyRedo'); } }}
       onPaste={event => { event.preventDefault(); insert(event.clipboardData.getData('text/plain')); }} onDrop={event => event.preventDefault()}

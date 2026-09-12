@@ -29,6 +29,10 @@ pub(crate) struct RichRun {
     pub color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub highlight: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_family: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<f32>,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
@@ -154,6 +158,16 @@ impl Composition {
                     return Err(invalid("Mise en forme du texte invalide."));
                 }
                 for run in &p.runs {
+                    if run
+                        .font_family
+                        .as_deref()
+                        .is_some_and(|font| !["helvetica", "times", "courier"].contains(&font))
+                        || run
+                            .font_size
+                            .is_some_and(|size| !size.is_finite() || !(8. ..=24.).contains(&size))
+                    {
+                        return Err(invalid("Pour ce passage, choisissez une des trois polices et une taille de 8 à 24 points."));
+                    }
                     for value in [&run.color, &run.highlight].into_iter().flatten() {
                         text_color(value)?;
                     }
@@ -177,13 +191,16 @@ impl Composition {
         Ok(())
     }
     fn font(&self, bold: bool, italic: bool) -> usize {
-        (match self.font_family.as_str() {
-            "times" => 4,
-            "courier" => 8,
-            _ => 0,
-        }) + usize::from(bold)
-            + 2 * usize::from(italic)
+        font_index(&self.font_family, bold, italic)
     }
+}
+fn font_index(family: &str, bold: bool, italic: bool) -> usize {
+    (match family {
+        "times" => 4,
+        "courier" => 8,
+        _ => 0,
+    }) + usize::from(bold)
+        + 2 * usize::from(italic)
 }
 pub(crate) fn plain(value: &str) -> RichText {
     value
@@ -206,11 +223,18 @@ struct Glyph {
     underline: bool,
     color: Option<[f32; 3]>,
     highlight: Option<[f32; 3]>,
+    size: Option<f32>,
 }
 fn measure(line: &[Glyph], size: f32) -> f32 {
     line.iter()
-        .map(|g| metrics::WIDTHS[g.font][g.byte as usize] as f32 * size / 1000.)
+        .map(|g| metrics::WIDTHS[g.font][g.byte as usize] as f32 * g.size.unwrap_or(size) / 1000.)
         .sum()
+}
+fn line_size(line: &[Glyph], fallback: f32) -> f32 {
+    line.iter().filter_map(|g| g.size).fold(fallback, f32::max)
+}
+fn footer_leading(line: &[Glyph]) -> f32 {
+    (line_size(line, 8.) * 1.35).max(11.)
 }
 fn wrap(
     style: &Composition,
@@ -222,7 +246,11 @@ fn wrap(
     for paragraph in text {
         let mut glyphs = Vec::new();
         for run in &paragraph.runs {
-            let font = style.font(run.bold, run.italic);
+            let font = font_index(
+                run.font_family.as_deref().unwrap_or(&style.font_family),
+                run.bold,
+                run.italic,
+            );
             let color = run.color.as_deref().map(text_color).transpose()?;
             let highlight = run.highlight.as_deref().map(text_color).transpose()?;
             glyphs.extend(encoded(&run.text)?.into_iter().map(|byte| Glyph {
@@ -231,6 +259,7 @@ fn wrap(
                 underline: run.underline,
                 color,
                 highlight,
+                size: run.font_size,
             }));
         }
         let available = width - if paragraph.bullet { size * 1.5 } else { 0. };
@@ -296,10 +325,12 @@ fn draw(ops: &mut Vec<Operation>, glyphs: &[Glyph], x: f32, y: f32, size: f32, c
             && glyphs[end].underline == glyphs[start].underline
             && glyphs[end].color == glyphs[start].color
             && glyphs[end].highlight == glyphs[start].highlight
+            && glyphs[end].size == glyphs[start].size
         {
             end += 1;
         }
         let run = &glyphs[start..end];
+        let size = run[0].size.unwrap_or(size);
         let ink = run[0].color.unwrap_or(color);
         let width = measure(run, size);
         if let Some(highlight) = run[0].highlight {
@@ -390,7 +421,14 @@ impl<'a> Composer<'a> {
                 "Le pied de page dépasse quatre lignes. Raccourcissez-le ou réduisez les marges.",
             ));
         }
-        let bottom = 42. + footer.len() as f32 * 11.;
+        let footer_height: f32 = footer
+            .iter()
+            .map(|(line, _, _, _)| footer_leading(line))
+            .sum();
+        if footer_height > 100. {
+            return Err(invalid("Le pied de page prend trop de place. Réduisez la taille de ses caractères ou retirez une ligne dans Textes → Pied de page."));
+        }
+        let bottom = 42. + footer_height;
         let mut result = Self {
             pages: vec![],
             y: 0.,
@@ -507,10 +545,11 @@ impl<'a> Composer<'a> {
     }
     fn rich_sized(&mut self, text: &RichText, size: f32, color: [f32; 3]) -> AppResult<()> {
         let lines = wrap(self.design, text, self.width(), size)?;
-        let leading = size * self.design.line_spacing;
         for (line, align, bullet, indent) in lines {
+            let height = line_size(&line, size);
+            let leading = height * self.design.line_spacing;
             self.ensure(leading)?;
-            self.y -= size;
+            self.y -= height;
             let x = self.left()
                 + match align.as_str() {
                     "center" => (self.width() - measure(&line, size)) / 2.,
@@ -535,7 +574,7 @@ impl<'a> Composer<'a> {
                 let left = self.left();
                 draw(self.ops(), &[glyph], left, y, size, color);
             }
-            self.y -= leading - size;
+            self.y -= leading - height;
         }
         Ok(())
     }
@@ -715,11 +754,16 @@ impl<'a> Composer<'a> {
         for (index, ops) in self.pages.iter_mut().enumerate() {
             let payment = self.payment_pages.contains(&index);
             let mut y = if payment {
-                330. + self.footer.len() as f32 * 11.
+                330. + self
+                    .footer
+                    .iter()
+                    .map(|(line, _, _, _)| footer_leading(line))
+                    .sum::<f32>()
             } else {
                 self.bottom - 14.
             };
             for (line, align, bullet, indent) in &self.footer {
+                y -= line_size(line, 8.) - 8.;
                 let x = left
                     + match align.as_str() {
                         "center" => (width - measure(line, 8.)) / 2.,
@@ -748,7 +792,7 @@ impl<'a> Composer<'a> {
                         self.style.ink(),
                     );
                 }
-                y -= 11.;
+                y -= footer_leading(line) - (line_size(line, 8.) - 8.);
             }
             let footer = format!("Zentra · {}/{}", index + 1, count);
             let lines = wrap(self.design, &plain(&footer), width, 7.)?;
@@ -800,6 +844,76 @@ pub(crate) fn write_pdf(path: &Path, bytes: &[u8]) -> AppResult<()> {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn selected_fonts_and_sizes_reflow_and_survive_pdf_export() {
+        let design: Composition = serde_json::from_value(json!({
+            "intro":[{"runs":[{"text":"Conditions de paiement", "fontFamily":"times", "fontSize":24, "bold":true}]}],
+            "closing":[{"runs":[{"text":"Un texte courant, puis "},{"text":"un passage en Courier", "fontFamily":"courier", "fontSize":18, "italic":true, "underline":true, "highlight":"#fff0a6"},{"text":". Le reste conserve la police du document."}]}],
+            "footerText":[{"align":"center","runs":[{"text":"Atelier du Léman", "fontFamily":"times", "fontSize":16, "italic":true}]},{"align":"center","runs":[{"text":"Merci de votre confiance.", "fontFamily":"courier", "fontSize":10}]}]
+        })).unwrap();
+        let mut style = DocumentStyle::default();
+        style.composition = Some(design.clone());
+        let mut writer =
+            Composer::new(&style, None, "Atelier du Léman", "Facture de contrôle").unwrap();
+        writer.heading("Facture de contrôle").unwrap();
+        let before = writer.y;
+        writer.rich(&design.intro).unwrap();
+        assert!(before - writer.y >= 24. * design.line_spacing - 0.01);
+        writer.gap(12.);
+        writer.rich(&design.closing).unwrap();
+        writer.gap(12.);
+        writer.total("TOTAL TTC", "CHF 1'245.90", true).unwrap();
+        let (bytes, count) = writer.finish("Contrôle des polices").unwrap();
+        assert_eq!(count, 1);
+        let pdf = Document::load_mem(&bytes).unwrap();
+        assert!(pdf.extract_text(&[1]).unwrap().contains("1'245.90"));
+        let content = Content::decode(
+            &pdf.get_page_content(*pdf.get_pages().values().next().unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+        let mut font = String::new();
+        let mut size = 0.;
+        let mut printed = Vec::new();
+        for op in content.operations {
+            if op.operator == "Tf" {
+                font = std::str::from_utf8(op.operands[0].as_name().unwrap())
+                    .unwrap()
+                    .to_owned();
+                size = op.operands[1].as_float().unwrap();
+            }
+            if op.operator == "Tj" {
+                printed.push((
+                    font.clone(),
+                    size,
+                    WINDOWS_1252
+                        .decode(op.operands[0].as_str().unwrap())
+                        .0
+                        .into_owned(),
+                ));
+            }
+        }
+        assert!(printed.iter().any(|(font, size, text)| font == "C5"
+            && *size == 24.
+            && text.contains("Conditions de paiement")));
+        assert!(printed.iter().any(|(font, size, text)| font == "C10"
+            && *size == 18.
+            && text.contains("un passage en Courier")));
+        assert!(printed
+            .iter()
+            .any(|(font, size, text)| font == "C0" && *size == 9. && text.contains("Le reste")));
+        assert!(printed.iter().any(|(font, size, text)| font == "C6"
+            && *size == 16.
+            && text.contains("Atelier du Léman")));
+        if let Some(directory) = std::env::var_os("ZENTRA_DESIGN_SAMPLES") {
+            std::fs::create_dir_all(&directory).unwrap();
+            std::fs::write(
+                std::path::Path::new(&directory).join("selected-fonts.pdf"),
+                bytes,
+            )
+            .unwrap();
+        }
+    }
     #[test]
     fn selected_text_colors_and_highlights_survive_pdf_export_without_changing_values() {
         let design: Composition = serde_json::from_value(json!({"closing":[{"runs":[
@@ -923,6 +1037,9 @@ mod tests {
             json!({"closing":[{"runs":[{"text":"😀"}]}]}),
             json!({"closing":[{"runs":[{"text":"texte","color":"url(remote)"}]}]}),
             json!({"closing":[{"runs":[{"text":"texte","highlight":"#ééé"}]}]}),
+            json!({"closing":[{"runs":[{"text":"texte","fontFamily":"remote-font"}]}]}),
+            json!({"closing":[{"runs":[{"text":"texte","fontSize":25}]}]}),
+            json!({"closing":[{"runs":[{"text":"texte","fontSize":0}]}]}),
         ] {
             let style: Composition = serde_json::from_value(value).unwrap();
             assert!(style.validate().is_err());
@@ -954,12 +1071,20 @@ mod tests {
             design.intro = plain(&"Introduction détaillée avec un retour à la ligne.\n".repeat(12));
             design.closing =
                 plain(&"Conditions complémentaires à conserver intégralement. ".repeat(45));
+            for (index, paragraph) in design.intro.iter_mut().enumerate() {
+                for run in &mut paragraph.runs {
+                    run.font_family = Some(if index % 2 == 0 { "times" } else { "courier" }.into());
+                    run.font_size = Some(if index % 2 == 0 { 24. } else { 14. });
+                }
+            }
+            design.closing[0].runs[0].font_size = Some(18.);
             design.footer_text = vec![RichParagraph {
                 runs: vec![RichRun {
                     text: "Un pied de page personnalisé".into(),
                     bold: true,
                     italic: true,
                     underline: true,
+                    font_size: Some(12.),
                     ..Default::default()
                 }],
                 align: "center".into(),
