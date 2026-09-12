@@ -492,6 +492,9 @@ export function WorkspaceApp({
   }
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
+  const [bankAutoReconcile, setBankAutoReconcile] = useState(true);
+  const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods'>();
+  const clearAccountingStartTab = useCallback(() => setAccountingStartTab(undefined), []);
   const [accountingEntryFocus, setAccountingEntryFocus] =
     useState<AccountingEntryFocus | null>(null);
   const [reminderRefreshSignal, setReminderRefreshSignal] = useState(0);
@@ -2130,13 +2133,17 @@ export function WorkspaceApp({
           {view === 'bank' ? (
             <Suspense fallback={<ViewLoading label="Ouverture de la banque…" />}>
               <BankScreen
+                autoReconcile={bankAutoReconcile}
+                setAutoReconcile={setBankAutoReconcile}
                 onOpenCustomerCredit={(id)=>{const credit=workspace.invoices.find(row=>row.id===id);if(credit){setSearch('');setView('invoices');setModal({type:'document',entity:'invoices',item:credit});}}}
                 onOpenSupplierCredit={(id)=>{setSupplierCreditToOpenId(id);setSearch('');setView('expenses');}}
                 onOpenExpense={openExpenseSource}
                 workspace={workspace}
                 readOnly={readOnly}
                 onWorkspaceChange={(next) => setWorkspace(next)}
-                onOpenAccounting={() => {
+                onOpenAccounting={(section = 'accounts') => {
+                  setAccountingStartTab(section);
+                  setAccountingEntryFocus(null);
                   setView('accounting');
                   setSearch('');
                 }}
@@ -2149,6 +2156,8 @@ export function WorkspaceApp({
               fallback={<ViewLoading label="Ouverture de la comptabilité…" />}
             >
               <AccountingScreen
+                initialTab={accountingStartTab}
+                onInitialTabHandled={clearAccountingStartTab}
                 workspace={workspace}
                 readOnly={readOnly}
                 onWorkspaceChange={setWorkspace}

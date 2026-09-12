@@ -97,7 +97,7 @@ const reportSections: Array<[Account['reportSection'], string]> = [
 
 const newJournalLine = (): JournalDraftLine => ({ id: createId(), accountId: '', debitCents: 0, creditCents: 0, memo: '', projectId: '', clientId: '', employeeId: '' });
 
-export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onFocusHandled, readOnly=false }: { workspace: Workspace; onWorkspaceChange: (workspace: Workspace) => void; focusEntry: AccountingEntryFocus | null; onFocusHandled: () => void; readOnly?:boolean }) {
+export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onFocusHandled, readOnly=false, initialTab, onInitialTabHandled }: { workspace: Workspace; onWorkspaceChange: (workspace: Workspace) => void; focusEntry: AccountingEntryFocus | null; onFocusHandled: () => void; readOnly?:boolean; initialTab?: 'accounts' | 'periods'; onInitialTabHandled?: () => void }) {
   const payrollMappingsRequired = Boolean(workspace.settings?.payroll.enabled)
     || (workspace.payslips ?? []).some((payslip) => ['posted', 'paid'].includes(payslip.status));
   const mappingFields = payrollMappingsRequired
@@ -107,7 +107,8 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const mappingDescription = payrollMappingsRequired
     ? 'Les douze liaisons sont obligatoires, dont deux comptes de passif distincts pour séparer la TVA à régulariser de la TVA due lors des encaissements. Les périodes ouvertes sont rattrapées dans l’ordre; les exercices clôturés restent intacts.'
     : 'Huit liaisons hors paie sont obligatoires, dont deux comptes de passif distincts pour le mode TVA sur les encaissements. Les quatre comptes salaires et cotisations deviendront requis uniquement si la paie est activée; les exercices clôturés restent intacts.';
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(initialTab || 'overview');
+  useEffect(() => { if (initialTab) { setTab(initialTab); onInitialTabHandled?.(); } }, [initialTab, onInitialTabHandled]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [settings, setSettings] = useState<AccountingSettings>(emptyAccountingSettings);
   const [continuity, setContinuity] = useState<AccountingContinuity>(emptyContinuity);

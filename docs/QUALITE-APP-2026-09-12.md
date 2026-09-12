@@ -248,3 +248,14 @@ Publication vérifiée le 12 septembre 2026 : installateur Windows 1.55.0, signa
 La page de téléchargement publique est publiée via Sites, version 121. Le lien Windows, l'empreinte et le texte de présentation ont été relus dans le HTML public. Source binaire : `a303f0777828cbe698beaa054bbcaafa65dd4706` ; source du site : `4ce11f1d1d0a975631228fd6ccf7156e6301857b`. Détails : [RELEASE-WINDOWS-1.55.0.md](RELEASE-WINDOWS-1.55.0.md).
 
 Cette publication ne constitue pas une validation sur un profil client réel. Authenticode reste indisponible. Aucun nouvel IPA ou paquet macOS/Android n'est inclus.
+
+
+## Lot : importer et confirmer les paiements sans perdre le contexte
+
+L’import bancaire dispose d’un guide, d’un choix de fichier distinct de l’enregistrement et d’un résultat détaillant les nouveaux mouvements, doublons et paiements reconnus. Les refus conservent le fichier et l’option choisie. Après un import enregistré dont la relecture échoue, le bouton d’actualisation reprend uniquement les lectures.
+
+Les confirmations client, fournisseur et d’association de compte utilisent des fenêtres de l’application. Les paiements affichent la facture, le montant, le reste dû avant et après, la contrepartie et la date. Les erreurs restent dans la fenêtre, prennent le focus et dirigent directement vers Exercices pour une période clôturée ou Plan & liaisons pour la configuration. Le choix d’import automatique reste conservé pendant la session, y compris après une visite de la comptabilité ; le test a révélé et permis de corriger sa réactivation involontaire lors du retour à Banque.
+
+Validation : TypeScript et Vite dans les deux dossiers ; 30 tests bancaires d’interface dans chacun, 46 tests comptabilité/trop-perçus supplémentaires dans le dossier principal, 72 tests natifs bancaires. Les huit parcours guidés Edge/WebKit passent dans chaque dossier (320×568, 390×844, 844×390, 1440×900) et les cinq parcours bancaires existants passent sur la base de livraison. Les captures ont été inspectées. La fusion préserve la gestion des trop-perçus et ses blocages dans le dossier principal ; sauvegardes dans .qa/bank-guided-before, .qa/bank-accounting-navigation-before et .qa/bank-import-choice-before.
+
+Le moteur et le schéma restent inchangés. Données de recette uniquement ; aucune publication d’installateur ou d’IPA dans ce lot. La livraison Windows reste 1.58.0. Guide : [BANQUE-PAIEMENTS.md](BANQUE-PAIEMENTS.md).

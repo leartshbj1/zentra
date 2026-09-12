@@ -1,0 +1,33 @@
+.bank-workflow { display: grid; gap: 20px; min-width: 0; }
+.bank-workflow p { margin: 0; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.bank-workflow .button { min-height: 44px; white-space: normal; max-width: 100%; }
+.bank-workflow-summary { display: grid; margin: 0; padding: 4px 16px; background: var(--surface-soft, #f4f6f8); border-radius: 14px; }
+.bank-workflow-summary > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line, #dce5df); min-width: 0; }
+.bank-workflow-summary > div:last-child { border: 0; }
+.bank-workflow-summary dt { color: var(--muted); font-size: 14px; }
+.bank-workflow-summary dd { margin: 0; font-size: 15px; font-weight: 600; text-align: right; overflow-wrap: anywhere; min-width: 0; max-width: 65%; }
+.bank-workflow-problem { padding: 16px; border: 1px solid #dbac7b; background: #fff8ee; border-radius: 12px; scroll-margin-block: 16px; }
+.bank-workflow-problem strong { display: block; margin-bottom: 8px; font-size: 16px; }
+.bank-workflow-problem summary, .bank-workflow-details summary { cursor: pointer; min-height: 44px; padding-block: 12px; font-size: 14px; font-weight: 600; }
+.bank-workflow-hint { padding: 14px; background: var(--surface-soft, #f4f6f8); border-radius: 10px; display: grid; gap: 12px; }
+.bank-import-steps { margin: 0; padding-left: 23px; display: grid; gap: 16px; }
+.bank-import-steps li { padding-left: 6px; }
+.bank-import-steps li::marker { color: var(--muted); font-weight: 600; }
+.bank-import-steps strong { display: block; margin-bottom: 6px; font-size: 16px; }
+.bank-import-file { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--line, #dce5df); border-radius: 14px; }
+.bank-import-file strong, .bank-import-file small { display: block; overflow-wrap: anywhere; }
+.bank-import-file small { margin-top: 5px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.bank-import-file > button { grid-column: 1 / -1; }
+.bank-import-option { display: flex; align-items: start; gap: 12px; cursor: pointer; }
+.bank-import-option input { flex: 0 0 22px; width: 22px; height: 22px; margin-top: 2px; }
+.bank-import-option strong, .bank-import-option small { display: block; font-size: 14px; line-height: 1.5; }
+.bank-import-option small { margin-top: 6px; color: var(--muted); font-weight: 400; }
+.bank-import-result { display: grid; gap: 16px; scroll-margin-block: 16px; }
+.bank-import-result h3 { margin: 0; font-size: 20px; }
+.bank-import-result > svg { color: var(--accent); }
+.bank-workflow-details { border-block: 1px solid var(--line, #dce5df); }
+.bank-workflow-details p, .bank-workflow-details ul { margin-bottom: 14px; }
+.bank-workflow-details li { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.bank-screen .bank-feedback { scroll-margin-block: 110px; }
+.bank-screen .bank-accounts { scroll-margin-block: 110px; }
+@media (max-width: 600px) { .bank-workflow .form-actions { display: grid; grid-template-columns: minmax(0, 1fr); } .bank-workflow-summary { padding-inline: 12px; } .bank-workflow-summary > div { flex-wrap: wrap; gap: 6px; } .bank-workflow-summary dd { max-width: 100%; } }

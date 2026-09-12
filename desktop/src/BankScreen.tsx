@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDownLeft,
@@ -30,7 +30,6 @@ import {
   filterBankCandidates,
   filterBankMovements,
   filterBankSupplierCandidates,
-  importCamtFromLocalDialog,
   initialInvoiceChoice,
   initialSupplierInvoiceChoice,
   type BankMovementFilter,
@@ -39,12 +38,15 @@ import type { BankAccountLink, BankMovement, BankWorkspace, ExpenseRefundInput, 
 import { errorMessage, formatDate, formatDateTime } from './utils';
 import { Button, EmptyState, ErrorPanel, SectionHeading } from './ui';
 import './BankScreen.css';
+import { BankActionDialog, BankImportWizard, type BankImportOutcome } from './BankWorkflowDialogs';
 import { BankExpensePicker } from './BankExpensePicker';
 import { BankRefundPicker, BankRefundUnlink, BankRefundHistory } from './BankRefunds';
 import { BankRefundCreate } from './BankRefundCreate';
 import { BankCreditRefundCreate } from './BankCreditRefundCreate';
 import { BankExpenseForm, type BankExpenseDraft } from './BankExpenseForm';
 import { BankExpenseCorrection, BankExpenseHistory } from './BankExpenseCorrection';
+
+type BankAction = { kind: 'customer' | 'supplier'; movementId: string; documentId: string } | { kind: 'associate' | 'dissociate'; accountId: string; currency: string };
 
 type Feedback = { tone: 'success' | 'warning' | 'error'; title: string; text: string; warnings?: string[] };
 
@@ -109,7 +111,7 @@ function customerMovementBlockReason(movement: BankMovement, account: BankAccoun
   const candidate = candidateForInvoice(movement, invoiceId);
   if (!candidate?.confirmable) return candidate?.reason || 'Cette facture ne peut pas recevoir ce mouvement.';
   if (candidate.remainingCents < Math.abs(movement.amountCents)) return 'Le montant bancaire dépasse le solde restant de cette facture.';
-  if (!movement.suggestion.confirmable) return movement.suggestion.reason || 'Le backend demande un contrôle supplémentaire.';
+  if (!movement.suggestion.confirmable) return movement.suggestion.reason || 'La proposition demande une vérification supplémentaire.';
   return '';
 }
 
@@ -200,11 +202,15 @@ export function BankScreen({
   onOpenExpense,
   onOpenSupplierCredit,
   onOpenCustomerCredit,
+  autoReconcile,
+  setAutoReconcile,
 }: {
   workspace: Workspace;
+  autoReconcile: boolean;
+  setAutoReconcile: (value: boolean) => void;
   readOnly: boolean;
   onWorkspaceChange: (workspace: Workspace) => void;
-  onOpenAccounting: () => void;
+  onOpenAccounting: (section?: 'accounts' | 'periods') => void;
   onOpenExpense?: (expenseId: string) => void;
   onOpenSupplierCredit?: (creditId:string)=>void;
   onOpenCustomerCredit?: (creditId:string)=>void;
@@ -223,7 +229,15 @@ export function BankScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [autoReconcile, setAutoReconcile] = useState(true);
+  const [importOpen, setImportOpen] = useState(false);
+  const [bankAction, setBankAction] = useState<BankAction | null>(null);
+  const feedbackRef = useRef<HTMLDivElement>(null), accountsRef = useRef<HTMLElement>(null), movementsRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (feedback && !busy && !importOpen && !bankAction) {
+      const frame = requestAnimationFrame(() => { feedbackRef.current?.focus(); feedbackRef.current?.scrollIntoView({ block: 'nearest' }); });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [feedback, busy, importOpen, bankAction]);
   const [refreshPending, setRefreshPending] = useState(false);
   const [query, setQuery] = useState('');
   const [movementLimit, setMovementLimit] = useState(25);
@@ -293,17 +307,12 @@ export function BankScreen({
     } finally { setBusy(false); }
   }
 
-  async function importStatement() {
-    if (busy || refreshPending) return;
-    if (readOnly) {
-      setFeedback({ tone: 'error', title: 'Licence en lecture seule', text: 'Activez la licence avant d’importer un nouveau relevé.' });
-      return;
-    }
+  async function importStatement(path: string, automaticChoice: boolean): Promise<BankImportOutcome> {
+    if (busy || refreshPending || readOnly) throw new Error('Actualisez les données et vérifiez votre accès avant de reprendre l’import.');
     setBusy(true);
     setFeedback(null);
     try {
-      const result = await importCamtFromLocalDialog(desktopApi.chooseCamtFile, (path) => desktopApi.importCamtFile(path, autoReconcile));
-      if (!result) return;
+      const result = await desktopApi.importCamtFile(path, automaticChoice);
       const automatic = result.automaticReconciliation;
       const automaticText = automatic?.enabled
         ? ` ${automatic.paidCount} facture(s) soldée(s), ${automatic.partialCount} paiement(s) partiel(s) enregistré(s) automatiquement. ${automatic.reviewCount} mouvement(s) client à contrôler.`
@@ -318,95 +327,99 @@ export function BankScreen({
           : `${result.importedCount} mouvement${result.importedCount > 1 ? 's' : ''} ajouté${result.importedCount > 1 ? 's' : ''}. ${result.ignoredCount ? `${result.ignoredCount} entrée${result.ignoredCount > 1 ? 's' : ''} non exploitable${result.ignoredCount > 1 ? 's' : ''}.` : 'Toutes les entrées compatibles ont été lues.'}`) + automaticText + (refreshWarnings.length ? ' Import enregistré ; actualisation incomplète.' : ''),
         warnings,
       });
-    } catch (reason) {
-      setFeedback({ tone: 'error', title: 'Import impossible', text: errorMessage(reason, 'Le fichier CAMT n’a pas pu être lu localement.') });
+      return { result, refreshWarnings };
     } finally {
       setBusy(false);
     }
   }
 
-  async function associate(account: BankAccountLink) {
+  async function associate(account: BankAccountLink, confirmed = false) {
     if (writesDisabled) return;
-    if (!window.confirm(`Associer le compte « ${account.accountId} » (${account.currency}) à cette entreprise ?\n\nCette confirmation crée uniquement un lien dans Zentra sur cet ordinateur. Aucun accès bancaire n’est ouvert et aucun mouvement n’est rapproché automatiquement.`)) return;
+    if (!confirmed) { setBankAction({ kind: 'associate', accountId: account.accountId, currency: account.currency }); return; }
     setBusy(true);
     setFeedback(null);
     try {
       await desktopApi.associateBankAccount(account.accountId, account.currency);
+      setBankAction(null);
       const warnings = await refreshBoth();
       setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Compte associé', text: 'L’association est enregistrée. Les encaissements certains pourront être rapprochés au prochain import si cette option est cochée.', warnings });
     } catch (reason) {
-      setFeedback({ tone: 'error', title: 'Association impossible', text: errorMessage(reason, 'Ce compte n’a pas pu être associé à l’entreprise.') });
+      await refreshBoth();
+      throw reason;
     } finally {
       setBusy(false);
     }
   }
 
-  async function dissociate(account: BankAccountLink) {
+  async function dissociate(account: BankAccountLink, confirmed = false) {
     if (writesDisabled || account.linkSource !== 'explicit') return;
-    if (!window.confirm(`Dissocier le compte « ${account.accountId} » (${account.currency}) ?\n\nLes mouvements importés et les rapprochements déjà confirmés resteront dans l’historique. Les nouvelles propositions seront bloquées jusqu’à une nouvelle association.`)) return;
+    if (!confirmed) { setBankAction({ kind: 'dissociate', accountId: account.accountId, currency: account.currency }); return; }
     setBusy(true);
     setFeedback(null);
     try {
       await desktopApi.dissociateBankAccount(account.accountId, account.currency);
+      setBankAction(null);
       const warnings = await refreshBoth();
       setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Compte dissocié', text: 'Les mouvements restent visibles, mais aucun nouveau rapprochement ne peut être confirmé pour ce compte.', warnings });
     } catch (reason) {
-      setFeedback({ tone: 'error', title: 'Dissociation impossible', text: errorMessage(reason, 'Ce compte n’a pas pu être dissocié.') });
+      await refreshBoth();
+      throw reason;
     } finally {
       setBusy(false);
     }
   }
 
-  async function confirmMovement(movement: BankMovement) {
-    if (writesDisabled) return;
-    const invoiceId = choices[movement.id] ?? '';
+  async function confirmMovement(movement: BankMovement, invoiceId = choices[movement.id] ?? '', confirmed = false) {
+    if (writesDisabled) throw new Error('Actualisez les données avant de reprendre le rapprochement.');
     const account = accountFor(movement);
     const blockReason = customerMovementBlockReason(movement, account, invoiceId, accountingReady);
     if (blockReason || !canConfirmBankReconciliation(movement, invoiceId)) {
+      if (confirmed) throw new Error(blockReason || 'Cette proposition a changé. Revenez aux mouvements pour vérifier la facture.');
       setFeedback({ tone: 'error', title: 'Rapprochement bloqué', text: blockReason || 'Cette proposition ne peut pas être confirmée.' });
       return;
     }
     const invoice = workspace.invoices.find((candidate) => candidate.id === invoiceId);
     const candidate = candidateForInvoice(movement, invoiceId);
     const invoiceLabel = invoice?.number || candidate?.invoiceNumber || 'facture sélectionnée';
-    if (!window.confirm(`Rattacher l’encaissement de ${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} à la facture ${invoiceLabel} ?\n\nLe paiement sera enregistré à la date du ${formatDate(movement.bookingDate || movement.valueDate)}.`)) return;
+    if (!confirmed) { setBankAction({ kind: 'customer', movementId: movement.id, documentId: invoiceId }); return; }
     setBusy(true);
     setFeedback(null);
     try {
       await desktopApi.confirmBankReconciliation(movement.id, invoiceId);
+      setBankAction(null);
       const warnings = await refreshBoth();
       setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Rapprochement confirmé', text: `${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} a été enregistré sur ${invoiceLabel}.` + (warnings.length ? ' Paiement enregistré ; actualisation incomplète.' : ''), warnings });
     } catch (reason) {
-      setFeedback({ tone: 'error', title: 'Rapprochement refusé', text: errorMessage(reason, 'Aucune écriture n’a été créée. Contrôlez la facture et le mouvement.') });
       await refreshBoth();
+      throw reason;
     } finally {
       setBusy(false);
     }
   }
 
-  async function confirmSupplierMovement(movement: BankMovement) {
-    if (writesDisabled) return;
-    const supplierInvoiceId = choices[movement.id] ?? '';
+  async function confirmSupplierMovement(movement: BankMovement, supplierInvoiceId = choices[movement.id] ?? '', confirmed = false) {
+    if (writesDisabled) throw new Error('Actualisez les données avant de reprendre le rapprochement.');
     const account = accountFor(movement);
     const blockReason = supplierMovementBlockReason(movement, account, supplierInvoiceId, accountingReady);
     if (blockReason || !canConfirmSupplierBankReconciliation(movement, supplierInvoiceId)) {
+      if (confirmed) throw new Error(blockReason || 'Cette proposition a changé. Revenez aux mouvements pour vérifier la facture.');
       setFeedback({ tone: 'error', title: 'Rapprochement fournisseur bloqué', text: blockReason || 'Cette proposition ne peut pas être confirmée.' });
       return;
     }
     const invoice = workspace.supplierInvoices.find((candidate) => candidate.id === supplierInvoiceId);
     const candidate = candidateForSupplierInvoice(movement, supplierInvoiceId);
     const invoiceLabel = invoice?.reference || candidate?.reference || 'facture fournisseur sélectionnée';
-    const supplierLabel = invoice?.supplierName || candidate?.supplierName || 'le fournisseur';
-    if (!window.confirm(`Rattacher le débit de ${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} à ${supplierLabel}, facture ${invoiceLabel} ?\n\nLe règlement sera enregistré à la date du ${formatDate(movement.bookingDate || movement.valueDate)}.`)) return;
+    if (!confirmed) { setBankAction({ kind: 'supplier', movementId: movement.id, documentId: supplierInvoiceId }); return; }
     setBusy(true);
     setFeedback(null);
     try {
       await desktopApi.confirmSupplierBankReconciliation(movement.id, supplierInvoiceId);
+      setBankAction(null);
       const warnings = await refreshBoth();
       setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Règlement fournisseur confirmé', text: `${formatBankMoney(Math.abs(movement.amountCents), movement.currency)} a été enregistré sur ${invoiceLabel}.` + (warnings.length ? ' Paiement enregistré ; actualisation incomplète.' : ''), warnings });
     } catch (reason) {
-      setFeedback({ tone: 'error', title: 'Rapprochement fournisseur refusé', text: errorMessage(reason, 'Aucune écriture n’a été créée. Contrôlez la facture fournisseur et le débit.') });
       await refreshBoth();
+      throw reason;
     } finally {
       setBusy(false);
     }
@@ -525,11 +538,38 @@ export function BankScreen({
     try { await removeBankCustomerRequest(request); const warnings = await refreshBoth(); setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Copie de reprise retirée', text: 'Les opérations déjà enregistrées sont conservées.', warnings }); }
     finally { setBusy(false); }
   }
+  const actionMovement = bankAction && 'movementId' in bankAction ? bank?.movements.find(row => row.id === bankAction.movementId) : undefined;
+  const actionAccount = bankAction && 'accountId' in bankAction ? bank?.accounts.find(row => row.accountId === bankAction.accountId && row.currency === bankAction.currency) : undefined;
+  const actionCandidate = actionMovement && bankAction && 'documentId' in bankAction ? bankAction.kind === 'supplier' ? candidateForSupplierInvoice(actionMovement, bankAction.documentId) : candidateForInvoice(actionMovement, bankAction.documentId) : undefined;
+  const actionSupplier = bankAction?.kind === 'supplier';
+  const actionDocument = bankAction && 'documentId' in bankAction ? actionSupplier ? workspace.supplierInvoices.find(row => row.id === bankAction.documentId)?.reference : workspace.invoices.find(row => row.id === bankAction.documentId)?.number : '';
+  const actionRows: [string, string][] = actionMovement ? [
+    ['Facture', actionDocument || 'Facture sélectionnée'],
+    ['Montant bancaire', formatBankMoney(Math.abs(actionMovement.amountCents), actionMovement.currency)],
+    ...(actionCandidate ? [['Reste dû après', formatBankMoney(actionCandidate.remainingCents - Math.abs(actionMovement.amountCents), actionMovement.currency)], ['Reste dû avant', formatBankMoney(actionCandidate.remainingCents, actionMovement.currency)]] as [string, string][] : []),
+    [actionSupplier ? 'Payé à' : 'Reçu de', actionMovement.counterpartyName || 'Nom absent du relevé'],
+    ['Date bancaire', formatDate(actionMovement.bookingDate || actionMovement.valueDate)],
+  ] : actionAccount ? [['Compte', actionAccount.accountId], ['Devise', actionAccount.currency], ['Mouvements du compte', String(actionAccount.movementCount)]] : [];
+  function showImportSection(section: 'accounts' | 'movements') {
+    setImportOpen(false); setFeedback(null);
+    if (section === 'movements') { setFilter('unreconciled'); setQuery(''); setMovementLimit(25); }
+    requestAnimationFrame(() => { const target = section === 'accounts' ? accountsRef.current : movementsRef.current; target?.focus(); target?.scrollIntoView({ block: 'start' }); });
+  }
   if (loading) return <div className="bank-loading" role="status"><LoaderCircle className="spin" size={19} /> Chargement de l’espace bancaire local…</div>;
   if (error && !bank) return <ErrorPanel title="Banque indisponible" message={error} onRetry={() => { setLoading(true); void load(); }} />;
   if (!bank) return null;
 
   return <div className="stack-layout bank-screen">
+    {importOpen && <BankImportWizard automatic={autoReconcile} onAutomaticChange={setAutoReconcile} disabled={writesDisabled} accountingReady={accountingReady} onClose={() => setImportOpen(false)} onImport={importStatement} onReview={() => showImportSection('movements')} onAccounts={() => showImportSection('accounts')} onAccounting={() => { setImportOpen(false); onOpenAccounting('accounts'); }} onRefresh={refreshBoth} />}
+    {bankAction && <BankActionDialog title={bankAction.kind === 'associate' ? 'Associer le compte bancaire' : bankAction.kind === 'dissociate' ? 'Dissocier le compte bancaire' : actionSupplier ? 'Règlement fournisseur' : 'Encaissement client'} description="Relisez ces informations avant de confirmer." rows={actionRows} note={bankAction.kind === 'associate' ? 'Confirmez que ce compte appartient à votre entreprise. Cette association permet de rapprocher ses mouvements ; elle ne donne aucun accès à votre banque.' : bankAction.kind === 'dissociate' ? 'Les mouvements et paiements déjà enregistrés restent conservés. Les nouveaux rapprochements attendront une nouvelle association.' : 'Le paiement sera enregistré sur cette facture à la date du relevé, avec son écriture comptable. Un paiement partiel conserve le solde à recevoir ou à payer.'} action={bankAction.kind === 'associate' ? 'Associer ce compte' : bankAction.kind === 'dissociate' ? 'Dissocier ce compte' : actionSupplier ? 'Enregistrer le règlement' : 'Enregistrer l’encaissement'} disabled={readOnly || refreshPending || (!actionMovement && !actionAccount)} busy={busy} onClose={() => setBankAction(null)} onAccounting={(section) => { setBankAction(null); onOpenAccounting(section); }} onConfirm={async () => {
+      if (writesDisabled) throw new Error('Actualisez les données avant de poursuivre.');
+      if (actionAccount && bankAction.kind === 'associate') await associate(actionAccount, true);
+      else if (actionAccount && bankAction.kind === 'dissociate') await dissociate(actionAccount, true);
+      else if (actionMovement && bankAction.kind === 'customer') await confirmMovement(actionMovement, bankAction.documentId, true);
+      else if (actionMovement && bankAction.kind === 'supplier') await confirmSupplierMovement(actionMovement, bankAction.documentId, true);
+      else throw new Error('Ce mouvement ou ce compte n’est plus disponible. Revenez aux mouvements pour actualiser les données.');
+    }} />}
+
     {newCustomerRefundMovement ? <BankCustomerRefundCreate movement={newCustomerRefundMovement} workspace={workspace} busy={busy} readOnly={readOnly || refreshPending} close={() => setNewCustomerRefundMovement(null)} onSave={customerRequest} /> : null}
     {customerRequests.error ? <ErrorPanel title="Demandes de remboursement indisponibles" message={customerRequests.error} onRetry={customerRequests.retry} /> : null}
     <BankCustomerPending requests={customerRequests.requests} disabled={writesDisabled} onRun={customerRequest} onRemove={removeCustomerRequest} />
@@ -541,17 +581,17 @@ export function BankScreen({
     <section className="bank-hero">
       <div className="bank-hero__icon"><Landmark size={25} /></div>
       <div><p className="eyebrow">Relevés bancaires</p><h2>Retrouvez les factures payées.</h2><p>Importez le relevé XML CAMT exporté depuis votre banque. Zentra retrouve les factures clients grâce à leur référence de paiement et conserve les autres mouvements à contrôler.</p></div>
-      <Button disabled={writesDisabled} onClick={() => void importStatement()} title={readOnly ? 'Licence en lecture seule' : 'Choisir un fichier XML sur cet appareil'}>{busy ? <LoaderCircle className="spin" size={16} /> : <FileUp size={16} />} Importer un relevé XML</Button>
+      <Button disabled={writesDisabled} onClick={() => setImportOpen(true)} title={readOnly ? 'Licence en lecture seule' : 'Choisir un fichier XML sur cet appareil'}>{busy ? <LoaderCircle className="spin" size={16} /> : <FileUp size={16} />} Importer un relevé XML</Button>
     </section>
 
-    <label className="check-card bank-auto-reconcile"><input type="checkbox" checked={autoReconcile} disabled={writesDisabled} onChange={(event) => setAutoReconcile(event.target.checked)} /><span><strong>Rapprocher automatiquement les encaissements certains</strong><small>Relevé camt.053 définitif, compte associé, référence QR ou RF unique et montant compatible. Un versement partiel conserve le solde restant dû.</small></span></label>
-    {feedback ? <div className={`bank-feedback bank-feedback--${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>
+
+    {feedback ? <div ref={feedbackRef} tabIndex={-1} className={`bank-feedback bank-feedback--${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>
       {feedback.tone === 'success' ? <CheckCircle2 size={19} /> : <AlertTriangle size={19} />}
       <div><strong>{feedback.title}</strong><p>{feedback.text}</p>{feedback.warnings?.length ? <ul>{feedback.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}</div>
     </div> : null}
     {refreshPending ? <div className="bank-refresh-state" role="alert"><div><strong>Données à actualiser</strong><p>Actualisez les données pour poursuivre les rapprochements.</p></div><Button disabled={busy} onClick={() => void retryRefresh()}>Actualiser les données</Button></div> : null}
 
-    {!accountingReady ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité requise pour rapprocher</strong><p>Les relevés restent consultables, mais un encaissement ou règlement n’est confirmé que si le paiement et son écriture bancaire peuvent être créés ensemble.</p></div><Button variant="secondary" size="small" onClick={onOpenAccounting}>Ouvrir Plan & liaisons</Button></div> : null}
+    {!accountingReady ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité requise pour rapprocher</strong><p>Les relevés restent consultables, mais un encaissement ou règlement n’est confirmé que si le paiement et son écriture bancaire peuvent être créés ensemble.</p></div><Button variant="secondary" size="small" onClick={() => onOpenAccounting('accounts')}>Ouvrir Plan & liaisons</Button></div> : null}
 
     <div className="bank-summary" aria-label="Résumé bancaire local">
       <article><FileCode2 /><span>Imports</span><strong>{bank.summary.importCount}</strong><small>fichiers locaux</small></article>
@@ -561,7 +601,7 @@ export function BankScreen({
       <article><Clock3 /><span>En attente</span><strong>{bank.summary.pendingCount}</strong><small>aucune écriture possible</small></article>
     </div>
 
-    {bank.accounts.length ? <section className="bank-accounts" aria-label="Comptes détectés dans les relevés">
+    {bank.accounts.length ? <section ref={accountsRef} tabIndex={-1} className="bank-accounts" aria-label="Comptes détectés dans les relevés">
       {bank.accounts.map((account) => <article className={account.linked ? 'is-linked' : 'is-unlinked'} key={`${account.accountId}-${account.currency}`}>
         <span>{account.linked ? <ShieldCheck size={18} /> : <Unlink size={18} />}</span>
         <div><strong>{account.linked ? 'Compte associé à cette entreprise' : 'Associer ce compte à cette entreprise'}</strong><p>{account.accountId} · {account.currency} · {account.movementCount} mouvement{account.movementCount > 1 ? 's' : ''}</p><small>{account.linked ? account.linkSource === 'settings_iban' ? 'Correspond à l’IBAN configuré dans Zentra.' : 'Association locale confirmée manuellement.' : 'Le relevé reste visible, mais ses propositions sont bloquées.'}</small></div>
@@ -569,7 +609,7 @@ export function BankScreen({
       </article>)}
     </section> : null}
 
-    <section className="panel bank-movements-panel">
+    <section ref={movementsRef} tabIndex={-1} className="panel bank-movements-panel">
       <SectionHeading eyebrow="Suivi des paiements" title="Mouvements bancaires" description="Retrouvez un règlement et vérifiez la facture correspondante." action={<Button variant="ghost" size="small" disabled={busy} onClick={() => void retryRefresh()}><RefreshCw size={14} /> Actualiser</Button>} />
       <label className="field bank-movement-search"><span>Rechercher un mouvement</span><input type="search" value={query} placeholder="Nom, référence, IBAN ou montant" onChange={(event) => { setQuery(event.target.value); setMovementLimit(25); }} /></label>
       <div className="bank-filter-strip" role="tablist" aria-label="Filtrer les mouvements">
@@ -597,7 +637,7 @@ export function BankScreen({
                   : movement.refundMatch ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Remboursement rapproché · {movement.refundMatch.reference}</strong><small>{movement.refundMatch.customerName || movement.refundMatch.supplier} · confirmé le {formatDateTime(movement.refundMatch.confirmedAt)}</small>{movement.refundMatch.dateDifferenceReason ? <small>Écart de dates documenté : {movement.refundMatch.dateDifferenceReason}</small> : null}</span>{movement.refundMatch.integrityIssue ? <p role="alert">{movement.refundMatch.integrityIssue}</p> : null}{movement.refundMatch.customerCreditNoteId && onOpenCustomerCredit ? <Button size="small" variant="ghost" onClick={()=>onOpenCustomerCredit(movement.refundMatch!.customerCreditNoteId!)}>Voir l’avoir client</Button> : movement.refundMatch.supplierCreditNoteId && onOpenSupplierCredit ? <Button size="small" variant="ghost" onClick={()=>onOpenSupplierCredit(movement.refundMatch!.supplierCreditNoteId!)}>Voir l’avoir fournisseur</Button> : onOpenExpense ? <Button size="small" variant="ghost" onClick={() => onOpenExpense(movement.refundMatch!.expenseId)}>Voir la dépense d’origine</Button> : null}<Button type="button" variant="secondary" size="small" disabled={writesDisabled || pendingCustomerIds.has(movement.id)} onClick={() => setRefundToUnlink(movement)}>Dissocier du relevé</Button></div>
                   : movement.reversal ? <div className="bank-match-muted"><span>Extourne conservée pour contrôle; aucun paiement proposé.</span></div>
                   : movement.status === 'PDNG' ? <div className="bank-match-muted"><Clock3 size={15} /><span>Ce mouvement pourra être rapproché lorsque la banque le confirmera.</span></div>
-                    : !account?.linked ? <div className="bank-match-warning"><Unlink size={15} /><span>Compte non associé. Confirmez d’abord qu’il appartient à votre entreprise.</span></div>
+                    : !account?.linked ? <div className="bank-match-warning"><Unlink size={15} /><span>Compte non associé. Confirmez d’abord qu’il appartient à votre entreprise.</span>{account && <Button variant="secondary" size="small" disabled={writesDisabled} onClick={() => void associate(account)}>Vérifier ce compte</Button>}</div>
                       : supplierDirection ? <>
                         <BankRefundPicker key={`customer:${movement.id}:${movement.refundHistory?.length || 0}`} movement={movement} disabled={writesDisabled || !accountingReady || pendingCustomerIds.has(movement.id) || Boolean(customerRequests.error)} onOpenCustomerCredit={onOpenCustomerCredit} onCreateCustomer={() => setNewCustomerRefundMovement(movement)} onConfirm={(requestId, refundId, reason) => confirmRefund(movement, requestId, refundId, reason)} />
                         <div className={`bank-suggestion bank-suggestion--${movement.supplierSuggestion.kind === 'supplier_match' ? 'automatic_exact' : movement.supplierSuggestion.kind}`}><span>{supplierSuggestionLabels[movement.supplierSuggestion.kind]}</span><p>{movement.supplierSuggestion.reason || (movement.supplierSuggestion.candidates.length ? 'Vérifiez la facture proposée, puis confirmez le règlement.' : 'Aucune facture fournisseur correspondante.')}</p></div>
@@ -650,7 +690,7 @@ export function BankScreen({
         title={query.trim() ? 'Aucun résultat' : `Aucun mouvement « ${filterLabels[filter].toLowerCase()} »`}
         text={query.trim() ? 'Aucun mouvement ne correspond à cette recherche dans le filtre choisi.' : bank.imports.length ? 'Changez de filtre ou importez un relevé plus récent.' : 'Importez votre premier relevé XML CAMT fourni par votre banque.'}
         actionLabel={query.trim() ? 'Effacer la recherche' : bank.imports.length || writesDisabled ? undefined : 'Importer un relevé XML'}
-        onAction={query.trim() ? () => { setQuery(''); setMovementLimit(25); } : bank.imports.length || writesDisabled ? undefined : () => void importStatement()}
+        onAction={query.trim() ? () => { setQuery(''); setMovementLimit(25); } : bank.imports.length || writesDisabled ? undefined : () => setImportOpen(true)}
       />}
       {movements.length > movementLimit ? <Button className="bank-pagination" variant="secondary" onClick={() => setMovementLimit(movementLimit + 25)}>Afficher les mouvements suivants ({movementLimit} sur {movements.length})</Button> : null}
     </section>
