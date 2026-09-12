@@ -49,17 +49,17 @@ import {
 } from '@/lib/downloads';
 
 export const metadata = {
-  title: `Télécharger Zentra ${ZENTRA_VERSION} — Windows et macOS`,
-  description: `Téléchargez Zentra ${ZENTRA_VERSION} pour Windows x64 ou macOS universel Intel et Apple Silicon. La version macOS est proposée en accès anticipé avant notarisation Apple.`,
+  title: `Télécharger Zentra — Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_VERSION}`,
+  description: `Découvrez Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} en accès anticipé et macOS ${ZENTRA_VERSION}, universel Intel et Apple Silicon. La version macOS est proposée avant notarisation Apple.`,
   alternates: { canonical: '/download' },
   openGraph: {
     title: 'Télécharger Zentra',
-    description: `Zentra ${ZENTRA_VERSION} est disponible pour Windows x64 et macOS universel.`,
+    description: `Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_VERSION} sont disponibles en accès anticipé.`,
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
   },
   twitter: {
     title: 'Télécharger Zentra',
-    description: `Zentra ${ZENTRA_VERSION} est disponible pour Windows x64 et macOS universel.`,
+    description: `Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_VERSION} sont disponibles en accès anticipé.`,
     images: ['/og.png'],
   },
 };
@@ -133,8 +133,9 @@ export default function DownloadPage() {
           <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_PREVIEW_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Le salaire du mois, simplement.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Indiquez le salaire du mois, puis suivez la prochaine action proposée. Les corrections se font une question à la fois, sans perdre vos montants ni vos notes. Calculez le net, vérifiez et enregistrez. Il vous manque une information ? Gardez le brouillon pour reprendre cette même fiche plus tard. Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Pour une version plus ancienne, téléchargez l’installateur ci-contre.</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Vos documents, à votre image.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Personnalisez vos devis, factures, bilans et fiches de salaire : police, couleurs, mise en page et position du logo. Mettez vos textes en gras, ajoutez des listes et vérifiez le résultat avant de l’enregistrer. Cette version améliore aussi les guides de paie, la saisie des montants et la reprise des brouillons.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Pour une version plus ancienne, téléchargez l’installateur ci-contre. Cette préversion concerne Windows ; les versions des autres plateformes restent indiquées ci-dessous.</p>
             </div>
             <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
               <a href={ZENTRA_WINDOWS_PREVIEW_PATH} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#315f47] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#173d2c]">
