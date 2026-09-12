@@ -8,7 +8,7 @@ export function ProjectFilesPicker({ files, onChange, disabled = false }: { file
   const photoInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
   function add(selected: FileList | null) {
-    if (!selected) return;
+    if (disabled || !selected) return;
     const accepted: File[] = [];
     const errors: string[] = [];
     for (const file of Array.from(selected)) {
@@ -24,8 +24,8 @@ export function ProjectFilesPicker({ files, onChange, disabled = false }: { file
       <Button type="button" variant="secondary" disabled={disabled} onClick={() => documentInput.current?.click()}><Paperclip size={17} /> Ajouter des documents</Button>
       <Button type="button" variant="secondary" disabled={disabled} onClick={() => photoInput.current?.click()}><Camera size={17} /> Ajouter une photo</Button>
     </div>
-    <input ref={documentInput} type="file" accept={PROJECT_FILE_ACCEPT} multiple hidden onChange={(event) => { add(event.target.files); event.target.value = ''; }} />
-    <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" hidden onChange={(event) => { add(event.target.files); event.target.value = ''; }} />
+    <input ref={documentInput} type="file" accept={PROJECT_FILE_ACCEPT} multiple hidden disabled={disabled} onChange={(event) => { add(event.target.files); event.target.value = ''; }} />
+    <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" hidden disabled={disabled} onChange={(event) => { add(event.target.files); event.target.value = ''; }} />
     <p className="project-file-picker__hint">PDF, photos, Word, Excel, PowerPoint, OpenDocument, TXT et CSV · 25 Mo par fichier.</p>
     {error ? <ErrorPanel message={error} /> : null}
     {files.length ? <ul className="project-pending-files">{files.map((file, index) => <li key={`${file.name}-${file.lastModified}-${index}`}>

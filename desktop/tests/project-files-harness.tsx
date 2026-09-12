@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ProjectFolder } from '../src/ProjectFolder';
 import { desktopApi } from '../src/bridge';
+import { installProjectRecoveryFixture } from './project-recovery-fixture';
 import type { Project, Workspace } from '../src/types';
 import '../src/styles.css';
 import '../src/workspace-design.css';
@@ -23,13 +24,14 @@ desktopApi.readProjectDocument = async id => {
 };
 desktopApi.deleteProjectDocument = async id => { workspace.attachments = workspace.attachments!.filter(file => file.id !== id); files.delete(id); return structuredClone(workspace); };
 let attempts = 0;
+if (new URLSearchParams(location.search).has('recovery')) installProjectRecoveryFixture();
 desktopApi.openAttachment = async () => {
   attempts++;
   document.documentElement.dataset.openAttempts = String(attempts);
   if (attempts === 1) throw new Error('Application de lecture indisponible. Réessayez.');
 };
 function Harness() {
-  const [data, setData] = useState(workspace);
-  return <main style={{ maxWidth: 1100, padding: 16, margin: '0 auto' }}><ProjectFolder project={project} workspace={data} busy={false} readOnly={new URLSearchParams(location.search).has('readonly')} onBack={() => {}} onOpenDocument={() => {}} onCreateDocument={() => {}} onWorkspaceChange={value => { workspace = value; setData(value); }} /></main>;
+  const [data, setData] = useState(() => structuredClone(workspace));
+  return <main style={{ maxWidth: 1100, padding: 16, margin: '0 auto' }}><ProjectFolder project={project} workspace={data} busy={false} readOnly={new URLSearchParams(location.search).has('readonly')} onBack={() => {}} onOpenDocument={() => {}} onCreateDocument={() => {}} onWorkspaceChange={value => setData(structuredClone(value))} /></main>;
 }
 createRoot(document.getElementById('root')!).render(<Harness />);

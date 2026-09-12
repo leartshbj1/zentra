@@ -6,7 +6,9 @@ export const PROJECT_FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.txt,
 
 export function projectDocuments(workspace: Workspace, projectId: string) {
   return {
-    files: (workspace.attachments ?? []).filter((file) => file.projectId === projectId),
+    files: newestDocumentsFirst((workspace.attachments ?? []).filter((file) => file.projectId === projectId).map(file => ({
+      id: file.id, createdAt: file.createdAt, issueDate: file.createdAt, number: file.originalName || '', file,
+    }))).map(entry => entry.file),
     quotes: newestDocumentsFirst(workspace.quotes.filter((quote) => quote.projectId === projectId)),
     invoices: newestDocumentsFirst(workspace.invoices.filter((invoice) => invoice.projectId === projectId)),
     orders: workspace.salesOrders.filter((order) => order.projectId === projectId),
@@ -15,6 +17,8 @@ export function projectDocuments(workspace: Workspace, projectId: string) {
 }
 
 export function projectFileError(file: Pick<File, 'name' | 'size'>): string | null {
+  if (!file.name.trim() || /[/\\\x00-\x1f\x7f]/.test(file.name)) return 'Renommez le fichier avec un nom simple avant de l’ajouter.';
+  if ([...file.name.trim()].length > 255) return 'Le nom du fichier est trop long. Raccourcissez-le avant de l’ajouter.';
   if (!file.size) return `${file.name} est vide.`;
   if (file.size > PROJECT_FILE_MAX_BYTES) return `${file.name} dépasse 25 Mo.`;
   const extension = `.${file.name.split('.').at(-1)?.toLowerCase()}`;

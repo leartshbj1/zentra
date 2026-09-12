@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ Channel: class {}, invoke: invokeMock }));
 import { desktopApi } from './bridge';
@@ -7,6 +7,7 @@ import type { EntityKind, Quote } from './types';
 
 const request = '39c85c22-7fc0-42d0-95f9-c1ad536fe2cf';
 const operations = [
+  { command: 'delete_project_document', run: () => desktopApi.deleteProjectDocument('document') },
   { command: 'save_document_with_items', run: () => desktopApi.saveDocument('quotes', { title: 'Devis de recette' }, []) },
   { command: 'save_document_with_items', run: () => desktopApi.saveDocument('invoices', { title: 'Facture de recette' }, []) },
   { command: 'issue_quote', run: () => desktopApi.issueDocument('quotes', request, '2026-09-01', '2026-09-30') },
@@ -60,7 +61,8 @@ const operations = [
 ];
 
 describe('reprise des ventes et achats après écriture locale confirmée', () => {
-  beforeEach(() => { invokeMock.mockReset(); });
+  beforeEach(() => { invokeMock.mockReset(); vi.stubGlobal('window', { dispatchEvent: vi.fn() }); });
+  afterEach(() => vi.unstubAllGlobals());
   it('transmet le classement TVA dans la même commande que le brouillon', async () => {
     invokeMock.mockImplementation(async (command: string) => command === 'get_app_state' ? { onboarding_completed: 0 } : {});
     await desktopApi.saveSupplierInvoiceDraft({ id: request, supplierId: 'supplier', date: '2026-09-01', dueDate: '2026-09-30', vatTreatment: 'input_materials', items: [] });

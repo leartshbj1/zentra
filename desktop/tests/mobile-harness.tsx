@@ -1,4 +1,5 @@
 import { installAssistantFixture } from './assistant-fixture';
+import { installProjectRecoveryFixture } from './project-recovery-fixture';
 import { installEntityRecoveryFixture } from './entity-recovery-fixture';
 import { installSalesRecoveryFixture } from './sales-recovery-fixture';
 import { ZentraAssistantProvider } from '../src/ZentraAssistant';
@@ -189,6 +190,7 @@ if (new URLSearchParams(location.search).has('wizard')) {
 if (new URLSearchParams(location.search).has('assistantFixture')) installAssistantFixture();
 if (new URLSearchParams(location.search).has('entityRecovery')) installEntityRecoveryFixture(() => data);
 if (new URLSearchParams(location.search).has('salesRecovery')) installSalesRecoveryFixture(data);
+if (new URLSearchParams(location.search).has('projectRecovery')) installProjectRecoveryFixture();
 if (new URLSearchParams(location.search).has('workflowHelp')) {
   data.clients = [];
   data.settings!.setupDeferred = { ...data.settings!.setupDeferred, billing: true, work: false, backup: false };

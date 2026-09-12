@@ -6431,6 +6431,8 @@ function ProjectForm({
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState('');
+  const [formError, setFormError] = useState('');
+  const lastSavedData = useRef<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState('');
   const savedProjectId = useRef(item?.id);
   const terminology = projectTerminology(
@@ -6445,10 +6447,13 @@ function ProjectForm({
       }
       description="Regroupez les informations et les documents de votre projet."
       onClose={() => { if (!busy) close(); }}
-      wide
+      wide dismissible={!busy}
     >
       <form
         onSubmit={submitForm(async (form) => {
+          if (busy) return;
+          setFormError('');
+          try {
           const data = {
             clientId: String(form.get('clientId')),
             code: '',
@@ -6473,22 +6478,27 @@ function ProjectForm({
           setFileError('');
           let remaining: File[] = [];
           const saved = await act(async () => {
-            savedProjectId.current = await desktopApi.saveProject(data, savedProjectId.current);
+            const fingerprint = JSON.stringify(data);
+            if (lastSavedData.current !== fingerprint) {
+              savedProjectId.current = await desktopApi.saveProject(data, savedProjectId.current);
+              lastSavedData.current = fingerprint;
+            }
             const failures: string[] = [];
             for (const [index, file] of files.entries()) {
               setUploadProgress(`Document ${index + 1}/${files.length} : ${file.name}`);
-              try { await desktopApi.addProjectDocument(savedProjectId.current, file); }
+              try { await desktopApi.addProjectDocument(savedProjectId.current!, file); }
               catch (reason) { remaining.push(file); failures.push(`${file.name} : ${errorMessage(reason, 'ajout impossible')}`); }
             }
             setFiles(remaining);
             setFileError(failures.length ? `Le projet est enregistré. Ces fichiers restent à ajouter : ${failures.join(' ')}` : '');
-            return desktopApi.loadWorkspace();
-          }, 'Le projet a été enregistré.', false);
-          setUploadProgress('');
+            return refreshWorkspaceAfterMutation(desktopApi.loadWorkspace);
+          }, 'Le projet a été enregistré.', false, reason => setFormError(errorMessage(reason, 'Le projet n’a pas pu être enregistré. Vos informations sont conservées.')));
           if (saved && !remaining.length) close();
+          } catch (reason) { setFormError(errorMessage(reason, 'Vérifiez les informations du projet.')); }
+          finally { setUploadProgress(''); }
         })}
       >
-        <div className="form-grid">
+        <fieldset disabled={busy}><div className="form-grid">
           <Field label={`Nom du ${terminology.singular}`} required wide>
             <input name="name" defaultValue={item?.name} required autoFocus />
           </Field>
@@ -6583,6 +6593,8 @@ function ProjectForm({
           </Field>
         </div>
         </details>
+        </fieldset>
+        {formError ? <ErrorPanel title="Vérifions le projet" message={formError} reveal /> : null}
         <FormActions onCancel={close} busy={busy} />
       </form>
     </Modal>

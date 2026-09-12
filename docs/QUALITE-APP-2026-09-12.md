@@ -2,6 +2,20 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : documents de projet, enregistrements et reprises compréhensibles
+
+L’ajout de plusieurs documents distingue les fichiers conservés sur l’appareil de ceux à reprendre. Seuls les fichiers refusés restent sélectionnés, avec une explication par fichier. Les noms incompatibles sont signalés avant lecture, et les pièces sont classées de la plus récente à la plus ancienne. Les sélecteurs et les actions sont protégés pendant l’enregistrement.
+
+Une lecture interrompue après ajout ou suppression propose « Actualiser la liste », sans réexécuter les écritures confirmées. Ce panneau reçoit le focus et devient visible au centre de l’écran mobile ; une fois la reprise terminée, le clavier rejoint les fichiers. Une suppression refusée affiche son explication dans sa fenêtre de confirmation. Le formulaire de projet conserve ses valeurs, présente les erreurs sur place et ne réécrit pas le même projet lorsqu’il reste seulement une pièce à ajouter. Il utilise aussi la reprise de lecture après une écriture confirmée.
+
+L’ordonnanceur de synchronisation déjà présent dans les travaux du dossier principal est repris et vérifié dans la branche de livraison. Il conserve une actualisation en attente jusqu’à sa réussite, évite les appels concurrents et ignore les réponses d’un contexte fermé. Une demande explicite et le retour du réseau peuvent reprendre immédiatement ; les réveils automatiques conservent leur délai après erreur. Le titre ne présente plus une synchronisation en échec comme terminée.
+
+Validation : TypeScript, compilation et **123 fichiers / 1 023 tests d’interface réussis**. Les six parcours de récupération sur Edge/WebKit à 320/390/1440 px provoquent un ajout partiel, plusieurs refus de lecture, une suppression refusée puis confirmée, un enregistrement de projet refusé et une reprise des pièces sans second projet. La fixture conserve un stockage séparé des instantanés de l’interface : une lecture refusée ne met pas artificiellement la liste à jour. Les huit parcours de consultation vérifient PDF multipages, zoom, texte, PDF endommagé/protégé, images, conservation des octets exportés, fermeture et contrôles accessibles. Les captures mobiles de reprise et de suppression ont été inspectées.
+
+Les **neuf tests natifs de documents/synchronisation** passent : octets exacts, dédoublonnage, formats, altération détectée, sauvegarde/restauration, queue hors réseau après redémarrage, isolation de l’entreprise, fichiers distants corrompus et priorité aux suppressions face à une arrivée tardive. Après fusion dans le dossier principal, TypeScript, compilation, 172 tests ciblés et les six parcours de récupération passent. Les contrôles de partage d’entreprise et leurs verrous sont conservés ; sauvegarde préalable : `.qa/project-recovery-20260912-before/`.
+
+Logs et captures : `desktop/.qa/project-recovery*` et `desktop/.qa/project-files-*`. Aucun code natif, schéma, taux ou version distribuée n’est modifié dans ce lot. Les tests navigateur sont synthétiques et les tests natifs locaux : la synchronisation entre deux appareils réels reste à vérifier. Ces changements ne sont **pas encore dans un nouvel installateur ou IPA**.
+
 ## Lot : ouverture plus légère et retour précis aux réglages de paie
 
 Les éditeurs de salaire, devis, factures, achats, catalogue, commandes, dossiers projet et autres écrans secondaires se chargent lors de leur utilisation. La navigation des ventes reste disponible immédiatement. Les panneaux détaillés de paie attendent la première ouverture de leur rubrique ; les champs des formulaires restent présents pour conserver les brouillons et les liens de correction.

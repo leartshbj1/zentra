@@ -23,6 +23,18 @@ describe('dossiers des projets', () => {
     expect(projectFileError({ name: 'plan.pdf', size: PROJECT_FILE_MAX_BYTES + 1 })).toContain('25 Mo');
     expect(projectFileError({ name: 'photo.jpg.exe', size: 100 })).toContain('pas pris en charge');
     expect(projectFileError({ name: 'Photo.HEIC', size: 100 })).toBeNull();
+    expect(projectFileError({ name: '../plan.pdf', size: 100 })).toContain('Renommez');
+    expect(projectFileError({ name: 'a'.repeat(256) + '.pdf', size: 100 })).toContain('trop long');
+  });
+  it('classe toutes les pièces du projet par création sans modifier la liste reçue', () => {
+    const files = [
+      { id: 'old', projectId: 'p', originalName: 'Devis.pdf', createdAt: '2026-09-01 09:00:00' },
+      { id: 'new', projectId: 'p', originalName: 'Photo.png', createdAt: '2026-09-12T09:00:00Z' },
+      { id: 'legacy', projectId: 'p', originalName: 'Ancien.pdf', createdAt: '' },
+    ] as Attachment[];
+    const workspace = { attachments: files, quotes: [], invoices: [], salesOrders: [], supplierInvoices: [] } as unknown as Workspace;
+    expect(projectDocuments(workspace, 'p').files.map(file => file.id)).toEqual(['new', 'old', 'legacy']);
+    expect(files.map(file => file.id)).toEqual(['old', 'new', 'legacy']);
   });
   it('n’autorise pas la suppression d’une pièce fournisseur ou étrangère au projet', () => {
     expect(isProjectFile({ projectId: 'a', entityId: 'b', entityType: 'project' } as Attachment)).toBe(false);

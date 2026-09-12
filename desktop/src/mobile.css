@@ -2,6 +2,13 @@
 .project-folder__header > div { flex: 1; min-width: 0; }
 .project-folder__header h2 { margin: 0; overflow-wrap: anywhere; }
 .project-folder__header p { margin: 6px 0 0; color: var(--muted); }
+.project-file-notice, .project-file-recovery, .project-file-failures { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); line-height: 1.6; overflow-wrap: anywhere; min-width: 0; }
+.project-file-notice { margin: 0; color: var(--green-800); }
+.project-file-recovery p, .project-file-failures p { margin: 8px 0; }
+.project-file-failures { margin: 14px 0; }
+.project-file-failures ul { padding-left: 20px; margin-bottom: 0; }
+.project-file-failures li + li { margin-top: 12px; }
+.project-file-recovery .button { white-space: normal; max-width: 100%; }
 .project-folder__tabs { display: flex; gap: 6px; overflow-x: auto; padding: 4px; border-bottom: 1px solid var(--line); }
 .project-folder__tabs button { flex: 1; min-height: 46px; border: 0; border-radius: 10px; background: transparent; white-space: nowrap; padding: 8px 12px; cursor: pointer; }
 .project-folder__tabs [aria-current] { background: var(--green-900); color: white; }

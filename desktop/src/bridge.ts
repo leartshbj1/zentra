@@ -4914,7 +4914,7 @@ export const desktopApi = {
   async deleteProjectDocument(id: string) {
     await invoke('delete_project_document', { id });
     window.dispatchEvent(new Event('zentra-project-documents-changed'));
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async readProjectDocument(id: string) {
     return invoke<string>('read_project_document', { id });
