@@ -1,5 +1,6 @@
 import { installAssistantFixture } from './assistant-fixture';
 import { installProjectRecoveryFixture } from './project-recovery-fixture';
+import { installProjectNavigationFixture } from './project-navigation-fixture';
 import { installEntityRecoveryFixture } from './entity-recovery-fixture';
 import { installSalesRecoveryFixture } from './sales-recovery-fixture';
 import { ZentraAssistantProvider } from '../src/ZentraAssistant';
@@ -192,6 +193,7 @@ if (new URLSearchParams(location.search).has('assistantFixture')) installAssista
 if (new URLSearchParams(location.search).has('entityRecovery')) installEntityRecoveryFixture(() => data);
 if (new URLSearchParams(location.search).has('salesRecovery')) installSalesRecoveryFixture(data);
 if (new URLSearchParams(location.search).has('projectRecovery')) installProjectRecoveryFixture();
+if (new URLSearchParams(location.search).has('projectNavigation')) installProjectNavigationFixture(data);
 if (new URLSearchParams(location.search).has('workflowHelp')) {
   data.clients = [];
   data.settings!.setupDeferred = { ...data.settings!.setupDeferred, billing: true, work: false, backup: false };
@@ -201,10 +203,20 @@ function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
   const [readOnly, setReadOnly] = useState(new URLSearchParams(location.search).has('readOnly'));
+  const [projectAccount, setProjectAccount] = useState('');
+  if (new URLSearchParams(location.search).has('projectNavigation')) Object.assign(window, {
+    __qaSetReadOnly: setReadOnly, __qaSetProjectAccount: setProjectAccount,
+    __qaRemoveProject: (id: string) => {
+      const stored = window.projectNavigation.stored;
+      if (stored.attachments?.some(file => file.projectId === id)) throw new Error('Only an empty project may disappear in this fixture');
+      stored.projects = stored.projects.filter(project => project.id !== id);
+      setWorkspace(structuredClone(stored));
+    },
+  });
   if (new URLSearchParams(location.search).has('assistantOnboarding')) return <Onboarding onComplete={async()=>{}} onRestore={async()=>{}} />;
   if (['readOnlyAudit', 'wizard', 'quotePair'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
   if (new URLSearchParams(location.search).has('updater')) return <main><h1>Accueil de recette</h1><button type="button">Action de fond</button><StandaloneUpdaterAccess /></main>;
-  return <><WorkspaceApp readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; }} />
+  return <><WorkspaceApp cloudAccount={projectAccount ? { status: 'connected', organizationId: projectAccount } : undefined} readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; if (new URLSearchParams(location.search).has('projectNavigation')) window.projectNavigation.publications++; }} />
     {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}
   </>;
 }

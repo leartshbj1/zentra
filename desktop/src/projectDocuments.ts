@@ -34,13 +34,19 @@ export function isProjectFile(file: Attachment) {
   return file.entityType === 'project' && file.entityId === file.projectId;
 }
 
-export async function fileBase64(file: File): Promise<string> {
+export async function fileBase64(file: File, signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) throw new DOMException('Lecture du fichier interrompue.', 'AbortError');
   const error = projectFileError(file);
   if (error) throw new Error(error);
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error(`Impossible de lire ${file.name}.`));
-    reader.onload = () => resolve(String(reader.result).split(',')[1]);
-    reader.readAsDataURL(file);
+    const cleanup = () => signal?.removeEventListener('abort', abort);
+    const interrupted = () => { cleanup(); reject(new DOMException('Lecture du fichier interrompue.', 'AbortError')); };
+    const abort = () => { reader.abort(); interrupted(); };
+    reader.onabort = interrupted;
+    reader.onerror = () => { cleanup(); reject(new Error(`Impossible de lire ${file.name}.`)); };
+    reader.onload = () => { cleanup(); resolve(String(reader.result).split(',')[1]); };
+    signal?.addEventListener('abort', abort, { once: true });
+    try { reader.readAsDataURL(file); } catch (reason) { cleanup(); reject(reason); }
   });
 }

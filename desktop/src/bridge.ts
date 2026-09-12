@@ -4909,9 +4909,11 @@ export const desktopApi = {
     const record = await createRecord('projects', toBackendData(data));
     return stringValue(record.id);
   },
-  async addProjectDocument(projectId: string, file: File) {
+  async addProjectDocument(projectId: string, file: File, signal?: AbortSignal) {
+    const encoded = await fileBase64(file, signal);
+    if (signal?.aborted) throw new DOMException('Ajout du fichier interrompu.', 'AbortError');
     const document = await invoke('add_project_document', { input: {
-      project_id: projectId, original_name: file.name, content_base64: await fileBase64(file),
+      project_id: projectId, original_name: file.name, content_base64: encoded,
     } });
     window.dispatchEvent(new Event('zentra-project-documents-changed'));
     return document;

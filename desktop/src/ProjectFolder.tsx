@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowLeft, FileText, Image, Plus, Trash2 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { ProjectFilePreview } from './ProjectFilePreview';
@@ -10,23 +10,30 @@ import { fileSizeLabel, isProjectFile, projectDocuments } from './projectDocumen
 import type { Attachment, Invoice, Project, Quote, Workspace } from './types';
 import { Button, ErrorPanel, Modal, StatusBadge } from './ui';
 import { documentTotals, errorMessage, formatDate, formatMoney } from './utils';
-import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
+import { createProjectFileSessions, type ProjectFileSession } from './projectFileSessions';
 
-export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOpenDocument, onCreateDocument, onWorkspaceChange, onOpenExpense }: {
+export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOpenDocument, onCreateDocument, onWorkspaceChange, onOpenExpense, fileSession }: {
   project: Project; workspace: Workspace; busy: boolean; readOnly: boolean; onBack: () => void;
   onOpenDocument: (entity: 'quotes' | 'invoices', item: Quote | Invoice) => void;
   onCreateDocument: (entity: 'quotes' | 'invoices', project: Project) => void;
   onWorkspaceChange: (workspace: Workspace) => void;
   onOpenExpense?: (expenseId: string) => void;
+  fileSession?: ProjectFileSession;
 }) {
   const [tab, setTab] = useState<'all' | 'files' | 'quotes' | 'invoices'>('all');
-  const [files, setFiles] = useState<File[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [progress, setProgress] = useState('');
-  const [notice, setNotice] = useState('');
-  const [refreshPending, setRefreshPending] = useState(false);
-  const [uploadFailures, setUploadFailures] = useState<{ file: File; message: string }[]>([]);
+  const [ownSessions] = useState(() => createProjectFileSessions({
+    add: (id, file, signal) => desktopApi.addProjectDocument(id, file, signal), remove: id => desktopApi.deleteProjectDocument(id), load: () => desktopApi.loadWorkspace(),
+  }, onWorkspaceChange));
+  useLayoutEffect(() => { if (!fileSession) { ownSessions.start(); return () => ownSessions.stop(); } }, [fileSession, ownSessions]);
+  useLayoutEffect(() => { ownSessions.setWritable(!readOnly); }, [ownSessions, readOnly]);
+  const session = fileSession ?? ownSessions.forProject(project.id);
+  const transfer = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
+  const { files, error, notice, refreshPending, uploadFailures } = transfer;
+  const [opening, setOpening] = useState(false);
+  const [openingProgress, setOpeningProgress] = useState('');
+  const saving = transfer.saving || opening;
+  const progress = opening ? openingProgress : transfer.progress;
+  const setFiles = session.setFiles;
   const [removeError, setRemoveError] = useState('');
   const inFlight = useRef(false);
   const folderElement = useRef<HTMLElement>(null);
@@ -59,60 +66,27 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  async function refresh() {
-    if (mounted.current) setProgress('Actualisation de la liste…');
-    try {
-      onWorkspaceChange(await desktopApi.loadWorkspace());
-      if (mounted.current) { setRefreshPending(false); setError(''); }
-    } catch (reason) {
-      if (mounted.current) {
-        setRefreshPending(true);
-        setError(errorMessage(reason, 'La liste des documents ne peut pas être actualisée pour le moment.'));
-      }
-    }
-  }
   async function retryRefresh() {
     if (inFlight.current || busy) return;
-    inFlight.current = true; setSaving(true);
-    try { await refresh(); }
-    finally { inFlight.current = false; if (mounted.current) { setSaving(false); setProgress(''); } }
+    await session.refresh();
   }
   async function upload() {
     if (inFlight.current || saving || busy || readOnly || refreshPending || !files.length) return;
-    inFlight.current = true;
-    setSaving(true); setError(''); setNotice('');
-    const remaining: File[] = [];
-    const failures: { file: File; message: string }[] = [];
-    try {
-      for (const [index, file] of files.entries()) {
-        if (mounted.current) setProgress(`Ajout ${index + 1}/${files.length} · ${file.name}`);
-        try { await desktopApi.addProjectDocument(project.id, file); }
-        catch (reason) { remaining.push(file); failures.push({ file, message: errorMessage(reason, 'Ajout impossible. Réessayez ou choisissez une autre copie du fichier.') }); }
-      }
-      if (mounted.current) {
-        setFiles(remaining); setUploadFailures(failures);
-        const count = files.length - remaining.length;
-        setNotice(count ? `${count} fichier${count > 1 ? 's' : ''} enregistré${count > 1 ? 's' : ''} sur cet appareil.${remaining.length ? ' Seuls les fichiers ci-dessous restent à ajouter.' : ''}` : 'Les fichiers sélectionnés restent à ajouter.');
-      }
-      await refresh();
-    } finally {
-      inFlight.current = false;
-      if (mounted.current) { setProgress(''); setSaving(false); }
-    }
+    await session.upload();
   }
   async function open(file: Attachment, trigger: HTMLElement) {
     if (inFlight.current || saving || refreshPending) return;
     inFlight.current = true;
     previewTrigger.current = trigger;
-    setSaving(true); setError('');
-    setProgress(`Ouverture de ${file.originalName}…`);
+    setOpening(true); session.setError('');
+    setOpeningProgress(`Ouverture de ${file.originalName}…`);
     try {
       const encoded = await desktopApi.readProjectDocument(file.id);
       if (!mounted.current) return;
       const bytes = Uint8Array.from(atob(encoded), (value) => value.charCodeAt(0));
       setPreview({ file, bytes, url: URL.createObjectURL(new Blob([bytes], { type: file.mimeType })) });
-    } catch (reason) { setError(errorMessage(reason, 'Impossible d’ouvrir ce fichier.')); }
-    finally { inFlight.current = false; if (mounted.current) { setSaving(false); setProgress(''); } }
+    } catch (reason) { if (mounted.current) session.setError(errorMessage(reason, 'Impossible d’ouvrir ce fichier.')); }
+    finally { inFlight.current = false; if (mounted.current) { setOpening(false); setOpeningProgress(''); } }
   }
   function closePreview() {
     setPreview(null);
@@ -123,24 +97,16 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
   }
   async function remove() {
     if (inFlight.current || !removing || saving || busy || readOnly || refreshPending) return;
-    inFlight.current = true;
-    setSaving(true); setError(''); setRemoveError(''); setNotice('');
-    try {
-      onWorkspaceChange(await desktopApi.deleteProjectDocument(removing.id));
-      setRemoving(null); setNotice('Le document a été supprimé de ce projet.');
-    } catch (reason) {
-      if (reason instanceof WorkspaceRefreshAfterMutationError) {
-        setRemoving(null); setRefreshPending(true);
-        setNotice('Le document a été supprimé de ce projet.');
-        setError(errorMessage(reason.refreshCause, 'La liste des documents doit être actualisée.'));
-      } else setRemoveError(errorMessage(reason, 'Le document n’a pas pu être supprimé. Réessayez.'));
-    }
-    finally { inFlight.current = false; if (mounted.current) setSaving(false); }
+    setRemoveError('');
+    const removed = await session.remove(removing.id);
+    if (!mounted.current) return;
+    if (removed) setRemoving(null);
+    else setRemoveError(session.getSnapshot().error);
   }
   const client = workspace.clients.find((item) => item.id === project.clientId);
   return <section ref={folderElement} className="project-folder stack-layout" aria-label={`Dossier du projet ${project.name}`}>
     <header className="project-folder__header">
-      <Button variant="ghost" onClick={onBack} disabled={saving}><ArrowLeft size={18} /> Projets</Button>
+      <Button variant="ghost" onClick={onBack} disabled={opening}><ArrowLeft size={18} /> Projets</Button>
       <div><h2>{project.name}</h2><p>{client?.company || client?.name}</p></div>
       <StatusBadge status={project.status} />
     </header>
@@ -155,7 +121,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
       <p>Les fichiers déjà enregistrés sont conservés. Actualisez la liste pour voir le résultat ; aucun fichier ne sera ajouté ou supprimé une deuxième fois.</p>
       <p>{error}</p>
       <Button variant="secondary" disabled={saving || busy} onClick={() => void retryRefresh()}>{saving ? 'Actualisation…' : 'Actualiser la liste'}</Button>
-    </div> : error ? <ErrorPanel message={error} reveal /> : null}
+    </div> : error && !removing ? <ErrorPanel message={error} reveal /> : null}
     {(tab === 'all' || tab === 'files') ? <section className="panel project-folder__section">
       <h3>Documents et photos</h3>
       <div className="project-sync" role="status" aria-live="polite">
@@ -163,6 +129,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
         {syncPresentation.canSynchronize ? <Button size="small" variant="secondary" disabled={sync.syncing} onClick={requestProjectSync}>Synchroniser</Button> : <CloudAccountAccess />}
       </div>
       {!readOnly ? <><ProjectFilesPicker files={files} onChange={setFiles} disabled={saving || busy || refreshPending} />
+      {fileSession && files.length > 0 && <p className="project-file-picker__hint">Votre sélection reste dans ce projet pendant la navigation. Enregistrez les fichiers avant de fermer Zentra.</p>}
       {uploadFailures.some(item => files.includes(item.file)) ? <div className="project-file-failures" role="alert"><strong>Fichiers à reprendre</strong><ul>{uploadFailures.filter(item => files.includes(item.file)).map(({file,message}, index) => <li key={index}><strong>{file.name}</strong><p>{message}</p></li>)}</ul></div> : null}
       {files.length ? <Button data-project-file-save onClick={() => void upload()} disabled={saving || busy || refreshPending}>{saving ? progress || 'Actualisation…' : `Enregistrer ${files.length} fichier${files.length > 1 ? 's' : ''}`}</Button> : null}</> : null}
       <ul className="project-document-list">{contents.files.map((file) => {

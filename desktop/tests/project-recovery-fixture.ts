@@ -7,14 +7,14 @@ export function installProjectRecoveryFixture() {
   window.projectRecovery = state;
   const add = desktopApi.addProjectDocument, remove = desktopApi.deleteProjectDocument;
   const load = desktopApi.loadWorkspace, save = desktopApi.saveProject;
-  desktopApi.addProjectDocument = async (project, file) => {
+  desktopApi.addProjectDocument = async (project, file, signal) => {
     state.uploads.push(file.name);
     if (state.holdUpload) await new Promise<void>(resolve => { state.releaseUpload = () => { state.holdUpload = false; resolve(); }; });
     if (state.uploadFailures[file.name] > 0) {
       state.uploadFailures[file.name]--;
       throw new Error('Cette copie du fichier est illisible. Sélectionnez une autre copie ou réessayez.');
     }
-    return add(project, file);
+    return add(project, file, signal);
   };
   desktopApi.loadWorkspace = async () => {
     state.reads++;
@@ -23,6 +23,7 @@ export function installProjectRecoveryFixture() {
   };
   desktopApi.deleteProjectDocument = async id => {
     state.deletes.push(id);
+    if (state.holdDelete) await new Promise<void>(resolve => { state.releaseDelete = () => { state.holdDelete = false; resolve(); }; });
     if (state.deleteFailures > 0) { state.deleteFailures--; throw new Error('Le fichier est encore utilisé. Fermez son aperçu puis réessayez.'); }
     const workspace = await remove(id);
     if (state.deleteReadFailures > 0) { state.deleteReadFailures--; throw new WorkspaceRefreshAfterMutationError(new Error('Lecture après suppression interrompue.')); }
@@ -40,7 +41,7 @@ declare global { interface Window { projectRecovery: ReturnType<typeof recoveryS
 // Local controls for deterministic interruption scenarios.
 function recoveryState() {
   return { uploadFailures: {} as Record<string, number>, readsFail: 0, deleteFailures: 0,
-    deleteReadFailures: 0, projectFailures: 0, holdUpload: false, releaseUpload: () => {},
+    deleteReadFailures: 0, projectFailures: 0, holdUpload: false, releaseUpload: () => {}, holdDelete: false, releaseDelete: () => {},
     uploads: [] as string[], deletes: [] as string[], saves: [] as { id?: string; name: unknown }[],
     savedIds: [] as string[], reads: 0 };
 }

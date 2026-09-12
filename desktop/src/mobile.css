@@ -28,6 +28,19 @@
 .project-optional-details[open] > summary { margin-bottom: 8px; }
 .project-file-picker__actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .project-file-picker__hint, .project-folder__empty { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.project-file-activity { display: grid; gap: .75rem; margin: 0 24px 16px; min-width: 0; }
+.project-file-activity .info-strip { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+.project-file-activity .info-strip > div { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.project-file-activity p { margin: .25rem 0 0; line-height: 1.5; }
+.project-file-activity .button { min-height: 44px; white-space: normal; }
+.project-file-activity__recovery { display:grid; gap:12px; flex-basis:100%; }
+.project-file-activity__recovery p { margin:0; }
+.project-file-activity__recovery label { display:grid; gap:8px; font-size:14px; }
+.project-file-activity__recovery select { width:100%; min-width:0; min-height:44px; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--surface); color:var(--ink); }
+.project-file-activity__recovery summary { cursor:pointer; min-height:44px; padding:10px 0; }
+.project-file-activity__recovery ul { padding-left:20px; overflow-wrap:anywhere; }
+.project-file-activity__recovery small { line-height:1.5; color:var(--muted); }
+@media (max-width: 600px) { .project-file-activity { margin-inline: 16px; } }
 .project-pending-files, .project-document-list { list-style: none; padding: 0; margin: 14px 0 0; }
 .project-pending-files li, .project-document-list li { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line-soft); min-width: 0; }
 .project-pending-files li { padding: 8px 0; }

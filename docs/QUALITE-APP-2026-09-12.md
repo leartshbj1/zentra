@@ -2,6 +2,20 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : retrouver les fichiers d’un projet pendant la navigation
+
+Les sélections de fichiers et les opérations d’ajout appartiennent maintenant à l’espace de travail ouvert. Elles restent associées à leur projet lorsque l’utilisateur change de rubrique. Un bandeau permet de retrouver les fichiers à enregistrer ou à reprendre. Les ajouts peuvent continuer en arrière-plan ; seuls les fichiers refusés restent sélectionnés. Une relecture refusée possède une action dédiée, sans répéter l’ajout ou la suppression.
+
+Les fichiers sélectionnés restent en mémoire pendant la session : ils doivent être enregistrés avant de fermer l’application. Les fichiers déjà enregistrés utilisent toujours le cache local durable et la file de synchronisation existants. Un passage en lecture seule interrompt la lecture des fichiers qui n’ont pas encore atteint la commande native et conserve la sélection. Une commande déjà acceptée peut terminer ; les suivantes sont arrêtées. Un changement d’entreprise ferme la session, annule les lectures et ignore les réponses tardives dans l’interface.
+
+Une suppression terminée après la relecture d’un autre projet demande une nouvelle lecture cohérente : elle ne laisse plus le document supprimé affiché comme disponible. La suppression d’un projet avec une sélection ou une opération en cours est bloquée avec un raccourci vers son dossier. Si un projet disparaît de l’espace, les sélections non enregistrées restent visibles et l’utilisateur peut les déplacer explicitement vers un autre projet ; cette action ne transmet aucun fichier et conserve les homonymes.
+
+Validation source : TypeScript, Vite et 39 tests ciblés réussis. Les huit parcours de navigation Edge/WebKit à 320×568, 390×844, 844×390 et 1440×900 couvrent trois projets, navigation pendant un ajout, échec partiel, relecture, lecture seule, suppression concurrente, projet disparu, déplacement explicite et changement d’entreprise. Les six parcours de récupération et les huit parcours de lecture/aperçu précédents passent aussi, soit 22 parcours navigateur. Les captures mobiles ont été inspectées. Les neuf tests natifs de stockage/synchronisation passent : octets exacts, formats, dédoublonnage, sauvegarde/restauration, redémarrage hors réseau, isolation d’entreprise, téléchargement corrompu et priorité aux suppressions.
+
+L’intégration au dossier principal conserve ses commandes et contrôles de partage métier. L’installation d’un état distant attend également les sélections et opérations présentes dans la banque de sessions, même après navigation. TypeScript, Vite, les 39 tests ciblés, 19 tests du cycle métier, les huit nouveaux parcours, un parcours de récupération et trois parcours d’installation distante passent. Ces derniers vérifient explicitement le refus d’installation après avoir quitté un projet avec un fichier sélectionné, puis la reprise après retrait de la sélection. Sauvegarde préalable dans `.qa/project-navigation-20260912-before/`.
+
+Les essais utilisent des profils et fichiers de recette. Ils ne prouvent pas encore une synchronisation réelle entre deux appareils clients. Aucun installateur ni IPA publié par ce lot.
+
 ## Lot : couleur et surlignage dans l’atelier de documents
 
 Dans Paramètres → Présentation des documents, les zones d’introduction, de conditions/commentaires et de pied de page proposent maintenant une couleur de texte et un surlignage, avec palettes et couleur personnalisée. Les outils agissent sur les mots sélectionnés ou sur la prochaine saisie. « Effacer la mise en forme » retire les styles des mots sélectionnés ; l’annulation les restitue. Ces outils complètent les polices, tailles, marges, interlignes, positions du logo, tableaux et modèles déjà disponibles pour devis, factures, bilans et fiches de salaire.

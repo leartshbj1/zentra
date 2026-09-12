@@ -6,6 +6,8 @@ import { useAssistantScreen } from './assistantContext';
 import { useScreenArrival } from './useScreenArrival';
 import { PayrollOrganisationField } from './PayrollOrganisationField';
 import { usePayrollFieldGuide } from './PayrollFieldGuide';
+import { createProjectFileSessions, type ProjectFileSessions } from './projectFileSessions';
+import { ProjectFileActivity } from './ProjectFileActivity';
 import { employeeFormIssue, employeeNativeFieldIssue, type EmployeeFieldIssue } from './employeeFormValidation';
 import { CompanyLogo } from './CompanyLogo';
 import { useProjectSyncBackground } from './projectSync';
@@ -504,6 +506,13 @@ export function WorkspaceApp({
   const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
   const workspaceMounted = useRef(true);
+  const projectWorkspaceReceiver = useRef(setWorkspace);
+  useLayoutEffect(() => { projectWorkspaceReceiver.current = setWorkspace; }, [setWorkspace]);
+  const projectFileSessions = useMemo(() => createProjectFileSessions({
+    add: (id, file, signal) => desktopApi.addProjectDocument(id, file, signal), remove: id => desktopApi.deleteProjectDocument(id), load: () => desktopApi.loadWorkspace(),
+  }, next => projectWorkspaceReceiver.current(next)), [cloudAccount?.organizationId]);
+  useLayoutEffect(() => { projectFileSessions.start(); return () => projectFileSessions.stop(); }, [projectFileSessions]);
+  useLayoutEffect(() => { projectFileSessions.setWritable(!readOnly); }, [projectFileSessions, readOnly]);
   const { reason: workspaceRecoveryReason, waitForRefresh, retry: retryWorkspaceRefresh, isPending: isWorkspaceRecoveryPending } = useWorkspaceRecovery(desktopApi.loadWorkspace);
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const quoteRevisionInFlight = useRef(new Set<string>());
@@ -1190,6 +1199,12 @@ export function WorkspaceApp({
   }
 
   async function deleteEmptyProject(item: Project) {
+    const documents = projectFileSessions.forProject(item.id).getSnapshot();
+    if (documents.files.length || documents.saving || documents.refreshPending) {
+      setProjectFolderId(item.id); setView('projects'); setSearch('');
+      setNotice({ tone: 'warning', text: 'Terminez l’ajout des fichiers ou retirez la sélection avant de supprimer ce projet.' });
+      return;
+    }
     const linked: Array<[string, number]> = [
       [
         'jalon',
@@ -1690,6 +1705,7 @@ export function WorkspaceApp({
           </div>
         ) : null}
 
+        <ProjectFileActivity key={cloudAccount?.organizationId ?? 'local'} sessions={projectFileSessions} disabled={busy || readOnly} projects={workspace.projects} currentProjectId={view === 'projects' ? projectFolderId : null} onOpen={id => { setProjectFolderId(id); setView('projects'); setSearch(''); }} />
         <section className="page-content" ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
@@ -1737,8 +1753,10 @@ export function WorkspaceApp({
           ) : null}
           {view === 'projects' ? (
             <ProjectsScreen
+              key={cloudAccount?.organizationId ?? 'local'}
               workspace={workspace}
               folderId={projectFolderId}
+              fileSessions={projectFileSessions}
               onFolderChange={setProjectFolderId}
               query={search}
               busy={busy}
@@ -2609,6 +2627,7 @@ function MetricCard({
 function ProjectsScreen({
   workspace,
   folderId,
+  fileSessions,
   onFolderChange,
   query,
   busy,
@@ -2630,6 +2649,7 @@ function ProjectsScreen({
 }: {
   workspace: Workspace;
   folderId: string | null;
+  fileSessions: ProjectFileSessions;
   onFolderChange: (id: string | null) => void;
   query: string;
   busy: boolean;
@@ -2684,7 +2704,7 @@ function ProjectsScreen({
     (client) => !client.archivedAt,
   );
   const folder = workspace.projects.find((project) => project.id === folderId);
-  if (folder) return <ProjectFolder onOpenExpense={onOpenExpense} project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => onFolderChange(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
+  if (folder) return <ProjectFolder key={folder.id} fileSession={fileSessions.forProject(folder.id)} onOpenExpense={onOpenExpense} project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => onFolderChange(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
   if (!workspace.projects.length)
     return (
       <EmptyState
