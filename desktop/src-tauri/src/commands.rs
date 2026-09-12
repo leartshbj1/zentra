@@ -429,11 +429,12 @@ pub fn record_stock_correction(
 pub fn save_supplier_invoice_draft(
     state: State<'_, LocalStore>,
     input: SaveSupplierInvoiceDraftInput,
+    vat_treatment: Option<String>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state
-        .save_supplier_invoice_draft(input)
+        .save_supplier_invoice_draft_with_vat(input, vat_treatment)
         .map_err(command_error)
 }
 

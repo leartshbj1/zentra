@@ -193,6 +193,7 @@ type SupplierInvoiceDraftSaveInput = {
   dueDate: string;
   reference?: string;
   note?: string;
+  vatTreatment?: 'input_materials' | 'input_investments' | 'non_deductible';
   items: Array<{
     id?: string;
     description: string;
@@ -5382,8 +5383,8 @@ export const desktopApi = {
   },
   async saveSupplierInvoiceDraft(input: SupplierInvoiceDraftSaveInput) {
     await invoke('save_supplier_invoice_draft',
-      supplierInvoiceDraftInvokeArgs(input));
-    return loadWorkspace();
+      { ...supplierInvoiceDraftInvokeArgs(input), vatTreatment: input.vatTreatment ?? null });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveSupplierInvoiceDraftFromEmail(
     input: SupplierInvoiceDraftSaveInput,
@@ -5402,7 +5403,7 @@ export const desktopApi = {
         attachment_sha256: source.attachmentSha256,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async validateSupplierInvoice(id: string) {
     await invoke('validate_supplier_invoice', { id });
@@ -5428,11 +5429,11 @@ export const desktopApi = {
         notes: input.notes?.trim() || null,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async deleteSupplierInvoiceDraft(id: string) {
     await invoke('delete_supplier_invoice_draft', { id });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async chooseSupplierEmailFile(): Promise<string | null> {
     return chooseFile({
@@ -5476,11 +5477,11 @@ export const desktopApi = {
         source_path: sourcePath,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async deleteSupplierInvoiceAttachment(id: string) {
     await invoke('delete_supplier_invoice_attachment', { id });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async openAttachment(id: string) {
     return invoke<string>('open_attachment', { id });

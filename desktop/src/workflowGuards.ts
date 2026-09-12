@@ -26,7 +26,6 @@ export function creationBlockReason(view: CreationView, prerequisites: Workspace
   }
   if (view === 'expenses') {
     if (prerequisites.activeSuppliers === 0) return 'Ajoutez d’abord un fournisseur actif.';
-    if (prerequisites.costCategories === 0) return 'Ajoutez d’abord une catégorie de coûts dans Paramètres.';
   }
   return '';
 }
@@ -50,7 +49,6 @@ export function creationHelp(view: CreationView, prerequisites: WorkspacePrerequ
   }
   if (view === 'expenses') {
     if (!prerequisites.activeSuppliers) return { target: 'supplier', label: 'Ajouter le fournisseur' };
-    return { target: 'work', label: 'Compléter les catégories de coûts' };
   }
   return null;
 }

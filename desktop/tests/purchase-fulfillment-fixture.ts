@@ -52,6 +52,8 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     readFailures = mode === 'refresh_twice' || mode === 'refresh_held' ? 2 : mode === 'refresh_once' ? 1 : 0;
     if (mode === 'refresh_held') sessionStorage.setItem('qa-purchase-hold-next-read', '1');
     sessionStorage.setItem('qa-purchase-persisted', JSON.stringify({ orders: persisted.supplierOrders.length, receipts: persisted.supplierReceipts.length, issued: persisted.supplierReceipts.filter((receipt) => receipt.status === 'issued').length, stock: persisted.catalogItems[0].stockQuantityMilli, matches: persisted.supplierInvoiceMatches, validated: persisted.supplierInvoices.filter((row) => row.documentStatus === 'validated').length }));
+    sessionStorage.setItem('qa-purchase-documents', JSON.stringify(persisted.supplierInvoices));
+    if (mode === 'lost_response') throw new Error('Réponse interrompue après enregistrement.');
     return refreshWorkspaceAfterMutation(desktopApi.loadWorkspace);
   };
   desktopApi.saveSupplierInvoiceDraft = async (input) => {
@@ -124,6 +126,28 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     log('validate', { id }); const mode = failure('validate');
     const row = persisted.supplierInvoices.find((entry) => entry.id === id)!;
     row.documentStatus = 'validated'; row.validatedAt = now; row.validationJournalEntryId = 'journal-purchase-qa';
+    return afterWrite(mode);
+  };
+  desktopApi.chooseSupplierInvoiceAttachment = async () => 'C:/recette/facture-originale.pdf';
+  desktopApi.addSupplierInvoiceAttachment = async (id, sourcePath) => {
+    log('attachment', { id, sourcePath }); const mode = failure('attachment');
+    const row = persisted.supplierInvoices.find((entry) => entry.id === id)!;
+    row.attachments.push({ id: crypto.randomUUID(), projectId: row.projectId, entityType: 'supplier_invoice', entityId: id, originalName: 'facture-originale.pdf', mimeType: 'application/pdf', sizeBytes: 12000, sha256: 'a'.repeat(64), createdAt: now, updatedAt: now });
+    return afterWrite(mode);
+  };
+  desktopApi.deleteSupplierInvoiceAttachment = async (id) => {
+    log('delete-attachment', { id }); const mode = failure('delete-attachment');
+    persisted.supplierInvoices.forEach((row) => { row.attachments = row.attachments.filter((file) => file.id !== id); });
+    return afterWrite(mode);
+  };
+  desktopApi.recordSupplierPayment = async (input) => {
+    log('payment', input); const mode = failure('payment');
+    const row = persisted.supplierInvoices.find((entry) => entry.id === input.supplierInvoiceId)!;
+    if (!row.payments.some((payment) => payment.requestId === input.requestId)) {
+      if (input.amountCents > row.balanceCents) throw new Error('Le montant dépasse le solde restant.');
+      row.payments.push({ ...input, id: crypto.randomUUID(), method: input.method || '', reference: input.reference || '', notes: input.notes || '', journalEntryId: 'journal-payment-qa', createdAt: now });
+      row.paidCents += input.amountCents; row.balanceCents -= input.amountCents; row.paymentStatus = row.balanceCents ? 'partial' : 'paid';
+    }
     return afterWrite(mode);
   };
 }

@@ -77,7 +77,16 @@ impl LocalStore {
         &self,
         input: SaveSupplierInvoiceDraftInput,
     ) -> AppResult<Value> {
-        self.save_supplier_invoice_draft_with_policy(input, false)
+        self.save_supplier_invoice_draft_with_policy(input, false, None)
+    }
+
+    /// The selected VAT treatment and every draft line commit together.
+    pub fn save_supplier_invoice_draft_with_vat(
+        &self,
+        input: SaveSupplierInvoiceDraftInput,
+        vat_treatment: Option<String>,
+    ) -> AppResult<Value> {
+        self.save_supplier_invoice_draft_with_policy(input, false, vat_treatment)
     }
 
     #[cfg(test)]
@@ -85,13 +94,14 @@ impl LocalStore {
         &self,
         input: SaveSupplierInvoiceDraftInput,
     ) -> AppResult<Value> {
-        self.save_supplier_invoice_draft_with_policy(input, true)
+        self.save_supplier_invoice_draft_with_policy(input, true, None)
     }
 
     fn save_supplier_invoice_draft_with_policy(
         &self,
         input: SaveSupplierInvoiceDraftInput,
         reject_duplicate_reference: bool,
+        vat_treatment: Option<String>,
     ) -> AppResult<Value> {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
@@ -101,6 +111,21 @@ impl LocalStore {
             input,
             reject_duplicate_reference,
         )?;
+        if let Some(treatment) = vat_treatment {
+            if !matches!(treatment.as_str(), "input_materials" | "input_investments" | "non_deductible") {
+                return Err(AppError::Validation("Choisissez le traitement TVA de cet achat, ou conservez le classement existant.".into()));
+            }
+            let items = result["items"].as_array().ok_or_else(|| AppError::Validation("Les lignes du brouillon n’ont pas pu être relues. Aucun changement n’a été enregistré.".into()))?;
+            for item in items {
+                let source_id = item["id"].as_str().ok_or_else(|| AppError::Validation("Une ligne du brouillon n’a pas pu être identifiée. Aucun changement n’a été enregistré.".into()))?;
+                self.set_vat_source_classification_in_transaction(&tx, crate::vat_reporting::VatSourceClassificationInput {
+                    source_type: "supplier_invoice_item".into(),
+                    source_id: source_id.into(),
+                    treatment: treatment.clone(),
+                    note: Some("Traitement choisi pour les lignes de la facture fournisseur.".into()),
+                })?;
+            }
+        }
         tx.commit()?;
         Ok(result)
     }

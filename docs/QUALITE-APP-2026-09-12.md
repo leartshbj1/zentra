@@ -2,6 +2,19 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : achats, justificatifs et paiements compréhensibles
+
+Les achats utilisent les catégories de départ déjà proposées par leur éditeur : l'absence de catégories personnalisées ne bloque plus la première facture. Le formulaire situe les étapes « Recopier », « Joindre l’original » et « Valider ». Après enregistrement, le justificatif devient visible et une seule action « Terminer » clôt la saisie. Les modifications ultérieures, y compris l'ajout ou le retrait de lignes, demandent à nouveau un enregistrement.
+
+Les erreurs du brouillon, du justificatif, de la dépense et du paiement sont affichées dans le formulaire concerné. La saisie reste disponible après refus ; fermeture et champs sont protégés pendant l'opération. Le paiement accepte la virgule, explique les montants dépassant le solde et consulte le solde actualisé. Si une réponse est perdue mais que le paiement portant la même requête est retrouvé, son montant et sa date sont montrés sans proposer un second enregistrement.
+
+Le traitement TVA choisi pour toutes les lignes et le brouillon sont désormais enregistrés dans la même transaction native. Le refus d'un classement annule aussi les autres classements, les lignes et leur audit. Le classement existant reste conservé quand aucun nouveau traitement n'est demandé. Les commandes de brouillon, import e-mail, justificatif, suppression et règlement distinguent une écriture confirmée d'une lecture interrompue ; leur reprise ne réexécute pas la commande. Aucun taux fiscal n'est modifié par ce lot.
+
+Validation : **118 fichiers / 984 tests d'interface réussis**, TypeScript et compilation Vite réussis. Les 6 parcours `purchase-clear-journey` couvrent Edge et WebKit à 320/390/1440 px : absence de catégorie personnalisée, brouillon, erreur, classement demandé, ajout d'un justificatif, validation, paiement partiel puis solde, réponse perdue et plusieurs reprises de lecture. Les captures mobiles ont été inspectées. Les 5 parcours d'achats sans assujettissement réussissent à 320/390/768/1024/1440 px et conservent les montants HT/TVA/TTC du fournisseur.
+
+Le test SQLite `draft_and_all_vat_choices_roll_back_together_and_retry_without_duplicates` provoque un refus du deuxième classement et vérifie l'absence de brouillon, de lignes, de classement partiel et d'audit résiduel. Il vérifie aussi la reprise identique sans doublon, l'annulation d'une modification refusée et la conservation des classements existants. Les trois tests natifs de cycle fournisseur, périodes clôturées et écart de rapprochement réussissent. Après report dans le dossier principal, TypeScript, 191 tests ciblés, les 6 parcours navigateur et le test SQLite atomique passent également. Sauvegarde avant fusion : `.qa/purchase-clear-20260912-before/`.
+
+Ce lot est **postérieur à Windows 1.55.0 et n'est pas encore publié**. Le schéma de la base de livraison reste 59. Les autres travaux du dossier principal sont conservés. Les recettes navigateur utilisent des données synthétiques ; une installation sur un profil client réel reste à vérifier. Le module `WorkspaceApp` représente environ 756 ko minifiés et son découpage reste à améliorer.
 ## Lot : un chemin plus clair vers le salaire net
 
 Le salaire du mois est séparé des réglages détaillés, rangés sous « Mes cotisations et assurances ». Un résumé annonce la prochaine action réelle : compléter les informations manquantes, confirmer une base ou calculer le net. Le collaborateur et le mois restent visibles. Les corrections ouvertes depuis le salaire utilisent aussi le guide par questions ; une ligne à classer renvoie à ses propres champs.
@@ -83,7 +96,7 @@ Les logs et images de ces vérifications se trouvent dans `.qa/` du dossier de t
 
 ## Distribution
 
-Ces améliorations sont publiées pour Windows en version 1.55.0, avec signature Tauri vérifiée, canal de mise à jour et page de téléchargement publics. L'IPA non signé reste en 1.53.0. Le présent audit n'atteste ni installation client, ni nouvelles versions macOS/Android. Voir RELEASE-WINDOWS-1.55.0.md pour les artefacts et preuves.
+Les lots de paie et de reprise commerciale livrés précédemment sont publiés pour Windows en version 1.55.0, avec signature Tauri vérifiée, canal de mise à jour et page de téléchargement publics. Le lot achats/justificatifs ajouté ensuite n'est pas encore distribué. L'IPA non signé reste en 1.53.0. Le présent audit n'atteste ni installation client, ni nouvelles versions macOS/Android. Voir RELEASE-WINDOWS-1.55.0.md pour les artefacts et preuves de la version publiée.
 
 Le premier chargement contient encore un module `WorkspaceApp` d'environ 732 ko minifiés. Son découpage et les temps de réponse sur appareil mobile restent à examiner, en maintenant l'accès hors ligne aux fonctionnalités.
 

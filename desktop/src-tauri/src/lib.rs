@@ -4974,6 +4974,11 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(paid["supplier"], "Matériaux Léman SA");
     }
 
+    mod supplier_draft_vat {
+        use super::*;
+        include!("supplier_draft_vat_tests.rs");
+    }
+
     #[test]
     fn supplier_invoice_lifecycle_is_atomic_immutable_and_idempotent() {
         let (temporary, store) = initialized_store();

@@ -50,10 +50,22 @@ const operations = [
   { command: 'reverse_supplier_credit_allocation', run: () => desktopApi.reverseSupplierCreditAllocation(request, 'allocation', 'Correction de facture', '2026-09-03') },
   { command: 'reclassify_supplier_invoice_expense', run: () => desktopApi.reclassifySupplierInvoiceExpense({ requestId: request, supplierInvoiceId: 'invoice', effectiveDate: '2026-09-02', reason: 'Correction de compte', lines: [] }) },
   { command: 'validate_supplier_invoice', run: () => desktopApi.validateSupplierInvoice('invoice') },
+  { command: 'save_supplier_invoice_draft', run: () => desktopApi.saveSupplierInvoiceDraft({ id: request, supplierId: 'supplier', date: '2026-09-01', dueDate: '2026-09-30', items: [], vatTreatment: 'non_deductible' }) },
+  { command: 'import_supplier_email_invoice_draft', run: () => desktopApi.saveSupplierInvoiceDraftFromEmail({ id: request, supplierId: 'supplier', date: '2026-09-01', dueDate: '2026-09-30', items: [] }, { sourcePath: 'invoice.eml', sourceSha256: 'email-hash', attachmentSha256: 'pdf-hash' }) },
+  { command: 'record_supplier_payment', run: () => desktopApi.recordSupplierPayment({ requestId: request, supplierInvoiceId: 'invoice', amountCents: 5000, date: '2026-09-05' }) },
+  { command: 'delete_supplier_invoice_draft', run: () => desktopApi.deleteSupplierInvoiceDraft('invoice') },
+  { command: 'add_supplier_invoice_attachment', run: () => desktopApi.addSupplierInvoiceAttachment('invoice', 'invoice.pdf') },
+  { command: 'delete_supplier_invoice_attachment', run: () => desktopApi.deleteSupplierInvoiceAttachment('attachment') },
 ];
 
 describe('reprise des ventes et achats après écriture locale confirmée', () => {
   beforeEach(() => { invokeMock.mockReset(); });
+  it('transmet le classement TVA dans la même commande que le brouillon', async () => {
+    invokeMock.mockImplementation(async (command: string) => command === 'get_app_state' ? { onboarding_completed: 0 } : {});
+    await desktopApi.saveSupplierInvoiceDraft({ id: request, supplierId: 'supplier', date: '2026-09-01', dueDate: '2026-09-30', vatTreatment: 'input_materials', items: [] });
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual(['save_supplier_invoice_draft', 'get_app_state']);
+    expect(invokeMock.mock.calls[0][1]).toMatchObject({ vatTreatment: 'input_materials', input: { id: request, supplier_id: 'supplier' } });
+  });
   it('transmet les identifiants créés avant toute lecture susceptible d’échouer', async () => {
     invokeMock.mockImplementation(async (command: string) => {
       if (command === 'create_quote_revision') return { revision: { id: 'revision' } };

@@ -13,9 +13,8 @@ try {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?purchasing=1&nonRegistered=1');
-    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-    if (await tour.isVisible()) await tour.click();
+    await page.goto(`${process.env.ZENTRA_QA_URL || 'http://127.0.0.1:5175'}/tests/mobile-harness.html?purchasing=1&nonRegistered=1`);
+    await page.getByRole('button', { name: 'Fermer le guide automatique', exact: true }).click();
     await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Achats');
     await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Achats & fournisseurs', { exact: true }) }).click();
@@ -60,10 +59,10 @@ try {
     assert.match(await dialog.locator('.supplier-invoice-total').innerText(), /103.80/);
     await capture('invoice-total');
     await dialog.getByRole('button', { name: 'Enregistrer le brouillon', exact: true }).click();
-    await dialog.getByRole('button', { name: 'Mettre à jour le brouillon', exact: true }).waitFor();
+    await dialog.getByRole('button', { name: 'Terminer', exact: true }).waitFor();
     const invoice = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-purchase-saved-invoice')));
     assert.equal(invoice.netCents, 10000); assert.equal(invoice.vatCents, 380); assert.equal(invoice.totalCents, 10380);
-    await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'detached' });
+    await dialog.getByRole('button', { name: 'Terminer', exact: true }).click(); await dialog.waitFor({ state: 'detached' });
 
     await section('documents');
     await page.getByRole('button', { name: 'Nouvel avoir', exact: true }).click();

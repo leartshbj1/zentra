@@ -13,7 +13,7 @@ describe('prérequis des actions de création', () => {
     expect(creationHelp('time', { ...ready, trackableProjects: 0, activeEmployees: 0 })?.target).toBe('projects');
     expect(creationHelp('time', { ...ready, activeEmployees: 0 })?.target).toBe('employee');
     expect(creationHelp('expenses', { ...ready, activeSuppliers: 0, costCategories: 0 })?.target).toBe('supplier');
-    expect(creationHelp('expenses', { ...ready, costCategories: 0 })?.target).toBe('work');
+    expect(creationHelp('expenses', { ...ready, costCategories: 0 })).toBeNull();
     for (const view of ['projects', 'catalog', 'quotes', 'invoices', 'time', 'team', 'expenses'] as const) {
       expect(creationHelp(view, ready)).toBeNull();
     }
@@ -46,9 +46,9 @@ describe('prérequis des actions de création', () => {
       .toBe('Confirmez d’abord les règles de temps et de coûts dans Paramètres.');
   });
 
-  it('détecte une configuration de dépenses sans catégorie', () => {
+  it('permet les catégories de départ proposées par le formulaire d’achat', () => {
     expect(creationBlockReason('expenses', { ...ready, costCategories: 0 }))
-      .toBe('Ajoutez d’abord une catégorie de coûts dans Paramètres.');
+      .toBe('');
   });
 
   it('demande un fournisseur avant de créer une facture fournisseur', () => {

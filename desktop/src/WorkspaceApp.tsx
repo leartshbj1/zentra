@@ -6229,6 +6229,7 @@ function WorkspaceModal({
     return (
       <SupplierPaymentForm
         invoice={state.invoice}
+        workspace={workspace}
         busy={busy}
         close={close}
         act={act}
