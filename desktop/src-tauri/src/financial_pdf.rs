@@ -452,7 +452,7 @@ fn render_composed_accounts(
         string(issuer, "company_name"),
         "Bilan et compte de résultat",
     )?;
-    page.paragraph(
+    page.company_line(
         &format!(
             "{} · {} {}",
             string(issuer, "address_line1"),
@@ -617,6 +617,7 @@ fn render_composed_accounts(
             )?;
         }
     }
+    page.begin_closing(crate::document_composition::has_text(&design.closing))?;
     page.rich(&design.closing)?;
     page.gap(10.);
     page.paragraph("Bilan et résultat issus du journal local. Annexe et approbation à joindre selon vos obligations.",8.,false)?;

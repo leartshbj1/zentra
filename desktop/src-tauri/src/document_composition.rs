@@ -18,6 +18,10 @@ const WIDTH: f32 = 595.276;
 const HEIGHT: f32 = 841.89;
 const INK: [f32; 3] = [0.12, 0.14, 0.15];
 
+#[cfg(test)]
+#[path = "document_layout_tests.rs"]
+mod layout_tests;
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct RichRun {
@@ -68,6 +72,22 @@ pub(crate) struct Composition {
     pub table_style: String,
     pub table_padding: f32,
     pub totals_position: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company_align: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recipient_align: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_margin_mm: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo_gap: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block_spacing: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub closing_on_new_page: Option<bool>,
     pub intro: RichText,
     pub closing: RichText,
     pub footer_text: RichText,
@@ -89,6 +109,14 @@ impl Default for Composition {
             table_style: "band".into(),
             table_padding: 6.0,
             totals_position: "beforeNotes".into(),
+            company_align: None,
+            recipient_align: None,
+            top_margin_mm: None,
+            logo_gap: None,
+            block_spacing: None,
+            text_color: None,
+            title_color: None,
+            closing_on_new_page: None,
             intro: vec![],
             closing: vec![],
             footer_text: vec![],
@@ -141,6 +169,23 @@ impl Composition {
             .all(|(v, a, b)| v.is_finite() && v >= a && v <= b)
         {
             return Err(invalid("Choisissez une police, une taille et une mise en page parmi les réglages proposés."));
+        }
+        for align in [&self.company_align, &self.recipient_align].into_iter().flatten() {
+            if !["left", "center", "right"].contains(&align.as_str()) {
+                return Err(invalid("Choisissez un alignement à gauche, au centre ou à droite."));
+            }
+        }
+        for (value, minimum, maximum) in [
+            (self.top_margin_mm, 12., 45.),
+            (self.logo_gap, 0., 36.),
+            (self.block_spacing, 0.5, 2.),
+        ] {
+            if value.is_some_and(|v| !v.is_finite() || v < minimum || v > maximum) {
+                return Err(invalid("Choisissez un espacement parmi les valeurs proposées dans Mise en page."));
+            }
+        }
+        for color in [&self.text_color, &self.title_color].into_iter().flatten() {
+            text_color(color)?;
         }
         for (text, limit) in [
             (&self.intro, 5000),
@@ -201,6 +246,9 @@ fn font_index(family: &str, bold: bool, italic: bool) -> usize {
         _ => 0,
     }) + usize::from(bold)
         + 2 * usize::from(italic)
+}
+pub(crate) fn has_text(value: &RichText) -> bool {
+    value.iter().any(|paragraph| paragraph.runs.iter().any(|run| !run.text.trim().is_empty()))
 }
 pub(crate) fn plain(value: &str) -> RichText {
     value
@@ -459,7 +507,7 @@ impl<'a> Composer<'a> {
     }
     pub fn page(&mut self, first: bool) -> AppResult<()> {
         self.pages.push(vec![]);
-        self.y = HEIGHT - self.left();
+        self.y = HEIGHT - self.design.top_margin_mm.unwrap_or(self.design.margin_mm) * 72. / 25.4;
         if self.pages.len() > 200 {
             return Err(invalid(
                 "Le document dépasse 200 pages. Réduisez son contenu avant de l’exporter.",
@@ -491,10 +539,10 @@ impl<'a> Composer<'a> {
                         Operation::new("Do", vec![Object::Name(b"Logo".to_vec())]),
                         Operation::new("Q", vec![]),
                     ]);
-                    self.y = y - 14.;
+                    self.y = y - self.design.logo_gap.unwrap_or(14.);
                 }
             }
-            self.paragraph(&self.identity.clone(), self.design.body_size + 2., true)?;
+            self.company_line(&self.identity.clone(), self.design.body_size + 2., true)?;
         } else {
             self.paragraph(
                 &format!("{} · {} · suite", self.identity, self.title),
@@ -512,16 +560,35 @@ impl<'a> Composer<'a> {
         Ok(())
     }
     pub fn gap(&mut self, height: f32) {
-        self.y -= height;
+        self.y -= height * self.design.block_spacing.unwrap_or(1.);
     }
     pub fn paragraph(&mut self, text: &str, size: f32, bold: bool) -> AppResult<()> {
+        self.aligned_paragraph(text, size, bold, "left")
+    }
+    pub fn company_line(&mut self, text: &str, size: f32, bold: bool) -> AppResult<()> {
+        self.aligned_paragraph(text, size, bold, &self.design.company_align.clone().unwrap_or_else(|| "left".into()))
+    }
+    pub fn recipient_line(&mut self, text: &str, size: f32, bold: bool) -> AppResult<()> {
+        self.aligned_paragraph(text, size, bold, &self.design.recipient_align.clone().unwrap_or_else(|| "left".into()))
+    }
+    pub fn begin_closing(&mut self, has_text: bool) -> AppResult<()> {
+        if has_text && self.design.closing_on_new_page == Some(true) {
+            self.page(false)?;
+        }
+        Ok(())
+    }
+    fn body_ink(&self) -> [f32; 3] {
+        self.design.text_color.as_deref().and_then(|color| text_color(color).ok()).unwrap_or(INK)
+    }
+    fn aligned_paragraph(&mut self, text: &str, size: f32, bold: bool, align: &str) -> AppResult<()> {
         let mut value = plain(text);
         for p in &mut value {
+            p.align = align.into();
             for r in &mut p.runs {
                 r.bold = bold;
             }
         }
-        self.rich_sized(&value, size, INK)
+        self.rich_sized(&value, size, self.body_ink())
     }
     pub fn heading(&mut self, text: &str) -> AppResult<()> {
         let value = vec![RichParagraph {
@@ -536,12 +603,13 @@ impl<'a> Composer<'a> {
             bullet: false,
         }];
         self.gap(8.);
-        self.rich_sized(&value, self.design.title_size, self.style.ink())?;
+        let ink = self.design.title_color.as_deref().map(text_color).transpose()?.unwrap_or_else(|| self.style.ink());
+        self.rich_sized(&value, self.design.title_size, ink)?;
         self.gap(8.);
         Ok(())
     }
     pub fn rich(&mut self, text: &RichText) -> AppResult<()> {
-        self.rich_sized(text, self.design.body_size, INK)
+        self.rich_sized(text, self.design.body_size, self.body_ink())
     }
     fn rich_sized(&mut self, text: &RichText, size: f32, color: [f32; 3]) -> AppResult<()> {
         let lines = wrap(self.design, text, self.width(), size)?;
@@ -674,7 +742,7 @@ impl<'a> Composer<'a> {
                 };
                 rect(self.ops(), left, top - height, width, height, color);
             }
-            let color = if band { self.style.on_accent() } else { INK };
+            let color = if band { self.style.on_accent() } else { self.body_ink() };
             let mut x = left;
             for (column, (lines, f)) in wrapped.iter().zip(fractions).enumerate() {
                 for (row, (line, _, _, _)) in lines.iter().enumerate().take(end).skip(start) {

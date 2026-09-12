@@ -1101,18 +1101,18 @@ fn render_composed_sales(
         .chain(data.issuer.address.iter())
     {
         if !line.is_empty() {
-            page.paragraph(line, design.body_size, false)?;
+            page.company_line(line, design.body_size, false)?;
         }
     }
     if !data.issuer.uid_number.is_empty() {
-        page.paragraph(
+        page.company_line(
             &format!("IDE {}", data.issuer.uid_number),
             design.body_size,
             false,
         )?;
     }
     if data.issuer.vat_registered && !data.issuer.vat_number.is_empty() {
-        page.paragraph(
+        page.company_line(
             &format!("TVA {}", data.issuer.vat_number),
             design.body_size,
             false,
@@ -1167,13 +1167,13 @@ fn render_composed_sales(
         )?;
     }
     page.gap(14.);
-    page.paragraph("DESTINATAIRE", 8., true)?;
-    page.paragraph(&data.customer.name, design.body_size + 1., true)?;
+    page.recipient_line("DESTINATAIRE", 8., true)?;
+    page.recipient_line(&data.customer.name, design.body_size + 1., true)?;
     for line in &data.customer.address {
-        page.paragraph(line, design.body_size, false)?;
+        page.recipient_line(line, design.body_size, false)?;
     }
     if !data.customer.email.is_empty() {
-        page.paragraph(&data.customer.email, design.body_size, false)?;
+        page.recipient_line(&data.customer.email, design.body_size, false)?;
     }
     page.gap(14.);
     if !data.title.is_empty() {
@@ -1214,6 +1214,7 @@ fn render_composed_sales(
         &rows,
     )?;
     let notes = |page: &mut Composer<'_>| -> AppResult<()> {
+        page.begin_closing(!data.notes.trim().is_empty() || !data.terms.trim().is_empty() || crate::document_composition::has_text(&design.closing))?;
         if !data.notes.is_empty() || !data.terms.is_empty() {
             page.gap(10.);
             page.paragraph("Remarques et conditions", design.body_size, true)?;
@@ -3469,6 +3470,15 @@ mod tests {
         let temp=tempfile::tempdir().unwrap();
         let mut data=sample_data(35,true);
         data.style.composition=Some(crate::document_composition::Composition {font_family:"times".into(),body_size:12.,margin_mm:25.,title_size:34.,footer_text:crate::document_composition::plain("Un pied de page qui reste en dehors de la section de paiement."),..Default::default()});
+        let design = data.style.composition.as_mut().unwrap();
+        design.company_align = Some("center".into());
+        design.recipient_align = Some("right".into());
+        design.top_margin_mm = Some(45.);
+        design.logo_gap = Some(36.);
+        design.block_spacing = Some(2.);
+        design.text_color = Some("#182b49".into());
+        design.title_color = Some("#793c32".into());
+        design.closing_on_new_page = Some(true);
         let path=temp.path().join("styled-qr.pdf");
         render_sales_pdf(&path,&data,None).unwrap();
         let bytes=std::fs::read(&path).unwrap();let pdf=Document::load_mem(&bytes).unwrap();

@@ -1,4 +1,14 @@
 .design-studio { width:100%; min-width:0; }
+.design-studio__advanced { border:1px solid #dce2dc; border-radius:12px; padding:14px; background:#f7f8f5; min-width:0; }
+.design-studio__advanced summary { cursor:pointer; min-height:30px; font-size:14px; font-weight:600; color:#34483b; line-height:1.5; }
+.design-studio__advanced[open] > :not(summary) { margin-top:16px; }
+.design-studio__advanced fieldset { display:grid; gap:14px; }
+.design-studio__advanced legend { margin-bottom:12px; }
+.design-studio__automatic,.design-studio__return-tools { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 12px; border:1px solid #d5ddd3; border-radius:10px; color:#34483b; background:#fff; cursor:pointer; font-size:13px; }
+.design-studio__return-tools { margin-bottom:12px; }
+.design-studio__commandbar .design-studio__save-shortcut { background:#244b35; color:#fff; border-color:#244b35; }
+.design-studio__advanced .design-studio__choice { display:flex; align-items:flex-start; gap:10px; font-size:13px; line-height:1.55; }
+.design-studio__advanced .design-studio__choice input { margin-top:2px; }
 .design-studio__commandbar {display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 0 20px;border-top:1px solid #e4e7e3;}
 .design-studio__commandbar button,.design-studio__presets button,.design-studio__panels button {display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;border:1px solid #dce2dc;border-radius:10px;background:#fff;color:#253c2e;padding:8px 12px;cursor:pointer;}
 .design-studio__commandbar span {margin-left:auto;font-size:12px;color:#677168;}

@@ -585,10 +585,10 @@ fn render_composed_payslip(
     let title = format!("Fiche de salaire · {}", format_period(&data.period));
     let mut page = Composer::new(&data.style, logo.as_ref(), &data.company_name, &title)?;
     for line in &data.company_address {
-        page.paragraph(line, design.body_size, false)?;
+        page.company_line(line, design.body_size, false)?;
     }
     if !data.uid_number.is_empty() {
-        page.paragraph(&format!("IDE {}", data.uid_number), design.body_size, false)?;
+        page.company_line(&format!("IDE {}", data.uid_number), design.body_size, false)?;
     }
     page.heading(&title)?;
     page.paragraph(
@@ -597,9 +597,9 @@ fn render_composed_payslip(
         true,
     )?;
     page.gap(12.);
-    page.paragraph(&data.employee_name, design.body_size + 2., true)?;
+    page.recipient_line(&data.employee_name, design.body_size + 2., true)?;
     for line in &data.employee_address {
-        page.paragraph(line, design.body_size, false)?;
+        page.recipient_line(line, design.body_size, false)?;
     }
     for (label, value) in [
         ("N° employé", data.employee_number.clone()),
@@ -610,7 +610,7 @@ fn render_composed_payslip(
         ("IBAN", data.employee_iban.clone()),
     ] {
         if !value.is_empty() {
-            page.paragraph(&format!("{label} : {value}"), design.body_size, false)?;
+            page.recipient_line(&format!("{label} : {value}"), design.body_size, false)?;
         }
     }
     page.gap(12.);
@@ -643,6 +643,7 @@ fn render_composed_payslip(
         }
     }
     let notes = |page: &mut Composer<'_>| -> AppResult<()> {
+        page.begin_closing(!data.notes.trim().is_empty() || crate::document_composition::has_text(&design.closing))?;
         if !data.notes.is_empty() {
             page.gap(10.);
             page.paragraph(&data.notes, design.body_size, false)?;

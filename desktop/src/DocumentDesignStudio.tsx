@@ -9,6 +9,7 @@ import { Button } from './ui';
 import './DocumentDesignStudio.css';
 import { normalizeComposition, documentFontCss, type DocumentComposition } from './documentComposition';
 import { RichTextEditor } from './RichTextEditor';
+import { DocumentLayoutControls, DocumentInkControls } from './DocumentLayoutControls';
 import { DocumentDesignMap, type DesignSection } from './DocumentDesignMap';
 import { copyDocumentDesign, designChange, resetDocumentDesign, restoreDesignChange, type DesignChange } from './documentDesignEditing';
 
@@ -126,6 +127,8 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
     <div className="design-studio__commandbar" role="group" aria-label="Historique de la présentation">
       <button type="button" disabled={busy || !history.current.length} onClick={() => undo()}><Undo2 size={17} /> Annuler</button>
       <button type="button" disabled={busy || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /> Rétablir</button>
+      <button type="button" onClick={showPreview}><ZoomIn size={17} /> Aperçu</button>
+      <button type="button" className="design-studio__save-shortcut" disabled={busy || loading || !!error} onClick={onSave}><Check size={17} /> Enregistrer</button>
       <span>Les montants se calculent automatiquement.</span>
     </div>
     <div className="design-studio__body">
@@ -139,8 +142,10 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
         <fieldset disabled={busy}><legend>Style du titre</legend><div className="design-studio__presets"><button type="button" aria-pressed={design.titleBold} onClick={() => compose({ titleBold: !design.titleBold })}><Bold size={16} /> Gras</button><button type="button" aria-pressed={design.titleItalic} onClick={() => compose({ titleItalic: !design.titleItalic })}><Italic size={16} /> Italique</button></div></fieldset>
         <fieldset disabled={busy}><legend>Présentation</legend><div className="design-studio__layouts">{(['signature', 'minimal'] as const).map(value => <button type="button" key={value} aria-pressed={style.layout === value} onClick={() => patch({ layout: value })}><span className={`design-studio__layout-sample design-studio__layout-sample--${value}`} aria-hidden="true" /><strong>{value === 'signature' ? 'Signature' : 'Épurée'}</strong><small>{value === 'signature' ? 'Une touche de couleur affirmée' : 'Des lignes simples et légères'}</small>{style.layout === value && <Check size={15} />}</button>)}</div></fieldset>
         <fieldset disabled={busy}><legend>Couleur</legend><div className="design-studio__swatches">{colors.map(color => <button type="button" key={color} style={{ backgroundColor: color }} aria-label={`Couleur ${color}`} aria-pressed={style.accentColor === color} onClick={() => patch({ accentColor: color })} />)}</div><label className="design-studio__color">Couleur personnalisée<input type="color" aria-label="Couleur personnalisée" value={style.accentColor} onChange={event => patch({ accentColor: event.target.value })} /></label></fieldset>
+        <DocumentInkControls design={design} disabled={busy} onChange={compose} accentColor={style.accentColor} />
         </div>
         <div hidden={panel !== 'layout'} className="design-studio__panel">
+        <DocumentLayoutControls design={design} kind={kind} disabled={busy} onChange={compose} />
         <fieldset className="design-studio__logo-positions" disabled={busy}><legend>Votre logo sur la page</legend><div>{([['left', 'À gauche'], ['center', 'Au centre'], ['right', 'À droite']] as const).map(([position, label]) => <button type="button" key={position} aria-label={`Logo ${label.toLowerCase()}`} aria-pressed={design.logoPosition === position} onClick={() => compose({ logoPosition: position })}><span className="design-studio__logo-page" data-position={position} aria-hidden="true"><i>Logo</i><b /><b /></span>{label}</button>)}</div></fieldset>
         <label>Position du logo<select aria-label="Position du logo" disabled={busy} value={design.logoPosition} onChange={e => compose({ logoPosition: e.target.value as DocumentComposition['logoPosition'] })}><option value="left">À gauche</option><option value="center">Au centre</option><option value="right">À droite</option><option value="hidden">Masquer le logo</option></select></label>
         <label>Taille du logo<select aria-label="Taille du logo" value={style.logoWidth} disabled={busy} onChange={event => patch({ logoWidth: Number(event.target.value) })}><option value="88">Discrète</option><option value="120">Équilibrée</option><option value="150">Affirmée</option></select><small>Le logo conserve ses proportions.</small></label>
@@ -170,6 +175,7 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
         {exported?.key === requestKey && <PdfExportReceipt result={exported.result} disabled={exporting} onBusyChange={setExporting} />}
       </div>
       <div ref={previewElement} tabIndex={-1} className="design-studio__preview" aria-label={`Exemple ${labels[kind]}`} aria-busy={loading && !error}>
+        <button type="button" className="design-studio__return-tools" onClick={() => revealTools('.design-studio__panels button[aria-pressed=true]')}>Revenir aux réglages</button>
         <div className="design-studio__preview-label"><span>Exemple fictif · A4</span>{loading && !error ? <span role="status"><LoaderCircle size={14} className="spin" /> Mise à jour…</span> : <span>Rendu PDF{preview ? ` · ${preview.pageCount} page${preview.pageCount > 1 ? 's' : ''}` : ''}</span>}<button type="button" aria-label={zoomed ? 'Ajuster l’aperçu' : 'Agrandir l’aperçu'} aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)}>{zoomed ? <ZoomOut size={18} /> : <ZoomIn size={18} />}</button></div>
         {error ? <div className="design-studio__error" role="alert"><strong>L’aperçu demande une correction</strong><p>{error}</p><Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Réessayer l’aperçu</Button></div> : preview ? <div className={`design-studio__pages${loading ? ' design-studio__pages--loading' : ''}${zoomed ? ' design-studio__pages--zoomed' : ''}`} tabIndex={zoomed ? 0 : undefined} aria-label="Pages de l’exemple">{preview.pages.map((src, index) => <img key={index} src={src} alt={`Exemple ${labels[kind]} · page ${index + 1}`} />)}{preview.pageCount > preview.pages.length && <p>Aperçu des {preview.pages.length} premières pages. Le PDF exporté contient les {preview.pageCount} pages.</p>}</div> : <div className="design-studio__placeholder">Préparation de votre exemple…</div>}
       </div>

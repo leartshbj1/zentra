@@ -18,6 +18,14 @@ export type DocumentComposition = {
   tableStyle: 'band' | 'striped' | 'lines';
   tablePadding: number;
   totalsPosition: 'beforeNotes' | 'afterNotes';
+  companyAlign?: 'left' | 'center' | 'right';
+  recipientAlign?: 'left' | 'center' | 'right';
+  topMarginMm?: number;
+  logoGap?: number;
+  blockSpacing?: number;
+  textColor?: string;
+  titleColor?: string;
+  closingOnNewPage?: boolean;
   intro: RichText;
   closing: RichText;
   footerText: RichText;
@@ -58,6 +66,15 @@ export function normalizeComposition(value?: Partial<DocumentComposition>): Docu
     logoPosition: choice(value?.logoPosition, ['left', 'center', 'right', 'hidden'], 'left'), logoHeight: bounded(value?.logoHeight, 24, 72, d.logoHeight),
     tableStyle: choice(value?.tableStyle, ['band', 'striped', 'lines'], 'band'), tablePadding: bounded(value?.tablePadding, 4, 10, d.tablePadding),
     totalsPosition: choice(value?.totalsPosition, ['beforeNotes', 'afterNotes'], 'beforeNotes'),
+    // Absent controls keep the rendering of existing saved presentations.
+    ...(value?.companyAlign ? { companyAlign: choice(value.companyAlign, ['left', 'center', 'right'] as const, 'left') } : {}),
+    ...(value?.recipientAlign ? { recipientAlign: choice(value.recipientAlign, ['left', 'center', 'right'] as const, 'left') } : {}),
+    ...(value?.topMarginMm != null ? { topMarginMm: bounded(value.topMarginMm, 12, 45, d.marginMm) } : {}),
+    ...(value?.logoGap != null ? { logoGap: bounded(value.logoGap, 0, 36, 14) } : {}),
+    ...(value?.blockSpacing != null ? { blockSpacing: bounded(value.blockSpacing, .5, 2, 1) } : {}),
+    ...(richColor(value?.textColor) ? { textColor: richColor(value?.textColor) } : {}),
+    ...(richColor(value?.titleColor) ? { titleColor: richColor(value?.titleColor) } : {}),
+    ...(value?.closingOnNewPage === true ? { closingOnNewPage: true } : {}),
     intro: normalizeRichText(value?.intro), closing: normalizeRichText(value?.closing), footerText: normalizeRichText(value?.footerText),
   };
 }

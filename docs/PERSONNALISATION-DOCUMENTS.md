@@ -11,6 +11,17 @@ Les raccourcis **Logo**, **Titre**, **Introduction**, **Mise en page**, **Condit
 
 Pour rédiger confortablement, ouvrez **Textes → Agrandir l’espace d’écriture**. L’éditeur occupe la largeur disponible ; **Voir le rendu PDF** revient au document. Vous pouvez continuer à changer de zone de texte sans perdre votre rédaction.
 
+Dans **Mise en page → Ajuster les blocs et les espacements**, vous pouvez aussi :
+
+- aligner le nom et les coordonnées de l’entreprise indépendamment du logo ;
+- placer les coordonnées du client ou du collaborateur à gauche, au centre ou à droite ;
+- régler l’espace sous le logo, le début du contenu depuis le haut de la page et l’espace entre les blocs ;
+- commencer les conditions, ou le commentaire du bilan, sur une nouvelle page. Une zone sans texte n’ajoute pas de page.
+
+Dans **Style → Couleurs du titre et du texte**, le titre et le texte courant peuvent avoir leur propre couleur, indépendante des tableaux. Les passages colorés manuellement et le pied de page gardent leur couleur. Les boutons de couleur automatique permettent de revenir au réglage habituel. Vérifiez toujours la lisibilité sur le fond blanc dans l’aperçu.
+
+La barre du haut donne accès à **Annuler**, **Rétablir**, **Aperçu** et **Enregistrer**. Depuis l’aperçu, **Revenir aux réglages** retrouve les outils. Les nouvelles options de blocs et d’espacement sont intégrées au code le 13 septembre 2026 ; elles nécessitent une nouvelle compilation de l’application et ne sont pas encore distribuées dans un installateur ou IPA.
+
 Les boutons **Texte normal**, **Titre de section** et **Sous-titre** mettent en forme tout le paragraphe courant, ou les paragraphes sélectionnés. Les titres utilisent 18 points et les sous-titres 12 points ; vous pouvez ensuite ajuster chaque passage.
 
 Le collage depuis Word, Google Docs ou un autre texte de Zentra conserve les mises en forme prises en charge : gras, italique, soulignement, couleurs, surlignage, paragraphes, alignement et listes simples. Les polices sont adaptées à Helvetica, Times ou Courier et les tailles à la plage 8–24 points. Les numéros d’une liste collée deviennent du texte. Décochez **Conserver la mise en forme du texte collé** pour coller du texte seul. Les images, objets incorporés et mises en page complexes ne sont pas importés par ce collage ; le logo se règle dans **Logo**.
