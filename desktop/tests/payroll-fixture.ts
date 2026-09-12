@@ -12,6 +12,11 @@ export function installPayrollFixture(workspace: Workspace) {
     return { id, name, employeeNumber: id, role: 'Responsable de projet', email: `${id}@example.invalid`, phone: '', address: '', addressLine1: '', addressLine2: '', postalCode: '1000', city: 'Lausanne', canton: 'VD', country: 'CH', birthDate: '1990-01-01', avsNumber: '', employmentStart: '2026-01-01', employmentEnd: '', employmentContractKind: 'indefinite', lppAssessmentYear: 2026, lppAnnualSalaryCents: 6000000, lppExceptionCode: null, lppExceptionEvidenceReference: '', referenceAgeDate: '', avsAllowanceWaived: null, smallSalaryAssessmentYear: 2026, smallSalarySector: 'ordinary', smallSalaryEmployeeRequestedContributions: false, smallSalaryDecisionDate: '2026-01-01', smallSalaryOpeningGrossCents: 0, smallSalaryOpeningContributedBasisCents: 0, smallSalaryEvidenceReference: 'Décision annuelle de recette 2026', employmentRate: 100, contractualWeeklyMinutes: 2400, acOpeningYear: 2026, acOpeningBasisCents: 0, laaOpeningYear: 2026, laaOpeningBasisCents: 0, salaryMode: 'monthly', grossSalaryCents: 500000, hourlyCostCents: 0, iban: '', active: true, notes: '' };
   }
   workspace.employees = [employee('elodie', 'Élodie Dubois'), employee('jean', 'Jean Martin')];
+  if (new URLSearchParams(location.search).has('payrollHourly')) {
+    workspace.employees[0].salaryMode = 'hourly';
+    workspace.employees[0].grossSalaryCents = 0;
+    workspace.employees[0].hourlyCostCents = 9000; // Must never become the employee's hourly wage.
+  }
   if (new URLSearchParams(location.search).has('payrollHistoryError')) {
     workspace.employees[0].smallSalaryDecisionDate = '2025-12-31';
   }

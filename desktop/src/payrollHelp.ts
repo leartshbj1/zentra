@@ -23,6 +23,16 @@ export type PayrollHelp = {
 };
 const rules: [RegExp, PayrollHelp][] = [
   [
+    /Les heures ou le tarif ont changé/i,
+    {
+      title: 'Reportez les heures dans le salaire',
+      explanation: 'Vous avez modifié les heures ou le tarif. Cliquez sur « Utiliser ce montant » dans le calcul horaire, puis sur « Vérifier le salaire ». Votre saisie est conservée.',
+      target: 'salary',
+      selector: '.payroll-hourly',
+      action: 'Revenir au calcul des heures',
+    },
+  ],
+  [
     /atteint 8 h\/semaine.*couverture AANP.*configur|couverture AANP.*manqu/i,
     {
       title: 'Préparez l’assurance accidents hors travail',

@@ -68,6 +68,20 @@
   border-radius: 16px;
   background: #f7f9fa;
 }
+.payroll-hourly__fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.payroll-hourly__result { padding: 16px; border-radius: 12px; background: #edf4f3; color: #204d55; }
+.payroll-hourly .button, .payroll-basis-guide .button { white-space: normal; min-height: 44px; max-width: 100%; }
+.payroll-hourly .field input, .payroll-basis-guide .field input { width: 100%; min-width: 0; }
+.payroll-basis-guide form { min-width: 0; }
+.payroll-basis-guide .field { margin: 20px 0; }
+.payroll-basis-guide .field input { min-height: 56px; font-size: 22px; }
+.payroll-basis-example { border-left: 3px solid #bacbcb; padding-left: 16px; margin: 20px 0; }
+.payroll-basis-example p { font-size: 14px; }
+.payroll-basis-guide__actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; margin-top: 16px; }
+@media (max-width: 600px) {
+  .payroll-hourly__fields { grid-template-columns: minmax(0, 1fr); }
+  .payroll-basis-guide__actions .button { width: 100%; }
+}
 .payroll-save-later strong {
   font-size: 14px;
 }

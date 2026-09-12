@@ -2,6 +2,21 @@
 
 Objectif en cours : rendre chaque catégorie compréhensible et vérifier les parcours complets, les données persistées et le comportement mobile. Ce suivi ne signifie pas que l'application est entièrement validée pour tous les usages clients.
 
+## Lot : comprendre les compléments et les salaires horaires
+
+La priorité est revenue à la création de paie à la demande de l'utilisateur. Les changements de ce lot partent de `24d92fb` sur la base de livraison 1.54.0.
+
+- **Montants soumis aux assurances.** Le passage à la vérification ouvre une question à la fois lorsqu'un montant est inconnu. Un exemple distingue le salaire soumis du montant retenu. Les parts AVS/AI/APG et chômage sont regroupées suivant les règles de partage déjà présentes dans l'éditeur. Les contrats distincts gardent leurs propres montants ; aucun montant inconnu n'est remplacé par zéro.
+- **Corrections.** Les réponses restent disponibles au retour à la question précédente, y compris une réponse pas encore confirmée. Après modification des éléments du brut, les bases manuelles confirmées demandent une nouvelle vérification. Les champs de salaire sont contrôlés avant les réglages d'assurance, afin d'éviter une erreur de champ caché comme première réponse.
+- **Salaire horaire.** Un calcul heures × tarif brut reporte explicitement le montant et son détail sur une seule ligne de salaire. La virgule décimale est acceptée et le résultat est arrondi au centime. Le coût interne de projet n'est jamais utilisé comme tarif salarial. Une modification des heures ou du tarif doit être reportée avant calcul ou sauvegarde ; le message ouvre directement le calcul horaire.
+- **Explications adaptées.** L'introduction distingue le salaire mensuel prérempli, le salaire à renseigner et le calcul horaire. L'assistant de l'application reçoit aussi l'étape réelle du guide de montants.
+
+Validation du lot : **116 fichiers / 926 tests d'interface réussis**, TypeScript et compilation Vite réussis. Les 12 scénarios de `payroll-salary-entry-journey.mjs` couvrent Edge et WebKit à 320, 390 et 1440 px : prime, bases partagées, modification du brut, retour en arrière, erreur puis réessai d'enregistrement, salaire horaire, tarif indépendant du coût et remplacement sans doublon. Les 10 scénarios de première fiche/configuration de pension ont également été rejoués. Données exclusivement synthétiques ; les captures mobiles ont été inspectées.
+
+L'intégration au dossier principal conserve sa classification des revenus et les autres travaux existants. TypeScript et 67 tests ciblés y passent. Ses 12 scénarios de saisie passent également : la recette vide explicitement une base pour exercer le guide, car ce dossier sait déjà classer les compléments ordinaires. Le premier salaire horaire peut demander de reprendre les cotisations devenues applicables une fois le montant connu. Sauvegarde des fichiers avant intégration : `.qa/payroll-entry-20260912-before/`.
+
+Les nouveaux composants n'ajoutent aucune dépendance. Le module `WorkspaceApp` compilé atteint environ 744 ko minifiés ; le découpage reste à améliorer. Le moteur natif et les taux ne sont pas modifiés dans ce lot. La validation sur une installation réelle et la construction des nouveaux binaires restent à faire : **aucun nouvel installateur ou IPA n'est publié par ce lot**.
+
 ## Lot : reprendre son salaire et retrouver ses enregistrements
 
 Base isolée : `dac39ed`, dernière version Windows livrée 1.54.0. Branche de travail : `codex/app-quality-20260912`. Les modifications sont également reportées par fusion à trois versions dans le dossier principal, en conservant ses travaux sur les revenus de paie et la synchronisation. Le schéma natif de la base de livraison reste 59 ; celui des travaux non publiés du dossier principal reste distinct.

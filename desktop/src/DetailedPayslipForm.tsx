@@ -12,6 +12,9 @@ import { desktopApi } from './bridge';
 import { PayrollSetup } from './PayrollSetup';
 import { PayrollProblem } from './PayrollProblem';
 import { PayrollPreparation } from './PayrollPreparation';
+import { PayrollBasisGuide } from './PayrollBasisGuide';
+import { PayrollHourlySalary } from './PayrollHourlySalary';
+import { missingPayrollBasis, payrollBasisQuestions } from './payrollSalaryEntry';
 import { payrollPreparationTasks } from './payrollPreparationTasks';
 import { usePayrollFieldGuide } from './PayrollFieldGuide';
 import { revealPayrollField } from './payrollNavigation';
@@ -96,6 +99,11 @@ export function DetailedPayslipForm({
     : undefined;
   const [step, setStep] = useState(0);
   const [preparing, setPreparing] = useState(false);
+  const [editingBases, setEditingBases] = useState(false);
+  const [hourlyPending, setHourlyPending] = useState(false);
+  const [basisApprovedSalary, setBasisApprovedSalary] = useState<string | null>(
+    item ? JSON.stringify(item.lines.filter(line => line.kind === 'earning')) : null,
+  );
   const [setup, setSetup] = useState<PayrollHelpTarget | null>(null);
   const [setupSelector, setSetupSelector] = useState<string | undefined>();
   const [arrivalSelector, setArrivalSelector] = useState<string | undefined>();
@@ -103,7 +111,7 @@ export function DetailedPayslipForm({
   const [configurationUpdated, setConfigurationUpdated] = useState(false);
   const fieldGuide = usePayrollFieldGuide();
   function fixPayroll(target: PayrollHelpTarget, selector?: string) {
-    if (['salary', 'review', 'period'].includes(target)) setPreparing(false);
+    if (['salary', 'review', 'period'].includes(target)) { setPreparing(false); setEditingBases(false); }
     setArrivalSelector(
       selector ??
         (target === 'salary' ? '[data-payroll-selection]' : undefined),
@@ -223,13 +231,13 @@ export function DetailedPayslipForm({
   );
 
   useEffect(() => {
-    if (setup || preparing) return;
+    if (setup || preparing || editingBases) return;
     headingRef.current?.focus({ preventScroll: true });
     headingRef.current
       ?.closest('.modal__body')
       ?.scrollTo({ top: 0, behavior: 'instant' });
     if (arrivalSelector) revealPayrollField(formRef.current, arrivalSelector);
-  }, [step, setup, preparing, arrivalSelector, arrivalRevision]);
+  }, [step, setup, preparing, editingBases, arrivalSelector, arrivalRevision]);
 
   const selections = useMemo(
     () =>
@@ -371,7 +379,11 @@ export function DetailedPayslipForm({
       })),
     [selections],
   );
-  const usesGuidedBasis = automaticBases.size > 0;
+  const usesGuidedBasis = selectedItems.some(item => automaticBases.has(item.definitionId));
+  const basisQuestions = payrollBasisQuestions(definitions, selectedItems);
+  const basisSalaryKey = JSON.stringify(lines.filter(line => line.kind === 'earning'));
+  const basisNeedsReview = basisApprovedSalary !== null && basisApprovedSalary !== basisSalaryKey &&
+    basisQuestions.some(question => question.field === 'basisCents' && !automaticBases.has(question.definitionId));
   const currentCalculationFingerprint = useMemo(
     () =>
       payrollCalculationFingerprint({
@@ -438,7 +450,7 @@ export function DetailedPayslipForm({
       screen: 'Création de fiche de salaire',
       scope: `paie:${employeeId}:${period}`,
       facts: {
-        Étape: [
+        Étape: editingBases ? 'Montants soumis aux assurances, une question à la fois' : preparing ? 'Préparation guidée des réglages manquants' : [
           'Collaborateur et période',
           'Salaire et cotisations',
           'Vérification',
@@ -575,6 +587,7 @@ export function DetailedPayslipForm({
     checked: boolean,
   ) {
     invalidateCalculation();
+    if (!checked) setAutomaticBases(current => new Set([...current].filter(id => id !== definition.id)));
     setSelections((current) => {
       if (!checked) {
         const next = { ...current };
@@ -662,7 +675,8 @@ export function DetailedPayslipForm({
     }
     invalidateCalculation();
     setSelections((current) => {
-      if (!matchesSharedStatutoryCategory(definition.category)) {
+      if (!matchesSharedStatutoryCategory(definition.category) ||
+          (definition.category !== 'ac' && !Object.prototype.hasOwnProperty.call(patch, 'basisCents'))) {
         return {
           ...current,
           [id]: { ...current[id], ...patch },
@@ -710,6 +724,8 @@ export function DetailedPayslipForm({
     automaticProposalApplied.current = false;
     setSelections({});
     setAutomaticBases(new Set());
+    setBasisApprovedSalary(null);
+    setHourlyPending(false);
     invalidateCalculation();
     setEmployeeId(id);
     // Never carry another employee's salary or manual deductions into a new slip.
@@ -774,9 +790,21 @@ export function DetailedPayslipForm({
     setAutomaticBases(automatic);
   }
 
+  function requireHourlyAmount() {
+    if (!hourlyPending) return false;
+    setPreparing(false);
+    setStep(1);
+    setLocalError('Les heures ou le tarif ont changé. Cliquez sur « Utiliser ce montant » pour mettre à jour le salaire brut.');
+    return true;
+  }
+
   async function nextStep() {
     setLocalError('');
-    if (formRef.current && !fieldGuide.check(formRef.current)) return;
+    // Entry fields come first. Missing insurance bases have their own guided step.
+    const entry = formRef.current?.querySelector<HTMLElement>(
+      step === 0 ? '[data-payroll-step="0"]' : '[data-payroll-salary-entry]',
+    );
+    if (entry && !fieldGuide.check(entry)) return;
     if (step === 0) {
       const fields = formRef.current?.querySelectorAll<
         HTMLInputElement | HTMLSelectElement
@@ -794,6 +822,7 @@ export function DetailedPayslipForm({
       setStep(1);
       return;
     }
+    if (requireHourlyAmount()) return;
     if (
       totals.earnings <= 0 ||
       lines.some(
@@ -808,6 +837,15 @@ export function DetailedPayslipForm({
       );
       return;
     }
+    if (eligibility.blockers.length) {
+      setPreparing(true);
+      return;
+    }
+    if (basisQuestions.some(missingPayrollBasis) || basisNeedsReview) {
+      fieldGuide.clear();
+      setEditingBases(true);
+      return;
+    }
     const invalid = formRef.current?.querySelector<
       HTMLInputElement | HTMLSelectElement
     >('[data-payroll-step="1"] :invalid');
@@ -818,10 +856,6 @@ export function DetailedPayslipForm({
         parent = parent.parentElement;
       }
       invalid.reportValidity();
-      return;
-    }
-    if (eligibility.blockers.length) {
-      setPreparing(true);
       return;
     }
     if (
@@ -837,8 +871,13 @@ export function DetailedPayslipForm({
 
   async function calculate() {
     if (calculating || loadingRates || busy) return false;
+    if (requireHourlyAmount()) return false;
     setLocalError('');
     setCalculationError('');
+    if (basisQuestions.some(missingPayrollBasis) || basisNeedsReview) {
+      setEditingBases(true);
+      return false;
+    }
     if (usesGuidedBasis && guidedBasis.amountCents === undefined) {
       setCalculationError(
         'Ce salaire contient plusieurs éléments. Renseignez la base de chaque cotisation dans le détail, puis relancez le calcul.',
@@ -927,6 +966,7 @@ export function DetailedPayslipForm({
       !loadingRates &&
       !existingBlocked);
   async function saveSalaryDraft() {
+    if (requireHourlyAmount()) return;
     if (
       !canSaveSalaryDraft ||
       busy ||
@@ -1047,7 +1087,18 @@ export function DetailedPayslipForm({
           }}
         />
       )}
-      <div hidden={setup !== null || preparing}>
+      {editingBases && !setup && (
+        <PayrollBasisGuide
+          questions={basisQuestions}
+          grossCents={totals.earnings}
+          busy={busy || calculating}
+          reviewing={basisNeedsReview}
+          onConfirm={patchSelection}
+          onBack={() => setEditingBases(false)}
+          onComplete={() => { setBasisApprovedSalary(basisSalaryKey); setEditingBases(false); }}
+        />
+      )}
+      <div hidden={setup !== null || preparing || editingBases}>
         <form
           className="payroll-form payroll-wizard"
           ref={formRef}
@@ -1058,6 +1109,7 @@ export function DetailedPayslipForm({
               await nextStep();
               return;
             }
+            if (requireHourlyAmount()) return;
             setLocalError('');
             if (formRef.current && !fieldGuide.check(formRef.current)) return;
             if (!employeeId || !period) {
@@ -1175,7 +1227,7 @@ export function DetailedPayslipForm({
               {
                 [
                   'À qui versez-vous ce salaire ?',
-                  'Qu’est-ce qui change ce mois-ci ?',
+                  employee?.salaryMode === 'hourly' ? 'Quel salaire versez-vous ce mois-ci ?' : 'Qu’est-ce qui change ce mois-ci ?',
                   'Vérifiez, puis enregistrez.',
                 ][step]
               }
@@ -1184,7 +1236,11 @@ export function DetailedPayslipForm({
               {
                 [
                   'Choisissez la personne et le mois. Ses informations déjà enregistrées sont reprises.',
-                  'Le salaire habituel est prérempli. Ajoutez seulement les compléments nécessaires.',
+                  employee?.salaryMode === 'hourly'
+                    ? 'Calculez le montant avec les heures travaillées, ou saisissez directement le salaire brut.'
+                    : primaryLine?.amountCents
+                      ? 'Le salaire habituel est prérempli. Ajoutez seulement les compléments nécessaires.'
+                      : 'Indiquez le salaire brut prévu au contrat, puis les éventuels compléments du mois.',
                   'Le net à payer et les points à compléter sont réunis ici.',
                 ][step]
               }
@@ -1350,6 +1406,17 @@ export function DetailedPayslipForm({
             hidden={step !== 1}
             disabled={step !== 1 || busy}
           >
+            <div data-payroll-salary-entry>
+            {employee?.salaryMode === 'hourly' && (
+              <PayrollHourlySalary key={employeeId} busy={busy || calculating} onPendingChange={setHourlyPending} onApply={(amountCents, label) => {
+                setLocalError('');
+                if (primaryLine) updateLine(primaryLine.id, { amountCents, label });
+                else {
+                  setLines(current => [{ id: createId(), kind: 'earning', amountCents, label }, ...current]);
+                  invalidateCalculation();
+                }
+              }} />
+            )}
             {primaryLine ? (
               <div className="payroll-salary">
                 <label>
@@ -1665,6 +1732,7 @@ export function DetailedPayslipForm({
                 </a>
               </div>
             </details>
+            </div>
             <section className="payroll-selection" data-payroll-selection>
               <header>
                 <div>
@@ -1744,6 +1812,10 @@ export function DetailedPayslipForm({
                     et les remboursements ne se traitent pas tous comme du
                     salaire.
                   </p>
+                  {basisQuestions.length > 0 && <Button type="button" variant="secondary" disabled={busy || calculating}
+                    onClick={() => { fieldGuide.clear(); setEditingBases(true); }}>
+                    Me guider pour les montants à déclarer
+                  </Button>}
                 </div>
               ) : null}
               <details
