@@ -133,8 +133,8 @@ export default function DownloadPage() {
           <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_PREVIEW_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Votre première fiche, une étape à la fois.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Choisissez le collaborateur et indiquez le salaire. Zentra vous guide ensuite pour chaque information manquante, avec le document à consulter et le bon écran à ouvrir. Les deux parts de pension se complètent ensemble. Un document manque ? Gardez un brouillon et reprenez plus tard. Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Pour une version plus ancienne, téléchargez l’installateur ci-contre.</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Le salaire du mois, simplement.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Indiquez le salaire du mois, puis suivez la prochaine action proposée. Les corrections se font une question à la fois, sans perdre vos montants ni vos notes. Calculez le net, vérifiez et enregistrez. Il vous manque une information ? Gardez le brouillon pour reprendre cette même fiche plus tard. Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Pour une version plus ancienne, téléchargez l’installateur ci-contre.</p>
             </div>
             <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
               <a href={ZENTRA_WINDOWS_PREVIEW_PATH} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#315f47] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#173d2c]">
