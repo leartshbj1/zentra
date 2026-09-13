@@ -1,6 +1,6 @@
-import type { desktopApi } from './bridge';
+import type {CustomerSettlementInput} from './customerSettlementWorkflow';
 export type PendingCustomerCreditRequest = {
-  input: Parameters<typeof desktopApi.recordCustomerCreditSettlement>[0];
+  input: CustomerSettlementInput;
   reverseId?: string;
 };
 const key=(creditId:string)=>`zentra.customer-credit-request.v1.${creditId}`;
@@ -15,6 +15,10 @@ export function readCustomerCreditRequest(creditId:string):PendingCustomerCredit
       || !['date','reference','reason'].every((field)=>typeof input[field as keyof typeof input]==='string')
       || (input.invoiceId!==null&&typeof input.invoiceId!=='string') || (input.bankAccountId!==null&&typeof input.bankAccountId!=='string')
       || (value.reverseId!==undefined&&typeof value.reverseId!=='string')) return;
+    const review=input.expectedReview;
+    if(review!==undefined&&(!review||typeof review!=='object'||!Number.isSafeInteger(review.creditAvailableCents)||review.creditAvailableCents<0
+      || (review.invoiceBalanceCents!==null&&(!Number.isSafeInteger(review.invoiceBalanceCents)||review.invoiceBalanceCents<0))
+      || review.bankAccountId!==input.bankAccountId||typeof review.accountingEnabled!=='boolean')) return;
     return value;
   } catch {return;}
 }

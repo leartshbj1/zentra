@@ -1,3 +1,5 @@
+import {runCustomerSettlementMutation,requireCustomerSettlementReverseContext,type CustomerSettlementInput} from './customerSettlementWorkflow';
+import type {PendingCustomerCreditRequest} from './customerCreditRequest';
 import { runPaymentMutation, type PaymentReview } from './paymentWorkflow';
 import { runSupplierRefundMutation, type SupplierRefundReview } from './supplierRefundWorkflow';
 import { runCreditAllocationMutation, type CreditBalances } from './creditAllocationWorkflow';
@@ -2508,7 +2510,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       })(),
       creditRecovery: creditRecoveryById.get(stringValue(row.id)),
       creditSettlements: (raw.customer_credit_settlements ?? []).filter((event)=>event.credit_note_id===row.id || event.invoice_id===row.id).map((event)=>({
-        id:stringValue(event.id),creditNoteId:stringValue(event.credit_note_id),invoiceId:stringValue(event.invoice_id)||null,
+        id:stringValue(event.id),requestId:stringValue(event.request_id),creditNoteId:stringValue(event.credit_note_id),invoiceId:stringValue(event.invoice_id)||null,
         eventType:stringValue(event.event_type) as NonNullable<Invoice['creditSettlements']>[number]['eventType'],
         date:stringValue(event.date),amountCents:numberValue(event.amount_cents),reference:stringValue(event.reference),reason:stringValue(event.reason),
         reversesId:stringValue(event.reverses_id)||null,bankAccountId:stringValue(event.bank_account_id)||null,
@@ -5994,18 +5996,14 @@ export const desktopApi = {
     await invoke('adopt_customer_credit_recovery',{input:customerRecoveryNativeInput(input)});
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
-  async recordCustomerCreditSettlement(input: {
-    requestId: string; creditNoteId: string; eventType: 'apply' | 'refund'; invoiceId: string | null;
-    date: string; amountCents: number; bankAccountId: string | null; reference: string; reason: string;
-  }) {
-    await invoke('record_customer_credit_settlement',{input:{request_id:input.requestId,credit_note_id:input.creditNoteId,
-      event_type:input.eventType,invoice_id:input.invoiceId,date:input.date,amount_cents:input.amountCents,
-      bank_account_id:input.bankAccountId,reference:input.reference.trim(),reason:input.reason.trim()}});
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async recordCustomerCreditSettlement(input:CustomerSettlementInput):Promise<Workspace> {
+    return runCustomerSettlementMutation({input},()=>invoke('record_customer_credit_settlement',{input:{request_id:input.requestId,credit_note_id:input.creditNoteId,event_type:input.eventType,invoice_id:input.invoiceId,date:input.date,amount_cents:input.amountCents,bank_account_id:input.bankAccountId,reference:input.reference.trim(),reason:input.reason.trim()},...(input.expectedReview?{expectedReview:input.expectedReview}:{})}),loadWorkspace);
   },
-  async reverseCustomerCreditSettlement(input: {requestId: string; settlementId: string; date: string; reason: string}) {
-    await invoke('reverse_customer_credit_settlement',{input:{request_id:input.requestId,settlement_id:input.settlementId,date:input.date,reason:input.reason.trim()}});
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async reverseCustomerCreditSettlement(input:{requestId:string;settlementId:string;date:string;reason:string;context?:PendingCustomerCreditRequest}):Promise<Workspace> {
+    requireCustomerSettlementReverseContext(input);
+    const write=()=>invoke('reverse_customer_credit_settlement',{input:{request_id:input.requestId,settlement_id:input.settlementId,date:input.date,reason:input.reason.trim()},...(input.context?.input.expectedReview?{expectedReview:input.context.input.expectedReview}:{})});
+    if(input.context)return runCustomerSettlementMutation(input.context,write,loadWorkspace);
+    await write();return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async recordSupplierCreditRefund(input: { requestId: string; supplierCreditNoteId: string; date: string; amountCents: number; reference: string; reason: string; expectedReview?: SupplierRefundReview }) {
     return runSupplierRefundMutation({kind:'refund',requestId:input.requestId,creditId:input.supplierCreditNoteId,date:input.date,amountCents:input.amountCents,reference:input.reference.trim(),reason:input.reason.trim()}, () => invoke('record_supplier_credit_refund',{input:{request_id:input.requestId,supplier_credit_note_id:input.supplierCreditNoteId,date:input.date,amount_cents:input.amountCents,reference:input.reference.trim(),reason:input.reason.trim()},...(input.expectedReview?{expectedReview:input.expectedReview}:{})}),loadWorkspace);

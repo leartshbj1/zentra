@@ -15,4 +15,10 @@ describe('pending customer credit operations',()=>{
     vi.stubGlobal('localStorage',{getItem(){throw new Error('storage unavailable')},setItem(){throw new Error('storage unavailable')},removeItem(){throw new Error('storage unavailable')}});
     expect(readCustomerCreditRequest('credit-1')).toBeUndefined();expect(()=>saveCustomerCreditRequest(request)).toThrow('storage unavailable');expect(()=>clearCustomerCreditRequest('credit-1')).not.toThrow();
   });
+  it('retains the reviewed balances and refuses incomplete or inconsistent review data',()=>{
+    const values=storage(),key='zentra.customer-credit-request.v1.credit-1';
+    const expectedReview={creditAvailableCents:5405,invoiceBalanceCents:null,bankAccountId:'bank',accountingEnabled:true};
+    const pending={...request,input:{...request.input,expectedReview}};saveCustomerCreditRequest(pending);expect(readCustomerCreditRequest('credit-1')).toEqual(pending);
+    for(const review of [{},null,{...expectedReview,bankAccountId:'other'},{...expectedReview,creditAvailableCents:-1},{...expectedReview,invoiceBalanceCents:1.1},{...expectedReview,accountingEnabled:'true'}]){values.set(key,JSON.stringify({...request,input:{...request.input,expectedReview:review}}));expect(readCustomerCreditRequest('credit-1')).toBeUndefined();}
+  });
 });

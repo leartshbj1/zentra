@@ -848,3 +848,37 @@ fn customer_credit_cannot_reuse_the_deposit_deducted_from_a_balance_invoice() {
         -20_795
     );
 }
+
+
+#[test]
+fn customer_credit_review_preserves_balances_and_exact_replays_for_all_settlements() {
+    use crate::customer_credit_settlements::{CustomerSettlementReview,ReverseCustomerCreditSettlementInput};
+    let (_temp,store,client)=fixture();
+    received(&store);
+    let sale=document(&store,&client,None,&[(10000,810)]);issue(&store,&sale,"2026-02-01").unwrap();pay(&store,&sale,10810,"2026-02-15");
+    let credit=document(&store,&client,Some(&sale),&[(5000,810)]);issue(&store,&credit,"2026-03-01").unwrap();
+    let target=document(&store,&client,None,&[(10000,810)]);issue(&store,&target,"2026-03-01").unwrap();
+    let refund=refund_input(&store,&credit,1025,"2026-04-01");
+    let review=CustomerSettlementReview{credit_available_cents:5405,invoice_balance_cents:None,bank_account_id:refund.bank_account_id.clone(),accounting_enabled:true};
+    let connection=store.connect().unwrap();let before:i64=connection.query_row("SELECT COUNT(*) FROM journal_entries",[],|row|row.get(0)).unwrap();
+    for wrong in [CustomerSettlementReview{credit_available_cents:5404,..review.clone()},CustomerSettlementReview{bank_account_id:None,..review.clone()},CustomerSettlementReview{accounting_enabled:false,..review.clone()}] {assert!(store.record_customer_credit_settlement_checked(refund.clone(),Some(&wrong)).unwrap_err().to_string().contains("changé depuis"));}
+    assert_eq!(connection.query_row("SELECT COUNT(*) FROM journal_entries",[],|row|row.get::<_,i64>(0)).unwrap(),before);
+    let first=store.record_customer_credit_settlement_checked(refund.clone(),Some(&review)).unwrap();
+    assert_eq!(first["balance"]["remaining_cents"],4380);
+    assert_eq!(store.record_customer_credit_settlement_checked(refund.clone(),Some(&review)).unwrap()["settlement"]["id"],first["settlement"]["id"]);
+    let apply=crate::customer_credit_settlements::CustomerCreditSettlementInput{request_id:uuid::Uuid::new_v4().to_string(),event_type:"apply".into(),invoice_id:Some(target.clone()),bank_account_id:None,amount_cents:1000,..refund};
+    let applied_review=CustomerSettlementReview{credit_available_cents:4380,invoice_balance_cents:Some(10810),bank_account_id:None,accounting_enabled:true};
+    let wrong=CustomerSettlementReview{invoice_balance_cents:Some(10809),..applied_review.clone()};assert!(store.record_customer_credit_settlement_checked(apply.clone(),Some(&wrong)).is_err());
+    let applied=store.record_customer_credit_settlement_checked(apply.clone(),Some(&applied_review)).unwrap();assert_eq!(applied["balance"]["remaining_cents"],3380);
+    assert_eq!(store.record_customer_credit_settlement_checked(apply,Some(&applied_review)).unwrap()["settlement"]["id"],applied["settlement"]["id"]);
+    let reverse_apply=ReverseCustomerCreditSettlementInput{request_id:uuid::Uuid::new_v4().to_string(),settlement_id:applied["settlement"]["id"].as_str().unwrap().into(),date:"2026-04-02".into(),reason:"Erreur".into()};
+    assert!(store.reverse_customer_credit_settlement_checked(reverse_apply.clone(),Some(&applied_review)).is_err());
+    let reverse_review=CustomerSettlementReview{credit_available_cents:3380,invoice_balance_cents:Some(9810),..applied_review};
+    let reversed=store.reverse_customer_credit_settlement_checked(reverse_apply.clone(),Some(&reverse_review)).unwrap();assert_eq!(reversed["balance"]["remaining_cents"],4380);
+    assert_eq!(store.reverse_customer_credit_settlement_checked(reverse_apply,Some(&reverse_review)).unwrap()["settlement"]["id"],reversed["settlement"]["id"]);
+    let reverse_refund=ReverseCustomerCreditSettlementInput{request_id:uuid::Uuid::new_v4().to_string(),settlement_id:first["settlement"]["id"].as_str().unwrap().into(),date:"2026-04-03".into(),reason:"Erreur".into()};
+    let final_review=CustomerSettlementReview{credit_available_cents:4380,..review};
+    assert_eq!(store.reverse_customer_credit_settlement_checked(reverse_refund,Some(&final_review)).unwrap()["balance"]["remaining_cents"],5405);
+    assert_eq!(connection.query_row("SELECT COUNT(*) FROM customer_credit_settlements",[],|row|row.get::<_,i64>(0)).unwrap(),4);
+    assert_eq!(store.verify_audit_log().unwrap()["valid"],true);
+}

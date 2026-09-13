@@ -38,6 +38,15 @@ pub struct ReverseCustomerCreditSettlementInput {
     pub reason: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all="camelCase", deny_unknown_fields)]
+pub struct CustomerSettlementReview {
+    pub credit_available_cents:i64,
+    pub invoice_balance_cents:Option<i64>,
+    pub bank_account_id:Option<String>,
+    pub accounting_enabled:bool,
+}
+
 fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
 }
@@ -279,10 +288,14 @@ impl LocalStore {
         &self,
         input: CustomerCreditSettlementInput,
     ) -> AppResult<Value> {
+        self.record_customer_credit_settlement_checked(input,None)
+    }
+
+    pub fn record_customer_credit_settlement_checked(&self,input:CustomerCreditSettlementInput,expected:Option<&CustomerSettlementReview>)->AppResult<Value>{
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let result = record(&tx, input, None, None)?;
+        let result = record_inner(&tx,input,None,None,false,expected)?;
         tx.commit()?;
         Ok(result)
     }
@@ -291,6 +304,10 @@ impl LocalStore {
         &self,
         input: ReverseCustomerCreditSettlementInput,
     ) -> AppResult<Value> {
+        self.reverse_customer_credit_settlement_checked(input,None)
+    }
+
+    pub fn reverse_customer_credit_settlement_checked(&self,input:ReverseCustomerCreditSettlementInput,expected:Option<&CustomerSettlementReview>)->AppResult<Value>{
         let input = ReverseCustomerCreditSettlementInput {
             request_id: request(&input.request_id)?,
             settlement_id: text(&input.settlement_id, "Le règlement", 1, 255)?,
@@ -309,7 +326,7 @@ impl LocalStore {
         if !matches!(event, "apply" | "refund") {
             return Err(invalid("Seul le règlement d’origine peut être extourné."));
         }
-        let result = record(
+        let result = record_inner(
             &tx,
             CustomerCreditSettlementInput {
                 request_id: input.request_id,
@@ -327,6 +344,8 @@ impl LocalStore {
             },
             Some(&input.settlement_id),
             Some(payload),
+            false,
+            expected,
         )?;
         tx.commit()?;
         Ok(result)
@@ -356,15 +375,15 @@ pub(crate) fn record(
     reverses: Option<&str>,
     payload: Option<String>,
 ) -> AppResult<Value> {
-    record_inner(tx,input,reverses,payload,false)
+    record_inner(tx,input,reverses,payload,false,None)
 }
 
 /// Only the atomic legacy recovery may insert verified applications before old payments.
 pub(crate) fn record_recovery(tx:&Transaction<'_>,input:CustomerCreditSettlementInput,reverses:Option<&str>,payload:Option<String>)->AppResult<Value> {
     if input.event_type!="apply" || reverses.is_some() || input.invoice_id.as_deref().is_none_or(|i|!crate::customer_credit_recovery_vat::is_received(tx,i).unwrap_or(false)) {return Err(invalid("La reprise historique doit être une imputation documentée."));}
-    record_inner(tx,input,reverses,payload,true)
+    record_inner(tx,input,reverses,payload,true,None)
 }
-fn record_inner(tx:&Transaction<'_>,input:CustomerCreditSettlementInput,reverses:Option<&str>,payload:Option<String>,recovery:bool)->AppResult<Value> {
+fn record_inner(tx:&Transaction<'_>,input:CustomerCreditSettlementInput,reverses:Option<&str>,payload:Option<String>,recovery:bool,expected:Option<&CustomerSettlementReview>)->AppResult<Value> {
     let input = CustomerCreditSettlementInput {
         request_id: request(&input.request_id)?,
         credit_note_id: text(&input.credit_note_id, "L’avoir", 1, 255)?,
@@ -415,6 +434,13 @@ fn record_inner(tx:&Transaction<'_>,input:CustomerCreditSettlementInput,reverses
     }
     let through=if recovery {input.date.as_str()} else {"9999-12-31"};
     let credit = project(tx, &input.credit_note_id, through)?;
+    if let Some(expected)=expected {
+        let invoice_balance=input.invoice_id.as_deref().map(|id|project(tx,id,through)?.remaining()).transpose()?;
+        let enabled:bool=tx.query_row("SELECT COALESCE((SELECT enabled FROM accounting_settings WHERE id=1),0)",[],|row|row.get(0))?;
+        if credit.remaining()?!=expected.credit_available_cents || invoice_balance!=expected.invoice_balance_cents || input.bank_account_id!=expected.bank_account_id || enabled!=expected.accounting_enabled {
+            return Err(invalid("Les soldes ou la comptabilisation ont changé depuis votre vérification. Actualisez les factures et relisez le règlement."));
+        }
+    }
     let credit_parts = parts(&credit, input.amount_cents, reverses)?;
     let invoice_parts = if let Some(invoice) = input.invoice_id.as_deref() {
         Some(parts(

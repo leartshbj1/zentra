@@ -642,17 +642,17 @@ pub fn adopt_customer_credit_recovery(state:State<'_,LocalStore>,input:crate::cu
     state.adopt_customer_credit_recovery(input).map_err(command_error)
 }
 #[tauri::command]
-pub fn record_customer_credit_settlement(state: State<'_,LocalStore>,input:crate::customer_credit_settlements::CustomerCreditSettlementInput)->Result<Value,String> {
+pub fn record_customer_credit_settlement(state: State<'_,LocalStore>,input:crate::customer_credit_settlements::CustomerCreditSettlementInput,expected_review:Option<crate::customer_credit_settlements::CustomerSettlementReview>)->Result<Value,String> {
     let _guard=state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.record_customer_credit_settlement(input).map_err(command_error)
+    state.record_customer_credit_settlement_checked(input,expected_review.as_ref()).map_err(command_error)
 }
 
 #[tauri::command]
-pub fn reverse_customer_credit_settlement(state: State<'_,LocalStore>,input:crate::customer_credit_settlements::ReverseCustomerCreditSettlementInput)->Result<Value,String> {
+pub fn reverse_customer_credit_settlement(state: State<'_,LocalStore>,input:crate::customer_credit_settlements::ReverseCustomerCreditSettlementInput,expected_review:Option<crate::customer_credit_settlements::CustomerSettlementReview>)->Result<Value,String> {
     let _guard=state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.reverse_customer_credit_settlement(input).map_err(command_error)
+    state.reverse_customer_credit_settlement_checked(input,expected_review.as_ref()).map_err(command_error)
 }
 
 #[tauri::command]

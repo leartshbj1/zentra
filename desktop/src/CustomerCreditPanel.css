@@ -40,3 +40,13 @@
   .customer-credit-form .form-grid { grid-template-columns:minmax(0,1fr); }
 }
 @media(prefers-reduced-motion:reduce) { .customer-credit-form {animation:none;} }
+
+.customer-settlement-form { min-width:0; }
+.customer-settlement-form .form-actions { position:sticky; bottom:-24px; padding:12px 0; background:var(--paper); z-index:3; }
+.customer-settlement-form .credit-allocation-balances p { color:inherit; }
+.customer-settlement-form summary { min-height:44px; padding:10px 0; cursor:pointer; }
+@media(max-width:900px) { .customer-settlement-form .form-actions { bottom:calc(-1 * max(16px,env(safe-area-inset-bottom))); } }
+
+.customer-settlement-form__amount { display:grid; gap:6px; margin-bottom:16px; }
+.customer-settlement-form__amount span { font-size:.875rem; color:var(--muted); }
+.customer-settlement-form__amount strong { font-size:1.7rem; line-height:1.3; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }

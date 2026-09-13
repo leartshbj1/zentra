@@ -12,7 +12,7 @@ try {
     const page=await browser.newPage({viewport:{width,height:900},hasTouch:width<800});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));page.setDefaultTimeout(15000);
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&customerSettlements=1&lostReply=1`,{waitUntil:'domcontentloaded',timeout:60000});
-    if(width>860) await page.getByRole('button',{name:'Ne plus afficher automatiquement',exact:true}).click();
+    await page.getByRole('button',{name:'Fermer le guide automatique',exact:true}).click();
     await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();
     await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Factures');
     await page.locator('.navigation-palette__results button').filter({has:page.getByText('Factures',{exact:true})}).click();
@@ -24,9 +24,13 @@ try {
     await form.getByLabel('Date effective').fill('2026-04-01');
     await form.getByLabel('Référence bancaire').fill('BANK-CUSTOMER-REFUND');
     await form.getByLabel(/^Motif/).fill('Remboursement partiel versé au client');
+    await form.getByRole('button',{name:'Vérifier le règlement',exact:true}).click();
     await form.getByRole('button',{name:'Enregistrer le règlement',exact:true}).click();
     await form.getByRole('button',{name:'Vérifier la même demande',exact:true}).waitFor();
-    assert.equal(await form.getByLabel('Montant (CHF)').isDisabled(),true);
+    assert.equal(await form.getByLabel('Montant (CHF)').count(),0);
+    await form.getByText(/BANK-CUSTOMER-REFUND/).waitFor();
+    // Wait for the first attempt to finish; dismissal is intentionally blocked during a write.
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Vérifier la même demande'&&!b.disabled));
     // Closing and reopening the dossier must resume the same pending command.
     await page.keyboard.press('Escape');
     await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).click();
@@ -34,7 +38,7 @@ try {
     await form.getByRole('button',{name:'Vérifier la même demande',exact:true}).click();
     await form.waitFor({state:'detached'});
     const requests=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('customer-settlement-requests')));
-    assert.equal(requests.length,2);assert.equal(requests[0],requests[1]);
+    assert.equal(requests.length,1); // Recovery reads the existing event without another write.
     assert.equal(await page.evaluate(()=>sessionStorage.getItem('customer-settlement-count')),'1');
     assert.equal(await page.evaluate(()=>localStorage.getItem('zentra.customer-credit-request.v1.customer-settlement-credit')),null);
     await panel.locator('summary').click();
@@ -50,6 +54,7 @@ try {
     await panel.getByRole('button',{name:'Corriger',exact:true}).click();
     await panel.getByLabel('Date de correction').fill('2026-04-02');
     await panel.getByLabel(/^Motif/).fill('Virement retourné par la banque');
+    await panel.getByRole('button',{name:'Vérifier le règlement',exact:true}).click();
     await panel.getByRole('button',{name:'Enregistrer la correction',exact:true}).click();
     await panel.locator('form').waitFor({state:'detached'});
     assert.equal(await panel.getByText('Remboursement annulé',{exact:true}).count(),1);
@@ -64,6 +69,7 @@ try {
     await panel.getByLabel(/^Motif/).fill('Déduction sur la prochaine prestation');
     await page.screenshot({path:new URL(`form-${width}.png`,out).pathname.replace(/^\/([A-Za-z]:)/,'$1')});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await panel.getByRole('button',{name:'Vérifier le règlement',exact:true}).click();
     await panel.getByRole('button',{name:'Enregistrer le règlement',exact:true}).click();
     await panel.locator('form').waitFor({state:'detached'});
     assert.equal(await panel.getByText('Déduit d’une facture',{exact:true}).count(),1);
@@ -92,7 +98,7 @@ try {
     const page=await browser.newPage({viewport:{width,height:900}});
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&customerSettlements=1&readOnly=1`,{waitUntil:'domcontentloaded',timeout:60000});
-    if(width>860)await page.getByRole('button',{name:'Ne plus afficher automatiquement',exact:true}).click();
+    await page.getByRole('button',{name:'Fermer le guide automatique',exact:true}).click();
     await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Factures');
     await page.locator('.navigation-palette__results button').filter({has:page.getByText('Factures',{exact:true})}).click();
     await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).click();

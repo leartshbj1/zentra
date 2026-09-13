@@ -1,3 +1,4 @@
+import {CustomerSettlementOutcomeUnknownError,CustomerSettlementRefreshError} from './customerSettlementWorkflow';
 import { PaymentForm } from './PaymentForm';
 import { PaymentOutcomeUnknownError, PaymentRefreshError } from './paymentWorkflow';
 import { SupplierRefundOutcomeUnknownError, SupplierRefundRefreshError } from './supplierRefundWorkflow';
@@ -948,8 +949,8 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError || reason instanceof PaymentOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError) reason.validateRead(value); validateRead?.(value); };
+      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError || reason instanceof PaymentOutcomeUnknownError || reason instanceof CustomerSettlementOutcomeUnknownError ? reason : null;
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError || reason instanceof CustomerSettlementRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
@@ -2369,6 +2370,7 @@ export function WorkspaceApp({
             setView('accounting');
             setSearch('');
           }}
+          onOpenBank={()=>{setModal(null);setView('bank');setSearch('');}}
           onConvertQuote={convertAcceptedQuote}
           onCreateInvoiceCorrection={createInvoiceCorrection}
           onIssueInvoice={issueInvoice}
@@ -6241,6 +6243,7 @@ function WorkspaceModal({
   act,
   onOpenInvoices,
   onOpenAccounting,
+  onOpenBank,
   onConvertQuote,
   onCreateInvoiceCorrection,
   onIssueInvoice,
@@ -6256,6 +6259,7 @@ function WorkspaceModal({
   replace: Dispatch<SetStateAction<ModalState>>;
   act: ActionRunner;
   onOpenInvoices: () => void;
+  onOpenBank: () => void;
   onOpenAccounting: (section?: 'accounts' | 'periods') => void;
   onConvertQuote: (
     quote: Quote,
@@ -6337,6 +6341,8 @@ function WorkspaceModal({
   if (state.type === 'document')
     return (
       <DocumentEditor
+        onReadWorkspace={onReadWorkspace}
+        onOpenSettlementHelp={destination=>destination==='bank'?onOpenBank():onOpenAccounting(destination)}
         entity={state.entity}
         initialProject={state.initialProject}
         initialStep={state.initialStep}

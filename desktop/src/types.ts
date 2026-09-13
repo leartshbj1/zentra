@@ -473,6 +473,7 @@ export type InvoiceType =
   | 'credit_note';
 
 export type CustomerCreditSettlement = {
+  requestId?: string;
   id: string; creditNoteId: string; invoiceId: string | null;
   eventType: 'apply' | 'refund' | 'reverse_apply' | 'reverse_refund';
   date: string; amountCents: number; reference: string; reason: string;

@@ -57,3 +57,19 @@ La virgule et le point sont acceptés. Un montant trop élevé, une date impossi
 Un compte manquant ou une période fermée donne accès à la comptabilité. Après cette navigation, retrouvez la facture pour préparer à nouveau le paiement. Le message natif complet reste consultable. Une facture retirée des données courantes n’est pas remplacée par une ancienne copie.
 
 Si l’enregistrement ou sa relecture est interrompu, utilisez la vérification proposée. Zentra recherche la même demande, son contenu et sa preuve comptable ; la reprise ne renvoie pas le paiement. Une lecture vide ou sans preuve reste à reprendre. Cette interface est vérifiée avec des données de recette ; les nouveaux contrôles natifs nécessitent une nouvelle compilation de l’application.
+
+
+## Déduire ou rembourser un avoir client
+
+Ouvrez l’avoir dans **Factures**, ou retrouvez-le depuis sa facture liée. **Déduire d’une facture** réduit une facture émise du même client et dans la même monnaie. **Enregistrer un remboursement** sert à noter un virement déjà versé au client ; Zentra n’envoie pas ce virement.
+
+1. Choisissez la facture, ou le compte depuis lequel vous avez remboursé le client. Les factures les plus récentes sont proposées en premier. La référence de la facture se remplit automatiquement tant que vous ne l’avez pas remplacée.
+2. Indiquez le montant réellement utilisé ou versé et sa date. Le montant commence vide ; **Utiliser le maximum** le remplit sans enregistrer. Une référence et une courte explication suffisent. Les erreurs restent indiquées sous leur champ.
+3. Choisissez **Vérifier le règlement**. Le montant de l’opération et les soldes avant/après sont présentés avant confirmation. **Modifier** retrouve votre saisie.
+4. Confirmez avec **Enregistrer le règlement**. Si un solde a changé entre-temps, actualisez les factures et reprenez la vérification.
+
+Dans l’historique, **Corriger** conserve le montant et la référence du règlement initial. Indiquez la date réelle de correction et une courte explication, vérifiez son effet puis enregistrez. Les règlements initiaux et leurs justificatifs restent présents. Un règlement rapproché donne accès directement à **Banque** pour vérifier le lien avant la correction. Un problème d’exercice ou de compte donne accès au réglage concerné. Après avoir quitté ce formulaire pour ces réglages, retrouvez l’avoir et préparez à nouveau l’opération.
+
+Si la réponse est interrompue, la demande exacte reste conservée même après fermeture du dossier ou de l’app. **Vérifier la même demande** relit son historique. Si elle y figure avec les bons montants et sa preuve comptable, la reprise se termine sans nouvel envoi. Sinon, **Reprendre la même demande** renvoie le même identifiant et le même contenu. Les soldes après opération ne sont pas simulés pendant cette attente. Une lecture interrompue garde la reprise ouverte. La consultation et cette vérification restent accessibles en lecture seule ; les écritures sont désactivées.
+
+Lorsque la comptabilité est inactive, le parcours l’indique et conserve le fonctionnement existant des règlements à comptabiliser. Aucun calcul fiscal ni schéma de base n’est changé. Recette : `desktop/tests/customer-settlement-guided-journey.mjs` et `desktop/tests/customer-credit-settlement-journey.mjs`. Ces changements nécessitent une nouvelle compilation native ; aucun nouvel installateur n’est publié dans ce lot.

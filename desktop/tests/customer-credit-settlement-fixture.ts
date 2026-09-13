@@ -21,7 +21,7 @@ export function installCustomerCreditSettlementFixture(get:()=>Workspace) {
       current.customerCredit!.remainingCents-=input.amountCents;
       if(input.eventType==='refund')current.customerCredit!.refundedCents+=input.amountCents;
       else {current.customerCredit!.allocatedCents+=input.amountCents;data.invoices.find((item)=>item.id===input.invoiceId)!.creditedCents!+=input.amountCents;}
-      current.creditSettlements!.unshift({id:input.requestId,creditNoteId:credit.id,invoiceId:input.invoiceId,eventType:input.eventType,date:input.date,amountCents:input.amountCents,reference:input.reference,reason:input.reason,reversesId:null,bankAccountId:input.bankAccountId,journalEntryId:`journal-${input.requestId}`,journalValid:true});
+      current.creditSettlements!.unshift({id:input.requestId,requestId:input.requestId,creditNoteId:credit.id,invoiceId:input.invoiceId,eventType:input.eventType,date:input.date,amountCents:input.amountCents,reference:input.reference,reason:input.reason,reversesId:null,bankAccountId:input.bankAccountId,journalEntryId:`journal-${input.requestId}`,journalValid:true});
     }
     sessionStorage.setItem('customer-settlement-count',String(saved.size));
     if(new URLSearchParams(location.search).has('lostReply')&&!lost){lost=true;throw new Error('Réponse interrompue après enregistrement du règlement.');}
@@ -34,7 +34,7 @@ export function installCustomerCreditSettlementFixture(get:()=>Workspace) {
       current.customerCredit!.remainingCents+=original.amountCents;
       if(original.eventType==='refund')current.customerCredit!.refundedCents-=original.amountCents;
       else {current.customerCredit!.allocatedCents-=original.amountCents;data.invoices.find((item)=>item.id===original.invoiceId)!.creditedCents!-=original.amountCents;}
-      current.creditSettlements!.unshift({...original,id:input.requestId,eventType:original.eventType==='apply'?'reverse_apply':'reverse_refund',date:input.date,reason:input.reason,reversesId:original.id});
+      current.creditSettlements!.unshift({...original,id:input.requestId,requestId:input.requestId,eventType:original.eventType==='apply'?'reverse_apply':'reverse_refund',date:input.date,reason:input.reason,reversesId:original.id});
     }
     return structuredClone(data);
   };

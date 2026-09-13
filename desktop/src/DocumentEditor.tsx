@@ -62,6 +62,8 @@ export function DocumentEditor({
   readOnly = false,
   close,
   act,
+  onReadWorkspace = async()=>{throw Error("Fermez et rouvrez ce document pour actualiser les règlements.");},
+  onOpenSettlementHelp = ()=>{},
 }: {
   entity: 'quotes' | 'invoices';
   item?: Quote | Invoice;
@@ -74,6 +76,8 @@ export function DocumentEditor({
   readOnly?: boolean;
   close: () => void;
   act: ActionRunner;
+  onReadWorkspace?:()=>Promise<Workspace>;
+  onOpenSettlementHelp?:(destination:'accounts'|'periods'|'bank')=>void;
 }) {
   const settings = workspace.settings!;
   const unitsId = useId();
@@ -427,7 +431,7 @@ export function DocumentEditor({
       className={!isLocked ? "document-editor-dialog" : undefined}
       wide
     >
-      {currentInvoice && currentInvoice.status !== 'draft' && <CustomerCreditPanel invoice={currentInvoice} workspace={workspace} busy={busy} readOnly={readOnly} act={act}/>}
+      {currentInvoice && currentInvoice.status !== 'draft' && <CustomerCreditPanel invoice={currentInvoice} workspace={workspace} busy={busy} readOnly={readOnly} act={act} onReadWorkspace={onReadWorkspace} onOpenHelp={onOpenSettlementHelp}/>}
       <CreditDocumentDetails collapse={hasCustomerCredit}>
       <form
         ref={formRef}
