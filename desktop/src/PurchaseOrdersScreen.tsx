@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { SupplierReceiptForm, IssueReceiptModal, ReverseReceiptModal } from './SupplierReceiptForms';
 import {
   AlertTriangle,
   ArrowRight,
@@ -36,7 +37,6 @@ import {
   supplierOrderLineProgress,
   supplierOrderNextAction,
   supplierOrderProgress,
-  supplierReceiptDateValidationError,
   supplierThreeWayMatchStatus,
 } from './purchaseOrderFlow';
 import type {
@@ -90,7 +90,7 @@ type PurchaseModal =
   | { type: 'confirm_order'; order: SupplierOrder }
   | { type: 'cancel_remainder'; order: SupplierOrder }
   | { type: 'receipt'; order: SupplierOrder; receipt?: SupplierReceipt }
-  | { type: 'issue_receipt'; receipt: SupplierReceipt }
+  | { type: 'issue_receipt'; receiptId: string }
   | { type: 'reverse_receipt'; receipt: SupplierReceipt }
   | { type: 'match'; order: SupplierOrder; invoice?: SupplierInvoice }
   | { type: 'credit'; invoice?: SupplierInvoice; credit?: SupplierCreditNote }
@@ -588,6 +588,8 @@ export function PurchaseOrdersScreen({
   onArchiveSupplier,
   onRestoreSupplier,
   onOpenAccounting,
+  onOpenCatalog,
+  onReadWorkspace,
 }: {
   openInvoiceMatchId?: string | null;
   onOpenInvoiceMatchHandled?: () => void;
@@ -613,7 +615,9 @@ export function PurchaseOrdersScreen({
   onEditSupplier: (supplier: Supplier) => void;
   onArchiveSupplier: (supplier: Supplier) => void;
   onRestoreSupplier: (supplier: Supplier) => void;
-  onOpenAccounting: () => void;
+  onOpenAccounting: (section?: 'accounts' | 'periods') => void;
+  onOpenCatalog: () => void;
+  onReadWorkspace: () => Promise<Workspace>;
 }) {
   const [section, setSection] = useState<PurchaseSection>('inbox');
   const [creditToReveal, setCreditToReveal] = useState<string | null>(null);
@@ -636,8 +640,10 @@ export function PurchaseOrdersScreen({
   }, [creditToReveal, section, query]);
   const [modal, setModalState] = useState<(NonNullable<PurchaseModal> & { requestId: string }) | null>(null);
   const [modalFailure, setModalFailure] = useState<{ requestId: string; message: string } | null>(null);
+  const localAction = useRef(false);
   const modalError = modal?.requestId === modalFailure?.requestId ? modalFailure?.message || '' : '';
   const setModal = (next: PurchaseModal) => {
+    if (localAction.current || busy) return;
     setModalState(next ? { ...next, requestId: createId() } : null);
     setModalFailure(null);
   };
@@ -735,7 +741,7 @@ export function PurchaseOrdersScreen({
           candidate.supplierOrderId === order.id &&
           candidate.status === 'draft',
       );
-      if (receipt) setModal({ type: 'issue_receipt', receipt });
+      if (receipt) setModal({ type: 'issue_receipt', receiptId: receipt.id });
     }
     if (action === 'match_invoice') {
       const draftInvoice = workspace.supplierInvoices.find(
@@ -753,12 +759,25 @@ export function PurchaseOrdersScreen({
   async function completeLocalAction(
     action: () => Promise<Workspace>,
     message: string,
+    nextModal: PurchaseModal = null,
   ) {
+    if (localAction.current || busy || readOnly) return false;
+    localAction.current = true;
     setModalFailure(null);
-    if (await runAction(action, message, false, modal ? (reason) => {
-      setModalFailure({ requestId: modal.requestId, message: errorMessage(reason, 'L’opération n’a pas pu être enregistrée.') });
-    } : undefined)) setModal(null);
+    try {
+      const success = await runAction(action, message, false, modal ? (reason) => {
+        setModalFailure({ requestId: modal.requestId, message: errorMessage(reason, 'L’opération n’a pas pu être enregistrée.') });
+      } : undefined);
+      if (success) { setModalState(nextModal ? { ...nextModal, requestId:createId() } : null); setModalFailure(null); }
+      return success;
+    } finally { localAction.current = false; }
   }
+
+  const receiptLinks = {
+    onOpenAccounting: () => { if (localAction.current || busy) return; setModal(null); onOpenAccounting('periods'); },
+    onOpenCatalog: () => { if (localAction.current || busy) return; setModal(null); onOpenCatalog(); },
+    onOpenInvoice: (id: string) => { if (localAction.current || busy) return; const invoice=workspace.supplierInvoices.find(row=>row.id===id); if(invoice){setModal(null);onOpenSupplierInvoice(invoice);} },
+  };
 
   const sectionCount = (id: PurchaseSection) => {
     if (id === 'inbox') return inboxCount;
@@ -850,7 +869,7 @@ export function PurchaseOrdersScreen({
               TVA préalable et de dettes fournisseurs.
             </p>
           </div>
-          <Button variant="secondary" onClick={onOpenAccounting}>
+          <Button variant="secondary" onClick={()=>onOpenAccounting()}>
             Ouvrir Plan & liaisons
           </Button>
         </div>
@@ -1044,7 +1063,7 @@ export function PurchaseOrdersScreen({
                 setModal({ type: 'receipt', receipt, order })
               }
               onIssue={(receipt) =>
-                setModal({ type: 'issue_receipt', receipt })
+                setModal({ type: 'issue_receipt', receiptId: receipt.id })
               }
               onReverse={(receipt) =>
                 setModal({ type: 'reverse_receipt', receipt })
@@ -1167,40 +1186,55 @@ export function PurchaseOrdersScreen({
       ) : null}
       {modal?.type === 'receipt' ? (
         <SupplierReceiptForm
+          key={modal.requestId}
+          readOnly={readOnly}
+          onReadWorkspace={onReadWorkspace}
           actionError={modalError}
           workspace={workspace}
           order={modal.order}
           receipt={modal.receipt}
           busy={busy}
           onClose={() => setModal(null)}
-          onSave={(input) =>
-            completeLocalAction(
+          onSave={async (input) => {
+            const success = await completeLocalAction(
               () => desktopApi.saveSupplierReceiptDraft(input),
               modal.receipt
                 ? 'Le brouillon de réception a été mis à jour.'
-                : 'La réception est enregistrée en brouillon. Contrôlez-la avant émission.',
-            )
-          }
+                : 'La réception est enregistrée en brouillon. Vérifiez les quantités avant de la valider.',
+              { type:'issue_receipt', receiptId:input.id! },
+            );
+            if(success) setSection('receipts');
+            return success;
+          }}
         />
       ) : null}
       {modal?.type === 'issue_receipt' ? (
         <IssueReceiptModal
+          key={modal.requestId}
+          readOnly={readOnly}
+          onReadWorkspace={onReadWorkspace}
+          {...receiptLinks}
+          onEdit={receipt=>{const order=workspace.supplierOrders.find(row=>row.id===receipt.supplierOrderId);if(order)setModal({type:'receipt',order,receipt});}}
           actionError={modalError}
           workspace={workspace}
-          receipt={modal.receipt}
+          receiptId={modal.receiptId}
           busy={busy}
           onClose={() => setModal(null)}
-          onConfirm={() =>
+          onConfirm={(receipt) =>
             completeLocalAction(
               () =>
-                desktopApi.issueSupplierReceipt(modal.requestId, modal.receipt.id),
-              'La réception est émise. Les entrées de stock concernées ont été enregistrées localement.',
+                desktopApi.issueSupplierReceipt(modal.requestId, receipt.id, receipt),
+              'La réception est validée. Les articles suivis ont été ajoutés au stock.',
             )
           }
         />
       ) : null}
       {modal?.type === 'reverse_receipt' ? (
         <ReverseReceiptModal
+          key={modal.requestId}
+          readOnly={readOnly}
+          onReadWorkspace={onReadWorkspace}
+          {...receiptLinks}
           actionError={modalError}
           workspace={workspace}
           receipt={modal.receipt}
@@ -1214,7 +1248,7 @@ export function PurchaseOrdersScreen({
                   modal.receipt.id,
                   reason,
                 ),
-              'La réception a été extournée avec son motif. Les mouvements de stock inverses ont été enregistrés.',
+              'La réception est annulée et son motif est conservé. Les articles concernés ont été retirés du stock.',
             )
           }
         />
@@ -1824,7 +1858,7 @@ function ReceiptsSection({
             </div>
             <StatusBadge
               status={receipt.status}
-              label={receipt.status === 'reversed' ? 'Extournée' : undefined}
+              label={receipt.status === 'reversed' ? 'Annulée' : receipt.status === 'issued' ? 'Validée' : undefined}
             />
             <div className="row-actions">
               {receipt.status === 'draft' && order ? (
@@ -1842,7 +1876,7 @@ function ReceiptsSection({
                     disabled={busy}
                     onClick={() => onIssue(receipt)}
                   >
-                    Contrôler et émettre
+                    Vérifier et valider
                   </Button>
                 </>
               ) : null}
@@ -1853,7 +1887,7 @@ function ReceiptsSection({
                   disabled={busy}
                   onClick={() => onReverse(receipt)}
                 >
-                  <RotateCcw size={14} /> Extourner
+                  <RotateCcw size={14} /> Annuler la réception
                 </Button>
               ) : null}
               {receipt.status === 'issued' && hasLinkedMatch ? (
@@ -2946,350 +2980,6 @@ function ConfirmOrderModal({
         </Button>
         <Button onClick={onConfirm} disabled={busy}>
           <FileCheck2 size={16} /> Confirmer la commande
-        </Button>
-      </div>
-    </Modal>
-  );
-}
-
-function SupplierReceiptForm({
-  workspace,
-  order,
-  receipt,
-  busy,
-  actionError,
-  onClose,
-  onSave,
-}: {
-  workspace: Workspace;
-  order: SupplierOrder;
-  receipt?: SupplierReceipt;
-  busy: boolean;
-  actionError: string;
-  onClose: () => void;
-  onSave: (
-    input: Parameters<typeof desktopApi.saveSupplierReceiptDraft>[0],
-  ) => void;
-}) {
-  const [draftId] = useState(() => receipt?.id || createId());
-  const eligible = order.lines.filter(
-    (line) => line.fulfillmentMode !== 'direct',
-  );
-  const [receiptDate, setReceiptDate] = useState(
-    receipt?.receiptDate || todayIso(),
-  );
-  const [reference, setReference] = useState(receipt?.reference || '');
-  const [notes, setNotes] = useState(receipt?.notes || '');
-  const [quantities, setQuantities] = useState<Record<string, number>>(() =>
-    Object.fromEntries(
-      eligible.map((line) => [
-        line.id,
-        receipt?.lines.find((row) => row.supplierOrderLineId === line.id)
-          ?.quantityMilli ??
-          supplierOrderLineProgress(order, line, workspace)
-            .remainingToReceiveMilli,
-      ]),
-    ),
-  );
-  const dateError = supplierReceiptDateValidationError(
-    order.orderDate,
-    receiptDate,
-    todayIso(),
-  );
-  const quantityError = eligible.some(
-    (line) =>
-      (quantities[line.id] || 0) >
-      supplierOrderLineProgress(order, line, workspace).remainingToReceiveMilli,
-  )
-    ? 'Une quantité dépasse le reliquat disponible.'
-    : '';
-  const hasQuantity = Object.values(quantities).some(
-    (quantity) => quantity > 0,
-  );
-  function submit() {
-    if (dateError || quantityError || !hasQuantity) return;
-    onSave({
-      id: draftId,
-      supplierOrderId: order.id,
-      receiptDate,
-      reference,
-      notes,
-      lines: eligible
-        .map((line) => ({
-          supplierOrderLineId: line.id,
-          quantityMilli: quantities[line.id] || 0,
-        }))
-        .filter((line) => line.quantityMilli > 0),
-    });
-  }
-  return (
-    <Modal
-      wide
-      title={
-        receipt ? 'Modifier la réception brouillon' : 'Saisir une réception'
-      }
-      description="Choisissez les quantités réellement arrivées. Une réception partielle est possible; le stock ne bougera qu’après le contrôle d’émission."
-      onClose={onClose}
-    >
-      <form
-        className="form-grid"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-      >
-        <Field label="Commande">
-          <input
-            value={`${orderName(order)} · ${supplierName(workspace, order.supplierId)}`}
-            disabled
-          />
-        </Field>
-        <Field label="Date de réception" required error={dateError}>
-          <input
-            type="date"
-            min={order.orderDate}
-            max={todayIso()}
-            value={receiptDate}
-            onChange={(event) => setReceiptDate(event.target.value)}
-          />
-        </Field>
-        <Field label="Référence">
-          <input
-            value={reference}
-            onChange={(event) => setReference(event.target.value)}
-          />
-        </Field>
-        <Field label="Notes">
-          <input
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-          />
-        </Field>
-        <div className="receipt-quantity-grid field--wide">
-          <div className="receipt-quantity-grid__heading">
-            <strong>Quantités reçues</strong>
-            <Button
-              type="button"
-              variant="secondary"
-              size="small"
-              onClick={() =>
-                setQuantities(
-                  Object.fromEntries(
-                    eligible.map((line) => [
-                      line.id,
-                      supplierOrderLineProgress(order, line, workspace)
-                        .remainingToReceiveMilli,
-                    ]),
-                  ),
-                )
-              }
-            >
-              Tout le reliquat
-            </Button>
-          </div>
-          {eligible.map((line) => {
-            const max = supplierOrderLineProgress(
-              order,
-              line,
-              workspace,
-            ).remainingToReceiveMilli;
-            return (
-              <label key={line.id}>
-                <span>
-                  <strong>{line.description}</strong>
-                  <small>
-                    Reste {formatCatalogQuantity(max)} {line.unit}
-                  </small>
-                </span>
-                <input
-                  aria-label={`Quantité reçue pour ${line.description}`}
-                  type="number"
-                  min="0"
-                  max={max / 1_000}
-                  step="0.001"
-                  value={(quantities[line.id] || 0) / 1_000}
-                  onChange={(event) =>
-                    setQuantities((rows) => ({
-                      ...rows,
-                      [line.id]: milliFromNumber(event.target.value),
-                    }))
-                  }
-                />
-              </label>
-            );
-          })}
-        </div>
-        {quantityError ? (
-          <ErrorPanel message={quantityError} />
-        ) : !hasQuantity ? (
-          <ErrorPanel message="Saisissez au moins une quantité reçue positive." />
-        ) : null}
-        {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
-        <FormActions
-          onCancel={onClose}
-          busy={busy}
-          disabled={Boolean(dateError || quantityError || !hasQuantity)}
-          submitLabel="Enregistrer le brouillon"
-        />
-      </form>
-    </Modal>
-  );
-}
-
-function IssueReceiptModal({
-  workspace,
-  receipt,
-  busy,
-  actionError,
-  onClose,
-  onConfirm,
-}: {
-  workspace: Workspace;
-  receipt: SupplierReceipt;
-  busy: boolean;
-  actionError: string;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  const order = workspace.supplierOrders.find(
-    (candidate) => candidate.id === receipt.supplierOrderId,
-  );
-  return (
-    <Modal
-      wide
-      title="Contrôler puis émettre la réception"
-      description="Cette émission est l’événement qui augmente le stock pour les articles suivis."
-      onClose={onClose}
-    >
-      {!order ? (
-        <ErrorPanel message="La commande liée est introuvable. La réception ne peut pas être émise." />
-      ) : (
-        <>
-          <div className="document-preview purchase-preview">
-            <header>
-              <div>
-                <small>{receiptName(receipt)}</small>
-                <h3>{supplierName(workspace, order.supplierId)}</h3>
-                <p>
-                  {orderName(order)} · reçu le {formatDate(receipt.receiptDate)}
-                </p>
-              </div>
-              <StatusBadge status="draft" />
-            </header>
-            <div className="purchase-preview__lines">
-              {receipt.lines.map((line) => {
-                const orderLine = order.lines.find(
-                  (candidate) => candidate.id === line.supplierOrderLineId,
-                );
-                return (
-                  <div key={line.id}>
-                    <span>
-                      <strong>{line.description}</strong>
-                      <small>
-                        {orderLine?.fulfillmentMode === 'stocked_receipt'
-                          ? 'Créera une entrée en stock'
-                          : 'Réception sans suivi de stock'}
-                      </small>
-                    </span>
-                    <strong>
-                      {formatCatalogQuantity(line.quantityMilli)} {line.unit}
-                    </strong>
-                  </div>
-                );
-              })}
-            </div>
-            {receipt.reference ? (
-              <p>
-                <strong>Référence :</strong> {receipt.reference}
-              </p>
-            ) : null}
-          </div>
-          <div className="confirmation-callout">
-            <PackageCheck size={19} />
-            <p>
-              Je confirme que ces quantités ont réellement été reçues à la date
-              indiquée.
-            </p>
-          </div>
-          {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
-          <div className="form-actions">
-            <Button variant="secondary" disabled={busy} onClick={onClose}>
-              Retour
-            </Button>
-            <Button
-              disabled={busy || !receipt.lines.length}
-              onClick={onConfirm}
-            >
-              Émettre la réception
-            </Button>
-          </div>
-        </>
-      )}
-    </Modal>
-  );
-}
-
-function ReverseReceiptModal({
-  workspace,
-  receipt,
-  busy,
-  actionError,
-  onClose,
-  onConfirm,
-}: {
-  workspace: Workspace;
-  receipt: SupplierReceipt;
-  busy: boolean;
-  actionError: string;
-  onClose: () => void;
-  onConfirm: (reason: string) => void;
-}) {
-  const [reason, setReason] = useState('');
-  const order = workspace.supplierOrders.find(
-    (candidate) => candidate.id === receipt.supplierOrderId,
-  );
-  return (
-    <Modal
-      title="Extourner la réception"
-      description="Une extourne conserve l’historique et crée les mouvements de stock inverses."
-      onClose={onClose}
-    >
-      <Field
-        label="Motif de la correction"
-        required
-        hint="Expliquez l’erreur ou le retour de marchandises."
-      >
-        <textarea
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          rows={3}
-          autoFocus
-        />
-      </Field>
-      <div className="correction-preview">
-        <strong>{receiptName(receipt)}</strong>
-        <p>
-          {order ? orderName(order) : receipt.supplierOrderId} ·{' '}
-          {receipt.lines.length} ligne{receipt.lines.length > 1 ? 's' : ''}
-        </p>
-        {receipt.lines.map((line) => (
-          <small key={line.id}>
-            − {formatCatalogQuantity(line.quantityMilli)} {line.unit} ·{' '}
-            {line.description}
-          </small>
-        ))}
-      </div>
-      {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
-      <div className="form-actions">
-        <Button variant="secondary" disabled={busy} onClick={onClose}>
-          Annuler
-        </Button>
-        <Button
-          variant="danger"
-          disabled={busy || reason.trim().length < 8}
-          onClick={() => onConfirm(reason)}
-        >
-          Confirmer l’extourne
         </Button>
       </div>
     </Modal>

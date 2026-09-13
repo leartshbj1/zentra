@@ -98,6 +98,7 @@ import { desktopApi, type CloudAccountState } from './bridge';
 import { WorkspaceRefreshAfterMutationError, refreshWorkspaceAfterMutation } from './workspaceMutation';
 import { requireStockWorkspace, WorkspaceStockOutcomeUnknownError, WorkspaceStockRefreshError } from './stockWorkflow';
 import { CatalogSaveRefreshError } from './catalogForm';
+import { ReceiptOutcomeUnknownError, ReceiptRefreshError, requireReceiptWorkspace } from './receiptWorkflow';
 import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
 import { paymentInput } from './salesFormValidation';
 import { PayslipPostingRefreshError } from './payrollMutation';
@@ -944,8 +945,8 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError) reason.validateRead(value); validateRead?.(value); };
+      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError ? reason : null;
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
@@ -2206,6 +2207,13 @@ export function WorkspaceApp({
           {view === 'expenses' ? (
             <Suspense fallback={<ViewLoading label="Ouverture des achats…" />}>
               <PurchaseOrdersScreen
+                onReadWorkspace={async () => {
+                  if(actionInFlight.current || isWorkspaceRecoveryPending()) throw Error('Attendez la fin de l’opération en cours.');
+                  actionInFlight.current=true;setBusy(true);
+                  try { const next=await desktopApi.loadWorkspace();requireReceiptWorkspace(next);workspaceRef.current=next;setWorkspace(next);return next; }
+                  finally {actionInFlight.current=false;setBusy(false);}
+                }}
+                onOpenCatalog={()=>{setView('catalog');setSearch('');}}
                 openInvoiceMatchId={supplierMatchToOpenId}
                 onOpenInvoiceMatchHandled={() => setSupplierMatchToOpenId(null)}
                 openCreditId={supplierCreditToOpenId}
@@ -2252,7 +2260,9 @@ export function WorkspaceApp({
                 onEditSupplier={(item) => setModal({ type: 'supplier', item })}
                 onArchiveSupplier={(item) => void archiveSupplier(item)}
                 onRestoreSupplier={(item) => void restoreSupplier(item)}
-                onOpenAccounting={() => {
+                onOpenAccounting={(section = 'accounts') => {
+                  setAccountingStartTab(section);
+                  setAccountingEntryFocus(null);
                   setView('accounting');
                   setSearch('');
                 }}

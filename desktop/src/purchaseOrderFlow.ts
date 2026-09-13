@@ -1,3 +1,4 @@
+import { isSalesDate } from './salesFormValidation';
 import type {
   SupplierInvoice,
   SupplierInvoiceMatch,
@@ -225,6 +226,7 @@ export function supplierReceiptDateValidationError(
   today: string,
 ): string {
   if (!receiptDate) return 'Indiquez la date de réception.';
+  if (!isSalesDate(receiptDate)) return 'Choisissez une date réelle pour la réception : jour, mois et année.';
   if (orderDate && receiptDate < orderDate)
     return 'La date de réception ne peut pas précéder la date de la commande.';
   if (today && receiptDate > today)

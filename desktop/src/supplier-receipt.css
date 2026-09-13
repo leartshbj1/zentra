@@ -1,0 +1,42 @@
+.supplier-receipt-modal { display:flex; flex-direction:column; overflow:hidden; }
+.supplier-receipt-modal .modal__header { flex:none; }
+.supplier-receipt-modal .modal__body { display:grid; gap:18px; min-height:0; flex:1; overflow-y:auto; }
+.receipt-form,.receipt-form > fieldset { display:grid; gap:20px; min-width:0; }
+.receipt-form > fieldset { border:0; padding:0; margin:0; }
+.receipt-steps { display:flex; gap:12px; list-style:none; padding:0; margin:0; }
+.receipt-steps li { display:flex; flex:1; align-items:center; gap:10px; min-width:0; padding:12px; border-radius:12px; background:#f3f5f2; color:#657067; font-size:13px; }
+.receipt-steps li[aria-current=step] { background:#eaf3e7; color:#244c33; font-weight:600; }
+.receipt-steps li > span { display:grid; place-items:center; min-width:26px; height:26px; border:1px solid currentColor; border-radius:50%; }
+.receipt-context { display:grid; gap:6px; padding:16px; background:#f4f6f2; border-radius:12px; overflow-wrap:anywhere; }
+.receipt-context span,.receipt-context small,.receipt-note { font-size:13px; color:#536254; line-height:1.6; }
+.receipt-quantity-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+.receipt-quantity-heading h3 { margin:0 0 6px; font-size:18px; }
+.receipt-quantity-heading p { margin:0; font-size:13px; color:#536254; }
+.receipt-quantity { display:grid; grid-template-columns:minmax(0,1fr) minmax(180px,.7fr); gap:16px; padding:16px; border:1px solid #dce3d9; border-radius:14px; min-width:0; }
+.receipt-quantity > div:first-child { display:grid; align-content:start; gap:8px; overflow-wrap:anywhere; }
+.receipt-quantity small,.receipt-review-lines small { color:#536254; font-size:12px; line-height:1.6; }
+.receipt-quantity-input { display:flex; gap:10px; align-items:center; }
+.receipt-quantity-input input { min-width:0; font-size:17px; font-variant-numeric:tabular-nums; }
+.receipt-quantity-input span { flex:0 1 80px; overflow-wrap:anywhere; font-size:13px; }
+.receipt-details { border:1px solid #dce3d9; border-radius:12px; padding:12px 16px; min-width:0; }
+.receipt-details summary { padding:8px 0; min-height:44px; cursor:pointer; font-size:13px; }
+.receipt-details[open] > :not(summary) { margin-top:12px; }
+.receipt-details p,.receipt-note--multiline { white-space:pre-wrap; overflow-wrap:anywhere; max-height:220px; overflow:auto; }
+.receipt-alert { display:grid; gap:12px; background:#fff8e9; border:1px solid #e4d3ab; border-radius:14px; padding:18px; min-width:0; scroll-margin-block:100px; }
+.receipt-alert p { font-size:14px; line-height:1.6; margin:0; overflow-wrap:anywhere; }
+.receipt-alert > strong { font-size:16px; }
+.receipt-inline-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.receipt-comparison { display:grid; gap:8px; min-width:0; }
+.receipt-comparison > div { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; padding-bottom:8px; border-bottom:1px solid #e6d8ba; font-size:12px; }
+.receipt-comparison span { overflow-wrap:anywhere; white-space:pre-wrap; max-height:180px; overflow:auto; }
+.receipt-review-lines { display:grid; gap:10px; }
+.receipt-review-lines article { display:flex; align-items:flex-start; gap:16px; justify-content:space-between; border-bottom:1px solid #e0e5dd; padding:14px 0; }
+.receipt-review-lines article > div { display:grid; gap:5px; min-width:0; overflow-wrap:anywhere; }
+.receipt-review-lines article > strong { min-width:90px; text-align:right; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.receipt-check { display:flex; align-items:flex-start; gap:12px; padding:16px; border-radius:12px; background:#eef4e9; font-size:14px; line-height:1.6; }
+.receipt-check input { flex:none; width:20px; height:20px; margin-top:2px; accent-color:#326548; }
+.supplier-receipt-modal .form-actions { margin-top:8px; }
+.supplier-receipt-modal .modal__body > .form-actions,.supplier-receipt-modal .receipt-form > .form-actions { position:sticky; bottom:-24px; z-index:3; padding:12px 0; background:var(--paper); }
+@media(max-width:900px) { .supplier-receipt-modal .modal__body > .form-actions,.supplier-receipt-modal .receipt-form > .form-actions { bottom:calc(-1 * max(16px, env(safe-area-inset-bottom))); padding-bottom:max(12px, env(safe-area-inset-bottom)); } }
+.supplier-receipt-modal .button { white-space:normal; }
+@media(max-width:600px) { .receipt-quantity { grid-template-columns:1fr; padding:14px; } .receipt-steps { gap:6px; } .receipt-steps li { padding:10px 8px; gap:7px; font-size:12px; } .receipt-alert { padding:14px; } .receipt-inline-actions > button { flex:1 1 160px; } }

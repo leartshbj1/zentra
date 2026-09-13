@@ -113,6 +113,14 @@ fn valid_date(value: &str, field: &str) -> AppResult<String> {
     Ok(value)
 }
 
+fn validate_received_date(value: &str) -> AppResult<()> {
+    let parsed = NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| AppError::Validation("Choisissez une date réelle pour la réception.".into()))?;
+    if parsed.format("%Y-%m-%d").to_string() != value || parsed > chrono::Local::now().date_naive() {
+        return Err(AppError::Validation("Indiquez la date réelle d’arrivée des marchandises, au plus tard aujourd’hui.".into()));
+    }
+    Ok(())
+}
+
 fn validate_credit_settlement_date(
     tx: &Transaction<'_>,
     value: &str,
@@ -929,6 +937,10 @@ impl LocalStore {
         &self,
         input: SaveSupplierReceiptDraftInput,
     ) -> AppResult<Value> {
+        self.save_supplier_receipt_draft_checked(input, None)
+    }
+
+    pub fn save_supplier_receipt_draft_checked(&self, input: SaveSupplierReceiptDraftInput, expected_updated_at: Option<&str>) -> AppResult<Value> {
         if input.lines.is_empty() || input.lines.len() > MAX_LINES {
             return Err(AppError::Validation(format!(
                 "Une réception doit contenir entre 1 et {MAX_LINES} lignes."
@@ -936,6 +948,7 @@ impl LocalStore {
         }
         let order_id = required_text(&input.receipt.supplier_order_id, "supplier_order_id", 255)?;
         let receipt_date = valid_date(&input.receipt.receipt_date, "receipt_date")?;
+        validate_received_date(&receipt_date)?;
         let reference = optional_text(input.receipt.reference, "reference", 200)?;
         let notes = optional_text(input.receipt.notes, "notes", 20_000)?;
         let mut connection = self.connect()?;
@@ -965,15 +978,18 @@ impl LocalStore {
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
         let receipt_id = normalized_uuid(&receipt_id, "receipt.id")?;
-        let existing: Option<(String, String)> = tx
+        let existing: Option<(String, String, String)> = tx
             .query_row(
-                "SELECT status,supplier_order_id FROM supplier_receipts WHERE id=?",
+                "SELECT status,supplier_order_id,updated_at FROM supplier_receipts WHERE id=?",
                 params![receipt_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
         let now = now_iso();
-        if let Some((status, existing_order)) = existing {
+        if expected_updated_at.is_some_and(|expected| expected.is_empty() || existing.as_ref().map(|row| row.2.as_str()) != Some(expected)) {
+            return Err(AppError::Validation("Cette réception a changé. Relisez le brouillon avant d’enregistrer votre saisie.".into()));
+        }
+        if let Some((status, existing_order, _)) = existing {
             if status != "draft" || existing_order != order_id {
                 return Err(AppError::Validation(
                     "Cette réception n’est plus modifiable ou appartient à une autre commande."
@@ -1052,6 +1068,10 @@ impl LocalStore {
     }
 
     pub fn issue_supplier_receipt(&self, input: IssueSupplierReceiptInput) -> AppResult<Value> {
+        self.issue_supplier_receipt_checked(input, None)
+    }
+
+    pub fn issue_supplier_receipt_checked(&self, input: IssueSupplierReceiptInput, expected_updated_at: Option<&str>) -> AppResult<Value> {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -1062,6 +1082,9 @@ impl LocalStore {
         }
         let receipt_id = required_text(&input.supplier_receipt_id, "supplier_receipt_id", 255)?;
         let receipt = query_record_tx(&tx, "supplier_receipts", &receipt_id)?;
+        if expected_updated_at.is_some_and(|expected| expected.is_empty() || receipt["updated_at"].as_str() != Some(expected)) {
+            return Err(AppError::Validation("Cette réception a changé depuis le contrôle. Relisez ses quantités avant de les valider.".into()));
+        }
         if receipt["status"] != "draft" {
             return Err(AppError::Validation(
                 "Seule une réception brouillon peut être émise.".into(),
@@ -1083,6 +1106,7 @@ impl LocalStore {
         let receipt_date = receipt["receipt_date"]
             .as_str()
             .ok_or_else(|| AppError::Validation("La date de réception est absente.".into()))?;
+        validate_received_date(receipt_date)?;
         ensure_accounting_date_open(&tx, receipt_date)?;
         let lines = {
             let mut statement = tx.prepare(

@@ -1,6 +1,7 @@
 import { requireAgendaWorkspace } from './agendaForm';
 import { runStockMutation } from './stockWorkflow';
 import { runCatalogSave, type CatalogData } from './catalogForm';
+import { runReceiptMutation } from './receiptWorkflow';
 import { deliverPdfExport } from './pdfExportDelivery';
 import { documentCompositions } from './documentComposition';
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
@@ -1782,7 +1783,8 @@ function catalogItemFromRaw(row: RawRecord): CatalogItem {
 
 function stockMovementFromRaw(row: RawRecord): StockMovement {
   const movementType = stringValue(row.movement_type);
-  const sourceType = stringValue(row.source_type);
+  const rawSourceType = stringValue(row.source_type);
+  const sourceType = rawSourceType === 'supplier_receipt' ? 'receipt' : rawSourceType;
   const reversesMovement = Boolean(stringValue(row.reverses_stock_movement_id));
   const normalizedSource: StockMovement['sourceType'] =
     sourceType === 'delivery' && reversesMovement
@@ -1817,8 +1819,8 @@ function stockMovementFromRaw(row: RawRecord): StockMovement {
     invoiceItemId: stringValue(row.invoice_item_id) || null,
     deliveryNoteId: stringValue(row.delivery_note_id) || null,
     deliveryNoteLineId: stringValue(row.delivery_note_line_id) || null,
-    stockReceiptId: stringValue(row.stock_receipt_id) || null,
-    stockReceiptLineId: stringValue(row.stock_receipt_line_id) || null,
+    stockReceiptId: stringValue(row.supplier_receipt_id) || stringValue(row.stock_receipt_id) || null,
+    stockReceiptLineId: stringValue(row.supplier_receipt_line_id) || stringValue(row.stock_receipt_line_id) || null,
     createdAt: stringValue(row.created_at),
   };
 }
@@ -5201,16 +5203,19 @@ export const desktopApi = {
   },
   async saveSupplierReceiptDraft(input: {
     id?: string;
+    expectedUpdatedAt?: string;
     supplierOrderId: string;
     receiptDate: string;
     reference?: string;
     notes?: string;
     lines: Array<{ supplierOrderLineId: string; quantityMilli: number }>;
   }) {
-    await invoke('save_supplier_receipt_draft', {
+    const id = input.id || crypto.randomUUID();
+    return runReceiptMutation({ kind: 'draft', id, snapshot: input, creating: input.expectedUpdatedAt === undefined }, () => invoke('save_supplier_receipt_draft', {
+      ...(input.expectedUpdatedAt !== undefined ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}),
       input: {
         receipt: {
-          id: input.id ?? null,
+          id,
           supplier_order_id: input.supplierOrderId,
           receipt_date: input.receiptDate,
           reference: input.reference?.trim() || null,
@@ -5221,31 +5226,29 @@ export const desktopApi = {
           quantity_milli: line.quantityMilli,
         })),
       },
-    });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    }), loadWorkspace);
   },
-  async issueSupplierReceipt(requestId: string, supplierReceiptId: string) {
-    await invoke('issue_supplier_receipt', {
+  async issueSupplierReceipt(requestId: string, supplierReceiptId: string, expected?: SupplierReceipt) {
+    return runReceiptMutation({ kind: 'issue', id: supplierReceiptId, snapshot: expected }, () => invoke('issue_supplier_receipt', {
+      ...(expected ? { expectedUpdatedAt: expected.updatedAt } : {}),
       input: {
         request_id: requestId,
         supplier_receipt_id: supplierReceiptId,
       },
-    });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    }), loadWorkspace);
   },
   async reverseSupplierReceipt(
     requestId: string,
     supplierReceiptId: string,
     reason: string,
   ) {
-    await invoke('reverse_supplier_receipt', {
+    return runReceiptMutation({ kind: 'reverse', id: supplierReceiptId, reason }, () => invoke('reverse_supplier_receipt', {
       input: {
         request_id: requestId,
         supplier_receipt_id: supplierReceiptId,
         reason: reason.trim(),
       },
-    });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    }), loadWorkspace);
   },
   async saveSupplierInvoiceMatch(input: SaveSupplierInvoiceMatchDraftInput) {
     const allocationsByOrder = new Map<

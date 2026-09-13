@@ -10862,6 +10862,10 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         use super::{initialized_store, tracked_product, value_id};
         include!("catalog_form_tests.rs");
     }
+    mod receipt_guided_tests {
+        use super::{initialized_store, tracked_product, value_id};
+        include!("receipt_guided_tests.rs");
+    }
 
     fn tracked_product(store: &LocalStore, name: &str, reorder_level_milli: i64) -> String {
         value_id(

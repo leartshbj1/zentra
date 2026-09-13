@@ -525,11 +525,12 @@ pub fn cancel_supplier_order_remainder(
 pub fn save_supplier_receipt_draft(
     state: State<'_, LocalStore>,
     input: SaveSupplierReceiptDraftInput,
+    expected_updated_at: Option<String>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state
-        .save_supplier_receipt_draft(input)
+        .save_supplier_receipt_draft_checked(input, expected_updated_at.as_deref())
         .map_err(command_error)
 }
 
@@ -537,10 +538,11 @@ pub fn save_supplier_receipt_draft(
 pub fn issue_supplier_receipt(
     state: State<'_, LocalStore>,
     input: IssueSupplierReceiptInput,
+    expected_updated_at: Option<String>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.issue_supplier_receipt(input).map_err(command_error)
+    state.issue_supplier_receipt_checked(input, expected_updated_at.as_deref()).map_err(command_error)
 }
 
 #[tauri::command]
