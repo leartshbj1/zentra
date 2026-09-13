@@ -6,7 +6,7 @@ Utilisez **Créer la facture**. Vous pouvez préparer une facture complète ou c
 
 L’aperçu indique le montant de l’acompte et celui du solde après déduction. Les deux factures sont créées en brouillon dans le dossier du devis. En cas de refus, le choix et le pourcentage restent présents. Pendant la création, les réglages et la fermeture sont verrouillés.
 
-## Préparer l’acompte et le solde — ajout après Windows 1.60.0
+## Préparer l’acompte et le solde — Windows 1.61.0
 
 Ouvrez l’une des deux factures dans le dossier. Le montant TTC reste visible et un parcours en trois étapes prépare ses dates et ses notes :
 
@@ -18,7 +18,7 @@ Les étapes restent accessibles par leurs boutons. Une date manquante ou incohé
 
 Un refus d’enregistrement garde les valeurs et les notes présentes. Les actions et la fermeture sont verrouillées pendant la demande. Si vous quittez avec des modifications non enregistrées, choisissez **Rester sur la facture** ou **Quitter sans enregistrer**. En lecture seule, les étapes restent consultables, sans modification ni sauvegarde. Les documents émis gardent leur consultation verrouillée.
 
-Ce parcours est intégré au code après la version Windows 1.60.0 ; il n’est pas encore inclus dans cet installateur déjà publié. Les montants, les règles de déduction et le moteur de comptabilisation restent ceux du dossier existant. Recette : `desktop/tests/paired-preparation-journey.mjs`.
+Ce parcours est inclus dans la préversion Windows 1.61.0. Consultez [la note de livraison](RELEASE-WINDOWS-1.61.0.md) pour les contrôles et leurs limites. Les montants, les règles de déduction et le moteur de comptabilisation restent ceux du dossier existant. Recette : `desktop/tests/paired-preparation-journey.mjs`.
 
 ## Vérifier avant l’émission
 
