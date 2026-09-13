@@ -60,3 +60,5 @@ next-env.d.ts
 
 # local workspace inventory
 /structure.txt
+/desktop/src-tauri/.personal-iphone-license
+/desktop/src-tauri/tauri.cloud-macos.generated.conf.json

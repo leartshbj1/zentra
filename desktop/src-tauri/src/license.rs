@@ -1700,7 +1700,7 @@ fn validated_refresh_endpoint() -> AppResult<reqwest::Url> {
     Ok(endpoint)
 }
 
-fn embedded_key() -> AppResult<Option<[u8; 32]>> {
+pub(crate) fn embedded_key() -> AppResult<Option<[u8; 32]>> {
     let Some(encoded) = EMBEDDED_PUBLIC_KEY else {
         return Ok(None);
     };
@@ -1712,7 +1712,7 @@ fn embedded_key() -> AppResult<Option<[u8; 32]>> {
     })?;
     Ok(Some(key))
 }
-fn verify_token_with_key(token: &str, key: &[u8; 32]) -> AppResult<LicenseTokenPayload> {
+pub(crate) fn verify_token_with_key(token: &str, key: &[u8; 32]) -> AppResult<LicenseTokenPayload> {
     if token.trim().len() < 100 || token.trim().len() > MAX_LICENSE_TOKEN_BYTES {
         return Err(AppError::Validation(
             "Jeton de licence de longueur invalide.".into(),

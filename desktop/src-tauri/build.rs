@@ -6,6 +6,15 @@ const UPDATER_PUBLIC_KEY_ENV: &str = "ELYKO_UPDATER_PUBLIC_KEY";
 const UPDATER_ENDPOINT_ENV: &str = "ELYKO_UPDATER_ENDPOINT";
 
 fn main() {
+    println!("cargo:rerun-if-changed=.personal-iphone-license");
+    if env::var_os("CARGO_FEATURE_PERSONAL_IPHONE").is_some() {
+        assert!(env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios"), "Personal provisioning is only allowed for iPhone builds.");
+        let token = fs::read_to_string(".personal-iphone-license").expect("Private iPhone license is missing");
+        let token = token.trim();
+        assert!((100..8192).contains(&token.len()) && token.split('.').count() == 2, "Invalid private license format");
+        let output = std::path::PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("personal-iphone-license");
+        fs::write(output, token).expect("Could not prepare private license");
+    }
     println!("cargo:rerun-if-changed={LICENSE_PUBLIC_KEY_FILE}");
     println!("cargo:rerun-if-env-changed={UPDATER_PUBLIC_KEY_ENV}");
     println!("cargo:rerun-if-env-changed={UPDATER_ENDPOINT_ENV}");

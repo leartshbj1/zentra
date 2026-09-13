@@ -40,6 +40,7 @@ mod expense_refund_attachments;
 mod input_vat_tests;
 mod installation;
 mod license;
+mod personal_iphone;
 #[cfg(any(target_os = "android", target_os = "ios"))]
 mod mobile_secure_storage;
 mod models;

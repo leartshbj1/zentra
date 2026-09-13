@@ -1,4 +1,22 @@
 workflows:
+  iphone-personal:
+    name: Zentra iPhone personnel (licence propriétaire)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      node: 22
+      xcode: latest
+      groups:
+        - owner_iphone
+      vars:
+        RUSTUP_TOOLCHAIN: stable
+    scripts:
+      - name: Prepare the Apple toolchain
+        script: bash desktop/scripts/codemagic-apple.sh prepare
+      - name: Build the private iPhone IPA
+        script: bash desktop/scripts/codemagic-apple.sh iphone-personal
+    artifacts:
+      - desktop/artifacts/iphone-personal/*
   macos-public:
     name: Zentra macOS universal (free M2)
     instance_type: mac_mini_m2

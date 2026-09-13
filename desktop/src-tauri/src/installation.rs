@@ -145,7 +145,7 @@ pub fn load_or_create(data_dir: &Path) -> AppResult<String> {
     match fs::read(&path) {
         Ok(protected) => parse_identity(&unprotect_for_current_user(&protected)?),
         Err(error) if error.kind() == ErrorKind::NotFound => {
-            let identity = Uuid::new_v4().to_string();
+            let identity = crate::personal_iphone::initial_identity()?.unwrap_or_else(|| Uuid::new_v4().to_string());
             let protected = protect_for_current_user(identity.as_bytes())?;
             match OpenOptions::new().write(true).create_new(true).open(&path) {
                 Ok(mut file) => {

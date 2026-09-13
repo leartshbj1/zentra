@@ -2,12 +2,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export RUSTUP_TOOLCHAIN=stable LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
-export PATH="$HOME/.cargo/bin:$PATH"
+export PATH="$HOME/.zentra-ci-tools/bin:$HOME/.cargo/bin:$PATH"
 case "${1:-}" in
 prepare)
   [[ "$(uname -s)" == Darwin ]]
   xcodebuild -version
-  npm install --global pnpm@11.19.0
+  npm install --global --prefix "$HOME/.zentra-ci-tools" pnpm@11.19.0
   if ! command -v rustup >/dev/null; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/zentra-rustup.sh
     sh /tmp/zentra-rustup.sh -y --profile minimal --default-toolchain stable
@@ -43,6 +43,22 @@ iphone)
   pnpm --dir desktop mobile:ios:ipa
   python3 desktop/scripts/verify-ios-ipa.py desktop/src-tauri/gen/apple/build/arm64/Zentra.ipa --output-dir desktop/artifacts/iphone --source-revision "$(git rev-parse HEAD)"
   cp docs/INSTALL-IPHONE.md desktop/artifacts/iphone/INSTALL-IPHONE.md
+  ;;
+iphone-personal)
+  test -n "${ZENTRA_PERSONAL_IPHONE_TOKEN:-}"
+  umask 077
+  printf '%s' "$ZENTRA_PERSONAL_IPHONE_TOKEN" > desktop/src-tauri/.personal-iphone-license
+  unset ZENTRA_PERSONAL_IPHONE_TOKEN
+  trap 'rm -f desktop/src-tauri/.personal-iphone-license' EXIT
+  sdk=$(xcrun --sdk iphoneos --show-sdk-version)
+  [[ "${sdk%%.*}" -ge 26 ]]
+  rustup target add aarch64-apple-ios
+  pnpm --dir desktop exec tauri ios init --ci --skip-targets-install
+  pnpm --dir desktop exec tauri ios build --target aarch64 --no-sign --ci --features personal-iphone
+  python3 desktop/scripts/verify-ios-ipa.py desktop/src-tauri/gen/apple/build/arm64/Zentra.ipa --output-dir desktop/artifacts/iphone-personal --source-revision "$(git rev-parse HEAD)"
+  version=$(node -p "require('./desktop/package.json').version")
+  mv "desktop/artifacts/iphone-personal/Zentra-${version}-iPhone-unsigned.ipa" "desktop/artifacts/iphone-personal/Zentra-${version}-iPhone-PERSONNEL.ipa"
+  cp docs/INSTALL-IPHONE-PERSONNEL.md desktop/artifacts/iphone-personal/LISEZ-MOI.md
   ;;
 *) echo 'Expected prepare, macos or iphone' >&2; exit 2;;
 esac
