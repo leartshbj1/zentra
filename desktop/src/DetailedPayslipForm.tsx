@@ -1,3 +1,4 @@
+import { t, getAppLocale, useAppLanguage } from './language';
 import { useAssistantScreen } from './assistantContext';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -92,6 +93,7 @@ export function DetailedPayslipForm({
   initialPaymentDate?: string;
   onAddEmployee?: (period: string, paymentDate: string) => void;
 }) {
+  useAppLanguage();
   const activeEmployees = workspace.employees.filter(
     (employee) => employee.active,
   );
@@ -114,7 +116,7 @@ export function DetailedPayslipForm({
   const setupProposalContext = useRef<{ ids: Set<string>; employeeId: string; period: string; paymentDate: string } | null>(null);
   const [pendingSetupProposal, setPendingSetupProposal] = useState<(NonNullable<typeof setupProposalContext.current> & { revision: number }) | null>(null);
   const [loadedRatesRevision, setLoadedRatesRevision] = useState(-1);
-  const [setupProposalNotice, setSetupProposalNotice] = useState('');
+  const [setupProposalCount, setSetupProposalCount] = useState(0);
   const fieldGuide = usePayrollFieldGuide();
   function fixPayroll(target: PayrollHelpTarget, selector?: string) {
     if (['salary', 'review', 'period'].includes(target)) { setPreparing(false); setEditingBases(false); }
@@ -131,7 +133,7 @@ export function DetailedPayslipForm({
     else if (target === 'period') setStep(0);
     else {
       setupProposalContext.current = { ids: new Set(proposal.map(definition => definition.id)), employeeId, period, paymentDate };
-      setSetupProposalNotice('');
+      setSetupProposalCount(0);
       setSetup(target);
     }
   }
@@ -209,7 +211,7 @@ export function DetailedPayslipForm({
   );
   const primaryLine = lines.find((line) => line.kind === 'earning');
   const periodLabel = /^\d{4}-(0[1-9]|1[0-2])$/.test(period)
-    ? new Intl.DateTimeFormat('fr-CH', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    ? new Intl.DateTimeFormat(getAppLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' })
         .format(new Date(`${period}-01T12:00:00Z`))
     : period;
   const guidedBasis = guidedAhvBasis(lines);
@@ -806,7 +808,7 @@ export function DetailedPayslipForm({
     if (pendingSetupProposal.employeeId !== employeeId || pendingSetupProposal.period !== period || pendingSetupProposal.paymentDate !== paymentDate) return;
     // Saving a correction includes its newly applicable proposals, never a previously omitted one.
     const count = addApprovedProposals(new Set(proposal.filter(definition => !pendingSetupProposal.ids.has(definition.id)).map(definition => definition.id)));
-    if (count) setSetupProposalNotice(`${count} cotisation${count > 1 ? 's' : ''} reprise${count > 1 ? 's' : ''} dans cette fiche après votre correction. Vous pourrez les vérifier avec le calcul du net.`);
+    if (count) setSetupProposalCount(count);
   }, [pendingSetupProposal, setup, busy, loadingRates, loadingAccounting, ratesError, accountingError, existingBlocked, loadedRatesRevision, employeeId, period, paymentDate, proposal]);
 
   function requireHourlyAmount() {
@@ -1055,15 +1057,15 @@ export function DetailedPayslipForm({
     <Modal
       title={
         setup
-          ? 'Préparer la paie'
+          ? t("Préparer la paie")
           : item
-            ? 'Modifier la fiche de salaire'
-            : 'Nouvelle fiche de salaire'
+            ? t("Modifier la fiche de salaire")
+            : t("Nouvelle fiche de salaire")
       }
       description={
         setup
-          ? 'Des réglages conservés pour les prochaines fiches.'
-          : 'Choisissez la personne, indiquez son salaire et vérifiez le net.'
+          ? t("Des réglages conservés pour les prochaines fiches.")
+          : t("Choisissez la personne, indiquez son salaire et vérifiez le net.")
       }
       className="payroll-dialog"
       onClose={close}
@@ -1071,13 +1073,11 @@ export function DetailedPayslipForm({
       wide
     >
       {(accountingError || ratesError) && (
-        <section className="payroll-load-recovery" aria-label="Reprendre le chargement">
+        <section className="payroll-load-recovery" aria-label={t("Reprendre le chargement")}>
           <PayrollProblem messages={[accountingError, ratesError]} onFix={fixPayroll}
             disabled={busy || calculating || loadingRates || loadingAccounting} reveal />
           <Button type="button" variant="secondary" disabled={busy || calculating || loadingRates || loadingAccounting}
-            onClick={() => setConfigurationReload(value => value + 1)}>
-            Réessayer le chargement
-          </Button>
+            onClick={() => setConfigurationReload(value => value + 1)}>{t("Réessayer le chargement")}</Button>
         </section>
       )}
       {setup && (
@@ -1104,8 +1104,8 @@ export function DetailedPayslipForm({
       )}
       {preparing && !setup && (
         <PayrollPreparation
-          employeeName={employee?.name ?? 'votre collaborateur'}
-          savedNotice={setupProposalNotice}
+          employeeName={employee?.name ?? t('votre collaborateur')}
+          savedNotice={setupProposalCount ? t(setupProposalCount > 1 ? '{count} cotisations reprises dans cette fiche après votre correction. Vous pourrez les vérifier avec le calcul du net.' : '{count} cotisation reprise dans cette fiche après votre correction. Vous pourrez la vérifier avec le calcul du net.', { count: setupProposalCount }) : ''}
           tasks={payrollPreparationTasks(eligibility.blockers)}
           proposals={missingProposals.map((definition) => definition.label)}
           onApplyProposals={addMissingProposals}
@@ -1247,7 +1247,7 @@ export function DetailedPayslipForm({
             );
           })}
         >
-          <ol className="payroll-steps" aria-label="Étapes de création">
+          <ol className="payroll-steps" aria-label={t("Étapes de création")}>
             {PAYROLL_STEPS.map((label, index) => (
               <li
                 key={label}
@@ -1256,23 +1256,23 @@ export function DetailedPayslipForm({
                 <span>
                   {index < step ? <CheckCircle2 size={16} /> : index + 1}
                 </span>
-                {label}
+                {t(label)}
               </li>
             ))}
           </ol>
           <div className="payroll-step-intro" ref={headingRef} tabIndex={-1}>
             {step > 0 && <p className="payroll-current-person">{employee?.name} · {periodLabel}</p>}
             <h3>
-              {
+              {t(
                 [
                   'À qui versez-vous ce salaire ?',
                   employee?.salaryMode === 'hourly' ? 'Quel salaire versez-vous ce mois-ci ?' : 'Qu’est-ce qui change ce mois-ci ?',
                   'Vérifiez, puis enregistrez.',
                 ][step]
-              }
+              )}
             </h3>
             <p>
-              {
+              {t(
                 [
                   'Choisissez la personne et le mois. Ses informations déjà enregistrées sont reprises.',
                   employee?.salaryMode === 'hourly'
@@ -1282,14 +1282,12 @@ export function DetailedPayslipForm({
                       : 'Indiquez le salaire brut prévu au contrat, puis les éventuels compléments du mois.',
                   'Le net à payer et les points à compléter sont réunis ici.',
                 ][step]
-              }
+              )}
             </p>
           </div>
           {fieldGuide.guide}
           {(loadingRates || loadingAccounting) && (
-            <p className="payroll-callout" role="status">
-              Chargement des réglages du salaire… Votre saisie reste conservée.
-            </p>
+            <p className="payroll-callout" role="status">{t("Chargement des réglages du salaire… Votre saisie reste conservée.")}</p>
           )}
           {localError || calculationError ? (
             <PayrollProblem
@@ -1306,22 +1304,16 @@ export function DetailedPayslipForm({
             disabled={step !== 0 || busy}
           >
             <details className="payroll-simple-guide">
-              <summary>Ma première fiche : comment faire ?</summary>
+              <summary>{t("Ma première fiche : comment faire ?")}</summary>
               <ol>
-                <li>Choisissez la personne et le mois à payer.</li>
-                <li>
-                  Indiquez le salaire brut : le montant avant les retenues.
-                </li>
-                <li>Vérifiez le net : le montant à verser au salarié.</li>
+                <li>{t("Choisissez la personne et le mois à payer.")}</li>
+                <li>{t("Indiquez le salaire brut : le montant avant les retenues.")}</li>
+                <li>{t("Vérifiez le net : le montant à verser au salarié.")}</li>
               </ol>
-              <p>
-                Si une information manque, l’app vous propose de la compléter
-                sans perdre votre saisie. Enregistrer une fiche ne déclenche
-                aucun virement.
-              </p>
+              <p>{t("Si une information manque, l’app vous propose de la compléter sans perdre votre saisie. Enregistrer une fiche ne déclenche aucun virement.")}</p>
             </details>
             <div className="form-grid">
-              <Field label="Collaborateur" required>
+              <Field label={t("Collaborateur")} required>
                 <select
                   name="employeeId"
                   disabled={Boolean(item)}
@@ -1329,7 +1321,7 @@ export function DetailedPayslipForm({
                   onChange={(event) => selectEmployee(event.target.value)}
                   required
                 >
-                  <option value="">Choisir un collaborateur</option>
+                  <option value="">{t("Choisir un collaborateur")}</option>
                   {workspace.employees
                     .filter(
                       (employee) =>
@@ -1346,8 +1338,8 @@ export function DetailedPayslipForm({
                 <div className="payroll-first-person">
                   <p>
                     {activeEmployees.length
-                      ? 'Cette personne n’est pas encore dans votre liste ?'
-                      : 'Commencez par ajouter la personne à qui vous versez ce salaire.'}
+                      ? t("Cette personne n’est pas encore dans votre liste ?")
+                      : t("Commencez par ajouter la personne à qui vous versez ce salaire.")}
                   </p>
                   <Button
                     type="button"
@@ -1355,11 +1347,10 @@ export function DetailedPayslipForm({
                     disabled={busy}
                     onClick={() => onAddEmployee(period, paymentDate)}
                   >
-                    <Plus size={16} /> Ajouter le collaborateur et continuer
-                  </Button>
+                    <Plus size={16} />{t(" Ajouter le collaborateur et continuer")}</Button>
                 </div>
               )}
-              <Field label="Période" required hint="Le mois auquel correspond ce salaire.">
+              <Field label={t("Période")} required hint={t("Le mois auquel correspond ce salaire.")}>
                 <input
                   name="period"
                   type="month"
@@ -1372,7 +1363,7 @@ export function DetailedPayslipForm({
                   required
                 />
               </Field>
-              <Field label="Date de paiement" hint="Facultatif : la date prévue du versement. Créer la fiche ne déclenche aucun virement.">
+              <Field label={t("Date de paiement")} hint={t("Facultatif : la date prévue du versement. Créer la fiche ne déclenche aucun virement.")}>
                 <input
                   name="paymentDate"
                   type="date"
@@ -1387,10 +1378,7 @@ export function DetailedPayslipForm({
               ) ? (
                 <div className="info-strip">
                   <CheckCircle2 size={17} />
-                  <span>
-                    Les gains récurrents confirmés lors de l’import ont été
-                    préremplis. Vous pouvez les ajuster à l’étape suivante.
-                  </span>
+                  <span>{t("Les gains récurrents confirmés lors de l’import ont été préremplis. Vous pouvez les ajuster à l’étape suivante.")}</span>
                 </div>
               ) : null}
             </div>
@@ -1398,15 +1386,12 @@ export function DetailedPayslipForm({
               <div className="payroll-person">
                 <strong>{employee.name}</strong>
                 <span>
-                  {employee.role || 'Collaborateur'} ·{' '}
+                  {employee.role || t('Collaborateur')} ·{' '}
                   {employee.salaryMode === 'monthly'
-                    ? 'Salaire mensuel'
-                    : 'Salaire horaire'}
+                    ? t("Salaire mensuel")
+                    : t("Salaire horaire")}
                 </span>
-                <small>
-                  Le contrat et les assurances sont conservés pour les
-                  prochaines fiches.
-                </small>
+                <small>{t("Le contrat et les assurances sont conservés pour les prochaines fiches.")}</small>
                 <Button
                   type="button"
                   variant="secondary"
@@ -1416,9 +1401,7 @@ export function DetailedPayslipForm({
                     if (!item && !selectedItems.length) applyProposal();
                     setPreparing(true);
                   }}
-                >
-                  Me guider pour préparer cette fiche
-                </Button>
+                >{t("Me guider pour préparer cette fiche")}</Button>
               </div>
             ) : null}
           </fieldset>
@@ -1444,12 +1427,12 @@ export function DetailedPayslipForm({
                 <label>
                   <span>
                     {employee?.salaryMode === 'hourly'
-                      ? 'Salaire brut pour les heures de ce mois'
-                      : 'Salaire brut du mois'}
+                      ? t("Salaire brut pour les heures de ce mois")
+                      : t("Salaire brut du mois")}
                   </span>
                   <span className="money-input">
                     <input
-                      aria-label="Salaire brut du mois (CHF)"
+                      aria-label={t("Salaire brut du mois (CHF)")}
                       type="number"
                       inputMode="decimal"
                       min="0"
@@ -1467,10 +1450,9 @@ export function DetailedPayslipForm({
                     <span>CHF</span>
                   </span>
                 </label>
-                <small>
-                  Montant avant retenues, pour le taux d’activité convenu.{' '}
+                <small>{t("Montant avant retenues, pour le taux d’activité convenu.")}{' '}
                   {lines.filter((line) => line.kind === 'earning').length > 1
-                    ? 'Les compléments ci-dessous s’ajoutent à ce montant.'
+                    ? t("Les compléments ci-dessous s’ajoutent à ce montant.")
                     : ''}
                 </small>
               </div>
@@ -1490,28 +1472,17 @@ export function DetailedPayslipForm({
                   ]);
                   invalidateCalculation();
                 }}
-              >
-                Indiquer le salaire du mois
-              </Button>
+              >{t("Indiquer le salaire du mois")}</Button>
             )}
             <details className="payroll-details">
-              <summary>
-                Ajouter ou modifier un complément de salaire
-                {lines.length > 1 ? ` · ${lines.length - 1}` : ''}
+              <summary>{t("Ajouter ou modifier un complément de salaire")}{lines.length > 1 ? ` · ${lines.length - 1}` : ''}
               </summary>
-              <p>
-                Prime, heures supplémentaires, frais ou retenue particulière.
-                Les montants inhabituels et leurs bases de cotisation doivent
-                être contrôlés.
-              </p>
+              <p>{t("Prime, heures supplémentaires, frais ou retenue particulière. Les montants inhabituels et leurs bases de cotisation doivent être contrôlés.")}</p>
               <section className="pay-lines">
                 <header>
                   <div>
-                    <strong>Éléments de salaire</strong>
-                    <small>
-                      Salaire, heures, indemnités, allocations et avantages sont
-                      saisis séparément.
-                    </small>
+                    <strong>{t("Éléments de salaire")}</strong>
+                    <small>{t("Salaire, heures, indemnités, allocations et avantages sont saisis séparément.")}</small>
                   </div>
                   <div>
                     <Button
@@ -1520,41 +1491,41 @@ export function DetailedPayslipForm({
                       size="small"
                       onClick={() => addLine('earning')}
                     >
-                      <Plus size={14} /> Ajouter un élément
-                    </Button>
+                      <Plus size={14} />{t(" Ajouter un élément")}</Button>
                   </div>
                 </header>
                 {lines.length ? (
                   <div className="pay-line-list">
                     {lines.map((line, index) => (
                       <div key={line.id}>
+                        <div className="payroll-line-kind">
                         <select
-                          aria-label={`Type de la ligne ${index + 1}`}
+                          aria-label={t("Type de la ligne {v0}", { v0: index + 1 })}
                           value={line.kind}
                           onChange={(event) =>
                             changeLineKind(line.id, event.target.value)
                           }
                         >
-                          <option value="earning">Salaire / complément</option>
-                          <option value="deduction">Retenue manuelle</option>
-                          <option value="reimbursement">
-                            Remboursement hors brut
-                          </option>
-                          <option value="employer">Charge employeur</option>
+                          <option value="earning">{t("Salaire / complément")}</option>
+                          <option value="deduction">{t("Retenue manuelle")}</option>
+                          <option value="reimbursement">{t("Remboursement hors brut")}</option>
+                          <option value="employer">{t("Charge employeur")}</option>
                         </select>
+                        <small className="payroll-selection-caption" aria-hidden="true">{t(line.kind === 'earning' ? 'Salaire / complément' : line.kind === 'deduction' ? 'Retenue manuelle' : line.kind === 'reimbursement' ? 'Remboursement hors brut' : 'Charge employeur')}</small>
+                        </div>
                         <input
-                          aria-label={`Libellé de la ligne ${index + 1}`}
+                          aria-label={t("Libellé de la ligne {v0}", { v0: index + 1 })}
                           maxLength={200}
                           value={line.label}
                           onChange={(event) =>
                             updateLine(line.id, { label: event.target.value })
                           }
-                          placeholder="Libellé réel"
+                          placeholder={t("Libellé réel")}
                           required
                         />
                         <label className="money-input">
                           <input
-                            aria-label={`Montant de la ligne ${index + 1} (CHF)`}
+                            aria-label={t("Montant de la ligne {v0} (CHF)", { v0: index + 1 })}
                             type="number"
                             min="0"
                             step="0.01"
@@ -1576,7 +1547,7 @@ export function DetailedPayslipForm({
                           type="button"
                           variant="ghost"
                           size="icon"
-                          aria-label={`Supprimer la ligne ${index + 1}`}
+                          aria-label={t("Supprimer la ligne {v0}", { v0: index + 1 })}
                           onClick={() => {
                             setLines((current) =>
                               current.filter(
@@ -1596,8 +1567,8 @@ export function DetailedPayslipForm({
                               <label>
                                 <span>
                                   {line.kind === 'deduction'
-                                    ? 'Compte de contrepartie'
-                                    : 'Compte de dette'}
+                                    ? t("Compte de contrepartie")
+                                    : t("Compte de dette")}
                                 </span>
                                 <select
                                   value={line.postingAccountId ?? ''}
@@ -1608,7 +1579,7 @@ export function DetailedPayslipForm({
                                   }
                                   required
                                 >
-                                  <option value="">Choisir un compte</option>
+                                  <option value="">{t("Choisir un compte")}</option>
                                   {accountingAccounts
                                     .filter((account) =>
                                       line.kind === 'deduction'
@@ -1627,15 +1598,15 @@ export function DetailedPayslipForm({
                                 </select>
                                 <small>
                                   {line.kind === 'deduction'
-                                    ? 'Actif pour une avance récupérée, passif pour un impôt ou une dette.'
-                                    : 'Le montant sera crédité sur cette dette.'}
+                                    ? t("Actif pour une avance récupérée, passif pour un impôt ou une dette.")
+                                    : t("Le montant sera crédité sur cette dette.")}
                                 </small>
                               </label>
                             ) : null}
                             {line.kind === 'reimbursement' ||
                             line.kind === 'employer' ? (
                               <label>
-                                <span>Compte de charge</span>
+                                <span>{t("Compte de charge")}</span>
                                 <select
                                   value={line.expenseAccountId ?? ''}
                                   onChange={(event) =>
@@ -1645,9 +1616,7 @@ export function DetailedPayslipForm({
                                   }
                                   required
                                 >
-                                  <option value="">
-                                    Choisir un compte de charge
-                                  </option>
+                                  <option value="">{t("Choisir un compte de charge")}</option>
                                   {accountingAccounts
                                     .filter(
                                       (account) =>
@@ -1664,8 +1633,8 @@ export function DetailedPayslipForm({
                                 </select>
                                 <small>
                                   {line.kind === 'reimbursement'
-                                    ? 'Le remboursement augmente le net sans augmenter le salaire brut.'
-                                    : 'La charge employeur sera débitée sur ce compte.'}
+                                    ? t("Le remboursement augmente le net sans augmenter le salaire brut.")
+                                    : t("La charge employeur sera débitée sur ce compte.")}
                                 </small>
                               </label>
                             ) : null}
@@ -1675,83 +1644,60 @@ export function DetailedPayslipForm({
                     ))}
                   </div>
                 ) : (
-                  <div className="rate-empty">
-                    Ajoutez les gains et montants confirmés pour cette période.
-                  </div>
+                  <div className="rate-empty">{t("Ajoutez les gains et montants confirmés pour cette période.")}</div>
                 )}
               </section>
             </details>
             <details className="payroll-details">
-              <summary>Règles et montants de mon canton · 2026</summary>
+              <summary>{t("Règles et montants de mon canton · 2026")}</summary>
               <Field
-                label="Canton à consulter"
-                hint="Ce repère ne modifie pas le canton de paie enregistré ni le canton fiscal du salarié."
+                label={t("Canton à consulter")}
+                hint={t("Ce repère ne modifie pas le canton de paie enregistré ni le canton fiscal du salarié.")}
               >
                 <select
                   value={referenceCanton}
                   onChange={(event) => setReferenceCanton(event.target.value)}
                 >
-                  <option value="">Choisir un canton</option>
+                  <option value="">{t("Choisir un canton")}</option>
                   {SWISS_FAMILY_ALLOWANCES_2026.map((canton) => (
                     <option key={canton.canton} value={canton.canton}>
-                      {canton.name} ({canton.canton})
+                      {t(canton.name)} ({canton.canton})
                     </option>
                   ))}
                 </select>
+                {cantonReference && <small className="payroll-selection-caption" aria-hidden="true">{t(cantonReference.name)} ({cantonReference.canton})</small>}
               </Field>
               {period.startsWith('2026-') && cantonReference ? (
                 <>
                   <div className="payroll-canton-facts">
                     <div>
-                      <small>Allocation pour enfant / mois</small>
+                      <small>{t("Allocation pour enfant / mois")}</small>
                       <strong>{cantonReference.child}</strong>
                     </div>
                     <div>
-                      <small>Allocation de formation / mois</small>
+                      <small>{t("Allocation de formation / mois")}</small>
                       <strong>{cantonReference.education}</strong>
                     </div>
                   </div>
                   <p>
-                    {cantonReference.note} Le montant dépend du droit confirmé
-                    par la caisse, du lieu d’activité et de la priorité entre
-                    parents.
-                  </p>
+                    {t(cantonReference.note)}{t(" Le montant dépend du droit confirmé par la caisse, du lieu d’activité et de la priorité entre parents.")}</p>
                   {cantonReference.canton === 'VS' ? (
-                    <p>
-                      Valais : une cotisation CAF salarié de 0,13 % est prévue
-                      en 2026. La définition officielle doit être enregistrée
-                      dans les paramètres.
-                    </p>
+                    <p>{t("Valais : une cotisation CAF salarié de 0,13 % est prévue en 2026. La définition officielle doit être enregistrée dans les paramètres.")}</p>
                   ) : (
-                    <p>
-                      Le financement des allocations est à la charge de
-                      l’employeur ; le taux dépend de sa caisse.
-                    </p>
+                    <p>{t("Le financement des allocations est à la charge de l’employeur ; le taux dépend de sa caisse.")}</p>
                   )}
                 </>
               ) : (
-                <p>
-                  Les références disponibles couvrent 2026. Choisissez le canton
-                  concerné pour les consulter.
-                </p>
+                <p>{t("Les références disponibles couvrent 2026. Choisissez le canton concerné pour les consulter.")}</p>
               )}
-              <p>
-                Les allocations légales ne sont pas soumises à l’AVS. Elles ne
-                doivent pas être ajoutées au brut cotisable sans adapter les
-                bases. L’impôt à la source nécessite le barème officiel et la
-                situation fiscale du salarié.
-              </p>
+              <p>{t("Les allocations légales ne sont pas soumises à l’AVS. Elles ne doivent pas être ajoutées au brut cotisable sans adapter les bases. L’impôt à la source nécessite le barème officiel et la situation fiscale du salarié.")}</p>
               <div className="payroll-rule-links">
                 <a
                   href={SWISS_FAMILY_ALLOWANCES_2026_SOURCE}
                   target="_blank"
                   rel="noreferrer"
-                >
-                  Allocations officielles 2026
-                </a>
-                <a href={SOURCE_TAX_TARIFFS} target="_blank" rel="noreferrer">
-                  Barèmes fiscaux des 26 cantons
-                </a>
+                >{t("Allocations officielles 2026")}</a>
+                <a href={SOURCE_TAX_TARIFFS} target="_blank" rel="noreferrer">{t("Barèmes fiscaux des 26 cantons")}</a>
               </div>
             </details>
             </div>
@@ -1767,26 +1713,21 @@ export function DetailedPayslipForm({
                 else setPreparing(true);
               }} />
             <details className="payroll-details payroll-selection" data-payroll-selection>
-              <summary>Mes cotisations et assurances</summary>
+              <summary>{t("Mes cotisations et assurances")}</summary>
               <header>
                 <div>
-                  <strong>Ce qui sera retenu sur le salaire</strong>
-                  <small>
-                    Les cotisations utilisent les taux et contrats enregistrés.
-                  </small>
+                  <strong>{t("Ce qui sera retenu sur le salaire")}</strong>
+                  <small>{t("Les cotisations utilisent les taux et contrats enregistrés.")}</small>
                 </div>
               </header>
               <div className="payroll-proposal">
                 <div>
                   <strong>
                     {selectedItems.length
-                      ? 'Retenues et charges préparées'
-                      : 'Préparer les cotisations'}
+                      ? t("Retenues et charges préparées")
+                      : t("Préparer les cotisations")}
                   </strong>
-                  <small>
-                    AVS, chômage, accidents et caisse de pension selon le profil
-                    connu. Vérifiez les assurances particulières dans le détail.
-                  </small>
+                  <small>{t("AVS, chômage, accidents et caisse de pension selon le profil connu. Vérifiez les assurances particulières dans le détail.")}</small>
                 </div>
                 <Button
                   type="button"
@@ -1798,25 +1739,20 @@ export function DetailedPayslipForm({
                   onClick={applyProposal}
                 >
                   {selectedItems.length
-                    ? 'Reprendre les réglages du profil'
-                    : 'Utiliser les réglages du profil'}
+                    ? t("Reprendre les réglages du profil")
+                    : t("Utiliser les réglages du profil")}
                 </Button>
               </div>
               {!proposal.length && !loadingRates && (
                 <div className="payroll-callout">
-                  <strong>Les cotisations ne sont pas encore prêtes</strong>
-                  <p>
-                    Indiquez les assurances de l’entreprise et les taux de vos
-                    contrats. L’assistant vous indique où les trouver.
-                  </p>
+                  <strong>{t("Les cotisations ne sont pas encore prêtes")}</strong>
+                  <p>{t("Indiquez les assurances de l’entreprise et les taux de vos contrats. L’assistant vous indique où les trouver.")}</p>
                   <Button
                     type="button"
                     variant="secondary"
                     disabled={busy}
                     onClick={() => fixPayroll('contributions')}
-                  >
-                    Préparer les cotisations avec l’assistant
-                  </Button>
+                  >{t("Préparer les cotisations avec l’assistant")}</Button>
                 </div>
               )}
               <Button
@@ -1825,31 +1761,19 @@ export function DetailedPayslipForm({
                 size="small"
                 disabled={busy || calculating}
                 onClick={() => fixPayroll('insurance')}
-              >
-                Mes caisses et assurances
-              </Button>
+              >{t("Mes caisses et assurances")}</Button>
               <Button
                 type="button"
                 variant="ghost"
                 size="small"
                 disabled={busy || calculating}
                 onClick={() => fixPayroll('contributions')}
-              >
-                Ajouter une cotisation depuis mon contrat
-              </Button>
+              >{t("Ajouter une cotisation depuis mon contrat")}</Button>
               {guidedBasis.requiresClassification ? (
                 <div className="payroll-basis-confirmation">
-                  <p>
-                    Ce salaire contient plusieurs éléments. Dans le détail des
-                    cotisations, indiquez le montant soumis à chaque assurance
-                    d’après votre contrat ou votre fiduciaire. Les allocations
-                    et les remboursements ne se traitent pas tous comme du
-                    salaire.
-                  </p>
+                  <p>{t("Ce salaire contient plusieurs éléments. Dans le détail des cotisations, indiquez le montant soumis à chaque assurance d’après votre contrat ou votre fiduciaire. Les allocations et les remboursements ne se traitent pas tous comme du salaire.")}</p>
                   {basisQuestions.length > 0 && <Button type="button" variant="secondary" disabled={busy || calculating}
-                    onClick={() => { fieldGuide.clear(); setEditingBases(true); }}>
-                    Me guider pour les montants à déclarer
-                  </Button>}
+                    onClick={() => { fieldGuide.clear(); setEditingBases(true); }}>{t("Me guider pour les montants à déclarer")}</Button>}
                 </div>
               ) : null}
               <details
@@ -1859,7 +1783,7 @@ export function DetailedPayslipForm({
                   setShowContributions(event.currentTarget.open)
                 }
               >
-                <summary>Vérifier les cotisations et leurs bases</summary>
+                <summary>{t("Vérifier les cotisations et leurs bases")}</summary>
                 <Button
                   type="button"
                   variant="secondary"
@@ -1871,14 +1795,8 @@ export function DetailedPayslipForm({
                     !selectedItems.length
                   }
                   onClick={() => void calculate()}
-                >
-                  Calculer les cotisations
-                </Button>
-                <p>
-                  Les cumuls annuels AVS, AC et LAA sont repris automatiquement.
-                  Ouvrez ce détail pour modifier une base ou choisir une autre
-                  assurance.
-                </p>
+                >{t("Calculer les cotisations")}</Button>
+                <p>{t("Les cumuls annuels AVS, AC et LAA sont repris automatiquement. Ouvrez ce détail pour modifier une base ou choisir une autre assurance.")}</p>
                 {definitions.length ? (
                   <div className="contribution-selection-list">
                     {definitions
@@ -1910,18 +1828,14 @@ export function DetailedPayslipForm({
                                 <strong>
                                   {definition.code} · {definition.label}
                                 </strong>
-                                <small>
-                                  Part{' '}
-                                  {definition.side === 'employee'
-                                    ? 'employé'
-                                    : 'employeur'}{' '}
+                                <small>{t(definition.side === 'employee' ? 'Part employé' : 'Part employeur')}{' '}
                                   ·{' '}
                                   {definition.calculationKind === 'rate'
-                                    ? `${((definition.rateBp ?? 0) / 100).toLocaleString('fr-CH')} %`
+                                    ? `${((definition.rateBp ?? 0) / 100).toLocaleString(getAppLocale())} %`
                                     : formatMoney(
                                         definition.fixedAmountCents,
                                       )}{' '}
-                                  · {PAYROLL_BASIS_LABELS[definition.basisKind]}
+                                  · {t(PAYROLL_BASIS_LABELS[definition.basisKind])}
                                 </small>
                                 <small>{definition.source}</small>
                               </span>
@@ -1932,14 +1846,14 @@ export function DetailedPayslipForm({
                                   label={
                                     definition.category === 'lpp' &&
                                     definition.basisKind === 'coordinated'
-                                      ? 'Salaire coordonné annuel 2026 (CHF)'
-                                      : `Base de calcul (CHF) · ${definition.label}`
+                                      ? t("Salaire coordonné annuel 2026 (CHF)")
+                                      : t("Base de calcul (CHF) · {v0}", { v0: definition.label })
                                   }
                                   hint={
                                     definition.category === 'lpp' &&
                                     definition.basisKind === 'coordinated'
-                                      ? 'Calculé automatiquement depuis le salaire annuel LPP et les bornes légales 2026.'
-                                      : 'Part du salaire soumise à cette assurance, avant retenue. Montant en CHF, deux décimales maximum. Ne mettez pas zéro si le montant est inconnu.'
+                                      ? t("Calculé automatiquement depuis le salaire annuel LPP et les bornes légales 2026.")
+                                      : t("Part du salaire soumise à cette assurance, avant retenue. Montant en CHF, deux décimales maximum. Ne mettez pas zéro si le montant est inconnu.")
                                   }
                                   required
                                 >
@@ -1976,9 +1890,9 @@ export function DetailedPayslipForm({
                                   definition.category,
                                 ) ? (
                                   <Field
-                                    label="Base cumulée avant ce mois (CHF)"
+                                    label={t("Base cumulée avant ce mois (CHF)")}
                                     required
-                                    hint={`Plafond annuel ${formatMoney(definition.annualCeilingCents)}`}
+                                    hint={t("Plafond annuel {v0}", { v0: formatMoney(definition.annualCeilingCents) })}
                                   >
                                     <input
                                       type="number"
@@ -2009,14 +1923,7 @@ export function DetailedPayslipForm({
                                   ) ? (
                                   <div className="info-strip">
                                     <ShieldCheck size={16} />
-                                    <span>
-                                      Le cumul{' '}
-                                      {definition.category === 'ac'
-                                        ? 'AC'
-                                        : 'LAA'}{' '}
-                                      reprend la base d’ouverture confirmée et
-                                      les fiches antérieures de la même année.
-                                    </span>
+                                    <span>{t(definition.category === 'ac' ? 'Le cumul AC reprend la base d’ouverture confirmée et les fiches antérieures de la même année.' : 'Le cumul LAA reprend la base d’ouverture confirmée et les fiches antérieures de la même année.')}</span>
                                   </div>
                                 ) : null}
                               </div>
@@ -2029,11 +1936,8 @@ export function DetailedPayslipForm({
                   <div className="warning-card">
                     <ShieldCheck size={18} />
                     <div>
-                      <strong>Aucune définition active</strong>
-                      <p>
-                        Configurez les cotisations dans Paramètres avant de
-                        calculer une fiche.
-                      </p>
+                      <strong>{t("Aucune définition active")}</strong>
+                      <p>{t("Configurez les cotisations dans Paramètres avant de calculer une fiche.")}</p>
                     </div>
                   </div>
                 )}
@@ -2051,30 +1955,19 @@ export function DetailedPayslipForm({
               <section className="payroll-next-action" role="status">
                 <strong>
                   {configurationUpdated
-                    ? 'Réglage enregistré. Vérifions son effet sur le salaire.'
-                    : 'Votre salaire a changé. Actualisons le net.'}
+                    ? t("Réglage enregistré. Vérifions son effet sur le salaire.")
+                    : t("Votre salaire a changé. Actualisons le net.")}
                 </strong>
-                <p>
-                  Le salaire saisi et vos notes sont conservés. Cliquez sur «
-                  Recalculer le salaire » en bas, puis contrôlez le nouveau net
-                  avant d’enregistrer.
-                </p>
+                <p>{t("Le salaire saisi et vos notes sont conservés. Cliquez sur « Recalculer le salaire » en bas, puis contrôlez le nouveau net avant d’enregistrer.")}</p>
               </section>
             )}
             {missingProposals.length > 0 && (
               <section className="payroll-next-action">
                 <strong>
-                  {missingProposals.length} cotisation
-                  {missingProposals.length > 1 ? 's' : ''} du profil à ajouter à
-                  cette fiche
-                </strong>
-                <p>
-                  Ces cotisations sont enregistrées et proposées pour cette
-                  personne et ce mois. Vérifiez la liste avant de les appliquer.
-                  Vos bases déjà saisies restent conservées.
-                </p>
+                  {t(missingProposals.length > 1 ? '{count} cotisations du profil à ajouter à cette fiche' : '{count} cotisation du profil à ajouter à cette fiche', { count: missingProposals.length })}</strong>
+                <p>{t("Ces cotisations sont enregistrées et proposées pour cette personne et ce mois. Vérifiez la liste avant de les appliquer. Vos bases déjà saisies restent conservées.")}</p>
                 <details>
-                  <summary>Voir les cotisations proposées</summary>
+                  <summary>{t("Voir les cotisations proposées")}</summary>
                   <ul>
                     {missingProposals.map((definition) => (
                       <li key={definition.id}>{definition.label}</li>
@@ -2086,44 +1979,37 @@ export function DetailedPayslipForm({
                   variant="secondary"
                   disabled={busy || calculating || loadingRates}
                   onClick={addMissingProposals}
-                >
-                  Appliquer les nouvelles cotisations
-                </Button>
+                >{t("Appliquer les nouvelles cotisations")}</Button>
               </section>
             )}
             <div className="payroll-net" aria-live="polite">
-              <span>Net à payer à {employee?.name}</span>
+              <span>{t('Net à payer à {name}', { name: employee?.name ?? '' })}</span>
               <strong>
                 {selectedItems.length && hasCurrentCalculation
                   ? formatMoney(
                       totals.net - (calculation?.employeeDeductionsCents ?? 0),
                     )
-                  : 'Cotisations à compléter'}
+                  : t("Cotisations à compléter")}
               </strong>
               <div className="payroll-net-breakdown">
-                <span>Brut {formatMoney(totals.earnings)}</span>
-                <span>
-                  Retenues{' '}
+                <span>{t("Brut ")}{formatMoney(totals.earnings)}</span>
+                <span>{t("Retenues")}{' '}
                   {hasCurrentCalculation
                     ? formatMoney(
                         totals.deductions +
                           (calculation?.employeeDeductionsCents ?? 0),
                       )
-                    : 'à calculer'}
+                    : t("à calculer")}
                 </span>
                 {totals.reimbursements > 0 ? (
-                  <span>Frais {formatMoney(totals.reimbursements)}</span>
+                  <span>{t("Frais ")}{formatMoney(totals.reimbursements)}</span>
                 ) : null}
               </div>
             </div>
             {eligibility.blockers.length || !selectedItems.length ? (
               <div className="payroll-issues">
-                <strong>Terminons la préparation</strong>
-                <p>
-                  Commençons par le premier point. Le bouton ouvre le bon
-                  réglage, puis vous revenez ici sans perdre votre salaire ni
-                  vos notes.
-                </p>
+                <strong>{t("Terminons la préparation")}</strong>
+                <p>{t("Commençons par le premier point. Le bouton ouvre le bon réglage, puis vous revenez ici sans perdre votre salaire ni vos notes.")}</p>
                 <PayrollProblem
                   messages={
                     !selectedItems.length
@@ -2140,8 +2026,7 @@ export function DetailedPayslipForm({
             ) : null}
             {eligibility.warnings.length ? (
               <details className="payroll-details">
-                <summary>
-                  Points à vérifier · {eligibility.warnings.length}
+                <summary>{t("Points à vérifier · ")}{eligibility.warnings.length}
                 </summary>
                 {eligibility.warnings.map((message) => (
                   <p key={message}>{message}</p>
@@ -2149,16 +2034,13 @@ export function DetailedPayslipForm({
               </details>
             ) : null}
             <details className="payroll-details">
-              <summary>Contrôles détaillés</summary>
+              <summary>{t("Contrôles détaillés")}</summary>
               <section className="payroll-eligibility">
                 <header>
                   <ShieldCheck size={18} />
                   <div>
-                    <strong>Contrôles d’assujettissement 2026</strong>
-                    <small>
-                      Ces contrôles signalent les paramètres manquants; votre
-                      caisse, CCT ou fiduciaire reste la référence finale.
-                    </small>
+                    <strong>{t("Contrôles d’assujettissement 2026")}</strong>
+                    <small>{t("Ces contrôles signalent les paramètres manquants; votre caisse, CCT ou fiduciaire reste la référence finale.")}</small>
                   </div>
                 </header>
                 <div className="payroll-eligibility__facts">
@@ -2171,7 +2053,7 @@ export function DetailedPayslipForm({
                 </div>
                 {eligibility.blockers.length ? (
                   <div className="payroll-eligibility__issues is-blocking">
-                    <strong>Validation bloquée</strong>
+                    <strong>{t("Validation bloquée")}</strong>
                     {eligibility.blockers.map((message) => (
                       <p key={message}>{message}</p>
                     ))}
@@ -2179,7 +2061,7 @@ export function DetailedPayslipForm({
                 ) : null}
                 {eligibility.warnings.length ? (
                   <div className="payroll-eligibility__issues">
-                    <strong>À confirmer</strong>
+                    <strong>{t("À confirmer")}</strong>
                     {eligibility.warnings.map((message) => (
                       <p key={message}>{message}</p>
                     ))}
@@ -2188,16 +2070,14 @@ export function DetailedPayslipForm({
               </section>
             </details>
             <details className="payroll-details">
-              <summary>Comprendre le calcul du salaire</summary>
+              <summary>{t("Comprendre le calcul du salaire")}</summary>
               {hasCurrentCalculation && calculation ? (
                 <section className="payroll-calculation">
                   <header>
                     <CheckCircle2 size={18} />
                     <div>
-                      <strong>Calcul contrôlable</strong>
-                      <small>
-                        Période {calculation.period} · brut{' '}
-                        {formatMoney(calculation.grossCents)}
+                      <strong>{t("Calcul contrôlable")}</strong>
+                      <small>{t('Période {period} · brut {amount}', { period: calculation.period, amount: formatMoney(calculation.grossCents) })}
                       </small>
                     </div>
                   </header>
@@ -2206,22 +2086,22 @@ export function DetailedPayslipForm({
                       <div className="payroll-small-salary-result__heading">
                         <ShieldCheck size={17} />
                         <div>
-                          <strong>Décision annuelle calculée localement</strong>
+                          <strong>{t("Décision annuelle calculée localement")}</strong>
                           <small>
-                            {smallSalarySectorLabel(
+                            {t(smallSalarySectorLabel(
                               calculation.smallSalaryAssessment.sector,
-                            )}{' '}
+                            ))}{' '}
                             · {calculation.smallSalaryAssessment.assessmentYear}{' '}
                             ·{' '}
-                            {smallSalaryReasonLabel(
+                            {t(smallSalaryReasonLabel(
                               calculation.smallSalaryAssessment.reasonCode,
-                            )}
+                            ))}
                           </small>
                         </div>
                       </div>
                       <div className="payroll-small-salary-result__facts">
                         <div>
-                          <span>Cumul brut annuel</span>
+                          <span>{t("Cumul brut annuel")}</span>
                           <strong>
                             {formatMoney(
                               calculation.smallSalaryAssessment
@@ -2230,7 +2110,7 @@ export function DetailedPayslipForm({
                           </strong>
                         </div>
                         <div>
-                          <span>Avant cette fiche</span>
+                          <span>{t("Avant cette fiche")}</span>
                           <strong>
                             {formatMoney(
                               calculation.smallSalaryAssessment
@@ -2241,7 +2121,7 @@ export function DetailedPayslipForm({
                           </strong>
                         </div>
                         <div>
-                          <span>Base déjà cotisée</span>
+                          <span>{t("Base déjà cotisée")}</span>
                           <strong>
                             {formatMoney(
                               calculation.smallSalaryAssessment
@@ -2252,7 +2132,7 @@ export function DetailedPayslipForm({
                           </strong>
                         </div>
                         <div>
-                          <span>Seuil appliqué</span>
+                          <span>{t("Seuil appliqué")}</span>
                           <strong>
                             {formatMoney(
                               calculation.smallSalaryAssessment.thresholdCents,
@@ -2260,21 +2140,21 @@ export function DetailedPayslipForm({
                           </strong>
                         </div>
                         <div>
-                          <span>Cotisations dues</span>
+                          <span>{t("Cotisations dues")}</span>
                           <strong>
                             {calculation.smallSalaryAssessment.contributionsDue
-                              ? 'Oui'
-                              : 'Non'}
+                              ? t("Oui")
+                              : t("Non")}
                           </strong>
                         </div>
                         <div>
-                          <span>Date de décision</span>
+                          <span>{t("Date de décision")}</span>
                           <strong>
                             {calculation.smallSalaryAssessment.decisionDate}
                           </strong>
                         </div>
                         <div>
-                          <span>Assiette totale cotisée</span>
+                          <span>{t("Assiette totale cotisée")}</span>
                           <strong>
                             {formatMoney(
                               calculation.smallSalaryAssessment
@@ -2283,7 +2163,7 @@ export function DetailedPayslipForm({
                           </strong>
                         </div>
                         <div>
-                          <span>Dont rattrapage historique</span>
+                          <span>{t("Dont rattrapage historique")}</span>
                           <strong>
                             {calculation.smallSalaryAssessment
                               .statutoryCatchupBasisCents > 0
@@ -2291,21 +2171,15 @@ export function DetailedPayslipForm({
                                   calculation.smallSalaryAssessment
                                     .statutoryCatchupBasisCents,
                                 )
-                              : 'Aucun'}
+                              : t("Aucun")}
                           </strong>
                         </div>
                       </div>
                       {calculation.smallSalaryAssessment
                         .statutoryCatchupBasisCents > 0 ? (
-                        <div className="payroll-small-salary-result__catchup">
-                          Le seuil est franchi: cette base de rattrapage couvre
-                          le brut antérieur encore non cotisé. Elle vient du
-                          cumul vérifié par le moteur, sans saisie manuelle sur
-                          la fiche.
-                        </div>
+                        <div className="payroll-small-salary-result__catchup">{t("Le seuil est franchi: cette base de rattrapage couvre le brut antérieur encore non cotisé. Elle vient du cumul vérifié par le moteur, sans saisie manuelle sur la fiche.")}</div>
                       ) : null}
-                      <small className="payroll-small-salary-result__evidence">
-                        Preuve:{' '}
+                      <small className="payroll-small-salary-result__evidence">{t("Preuve:")}{' '}
                         {calculation.smallSalaryAssessment.evidenceReference}
                       </small>
                     </div>
@@ -2315,14 +2189,13 @@ export function DetailedPayslipForm({
                       <div key={`${result.id}-${result.side}`}>
                         <span>
                           {result.label}
-                          <small>
-                            Base {formatMoney(result.basisCents)} ·{' '}
+                          <small>{t("Base ")}{formatMoney(result.basisCents)} ·{' '}
                             {result.rateBp !== null
-                              ? `${(result.rateBp / 100).toLocaleString('fr-CH')} %`
-                              : 'montant fixe'}
+                              ? `${(result.rateBp / 100).toLocaleString(getAppLocale())} %`
+                              : t("montant fixe")}
                             {result.category === 'ac' &&
                             result.yearToDateBasisCents !== null
-                              ? ` · cumul antérieur ${formatMoney(result.yearToDateBasisCents)}`
+                              ? t(" · cumul antérieur {v0}", { v0: formatMoney(result.yearToDateBasisCents) })
                               : ''}
                           </small>
                         </span>
@@ -2331,14 +2204,12 @@ export function DetailedPayslipForm({
                     ))}
                   </div>
                   <footer>
-                    <span>
-                      Retenues employé{' '}
+                    <span>{t("Retenues employé")}{' '}
                       <strong>
                         {formatMoney(calculation.employeeDeductionsCents)}
                       </strong>
                     </span>
-                    <span>
-                      Charges employeur{' '}
+                    <span>{t("Charges employeur")}{' '}
                       <strong>
                         {formatMoney(calculation.employerCostsCents)}
                       </strong>
@@ -2349,34 +2220,34 @@ export function DetailedPayslipForm({
             </details>
             <div className="document-bottom">
               <div>
-                <Field label="Notes">
+                <Field label={t("Notes")}>
                   <textarea name="notes" rows={3} defaultValue={item?.notes} />
                 </Field>
               </div>
               <details className="payroll-details">
-                <summary>Détail des montants</summary>
+                <summary>{t("Détail des montants")}</summary>
                 <div className="document-totals">
                   <div>
-                    <span>Brut saisi</span>
+                    <span>{t("Brut saisi")}</span>
                     <strong>{formatMoney(totals.earnings)}</strong>
                   </div>
                   <div>
-                    <span>Remboursements hors brut</span>
+                    <span>{t("Remboursements hors brut")}</span>
                     <strong>{formatMoney(totals.reimbursements)}</strong>
                   </div>
                   <div>
-                    <span>Retenues manuelles</span>
+                    <span>{t("Retenues manuelles")}</span>
                     <strong>{formatMoney(totals.deductions)}</strong>
                   </div>
                   <div>
-                    <span>Net avant cotisations calculées</span>
+                    <span>{t("Net avant cotisations calculées")}</span>
                     <strong>{formatMoney(totals.net)}</strong>
                   </div>
                   <div>
-                    <span>Cotisations employé</span>
+                    <span>{t("Cotisations employé")}</span>
                     <strong>
                       {selectedItems.length && !hasCurrentCalculation
-                        ? 'À recalculer'
+                        ? t("À recalculer")
                         : formatMoney(
                             calculation?.employeeDeductionsCents ?? 0,
                           )}
@@ -2385,12 +2256,12 @@ export function DetailedPayslipForm({
                   <div className="total-main" aria-live="polite">
                     <span>
                       {eligibility.blockers.length
-                        ? 'Net calculé · à contrôler'
-                        : 'Net à payer'}
+                        ? t("Net calculé · à contrôler")
+                        : t("Net à payer")}
                     </span>
                     <strong>
                       {selectedItems.length && !hasCurrentCalculation
-                        ? 'À recalculer'
+                        ? t("À recalculer")
                         : formatMoney(
                             totals.net -
                               (calculation?.employeeDeductionsCents ?? 0),
@@ -2401,7 +2272,7 @@ export function DetailedPayslipForm({
               </details>
             </div>
             {workspace.settings?.payroll.fiduciaryValidated ? (
-              <label className="check-card" aria-label="Valider cette fiche">
+              <label className="check-card" aria-label={t("Valider cette fiche")}>
                 <input
                   name="validated"
                   type="checkbox"
@@ -2409,11 +2280,11 @@ export function DetailedPayslipForm({
                   disabled={eligibility.blockers.length > 0}
                 />
                 <span>
-                  <strong>Valider cette fiche</strong>
+                  <strong>{t("Valider cette fiche")}</strong>
                   <small>
                     {eligibility.blockers.length
-                      ? 'Corrigez les contrôles d’assujettissement bloquants ci-dessus.'
-                      : 'Confirmez que les bases, taux et résultats ont été contrôlés.'}
+                      ? t("Corrigez les contrôles d’assujettissement bloquants ci-dessus.")
+                      : t("Confirmez que les bases, taux et résultats ont été contrôlés.")}
                   </small>
                 </span>
               </label>
@@ -2421,10 +2292,8 @@ export function DetailedPayslipForm({
               <div className="warning-card">
                 <ShieldCheck size={18} />
                 <div>
-                  <strong>La fiche restera à contrôler</strong>
-                  <p>
-                    Enregistrez cette fiche pour conserver votre travail. Après le contrôle des réglages par votre fiduciaire, ouvrez les paramètres de paie depuis la liste, puis reprenez cette fiche pour la valider et obtenir son PDF.
-                  </p>
+                  <strong>{t("La fiche restera à contrôler")}</strong>
+                  <p>{t("Enregistrez cette fiche pour conserver votre travail. Après le contrôle des réglages par votre fiduciaire, ouvrez les paramètres de paie depuis la liste, puis reprenez cette fiche pour la valider et obtenir son PDF.")}</p>
                 </div>
               </div>
             )}
@@ -2432,24 +2301,18 @@ export function DetailedPayslipForm({
           {step > 0 && canSaveSalaryDraft && (step === 1 || !hasCurrentCalculation) && (
             <aside
               className="payroll-save-later"
-              aria-label="Continuer plus tard"
+              aria-label={t("Continuer plus tard")}
             >
               <div>
-                <strong>Vous pouvez continuer plus tard.</strong>
-                <p>
-                  Conservez le salaire saisi, même si les assurances ne sont pas
-                  encore prêtes. Le brouillon restera à calculer avant de
-                  pouvoir être payé.
-                </p>
+                <strong>{t("Vous pouvez continuer plus tard.")}</strong>
+                <p>{t("Conservez le salaire saisi, même si les assurances ne sont pas encore prêtes. Le brouillon restera à calculer avant de pouvoir être payé.")}</p>
               </div>
               <Button
                 type="button"
                 variant="secondary"
                 disabled={busy || calculating}
                 onClick={() => void saveSalaryDraft()}
-              >
-                Enregistrer le salaire en brouillon
-              </Button>
+              >{t("Enregistrer le salaire en brouillon")}</Button>
             </aside>
           )}
           <div className="payroll-actions">
@@ -2463,17 +2326,14 @@ export function DetailedPayslipForm({
                   setStep(step - 1);
                 }}
               >
-                <ArrowLeft size={16} /> Retour
-              </Button>
+                <ArrowLeft size={16} />{t(" Retour")}</Button>
             ) : (
               <Button
                 type="button"
                 variant="ghost"
                 disabled={busy}
                 onClick={close}
-              >
-                Annuler
-              </Button>
+              >{t("Annuler")}</Button>
             )}
             {step < 2 ? (
               <Button
@@ -2488,10 +2348,10 @@ export function DetailedPayslipForm({
                 }
               >
                 {calculating
-                  ? 'Calcul en cours…'
+                  ? t("Calcul en cours…")
                   : step === 0
-                    ? 'Continuer'
-                    : 'Vérifier le salaire'}
+                    ? t("Continuer")
+                    : t("Vérifier le salaire")}
                 <ArrowRight size={16} />
               </Button>
             ) : (
@@ -2500,10 +2360,10 @@ export function DetailedPayslipForm({
                 busy={busy}
                 submitLabel={
                   calculating
-                    ? 'Calcul en cours…'
+                    ? t('Calcul en cours…')
                     : selectedItems.length > 0 && !hasCurrentCalculation
-                      ? 'Recalculer le salaire'
-                      : 'Enregistrer la fiche'
+                      ? t('Recalculer le salaire')
+                      : t('Enregistrer la fiche')
                 }
                 disabled={
                   calculating ||
