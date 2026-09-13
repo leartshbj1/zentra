@@ -11466,13 +11466,13 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .save_supplier_order_draft(order_input(
                 order_id,
                 order_line_id,
-                "2026-10-01",
+                "2025-10-01",
                 "stocked_receipt",
             ))
             .unwrap();
         let connection = store.connect().unwrap();
         assert!(connection.execute(
-            "UPDATE supplier_orders SET number='CF-FAUX',status='confirmed',confirmed_at='2026-10-01T00:00:00Z' WHERE id=?",
+            "UPDATE supplier_orders SET number='CF-FAUX',status='confirmed',confirmed_at='2025-10-01T00:00:00Z' WHERE id=?",
             rusqlite::params![order_id],
         ).is_err(), "une confirmation SQL sans snapshot doit échouer");
         drop(connection);
@@ -11488,7 +11488,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .save_supplier_order_draft(order_input(
                 cancel_order_id,
                 cancel_line_id,
-                "2026-09-01",
+                "2025-09-01",
                 "direct",
             ))
             .unwrap();
@@ -11517,20 +11517,20 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         );
         assert!(store.connect().unwrap().execute(
             "INSERT INTO supplier_order_cancellation_lines(id,request_id,supplier_order_id,supplier_order_line_id,quantity_milli,reason,created_at) VALUES(?,?,?,?,?,?,?)",
-            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),cancel_order_id,cancel_line_id,601,"forgé","2026-09-01T00:00:00Z"],
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),cancel_order_id,cancel_line_id,601,"forgé","2025-09-01T00:00:00Z"],
         ).is_err());
         let connection = store.connect().unwrap();
         assert!(connection.execute(
-            "UPDATE supplier_orders SET status='closed',closed_at='2026-10-01T00:00:00Z',updated_at='2026-10-01T00:00:00Z' WHERE id=?",
+            "UPDATE supplier_orders SET status='closed',closed_at='2025-10-01T00:00:00Z',updated_at='2025-10-01T00:00:00Z' WHERE id=?",
             rusqlite::params![order_id],
         ).is_err(), "une commande non rapprochée ne peut pas être fermée par SQL");
         assert!(connection.execute(
-            "UPDATE supplier_orders SET status='cancelled',cancelled_at='2026-10-01T00:00:00Z',cancellation_reason='forgé',updated_at='2026-10-01T00:00:00Z' WHERE id=?",
+            "UPDATE supplier_orders SET status='cancelled',cancelled_at='2025-10-01T00:00:00Z',cancellation_reason='forgé',updated_at='2025-10-01T00:00:00Z' WHERE id=?",
             rusqlite::params![order_id],
         ).is_err(), "une commande avec reliquat ne peut pas être annulée par SQL");
         assert!(connection.execute(
             "INSERT INTO supplier_operation_requests(request_id,operation,payload_sha256,payload_json,result_entity_type,result_entity_id,response_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
-            rusqlite::params![uuid::Uuid::new_v4().to_string(),"forged","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","{}","supplier_receipt","missing","{}","2026-10-01T00:00:00Z"],
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),"forged","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","{}","supplier_receipt","missing","{}","2025-10-01T00:00:00Z"],
         ).is_err());
         drop(connection);
         assert!(
@@ -11539,7 +11539,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                     receipt: SupplierReceiptDraftInput {
                         id: None,
                         supplier_order_id: order_id.into(),
-                        receipt_date: "2026-09-30".into(),
+                        receipt_date: "2025-09-30".into(),
                         reference: None,
                         notes: None
                     },
@@ -11556,7 +11556,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 receipt: SupplierReceiptDraftInput {
                     id: Some("3a1bd0e8-eadd-428b-bc40-b455df38bb9b".into()),
                     supplier_order_id: order_id.into(),
-                    receipt_date: "2026-10-02".into(),
+                    receipt_date: "2025-10-02".into(),
                     reference: None,
                     notes: None,
                 },
@@ -11572,8 +11572,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .upsert_accounting_period(AccountingPeriodInput {
                     id: None,
                     name: "Octobre achats".into(),
-                    date_from: "2026-10-01".into(),
-                    date_to: "2026-10-31".into(),
+                    date_from: "2025-10-01".into(),
+                    date_to: "2025-10-31".into(),
                 })
                 .unwrap(),
         );
@@ -11596,7 +11596,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .save_supplier_order_draft(order_input(
                 direct_order_id,
                 direct_line_id,
-                "2026-11-01",
+                "2025-11-01",
                 "direct",
             ))
             .unwrap();
@@ -11613,8 +11613,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 id: Some(invoice_id.into()),
                 supplier_id: supplier_id.clone(),
                 project_id: None,
-                date: "2026-11-02".into(),
-                due_date: "2026-11-30".into(),
+                date: "2025-11-02".into(),
+                due_date: "2025-11-30".into(),
                 reference: Some("TAMPER-1".into()),
                 note: None,
                 items: vec![SupplierInvoiceLineInput {
@@ -11634,7 +11634,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let connection = store.connect().unwrap();
         assert!(connection.execute(
             "INSERT INTO supplier_invoice_matches(id,request_id,supplier_invoice_id,supplier_invoice_item_id,supplier_order_id,supplier_order_line_id,quantity_milli,net_cents,vat_cents,total_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,direct_order_id,direct_line_id,1_000,499,0,499,"2026-11-02T00:00:00Z"],
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),uuid::Uuid::new_v4().to_string(),invoice_id,invoice_item_id,direct_order_id,direct_line_id,1_000,499,0,499,"2025-11-02T00:00:00Z"],
         ).is_err(), "un montant rapproché falsifié doit échouer");
         drop(connection);
         store
@@ -11670,7 +11670,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let fake_tx = fake_connection.transaction().unwrap();
         let fake_journal = crate::accounting::post_entry(
             &fake_tx,
-            "2026-11-04",
+            "2025-11-04",
             "Écriture de reclassement falsifiée",
             "supplier_expense_reclassification",
             &fake_reclassification_id,
@@ -11701,18 +11701,18 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         .unwrap();
         fake_tx.execute(
             "INSERT INTO supplier_expense_reclassifications(id,request_id,supplier_invoice_id,effective_date,reason,journal_entry_id,created_at) VALUES(?,?,?,?,?,?,?)",
-            rusqlite::params![fake_reclassification_id,uuid::Uuid::new_v4().to_string(),invoice_id,"2026-11-04","faux reclassement",fake_journal["id"].as_str().unwrap(),"2026-11-04T00:00:00Z"],
+            rusqlite::params![fake_reclassification_id,uuid::Uuid::new_v4().to_string(),invoice_id,"2025-11-04","faux reclassement",fake_journal["id"].as_str().unwrap(),"2025-11-04T00:00:00Z"],
         ).unwrap();
         assert!(fake_tx.execute(
             "INSERT INTO supplier_expense_reclassification_lines(id,reclassification_id,supplier_invoice_item_id,old_expense_account_id,new_expense_account_id,amount_cents,created_at) VALUES(?,?,?,?,?,?,?)",
-            rusqlite::params![uuid::Uuid::new_v4().to_string(),fake_reclassification_id,invoice_item_id,accounts["expense"],second_expense,500,"2026-09-04T00:00:00Z"],
+            rusqlite::params![uuid::Uuid::new_v4().to_string(),fake_reclassification_id,invoice_item_id,accounts["expense"],second_expense,500,"2025-09-04T00:00:00Z"],
         ).is_err(), "un faux journal dette/charge ne peut pas justifier un reclassement");
         fake_tx.rollback().unwrap();
         assert!(store
             .reclassify_supplier_invoice_expense(ReclassifySupplierInvoiceExpenseInput {
                 request_id: uuid::Uuid::new_v4().to_string(),
                 supplier_invoice_id: invoice_id.into(),
-                effective_date: "2026-10-05".into(),
+                effective_date: "2025-10-05".into(),
                 reason: "Période fermée".into(),
                 lines: vec![SupplierExpenseReclassificationLineInput {
                     supplier_invoice_item_id: invoice_item_id.into(),
@@ -11741,7 +11741,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .save_supplier_order_draft(order_input(
                 reverse_order_id,
                 reverse_line_id,
-                "2026-11-01",
+                "2025-11-01",
                 "stocked_receipt",
             ))
             .unwrap();
@@ -11756,7 +11756,7 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 receipt: SupplierReceiptDraftInput {
                     id: Some("a1e06df4-6616-44f9-b116-ecf286592f8e".into()),
                     supplier_order_id: reverse_order_id.into(),
-                    receipt_date: "2026-11-05".into(),
+                    receipt_date: "2025-11-05".into(),
                     reference: None,
                     notes: None,
                 },
@@ -11781,8 +11781,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 .upsert_accounting_period(AccountingPeriodInput {
                     id: None,
                     name: "Novembre achats".into(),
-                    date_from: "2026-11-01".into(),
-                    date_to: "2026-11-30".into(),
+                    date_from: "2025-11-01".into(),
+                    date_to: "2025-11-30".into(),
                 })
                 .unwrap(),
         );
