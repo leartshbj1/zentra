@@ -6,6 +6,9 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[path = "document_templates.rs"]
+mod templates;
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct DocumentStyle {
@@ -109,6 +112,7 @@ impl DocumentStyle {
 }
 
 pub(crate) fn validate_appearance(extra: &Value) -> AppResult<()> {
+    templates::validate(extra)?;
     if let Some(value) = extra.get("documentComposition") {
         let styles = value
             .as_object()

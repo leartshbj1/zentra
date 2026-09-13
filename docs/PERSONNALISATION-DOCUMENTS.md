@@ -4,6 +4,18 @@ L’atelier est inclus dans la préversion Windows 1.59.0, publiée le 13 septem
 
 Dans **Paramètres → Présentation des documents**, ouvrez l’atelier de personnalisation puis choisissez **Factures**, **Devis**, **Bilan** ou **Fiches de salaire**.
 
+## Mes modèles — ajout après 1.59.0
+
+Dans **Style → Mes modèles**, donnez un nom à la présentation affichée puis choisissez **Créer ce modèle**. Vous pouvez garder jusqu’à 20 modèles. Ils contiennent la mise en page, les polices, les couleurs et les textes modèles ; le logo utilisé reste celui de l’entreprise.
+
+Pour réutiliser une présentation, choisissez la catégorie du document, ouvrez **Mes modèles**, sélectionnez un modèle puis **Appliquer**. Vos textes actuels restent présents. Cochez **Reprendre aussi les textes du modèle** pour remplacer également l’introduction, les conditions ou commentaires et le pied de page. L’aperçu PDF permet de vérifier le résultat avant de conserver le changement.
+
+**Renommer** change le nom dans la liste. **Retirer ce modèle** le retire de la bibliothèque ; les documents et les présentations déjà appliquées le conservent. Les créations, renommages, retraits et applications restent réversibles avec **Annuler / Rétablir**. Une actualisation externe de la bibliothèque empêche l’ancien historique de la remplacer.
+
+Choisissez **Enregistrer** pour conserver la bibliothèque avec les paramètres de l’entreprise après fermeture. Un refus d’enregistrement garde les modèles et les textes présents à l’écran. Les réglages restent consultables en lecture seule, avec leurs modifications désactivées. Cette extension est ajoutée au code ; aucun nouvel installateur n’est publié avec ce lot.
+
+Recette : `desktop/tests/document-templates-journey.mjs` ; sauvegarde et génération réelle des quatre PDF contrôlées aussi par les tests natifs `document_templates`.
+
 ## Page, titres et tableaux sur mesure — ajout après 1.59.0
 
 Dans **Mise en page**, choisissez visuellement **Portrait** ou **Paysage**. Les textes et les tableaux se répartissent sur la largeur disponible ; les pages se créent automatiquement. Une section de paiement QR garde sa page A4 verticale, même si le reste de la facture est en paysage. Un titre de section ne reste pas seul en bas d’une page avec ces nouveaux formats. Le bouton **Importer ou changer mon logo** conduit directement au réglage de l’entreprise ; les choix de position et de taille restent dans l’atelier.

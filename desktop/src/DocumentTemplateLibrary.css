@@ -1,0 +1,16 @@
+.document-template-library button { min-height:44px; display:flex; align-items:center; justify-content:center; gap:8px; min-width:0; max-width:100%; padding:10px 12px; border:1px solid #d5ddd3; border-radius:10px; background:white; color:#34483b; font-size:13px; line-height:1.5; white-space:normal; cursor:pointer; }
+.document-template-library button svg { flex:none; }
+.document-template-library p,.document-template-library small,.document-template-library strong { overflow-wrap:anywhere; }
+.document-template-library small { line-height:1.6; }
+.document-template-library__card { display:flex; align-items:center; gap:16px; padding:14px; min-width:0; background:white; border:1px solid #dce2dc; border-radius:12px; }
+.document-template-library__card > div:last-child { display:grid; gap:5px; min-width:0; }
+.document-template-library__card strong { font-size:15px; }
+.document-template-library__paper { display:grid; gap:5px; padding:10px; width:58px; height:80px; flex:none; background:#fff; border:1px solid #dce2dc; border-radius:3px; box-shadow:0 2px 5px #19321d0a; }
+.document-template-library__paper[data-orientation=landscape] { width:72px; height:54px; }
+.document-template-library__paper span { font-size:22px; line-height:1; }
+.document-template-library__paper i { height:2px; background:currentColor; opacity:.3; }
+.document-template-library__actions { display:flex; flex-wrap:wrap; gap:8px; }
+.document-template-library__actions button { flex:1 1 100px; }
+.document-template-library__error { padding:12px; border:1px solid #e8d6b3; border-radius:10px; background:#fff8eb; color:#704c26; font-size:13px; line-height:1.6; }
+.document-template-library__rename { display:grid; gap:10px; }
+.document-template-library { scroll-margin-top:90px; }

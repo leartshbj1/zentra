@@ -11,6 +11,7 @@ import { normalizeComposition, documentFontCss, type DocumentComposition } from 
 import { RichTextEditor, selectRichTextRange } from './RichTextEditor';
 import { DocumentLayoutControls, DocumentInkControls } from './DocumentLayoutControls';
 import { DocumentPageControls, DocumentTableColors } from './DocumentPageControls';
+import { DocumentTemplateLibrary } from './DocumentTemplateLibrary';
 import { CustomMeasureOption, DocumentPrecisionControls } from './DocumentPrecisionControls';
 import { DocumentDesignMap, type DesignSection } from './DocumentDesignMap';
 import { copyDocumentDesign, designChange, joinDesignChanges, resetDocumentDesign, restoreDesignChange, type DesignChange } from './documentDesignEditing';
@@ -97,7 +98,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     const from = redo ? future.current : history.current, to = redo ? history.current : future.current;
     const entry = from.at(-1); if (!entry) return;
     const next = restoreDesignChange(settings, entry, redo);
-    if (!next) { history.current = []; future.current = []; setNotice('Cette présentation a été actualisée ailleurs. Son état actuel est conservé ; vous pouvez continuer à la personnaliser.'); return; }
+    if (!next) { history.current = []; future.current = []; setNotice('Cette présentation ou vos modèles ont été actualisés ailleurs. Leur état actuel est conservé ; vous pouvez continuer à les personnaliser.'); return; }
     from.pop(); to.push(entry); onChange(next); setProblems([]); setSaveError(''); setNotice(redo ? 'Modification rétablie.' : 'Modification annulée.');
   }
   function preset(value: 'modern' | 'classic' | 'editorial') {
@@ -226,6 +227,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
         <div hidden={panel !== 'style'} className="design-studio__panel">
         {!composition && <p className="design-studio__hint">Votre modèle actuel est conservé. Choisissez un point de départ ou ajustez la police pour activer la mise en page flexible.</p>}
         <fieldset disabled={busy}><legend>Un point de départ</legend><div className="design-studio__presets">{([['modern','Moderne'],['classic','Classique'],['editorial','Éditorial']] as const).map(([key,label]) => <button type="button" key={key} onClick={() => preset(key)}>{label}</button>)}</div><small>Vous gardez vos textes et votre couleur.</small></fieldset>
+        <DocumentTemplateLibrary key={kind} settings={settings} kind={kind} disabled={busy} onChange={next => { endGesture(); change(next); }} onNotice={setNotice} />
         <label>Police du document<select aria-label="Police du document" value={design.fontFamily} disabled={busy} onChange={e => compose({ fontFamily: e.target.value as DocumentComposition['fontFamily'] })}><option value="helvetica">Helvetica · sobre et moderne</option><option value="times">Times · élégante et classique</option><option value="courier">Courier · style dactylographié</option></select></label>
         <div className="design-studio__pair"><label>Taille du texte<select aria-label="Taille du texte" value={design.bodySize} disabled={busy} onChange={e => compose({ bodySize: Number(e.target.value) })}><CustomMeasureOption value={design.bodySize} choices={[8,9,10,11,12]} />{[8,9,10,11,12].map(n => <option key={n} value={n}>{n} pt</option>)}</select></label><label>Taille du titre<select aria-label="Taille du titre" value={design.titleSize} disabled={busy} onChange={e => compose({ titleSize: Number(e.target.value) })}><CustomMeasureOption value={design.titleSize} choices={[18,20,24,28,30,34]} />{[18,20,24,28,30,34].map(n => <option key={n} value={n}>{n} pt</option>)}</select></label></div>
         <fieldset disabled={busy}><legend>Style du titre</legend><div className="design-studio__presets"><button type="button" aria-pressed={design.titleBold} onClick={() => compose({ titleBold: !design.titleBold })}><Bold size={16} /> Gras</button><button type="button" aria-pressed={design.titleItalic} onClick={() => compose({ titleItalic: !design.titleItalic })}><Italic size={16} /> Italique</button></div></fieldset>

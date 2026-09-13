@@ -181,6 +181,7 @@ export type NogaCatalog = {
 };
 
 export type AppSettings = {
+  documentDesignTemplates?: import('./documentTemplates').DocumentDesignTemplate[];
   documentAppearance?: import('./documentAppearance').DocumentAppearance;
   documentComposition?: import('./documentComposition').DocumentCompositions;
   organization: Organization;

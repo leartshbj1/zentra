@@ -1267,6 +1267,7 @@ function settingsFromRaw(
     },
     documentAppearance: documentAppearance(extra.documentAppearance),
     documentComposition: documentCompositions(extra.documentComposition),
+    documentDesignTemplates: extra.documentDesignTemplates,
     business: {
       nogaSection: (/^[A-V]$/.test(stringValue(row.noga_section))
         ? stringValue(row.noga_section)
@@ -3132,6 +3133,7 @@ function backendExtra(settings: AppSettings): string {
   return JSON.stringify({
     documentAppearance: documentAppearance(settings.documentAppearance),
     documentComposition: documentCompositions(settings.documentComposition),
+    documentDesignTemplates: settings.documentDesignTemplates,
     organization: {
       website: settings.organization.website,
       address: {
