@@ -12,7 +12,7 @@ const errors = [], report = [];
 page.on('pageerror', error => errors.push(error.message));
 await page.route('**/native-design-fixture/*.pdf', async route => {
   const file = new URL(route.request().url()).pathname.split('/').at(-1);
-  assert.match(file, /^(quotes|invoices|accounts)-(signature|minimal)\.pdf$/);
+  assert.match(file, /^(quotes|invoices|accounts|payslips)-(signature|minimal)\.pdf$/);
   await route.fulfill({ status: 200, contentType: 'application/pdf', body: await readFile(`.qa/composition-pdfs/${file}`) });
 });
 async function ready() { await page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({ timeout: 20000 }); }
@@ -40,7 +40,7 @@ try {
     assert.deepEqual(exported, input);
     report.push({ kind, nativePdfRendered: true, exportArguments: true });
   }
-  await page.getByRole('button', { name: 'Enregistrer les présentations' }).click();
+  await page.getByRole('button', { name: 'Enregistrer les présentations' }).click(); await page.getByText('Les présentations sont enregistrées.', { exact: true }).waitFor();
   await page.reload(); await ready();
   assert.deepEqual((await request()).style, { accentColor: '#d7b878', layout: 'minimal', logoWidth: 150, footer: 'Merci pour votre confiance.' });
   await page.getByText('Revenir au style de départ', { exact: true }).click();

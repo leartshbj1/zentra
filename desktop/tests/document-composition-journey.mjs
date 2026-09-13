@@ -52,7 +52,7 @@ try {
   await editor.evaluate(el=>{const data=new DataTransfer();data.setData('text/plain',' <script>texte</script>');data.setData('text/html','<img src=x onerror=alert(1)>');el.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));});await ready();
   assert.equal(await editor.locator('img,script').count(),0);
   assert.ok((await request()).style.composition.closing.flatMap(p=>p.runs).map(r=>r.text).join('').includes('<script>texte</script>'));
-  await page.getByRole('button',{name:'Enregistrer les présentations',exact:true}).click();
+  await page.getByRole('button',{name:'Enregistrer les présentations',exact:true}).click(); await page.getByText('Les présentations sont enregistrées.', { exact: true }).waitFor();
   await page.reload();await ready();assert.equal((await request()).style.composition.logoPosition,'right');
   await page.getByText('Réutiliser cette présentation',{exact:true}).click();await page.getByLabel('Copier vers',{exact:true}).selectOption('quotes');
   await page.getByLabel('Copier aussi les textes',{exact:true}).check();

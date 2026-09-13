@@ -4866,7 +4866,11 @@ export const desktopApi = {
   },
   async saveSettings(settings: AppSettings) {
     await invoke('update_settings', { data: settingsToBackend(settings) });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(async () => {
+      const next = await loadWorkspace();
+      if (!next.onboardingCompleted || !next.settings) throw new Error('Les réglages enregistrés de votre entreprise doivent être accessibles pour continuer.');
+      return next;
+    });
   },
   designExampleIssuer(settings: AppSettings): RawRecord {
     const org = settings.organization;

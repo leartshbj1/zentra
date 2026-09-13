@@ -55,7 +55,7 @@ try {
     assert.equal((await value())[0].runs[1].highlight, undefined);
     assert.equal((await value())[0].runs[1].color, '#793c32');
     await button('Annuler la modification du texte').click();
-    await ready(); await page.getByRole('button', { name: 'Enregistrer les présentations', exact: true }).click();
+    await ready(); await page.getByRole('button', { name: 'Enregistrer les présentations', exact: true }).click(); await page.getByText('Les présentations sont enregistrées.', { exact: true }).waitFor();
     await page.reload(); await ready();
     const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('design-request')).style.composition.closing);
     assert.ok(saved[0].runs.some(r => r.text === 'sous 30' && r.color === '#793c32' && r.highlight === '#fff0a6'));

@@ -124,7 +124,7 @@ try {
     await history.getByRole('button', { name: 'Annuler', exact: true }).click();
     assert.equal(text((await state()).documentComposition.invoices.intro), 'Introduction invoices');
     await ready();
-    await page.getByRole('button', { name: 'Enregistrer les présentations', exact: true }).click();
+    await page.getByRole('button', { name: 'Enregistrer les présentations', exact: true }).click(); await page.getByText('Les présentations sont enregistrées.', { exact: true }).waitFor();
     const saved = await state(); await page.reload(); await ready();
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('design-settings'))), saved);
     for (const [kind, label] of [['invoices', 'Factures'], ['quotes', 'Devis'], ['accounts', 'Bilan'], ['payslips', 'Fiches de salaire']]) {

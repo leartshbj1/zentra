@@ -1,4 +1,12 @@
 .design-studio { width:100%; min-width:0; }
+.design-studio__checking { display:flex; align-items:center; gap:10px; color:#34483b; font-size:14px; }
+.design-studio__checking svg { flex:none; }
+.design-studio__problems { display:grid; gap:12px; padding:20px; margin-bottom:24px; background:#fff8eb; border:1px solid #e8d6b3; border-radius:14px; min-width:0; outline-offset:3px; }
+.design-studio__problems > strong { font-size:17px; }
+.design-studio__problems p { margin:0; font-size:14px; line-height:1.65; overflow-wrap:anywhere; }
+.design-studio__problems article { display:grid; justify-items:start; gap:10px; border-top:1px solid #e8d6b3; padding-top:14px; min-width:0; }
+.design-studio__problems article strong { font-size:14px; }
+.design-studio__problems button { max-width:100%; white-space:normal; }
 .design-studio__advanced { border:1px solid #dce2dc; border-radius:12px; padding:14px; background:#f7f8f5; min-width:0; }
 .design-studio__advanced summary { cursor:pointer; min-height:30px; font-size:14px; font-weight:600; color:#34483b; line-height:1.5; }
 .design-studio__advanced[open] > :not(summary) { margin-top:16px; }

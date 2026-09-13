@@ -8,16 +8,29 @@ import type { AppSettings } from './types';
 import { Button } from './ui';
 import './DocumentDesignStudio.css';
 import { normalizeComposition, documentFontCss, type DocumentComposition } from './documentComposition';
-import { RichTextEditor } from './RichTextEditor';
+import { RichTextEditor, selectRichTextRange } from './RichTextEditor';
 import { DocumentLayoutControls, DocumentInkControls } from './DocumentLayoutControls';
 import { DocumentDesignMap, type DesignSection } from './DocumentDesignMap';
 import { copyDocumentDesign, designChange, resetDocumentDesign, restoreDesignChange, type DesignChange } from './documentDesignEditing';
+import { nativeDesignProblem, validateDocumentDesigns, type DesignProblem } from './documentDesignValidation';
+import { errorMessage } from './utils';
 
 const labels = { invoices: 'Factures', quotes: 'Devis', accounts: 'Bilan', payslips: 'Fiches de salaire' };
 const colors = ['#134d33', '#182b49', '#793c32', '#66523f', '#563d73', '#242424', '#d7b878'];
-export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
-  settings: AppSettings; busy: boolean; onChange: (settings: AppSettings) => void; onSave: () => void;
+export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, onSave, onRequestCompany }: {
+  settings: AppSettings; busy: boolean; onChange: (settings: AppSettings) => void;
+  onSave: (settings: AppSettings) => void | boolean | Promise<void | boolean>;
+  onRequestCompany?: (target: 'logo' | 'identity') => void;
 }) {
+  const [savePhase, setSavePhase] = useState<'idle' | 'checking' | 'saving'>('idle');
+  const [problems, setProblems] = useState<DesignProblem[]>([]);
+  const [saveError, setSaveError] = useState('');
+  const saveFlight = useRef(false), alive = useRef(true);
+  const currentInput = useRef({ settings, busy: externalBusy });
+  currentInput.current = { settings, busy: externalBusy };
+  const problemElement = useRef<HTMLDivElement>(null);
+  const busy = externalBusy || savePhase !== 'idle';
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [kind, setKind] = useState<DocumentDesignKind>('invoices');
   const previewElement = useRef<HTMLDivElement>(null);
   const toolsElement = useRef<HTMLDivElement>(null);
@@ -63,7 +76,7 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
     if (busy) return;
     const entry = designChange(settings, next); if (!entry) return;
     history.current.push(entry); if (history.current.length > 50) history.current.shift(); future.current = [];
-    setNotice(''); onChange(next);
+    setNotice(''); setProblems([]); setSaveError(''); onChange(next);
   }
   function patch(value: Partial<typeof baseStyle>) { change({ ...settings, documentAppearance: { ...appearance, [kind]: { ...baseStyle, ...value } } }); }
   function compose(value: Partial<DocumentComposition>) { change({ ...settings, documentComposition: { ...settings.documentComposition, [kind]: normalizeComposition({ ...design, ...value }) } }); }
@@ -73,7 +86,7 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
     const entry = from.at(-1); if (!entry) return;
     const next = restoreDesignChange(settings, entry, redo);
     if (!next) { history.current = []; future.current = []; setNotice('Cette présentation a été actualisée ailleurs. Son état actuel est conservé ; vous pouvez continuer à la personnaliser.'); return; }
-    from.pop(); to.push(entry); onChange(next); setNotice(redo ? 'Modification rétablie.' : 'Modification annulée.');
+    from.pop(); to.push(entry); onChange(next); setProblems([]); setSaveError(''); setNotice(redo ? 'Modification rétablie.' : 'Modification annulée.');
   }
   function preset(value: 'modern' | 'classic' | 'editorial') {
     const selected = value === 'classic' ? { fontFamily: 'times' as const, titleAlign: 'center' as const, logoPosition: 'center' as const, tableStyle: 'lines' as const, marginMm: 20, titleSize: 28 } : value === 'editorial' ? { fontFamily: 'helvetica' as const, titleAlign: 'left' as const, logoPosition: 'right' as const, tableStyle: 'striped' as const, marginMm: 18, titleSize: 30 } : { fontFamily: 'helvetica' as const, titleAlign: 'left' as const, logoPosition: 'left' as const, tableStyle: 'band' as const, marginMm: 15, titleSize: 24 };
@@ -111,6 +124,55 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
     requestAnimationFrame(() => { previewElement.current?.focus({ preventScroll: true }); previewElement.current?.scrollIntoView({ block: 'start', behavior: 'instant' }); });
   }
 
+  function revealProblems() {
+    requestAnimationFrame(() => { problemElement.current?.focus({ preventScroll: true }); problemElement.current?.scrollIntoView({ block: 'center', behavior: 'instant' }); });
+  }
+  function correctProblem(problem: DesignProblem) {
+    setKind(problem.kind); setWriting(false);
+    if (problem.zone === 'company' && onRequestCompany) { onRequestCompany(/logo/i.test(problem.message) ? 'logo' : 'identity'); return; }
+    if (['intro', 'closing', 'footerText'].includes(problem.zone)) {
+      setPanel('text'); setTextZone(problem.zone as typeof textZone);
+      requestAnimationFrame(() => {
+        const editor = toolsElement.current?.querySelector<HTMLElement>('[role="textbox"]');
+        if (editor) {
+          if (problem.range) selectRichTextRange(editor, problem.range); else editor.focus({ preventScroll: true });
+          editor.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+      });
+    } else if (problem.zone === 'footer') {
+      setPanel('text');
+      requestAnimationFrame(() => {
+        const input = toolsElement.current?.querySelector<HTMLInputElement>('[aria-label="Une phrase en pied de page"]');
+        const detail = input?.closest('details'); if (detail) detail.open = true;
+        if (input) { input.focus({ preventScroll: true }); if (problem.range) input.setSelectionRange(problem.range.start, problem.range.end); input.scrollIntoView({ block: 'center', behavior: 'instant' }); }
+      });
+    } else {
+      setPanel('layout');
+      revealTools(problem.zone === 'company' ? '[aria-label="Position du logo"]' : '[aria-label="Marges"]');
+    }
+  }
+  async function saveDesigns() {
+    if (busy || saveFlight.current) return;
+    saveFlight.current = true; setSavePhase('checking'); setProblems([]); setSaveError(''); setNotice('');
+    const captured = structuredClone(settings);
+    const key = JSON.stringify(captured);
+    try {
+      const found = await validateDocumentDesigns(captured, desktopApi.designExampleIssuer(captured), input => desktopApi.documentDesignExample(input));
+      if (!alive.current) return;
+      if (JSON.stringify(currentInput.current.settings) !== key || currentInput.current.busy) {
+        setNotice('Les réglages ont changé pendant la vérification. Vos données actuelles sont conservées. Vérifiez-les puis enregistrez à nouveau.'); return;
+      }
+      if (found.length) { setProblems(found); revealProblems(); return; }
+      setSavePhase('saving');
+      const result = await onSave(captured);
+      if (!alive.current) return;
+      if (result === false) { setSaveError('L’enregistrement n’a pas abouti. Vos présentations restent présentes ; vérifiez le message des paramètres puis réessayez.'); revealProblems(); }
+      else setNotice('Les présentations sont enregistrées.');
+    } catch (reason) {
+      if (alive.current) { setSaveError(errorMessage(reason, 'L’enregistrement n’a pas abouti. Réessayez.')); revealProblems(); }
+    } finally { saveFlight.current = false; if (alive.current) setSavePhase('idle'); }
+  }
+
   async function exportExample() {
     if (exportFlight.current || exporting) return;
     exportFlight.current = true; setExporting(true); setNotice(''); setExportError('');
@@ -128,9 +190,16 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
       <button type="button" disabled={busy || !history.current.length} onClick={() => undo()}><Undo2 size={17} /> Annuler</button>
       <button type="button" disabled={busy || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /> Rétablir</button>
       <button type="button" onClick={showPreview}><ZoomIn size={17} /> Aperçu</button>
-      <button type="button" className="design-studio__save-shortcut" disabled={busy || loading || !!error} onClick={onSave}><Check size={17} /> Enregistrer</button>
+      <button type="button" className="design-studio__save-shortcut" disabled={busy || loading && !error} onClick={() => void saveDesigns()}><Check size={17} /> Enregistrer</button>
       <span>Les montants se calculent automatiquement.</span>
     </div>
+    {savePhase !== 'idle' && <p className="design-studio__checking" role="status"><LoaderCircle size={17} className="spin" />{savePhase === 'checking' ? 'Vérification des quatre présentations…' : 'Enregistrement des présentations…'}</p>}
+    {(problems.length > 0 || saveError) && <div ref={problemElement} tabIndex={-1} className="design-studio__problems" role="alert">
+      <strong>Les présentations ne sont pas encore enregistrées</strong>
+      <p>Vos réglages et vos textes restent présents. Corrigez les points indiqués, puis choisissez Enregistrer.</p>
+      {problems.map((problem, index) => <article key={`${problem.kind}-${problem.zone}-${index}`}><strong>{problem.title}</strong><p>{problem.message}</p><Button variant="secondary" disabled={busy} onClick={() => correctProblem(problem)}>{problem.zone === 'company' && onRequestCompany ? 'Ouvrir Entreprise et facturation' : 'Corriger ce passage'}</Button></article>)}
+      {saveError && <p>{saveError}</p>}
+    </div>}
     <div className="design-studio__body">
       <div ref={toolsElement} className="design-studio__tools">
         <div className="design-studio__panels" role="group" aria-label="Outils de personnalisation">{([['style','Style'],['layout','Mise en page'],['text','Textes']] as const).map(([key,label]) => <button type="button" key={key} aria-pressed={panel === key} onClick={() => { setPanel(key); if (key !== 'text') setWriting(false); }}>{label}</button>)}</div>
@@ -167,7 +236,7 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
         </div>
         <details className="design-studio__copy"><summary>Réutiliser cette présentation</summary><p className="design-studio__hint">Copiez les polices, couleurs et la mise en page. Les textes de la catégorie choisie restent présents.</p><label>Copier vers<select aria-label="Copier vers" value={copyTarget} disabled={busy} onChange={e => { setCopyTarget(e.target.value as DocumentDesignKind); setCopyText(false); }}>{(Object.keys(labels) as DocumentDesignKind[]).map(k => <option key={k} value={k}>{labels[k]}</option>)}</select></label><label className="design-studio__choice"><input type="checkbox" checked={copyText} disabled={busy} onChange={e => setCopyText(e.target.checked)} /> Copier aussi les textes</label>{copyText && <p className="design-studio__hint">L’introduction, les conditions ou commentaires et le pied de page de {labels[copyTarget].toLowerCase()} seront remplacés. Annuler permet de les retrouver.</p>}<Button variant="secondary" disabled={busy || copyTarget === kind} onClick={copy}><Copy size={16} /> Copier la présentation</Button></details>
         <Button className="design-studio__jump" variant="secondary" onClick={showPreview}>Voir le résultat</Button>
-        <div className="design-studio__actions"><Button disabled={busy || loading || !!error} onClick={onSave}>{busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />} Enregistrer les présentations</Button><Button variant="secondary" disabled={exporting || loading || !!error} onClick={() => void exportExample()}><Download size={16} /> Exporter cet exemple</Button></div>
+        <div className="design-studio__actions"><Button disabled={busy || loading && !error} onClick={() => void saveDesigns()}>{busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />} Enregistrer les présentations</Button><Button variant="secondary" disabled={busy || exporting || loading || !!error} onClick={() => void exportExample()}><Download size={16} /> Exporter cet exemple</Button></div>
         <details className="design-studio__reset"><summary>Revenir au style de départ</summary><p className="design-studio__hint">Rétablit les polices, couleurs, marges et la position du logo. Vos textes restent présents.</p><label className="design-studio__choice"><input type="checkbox" checked={resetText} disabled={busy} onChange={e => setResetText(e.target.checked)} /> Effacer aussi les textes modèles</label><Button variant="ghost" disabled={busy} onClick={reset}><RotateCcw size={15} /> Réinitialiser {labels[kind].toLowerCase()}</Button></details>
         <p className="design-studio__hint">Les réglages s’appliquent aux brouillons et aux prochains documents. Les documents émis et les fiches comptabilisées conservent leur présentation.</p>
         {notice && <p role="status">{notice}</p>}
@@ -177,7 +246,7 @@ export function DocumentDesignStudio({ settings, busy, onChange, onSave }: {
       <div ref={previewElement} tabIndex={-1} className="design-studio__preview" aria-label={`Exemple ${labels[kind]}`} aria-busy={loading && !error}>
         <button type="button" className="design-studio__return-tools" onClick={() => revealTools('.design-studio__panels button[aria-pressed=true]')}>Revenir aux réglages</button>
         <div className="design-studio__preview-label"><span>Exemple fictif · A4</span>{loading && !error ? <span role="status"><LoaderCircle size={14} className="spin" /> Mise à jour…</span> : <span>Rendu PDF{preview ? ` · ${preview.pageCount} page${preview.pageCount > 1 ? 's' : ''}` : ''}</span>}<button type="button" aria-label={zoomed ? 'Ajuster l’aperçu' : 'Agrandir l’aperçu'} aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)}>{zoomed ? <ZoomOut size={18} /> : <ZoomIn size={18} />}</button></div>
-        {error ? <div className="design-studio__error" role="alert"><strong>L’aperçu demande une correction</strong><p>{error}</p><Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Réessayer l’aperçu</Button></div> : preview ? <div className={`design-studio__pages${loading ? ' design-studio__pages--loading' : ''}${zoomed ? ' design-studio__pages--zoomed' : ''}`} tabIndex={zoomed ? 0 : undefined} aria-label="Pages de l’exemple">{preview.pages.map((src, index) => <img key={index} src={src} alt={`Exemple ${labels[kind]} · page ${index + 1}`} />)}{preview.pageCount > preview.pages.length && <p>Aperçu des {preview.pages.length} premières pages. Le PDF exporté contient les {preview.pageCount} pages.</p>}</div> : <div className="design-studio__placeholder">Préparation de votre exemple…</div>}
+        {error ? <div className="design-studio__error" role="alert"><strong>L’aperçu demande une correction</strong><p>{error}</p><Button variant="secondary" disabled={busy} onClick={() => correctProblem(nativeDesignProblem(kind, error, settings))}>Corriger ce point</Button><Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Réessayer l’aperçu</Button></div> : preview ? <div className={`design-studio__pages${loading ? ' design-studio__pages--loading' : ''}${zoomed ? ' design-studio__pages--zoomed' : ''}`} tabIndex={zoomed ? 0 : undefined} aria-label="Pages de l’exemple">{preview.pages.map((src, index) => <img key={index} src={src} alt={`Exemple ${labels[kind]} · page ${index + 1}`} />)}{preview.pageCount > preview.pages.length && <p>Aperçu des {preview.pages.length} premières pages. Le PDF exporté contient les {preview.pageCount} pages.</p>}</div> : <div className="design-studio__placeholder">Préparation de votre exemple…</div>}
       </div>
     </div>
   </section>;

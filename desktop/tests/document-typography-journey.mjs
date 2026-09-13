@@ -67,7 +67,7 @@ try {
     await page.getByLabel('Position du logo', { exact: true }).selectOption('right');
     await page.getByLabel('Marges', { exact: true }).selectOption('20');
     await page.getByLabel('Interligne', { exact: true }).selectOption('1.5'); await ready();
-    await page.getByRole('button', { name: 'Enregistrer les présentations', exact: true }).click();
+    await page.getByRole('button', { name: 'Enregistrer les présentations', exact: true }).click(); await page.getByText('Les présentations sont enregistrées.', { exact: true }).waitFor();
     await page.reload(); await ready();
     const design = (await request()).style.composition;
     assert.equal(design.fontFamily, 'courier'); assert.equal(design.logoPosition, 'right'); assert.equal(design.marginMm, 20); assert.equal(design.lineSpacing, 1.5);
@@ -80,7 +80,7 @@ try {
       const draft = await page.evaluate(() => JSON.parse(sessionStorage.getItem('design-draft')));
       assert.deepEqual(draft.documentComposition[target], design);
     }
-    await page.getByRole('button', { name: 'Enregistrer les présentations', exact: true }).click();
+    await page.getByRole('button', { name: 'Enregistrer les présentations', exact: true }).click(); await page.getByText('Les présentations sont enregistrées.', { exact: true }).waitFor();
     for (const label of ['Devis', 'Bilan', 'Fiches de salaire']) {
       await page.getByRole('button', { name: label, exact: true }).click(); await ready();
       await page.getByRole('button', { name: 'Exporter cet exemple', exact: true }).click();

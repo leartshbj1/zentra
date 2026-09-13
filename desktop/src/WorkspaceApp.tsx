@@ -2291,6 +2291,7 @@ export function WorkspaceApp({
             <SettingsScreen
               workspace={workspace}
               busy={busy}
+              readOnly={readOnly}
               setBusy={setBusy}
               onWorkspace={setWorkspace}
               onNotice={setNotice}
@@ -4745,7 +4746,8 @@ function TeamScreen({
 
 function SettingsScreen({
   workspace,
-  busy,
+  busy: operationBusy,
+  readOnly,
   setBusy,
   onWorkspace,
   onNotice,
@@ -4754,14 +4756,18 @@ function SettingsScreen({
 }: {
   workspace: Workspace;
   busy: boolean;
+  readOnly: boolean;
   setBusy: (value: boolean) => void;
   onWorkspace: Dispatch<SetStateAction<Workspace | null>>;
   onNotice: (value: Notice | null) => void;
   onOpenAccounting: () => void;
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
+  const busy = operationBusy || readOnly;
   const [settings, setSettings] = useState<AppSettings>(workspace.settings!);
   const [vatDraft, setVatDraft] = useState('');
+  const settingsRecovery = useWorkspaceRecovery(() => desktopApi.loadWorkspace());
+  const settingsActionInFlight = useRef(false);
   const storedLppPlan = settings.payroll.lppPlanEvidence;
   const [lppPlanEnabled, setLppPlanEnabled] = useState(
     Boolean(storedLppPlan),
@@ -4791,20 +4797,33 @@ function SettingsScreen({
     target.focus({ preventScroll: true });
   }
 
-  async function execute(action: () => Promise<Workspace>, success: string) {
+  async function execute(action: () => Promise<Workspace>, success: string, rethrow = false) {
+    if (busy || settingsActionInFlight.current || settingsRecovery.isPending()) return false;
+    settingsActionInFlight.current = true;
     setBusy(true);
     onNotice(null);
     try {
-      const next = await action();
+      let next: Workspace | null;
+      try { next = await action(); }
+      catch (reason) {
+        if (!(reason instanceof WorkspaceRefreshAfterMutationError)) throw reason;
+        const validate = (value: Workspace) => {
+          if (!value.onboardingCompleted || !value.settings) throw new Error('Les réglages enregistrés de votre entreprise doivent être accessibles pour continuer.');
+        };
+        try { next = await desktopApi.loadWorkspace(); validate(next); }
+        catch (cause) { next = await settingsRecovery.waitForRefresh(cause, false, validate); }
+        if (!next) return false;
+      }
       onWorkspace(next);
       setSettings(next.settings!);
       onNotice({ tone: 'success', text: success });
+      return true;
     } catch (reason) {
-      onNotice({
-        tone: 'error',
-        text: errorMessage(reason, 'L’action locale a échoué.'),
-      });
+      onNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') });
+      if (rethrow) throw reason;
+      return false;
     } finally {
+      settingsActionInFlight.current = false;
       setBusy(false);
     }
   }
@@ -4951,6 +4970,8 @@ function SettingsScreen({
   }
 
   return (
+    <>
+    {settingsRecovery.reason && <WorkspaceRecoveryDialog reason={settingsRecovery.reason} onReload={settingsRecovery.retry} />}
     <SettingsBrowser>
       <SettingsCategory id="readiness" title="État de la configuration" description="Les réglages prêts et les prochaines étapes" icon={ListChecks}>
       <SetupReadinessCenter
@@ -5390,7 +5411,12 @@ function SettingsScreen({
       </SettingsCategory>
       <SettingsCategory id="assistant" lazy title="Assistant local" description="Installer Qwen et obtenir de l’aide dans Zentra" icon={MessageCircle}><LocalAssistantSetup /></SettingsCategory>
       <SettingsCategory id="documents" lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
-        <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={() => void execute(() => desktopApi.saveSettings(settings), 'Les présentations des documents ont été enregistrées.')} />
+        <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={next => execute(() => desktopApi.saveSettings(next), 'Les présentations des documents ont été enregistrées.', true)} onRequestCompany={field => {
+          const category = document.querySelector<HTMLElement>('[data-settings-id="company"]');
+          revealSettingsTarget(category?.querySelector('section') ?? null);
+          const target = category?.querySelector<HTMLElement>(field === 'logo' ? '.company-logo-setting button' : 'input[name="legalName"]');
+          target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }} />
       </SettingsCategory>
       <SettingsCategory id="accounting" title="Comptabilité" description="Activation et comptes de liaison" icon={Landmark}>
       <section
@@ -6012,7 +6038,7 @@ function SettingsScreen({
           >
             <FolderOpen size={16} /> Choisir le dossier
           </Button>}
-          <Button disabled={busy} onClick={() => void backup()}>
+          <Button disabled={operationBusy} onClick={() => void backup()}>
             <Download size={16} /> Créer une sauvegarde
           </Button>
           <Button
@@ -6061,14 +6087,14 @@ function SettingsScreen({
         <div className="settings-actions">
           <Button
             variant="secondary"
-            disabled={busy}
+            disabled={operationBusy}
             onClick={() => void exportPortableData('json')}
           >
             <FileText size={16} /> Exporter en JSON
           </Button>
           <Button
             variant="secondary"
-            disabled={busy}
+            disabled={operationBusy}
             onClick={() => void exportPortableData('csv')}
           >
             <FileText size={16} /> Exporter les listes CSV
@@ -6084,6 +6110,7 @@ function SettingsScreen({
       </section>
       </SettingsCategory>
     </SettingsBrowser>
+    </>
   );
 }
 

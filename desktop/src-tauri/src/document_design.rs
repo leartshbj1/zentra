@@ -363,4 +363,30 @@ mod tests {
         assert_eq!(style.on_accent(), [0.067; 3]);
         assert_eq!(style.ink(), [0.45; 3]);
     }
+
+    #[test]
+    fn document_settings_save_all_categories_atomically_and_reject_unprintable_text() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        store.connect().unwrap().execute(
+            "INSERT INTO settings(id,onboarding_completed,company_name,noga_section,noga_division,activity_description,created_at,updated_at) VALUES(1,1,'Entreprise test','F','43','Travaux spécialisés','2026-09-13T01:00:00Z','2026-09-13T01:00:00Z')", [],
+        ).unwrap();
+        let mut designs = serde_json::Map::new();
+        for kind in ["quotes","invoices","accounts","payslips"] {
+            designs.insert(kind.into(), json!({"fontFamily":"times","companyAlign":"center","closingOnNewPage":true,"closing":[{"runs":[{"text":format!("Texte {kind}"),"bold":true}]}]}));
+        }
+        let original = store.update_settings(json!({"extra_settings_json":{"documentComposition":designs}})).unwrap();
+        let stored: Value = serde_json::from_str(original["extra_settings_json"].as_str().unwrap()).unwrap();
+        for kind in ["quotes","invoices","accounts","payslips"] {
+            assert_eq!(stored["documentComposition"][kind]["companyAlign"], "center");
+            assert_eq!(stored["documentComposition"][kind]["closing"][0]["runs"][0]["text"], format!("Texte {kind}"));
+        }
+        let before: String = store.connect().unwrap().query_row("SELECT extra_settings_json FROM settings WHERE id=1",[],|row|row.get(0)).unwrap();
+        let mut invalid = stored.clone();
+        invalid["documentComposition"]["quotes"]["closing"][0]["runs"][0]["text"] = json!("Conditions 🧾");
+        invalid["documentComposition"]["invoices"]["fontFamily"] = json!("courier");
+        assert!(store.update_settings(json!({"company_name":"Nom refusé","extra_settings_json":invalid})).is_err());
+        let (after, company): (String,String) = store.connect().unwrap().query_row("SELECT extra_settings_json,company_name FROM settings WHERE id=1",[],|row|Ok((row.get(0)?,row.get(1)?))).unwrap();
+        assert_eq!(after,before); assert_eq!(company,"Entreprise test");
+    }
 }

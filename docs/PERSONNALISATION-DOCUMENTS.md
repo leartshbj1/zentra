@@ -32,6 +32,18 @@ Les polices proposées sont Helvetica, Times et Courier, avec leurs variantes en
 
 Les textes de cet atelier sont des textes modèles pour la catégorie choisie. Les remarques propres au devis ou à la facture restent présentes. Les montants, références et données comptables sont calculés par l’application. Les documents émis et les fiches comptabilisées conservent leur présentation enregistrée.
 
+## Enregistrer et corriger un problème
+
+**Enregistrer** vérifie les quatre présentations, y compris celles qui ne sont pas affichées. Si un point demande une correction, l’atelier indique la catégorie et la zone : introduction, conditions, commentaire ou pied de page. Vos réglages restent présents.
+
+**Corriger ce passage** ouvre le bon texte. Lorsqu’un caractère ne peut pas être imprimé avec les polices proposées, il est sélectionné : tapez son remplacement puis enregistrez à nouveau. Pour un pied de page trop haut, raccourcissez le texte ou réduisez la taille des caractères. Pour un logo introuvable, **Ouvrir Entreprise et facturation** conduit au bouton d’import du logo ; revenez ensuite à Présentation des documents.
+
+Si les réglages changent ailleurs pendant la vérification, l’atelier conserve leur état actuel et vous demande de vérifier à nouveau. Il n’enregistre pas l’ancienne copie.
+
+Après un enregistrement réussi suivi d’une lecture interrompue, la fenêtre **Enregistrement effectué** propose **Actualiser les données**. Cette action relit les données enregistrées sans répéter leur sauvegarde. Une nouvelle erreur de lecture garde la fenêtre ouverte et permet de réessayer. Un refus de sauvegarde conserve les textes et les réglages à corriger.
+
+En lecture seule, les présentations et les paramètres restent consultables. Leur modification et la restauration sont désactivées ; les exports JSON/CSV et la création d’une sauvegarde manuelle restent accessibles.
+
 ## Retrouver et modifier un passage
 
 Dans **Textes**, ouvrez **Rechercher et remplacer**. Sur ordinateur, Ctrl+F ou Cmd+F depuis le texte ouvre aussi cet outil. La recherche concerne uniquement la zone affichée : introduction, conditions/commentaire ou pied de page.

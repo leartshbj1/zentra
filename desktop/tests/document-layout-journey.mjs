@@ -78,7 +78,7 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
     }
     await ready();
-    await history.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+    await history.getByRole('button', { name: 'Enregistrer', exact: true }).click(); await page.getByText('Les présentations sont enregistrées.', { exact: true }).waitFor();
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('design-settings')));
     await page.reload(); await ready();
     const request = await page.evaluate(() => JSON.parse(sessionStorage.getItem('design-request')));

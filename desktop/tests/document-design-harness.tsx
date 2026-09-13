@@ -12,6 +12,11 @@ import '../src/mobile.css';
 import '../src/experience.css';
 
 desktopApi.documentDesignExample = async input => {
+  if (new URLSearchParams(location.search).has('validation')) {
+    const checked = JSON.parse(sessionStorage.getItem('design-checks') || '[]'); checked.push(input.kind); sessionStorage.setItem('design-checks', JSON.stringify(checked));
+    if (sessionStorage.getItem('design-check-hold') === '1') await new Promise<void>(resolve => { window.addEventListener('design-check-release', () => resolve(), { once:true }); });
+    if (sessionStorage.getItem('design-invalid-kind') === input.kind) throw new Error('Le pied de page dépasse quatre lignes. Raccourcissez-le ou réduisez les marges.');
+  }
   sessionStorage.setItem('design-request', JSON.stringify(input));
   if (input.style.footer === 'Erreur de recette') throw new Error('Exemple momentanément indisponible.');
   const response = await fetch(`/native-design-fixture/${input.kind}-${input.style.composition?.fontFamily || input.style.layout}.pdf`);
@@ -63,6 +68,10 @@ function Harness() {
     window.addEventListener('design-fixture-update', update);
     return () => window.removeEventListener('design-fixture-update', update);
   }, []);
-  return <main style={{ padding: 'clamp(12px,3vw,40px)', maxWidth: 1300, margin: 'auto' }}><DocumentDesignStudio settings={settings} onChange={next => { sessionStorage.setItem('design-draft', JSON.stringify(next)); setSettings(next); setSaved(false); }} busy={busy} onSave={() => { localStorage.setItem('design-settings', JSON.stringify(settings)); setSaved(true); }} />{saved && <p role="status">Présentations enregistrées.</p>}</main>;
+  return <main style={{ padding: 'clamp(12px,3vw,40px)', maxWidth: 1300, margin: 'auto' }}><DocumentDesignStudio settings={settings} onChange={next => { sessionStorage.setItem('design-draft', JSON.stringify(next)); setSettings(next); setSaved(false); }} busy={busy} onSave={next => {
+    sessionStorage.setItem('design-save-count', String(Number(sessionStorage.getItem('design-save-count') || 0) + 1));
+    if (sessionStorage.getItem('design-save-fail') === '1') throw new Error('Enregistrement momentanément indisponible.');
+    localStorage.setItem('design-settings', JSON.stringify(next)); setSaved(true);
+  }} onRequestCompany={target => sessionStorage.setItem('design-company-target', target)} />{saved && <p role="status">Présentations enregistrées.</p>}</main>;
 }
 createRoot(document.getElementById('root')!).render(previewKind ? <PreviewHarness /> : <Harness />);

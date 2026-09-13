@@ -99,7 +99,7 @@ try {
     await page.screenshot({ path: `${folder}/${engine}-${width}-writing.png`, fullPage: true });
     await page.getByRole('button', { name: 'Voir le rendu PDF', exact: true }).click();
     await ready(); assert.ok(await page.locator('.design-studio__preview').isVisible());
-    await page.getByRole('button', { name: 'Enregistrer les présentations', exact: true }).click();
+    await page.getByRole('button', { name: 'Enregistrer les présentations', exact: true }).click(); await page.getByText('Les présentations sont enregistrées.', { exact: true }).waitFor();
     await page.reload(); await ready();
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('design-settings')));
     assert.equal(saved.documentComposition.invoices.logoPosition, 'right');

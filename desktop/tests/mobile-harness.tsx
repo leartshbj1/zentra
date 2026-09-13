@@ -50,6 +50,7 @@ import { installCreditSettlementFixture } from './credit-settlement-fixture';
 import { installContactFolderFixture } from './contact-folder-fixture';
 import { installCreationOutcomeFixture } from './creation-outcome-fixture';
 import { installPayslipPostingFixture } from './payslip-posting-fixture';
+import { installSettingsRecoveryFixture } from './settings-recovery-fixture';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -211,6 +212,7 @@ if (new URLSearchParams(location.search).has('workflowHelp')) {
 if (new URLSearchParams(location.search).has('contactFolder')) installContactFolderFixture(data);
 if (new URLSearchParams(location.search).has('creationOutcome')) installCreationOutcomeFixture(data);
 if (new URLSearchParams(location.search).has('payslipPosting')) installPayslipPostingFixture(data);
+if (new URLSearchParams(location.search).has('settingsRecovery')) installSettingsRecoveryFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
@@ -230,7 +232,7 @@ function Harness() {
     },
   });
   if (new URLSearchParams(location.search).has('assistantOnboarding')) return <Onboarding onComplete={async()=>{}} onRestore={async()=>{}} />;
-  if (['payslipPosting', 'creationOutcome', 'contactFolder', 'readOnlyAudit', 'wizard', 'quotePair', 'accountingSetup', 'periodGuide', 'closing'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
+  if (['settingsRecovery', 'payslipPosting', 'creationOutcome', 'contactFolder', 'readOnlyAudit', 'wizard', 'quotePair', 'accountingSetup', 'periodGuide', 'closing'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
   if (new URLSearchParams(location.search).has('payslipPosting')) Object.assign(window, { __qaReloadPosting: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('updater')) return <main><h1>Accueil de recette</h1><button type="button">Action de fond</button><StandaloneUpdaterAccess /></main>;
   return <><WorkspaceApp cloudAccount={projectAccount ? { status: 'connected', organizationId: projectAccount } : undefined} readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; if (new URLSearchParams(location.search).has('projectNavigation')) window.projectNavigation.publications++; }} />

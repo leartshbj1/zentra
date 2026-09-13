@@ -58,6 +58,10 @@ function restore(root: HTMLElement, saved: Bookmark) {
   const range = document.createRange(); range.setStart(...point(saved.start)); range.setEnd(...point(saved.end));
   const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range);
 }
+export function selectRichTextRange(root: HTMLElement, range: Bookmark) {
+  root.focus({ preventScroll: true });
+  restore(root, range);
+}
 function paint(root: HTMLElement, value: RichText) {
   root.replaceChildren();
   value.forEach((p, i) => {
