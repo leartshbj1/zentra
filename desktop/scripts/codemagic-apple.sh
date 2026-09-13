@@ -2,12 +2,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export RUSTUP_TOOLCHAIN=stable LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
-export PATH="$HOME/.cargo/bin:$PATH"
+export PATH="$HOME/.zentra-ci-tools/bin:$HOME/.cargo/bin:$PATH"
 case "${1:-}" in
 prepare)
   [[ "$(uname -s)" == Darwin ]]
   xcodebuild -version
-  npm install --global pnpm@11.19.0
+  npm install --global --prefix "$HOME/.zentra-ci-tools" pnpm@11.19.0
   if ! command -v rustup >/dev/null; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/zentra-rustup.sh
     sh /tmp/zentra-rustup.sh -y --profile minimal --default-toolchain stable
