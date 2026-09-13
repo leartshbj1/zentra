@@ -1,8 +1,24 @@
 # Personnaliser les documents Zentra
 
-Les outils décrits ici sont inclus dans la préversion Windows 1.59.0, publiée le 13 septembre 2026. Consultez [la note de livraison](RELEASE-WINDOWS-1.59.0.md) pour ses contrôles et leurs limites. Cette livraison ne comprend pas de nouveau lot macOS, iOS ou Android.
+L’atelier est inclus dans la préversion Windows 1.59.0, publiée le 13 septembre 2026. Consultez [la note de livraison](RELEASE-WINDOWS-1.59.0.md) pour ses contrôles et leurs limites. Les réglages précis et le nouvel affichage mobile décrits ci-dessous sont ajoutés au code après cette version ; ils ne sont pas encore dans un nouvel installateur. Cette livraison ne comprend pas de nouveau lot macOS, iOS ou Android.
 
 Dans **Paramètres → Présentation des documents**, ouvrez l’atelier de personnalisation puis choisissez **Factures**, **Devis**, **Bilan** ou **Fiches de salaire**.
+
+## Réglages précis et aperçu mobile — ajout après 1.59.0
+
+Les choix rapides restent disponibles. Pour une valeur intermédiaire, ouvrez **Style → Réglage précis de la typographie**, ou **Mise en page → Réglage précis de la page**. Déplacez un curseur ou utilisez les boutons − et +. La valeur apparaît à côté du réglage ; les menus rapides reprennent aussi la valeur choisie.
+
+- Texte : de 8 à 12 points, par demi-point ; titre : de 18 à 34 points.
+- Marges : de 12 à 25 mm, par demi-millimètre ; début du contenu : de 12 à 45 mm. **Suivre les marges** rétablit une marge du haut liée aux marges générales.
+- Interligne : de 1,15 à 1,8 ; espace entre les blocs : de 0,5 à 2.
+- Hauteur maximale du logo : de 24 à 72 points ; espace sous le logo : de 0 à 36 points. La largeur choisie et les proportions du logo restent respectées.
+- Espace dans les lignes du tableau : de 4 à 10 points, par demi-point.
+
+Un déplacement continu d’un curseur s’annule en une seule fois. Les touches fléchées permettent également un réglage précis. Ces mesures peuvent augmenter le nombre de pages : vérifiez l’aperçu avant d’enregistrer.
+
+Sur petit écran, **Mes réglages** et **Mon document** permettent de passer des outils au PDF. La barre reste accessible pendant le défilement et permet d’enregistrer depuis l’aperçu. Le texte, sa mise en forme et les réglages restent présents entre les deux vues. Une erreur de génération du PDF est également affichée dans les réglages, avec les actions de correction. Sur grand écran, les outils et l’aperçu restent côte à côte.
+
+## Outils de l’atelier
 
 Les raccourcis **Logo**, **Titre**, **Introduction**, **Mise en page**, **Conditions / Commentaire** et **Pied de page** ouvrent directement l’outil correspondant. Les trois petites pages du réglage du logo permettent de choisir visuellement sa position.
 

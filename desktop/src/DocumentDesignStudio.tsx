@@ -10,8 +10,9 @@ import './DocumentDesignStudio.css';
 import { normalizeComposition, documentFontCss, type DocumentComposition } from './documentComposition';
 import { RichTextEditor, selectRichTextRange } from './RichTextEditor';
 import { DocumentLayoutControls, DocumentInkControls } from './DocumentLayoutControls';
+import { CustomMeasureOption, DocumentPrecisionControls } from './DocumentPrecisionControls';
 import { DocumentDesignMap, type DesignSection } from './DocumentDesignMap';
-import { copyDocumentDesign, designChange, resetDocumentDesign, restoreDesignChange, type DesignChange } from './documentDesignEditing';
+import { copyDocumentDesign, designChange, joinDesignChanges, resetDocumentDesign, restoreDesignChange, type DesignChange } from './documentDesignEditing';
 import { nativeDesignProblem, validateDocumentDesigns, type DesignProblem } from './documentDesignValidation';
 import { errorMessage } from './utils';
 
@@ -35,6 +36,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
   const previewElement = useRef<HTMLDivElement>(null);
   const toolsElement = useRef<HTMLDivElement>(null);
   const [writing, setWriting] = useState(false);
+  const [mobileView, setMobileView] = useState<'tools' | 'preview'>('tools');
   const appearance = documentAppearance(settings.documentAppearance);
   const baseStyle = appearance[kind];
   const composition = settings.documentComposition?.[kind];
@@ -42,6 +44,9 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
   const style = { ...baseStyle, ...(composition ? { composition: design } : {}) };
   const history = useRef<DesignChange[]>([]);
   const future = useRef<DesignChange[]>([]);
+  const gesture = useRef<{ entry?: DesignChange } | null>(null);
+  function startGesture() { if (!busy) gesture.current = {}; }
+  function endGesture() { gesture.current = null; }
   const [panel, setPanel] = useState<'style' | 'layout' | 'text'>('style');
   const [copyTarget, setCopyTarget] = useState<DocumentDesignKind>('quotes');
   const [copyText, setCopyText] = useState(false), [resetText, setResetText] = useState(false);
@@ -75,13 +80,19 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
   function change(next: AppSettings) {
     if (busy) return;
     const entry = designChange(settings, next); if (!entry) return;
-    history.current.push(entry); if (history.current.length > 50) history.current.shift(); future.current = [];
+    const previous = gesture.current?.entry;
+    const joined = previous && history.current.at(-1) === previous ? joinDesignChanges(previous, entry) : null;
+    if (joined) history.current.pop();
+    history.current.push(joined || entry);
+    if (gesture.current) gesture.current.entry = joined || entry;
+    if (history.current.length > 50) history.current.shift(); future.current = [];
     setNotice(''); setProblems([]); setSaveError(''); onChange(next);
   }
   function patch(value: Partial<typeof baseStyle>) { change({ ...settings, documentAppearance: { ...appearance, [kind]: { ...baseStyle, ...value } } }); }
   function compose(value: Partial<DocumentComposition>) { change({ ...settings, documentComposition: { ...settings.documentComposition, [kind]: normalizeComposition({ ...design, ...value }) } }); }
   function undo(redo = false) {
     if (busy) return;
+    endGesture();
     const from = redo ? future.current : history.current, to = redo ? history.current : future.current;
     const entry = from.at(-1); if (!entry) return;
     const next = restoreDesignChange(settings, entry, redo);
@@ -104,6 +115,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     setResetText(false);
   }
   function revealTools(selector: string) {
+    setMobileView('tools');
     requestAnimationFrame(() => {
       const target = toolsElement.current?.querySelector<HTMLElement>(selector);
       target?.focus({ preventScroll: true });
@@ -120,7 +132,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     }
   }
   function showPreview() {
-    setWriting(false);
+    setWriting(false); setMobileView('preview');
     requestAnimationFrame(() => { previewElement.current?.focus({ preventScroll: true }); previewElement.current?.scrollIntoView({ block: 'start', behavior: 'instant' }); });
   }
 
@@ -128,7 +140,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     requestAnimationFrame(() => { problemElement.current?.focus({ preventScroll: true }); problemElement.current?.scrollIntoView({ block: 'center', behavior: 'instant' }); });
   }
   function correctProblem(problem: DesignProblem) {
-    setKind(problem.kind); setWriting(false);
+    setKind(problem.kind); setWriting(false); setMobileView('tools');
     if (problem.zone === 'company' && onRequestCompany) { onRequestCompany(/logo/i.test(problem.message) ? 'logo' : 'identity'); return; }
     if (['intro', 'closing', 'footerText'].includes(problem.zone)) {
       setPanel('text'); setTextZone(problem.zone as typeof textZone);
@@ -182,7 +194,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     } catch (reason) { setExportError(String(reason instanceof Error ? reason.message : reason)); }
     finally { exportFlight.current = false; setExporting(false); }
   }
-  return <section className={`design-studio settings-card--wide${writing && panel === 'text' ? ' design-studio--writing' : ''}`} aria-label="Personnalisation des documents">
+  return <section className={`design-studio settings-card--wide${writing && panel === 'text' ? ' design-studio--writing' : ''}`} data-mobile-view={mobileView} aria-label="Personnalisation des documents">
     <div className="design-studio__heading"><p className="eyebrow">Votre signature</p><h2>Des documents à votre image</h2><p>Un atelier simple pour composer vos documents. Choisissez un style, ajustez la page, puis écrivez vos textes comme dans un traitement de texte.</p></div>
     <div className="design-studio__tabs" role="group" aria-label="Document à personnaliser">{(Object.keys(labels) as DocumentDesignKind[]).map(value => <button type="button" key={value} disabled={exporting} aria-pressed={kind === value} onClick={() => { setKind(value); setNotice(''); setExportError(''); setExported(null); }}>{labels[value]}</button>)}</div>
     <DocumentDesignMap accounts={kind === 'accounts'} onSelect={selectSection} />
@@ -200,6 +212,13 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
       {problems.map((problem, index) => <article key={`${problem.kind}-${problem.zone}-${index}`}><strong>{problem.title}</strong><p>{problem.message}</p><Button variant="secondary" disabled={busy} onClick={() => correctProblem(problem)}>{problem.zone === 'company' && onRequestCompany ? 'Ouvrir Entreprise et facturation' : 'Corriger ce passage'}</Button></article>)}
       {saveError && <p>{saveError}</p>}
     </div>}
+    <div className="design-studio__mobile-switch" role="group" aria-label="Affichage de l’atelier">
+      <button type="button" aria-pressed={mobileView === 'tools'} onClick={() => revealTools('.design-studio__panels button[aria-pressed=true]')}>Mes réglages</button>
+      <button type="button" aria-pressed={mobileView === 'preview'} onClick={showPreview}>Mon document</button>
+      <button type="button" className="design-studio__mobile-save" aria-label="Enregistrer mes présentations" disabled={busy || loading && !error} onClick={() => void saveDesigns()}><Check size={17} /><span>Enregistrer</span></button>
+    </div>
+    {notice && <p className="design-studio__notice" role="status">{notice}</p>}
+    {error && <div className="design-studio__mobile-error design-studio__error" role="alert"><strong>L’aperçu demande une correction</strong><p>{error}</p><Button variant="secondary" disabled={busy} onClick={() => correctProblem(nativeDesignProblem(kind, error, settings))}>Corriger ce point</Button><Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Réessayer l’aperçu</Button></div>}
     <div className="design-studio__body">
       <div ref={toolsElement} className="design-studio__tools">
         <div className="design-studio__panels" role="group" aria-label="Outils de personnalisation">{([['style','Style'],['layout','Mise en page'],['text','Textes']] as const).map(([key,label]) => <button type="button" key={key} aria-pressed={panel === key} onClick={() => { setPanel(key); if (key !== 'text') setWriting(false); }}>{label}</button>)}</div>
@@ -207,10 +226,11 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
         {!composition && <p className="design-studio__hint">Votre modèle actuel est conservé. Choisissez un point de départ ou ajustez la police pour activer la mise en page flexible.</p>}
         <fieldset disabled={busy}><legend>Un point de départ</legend><div className="design-studio__presets">{([['modern','Moderne'],['classic','Classique'],['editorial','Éditorial']] as const).map(([key,label]) => <button type="button" key={key} onClick={() => preset(key)}>{label}</button>)}</div><small>Vous gardez vos textes et votre couleur.</small></fieldset>
         <label>Police du document<select aria-label="Police du document" value={design.fontFamily} disabled={busy} onChange={e => compose({ fontFamily: e.target.value as DocumentComposition['fontFamily'] })}><option value="helvetica">Helvetica · sobre et moderne</option><option value="times">Times · élégante et classique</option><option value="courier">Courier · style dactylographié</option></select></label>
-        <div className="design-studio__pair"><label>Taille du texte<select aria-label="Taille du texte" value={design.bodySize} disabled={busy} onChange={e => compose({ bodySize: Number(e.target.value) })}>{[8,9,10,11,12].map(n => <option key={n} value={n}>{n} pt</option>)}</select></label><label>Taille du titre<select aria-label="Taille du titre" value={design.titleSize} disabled={busy} onChange={e => compose({ titleSize: Number(e.target.value) })}>{[18,20,24,28,30,34].map(n => <option key={n} value={n}>{n} pt</option>)}</select></label></div>
+        <div className="design-studio__pair"><label>Taille du texte<select aria-label="Taille du texte" value={design.bodySize} disabled={busy} onChange={e => compose({ bodySize: Number(e.target.value) })}><CustomMeasureOption value={design.bodySize} choices={[8,9,10,11,12]} />{[8,9,10,11,12].map(n => <option key={n} value={n}>{n} pt</option>)}</select></label><label>Taille du titre<select aria-label="Taille du titre" value={design.titleSize} disabled={busy} onChange={e => compose({ titleSize: Number(e.target.value) })}><CustomMeasureOption value={design.titleSize} choices={[18,20,24,28,30,34]} />{[18,20,24,28,30,34].map(n => <option key={n} value={n}>{n} pt</option>)}</select></label></div>
         <fieldset disabled={busy}><legend>Style du titre</legend><div className="design-studio__presets"><button type="button" aria-pressed={design.titleBold} onClick={() => compose({ titleBold: !design.titleBold })}><Bold size={16} /> Gras</button><button type="button" aria-pressed={design.titleItalic} onClick={() => compose({ titleItalic: !design.titleItalic })}><Italic size={16} /> Italique</button></div></fieldset>
         <fieldset disabled={busy}><legend>Présentation</legend><div className="design-studio__layouts">{(['signature', 'minimal'] as const).map(value => <button type="button" key={value} aria-pressed={style.layout === value} onClick={() => patch({ layout: value })}><span className={`design-studio__layout-sample design-studio__layout-sample--${value}`} aria-hidden="true" /><strong>{value === 'signature' ? 'Signature' : 'Épurée'}</strong><small>{value === 'signature' ? 'Une touche de couleur affirmée' : 'Des lignes simples et légères'}</small>{style.layout === value && <Check size={15} />}</button>)}</div></fieldset>
         <fieldset disabled={busy}><legend>Couleur</legend><div className="design-studio__swatches">{colors.map(color => <button type="button" key={color} style={{ backgroundColor: color }} aria-label={`Couleur ${color}`} aria-pressed={style.accentColor === color} onClick={() => patch({ accentColor: color })} />)}</div><label className="design-studio__color">Couleur personnalisée<input type="color" aria-label="Couleur personnalisée" value={style.accentColor} onChange={event => patch({ accentColor: event.target.value })} /></label></fieldset>
+        <DocumentPrecisionControls section="typography" design={design} disabled={busy} onChange={compose} onGestureStart={startGesture} onGestureEnd={endGesture} />
         <DocumentInkControls design={design} disabled={busy} onChange={compose} accentColor={style.accentColor} />
         </div>
         <div hidden={panel !== 'layout'} className="design-studio__panel">
@@ -218,11 +238,12 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
         <fieldset className="design-studio__logo-positions" disabled={busy}><legend>Votre logo sur la page</legend><div>{([['left', 'À gauche'], ['center', 'Au centre'], ['right', 'À droite']] as const).map(([position, label]) => <button type="button" key={position} aria-label={`Logo ${label.toLowerCase()}`} aria-pressed={design.logoPosition === position} onClick={() => compose({ logoPosition: position })}><span className="design-studio__logo-page" data-position={position} aria-hidden="true"><i>Logo</i><b /><b /></span>{label}</button>)}</div></fieldset>
         <label>Position du logo<select aria-label="Position du logo" disabled={busy} value={design.logoPosition} onChange={e => compose({ logoPosition: e.target.value as DocumentComposition['logoPosition'] })}><option value="left">À gauche</option><option value="center">Au centre</option><option value="right">À droite</option><option value="hidden">Masquer le logo</option></select></label>
         <label>Taille du logo<select aria-label="Taille du logo" value={style.logoWidth} disabled={busy} onChange={event => patch({ logoWidth: Number(event.target.value) })}><option value="88">Discrète</option><option value="120">Équilibrée</option><option value="150">Affirmée</option></select><small>Le logo conserve ses proportions.</small></label>
-        <label>Hauteur maximale du logo<select aria-label="Hauteur maximale du logo" value={design.logoHeight} disabled={busy} onChange={e => compose({ logoHeight: Number(e.target.value) })}>{[24,36,48,60,72].map(n => <option key={n} value={n}>{n} pt</option>)}</select></label>
+        <label>Hauteur maximale du logo<select aria-label="Hauteur maximale du logo" value={design.logoHeight} disabled={busy} onChange={e => compose({ logoHeight: Number(e.target.value) })}><CustomMeasureOption value={design.logoHeight} choices={[24,36,48,60,72]} />{[24,36,48,60,72].map(n => <option key={n} value={n}>{n} pt</option>)}</select></label>
         <label>Alignement du titre<select aria-label="Alignement du titre" value={design.titleAlign} disabled={busy} onChange={e => compose({ titleAlign: e.target.value as DocumentComposition['titleAlign'] })}><option value="left">À gauche</option><option value="center">Centré</option><option value="right">À droite</option></select></label>
-        <div className="design-studio__pair"><label>Marges<select aria-label="Marges" value={design.marginMm} disabled={busy} onChange={e => compose({ marginMm: Number(e.target.value) })}>{[12,15,18,20,25].map(n => <option key={n} value={n}>{n} mm</option>)}</select></label><label>Interligne<select aria-label="Interligne" value={design.lineSpacing} disabled={busy} onChange={e => compose({ lineSpacing: Number(e.target.value) })}><option value="1.15">Serré · 1,15</option><option value="1.35">Équilibré · 1,35</option><option value="1.5">Aéré · 1,5</option><option value="1.8">Très aéré · 1,8</option></select></label></div>
+        <div className="design-studio__pair"><label>Marges<select aria-label="Marges" value={design.marginMm} disabled={busy} onChange={e => compose({ marginMm: Number(e.target.value) })}><CustomMeasureOption value={design.marginMm} choices={[12,15,18,20,25]} unit="mm" />{[12,15,18,20,25].map(n => <option key={n} value={n}>{n} mm</option>)}</select></label><label>Interligne<select aria-label="Interligne" value={design.lineSpacing} disabled={busy} onChange={e => compose({ lineSpacing: Number(e.target.value) })}><CustomMeasureOption value={design.lineSpacing} choices={[1.15,1.35,1.5,1.8]} unit="×" /><option value="1.15">Serré · 1,15</option><option value="1.35">Équilibré · 1,35</option><option value="1.5">Aéré · 1,5</option><option value="1.8">Très aéré · 1,8</option></select></label></div>
         <label>Présentation du tableau<select aria-label="Présentation du tableau" value={design.tableStyle} disabled={busy} onChange={e => compose({ tableStyle: e.target.value as DocumentComposition['tableStyle'] })}><option value="band">En-tête coloré</option><option value="striped">Lignes alternées</option><option value="lines">Lignes discrètes</option></select></label>
-        <label>Espace dans les lignes<select aria-label="Espace dans les lignes" value={design.tablePadding} disabled={busy} onChange={e => compose({ tablePadding: Number(e.target.value) })}><option value="4">Compact</option><option value="6">Équilibré</option><option value="8">Confortable</option><option value="10">Très aéré</option></select></label>
+        <label>Espace dans les lignes<select aria-label="Espace dans les lignes" value={design.tablePadding} disabled={busy} onChange={e => compose({ tablePadding: Number(e.target.value) })}><CustomMeasureOption value={design.tablePadding} choices={[4,6,8,10]} /><option value="4">Compact</option><option value="6">Équilibré</option><option value="8">Confortable</option><option value="10">Très aéré</option></select></label>
+        <DocumentPrecisionControls section="layout" design={design} disabled={busy} onChange={compose} onGestureStart={startGesture} onGestureEnd={endGesture} />
         {kind !== 'accounts' && <label>Position des totaux<select aria-label="Position des totaux" value={design.totalsPosition} disabled={busy} onChange={e => compose({ totalsPosition: e.target.value as DocumentComposition['totalsPosition'] })}><option value="beforeNotes">Juste après le tableau</option><option value="afterNotes">Après les remarques et conditions</option></select></label>}
         </div>
         <div hidden={panel !== 'text'} className="design-studio__panel">
@@ -239,7 +260,6 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
         <div className="design-studio__actions"><Button disabled={busy || loading && !error} onClick={() => void saveDesigns()}>{busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />} Enregistrer les présentations</Button><Button variant="secondary" disabled={busy || exporting || loading || !!error} onClick={() => void exportExample()}><Download size={16} /> Exporter cet exemple</Button></div>
         <details className="design-studio__reset"><summary>Revenir au style de départ</summary><p className="design-studio__hint">Rétablit les polices, couleurs, marges et la position du logo. Vos textes restent présents.</p><label className="design-studio__choice"><input type="checkbox" checked={resetText} disabled={busy} onChange={e => setResetText(e.target.checked)} /> Effacer aussi les textes modèles</label><Button variant="ghost" disabled={busy} onClick={reset}><RotateCcw size={15} /> Réinitialiser {labels[kind].toLowerCase()}</Button></details>
         <p className="design-studio__hint">Les réglages s’appliquent aux brouillons et aux prochains documents. Les documents émis et les fiches comptabilisées conservent leur présentation.</p>
-        {notice && <p role="status">{notice}</p>}
         {exportError && <p role="alert">L’export n’a pas abouti. Vos réglages sont conservés. {exportError} Réessayez avec « Exporter cet exemple ».</p>}
         {exported?.key === requestKey && <PdfExportReceipt result={exported.result} disabled={exporting} onBusyChange={setExporting} />}
       </div>

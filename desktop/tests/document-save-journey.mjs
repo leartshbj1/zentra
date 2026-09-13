@@ -17,7 +17,7 @@ async function setup(width,height) {
  });
  return {page,errors};
 }
-const ready=page=>page.locator('.design-studio__preview[aria-busy=false] img').first().waitFor();
+const ready=page=>page.locator('.design-studio__preview[aria-busy=false] img').first().waitFor({ state: 'attached' });
 const save=page=>page.getByRole('group',{name:'Historique de la présentation'}).getByRole('button',{name:'Enregistrer',exact:true});
 const count=(page,key)=>page.evaluate(key=>Number(sessionStorage.getItem(key)||0),key);
 const draft=page=>page.evaluate(()=>JSON.parse(sessionStorage.getItem('design-draft')||'{}'));

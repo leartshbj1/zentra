@@ -1,3 +1,4 @@
+import { CustomMeasureOption } from './DocumentPrecisionControls';
 import type { DocumentComposition } from './documentComposition';
 import type { DocumentDesignKind } from './documentAppearance';
 
@@ -18,16 +19,16 @@ export function DocumentLayoutControls({ design, kind, disabled, onChange }: Pro
         <option value="left">À gauche</option><option value="center">Au centre</option><option value="right">À droite</option>
       </select><small>{kind === 'payslips' ? 'Identité et informations du collaborateur.' : 'Nom et adresse du client.'}</small></label>}
       <label>Espace sous le logo<select aria-label="Espace sous le logo" value={design.logoGap ?? 14} onChange={e => onChange({ logoGap: Number(e.target.value) })}>
-        {[0,7,14,24,36].map(n => <option value={n} key={n}>{n === 0 ? 'Aucun espace ajouté' : `${n} pt`}</option>)}
+        <CustomMeasureOption value={design.logoGap ?? 14} choices={[0,7,14,24,36]} />{[0,7,14,24,36].map(n => <option value={n} key={n}>{n === 0 ? 'Aucun espace ajouté' : `${n} pt`}</option>)}
       </select></label>
     </fieldset>
     <fieldset disabled={disabled}>
       <legend>Rythme de la page</legend>
       <label>Début du contenu<select aria-label="Début du contenu" value={design.topMarginMm ?? ''} onChange={e => onChange({ topMarginMm: e.target.value ? Number(e.target.value) : undefined })}>
-        <option value="">Suivre les marges du document</option>{[12,15,20,25,35,45].map(n => <option value={n} key={n}>{n} mm depuis le haut</option>)}
+        <option value="">Suivre les marges du document</option>{design.topMarginMm != null && <CustomMeasureOption value={design.topMarginMm} choices={[12,15,20,25,35,45]} unit="mm depuis le haut" />}{[12,15,20,25,35,45].map(n => <option value={n} key={n}>{n} mm depuis le haut</option>)}
       </select><small>Modifie la marge du haut sur les pages du document.</small></label>
       <label>Espace entre les blocs<select aria-label="Espace entre les blocs" value={design.blockSpacing ?? 1} onChange={e => onChange({ blockSpacing: Number(e.target.value) })}>
-        <option value="0.5">Rapproché</option><option value="1">Équilibré</option><option value="1.5">Aéré</option><option value="2">Très aéré</option>
+        <CustomMeasureOption value={design.blockSpacing ?? 1} choices={[.5,1,1.5,2]} unit="×" /><option value="0.5">Rapproché</option><option value="1">Équilibré</option><option value="1.5">Aéré</option><option value="2">Très aéré</option>
       </select><small>L’interligne et l’espace des lignes du tableau se règlent séparément.</small></label>
       <label className="design-studio__choice"><input type="checkbox" aria-label={`Commencer les ${closing === 'commentaire' ? 'commentaires' : closing} sur une nouvelle page`} checked={design.closingOnNewPage === true} onChange={e => onChange({ closingOnNewPage: e.target.checked })} />{kind === 'accounts' ? 'Commentaire sur une nouvelle page' : 'Conditions sur une nouvelle page'}</label>
       <small>Une nouvelle page est ajoutée seulement si cette zone contient du texte.</small>

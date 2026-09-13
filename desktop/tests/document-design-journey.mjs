@@ -15,7 +15,7 @@ await page.route('**/native-design-fixture/*.pdf', async route => {
   assert.match(file, /^(quotes|invoices|accounts|payslips)-(signature|minimal)\.pdf$/);
   await route.fulfill({ status: 200, contentType: 'application/pdf', body: await readFile(`.qa/composition-pdfs/${file}`) });
 });
-async function ready() { await page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({ timeout: 20000 }); }
+async function ready() { await page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({ state: 'attached', timeout: 20000 }); }
 async function request() { return page.evaluate(() => JSON.parse(sessionStorage.getItem('design-request'))); }
 try {
   await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5192'}/tests/document-design-harness.html`);
@@ -74,6 +74,7 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1),false);
       await page.getByRole('button', { name: 'Ajuster l’aperçu', exact: true }).click();
       await page.locator('.design-studio__pages--zoomed').waitFor({ state: 'detached' });
+      await page.getByRole('button', { name: 'Revenir aux réglages', exact: true }).click();
     }
     report.push({ width, noOverflow: true });
   }

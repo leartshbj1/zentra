@@ -17,7 +17,7 @@ try {
       await route.fulfill({ contentType: 'application/pdf', body: await readFile(`.qa/composition-pdfs/${file}`) });
     });
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5271'}/tests/document-design-harness.html`);
-    const ready = () => page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({ timeout: 30000 });
+    const ready = () => page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({ state: 'attached', timeout: 30000 });
     await ready();
     await page.getByRole('button', { name: 'Textes', exact: true }).click();
     const editor = page.getByRole('textbox', { name: 'Conditions et message de fin', exact: true });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { initialOnboardingSettings } from './onboardingDraft';
 import { normalizeComposition } from './documentComposition';
 import { documentAppearance } from './documentAppearance';
-import { copyDocumentDesign, designChange, resetDocumentDesign, restoreDesignChange } from './documentDesignEditing';
+import { copyDocumentDesign, designChange, joinDesignChanges, resetDocumentDesign, restoreDesignChange } from './documentDesignEditing';
 
 function fixture() {
   const appearance = documentAppearance();
@@ -14,6 +14,24 @@ function fixture() {
   } };
 }
 describe('reuse document presentation', () => {
+  it('undoes one complete slider drag without reverting current company data', () => {
+    const original = fixture();
+    const first = structuredClone(original); first.documentComposition.invoices.marginMm = 21;
+    const last = structuredClone(first); last.documentComposition.invoices.marginMm = 24.5;
+    const grouped = joinDesignChanges(designChange(original, first)!, designChange(first, last)!)!;
+    const current = { ...last, organization: { ...last.organization, legalName: 'Nom actualisé' } };
+    const restored = restoreDesignChange(current, grouped)!;
+    expect(restored.documentComposition).toEqual(original.documentComposition);
+    expect(restored.organization.legalName).toBe('Nom actualisé');
+    expect(restoreDesignChange(restored, grouped, true)?.documentComposition).toEqual(last.documentComposition);
+  });
+  it('starts another undo entry after the presentation was refreshed elsewhere', () => {
+    const original = fixture();
+    const first = structuredClone(original); first.documentComposition.invoices.marginMm = 21;
+    const refreshed = structuredClone(first); refreshed.documentComposition.invoices.fontFamily = 'courier';
+    const last = structuredClone(refreshed); last.documentComposition.invoices.marginMm = 22;
+    expect(joinDesignChanges(designChange(original, first)!, designChange(refreshed, last)!)).toBeNull();
+  });
   it('copies layout while preserving all destination text zones including plain footer', () => {
     const settings = fixture(), before = structuredClone(settings);
     const result = copyDocumentDesign(settings, 'invoices', 'quotes');

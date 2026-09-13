@@ -50,7 +50,7 @@ try {
     });
     await page.getByText(/60 paragraphes au maximum/).waitFor();
     assert.deepEqual(await rich(), previous); assert.equal(await editor.locator('.rich-editor__paragraph').count(), 3);
-    await page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor();
+    await page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({ state: 'attached' });
     await page.evaluate(() => sessionStorage.setItem('design-export-mode', 'error'));
     await page.getByRole('button', { name: 'Exporter cet exemple', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'L’export n’a pas abouti' }).waitFor();

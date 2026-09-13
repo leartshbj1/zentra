@@ -5,6 +5,10 @@ import type { AppSettings } from './types';
 const kinds: DocumentDesignKind[] = ['invoices', 'quotes', 'accounts', 'payslips'];
 type Snapshot = { kind: DocumentDesignKind; appearance: DocumentStyle; composition: NonNullable<AppSettings['documentComposition']>[DocumentDesignKind] };
 export type DesignChange = { before: Snapshot[]; after: Snapshot[] };
+/** One continuous slider movement is one undo; a refresh breaks the group. */
+export function joinDesignChanges(previous: DesignChange, next: DesignChange): DesignChange | null {
+  return JSON.stringify(previous.after) === JSON.stringify(next.before) ? { before: previous.before, after: next.after } : null;
+}
 function snapshot(settings: AppSettings, kind: DocumentDesignKind): Snapshot {
   return structuredClone({ kind, appearance: documentAppearance(settings.documentAppearance)[kind], composition: settings.documentComposition?.[kind] });
 }

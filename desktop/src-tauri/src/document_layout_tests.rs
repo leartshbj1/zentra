@@ -28,6 +28,51 @@ fn document_layout_keeps_old_settings_and_rejects_invalid_overrides() {
 }
 
 #[test]
+fn document_layout_precision_values_survive_all_four_pdf_exports() {
+    use crate::database::LocalStore;
+    let temp = tempfile::tempdir().unwrap();
+    let store = LocalStore::initialize(temp.path().join("profile")).unwrap();
+    let source = temp.path().join("logo.png");
+    image::RgbImage::from_pixel(100, 100, image::Rgb([25, 70, 55])).save(&source).unwrap();
+    let logo = store.stage_company_logo(source.to_str().unwrap()).unwrap();
+    let issuer = json!({"company_name":"Atelier du Léman Sàrl","address_line1":"Rue du Lac 12","postal_code":"1000","city":"Lausanne","country":"CH","vat_registered":true,"uid_number":"CHE-123.456.789","vat_number":"CHE-123.456.789 TVA","logo_path":logo});
+    let values = json!({"fontFamily":"times","bodySize":9.5,"titleSize":27,"marginMm":17.5,"lineSpacing":1.4,"logoPosition":"right","logoHeight":43,"tablePadding":7.5,"topMarginMm":22.5,"logoGap":17,"blockSpacing":1.15,"intro":[{"runs":[{"text":"Votre document sur mesure.","bold":true}]}],"closing":[{"runs":[{"text":"Merci pour votre confiance.","italic":true}]}]});
+    let composition: Composition = serde_json::from_value(values.clone()).unwrap();
+    composition.validate().unwrap();
+    let serialized = serde_json::to_value(&composition).unwrap();
+    for key in ["bodySize", "titleSize", "marginMm", "lineSpacing", "logoHeight", "tablePadding", "topMarginMm", "logoGap", "blockSpacing"] {
+        assert!((serialized[key].as_f64().unwrap() - values[key].as_f64().unwrap()).abs() < 0.000001, "{key}");
+    }
+    for kind in ["quotes", "invoices", "accounts", "payslips"] {
+        let bytes = store.document_design_example(kind, json!({"composition":values}), issuer.clone()).unwrap();
+        let pdf = Document::load_mem(&bytes).unwrap();
+        let pages = pdf.get_pages();
+        let text = pdf.extract_text(&pages.keys().copied().collect::<Vec<_>>()).unwrap();
+        assert!(text.contains("Votre document sur mesure."));
+        assert!(text.contains("Merci pour votre confiance."));
+        assert!(text.contains(match kind { "accounts" => "178'000.00", "payslips" => "5'336.00", _ => "540.50" }));
+        let first = Content::decode(&pdf.get_page_content(*pages.values().next().unwrap()).unwrap()).unwrap();
+        let mut matrix = None;
+        let mut found_logo = false;
+        for op in &first.operations {
+            if op.operator == "cm" { matrix = Some(&op.operands); }
+            if op.operator == "Do" && op.operands[0].as_name().is_ok_and(|name| name == b"Logo") {
+                let transform = matrix.unwrap();
+                assert!((transform[0].as_float().unwrap() - 43.).abs() < 0.01);
+                assert!((transform[3].as_float().unwrap() - 43.).abs() < 0.01);
+                assert!((transform[4].as_float().unwrap() - (WIDTH - 17.5 * 72. / 25.4 - 43.)).abs() < 0.01);
+                found_logo = true;
+            }
+        }
+        assert!(found_logo);
+        if let Some(directory) = std::env::var_os("ZENTRA_PRECISION_SAMPLES") {
+            std::fs::create_dir_all(&directory).unwrap();
+            std::fs::write(std::path::Path::new(&directory).join(format!("{kind}-precision.pdf")), bytes).unwrap();
+        }
+    }
+}
+
+#[test]
 fn document_layout_aligns_blocks_and_colors_without_modifying_text() {
     let design: Composition = serde_json::from_value(json!({"companyAlign":"center","recipientAlign":"right","topMarginMm":35,"blockSpacing":1.5,"textColor":"#182b49","titleColor":"#793c32"})).unwrap();
     let style = DocumentStyle { composition: Some(design), ..Default::default() };

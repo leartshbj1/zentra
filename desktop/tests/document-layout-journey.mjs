@@ -20,7 +20,7 @@ try {
       await route.fulfill({ contentType: 'application/pdf', body: await readFile(file) });
     });
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5271'}/tests/document-design-harness.html?tools=1`);
-    const ready = () => page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({ timeout: 30000 });
+    const ready = () => page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({ state: 'attached', timeout: 30000 });
     const state = () => page.evaluate(() => JSON.parse(sessionStorage.getItem('design-draft') || '{}'));
     const history = page.getByRole('group', { name: 'Historique de la présentation' });
     await ready();
