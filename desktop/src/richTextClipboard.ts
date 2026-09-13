@@ -63,7 +63,7 @@ export function richTextFromClipboard(html: string): RichText | null {
     const marks = marksFor(el, inherited);
     const align = el.style.textAlign || el.getAttribute('align');
     const ownParagraph = el.classList.contains('rich-editor__paragraph');
-    const nextFormat = { ...format, ...(['left', 'center', 'right'].includes(align || '') ? { align: align as RichParagraph['align'] } : {}), ...(el.tagName === 'LI' ? { bullet: el.parentElement?.tagName !== 'OL' } : ownParagraph ? { bullet: el.dataset.bullet === 'true' } : {}) };
+    const nextFormat = { ...format, ...(['left', 'center', 'right'].includes(align || '') ? { align: align as RichParagraph['align'] } : {}), ...(el.tagName === 'LI' ? { bullet: el.parentElement?.tagName !== 'OL' } : ownParagraph ? { bullet: el.dataset.bullet === 'true', numbered: el.dataset.numbered === 'true', indent: Number(el.dataset.indent || 0), spaceAfter: Number(el.dataset.spaceAfter || 0) } : {}) };
     const block = blocks.has(el.tagName) || ownParagraph || el.style.display === 'block';
     if (block) flush();
     const firstParagraph = paragraphs.length;

@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, Undo2, Redo2, Highlighter, Baseline, RemoveFormatting, Search } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, ListOrdered, IndentIncrease, IndentDecrease, Undo2, Redo2, Highlighter, Baseline, RemoveFormatting, Search } from 'lucide-react';
 import { normalizeRichText, richPlainText, richColor, richFont, richFontSize, documentFontCss, type RichRun, type RichText } from './documentComposition';
-import { insertedTextRange, marksAtSelection, noTextMarks, paragraphStyleMarks, replaceRichSelection, richTextLimit, selectedParagraphs, setParagraphStyle, setRichMarks, typographyAtSelection, type ParagraphStyle, type TextMarks } from './richTextEditing';
+import { insertedTextRange, marksAtSelection, noTextMarks, paragraphStyleMarks, replaceRichSelection, richTextLimit, setParagraphStyle, setRichMarks, typographyAtSelection, type ParagraphStyle, type TextMarks } from './richTextEditing';
 import { richTextFromClipboard } from './richTextClipboard';
 import { RichTextSearchPanel } from './RichTextSearchPanel';
+import { formatParagraphs, insertParagraphText, leaveEmptyList, paragraphFormatAt, paragraphMarkers, type ParagraphFormat } from './richParagraphEditing';
 import { copyRichTextFormat } from './richTextEditing';
 
 type Mark = 'bold' | 'italic' | 'underline';
@@ -20,9 +21,10 @@ function readEditor(root: HTMLElement, previous: RichText): RichText {
   // It is a caret placeholder, not an additional paragraph to save.
   if (!root.textContent) return normalizeRichText([{ ...previous[0], runs: [] }]);
   const paragraphs: RichText = [{ runs: [] }];
+  let format: ParagraphFormat = { ...previous[0] };
   const append = (text: string, marks: Omit<RichRun, 'text'>) => {
     text.replace(/\r\n?/g, '\n').split('\n').forEach((part, i) => {
-      if (i) paragraphs.push({ runs: [] });
+      if (i) paragraphs.push({ ...format, runs: [] });
       if (part) paragraphs.at(-1)!.runs.push({ text: part, ...marks });
     });
   };
@@ -35,10 +37,14 @@ function readEditor(root: HTMLElement, previous: RichText): RichText {
     // Native editing can clone our block spans without the hidden separator.
     // Preserve that boundary, including an empty preceding paragraph.
     if (node !== root && isParagraph(node) && (paragraphs.at(-1)!.runs.length || node.previousSibling instanceof HTMLElement && isParagraph(node.previousSibling))) append('\n', marks);
+    if (node.classList.contains('rich-editor__paragraph')) {
+      format = { align: (node.style.textAlign || 'left') as ParagraphFormat['align'], bullet: node.dataset.bullet === 'true', numbered: node.dataset.numbered === 'true', indent: Number(node.dataset.indent || 0), spaceAfter: Number(node.dataset.spaceAfter || 0) };
+      Object.assign(paragraphs.at(-1)!, format);
+    }
     node.childNodes.forEach(child => walk(child, next));
   };
   root.childNodes.forEach(child => walk(child));
-  return normalizeRichText(paragraphs.map((p, i) => ({ ...p, align: previous[i]?.align || 'left', bullet: previous[i]?.bullet || false })));
+  return normalizeRichText(paragraphs);
 }
 function bookmark(root: HTMLElement): Bookmark | null {
   const selection = window.getSelection();
@@ -65,9 +71,14 @@ export function selectRichTextRange(root: HTMLElement, range: Bookmark) {
 }
 function paint(root: HTMLElement, value: RichText) {
   root.replaceChildren();
+  const markers = paragraphMarkers(value);
   value.forEach((p, i) => {
     if (i) { const separator = document.createElement('span'); separator.style.display = 'none'; separator.dataset.separator = 'true'; separator.textContent = '\n'; root.appendChild(separator); }
     const paragraph = document.createElement('span'); paragraph.className = 'rich-editor__paragraph'; paragraph.style.textAlign = p.align || 'left'; paragraph.dataset.bullet = String(!!p.bullet);
+    paragraph.dataset.numbered = String(!!p.numbered); paragraph.dataset.marker = markers[i];
+    paragraph.dataset.indent = String(p.indent ?? 0); paragraph.dataset.spaceAfter = String(p.spaceAfter ?? 0);
+    paragraph.style.marginLeft = `${(p.indent ?? 0) * 1.5}em`;
+    paragraph.style.marginBottom = `calc(${p.spaceAfter ?? 0} * var(--rich-editor-point, 1px))`;
     p.runs.forEach(run => {
       const span = document.createElement('span'); span.textContent = run.text;
       for (const key of ['bold', 'italic', 'underline'] as const) span.dataset[key] = String(!!run[key]);
@@ -89,7 +100,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   const pendingMarks = useRef<{ position: number; marks: TextMarks } | null>(null);
   const [activeMarks, setActiveMarks] = useState<TextMarks>(noTextMarks);
   const [typography, setTypography] = useState<ReturnType<typeof typographyAtSelection>>({ fontFamily: '', fontSize: '' });
-  const [activeBullet, setActiveBullet] = useState(false);
+  const [paragraphFormat, setParagraphFormat] = useState(() => paragraphFormatAt(value, { start: 0, end: 0 }));
   const [copiedFormat, setCopiedFormat] = useState<TextMarks | null>(null);
   const [colorTool, setColorTool] = useState<'color' | 'highlight' | null>(null);
   const [keepPasteStyle, setKeepPasteStyle] = useState(true);
@@ -114,6 +125,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     paint(el, value); if (focused) restore(el, saved.current);
     current.current = value;
     showMarks(pendingMarks.current?.marks || marksAtSelection(value, saved.current));
+    setParagraphFormat(paragraphFormatAt(value, saved.current));
   }, [value, revision]);
   useEffect(() => {
     const listener = () => {
@@ -121,8 +133,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
       saved.current = selection;
       if (pendingMarks.current && (selection.start !== selection.end || selection.start !== pendingMarks.current.position)) pendingMarks.current = null;
       showMarks(pendingMarks.current?.marks || marksAtSelection(current.current, selection));
-      const selected = selectedParagraphs(current.current, selection);
-      setActiveBullet(!!selected.length && selected.every(i => current.current[i].bullet));
+      setParagraphFormat(paragraphFormatAt(current.current, selection));
     };
     document.addEventListener('selectionchange', listener); return () => document.removeEventListener('selectionchange', listener);
   }, []);
@@ -149,9 +160,23 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     commit(next);
   }
   function insert(text: string) {
-    const el = root.current!; saved.current = bookmark(el) || saved.current; el.focus(); restore(el, saved.current);
-    const selection = window.getSelection()!, range = selection.getRangeAt(0); range.deleteContents();
-    const node = document.createTextNode(text); range.insertNode(node); range.setStartAfter(node); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); input();
+    if (disabled) return;
+    saved.current = bookmark(root.current!) || saved.current;
+    const before = saved.current;
+    const next = insertParagraphText(current.current, before, text, pendingMarks.current?.marks);
+    const position = before.start + text.replace(/\r\n?/g, '\n').length;
+    saved.current = { start: position, end: position };
+    if (commit(next)) {
+      if (pendingMarks.current) pendingMarks.current.position = position;
+      root.current?.focus();
+    } else saved.current = before;
+  }
+  function enter() {
+    if (disabled) return;
+    saved.current = bookmark(root.current!) || saved.current;
+    const next = leaveEmptyList(current.current, saved.current);
+    if (next) { commit(next); root.current?.focus(); }
+    else insert('\n');
   }
   function mark(key: Mark) {
     saved.current = bookmark(root.current!) || saved.current;
@@ -171,13 +196,14 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     const next = setRichMarks(current.current, saved.current, patch);
     commit(next); showMarks(marksAtSelection(next, saved.current)); root.current?.focus();
   }
-  function paragraph(change: { align?: 'left' | 'center' | 'right'; bullet?: boolean }) {
+  function paragraph(change: ParagraphFormat | 'indent' | 'outdent') {
+    if (disabled) return;
     saved.current = bookmark(root.current!) || saved.current;
-    const value: RichText = current.current.length ? current.current : [{ runs: [] }];
-    const selected = selectedParagraphs(value, saved.current);
-    const patch = change.bullet === undefined ? change : { bullet: !selected.every(i => value[i].bullet) };
-    const next = value.map((p, index) => selected.includes(index) ? { ...p, ...patch } : p);
-    commit(next); setActiveBullet(!!selected.length && selected.every(i => next[i].bullet)); root.current?.focus();
+    const format = paragraphFormatAt(current.current, saved.current);
+    const patch = typeof change === 'string' ? change : change.numbered !== undefined ? { numbered: !format.numbered, bullet: false }
+      : change.bullet !== undefined ? { bullet: !format.bullet, numbered: false } : change;
+    const next = formatParagraphs(current.current, saved.current, patch);
+    commit(next); setParagraphFormat(paragraphFormatAt(next, saved.current)); root.current?.focus();
   }
   function paragraphStyle(style: ParagraphStyle) {
     if (disabled) return;
@@ -246,10 +272,20 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
       <label>Police du passage<select aria-label="Police du passage" value={typography.fontFamily} disabled={disabled} onChange={event => applyMarks({ fontFamily: richFont(event.target.value) })}><option value="">Du document</option>{typography.fontFamily === 'mixed' && <option value="mixed" disabled>Mixte</option>}<option value="helvetica">Helvetica</option><option value="times">Times</option><option value="courier">Courier</option></select></label>
       <label>Taille du passage<select aria-label="Taille du passage" value={typography.fontSize} disabled={disabled} onChange={event => applyMarks({ fontSize: richFontSize(Number(event.target.value)) })}><option value="">Du document</option>{typography.fontSize === 'mixed' && <option value="mixed" disabled>Mixte</option>}{[8,9,10,11,12,14,16,18,20,24].map(size => <option key={size} value={size}>{size} pt</option>)}{activeMarks.fontSize && ![8,9,10,11,12,14,16,18,20,24].includes(activeMarks.fontSize) && <option value={activeMarks.fontSize}>{activeMarks.fontSize} pt</option>}</select></label>
     </div>
+    <details className="rich-editor__paragraph-options"><summary>Espacement des paragraphes</summary>
+      <label>Espace après le paragraphe<select aria-label="Espace après le paragraphe" disabled={disabled} value={paragraphFormat.spaceAfter} onChange={event => paragraph({ spaceAfter: Number(event.target.value) })}>
+        {paragraphFormat.spaceAfter === 'mixed' && <option value="mixed" disabled>Différents espacements</option>}
+        {[[0, 'Aucun'], [3, 'Discret · 3 pt'], [6, 'Équilibré · 6 pt'], [12, 'Aéré · 12 pt'], [18, 'Très aéré · 18 pt']].map(([value, title]) => <option key={value} value={value}>{title}</option>)}
+        {typeof paragraphFormat.spaceAfter === 'number' && ![0,3,6,12,18].includes(paragraphFormat.spaceAfter) && <option value={paragraphFormat.spaceAfter}>{paragraphFormat.spaceAfter} pt</option>}
+      </select></label><small>S’applique au paragraphe courant ou à ceux que vous avez sélectionnés.</small>
+    </details>
     <div className="rich-editor__toolbar" role="group" aria-label={`Mise en forme : ${label}`} onMouseDown={e => e.preventDefault()}>
       {([['bold', Bold, 'Gras'], ['italic', Italic, 'Italique'], ['underline', Underline, 'Souligner']] as const).map(([key, Icon, title]) => <button key={key} type="button" title={title} aria-label={title} aria-pressed={activeMarks[key]} disabled={disabled} onClick={() => mark(key)}><Icon size={17} /></button>)}
       {([['left', AlignLeft, 'Aligner à gauche'], ['center', AlignCenter, 'Centrer'], ['right', AlignRight, 'Aligner à droite']] as const).map(([align, Icon, title]) => <button key={align} type="button" title={title} aria-label={title} disabled={disabled} onClick={() => paragraph({ align })}><Icon size={17} /></button>)}
-      <button type="button" aria-label="Liste à puces" title="Liste à puces" aria-pressed={activeBullet} disabled={disabled} onClick={() => paragraph({ bullet: true })}><List size={17} /></button>
+      <button type="button" aria-label="Liste à puces" title="Liste à puces" aria-pressed={paragraphFormat.bullet} disabled={disabled} onClick={() => paragraph({ bullet: true })}><List size={17} /></button>
+      <button type="button" aria-label="Liste numérotée" title="Liste numérotée" aria-pressed={paragraphFormat.numbered} disabled={disabled} onClick={() => paragraph({ numbered: true })}><ListOrdered size={17} /></button>
+      <button type="button" aria-label="Diminuer le retrait" title="Diminuer le retrait" disabled={disabled || !paragraphFormat.canOutdent} onClick={() => paragraph('outdent')}><IndentDecrease size={17} /></button>
+      <button type="button" aria-label="Augmenter le retrait" title="Augmenter le retrait" disabled={disabled || !paragraphFormat.canIndent} onClick={() => paragraph('indent')}><IndentIncrease size={17} /></button>
       <button type="button" aria-label="Couleur du texte" title="Couleur du texte" aria-expanded={colorTool === 'color'} disabled={disabled} onClick={() => setColorTool(colorTool === 'color' ? null : 'color')}><Baseline size={17} style={{ color: activeMarks.color }} /></button>
       <button type="button" aria-label="Surligner le texte" title="Surligner le texte" aria-expanded={colorTool === 'highlight'} disabled={disabled} onClick={() => setColorTool(colorTool === 'highlight' ? null : 'highlight')}><Highlighter size={17} /></button>
       <button type="button" aria-label="Effacer la mise en forme" title="Effacer la mise en forme des mots sélectionnés" disabled={disabled} onClick={() => applyMarks({ ...noTextMarks, color: undefined, highlight: undefined, fontFamily: undefined, fontSize: undefined })}><RemoveFormatting size={17} /></button>
@@ -265,10 +301,10 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     </div>}
     <div ref={root} className="rich-editor__surface" style={{ fontFamily, '--rich-editor-point': `${15 / baseFontSize}px` } as CSSProperties} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label={label} aria-multiline="true" aria-disabled={disabled} spellCheck onInput={input}
       onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; input(); }}
-      onBeforeInput={event => { const type = (event.nativeEvent as InputEvent).inputType; if (['insertParagraph', 'insertLineBreak'].includes(type)) { event.preventDefault(); insert('\n'); } else if (type === 'historyUndo' || type === 'historyRedo') { event.preventDefault(); undo(type === 'historyRedo'); } }}
+      onBeforeInput={event => { const type = (event.nativeEvent as InputEvent).inputType; if (['insertParagraph', 'insertLineBreak'].includes(type)) { event.preventDefault(); enter(); } else if (type === 'historyUndo' || type === 'historyRedo') { event.preventDefault(); undo(type === 'historyRedo'); } }}
       onPaste={event => { event.preventDefault(); paste(event.clipboardData.getData('text/html'), event.clipboardData.getData('text/plain')); }} onDrop={event => event.preventDefault()}
-      onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); if (!disabled) insert('\n'); } if (event.ctrlKey || event.metaKey) { const key = event.key.toLowerCase(); if (key === 'f') { event.preventDefault(); openSearch(); } if (['b','i','u','z','y'].includes(key)) { event.preventDefault(); if (key === 'z' || key === 'y') undo(key === 'y' || event.shiftKey); else mark(({ b:'bold', i:'italic', u:'underline' } as const)[key as 'b'|'i'|'u']); } } }} />
-    <small>Sélectionnez des mots, ou activez un style avant d’écrire. Entrée ajoute une ligne. {richPlainText(value).length}/{maxLength}</small>
+      onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); if (!disabled) enter(); } if (event.ctrlKey || event.metaKey) { const key = event.key.toLowerCase(); if (key === 'f') { event.preventDefault(); openSearch(); } if (['b','i','u','z','y'].includes(key)) { event.preventDefault(); if (key === 'z' || key === 'y') undo(key === 'y' || event.shiftKey); else mark(({ b:'bold', i:'italic', u:'underline' } as const)[key as 'b'|'i'|'u']); } } }} />
+    <small>Sélectionnez des mots, ou activez un style avant d’écrire. Entrée ajoute un paragraphe et continue les listes ; une deuxième Entrée termine une liste. {richPlainText(value).length}/{maxLength}</small>
     <label className="rich-editor__paste-choice"><input type="checkbox" checked={keepPasteStyle} disabled={disabled} onChange={event => setKeepPasteStyle(event.target.checked)} /> Conserver la mise en forme du texte collé</label>
     {message && <p role="status">{message}</p>}
   </div>;

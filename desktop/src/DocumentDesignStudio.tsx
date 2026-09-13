@@ -196,7 +196,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     } catch (reason) { setExportError(String(reason instanceof Error ? reason.message : reason)); }
     finally { exportFlight.current = false; setExporting(false); }
   }
-  return <section className={`design-studio settings-card--wide${writing && panel === 'text' ? ' design-studio--writing' : ''}`} data-mobile-view={mobileView} aria-label="Personnalisation des documents">
+  return <section className={`design-studio settings-card--wide${writing && panel === 'text' ? ' design-studio--writing' : ''}`} data-panel={panel} data-mobile-view={mobileView} aria-label="Personnalisation des documents">
     <div className="design-studio__heading"><p className="eyebrow">Votre signature</p><h2>Des documents à votre image</h2><p>Un atelier simple pour composer vos documents. Choisissez un style, ajustez la page, puis écrivez vos textes comme dans un traitement de texte.</p></div>
     <div className="design-studio__tabs" role="group" aria-label="Document à personnaliser">{(Object.keys(labels) as DocumentDesignKind[]).map(value => <button type="button" key={value} disabled={exporting} aria-pressed={kind === value} onClick={() => { setKind(value); setNotice(''); setExportError(''); setExported(null); }}>{labels[value]}</button>)}</div>
     <DocumentDesignMap accounts={kind === 'accounts'} onSelect={selectSection} />

@@ -21,6 +21,9 @@ const INK: [f32; 3] = [0.12, 0.14, 0.15];
 #[cfg(test)]
 #[path = "document_layout_tests.rs"]
 mod layout_tests;
+#[cfg(test)]
+#[path = "document_paragraph_tests.rs"]
+mod paragraph_tests;
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
@@ -44,6 +47,12 @@ pub(crate) struct RichParagraph {
     pub runs: Vec<RichRun>,
     pub align: String,
     pub bullet: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub numbered: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indent: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub space_after: Option<f32>,
 }
 impl Default for RichParagraph {
     fn default() -> Self {
@@ -51,6 +60,9 @@ impl Default for RichParagraph {
             runs: vec![],
             align: "left".into(),
             bullet: false,
+            numbered: None,
+            indent: None,
+            space_after: None,
         }
     }
 }
@@ -221,7 +233,10 @@ impl Composition {
                 ));
             }
             for p in text {
-                if !["left", "center", "right"].contains(&p.align.as_str()) || p.runs.len() > 500 {
+                if !["left", "center", "right"].contains(&p.align.as_str()) || p.runs.len() > 500
+                    || p.indent.is_some_and(|v| v > 3)
+                    || p.space_after.is_some_and(|v| !v.is_finite() || !(0. ..=18.).contains(&v))
+                    || p.bullet && p.numbered == Some(true) {
                     return Err(invalid("Mise en forme du texte invalide."));
                 }
                 for run in &p.runs {
@@ -306,13 +321,16 @@ fn line_size(line: &[Glyph], fallback: f32) -> f32 {
 fn footer_leading(line: &[Glyph]) -> f32 {
     (line_size(line, 8.) * 1.35).max(11.)
 }
+// Glyphs, alignment, marker, total left indent, space after the last line.
+type RichLine = (Vec<Glyph>, String, Vec<Glyph>, f32, f32);
 fn wrap(
     style: &Composition,
     text: &RichText,
     width: f32,
     size: f32,
-) -> AppResult<Vec<(Vec<Glyph>, String, bool, bool)>> {
-    let mut result = Vec::new();
+) -> AppResult<Vec<RichLine>> {
+    let mut result: Vec<RichLine> = Vec::new();
+    let mut counters = [0u32; 4];
     for paragraph in text {
         let mut glyphs = Vec::new();
         for run in &paragraph.runs {
@@ -332,15 +350,28 @@ fn wrap(
                 size: run.font_size,
             }));
         }
-        let available = width - if paragraph.bullet { size * 1.5 } else { 0. };
+        let depth = paragraph.indent.unwrap_or(0) as usize;
+        let numbered = paragraph.numbered == Some(true);
+        let marker_bytes = if numbered {
+            counters[(depth + 1)..].fill(0);
+            counters[depth] += 1;
+            format!("{}.", counters[depth]).into_bytes()
+        } else {
+            counters.fill(0);
+            if paragraph.bullet { vec![149] } else { vec![] }
+        };
+        let marker: Vec<Glyph> = marker_bytes.into_iter().map(|byte| Glyph { byte, font: style.font(false, false), ..Default::default() }).collect();
+        let indent = depth as f32 * size * 1.5 + if numbered { size * 2. } else if paragraph.bullet { size * 1.5 } else { 0. };
+        let available = width - indent;
         let mut start = 0;
         let mut first = true;
         if glyphs.is_empty() {
             result.push((
                 vec![],
                 paragraph.align.clone(),
-                paragraph.bullet,
-                paragraph.bullet,
+                marker.clone(),
+                indent,
+                0.,
             ));
         }
         while start < glyphs.len() {
@@ -369,12 +400,14 @@ fn wrap(
             result.push((
                 glyphs[start..end].to_vec(),
                 paragraph.align.clone(),
-                paragraph.bullet && first,
-                paragraph.bullet,
+                if first { marker.clone() } else { vec![] },
+                indent,
+                0.,
             ));
             first = false;
             start = if explicit { next + 1 } else { next };
         }
+        if let Some(last) = result.last_mut() { last.4 = paragraph.space_after.unwrap_or(0.); }
     }
     Ok(result)
 }
@@ -461,7 +494,7 @@ pub(crate) struct Composer<'a> {
     identity: String,
     title: String,
     payment_pages: Vec<usize>,
-    footer: Vec<(Vec<Glyph>, String, bool, bool)>,
+    footer: Vec<RichLine>,
     bottom: f32,
 }
 impl<'a> Composer<'a> {
@@ -494,7 +527,7 @@ impl<'a> Composer<'a> {
         }
         let footer_height: f32 = footer
             .iter()
-            .map(|(line, _, _, _)| footer_leading(line))
+            .map(|(line, _, _, _, after)| footer_leading(line) + after)
             .sum();
         if footer_height > 100. {
             return Err(invalid("Le pied de page prend trop de place. Réduisez la taille de ses caractères ou retirez une ligne dans Textes → Pied de page."));
@@ -640,6 +673,7 @@ impl<'a> Composer<'a> {
             }],
             align: self.design.title_align.clone(),
             bullet: false,
+            ..Default::default()
         }];
         self.gap(8.);
         let ink = self.design.title_color.as_deref().map(text_color).transpose()?.unwrap_or_else(|| self.style.ink());
@@ -652,36 +686,24 @@ impl<'a> Composer<'a> {
     }
     fn rich_sized(&mut self, text: &RichText, size: f32, color: [f32; 3]) -> AppResult<()> {
         let lines = wrap(self.design, text, self.width(), size)?;
-        for (line, align, bullet, indent) in lines {
+        for (line, align, marker, indent, after) in lines {
             let height = line_size(&line, size);
             let leading = height * self.design.line_spacing;
             self.ensure(leading)?;
             self.y -= height;
-            let x = self.left()
-                + match align.as_str() {
-                    "center" => (self.width() - measure(&line, size)) / 2.,
-                    "right" => self.width() - measure(&line, size),
-                    _ => {
-                        if indent {
-                            size * 1.5
-                        } else {
-                            0.
-                        }
-                    }
-                };
+            let x = self.left() + indent + match align.as_str() {
+                "center" => (self.width() - indent - measure(&line, size)) / 2.,
+                "right" => self.width() - indent - measure(&line, size),
+                _ => 0.,
+            };
             let y = self.y;
             draw(self.ops(), &line, x, y, size, color);
-            if bullet {
-                let glyph = Glyph {
-                    byte: 149,
-                    font: self.design.font(false, false),
-                    underline: false,
-                    ..Default::default()
-                };
-                let left = self.left();
-                draw(self.ops(), &[glyph], left, y, size, color);
+            if !marker.is_empty() {
+                let left = if marker[0].byte == 149 { self.left() + indent - size * 1.5 }
+                    else { self.left() + indent - size * 0.4 - measure(&marker, size) };
+                draw(self.ops(), &marker, left, y, size, color);
             }
-            self.y -= leading - height;
+            self.y -= leading - height + after;
         }
         Ok(())
     }
@@ -789,7 +811,7 @@ impl<'a> Composer<'a> {
             } else { self.body_ink() };
             let mut x = left;
             for (column, (lines, f)) in wrapped.iter().zip(fractions).enumerate() {
-                for (row, (line, _, _, _)) in lines.iter().enumerate().take(end).skip(start) {
+                for (row, (line, _, _, _, _)) in lines.iter().enumerate().take(end).skip(start) {
                     let cell_x = if column > 0 && (!header || cells.len() == 2) {
                         x + width * f - padding - measure(line, size)
                     } else {
@@ -870,42 +892,25 @@ impl<'a> Composer<'a> {
                 330. + self
                     .footer
                     .iter()
-                    .map(|(line, _, _, _)| footer_leading(line))
+                    .map(|(line, _, _, _, after)| footer_leading(line) + after)
                     .sum::<f32>()
             } else {
                 self.bottom - 14.
             };
-            for (line, align, bullet, indent) in &self.footer {
+            for (line, align, marker, indent, after) in &self.footer {
                 y -= line_size(line, 8.) - 8.;
-                let x = left
-                    + match align.as_str() {
-                        "center" => (width - measure(line, 8.)) / 2.,
-                        "right" => width - measure(line, 8.),
-                        _ => {
-                            if *indent {
-                                12.
-                            } else {
-                                0.
-                            }
-                        }
-                    };
+                let x = left + indent + match align.as_str() {
+                    "center" => (width - indent - measure(line, 8.)) / 2.,
+                    "right" => width - indent - measure(line, 8.),
+                    _ => 0.,
+                };
                 draw(ops, line, x, y, 8., self.style.ink());
-                if *bullet {
-                    draw(
-                        ops,
-                        &[Glyph {
-                            byte: 149,
-                            font: self.design.font(false, false),
-                            underline: false,
-                            ..Default::default()
-                        }],
-                        left,
-                        y,
-                        8.,
-                        self.style.ink(),
-                    );
+                if !marker.is_empty() {
+                    let marker_x = if marker[0].byte == 149 { left + indent - 12. }
+                        else { left + indent - 3.2 - measure(marker, 8.) };
+                    draw(ops, marker, marker_x, y, 8., self.style.ink());
                 }
-                y -= footer_leading(line) - (line_size(line, 8.) - 8.);
+                y -= footer_leading(line) + after - (line_size(line, 8.) - 8.);
             }
             let footer = format!("Zentra · {}/{}", index + 1, count);
             let lines = wrap(self.design, &plain(&footer), width, 7.)?;
@@ -1093,9 +1098,9 @@ mod tests {
         let design: Composition = serde_json::from_value(json!({"closing":[{"bullet":true,"runs":[{"text":"Une condition détaillée. ".repeat(20)}]}],"footerText":[{"bullet":true,"runs":[{"text":"Un pied de page en liste."}]}]})).unwrap();
         let lines = wrap(&design, &design.closing, 160., 10.).unwrap();
         assert!(lines.len() > 3);
-        assert!(lines[0].2);
-        assert!(lines.iter().skip(1).all(|line| !line.2));
-        assert!(lines.iter().all(|line| line.3));
+        assert!(!lines[0].2.is_empty());
+        assert!(lines.iter().skip(1).all(|line| line.2.is_empty()));
+        assert!(lines.iter().all(|line| line.3 == 15.));
         let mut style = DocumentStyle::default();
         style.composition = Some(design.clone());
         let mut writer =
@@ -1202,6 +1207,7 @@ mod tests {
                 }],
                 align: "center".into(),
                 bullet: false,
+                ..Default::default()
             }];
             style.composition = Some(design.clone());
             let mut writer = Composer::new(

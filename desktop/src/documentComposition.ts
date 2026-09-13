@@ -1,7 +1,7 @@
 /** Structured text only: never store HTML, executable markup or document totals here. */
 export type DocumentFont = 'helvetica' | 'times' | 'courier';
 export type RichRun = { text: string; bold?: boolean; italic?: boolean; underline?: boolean; color?: string; highlight?: string; fontFamily?: DocumentFont; fontSize?: number };
-export type RichParagraph = { runs: RichRun[]; align?: 'left' | 'center' | 'right'; bullet?: boolean };
+export type RichParagraph = { runs: RichRun[]; align?: 'left' | 'center' | 'right'; bullet?: boolean; numbered?: boolean; indent?: number; spaceAfter?: number };
 export type RichText = RichParagraph[];
 export type DocumentComposition = {
   version: 1;
@@ -59,7 +59,10 @@ export function normalizeRichText(value: unknown): RichText {
       if (previous && previous.bold === run.bold && previous.italic === run.italic && previous.underline === run.underline && previous.color === run.color && previous.highlight === run.highlight && previous.fontFamily === run.fontFamily && previous.fontSize === run.fontSize) previous.text += run.text;
       else runs.push(run);
     }
-    return { align: choice(p.align, ['left', 'center', 'right'] as const, 'left'), bullet: p.bullet === true, runs };
+    return { align: choice(p.align, ['left', 'center', 'right'] as const, 'left'), bullet: p.bullet === true && p.numbered !== true,
+      ...(p.numbered === true ? { numbered: true } : {}),
+      ...(typeof p.indent === 'number' && Number.isFinite(p.indent) && p.indent > 0 ? { indent: Math.min(3, Math.floor(p.indent)) } : {}),
+      ...(typeof p.spaceAfter === 'number' && Number.isFinite(p.spaceAfter) && p.spaceAfter > 0 ? { spaceAfter: Math.min(18, p.spaceAfter) } : {}), runs };
   });
 }
 export function normalizeComposition(value?: Partial<DocumentComposition>): DocumentComposition {

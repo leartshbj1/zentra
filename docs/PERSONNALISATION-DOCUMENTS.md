@@ -4,6 +4,20 @@ L’atelier est inclus dans la préversion Windows 1.59.0, publiée le 13 septem
 
 Dans **Paramètres → Présentation des documents**, ouvrez l’atelier de personnalisation puis choisissez **Factures**, **Devis**, **Bilan** ou **Fiches de salaire**.
 
+## Listes, retraits et paragraphes — ajout après 1.59.0
+
+Sur ordinateur, l’onglet **Textes** élargit automatiquement l’espace d’écriture à côté du PDF. **Agrandir l’espace d’écriture** reste disponible pour rédiger sur toute la largeur.
+
+Dans **Textes**, placez le curseur dans un paragraphe, ou sélectionnez plusieurs paragraphes. **Liste numérotée** ajoute les numéros automatiquement ; **Liste à puces** utilise des points. Touchez à nouveau le bouton actif pour revenir au texte normal. **Augmenter le retrait** et **Diminuer le retrait** décalent les paragraphes, sur trois niveaux maximum. Les numéros reprennent à 1 après un paragraphe normal et se suivent séparément à chaque niveau de retrait.
+
+**Entrée** continue la liste. Appuyez encore sur Entrée dans une ligne de liste vide pour en sortir. L’insertion d’un paragraphe au milieu du texte conserve la mise en forme des paragraphes qui suivent. Les retours automatiques à la ligne gardent leur retrait dans le PDF.
+
+Ouvrez **Espacement des paragraphes** pour choisir l’espace après le paragraphe : aucun, discret, équilibré, aéré ou très aéré. Ce réglage concerne seulement les paragraphes sélectionnés ; les marges et l’interligne du document restent réglables dans **Mise en page**. La sélection, le collage entre zones de Zentra, l’annulation et la sauvegarde conservent ces choix.
+
+Les quatre catégories utilisent ces options dans leurs PDF, y compris le pied de page. Un pied de page trop haut déclenche une explication avant l’enregistrement. Les montants restent ceux calculés par l’application. Les polices proposées restent Helvetica, Times et Courier ; les polices personnelles et les fichiers Word complets ne sont pas importés.
+
+Ces ajouts sont intégrés au code après 1.59.0. Aucun nouvel installateur ni IPA n’est distribué avec ce lot. Recette : `desktop/tests/document-paragraph-journey.mjs` et tests natifs `document_composition::paragraph_tests`.
+
 ## Mes modèles — ajout après 1.59.0
 
 Dans **Style → Mes modèles**, donnez un nom à la présentation affichée puis choisissez **Créer ce modèle**. Vous pouvez garder jusqu’à 20 modèles. Ils contiennent la mise en page, les polices, les couleurs et les textes modèles ; le logo utilisé reste celui de l’entreprise.

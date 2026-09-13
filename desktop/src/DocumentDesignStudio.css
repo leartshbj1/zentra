@@ -205,3 +205,14 @@
   .design-studio--writing .rich-editor { padding:8px; margin-inline:-8px; }
   .design-studio__hint { font-size:13px; }
 }
+
+.rich-editor__paragraph[data-numbered=true] { padding-left:2em; }
+.rich-editor__paragraph[data-numbered=true]::before { content:attr(data-marker); position:absolute; left:0; min-width:1.6em; text-align:right; font-variant-numeric:tabular-nums; }
+.rich-editor__paragraph-options { border:1px solid #e0e5de; border-radius:10px; padding:10px 12px; }
+.rich-editor__paragraph-options summary { cursor:pointer; font-size:13px; font-weight:600; }
+.rich-editor__paragraph-options label { margin-top:10px; }
+.rich-editor__paragraph-options small { display:block; margin-top:7px; color:#687268; line-height:1.5; }
+@media(min-width:1101px) {
+  .design-studio[data-panel=text]:not(.design-studio--writing) .design-studio__body { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+  .design-studio[data-panel=text] .rich-editor__surface { min-height:230px; }
+}
