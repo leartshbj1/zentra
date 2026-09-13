@@ -1,5 +1,24 @@
 # Vérifier et valider une facture fournisseur
 
+## Enregistrer un remboursement reçu du fournisseur
+
+Dans **Achats → Factures et avoirs**, ouvrez **Remboursement reçu** sur l’avoir concerné. Le formulaire reste accessible si la comptabilité demande une configuration et vous indique quel compte vérifier.
+
+1. **Virement reçu** : recopiez le montant réellement arrivé sur le compte, sa date, une référence ou le libellé du relevé et un court motif. Une virgule ou un point sont acceptés, avec deux décimales maximum. Le montant commence vide. **Tout le solde a été reçu** remplit le disponible sans enregistrer ; le bouton de motif remplit uniquement l’explication.
+2. **Vérifier** : relisez le compte bancaire utilisé, le montant reçu et le disponible après remboursement. **Enregistrer le virement** crée le remboursement et son écriture comptable. Aucun ordre bancaire n’est envoyé.
+
+Chaque information manquante est expliquée sous son champ et votre saisie reste présente. La date réelle doit suivre l’avoir et ne pas être future. La référence peut contenir 255 caractères, et le motif de 5 à 1 000 caractères. Les montants trop précis ne sont pas arrondis. Si le virement n’est pas encore arrivé, conservez l’avoir sans enregistrer de remboursement.
+
+**Actualiser les avoirs** relit le disponible sans remplacer votre saisie. Une modification du compte bancaire ou du disponible après vérification demande une nouvelle lecture. Le moteur natif contrôle ces informations dans la transaction avant d’écrire ; il refuse une ancienne vérification même si le montant resterait utilisable.
+
+Dans **Remboursements et corrections**, **Corriger ce remboursement** conserve son montant, sa référence et son compte d’origine. Indiquez le motif et la date réels de la correction, puis vérifiez son effet. Elle annule l’écriture du remboursement, rend le montant disponible sur l’avoir et conserve les deux événements. Elle n’envoie aucun argent au fournisseur.
+
+Un compte manquant propose **Configurer le compte bancaire** ou **Ouvrir Plan & liaisons**. Un exercice fermé ouvre les exercices ; un remboursement lié au relevé propose **Ouvrir Banque** pour vérifier et dissocier le rapprochement avant correction. Retrouvez ensuite l’avoir dans **Achats → Factures et avoirs** pour préparer à nouveau l’opération. Les périodes et les rapprochements ne sont jamais modifiés automatiquement.
+
+Après une interruption de réponse, Zentra recherche la demande exacte dans l’historique des remboursements. Une lecture interrompue après confirmation reste à reprendre jusqu’à retrouver l’événement et son lien comptable. Les reprises relisent seulement les données et ne renvoient pas le remboursement.
+
+Ce parcours est intégré au code après 1.59.0, sans nouvel installateur ni IPA. Une compilation native est nécessaire. Recette : `desktop/tests/supplier-refund-guided-journey.mjs`.
+
 ## Utiliser un avoir pour réduire une facture
 
 Dans **Achats → Factures et avoirs**, choisissez **Utiliser sur une facture** sur un avoir validé.

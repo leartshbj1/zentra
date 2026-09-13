@@ -1189,6 +1189,7 @@ export type SupplierCreditAllocation = {
 
 export type SupplierCreditRefund = {
   id: Identifier;
+  requestId?: string;
   sequence: number;
   supplierCreditNoteId: Identifier;
   eventType: 'refund' | 'reverse';

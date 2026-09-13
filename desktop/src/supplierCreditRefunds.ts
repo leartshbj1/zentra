@@ -1,14 +1,13 @@
 import type { SupplierCreditNote } from './types';
+import { creditAmount } from './creditAllocationWorkflow';
 
 export function supplierCreditAvailable(credit: Pick<SupplierCreditNote, 'totalCents' | 'allocatedCents' | 'refundedCents'>) {
   return Math.max(0, credit.totalCents - credit.allocatedCents - credit.refundedCents);
 }
 
 export function supplierRefundAmount(value: string): number | null {
-  const normalized = value.trim().replace(',', '.');
-  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
-  const cents = Math.round(Number(normalized) * 100);
-  return Number.isSafeInteger(cents) && cents > 0 ? cents : null;
+  const amount = creditAmount(value);
+  return amount !== null && amount <= 9_000_000_000_000_000 ? amount : null;
 }
 
 export function supplierRefundDateError(value: string, minimum: string, maximum: string) {

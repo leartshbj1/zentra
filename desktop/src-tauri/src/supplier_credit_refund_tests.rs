@@ -24,6 +24,34 @@ fn reversal(id: &str, date: &str) -> ReverseSupplierCreditRefundInput {
 }
 
 #[test]
+fn supplier_refund_review_checks_balance_and_bank_before_posting_and_preserves_replay() {
+    use crate::supplier_credit_refunds::SupplierRefundReview;
+    let (_temp, store, _invoice, draft) = fixture();
+    validate(&store, &draft);
+    let credit=draft.id.unwrap();
+    let connection=store.connect().unwrap();
+    let bank:String=connection.query_row("SELECT bank_account_id FROM accounting_settings WHERE id=1",[],|row|row.get(0)).unwrap();
+    let journal_before:i64=connection.query_row("SELECT COUNT(*) FROM journal_entries",[],|row|row.get(0)).unwrap();
+    let input=refund(&credit,1025,"2026-05-15");
+    for expected in [SupplierRefundReview{available_cents:1999,bank_account_id:bank.clone()},SupplierRefundReview{available_cents:2000,bank_account_id:"another-bank".into()}] {
+        assert!(store.record_supplier_credit_refund_checked(input.clone(),Some(&expected)).is_err());
+    }
+    assert_eq!(connection.query_row("SELECT COUNT(*) FROM journal_entries",[],|row|row.get::<_,i64>(0)).unwrap(),journal_before);
+    let original=SupplierRefundReview{available_cents:2000,bank_account_id:bank.clone()};
+    let result=store.record_supplier_credit_refund_checked(input.clone(),Some(&original)).unwrap();
+    assert_eq!(result["balance"]["remaining_cents"],975);
+    assert_eq!(store.record_supplier_credit_refund_checked(input,Some(&original)).unwrap()["idempotent"],true);
+    assert!(store.record_supplier_credit_refund_checked(refund(&credit,100,"2026-05-16"),Some(&original)).is_err());
+    let reverse=reversal(result["refund"]["id"].as_str().unwrap(),"2026-05-16");
+    assert!(store.reverse_supplier_credit_refund_checked(reverse.clone(),Some(&original)).is_err());
+    let current=SupplierRefundReview{available_cents:975,bank_account_id:bank};
+    assert_eq!(store.reverse_supplier_credit_refund_checked(reverse.clone(),Some(&current)).unwrap()["balance"]["remaining_cents"],2000);
+    assert_eq!(store.reverse_supplier_credit_refund_checked(reverse,Some(&current)).unwrap()["idempotent"],true);
+    assert_eq!(connection.query_row("SELECT COUNT(*) FROM supplier_credit_refunds",[],|row|row.get::<_,i64>(0)).unwrap(),2);
+    assert_eq!(store.verify_audit_log().unwrap()["valid"],true);
+}
+
+#[test]
 fn supplier_refund_and_compensation_share_one_balance_and_exact_reversal() {
     let (_temp, store, invoice, draft) = fixture();
     validate(&store, &draft);

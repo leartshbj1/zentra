@@ -590,6 +590,7 @@ export function PurchaseOrdersScreen({
   onRestoreSupplier,
   onOpenAccounting,
   onOpenCatalog,
+  onOpenBank,
   onReadWorkspace,
 }: {
   openInvoiceMatchId?: string | null;
@@ -619,6 +620,7 @@ export function PurchaseOrdersScreen({
   onOpenAccounting: (section?: 'accounts' | 'periods') => void;
   onOpenCatalog: () => void;
   onReadWorkspace: () => Promise<Workspace>;
+  onOpenBank: () => void;
 }) {
   const [section, setSection] = useState<PurchaseSection>('inbox');
   const [creditToReveal, setCreditToReveal] = useState<string | null>(null);
@@ -1315,12 +1317,13 @@ export function PurchaseOrdersScreen({
         onConfirm={input => completeLocalAction(() => desktopApi.applySupplierCredit(modal.requestId, modal.credit.id, input.invoiceId, input.amountCents, input.date, input.expectedBalances), 'L’avoir a réduit le reste à payer de la facture. Aucun virement n’a été envoyé.')}
       /> : null}
       {modal?.type === 'refund_credit' ? <SupplierCreditRefundModal
-        credit={workspace.supplierCreditNotes.find((credit) => credit.id === modal.credit.id) || modal.credit}
-        reverse={modal.reverse} busy={busy} readOnly={readOnly} actionError={modalError} onClose={() => setModal(null)}
-        onConfirm={(input) => void completeLocalAction(() => modal.reverse
-          ? desktopApi.reverseSupplierCreditRefund({requestId: modal.requestId, refundId: modal.reverse.id, date: input.date, reason: input.reason})
-          : desktopApi.recordSupplierCreditRefund({...input, requestId: modal.requestId, supplierCreditNoteId: modal.credit.id}),
-          modal.reverse ? 'La correction a rétabli le solde de l’avoir.' : 'Le remboursement a été enregistré dans l’avoir et le journal.')}
+        creditId={modal.credit.id} refundId={modal.reverse?.id} workspace={workspace}
+        busy={busy} readOnly={readOnly} actionError={modalError} onClose={() => setModal(null)} onRefresh={onReadWorkspace}
+        onOpenHelp={destination=>{if(localAction.current||busy)return;setModal(null);if(destination==='bank')onOpenBank();else onOpenAccounting(destination);}}
+        onConfirm={input => completeLocalAction(() => modal.reverse
+          ? desktopApi.reverseSupplierCreditRefund({requestId:modal.requestId,refundId:modal.reverse.id,date:input.date,reason:input.reason,expectedReview:input.expectedReview})
+          : desktopApi.recordSupplierCreditRefund({...input,requestId:modal.requestId,supplierCreditNoteId:modal.credit.id}),
+          modal.reverse ? 'La correction a rétabli le disponible sur l’avoir et corrigé l’écriture bancaire.' : 'Le remboursement reçu est enregistré dans l’avoir et la comptabilité.')}
       /> : null}
       {modal?.type==='refund_attachment'?<RefundAttachmentForm supplierCredit refund={modal.refund} busy={busy||readOnly} close={()=>setModal(null)} act={runAction}/>:null}
       {modal?.type === 'reverse_credit' ? <SupplierCreditAllocationModal
@@ -2357,7 +2360,7 @@ function SupplierCreditDocumentCard({
         ) : availableCents > 0 ? (
           <><Button size="small" disabled={busy} onClick={onApply}>
             Utiliser sur une facture
-          </Button><Button variant="secondary" size="small" disabled={busy || validationDisabled || credit.currency !== 'CHF'} onClick={() => onRefund()}><Banknote size={14}/> Remboursement reçu</Button></>
+          </Button><Button variant="secondary" size="small" disabled={busy || credit.currency !== 'CHF'} onClick={() => onRefund()}><Banknote size={14}/> Remboursement reçu</Button></>
         ) : (
           <StatusBadge status="closed" label="Avoir entièrement réglé" />
         )}

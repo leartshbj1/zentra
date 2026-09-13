@@ -619,10 +619,11 @@ pub fn reverse_supplier_credit_allocation(
 pub fn record_supplier_credit_refund(
     state: State<'_, LocalStore>,
     input: crate::supplier_credit_refunds::SupplierCreditRefundInput,
+    expected_review: Option<crate::supplier_credit_refunds::SupplierRefundReview>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.record_supplier_credit_refund(input).map_err(command_error)
+    state.record_supplier_credit_refund_checked(input, expected_review.as_ref()).map_err(command_error)
 }
 
 #[tauri::command]
@@ -701,10 +702,11 @@ pub fn create_bank_customer_credit_refund(state:State<'_,LocalStore>,input:crate
 pub fn reverse_supplier_credit_refund(
     state: State<'_, LocalStore>,
     input: crate::supplier_credit_refunds::ReverseSupplierCreditRefundInput,
+    expected_review: Option<crate::supplier_credit_refunds::SupplierRefundReview>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.reverse_supplier_credit_refund(input).map_err(command_error)
+    state.reverse_supplier_credit_refund_checked(input, expected_review.as_ref()).map_err(command_error)
 }
 
 #[tauri::command]

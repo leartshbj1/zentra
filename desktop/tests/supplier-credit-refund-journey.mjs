@@ -30,11 +30,11 @@ try {
     else {
       await open.click();
       const amount=dialog.getByLabel('Montant reçu (CHF)',{exact:false});
-      await amount.fill('100');assert.equal(await dialog.getByRole('button',{name:'Enregistrer le remboursement',exact:true}).isDisabled(),true);
+      await amount.fill('100');await dialog.getByRole('button',{name:'Vérifier le remboursement',exact:true}).click();await dialog.getByText(/^Ce montant dépasse le disponible/).waitFor();
       await amount.fill('10,00');await dialog.getByLabel('Référence bancaire',{exact:false}).fill('AV-VIREMENT-001');await dialog.getByLabel('Motif',{exact:false}).fill('Retour de marchandises remboursé');
-      await capture('form');
+      await capture('form');await dialog.getByRole('button',{name:'Vérifier le remboursement',exact:true}).click();
       await page.evaluate(()=>sessionStorage.setItem('qa-refund-refresh-fail','1'));
-      await dialog.getByRole('button',{name:'Enregistrer le remboursement',exact:true}).click();
+      await dialog.getByRole('button',{name:'Enregistrer le virement',exact:true}).click();
       await dialog.waitFor({state:'detached'});
       assert.match(await card.innerText(),/disponible\s+44[.,]05/);
       assert.equal(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('qa-credit-date-refund')).length),1,'refresh retry must not issue a second write');
@@ -48,7 +48,7 @@ try {
       await card.getByRole('button',{name:'Corriger ce remboursement',exact:true}).click();
       assert.equal(await dialog.getByLabel('Montant reçu (CHF)',{exact:false}).getAttribute('readonly'),'');
       await dialog.getByLabel('Motif',{exact:false}).fill('Virement retourné au fournisseur');await capture('correction');
-      await dialog.getByRole('button',{name:'Confirmer la correction',exact:true}).click();await dialog.waitFor({state:'detached'});
+      await dialog.getByRole('button',{name:'Vérifier le remboursement',exact:true}).click();await dialog.getByRole('button',{name:'Confirmer la correction',exact:true}).click();await dialog.waitFor({state:'detached'});
       assert.match(await card.innerText(),/disponible\s+50[.,]00/);
       assert.equal(await card.getByRole('button',{name:'Corriger ce remboursement',exact:true}).count(),0);
       await capture('corrected');

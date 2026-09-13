@@ -26,6 +26,8 @@ describe('règlement des avoirs fournisseurs', () => {
   });
   it('accepte les centimes exacts et refuse les montants ambigus', () => {
     expect(supplierRefundAmount(' 10,05 ')).toBe(1005);
+    expect(supplierRefundAmount('89999999999999.99')).toBe(8_999_999_999_999_999);
+    expect(supplierRefundAmount('90000000000000.01')).toBeNull();
     for(const value of ['', '0', '-1', '1.001', '1e2', 'Infinity', '999999999999999999']) expect(supplierRefundAmount(value)).toBeNull();
   });
   it('refuse les dates impossibles, futures et antérieures au règlement original', () => {

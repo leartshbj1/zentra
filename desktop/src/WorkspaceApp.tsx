@@ -1,3 +1,4 @@
+import { SupplierRefundOutcomeUnknownError, SupplierRefundRefreshError } from './supplierRefundWorkflow';
 import { CreditAllocationOutcomeUnknownError, CreditAllocationRefreshError } from './creditAllocationWorkflow';
 import { TimeForm, TimerForm } from './WorkTimeForms';
 import { clientFolderDocuments } from './clientFolder';
@@ -946,8 +947,8 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError) reason.validateRead(value); validateRead?.(value); };
+      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError ? reason : null;
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
@@ -2208,6 +2209,7 @@ export function WorkspaceApp({
           {view === 'expenses' ? (
             <Suspense fallback={<ViewLoading label="Ouverture des achats…" />}>
               <PurchaseOrdersScreen
+                onOpenBank={()=>{setView('bank');setSearch('');}}
                 onReadWorkspace={async () => {
                   if(actionInFlight.current || isWorkspaceRecoveryPending()) throw Error('Attendez la fin de l’opération en cours.');
                   actionInFlight.current=true;setBusy(true);

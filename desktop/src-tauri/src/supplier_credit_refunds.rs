@@ -30,6 +30,13 @@ pub struct ReverseSupplierCreditRefundInput {
     pub reason: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all="camelCase", deny_unknown_fields)]
+pub struct SupplierRefundReview {
+    pub available_cents: i64,
+    pub bank_account_id: String,
+}
+
 fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
 }
@@ -94,10 +101,14 @@ impl LocalStore {
         &self,
         input: SupplierCreditRefundInput,
     ) -> AppResult<Value> {
+        self.record_supplier_credit_refund_checked(input, None)
+    }
+
+    pub fn record_supplier_credit_refund_checked(&self, input: SupplierCreditRefundInput, expected: Option<&SupplierRefundReview>) -> AppResult<Value> {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let result = record_in_transaction(&tx, input)?;
+        let result = record_in_transaction_checked(&tx, input, expected)?;
         tx.commit()?;
         Ok(result)
     }
@@ -106,6 +117,10 @@ impl LocalStore {
         &self,
         input: ReverseSupplierCreditRefundInput,
     ) -> AppResult<Value> {
+        self.reverse_supplier_credit_refund_checked(input, None)
+    }
+
+    pub fn reverse_supplier_credit_refund_checked(&self, input: ReverseSupplierCreditRefundInput, expected: Option<&SupplierRefundReview>) -> AppResult<Value> {
         let input = ReverseSupplierCreditRefundInput {
             request_id: request_id(&input.request_id)?,
             refund_id: text(&input.refund_id, "Le remboursement", 1, 255)?,
@@ -139,7 +154,7 @@ impl LocalStore {
             reference: original["reference"].as_str().unwrap_or_default().into(),
             reason: input.reason,
         };
-        let result = post_refund(&tx, &request, &payload, Some(&original))?;
+        let result = post_refund(&tx, &request, &payload, Some(&original), expected)?;
         tx.commit()?;
         Ok(result)
     }
@@ -149,6 +164,10 @@ pub(crate) fn record_in_transaction(
     tx: &Transaction<'_>,
     input: SupplierCreditRefundInput,
 ) -> AppResult<Value> {
+    record_in_transaction_checked(tx, input, None)
+}
+
+fn record_in_transaction_checked(tx: &Transaction<'_>, input: SupplierCreditRefundInput, expected: Option<&SupplierRefundReview>) -> AppResult<Value> {
     let input = SupplierCreditRefundInput {
         request_id: request_id(&input.request_id)?,
         supplier_credit_note_id: text(&input.supplier_credit_note_id, "L’avoir", 1, 255)?,
@@ -166,7 +185,7 @@ pub(crate) fn record_in_transaction(
     if let Some(result) = replay(tx, &input.request_id, &payload)? {
         return Ok(result);
     }
-    post_refund(tx, &input, &payload, None)
+    post_refund(tx, &input, &payload, None, expected)
 }
 
 fn post_refund(
@@ -174,6 +193,7 @@ fn post_refund(
     input: &SupplierCreditRefundInput,
     payload: &str,
     original: Option<&Value>,
+    expected: Option<&SupplierRefundReview>,
 ) -> AppResult<Value> {
     let credit = query_record_tx(tx, "supplier_credit_notes", &input.supplier_credit_note_id)?;
     if credit["status"] != "validated" || credit["currency"] != "CHF" {
@@ -225,6 +245,12 @@ fn post_refund(
         let payable = match accounts.as_slice() { [one] => one.clone(), _ => return Err(invalid("Le compte fournisseur de l’écriture d’origine doit être identifiable sans ambiguïté.")) };
         (bank, payable)
     };
+    if let Some(expected) = expected {
+        let available: i64 = tx.query_row("SELECT remaining_cents FROM supplier_credit_balances WHERE supplier_credit_note_id=?", params![input.supplier_credit_note_id], |row| row.get(0))?;
+        if expected.available_cents < 0 || available != expected.available_cents || bank != expected.bank_account_id {
+            return Err(invalid("Le solde ou le compte bancaire a changé depuis votre vérification. Actualisez les avoirs et relisez le remboursement."));
+        }
+    }
     for (account, kind) in [(&bank, "asset"), (&payable, "liability")] {
         let active: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM accounts WHERE id=? AND active=1 AND account_type=?)",

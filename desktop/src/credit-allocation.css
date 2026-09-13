@@ -8,6 +8,7 @@
 .credit-allocation-steps [aria-current=step] { background:#e8f1e3; color:#294b35; font-weight:600; }
 .credit-allocation-explanation,.credit-allocation-review p { font-size:14px; line-height:1.65; margin:0; }
 .credit-allocation-review { display:grid; gap:12px; }
+.supplier-refund-modal .credit-allocation-review p { overflow-wrap:anywhere; white-space:pre-wrap; }
 .credit-allocation-review h3 { margin:0; font-size:20px; }
 .credit-allocation-balances { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .credit-allocation-balances > div { display:grid; gap:8px; padding:16px; background:#f4f6f2; border:1px solid #e2e8de; border-radius:12px; overflow-wrap:anywhere; }

@@ -5,6 +5,7 @@ import { WorkspaceRefreshAfterMutationError } from '../src/workspaceMutation';
 
 /** Synthetic persistence only. Rust acceptance tests exercise SQLite and its guards. */
 export function installCreditSettlementFixture(initial: Workspace) {
+  initial.accounts.push({id:'bank',code:'1020',name:'Banque de recette',active:true,accountType:'asset',normalBalance:'debit',reportSection:'current_assets'});
   const invoice = initial.supplierInvoices[0];
   invoice.documentStatus = 'validated';
   invoice.documentDate = '2026-09-02';
