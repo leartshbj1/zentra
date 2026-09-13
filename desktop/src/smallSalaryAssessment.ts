@@ -1,4 +1,5 @@
 import type { Employee, Payslip } from './types';
+import type { InterfaceMessage } from './language';
 
 export type SmallSalaryEmployeeFormDraft = {
   assessmentYear: string;
@@ -32,7 +33,7 @@ const EMPTY_SMALL_SALARY_FIELDS: SmallSalaryEmployeeFields = {
 };
 
 export class SmallSalaryFormError extends Error {
-  constructor(public readonly field: string, message: string) {
+  constructor(public readonly field: string, message: string, public readonly presentation?: InterfaceMessage) {
     super(message);
     this.name = 'SmallSalaryFormError';
   }
@@ -132,6 +133,11 @@ export function parseSmallSalaryEmployeeForm(
       !isRealIsoDate(normalized.decisionDate)
         ? `Choisissez une date valide dans le calendrier pour ${assessmentYear}. Il s’agit du jour où le choix concernant les cotisations a été confirmé, indiqué sur votre déclaration ou confirmation écrite.`
         : `L’année choisie est ${assessmentYear}, mais la date saisie est le ${normalized.decisionDate.split('-').reverse().join('.')}. Recopiez la date du choix de cotisation confirmé pour ${assessmentYear}. Si votre document concerne une autre année, corrigez aussi « Année concernée ».`,
+      { source: !isRealIsoDate(normalized.decisionDate)
+        ? 'Choisissez une date valide dans le calendrier pour {year}. Il s’agit du jour où le choix concernant les cotisations a été confirmé, indiqué sur votre déclaration ou confirmation écrite.'
+        : 'L’année choisie est {year}, mais la date saisie est le {date}. Recopiez la date du choix de cotisation confirmé pour {year}. Si votre document concerne une autre année, corrigez aussi « Année concernée ».',
+        values: { year: assessmentYear, date: normalized.decisionDate.split('-').reverse().join('.') },
+      },
     );
 
   const openingGrossCents = parseFrancAmount(

@@ -79,6 +79,8 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
       else await date.fill('2026-01-12');
 
       await modal.getByRole('button', { name: 'Ajouter le collaborateur', exact: true }).click();
+      await modal.getByText(/L’enregistrement n’a pas abouti\. Vos informations sont conservées/).waitFor();
+      await modal.locator('.employee-save-details summary').click();
       await modal.getByText('Enregistrement momentanément indisponible. Réessayez.', { exact: true }).waitFor();
       assert.equal(await modal.locator('textarea[name=notes]').inputValue(), 'Contrat à conserver\nDeuxième ligne');
       await page.screenshot({ path: `.qa/employee-annual-help/${engine}-${width}.png` });

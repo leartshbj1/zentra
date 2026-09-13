@@ -3,6 +3,7 @@ import { translations } from './translations';
 
 export const appLanguages = ['fr', 'de', 'it', 'en'] as const;
 export type AppLanguage = typeof appLanguages[number];
+export type InterfaceMessage = { source: string; values?: Record<string, string | number> };
 export const languageNames: Record<AppLanguage, string> = { fr:'Français', de:'Deutsch', it:'Italiano', en:'English' };
 export const languageStorageKey = 'zentra.interface.language.v1';
 const locales: Record<AppLanguage, string> = { fr:'fr-CH', de:'de-CH', it:'it-CH', en:'en-CH' };

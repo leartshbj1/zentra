@@ -137,6 +137,7 @@ import { DocumentPreviewFrame } from './DocumentPreviewFrame';
 const StyledDocumentPreview = deferView(() => import('./StyledDocumentPreview'), { label: 'Ouverture du document', close: props => props.onClose });
 
 import { parseSmallSalaryEmployeeForm, SmallSalaryFormError } from './smallSalaryAssessment';
+import { employeeSaveMessage } from './employeeLanguage';
 import { GuidedTour, useGuidedTour, type TourView } from './GuidedTour';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
 import { NavigationPalette } from './NavigationPalette';
@@ -1813,7 +1814,7 @@ export function WorkspaceApp({
               ) : (
                 <ShieldCheck size={18} />
               )}
-              {notice.text}
+              {t(notice.text)}
             </span>
             <button
               type="button"
@@ -4457,6 +4458,7 @@ function TeamScreen({
   initialSection?: 'payslips';
   onInitialSectionHandled: () => void;
 }) {
+  useAppLanguage();
   const employees = workspace.employees.filter((employee) =>
     searchText([employee.name, employee.role, employee.email], query),
   );
@@ -4480,45 +4482,37 @@ function TeamScreen({
     return (
       <div className="stack-layout">
         <SectionHeading
-          title="Collaborateurs et salaires"
-          description="Une reprise contrôlée est nécessaire avant de poursuivre la paie."
+          title={t("Collaborateurs et salaires")}
+          description={t("Une reprise contrôlée est nécessaire avant de poursuivre la paie.")}
         />
         <div className="warning-card">
           <RefreshCw size={20} />
           <div>
-            <strong>Ancien paiement de salaire à régulariser</strong>
-            <p>
-              La fiche {legacyPaymentToRepair.period} est marquée payée, mais sa
-              date ou son lien comptable manque. Indiquez la date réelle; Zentra
-              créera ou reliera l’écriture sans modifier les montants
-              historiques.
-            </p>
+            <strong>{t("Ancien paiement de salaire à régulariser")}</strong>
+            <p>{t("La fiche {period} est marquée payée, mais sa date ou son lien comptable manque. Indiquez la date réelle; Zentra créera ou reliera l’écriture sans modifier les montants historiques.", { period: legacyPaymentToRepair.period })}</p>
           </div>
           <Button disabled={busy}
             variant="secondary"
             onClick={() => onPayPayslip(legacyPaymentToRepair)}
-          >
-            Régulariser le paiement
-          </Button>
+          >{t("Régulariser le paiement")}</Button>
         </div>
       </div>
     );
   return (
     <div className="stack-layout team-screen">
-      <nav className="team-navigation" aria-label="Équipe et paie">
-        <button type="button" aria-pressed={teamSection === 'employees'} onClick={() => setTeamSection('employees')}><span className="team-navigation__title">Équipe</span><span className="team-navigation__count">{workspace.employees.length}</span></button>
-        <button type="button" aria-pressed={teamSection === 'payslips'} onClick={() => setTeamSection('payslips')}><span className="team-navigation__title">Fiches de salaire</span><span className="team-navigation__count">{workspace.payslips.length}</span></button>
-        <button type="button" aria-pressed={teamSection === 'certificates'} onClick={() => setTeamSection('certificates')}><span className="team-navigation__title">Certificats annuels</span></button>
+      <nav className="team-navigation" aria-label={t("Équipe et paie")}>
+        <button type="button" aria-pressed={teamSection === 'employees'} onClick={() => setTeamSection('employees')}><span className="team-navigation__title">{t("Équipe")}</span><span className="team-navigation__count">{workspace.employees.length}</span></button>
+        <button type="button" aria-pressed={teamSection === 'payslips'} onClick={() => setTeamSection('payslips')}><span className="team-navigation__title">{t("Fiches de salaire")}</span><span className="team-navigation__count">{workspace.payslips.length}</span></button>
+        <button type="button" aria-pressed={teamSection === 'certificates'} onClick={() => setTeamSection('certificates')}><span className="team-navigation__title">{t("Certificats annuels")}</span></button>
       </nav>
       {teamSection === 'certificates' ? <SalaryCertificates workspace={workspace} disabled={busy} /> : null}
       {teamSection === 'employees' ? <section className="team-directory">
       <SectionHeading
-        title="Collaborateurs"
-        description="Votre équipe, ses coordonnées et ses contrats."
+        title={t("Collaborateurs")}
+        description={t("Votre équipe, ses coordonnées et ses contrats.")}
         action={
           <Button disabled={busy} onClick={onCreateEmployee}>
-            <Plus size={16} /> Nouveau collaborateur
-          </Button>
+            <Plus size={16} />{t(" Nouveau collaborateur")}</Button>
         }
       />
       {employees.length ? (
@@ -4531,22 +4525,20 @@ function TeamScreen({
               <div className="employee-card__main">
                 <h3>{employee.name}</h3>
                 <p>
-                  {employee.role || 'Fonction non renseignée'} ·{' '}
+                  {employee.role || t('Fonction non renseignée')} ·{' '}
                   {employee.salaryMode === 'monthly'
-                    ? 'salaire mensuel'
-                    : 'salaire horaire'}
+                    ? t("salaire mensuel")
+                    : t("salaire horaire")}
                 </p>
                 <div>
-                  <span>
-                    Taux d’activité{' '}
+                  <span>{t("Taux d’activité")}{' '}
                     <strong>
                       {employee.employmentRate
                         ? `${employee.employmentRate} %`
                         : '—'}
                     </strong>
                   </span>
-                  <span>
-                    Coût horaire{' '}
+                  <span>{t("Coût horaire")}{' '}
                     <strong>{formatMoney(employee.hourlyCostCents)}</strong>
                   </span>
                 </div>
@@ -4554,12 +4546,13 @@ function TeamScreen({
               <footer>
                 <StatusBadge
                   status={employee.active ? 'validated' : 'incomplete'}
+                  label={t(employee.active ? 'Actif' : 'Inactif')}
                 />
                 <Button
                   variant="ghost"
                   size="icon"
                   disabled={busy}
-                  aria-label={`Modifier ${employee.name}`}
+                  aria-label={t("Modifier {v0}", { v0: employee.name })}
                   onClick={() => onEditEmployee(employee)}
                 >
                   <Pencil size={15} />
@@ -4568,7 +4561,7 @@ function TeamScreen({
                   variant="ghost"
                   size="icon"
                   disabled={busy}
-                  aria-label={`Supprimer ${employee.name}`}
+                  aria-label={t("Supprimer {v0}", { v0: employee.name })}
                   onClick={() => onArchiveEmployee(employee)}
                 >
                   <Archive size={15} />
@@ -4580,22 +4573,21 @@ function TeamScreen({
       ) : (
         <EmptyState disabled={busy}
           icon={<Users />}
-          title={workspace.employees.length ? 'Aucun collaborateur correspondant' : 'Aucun collaborateur'}
-          text={workspace.employees.length ? 'Modifiez votre recherche pour retrouver un collaborateur.' : 'Ajoutez les personnes employées ou suivies.'}
+          title={workspace.employees.length ? t("Aucun collaborateur correspondant") : t("Aucun collaborateur")}
+          text={workspace.employees.length ? t("Modifiez votre recherche pour retrouver un collaborateur.") : t("Ajoutez les personnes employées ou suivies.")}
         />
       )}
       </section> : null}
       {teamSection === 'payslips' ?
       <section className="panel payroll-panel">
         <SectionHeading
-          title="Fiches de salaire"
-          description="Choisissez une personne et le mois, indiquez le salaire brut, puis vérifiez le montant à verser. Les réglages sont réutilisés les mois suivants."
+          title={t("Fiches de salaire")}
+          description={t("Choisissez une personne et le mois, indiquez le salaire brut, puis vérifiez le montant à verser. Les réglages sont réutilisés les mois suivants.")}
           action={
             payrollEnabled ? (
               <div className="payroll-heading-actions">
                 <Button variant="secondary" disabled={busy} onClick={onImportPayslips}>
-                  <ScanLine size={16} /> Importer des fiches
-                  {workspace.payrollImports.filter(
+                  <ScanLine size={16} />{t(" Importer des fiches")}{workspace.payrollImports.filter(
                     (item) => item.status === 'needs_review',
                   ).length ? (
                     <em>
@@ -4608,8 +4600,7 @@ function TeamScreen({
                   ) : null}
                 </Button>
                 <Button disabled={busy} onClick={onCreatePayslip}>
-                  <Plus size={16} /> Nouvelle fiche
-                </Button>
+                  <Plus size={16} />{t(" Nouvelle fiche")}</Button>
               </div>
             ) : null
           }
@@ -4618,22 +4609,17 @@ function TeamScreen({
           <div className="warning-card">
             <ShieldCheck size={20} />
             <div>
-              <strong>Module désactivé</strong>
-              <p>
-                Activez la paie dans Paramètres puis renseignez les organismes
-                et taux contrôlés.
-              </p>
+              <strong>{t("Module désactivé")}</strong>
+              <p>{t("Activez la paie dans Paramètres puis renseignez les organismes et taux contrôlés.")}</p>
             </div>
           </div>
         ) : !workspace.settings?.payroll.fiduciaryValidated ? (
           <div className="warning-card">
             <ShieldCheck size={20} />
             <div>
-              <strong>Configuration à faire valider</strong>
-              <p>
-                Vous pouvez préparer et enregistrer vos fiches. Pour les valider et obtenir leur PDF, faites contrôler les réglages par votre fiduciaire, puis confirmez ce contrôle dans les paramètres de paie.
-              </p>
-              <Button variant="secondary" size="small" disabled={busy} onClick={onPayrollSettings}>Ouvrir les paramètres de paie</Button>
+              <strong>{t("Configuration à faire valider")}</strong>
+              <p>{t("Vous pouvez préparer et enregistrer vos fiches. Pour les valider et obtenir leur PDF, faites contrôler les réglages par votre fiduciaire, puis confirmez ce contrôle dans les paramètres de paie.")}</p>
+              <Button variant="secondary" size="small" disabled={busy} onClick={onPayrollSettings}>{t("Ouvrir les paramètres de paie")}</Button>
             </div>
           </div>
         ) : null}
@@ -4643,23 +4629,15 @@ function TeamScreen({
           <button className="payroll-review-banner" onClick={onImportPayslips}>
             <span>
               <ScanLine size={19} />
-              <strong>
-                {
-                  workspace.payrollImports.filter(
-                    (item) => item.status === 'needs_review',
-                  ).length
-                }{' '}
-                document(s) à contrôler
-              </strong>
+              <strong>{t(workspace.payrollImports.filter(item => item.status === 'needs_review').length === 1 ? "{count} document à contrôler" : "{count} documents à contrôler", { count: workspace.payrollImports.filter(item => item.status === 'needs_review').length })}</strong>
             </span>
-            <small>
-              Reprendre l’assistant d’import <ArrowRight size={14} />
+            <small>{t("Reprendre l’assistant d’import ")}<ArrowRight size={14} />
             </small>
           </button>
         ) : null}
         {workspace.payslips.length ? <div className="sales-list-toolbar payroll-list-toolbar">
-          <label><span>État des fiches</span><select aria-label="État des fiches de salaire" value={payrollStatus} onChange={(event) => setPayrollStatus(event.target.value)}><option value="all">Tous les états</option><option value="draft">Brouillons · à compléter</option><option value="incomplete">À contrôler</option><option value="validated">Validées</option><option value="posted">À payer</option><option value="paid">Payées</option></select></label>
-          <span role="status">{filteredPayslips.length} / {workspace.payslips.length} · Plus récentes d’abord</span>
+          <label><span>{t("État des fiches")}</span><select aria-label={t("État des fiches de salaire")} value={payrollStatus} onChange={(event) => setPayrollStatus(event.target.value)}><option value="all">{t("Tous les états")}</option><option value="draft">{t("Brouillons · à compléter")}</option><option value="incomplete">{t("À contrôler")}</option><option value="validated">{t("Validées")}</option><option value="posted">{t("À payer")}</option><option value="paid">{t("Payées")}</option></select></label>
+          <span role="status">{filteredPayslips.length} / {workspace.payslips.length}{t(" · Plus récentes d’abord")}</span>
         </div> : null}
         {filteredPayslips.length ? (
           <div className="payslip-list">
@@ -4675,28 +4653,27 @@ function TeamScreen({
                   <div>
                     <FileText size={17} />
                     <span>
-                      <strong>{employee?.name || 'Collaborateur'}</strong>
-                      <small>
-                        Période {payslip.period}
+                      <strong>{employee?.name || t('Collaborateur')}</strong>
+                      <small>{t("Période ")}{payslip.period}
                         {payslip.status === 'paid' && payslip.paymentDate
-                          ? ` · payé le ${formatDate(payslip.paymentDate)}`
+                          ? t(" · payé le {v0}", { v0: formatDate(payslip.paymentDate) })
                           : ''}
                       </small>
                     </span>
                   </div>
                   <div>
-                    <small>Brut saisi</small>
+                    <small>{t("Brut saisi")}</small>
                     <strong>{formatMoney(totals.earnings)}</strong>
                   </div>
                   <div>
-                    <small>{payslip.status === 'draft' ? 'Cotisations à préparer' : 'Net calculé'}</small>
-                    <strong>{payslip.status === 'draft' ? 'À calculer' : formatMoney(totals.net)}</strong>
+                    <small>{payslip.status === 'draft' ? t("Cotisations à préparer") : t("Net calculé")}</small>
+                    <strong>{payslip.status === 'draft' ? t("À calculer") : formatMoney(totals.net)}</strong>
                   </div>
                   <StatusBadge
                     status={payslip.status}
                     label={
                       payslip.status === 'incomplete'
-                        ? 'À contrôler'
+                        ? t("À contrôler")
                         : undefined
                     }
                   />
@@ -4707,9 +4684,9 @@ function TeamScreen({
                         size="small"
                         disabled={busy}
                         onClick={() => onEditPayslip(payslip)}
-                        title={payslip.status === 'draft' ? 'Reprendre le brouillon' : 'Modifier'}
+                        title={payslip.status === 'draft' ? t("Reprendre le brouillon") : t("Modifier")}
                       >
-                        <Pencil size={15} />{payslip.status === 'draft' ? 'Reprendre' : payslip.status === 'incomplete' ? 'Contrôler la fiche' : 'Modifier'}
+                        <Pencil size={15} />{payslip.status === 'draft' ? t("Reprendre") : payslip.status === 'incomplete' ? t("Contrôler la fiche") : t("Modifier")}
                       </Button>
                     ) : null}
                     {payslip.status === 'validated' ? (
@@ -4719,8 +4696,7 @@ function TeamScreen({
                         disabled={busy}
                         onClick={() => onPostPayslip(payslip)}
                       >
-                        <LockKeyhole size={14} /> Finaliser la fiche
-                      </Button>
+                        <LockKeyhole size={14} />{t(" Finaliser la fiche")}</Button>
                     ) : null}
                     {payslip.status === 'posted' ? (
                       <Button
@@ -4729,8 +4705,7 @@ function TeamScreen({
                         disabled={busy}
                         onClick={() => onPayPayslip(payslip)}
                       >
-                        <Banknote size={14} /> Marquer payé
-                      </Button>
+                        <Banknote size={14} />{t(" Marquer payé")}</Button>
                     ) : null}
                     {['validated', 'posted', 'paid'].includes(
                       payslip.status,
@@ -4739,10 +4714,9 @@ function TeamScreen({
                         variant="ghost"
                         size="small"
                         onClick={() => onPrint(payslip)}
-                        title="Ouvrir l’aperçu et exporter le PDF"
+                        title={t("Ouvrir l’aperçu et exporter le PDF")}
                       >
-                        <Printer size={15} /> Voir le PDF
-                      </Button>
+                        <Printer size={15} />{t(" Voir le PDF")}</Button>
                     ) : null}
                     {!locked ? (
                       <Button
@@ -4750,7 +4724,7 @@ function TeamScreen({
                         size="icon"
                         disabled={busy}
                         onClick={() => onArchivePayslip(payslip)}
-                        title="Supprimer"
+                        title={t("Supprimer")}
                       >
                         <Archive size={15} />
                       </Button>
@@ -4760,16 +4734,13 @@ function TeamScreen({
               );
             })}
           </div>
-        ) : workspace.payslips.length ? <EmptyState icon={<FileText />} title="Aucune fiche correspondante" text="Modifiez la recherche ou l’état sélectionné." /> : payrollEnabled ? (
+        ) : workspace.payslips.length ? <EmptyState icon={<FileText />} title={t("Aucune fiche correspondante")} text={t("Modifiez la recherche ou l’état sélectionné.")} /> : payrollEnabled ? (
           <div className="compact-empty">
             <FileText size={20} />
-            <span>
-              Aucune fiche de salaire créée. Importez un ancien document ou
-              créez la première fiche.
-            </span>
+            <span>{t("Aucune fiche de salaire créée. Importez un ancien document ou créez la première fiche.")}</span>
           </div>
         ) : null}
-        {pageCount > 1 ? <nav className="sales-list-pagination" aria-label="Pages des fiches de salaire"><Button variant="secondary" disabled={page === 0} onClick={() => changePage(page - 1)}>Précédent</Button><span role="status">{page + 1} / {pageCount}</span><Button variant="secondary" disabled={page + 1 === pageCount} onClick={() => changePage(page + 1)}>Suivant</Button></nav> : null}
+        {pageCount > 1 ? <nav className="sales-list-pagination" aria-label={t("Pages des fiches de salaire")}><Button variant="secondary" disabled={page === 0} onClick={() => changePage(page - 1)}>{t("Précédent")}</Button><span role="status">{page + 1} / {pageCount}</span><Button variant="secondary" disabled={page + 1 === pageCount} onClick={() => changePage(page + 1)}>{t("Suivant")}</Button></nav> : null}
       </section> : null}
     </div>
   );
@@ -6761,6 +6732,7 @@ function EmployeeForm({
   close: () => void;
   act: ActionRunner;
 }) {
+  useAppLanguage();
   const [step, setStep] = useState(0);
   const [review, setReview] = useState<Record<string, string>>({});
   const stepHeading = useRef<HTMLDivElement>(null);
@@ -6826,7 +6798,7 @@ function EmployeeForm({
     if (owner) setStep(Number(owner.dataset.employeeStep));
     setLocalError('');
     setAnnualIssue(null);
-    fieldGuide.reject(field, issue.message);
+    fieldGuide.reject(field, issue.message, issue.presentation);
     return true;
   }
   function reportEmployeeError(reason: unknown) {
@@ -6857,8 +6829,8 @@ function EmployeeForm({
 
   return (
     <Modal
-      title={item ? 'Modifier le collaborateur' : 'Nouveau collaborateur'}
-      description="Trois étapes pour enregistrer la personne. Les réglages de paie pourront être complétés ensuite."
+      title={item ? t("Modifier le collaborateur") : t("Nouveau collaborateur")}
+      description={t("Trois étapes pour enregistrer la personne. Les réglages de paie pourront être complétés ensuite.")}
       onClose={() => { if (!busy && !savingRef.current) close(); }}
       dismissible={!pending}
       wide
@@ -6873,7 +6845,7 @@ function EmployeeForm({
           setAnnualIssue(null);
           const scope = step < 2 ? formElement.current?.querySelector<HTMLElement>(`[data-employee-step="${step}"]`) : formElement.current;
           if (!scope) return;
-          const invalid = scope.querySelector<HTMLElement>('input:invalid, select:invalid, textarea:invalid');
+          const invalid = fieldGuide.firstInvalid(scope);
           if (invalid) {
             const owner = invalid.closest<HTMLElement>('[data-employee-step]');
             if (owner) setStep(Number(owner.dataset.employeeStep));
@@ -7007,51 +6979,51 @@ function EmployeeForm({
           finally { savingRef.current = false; setSaving(false); }
         })}
       >
-        <ol className="payroll-steps" aria-label="Étapes du collaborateur">
-          {['La personne', 'Le travail', 'Vérifier'].map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}
+        <ol className="payroll-steps" aria-label={t("Étapes du collaborateur")}>
+          {['La personne', 'Le travail', 'Vérifier'].map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined}><span>{index + 1}</span>{t(label)}</li>)}
         </ol>
         <div className="payroll-step-intro" ref={stepHeading} tabIndex={-1}>
-          <h3>{['Qui rejoint votre équipe ?', 'Quel travail et quel salaire ?', 'Relisez avant d’enregistrer'][step]}</h3>
-          <p>{['Commencez par le nom et la fonction. Les coordonnées sont facultatives.', 'Recopiez les informations du contrat. Brut signifie avant les retenues.', 'Les informations principales suffisent pour ajouter la personne. Les réglages de paie se préparent ensuite, avec les documents de vos caisses.'][step]}</p>
+          <h3>{t(['Qui rejoint votre équipe ?', 'Quel travail et quel salaire ?', 'Relisez avant d’enregistrer'][step])}</h3>
+          <p>{t(['Commencez par le nom et la fonction. Les coordonnées sont facultatives.', 'Recopiez les informations du contrat. Brut signifie avant les retenues.', 'Les informations principales suffisent pour ajouter la personne. Les réglages de paie se préparent ensuite, avec les documents de vos caisses.'][step])}</p>
         </div>
-        {localError ? <ErrorPanel title="Vérifions ce point ensemble" message={localError} reveal /> : null}
+        {localError ? <><ErrorPanel title={t("Vérifions ce point ensemble")} message={employeeSaveMessage(localError)} reveal /><details className="employee-save-details"><summary>{t('Voir le message détaillé')}</summary><p>{localError}</p></details></> : null}
         {fieldGuide.guide}
         <fieldset className="employee-step" data-employee-step="0" hidden={step !== 0} disabled={pending}>
-          <details className="payroll-details"><summary>Préremplir avec une fiche de salaire existante</summary>        <EmployeeDocumentImport onRead={applyDocument} disabled={pending} />
-        {prefill?.warnings.length ? <div className="employee-prefill-notes" role="status">{prefill.warnings.map(warning => <p key={warning}>{warning}</p>)}</div> : null}
+          <details className="payroll-details"><summary>{t("Préremplir avec une fiche de salaire existante")}</summary>        <EmployeeDocumentImport onRead={applyDocument} disabled={pending} />
+        {prefill?.warnings.length ? <div className="employee-prefill-notes" role="status">{prefill.warnings.map(warning => <p key={warning}>{t(warning)}</p>)}</div> : null}
 </details>
-          <div className="form-grid">          <Field label="Nom complet" required wide>
+          <div className="form-grid">          <Field label={t("Nom complet")} required wide>
             <input name="name" defaultValue={item?.name} required autoFocus />
           </Field>
-          <Field label="Numéro de collaborateur">
+          <Field label={t("Numéro de collaborateur")}>
             <input name="employeeNumber" defaultValue={item?.employeeNumber} />
           </Field>
-          <Field label="Fonction" required>
+          <Field label={t("Fonction")} required>
             <input name="role" defaultValue={item?.role} required />
           </Field>
 </div>
-          <details className="payroll-details"><summary>Ajouter les coordonnées · facultatif</summary><div className="form-grid">          <Field label="E-mail">
+          <details className="payroll-details"><summary>{t("Ajouter les coordonnées · facultatif")}</summary><div className="form-grid">          <Field label={t("E-mail")}>
             <input name="email" type="email" defaultValue={item?.email} />
           </Field>
-          <Field label="Téléphone">
+          <Field label={t("Téléphone")}>
             <input name="phone" defaultValue={item?.phone} />
           </Field>
-          <Field label="Rue / case postale" wide>
+          <Field label={t("Rue / case postale")} wide>
             <input name="addressLine1" defaultValue={item?.addressLine1} />
           </Field>
-          <Field label="Numéro de bâtiment">
+          <Field label={t("Numéro de bâtiment")}>
             <input name="addressLine2" defaultValue={item?.addressLine2} />
           </Field>
-          <Field label="NPA">
+          <Field label={t("NPA")}>
             <input name="postalCode" defaultValue={item?.postalCode} />
           </Field>
-          <Field label="Localité">
+          <Field label={t("Localité")}>
             <input name="city" defaultValue={item?.city} />
           </Field>
-          <Field label="Canton">
+          <Field label={t("Canton")}>
             <input name="canton" defaultValue={item?.canton} />
           </Field>
-          <Field label="Pays (CH pour la Suisse)">
+          <Field label={t("Pays (CH pour la Suisse)")}>
             <input
               name="country"
               minLength={2}
@@ -7062,7 +7034,7 @@ function EmployeeForm({
 </div></details>
         </fieldset>
         <fieldset className="employee-step" data-employee-step="1" hidden={step !== 1} disabled={pending}>
-          <div className="form-grid">          <Field label="Taux d’activité (%)" required>
+          <div className="form-grid">          <Field label={t("Taux d’activité (%)")} required>
             <input
               name="employmentRate"
               type="number"
@@ -7074,8 +7046,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Heures de travail par semaine"
-            hint="Recopiez les heures du contrat. Pour un horaire variable, utilisez une moyenne documentée. Cette information servira au contrôle de l’assurance accidents."
+            label={t("Heures de travail par semaine")}
+            hint={t("Recopiez les heures du contrat. Pour un horaire variable, utilisez une moyenne documentée. Cette information servira au contrôle de l’assurance accidents.")}
           >
             <input
               name="contractualWeeklyHours"
@@ -7090,14 +7062,14 @@ function EmployeeForm({
               }
             />
           </Field>
-          <Field label="Début du contrat">
+          <Field label={t("Début du contrat")}>
             <input
               name="employmentStart"
               type="date"
               defaultValue={item?.employmentStart}
             />
           </Field>
-          <Field label="Fin du contrat">
+          <Field label={t("Fin du contrat")}>
             <input
               name="employmentEnd"
               type="date"
@@ -7105,8 +7077,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Type de contrat"
-            hint="Recopiez le type indiqué sur le contrat de travail."
+            label={t("Type de contrat")}
+            hint={t("Recopiez le type indiqué sur le contrat de travail.")}
           >
             <select
               name="employmentContractKind"
@@ -7117,12 +7089,12 @@ function EmployeeForm({
                 )
               }
             >
-              <option value="">À confirmer</option>
-              <option value="indefinite">Durée indéterminée</option>
-              <option value="fixed">Durée déterminée</option>
+              <option value="">{t("À confirmer")}</option>
+              <option value="indefinite">{t("Durée indéterminée")}</option>
+              <option value="fixed">{t("Durée déterminée")}</option>
             </select>
           </Field>
-          <Field label="Comment cette personne est-elle payée ?" required>
+          <Field label={t("Comment cette personne est-elle payée ?")} required>
             <select
               name="salaryMode"
               value={salaryMode}
@@ -7131,13 +7103,13 @@ function EmployeeForm({
               }
               required
             >
-              <option value="">Choisir le type</option>
-              <option value="hourly">Salaire horaire</option>
-              <option value="monthly">Salaire mensuel</option>
+              <option value="">{t("Choisir le type")}</option>
+              <option value="hourly">{t("Salaire horaire")}</option>
+              <option value="monthly">{t("Salaire mensuel")}</option>
             </select>
           </Field>
           {salaryMode === 'monthly' ? (
-            <Field label="Salaire mensuel brut (CHF)" required>
+            <Field label={t("Salaire mensuel brut (CHF)")} required>
               <input
                 name="grossSalary"
                 type="number"
@@ -7150,8 +7122,8 @@ function EmployeeForm({
             </Field>
           ) : null}
           <Field
-            label="Coût d’une heure pour l’entreprise (CHF)"
-            hint="Facultatif pour la paie. Vous pourrez le compléter plus tard pour calculer le coût des heures sur les projets. Si vous laissez ce champ vide, ces heures seront valorisées à 0 CHF jusqu’à ce qu’un coût soit renseigné."
+            label={t("Coût d’une heure pour l’entreprise (CHF)")}
+            hint={t("Facultatif pour la paie. Vous pourrez le compléter plus tard pour calculer le coût des heures sur les projets. Si vous laissez ce champ vide, ces heures seront valorisées à 0 CHF jusqu’à ce qu’un coût soit renseigné.")}
           >
             <input
               name="hourlyCost"
@@ -7165,42 +7137,42 @@ function EmployeeForm({
         </fieldset>
         <fieldset className="employee-step" data-employee-step="2" hidden={step !== 2} disabled={pending}>
           <dl className="employee-review">
-            <div><dt>Collaborateur</dt><dd>{review.name} · {review.role}</dd></div>
-            <div><dt>Activité</dt><dd>{review.employmentRate} %{review.contractualWeeklyHours ? ` · ${review.contractualWeeklyHours} h / semaine` : ''}</dd></div>
-            <div><dt>Salaire</dt><dd>{salaryMode === 'monthly' ? `${review.grossSalary || '0'} CHF brut / mois` : 'À l’heure · le brut sera renseigné sur chaque fiche'}</dd></div>
+            <div><dt>{t("Collaborateur")}</dt><dd>{review.name} · {review.role}</dd></div>
+            <div><dt>{t("Activité")}</dt><dd>{review.employmentRate} %{review.contractualWeeklyHours ? t(" · {v0} h / semaine", { v0: review.contractualWeeklyHours }) : ''}</dd></div>
+            <div><dt>{t("Salaire")}</dt><dd>{salaryMode === 'monthly' ? t("{v0} CHF brut / mois", { v0: review.grossSalary || '0' }) : t("À l’heure · le brut sera renseigné sur chaque fiche")}</dd></div>
           </dl>
-          <div className="form-grid">          <Field label="Statut du collaborateur" required>
+          <div className="form-grid">          <Field label={t("Statut du collaborateur")} required>
             <select
               name="status"
               defaultValue={item ? (item.active ? 'actif' : 'inactif') : 'actif'}
               required
             >
-              <option value="">Choisir le statut</option>
-              <option value="actif">Actif</option>
-              <option value="inactif">Inactif</option>
+              <option value="">{t("Choisir le statut")}</option>
+              <option value="actif">{t("Actif")}</option>
+              <option value="inactif">{t("Inactif")}</option>
             </select>
           </Field>
-          <Field label="Notes internes" wide>
+          <Field label={t("Notes internes")} wide>
             <textarea name="notes" rows={3} defaultValue={item?.notes} />
           </Field>
 </div>
-          <details className="payroll-details"><summary>Identité et coordonnées de paiement · à compléter pour la paie</summary><p>Préparez la date de naissance, le numéro AVS et l’IBAN du collaborateur.</p><div className="form-grid">          <Field label="Date de naissance">
+          <details className="payroll-details"><summary>{t("Identité et coordonnées de paiement · à compléter pour la paie")}</summary><p>{t("Préparez la date de naissance, le numéro AVS et l’IBAN du collaborateur.")}</p><div className="form-grid">          <Field label={t("Date de naissance")}>
             <input
               name="birthDate"
               type="date"
               defaultValue={item?.birthDate}
             />
           </Field>
-          <Field label="Numéro AVS">
+          <Field label={t("Numéro AVS")}>
             <input name="avsNumber" defaultValue={item?.avsNumber} />
           </Field>
-          <Field label="IBAN du collaborateur">
+          <Field label={t("IBAN du collaborateur")}>
             <input name="iban" defaultValue={item?.iban} />
           </Field>
 </div></details>
-          <details className="payroll-details"><summary>Réglages de paie particuliers · pension, reprise et retraite</summary><p>Vous pouvez les compléter plus tard depuis la fiche de salaire. Ne devinez pas les montants : utilisez les documents de votre caisse ou de votre fiduciaire.</p><div className="form-grid">          <Field
-            label="Année d’évaluation LPP"
-            hint="À confirmer avec le salaire annuel LPP, pour chaque année contrôlée."
+          <details className="payroll-details"><summary>{t("Réglages de paie particuliers · pension, reprise et retraite")}</summary><p>{t("Vous pouvez les compléter plus tard depuis la fiche de salaire. Ne devinez pas les montants : utilisez les documents de votre caisse ou de votre fiduciaire.")}</p><div className="form-grid">          <Field
+            label={t("Année d’évaluation LPP")}
+            hint={t("À confirmer avec le salaire annuel LPP, pour chaque année contrôlée.")}
           >
             <input
               name="lppAssessmentYear"
@@ -7212,8 +7184,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Salaire annuel LPP confirmé (CHF)"
-            hint="Montant annuel déterminant confirmé; saisissez 0 si la valeur réelle est zéro. Le brut du mois n’est jamais annualisé automatiquement."
+            label={t("Salaire annuel LPP confirmé (CHF)")}
+            hint={t("Montant annuel déterminant confirmé; saisissez 0 si la valeur réelle est zéro. Le brut du mois n’est jamais annualisé automatiquement.")}
           >
             <input
               name="lppAnnualSalary"
@@ -7229,8 +7201,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Exception LPP documentée"
-            hint="Laissez vide sans exception. Toute exception doit être confirmée par une pièce réelle."
+            label={t("Exception LPP documentée")}
+            hint={t("Laissez vide sans exception. Toute exception doit être confirmée par une pièce réelle.")}
           >
             <select
               name="lppExceptionCode"
@@ -7244,19 +7216,16 @@ function EmployeeForm({
                 )
               }
             >
-              <option value="">Aucune exception</option>
-              <option value="short_fixed_contract">
-                Contrat déterminé de trois mois au maximum
-              </option>
-              <option value="other_legal">
-                Autre exception légale confirmée
-              </option>
+              <option value="">{t("Aucune exception")}</option>
+              <option value="short_fixed_contract">{t("Contrat déterminé de trois mois au maximum")}</option>
+              <option value="other_legal">{t("Autre exception légale confirmée")}</option>
             </select>
+            {lppExceptionCode && <span className="field__hint employee-selection-hint">{t(lppExceptionCode === 'short_fixed_contract' ? 'Contrat déterminé de trois mois au maximum' : 'Autre exception légale confirmée')}</span>}
           </Field>
           {lppExceptionCode ? (
             <Field
-              label="Référence de la preuve d’exception LPP"
-              hint="Ex. contrat signé, article du règlement ou décision écrite de la caisse."
+              label={t("Référence de la preuve d’exception LPP")}
+              hint={t("Ex. contrat signé, article du règlement ou décision écrite de la caisse.")}
               required
               wide
             >
@@ -7270,15 +7239,11 @@ function EmployeeForm({
           ) : null}
           <div className="info-strip field--wide">
             <ShieldCheck size={17} />
-            <span>
-              Ces données servent uniquement à qualifier l’assujettissement
-              LPP 2026 et le salaire coordonné indicatif. Les montants de
-              cotisation doivent toujours venir du règlement réel de la caisse.
-            </span>
+            <span>{t("Ces données servent uniquement à qualifier l’assujettissement LPP 2026 et le salaire coordonné indicatif. Les montants de cotisation doivent toujours venir du règlement réel de la caisse.")}</span>
           </div>
           <Field
-            label="Année d’ouverture AC"
-            hint="Année du cumul importé. À confirmer chaque année, même lorsque le montant est zéro."
+            label={t("Année d’ouverture AC")}
+            hint={t("Année du cumul importé. À confirmer chaque année, même lorsque le montant est zéro.")}
           >
             <input
               name="acOpeningYear"
@@ -7290,8 +7255,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Base AC avant Zentra (CHF)"
-            hint="Base déjà acquise hors Zentra durant l’année indiquée. Saisissez 0 pour confirmer qu’il n’y en a aucune."
+            label={t("Base AC avant Zentra (CHF)")}
+            hint={t("Base déjà acquise hors Zentra durant l’année indiquée. Saisissez 0 pour confirmer qu’il n’y en a aucune.")}
           >
             <input
               name="acOpeningBasis"
@@ -7307,8 +7272,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Année d’ouverture LAA"
-            hint="Année du gain assuré accidents déjà acquis. À confirmer chaque année, même lorsque le montant est zéro."
+            label={t("Année d’ouverture LAA")}
+            hint={t("Année du gain assuré accidents déjà acquis. À confirmer chaque année, même lorsque le montant est zéro.")}
           >
             <input
               name="laaOpeningYear"
@@ -7320,8 +7285,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Base LAA avant Zentra (CHF)"
-            hint="Gain assuré LAA déjà acquis hors Zentra durant l’année indiquée. Saisissez 0 pour confirmer qu’il n’y en a aucun."
+            label={t("Base LAA avant Zentra (CHF)")}
+            hint={t("Gain assuré LAA déjà acquis hors Zentra durant l’année indiquée. Saisissez 0 pour confirmer qu’il n’y en a aucun.")}
           >
             <input
               name="laaOpeningBasis"
@@ -7337,8 +7302,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Date confirmée d’atteinte de l’âge de référence"
-            hint="Renseignez uniquement la date confirmée par la caisse ou la fiduciaire. L’AC reste due pendant ce mois; l’exemption et la franchise AVS commencent le mois civil suivant. Zentra ne déduit jamais cette date du sexe."
+            label={t("Date confirmée d’atteinte de l’âge de référence")}
+            hint={t("Renseignez uniquement la date confirmée par la caisse ou la fiduciaire. L’AC reste due pendant ce mois; l’exemption et la franchise AVS commencent le mois civil suivant. Zentra ne déduit jamais cette date du sexe.")}
           >
             <input
               name="referenceAgeDate"
@@ -7347,8 +7312,8 @@ function EmployeeForm({
             />
           </Field>
           <Field
-            label="Franchise AVS après l’âge de référence"
-            hint="CHF 16’800/an, soit CHF 1’400 par mois civil entier ou entamé dès le mois suivant, sauf renonciation confirmée."
+            label={t("Franchise AVS après l’âge de référence")}
+            hint={t("CHF 16’800/an, soit CHF 1’400 par mois civil entier ou entamé dès le mois suivant, sauf renonciation confirmée.")}
           >
             <select
               name="avsAllowanceWaived"
@@ -7361,35 +7326,31 @@ function EmployeeForm({
                     : 'no'
               }
             >
-              <option value="">Choix à confirmer</option>
-              <option value="no">Franchise conservée</option>
-              <option value="yes">Renonciation confirmée</option>
+              <option value="">{t("Choix à confirmer")}</option>
+              <option value="no">{t("Franchise conservée")}</option>
+              <option value="yes">{t("Renonciation confirmée")}</option>
             </select>
           </Field>
           <section className="employee-small-salary-section field--wide">
             <header>
               <ShieldCheck size={18} />
               <div>
-                <strong>Choix de cotisation pour l’année</strong>
-                <p>
-                  Ce réglage aide à déterminer les cotisations sur les petits
-                  salaires. Recopiez les informations de votre déclaration ou
-                  de la confirmation écrite de votre caisse.
-                </p>
+                <strong>{t("Choix de cotisation pour l’année")}</strong>
+                <p>{t("Ce réglage aide à déterminer les cotisations sur les petits salaires. Recopiez les informations de votre déclaration ou de la confirmation écrite de votre caisse.")}</p>
               </div>
             </header>
             {!item && <div className="employee-annual-choice">
               <Button type="button" variant="secondary" disabled={busy} onClick={() => { setDeferAnnual(value => !value); setAnnualIssue(null); }}>
-                {deferAnnual ? 'Reprendre ce réglage maintenant' : 'Compléter ce réglage plus tard'}
+                {deferAnnual ? t("Reprendre ce réglage maintenant") : t("Compléter ce réglage plus tard")}
               </Button>
-              <p>{deferAnnual ? 'Vous pouvez ajouter le collaborateur. Ce réglage restera à compléter pour la paie. Vos réponses restent disponibles ici jusqu’à la fermeture du formulaire.' : 'Vous n’avez pas encore ce document ? Vous pouvez ajouter la personne et préparer ce réglage plus tard.'}</p>
+              <p>{deferAnnual ? t("Vous pouvez ajouter le collaborateur. Ce réglage restera à compléter pour la paie. Vos réponses restent disponibles ici jusqu’à la fermeture du formulaire.") : t("Vous n’avez pas encore ce document ? Vous pouvez ajouter la personne et préparer ce réglage plus tard.")}</p>
             </div>}
             <fieldset className="employee-annual-fields" disabled={busy || deferAnnual} hidden={deferAnnual}>
-            {annualIssue && annualIssue.field !== 'smallSalaryDecisionDate' && <div id="employee-annual-error" className="employee-annual-error" role="alert"><strong>Une information reste à compléter</strong><p>{annualIssue.message}</p></div>}
+            {annualIssue && annualIssue.field !== 'smallSalaryDecisionDate' && <div id="employee-annual-error" className="employee-annual-error" role="alert"><strong>{t("Une information reste à compléter")}</strong><p>{annualIssue.presentation ? t(annualIssue.presentation.source, annualIssue.presentation.values) : t(annualIssue.message)}</p></div>}
             <div className="form-grid">
               <Field
-                label="Année concernée"
-                hint="L’année pour laquelle vous confirmez ce choix, par exemple 2026."
+                label={t("Année concernée")}
+                hint={t("L’année pour laquelle vous confirmez ce choix, par exemple 2026.")}
               >
                 <input
                   name="smallSalaryAssessmentYear"
@@ -7402,8 +7363,8 @@ function EmployeeForm({
                 />
               </Field>
               <Field
-                label="Secteur d’activité"
-                hint="Le ménage privé et les arts/culture suivent des règles renforcées."
+                label={t("Secteur d’activité")}
+                hint={t("Le ménage privé et les arts/culture suivent des règles renforcées.")}
               >
                 <select
                   name="smallSalarySector"
@@ -7416,15 +7377,15 @@ function EmployeeForm({
                     )
                   }
                 >
-                  <option value="">À confirmer</option>
-                  <option value="ordinary">Secteur ordinaire</option>
-                  <option value="private_household">Ménage privé</option>
-                  <option value="arts_culture">Arts et culture</option>
+                  <option value="">{t("À confirmer")}</option>
+                  <option value="ordinary">{t("Secteur ordinaire")}</option>
+                  <option value="private_household">{t("Ménage privé")}</option>
+                  <option value="arts_culture">{t("Arts et culture")}</option>
                 </select>
               </Field>
               <Field
-                label="Le collaborateur a-t-il demandé à cotiser ?"
-                hint="Confirmez oui ou non. Une demande peut passer de non à oui pour l’avenir avec une nouvelle date; elle ne peut pas être retirée après coup."
+                label={t("Le collaborateur a-t-il demandé à cotiser ?")}
+                hint={t("Confirmez oui ou non. Une demande peut passer de non à oui pour l’avenir avec une nouvelle date; elle ne peut pas être retirée après coup.")}
               >
                 <select
                   name="smallSalaryEmployeeRequestedContributions"
@@ -7436,22 +7397,20 @@ function EmployeeForm({
                         : 'no'
                   }
                 >
-                  <option value="">À confirmer</option>
+                  <option value="">{t("À confirmer")}</option>
                   <option
                     value="no"
                     disabled={
                       item?.smallSalaryEmployeeRequestedContributions === true
                     }
-                  >
-                    Non, aucune demande
-                  </option>
-                  <option value="yes">Oui, demande confirmée</option>
+                  >{t("Non, aucune demande")}</option>
+                  <option value="yes">{t("Oui, demande confirmée")}</option>
                 </select>
               </Field>
-              {annualIssue?.field === 'smallSalaryDecisionDate' && <div id="employee-annual-error" className="employee-annual-error field--wide" role="alert"><strong>Vérifiez la date du choix de cotisation</strong><p>{annualIssue.message}</p></div>}
+              {annualIssue?.field === 'smallSalaryDecisionDate' && <div id="employee-annual-error" className="employee-annual-error field--wide" role="alert"><strong>{t("Vérifiez la date du choix de cotisation")}</strong><p>{annualIssue.presentation ? t(annualIssue.presentation.source, annualIssue.presentation.values) : t(annualIssue.message)}</p></div>}
               <Field
-                label="Date du choix de cotisation"
-                hint={`Recopiez la date figurant sur la déclaration ou la confirmation écrite de ce choix${/^\d{4}$/.test(assessmentYear) ? ` pour ${assessmentYear}` : ''}. Exemple : si ce choix a été confirmé le 12 janvier, sélectionnez le 12 janvier de l’année concernée.`}
+                label={t("Date du choix de cotisation")}
+                hint={/^\d{4}$/.test(assessmentYear) ? t("Recopiez la date figurant sur la déclaration ou la confirmation écrite de ce choix pour {year}. Exemple : si ce choix a été confirmé le 12 janvier, sélectionnez le 12 janvier de l’année concernée.", { year: assessmentYear }) : t("Recopiez la date figurant sur la déclaration ou la confirmation écrite de ce choix. Exemple : si ce choix a été confirmé le 12 janvier, sélectionnez le 12 janvier de l’année concernée.")}
               >
                 <input
                   name="smallSalaryDecisionDate"
@@ -7460,8 +7419,8 @@ function EmployeeForm({
                 />
               </Field>
               <Field
-                label="Salaire brut déjà versé avant Zentra (CHF)"
-                hint="Brut déjà payé durant cette année hors Zentra; saisissez 0 si aucun."
+                label={t("Salaire brut déjà versé avant Zentra (CHF)")}
+                hint={t("Brut déjà payé durant cette année hors Zentra; saisissez 0 si aucun.")}
               >
                 <input
                   name="smallSalaryOpeningGross"
@@ -7476,8 +7435,8 @@ function EmployeeForm({
                 />
               </Field>
               <Field
-                label="Salaire déjà soumis aux cotisations avant Zentra (CHF)"
-                hint="Part du brut d’ouverture déjà soumise; saisissez 0 si aucune."
+                label={t("Salaire déjà soumis aux cotisations avant Zentra (CHF)")}
+                hint={t("Part du brut d’ouverture déjà soumise; saisissez 0 si aucune.")}
               >
                 <input
                   name="smallSalaryOpeningContributedBasis"
@@ -7492,8 +7451,8 @@ function EmployeeForm({
                 />
               </Field>
               <Field
-                label="Document qui confirme ce choix"
-                hint="Ex. déclaration du salarié datée, décompte précédent ou contrôle écrit de la caisse."
+                label={t("Document qui confirme ce choix")}
+                hint={t("Ex. déclaration du salarié datée, décompte précédent ou contrôle écrit de la caisse.")}
                 wide
               >
                 <input
@@ -7503,42 +7462,23 @@ function EmployeeForm({
                 />
               </Field>
             </div>
-            <details className="employee-small-salary-section__rules"><summary>Comprendre ce réglage de cotisation</summary>
+            <details className="employee-small-salary-section__rules"><summary>{t("Comprendre ce réglage de cotisation")}</summary>
               <p>
-                <strong>Secteur ordinaire.</strong> Jusqu’à CHF 2’500 par an,
-                aucune cotisation sans demande; au dépassement, le rattrapage
-                porte sur le salaire annuel total.
-              </p>
+                <strong>{t("Secteur ordinaire.")}</strong>{t(" Jusqu’à CHF 2’500 par an, aucune cotisation sans demande; au dépassement, le rattrapage porte sur le salaire annuel total.")}</p>
               <p>
-                <strong>Ménage privé et arts/culture.</strong> Cotisations dès
-                le premier franc, sauf en ménage privé jusqu’au 31 décembre
-                suivant le 25e anniversaire et jusqu’à CHF 750, sans demande du
-                salarié.
-              </p>
+                <strong>{t("Ménage privé et arts/culture.")}</strong>{t(" Cotisations dès le premier franc, sauf en ménage privé jusqu’au 31 décembre suivant le 25e anniversaire et jusqu’à CHF 750, sans demande du salarié.")}</p>
               <p>
-                <strong>Décision et franchise.</strong> Une demande tardive ne
-                s’applique que prospectivement à compter de sa date et ne
-                rattrape pas les salaires déjà payés sous le seuil. Un
-                dépassement ultérieur rend toutefois le salaire annuel total
-                cotisable. Les cotisations versées ne sont pas remboursables et
-                la dispense ne se cumule pas avec la franchise AVS après l’âge
-                de référence.
-              </p>
+                <strong>{t("Décision et franchise.")}</strong>{t(" Une demande tardive ne s’applique que prospectivement à compter de sa date et ne rattrape pas les salaires déjà payés sous le seuil. Un dépassement ultérieur rend toutefois le salaire annuel total cotisable. Les cotisations versées ne sont pas remboursables et la dispense ne se cumule pas avec la franchise AVS après l’âge de référence.")}</p>
               <p>
-                <strong>Après une fiche payée.</strong> L’année, le secteur et
-                les ouvertures restent figés. Seul le passage de « non » à
-                « oui » est admis, avec une date postérieure aux versements
-                antérieurs; le retour de « oui » à « non » est refusé par le
-                moteur.
-              </p>
+                <strong>{t("Après une fiche payée.")}</strong>{t(" L’année, le secteur et les ouvertures restent figés. Seul le passage de « non » à « oui » est admis, avec une date postérieure aux versements antérieurs; le retour de « oui » à « non » est refusé par le moteur.")}</p>
             </details>
             </fieldset>
           </section>
 </div></details>
         </fieldset>
         <div className="payroll-actions">
-          <Button type="button" variant="ghost" disabled={pending} onClick={() => { if (savingRef.current) return; fieldGuide.clear(); setAnnualIssue(null); setLocalError(''); if (step > 0) setStep(step - 1); else close(); }}>{step > 0 ? 'Retour' : 'Annuler'}</Button>
-          <Button type="submit" disabled={pending}>{pending ? 'Enregistrement…' : step < 2 ? 'Continuer' : item ? 'Enregistrer les modifications' : 'Ajouter le collaborateur'}</Button>
+          <Button type="button" variant="ghost" disabled={pending} onClick={() => { if (savingRef.current) return; fieldGuide.clear(); setAnnualIssue(null); setLocalError(''); if (step > 0) setStep(step - 1); else close(); }}>{step > 0 ? t("Retour") : t("Annuler")}</Button>
+          <Button type="submit" disabled={pending}>{pending ? t("Enregistrement…") : step < 2 ? t("Continuer") : item ? t("Enregistrer les modifications") : t("Ajouter le collaborateur")}</Button>
         </div>
       </form>
     </Modal>

@@ -6,7 +6,11 @@
 .employee-document-import__reading { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-basis: 100%; }
 .employee-document-import__reading > span { display: flex; gap: 10px; align-items: center; font-size: 13px; }
 .employee-document-import__reading svg { flex-shrink: 0; }
-.employee-document-import p.employee-document-import__error { color: #a13125; flex-basis: 100%; }
+.employee-document-import__error { color: #a13125; flex-basis: 100%; min-width:0; overflow-wrap:anywhere; }
+.employee-document-import__error > p { color:inherit; }
+.employee-document-import__error summary { cursor:pointer; font-size:13px; padding-block:12px; }
+.employee-save-details { margin-block:12px 18px; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.employee-save-details summary { cursor:pointer; padding-block:10px; }
 .employee-document-import__notice { flex-basis: 100%; }
 .employee-prefill-notes { font-size: 13px; line-height: 1.6; margin-bottom: 22px; color: #674e21; }
 @media (max-width: 600px) { .employee-document-import > button { width: 100%; } .employee-document-import__reading { align-items: flex-start; } }

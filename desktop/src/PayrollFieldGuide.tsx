@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { t, useAppLanguage } from './language';
+import { t, useAppLanguage, type InterfaceMessage } from './language';
 import { payrollDateValidity, payrollFieldMessage, type PayrollFieldValidation } from './payrollFieldLanguage';
 import { createPortal } from 'react-dom';
 import { Button } from './ui';
@@ -20,7 +20,7 @@ export function usePayrollFieldGuide() {
   const control = useRef<Control | null>(null);
   const cleanup = useRef<(() => void) | null>(null);
   useEffect(() => () => cleanup.current?.(), []);
-  const [issue, setIssue] = useState<{ message: string; validation?: PayrollFieldValidation } | null>(
+  const [issue, setIssue] = useState<{ message: string; validation?: PayrollFieldValidation; presentation?: InterfaceMessage } | null>(
     null,
   );
   useLayoutEffect(() => { if (issue) reveal(); }, [issue]);
@@ -65,7 +65,7 @@ export function usePayrollFieldGuide() {
       }
     }
   }
-  function reject(field: Control, message: string, validation?: PayrollFieldValidation) {
+  function showIssue(field: Control, message: string, validation?: PayrollFieldValidation, presentation?: InterfaceMessage) {
     clear();
     control.current = field;
     field.setAttribute('aria-invalid', 'true');
@@ -86,14 +86,17 @@ export function usePayrollFieldGuide() {
       field.removeEventListener('change', editing);
       clearTimeout(timer);
     };
-    setIssue({ message, validation });
+    setIssue({ message, validation, presentation });
   }
-  function check(form: HTMLElement) {
-    const field = [...form.querySelectorAll<Control>('input, select, textarea')].find(candidate => {
+  function firstInvalid(form: HTMLElement) {
+    return [...form.querySelectorAll<Control>('input, select, textarea')].find(candidate => {
       if (!candidate.willValidate) return false;
       const fallback = dateFallback(candidate);
       return !candidate.validity.valid || fallback && (fallback.typeMismatch || fallback.rangeUnderflow || fallback.rangeOverflow);
     });
+  }
+  function check(form: HTMLElement) {
+    const field = firstInvalid(form);
     if (!field) {
       clear();
       return true;
@@ -110,13 +113,15 @@ export function usePayrollFieldGuide() {
       ...dateFallback(field),
     };
     // Raw French stays available to existing routing and assistant classifiers.
-    reject(field, payrollFieldMessage(validation, 'fr'), validation);
+    showIssue(field, payrollFieldMessage(validation, 'fr'), validation);
     return false;
   }
-  const explanation = issue ? issue.validation ? payrollFieldMessage(issue.validation, language) : t(issue.message) : '';
+  const explanation = issue ? issue.validation ? payrollFieldMessage(issue.validation, language)
+    : issue.presentation ? t(issue.presentation.source, issue.presentation.values) : t(issue.message) : '';
   return {
     check,
-    reject,
+    firstInvalid,
+    reject: (field: Control, message: string, presentation?: InterfaceMessage) => showIssue(field, message, undefined, presentation),
     clear,
     message: issue?.message ?? '',
     guide: issue ? (<>

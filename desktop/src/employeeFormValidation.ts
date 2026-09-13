@@ -1,4 +1,6 @@
-export type EmployeeFieldIssue = { field: string; message: string };
+import type { InterfaceMessage } from './language';
+
+export type EmployeeFieldIssue = { field: string; message: string; presentation?: InterfaceMessage };
 
 /** Explain the existing employee constraints before sending the whole form. */
 export function employeeFormIssue(form: FormData, section: 'work' | 'all', newEmployee = false): EmployeeFieldIssue | null {
@@ -20,6 +22,10 @@ export function employeeFormIssue(form: FormData, section: 'work' | 'all', newEm
       message: text(year)
         ? `Il manque le montant pour ${text(year)}. Recopiez-le depuis ${document}.${newEmployee ? ' Pour compléter plus tard, laissez l’année et le montant vides.' : ''}`
         : `Il manque l’année de ce montant. Recopiez-la depuis ${document}.${newEmployee ? ' Pour compléter plus tard, laissez l’année et le montant vides.' : ''}`,
+      presentation: text(year) ? {
+        source: `Il manque le montant pour {year}. Recopiez-le depuis ${document}.${newEmployee ? ' Pour compléter plus tard, laissez l’année et le montant vides.' : ''}`,
+        values: { year: text(year) },
+      } : undefined,
     };
   }
   if (!text('lppExceptionCode') && text('lppExceptionEvidenceReference')) return { field: 'lppExceptionCode', message: 'Une preuve est renseignée : choisissez l’exception qu’elle confirme. Sans exception, retirez aussi sa référence.' };

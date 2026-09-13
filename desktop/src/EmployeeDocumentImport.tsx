@@ -1,11 +1,14 @@
+import { t, useAppLanguage } from './language';
 import { useEffect, useRef, useState } from 'react';
 import { FileUp, LoaderCircle, X } from 'lucide-react';
+import { employeeDocumentErrorMessage, employeeDocumentProgress } from './employeeLanguage';
 import { Button } from './ui';
 import type { EmployeeDocumentDraft } from './employeeDocumentDraft';
 import type { payrollLocalAi as LocalAi } from './payrollLocalAi';
 import './EmployeeDocumentImport.css';
 
 export function EmployeeDocumentImport({ onRead, disabled }: { onRead: (draft: EmployeeDocumentDraft) => void; disabled: boolean }) {
+  useAppLanguage();
   const input = useRef<HTMLInputElement>(null);
   const engine = useRef<typeof LocalAi | null>(null);
   const generation = useRef(0);
@@ -55,13 +58,13 @@ export function EmployeeDocumentImport({ onRead, disabled }: { onRead: (draft: E
       if (generation.current === current) { engine.current?.cancel(); engine.current = null; setWorking(false); }
     }
   }
-  return <section className="employee-document-import" aria-label="Remplir depuis une fiche de salaire">
-    <div><strong>Vous avez déjà une fiche de salaire ?</strong><p>Importez-la pour préremplir ce formulaire. Le document reste sur votre appareil.</p></div>
+  return <section className="employee-document-import" aria-label={t("Remplir depuis une fiche de salaire")}>
+    <div><strong>{t("Vous avez déjà une fiche de salaire ?")}</strong><p>{t("Importez-la pour préremplir ce formulaire. Le document reste sur votre appareil.")}</p></div>
     <input ref={input} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" hidden onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void read(file); }} />
-    {working ? <div className="employee-document-import__reading"><span role="status"><LoaderCircle className="spin" size={16} /> {progress.label}{progress.percent === null ? '' : ` · ${Math.round(progress.percent)} %`}</span><Button type="button" variant="ghost" onClick={cancel}><X size={15} /> Annuler</Button></div>
-      : <Button type="button" variant="secondary" disabled={disabled} onClick={() => input.current?.click()}><FileUp size={16} /> Lire une fiche de salaire</Button>}
-    {!working && !notice && !error ? <small>Qwen · téléchargement initial de 429 Mo, puis lecture locale.</small> : null}
-    {notice ? <p className="employee-document-import__notice" role="status">{notice}</p> : null}
-    {error ? <p className="employee-document-import__error" role="alert">{error}</p> : null}
+    {working ? <div className="employee-document-import__reading"><span role="status"><LoaderCircle className="spin" size={16} /> {employeeDocumentProgress(progress.label)}{progress.percent === null ? '' : ` · ${Math.round(progress.percent)} %`}</span><Button type="button" variant="ghost" onClick={cancel}><X size={15} />{t(" Annuler")}</Button></div>
+      : <Button type="button" variant="secondary" disabled={disabled} onClick={() => input.current?.click()}><FileUp size={16} />{t(" Lire une fiche de salaire")}</Button>}
+    {!working && !notice && !error ? <small>{t("Qwen · téléchargement initial de 429 Mo, puis lecture locale.")}</small> : null}
+    {notice ? <p className="employee-document-import__notice" role="status">{t(notice)}</p> : null}
+    {error ? <div className="employee-document-import__error"><p role="alert">{employeeDocumentErrorMessage(error)}</p><details><summary>{t('Voir le message détaillé')}</summary><p>{error}</p></details></div> : null}
   </section>;
 }
