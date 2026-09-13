@@ -184,6 +184,7 @@ pub fn run() {
             add_expense_refund_attachment,
             create_record,
             update_record,
+            update_catalog_item,
             delete_record,
             import_catalog_items,
             save_project_milestone,
@@ -10856,6 +10857,10 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     mod stock_count_tests {
         use super::{initialized_store, tracked_product, value_id};
         include!("stock_count_tests.rs");
+    }
+    mod catalog_form_tests {
+        use super::{initialized_store, tracked_product, value_id};
+        include!("catalog_form_tests.rs");
     }
 
     fn tracked_product(store: &LocalStore, name: &str, reorder_level_milli: i64) -> String {

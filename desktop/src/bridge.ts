@@ -1,5 +1,6 @@
 import { requireAgendaWorkspace } from './agendaForm';
 import { runStockMutation } from './stockWorkflow';
+import { runCatalogSave, type CatalogData } from './catalogForm';
 import { deliverPdfExport } from './pdfExportDelivery';
 import { documentCompositions } from './documentComposition';
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
@@ -4946,6 +4947,11 @@ export const desktopApi = {
       data: toBackendData(data),
     });
     return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async saveCatalogItem(id: string, data: CatalogData, expectedUpdatedAt?: string) {
+    return runCatalogSave(id, data, () => expectedUpdatedAt !== undefined
+      ? invoke('update_catalog_item', { id, data: toBackendData(data), expectedUpdatedAt })
+      : createRecord('catalog_items', toBackendData({ ...data, id })), loadWorkspace, expectedUpdatedAt === undefined);
   },
   async saveProjectMilestone(input: {
     id?: string;

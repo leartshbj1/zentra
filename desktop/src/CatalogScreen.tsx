@@ -19,11 +19,8 @@ import {
   type CatalogImportConflictPolicy,
 } from './CatalogImportWizard';
 import type { CatalogImportRow } from './catalogImport';
-import { desktopApi } from './bridge';
 import { availabilityForCatalogItem } from './orderFlow';
 import {
-  catalogQuantityFromInput,
-  catalogStockData,
   filterCatalogItems,
   formatCatalogQuantity,
   isCatalogItemLowOnStock,
@@ -32,35 +29,22 @@ import {
   type CatalogVisibilityFilter,
 } from './catalog';
 import type {
-  AppSettings,
   CatalogItem,
   StockMovement,
   StockMovementType,
   StockAvailability,
   StockReservationEvent,
-  Workspace,
 } from './types';
 import {
-  centsFromInput,
   formatDate,
   formatMoney,
 } from './utils';
 import {
   Button,
   EmptyState,
-  Field,
-  FormActions,
-  Modal,
   SectionHeading,
   StatusBadge,
-  submitForm,
 } from './ui';
-
-type ActionRunner = (
-  action: () => Promise<Workspace>,
-  message: string,
-  close?: boolean,
-) => Promise<boolean>;
 
 export function CatalogScreen({
   items,
@@ -179,7 +163,7 @@ export function CatalogScreen({
               type="search"
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="Nom, SKU, description…"
+              placeholder="Nom, référence, description…"
             />
           </label>
           <label>
@@ -245,7 +229,7 @@ export function CatalogScreen({
                     </small>
                   </div>
                   <div className="catalog-item__price">
-                    <span>Prix de vente</span>
+                    <span>Prix de vente hors TVA</span>
                     <strong>{formatMoney(item.salesPriceCents)}</strong>
                     <small>Coût {formatMoney(item.purchaseCostCents)}</small>
                   </div>
@@ -253,7 +237,7 @@ export function CatalogScreen({
                     <span>{tracked ? 'Quantités' : 'Suivi de stock'}</span>
                     {tracked ? (
                       <div className="catalog-stock-balances" aria-label={`Stock de ${item.name}`}>
-                        <small><span>En main</span><strong>{formatCatalogQuantity(stock.onHandMilli)}</strong></small>
+                        <small><span>Présent</span><strong>{formatCatalogQuantity(stock.onHandMilli)}</strong></small>
                         <small><span>Réservé</span><strong>{formatCatalogQuantity(stock.reservedMilli)}</strong></small>
                         <small><span>Disponible</span><strong>{formatCatalogQuantity(stock.availableMilli)}</strong></small>
                       </div>
@@ -268,9 +252,9 @@ export function CatalogScreen({
                     ) : tracked ? (
                       <small>Seuil {formatCatalogQuantity(item.reorderLevelMilli)}</small>
                     ) : item.kind === 'service' ? (
-                      <small>Jamais mouvementé</small>
+                      <small>Prestation sans stock</small>
                     ) : (
-                      <small>Enregistrez la fiche pour l’activer</small>
+                      <small>Suivi désactivé dans la fiche</small>
                     )}
                   </div>
                   <div className="catalog-item__state">
@@ -461,184 +445,4 @@ function formatSignedQuantity(quantityMilli: number): string {
 
 export { StockMovementForm } from './StockMovementForm';
 
-export function CatalogItemForm({
-  item,
-  settings,
-  busy,
-  close,
-  act,
-}: {
-  item?: CatalogItem;
-  settings: AppSettings;
-  busy: boolean;
-  close: () => void;
-  act: ActionRunner;
-}) {
-  const [kind, setKind] = useState<CatalogItem['kind']>(item?.kind ?? 'service');
-  const vatRates = settings.organization.vatRegistered
-    ? settings.billing.vatRatesBp
-    : [0];
-  const defaultVat = item?.vatBp
-    ?? (settings.organization.vatRegistered ? settings.billing.vatRatesBp[0] ?? 0 : 0);
-
-  return (
-    <Modal
-      title={item ? `Modifier ${item.name}` : 'Nouveau produit ou service'}
-      description="Les valeurs choisies seront copiées dans chaque nouvelle ligne; les documents existants ne changeront jamais."
-      onClose={close}
-      wide
-    >
-      <form
-        onSubmit={submitForm(async (form) => {
-          const stockData = catalogStockData(
-            kind,
-            catalogQuantityFromInput(form.get('reorderLevel')),
-            Boolean(item),
-          );
-          const data = {
-            kind,
-            sku: String(form.get('sku')).trim() || null,
-            name: String(form.get('name')).trim(),
-            description: String(form.get('description')).trim(),
-            unit: String(form.get('unit')).trim(),
-            salesPriceCents: centsFromInput(form.get('salesPrice')),
-            purchaseCostCents: centsFromInput(form.get('purchaseCost')),
-            vatBp: Number(form.get('vatBp')),
-            ...stockData,
-          };
-          await act(
-            () => item
-              ? desktopApi.updateEntity('catalogItems', item.id, data)
-              : desktopApi.createEntity('catalogItems', data),
-            item
-              ? 'La référence du catalogue a été mise à jour sans modifier son solde.'
-              : kind === 'product'
-                ? 'Le produit suivi a été créé avec un stock de 0,000. Utilisez ensuite Entrée pour enregistrer le stock d’ouverture.'
-                : 'Le service a été ajouté au catalogue sans suivi de stock.',
-          );
-        })}
-      >
-        <div className="catalog-kind-picker" role="radiogroup" aria-label="Type de référence">
-          <label className={kind === 'product' ? 'is-selected' : ''}>
-            <input
-              type="radio"
-              name="kind"
-              value="product"
-              checked={kind === 'product'}
-              onChange={() => setKind('product')}
-            />
-            <Box size={19} />
-            <span>
-              <strong>Produit</strong>
-              <small>Bien vendu avec solde et mouvements de stock réels</small>
-            </span>
-          </label>
-          <label className={kind === 'service' ? 'is-selected' : ''}>
-            <input
-              type="radio"
-              name="kind"
-              value="service"
-              checked={kind === 'service'}
-              onChange={() => setKind('service')}
-            />
-            <Wrench size={19} />
-            <span>
-              <strong>Service</strong>
-              <small>Prestation qui ne suit et ne mouvemente jamais le stock</small>
-            </span>
-          </label>
-        </div>
-        <div className="form-grid">
-          <Field label="Nom" required wide>
-            <input name="name" defaultValue={item?.name} maxLength={200} required autoFocus />
-          </Field>
-          <Field label="Référence / SKU" hint="Facultative, mais utile pour la recherche.">
-            <input name="sku" defaultValue={item?.sku ?? ''} maxLength={80} />
-          </Field>
-          <Field label="Unité" required hint="Ex. pièce, heure, forfait, m²">
-            <input name="unit" defaultValue={item?.unit} maxLength={40} required />
-          </Field>
-          <Field label="Description" wide>
-            <textarea name="description" rows={3} defaultValue={item?.description} maxLength={2_000} />
-          </Field>
-          <Field label="Prix de vente (CHF)" required>
-            <input
-              name="salesPrice"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={item ? item.salesPriceCents / 100 : ''}
-              required
-            />
-          </Field>
-          <Field label="Coût d’achat (CHF)" required hint="Utilisé pour votre référence interne.">
-            <input
-              name="purchaseCost"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={item ? item.purchaseCostCents / 100 : '0'}
-              required
-            />
-          </Field>
-          <Field label="TVA" required>
-            <select name="vatBp" defaultValue={defaultVat} required>
-              {vatRates.map((rate) => (
-                <option key={rate} value={rate}>
-                  {rate === 0
-                    ? '0 % · exonéré / non assujetti'
-                    : `${(rate / 100).toLocaleString('fr-CH')} %`}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        {kind === 'product' ? (
-          <section className="catalog-stock-form">
-            <div className="catalog-stock-form__notice">
-              <Package size={19} />
-              <div>
-                <strong>Stock suivi par mouvements</strong>
-                <p>
-                  {item
-                    ? `Solde actuel : ${formatCatalogQuantity(item.stockQuantityMilli)} ${item.unit}. Il n’est jamais modifié depuis cette fiche.`
-                    : 'Le produit sera créé avec un stock de 0,000. Enregistrez ensuite une Entrée pour son stock d’ouverture.'}
-                </p>
-              </div>
-            </div>
-            <div className="form-grid">
-              <Field label="Seuil d’alerte" required hint="Alerte lorsque le solde atteint ou passe sous ce seuil.">
-                <input
-                  name="reorderLevel"
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  defaultValue={item ? item.reorderLevelMilli / 1_000 : '0'}
-                  required
-                />
-              </Field>
-            </div>
-          </section>
-        ) : (
-          <div className="info-strip catalog-service-stock-note">
-            <ShieldCheck size={17} />
-            <span>Un service ne suit jamais de quantité et ne peut recevoir aucun mouvement de stock.</span>
-          </div>
-        )}
-        {item?.archivedAt ? (
-          <div className="info-strip">
-            <Archive size={17} />
-            <span>
-              Cette référence est archivée. Elle reste modifiable pour l’historique, mais n’est plus proposée dans les nouveaux documents.
-            </span>
-          </div>
-        ) : null}
-        <FormActions
-          onCancel={close}
-          busy={busy}
-          submitLabel={item ? 'Enregistrer les modifications' : 'Ajouter au catalogue'}
-        />
-      </form>
-    </Modal>
-  );
-}
+export { CatalogItemForm } from './CatalogItemForm';

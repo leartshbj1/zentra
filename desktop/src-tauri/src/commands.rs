@@ -299,6 +299,13 @@ pub fn update_record(
 }
 
 #[tauri::command]
+pub fn update_catalog_item(state: State<'_, LocalStore>, id: String, data: Value, expected_updated_at: String) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.update_catalog_item(&id, data, &expected_updated_at).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn delete_record(
     state: State<'_, LocalStore>,
     entity: String,

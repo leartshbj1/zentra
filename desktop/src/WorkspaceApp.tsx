@@ -97,6 +97,7 @@ import {
 import { desktopApi, type CloudAccountState } from './bridge';
 import { WorkspaceRefreshAfterMutationError, refreshWorkspaceAfterMutation } from './workspaceMutation';
 import { requireStockWorkspace, WorkspaceStockOutcomeUnknownError, WorkspaceStockRefreshError } from './stockWorkflow';
+import { CatalogSaveRefreshError } from './catalogForm';
 import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
 import { paymentInput } from './salesFormValidation';
 import { PayslipPostingRefreshError } from './payrollMutation';
@@ -944,7 +945,7 @@ export function WorkspaceApp({
       return true;
     } catch (reason) {
       const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError) reason.validateRead(value); validateRead?.(value); };
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
@@ -2412,7 +2413,6 @@ function CreateButton({
   const map: Partial<Record<View, [string, ModalState]>> = {
     projects: [`Nouveau ${terminology.singular}`, { type: 'project' }],
     clients: ['Nouveau client', { type: 'client' }],
-    catalog: ['Nouvelle référence', { type: 'catalogItem' }],
     quotes: ['Nouveau devis', { type: 'document', entity: 'quotes' }],
     invoices: ['Nouvelle facture', { type: 'document', entity: 'invoices' }],
     time: ['Saisir des heures', { type: 'time' }],
@@ -6273,8 +6273,10 @@ function WorkspaceModal({
     return (
       <CatalogItemForm
         item={state.item}
-        settings={workspace.settings!}
+        workspace={workspace}
         busy={busy}
+        readOnly={readOnly}
+        onReadWorkspace={onReadWorkspace}
         close={close}
         act={act}
       />

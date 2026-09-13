@@ -1,5 +1,6 @@
 import { installAgendaGuidedFixture } from './agenda-guided-fixture';
 import { installStockGuidedFixture } from './stock-guided-fixture';
+import { installCatalogFormFixture } from './catalog-form-fixture';
 import { installPlanningGuidedFixture } from './planning-guided-fixture';
 import { installAccountingSetupFixture } from './accounting-setup-fixture';
 import { installAssistantFixture } from './assistant-fixture';
@@ -217,6 +218,7 @@ if (new URLSearchParams(location.search).has('payslipPosting')) installPayslipPo
 if (new URLSearchParams(location.search).has('settingsRecovery')) installSettingsRecoveryFixture(data);
 if (new URLSearchParams(location.search).has('agendaGuided')) installAgendaGuidedFixture(data);
 if (new URLSearchParams(location.search).has('stockGuided')) installStockGuidedFixture(data);
+if (new URLSearchParams(location.search).has('catalogForm')) installCatalogFormFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
@@ -226,6 +228,7 @@ function Harness() {
     __qaReloadPurchases: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; return next; },
   });
   const [projectAccount, setProjectAccount] = useState('');
+  if (new URLSearchParams(location.search).has('catalogForm')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaCatalogRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('stockGuided')) Object.assign(window, {__qaSetReadOnly:setReadOnly,__qaStockRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if (new URLSearchParams(location.search).has('projectNavigation')) Object.assign(window, {
     __qaSetReadOnly: setReadOnly, __qaSetProjectAccount: setProjectAccount,

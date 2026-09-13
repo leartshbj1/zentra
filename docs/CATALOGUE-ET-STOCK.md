@@ -2,6 +2,20 @@
 
 Dans **Produits & services**, chaque produit suivi affiche la quantité présente, les réservations des commandes et la quantité encore disponible. Les services restent sans stock.
 
+## Ajouter ou modifier une référence
+
+Le bouton **Nouvelle référence** se trouve dans la rubrique Produits & services. Choisissez **Service** pour une prestation ou **Produit** pour un bien. Renseignez le nom, l’unité et le prix de vente pour une unité, en CHF **hors TVA**. Les boutons heure, forfait, pièce, litre, etc. remplissent l’unité ; une unité personnalisée reste possible.
+
+Le récapitulatif montre le prix hors TVA, la TVA ajoutée et le total pour une unité sans remise. Les taux proposés reprennent les réglages de l’entreprise. Un ancien taux reste affiché pour éviter de le remplacer silencieusement ; si l’entreprise est configurée comme non assujettie, choisissez 0 % avant d’enregistrer. Le libellé « aucune TVA ajoutée » ne détermine pas à lui seul la qualification fiscale de l’opération. Les taux légaux et leurs domaines d’application sont décrits par [l’AFC](https://www.estv.admin.ch/fr/taux-de-la-tva-suisse).
+
+**Référence, description et coût d’achat** regroupe les champs facultatifs. La description accepte les retours à la ligne et jusqu’à 10 000 caractères. Le coût est un repère interne ; un champ vide est enregistré à zéro. Il ne crée ni facture fournisseur ni TVA récupérable. Les prix acceptent un point ou une virgule et deux décimales au maximum ; une valeur incorrecte est expliquée au champ concerné au lieu d’être remplacée par zéro.
+
+Pour un produit, **Suivre les quantités en stock** active ou conserve le suivi. Le seuil d’alerte compare les quantités disponibles après réservations. Zéro conserve l’alerte de rupture. Dès qu’un historique existe, le type et le suivi sont conservés ; une prestation distincte nécessite une nouvelle référence. Changer le libellé de l’unité ne convertit pas les quantités déjà enregistrées : conservez la même unité physique.
+
+**Actualiser la fiche** relit ses données sans remplacer votre saisie. Si elle a changé, la comparaison affiche vos valeurs et les valeurs actuelles. **Conserver ma saisie** garde les champs que vous avez modifiés et reprend les changements indépendants des autres champs. **Utiliser les valeurs actuelles** reprend toute la fiche relue. Ces choix ne sauvegardent rien : vérifiez puis enregistrez. Le moteur natif compare également la version dans la transaction ; deux modifications fondées sur la même version ne peuvent pas toutes deux l’écraser.
+
+Une réponse perdue est vérifiée par relecture. Après acquittement, une lecture interrompue, une configuration vide ou une référence absente garde la reprise ouverte. Les reprises n’envoient pas de nouvelle création ou modification et restent accessibles en lecture seule. Les saisies non enregistrées sont conservées tant que le formulaire est ouvert ; elles ne constituent pas un brouillon persistant après fermeture de l’application. La nouvelle fiche guidée et sa commande de modification sont ajoutées après 1.59.0 et nécessitent une nouvelle compilation native.
+
 ## Enregistrer une arrivée ou une sortie
 
 1. Sur le produit, choisissez **Entrée** ou **Sortie**.

@@ -2914,6 +2914,17 @@ impl LocalStore {
     }
 
     pub fn update_record(&self, entity: &str, id: &str, data: Value) -> AppResult<Value> {
+        self.update_record_checked(entity, id, data, None)
+    }
+
+    pub fn update_catalog_item(&self, id: &str, data: Value, expected_updated_at: &str) -> AppResult<Value> {
+        if expected_updated_at.trim().is_empty() {
+            return Err(AppError::Validation("Relisez la fiche du catalogue avant de la modifier.".into()));
+        }
+        self.update_record_checked("catalog_items", id, data, Some(expected_updated_at))
+    }
+
+    fn update_record_checked(&self, entity: &str, id: &str, data: Value, expected_updated_at: Option<&str>) -> AppResult<Value> {
         if id.trim().is_empty() {
             return Err(AppError::Validation("id est obligatoire.".into()));
         }
@@ -2929,6 +2940,9 @@ impl LocalStore {
         validate_keys(&object, spec.fields)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let previous = query_record_tx(&transaction, spec.table, id)?;
+        if expected_updated_at.is_some_and(|expected| previous.get("updated_at").and_then(Value::as_str) != Some(expected)) {
+            return Err(AppError::Validation("La fiche du catalogue a changé. Relisez sa version actuelle avant d’enregistrer vos modifications.".into()));
+        }
         ensure_record_mutable(&transaction, entity, &previous)?;
         normalize_record_patch(entity, &mut object, &previous)?;
         if entity == "time_entries" {
