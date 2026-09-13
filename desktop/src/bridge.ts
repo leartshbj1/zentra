@@ -1,3 +1,4 @@
+import { requireAgendaWorkspace } from './agendaForm';
 import { deliverPdfExport } from './pdfExportDelivery';
 import { documentCompositions } from './documentComposition';
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
@@ -5045,11 +5046,11 @@ export const desktopApi = {
         employee_id: input.employeeId,
       },
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(async () => { const next = await loadWorkspace(); requireAgendaWorkspace(next); return next; });
   },
   async deleteAgendaEvent(id: string, expectedUpdatedAt: string) {
     await invoke('delete_agenda_event', { id, expectedUpdatedAt });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(async () => { const next = await loadWorkspace(); requireAgendaWorkspace(next); return next; });
   },
   async recordStockEntry(input: {
     requestId: string;

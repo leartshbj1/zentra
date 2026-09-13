@@ -27,26 +27,12 @@ import {
   type AgendaItem,
 } from './agenda';
 import type { AgendaEvent, Workspace } from './types';
-import { Button, EmptyState, Field, FormActions, Modal, ReadOnlyFormScope, StatusBadge } from './ui';
-import { createId, formatDate, todayIso } from './utils';
-
-export type AgendaEventDraft = {
-  id: string;
-  isNew: boolean;
-  expectedUpdatedAt: string | null;
-  title: string;
-  startDate: string;
-  endDate: string;
-  allDay: boolean;
-  startTime: string | null;
-  endTime: string | null;
-  kind: AgendaEvent['kind'];
-  status: AgendaEvent['status'];
-  location: string;
-  notes: string;
-  projectId: string | null;
-  employeeId: string | null;
-};
+import { Button, EmptyState, ReadOnlyFormScope, StatusBadge } from './ui';
+import { AgendaEditor } from './AgendaEditor';
+import { AgendaActionDialog } from './AgendaActionDialog';
+import { eventDraft, type AgendaEventDraft, type AgendaErrorHandler } from './agendaForm';
+export type { AgendaEventDraft } from './agendaForm';
+import { formatDate, todayIso } from './utils';
 
 const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 type AgendaDisplay = 'day' | 'week' | 'month';
@@ -66,44 +52,6 @@ const sourceLabels: Record<AgendaItem['source'], string> = {
   supplier_invoice: 'Facture fournisseur',
   payslip: 'Salaire',
 };
-
-function eventDraft(event?: AgendaEvent, date = todayIso()): AgendaEventDraft {
-  return event
-    ? {
-        id: event.id,
-        isNew: false,
-        expectedUpdatedAt: event.updatedAt,
-        title: event.title,
-        startDate: event.startDate,
-        endDate: event.endDate,
-        allDay: event.allDay,
-        startTime: event.startTime,
-        endTime: event.endTime,
-        kind: event.kind,
-        status: event.status,
-        location: event.location,
-        notes: event.notes,
-        projectId: event.projectId,
-        employeeId: event.employeeId,
-      }
-    : {
-        id: createId(),
-        isNew: true,
-        expectedUpdatedAt: null,
-        title: '',
-        startDate: date,
-        endDate: date,
-        allDay: false,
-        startTime: '09:00',
-        endTime: '10:00',
-        kind: 'appointment',
-        status: 'scheduled',
-        location: '',
-        notes: '',
-        projectId: null,
-        employeeId: null,
-      };
-}
 
 function eventDraftFromAgendaItem(item: AgendaItem): AgendaEventDraft | null {
   return item.event ? eventDraft(item.event) : null;
@@ -132,8 +80,8 @@ export function AgendaScreen({
   workspace: Workspace;
   busy: boolean;
   readOnly: boolean;
-  onSave: (draft: AgendaEventDraft) => Promise<boolean>;
-  onDelete: (event: AgendaEvent) => Promise<boolean>;
+  onSave: (draft: AgendaEventDraft, onError?: AgendaErrorHandler) => Promise<boolean>;
+  onDelete: (event: AgendaEvent, onError?: AgendaErrorHandler) => Promise<boolean>;
   onNavigate: (item: AgendaItem) => void;
 }) {
   const [today, setToday] = useState(() => todayIso());
@@ -143,6 +91,7 @@ export function AgendaScreen({
   const [category, setCategory] = useState<AgendaCategory | 'all'>('all');
   const [includeClosed, setIncludeClosed] = useState(false);
   const [editor, setEditor] = useState<AgendaEventDraft | null>(null);
+  const [action, setAction] = useState<{ event: AgendaEvent; kind: 'complete' | 'delete' } | null>(null);
   const allItems = useMemo(() => buildAgendaItems(workspace), [workspace]);
   const items = useMemo(
     () => filteredItems(allItems, category, includeClosed),
@@ -380,16 +329,8 @@ export function AgendaScreen({
                     const draft = eventDraftFromAgendaItem(item);
                     if (draft) setEditor(draft);
                   }}
-                  onComplete={async () => {
-                    const draft = eventDraftFromAgendaItem(item);
-                    if (!draft) return;
-                    await onSave({ ...draft, status: 'completed' });
-                  }}
-                  onDelete={async () => {
-                    if (!item.event) return;
-                    if (!window.confirm(`Supprimer le rendez-vous « ${item.title} » ?`)) return;
-                    await onDelete(item.event);
-                  }}
+                  onComplete={() => { if (item.event && !busy && !readOnly) setAction({event:item.event,kind:'complete'}); }}
+                  onDelete={() => { if (item.event && !busy && !readOnly) setAction({event:item.event,kind:'delete'}); }}
                   onNavigate={() => item.route && onNavigate(item)}
                   showDate={display !== 'day'}
                   visibleDate={display === 'day' ? selectedDate : undefined}
@@ -421,13 +362,13 @@ export function AgendaScreen({
           draft={editor}
           workspace={workspace}
           busy={busy}
+          readOnly={readOnly}
           onClose={() => setEditor(null)}
-          onSave={async (draft) => {
-            if (await onSave(draft)) setEditor(null);
-          }}
+          onSave={onSave}
         />
         </ReadOnlyFormScope>
       ) : null}
+      {action && <AgendaActionDialog event={action.event} action={action.kind} workspace={workspace} busy={busy} readOnly={readOnly} onClose={() => setAction(null)} onSave={onSave} onDelete={onDelete} />}
     </div>
   );
 }
@@ -504,8 +445,8 @@ function AgendaRow({
   busy: boolean;
   readOnly: boolean;
   onEdit: () => void;
-  onComplete: () => Promise<void>;
-  onDelete: () => Promise<void>;
+  onComplete: () => void;
+  onDelete: () => void;
   onNavigate: () => void;
   showDate: boolean;
   visibleDate?: string;
@@ -569,182 +510,5 @@ function AgendaRow({
         )}
       </div>
     </article>
-  );
-}
-
-function AgendaEditor({
-  draft: initial,
-  workspace,
-  busy,
-  onClose,
-  onSave,
-}: {
-  draft: AgendaEventDraft;
-  workspace: Workspace;
-  busy: boolean;
-  onClose: () => void;
-  onSave: (draft: AgendaEventDraft) => Promise<void>;
-}) {
-  const [draft, setDraft] = useState(initial);
-  const [error, setError] = useState('');
-
-  async function submit() {
-    if (!draft.title.trim()) {
-      setError('Donnez un titre au rendez-vous.');
-      return;
-    }
-    if (draft.endDate < draft.startDate) {
-      setError('La fin doit être identique ou postérieure au début.');
-      return;
-    }
-    if (!draft.allDay && (!draft.startTime || !draft.endTime)) {
-      setError('Indiquez une heure de début et de fin, ou choisissez toute la journée.');
-      return;
-    }
-    if (
-      !draft.allDay &&
-      draft.startDate === draft.endDate &&
-      draft.endTime! <= draft.startTime!
-    ) {
-      setError('L’heure de fin doit être postérieure à l’heure de début.');
-      return;
-    }
-    setError('');
-    await onSave(draft);
-  }
-
-  return (
-    <Modal
-      title={draft.isNew ? 'Nouveau rendez-vous' : 'Modifier le rendez-vous'}
-      description="Une seule fiche claire. Les autres échéances sont déjà reprises automatiquement par Zentra."
-      onClose={onClose}
-    >
-      <form
-        className="form-grid agenda-editor"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        <Field label="Titre" required wide>
-          <input
-            autoFocus
-            maxLength={200}
-            value={draft.title}
-            onChange={(event) => setDraft({ ...draft, title: event.target.value })}
-            placeholder="Ex. Rendez-vous avec le client"
-          />
-        </Field>
-        <Field label="Début" required>
-          <input
-            type="date"
-            value={draft.startDate}
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                startDate: event.target.value,
-                endDate: draft.endDate < event.target.value ? event.target.value : draft.endDate,
-              })
-            }
-          />
-        </Field>
-        <Field label="Fin" required>
-          <input
-            type="date"
-            min={draft.startDate}
-            value={draft.endDate}
-            onChange={(event) => setDraft({ ...draft, endDate: event.target.value })}
-          />
-        </Field>
-        <label className="agenda-all-day field--wide">
-          <input
-            type="checkbox"
-            checked={draft.allDay}
-            onChange={(event) => setDraft({ ...draft, allDay: event.target.checked })}
-          />
-          <span>Toute la journée</span>
-        </label>
-        {!draft.allDay ? (
-          <>
-            <Field label="Heure de début" required>
-              <input
-                type="time"
-                value={draft.startTime ?? ''}
-                onChange={(event) => setDraft({ ...draft, startTime: event.target.value })}
-              />
-            </Field>
-            <Field label="Heure de fin" required>
-              <input
-                type="time"
-                value={draft.endTime ?? ''}
-                onChange={(event) => setDraft({ ...draft, endTime: event.target.value })}
-              />
-            </Field>
-          </>
-        ) : null}
-        <Field label="Type">
-          <select
-            value={draft.kind}
-            onChange={(event) => setDraft({ ...draft, kind: event.target.value as AgendaEvent['kind'] })}
-          >
-            <option value="appointment">Rendez-vous</option>
-            <option value="visit">Visite / intervention</option>
-            <option value="deadline">Échéance personnelle</option>
-            <option value="other">Autre</option>
-          </select>
-        </Field>
-        <Field label="État">
-          <select
-            value={draft.status}
-            onChange={(event) => setDraft({ ...draft, status: event.target.value as AgendaEvent['status'] })}
-          >
-            <option value="scheduled">Planifié</option>
-            <option value="completed">Terminé</option>
-            <option value="cancelled">Annulé</option>
-          </select>
-        </Field>
-        <Field label="Projet lié">
-          <select
-            value={draft.projectId ?? ''}
-            onChange={(event) => setDraft({ ...draft, projectId: event.target.value || null })}
-          >
-            <option value="">Aucun</option>
-            {workspace.projects
-              .filter((project) => project.status !== 'closed' || project.id === draft.projectId)
-              .map((project) => <option key={project.id} value={project.id}>{project.name}{project.status === 'closed' ? ' · fermé' : ''}</option>)}
-          </select>
-        </Field>
-        <Field label="Responsable">
-          <select
-            value={draft.employeeId ?? ''}
-            onChange={(event) => setDraft({ ...draft, employeeId: event.target.value || null })}
-          >
-            <option value="">Non attribué</option>
-            {workspace.employees
-              .filter((employee) => employee.active || employee.id === draft.employeeId)
-              .map((employee) => <option key={employee.id} value={employee.id}>{employee.name}{employee.active ? '' : ' · inactif'}</option>)}
-          </select>
-        </Field>
-        <Field label="Lieu" wide>
-          <input
-            maxLength={500}
-            value={draft.location}
-            onChange={(event) => setDraft({ ...draft, location: event.target.value })}
-            placeholder="Adresse, téléphone ou visioconférence"
-          />
-        </Field>
-        <Field label="Notes" wide>
-          <textarea
-            rows={3}
-            maxLength={20_000}
-            value={draft.notes}
-            onChange={(event) => setDraft({ ...draft, notes: event.target.value })}
-            placeholder="Informations utiles, sans champs inutiles"
-          />
-        </Field>
-        {error ? <p className="agenda-editor__error field--wide" role="alert">{error}</p> : null}
-        <FormActions onCancel={onClose} busy={busy} />
-      </form>
-    </Modal>
   );
 }

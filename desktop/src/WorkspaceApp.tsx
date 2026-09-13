@@ -108,6 +108,7 @@ import { documentOrders, newestDocumentsFirst, readDocumentOrder, saveDocumentOr
 import { matchesSalesDocumentSearch, matchesSalesDocumentStatus } from './salesDocumentList';
 import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
 import type { AgendaEventDraft } from './AgendaScreen';
+import { requireAgendaWorkspace } from './agendaForm';
 import { agendaNavigationTarget, type AgendaItem } from './agenda';
 import { AppUpdater } from './AppUpdater';
 import { useUpdateAvailability } from './useUpdateAvailability';
@@ -920,6 +921,7 @@ export function WorkspaceApp({
     message: string,
     close = true,
     onError?: (reason: unknown) => void,
+    validateRead?: (workspace: Workspace) => void,
   ) {
     if (readOnly) {
       setNotice({
@@ -941,7 +943,7 @@ export function WorkspaceApp({
       return true;
     } catch (reason) {
       const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); };
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
@@ -1846,20 +1848,24 @@ export function WorkspaceApp({
                 workspace={workspace}
                 busy={busy}
                 readOnly={readOnly}
-                onSave={(input: AgendaEventDraft) =>
+                onSave={(input: AgendaEventDraft, onError) =>
                   act(
                     () => desktopApi.saveAgendaEvent(input),
                     input.isNew
                       ? 'Le rendez-vous a été ajouté à votre agenda.'
                       : 'Le rendez-vous a été mis à jour.',
                     false,
+                    onError,
+                    requireAgendaWorkspace,
                   )
                 }
-                onDelete={(item) =>
+                onDelete={(item, onError) =>
                   act(
                     () => desktopApi.deleteAgendaEvent(item.id, item.updatedAt),
                     'Le rendez-vous a été supprimé.',
                     false,
+                    onError,
+                    requireAgendaWorkspace,
                   )
                 }
                 onNavigate={openAgendaItem}
