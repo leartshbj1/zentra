@@ -1,0 +1,35 @@
+.payroll-settings .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.payroll-settings .check-card, .payroll-settings .module-toggle { min-width: 0; align-items: flex-start; }
+.payroll-settings .check-card > input { flex: 0 0 18px; margin-top: 4px; }
+.payroll-settings .check-card > span, .payroll-settings .module-toggle > span { min-width: 0; }
+.payroll-settings :is(strong, small, p, .field__label, .field__hint, button, summary) { overflow-wrap: anywhere; white-space: normal; }
+.payroll-settings :is(input:not([type=checkbox]), select) { min-width: 0; max-width: 100%; min-height: 44px; }
+.payroll-settings .button { min-height: 44px; height: auto; max-width: 100%; }
+.payroll-settings__contracts { min-width: 0; border: 1px solid #dce4e1; border-radius: 16px; padding: 0 18px; }
+.payroll-settings__contracts > summary { cursor: pointer; min-height: 48px; padding: 16px 0; font-size: 15px; line-height: 1.5; font-weight: 600; }
+.payroll-settings__contracts > p, .payroll-settings__error > p { font-size: 13px; line-height: 1.6; color: var(--text-muted, #626970); }
+.payroll-settings__contracts > .form-grid { padding: 16px 0 20px; }
+.payroll-settings__error { display: grid; gap: 10px; margin-bottom: 20px; justify-items: start; }
+@media (max-width: 640px) { .payroll-settings .form-grid { grid-template-columns: minmax(0, 1fr); } .payroll-settings .field--wide { grid-column: 1; } }
+.swiss-rules :is(strong, small, h3, p, dd, dt, summary, em, a) { overflow-wrap: anywhere; white-space: normal; }
+.swiss-rules .swiss-rule > header { flex-wrap: wrap; }
+.swiss-rules .swiss-rule > header > div { flex: 1 1 180px; min-width: 0; }
+.swiss-rules .swiss-rule > header em { max-width: 100%; font-size: 11px; line-height: 1.5; flex-shrink: 1; }
+.swiss-rules .swiss-rule > header em svg { flex-shrink: 0; }
+.swiss-rules .swiss-rule > header strong { font-size: 16px; line-height: 1.4; }
+.swiss-rules .swiss-rule :is(dt, dd, a) { font-size: 13px; line-height: 1.6; }
+.swiss-rules .swiss-rule h3 { font-size: 18px; line-height: 1.5; }
+.swiss-rule dd ul { padding-left: 18px; margin: 0; }
+.swiss-rule dd li + li { margin-top: 8px; }
+.swiss-rule--local > header em { background: #edf4ef; color: #315c45; }
+.swiss-rules .swiss-family-reference__table-wrap :is(th, td) { white-space: normal; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; }
+.swiss-rules .swiss-family-reference td:first-child span { font-size: 12px; }
+@media (max-width: 700px) {
+  .swiss-rules .swiss-rules__grid { grid-template-columns: minmax(0, 1fr); }
+  .swiss-rules .swiss-family-reference__table-wrap table { width: 100%; min-width: 0; display: block; }
+  .swiss-rules .swiss-family-reference__table-wrap thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .swiss-rules .swiss-family-reference__table-wrap tbody { display: grid; gap: 12px; }
+  .swiss-rules .swiss-family-reference__table-wrap tr { display: grid; grid-template-columns: minmax(0, 1fr); border: 1px solid #dce4e1; border-radius: 12px; overflow: hidden; }
+  .swiss-rules .swiss-family-reference__table-wrap td { display: block; width: auto; min-width: 0; border: 0; padding: 8px 12px; }
+  .swiss-rules .swiss-family-reference__table-wrap td[data-label]::before { content: attr(data-label); display: block; color: var(--text-muted, #626970); font-size: 12px; margin-bottom: 3px; }
+}

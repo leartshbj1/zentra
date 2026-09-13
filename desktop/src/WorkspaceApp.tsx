@@ -16,7 +16,7 @@ import { deferView } from './DeferredView';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { useAssistantScreen } from './assistantContext';
 import { useScreenArrival } from './useScreenArrival';
-import { PayrollOrganisationField } from './PayrollOrganisationField';
+import { PayrollSettingsForm } from './PayrollSettingsForm';
 import { usePayrollFieldGuide } from './PayrollFieldGuide';
 import { createProjectFileSessions, type ProjectFileSessions } from './projectFileSessions';
 import { ProjectFileActivity } from './ProjectFileActivity';
@@ -4768,16 +4768,11 @@ function SettingsScreen({
   const busy = operationBusy || readOnly;
   const [settings, setSettings] = useState<AppSettings>(workspace.settings!);
   const [vatDraft, setVatDraft] = useState('');
+  const [payrollSettingsRevision, setPayrollSettingsRevision] = useState(0);
+  const [payrollRulesRevision, setPayrollRulesRevision] = useState(0);
+  const [payrollDefinitionsRevision, setPayrollDefinitionsRevision] = useState(0);
   const settingsRecovery = useWorkspaceRecovery(() => desktopApi.loadWorkspace());
   const settingsActionInFlight = useRef(false);
-  const storedLppPlan = settings.payroll.lppPlanEvidence;
-  const [lppPlanEnabled, setLppPlanEnabled] = useState(
-    Boolean(storedLppPlan),
-  );
-  const storedLaaSmallSalaryException =
-    settings.payroll.laaSmallSalaryException;
-  const [laaSmallSalaryExceptionEnabled, setLaaSmallSalaryExceptionEnabled] =
-    useState(Boolean(storedLaaSmallSalaryException?.enabled));
   const org = settings.organization;
   const billing = settings.billing;
   const accountingReadiness = buildSetupReadiness(workspace, settings).steps.find(
@@ -4799,7 +4794,7 @@ function SettingsScreen({
     target.focus({ preventScroll: true });
   }
 
-  async function execute(action: () => Promise<Workspace>, success: string, rethrow = false) {
+  async function execute(action: () => Promise<Workspace>, success: string, rethrow = false, quietFailure = false) {
     if (busy || settingsActionInFlight.current || settingsRecovery.isPending()) return false;
     settingsActionInFlight.current = true;
     setBusy(true);
@@ -4821,7 +4816,7 @@ function SettingsScreen({
       onNotice({ tone: 'success', text: success });
       return true;
     } catch (reason) {
-      onNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') });
+      if (!quietFailure) onNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') });
       if (rethrow) throw reason;
       return false;
     } finally {
@@ -4933,6 +4928,8 @@ function SettingsScreen({
   }
 
   async function applySwissPayrollProfile2026() {
+    if (busy || settingsActionInFlight.current || settingsRecovery.isPending()) return;
+    settingsActionInFlight.current = true;
     setBusy(true);
     onNotice(null);
     try {
@@ -4967,6 +4964,9 @@ function SettingsScreen({
         ),
       });
     } finally {
+      settingsActionInFlight.current = false;
+      setPayrollRulesRevision(value => value + 1);
+      setPayrollDefinitionsRevision(value => value + 1);
       setBusy(false);
     }
   }
@@ -5567,421 +5567,53 @@ function SettingsScreen({
       </section>
 
       </SettingsCategory>
-      <SettingsCategory id="payroll" title="Équipe et paie" description="Règles, cotisations et organismes sociaux" icon={Users}>
+      <SettingsCategory id="payroll" title={t("Équipe et paie")} description={t("Règles, cotisations et organismes sociaux")} icon={Users}>
       <section className="panel settings-card settings-card--wide">
         <SectionHeading
-          eyebrow="Référentiel officiel"
-          title="Profil réglementaire CH-2026"
-          description="Taux nationaux par part employé et employeur, fournis par le moteur local."
+          eyebrow={t("Référentiel officiel")}
+          title={t("Profil réglementaire CH-2026")}
+          description={t("Taux nationaux par part employé et employeur, fournis par le moteur local.")}
         />
         <div className="regulatory-profile">
           <div>
-            <strong>AVS 4,35 % · AI 0,7 % · APG 0,25 % · AC 1,1 %</strong>
-            <p>
-              L’AC est plafonnée à CHF 148’200 par an. Le profil n’est jamais
-              installé sans cette action explicite.
-            </p>
-            <small>
-              Source : tableau synoptique officiel AVS/AI, édition 2026.
-            </small>
+            <strong>{t("AVS 4,35 % · AI 0,7 % · APG 0,25 % · AC 1,1 %")}</strong>
+            <p>{t("L’AC est plafonnée à CHF 148’200 par an. Le profil n’est jamais installé sans cette action explicite.")}</p>
+            <small>{t("Source : tableau synoptique officiel AVS/AI, édition 2026.")}</small>
           </div>
           <Button
             type="button"
             variant="secondary"
             disabled={busy}
             onClick={() => void applySwissPayrollProfile2026()}
-          >
-            Installer le profil officiel
-          </Button>
+          >{t("Installer le profil officiel")}</Button>
           <a
             href="https://www.ahv-iv.ch/Portals/0/adam/AHV-IV/Ypzfdm2t_km4jeHFYxWRdA/Document/Tableau%20synoptique%2020-1.pdf"
             target="_blank"
             rel="noreferrer"
-          >
-            Consulter la source officielle
-          </a>
+          >{t("Consulter la source officielle")}</a>
         </div>
         <div className="warning-card">
           <ShieldCheck size={18} />
           <div>
-            <strong>Configuration individuelle obligatoire</strong>
-            <p>
-              LPP, AAP, AANP, IJM, allocations familiales et impôt à la source
-              dépendent du client et du collaborateur : ajoutez-les
-              explicitement.
-            </p>
+            <strong>{t("Configuration individuelle obligatoire")}</strong>
+            <p>{t("LPP, AAP, AANP, IJM, allocations familiales et impôt à la source dépendent du client et du collaborateur : ajoutez-les explicitement.")}</p>
           </div>
         </div>
       </section>
 
-      <section
-        id={SETTINGS_READINESS_TARGETS.payroll}
-        className="panel settings-card settings-card--wide settings-scroll-target"
-        tabIndex={-1}
-      >
-        <SectionHeading
-          eyebrow="Paie"
-          title="Organismes et validation"
-          description="Renseignez vos organismes sociaux. Confirmez le contrôle de votre configuration uniquement après sa validation professionnelle. Les cotisations détaillées se trouvent plus bas."
-        />
-        <form
-          onSubmit={submitForm(async (form) => {
-            const aanpEmployerCoverage = {
-              enabled: form.get('aanpEmployerCoverageEnabled') === 'on',
-              reference: String(form.get('aanpEmployerCoverageReference')).trim(),
-              effectiveFrom: String(form.get('aanpEmployerCoverageEffectiveFrom')).trim(),
-              effectiveTo: String(form.get('aanpEmployerCoverageEffectiveTo')).trim(),
-            };
-            if (
-              aanpEmployerCoverage.enabled &&
-              (!aanpEmployerCoverage.reference ||
-                !/^\d{4}-\d{2}-\d{2}$/.test(aanpEmployerCoverage.effectiveFrom))
-            ) {
-              throw new Error(
-                'La prise en charge AANP employeur exige une référence écrite et une date de début.',
-              );
-            }
-            if (
-              aanpEmployerCoverage.enabled &&
-              aanpEmployerCoverage.effectiveTo &&
-              (aanpEmployerCoverage.effectiveTo < aanpEmployerCoverage.effectiveFrom ||
-                !/^\d{4}-\d{2}-\d{2}$/.test(aanpEmployerCoverage.effectiveTo))
-            ) {
-              throw new Error(
-                'La fin de prise en charge AANP doit être une date valide postérieure ou égale au début.',
-              );
-            }
-            const laaSmallSalaryAssessmentYearText = String(
-              form.get('laaSmallSalaryAssessmentYear') ?? '',
-            ).trim();
-            const laaSmallSalaryException = {
-              enabled: laaSmallSalaryExceptionEnabled,
-              assessmentYear: laaSmallSalaryAssessmentYearText
-                ? numberFromInput(form.get('laaSmallSalaryAssessmentYear'))
-                : null,
-              evidenceReference: String(
-                form.get('laaSmallSalaryEvidenceReference') ?? '',
-              ).trim(),
-              confirmedAllEmployeesOnlyMinorSalaries:
-                form.get('laaSmallSalaryAllEmployeesConfirmed') === 'on',
-            };
-            if (
-              laaSmallSalaryException.enabled &&
-              (!/^\d{4}$/.test(laaSmallSalaryAssessmentYearText) ||
-                !Number.isInteger(laaSmallSalaryException.assessmentYear) ||
-                (laaSmallSalaryException.assessmentYear ?? 0) < 2000 ||
-                (laaSmallSalaryException.assessmentYear ?? 0) > 9999 ||
-                !laaSmallSalaryException.evidenceReference ||
-                laaSmallSalaryException.evidenceReference.length > 500 ||
-                !laaSmallSalaryException.confirmedAllEmployeesOnlyMinorSalaries)
-            )
-              throw new Error(
-                'L’exception LAA exige une année, une preuve et la confirmation explicite que tous les salariés concernés pendant l’année restent dans le régime des petits salaires.',
-              );
-            const lppPlanEvidence = lppPlanEnabled
-              ? {
-                  contractNumber: String(
-                    form.get('lppPlanContractNumber'),
-                  ).trim(),
-                  regulationReference: String(
-                    form.get('lppPlanRegulationReference'),
-                  ).trim(),
-                  effectiveFrom: String(
-                    form.get('lppPlanEffectiveFrom'),
-                  ).trim(),
-                  effectiveTo: String(
-                    form.get('lppPlanEffectiveTo'),
-                  ).trim(),
-                  employerAggregateShareConfirmed:
-                    form.get('lppPlanEmployerShareConfirmed') === 'on',
-                }
-              : undefined;
-            if (
-              lppPlanEvidence &&
-              (!lppPlanEvidence.contractNumber ||
-                !lppPlanEvidence.regulationReference ||
-                !/^\d{4}-\d{2}-\d{2}$/.test(
-                  lppPlanEvidence.effectiveFrom,
-                ) ||
-                !/^\d{4}-\d{2}-\d{2}$/.test(
-                  lppPlanEvidence.effectiveTo,
-                ) ||
-                !lppPlanEvidence.employerAggregateShareConfirmed)
-            )
-              throw new Error(
-                'Le plan LPP exige le numéro de contrat, la référence du règlement, sa date de début et l’attestation de la part employeur agrégée.',
-              );
-            if (
-              lppPlanEvidence &&
-              lppPlanEvidence.effectiveTo < lppPlanEvidence.effectiveFrom
-            )
-              throw new Error(
-                'La fin du règlement LPP doit être une date valide postérieure ou égale au début.',
-              );
-            const next = {
-              ...settings,
-              payroll: {
-                ...settings.payroll,
-                enabled: form.get('enabled') === 'on',
-                fiduciaryValidated: form.get('fiduciaryValidated') === 'on',
-                avsFund: String(form.get('avsFund')),
-                accidentInsurer: String(form.get('accidentInsurer')),
-                pensionFund: String(form.get('pensionFund')),
-                dailyAllowanceInsurer: String(
-                  form.get('dailyAllowanceInsurer'),
-                ),
-                familyAllowanceFund: String(form.get('familyAllowanceFund')),
-                payrollCanton: String(form.get('payrollCanton')),
-                aanpEmployerCoverage,
-                lppPlanEvidence,
-                laaSmallSalaryException,
-              },
-            };
-            setSettings(next);
-            await execute(
-              () => desktopApi.saveSettings(next),
-              'La configuration de paie a été enregistrée.',
-            );
-          })}
-        >
-          <div className="form-grid">
-            <label className="module-toggle module-toggle--compact">
-              <input
-                name="enabled"
-                type="checkbox"
-                defaultChecked={settings.payroll.enabled}
-              />
-              <span>
-                <Users size={19} />
-                <strong>Module salaires</strong>
-                <small>Activer la création des fiches</small>
-              </span>
-            </label>
-            <label className="check-card">
-              <input
-                name="fiduciaryValidated"
-                id="settings-payroll-review"
-                type="checkbox"
-                defaultChecked={settings.payroll.fiduciaryValidated}
-              />
-              <span>
-                <strong>Configuration contrôlée par une fiduciaire</strong>
-                <small>
-                  À confirmer seulement après validation professionnelle.
-                </small>
-              </span>
-            </label>
-            <PayrollOrganisationField kind="avs" name="avsFund" defaultValue={settings.payroll.avsFund} canton={settings.payroll.payrollCanton} />
-            <PayrollOrganisationField kind="accident" name="accidentInsurer" defaultValue={settings.payroll.accidentInsurer} />
-            <label className="check-card">
-              <input
-                name="aanpEmployerCoverageEnabled"
-                type="checkbox"
-                defaultChecked={settings.payroll.aanpEmployerCoverage?.enabled}
-              />
-              <span>
-                <strong>Prime AANP prise en charge par l’employeur</strong>
-                <small>Uniquement avec une convention plus favorable écrite.</small>
-              </span>
-            </label>
-            <Field
-              label="Référence de la convention AANP"
-              hint="Le même texte devra être utilisé comme source de la définition AANP employeur."
-              wide
-            >
-              <input
-                name="aanpEmployerCoverageReference"
-                maxLength={500}
-                defaultValue={settings.payroll.aanpEmployerCoverage?.reference ?? ''}
-              />
-            </Field>
-            <Field label="Début de prise en charge AANP">
-              <input
-                name="aanpEmployerCoverageEffectiveFrom"
-                type="date"
-                defaultValue={settings.payroll.aanpEmployerCoverage?.effectiveFrom ?? ''}
-              />
-            </Field>
-            <Field label="Fin de prise en charge AANP" hint="Facultatif.">
-              <input
-                name="aanpEmployerCoverageEffectiveTo"
-                type="date"
-                defaultValue={settings.payroll.aanpEmployerCoverage?.effectiveTo ?? ''}
-              />
-            </Field>
-            <label className="check-card field--wide">
-              <input
-                name="laaSmallSalaryExceptionEnabled"
-                type="checkbox"
-                checked={laaSmallSalaryExceptionEnabled}
-                onChange={(event) =>
-                  setLaaSmallSalaryExceptionEnabled(event.target.checked)
-                }
-              />
-              <span>
-                <strong>Demander l’exception LAA annuelle des petits salaires</strong>
-                <small>
-                  Non cochée par défaut. Le moteur vérifie tous les salariés
-                  concernés pendant l’année et bloque l’exception dès qu’un
-                  dossier, un secteur ou un cumul ne la permet pas.
-                </small>
-              </span>
-            </label>
-            {laaSmallSalaryExceptionEnabled ? (
-              <section className="settings-evidence-section field--wide">
-                <div className="form-grid">
-                  <Field label="Année de l’exception LAA" required>
-                    <input
-                      name="laaSmallSalaryAssessmentYear"
-                      type="number"
-                      min="2000"
-                      max="9999"
-                      step="1"
-                      defaultValue={
-                        storedLaaSmallSalaryException?.assessmentYear ?? ''
-                      }
-                      required
-                    />
-                  </Field>
-                  <Field
-                    label="Référence de la preuve LAA"
-                    hint="Ex. contrôle annuel signé, décision de l’assureur ou dossier de la fiduciaire."
-                    required
-                  >
-                    <input
-                      name="laaSmallSalaryEvidenceReference"
-                      maxLength={500}
-                      defaultValue={
-                        storedLaaSmallSalaryException?.evidenceReference ?? ''
-                      }
-                      required
-                    />
-                  </Field>
-                  <label className="check-card field--wide">
-                    <input
-                      name="laaSmallSalaryAllEmployeesConfirmed"
-                      type="checkbox"
-                      defaultChecked={
-                        storedLaaSmallSalaryException
-                          ?.confirmedAllEmployeesOnlyMinorSalaries ?? false
-                      }
-                      required
-                    />
-                    <span>
-                      <strong>
-                        Tous les salariés concernés pendant l’année ont été
-                        contrôlés
-                      </strong>
-                      <small>
-                        Je confirme avoir vérifié aussi les personnes sorties
-                        de l’entreprise pendant l’année. Cette déclaration ne
-                        remplace pas le contrôle automatique et peut être
-                        refusée par le moteur.
-                      </small>
-                    </span>
-                  </label>
-                </div>
-              </section>
-            ) : null}
-            <PayrollOrganisationField kind="pension" name="pensionFund" defaultValue={settings.payroll.pensionFund} />
-            <label className="check-card field--wide">
-              <input
-                name="lppPlanEnabled"
-                type="checkbox"
-                checked={lppPlanEnabled}
-                onChange={(event) =>
-                  setLppPlanEnabled(event.target.checked)
-                }
-              />
-              <span>
-                <strong>Configurer le règlement LPP de l’entreprise</strong>
-                <small>
-                  Activez seulement avec le contrat et le règlement réels de
-                  la caisse. Aucun taux n’est inventé.
-                </small>
-              </span>
-            </label>
-            {lppPlanEnabled ? (
-              <>
-                <Field label="Numéro du contrat LPP" required>
-                  <input
-                    name="lppPlanContractNumber"
-                    maxLength={200}
-                    defaultValue={storedLppPlan?.contractNumber ?? ''}
-                    required
-                  />
-                </Field>
-                <Field
-                  label="Référence exacte du règlement LPP"
-                  hint="Recopiez cette référence comme source de chaque définition LPP."
-                  required
-                  wide
-                >
-                  <input
-                    name="lppPlanRegulationReference"
-                    maxLength={500}
-                    defaultValue={storedLppPlan?.regulationReference ?? ''}
-                    required
-                  />
-                </Field>
-                <Field label="Début d’effet du règlement LPP" required>
-                  <input
-                    name="lppPlanEffectiveFrom"
-                    type="date"
-                    defaultValue={storedLppPlan?.effectiveFrom ?? ''}
-                    required
-                  />
-                </Field>
-                <Field label="Fin d’effet du règlement LPP" required>
-                  <input
-                    name="lppPlanEffectiveTo"
-                    type="date"
-                    defaultValue={storedLppPlan?.effectiveTo ?? ''}
-                    required
-                  />
-                </Field>
-                <label className="check-card field--wide">
-                  <input
-                    name="lppPlanEmployerShareConfirmed"
-                    type="checkbox"
-                    defaultChecked={
-                      storedLppPlan?.employerAggregateShareConfirmed ?? false
-                    }
-                    required
-                  />
-                  <span>
-                    <strong>
-                      Part employeur agrégée contrôlée dans le règlement
-                    </strong>
-                    <small>
-                      Je confirme que le total des contributions employeur est
-                      au moins égal au total des contributions des salariés,
-                      selon le règlement réel du plan.
-                    </small>
-                  </span>
-                </label>
-              </>
-            ) : null}
-            <PayrollOrganisationField kind="daily" name="dailyAllowanceInsurer" defaultValue={settings.payroll.dailyAllowanceInsurer} />
-            <PayrollOrganisationField kind="family" name="familyAllowanceFund" defaultValue={settings.payroll.familyAllowanceFund} canton={settings.payroll.payrollCanton} />
-            <Field label="Canton de paie">
-              <input
-                name="payrollCanton"
-                defaultValue={settings.payroll.payrollCanton}
-              />
-            </Field>
-          </div>
-          <div className="form-actions">
-            <Button disabled={busy} type="submit">
-              Enregistrer la paie
-            </Button>
-          </div>
-        </form>
-      </section>
+      <PayrollSettingsForm key={payrollSettingsRevision} payroll={settings.payroll} busy={busy} onSave={async payroll => execute(async () => {
+        const fresh = await desktopApi.loadWorkspace();
+        if (!fresh.settings || JSON.stringify(fresh.settings.payroll) !== JSON.stringify(settings.payroll)) throw new Error('Les réglages de paie ont changé. Rechargez les paramètres avant d’enregistrer pour retrouver les dernières informations.');
+        return desktopApi.saveSettings({ ...fresh.settings, payroll });
+      }, 'La configuration de paie a été enregistrée.', true, true)} onReload={async () => {
+        const loaded = await execute(() => desktopApi.loadWorkspace(), 'Les derniers réglages de paie ont été chargés.');
+        if (loaded) setPayrollSettingsRevision(value => value + 1);
+        return loaded;
+      }} />
 
       <SettingsAfterOpen>
-        <SwissPayrollRulesPanel settings={settings} />
-        <PayrollContributionsPanel />
+        <SwissPayrollRulesPanel settings={settings} refreshKey={payrollRulesRevision} />
+        <PayrollContributionsPanel refreshKey={payrollDefinitionsRevision} onChanged={() => setPayrollRulesRevision(value => value + 1)} />
       </SettingsAfterOpen>
       </SettingsCategory>
       <SettingsCategory id="storage" title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>

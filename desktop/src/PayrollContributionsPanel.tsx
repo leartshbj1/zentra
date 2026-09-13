@@ -55,7 +55,8 @@ export function PayrollContributionsPanel({
   onChanged,
   onBusyChange,
   onFix,
-}: { onChanged?: () => void; onBusyChange?: (busy: boolean) => void; onFix?: (target: PayrollHelpTarget) => void } = {}) {
+  refreshKey = 0,
+}: { onChanged?: () => void; onBusyChange?: (busy: boolean) => void; onFix?: (target: PayrollHelpTarget) => void; refreshKey?: number } = {}) {
   useAppLanguage();
   const container = useRef<HTMLElement>(null);
   const [definitions, setDefinitions] = useState<
@@ -69,13 +70,16 @@ export function PayrollContributionsPanel({
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const loadRequest = useRef(0);
 
   const load = useCallback(async () => {
+    const request = ++loadRequest.current;
     const [nextDefinitions, nextAccounts, workspace] = await Promise.all([
       desktopApi.listPayrollContributionDefinitions(),
       desktopApi.listAccounts(),
       desktopApi.loadWorkspace(),
     ]);
+    if (request !== loadRequest.current) return;
     setDefinitions(nextDefinitions);
     setAccounts(nextAccounts);
     setEmployees(workspace.employees);
@@ -104,6 +108,8 @@ export function PayrollContributionsPanel({
 
   useEffect(() => {
     let active = true;
+    setBusy(true);
+    setError('');
     void Promise.resolve()
       .then(load)
       .catch((reason) => {
@@ -120,8 +126,9 @@ export function PayrollContributionsPanel({
       });
     return () => {
       active = false;
+      loadRequest.current += 1;
     };
-  }, [load]);
+  }, [load, refreshKey]);
   useEffect(() => {
     onBusyChange?.(busy);
   }, [busy, onBusyChange]);

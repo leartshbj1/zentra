@@ -1,3 +1,4 @@
+import { payrollMessage, type PayrollPresentationRegistry } from './payrollPresentation';
 import type {
   AppSettings,
   PayrollContributionDefinition,
@@ -99,6 +100,7 @@ function assessLaaDefinitions(
   definitions: PayrollContributionDefinition[],
   asOf: string,
   required: boolean,
+  presentations?: PayrollPresentationRegistry,
 ): InsuranceReadinessItem {
   const rows = currentDefinitions(definitions, category, asOf);
   const issues: string[] = [];
@@ -106,30 +108,30 @@ function assessLaaDefinitions(
   if (!settings.payroll.accidentInsurer.trim())
     issues.push('Renseignez l’assureur-accidents de l’entreprise.');
   if (required && rows.length === 0)
-    issues.push(`Ajoutez au moins une prime ${label} valable à la date de paie.`);
+    issues.push(payrollMessage(presentations, "Ajoutez au moins une prime {v0} valable à la date de paie.", { v0: { source: label } }));
 
   for (const row of rows) {
     if (row.calculationKind !== 'rate' || !Number.isInteger(row.rateBp) || (row.rateBp ?? 0) <= 0)
-      issues.push(`${row.code}: utilisez le taux positif exact de la police.`);
+      issues.push(payrollMessage(presentations, "{v0}: utilisez le taux positif exact de la police.", { v0: row.code }));
     if (row.annualCeilingCents !== SWISS_LAA_ANNUAL_CEILING_CENTS_2026)
-      issues.push(`${row.code}: le plafond LAA 2026 doit être CHF 148’200.`);
+      issues.push(payrollMessage(presentations, "{v0}: le plafond LAA 2026 doit être CHF 148’200.", { v0: row.code }));
     if (!validInsuranceBasis(row))
-      issues.push(`${row.code}: choisissez salaire soumis AVS ou une base personnalisée documentée.`);
+      issues.push(payrollMessage(presentations, "{v0}: choisissez salaire soumis AVS ou une base personnalisée documentée.", { v0: row.code }));
     if (!sourceIsExplicit(row))
-      issues.push(`${row.code}: citez la police, la classe ou le tarif réellement appliqué.`);
+      issues.push(payrollMessage(presentations, "{v0}: citez la police, la classe ou le tarif réellement appliqué.", { v0: row.code }));
     if (category === 'aap' && row.side !== 'employer')
-      issues.push(`${row.code}: l’AAP doit être entièrement à charge de l’employeur.`);
+      issues.push(payrollMessage(presentations, "{v0}: l’AAP doit être entièrement à charge de l’employeur.", { v0: row.code }));
     if (category === 'aanp' && row.side === 'employer') {
       const evidence = settings.payroll.aanpEmployerCoverage;
       if (!evidence?.enabled)
-        issues.push(`${row.code}: une part AANP employeur exige une convention plus favorable.`);
+        issues.push(payrollMessage(presentations, "{v0}: une part AANP employeur exige une convention plus favorable.", { v0: row.code }));
       else {
         if (!evidence.reference.trim() || row.source.trim() !== evidence.reference.trim())
-          issues.push(`${row.code}: la source doit correspondre à la convention AANP enregistrée.`);
+          issues.push(payrollMessage(presentations, "{v0}: la source doit correspondre à la convention AANP enregistrée.", { v0: row.code }));
         if (!evidence.effectiveFrom || evidence.effectiveFrom > row.effectiveFrom)
-          issues.push(`${row.code}: la définition commence avant la convention AANP.`);
+          issues.push(payrollMessage(presentations, "{v0}: la définition commence avant la convention AANP.", { v0: row.code }));
         if (evidence.effectiveTo && (!row.effectiveTo || row.effectiveTo > evidence.effectiveTo))
-          issues.push(`${row.code}: la définition dépasse la convention AANP.`);
+          issues.push(payrollMessage(presentations, "{v0}: la définition dépasse la convention AANP.", { v0: row.code }));
       }
     }
   }
@@ -147,6 +149,7 @@ function assessFamilyAllowance(
   definitions: PayrollContributionDefinition[],
   asOf: string,
   hasEmployees: boolean,
+  presentations?: PayrollPresentationRegistry,
 ): InsuranceReadinessItem {
   const rows = currentDefinitions(definitions, 'family_allowance', asOf);
   const employerRows = rows.filter((row) => row.side === 'employer');
@@ -162,13 +165,13 @@ function assessFamilyAllowance(
     issues.push('Ajoutez le taux employeur communiqué par la caisse, avec sa période et sa source.');
   for (const row of employerRows) {
     if (!validPositiveRate(row))
-      issues.push(`${row.code}: le financement employeur doit être un taux positif communiqué par la caisse.`);
+      issues.push(payrollMessage(presentations, "{v0}: le financement employeur doit être un taux positif communiqué par la caisse.", { v0: row.code }));
     if (row.basisKind !== 'ahv_salary')
-      issues.push(`${row.code}: la CAF employeur doit être calculée sur le salaire soumis AVS.`);
+      issues.push(payrollMessage(presentations, "{v0}: la CAF employeur doit être calculée sur le salaire soumis AVS.", { v0: row.code }));
     if (row.annualCeilingCents !== null)
-      issues.push(`${row.code}: aucun plafond annuel libre ne doit limiter la base CAF.`);
+      issues.push(payrollMessage(presentations, "{v0}: aucun plafond annuel libre ne doit limiter la base CAF.", { v0: row.code }));
     if (!sourceIsExplicit(row))
-      issues.push(`${row.code}: citez précisément le décompte ou tarif de la caisse.`);
+      issues.push(payrollMessage(presentations, "{v0}: citez précisément le décompte ou tarif de la caisse.", { v0: row.code }));
   }
 
   if (canton === 'VS') {
@@ -184,7 +187,7 @@ function assessFamilyAllowance(
         || row.effectiveFrom !== '2026-01-01'
         || row.effectiveTo !== '2026-12-31'
       )
-        issues.push(`${row.code}: la part salarié Valais doit reprendre le taux, la source et la fenêtre officiels 2026.`);
+        issues.push(payrollMessage(presentations, "{v0}: la part salarié Valais doit reprendre le taux, la source et la fenêtre officiels 2026.", { v0: row.code }));
     }
   } else if (employeeRows.length) {
     issues.push('Une part salarié CAF n’est admise par le référentiel Zentra qu’en Valais.');
@@ -202,6 +205,7 @@ function assessDailyAllowance(
   settings: AppSettings,
   definitions: PayrollContributionDefinition[],
   asOf: string,
+  presentations?: PayrollPresentationRegistry,
 ): InsuranceReadinessItem {
   const rows = currentDefinitions(definitions, 'ijm', asOf);
   const insurer = settings.payroll.dailyAllowanceInsurer.trim();
@@ -214,11 +218,11 @@ function assessDailyAllowance(
     );
   for (const row of rows) {
     if (!validRateOrAmount(row))
-      issues.push(`${row.code}: le taux ou montant IJM doit être positif.`);
+      issues.push(payrollMessage(presentations, "{v0}: le taux ou montant IJM doit être positif.", { v0: row.code }));
     if (!validInsuranceBasis(row))
-      issues.push(`${row.code}: documentez le salaire assuré avec une base AVS ou personnalisée.`);
+      issues.push(payrollMessage(presentations, "{v0}: documentez le salaire assuré avec une base AVS ou personnalisée.", { v0: row.code }));
     if (!sourceIsExplicit(row))
-      issues.push(`${row.code}: citez la police ou la CCT applicable.`);
+      issues.push(payrollMessage(presentations, "{v0}: citez la police ou la CCT applicable.", { v0: row.code }));
   }
   if (insurer || rows.length) {
     issues.push(
@@ -243,7 +247,7 @@ export function assessSwissPayrollInsuranceReadiness(input: {
   definitions: PayrollContributionDefinition[];
   employees: InsuranceEmployeeContext[];
   asOf?: string;
-}): SwissPayrollInsuranceReadiness {
+}, presentations?: PayrollPresentationRegistry): SwissPayrollInsuranceReadiness {
   const asOf = input.asOf ?? swissPayrollReferenceDate();
   const activeEmployees = input.employees.filter((employee) => employee.active);
   const hasEmployees = activeEmployees.length > 0;
@@ -264,6 +268,7 @@ export function assessSwissPayrollInsuranceReadiness(input: {
     input.definitions,
     asOf,
     aanpRequired,
+    presentations,
   );
   if (unknownWeeklyHours) {
     aanp.complete = false;
@@ -280,6 +285,7 @@ export function assessSwissPayrollInsuranceReadiness(input: {
       input.definitions,
       asOf,
       hasEmployees,
+      presentations,
     ),
     aanp,
     familyAllowance: assessFamilyAllowance(
@@ -287,11 +293,13 @@ export function assessSwissPayrollInsuranceReadiness(input: {
       input.definitions,
       asOf,
       hasEmployees,
+      presentations,
     ),
     dailyAllowance: assessDailyAllowance(
       input.settings,
       input.definitions,
       asOf,
+      presentations,
     ),
   };
 }
