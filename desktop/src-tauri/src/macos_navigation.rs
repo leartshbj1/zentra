@@ -7,7 +7,7 @@ pub async fn configure_macos_navigation(
     window: tauri::WebviewWindow,
     selected: String,
     visible: bool,
-    on_navigate: tauri::ipc::Channel<Value>,
+    on_navigate: Option<tauri::ipc::JavaScriptChannelId>,
 ) -> Result<Value, String> {
     if window.label() != "main" {
         return Ok(json!({"available": false}));
@@ -17,6 +17,7 @@ pub async fn configure_macos_navigation(
     }
     #[cfg(target_os = "macos")]
     {
+        let on_navigate: Option<tauri::ipc::Channel<Value>> = on_navigate.map(|id| id.channel_on(window.as_ref().clone()));
         let app = window.app_handle().clone();
         tauri::async_runtime::spawn_blocking(move || {
             let (sender, receiver) = std::sync::mpsc::sync_channel(1);
@@ -33,7 +34,7 @@ pub async fn configure_macos_navigation(
                         native_window,
                         &selected,
                         visible,
-                        Box::new(move |id| on_navigate.send(json!({"id": id})).is_ok()),
+                        on_navigate.map(|channel| Box::new(move |id: &str| channel.send(json!({"id": id})).is_ok()) as native::NavigationCallback),
                     )?;
                     Ok(json!({"available": available}))
                 })();

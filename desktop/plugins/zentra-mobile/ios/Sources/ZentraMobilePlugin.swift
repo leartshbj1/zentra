@@ -5,7 +5,7 @@ import WebKit
 
 struct ShareArgs: Decodable { let path: String }
 struct UrlArgs: Decodable { let url: String }
-struct NavigationArgs: Decodable { let visible: Bool; let selected: String; let onNavigate: Channel }
+struct NavigationArgs: Decodable { let visible: Bool; let selected: String; let onNavigate: Channel? }
 
 class ZentraMobilePlugin: Plugin {
   private weak var webview: WKWebView?
@@ -30,7 +30,17 @@ class ZentraMobilePlugin: Plugin {
         let dock: GlassNavigation
         if let existing = self.navigation as? GlassNavigation { dock = existing }
         else { dock = GlassNavigation(host: host, scrollView: webview.scrollView); self.navigation = dock }
-        dock.onSelect = { id in try? args.onNavigate.send(["id": id] as [String: String]) }
+        // Register once per web session. Selection/visibility changes preserve
+        // the existing Tauri channel and its ordered message sequence.
+        if let channel = args.onNavigate {
+          dock.onSelect = { id in try? channel.send(["id": id] as [String: String]) }
+        }
+        guard dock.onSelect != nil else {
+          dock.configure(selected: args.selected, visible: false)
+          invoke.resolve(["available": false])
+          return
+        }
+        host.bringSubviewToFront(dock)
         dock.configure(selected: args.selected, visible: args.visible)
         invoke.resolve(["available": true])
       } else {

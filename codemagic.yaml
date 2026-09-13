@@ -15,8 +15,11 @@ workflows:
         script: bash desktop/scripts/codemagic-apple.sh prepare
       - name: Build the private iPhone IPA
         script: bash desktop/scripts/codemagic-apple.sh iphone-personal
+      - name: Verify Liquid Glass touch targets
+        script: bash desktop/scripts/test-apple-navigation.sh
     artifacts:
       - desktop/artifacts/iphone-personal/*
+      - desktop/artifacts/navigation/*.log
   macos-public:
     name: Zentra macOS universal (free M2)
     instance_type: mac_mini_m2
@@ -47,5 +50,8 @@ workflows:
         script: bash desktop/scripts/codemagic-apple.sh prepare
       - name: Build and verify iPhone IPA
         script: bash desktop/scripts/codemagic-apple.sh iphone
+      - name: Verify Liquid Glass touch targets
+        script: bash desktop/scripts/test-apple-navigation.sh
     artifacts:
       - desktop/artifacts/iphone/*
+      - desktop/artifacts/navigation/*.log

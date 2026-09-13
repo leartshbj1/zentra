@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Banknote, Building2, CheckCircle2, Clock3, Eye, FileCheck2, FolderOpen, Mail, Paperclip, Pencil, Phone, Plus, ReceiptText, RotateCcw, Search, ShieldCheck, Trash2, Upload, WalletCards } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Archive, Banknote, Building2, CheckCircle2, Clock3, Eye, FileCheck2, FolderOpen, Mail, Paperclip, Pencil, Phone, Plus, ReceiptText, RotateCcw, Search, Trash2, WalletCards } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { ExpenseRefundForm, ExpenseRefundHistory } from './ExpenseRefundForm';
 import { RefundAttachmentForm } from './RefundAttachments';
 import { expenseRefundTotals } from './expenseRefunds';
-import { purchaseCostCategories, purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
+import { purchaseCostCategories } from './purchaseVat';
 import {
   filterPurchaseExpenses,
   filterSupplierInvoices,
@@ -21,9 +21,11 @@ import {
 } from './purchases';
 import { projectTerminology } from './terminology';
 import type { Attachment, Expense, ExpenseRefund, Supplier, SupplierInvoice, Workspace } from './types';
-import { centsFromInput, createId, errorMessage, formatDate, formatMoney, numberFromInput, todayIso } from './utils';
+import { centsFromInput, errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import { Button, EmptyState, ErrorPanel, Field, FormActions, Modal, SectionHeading, StatusBadge, submitForm } from './ui';
-import { supplierDraftError, supplierPaymentInput } from './purchaseFormValidation';
+import { SupplierInvoicePreparation } from './SupplierInvoiceWizard';
+import { SupplierInvoiceAttachments, formatAttachmentSize } from './SupplierInvoiceAttachments';
+export { formatAttachmentSize } from './SupplierInvoiceAttachments';
 import './purchase-entry.css';
 
 type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
@@ -160,330 +162,16 @@ export function PurchasesScreen({
   </div>;
 }
 
-export type SupplierInvoiceDraftLine = {
-  id: string;
-  description: string;
-  quantityMilli: number;
-  unit: string;
-  unitPriceCents: number;
-  discountBp: number;
-  vatBp: number;
-  category: string;
-  expenseAccountId: string;
-  projectId: string;
-};
+export { supplierInvoiceLineTotals } from './supplierInvoicePreparation';
+export type { SupplierInvoiceDraftLine } from './supplierInvoicePreparation';
 
-function newSupplierInvoiceLine(workspace: Workspace, projectId = ''): SupplierInvoiceDraftLine {
-  const vatRates = purchaseVatOptions(workspace.settings!.organization.vatRegistered, workspace.settings!.billing.vatRatesBp);
-  return {
-    id: createId(),
-    description: '',
-    quantityMilli: 1_000,
-    unit: 'unité',
-    unitPriceCents: 0,
-    discountBp: 0,
-    vatBp: vatRates[0] ?? 0,
-    category: purchaseCostCategories(workspace.settings!.work.costCategories)[0],
-    expenseAccountId: '',
-    projectId,
-  };
+export function SupplierInvoiceForm(props: { item?: SupplierInvoice; initialTarget?: 'reference' | 'attachments'; workspace: Workspace; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner }) {
+  return <SupplierInvoicePreparation {...props} renderAttachments={(invoice, canEdit, busy, onPending) => <SupplierInvoiceAttachments invoice={invoice} canEdit={canEdit} busy={busy} act={props.act} onPending={onPending} />} />;
 }
 
-export function supplierInvoiceLineTotals(line: SupplierInvoiceDraftLine) {
-  const baseCents = Math.round((line.quantityMilli * line.unitPriceCents) / 1_000);
-  const discountCents = Math.round((baseCents * line.discountBp) / 10_000);
-  const netCents = Math.max(0, baseCents - discountCents);
-  const vatCents = Math.round((netCents * line.vatBp) / 10_000);
-  return { netCents, vatCents, totalCents: netCents + vatCents };
-}
+export { SupplierInvoiceDetail } from './SupplierInvoiceDetail';
 
-function supplierPaymentMethodLabel(method: string): string {
-  return ({ bank_transfer: 'Virement bancaire', card: 'Carte', cash: 'Espèces', other: 'Autre' } as Record<string, string>)[method] ?? method;
-}
-
-export function formatAttachmentSize(sizeBytes: number): string {
-  if (sizeBytes < 1_024) return `${sizeBytes} o`;
-  if (sizeBytes < 1_024 * 1_024) return `${(sizeBytes / 1_024).toLocaleString('fr-CH', { maximumFractionDigits: 1 })} Ko`;
-  return `${(sizeBytes / (1_024 * 1_024)).toLocaleString('fr-CH', { maximumFractionDigits: 1 })} Mo`;
-}
-
-function attachmentTypeLabel(attachment: Attachment): string {
-  return ({ 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/jpeg': 'JPEG', 'image/webp': 'WebP' } as Record<string, string>)[attachment.mimeType] ?? 'Document';
-}
-
-function SupplierInvoiceAttachments({ invoice, canEdit, busy, act }: { invoice?: SupplierInvoice; canEdit: boolean; busy: boolean; act?: ActionRunner }) {
-  const [localError, setLocalError] = useState('');
-
-  async function addAttachment() {
-    if (!invoice || !act || busy) return;
-    setLocalError('');
-    try {
-      const sourcePath = await desktopApi.chooseSupplierInvoiceAttachment();
-      if (!sourcePath) return;
-      await act(
-        () => desktopApi.addSupplierInvoiceAttachment(invoice.id, sourcePath),
-        'Le justificatif a été copié et vérifié dans les données locales Zentra.',
-        false,
-        (reason) => setLocalError(errorMessage(reason, 'Le justificatif n’a pas pu être ajouté. Réessayez avec un PDF ou une image.')),
-      );
-    } catch (reason) {
-      setLocalError(errorMessage(reason, 'Le justificatif n’a pas pu être ajouté.'));
-    }
-  }
-
-  async function openAttachment(attachment: Attachment) {
-    setLocalError('');
-    try {
-      await desktopApi.openAttachment(attachment.id);
-    } catch (reason) {
-      setLocalError(errorMessage(reason, 'Le justificatif local n’a pas pu être ouvert.'));
-    }
-  }
-
-  async function deleteAttachment(attachment: Attachment) {
-    if (!invoice || !act || busy || !window.confirm(`Supprimer le justificatif « ${attachment.originalName} » ?`)) return;
-    setLocalError('');
-    await act(
-      () => desktopApi.deleteSupplierInvoiceAttachment(attachment.id),
-      'Le justificatif a été supprimé du stockage local.',
-      false,
-      (reason) => setLocalError(errorMessage(reason, 'Le justificatif n’a pas pu être supprimé.')),
-    );
-  }
-
-  return <section className="supplier-attachments">
-    <header><div><strong><Paperclip size={16} /> Justificatifs</strong><small>PDF ou image · 25 Mio maximum · conservé sur cet appareil</small></div>{canEdit && invoice ? <Button type="button" variant="secondary" size="small" disabled={busy || invoice.attachments.length >= 20} onClick={() => void addAttachment()}><Upload size={14} /> Ajouter un justificatif</Button> : null}</header>
-    {!invoice ? <div className="supplier-attachments__empty"><Paperclip size={20} /><span>Enregistrez d’abord le brouillon pour joindre le document original.</span></div> : invoice.attachments.length ? <div className="supplier-attachments__list">{invoice.attachments.map((attachment) => <article key={attachment.id}><span className="supplier-attachments__icon"><ReceiptText size={17} /></span><div><strong>{attachment.originalName}</strong><small>{attachmentTypeLabel(attachment)} · {formatAttachmentSize(attachment.sizeBytes)}</small><em title={attachment.sha256}>Empreinte SHA-256 vérifiée localement · {attachment.sha256.slice(0, 12)}…</em></div><div className="row-actions"><Button type="button" variant="ghost" size="small" onClick={() => void openAttachment(attachment)}><FolderOpen size={14} /> Ouvrir</Button>{canEdit ? <Button type="button" variant="ghost" size="icon" disabled={busy} onClick={() => void deleteAttachment(attachment)} title="Supprimer le justificatif" aria-label={`Supprimer ${attachment.originalName}`}><Trash2 size={15} /></Button> : null}</div></article>)}</div> : <div className="supplier-attachments__empty"><Paperclip size={20} /><span>Aucun justificatif joint.{canEdit ? ' Vous pourrez valider sans pièce après une confirmation explicite.' : ''}</span></div>}
-    {invoice && invoice.attachments.length >= 20 && canEdit ? <div className="info-strip"><ShieldCheck size={16} /><span>La limite de 20 justificatifs pour cette facture est atteinte.</span></div> : null}
-    {localError ? <ErrorPanel title="Vérifions le justificatif" message={localError} reveal /> : null}
-  </section>;
-}
-
-export function SupplierInvoiceForm({ item, initialTarget, workspace, busy, close, act }: { item?: SupplierInvoice; initialTarget?: 'reference' | 'attachments'; workspace: Workspace; busy: boolean; close: () => void; act: ActionRunner }) {
-  const settings = workspace.settings!;
-  const terminology = projectTerminology(settings.business.nogaSection);
-  const supplierChoices = selectableSuppliers(workspace.suppliers, item?.supplierId);
-  const initialSupplier = supplierChoices.find((supplier) => supplier.id === item?.supplierId) ?? supplierChoices[0];
-  const [draftId] = useState(() => item?.id ?? createId());
-  const [formError, setFormError] = useState('');
-  const [hasChanges, setHasChanges] = useState(!item);
-  const attachmentStep = useRef<HTMLDivElement>(null);
-  const formElement = useRef<HTMLFormElement>(null);
-  useEffect(() => {
-    if (!initialTarget) return;
-    const frame = requestAnimationFrame(() => {
-      const target = initialTarget === 'reference' ? formElement.current?.querySelector<HTMLInputElement>('[name=reference]') : attachmentStep.current;
-      target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'center' });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [initialTarget]);
-  const wasSaved = useRef(Boolean(item));
-  const [vatTreatment, setVatTreatment] = useState<'' | 'input_materials' | 'input_investments' | 'non_deductible'>('');
-  const [supplierId, setSupplierId] = useState(initialSupplier?.id ?? '');
-  const [documentDate, setDocumentDate] = useState(item?.documentDate ?? todayIso());
-  const [dueDate, setDueDate] = useState(item?.dueDate ?? supplierDueDate(todayIso(), initialSupplier, settings.billing.paymentTermsDays));
-  const [projectId, setProjectId] = useState(item?.projectId ?? '');
-  const [lines, setLines] = useState<SupplierInvoiceDraftLine[]>(() => item?.lines.length
-    ? item.lines.map((line) => ({
-      id: line.id,
-      description: line.description,
-      quantityMilli: line.quantityMilli,
-      unit: line.unit,
-      unitPriceCents: line.unitPriceCents,
-      discountBp: line.discountBp,
-      vatBp: line.vatBp,
-      category: line.category,
-      expenseAccountId: line.expenseAccountId ?? '',
-      projectId: line.projectId ?? '',
-    }))
-    : [newSupplierInvoiceLine(workspace)]);
-  const currentInvoice = workspace.supplierInvoices.find((invoice) => invoice.id === draftId);
-  const hasMatching = workspace.supplierInvoiceMatches.some(match => match.supplierInvoiceId === draftId);
-  useEffect(() => {
-    if (!currentInvoice || wasSaved.current) return;
-    wasSaved.current = true;
-    const frame = requestAnimationFrame(() => attachmentStep.current?.scrollIntoView({ block: 'center' }));
-    return () => cancelAnimationFrame(frame);
-  }, [currentInvoice]);
-  const vatRates = purchaseVatOptions(settings.organization.vatRegistered, settings.billing.vatRatesBp);
-  const totals = lines.reduce((sum, line) => {
-    const amount = supplierInvoiceLineTotals(line);
-    return {
-      netCents: sum.netCents + amount.netCents,
-      vatCents: sum.vatCents + amount.vatCents,
-      totalCents: sum.totalCents + amount.totalCents,
-    };
-  }, { netCents: 0, vatCents: 0, totalCents: 0 });
-
-  function patchLine(id: string, patch: Partial<SupplierInvoiceDraftLine>) {
-    setLines((current) => current.map((line) => line.id === id ? { ...line, ...patch } : line));
-  }
-
-  function chooseSupplier(nextId: string) {
-    setSupplierId(nextId);
-    const supplier = supplierChoices.find((candidate) => candidate.id === nextId);
-    setDueDate(supplierDueDate(documentDate, supplier, settings.billing.paymentTermsDays));
-  }
-
-  return <Modal className="purchase-entry-modal" title={item ? 'Modifier le brouillon fournisseur' : 'Nouvelle facture fournisseur'} description="Recopiez la facture reçue, puis joignez son PDF ou sa photo. Vous la validerez après vérification." onClose={close} dismissible={!busy} wide>
-    <form ref={formElement} noValidate onSubmit={submitForm(async (form) => {
-      if (busy) return;
-      if (currentInvoice && !hasChanges) { close(); return; }
-      setFormError('');
-      if (hasMatching) { setFormError('Ce brouillon est déjà rapproché. Retirez les liens dans le rapprochement avant de modifier ses informations. Les justificatifs restent accessibles ci-dessous.'); return; }
-      const invalid = supplierDraftError(supplierId, documentDate, dueDate, lines, vatRates, totals.totalCents);
-      if (invalid) { setFormError(invalid); return; }
-      const saved = await act(
-        () => desktopApi.saveSupplierInvoiceDraft({
-          id: draftId,
-          supplierId,
-          projectId: projectId || null,
-          date: documentDate,
-          dueDate,
-          reference: String(form.get('reference')).trim(),
-          note: String(form.get('note')).trim(),
-          vatTreatment: vatTreatment || undefined,
-          items: lines.map((line) => ({
-            id: line.id,
-            description: line.description,
-            quantityMilli: line.quantityMilli,
-            unit: line.unit,
-            unitPriceCents: line.unitPriceCents,
-            discountBp: line.discountBp,
-            vatBp: line.vatBp,
-            category: line.category,
-            expenseAccountId: line.expenseAccountId || null,
-            projectId: line.projectId || null,
-          })),
-          }),
-        item || currentInvoice ? 'Le brouillon fournisseur a été mis à jour.' : 'Le brouillon fournisseur a été enregistré. Vous pouvez maintenant joindre le document original.',
-        false,
-        (reason) => setFormError(errorMessage(reason, 'L’enregistrement a échoué. Vos informations restent dans ce formulaire.')),
-      );
-      if (saved) setHasChanges(false);
-    })}>
-      <ol className="purchase-entry-steps" aria-label="Étapes de la facture fournisseur">
-        <li aria-current={!currentInvoice ? 'step' : undefined}><span>1</span><div><strong>Recopier</strong><small>Les montants de la facture</small></div></li>
-        <li aria-current={currentInvoice ? 'step' : undefined}><span>2</span><div><strong>Joindre l’original</strong><small>Un PDF ou une photo</small></div></li>
-        <li><span>3</span><div><strong>Valider</strong><small>Depuis la liste des achats</small></div></li>
-      </ol>
-      {hasMatching && <p className="info-strip">Les informations rapprochées sont protégées. Vous pouvez encore ajouter les justificatifs avant validation.</p>}
-      <fieldset disabled={busy || hasMatching} onChange={() => setHasChanges(true)}>
-      {!settings.organization.vatRegistered ? <div className="info-strip"><ReceiptText size={17} /><span>{nonRegisteredPurchaseVatHint}</span></div> : null}
-      <div className="form-grid">
-        <Field label="Fournisseur" required wide><select value={supplierId} onChange={(event) => chooseSupplier(event.target.value)} required autoFocus><option value="">Choisir un fournisseur</option>{supplierChoices.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}{supplier.archivedAt ? ' · archivé (historique)' : ''}</option>)}</select></Field>
-        <Field label="Numéro / référence fournisseur" hint="Le brouillon peut être enregistré sans numéro; celui-ci devient obligatoire avant validation."><input name="reference" defaultValue={item?.reference} maxLength={200} /></Field>
-        <Field label={terminology.singularTitle} hint="Facultatif; peut aussi être défini ligne par ligne."><select value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Aucun {terminology.singular}</option>{workspace.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>
-        <Field label="Date de facture" required><input type="date" value={documentDate} onChange={(event) => { const nextDate = event.target.value; setDocumentDate(nextDate); if (!item) { const supplier = supplierChoices.find((candidate) => candidate.id === supplierId); setDueDate(supplierDueDate(nextDate, supplier, settings.billing.paymentTermsDays)); } }} required /></Field>
-        <Field label="Échéance" required><input type="date" min={documentDate} value={dueDate} onChange={(event) => setDueDate(event.target.value)} required /></Field>
-        <Field label="Devise"><output className="field-output">CHF</output></Field>
-        {settings.organization.vatRegistered ? <Field label="Traitement TVA de ces achats" wide hint="S’applique à toutes les lignes de ce brouillon. Pour des usages différents, choisissez chaque ligne dans Comptabilité → TVA. Le calcul suit la méthode et la période déclarées."><select value={vatTreatment} onChange={(event) => setVatTreatment(event.target.value as typeof vatTreatment)}><option value="">Conserver le classement / classer ensuite</option><option value="input_materials">Marchandises et prestations professionnelles · TVA déductible (400)</option><option value="input_investments">Investissements et autres charges · TVA déductible (405)</option><option value="non_deductible">Sans droit à déduction / usage privé</option></select></Field> : null}
-      </div>
-
-      <section className="supplier-invoice-lines">
-        <header><div><strong>Lignes de la facture</strong><small>Les montants sont recalculés et recontrôlés localement lors de l’enregistrement.</small></div><Button type="button" variant="secondary" size="small" onClick={() => { setHasChanges(true); setLines((current) => [...current, newSupplierInvoiceLine(workspace)]); }}><Plus size={14} /> Ajouter une ligne</Button></header>
-        <div className="supplier-invoice-lines__list">{lines.map((line, index) => {
-          const amount = supplierInvoiceLineTotals(line);
-          return <article className="supplier-invoice-line" key={line.id}>
-            <div className="supplier-invoice-line__title"><strong>Ligne {index + 1}</strong><span>{formatMoney(amount.totalCents)}</span></div>
-            <div className="supplier-invoice-line__grid">
-              <Field label="Description" required wide><input value={line.description} onChange={(event) => patchLine(line.id, { description: event.target.value })} maxLength={1_000} required /></Field>
-              <Field label="Quantité" required><input type="number" min="0.001" max="1000000" step="0.001" value={line.quantityMilli / 1_000} onChange={(event) => patchLine(line.id, { quantityMilli: Math.round(numberFromInput(event.target.value) * 1_000) })} required /></Field>
-              <Field label="Unité" required><input value={line.unit} onChange={(event) => patchLine(line.id, { unit: event.target.value })} maxLength={50} required /></Field>
-              <Field label="Prix unitaire net (CHF)" required><input type="number" min="0" step="0.01" value={line.unitPriceCents ? line.unitPriceCents / 100 : ''} onChange={(event) => patchLine(line.id, { unitPriceCents: centsFromInput(event.target.value) })} required /></Field>
-              <Field label="Remise (%)"><input type="number" min="0" max="100" step="0.01" value={line.discountBp / 100} onChange={(event) => patchLine(line.id, { discountBp: Math.round(numberFromInput(event.target.value) * 100) })} /></Field>
-              <Field label="TVA" required error={!vatRates.includes(line.vatBp) ? "Ce taux historique n’est pas configuré. Choisissez un taux disponible ou ajoutez-le dans les paramètres." : undefined}><select value={line.vatBp} onChange={(event) => patchLine(line.id, { vatBp: Number(event.target.value) })} required>{Array.from(new Set([...vatRates, line.vatBp])).map((rate) => <option key={rate} value={rate}>{(rate / 100).toLocaleString('fr-CH', { maximumFractionDigits: 2 })} %{!vatRates.includes(rate) ? " (à vérifier)" : ""}</option>)}</select></Field>
-              <Field label="Catégorie" required><select value={line.category} onChange={(event) => patchLine(line.id, { category: event.target.value })} required><option value="">Choisir</option>{Array.from(new Set([...purchaseCostCategories(settings.work.costCategories), ...(line.category ? [line.category] : [])])).map((category) => <option key={category} value={category}>{category}</option>)}</select></Field>
-              <Field label={terminology.singularTitle}><select value={line.projectId} onChange={(event) => patchLine(line.id, { projectId: event.target.value })}><option value="">Reprendre le document</option>{workspace.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>
-            </div>
-            <div className="supplier-invoice-line__footer"><span>Net {formatMoney(amount.netCents)}</span><span>TVA {formatMoney(amount.vatCents)}</span>{lines.length > 1 ? <Button type="button" variant="ghost" size="small" onClick={() => { setHasChanges(true); setLines((current) => current.filter((candidate) => candidate.id !== line.id)); }}><Trash2 size={14} /> Retirer</Button> : null}</div>
-          </article>;
-        })}</div>
-      </section>
-
-      <div className="supplier-invoice-total"><div><span>Net</span><strong>{formatMoney(totals.netCents)}</strong></div><div><span>TVA</span><strong>{formatMoney(totals.vatCents)}</strong></div><div><span>Total TTC</span><strong>{formatMoney(totals.totalCents)}</strong></div></div>
-      <div className="form-grid"><Field label="Note interne" wide><textarea name="note" rows={3} defaultValue={item?.note} maxLength={10_000} /></Field></div>
-      </fieldset>
-      <div ref={attachmentStep} tabIndex={-1}>
-        {currentInvoice ? <div className="purchase-entry-saved" role="status"><CheckCircle2 size={18} /><div><strong>{hasChanges ? 'Modifications à enregistrer' : 'Brouillon enregistré'}</strong><p>{hasChanges ? 'Enregistrez les changements avant de terminer.' : 'Ajoutez le justificatif ci-dessous, puis terminez. Votre facture sera à vérifier dans les brouillons des achats.'}</p></div></div> : null}
-        <SupplierInvoiceAttachments invoice={currentInvoice} canEdit busy={busy} act={act} />
-      </div>
-      <div className="info-strip"><ReceiptText size={17} /><span>Un brouillon reste modifiable et n’entre pas dans les comptes. Après validation, le document et ses montants seront figés.</span></div>
-      {formError ? <ErrorPanel title="Vérifions la facture" message={formError} reveal /> : null}
-      {currentInvoice && !hasChanges ? <div className="form-actions"><Button type="button" disabled={busy} onClick={close}>Terminer</Button></div> : <FormActions onCancel={close} busy={busy} cancelLabel={currentInvoice ? 'Fermer' : 'Annuler'} submitLabel={currentInvoice ? 'Mettre à jour le brouillon' : 'Enregistrer le brouillon'} />}
-    </form>
-  </Modal>;
-}
-
-export function SupplierInvoiceDetail({ invoice, workspace, busy, close, onPayment }: { invoice: SupplierInvoice; workspace: Workspace; busy: boolean; close: () => void; onPayment: () => void }) {
-  const terminology = projectTerminology(workspace.settings!.business.nogaSection);
-  const currentInvoice = workspace.supplierInvoices.find((candidate) => candidate.id === invoice.id) ?? invoice;
-  const project = workspace.projects.find((candidate) => candidate.id === currentInvoice.projectId);
-  const paymentReady = Boolean(workspace.accountingSettings?.enabled && workspace.accountingSettings.bankAccountId);
-  return <Modal title={`Facture fournisseur ${currentInvoice.reference || 'sans référence'}`} description="Document validé, justificatifs et historique des règlements conservés localement." onClose={close} wide>
-    <div className="supplier-document-summary">
-      <div><span>Fournisseur</span><strong>{currentInvoice.supplierName}</strong></div>
-      <div><span>Date</span><strong>{formatDate(currentInvoice.documentDate)}</strong></div>
-      <div><span>Échéance</span><strong>{formatDate(currentInvoice.dueDate)}</strong></div>
-      <div><span>{terminology.singularTitle}</span><strong>{project?.name || `Aucun ${terminology.singular}`}</strong></div>
-    </div>
-    <div className="table-panel supplier-document-lines"><table><thead><tr><th>Description</th><th>Qté</th><th>Catégorie</th><th>Net</th><th>TVA</th><th>TTC</th></tr></thead><tbody>{currentInvoice.lines.map((line) => <tr key={line.id}><td><strong>{line.description}</strong><small>{line.unit}</small></td><td>{(line.quantityMilli / 1_000).toLocaleString('fr-CH')}</td><td>{line.category}</td><td>{formatMoney(line.netCents)}</td><td>{formatMoney(line.vatCents)}</td><td><strong>{formatMoney(line.totalCents)}</strong></td></tr>)}</tbody></table></div>
-    <div className="supplier-invoice-total"><div><span>Total</span><strong>{formatMoney(currentInvoice.totalCents)}</strong></div><div><span>Déjà payé</span><strong>{formatMoney(currentInvoice.paidCents)}</strong></div><div><span>Solde</span><strong>{formatMoney(currentInvoice.balanceCents)}</strong></div></div>
-    <SupplierInvoiceAttachments invoice={currentInvoice} canEdit={false} busy={busy} />
-    <section className="supplier-payment-history"><header><strong>Historique des paiements</strong>{currentInvoice.paymentStatus !== 'paid' ? <Button size="small" disabled={!paymentReady} title={paymentReady ? 'Enregistrer un règlement local' : 'Configurez le compte bancaire dans Plan & liaisons'} onClick={onPayment}><Banknote size={14} /> Enregistrer un paiement</Button> : <StatusBadge status="paid" />}</header>{currentInvoice.payments.length ? <div>{currentInvoice.payments.map((payment) => <article key={payment.id}><div><strong>{formatMoney(payment.amountCents)}</strong><span>{formatDate(payment.date)}</span></div><small>{[supplierPaymentMethodLabel(payment.method), payment.reference].filter(Boolean).join(' · ') || 'Sans détail de paiement'}</small>{payment.notes ? <p>{payment.notes}</p> : null}</article>)}</div> : <EmptyState icon={<Banknote size={22} />} title="Aucun paiement" text="Le premier règlement apparaîtra ici avec sa date et sa référence." />}</section>
-    {currentInvoice.note ? <div className="info-strip"><ReceiptText size={17} /><span>{currentInvoice.note}</span></div> : null}
-    <div className="form-actions"><Button type="button" variant="secondary" onClick={close}>Fermer</Button></div>
-  </Modal>;
-}
-
-export function SupplierPaymentForm({ invoice: initialInvoice, workspace, busy, close, act }: { invoice: SupplierInvoice; workspace: Workspace; busy: boolean; close: () => void; act: ActionRunner }) {
-  const invoice = workspace.supplierInvoices.find((row) => row.id === initialInvoice.id) ?? initialInvoice;
-  const [requestId] = useState(() => createId());
-  const [amount, setAmount] = useState((invoice.balanceCents / 100).toFixed(2));
-  const defaultPaymentDate = todayIso() < invoice.documentDate ? invoice.documentDate : todayIso();
-  const [paymentDate, setPaymentDate] = useState(defaultPaymentDate);
-  const [formError, setFormError] = useState('');
-  const { amountCents, error: validationError } = supplierPaymentInput(amount, paymentDate, invoice.documentDate, invoice.balanceCents);
-  const recorded = invoice.payments.find((payment) => payment.requestId === requestId);
-  return <Modal className="purchase-entry-modal" title="Enregistrer un paiement fournisseur" description={`Facture ${invoice.reference} · ${invoice.supplierName}`} onClose={close} dismissible={!busy}>
-    {recorded ? <>
-      <div className="info-strip" role="status"><CheckCircle2 size={18} /><span>Votre paiement de {formatMoney(recorded.amountCents)} du {formatDate(recorded.date)} est bien enregistré. Le solde restant est de {formatMoney(invoice.balanceCents)}.</span></div>
-      <div className="form-actions"><Button type="button" onClick={close} disabled={busy}>Terminer</Button></div>
-    </> : <form noValidate onSubmit={submitForm(async (form) => {
-      if (busy) return;
-      setFormError('');
-      if (validationError) { setFormError(validationError); return; }
-      await act(
-        () => desktopApi.recordSupplierPayment({
-          requestId,
-          supplierInvoiceId: invoice.id,
-          amountCents,
-          date: paymentDate,
-          method: String(form.get('method')),
-          reference: String(form.get('reference')).trim(),
-          notes: String(form.get('notes')).trim(),
-        }),
-        amountCents === invoice.balanceCents ? 'La facture fournisseur est entièrement payée.' : 'Le paiement partiel a été enregistré.',
-        true,
-        (reason) => setFormError(errorMessage(reason, 'Le paiement n’a pas pu être enregistré. Les informations saisies sont conservées.')),
-      );
-    })}>
-      <fieldset disabled={busy}>
-      <div className="payment-summary"><div><span>Total</span><strong>{formatMoney(invoice.totalCents)}</strong></div><div><span>Déjà payé</span><strong>{formatMoney(invoice.paidCents)}</strong></div><div><span>Solde disponible</span><strong>{formatMoney(invoice.balanceCents)}</strong></div></div>
-      <div className="form-grid">
-        <Field label="Montant payé (CHF)" required hint="Le solde est proposé. Modifiez-le si vous avez payé seulement une partie."><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} required autoFocus /></Field>
-        <Field label="Date du paiement" required hint="Recopiez la date du débit bancaire ou du reçu."><input name="date" type="date" min={invoice.documentDate} value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} required /></Field>
-        <Field label="Mode de paiement" required><select name="method" defaultValue="bank_transfer" required><option value="bank_transfer">Virement bancaire</option><option value="card">Carte</option><option value="cash">Espèces</option><option value="other">Autre</option></select></Field>
-        <Field label="Référence"><input name="reference" maxLength={200} /></Field>
-        <Field label="Note" wide><textarea name="notes" rows={3} maxLength={2_000} /></Field>
-      </div>
-      <div className="info-strip"><WalletCards size={17} /><span>Zentra enregistre le règlement et l’écriture comptable ensemble. Aucun virement n’est envoyé à la banque.</span></div>
-      </fieldset>
-      {formError ? <ErrorPanel title="Vérifions le paiement" message={formError} reveal /> : null}
-      <FormActions onCancel={close} busy={busy} submitLabel={!validationError && amountCents === invoice.balanceCents ? 'Enregistrer et solder' : 'Enregistrer le paiement'} />
-    </form>}
-  </Modal>;
-}
+export { SupplierPaymentForm } from './SupplierPaymentForm';
 
 export function LegacyExpenseDetail({ expense: initialExpense, workspace, close, busy, act }: { expense: Expense; workspace: Workspace; close: () => void; busy: boolean; act: ActionRunner }) {
   const expense = workspace.expenses.find((row) => row.id === initialExpense.id) ?? initialExpense;

@@ -5,6 +5,39 @@ import UIKit
 @available(iOS 26.0, *)
 @MainActor
 final class NavigationTests: XCTestCase {
+  func testVisibleButtonsReceiveTouchesAfterRepeatedConfiguration() {
+    UIView.setAnimationsEnabled(false)
+    defer { UIView.setAnimationsEnabled(true) }
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+    let controller = UIViewController()
+    window.rootViewController = controller
+    window.makeKeyAndVisible()
+    defer { window.isHidden = true }
+    let host = controller.view!
+    let scroll = UIScrollView(frame: host.bounds)
+    host.addSubview(scroll)
+    let dock = GlassNavigation(host: host, scrollView: scroll)
+    var selected: [String] = []
+    dock.onSelect = { selected.append($0) }
+    let ids = ["dashboard", "projects", "quotes", "menu"]
+    for _ in 0..<3 {
+      for (index, id) in ids.enumerated() {
+        dock.configure(selected: id, visible: true)
+        host.layoutIfNeeded()
+        let button = dock.arrangedSubviews[index] as! UIButton
+        let point = button.convert(CGPoint(x: button.bounds.midX, y: button.bounds.midY), to: window)
+        let touched = window.hitTest(point, with: nil)
+        XCTAssertTrue(touched === button || touched?.isDescendant(of: button) == true, "Touch must reach \(id)")
+        button.sendActions(for: .touchUpInside)
+        XCTAssertEqual(selected.last, id)
+        let count = selected.count
+        dock.configure(selected: id, visible: false)
+        button.sendActions(for: .touchUpInside)
+        XCTAssertEqual(selected.count, count)
+      }
+    }
+    XCTAssertEqual(selected, ids + ids + ids)
+  }
   func testNavigationLayoutActionsAndKeyboard() {
     let host = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 568))
     let scrollView = UIScrollView(frame: host.bounds)

@@ -26,7 +26,7 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}-${name}: page overflow`);
       const dialog = page.getByRole('dialog');
       assert.ok(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth + 1 && node.querySelector('.modal__body').scrollWidth <= node.querySelector('.modal__body').clientWidth + 1), `${width}-${name}: form overflow`);
-      const footer = await dialog.locator('.form-actions').evaluate((node) => ({ top: node.getBoundingClientRect().top, bottom: node.getBoundingClientRect().bottom, viewport: innerHeight }));
+      const footer = await dialog.locator('.form-actions, .supplier-preparation__actions').evaluate((node) => ({ top: node.getBoundingClientRect().top, bottom: node.getBoundingClientRect().bottom, viewport: innerHeight }));
       assert.ok(footer.top >= 0 && footer.bottom <= footer.viewport + 1, `${width}-${name}: action footer outside viewport ${JSON.stringify(footer)}`);
       await page.screenshot({ path: `.qa/non-registered-purchases/${width}-${name}.png` });
     };
@@ -48,13 +48,15 @@ try {
     await section('documents');
     await page.getByRole('button', { name: 'Nouvelle facture', exact: true }).click();
     dialog = page.getByRole('dialog');
-    await dialog.getByText(/Recopiez le prix hors taxe/).waitFor();
     await dialog.getByRole('combobox', { name: /^Fournisseur/ }).selectOption('supplier-purchase-qa');
-    await dialog.getByRole('textbox', { name: /^Description/ }).fill('Prestation fournisseur au taux spécial');
-    await dialog.getByRole('spinbutton', { name: /^Prix unitaire net/ }).fill('100');
-    await dialog.getByRole('combobox', { name: /^TVA/ }).selectOption('380');
     await dialog.locator('input[name="reference"]').fill('FAC-HOTEL-2026-01');
+    await dialog.getByRole('button', { name: 'Continuer vers les achats', exact: true }).click();
+    await dialog.getByText(/Recopiez le prix hors taxe/).waitFor();
+    await dialog.getByRole('textbox', { name: /^Description/ }).fill('Prestation fournisseur au taux spécial');
+    await dialog.getByRole('textbox', { name: /^Prix unitaire net/ }).fill('100');
+    await dialog.getByRole('combobox', { name: /^TVA/ }).selectOption('380');
     assert.equal(await dialog.getByRole('combobox', { name: 'Traitement TVA de ces achats', exact: false }).count(), 0);
+    await dialog.getByRole('button', { name: 'Vérifier la facture', exact: true }).click();
     await dialog.locator('.supplier-invoice-total').scrollIntoViewIfNeeded();
     assert.match(await dialog.locator('.supplier-invoice-total').innerText(), /103.80/);
     await capture('invoice-total');

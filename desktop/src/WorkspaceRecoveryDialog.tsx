@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Search, RefreshCw } from 'lucide-react';
 import { Button, ErrorPanel, Modal } from './ui';
 import { errorMessage } from './utils';
+import { t, useAppLanguage } from './language';
 import './WorkspaceRecoveryDialog.css';
 
 export function WorkspaceRecoveryDialog({ reason, checkingCreation = false, onReload }: { reason: string; checkingCreation?: boolean; onReload: () => Promise<void> }) {
+  useAppLanguage();
   const contentRef = useRef<HTMLFormElement>(null);
   const inFlight = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -33,7 +35,7 @@ export function WorkspaceRecoveryDialog({ reason, checkingCreation = false, onRe
       }
     };
   }, []);
-  return <Modal title={checkingCreation ? 'Vérifier l’enregistrement' : 'Enregistrement effectué'} description={checkingCreation ? 'La réponse a été interrompue. Votre saisie est conservée dans cette fenêtre.' : 'Les données doivent être actualisées avant de continuer.'} dismissible={false} onClose={() => {}}>
+  return <Modal title={t(checkingCreation ? 'Vérifier l’enregistrement' : 'Enregistrement effectué')} description={t(checkingCreation ? 'La réponse a été interrompue. Votre saisie est conservée dans cette fenêtre.' : 'Les données doivent être actualisées avant de continuer.')} dismissible={false} onClose={() => {}}>
     <form ref={contentRef} className="workspace-recovery" onSubmit={async (event) => {
       event.preventDefault();
       if (inFlight.current) return;
@@ -44,11 +46,11 @@ export function WorkspaceRecoveryDialog({ reason, checkingCreation = false, onRe
       catch (cause) { setRetryError(errorMessage(cause, 'La lecture des données reste indisponible.')); }
       finally { inFlight.current = false; setBusy(false); }
     }}>
-      <div className={`workspace-recovery__saved${checkingCreation ? ' workspace-recovery__checking' : ''}`}>{checkingCreation ? <Search size={28} /> : <CheckCircle2 size={28} />}<p>{checkingCreation ? 'Votre opération a peut-être déjà été enregistrée. La vérification contrôlera les données sans répéter l’opération.' : 'Votre opération est sauvegardée. L’actualisation relira les données sans recommencer l’enregistrement.'}</p></div>
-      <p>{checkingCreation ? 'Si l’enregistrement est confirmé, vous pourrez continuer. Sinon, vous retrouverez votre formulaire avec les informations à corriger.' : 'La consultation et les modifications reprendront dès que les données enregistrées seront chargées.'}</p>
-      <details><summary>Détail du problème</summary><p>{reason}</p></details>
-      {retryError ? <ErrorPanel title={checkingCreation ? 'Vérification encore indisponible' : 'Actualisation impossible'} message={retryError} reveal /> : null}
-      <div className="form-actions"><Button type="submit" disabled={busy} data-modal-initial-focus><RefreshCw size={18} className={busy ? 'spin' : undefined} />{checkingCreation ? busy ? 'Vérification…' : 'Vérifier maintenant' : busy ? 'Actualisation…' : 'Actualiser les données'}</Button></div>
+      <div className={`workspace-recovery__saved${checkingCreation ? ' workspace-recovery__checking' : ''}`}>{checkingCreation ? <Search size={28} /> : <CheckCircle2 size={28} />}<p>{t(checkingCreation ? 'Votre opération a peut-être déjà été enregistrée. La vérification contrôlera les données sans répéter l’opération.' : 'Votre opération est sauvegardée. L’actualisation relira les données sans recommencer l’enregistrement.')}</p></div>
+      <p>{t(checkingCreation ? 'Si l’enregistrement est confirmé, vous pourrez continuer. Sinon, vous retrouverez votre formulaire avec les informations à corriger.' : 'La consultation et les modifications reprendront dès que les données enregistrées seront chargées.')}</p>
+      <details><summary>{t('Détail du problème')}</summary><p>{reason}</p></details>
+      {retryError ? <><ErrorPanel title={t(checkingCreation ? 'Vérification encore indisponible' : 'Actualisation impossible')} message={t('La lecture des données reste indisponible.')} reveal /><details><summary>{t('Voir le message détaillé')}</summary><p>{retryError}</p></details></> : null}
+      <div className="form-actions"><Button type="submit" disabled={busy} data-modal-initial-focus><RefreshCw size={18} className={busy ? 'spin' : undefined} />{t(checkingCreation ? busy ? 'Vérification…' : 'Vérifier maintenant' : busy ? 'Actualisation…' : 'Actualiser les données')}</Button></div>
     </form>
   </Modal>;
 }
