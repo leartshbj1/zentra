@@ -1,3 +1,5 @@
+import { t, useAppLanguage, getAppLocale } from './language';
+import { PayrollSelect } from './PayrollSelect';
 import { useEffect, useRef, useState } from 'react';
 import { desktopApi } from './bridge';
 import { Button, Field, submitForm } from './ui';
@@ -51,6 +53,7 @@ export function PayrollContractSetup({
   guided?: boolean;
   onFix?: (target: PayrollHelpTarget, selector?: string) => void;
 }) {
+  useAppLanguage();
   const directedPreset = Object.keys(CONTRACT_PRESETS).find(
     (preset) => destination?.selector === `[data-payroll-preset="${preset}"]`,
   ) as ContractPreset | undefined;
@@ -187,14 +190,12 @@ export function PayrollContractSetup({
       <div>
         <h3>
           {federalOnly
-            ? 'Les taux suisses, déjà prêts pour vous'
+            ? t("Les taux suisses, déjà prêts pour vous")
             : guided
-              ? preset.label
-              : 'Cotisations et assurances'}
+              ? t(preset.label)
+              : t("Cotisations et assurances")}
         </h3>
-        <p>
-          Recopiez votre contrat. Ces réglages seront réutilisables chaque mois.
-        </p>
+        <p>{t("Recopiez votre contrat. Ces réglages seront réutilisables chaque mois.")}</p>
       </div>
       {error && (
         <>
@@ -216,9 +217,7 @@ export function PayrollContractSetup({
               setLoading(true);
               setRevision((value) => value + 1);
             }}
-          >
-            Actualiser les cotisations
-          </Button>
+          >{t("Actualiser les cotisations")}</Button>
         </>
       )}
       <details
@@ -227,11 +226,8 @@ export function PayrollContractSetup({
         open={federalOnly ? true : undefined}
         hidden={guided && !federalOnly}
       >
-        <summary>Taux suisses AVS et chômage</summary>
-        <p>
-          Préparez les cotisations fédérales avec le référentiel suisse 2026
-          inclus. Les cotisations déjà présentes restent conservées.
-        </p>
+        <summary>{t("Taux suisses AVS et chômage")}</summary>
+        <p>{t("Préparez les cotisations fédérales avec le référentiel suisse 2026 inclus. Les cotisations déjà présentes restent conservées.")}</p>
         <Button
           type="button"
           variant="secondary"
@@ -266,14 +262,12 @@ export function PayrollContractSetup({
               return desktopApi.loadWorkspace();
             })
           }
-        >
-          Préparer les cotisations suisses 2026
-        </Button>
+        >{t("Préparer les cotisations suisses 2026")}</Button>
       </details>
       <div hidden={federalOnly}>
         {!guided && (
-          <Field label="Quelle cotisation souhaitez-vous préparer ?">
-            <select
+          <Field label={t("Quelle cotisation souhaitez-vous préparer ?")}>
+            <PayrollSelect
               value={category}
               disabled={busy}
               onChange={(event) => {
@@ -285,31 +279,28 @@ export function PayrollContractSetup({
             >
               {Object.entries(CONTRACT_PRESETS).map(([key, item]) => (
                 <option key={key} value={key}>
-                  {item.label}
+                  {t(item.label)}
                 </option>
               ))}
-            </select>
+            </PayrollSelect>
           </Field>
         )}
-        <p>{preset.explanation}</p>
+        <p>{t(preset.explanation)}</p>
         {pension && !pair && (
           <section
             className="payroll-pension-guide"
             data-pension-guide
-            aria-label="Préparer la caisse de pension"
+            aria-label={t("Préparer la caisse de pension")}
           >
-            <h3>
-              La pension de {employee?.name ?? 'votre collaborateur'}, en trois
-              points
-            </h3>
+            <h3>{t("La pension de {name}, en trois points", { name: employee?.name ?? t('votre collaborateur') })}</h3>
             <ol>
               <li>
                 <div>
-                  <strong>Le salaire annuel</strong>
+                  <strong>{t("Le salaire annuel")}</strong>
                   <p>
                     {annualReady
-                      ? `Salaire annoncé pour ${year} : CHF ${((employee!.lppAnnualSalaryCents ?? 0) / 100).toLocaleString('fr-CH')}.`
-                      : 'Recopiez le salaire brut annuel annoncé à la caisse pour cette personne.'}
+                      ? t("Salaire annoncé pour {v0} : CHF {v1}.", { v0: year, v1: ((employee!.lppAnnualSalaryCents ?? 0) / 100).toLocaleString(getAppLocale()) })
+                      : t("Recopiez le salaire brut annuel annoncé à la caisse pour cette personne.")}
                   </p>
                 </div>
                 <Button
@@ -320,17 +311,17 @@ export function PayrollContractSetup({
                   onClick={() => onFix?.('pension-person')}
                 >
                   {annualReady
-                    ? 'Vérifier le salaire annuel'
-                    : 'Renseigner le salaire annuel'}
+                    ? t("Vérifier le salaire annuel")
+                    : t("Renseigner le salaire annuel")}
                 </Button>
               </li>
               <li>
                 <div>
-                  <strong>Le contrat de la caisse</strong>
+                  <strong>{t("Le contrat de la caisse")}</strong>
                   <p>
                     {planReady
-                      ? `${workspace.settings!.payroll.pensionFund} · contrat renseigné.`
-                      : 'Le nom de la caisse, le règlement et ses dates doivent être complétés pour ce mois.'}
+                      ? t("{v0} · contrat renseigné.", { v0: workspace.settings!.payroll.pensionFund })
+                      : t("Le nom de la caisse, le règlement et ses dates doivent être complétés pour ce mois.")}
                   </p>
                 </div>
                 <Button
@@ -341,39 +332,31 @@ export function PayrollContractSetup({
                   onClick={() => onFix?.('pension-plan')}
                 >
                   {planReady
-                    ? 'Vérifier le contrat de pension'
-                    : 'Compléter le contrat de pension'}
+                    ? t("Vérifier le contrat de pension")
+                    : t("Compléter le contrat de pension")}
                 </Button>
               </li>
               <li>
                 <div>
-                  <strong>Les montants mensuels</strong>
-                  <p>
-                    Recopiez la part du salarié et celle de l’entreprise, une
-                    ligne à la fois. Le certificat précise ce qui couvre
-                    l’épargne et les risques.
-                  </p>
+                  <strong>{t("Les montants mensuels")}</strong>
+                  <p>{t("Recopiez la part du salarié et celle de l’entreprise, une ligne à la fois. Le certificat précise ce qui couvre l’épargne et les risques.")}</p>
                 </div>
               </li>
             </ol>
-            <small>
-              Vous n’avez pas le certificat ? Demandez à la caisse les montants
-              mensuels des deux parts. Ne remplacez pas un montant inconnu par
-              zéro.
-            </small>
+            <small>{t("Vous n’avez pas le certificat ? Demandez à la caisse les montants mensuels des deux parts. Ne remplacez pas un montant inconnu par zéro.")}</small>
           </section>
         )}
         {existing.length > 0 && !pair && (
           <div className="payroll-callout">
-            <strong>Déjà enregistré pour cette période</strong>
+            <strong>{t("Déjà enregistré pour cette période")}</strong>
             {existing.map((d) => (
               <div key={d.id}>
                 <span>
-                  {d.label} · {d.side === 'employee' ? 'salarié' : 'entreprise'}{' '}
+                  {d.label} · {d.side === 'employee' ? t("salarié") : t("entreprise")}{' '}
                   ·{' '}
                   {d.rateBp == null
-                    ? `${((d.fixedAmountCents ?? 0) / 100).toLocaleString('fr-CH')} CHF`
-                    : `${(d.rateBp / 100).toLocaleString('fr-CH')} %`}
+                    ? t("{v0} CHF", { v0: ((d.fixedAmountCents ?? 0) / 100).toLocaleString(getAppLocale()) })
+                    : `${(d.rateBp / 100).toLocaleString(getAppLocale())} %`}
                 </span>
                 {editable(d) ? (
                   <Button
@@ -385,8 +368,7 @@ export function PayrollContractSetup({
                       setEditing(structuredClone(d));
                       setId(d.id);
                     }}
-                  >
-                    Modifier {d.label}
+                  >{t("Modifier {name}", { name: d.label })}
                   </Button>
                 ) : (
                   <Button
@@ -395,21 +377,15 @@ export function PayrollContractSetup({
                     size="small"
                     disabled={busy || loading}
                     onClick={() => onFix?.('advanced-contributions')}
-                  >
-                    Ouvrir les réglages de cette couverture
-                  </Button>
+                  >{t("Ouvrir les réglages de cette couverture")}</Button>
                 )}
               </div>
             ))}
-            <small>
-              Ajoutez une ligne uniquement si elle correspond à une autre part
-              ou couverture.
-            </small>
+            <small>{t("Ajoutez une ligne uniquement si elle correspond à une autre part ou couverture.")}</small>
           </div>
         )}
         {editing && (
-          <output>
-            Modification de {editing.label}.{' '}
+          <output>{t("Modification de {name}.", { name: editing.label })}{' '}
             <Button
               type="button"
               variant="ghost"
@@ -419,9 +395,7 @@ export function PayrollContractSetup({
                 setEditing(null);
                 setId(createId());
               }}
-            >
-              Annuler la modification
-            </Button>
+            >{t("Annuler la modification")}</Button>
           </output>
         )}
         {pair && (
@@ -520,26 +494,24 @@ export function PayrollContractSetup({
           {fieldGuide.guide}
           <fieldset disabled={busy || loading || year !== 2026}>
             <div className="form-grid">
-              <Field label="Qui paie cette part ?" required>
-                <select
+              <Field label={t("Qui paie cette part ?")} required>
+                <PayrollSelect
                   name="side"
                   defaultValue={editing?.side ?? preset.side}
                   required
                 >
                   <option value={preset.side}>
                     {preset.side === 'employee'
-                      ? 'Le salarié : retenue sur son salaire'
-                      : 'L’entreprise : charge en plus du salaire'}
+                      ? t("Le salarié : retenue sur son salaire")
+                      : t("L’entreprise : charge en plus du salaire")}
                   </option>
                   {(pension || category === 'ijm') && (
-                    <option value="employer">
-                      L’entreprise : charge en plus du salaire
-                    </option>
+                    <option value="employer">{t("L’entreprise : charge en plus du salaire")}</option>
                   )}
-                </select>
+                </PayrollSelect>
               </Field>
               {pension ? (
-                <Field label="Montant mensuel du certificat (CHF)" required>
+                <Field label={t("Montant mensuel du certificat (CHF)")} required>
                   <input
                     name="amount"
                     type="number"
@@ -556,9 +528,9 @@ export function PayrollContractSetup({
                 </Field>
               ) : (
                 <Field
-                  label="Taux exact de cette part (%)"
+                  label={t("Taux exact de cette part (%)")}
                   required
-                  hint="Exemple de saisie : 1.25 pour 1,25 %. Recopiez le taux de votre contrat."
+                  hint={t("Exemple de saisie : 1.25 pour 1,25 %. Recopiez le taux de votre contrat.")}
                 >
                   <input
                     name="rate"
@@ -571,22 +543,20 @@ export function PayrollContractSetup({
                 </Field>
               )}
               {pension && (
-                <Field label="Ce montant couvre" required>
-                  <select
+                <Field label={t("Ce montant couvre")} required>
+                  <PayrollSelect
                     name="component"
                     required
                     defaultValue={editing?.lppComponent ?? ''}
                   >
-                    <option value="">Lire le certificat de prévoyance</option>
-                    <option value="combined">Épargne et risques réunis</option>
-                    <option value="risk">
-                      Risques uniquement (décès et invalidité)
-                    </option>
-                    <option value="savings">Épargne uniquement</option>
-                  </select>
+                    <option value="">{t("Lire le certificat de prévoyance")}</option>
+                    <option value="combined">{t("Épargne et risques réunis")}</option>
+                    <option value="risk">{t("Risques uniquement (décès et invalidité)")}</option>
+                    <option value="savings">{t("Épargne uniquement")}</option>
+                  </PayrollSelect>
                 </Field>
               )}
-              <Field label="Début du tarif" required>
+              <Field label={t("Début du tarif")} required>
                 <input
                   type="date"
                   name="from"
@@ -602,7 +572,7 @@ export function PayrollContractSetup({
                   required
                 />
               </Field>
-              <Field label="Fin de la période confirmée" required>
+              <Field label={t("Fin de la période confirmée")} required>
                 <input
                   type="date"
                   name="to"
@@ -620,15 +590,15 @@ export function PayrollContractSetup({
               <Field
                 label={
                   pension
-                    ? 'Référence du règlement de pension'
-                    : 'Référence du contrat ou du décompte'
+                    ? t("Référence du règlement de pension")
+                    : t("Référence du contrat ou du décompte")
                 }
                 required
                 wide
                 hint={
                   pension
-                    ? 'Reprenez exactement la référence enregistrée avec la caisse de pension.'
-                    : 'Assureur ou caisse, numéro de contrat et année : de quoi retrouver le taux.'
+                    ? t("Reprenez exactement la référence enregistrée avec la caisse de pension.")
+                    : t("Assureur ou caisse, numéro de contrat et année : de quoi retrouver le taux.")
                 }
               >
                 <input
@@ -648,33 +618,30 @@ export function PayrollContractSetup({
             </div>
             <div className="payroll-contract-summary">
               <dl>
-                <dt>Calcul prévu</dt>
+                <dt>{t("Calcul prévu")}</dt>
                 <dd>
                   {pension
-                    ? 'Montant mensuel confirmé'
-                    : 'Taux × salaire soumis à cotisation'}
+                    ? t("Montant mensuel confirmé")
+                    : t("Taux × salaire soumis à cotisation")}
                 </dd>
                 {['aap', 'aanp'].includes(category) && (
                   <>
-                    <dt>Plafond accidents 2026</dt>
-                    <dd>CHF 148’200 par an</dd>
+                    <dt>{t("Plafond accidents 2026")}</dt>
+                    <dd>{t("CHF 148’200 par an")}</dd>
                   </>
                 )}
               </dl>
               <small>
                 {pension
-                  ? 'La base légale de pension est contrôlée à partir du salaire annuel confirmé.'
-                  : 'Les allocations familiales légales restent exclues du salaire soumis aux cotisations. Confirmez que votre contrat utilise cette base.'}
+                  ? t("La base légale de pension est contrôlée à partir du salaire annuel confirmé.")
+                  : t("Les allocations familiales légales restent exclues du salaire soumis aux cotisations. Confirmez que votre contrat utilise cette base.")}
               </small>
             </div>
             <details className="payroll-simple-guide">
-              <summary>Comptes pour la comptabilité</summary>
-              <p>
-                Choisissez les comptes correspondant à cette cotisation. Ces
-                choix ne modifient pas le net à payer.
-              </p>
-              <Field label="Cotisations à payer">
-                <select
+              <summary>{t("Comptes pour la comptabilité")}</summary>
+              <p>{t("Choisissez les comptes correspondant à cette cotisation. Ces choix ne modifient pas le net à payer.")}</p>
+              <Field label={t("Cotisations à payer")}>
+                <PayrollSelect
                   name="liability"
                   defaultValue={
                     editing
@@ -682,7 +649,7 @@ export function PayrollContractSetup({
                       : singlePayrollAccount(accounts, 'liability')
                   }
                 >
-                  <option value="">À compléter avant comptabilisation</option>
+                  <option value="">{t("À compléter avant comptabilisation")}</option>
                   {editing?.liabilityAccountId &&
                     !accounts.some(
                       (a) =>
@@ -690,9 +657,7 @@ export function PayrollContractSetup({
                         a.active &&
                         a.accountType === 'liability',
                     ) && (
-                      <option value={editing.liabilityAccountId}>
-                        Compte actuel indisponible — à remplacer
-                      </option>
+                      <option value={editing.liabilityAccountId}>{t("Compte actuel indisponible — à remplacer")}</option>
                     )}
                   {accounts
                     .filter((a) => a.active && a.accountType === 'liability')
@@ -701,10 +666,10 @@ export function PayrollContractSetup({
                         {a.code} · {a.name}
                       </option>
                     ))}
-                </select>
+                </PayrollSelect>
               </Field>
-              <Field label="Charges de personnel (part entreprise)">
-                <select
+              <Field label={t("Charges de personnel (part entreprise)")}>
+                <PayrollSelect
                   name="expense"
                   defaultValue={
                     editing
@@ -712,7 +677,7 @@ export function PayrollContractSetup({
                       : singlePayrollAccount(accounts, 'expense')
                   }
                 >
-                  <option value="">À compléter avant comptabilisation</option>
+                  <option value="">{t("À compléter avant comptabilisation")}</option>
                   {editing?.expenseAccountId &&
                     !accounts.some(
                       (a) =>
@@ -720,9 +685,7 @@ export function PayrollContractSetup({
                         a.active &&
                         a.accountType === 'expense',
                     ) && (
-                      <option value={editing.expenseAccountId}>
-                        Compte actuel indisponible — à remplacer
-                      </option>
+                      <option value={editing.expenseAccountId}>{t("Compte actuel indisponible — à remplacer")}</option>
                     )}
                   {accounts
                     .filter((a) => a.active && a.accountType === 'expense')
@@ -731,17 +694,15 @@ export function PayrollContractSetup({
                         {a.code} · {a.name}
                       </option>
                     ))}
-                </select>
+                </PayrollSelect>
               </Field>
             </details>
             <label className="check-card">
               <input type="checkbox" required />
-              <span>
-                J’ai vérifié la part, le montant, les dates et la base sur mon
-                contrat.{' '}
+              <span>{t("J’ai vérifié la part, le montant, les dates et la base sur mon contrat.")}{' '}
                 {editing
-                  ? 'Les prochaines fiches utiliseront ces réglages ; les fiches déjà comptabilisées restent figées.'
-                  : 'Cette cotisation s’ajoute à celles déjà enregistrées.'}
+                  ? t("Les prochaines fiches utiliseront ces réglages ; les fiches déjà comptabilisées restent figées.")
+                  : t("Cette cotisation s’ajoute à celles déjà enregistrées.")}
               </span>
             </label>
             <Button
@@ -749,16 +710,13 @@ export function PayrollContractSetup({
               disabled={busy || loading || (pension && !employeeId)}
             >
               {editing
-                ? 'Enregistrer la modification'
-                : 'Enregistrer cette cotisation'}
+                ? t("Enregistrer la modification")
+                : t("Enregistrer cette cotisation")}
             </Button>
           </fieldset>
         </form>
         {year !== 2026 && (
-          <p>
-            Les réglages guidés couvrent 2026. Pour une autre année, utilisez
-            les paramètres détaillés et le référentiel correspondant.
-          </p>
+          <p>{t("Les réglages guidés couvrent 2026. Pour une autre année, utilisez les paramètres détaillés et le référentiel correspondant.")}</p>
         )}
       </div>
     </section>

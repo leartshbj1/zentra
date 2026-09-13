@@ -4,6 +4,7 @@ import { guidanceTranslations } from './translationsGuidance';
 import { payrollTranslations } from './translationsPayroll';
 import { payrollHelpTranslations } from './translationsPayrollHelp';
 import { payslipTranslations } from './translationsPayslip';
+import { payrollSetupTranslations } from './translationsPayrollSetup';
 import { tourTranslations } from './translationsTour';
 import { employeeTranslations } from './translationsEmployees';
 export const translations: Record<string, readonly [string, string, string]> = {
@@ -14,6 +15,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   ...employeeTranslations,
   ...tourTranslations,
   ...payslipTranslations,
+  ...payrollSetupTranslations,
   'Langue de l’application': ['Sprache der Anwendung','Lingua dell’applicazione','Application language'],
   'Choisissez votre langue': ['Wählen Sie Ihre Sprache','Scegli la tua lingua','Choose your language'],
   'Vous pourrez la changer à tout moment dans les paramètres.': ['Sie können die Sprache jederzeit in den Einstellungen ändern.','Puoi cambiarla in qualsiasi momento nelle impostazioni.','You can change it at any time in settings.'],

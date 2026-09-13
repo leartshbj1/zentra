@@ -1,5 +1,8 @@
+import { t, useAppLanguage, getAppLocale } from './language';
+import { PayrollSelect } from './PayrollSelect';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PayrollProblem } from './PayrollProblem';
+import { usePayrollFieldGuide } from './PayrollFieldGuide';
 import type { PayrollHelpTarget } from './payrollHelp';
 import { revealPayrollField } from './payrollNavigation';
 import {
@@ -53,6 +56,7 @@ export function PayrollContributionsPanel({
   onBusyChange,
   onFix,
 }: { onChanged?: () => void; onBusyChange?: (busy: boolean) => void; onFix?: (target: PayrollHelpTarget) => void } = {}) {
+  useAppLanguage();
   const container = useRef<HTMLElement>(null);
   const [definitions, setDefinitions] = useState<
     PayrollContributionDefinition[]
@@ -125,17 +129,15 @@ export function PayrollContributionsPanel({
   return (
     <section className="panel settings-card settings-card--wide payroll-definitions" ref={container}>
       <SectionHeading
-        eyebrow="Moteur de paie"
-        title="Définitions de cotisations"
-        description="Chaque base, montant, plafond, part, source et période d’effet est conservé explicitement."
+        eyebrow={t("Moteur de paie")}
+        title={t("Définitions de cotisations")}
+        description={t("Chaque base, montant, plafond, part, source et période d’effet est conservé explicitement.")}
         action={
           <div className="heading-actions">
             <Button variant="ghost" size="small" onClick={() => void run(load)}>
-              <RefreshCw size={14} /> Actualiser
-            </Button>
+              <RefreshCw size={14} />{t(" Actualiser")}</Button>
             <Button size="small" onClick={() => setDraft({})}>
-              <Plus size={14} /> Nouvelle cotisation
-            </Button>
+              <Plus size={14} />{t(" Nouvelle cotisation")}</Button>
           </div>
         }
       />
@@ -148,15 +150,16 @@ export function PayrollContributionsPanel({
         <div className="notice notice--success">
           <span>
             <CheckCircle2 size={17} />
-            {notice}
+            {t(notice)}
           </span>
-          <button aria-label="Masquer le message" onClick={() => setNotice('')}>
+          <button aria-label={t("Masquer le message")} onClick={() => setNotice('')}>
             <X size={14} />
           </button>
         </div>
       ) : null}
       {draft ? (
         <ContributionForm
+          key={draft.id ?? 'new'}
           draft={draft}
           accounts={accounts}
           employees={employees}
@@ -186,8 +189,8 @@ export function PayrollContributionsPanel({
                       {definition.code} · {definition.label}
                     </strong>
                     <small>
-                      {categoryLabels[definition.category]} · part{' '}
-                      {definition.side === 'employee' ? 'employé' : 'employeur'}
+                      {t(categoryLabels[definition.category])} ·{' '}
+                      {definition.side === 'employee' ? t("employé") : t("employeur")}
                     </small>
                   </div>
                   <StatusBadge
@@ -195,44 +198,38 @@ export function PayrollContributionsPanel({
                   />
                 </header>
                 <div className="contribution-facts">
-                  <span>
-                    Calcul{' '}
+                  <span>{t("Calcul")}{' '}
                     <strong>
                       {definition.calculationKind === 'rate'
-                        ? `${((definition.rateBp ?? 0) / 100).toLocaleString('fr-CH')} %`
-                        : `${((definition.fixedAmountCents ?? 0) / 100).toLocaleString('fr-CH')} CHF`}
+                        ? `${((definition.rateBp ?? 0) / 100).toLocaleString(getAppLocale())} %`
+                        : t("{v0} CHF", { v0: ((definition.fixedAmountCents ?? 0) / 100).toLocaleString(getAppLocale()) })}
                     </strong>
                   </span>
-                  <span>
-                    Base <strong>{definition.basisKind}</strong>
+                  <span>{t("Base ")}<strong>{t(({ gross: "Salaire brut", ahv_salary: "Salaire soumis AVS", coordinated: "Salaire coordonné", custom: "Base personnalisée" } as const)[definition.basisKind])}</strong>
                   </span>
                   {definition.category === 'lpp' ? (
                     <>
-                      <span>
-                        Collaborateur{' '}
+                      <span>{t("Collaborateur")}{' '}
                         <strong>{employee?.name ?? 'Non retrouvé'}</strong>
                       </span>
-                      <span>
-                        Composante{' '}
+                      <span>{t("Composante")}{' '}
                         <strong>
                           {definition.lppComponent
-                            ? lppComponentLabels[definition.lppComponent]
-                            : 'Non renseignée'}
+                            ? t(lppComponentLabels[definition.lppComponent])
+                            : t("Non renseignée")}
                         </strong>
                       </span>
                     </>
                   ) : (
-                    <span>
-                      Plafond annuel{' '}
+                    <span>{t("Plafond annuel")}{' '}
                       <strong>
                         {definition.annualCeilingCents
-                          ? `${(definition.annualCeilingCents / 100).toLocaleString('fr-CH')} CHF`
-                          : 'aucun'}
+                          ? t("{v0} CHF", { v0: (definition.annualCeilingCents / 100).toLocaleString(getAppLocale()) })
+                          : t("aucun")}
                       </strong>
                     </span>
                   )}
-                  <span>
-                    Effet{' '}
+                  <span>{t("Effet")}{' '}
                     <strong>
                       {definition.effectiveFrom}
                       {definition.effectiveTo
@@ -250,17 +247,15 @@ export function PayrollContributionsPanel({
                     variant="ghost"
                     size="small"
                     onClick={() => setDraft(definition)}
-                  >
-                    Modifier
-                  </Button>
+                  >{t("Modifier")}</Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={`Supprimer ${definition.label}`}
+                    aria-label={t("Supprimer {v0}", { v0: definition.label })}
                     onClick={() => {
                       if (
                         !window.confirm(
-                          `Supprimer la définition « ${definition.label} » ?`,
+                          t("Supprimer la définition « {name} » ?", { name: definition.label }),
                         )
                       )
                         return;
@@ -281,8 +276,8 @@ export function PayrollContributionsPanel({
         </div>
       ) : (
         <EmptyState
-          title="Aucune cotisation définie"
-          text="Installez explicitement le profil CH-2026 ou créez les définitions validées par votre fiduciaire."
+          title={t("Aucune cotisation définie")}
+          text={t("Installez explicitement le profil CH-2026 ou créez les définitions validées par votre fiduciaire.")}
         />
       )}
     </section>
@@ -356,6 +351,8 @@ function ContributionForm({
     input: Omit<PayrollContributionDefinition, 'id'> & { id?: string },
   ) => void;
 }) {
+  useAppLanguage();
+  const fieldGuide = usePayrollFieldGuide();
   const [category, setCategory] = useState<
     PayrollContributionDefinition['category'] | ''
   >(draft.category ?? '');
@@ -367,46 +364,47 @@ function ContributionForm({
   return (
     <form
       className="contribution-form"
-      onSubmit={submitForm(async (form) => {
+      noValidate
+      onSubmit={event => {
+        if (busy || !fieldGuide.check(event.currentTarget)) { event.preventDefault(); return; }
+        const element = event.currentTarget;
+        return submitForm(async (form) => {
         if (!category || !kind) return;
         const input = contributionDraftPayload(form, {
           id: draft.id,
           category,
           calculationKind: kind,
         });
-        if (isLpp && (input.fixedAmountCents ?? 0) <= 0)
-          throw new Error('Le montant fixe LPP doit être strictement positif.');
+        if (isLpp && (input.fixedAmountCents ?? 0) <= 0) {
+          const field = element.querySelector<HTMLInputElement>('[name="fixedAmount"]');
+          if (field) fieldGuide.reject(field, 'Le montant fixe LPP doit être strictement positif.');
+          return;
+        }
         onSubmit(input);
-      })}
+      })(event);}}
     >
+      {fieldGuide.guide}
       {isLpp ? (
         <div className="warning-card contribution-form__guidance">
           <ShieldCheck size={19} />
           <div>
-            <strong>Montant individuel du règlement réel</strong>
-            <p>
-              Saisissez le montant mensuel confirmé pour ce collaborateur. Ne
-              convertissez pas un taux générique et ne déduisez rien du salaire
-              du mois.
-            </p>
+            <strong>{t("Montant individuel du règlement réel")}</strong>
+            <p>{t("Saisissez le montant mensuel confirmé pour ce collaborateur. Ne convertissez pas un taux générique et ne déduisez rien du salaire du mois.")}</p>
             {!lppRegulationReference ? (
-              <p role="alert">
-                Configurez d’abord la caisse, le contrat et la référence du
-                règlement LPP dans la section « Organismes et validation ».
-              </p>
+              <p role="alert">{t("Configurez d’abord la caisse, le contrat et la référence du règlement LPP dans la section « Organismes et validation ».")}</p>
             ) : null}
           </div>
         </div>
       ) : null}
       <div className="form-grid">
-        <Field label="Code unique" required>
+        <Field label={t("Code unique")} required>
           <input name="code" defaultValue={draft.code} required />
         </Field>
-        <Field label="Libellé" required>
+        <Field label={t("Libellé")} required>
           <input name="label" defaultValue={draft.label} required />
         </Field>
-        <Field label="Catégorie" required>
-          <select
+        <Field label={t("Catégorie")} required>
+          <PayrollSelect
             name="category"
             value={category}
             onChange={(event) => {
@@ -418,31 +416,31 @@ function ContributionForm({
             }}
             required
           >
-            <option value="">Choisir</option>
+            <option value="">{t("Choisir")}</option>
             {Object.entries(categoryLabels).map(([value, label]) => (
               <option key={value} value={value}>
-                {label}
+                {t(label)}
               </option>
             ))}
-          </select>
+          </PayrollSelect>
         </Field>
-        <Field label="Part" required>
-          <select name="side" defaultValue={draft.side ?? ''} required>
-            <option value="">Choisir</option>
-            <option value="employee">Employé</option>
-            <option value="employer">Employeur</option>
-          </select>
+        <Field label={t("Part")} required>
+          <PayrollSelect name="side" defaultValue={draft.side ?? ''} required>
+            <option value="">{t("Choisir")}</option>
+            <option value="employee">{t("Employé")}</option>
+            <option value="employer">{t("Employeur")}</option>
+          </PayrollSelect>
         </Field>
         <Field
-          label="Mode de calcul"
+          label={t("Mode de calcul")}
           required
           hint={
             isLpp
-              ? 'La LPP utilise uniquement le montant individuel du règlement.'
+              ? t("La LPP utilise uniquement le montant individuel du règlement.")
               : undefined
           }
         >
-          <select
+          <PayrollSelect
             value={isLpp ? 'fixed' : kind}
             onChange={(event) =>
               setKind(
@@ -454,13 +452,13 @@ function ContributionForm({
             disabled={isLpp}
             required
           >
-            <option value="">Choisir</option>
-            <option value="rate">Taux</option>
-            <option value="fixed">Montant fixe</option>
-          </select>
+            <option value="">{t("Choisir")}</option>
+            <option value="rate">{t("Taux")}</option>
+            <option value="fixed">{t("Montant fixe")}</option>
+          </PayrollSelect>
         </Field>
         {!isLpp && kind === 'rate' ? (
-          <Field label="Taux (%)" required>
+          <Field label={t("Taux (%)")} required>
             <input
               name="rate"
               type="number"
@@ -480,8 +478,8 @@ function ContributionForm({
           <Field
             label={
               isLpp
-                ? 'Montant mensuel du règlement (CHF)'
-                : 'Montant fixe (CHF)'
+                ? t("Montant mensuel du règlement (CHF)")
+                : t("Montant fixe (CHF)")
             }
             required
           >
@@ -502,69 +500,69 @@ function ContributionForm({
         ) : null}
         {isLpp ? (
           <>
-            <Field label="Collaborateur concerné" required>
-              <select
+            <Field label={t("Collaborateur concerné")} required>
+              <PayrollSelect
                 name="lppEmployeeId"
                 defaultValue={draft.lppEmployeeId ?? ''}
                 required
               >
-                <option value="">Choisir le collaborateur</option>
+                <option value="">{t("Choisir le collaborateur")}</option>
                 {employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.name}
                     {employee.employeeNumber
                       ? ` · ${employee.employeeNumber}`
                       : ''}
-                    {!employee.active ? ' · inactif' : ''}
+                    {!employee.active ? t(" · inactif") : ''}
                   </option>
                 ))}
-              </select>
+              </PayrollSelect>
             </Field>
-            <Field label="Composante du règlement" required>
-              <select
+            <Field label={t("Composante du règlement")} required>
+              <PayrollSelect
                 name="lppComponent"
                 defaultValue={draft.lppComponent ?? ''}
                 required
               >
-                <option value="">Choisir la composante</option>
+                <option value="">{t("Choisir la composante")}</option>
                 {Object.entries(lppComponentLabels).map(([value, label]) => (
                   <option value={value} key={value}>
-                    {label}
+                    {t(label)}
                   </option>
                 ))}
-              </select>
+              </PayrollSelect>
             </Field>
           </>
         ) : null}
         <Field
-          label="Base"
+          label={t("Base")}
           required
           hint={
             isLpp
-              ? 'Le montant reste fixe; la base documente le salaire coordonné ou la base propre au règlement.'
+              ? t("Le montant reste fixe; la base documente le salaire coordonné ou la base propre au règlement.")
               : undefined
           }
         >
-          <select
+          <PayrollSelect
             name="basisKind"
             defaultValue={draft.basisKind ?? ''}
             required
           >
-            <option value="">Choisir</option>
+            <option value="">{t("Choisir")}</option>
             {!isLpp ? (
               <>
-                <option value="gross">Salaire brut</option>
-                <option value="ahv_salary">Salaire soumis AVS</option>
+                <option value="gross">{t("Salaire brut")}</option>
+                <option value="ahv_salary">{t("Salaire soumis AVS")}</option>
               </>
             ) : null}
-            <option value="coordinated">Salaire coordonné</option>
-            <option value="custom">Base personnalisée</option>
-          </select>
+            <option value="coordinated">{t("Salaire coordonné")}</option>
+            <option value="custom">{t("Base personnalisée")}</option>
+          </PayrollSelect>
         </Field>
         {!isLpp ? (
           <Field
-            label="Plafond annuel (CHF)"
-            hint="Laissez vide si aucun plafond."
+            label={t("Plafond annuel (CHF)")}
+            hint={t("Laissez vide si aucun plafond.")}
           >
             <input
               name="annualCeiling"
@@ -577,7 +575,7 @@ function ContributionForm({
             />
           </Field>
         ) : null}
-        <Field label="Date d’effet" required>
+        <Field label={t("Date d’effet")} required>
           <input
             name="effectiveFrom"
             type="date"
@@ -585,7 +583,7 @@ function ContributionForm({
             required
           />
         </Field>
-        <Field label="Fin d’effet" required={isLpp}>
+        <Field label={t("Fin d’effet")} required={isLpp}>
           <input
             name="effectiveTo"
             type="date"
@@ -594,14 +592,14 @@ function ContributionForm({
           />
         </Field>
         <Field
-          label="Source / référence"
+          label={t("Source / référence")}
           required
           wide
           hint={
             isLpp
               ? lppRegulationReference
-                ? `Doit être exactement : ${lppRegulationReference}`
-                : 'Doit être exactement la référence du règlement LPP enregistrée dans Paramètres.'
+                ? t("Doit être exactement : {v0}", { v0: lppRegulationReference })
+                : t("Doit être exactement la référence du règlement LPP enregistrée dans Paramètres.")
               : undefined
           }
         >
@@ -612,26 +610,26 @@ function ContributionForm({
             required
           />
         </Field>
-        <Field label="Statut" required>
-          <select
+        <Field label={t("Statut")} required>
+          <PayrollSelect
             name="active"
             defaultValue={draft.id ? (draft.active ? 'yes' : 'no') : ''}
             required
           >
-            <option value="">Choisir</option>
-            <option value="yes">Active</option>
-            <option value="no">Inactive</option>
-          </select>
+            <option value="">{t("Choisir")}</option>
+            <option value="yes">{t("Active")}</option>
+            <option value="no">{t("Inactive")}</option>
+          </PayrollSelect>
         </Field>
         <Field
-          label="Compte de dette"
-          hint="Seuls les comptes actifs de passif sont proposés."
+          label={t("Compte de dette")}
+          hint={t("Seuls les comptes actifs de passif sont proposés.")}
         >
-          <select
+          <PayrollSelect
             name="liabilityAccountId"
             defaultValue={draft.liabilityAccountId}
           >
-            <option value="">Non lié</option>
+            <option value="">{t("Non lié")}</option>
             {accounts
               .filter(
                 (account) =>
@@ -642,14 +640,14 @@ function ContributionForm({
                   {account.code} · {account.name}
                 </option>
               ))}
-          </select>
+          </PayrollSelect>
         </Field>
         <Field
-          label="Compte de charge employeur"
-          hint="Seuls les comptes actifs de charges sont proposés; laissez vide pour une part employé."
+          label={t("Compte de charge employeur")}
+          hint={t("Seuls les comptes actifs de charges sont proposés; laissez vide pour une part employé.")}
         >
-          <select name="expenseAccountId" defaultValue={draft.expenseAccountId}>
-            <option value="">Non lié</option>
+          <PayrollSelect name="expenseAccountId" defaultValue={draft.expenseAccountId}>
+            <option value="">{t("Non lié")}</option>
             {accounts
               .filter(
                 (account) =>
@@ -660,24 +658,20 @@ function ContributionForm({
                   {account.code} · {account.name}
                 </option>
               ))}
-          </select>
+          </PayrollSelect>
         </Field>
       </div>
       <div className="form-actions">
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Annuler
-        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>{t("Annuler")}</Button>
         <Button
           type="submit"
           disabled={busy || (isLpp && !lppRegulationReference)}
           title={
             isLpp && !lppRegulationReference
-              ? 'Configurez d’abord le règlement LPP dans Paramètres.'
+              ? t("Configurez d’abord le règlement LPP dans Paramètres.")
               : undefined
           }
-        >
-          Enregistrer la définition
-        </Button>
+        >{t("Enregistrer la définition")}</Button>
       </div>
     </form>
   );

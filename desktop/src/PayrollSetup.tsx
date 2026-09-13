@@ -1,3 +1,5 @@
+import { t, useAppLanguage, type InterfaceMessage } from './language';
+import { PayrollSelect } from './PayrollSelect';
 import { useEffect, useRef, useState } from 'react';
 import { desktopApi } from './bridge';
 import { PayrollOrganisationField } from './PayrollOrganisationField';
@@ -70,6 +72,7 @@ export function PayrollSetup({
   guided?: boolean;
   returnToPreparation?: boolean;
 }) {
+  useAppLanguage();
   const [section, setSection] = useState<Section>(
     payrollDestination(initial).section,
   );
@@ -108,13 +111,13 @@ export function PayrollSetup({
     if (notice) revealPayrollField(container.current, '[data-setup-notice]');
   }, [notice]);
   const lock = useRef(false);
-  function rejectField(name: string, message: string) {
+  function rejectField(name: string, message: string, presentation?: InterfaceMessage) {
     const field = container.current?.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
     if (!field) return;
     const questionId = field.closest<HTMLElement>('[data-payroll-question]')?.dataset.payrollQuestion;
     const index = Number(questionId?.match(/-(\d+)/)?.[1] ?? 0);
     if (guided) setQuestion(Math.min(index, questionCount - 1));
-    fieldGuide.reject(field, message);
+    fieldGuide.reject(field, message, presentation);
   }
   const heading = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -241,7 +244,7 @@ export function PayrollSetup({
             ...settings.payroll, pensionFund: text('pensionFund'),
             lppPlanEvidence: plan,
           }, checkDate ? contributionDate ?? `${period}-01` : undefined);
-          if (issue) { rejectField(issue.field, issue.message); return; }
+          if (issue) { rejectField(issue.field, issue.message, issue.presentation); return; }
         }
       }
       if (section === 'person' && employee && pensionOnly) {
@@ -421,7 +424,7 @@ export function PayrollSetup({
           smallSalaryOpeningContributedBasis: 'openingAvs',
         };
         if (names[reason.field]) {
-          rejectField(names[reason.field], reason.message);
+          rejectField(names[reason.field], reason.message, reason.presentation);
           return;
         }
       }
@@ -447,13 +450,13 @@ export function PayrollSetup({
           disabled={disabled}
           onClick={onClose}
         >
-          {returnToPreparation ? '← Revenir à ma préparation' : '← Revenir au salaire'}
+          {returnToPreparation ? t("← Revenir à ma préparation") : t("← Revenir au salaire")}
         </Button>
-        <small>Votre salaire reste conservé. Les nouvelles cotisations applicables seront reprises après l’enregistrement.</small>
+        <small>{t("Votre salaire reste conservé. Les nouvelles cotisations applicables seront reprises après l’enregistrement.")}</small>
       </header>
       <nav
         className="payroll-setup-nav"
-        aria-label="Préparation de la paie"
+        aria-label={t("Préparation de la paie")}
         hidden={guided}
       >
         {sections.map(([id, label]) => (
@@ -467,18 +470,18 @@ export function PayrollSetup({
               setError('');
             }}
           >
-            {label}
+            {t(label)}
           </button>
         ))}
       </nav>
       {guided && questionCount > 1 && (
         <p className="payroll-question-progress" role="status">
           {section === 'person'
-            ? 'Son contrat de travail'
+            ? t("Son contrat de travail")
             : section === 'history'
-              ? 'Les informations de début d’année'
-              : 'Vos assurances'}{' '}
-          · {question + 1} sur {questionCount}
+              ? t("Les informations de début d’année")
+              : t("Vos assurances")}{' '}
+          · {t("Étape {index} sur {count}", { index: question + 1, count: questionCount })}
         </p>
       )}
       {error && (
@@ -491,16 +494,14 @@ export function PayrollSetup({
       )}
       {notice && (
         <output className="payroll-callout" data-setup-notice>
-          <strong>C’est enregistré</strong>
-          <span>{notice}</span>
+          <strong>{t("C’est enregistré")}</strong>
+          <span>{t(notice)}</span>
           <Button
             type="button"
             variant="secondary"
             disabled={disabled}
             onClick={onClose}
-          >
-            Revenir à ma fiche de salaire
-          </Button>
+          >{t("Revenir à ma fiche de salaire")}</Button>
         </output>
       )}
       <form
@@ -518,9 +519,7 @@ export function PayrollSetup({
               setQuestion((value) => value + 1);
             return;
           }
-          const invalid = event.currentTarget.querySelector<HTMLElement>(
-            'input:invalid, select:invalid, textarea:invalid',
-          );
+          const invalid = fieldGuide.firstInvalid(event.currentTarget);
           if (guided && invalid) {
             const name =
               invalid.closest<HTMLElement>('[data-payroll-question]')?.dataset
@@ -542,23 +541,21 @@ export function PayrollSetup({
         >
           <h3>
             {pensionOnly
-              ? 'Quel salaire annuel avez-vous annoncé à la caisse ?'
-              : `Le contrat de ${employee?.name ?? 'votre collaborateur'}`}
+              ? t("Quel salaire annuel avez-vous annoncé à la caisse ?")
+              : t("Le contrat de {v0}", { v0: employee?.name ?? t('votre collaborateur') })}
           </h3>
           {!employee ? (
-            <p>Choisissez d’abord le collaborateur à l’étape précédente.</p>
+            <p>{t("Choisissez d’abord le collaborateur à l’étape précédente.")}</p>
           ) : (
             <>
-              <p hidden={pensionOnly}>
-                Gardez son contrat et sa date de naissance à portée de main.
-              </p>
+              <p hidden={pensionOnly}>{t("Gardez son contrat et sa date de naissance à portée de main.")}</p>
               <fieldset disabled={pensionOnly} hidden={pensionOnly}>
                 <div
                   className="form-grid"
                   data-payroll-question="person-0"
                   hidden={guided && question !== 0}
                 >
-                  <Field label="Date de naissance" required>
+                  <Field label={t("Date de naissance")} required>
                     <input
                       name="birthDate"
                       type="date"
@@ -572,7 +569,7 @@ export function PayrollSetup({
                   data-payroll-question="person-1"
                   hidden={guided && question !== 1}
                 >
-                  <Field label="Premier jour dans l’entreprise" required>
+                  <Field label={t("Premier jour dans l’entreprise")} required>
                     <input
                       name="employmentStartDate"
                       type="date"
@@ -581,9 +578,9 @@ export function PayrollSetup({
                     />
                   </Field>
                   <Field
-                    label="Heures de travail par semaine"
+                    label={t("Heures de travail par semaine")}
                     required
-                    hint="Horaire contractuel régulier. Pour un horaire variable, utilisez une moyenne représentative confirmée."
+                    hint={t("Horaire contractuel régulier. Pour un horaire variable, utilisez une moyenne représentative confirmée.")}
                   >
                     <input
                       name="weeklyHours"
@@ -600,20 +597,20 @@ export function PayrollSetup({
                       required
                     />
                   </Field>
-                  <Field label="Type de contrat" required>
-                    <select
+                  <Field label={t("Type de contrat")} required>
+                    <PayrollSelect
                       name="employmentContractKind"
                       defaultValue={employee.employmentContractKind ?? ''}
                       required
                     >
-                      <option value="">Choisir</option>
-                      <option value="indefinite">Sans date de fin (CDI)</option>
-                      <option value="fixed">Avec une date de fin (CDD)</option>
-                    </select>
+                      <option value="">{t("Choisir")}</option>
+                      <option value="indefinite">{t("Sans date de fin (CDI)")}</option>
+                      <option value="fixed">{t("Avec une date de fin (CDD)")}</option>
+                    </PayrollSelect>
                   </Field>
                   <Field
-                    label="Dernier jour prévu"
-                    hint="À remplir pour un contrat avec une date de fin."
+                    label={t("Dernier jour prévu")}
+                    hint={t("À remplir pour un contrat avec une date de fin.")}
                   >
                     <input
                       name="employmentEndDate"
@@ -628,9 +625,9 @@ export function PayrollSetup({
                 hidden={guided && !pensionOnly && question !== 2}
               >
                 <Field
-                  label={`Salaire annuel annoncé à la caisse de pension · ${year}`}
+                  label={t("Salaire annuel annoncé à la caisse de pension · {v0}", { v0: year })}
                   required={pensionOnly}
-                  hint="Montant brut annuel confirmé pour ce contrat. Laissez vide si vous devez encore le demander."
+                  hint={t("Montant brut annuel confirmé pour ce contrat. Laissez vide si vous devez encore le demander.")}
                 >
                   <input
                     name="lppAnnualSalary"
@@ -645,7 +642,7 @@ export function PayrollSetup({
                         ? employee.lppAnnualSalaryCents / 100
                         : ''
                     }
-                    placeholder="CHF par année"
+                    placeholder={t("CHF par année")}
                   />
                 </Field>
               </div>
@@ -658,14 +655,11 @@ export function PayrollSetup({
                   className="payroll-simple-guide"
                   data-payroll-situation
                 >
-                  <summary>Retraite ou exception de caisse de pension</summary>
-                  <p>
-                    À compléter uniquement si cela concerne cette personne,
-                    d’après les documents de sa caisse.
-                  </p>
+                  <summary>{t("Retraite ou exception de caisse de pension")}</summary>
+                  <p>{t("À compléter uniquement si cela concerne cette personne, d’après les documents de sa caisse.")}</p>
                   <Field
-                    label="Date de référence pour la retraite"
-                    hint="Demandez la date applicable à la caisse AVS si vous ne la connaissez pas."
+                    label={t("Date de référence pour la retraite")}
+                    hint={t("Demandez la date applicable à la caisse AVS si vous ne la connaissez pas.")}
                   >
                     <input
                       name="referenceAgeDate"
@@ -673,8 +667,8 @@ export function PayrollSetup({
                       defaultValue={employee.referenceAgeDate}
                     />
                   </Field>
-                  <Field label="Franchise AVS après l’âge de référence">
-                    <select
+                  <Field label={t("Franchise AVS après l’âge de référence")}>
+                    <PayrollSelect
                       name="avsAllowanceWaived"
                       defaultValue={
                         employee.avsAllowanceWaived == null
@@ -684,37 +678,29 @@ export function PayrollSetup({
                             : 'no'
                       }
                     >
-                      <option value="">À confirmer / pas concerné</option>
-                      <option value="no">
-                        Le salarié conserve la franchise
-                      </option>
-                      <option value="yes">
-                        Le salarié renonce à la franchise
-                      </option>
-                    </select>
+                      <option value="">{t("À confirmer / pas concerné")}</option>
+                      <option value="no">{t("Le salarié conserve la franchise")}</option>
+                      <option value="yes">{t("Le salarié renonce à la franchise")}</option>
+                    </PayrollSelect>
                   </Field>
-                  <Field label="Exception de pension confirmée">
-                    <select
+                  <Field label={t("Exception de pension confirmée")}>
+                    <PayrollSelect
                       name="lppExceptionCode"
                       value={exception}
                       onChange={(event) =>
                         setException(event.target.value as typeof exception)
                       }
                     >
-                      <option value="">Aucune exception</option>
-                      <option value="short_fixed_contract">
-                        Contrat à durée déterminée de trois mois au maximum
-                      </option>
-                      <option value="other_legal">
-                        Autre exception légale confirmée
-                      </option>
-                    </select>
+                      <option value="">{t("Aucune exception")}</option>
+                      <option value="short_fixed_contract">{t("Contrat à durée déterminée de trois mois au maximum")}</option>
+                      <option value="other_legal">{t("Autre exception légale confirmée")}</option>
+                    </PayrollSelect>
                   </Field>
                   {exception && (
                     <Field
-                      label="Document qui confirme l’exception"
+                      label={t("Document qui confirme l’exception")}
                       required
-                      hint="Référence du contrat signé ou de la décision écrite de la caisse."
+                      hint={t("Référence du contrat signé ou de la décision écrite de la caisse.")}
                     >
                       <input
                         name="lppExceptionEvidenceReference"
@@ -736,43 +722,29 @@ export function PayrollSetup({
           hidden={section !== 'history'}
           data-payroll-history
         >
-          <h3>{!guided || question === 0 ? 'Les salaires déjà établis cette année' : question === 1 ? 'La situation de votre collaborateur' : 'La confirmation de ces informations'}</h3>
-          <p>
-            Pour {employee?.name}, en {year}. Reprenez les fiches établies avant
-            ce mois qui ne sont pas dans Zentra.
-          </p>
+          <h3>{!guided || question === 0 ? t("Les salaires déjà établis cette année") : question === 1 ? t("La situation de votre collaborateur") : t("La confirmation de ces informations")}</h3>
+          <p>{t("Pour {name}, en {year}. Reprenez les fiches établies avant ce mois qui ne sont pas dans Zentra.", { name: employee?.name ?? t('votre collaborateur'), year })}</p>
           <div
             data-payroll-question="history-0"
             hidden={guided && question !== 0}
           >
             <details className="payroll-simple-guide">
-              <summary>Quels montants faut-il reprendre ?</summary>
-              <p>
-                Comptez uniquement les salaires de votre entreprise, même s’ils
-                ne sont pas encore payés. Les fiches déjà dans Zentra sont
-                ajoutées automatiquement : ne les recopiez pas ici.
-              </p>
+              <summary>{t("Quels montants faut-il reprendre ?")}</summary>
+              <p>{t("Comptez uniquement les salaires de votre entreprise, même s’ils ne sont pas encore payés. Les fiches déjà dans Zentra sont ajoutées automatiquement : ne les recopiez pas ici.")}</p>
             </details>
-            <Field label="Y a-t-il des salaires à reprendre ?" required>
-              <select
+            <Field label={t("Y a-t-il des salaires à reprendre ?")} required>
+              <PayrollSelect
                 value={history}
                 onChange={(event) => setHistory(event.target.value)}
                 required
               >
-                <option value="">Je dois encore vérifier</option>
-                <option value="none">
-                  Non, aucun salaire avant Zentra cette année
-                </option>
-                <option value="previous">
-                  Oui, des fiches ont été faites dans un autre système
-                </option>
-              </select>
+                <option value="">{t("Je dois encore vérifier")}</option>
+                <option value="none">{t("Non, aucun salaire avant Zentra cette année")}</option>
+                <option value="previous">{t("Oui, des fiches ont été faites dans un autre système")}</option>
+              </PayrollSelect>
             </Field>
             {history === 'none' && (
-              <p className="payroll-callout">
-                Les quatre montants de départ seront enregistrés à CHF 0. Les
-                salaires déjà saisis dans Zentra restent conservés.
-              </p>
+              <p className="payroll-callout">{t("Les quatre montants de départ seront enregistrés à CHF 0. Les salaires déjà saisis dans Zentra restent conservés.")}</p>
             )}
             <div className="form-grid" hidden={history !== 'previous'}>
               {[
@@ -803,9 +775,9 @@ export function PayrollSetup({
               ].map(([name, label, amount, current]) => (
                 <Field
                   key={String(name)}
-                  label={String(label)}
+                  label={t(String(label))}
                   required
-                  hint="Recopiez le cumul de salaire du dernier décompte, pas le montant des cotisations retenues."
+                  hint={t("Recopiez le cumul de salaire du dernier décompte, pas le montant des cotisations retenues.")}
                 >
                   <input
                     name={String(name)}
@@ -829,32 +801,26 @@ export function PayrollSetup({
             hidden={guided && question !== 1}
           >
             <Field
-              label="Dans quel cadre cette personne travaille-t-elle ?"
+              label={t("Dans quel cadre cette personne travaille-t-elle ?")}
               required
             >
-              <select
+              <PayrollSelect
                 name="sector"
                 defaultValue={employee?.smallSalarySector ?? ''}
                 required
               >
-                <option value="">Choisir le cadre de travail</option>
-                <option value="ordinary">
-                  Entreprise : activité habituelle
-                </option>
-                <option value="private_household">
-                  Ménage privé : emploi à domicile
-                </option>
-                <option value="arts_culture">
-                  Activité dans les arts ou la culture
-                </option>
-              </select>
+                <option value="">{t("Choisir le cadre de travail")}</option>
+                <option value="ordinary">{t("Entreprise : activité habituelle")}</option>
+                <option value="private_household">{t("Ménage privé : emploi à domicile")}</option>
+                <option value="arts_culture">{t("Activité dans les arts ou la culture")}</option>
+              </PayrollSelect>
             </Field>
             <Field
-              label="Le salarié a-t-il demandé de cotiser même pour un petit salaire ?"
+              label={t("Le salarié a-t-il demandé de cotiser même pour un petit salaire ?")}
               required
-              hint="Cette question concerne la dispense éventuelle pour les faibles salaires annuels. Au-dessus du seuil applicable, les cotisations restent dues."
+              hint={t("Cette question concerne la dispense éventuelle pour les faibles salaires annuels. Au-dessus du seuil applicable, les cotisations restent dues.")}
             >
-              <select
+              <PayrollSelect
                 name="requested"
                 defaultValue={
                   sameYear &&
@@ -866,21 +832,21 @@ export function PayrollSetup({
                 }
                 required
               >
-                <option value="">À confirmer avec le salarié</option>
-                <option value="no">Non, aucune demande particulière</option>
-                <option value="yes">Oui, il a demandé à cotiser</option>
-              </select>
+                <option value="">{t("À confirmer avec le salarié")}</option>
+                <option value="no">{t("Non, aucune demande particulière")}</option>
+                <option value="yes">{t("Oui, il a demandé à cotiser")}</option>
+              </PayrollSelect>
             </Field>
           </div>
           <div
             data-payroll-question="history-2"
             hidden={guided && question !== 2}
           >
-            <p className="payroll-question-explanation">Ces deux champs servent à retrouver le choix confirmé avec le salarié et les montants de départ. Recopiez la date et le nom de votre document ; ce n’est pas la date de création de la fiche.</p>
+            <p className="payroll-question-explanation">{t("Ces deux champs servent à retrouver le choix confirmé avec le salarié et les montants de départ. Recopiez la date et le nom de votre document ; ce n’est pas la date de création de la fiche.")}</p>
             <Field
-              label={`Date du choix de cotisation · ${year}`}
+              label={t("Date du choix de cotisation · {v0}", { v0: year })}
               required
-              hint={`Indiquez quand le choix ci-dessus a été confirmé. La date figure sur votre déclaration ou confirmation écrite de ${year}. Si vous ne la connaissez pas, demandez-la au salarié ou à votre caisse AVS.`}
+              hint={t("Indiquez quand le choix ci-dessus a été confirmé. La date figure sur votre déclaration ou confirmation écrite de {v0}. Si vous ne la connaissez pas, demandez-la au salarié ou à votre caisse AVS.", { v0: year })}
             >
               <input
                 name="decisionDate"
@@ -892,9 +858,9 @@ export function PayrollSetup({
               />
             </Field>
             <Field
-              label="Nom du document ou de la confirmation"
+              label={t("Nom du document ou de la confirmation")}
               required
-              hint="Par exemple : décompte août 2026, ou confirmation du début d’activité. Conservez ce document."
+              hint={t("Par exemple : décompte août 2026, ou confirmation du début d’activité. Conservez ce document.")}
             >
               <input
                 name="evidence"
@@ -903,7 +869,7 @@ export function PayrollSetup({
                   sameYear ? employee?.smallSalaryEvidenceReference : ''
                 }
                 required
-                placeholder={`Ex. : confirmation du début d’activité ${year}`}
+                placeholder={t("Ex. : confirmation du début d’activité {v0}", { v0: year })}
               />
             </Field>
           </div>
@@ -914,31 +880,28 @@ export function PayrollSetup({
         >
           <h3>
             {pensionPlanOnly
-              ? 'Le contrat de votre caisse de pension'
-              : 'Les assurances de l’entreprise'}
+              ? t("Le contrat de votre caisse de pension")
+              : t("Les assurances de l’entreprise")}
           </h3>
-          <p>
-            Recopiez les noms de vos contrats ou recherchez votre caisse dans la
-            liste.
-          </p>
+          <p>{t("Recopiez les noms de vos contrats ou recherchez votre caisse dans la liste.")}</p>
           <div
             data-payroll-question="insurance-0"
             hidden={guided && !pensionPlanOnly && question !== 0}
           >
             {!pensionPlanOnly && (
-              <Field label="Canton de paie" required>
-                <select
+              <Field label={t("Canton de paie")} required>
+                <PayrollSelect
                   value={canton}
                   onChange={(event) => setCanton(event.target.value)}
                   required
                 >
-                  <option value="">Choisir un canton</option>
+                  <option value="">{t("Choisir un canton")}</option>
                   {SWISS_FAMILY_ALLOWANCES_2026.map((item) => (
                     <option key={item.canton} value={item.canton}>
-                      {item.name}
+                      {t(item.name)}
                     </option>
                   ))}
-                </select>
+                </PayrollSelect>
               </Field>
             )}
             {funds
@@ -967,23 +930,14 @@ export function PayrollSetup({
                 pensionPlanOnly || (guided && question === 1) ? true : undefined
               }
             >
-              <summary>Contrat de la caisse de pension</summary>
-              <p>
-                Ces informations figurent dans le règlement de prévoyance. Elles
-                sont nécessaires avant de valider des cotisations LPP.
-              </p>
+              <summary>{t("Contrat de la caisse de pension")}</summary>
+              <p>{t("Ces informations figurent dans le règlement de prévoyance. Elles sont nécessaires avant de valider des cotisations LPP.")}</p>
               <ol>
-                <li>Indiquez le nom de la caisse ci-dessus.</li>
-                <li>
-                  Recopiez le numéro, la référence et la validité du contrat
-                  ci-dessous.
-                </li>
-                <li>
-                  Dans les cotisations, indiquez les montants mensuels de chaque
-                  personne.
-                </li>
+                <li>{t("Indiquez le nom de la caisse ci-dessus.")}</li>
+                <li>{t("Recopiez le numéro, la référence et la validité du contrat ci-dessous.")}</li>
+                <li>{t("Dans les cotisations, indiquez les montants mensuels de chaque personne.")}</li>
               </ol>
-              <Field label="Numéro du contrat LPP" hint="Le numéro d’affiliation de votre entreprise auprès de cette caisse.">
+              <Field label={t("Numéro du contrat LPP")} hint={t("Le numéro d’affiliation de votre entreprise auprès de cette caisse.")}>
                 <input
                   name="contractNumber"
                   defaultValue={
@@ -991,18 +945,18 @@ export function PayrollSetup({
                   }
                 />
               </Field>
-              <Field label="Référence du règlement" hint="Le titre et l’année ou la version du règlement reçu de la caisse.">
+              <Field label={t("Référence du règlement")} hint={t("Le titre et l’année ou la version du règlement reçu de la caisse.")}>
                 <input
                   name="regulationReference"
                   maxLength={500}
-                  placeholder="Ex. : règlement de prévoyance 2026"
+                  placeholder={t("Ex. : règlement de prévoyance 2026")}
                   defaultValue={
                     settings.payroll.lppPlanEvidence?.regulationReference
                   }
                 />
               </Field>
               <div className="form-grid">
-              <Field label="Valable dès le" hint="La date de début indiquée dans les documents de la caisse.">
+              <Field label={t("Valable dès le")} hint={t("La date de début indiquée dans les documents de la caisse.")}>
                   <input
                     name="lppFrom"
                     type="date"
@@ -1012,8 +966,8 @@ export function PayrollSetup({
                   />
                 </Field>
                 <Field
-                  label="Fin de la période confirmée"
-                  hint="Date de fin de validité des informations reçues de la caisse."
+                  label={t("Fin de la période confirmée")}
+                  hint={t("Date de fin de validité des informations reçues de la caisse.")}
                 >
                   <input
                     name="lppTo"
@@ -1025,49 +979,31 @@ export function PayrollSetup({
               <label className="check-card">
                 <input
                   name="lppParity"
-                  aria-label="Part de l’entreprise confirmée dans le règlement"
+                  aria-label={t("Part de l’entreprise confirmée dans le règlement")}
                   type="checkbox"
                   defaultChecked={
                     settings.payroll.lppPlanEvidence
                       ?.employerAggregateShareConfirmed
                   }
                 />
-                <span>
-                  Le règlement confirme que l’employeur finance au moins la
-                  moitié des cotisations de l’ensemble du personnel assuré.
-                </span>
+                <span>{t("Le règlement confirme que l’employeur finance au moins la moitié des cotisations de l’ensemble du personnel assuré.")}</span>
               </label>
               <details>
-                <summary>Je ne trouve pas ces informations</summary>
-                <p>
-                  Demandez à votre caisse le contrat d’affiliation, le règlement
-                  en vigueur et le certificat de prévoyance de votre
-                  collaborateur. Demandez les montants mensuels à prélever et la
-                  part à payer par l’entreprise. Vous pouvez revenir au salaire
-                  et conserver une fiche à compléter.
-                </p>
-                <a href={PENSION_GUIDE_SOURCE} target="_blank" rel="noreferrer">
-                  Comprendre les cotisations de pension — OFAS
-                </a>
+                <summary>{t("Je ne trouve pas ces informations")}</summary>
+                <p>{t("Demandez à votre caisse le contrat d’affiliation, le règlement en vigueur et le certificat de prévoyance de votre collaborateur. Demandez les montants mensuels à prélever et la part à payer par l’entreprise. Vous pouvez revenir au salaire et conserver une fiche à compléter.")}</p>
+                <a href={PENSION_GUIDE_SOURCE} target="_blank" rel="noreferrer">{t("Comprendre les cotisations de pension — OFAS")}</a>
               </details>
             </details>
           </div>
-          <small>
-            Choisir un nom ne souscrit aucune assurance et ne fixe aucun taux.
-            Une modification remet la configuration à contrôler avant de valider
-            des fiches.
-          </small>
+          <small>{t("Choisir un nom ne souscrit aucune assurance et ne fixe aucun taux. Une modification remet la configuration à contrôler avant de valider des fiches.")}</small>
         </fieldset>
         <fieldset
           disabled={disabled || loadingAccounts || section !== 'accounts'}
           hidden={section !== 'accounts'}
         >
-          <h3>Les comptes du salaire</h3>
-          <p>
-            Choisissez les comptes actifs du plan comptable de l’entreprise. Le
-            montant à verser au salarié reste le même.
-          </p>
-          {loadingAccounts && <p>Chargement des comptes…</p>}
+          <h3>{t("Les comptes du salaire")}</h3>
+          <p>{t("Choisissez les comptes actifs du plan comptable de l’entreprise. Le montant à verser au salarié reste le même.")}</p>
+          {loadingAccounts && <p>{t("Chargement des comptes…")}</p>}
           {(['wagesExpenseAccountId', 'wagesPayableAccountId'] as const).map(
             (name) => {
               const kind =
@@ -1080,30 +1016,27 @@ export function PayrollSetup({
                   key={`${name}-${accounting?.[name]}`}
                   label={
                     kind === 'expense'
-                      ? 'Charges de personnel'
-                      : 'Salaires à payer'
+                      ? t("Charges de personnel")
+                      : t("Salaires à payer")
                   }
                   required
                 >
-                  <select
+                  <PayrollSelect
                     name={name}
                     defaultValue={accounting?.[name] ?? ''}
                     required
                   >
-                    <option value="">Choisir un compte actif</option>
+                    <option value="">{t("Choisir un compte actif")}</option>
                     {accounting?.[name] &&
                       !available.some((a) => a.id === accounting[name]) && (
-                        <option value={accounting[name]} disabled>
-                          Compte actuel indisponible — choisissez un autre
-                          compte
-                        </option>
+                        <option value={accounting[name]} disabled>{t("Compte actuel indisponible — choisissez un autre compte")}</option>
                       )}
                     {available.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.code} · {a.name}
                       </option>
                     ))}
-                  </select>
+                  </PayrollSelect>
                 </Field>
               );
             },
@@ -1122,8 +1055,8 @@ export function PayrollSetup({
             disabled={disabled}
           >
             {guided && question > 0
-              ? 'Étape précédente'
-              : 'Revenir sans enregistrer'}
+              ? t("Étape précédente")
+              : t("Revenir sans enregistrer")}
           </Button>
           <Button
             type="submit"
@@ -1134,12 +1067,12 @@ export function PayrollSetup({
             }
           >
             {busy
-              ? 'Enregistrement…'
+              ? t("Enregistrement…")
               : guided && question < questionCount - 1
-                ? 'Continuer'
+                ? t("Continuer")
                 : guided
-                  ? 'Enregistrer et continuer'
-                  : 'Enregistrer et revenir au salaire'}
+                  ? t("Enregistrer et continuer")
+                  : t("Enregistrer et revenir au salaire")}
           </Button>
         </div>
       </form>

@@ -296,6 +296,14 @@
 .payroll-dialog .payroll-setup select {
   font-size: 1rem;
 }
+.payroll-select { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; width: 100%; }
+.payroll-select select {
+  min-width: 0; width: 100%; appearance: none; overflow: hidden; text-overflow: ellipsis;
+  padding-right: 38px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-size: 5px 5px; background-position: calc(100% - 18px) center, calc(100% - 13px) center; background-repeat: no-repeat;
+}
+.payroll-select .payroll-select__caption { display: block; min-width: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .payroll-field-guide,
 .payroll-next-action {
   display: grid;

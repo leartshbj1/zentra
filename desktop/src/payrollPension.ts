@@ -1,4 +1,5 @@
 import type { AppSettings } from './types';
+import type { InterfaceMessage } from './language';
 
 export const PENSION_GUIDE_SOURCE =
   'https://www.bsv.admin.ch/fr/financement-de-la-prevoyance-professionnelle';
@@ -6,6 +7,7 @@ export const PENSION_GUIDE_SOURCE =
 export type PensionPlanIssue = {
   field: 'pensionFund' | 'contractNumber' | 'regulationReference' | 'lppFrom' | 'lppTo' | 'lppParity';
   message: string;
+  presentation?: InterfaceMessage;
 };
 const realDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) &&
   Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
@@ -19,10 +21,10 @@ export function pensionPlanIssue(payroll: AppSettings['payroll'], contributionDa
   if (plan.regulationReference.trim().length < 8) return { field: 'regulationReference', message: 'Indiquez un titre précis avec son année ou sa version, par exemple « Règlement de prévoyance 2026 ». Utilisez le titre de votre propre document, avec au moins 8 caractères.' };
   if (!realDate(plan.effectiveFrom)) return { field: 'lppFrom', message: 'Choisissez la date de début de validité indiquée sur le contrat ou le règlement de votre caisse.' };
   if (!realDate(plan.effectiveTo)) return { field: 'lppTo', message: 'Indiquez jusqu’à quelle date les informations reçues de la caisse sont confirmées. Si aucune période n’est indiquée, demandez-la à votre caisse.' };
-  if (plan.effectiveTo < plan.effectiveFrom) return { field: 'lppTo', message: `La fin indiquée (${displayDate(plan.effectiveTo)}) est avant le début (${displayDate(plan.effectiveFrom)}). Vérifiez ces deux dates sur le document de la caisse.` };
+  if (plan.effectiveTo < plan.effectiveFrom) return { field: 'lppTo', message: `La fin indiquée (${displayDate(plan.effectiveTo)}) est avant le début (${displayDate(plan.effectiveFrom)}). Vérifiez ces deux dates sur le document de la caisse.`, presentation: { source: 'La fin indiquée ({end}) est avant le début ({start}). Vérifiez ces deux dates sur le document de la caisse.', values: { end: displayDate(plan.effectiveTo), start: displayDate(plan.effectiveFrom) } } };
   if (contributionDate && realDate(contributionDate)) {
-    if (contributionDate < plan.effectiveFrom) return { field: 'lppFrom', message: `Cette fiche utilise la date du ${displayDate(contributionDate)}, mais le contrat commence le ${displayDate(plan.effectiveFrom)}. Reprenez le contrat applicable à cette date, ou revenez au salaire si sa date de paiement est erronée.` };
-    if (contributionDate > plan.effectiveTo) return { field: 'lppTo', message: `Cette fiche utilise la date du ${displayDate(contributionDate)}, mais les informations du contrat s’arrêtent au ${displayDate(plan.effectiveTo)}. Demandez la période à jour à votre caisse, ou revenez au salaire si sa date de paiement est erronée.` };
+    if (contributionDate < plan.effectiveFrom) return { field: 'lppFrom', message: `Cette fiche utilise la date du ${displayDate(contributionDate)}, mais le contrat commence le ${displayDate(plan.effectiveFrom)}. Reprenez le contrat applicable à cette date, ou revenez au salaire si sa date de paiement est erronée.`, presentation: { source: 'Cette fiche utilise la date du {date}, mais le contrat commence le {start}. Reprenez le contrat applicable à cette date, ou revenez au salaire si sa date de paiement est erronée.', values: { date: displayDate(contributionDate), start: displayDate(plan.effectiveFrom) } } };
+    if (contributionDate > plan.effectiveTo) return { field: 'lppTo', message: `Cette fiche utilise la date du ${displayDate(contributionDate)}, mais les informations du contrat s’arrêtent au ${displayDate(plan.effectiveTo)}. Demandez la période à jour à votre caisse, ou revenez au salaire si sa date de paiement est erronée.`, presentation: { source: 'Cette fiche utilise la date du {date}, mais les informations du contrat s’arrêtent au {end}. Demandez la période à jour à votre caisse, ou revenez au salaire si sa date de paiement est erronée.', values: { date: displayDate(contributionDate), end: displayDate(plan.effectiveTo) } } };
   }
   if (!plan.employerAggregateShareConfirmed) return { field: 'lppParity', message: 'Vérifiez dans le règlement que l’entreprise finance au moins la moitié des cotisations de l’ensemble du personnel assuré, puis cochez la confirmation. Si ce n’est pas indiqué, demandez confirmation à votre caisse.' };
   return null;
