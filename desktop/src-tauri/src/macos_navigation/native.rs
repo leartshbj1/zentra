@@ -9,7 +9,7 @@ use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSRect, NSString};
 use std::cell::{Cell, RefCell};
 
 const DESTINATIONS: [&str; 4] = ["dashboard", "projects", "quotes", "menu"];
-type NavigationCallback = Box<dyn Fn(&str) -> bool>;
+pub(super) type NavigationCallback = Box<dyn Fn(&str) -> bool>;
 struct Callbacks {
     channel: RefCell<NavigationCallback>,
     visible: Cell<bool>,
@@ -74,7 +74,7 @@ pub fn configure(
     native_window: &NSWindow,
     selected: &str,
     visible: bool,
-    channel: Box<dyn Fn(&str) -> bool>,
+    channel: Option<NavigationCallback>,
 ) -> Result<bool, String> {
     let mtm = MainThreadMarker::new().ok_or("Navigation hors du thread principal")?;
     // Dynamic lookup avoids referencing a class symbol absent on macOS <26.
@@ -93,6 +93,7 @@ pub fn configure(
             *slot = None;
         }
         if slot.is_none() {
+            let Some(channel) = channel else { return Ok(false); };
             let action = NavigationAction::new(mtm, channel);
             let control =
                 NSSegmentedControl::initWithFrame(NSSegmentedControl::alloc(mtm), NSRect::ZERO);
@@ -155,7 +156,7 @@ pub fn configure(
                 control,
                 action,
             });
-        } else if let Some(dock) = slot {
+        } else if let (Some(dock), Some(channel)) = (slot.as_mut(), channel) {
             *dock.action.ivars().channel.borrow_mut() = channel;
         }
         if let Some(dock) = slot {

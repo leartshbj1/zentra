@@ -1,0 +1,14 @@
+.release-history { min-width: 0; border-top: 1px solid var(--border, #dce3de); padding-top: 18px; }
+.release-history h3 { margin: 0 0 10px; font-size: 1.05rem; }
+.release-history details { min-width: 0; }
+.release-history summary { cursor: pointer; padding: 13px 4px; min-height: 44px; line-height: 1.5; overflow-wrap: anywhere; }
+.release-history summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 6px; }
+.release-history__body { padding: 0 4px 14px; overflow-wrap: anywhere; line-height: 1.6; }
+.release-history__body h4 { margin: 6px 0; }
+.release-history__body p { margin: 6px 0 12px; }
+.release-history ul { margin: 8px 0; padding-inline-start: 22px; }
+.release-history li + li { margin-top: 7px; }
+.release-history__version { font-size: .85rem; color: var(--muted, #526158); }
+.release-history__entry { border-top: 1px solid var(--border, #dce3de); }
+.release-history__entry summary span:first-child { font-variant-numeric: tabular-nums; font-weight: 650; margin-inline-end: 10px; }
+.release-history__entry ul { padding-bottom: 12px; }

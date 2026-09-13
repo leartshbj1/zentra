@@ -29,5 +29,8 @@ workflows:
         script: bash desktop/scripts/codemagic-apple.sh prepare
       - name: Build and verify iPhone IPA
         script: bash desktop/scripts/codemagic-apple.sh iphone
+      - name: Verify Liquid Glass touch targets
+        script: bash desktop/scripts/test-apple-navigation.sh
     artifacts:
       - desktop/artifacts/iphone/*
+      - desktop/artifacts/navigation/*.log

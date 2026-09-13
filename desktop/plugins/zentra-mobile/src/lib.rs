@@ -28,15 +28,17 @@ pub fn init() -> TauriPlugin<Wry> {
 #[tauri::command]
 async fn configure_navigation(
     app: AppHandle,
+    webview: tauri::Webview,
     selected: String,
     visible: bool,
-    on_navigate: tauri::ipc::Channel<Value>,
+    on_navigate: Option<tauri::ipc::JavaScriptChannelId>,
 ) -> Result<Value, String> {
     #[cfg(target_os = "ios")]
     {
         if !["dashboard", "projects", "quotes", "menu"].contains(&selected.as_str()) {
             return Err("Navigation inconnue".into());
         }
+        let on_navigate: Option<tauri::ipc::Channel<Value>> = on_navigate.map(|id| id.channel_on(webview));
         app.state::<Mobile>()
             .0
             .run_mobile_plugin_async(
@@ -50,7 +52,7 @@ async fn configure_navigation(
     }
     #[cfg(not(target_os = "ios"))]
     {
-        let _ = (app, selected, visible, on_navigate);
+        let _ = (app, webview, selected, visible, on_navigate);
         Ok(json!({"available": false}))
     }
 }

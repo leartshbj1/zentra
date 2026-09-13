@@ -33,6 +33,7 @@ import type {
 } from './types';
 import { Button, SectionHeading } from './ui';
 import { errorMessage } from './utils';
+import { ReleaseHistory } from './ReleaseHistory';
 
 type CheckOutcome = 'idle' | 'available' | 'current' | 'installed';
 
@@ -256,6 +257,7 @@ export function AppUpdater({
           description={`Version installée : ${policy.currentVersion}`}
         />
         <p>{policy.reason}</p>
+        <ReleaseHistory version={policy.currentVersion} />
       </section>
     );
 
@@ -456,6 +458,7 @@ export function AppUpdater({
           métier n’est envoyée par ce contrôle.
         </p>
       </details>
+      <ReleaseHistory version={policy?.currentVersion} />
     </section>
   );
 }

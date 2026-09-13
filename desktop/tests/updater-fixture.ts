@@ -1,6 +1,7 @@
 import { desktopApi } from '../src/bridge';
 
 export function installUpdaterFixture() {
+  const notesVersion = new URLSearchParams(location.search).get('releaseHistory');
   const state = {
     installs: 0,
     checks: 0,
@@ -10,7 +11,7 @@ export function installUpdaterFixture() {
   };
   Object.assign(window, { __updaterQA: state });
   desktopApi.getSecureUpdatePolicy = async () => ({
-    enabled: true, currentVersion: '1.29.0', channel: 'stable',
+    enabled: notesVersion !== 'mobile', currentVersion: notesVersion === 'mobile' ? '1.63.0' : notesVersion || '1.29.0', channel: notesVersion === 'mobile' ? 'store' : 'stable',
     endpointHost: 'updates.example.invalid', signatureRequired: true,
     transport: 'HTTPS', automaticInstall: false, reason: '',
   });
