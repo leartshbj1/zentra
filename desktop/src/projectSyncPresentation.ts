@@ -1,5 +1,17 @@
 import type { ProjectSyncStatus } from './projectSync';
 
+export function projectFileSyncIssue(message: string) {
+  if (/copie locale|justificatif local|empreinte différente|erreur de fichier local/i.test(message)) return {
+    title: 'Copie locale à réparer',
+    explanation: 'Ajoutez à nouveau le fichier original dans ce projet. Si son contenu est identique, Zentra répare la copie en gardant le même document. Un fichier différent sera ajouté séparément.',
+    repair: true,
+  };
+  if (/hors ligne|connexion|service indisponible|réseau/i.test(message)) return {
+    title: 'Envoi à reprendre', explanation: 'La connexion a été interrompue. Zentra réessaiera automatiquement au retour du réseau. Vous pouvez aussi utiliser Synchroniser.', repair: false,
+  };
+  return { title: 'Synchronisation à reprendre', explanation: message.replace(/^(Champ invalide|Enregistrement introuvable)\s*:\s*/i, ''), repair: false };
+}
+
 export function projectSyncPresentation(sync: ProjectSyncStatus, pending: number) {
   if (sync.mode === 'preparing') return {
     title: 'Partage du dossier à reprendre',

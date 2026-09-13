@@ -11,7 +11,7 @@ export function startProjectSyncScheduler(options: {
 }) {
   const controller = new AbortController();
   let active = true, running = false, wakePending = false, failures = 0, retryAt = 0;
-  let refreshPending = false, initial = true;
+  let refreshPending = false, initial = true, retryPending = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   function schedule(delay: number) {
     clearTimeout(timer);
@@ -64,8 +64,11 @@ export function startProjectSyncScheduler(options: {
     } finally {
       running = false;
       if (active) options.onRunning?.(false);
-      schedule(wakePending && failures === 0 ? 300 : delay);
-      wakePending = false;
+      // A network return or explicit retry may arrive while the old request is
+      // still failing. Consume that request once, after the current flight ends.
+      if (retryPending) retryAt = 0;
+      schedule(retryPending || wakePending && failures === 0 ? 300 : delay);
+      wakePending = false; retryPending = false;
     }
   }
   schedule(300);
@@ -73,7 +76,7 @@ export function startProjectSyncScheduler(options: {
     wake(retryNow = false) {
       if (!active) return;
       if (retryNow) retryAt = 0;
-      if (running) wakePending = true;
+      if (running) { wakePending = true; retryPending ||= retryNow; }
       else schedule(300);
     },
     stop() { active = false; controller.abort(); clearTimeout(timer); },

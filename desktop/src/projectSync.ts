@@ -72,7 +72,7 @@ export function useProjectSyncBackground(
         if (!signal.aborted) onWorkspaceRef.current(workspace);
       },
     });
-    const wake = (event?: Event) => scheduler.wake(event?.type === 'online' || (event instanceof CustomEvent && event.detail?.userRequested === true));
+    const wake = (event?: Event) => scheduler.wake(event?.type === 'online' || event?.type === 'offline' || (event instanceof CustomEvent && event.detail?.userRequested === true));
     const visible = () => { if (document.visibilityState === 'visible') wake(); };
     const events = ['online', 'offline', 'focus', 'zentra-project-documents-changed'];
     events.forEach(event => window.addEventListener(event, wake));

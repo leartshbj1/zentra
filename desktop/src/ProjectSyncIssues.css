@@ -1,0 +1,10 @@
+.project-sync-issues { margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 14px; background: var(--surface, #fff); }
+.project-sync-issues summary { cursor: pointer; min-height: 32px; padding: 6px 0; font-weight: 600; font-size: 14px; }
+.project-sync-issues ul { list-style: none; margin: 0; padding: 0; }
+.project-sync-issues li { padding: 14px 0; border-top: 1px solid var(--line-soft); overflow-wrap: anywhere; }
+.project-sync-issues li:last-child { padding-bottom: 0; }
+.project-sync-issues strong, .project-sync-issues span { display: block; }
+.project-sync-issues span, .project-sync-issues p { font-size: 13px; line-height: 1.6; color: var(--muted); }
+.project-sync-issues span { margin-top: 4px; }
+.project-sync-issues p { margin: 8px 0 12px; }
+.project-sync-issues .button { min-height: 44px; max-width: 100%; white-space: normal; }

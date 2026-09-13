@@ -16,6 +16,9 @@ use std::{
 use tauri::State;
 use uuid::Uuid;
 
+#[path = "project_sync_queue.rs"]
+mod queue;
+
 static SYNCING: AtomicBool = AtomicBool::new(false);
 struct SyncGuard;
 impl Drop for SyncGuard {
@@ -326,20 +329,20 @@ async fn synchronize(store: &LocalStore) -> AppResult<(bool, bool)> {
         }
     }
     if session.role != "read_only" {
-        let pending=query_all(&store.connect()?,"SELECT document_id,project_id,state FROM project_document_sync WHERE state IN ('upload','delete') ORDER BY updated_at,document_id LIMIT 50",[])?;
-        for item in pending {
-            let id = item["document_id"].as_str().unwrap_or_default();
-            let project = item["project_id"].as_str().unwrap_or_default();
-            let state = item["state"].as_str().unwrap_or_default();
+        let mut pending = queue::PendingDocuments::new(store)?;
+        while let Some(item) = pending.next(store, |id, message| {
+            store.connect()?.execute("UPDATE project_document_sync SET last_error=?,attempts=attempts+1 WHERE document_id=? AND state='upload'",params![message,id])?;
+            Ok(())
+        })? {
+            let id = item.id.as_str();
+            let project = item.project.as_str();
             let result=async {
                 let query=[("id",id),("projectId",project)];
-                if state=="delete" {
+                if item.upload.is_none() {
                     session.request(Method::DELETE,"/api/projects/sync",&query,&[],None,false).await?;
                     store.connect()?.execute("UPDATE project_document_sync SET state='deleted',last_error=NULL WHERE document_id=? AND state='delete'",params![id])?;
                 } else {
-                    let row=query_all(&store.connect()?,"SELECT a.*,p.name AS project_name FROM attachments a JOIN projects p ON p.id=a.project_id WHERE a.id=? AND a.entity_type='project'",params![id])?.into_iter().next();
-                    let Some(row)=row else {return Ok::<(),AppError>(());}; // A concurrent local deletion is already queued.
-                    let bytes=fs::read(store.verified_attachment_path(id)?)?;
+                    let (row,bytes)=item.upload.unwrap();
                     let encode=|value:&str|url::form_urlencoded::byte_serialize(value.as_bytes()).collect::<String>().replace('+',"%20");
                     let headers=[("X-Zentra-Name",encode(row["original_name"].as_str().unwrap_or_default())),("X-Zentra-Project",encode(row["project_name"].as_str().unwrap_or_default())),("X-Zentra-Sha256",row["sha256"].as_str().unwrap_or_default().to_owned())];
                     let (_,response)=session.request(Method::PUT,"/api/projects/sync",&query,&headers,Some(bytes),false).await?;
@@ -361,6 +364,7 @@ async fn synchronize(store: &LocalStore) -> AppResult<(bool, bool)> {
                 return Err(error);
             }
         }
+        pending.finish()?;
     }
     store.connect()?.execute(
         "UPDATE project_sync_binding SET last_synced_at=? WHERE id=1",

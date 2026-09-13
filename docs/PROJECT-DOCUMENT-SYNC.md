@@ -12,6 +12,16 @@ Cette synchronisation porte sur les fichiers ajoutés aux projets. Elle ne répl
 
 ## Implémentation
 
+### Retrouver un fichier et reprendre son envoi
+
+Dans le dossier du projet, **Documents à vérifier** indique le nom du fichier, ce qui bloque et l’action possible. Une copie locale illisible est signalée comme **Copie locale à réparer**, sans annoncer qu’elle est disponible hors ligne. **Ajouter le fichier original** ouvre la sélection habituelle ; vérifiez le fichier, puis choisissez **Enregistrer**.
+
+Si les octets du fichier réimporté correspondent exactement à l’empreinte conservée, Zentra restaure la copie locale sous la même référence. Les liens, la date et le nom d’origine restent présents. Un autre contenu devient un document séparé ; aucune ancienne pièce n’est supprimée pour deviner une correspondance. En lecture seule, l’explication reste accessible et invite une personne autorisée à effectuer la réparation.
+
+Dans la synchronisation des fichiers de projet, une copie locale manquante ou endommagée ne bloque plus les autres envois de la série. La file traite un fichier à la fois, privilégie les suppressions et fait passer les fichiers non encore essayés avant les anciens échecs. Un problème de connexion ou d’autorisation interrompt toujours les appels au serveur. Une demande manuelle ou le retour du réseau pendant une tentative est conservé jusqu’à la fin de celle-ci, puis repris une seule fois. Le passage hors ligne actualise aussi l’état sans attendre le délai de nouvelle tentative.
+
+Ces améliorations sont intégrées au code après 1.59.0. Elles ne constituent pas une nouvelle livraison Windows ou IPA. Les parcours navigateur emploient une connexion simulée et des fichiers de recette ; les tests SQLite vérifient séparément la réparation exacte, la conservation après redémarrage et la progression de la file. Une synchronisation en production entre deux appareils reste à vérifier. Le dossier partagé métier, lorsqu’il est activé, garde son propre circuit de synchronisation.
+
 - Migration locale 58 : liaison à l’entreprise, curseur de réception et file d’attente transactionnelle déclenchée par les ajouts/suppressions de pièces de projet.
 - Migration D1 `0010_even_fenris.sql` : événements immuables par entreprise/document/action avec curseur monotone.
 - `GET/PUT/DELETE /api/projects/sync` et `GET /api/projects/sync/file` : sessions d’appareils contrôlées par le serveur et droits de l’abonnement existant. Les fichiers privés sont dans R2 ; aucune URL publique de document n’est retournée.

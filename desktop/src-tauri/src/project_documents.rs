@@ -160,6 +160,18 @@ impl LocalStore {
         .into_iter()
         .next()
         {
+            // Reimporting the exact original can repair a missing/corrupt
+            // offline copy without changing its identity or sharing history.
+            let id = existing["id"].as_str().unwrap_or_default();
+            if self.verified_attachment_path(id).is_err() {
+                let path = self.safe_attachment_path(existing["stored_name"].as_str().unwrap_or_default())?;
+                let mut staged = tempfile::NamedTempFile::new_in(&self.attachments_dir)?;
+                staged.write_all(&bytes)?;
+                staged.as_file().sync_all()?;
+                staged.persist(&path).map_err(|error| AppError::Io(error.error))?;
+                tx.execute("UPDATE project_document_sync SET last_error=NULL,attempts=0 WHERE document_id=? AND state='upload'",params![id])?;
+                tx.commit()?;
+            }
             return Ok(existing);
         }
         let count: i64 = tx.query_row(

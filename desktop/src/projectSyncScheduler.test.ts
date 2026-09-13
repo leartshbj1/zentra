@@ -38,6 +38,36 @@ describe('project document synchronization lifecycle', () => {
     expect(synchronize).toHaveBeenCalledTimes(2);
     scheduler.stop(); finish(status);
   });
+  it.each(['reject', 'status'] as const)('remembers a network return during an in-flight %s failure, without parallel calls or a retry loop', async failure => {
+    let reject!: (reason: Error) => void, resolve!: (value: ProjectSyncStatus) => void;
+    const synchronize = vi.fn(() => new Promise<ProjectSyncStatus>((yes, no) => { resolve = yes; reject = no; }));
+    const { scheduler } = setup({ synchronize });
+    await vi.advanceTimersByTimeAsync(300);
+    for (let i = 0; i < 10; i++) scheduler.wake(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(synchronize).toHaveBeenCalledTimes(1);
+    if (failure === 'reject') reject(new Error('Ancienne connexion interrompue'));
+    else resolve({ ...status, error: 'Ancienne connexion interrompue' });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(synchronize).toHaveBeenCalledTimes(2);
+    reject(new Error('Service toujours indisponible'));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(synchronize).toHaveBeenCalledTimes(2);
+    scheduler.wake(); await vi.advanceTimersByTimeAsync(1000);
+    expect(synchronize).toHaveBeenCalledTimes(2);
+    scheduler.stop();
+  });
+  it('keeps the explicit retry when the workspace refresh still fails', async () => {
+    let reject!: (reason: Error) => void;
+    const refresh = vi.fn(() => new Promise<void>((_, no) => { reject = no; }));
+    const { options, scheduler } = setup({ synchronize: vi.fn(async () => ({ ...status, changed: true })), onWorkspaceChanged: refresh });
+    await vi.advanceTimersByTimeAsync(300);
+    scheduler.wake(true); reject(new Error('Lecture interrompue'));
+    await vi.advanceTimersByTimeAsync(300);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(options.synchronize).toHaveBeenCalledTimes(1);
+    scheduler.stop(); reject(new Error('Lecture fermée'));
+  });
   it.each(['reject', 'status'] as const)('holds backoff on %s errors despite focus events', async failure => {
     const synchronize = vi.fn(async (): Promise<ProjectSyncStatus> => {
       if (failure === 'reject') throw new Error('offline');

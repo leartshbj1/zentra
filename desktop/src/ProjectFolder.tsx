@@ -5,7 +5,8 @@ import { ProjectFilePreview } from './ProjectFilePreview';
 import { ProjectFilesPicker } from './ProjectFilesPicker';
 import { requestProjectSync, useProjectSyncStatus } from './projectSync';
 import { CloudAccountAccess } from './CloudAccountAccess';
-import { projectSyncPresentation } from './projectSyncPresentation';
+import { projectFileSyncIssue, projectSyncPresentation } from './projectSyncPresentation';
+import { ProjectSyncIssues } from './ProjectSyncIssues';
 import { fileSizeLabel, isProjectFile, projectDocuments } from './projectDocuments';
 import type { Attachment, Invoice, Project, Quote, Workspace } from './types';
 import { Button, ErrorPanel, Modal, StatusBadge } from './ui';
@@ -128,17 +129,23 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
         <div><strong>{syncPresentation.title}</strong><p>{syncPresentation.description}</p></div>
         {syncPresentation.canSynchronize ? <Button size="small" variant="secondary" disabled={sync.syncing} onClick={requestProjectSync}>Synchroniser</Button> : <CloudAccountAccess />}
       </div>
+      <ProjectSyncIssues sync={sync} projectId={project.id} files={contents.files} readOnly={readOnly} busy={saving || busy || refreshPending} onRepair={() => {
+        const trigger = folderElement.current?.querySelector<HTMLButtonElement>('.project-file-picker__actions button');
+        trigger?.scrollIntoView({ block: 'center' });
+        trigger?.focus({ preventScroll: true }); trigger?.click();
+      }} />
       {!readOnly ? <><ProjectFilesPicker files={files} onChange={setFiles} disabled={saving || busy || refreshPending} />
       {fileSession && files.length > 0 && <p className="project-file-picker__hint">Votre sélection reste dans ce projet pendant la navigation. Enregistrez les fichiers avant de fermer Zentra.</p>}
       {uploadFailures.some(item => files.includes(item.file)) ? <div className="project-file-failures" role="alert"><strong>Fichiers à reprendre</strong><ul>{uploadFailures.filter(item => files.includes(item.file)).map(({file,message}, index) => <li key={index}><strong>{file.name}</strong><p>{message}</p></li>)}</ul></div> : null}
       {files.length ? <Button data-project-file-save onClick={() => void upload()} disabled={saving || busy || refreshPending}>{saving ? progress || 'Actualisation…' : `Enregistrer ${files.length} fichier${files.length > 1 ? 's' : ''}`}</Button> : null}</> : null}
       <ul className="project-document-list">{contents.files.map((file) => {
+        const syncFile = sync.documents.find(item => item.document_id === file.id);
         const expenseId = file.entityType === 'expense' ? file.entityId : file.entityType === 'expense_refund' ? workspace.expenses.find((expense) => expense.refunds?.some((refund) => refund.id === file.entityId))?.id : undefined;
         const customerCredit = file.entityType === 'customer_credit_settlement' ? workspace.invoices.find((invoice) => invoice.type === 'credit_note' && invoice.creditSettlements?.some((event) => event.id === file.entityId)) : undefined;
         return <li key={file.id} className={(expenseId && onOpenExpense) || customerCredit ? 'project-document-list__with-source' : undefined}>
         <button type="button" className="project-document-list__open" onClick={(event) => void open(file, event.currentTarget)} disabled={saving || refreshPending}>
           {file.mimeType.startsWith('image/') ? <Image size={22} /> : <FileText size={22} />}
-          <span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)} · {formatDate(file.createdAt)}{file.entityType === 'supplier_invoice' ? ' · Justificatif fournisseur' : file.entityType === 'customer_credit_settlement' ? ' · Règlement d’un avoir client' : file.entityType === 'expense_refund' ? ' · Avoir / remboursement de dépense' : file.entityType === 'expense' ? ' · Justificatif de dépense' : ''}</small>{isProjectFile(file) ? <small>{sync.documents.find(item=>item.document_id===file.id)?.state==='synced'?'Synchronisé · Disponible hors ligne':sync.organizationId || sync.connected ? 'Sur cet appareil · Envoi en attente' : 'Disponible sur cet appareil'}</small> : null}</span>
+          <span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)} · {formatDate(file.createdAt)}{file.entityType === 'supplier_invoice' ? ' · Justificatif fournisseur' : file.entityType === 'customer_credit_settlement' ? ' · Règlement d’un avoir client' : file.entityType === 'expense_refund' ? ' · Avoir / remboursement de dépense' : file.entityType === 'expense' ? ' · Justificatif de dépense' : ''}</small>{isProjectFile(file) ? <small>{syncFile?.state==='synced'?'Synchronisé · Disponible hors ligne':syncFile?.last_error ? projectFileSyncIssue(syncFile.last_error).title : sync.organizationId || sync.connected ? 'Sur cet appareil · Envoi en attente' : 'Disponible sur cet appareil'}</small> : null}</span>
         </button>
         {expenseId && onOpenExpense ? <Button variant="ghost" onClick={() => onOpenExpense(expenseId)} aria-label={`Voir la dépense liée à ${file.originalName}`}>Voir la dépense</Button> : null}
         {customerCredit ? <Button variant="ghost" onClick={() => onOpenDocument('invoices', customerCredit)} aria-label={`Voir l’avoir lié à ${file.originalName}`}>Voir l’avoir</Button> : null}
