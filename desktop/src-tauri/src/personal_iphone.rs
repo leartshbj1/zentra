@@ -41,10 +41,23 @@ pub(crate) async fn activate(store: &crate::database::LocalStore) -> AppResult<(
     }
     // The normal installation path verifies signature, installation binding,
     // server recognition and protected storage before enabling the license.
-    store.install_license_token(compiled_token()).await.map_err(|_| crate::error::AppError::Validation(
-        "Votre exemplaire personnel doit se connecter une première fois pour activer sa licence. Vérifiez Internet puis touchez Réessayer. Si le problème persiste, contactez l’assistance Zentra.".into()
-    ))?;
+    store.install_license_token(compiled_token()).await?;
     Ok(())
+}
+
+#[cfg(any(test, all(target_os = "ios", feature = "personal-iphone")))]
+pub(crate) fn activation_error_state(mut state: serde_json::Value, error: crate::error::AppError) -> serde_json::Value {
+    let reason = match error {
+        crate::error::AppError::Validation(message) if message.contains("autre installation") =>
+            "Cet iPhone possède déjà une identité Zentra différente de celle de la licence intégrée. Copiez l’identifiant affiché ci-dessous et transmettez-le à l’assistance pour activer cet appareil. Vos données sont conservées.".to_owned(),
+        crate::error::AppError::Validation(message) => message,
+        other => other.to_string(),
+    };
+    // Keep the actual native entitlement and write restrictions. A failed
+    // activation must not prevent setup, recovery or copying the device ID.
+    state["personal_activation_pending"] = serde_json::Value::Bool(true);
+    state["reason"] = serde_json::Value::String(reason);
+    state
 }
 
 #[cfg(test)]
@@ -60,6 +73,19 @@ mod tests {
         (format!("{encoded}.{signature}"),key.verifying_key().to_bytes())
     }
     #[test] fn public_build_does_not_provision_identity() { assert_eq!(initial_identity().unwrap(),None); }
+    #[test] fn failed_activation_keeps_write_restrictions_and_reveals_the_actionable_cause() {
+        let state=serde_json::json!({"status":"missing","read_only":true,"can_refresh":false,"installation_id":"existing-device"});
+        let next=activation_error_state(state.clone(),crate::error::AppError::Validation("Le service de licence a répondu 503.".into()));
+        assert_eq!(next["status"],"missing");
+        assert_eq!(next["read_only"],true);
+        assert_eq!(next["can_refresh"],false);
+        assert_eq!(next["installation_id"],"existing-device");
+        assert_eq!(next["personal_activation_pending"],true);
+        assert!(next["reason"].as_str().unwrap().contains("503"));
+        let mismatch=activation_error_state(state,crate::error::AppError::Validation("Ce jeton appartient à une autre installation Zentra.".into()));
+        assert!(mismatch["reason"].as_str().unwrap().contains("Copiez l’identifiant"));
+        assert!(!mismatch["reason"].as_str().unwrap().contains("Internet"));
+    }
     #[test] fn signed_personal_identity_is_exact_and_invalid_entitlements_fail() {
         let id=uuid::Uuid::new_v4().to_string();
         let (token,key)=token("owner",&id,None);

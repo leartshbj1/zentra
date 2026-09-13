@@ -62,9 +62,14 @@ pub fn get_noga_catalog() -> Value {
 #[tauri::command]
 pub async fn get_license_state(state: State<'_, LocalStore>) -> Result<Value, String> {
     #[cfg(all(target_os = "ios", feature = "personal-iphone"))]
-    crate::personal_iphone::activate(state.inner()).await.map_err(command_error)?;
+    let activation_error = crate::personal_iphone::activate(state.inner()).await.err();
     let _guard = state.lock().map_err(command_error)?;
-    state.get_license_state().map_err(command_error)
+    let result = state.get_license_state().map_err(command_error)?;
+    #[cfg(all(target_os = "ios", feature = "personal-iphone"))]
+    if let Some(error) = activation_error {
+        return Ok(crate::personal_iphone::activation_error_state(result, error));
+    }
+    Ok(result)
 }
 
 #[tauri::command]

@@ -1699,6 +1699,7 @@ export type BackupStatus = {
 };
 
 export type LicenseState = {
+  personalActivationPending?: boolean;
   enforcementConfigured: boolean;
   status:
     | 'not_configured'

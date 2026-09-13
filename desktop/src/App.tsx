@@ -218,7 +218,7 @@ export function App() {
             setWorkspace(await desktopApi.loadWorkspace());
           }}
           onRefresh={async () =>
-            setLicense(await desktopApi.refreshLicense(false))
+            setLicense(await (license.personalActivationPending ? desktopApi.getLicenseState() : desktopApi.refreshLicense(false)))
           }
         />
       ) : null}
@@ -339,24 +339,7 @@ function LicenseActivation({
       <DevelopmentNotice identity={identity} hasNavigation={hasNavigation} />
     );
   }
-  const form = (
-    <form onSubmit={submit}>
-      {identity}
-      {license.canRefresh ? (
-        <Button
-          type="button"
-          size="small"
-          onClick={() => void refresh()}
-          disabled={busy || refreshing}
-        >
-          {refreshing ? (
-            <LoaderCircle className="spin" size={15} />
-          ) : (
-            <RefreshCw size={15} />
-          )}
-          {refreshing ? t("Renouvellement…") : t("Renouveler en ligne")}
-        </Button>
-      ) : null}
+  const tokenControls = (<>
       <label>
         <span>{t("Ou installer un nouveau jeton signé")}</span>
         <textarea
@@ -366,7 +349,6 @@ function LicenseActivation({
           required
         />
       </label>
-      {error ? <small className="license-banner__error">{error}</small> : null}
       <Button
         type="submit"
         size="small"
@@ -379,6 +361,30 @@ function LicenseActivation({
         )}
         {busy ? t("Vérification en ligne…") : t("Installer le jeton")}
       </Button>
+  </>);
+  const form = (
+    <form onSubmit={submit}>
+      {license.personalActivationPending && license.reason ? <p role="alert" className="license-banner__error">{license.reason}</p> : null}
+      {identity}
+      {license.canRefresh || license.personalActivationPending ? (
+        <Button
+          type="button"
+          size="small"
+          onClick={() => void refresh()}
+          disabled={busy || refreshing}
+        >
+          {refreshing ? (
+            <LoaderCircle className="spin" size={15} />
+          ) : (
+            <RefreshCw size={15} />
+          )}
+          {refreshing ? t("Vérification en ligne…") : license.personalActivationPending ? 'Activer ma licence personnelle' : t("Renouveler en ligne")}
+        </Button>
+      ) : null}
+      {license.personalActivationPending ? (
+        <details><summary>Installer une licence fournie par l’assistance</summary>{tokenControls}</details>
+      ) : tokenControls}
+      {error ? <p role="alert" className="license-banner__error">{error}</p> : null}
     </form>
   );
   return (
@@ -395,7 +401,7 @@ function LicenseActivation({
           )}
         </span>
         <div>
-          <strong>{licenseLabels[license.status]}</strong>
+          <strong>{license.personalActivationPending ? 'Activation de votre iPhone' : licenseLabels[license.status]}</strong>
           <small>
             {license.readOnly
               ? t("Application en lecture seule; sauvegarde et export restent disponibles.")
@@ -411,10 +417,10 @@ function LicenseActivation({
           {form}
         </details>
       )}
-      <p>
+      {!license.personalActivationPending ? <p>
         {license.reason ||
           `Solo 49 CHF · Start 59 CHF · Pro 89 CHF par mois · toutes les fonctions actuelles et futures incluses`}
-      </p>
+      </p> : null}
     </aside>
   );
 }

@@ -1204,6 +1204,7 @@ function employeePayrollTemplateFromRaw(
 
 function licenseStateFromRaw(row: RawRecord): LicenseState {
   return {
+    personalActivationPending: boolValue(row.personal_activation_pending),
     enforcementConfigured: boolValue(row.enforcement_configured),
     status: stringValue(row.status) as LicenseState['status'],
     readOnly: boolValue(row.read_only),
