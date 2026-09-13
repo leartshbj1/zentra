@@ -33,6 +33,7 @@ import type { AppSettings, LicenseState, Workspace } from './types';
 import { Button, ErrorPanel, Modal } from './ui';
 import { errorMessage, normalizeLicenseToken } from './utils';
 import { useMobileLayout } from './useMobileLayout';
+import './personal-activation.css';
 
 export function App() {
   useAppLanguage();
@@ -389,7 +390,7 @@ function LicenseActivation({
   );
   return (
     <aside
-      className={`license-banner ${license.readOnly ? 'license-banner--warning' : ''}`}
+      className={`license-banner ${license.readOnly ? 'license-banner--warning' : ''} ${license.personalActivationPending ? 'license-banner--personal' : ''}`}
       role="status"
     >
       <div className="license-banner__summary">

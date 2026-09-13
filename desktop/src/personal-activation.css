@@ -1,0 +1,18 @@
+.license-banner.license-banner--personal {
+  max-height: calc(100dvh - 36px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px;
+}
+.license-banner.license-banner--personal form { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.license-banner.license-banner--personal form > button { width: 100%; min-height: 46px; }
+.license-banner.license-banner--personal .license-banner__summary strong { font-size: 16px; }
+.license-banner.license-banner--personal .license-banner__summary small { font-size: 12px; line-height: 1.5; }
+.license-banner.license-banner--personal .license-banner__error { margin: 0; font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.license-banner.license-banner--personal .license-banner__identity { grid-template-columns: minmax(0, 1fr) auto; margin: 0; }
+.license-banner.license-banner--personal .license-banner__identity > span { grid-column: 1 / -1; font-size: 11px; }
+.license-banner.license-banner--personal .license-banner__identity > code { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; font-size: 12px; line-height: 1.5; }
+.license-banner.license-banner--personal details { min-width: 0; margin: 0; }
+.license-banner.license-banner--personal summary { min-height: 44px; align-content: center; font-size: 12px; line-height: 1.5; }
+.license-banner.license-banner--personal textarea { width: 100%; margin-top: 6px; }
+.license-banner.license-banner--personal details button { width: 100%; margin-top: 8px; }
