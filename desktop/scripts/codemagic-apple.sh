@@ -58,6 +58,7 @@ iphone-personal)
   python3 desktop/scripts/verify-ios-ipa.py desktop/src-tauri/gen/apple/build/arm64/Zentra.ipa --output-dir desktop/artifacts/iphone-personal --source-revision "$(git rev-parse HEAD)"
   version=$(node -p "require('./desktop/package.json').version")
   mv "desktop/artifacts/iphone-personal/Zentra-${version}-iPhone-unsigned.ipa" "desktop/artifacts/iphone-personal/Zentra-${version}-iPhone-PERSONNEL.ipa"
+  (cd desktop/artifacts/iphone-personal && shasum -a 256 "Zentra-${version}-iPhone-PERSONNEL.ipa" > SHA256SUMS.txt)
   cp docs/INSTALL-IPHONE-PERSONNEL.md desktop/artifacts/iphone-personal/LISEZ-MOI.md
   ;;
 *) echo 'Expected prepare, macos or iphone' >&2; exit 2;;
