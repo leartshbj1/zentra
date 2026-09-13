@@ -1,10 +1,10 @@
 # Personnaliser les documents Zentra
 
-L’atelier est inclus dans la préversion Windows 1.59.0, publiée le 13 septembre 2026. Consultez [la note de livraison](RELEASE-WINDOWS-1.59.0.md) pour ses contrôles et leurs limites. Les réglages précis et le nouvel affichage mobile décrits ci-dessous sont ajoutés au code après cette version ; ils ne sont pas encore dans un nouvel installateur. Cette livraison ne comprend pas de nouveau lot macOS, iOS ou Android.
+L’atelier et toutes les extensions décrites ci-dessous sont inclus dans la préversion Windows 1.60.0, publiée le 13 septembre 2026. Consultez [la note de livraison](RELEASE-WINDOWS-1.60.0.md) pour ses contrôles et leurs limites. Cette livraison ne comprend pas de nouveau lot macOS, iOS ou Android.
 
 Dans **Paramètres → Présentation des documents**, ouvrez l’atelier de personnalisation puis choisissez **Factures**, **Devis**, **Bilan** ou **Fiches de salaire**.
 
-## Listes, retraits et paragraphes — ajout après 1.59.0
+## Listes, retraits et paragraphes — Windows 1.60.0
 
 Sur ordinateur, l’onglet **Textes** élargit automatiquement l’espace d’écriture à côté du PDF. **Agrandir l’espace d’écriture** reste disponible pour rédiger sur toute la largeur.
 
@@ -16,9 +16,9 @@ Ouvrez **Espacement des paragraphes** pour choisir l’espace après le paragrap
 
 Les quatre catégories utilisent ces options dans leurs PDF, y compris le pied de page. Un pied de page trop haut déclenche une explication avant l’enregistrement. Les montants restent ceux calculés par l’application. Les polices proposées restent Helvetica, Times et Courier ; les polices personnelles et les fichiers Word complets ne sont pas importés.
 
-Ces ajouts sont intégrés au code après 1.59.0. Aucun nouvel installateur ni IPA n’est distribué avec ce lot. Recette : `desktop/tests/document-paragraph-journey.mjs` et tests natifs `document_composition::paragraph_tests`.
+Ces ajouts sont inclus dans Windows 1.60.0. Recette : `desktop/tests/document-paragraph-journey.mjs` et tests natifs `document_composition::paragraph_tests`.
 
-## Mes modèles — ajout après 1.59.0
+## Mes modèles — Windows 1.60.0
 
 Dans **Style → Mes modèles**, donnez un nom à la présentation affichée puis choisissez **Créer ce modèle**. Vous pouvez garder jusqu’à 20 modèles. Ils contiennent la mise en page, les polices, les couleurs et les textes modèles ; le logo utilisé reste celui de l’entreprise.
 
@@ -26,11 +26,11 @@ Pour réutiliser une présentation, choisissez la catégorie du document, ouvrez
 
 **Renommer** change le nom dans la liste. **Retirer ce modèle** le retire de la bibliothèque ; les documents et les présentations déjà appliquées le conservent. Les créations, renommages, retraits et applications restent réversibles avec **Annuler / Rétablir**. Une actualisation externe de la bibliothèque empêche l’ancien historique de la remplacer.
 
-Choisissez **Enregistrer** pour conserver la bibliothèque avec les paramètres de l’entreprise après fermeture. Un refus d’enregistrement garde les modèles et les textes présents à l’écran. Les réglages restent consultables en lecture seule, avec leurs modifications désactivées. Cette extension est ajoutée au code ; aucun nouvel installateur n’est publié avec ce lot.
+Choisissez **Enregistrer** pour conserver la bibliothèque avec les paramètres de l’entreprise après fermeture. Un refus d’enregistrement garde les modèles et les textes présents à l’écran. Les réglages restent consultables en lecture seule, avec leurs modifications désactivées. Cette extension est incluse dans Windows 1.60.0.
 
 Recette : `desktop/tests/document-templates-journey.mjs` ; sauvegarde et génération réelle des quatre PDF contrôlées aussi par les tests natifs `document_templates`.
 
-## Page, titres et tableaux sur mesure — ajout après 1.59.0
+## Page, titres et tableaux sur mesure — Windows 1.60.0
 
 Dans **Mise en page**, choisissez visuellement **Portrait** ou **Paysage**. Les textes et les tableaux se répartissent sur la largeur disponible ; les pages se créent automatiquement. Une section de paiement QR garde sa page A4 verticale, même si le reste de la facture est en paysage. Un titre de section ne reste pas seul en bas d’une page avec ces nouveaux formats. Le bouton **Importer ou changer mon logo** conduit directement au réglage de l’entreprise ; les choix de position et de taille restent dans l’atelier.
 
@@ -40,9 +40,9 @@ Ouvrez **Personnaliser les couleurs du tableau** pour régler le fond et le text
 
 Dans **Textes**, sélectionnez un passage puis choisissez **Copier le style**. Sélectionnez ensuite un autre passage dans la même zone et choisissez **Appliquer le style** : police, taille, gras, italique, soulignement, couleur et surlignage sont repris sans changer les mots. Si la source contient plusieurs styles, celui du premier caractère est utilisé. Sans sélection de destination, le style s’applique à la suite de votre saisie. **Annuler** retire cette modification en une fois.
 
-Ces ajouts sont intégrés au code, sans nouvel installateur dans ce lot. La recette `desktop/tests/document-customization-journey.mjs` contrôle les quatre catégories, la conservation des réglages, les exports et l’éditeur à 320, 390, 844 et 1 440 pixels. Les tests PDF natifs contrôlent la pagination, les valeurs imprimées, les polices, la page de paiement et l’enregistrement des réglages. Les anciens modèles sans ces options gardent leur comportement.
+Ces ajouts sont inclus dans Windows 1.60.0. La recette `desktop/tests/document-customization-journey.mjs` contrôle les quatre catégories, la conservation des réglages, les exports et l’éditeur à 320, 390, 844 et 1 440 pixels. Les tests PDF natifs contrôlent la pagination, les valeurs imprimées, les polices, la page de paiement et l’enregistrement des réglages. Les anciens modèles sans ces options gardent leur comportement.
 
-## Réglages précis et aperçu mobile — ajout après 1.59.0
+## Réglages précis et aperçu mobile — Windows 1.60.0
 
 Les choix rapides restent disponibles. Pour une valeur intermédiaire, ouvrez **Style → Réglage précis de la typographie**, ou **Mise en page → Réglage précis de la page**. Déplacez un curseur ou utilisez les boutons − et +. La valeur apparaît à côté du réglage ; les menus rapides reprennent aussi la valeur choisie.
 

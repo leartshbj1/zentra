@@ -17,7 +17,7 @@ Un compte manquant propose **Configurer le compte bancaire** ou **Ouvrir Plan & 
 
 Après une interruption de réponse, Zentra recherche la demande exacte dans l’historique des remboursements. Une lecture interrompue après confirmation reste à reprendre jusqu’à retrouver l’événement et son lien comptable. Les reprises relisent seulement les données et ne renvoient pas le remboursement.
 
-Ce parcours est intégré au code après 1.59.0, sans nouvel installateur ni IPA. Une compilation native est nécessaire. Recette : `desktop/tests/supplier-refund-guided-journey.mjs`.
+Ce parcours est inclus dans la préversion Windows 1.60.0. Consultez [la note de livraison](RELEASE-WINDOWS-1.60.0.md) pour ses contrôles et leurs limites. Recette : `desktop/tests/supplier-refund-guided-journey.mjs`.
 
 ## Utiliser un avoir pour réduire une facture
 
@@ -36,7 +36,7 @@ Si un paiement ou une autre utilisation change les soldes, votre montant reste p
 
 Un exercice fermé propose **Ouvrir les exercices**. Retrouvez ensuite l’avoir dans **Achats → Factures et avoirs** pour préparer à nouveau son utilisation. La date et la période ne sont jamais corrigées automatiquement. Les détails techniques restent consultables dans **Voir le message détaillé**.
 
-Ce parcours est intégré au code après 1.59.0 et nécessite une nouvelle compilation native. Aucun nouvel installateur ou IPA n’est publié avec ce lot. Recette : `desktop/tests/credit-allocation-journey.mjs`.
+Ce parcours est inclus dans la préversion Windows 1.60.0. Recette : `desktop/tests/credit-allocation-journey.mjs`.
 
 ## Recevoir les marchandises d’une commande
 
@@ -55,7 +55,7 @@ Après une interruption de réponse, la vérification relit l’état de la réc
 
 Pour corriger une réception validée, **Annuler la réception** affiche les quantités qui seront retirées et demande un motif. Cette annulation concerne la réception entière et conserve son historique. Elle est refusée si les marchandises nécessaires ne sont plus en stock, si une facture est encore liée ou si la période ne permet pas la correction. Vos informations restent présentes après un refus. Une facture déjà validée doit suivre le parcours de correction des achats.
 
-Ces ajouts sont intégrés au code après 1.59.0 ; aucun nouvel installateur ou IPA n’est publié avec ce lot. Recette : `desktop/tests/receipt-guided-journey.mjs`.
+Ces ajouts sont inclus dans la préversion Windows 1.60.0. Recette : `desktop/tests/receipt-guided-journey.mjs`.
 
 ## Vérifier une facture reçue
 

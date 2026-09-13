@@ -14,7 +14,7 @@ Pour un produit, **Suivre les quantités en stock** active ou conserve le suivi.
 
 **Actualiser la fiche** relit ses données sans remplacer votre saisie. Si elle a changé, la comparaison affiche vos valeurs et les valeurs actuelles. **Conserver ma saisie** garde les champs que vous avez modifiés et reprend les changements indépendants des autres champs. **Utiliser les valeurs actuelles** reprend toute la fiche relue. Ces choix ne sauvegardent rien : vérifiez puis enregistrez. Le moteur natif compare également la version dans la transaction ; deux modifications fondées sur la même version ne peuvent pas toutes deux l’écraser.
 
-Une réponse perdue est vérifiée par relecture. Après acquittement, une lecture interrompue, une configuration vide ou une référence absente garde la reprise ouverte. Les reprises n’envoient pas de nouvelle création ou modification et restent accessibles en lecture seule. Les saisies non enregistrées sont conservées tant que le formulaire est ouvert ; elles ne constituent pas un brouillon persistant après fermeture de l’application. La nouvelle fiche guidée et sa commande de modification sont ajoutées après 1.59.0 et nécessitent une nouvelle compilation native.
+Une réponse perdue est vérifiée par relecture. Après acquittement, une lecture interrompue, une configuration vide ou une référence absente garde la reprise ouverte. Les reprises n’envoient pas de nouvelle création ou modification et restent accessibles en lecture seule. Les saisies non enregistrées sont conservées tant que le formulaire est ouvert ; elles ne constituent pas un brouillon persistant après fermeture de l’application. La nouvelle fiche guidée et sa commande de modification sont incluses dans Windows 1.60.0.
 
 ## Enregistrer une arrivée ou une sortie
 
@@ -48,4 +48,4 @@ Le bouton **Historique** affiche les mouvements du plus récent au plus ancien, 
 
 Ces opérations modifient les quantités du catalogue. Elles ne créent pas de facture fournisseur ni d’écriture de valorisation de stock.
 
-Ce parcours est ajouté au code après Windows 1.59.0. Il nécessite un nouveau programme natif pour la commande de comptage ; aucun nouvel installateur ou IPA n’est publié avec ce lot.
+Ce parcours et la commande native de comptage sont inclus dans la préversion Windows 1.60.0. Consultez [la note de livraison](RELEASE-WINDOWS-1.60.0.md) pour ses contrôles et leurs limites.
