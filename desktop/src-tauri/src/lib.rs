@@ -196,6 +196,7 @@ pub fn run() {
             record_stock_entry,
             record_stock_exit,
             record_stock_correction,
+            record_stock_count,
             save_supplier_invoice_draft,
             validate_supplier_invoice,
             record_supplier_payment,
@@ -10850,6 +10851,11 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
 
     mod supplier_credit_settlement_tests {
         include!("supplier_credit_settlement_tests.rs");
+    }
+
+    mod stock_count_tests {
+        use super::{initialized_store, tracked_product, value_id};
+        include!("stock_count_tests.rs");
     }
 
     fn tracked_product(store: &LocalStore, name: &str, reorder_level_milli: i64) -> String {

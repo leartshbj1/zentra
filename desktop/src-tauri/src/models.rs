@@ -279,6 +279,21 @@ pub struct StockCorrectionInput {
     pub date: Option<String>,
 }
 
+/// Inventory count against the balance reviewed by the user. The comparison and
+/// correction run in the same write transaction, after replay detection.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StockCountInput {
+    pub request_id: String,
+    pub catalog_item_id: String,
+    pub expected_quantity_milli: i64,
+    pub counted_quantity_milli: i64,
+    pub reason: String,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub date: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfirmBankReconciliationInput {
     pub movement_id: String,

@@ -96,6 +96,7 @@ import {
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { WorkspaceRefreshAfterMutationError, refreshWorkspaceAfterMutation } from './workspaceMutation';
+import { requireStockWorkspace, WorkspaceStockOutcomeUnknownError, WorkspaceStockRefreshError } from './stockWorkflow';
 import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
 import { paymentInput } from './salesFormValidation';
 import { PayslipPostingRefreshError } from './payrollMutation';
@@ -942,8 +943,8 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); validateRead?.(value); };
+      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError ? reason : null;
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
@@ -2335,6 +2336,12 @@ export function WorkspaceApp({
           replace={next => setModal(current => { const value = typeof next === 'function' ? next(current) : next; return value && current?.returnToClientId ? { ...value, returnToClientId: current.returnToClientId } : value; })}
           act={act}
           onOpenClientEntry={openClientEntry}
+          onReadWorkspace={async () => {
+            if (actionInFlight.current || isWorkspaceRecoveryPending()) throw new Error('Attendez la fin de l’opération en cours.');
+            actionInFlight.current=true;setBusy(true);
+            try { const next=await desktopApi.loadWorkspace();requireStockWorkspace(next);workspaceRef.current=next;setWorkspace(next);return next; }
+            finally {actionInFlight.current=false;setBusy(false);}
+          }}
           onOpenInvoices={() => {
             setModal(null);
             setView('invoices');
@@ -6223,6 +6230,7 @@ function WorkspaceModal({
   onIssueInvoice,
   onQrReady,
   onOpenClientEntry,
+  onReadWorkspace,
 }: {
   state: Exclude<ModalState, null>;
   readOnly: boolean;
@@ -6242,6 +6250,7 @@ function WorkspaceModal({
   onIssueInvoice: (invoice: Invoice, onError?: (reason: unknown) => void) => Promise<void>;
   onQrReady: (invoice: Invoice, qr: StoredSwissQrBill) => void;
   onOpenClientEntry: (kind: 'client' | 'project' | 'quotes' | 'invoices', clientId: string, id: string) => void;
+  onReadWorkspace: () => Promise<Workspace>;
 }) {
   if (state.type === 'client')
     return <ClientForm item={state.item} busy={busy} readOnly={readOnly} close={close} act={act} />;
@@ -6273,13 +6282,15 @@ function WorkspaceModal({
   if (state.type === 'stockMovement')
     return (
       <StockMovementForm
-        item={state.item}
+        itemId={state.item.id}
+        workspace={workspace}
         movementType={state.movementType}
         requestId={state.requestId}
-        reservedMilli={state.reservedMilli}
         busy={busy}
+        readOnly={readOnly}
         close={close}
         act={act}
+        onReadWorkspace={onReadWorkspace}
       />
     );
   if (state.type === 'supplier')
@@ -6523,6 +6534,7 @@ type ActionRunner = (
   message: string,
   close?: boolean,
   onError?: (reason: unknown) => void,
+  validateRead?: (workspace: Workspace) => void,
 ) => Promise<boolean>;
 
 function ProjectForm({

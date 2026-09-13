@@ -27,10 +27,7 @@ import {
   filterCatalogItems,
   formatCatalogQuantity,
   isCatalogItemLowOnStock,
-  stockBalanceAfter,
-  stockMovementError,
   stockMovementsForItem,
-  stockQuantityFromInput,
   type CatalogKindFilter,
   type CatalogVisibilityFilter,
 } from './catalog';
@@ -47,12 +44,10 @@ import {
   centsFromInput,
   formatDate,
   formatMoney,
-  todayIso,
 } from './utils';
 import {
   Button,
   EmptyState,
-  ErrorPanel,
   Field,
   FormActions,
   Modal,
@@ -144,7 +139,7 @@ export function CatalogScreen({
         <SectionHeading
           eyebrow="Catalogue et stock réel"
           title="Produits & services"
-          description="Les produits suivis utilisent un registre de mouvements immuable. Les services ne modifient jamais le stock."
+          description="Retrouvez vos produits et prestations, leurs prix et les quantités disponibles. Chaque entrée, sortie ou inventaire reste consultable dans l’historique."
           action={
             <div className="catalog-heading-actions">
               <Button
@@ -349,7 +344,7 @@ export function CatalogScreen({
                             disabled={readOnly || busy}
                             onClick={() => onStockMovement(item, 'correction')}
                           >
-                            <RotateCcw size={14} /> Correction
+                            <RotateCcw size={14} /> Inventaire
                           </Button>
                         </>
                       ) : null}
@@ -411,7 +406,7 @@ function StockHistory({
       <header>
         <span><ShieldCheck size={17} /></span>
         <div>
-          <strong>Historique immuable</strong>
+          <strong>Historique du stock</strong>
           <p>Une ligne enregistrée ne se modifie pas. Toute rectification crée une correction distincte.</p>
         </div>
       </header>
@@ -464,185 +459,7 @@ function formatSignedQuantity(quantityMilli: number): string {
   return `${quantityMilli > 0 ? '+' : ''}${formatCatalogQuantity(quantityMilli)}`;
 }
 
-export function StockMovementForm({
-  item,
-  movementType,
-  requestId,
-  reservedMilli = 0,
-  busy,
-  close,
-  act,
-}: {
-  item: CatalogItem;
-  movementType: StockMovementType;
-  requestId: string;
-  reservedMilli?: number;
-  busy: boolean;
-  close: () => void;
-  act: ActionRunner;
-}) {
-  const [quantity, setQuantity] = useState('');
-  const [clientError, setClientError] = useState('');
-  const enteredQuantityMilli = stockQuantityFromInput(quantity);
-  const validationError = quantity
-    ? stockMovementError(item, movementType, enteredQuantityMilli, reservedMilli)
-    : '';
-  const balanceAfter = enteredQuantityMilli === null
-    ? item.stockQuantityMilli
-    : stockBalanceAfter(item.stockQuantityMilli, movementType, enteredQuantityMilli);
-  const config = movementConfig[movementType];
-  const MovementIcon = config.icon;
-
-  return (
-    <Modal
-      title={`${config.title} · ${item.name}`}
-      description="Le mouvement sera ajouté au registre local avec un identifiant de requête stable. Le backend revérifie toujours le solde avant validation."
-      onClose={close}
-      wide
-    >
-      <form
-        className="stock-movement-form"
-        onSubmit={submitForm(async (form) => {
-          const quantityMilli = stockQuantityFromInput(form.get('quantity'));
-          const error = stockMovementError(
-            item,
-            movementType,
-            quantityMilli,
-            reservedMilli,
-          );
-          if (error || quantityMilli === null) {
-            setClientError(error || 'La quantité est invalide.');
-            return;
-          }
-          setClientError('');
-          const common = {
-            requestId,
-            catalogItemId: item.id,
-            reason: String(form.get('reason')).trim(),
-            reference: String(form.get('reference')).trim(),
-            date: String(form.get('date')),
-          };
-          const action = movementType === 'entry'
-            ? () => desktopApi.recordStockEntry({ ...common, quantityMilli })
-            : movementType === 'exit'
-              ? () => desktopApi.recordStockExit({ ...common, quantityMilli })
-              : () => desktopApi.recordStockCorrection({
-                  ...common,
-                  deltaQuantityMilli: quantityMilli,
-                });
-          await act(action, `${config.success} Nouveau solde : ${formatCatalogQuantity(balanceAfter)} ${item.unit}.`);
-        })}
-      >
-        <div className="stock-movement-steps" aria-label="Étapes du mouvement">
-          <span className="is-active">1 · Mouvement</span>
-          <span>2 · Justification</span>
-          <span>3 · Validation</span>
-        </div>
-        <section className="stock-movement-section">
-          <header>
-            <MovementIcon size={19} />
-            <div>
-              <strong>{config.title}</strong>
-              <p>{config.description}</p>
-            </div>
-          </header>
-          <div className="form-grid">
-            <Field
-              label={movementType === 'correction' ? 'Variation signée' : 'Quantité'}
-              hint={movementType === 'correction'
-                ? 'Ex. −2,500 pour diminuer ou 3,000 pour augmenter.'
-                : 'Au maximum trois décimales.'}
-              error={validationError || undefined}
-              required
-            >
-              <input
-                name="quantity"
-                type="number"
-                step="0.001"
-                min={movementType === 'correction' ? undefined : '0.001'}
-                max={movementType === 'exit' ? Math.max(0, item.stockQuantityMilli - reservedMilli) / 1_000 : undefined}
-                value={quantity}
-                onChange={(event) => {
-                  setQuantity(event.target.value);
-                  setClientError('');
-                }}
-                placeholder={movementType === 'correction' ? '-0.000' : '0.000'}
-                autoFocus
-                required
-              />
-            </Field>
-            <Field label="Date" required>
-              <input name="date" type="date" defaultValue={todayIso()} required />
-            </Field>
-            <Field label="Référence" hint="Bon de livraison, inventaire, commande…">
-              <input name="reference" maxLength={200} />
-            </Field>
-            <Field label="Motif" wide required hint="Le motif restera visible dans l’historique.">
-              <textarea name="reason" rows={3} maxLength={500} required />
-            </Field>
-          </div>
-        </section>
-        <div className={`stock-balance-preview ${balanceAfter < reservedMilli ? 'is-invalid' : ''}`}>
-          <div>
-            <span>En main actuellement</span>
-            <strong>{formatCatalogQuantity(item.stockQuantityMilli)} {item.unit}</strong>
-          </div>
-          <span aria-hidden="true">→</span>
-          <div>
-            <span>Solde après validation</span>
-            <strong>{formatCatalogQuantity(balanceAfter)} {item.unit}</strong>
-          </div>
-        </div>
-        {reservedMilli > 0 ? (
-          <p className="stock-request-id">
-            {formatCatalogQuantity(reservedMilli)} {item.unit} réservé aux commandes · disponible après mouvement : {formatCatalogQuantity(balanceAfter - reservedMilli)}
-          </p>
-        ) : null}
-        <p className="stock-request-id">Requête idempotente · {requestId}</p>
-        {clientError ? <ErrorPanel message={clientError} /> : null}
-        <FormActions
-          onCancel={close}
-          busy={busy}
-          disabled={!quantity || Boolean(validationError)}
-          submitLabel={config.submitLabel}
-        />
-      </form>
-    </Modal>
-  );
-}
-
-const movementConfig: Record<
-  StockMovementType,
-  {
-    title: string;
-    description: string;
-    submitLabel: string;
-    success: string;
-    icon: typeof ArrowDownToLine;
-  }
-> = {
-  entry: {
-    title: 'Entrée de stock',
-    description: 'Ajoute une quantité reçue au solde disponible.',
-    submitLabel: 'Enregistrer l’entrée',
-    success: 'L’entrée de stock a été enregistrée.',
-    icon: ArrowDownToLine,
-  },
-  exit: {
-    title: 'Sortie de stock',
-    description: 'Retire une quantité du stock sans jamais autoriser un solde négatif.',
-    submitLabel: 'Enregistrer la sortie',
-    success: 'La sortie de stock a été enregistrée.',
-    icon: ArrowUpToLine,
-  },
-  correction: {
-    title: 'Correction de stock',
-    description: 'Ajoute une variation signée et conserve le solde précédent dans l’historique.',
-    submitLabel: 'Enregistrer la correction',
-    success: 'La correction de stock a été enregistrée.',
-    icon: RotateCcw,
-  },
-};
+export { StockMovementForm } from './StockMovementForm';
 
 export function CatalogItemForm({
   item,

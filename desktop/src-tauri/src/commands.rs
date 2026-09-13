@@ -426,6 +426,16 @@ pub fn record_stock_correction(
 }
 
 #[tauri::command]
+pub fn record_stock_count(
+    state: State<'_, LocalStore>,
+    input: crate::models::StockCountInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.record_stock_count(input).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn save_supplier_invoice_draft(
     state: State<'_, LocalStore>,
     input: SaveSupplierInvoiceDraftInput,

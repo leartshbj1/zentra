@@ -4,7 +4,7 @@ import { createId, searchText } from './utils';
 export type CatalogKindFilter = 'all' | CatalogItem['kind'];
 export type CatalogVisibilityFilter = 'active' | 'archived' | 'all';
 
-const MAX_STOCK_QUANTITY_MILLI = 9_000_000_000_000_000;
+export const MAX_STOCK_QUANTITY_MILLI = 9_000_000_000_000_000;
 
 export function activeCatalogItems(items: CatalogItem[]): CatalogItem[] {
   return items
@@ -59,20 +59,22 @@ export function catalogQuantityFromInput(value: FormDataEntryValue | null): numb
 }
 
 export function stockQuantityFromInput(value: FormDataEntryValue | null): number | null {
-  if (typeof value !== 'string' || !value.trim()) return null;
+  if (typeof value !== 'string' || !value.trim() || value.trim().length > 64) return null;
   const normalized = value.trim().replace(',', '.');
   if (!/^[+-]?(?:\d+|\d*\.\d{1,3})$/.test(normalized)) return null;
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed)) return null;
-  const milli = Math.round(parsed * 1_000);
-  return Number.isSafeInteger(milli) ? milli : null;
+  const unsigned = normalized.replace(/^[+-]/, '');
+  const [whole, fraction = ''] = unsigned.split('.');
+  const exact = (BigInt(whole || '0') * 1_000n + BigInt(fraction.padEnd(3, '0'))) * (normalized.startsWith('-') ? -1n : 1n);
+  if (exact > BigInt(Number.MAX_SAFE_INTEGER) || exact < BigInt(Number.MIN_SAFE_INTEGER)) return null;
+  return Number(exact);
 }
 
 export function formatCatalogQuantity(milli: number): string {
-  return new Intl.NumberFormat('fr-CH', {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  }).format(milli / 1_000);
+  if (!Number.isSafeInteger(milli)) return '—';
+  const exact = BigInt(milli), absolute = exact < 0n ? -exact : exact;
+  const whole = new Intl.NumberFormat('fr-CH').format(absolute / 1_000n);
+  const separator = new Intl.NumberFormat('fr-CH').formatToParts(1.1).find(part => part.type === 'decimal')!.value;
+  return `${milli < 0 ? '-' : ''}${whole}${separator}${String(absolute % 1_000n).padStart(3,'0')}`;
 }
 
 export function catalogStockData(

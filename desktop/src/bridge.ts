@@ -1,4 +1,5 @@
 import { requireAgendaWorkspace } from './agendaForm';
+import { runStockMutation } from './stockWorkflow';
 import { deliverPdfExport } from './pdfExportDelivery';
 import { documentCompositions } from './documentComposition';
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
@@ -5061,8 +5062,7 @@ export const desktopApi = {
     date?: string;
   }) {
     const mutation = stockMovementMutation('entry', input);
-    await invoke(mutation.command, mutation.args);
-    return loadWorkspace();
+    return runStockMutation({...input,movementType:'entry',quantityDeltaMilli:input.quantityMilli},()=>invoke(mutation.command,mutation.args),loadWorkspace);
   },
   async recordStockExit(input: {
     requestId: string;
@@ -5073,8 +5073,7 @@ export const desktopApi = {
     date?: string;
   }) {
     const mutation = stockMovementMutation('exit', input);
-    await invoke(mutation.command, mutation.args);
-    return loadWorkspace();
+    return runStockMutation({...input,movementType:'exit',quantityDeltaMilli:-input.quantityMilli},()=>invoke(mutation.command,mutation.args),loadWorkspace);
   },
   async recordStockCorrection(input: {
     requestId: string;
@@ -5088,8 +5087,12 @@ export const desktopApi = {
       ...input,
       quantityMilli: input.deltaQuantityMilli,
     });
-    await invoke(mutation.command, mutation.args);
-    return loadWorkspace();
+    return runStockMutation({...input,movementType:'correction',quantityDeltaMilli:input.deltaQuantityMilli},()=>invoke(mutation.command,mutation.args),loadWorkspace);
+  },
+  async recordStockCount(input: {
+    requestId:string; catalogItemId:string; expectedQuantityMilli:number; countedQuantityMilli:number; reason:string; reference?:string; date?:string;
+  }) {
+    return runStockMutation({...input,movementType:'correction',quantityDeltaMilli:input.countedQuantityMilli-input.expectedQuantityMilli},()=>invoke('record_stock_count',{input:{request_id:input.requestId,catalog_item_id:input.catalogItemId,expected_quantity_milli:input.expectedQuantityMilli,counted_quantity_milli:input.countedQuantityMilli,reason:input.reason.trim(),reference:input.reference?.trim()||null,date:input.date||null}}),loadWorkspace);
   },
   async archiveEntity(entity: EntityKind, id: string) {
     const mutation = archiveEntityMutation(entity, id);

@@ -10,7 +10,7 @@ use crate::{
     audit::append_audit,
     database::{now_iso, query_all, query_record_tx, LocalStore},
     error::{AppError, AppResult},
-    models::{StockCorrectionInput, StockEntryInput, StockExitInput},
+    models::{StockCorrectionInput, StockCountInput, StockEntryInput, StockExitInput},
 };
 
 const MAX_STOCK_QUANTITY_MILLI: i64 = 9_000_000_000_000_000;
@@ -50,6 +50,7 @@ struct ManualMovement {
     reason: String,
     reference: Option<String>,
     requested_date: Option<String>,
+    expected_balance: Option<i64>,
 }
 
 #[derive(Debug)]
@@ -195,6 +196,7 @@ impl LocalStore {
             catalog_item_id: input.catalog_item_id,
             movement_type: ManualMovementType::Entry,
             quantity_delta_milli: quantity,
+            expected_balance: None,
             reason: input.reason,
             reference: input.reference,
             requested_date: input.date,
@@ -208,6 +210,7 @@ impl LocalStore {
             catalog_item_id: input.catalog_item_id,
             movement_type: ManualMovementType::Exit,
             quantity_delta_milli: -quantity,
+            expected_balance: None,
             reason: input.reason,
             reference: input.reference,
             requested_date: input.date,
@@ -221,6 +224,29 @@ impl LocalStore {
             catalog_item_id: input.catalog_item_id,
             movement_type: ManualMovementType::Correction,
             quantity_delta_milli: delta,
+            expected_balance: None,
+            reason: input.reason,
+            reference: input.reference,
+            requested_date: input.date,
+        })
+    }
+
+    pub fn record_stock_count(&self, input: StockCountInput) -> AppResult<Value> {
+        if !(0..=MAX_STOCK_QUANTITY_MILLI).contains(&input.expected_quantity_milli)
+            || !(0..=MAX_STOCK_QUANTITY_MILLI).contains(&input.counted_quantity_milli)
+        {
+            return Err(AppError::Validation("La quantité comptée et le stock relu doivent être positifs ou nuls et rester dans la capacité autorisée.".into()));
+        }
+        let delta = input.counted_quantity_milli - input.expected_quantity_milli;
+        if delta == 0 {
+            return Err(AppError::Validation("La quantité comptée correspond déjà au stock relu. Aucune correction n'est nécessaire.".into()));
+        }
+        self.record_manual_stock_movement(ManualMovement {
+            request_id: input.request_id,
+            catalog_item_id: input.catalog_item_id,
+            movement_type: ManualMovementType::Correction,
+            quantity_delta_milli: delta,
+            expected_balance: Some(input.expected_quantity_milli),
             reason: input.reason,
             reference: input.reference,
             requested_date: input.date,
@@ -234,7 +260,7 @@ impl LocalStore {
         let reference = optional_text(input.reference, "reference", 200)?;
         let requested_date = optional_date(input.requested_date)?;
         let movement_date = requested_date.clone().unwrap_or_else(today);
-        let request_payload = json!({
+        let mut request_payload = json!({
             "catalog_item_id": catalog_item_id,
             "movement_type": input.movement_type.as_str(),
             "quantity_delta_milli": input.quantity_delta_milli,
@@ -242,6 +268,11 @@ impl LocalStore {
             "reference": reference,
             "date": requested_date,
         });
+        // Keep the exact historical request shape for ordinary movements.
+        if let Some(expected) = input.expected_balance {
+            request_payload["expected_quantity_milli"] = json!(expected);
+            request_payload["counted_quantity_milli"] = json!(expected + input.quantity_delta_milli);
+        }
         let request_json = serde_json::to_string(&request_payload)?;
         let request_sha256 = payload_hash(&request_json);
 
@@ -266,19 +297,25 @@ impl LocalStore {
             return Ok(result);
         }
 
-        let item: Option<(i64, i64)> = transaction
+        let item: Option<(i64, i64, Option<String>)> = transaction
             .query_row(
-                "SELECT track_stock,stock_quantity_milli FROM catalog_items WHERE id=?",
+                "SELECT track_stock,stock_quantity_milli,archived_at FROM catalog_items WHERE id=?",
                 params![catalog_item_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
-        let (track_stock, current_balance) =
+        let (track_stock, current_balance, archived_at) =
             item.ok_or_else(|| AppError::NotFound(format!("catalog_items/{catalog_item_id}")))?;
         if track_stock != 1 {
             return Err(AppError::Validation(
                 "L'article doit être configuré avec track_stock=1 avant tout mouvement.".into(),
             ));
+        }
+        if archived_at.is_some() {
+            return Err(AppError::Validation("Ce produit est archivé. Restaurez sa fiche dans le catalogue avant de modifier son stock.".into()));
+        }
+        if input.expected_balance.is_some_and(|expected| expected != current_balance) {
+            return Err(AppError::Validation("Le stock a changé depuis votre vérification. Relisez les quantités, puis confirmez à nouveau la quantité comptée.".into()));
         }
         let balance_after = current_balance
             .checked_add(input.quantity_delta_milli)
@@ -294,6 +331,14 @@ impl LocalStore {
                     )
                 }
             })?;
+
+        let reserved: i64 = transaction.query_row(
+            "SELECT COALESCE(SUM(quantity_delta_milli),0) FROM stock_reservation_events WHERE catalog_item_id=?",
+            params![catalog_item_id], |row| row.get(0),
+        )?;
+        if balance_after < reserved {
+            return Err(AppError::Validation("Cette quantité est réservée à des commandes clients. Vérifiez et ajustez leurs réservations avant de retirer ce stock ou de valider ce comptage.".into()));
+        }
 
         let movement_id = Uuid::new_v4().to_string();
         let source_key = format!("manual:{request_id}");
