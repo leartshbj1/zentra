@@ -1,4 +1,4 @@
-# Zentra 1.62.0 — publication en cours
+# Zentra 1.62.0 — publication
 
 ## Contenu
 
@@ -14,8 +14,16 @@ Six essais isolés du programme exact du paquet passent : premier lancement, red
 
 Ces essais ne lancent pas NSIS et ne prouvent pas une installation client. Pas de signature Authenticode. Les améliorations de langue et d’atelier ne modifient pas le moteur natif publié en 1.61.
 
+Publié le 13 septembre 2026 sur Supabase Storage : `Zentra_1.62.0_x64-setup.exe`, 23 356 265 octets, SHA-256 `A1A8B1C430EF1A31A7872C563B3E3ABED950049CDA5C99A68E48F2E75D4E16AC`. Les fichiers téléchargés publiquement correspondent aux fichiers signés locaux. Le canal `latest-windows.json` annonce 1.62.0 et utilise un cache de 60 secondes ; contrôle public sans contournement du cache effectué à 16:42 UTC. Le manifeste partagé historique est inchangé. La page de téléchargement publiée affiche le lien et l’empreinte de cette version.
+
 ## Apple
 
-Compilation prévue sur les Mac M2 du compte individuel Codemagic, sans facturation activée, à partir du dépôt public. macOS : paquet universel Intel/Apple Silicon avec signature ad hoc, sans notarisation Apple. Signature de mise à jour Tauri effectuée localement après vérification des fichiers téléchargés. iPhone : IPA ARM64 sans signature Apple de distribution, destiné à Sideloadly/AltStore.
+Compilation effectuée sur les Mac M2 du compte individuel Codemagic, sans facturation activée, à partir du dépôt public. macOS : paquet universel Intel/Apple Silicon avec signature ad hoc, sans notarisation Apple. Signature de mise à jour Tauri effectuée localement après vérification des fichiers téléchargés. iPhone : IPA ARM64 sans signature Apple de distribution, destiné à Sideloadly/AltStore.
+
+Le Mac 1.62.0 est publié sur Supabase. DMG : `Zentra_1.62.0_macos-universal.dmg`, 49 910 131 octets, SHA-256 `65421D5402CA542ED916E7414D744BEF0B3D8A26C5F3A6D6EB91CDA039CDB23B`. Archive de mise à jour : 49 880 445 octets, SHA-256 `04B605080586DA7FF12C9D2AB518FA94116A5B302B574F37DA197D60BCF213B0`. Source : `8e62e404bcf37f87fe3c9e4f8c39413d3eb23620`. `codesign` et `lipo` passent sur le runner. Les deux binaires contiennent l’endpoint Mac et la clé publique attendus ; la signature Tauri est vérifiée localement, puis les fichiers publics sont retéléchargés et comparés. `latest-macos.json` annonce 1.62.0 sous la cible `macos-universal`, cache 60 secondes. Les autres manifestes restent inchangés. Installation et lancement sur un Mac client non vérifiés.
 
 L’éventuel exemplaire iPhone personnel reste séparé du paquet public ; aucune licence propriétaire ne doit être publiée sur le canal client. Voir les preuves finales de livraison pour connaître les plateformes effectivement disponibles.
+
+L’IPA personnel est compilé avec succès sur Codemagic depuis `a3aceaf3912dd50dd9a7158ae672d9aa87b53509`. Contrôles local et distant réussis : version 1.62.0, identifiant `ch.zentra.mobile`, ARM64/iPhoneOS, iOS 15 minimum, archive intègre, absence de profil de distribution Apple. Taille : 24 856 075 octets. SHA-256 : `E2FD644B77662F0A8ED3C1A8A507D34D42FC8D8DE4D875D75534DDCC8A3AD2E7`. La licence propriétaire signée attendue et la clé publique sont présentes dans le binaire. Sa reconnaissance serveur a été vérifiée séparément ; l’installation, l’activation et le lancement sur un iPhone physique restent à confirmer. Ce fichier est livré uniquement au propriétaire.
+
+Retour réel après livraison : le propriétaire a installé l’IPA 1.62.0 mais reste bloqué sur le message générique d’activation, même après plusieurs tentatives. L’activation sur son iPhone n’est donc pas réussie. La variante personnelle 1.62.1 supprime cette erreur fatale, conserve les restrictions d’écriture et affiche la cause réelle ainsi que l’identité de l’appareil. Elle propose une nouvelle tentative ou l’installation d’une licence fournie par l’assistance. Trois tests natifs et six parcours Edge/WebKit à 320, 390 et 1 440 pixels passent ; l’activation réelle devra être vérifiée avec le paquet corrigé.
