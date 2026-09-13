@@ -12,10 +12,12 @@ import { employeeTranslations } from './translationsEmployees';
 import { purchaseTranslations } from './translationsPurchases';
 import { supplierPaymentTranslations } from './translationsSupplierPayments';
 import { supplierDetailTranslations } from './translationsSupplierDetail';
+import { supplierReviewTranslations } from './translationsSupplierReview';
 export const translations: Record<string, readonly [string, string, string]> = {
   ...purchaseTranslations,
   ...supplierPaymentTranslations,
   ...supplierDetailTranslations,
+  ...supplierReviewTranslations,
   ...connectionTranslations,
   ...guidanceTranslations,
   ...payrollTranslations,

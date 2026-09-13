@@ -2,6 +2,7 @@
 import { desktopApi } from '../src/bridge';
 import { refreshWorkspaceAfterMutation } from '../src/workspaceMutation';
 import { runSupplierPaymentMutation } from '../src/supplierPaymentWorkflow';
+import { runSupplierInvoiceValidation } from '../src/supplierInvoiceValidation';
 import { seedSupplierDetail } from './supplier-detail-fixture';
 import { supplierDraftLineTotals } from '../src/PurchaseOrdersScreen';
 import { seedMultiOrderPurchase } from './purchase-multi-fixture';
@@ -16,7 +17,13 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
   if (preparation) initial.suppliers.push({ ...initial.suppliers[0], id: 'supplier-second-qa', name: 'Papeterie des Alpes', paymentTermsDays: 14 });
   initial.catalogItems = [{ id: 'product-purchase-qa', kind: 'product', sku: 'MAT-001', name: 'Panneaux acoustiques en bois pour la salle de réunion', description: '', unit: 'pièces', salesPriceCents: 15000, purchaseCostCents: 10000, vatBp: new URLSearchParams(location.search).has('oldVat') ? 770 : 810, trackStock: true, stockQuantityMilli: 5000, reorderLevelMilli: 1000, archivedAt: null, createdAt: now, updatedAt: now }];
   initial.accountingSettings = { enabled: true, arAccountId: 'ar', revenueAccountId: 'revenue', vatPayableAccountId: 'vat-out', vatDeferredPayableAccountId: 'vat-deferred', bankAccountId: 'bank', expenseAccountId: 'expense', vatReceivableAccountId: 'vat-in', wagesExpenseAccountId: 'wages', wagesPayableAccountId: 'wages-payable', socialExpenseAccountId: 'social', socialPayableAccountId: 'social-payable', supplierPayableAccountId: 'ap' };
-  initial.accounts = [...initial.accounts.filter(row => row.id !== 'bank'), { id: 'bank', code: '1020', name: 'Compte de recette', accountType: 'asset', normalBalance: 'debit', reportSection: 'current_assets', active: true }];
+  const purchaseAccounts: Workspace['accounts'] = [
+    { id: 'bank', code: '1020', name: 'Compte de recette', accountType: 'asset', normalBalance: 'debit', reportSection: 'current_assets', active: true },
+    { id: 'expense', code: '4000', name: 'Achats de marchandises', accountType: 'expense', normalBalance: 'debit', reportSection: 'cost_of_goods', active: true },
+    { id: 'vat-in', code: '1170', name: 'TVA préalable', accountType: 'asset', normalBalance: 'debit', reportSection: 'current_assets', active: true },
+    { id: 'ap', code: '2000', name: 'Dettes fournisseurs', accountType: 'liability', normalBalance: 'credit', reportSection: 'short_term_liabilities', active: true },
+  ];
+  initial.accounts = [...initial.accounts.filter(row => !purchaseAccounts.some(account => account.id === row.id)), ...purchaseAccounts];
   const invoice: SupplierInvoice = {
     id: 'invoice-purchase-qa', supplierId: initial.suppliers[0].id, projectId: null, documentDate: '2026-09-05', dueDate: '2026-10-05', supplierName: initial.suppliers[0].name, reference: 'FA-F-2026-0092', currency: 'CHF', documentStatus: 'draft', paymentStatus: 'pending', netCents: 20000, vatCents: 1620, totalCents: 21620, paidCents: 0, creditedCents: 0, balanceCents: 21620, matchStatus: 'unmatched', validatedAt: null, validationJournalEntryId: null, note: 'Première livraison partielle', payments: [], attachments: [], createdAt: now, updatedAt: now,
     lines: [{ id: 'invoice-line-purchase-qa', supplierInvoiceId: 'invoice-purchase-qa', position: 0, description: initial.catalogItems[0].name, quantityMilli: 2000, unit: 'pièces', unitPriceCents: 10000, discountBp: 0, vatBp: 810, netCents: 20000, vatCents: 1620, totalCents: 21620, category: 'Marchandises', expenseAccountId: 'expense', postedExpenseAccountId: null, projectId: null }],
@@ -144,12 +151,13 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     }
     return afterWrite(mode);
   };
-  desktopApi.validateSupplierInvoice = async (id) => {
+  desktopApi.validateSupplierInvoice = async (id) => runSupplierInvoiceValidation(id, async () => {
     log('validate', { id }); const mode = failure('validate');
+    if (sessionStorage.getItem('qa-purchase-hold-validation') === '1') { sessionStorage.removeItem('qa-purchase-hold-validation'); await new Promise<void>(resolve => window.addEventListener('qa-release-validation', () => resolve(), { once: true })); }
     const row = persisted.supplierInvoices.find((entry) => entry.id === id)!;
     row.documentStatus = 'validated'; row.validatedAt = now; row.validationJournalEntryId = 'journal-purchase-qa';
-    return afterWrite(mode);
-  };
+    return afterWrite(mode, false);
+  }, desktopApi.loadWorkspace);
   desktopApi.chooseSupplierInvoiceAttachment = async () => {
     log('choose-attachment', {});
     if (sessionStorage.getItem('qa-purchase-choose-attachment-held') === '1') {

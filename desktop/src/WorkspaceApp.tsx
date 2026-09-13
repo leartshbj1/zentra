@@ -1,4 +1,5 @@
 import { SupplierPaymentOutcomeUnknownError, SupplierPaymentRefreshError, type SupplierPaymentResume } from './supplierPaymentWorkflow';
+import { SupplierInvoiceValidationOutcomeUnknownError, SupplierInvoiceValidationRefreshError } from './supplierInvoiceValidation';
 import { t, useAppLanguage, getAppLocale } from './language';
 import { Languages } from 'lucide-react';
 import { LanguageSetting } from './LanguageSetting';
@@ -957,8 +958,8 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError || reason instanceof PaymentOutcomeUnknownError || reason instanceof SupplierPaymentOutcomeUnknownError || reason instanceof CustomerSettlementOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError || reason instanceof SupplierPaymentRefreshError || reason instanceof CustomerSettlementRefreshError) reason.validateRead(value); validateRead?.(value); };
+      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError || reason instanceof PaymentOutcomeUnknownError || reason instanceof SupplierPaymentOutcomeUnknownError || reason instanceof SupplierInvoiceValidationOutcomeUnknownError || reason instanceof CustomerSettlementOutcomeUnknownError ? reason : null;
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError || reason instanceof SupplierPaymentRefreshError || reason instanceof SupplierInvoiceValidationRefreshError || reason instanceof CustomerSettlementRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
@@ -1468,10 +1469,14 @@ export function WorkspaceApp({
     setSupplierInvoiceReviewId(item.id);
   }
 
-  async function confirmSupplierInvoiceReview(item: SupplierInvoice) {
+  async function confirmSupplierInvoiceReview(item: SupplierInvoice, reviewKey: string) {
+    const { supplierReviewKey, supplierReviewPreflight } = await import('./supplierInvoiceReview');
     const current = workspaceRef.current.supplierInvoices.find(row => row.id === item.id);
     if (!current) throw new Error('Cette facture n’est plus disponible dans les achats.');
     if (current.documentStatus === 'validated') return;
+    if (reviewKey !== supplierReviewKey(current, workspaceRef.current)) throw new Error('La facture ou ses réglages ont changé. Relisez la facture avant de valider.');
+    const problem = supplierReviewPreflight(current, workspaceRef.current);
+    if (problem) throw new Error(problem.text);
     let issueReason: unknown;
     const saved = await act(
       () => desktopApi.validateSupplierInvoice(item.id),

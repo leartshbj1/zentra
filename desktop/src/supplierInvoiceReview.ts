@@ -5,13 +5,29 @@ import { supplierInvoiceOrderMatchAmountMismatch } from './purchaseOrderFlow';
 
 export type SupplierReviewTarget = 'document' | 'reference' | 'attachments' | 'matching' | 'accounts' | 'periods' | 'invoices';
 export type SupplierReviewProblem = { title: string; text: string; action: string; target: SupplierReviewTarget };
-export type SupplierReviewWorkspace = Pick<Workspace, 'supplierInvoices' | 'supplierInvoiceMatches' | 'supplierOrders' | 'supplierReceipts' | 'accountingSettings'>;
+export type SupplierReviewWorkspace = Pick<Workspace, 'supplierInvoices' | 'supplierInvoiceMatches' | 'supplierOrders' | 'supplierReceipts' | 'accountingSettings' | 'accounts'>;
 
 export function supplierReviewContext(invoice: SupplierInvoice, workspace: SupplierReviewWorkspace) {
   const matches = workspace.supplierInvoiceMatches.filter(row => row.supplierInvoiceId === invoice.id);
-  const order = workspace.supplierOrders.find(row => matches.some(match => match.supplierOrderId === row.id))
-    || workspace.supplierOrders.find(row => row.supplierId === invoice.supplierId && row.currency === invoice.currency && row.status === 'confirmed');
-  return { matches, order, standaloneChoice: matches.length === 0 && Boolean(order) };
+  const orders = workspace.supplierOrders.filter(row => matches.length
+    ? matches.some(match => match.supplierOrderId === row.id)
+    : row.supplierId === invoice.supplierId && row.currency === invoice.currency && row.status === 'confirmed');
+  return { matches, orders, order: orders[0], standaloneChoice: matches.length === 0 && orders.length > 0 };
+}
+
+/** Only data relevant to this review invalidates the user's choices. */
+export function supplierReviewKey(invoice: SupplierInvoice, workspace: SupplierReviewWorkspace): string {
+  const { matches, orders } = supplierReviewContext(invoice, workspace);
+  const settings = workspace.accountingSettings;
+  const accountIds = [settings?.expenseAccountId, settings?.vatReceivableAccountId, settings?.supplierPayableAccountId, ...invoice.lines.map(line => line.expenseAccountId)];
+  const sorted = <T extends { id: string }>(rows: T[]) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
+  return JSON.stringify([invoice, sorted(matches), sorted(orders), sorted(workspace.supplierReceipts.filter(row => orders.some(order => order.id === row.supplierOrderId))),
+    [settings?.enabled, settings?.expenseAccountId, settings?.vatReceivableAccountId, settings?.supplierPayableAccountId], sorted(workspace.accounts.filter(row => accountIds.includes(row.id)))]);
+}
+
+export function supplierReviewCorrection(problem: SupplierReviewProblem, linked: boolean): SupplierReviewProblem {
+  if (!linked || !['document', 'reference'].includes(problem.target)) return problem;
+  return { ...problem, text: 'Ce brouillon est lié à une commande. Retirez les liens dans le rapprochement pour pouvoir le modifier, corrigez la facture, puis refaites le rapprochement.', target: 'matching', action: 'Déverrouiller le brouillon' };
 }
 
 export function supplierReviewPreflight(invoice: SupplierInvoice, workspace: SupplierReviewWorkspace): SupplierReviewProblem | null {
@@ -21,10 +37,13 @@ export function supplierReviewPreflight(invoice: SupplierInvoice, workspace: Sup
     return { title: 'Ajoutez le numéro de la facture', text: 'Recopiez le numéro indiqué par le fournisseur sur son PDF ou sa facture papier, dans le champ « Numéro / référence fournisseur ».', target: 'reference', action: 'Compléter la référence' };
   }
   if (!isSalesDate(invoice.documentDate) || !isSalesDate(invoice.dueDate) || invoice.dueDate < invoice.documentDate) return { title: 'Vérifiez les dates', text: 'Recopiez la date de facture et la date limite de paiement. L’échéance doit être le jour de la facture ou après.', target: 'document', action: 'Corriger les dates du brouillon' };
-  if (!invoice.lines.length || !Number.isSafeInteger(invoice.totalCents) || invoice.totalCents <= 0 || invoice.netCents + invoice.vatCents !== invoice.totalCents) return { title: 'Vérifiez le montant de l’achat', text: 'Le brouillon doit contenir les achats facturés et un total supérieur à zéro. Comparez ses lignes au document du fournisseur.', target: 'document', action: 'Revoir les lignes du brouillon' };
+  if (!invoice.lines.length || ![invoice.netCents, invoice.vatCents, invoice.totalCents].every(value => Number.isSafeInteger(value) && value >= 0) || invoice.totalCents <= 0 || invoice.netCents + invoice.vatCents !== invoice.totalCents) return { title: 'Vérifiez le montant de l’achat', text: 'Le brouillon doit contenir les achats facturés et un total supérieur à zéro. Comparez ses lignes au document du fournisseur.', target: 'document', action: 'Revoir les lignes du brouillon' };
   const { matches, order } = supplierReviewContext(invoice, workspace);
   if (invoice.matchStatus === 'mismatch' || matches.length > 0 && (!order || supplierInvoiceOrderMatchAmountMismatch(invoice.id, order, workspace))) return { title: 'Le rapprochement présente un écart', text: 'Les quantités, prix ou montants de TVA ne correspondent pas aux commandes liées. Ouvrez le rapprochement pour corriger les liens avant de valider.', target: 'matching', action: 'Corriger le rapprochement' };
   if (!supplierInvoiceAccountingReady(workspace.accountingSettings)) return { title: 'Préparez les comptes pour cet achat', text: 'La comptabilité doit être active, avec les comptes de charges, de TVA préalable et de dettes fournisseurs. Le brouillon reste disponible pendant ce réglage.', target: 'accounts', action: 'Configurer les comptes' };
+  const settings = workspace.accountingSettings!;
+  const required = [[settings.expenseAccountId, 'expense'], [settings.vatReceivableAccountId, 'asset'], [settings.supplierPayableAccountId, 'liability'], ...invoice.lines.filter(line => line.expenseAccountId).map(line => [line.expenseAccountId, 'expense'])];
+  if (required.some(([id, type]) => !workspace.accounts.some(account => account.id === id && account.active && account.accountType === type))) return supplierReviewProblem('Le compte comptable est absent, inactif ou de type incorrect.');
   return null;
 }
 

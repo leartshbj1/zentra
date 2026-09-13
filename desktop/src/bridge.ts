@@ -1,4 +1,5 @@
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
+import { runSupplierInvoiceValidation } from './supplierInvoiceValidation';
 import {runCustomerSettlementMutation,requireCustomerSettlementReverseContext,type CustomerSettlementInput} from './customerSettlementWorkflow';
 import type {PendingCustomerCreditRequest} from './customerCreditRequest';
 import { runPaymentMutation, type PaymentReview } from './paymentWorkflow';
@@ -5420,8 +5421,7 @@ export const desktopApi = {
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async validateSupplierInvoice(id: string) {
-    await invoke('validate_supplier_invoice', { id });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    return runSupplierInvoiceValidation(id, () => invoke('validate_supplier_invoice', { id }), loadWorkspace);
   },
   async recordSupplierPayment(input: {
     requestId: string;
