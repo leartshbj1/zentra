@@ -93,7 +93,7 @@ function paint(root: HTMLElement, value: RichText) {
   });
 }
 
-export function RichTextEditor({ label, value, onChange, disabled = false, maxLength = 5000, fontFamily, baseFontSize = 9 }: { label: string; value: RichText; onChange: (value: RichText) => void; disabled?: boolean; maxLength?: number; fontFamily?: string; baseFontSize?: number }) {
+export function RichTextEditor({ label, value, onChange, disabled = false, maxLength = 5000, fontFamily, baseFontSize = 9, compact = false }: { label: string; value: RichText; onChange: (value: RichText) => void; disabled?: boolean; maxLength?: number; fontFamily?: string; baseFontSize?: number; compact?: boolean }) {
   const root = useRef<HTMLDivElement>(null), saved = useRef<Bookmark>({ start: 0, end: 0 });
   const current = useRef(value), composing = useRef(false);
   const history = useRef<RichText[]>([]), future = useRef<RichText[]>([]);
@@ -105,6 +105,8 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   const [copiedFormat, setCopiedFormat] = useState<TextMarks | null>(null);
   const [colorTool, setColorTool] = useState<'color' | 'highlight' | null>(null);
   const [keepPasteStyle, setKeepPasteStyle] = useState(true);
+  const [moreTools, setMoreTools] = useState(false);
+  const extended = !compact || moreTools;
   const [search, setSearch] = useState<{ query: string; id: number } | null>(null);
   const searchSession = useRef(0);
   function showMarks(marks: TextMarks) {
@@ -234,6 +236,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   }
   function undo(redo = false) { if (disabled) return; pendingMarks.current = null; const from = redo ? future.current : history.current, to = redo ? history.current : future.current; const next = from.pop(); if (next) { to.push(current.current); const length = richPlainText(next).length; saved.current = { start: Math.min(saved.current.start, length), end: Math.min(saved.current.end, length) }; commit(next, false); root.current?.focus(); } }
   function openSearch() {
+    setMoreTools(true);
     saved.current = bookmark(root.current!) || saved.current;
     const selected = richPlainText(current.current).slice(saved.current.start, saved.current.end);
     setSearch({ query: selected.length <= 120 && !selected.includes('\n') ? selected : '', id: ++searchSession.current });
@@ -245,9 +248,10 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     const node = window.getSelection()?.anchorNode;
     (node instanceof HTMLElement ? node : node?.parentElement)?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }
-  return <div className="rich-editor">
+  return <div className={`rich-editor${compact ? ' rich-editor--compact' : ''}`}>
     <div className="rich-editor__label">{label}</div>
-    <div className="rich-format-copy" role="group" aria-label="Reproduire la mise en forme" onMouseDown={e => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
+    {compact && <button type="button" className="rich-editor__more" aria-expanded={moreTools} onClick={() => { setMoreTools(!moreTools); if (moreTools) setSearch(null); }}>{moreTools ? 'Revenir aux outils essentiels' : 'Plus d’outils : listes, styles, recherche…'}</button>}
+    <div hidden={!extended} className="rich-format-copy" role="group" aria-label="Reproduire la mise en forme" onMouseDown={e => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
       <button type="button" disabled={disabled || !richPlainText(value).length} onClick={() => {
         saved.current = bookmark(root.current!) || saved.current;
         setCopiedFormat(copyRichTextFormat(current.current, saved.current));
@@ -259,13 +263,13 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
         setMessage(saved.current.start === saved.current.end ? 'Le style copié est prêt pour la suite de votre saisie.' : 'Style appliqué. Annuler permet de retrouver la mise en forme précédente.');
       }}>Appliquer le style</button>
     </div>
-    <button type="button" className="rich-editor__search-toggle" aria-expanded={!!search} onClick={() => search ? setSearch(null) : openSearch()}><Search size={17} /> Rechercher et remplacer</button>
+    <button hidden={!extended} type="button" className="rich-editor__search-toggle" aria-expanded={!!search} onClick={() => search ? setSearch(null) : openSearch()}><Search size={17} /> Rechercher et remplacer</button>
     {search && <RichTextSearchPanel key={search.id} value={value} initialQuery={search.query} disabled={disabled} maxLength={maxLength} onSelect={selectMatch} onClose={() => { setSearch(null); selectMatch(saved.current); }} onReplace={(next, selection) => {
       if (disabled) return false;
       pendingMarks.current = null; saved.current = selection;
       return commit(next);
     }} />}
-    <div className="rich-editor__styles" role="group" aria-label={`Styles de paragraphe : ${label}`} onMouseDown={event => { if ((event.target as HTMLElement).closest('button')) event.preventDefault(); }}>
+    <div hidden={!extended} className="rich-editor__styles" role="group" aria-label={`Styles de paragraphe : ${label}`} onMouseDown={event => { if ((event.target as HTMLElement).closest('button')) event.preventDefault(); }}>
       <span>Style du paragraphe</span>
       {([['normal', 'Texte normal'], ['heading', 'Titre de section'], ['subheading', 'Sous-titre']] as const).map(([style, title]) => <button type="button" key={style} disabled={disabled} className={`rich-editor__style--${style}`} onClick={() => paragraphStyle(style)}>{title}</button>)}
     </div>
@@ -273,7 +277,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
       <label>Police du passage<select aria-label="Police du passage" value={typography.fontFamily} disabled={disabled} onChange={event => applyMarks({ fontFamily: richFont(event.target.value) })}><option value="">Du document</option>{typography.fontFamily === 'mixed' && <option value="mixed" disabled>Mixte</option>}{documentFontChoices.map(font => <option key={font.value} value={font.value}>{font.name}</option>)}</select></label>
       <label>Taille du passage<select aria-label="Taille du passage" value={typography.fontSize} disabled={disabled} onChange={event => applyMarks({ fontSize: richFontSize(Number(event.target.value)) })}><option value="">Du document</option>{typography.fontSize === 'mixed' && <option value="mixed" disabled>Mixte</option>}{[8,9,10,11,12,14,16,18,20,24].map(size => <option key={size} value={size}>{size} pt</option>)}{activeMarks.fontSize && ![8,9,10,11,12,14,16,18,20,24].includes(activeMarks.fontSize) && <option value={activeMarks.fontSize}>{activeMarks.fontSize} pt</option>}</select></label>
     </div>
-    <details className="rich-editor__paragraph-options"><summary>Espacement des paragraphes</summary>
+    <details hidden={!extended} className="rich-editor__paragraph-options"><summary>Espacement des paragraphes</summary>
       <label>Espace après le paragraphe<select aria-label="Espace après le paragraphe" disabled={disabled} value={paragraphFormat.spaceAfter} onChange={event => paragraph({ spaceAfter: Number(event.target.value) })}>
         {paragraphFormat.spaceAfter === 'mixed' && <option value="mixed" disabled>Différents espacements</option>}
         {[[0, 'Aucun'], [3, 'Discret · 3 pt'], [6, 'Équilibré · 6 pt'], [12, 'Aéré · 12 pt'], [18, 'Très aéré · 18 pt']].map(([value, title]) => <option key={value} value={value}>{title}</option>)}
@@ -283,13 +287,13 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     <div className="rich-editor__toolbar" role="group" aria-label={`Mise en forme : ${label}`} onMouseDown={e => e.preventDefault()}>
       {([['bold', Bold, 'Gras'], ['italic', Italic, 'Italique'], ['underline', Underline, 'Souligner']] as const).map(([key, Icon, title]) => <button key={key} type="button" title={title} aria-label={title} aria-pressed={activeMarks[key]} disabled={disabled} onClick={() => mark(key)}><Icon size={17} /></button>)}
       {([['left', AlignLeft, 'Aligner à gauche'], ['center', AlignCenter, 'Centrer'], ['right', AlignRight, 'Aligner à droite']] as const).map(([align, Icon, title]) => <button key={align} type="button" title={title} aria-label={title} disabled={disabled} onClick={() => paragraph({ align })}><Icon size={17} /></button>)}
-      <button type="button" aria-label="Liste à puces" title="Liste à puces" aria-pressed={paragraphFormat.bullet} disabled={disabled} onClick={() => paragraph({ bullet: true })}><List size={17} /></button>
-      <button type="button" aria-label="Liste numérotée" title="Liste numérotée" aria-pressed={paragraphFormat.numbered} disabled={disabled} onClick={() => paragraph({ numbered: true })}><ListOrdered size={17} /></button>
-      <button type="button" aria-label="Diminuer le retrait" title="Diminuer le retrait" disabled={disabled || !paragraphFormat.canOutdent} onClick={() => paragraph('outdent')}><IndentDecrease size={17} /></button>
-      <button type="button" aria-label="Augmenter le retrait" title="Augmenter le retrait" disabled={disabled || !paragraphFormat.canIndent} onClick={() => paragraph('indent')}><IndentIncrease size={17} /></button>
+      <button hidden={!extended} type="button" aria-label="Liste à puces" title="Liste à puces" aria-pressed={paragraphFormat.bullet} disabled={disabled} onClick={() => paragraph({ bullet: true })}><List size={17} /></button>
+      <button hidden={!extended} type="button" aria-label="Liste numérotée" title="Liste numérotée" aria-pressed={paragraphFormat.numbered} disabled={disabled} onClick={() => paragraph({ numbered: true })}><ListOrdered size={17} /></button>
+      <button hidden={!extended} type="button" aria-label="Diminuer le retrait" title="Diminuer le retrait" disabled={disabled || !paragraphFormat.canOutdent} onClick={() => paragraph('outdent')}><IndentDecrease size={17} /></button>
+      <button hidden={!extended} type="button" aria-label="Augmenter le retrait" title="Augmenter le retrait" disabled={disabled || !paragraphFormat.canIndent} onClick={() => paragraph('indent')}><IndentIncrease size={17} /></button>
       <button type="button" aria-label="Couleur du texte" title="Couleur du texte" aria-expanded={colorTool === 'color'} disabled={disabled} onClick={() => setColorTool(colorTool === 'color' ? null : 'color')}><Baseline size={17} style={{ color: activeMarks.color }} /></button>
       <button type="button" aria-label="Surligner le texte" title="Surligner le texte" aria-expanded={colorTool === 'highlight'} disabled={disabled} onClick={() => setColorTool(colorTool === 'highlight' ? null : 'highlight')}><Highlighter size={17} /></button>
-      <button type="button" aria-label="Effacer la mise en forme" title="Effacer la mise en forme des mots sélectionnés" disabled={disabled} onClick={() => applyMarks({ ...noTextMarks, color: undefined, highlight: undefined, fontFamily: undefined, fontSize: undefined })}><RemoveFormatting size={17} /></button>
+      <button hidden={!extended} type="button" aria-label="Effacer la mise en forme" title="Effacer la mise en forme des mots sélectionnés" disabled={disabled} onClick={() => applyMarks({ ...noTextMarks, color: undefined, highlight: undefined, fontFamily: undefined, fontSize: undefined })}><RemoveFormatting size={17} /></button>
       <button type="button" aria-label="Annuler la modification du texte" title="Annuler" disabled={disabled || !history.current.length} onClick={() => undo()}><Undo2 size={17} /></button>
       <button type="button" aria-label="Rétablir la modification du texte" title="Rétablir" disabled={disabled || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /></button>
     </div>
@@ -306,7 +310,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
       onPaste={event => { event.preventDefault(); paste(event.clipboardData.getData('text/html'), event.clipboardData.getData('text/plain')); }} onDrop={event => event.preventDefault()}
       onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); if (!disabled) enter(); } if (event.ctrlKey || event.metaKey) { const key = event.key.toLowerCase(); if (key === 'f') { event.preventDefault(); openSearch(); } if (['b','i','u','z','y'].includes(key)) { event.preventDefault(); if (key === 'z' || key === 'y') undo(key === 'y' || event.shiftKey); else mark(({ b:'bold', i:'italic', u:'underline' } as const)[key as 'b'|'i'|'u']); } } }} />
     <small>Sélectionnez des mots, ou activez un style avant d’écrire. Entrée ajoute un paragraphe et continue les listes ; une deuxième Entrée termine une liste. {richPlainText(value).length}/{maxLength}</small>
-    <label className="rich-editor__paste-choice"><input type="checkbox" checked={keepPasteStyle} disabled={disabled} onChange={event => setKeepPasteStyle(event.target.checked)} /> Conserver la mise en forme du texte collé</label>
+    <label hidden={!extended} className="rich-editor__paste-choice"><input type="checkbox" checked={keepPasteStyle} disabled={disabled} onChange={event => setKeepPasteStyle(event.target.checked)} /> Conserver la mise en forme du texte collé</label>
     {message && <p role="status">{message}</p>}
   </div>;
 }

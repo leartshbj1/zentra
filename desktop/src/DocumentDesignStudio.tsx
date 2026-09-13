@@ -1,7 +1,7 @@
 import { PdfExportReceipt } from './PdfExportReceipt';
 import type { PdfExportReceipt as Receipt } from './pdfExportDelivery';
 import { useEffect, useRef, useState } from 'react';
-import { Check, Download, LoaderCircle, RotateCcw, ZoomIn, ZoomOut, Undo2, Redo2, Copy, Bold, Italic } from 'lucide-react';
+import { Check, Download, LoaderCircle, RotateCcw, ZoomIn, ZoomOut, Undo2, Redo2, Copy, Bold, Italic, Maximize2 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { documentAppearance, type DocumentDesignKind } from './documentAppearance';
 import type { AppSettings } from './types';
@@ -18,6 +18,9 @@ import { DocumentDesignMap, type DesignSection } from './DocumentDesignMap';
 import { copyDocumentDesign, designChange, joinDesignChanges, resetDocumentDesign, restoreDesignChange, type DesignChange } from './documentDesignEditing';
 import { nativeDesignProblem, validateDocumentDesigns, type DesignProblem } from './documentDesignValidation';
 import { errorMessage } from './utils';
+import { DocumentWorkbench } from './DocumentWorkbench';
+import { DocumentDesignNavigator } from './DocumentDesignNavigator';
+import type { DocumentDesignTool } from './documentDesignTools';
 
 const labels = { invoices: 'Factures', quotes: 'Devis', accounts: 'Bilan', payslips: 'Fiches de salaire' };
 const colors = ['#134d33', '#182b49', '#793c32', '#66523f', '#563d73', '#242424', '#d7b878'];
@@ -39,6 +42,8 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
   const previewElement = useRef<HTMLDivElement>(null);
   const toolsElement = useRef<HTMLDivElement>(null);
   const [writing, setWriting] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [toolHint, setToolHint] = useState<DocumentDesignTool | null>(null);
   const [mobileView, setMobileView] = useState<'tools' | 'preview'>('tools');
   const appearance = documentAppearance(settings.documentAppearance);
   const baseStyle = appearance[kind];
@@ -121,11 +126,26 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     setMobileView('tools');
     requestAnimationFrame(() => {
       const target = toolsElement.current?.querySelector<HTMLElement>(selector);
+      for (let parent = target?.parentElement; parent && parent !== toolsElement.current; parent = parent.parentElement) {
+        if (parent instanceof HTMLDetailsElement) parent.open = true;
+      }
       target?.focus({ preventScroll: true });
       (target?.closest('label') || target)?.scrollIntoView({ block: 'center', behavior: 'instant' });
     });
   }
+  function chooseTool(tool: DocumentDesignTool) {
+    setPanel(tool.panel); setToolHint(tool);
+    if (tool.zone) setTextZone(tool.zone);
+    if (tool.panel !== 'text') setWriting(false);
+    revealTools(tool.selector);
+  }
+  function requestCompany(target: 'logo' | 'identity') {
+    setExpanded(false);
+    // Return the same editor host before the settings page moves focus to the company section.
+    requestAnimationFrame(() => onRequestCompany?.(target));
+  }
   function selectSection(section: DesignSection) {
+    setToolHint(null);
     if (section === 'intro' || section === 'closing' || section === 'footerText') {
       setPanel('text'); setTextZone(section);
       revealTools('[role="textbox"]');
@@ -144,7 +164,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
   }
   function correctProblem(problem: DesignProblem) {
     setKind(problem.kind); setWriting(false); setMobileView('tools');
-    if (problem.zone === 'company' && onRequestCompany) { onRequestCompany(/logo/i.test(problem.message) ? 'logo' : 'identity'); return; }
+    if (problem.zone === 'company' && onRequestCompany) { requestCompany(/logo/i.test(problem.message) ? 'logo' : 'identity'); return; }
     if (['intro', 'closing', 'footerText'].includes(problem.zone)) {
       setPanel('text'); setTextZone(problem.zone as typeof textZone);
       requestAnimationFrame(() => {
@@ -197,9 +217,16 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     } catch (reason) { setExportError(String(reason instanceof Error ? reason.message : reason)); }
     finally { exportFlight.current = false; setExporting(false); }
   }
-  return <section className={`design-studio settings-card--wide${writing && panel === 'text' ? ' design-studio--writing' : ''}`} data-panel={panel} data-mobile-view={mobileView} aria-label="Personnalisation des documents">
+  return <DocumentWorkbench expanded={expanded} busy={busy || exporting} onClose={() => setExpanded(false)}><section className={`design-studio settings-card--wide${writing && panel === 'text' ? ' design-studio--writing' : ''}`} data-panel={panel} data-mobile-view={mobileView} aria-label="Personnalisation des documents" onKeyDown={event => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      if (!busy && !(loading && !error)) void saveDesigns();
+    }
+  }}>
     <div className="design-studio__heading"><p className="eyebrow">Votre signature</p><h2>Des documents à votre image</h2><p>Un atelier simple pour composer vos documents. Choisissez un style, ajustez la page, puis écrivez vos textes comme dans un traitement de texte.</p></div>
+    {!expanded && typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal === 'function' && <div className="design-studio__workspace-entry"><button type="button" className="design-studio__open-workbench" onClick={() => setExpanded(true)}><Maximize2 size={18} aria-hidden="true" /> Ouvrir le grand atelier</button><p>Plus d’espace pour les outils et votre document. Vous pouvez revenir ici à tout moment.</p></div>}
     <div className="design-studio__tabs" role="group" aria-label="Document à personnaliser">{(Object.keys(labels) as DocumentDesignKind[]).map(value => <button type="button" key={value} disabled={exporting} aria-pressed={kind === value} onClick={() => { setKind(value); setNotice(''); setExportError(''); setExported(null); }}>{labels[value]}</button>)}</div>
+    <DocumentDesignNavigator key={kind} kind={kind} onChoose={chooseTool} />
     <DocumentDesignMap accounts={kind === 'accounts'} onSelect={selectSection} />
     <div className="design-studio__commandbar" role="group" aria-label="Historique de la présentation">
       <button type="button" disabled={busy || !history.current.length} onClick={() => undo()}><Undo2 size={17} /> Annuler</button>
@@ -225,6 +252,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     <div className="design-studio__body">
       <div ref={toolsElement} className="design-studio__tools">
         <div className="design-studio__panels" role="group" aria-label="Outils de personnalisation">{([['style','Style'],['layout','Mise en page'],['text','Textes']] as const).map(([key,label]) => <button type="button" key={key} aria-pressed={panel === key} onClick={() => { setPanel(key); if (key !== 'text') setWriting(false); }}>{label}</button>)}</div>
+        {toolHint && toolHint.panel === panel && <p className="design-studio__tool-hint" role="status"><strong>{toolHint.label}</strong>{toolHint.description}</p>}
         <div hidden={panel !== 'style'} className="design-studio__panel">
         {!composition && <p className="design-studio__hint">Votre modèle actuel est conservé. Choisissez un point de départ ou ajustez la police pour activer la mise en page flexible.</p>}
         <fieldset disabled={busy}><legend>Un point de départ</legend><div className="design-studio__presets">{([['modern','Moderne'],['classic','Classique'],['editorial','Éditorial']] as const).map(([key,label]) => <button type="button" key={key} onClick={() => preset(key)}>{label}</button>)}</div><small>Vous gardez vos textes et votre couleur.</small></fieldset>
@@ -240,7 +268,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
         </div>
         <div hidden={panel !== 'layout'} className="design-studio__panel">
         <DocumentPageControls design={design} disabled={busy} onChange={compose} />
-        {onRequestCompany && <Button variant="secondary" disabled={busy} onClick={() => onRequestCompany('logo')}>Importer ou changer mon logo</Button>}
+        {onRequestCompany && <Button variant="secondary" disabled={busy} onClick={() => requestCompany('logo')}>Importer ou changer mon logo</Button>}
         <DocumentLayoutControls design={design} kind={kind} disabled={busy} onChange={compose} />
         <fieldset className="design-studio__logo-positions" disabled={busy}><legend>Votre logo sur la page</legend><div>{([['left', 'À gauche'], ['center', 'Au centre'], ['right', 'À droite']] as const).map(([position, label]) => <button type="button" key={position} aria-label={`Logo ${label.toLowerCase()}`} aria-pressed={design.logoPosition === position} onClick={() => compose({ logoPosition: position })}><span className="design-studio__logo-page" data-position={position} aria-hidden="true"><i>Logo</i><b /><b /></span>{label}</button>)}</div></fieldset>
         <label>Position du logo<select aria-label="Position du logo" disabled={busy} value={design.logoPosition} onChange={e => compose({ logoPosition: e.target.value as DocumentComposition['logoPosition'] })}><option value="left">À gauche</option><option value="center">Au centre</option><option value="right">À droite</option><option value="hidden">Masquer le logo</option></select></label>
@@ -258,7 +286,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
         <p className="design-studio__hint">Ces textes seront ajoutés aux prochains documents de cette catégorie. Les remarques propres à chaque document restent présentes.</p>
         <div className="design-studio__writing-actions"><Button variant="secondary" aria-pressed={writing} onClick={() => { setWriting(!writing); revealTools('[role="textbox"]'); }}>{writing ? <ZoomOut size={17} /> : <ZoomIn size={17} />}{writing ? 'Réduire l’espace d’écriture' : 'Agrandir l’espace d’écriture'}</Button>{writing && <Button variant="ghost" onClick={showPreview}>Voir le rendu PDF</Button>}</div>
         <label>Zone de texte<select aria-label="Zone de texte" value={textZone} onChange={e => setTextZone(e.target.value as typeof textZone)}><option value="intro">Introduction · avant le tableau</option><option value="closing">{kind === 'accounts' ? 'Commentaire après les comptes' : 'Conditions et message de fin'}</option><option value="footerText">Pied de page · sur chaque page</option></select></label>
-        <RichTextEditor key={`${kind}-${textZone}`} label={textZone === 'intro' ? 'Texte d’introduction' : textZone === 'footerText' ? 'Pied de page mis en forme' : kind === 'accounts' ? 'Commentaire après les comptes' : 'Conditions et message de fin'} maxLength={textZone === 'footerText' ? 180 : 5000} value={design[textZone]} fontFamily={documentFontCss[design.fontFamily]} baseFontSize={textZone === 'footerText' ? 8 : design.bodySize} disabled={busy} onChange={value => compose({ [textZone]: value })} />
+        <RichTextEditor key={`${kind}-${textZone}`} compact={expanded} label={textZone === 'intro' ? 'Texte d’introduction' : textZone === 'footerText' ? 'Pied de page mis en forme' : kind === 'accounts' ? 'Commentaire après les comptes' : 'Conditions et message de fin'} maxLength={textZone === 'footerText' ? 180 : 5000} value={design[textZone]} fontFamily={documentFontCss[design.fontFamily]} baseFontSize={textZone === 'footerText' ? 8 : design.bodySize} disabled={busy} onChange={value => compose({ [textZone]: value })} />
         <details><summary>Pied de page simple</summary><p className="design-studio__hint">Utilisé lorsque le pied de page mis en forme est vide.</p>
         <label>Une phrase en pied de page<input aria-label="Une phrase en pied de page" value={style.footer} maxLength={100} disabled={busy} placeholder="Merci pour votre confiance." onChange={event => patch({ footer: event.target.value })} /><small>{style.footer.length}/100 caractères · les mentions obligatoires restent présentes.</small></label>
         </details>
@@ -277,5 +305,5 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
         {error ? <div className="design-studio__error" role="alert"><strong>L’aperçu demande une correction</strong><p>{error}</p><Button variant="secondary" disabled={busy} onClick={() => correctProblem(nativeDesignProblem(kind, error, settings))}>Corriger ce point</Button><Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Réessayer l’aperçu</Button></div> : preview ? <div className={`design-studio__pages${loading ? ' design-studio__pages--loading' : ''}${zoomed ? ' design-studio__pages--zoomed' : ''}`} tabIndex={zoomed ? 0 : undefined} aria-label="Pages de l’exemple">{preview.pages.map((src, index) => <img key={index} src={src} alt={`Exemple ${labels[kind]} · page ${index + 1}`} />)}{preview.pageCount > preview.pages.length && <p>Aperçu des {preview.pages.length} premières pages. Le PDF exporté contient les {preview.pageCount} pages.</p>}</div> : <div className="design-studio__placeholder">Préparation de votre exemple…</div>}
       </div>
     </div>
-  </section>;
+  </section></DocumentWorkbench>;
 }
