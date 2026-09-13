@@ -134,7 +134,7 @@ export default function DownloadPage() {
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_PREVIEW_VERSION} · Accès anticipé</p>
               <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Vos documents, à votre image.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Personnalisez vos devis, factures, bilans et fiches de salaire : polices, couleurs, logo, espacements, collage mis en forme et recherche de texte. Retrouvez des étapes guidées pour la paie, les factures, les achats et la comptabilité, ainsi qu’un agenda plus simple. Les corrections indiquent le champ à compléter et vos saisies restent accessibles après une erreur.</p>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Créez vos propres modèles de devis, factures, bilans et fiches de salaire : polices, couleurs, logo, format de page et tableaux. Mettez vos textes en forme, ajoutez des listes et retrouvez le résultat dans l’aperçu. Les paiements, avoirs, réceptions et mouvements de stock sont guidés ; les documents de projet à réparer indiquent la marche à suivre.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Pour une version plus ancienne, téléchargez l’installateur ci-contre. Cette préversion concerne Windows ; les versions des autres plateformes restent indiquées ci-dessous.</p>
             </div>
             <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
