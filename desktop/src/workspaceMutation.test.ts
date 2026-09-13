@@ -5,6 +5,7 @@ import { desktopApi } from './bridge';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
 import { ReceiptOutcomeUnknownError } from './receiptWorkflow';
+import { CreditAllocationOutcomeUnknownError } from './creditAllocationWorkflow';
 import type { EntityKind, Quote } from './types';
 
 const request = '39c85c22-7fc0-42d0-95f9-c1ad536fe2cf';
@@ -103,6 +104,10 @@ describe('reprise des ventes et achats après écriture locale confirmée', () =
     } else if (['save_supplier_receipt_draft','issue_supplier_receipt','reverse_supplier_receipt'].includes(command)) {
       const failure = await run().catch(reason=>reason);
       expect(failure).toBeInstanceOf(ReceiptOutcomeUnknownError);
+      expect(failure.mutationCause).toBe(error);
+    } else if (['apply_supplier_credit','reverse_supplier_credit_allocation'].includes(command)) {
+      const failure = await run().catch(reason=>reason);
+      expect(failure).toBeInstanceOf(CreditAllocationOutcomeUnknownError);
       expect(failure.mutationCause).toBe(error);
     } else await expect(run()).rejects.toBe(error);
     expect(invokeMock).toHaveBeenCalledTimes(1);

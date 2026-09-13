@@ -13,7 +13,7 @@ try {
     page.setDefaultTimeout(12000); const errors=[]; page.on('pageerror',error=>errors.push(error.message));
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5187'}/tests/mobile-harness.html?purchasing=1&creditDates=1${readOnly?'&readOnly=1':''}`);
-    const tour=page.getByRole('button',{name:'Ne plus afficher automatiquement',exact:true}); if(await tour.isVisible())await tour.click();
+    const tour=page.getByRole('button',{name:'Fermer le guide automatique',exact:true}); await tour.click();
     await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();
     await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Achats');
     await page.locator('.navigation-palette__results button').filter({has:page.getByText('Achats & fournisseurs',{exact:true})}).click();
@@ -38,10 +38,10 @@ try {
       await dialog.waitFor({state:'detached'});
       assert.match(await card.innerText(),/disponible\s+44[.,]05/);
       assert.equal(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('qa-credit-date-refund')).length),1,'refresh retry must not issue a second write');
-      await card.getByRole('button',{name:'Imputer sur une facture',exact:true}).click();
-      assert.equal(await dialog.getByLabel('Montant imputé',{exact:false}).inputValue(),'44.05');
-      await dialog.getByLabel('Montant imputé',{exact:false}).fill('4.05');
-      await dialog.getByRole('button',{name:'Confirmer l’imputation',exact:true}).click();await dialog.waitFor({state:'detached'});
+      await card.getByRole('button',{name:'Utiliser sur une facture',exact:true}).click();
+      assert.equal(await dialog.getByLabel('Montant à déduire',{exact:false}).inputValue(),'44.05');
+      await dialog.getByLabel('Montant à déduire',{exact:false}).fill('4.05');
+      await dialog.getByRole('button',{name:'Vérifier les soldes',exact:true}).click();await dialog.getByRole('button',{name:'Confirmer l’utilisation',exact:true}).click();await dialog.waitFor({state:'detached'});
       assert.match(await card.innerText(),/disponible\s+40[.,]00/);
       await card.locator('summary').filter({hasText:'Remboursements et corrections'}).click();
       await capture('history');

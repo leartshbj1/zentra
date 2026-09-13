@@ -25,6 +25,24 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreditBalanceCheck {
+    pub credit_available_cents: i64,
+    pub invoice_balance_cents: i64,
+}
+
+fn check_credit_balances(tx: &Transaction<'_>, credit_id: &str, invoice_id: &str, expected: Option<&CreditBalanceCheck>) -> AppResult<()> {
+    if let Some(expected) = expected {
+        let available: i64 = tx.query_row("SELECT remaining_cents FROM supplier_credit_balances WHERE supplier_credit_note_id=?", params![credit_id], |row| row.get(0))?;
+        let balance: i64 = tx.query_row("SELECT total_cents-paid_cents-credited_cents FROM supplier_invoices WHERE id=?", params![invoice_id], |row| row.get(0))?;
+        if expected.credit_available_cents < 0 || expected.invoice_balance_cents < 0 || available != expected.credit_available_cents || balance != expected.invoice_balance_cents {
+            return Err(AppError::Validation("Les soldes ont changé depuis votre vérification. Actualisez-les puis relisez les montants avant de confirmer.".into()));
+        }
+    }
+    Ok(())
+}
+
 const MAX_QUANTITY_MILLI: i64 = 9_000_000_000_000_000;
 const MAX_MONEY_CENTS: i64 = 9_000_000_000_000_000;
 const MAX_LINES: usize = 10_000;
@@ -2004,6 +2022,10 @@ impl LocalStore {
     }
 
     pub fn apply_supplier_credit(&self, input: ApplySupplierCreditInput) -> AppResult<Value> {
+        self.apply_supplier_credit_checked(input, None)
+    }
+
+    pub fn apply_supplier_credit_checked(&self, input: ApplySupplierCreditInput, expected: Option<&CreditBalanceCheck>) -> AppResult<Value> {
         if input.amount_cents <= 0 {
             return Err(AppError::Validation(
                 "Le montant imputé doit être supérieur à zéro.".into(),
@@ -2024,6 +2046,7 @@ impl LocalStore {
         )?;
         let invoice_id = required_text(&input.supplier_invoice_id, "supplier_invoice_id", 255)?;
         let credit = query_record_tx(&tx, "supplier_credit_notes", &credit_id)?;
+        check_credit_balances(&tx, &credit_id, &invoice_id, expected)?;
         let effective_date = validate_credit_settlement_date(&tx, &input.effective_date, credit["document_date"].as_str().unwrap_or_default(), &invoice_id, None, true)?;
         let allocation_id = Uuid::new_v4().to_string();
         let now = now_iso();
@@ -2062,6 +2085,10 @@ impl LocalStore {
         &self,
         input: ReverseSupplierCreditAllocationInput,
     ) -> AppResult<Value> {
+        self.reverse_supplier_credit_allocation_checked(input, None)
+    }
+
+    pub fn reverse_supplier_credit_allocation_checked(&self, input: ReverseSupplierCreditAllocationInput, expected: Option<&CreditBalanceCheck>) -> AppResult<Value> {
         let reason = required_text(&input.reason, "reason", 500)?;
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
@@ -2097,6 +2124,7 @@ impl LocalStore {
             ));
         }
         let credit = query_record_tx(&tx, "supplier_credit_notes", &credit_id)?;
+        check_credit_balances(&tx, &credit_id, &invoice_id, expected)?;
         let effective_date = validate_credit_settlement_date(&tx, &input.effective_date, credit["document_date"].as_str().unwrap_or_default(), &invoice_id, original_date.as_deref(), true)?;
         let reversal_id = Uuid::new_v4().to_string();
         let now = now_iso();

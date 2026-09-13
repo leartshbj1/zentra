@@ -2,6 +2,7 @@ import { installAgendaGuidedFixture } from './agenda-guided-fixture';
 import { installStockGuidedFixture } from './stock-guided-fixture';
 import { installCatalogFormFixture } from './catalog-form-fixture';
 import { installReceiptGuidedFixture } from './receipt-guided-fixture';
+import { installCreditAllocationFixture } from './credit-allocation-fixture';
 import { installPlanningGuidedFixture } from './planning-guided-fixture';
 import { installAccountingSetupFixture } from './accounting-setup-fixture';
 import { installAssistantFixture } from './assistant-fixture';
@@ -221,6 +222,7 @@ if (new URLSearchParams(location.search).has('agendaGuided')) installAgendaGuide
 if (new URLSearchParams(location.search).has('stockGuided')) installStockGuidedFixture(data);
 if (new URLSearchParams(location.search).has('catalogForm')) installCatalogFormFixture(data);
 if (new URLSearchParams(location.search).has('receiptGuided')) installReceiptGuidedFixture(data);
+if (new URLSearchParams(location.search).has('creditAllocation')) installCreditAllocationFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
@@ -230,6 +232,7 @@ function Harness() {
     __qaReloadPurchases: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; return next; },
   });
   const [projectAccount, setProjectAccount] = useState('');
+  if(new URLSearchParams(location.search).has('creditAllocation'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaCreditAllocationRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if(new URLSearchParams(location.search).has('receiptGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaReceiptRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if (new URLSearchParams(location.search).has('catalogForm')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaCatalogRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('stockGuided')) Object.assign(window, {__qaSetReadOnly:setReadOnly,__qaStockRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});

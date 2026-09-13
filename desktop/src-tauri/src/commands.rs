@@ -595,21 +595,23 @@ pub fn validate_supplier_credit_note(
 pub fn apply_supplier_credit(
     state: State<'_, LocalStore>,
     input: ApplySupplierCreditInput,
+    expected_balances: Option<crate::supplier_procurement::CreditBalanceCheck>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.apply_supplier_credit(input).map_err(command_error)
+    state.apply_supplier_credit_checked(input, expected_balances.as_ref()).map_err(command_error)
 }
 
 #[tauri::command]
 pub fn reverse_supplier_credit_allocation(
     state: State<'_, LocalStore>,
     input: ReverseSupplierCreditAllocationInput,
+    expected_balances: Option<crate::supplier_procurement::CreditBalanceCheck>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
     state
-        .reverse_supplier_credit_allocation(input)
+        .reverse_supplier_credit_allocation_checked(input, expected_balances.as_ref())
         .map_err(command_error)
 }
 

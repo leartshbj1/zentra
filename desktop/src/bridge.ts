@@ -1,3 +1,4 @@
+import { runCreditAllocationMutation, type CreditBalances } from './creditAllocationWorkflow';
 import { requireAgendaWorkspace } from './agendaForm';
 import { runStockMutation } from './stockWorkflow';
 import { runCatalogSave, type CatalogData } from './catalogForm';
@@ -5352,39 +5353,17 @@ export const desktopApi = {
     await invoke('delete_supplier_credit_note_draft', { id });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
-  async applySupplierCredit(
-    requestId: string,
-    supplierCreditNoteId: string,
-    supplierInvoiceId: string,
-    amountCents: number,
-    effectiveDate: string,
-  ) {
-    await invoke('apply_supplier_credit', {
-      input: {
-        request_id: requestId,
-        supplier_credit_note_id: supplierCreditNoteId,
-        supplier_invoice_id: supplierInvoiceId,
-        amount_cents: amountCents,
-        effective_date: effectiveDate,
-      },
-    });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async applySupplierCredit(requestId: string, supplierCreditNoteId: string, supplierInvoiceId: string, amountCents: number, effectiveDate: string, expectedBalances?: CreditBalances) {
+    return runCreditAllocationMutation({kind:'apply', requestId, creditId:supplierCreditNoteId, invoiceId:supplierInvoiceId, amountCents, date:effectiveDate}, () => invoke('apply_supplier_credit', {
+      input: { request_id:requestId, supplier_credit_note_id:supplierCreditNoteId, supplier_invoice_id:supplierInvoiceId, amount_cents:amountCents, effective_date:effectiveDate },
+      ...(expectedBalances ? {expectedBalances} : {}),
+    }), loadWorkspace);
   },
-  async reverseSupplierCreditAllocation(
-    requestId: string,
-    supplierCreditAllocationId: string,
-    reason: string,
-    effectiveDate: string,
-  ) {
-    await invoke('reverse_supplier_credit_allocation', {
-      input: {
-        request_id: requestId,
-        supplier_credit_allocation_id: supplierCreditAllocationId,
-        reason: reason.trim(),
-        effective_date: effectiveDate,
-      },
-    });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async reverseSupplierCreditAllocation(requestId: string, supplierCreditAllocationId: string, reason: string, effectiveDate: string, expectedBalances?: CreditBalances) {
+    return runCreditAllocationMutation({kind:'reverse',requestId,allocationId:supplierCreditAllocationId,reason:reason.trim(),date:effectiveDate}, () => invoke('reverse_supplier_credit_allocation', {
+      input: { request_id:requestId, supplier_credit_allocation_id:supplierCreditAllocationId, reason:reason.trim(), effective_date:effectiveDate },
+      ...(expectedBalances ? {expectedBalances} : {}),
+    }), loadWorkspace);
   },
   async reclassifySupplierInvoiceExpense(input: {
     requestId: string;

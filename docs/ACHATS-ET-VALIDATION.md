@@ -1,5 +1,24 @@
 # Vérifier et valider une facture fournisseur
 
+## Utiliser un avoir pour réduire une facture
+
+Dans **Achats → Factures et avoirs**, choisissez **Utiliser sur une facture** sur un avoir validé.
+
+1. **Choisir** : sélectionnez la facture du même fournisseur, indiquez le montant à déduire et la date réelle d’utilisation. La liste propose les factures validées avec un reste à payer, des plus récentes aux plus anciennes. **Utiliser le maximum** remplit le montant possible sans enregistrer.
+2. **Vérifier** : comparez le reste à payer et le disponible sur l’avoir, avant et après. **Confirmer l’utilisation** enregistre la déduction. Cette action n’envoie aucun virement bancaire.
+
+Une virgule ou un point sont acceptés, avec deux décimales maximum. Une saisie vide ou trop précise reste présente avec une explication sous le champ ; elle n’est jamais arrondie automatiquement. Les remboursements déjà reçus diminuent le montant disponible. La date ne doit pas précéder les documents ni dépasser aujourd’hui.
+
+Si un paiement ou une autre utilisation change les soldes, votre montant reste présent. Relisez la nouvelle situation avec **Reprendre la vérification**. La base de données compare également les soldes affichés au moment d’enregistrer ; elle refuse l’ancienne vérification si les montants ont changé entre-temps.
+
+**Annuler cette utilisation** rétablit le montant sur la facture et sur l’avoir. Indiquez la date réelle et un motif court, par exemple « Mauvaise facture », puis vérifiez les nouveaux soldes. Le motif peut contenir jusqu’à 500 caractères. L’opération initiale et son annulation restent dans l’historique.
+
+**Actualiser les soldes** relit les données en gardant votre saisie. Après une réponse perdue, la vérification recherche la demande dans l’historique avant de proposer une nouvelle tentative. Après un enregistrement confirmé, une lecture sans l’opération attendue reste dans la reprise. Les reprises relisent les données sans réémettre l’écriture.
+
+Un exercice fermé propose **Ouvrir les exercices**. Retrouvez ensuite l’avoir dans **Achats → Factures et avoirs** pour préparer à nouveau son utilisation. La date et la période ne sont jamais corrigées automatiquement. Les détails techniques restent consultables dans **Voir le message détaillé**.
+
+Ce parcours est intégré au code après 1.59.0 et nécessite une nouvelle compilation native. Aucun nouvel installateur ou IPA n’est publié avec ce lot. Recette : `desktop/tests/credit-allocation-journey.mjs`.
+
 ## Recevoir les marchandises d’une commande
 
 Dans **Achats & fournisseurs → Commandes**, choisissez **Saisir la réception** sur une commande confirmée.

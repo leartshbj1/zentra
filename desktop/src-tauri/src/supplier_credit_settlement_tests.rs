@@ -40,6 +40,36 @@ fn validate(store: &LocalStore, draft: &SaveSupplierCreditNoteDraftInput) {
 }
 
 #[test]
+fn supplier_credit_review_balances_are_checked_atomically_and_replays_remain_valid() {
+    use crate::supplier_procurement::CreditBalanceCheck;
+    let (_temporary, store, invoice, draft) = fixture();
+    validate(&store, &draft);
+    let apply = ApplySupplierCreditInput {
+        request_id: uuid::Uuid::new_v4().to_string(),
+        supplier_credit_note_id: draft.id.unwrap(), supplier_invoice_id: invoice,
+        amount_cents: 1025, effective_date: "2026-05-15".into(),
+    };
+    let original = CreditBalanceCheck { credit_available_cents: 2000, invoice_balance_cents: 10000 };
+    let stale = CreditBalanceCheck { credit_available_cents: 2001, invoice_balance_cents: 10000 };
+    assert!(store.apply_supplier_credit_checked(apply.clone(), Some(&stale)).is_err());
+    assert_eq!(store.get_workspace().unwrap()["supplier_credit_allocations"].as_array().unwrap().len(), 0);
+    let result = store.apply_supplier_credit_checked(apply.clone(), Some(&original)).unwrap();
+    assert_eq!(result["invoice"]["credited_cents"], 1025);
+    assert_eq!(store.apply_supplier_credit_checked(apply.clone(), Some(&original)).unwrap()["idempotent"], true);
+    let mut competing = apply.clone(); competing.request_id = uuid::Uuid::new_v4().to_string(); competing.amount_cents = 100;
+    assert!(store.apply_supplier_credit_checked(competing, Some(&original)).is_err());
+    let reverse = ReverseSupplierCreditAllocationInput {request_id: uuid::Uuid::new_v4().to_string(), supplier_credit_allocation_id: result["allocation"]["id"].as_str().unwrap().into(), reason: "Erreur".into(), effective_date: "2026-05-16".into()};
+    assert!(store.reverse_supplier_credit_allocation_checked(reverse.clone(), Some(&original)).is_err());
+    assert_eq!(store.get_workspace().unwrap()["supplier_credit_allocations"].as_array().unwrap().len(), 1);
+    let current = CreditBalanceCheck { credit_available_cents: 975, invoice_balance_cents: 8975 };
+    let reverted = store.reverse_supplier_credit_allocation_checked(reverse.clone(), Some(&current)).unwrap();
+    assert_eq!(reverted["invoice"]["credited_cents"], 0);
+    assert_eq!(store.reverse_supplier_credit_allocation_checked(reverse, Some(&current)).unwrap()["idempotent"], true);
+    assert_eq!(store.get_workspace().unwrap()["supplier_credit_allocations"].as_array().unwrap().len(), 2);
+    assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
+}
+
+#[test]
 fn supplier_credit_settlement_dates_are_atomic_immutable_and_replayable_after_closing() {
     let (_temporary, store, invoice, draft) = fixture();
     validate(&store, &draft);

@@ -1,3 +1,4 @@
+import { CreditAllocationOutcomeUnknownError, CreditAllocationRefreshError } from './creditAllocationWorkflow';
 import { TimeForm, TimerForm } from './WorkTimeForms';
 import { clientFolderDocuments } from './clientFolder';
 import './contact-forms.css';
@@ -945,8 +946,8 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError) reason.validateRead(value); validateRead?.(value); };
+      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError ? reason : null;
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();

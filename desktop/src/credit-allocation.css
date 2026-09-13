@@ -1,0 +1,35 @@
+.credit-allocation-modal { display:flex; flex-direction:column; overflow:hidden; }
+.credit-allocation-modal .modal__header { flex:none; }
+.credit-allocation-modal .modal__body { min-height:0; flex:1; overflow-y:auto; }
+.credit-allocation-modal form { display:grid; gap:18px; min-width:0; }
+.credit-allocation-fields { display:grid; gap:18px; border:0; padding:0; margin:0; min-width:0; }
+.credit-allocation-steps { display:flex; list-style:none; gap:8px; padding:0; margin:0; }
+.credit-allocation-steps li { flex:1; padding:12px; border-radius:10px; background:#f2f4f0; color:#5a685c; font-size:14px; }
+.credit-allocation-steps [aria-current=step] { background:#e8f1e3; color:#294b35; font-weight:600; }
+.credit-allocation-explanation,.credit-allocation-review p { font-size:14px; line-height:1.65; margin:0; }
+.credit-allocation-review { display:grid; gap:12px; }
+.credit-allocation-review h3 { margin:0; font-size:20px; }
+.credit-allocation-balances { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.credit-allocation-balances > div { display:grid; gap:8px; padding:16px; background:#f4f6f2; border:1px solid #e2e8de; border-radius:12px; overflow-wrap:anywhere; }
+.credit-allocation-balances span { font-size:13px; line-height:1.5; color:#4f5e51; }
+.credit-allocation-balances strong { font-size:20px; font-variant-numeric:tabular-nums; }
+.credit-allocation-balances small { font-size:14px; font-weight:600; line-height:1.5; }
+.credit-allocation-notice,.credit-allocation-alert { padding:16px; border-radius:12px; background:#fff8e9; border:1px solid #e4d3ab; font-size:14px; line-height:1.6; margin:0; }
+.credit-allocation-alert { display:grid; gap:12px; }
+.credit-allocation-alert p { margin:0; overflow-wrap:anywhere; }
+.credit-allocation-alert details p,.credit-allocation-reason { white-space:pre-wrap; overflow-wrap:anywhere; max-height:160px; overflow:auto; }
+.credit-allocation-alert summary { cursor:pointer; min-height:44px; padding:10px 0; }
+.credit-allocation-modal .form-actions { position:sticky; bottom:-24px; background:var(--paper); padding:12px 0; z-index:3; margin:0; }
+.credit-allocation-modal .button { white-space:normal; }
+@media(max-width:900px) { .credit-allocation-modal .form-actions { bottom:calc(-1 * max(16px,env(safe-area-inset-bottom))); padding-bottom:max(12px,env(safe-area-inset-bottom)); } }
+@media(max-width:600px) { .credit-allocation-balances { grid-template-columns:1fr; } .credit-allocation-balances > div { padding:14px; } }
+@media(max-height:500px) and (min-width:601px) {
+  .credit-allocation-modal form { gap:10px; }
+  .credit-allocation-modal .modal__body { padding-top:12px; }
+  .credit-allocation-steps li { padding:8px 12px; }
+  .credit-allocation-review { gap:4px; }
+  .credit-allocation-review h3 { font-size:16px; }
+  .credit-allocation-review p { line-height:1.4; }
+  .credit-allocation-balances > div { gap:4px; padding:10px 12px; }
+  .credit-allocation-balances strong { font-size:18px; }
+}
