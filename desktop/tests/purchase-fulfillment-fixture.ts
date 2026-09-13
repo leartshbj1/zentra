@@ -10,6 +10,8 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
   initial.settings!.organization.vatRegistered = !new URLSearchParams(location.search).has('nonRegistered');
   initial.settings!.billing.vatRatesBp = new URLSearchParams(location.search).has('oldVat') ? [0] : [810, 260, 0];
   initial.suppliers = [{ id: 'supplier-purchase-qa', name: 'Fournitures du Léman SA', contactName: '', email: '', phone: '', address: 'Rue du Lac 4, Lausanne', uidNumber: '', iban: '', currency: 'CHF', paymentTermsDays: 30, notes: '', archivedAt: null, createdAt: now, updatedAt: now }];
+  const preparation = new URLSearchParams(location.search).has('supplierPreparation');
+  if (preparation) initial.suppliers.push({ ...initial.suppliers[0], id: 'supplier-second-qa', name: 'Papeterie des Alpes', paymentTermsDays: 14 });
   initial.catalogItems = [{ id: 'product-purchase-qa', kind: 'product', sku: 'MAT-001', name: 'Panneaux acoustiques en bois pour la salle de réunion', description: '', unit: 'pièces', salesPriceCents: 15000, purchaseCostCents: 10000, vatBp: new URLSearchParams(location.search).has('oldVat') ? 770 : 810, trackStock: true, stockQuantityMilli: 5000, reorderLevelMilli: 1000, archivedAt: null, createdAt: now, updatedAt: now }];
   initial.accountingSettings = { enabled: true, arAccountId: 'ar', revenueAccountId: 'revenue', vatPayableAccountId: 'vat-out', vatDeferredPayableAccountId: 'vat-deferred', bankAccountId: 'bank', expenseAccountId: 'expense', vatReceivableAccountId: 'vat-in', wagesExpenseAccountId: 'wages', wagesPayableAccountId: 'wages-payable', socialExpenseAccountId: 'social', socialPayableAccountId: 'social-payable', supplierPayableAccountId: 'ap' };
   const invoice: SupplierInvoice = {
@@ -41,7 +43,7 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     return mode;
   };
   desktopApi.loadWorkspace = async () => {
-    if (review && sessionStorage.getItem('qa-purchase-workspace-patch')) {
+    if ((review || preparation) && sessionStorage.getItem('qa-purchase-workspace-patch')) {
       persisted = { ...persisted, ...JSON.parse(sessionStorage.getItem('qa-purchase-workspace-patch')!) };
       sessionStorage.removeItem('qa-purchase-workspace-patch');
       sessionStorage.setItem('qa-purchase-documents', JSON.stringify(persisted.supplierInvoices));
@@ -67,9 +69,11 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
   };
   desktopApi.saveSupplierInvoiceDraft = async (input) => {
     log('invoice-draft', input); const mode = failure('invoice-draft'); const id = input.id || crypto.randomUUID();
+    if (mode === 'write_held') await new Promise<void>(resolve => window.addEventListener('qa-release-supplier-write', () => resolve(), { once: true }));
     const lines = input.items.map((line, position) => ({ ...line, ...supplierDraftLineTotals({ ...line, discountBp: line.discountBp ?? 0 }), id: line.id || `${id}-line-${position}`, supplierInvoiceId: id, position, postedExpenseAccountId: null }));
     const row = { ...structuredClone(invoice), id, supplierId: input.supplierId, documentDate: input.date, dueDate: input.dueDate, reference: input.reference || '', note: input.note || '', projectId: input.projectId || null, lines, netCents: lines.reduce((sum, line) => sum + line.netCents, 0), vatCents: lines.reduce((sum, line) => sum + line.vatCents, 0), totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0) } as SupplierInvoice;
     const previous = persisted.supplierInvoices.find(entry => entry.id === id);
+    row.supplierName = persisted.suppliers.find(supplier => supplier.id === input.supplierId)?.name ?? row.supplierName;
     if (previous) row.attachments = previous.attachments;
     row.balanceCents = row.totalCents;
     persisted.supplierInvoices = [...persisted.supplierInvoices.filter((entry) => entry.id !== id), row];
@@ -139,7 +143,14 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     row.documentStatus = 'validated'; row.validatedAt = now; row.validationJournalEntryId = 'journal-purchase-qa';
     return afterWrite(mode);
   };
-  desktopApi.chooseSupplierInvoiceAttachment = async () => 'C:/recette/facture-originale.pdf';
+  desktopApi.chooseSupplierInvoiceAttachment = async () => {
+    log('choose-attachment', {});
+    if (sessionStorage.getItem('qa-purchase-choose-attachment-held') === '1') {
+      sessionStorage.removeItem('qa-purchase-choose-attachment-held');
+      await new Promise<void>(resolve => window.addEventListener('qa-release-supplier-picker', () => resolve(), { once: true }));
+    }
+    return 'C:/recette/facture-originale.pdf';
+  };
   desktopApi.addSupplierInvoiceAttachment = async (id, sourcePath) => {
     log('attachment', { id, sourcePath }); const mode = failure('attachment');
     const row = persisted.supplierInvoices.find((entry) => entry.id === id)!;

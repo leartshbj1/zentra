@@ -45,6 +45,8 @@ for (const [engine, driver] of [['edge', chromium], ['webkit', webkit]]) {
         await edit.waitFor();
         await page.waitForFunction(() => document.activeElement?.getAttribute('name') === 'reference');
         await edit.locator('[name=reference]').fill('REVUE-ACHAT');
+        await edit.getByRole('button', { name: 'Continuer vers les achats', exact: true }).click();
+        await edit.getByRole('button', { name: 'Vérifier la facture', exact: true }).click();
         await edit.getByRole('button', { name: 'Mettre à jour le brouillon', exact: true }).click();
         await edit.getByRole('button', { name: 'Terminer', exact: true }).click();
         await resume();

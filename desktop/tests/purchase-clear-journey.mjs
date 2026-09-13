@@ -8,6 +8,7 @@ const out = '.qa/purchase-clear';
 await mkdir(out, { recursive: true });
 const report = [];
 for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
+  if (process.env.ZENTRA_QA_ENGINE && engine !== process.env.ZENTRA_QA_ENGINE) continue;
   const browser = await browserType.launch({ headless: true, ...(engine === 'edge' && process.platform === 'win32' ? { channel: 'msedge' } : {}) });
   try {
     for (const width of [320, 390, 1440]) {
@@ -45,33 +46,36 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
         await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Achats & fournisseurs', { exact: true }) }).click();
         await page.getByRole('button', { name: 'Facture fournisseur', exact: true }).click();
         const form = page.getByRole('dialog', { name: 'Nouvelle facture fournisseur', exact: true });
-        await form.getByRole('button', { name: 'Enregistrer le brouillon', exact: true }).click();
-        await form.getByText('Ligne 1 : décrivez ce que vous avez acheté.', { exact: true }).waitFor();
-        assert.equal((await attempts('invoice-draft')).length, 0);
         await form.locator('[name=reference]').fill('ACHAT-RECETTE');
-        await form.getByRole('textbox', { name: /^Description/ }).fill('Papier et fournitures');
-        await form.getByRole('spinbutton', { name: /^Prix unitaire net/ }).fill('100');
         await form.getByLabel(/^Date de facture/).fill('2026-09-05');
         await form.getByLabel(/^Échéance/).fill('2026-10-05');
-        await form.getByLabel(/^Traitement TVA de ces achats/).selectOption('input_materials');
         await form.locator('[name=note]').fill('Dossier du mois\nJustificatif conservé.');
+        await form.getByRole('button', { name: 'Continuer vers les achats', exact: true }).click();
+        await form.getByRole('button', { name: 'Vérifier la facture', exact: true }).click();
+        await form.getByText('Ligne 1 : décrivez ce que vous avez acheté, en 1 000 caractères maximum.', { exact: true }).waitFor();
+        assert.equal((await attempts('invoice-draft')).length, 0);
+        await form.getByRole('textbox', { name: /^Description/ }).fill('Papier et fournitures');
+        await form.getByRole('textbox', { name: /^Prix unitaire net/ }).fill('100');
+        await form.getByLabel(/^Traitement TVA de ces achats/).selectOption('input_materials');
+        await form.getByRole('button', { name: 'Vérifier la facture', exact: true }).click();
         await mode('invoice-draft', 'reject');
         await form.getByRole('button', { name: 'Enregistrer le brouillon', exact: true }).click();
         await form.getByRole('alert').filter({ hasText: 'période comptable est fermée' }).waitFor();
-        assert.equal(await form.locator('[name=note]').inputValue(), 'Dossier du mois\nJustificatif conservé.');
+        assert.match(await form.locator('.supplier-preparation__note').innerText(), /Dossier du mois\nJustificatif conservé\./);
         await capture('draft-refusal');
         await mode('invoice-draft', 'refresh_held');
         await form.getByRole('button', { name: 'Enregistrer le brouillon', exact: true }).click();
         await page.waitForFunction(() => Boolean(sessionStorage.getItem('qa-purchase-documents')));
         await page.keyboard.press('Escape');
         assert.ok(await form.isVisible());
-        assert.ok(await form.locator('[name=reference]').isDisabled());
+        assert.ok(await form.getByRole('button', { name: 'Corriger les informations', exact: true }).isDisabled());
         await page.evaluate(() => window.dispatchEvent(new Event('qa-release-workspace-read')));
         await recovery(true);
         await form.getByRole('button', { name: 'Terminer', exact: true }).waitFor();
         assert.equal((await attempts('invoice-draft')).length, 2);
         assert.equal((await attempts('invoice-draft'))[1].vatTreatment, 'input_materials');
         assert.equal((await documents()).filter(row => row.reference === 'ACHAT-RECETTE').length, 1);
+        assert.equal((await documents()).find(row => row.reference === 'ACHAT-RECETTE').documentDate, '2026-09-05');
         await capture('attachment-step');
         await mode('attachment', 'reject');
         await form.getByRole('button', { name: 'Ajouter un justificatif', exact: true }).click();
@@ -123,6 +127,7 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
         await capture('paid');
         report.push({ engine, width, result: 'PASS draft, atomic VAT intent, inline errors, retained fields, receipt, validation, partial and full payments, lost response found by request, repeated read recovery, no duplicate or horizontal overflow' });
       } catch (error) {
+        await writeFile(`${out}/${engine}-${width}-failure-data.json`, JSON.stringify({ documents: await documents(), drafts: await attempts('invoice-draft'), payments: await attempts('payment'), dates: await page.locator('input[type=date]').evaluateAll(nodes => nodes.map(node => ({ name: node.name, value: node.value }))) }, null, 2));
         await page.screenshot({ path: `${out}/${engine}-${width}-failure.png` });
         await writeFile(`${out}/${engine}-${width}-failure.html`, await page.content());
         throw error;

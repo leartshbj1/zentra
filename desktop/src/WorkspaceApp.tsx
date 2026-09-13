@@ -6062,6 +6062,7 @@ function WorkspaceModal({
         initialTarget={state.initialTarget}
         workspace={workspace}
         busy={busy}
+        readOnly={readOnly}
         close={close}
         act={act}
       />

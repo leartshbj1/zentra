@@ -1,0 +1,121 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+const engine = process.env.ZENTRA_QA_ENGINE || 'chromium';
+const driver = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright')[engine];
+const out = `.qa/supplier-preparation-${engine}`; await mkdir(out, { recursive: true });
+const browser = await driver.launch({ headless: true, ...(engine === 'chromium' && process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const report = [];
+try {
+  for (const [width, height] of [[320,568], [390,844], [844,390], [1440,1000]]) {
+    const page = await browser.newPage({ viewport: { width, height }, reducedMotion: 'reduce' });
+    page.setDefaultTimeout(15000);
+    const errors = []; page.on('pageerror', value => errors.push(value.message));
+    const modal = page.getByRole('dialog', { name: 'Nouvelle facture fournisseur', exact: true });
+    const button = name => modal.getByRole('button', { name, exact: true });
+    const field = name => modal.getByLabel(new RegExp('^' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    const attempts = operation => page.evaluate(operation => JSON.parse(sessionStorage.getItem(`qa-purchase-${operation}-attempts`) || '[]'), operation);
+    const mode = (operation, value) => page.evaluate(([operation,value]) => sessionStorage.setItem(`qa-purchase-${operation}-failure`, value), [operation,value]);
+    const capture = async name => {
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && [...document.querySelectorAll('.modal,.modal__body')].every(node => node.scrollWidth <= node.clientWidth + 1)), `${width} ${name}: horizontal overflow`);
+      await page.screenshot({ path: `${out}/${width}-${name}.png` });
+    };
+    const focused = name => page.waitForFunction(name => document.activeElement?.getAttribute('name')?.endsWith(name), name);
+    const noteVisible = () => page.waitForFunction(() => {
+      const input = document.querySelector('.supplier-preparation textarea');
+      const rect = input.getBoundingClientRect(), body = input.closest('.modal__body').getBoundingClientRect(), bar = document.querySelector('.supplier-preparation__actions').getBoundingClientRect();
+      return rect.top >= body.top - 1 && rect.bottom <= Math.min(body.bottom, innerHeight, bar.top > body.top ? bar.top : Infinity) + 1;
+    });
+    try {
+      await page.goto(`${process.env.ZENTRA_QA_URL || 'http://127.0.0.1:5271'}/tests/mobile-harness.html?purchasing=1&supplierPreparation=1`);
+      await page.getByRole('button', { name: 'Fermer le guide automatique', exact: true }).click();
+      await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
+      await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Achats');
+      await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Achats & fournisseurs', { exact: true }) }).click();
+      await page.getByRole('button', { name: 'Facture fournisseur', exact: true }).click();
+      assert.equal(await field('Description').count(), 0);
+      assert.equal(await field('Fournisseur').inputValue(), '');
+      await button('Continuer vers les achats').click(); await focused('supplierId');
+      assert.equal((await attempts('invoice-draft')).length, 0);
+      await field('Fournisseur').selectOption('supplier-second-qa');
+      await modal.locator('[name=reference]').fill('ACHAT-GUIDE');
+      await field('Date de facture').fill('2026-09-01'); assert.equal(await field('Échéance').inputValue(), '2026-09-15');
+      await field('Échéance').fill('2026-10-15'); await field('Date de facture').fill('2026-09-05');
+      assert.equal(await field('Échéance').inputValue(), '2026-10-15');
+      await field('Date de facture').fill(''); await button('Continuer vers les achats').click(); await focused('date');
+      await field('Date de facture').fill('2026-09-05');
+      await field('Note interne').fill('Première ligne\nSeconde ligne conservée.'); await noteVisible();
+      if (width < 600) { await page.setViewportSize({ width, height: height - 120 }); await noteVisible(); await capture('reduced-height'); await page.setViewportSize({ width, height }); await noteVisible(); }
+      await capture('identity'); await button('Continuer vers les achats').click();
+      await button('Vérifier la facture').click(); await focused('description');
+      await field('Description').fill('Papier et fournitures'); await field('Quantité').fill('1,0001'); await field('Prix unitaire net').fill('12,345');
+      await button('Vérifier la facture').click(); await focused('quantity');
+      assert.equal(await field('Quantité').inputValue(), '1,0001'); assert.equal(await field('Prix unitaire net').inputValue(), '12,345');
+      assert.equal((await attempts('invoice-draft')).length, 0); await capture('quantity-error');
+      await field('Quantité').fill('2,5'); await button('Vérifier la facture').click(); await focused('price');
+      await field('Prix unitaire net').fill('100,10');
+      await modal.getByText('Remise, catégorie et projet de cette ligne', { exact: true }).click(); await field('Remise (%)').fill('100,001');
+      await modal.getByText('Remise, catégorie et projet de cette ligne', { exact: true }).click();
+      await button('Vérifier la facture').click(); await focused('discount'); assert.ok(await modal.locator('details').getAttribute('open') !== null);
+      await field('Remise (%)').fill('10');
+      await button('Ajouter une ligne').click(); assert.equal(await modal.locator('.supplier-preparation__line').count(), 2);
+      await modal.locator('.supplier-preparation__line').last().getByRole('button', { name: 'Retirer cet achat', exact: true }).click();
+      assert.equal(await field('Quantité').inputValue(), '2,5');
+      await field('Traitement TVA de ces achats').selectOption('input_materials'); await capture('purchases');
+      await button('Vérifier la facture').click(); await capture('review');
+      assert.match(await modal.locator('.supplier-invoice-total').innerText(), /243.46/);
+      assert.match(await modal.locator('.supplier-preparation__note').innerText(), /Première ligne\nSeconde ligne/);
+      await button('Fermer').click(); await modal.getByText('Garder vos modifications ?', { exact: true }).waitFor();
+      await button('Rester sur la facture').click();
+      await page.evaluate(() => window.__qaSetReadOnly(true));
+      await modal.getByText('Mode lecture seule : vous pouvez consulter les étapes, sans enregistrer de modification.', { exact: true }).waitFor();
+      assert.ok(await button('Enregistrer le brouillon').isDisabled());
+      await button('Corriger les informations').click(); assert.ok(await field('Date de facture').evaluate(node => node.matches(':disabled')));
+      await button('Continuer vers les achats').click(); await button('Vérifier la facture').click();
+      await page.evaluate(() => window.__qaSetReadOnly(false));
+      await modal.getByText('Mode lecture seule : vous pouvez consulter les étapes, sans enregistrer de modification.', { exact: true }).waitFor({ state: 'hidden' });
+      await mode('invoice-draft', 'reject'); await button('Enregistrer le brouillon').click();
+      await modal.getByRole('alert').filter({ hasText: 'période comptable est fermée' }).waitFor(); await capture('save-refusal');
+      await mode('invoice-draft', 'write_held'); await button('Enregistrer le brouillon').click();
+      await page.waitForFunction(() => JSON.parse(sessionStorage.getItem('qa-purchase-invoice-draft-attempts')).length === 2);
+      await page.evaluate(() => document.querySelector('.supplier-preparation form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+      assert.equal((await attempts('invoice-draft')).length, 2);
+      assert.ok(await button('Corriger les achats').isDisabled()); await page.keyboard.press('Escape'); assert.ok(await modal.isVisible());
+      await page.evaluate(() => window.dispatchEvent(new Event('qa-release-supplier-write')));
+      await button('Terminer').waitFor(); const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-purchase-saved-invoice')));
+      assert.equal(saved.supplierName, 'Papeterie des Alpes'); assert.equal(saved.totalCents, 24346); assert.equal(saved.dueDate, '2026-10-15');
+      assert.equal(saved.documentDate, '2026-09-05');
+      assert.equal(saved.lines[0].quantityMilli, 2500); assert.equal(saved.lines[0].unitPriceCents, 10010); assert.equal(saved.lines[0].discountBp, 1000);
+      assert.equal(saved.note, 'Première ligne\nSeconde ligne conservée.'); assert.equal((await attempts('invoice-draft'))[1].vatTreatment, 'input_materials');
+      await page.evaluate(() => sessionStorage.setItem('qa-purchase-choose-attachment-held', '1'));
+      await button('Ajouter un justificatif').click(); assert.ok(await button('Modifier les informations').isDisabled());
+      await page.evaluate(() => window.__qaSetReadOnly(true));
+      await modal.getByText('Mode lecture seule : vous pouvez consulter les étapes, sans enregistrer de modification.', { exact: true }).waitFor();
+      await page.evaluate(() => window.dispatchEvent(new Event('qa-release-supplier-picker')));
+      await page.waitForFunction(() => document.querySelector('.supplier-attachments')?.getAttribute('aria-busy') === 'false');
+      assert.equal((await attempts('attachment')).length, 0);
+      await page.evaluate(() => window.__qaSetReadOnly(false));
+      await modal.getByText('Mode lecture seule : vous pouvez consulter les étapes, sans enregistrer de modification.', { exact: true }).waitFor({ state: 'hidden' });
+      await mode('attachment', 'reject'); await button('Ajouter un justificatif').click();
+      await modal.getByRole('alert').filter({ hasText: 'Refus attachment' }).waitFor();
+      await mode('attachment', 'refresh_twice'); await button('Ajouter un justificatif').click();
+      const recovery = page.getByRole('dialog', { name: 'Enregistrement effectué', exact: true }); await recovery.waitFor();
+      await page.evaluate(() => sessionStorage.setItem('qa-purchase-block-reads', '1'));
+      await recovery.getByRole('button', { name: 'Actualiser les données', exact: true }).click();
+      await recovery.getByText('Actualisation impossible', { exact: true }).waitFor();
+      await page.evaluate(() => sessionStorage.removeItem('qa-purchase-block-reads'));
+      await recovery.getByRole('button', { name: 'Actualiser les données', exact: true }).click(); await recovery.waitFor({ state: 'hidden' });
+      await modal.getByText('facture-originale.pdf', { exact: true }).waitFor(); await capture('attachment');
+      assert.ok(await modal.locator('.supplier-attachments__list strong').evaluate(node => parseFloat(getComputedStyle(node).fontSize) >= 13));
+      assert.equal((await attempts('attachment')).length, 2); assert.equal((await attempts('invoice-draft')).length, 2);
+      const rows = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-purchase-documents')));
+      assert.equal(rows.filter(row => row.reference === 'ACHAT-GUIDE').length, 1); assert.equal(rows.find(row => row.id === saved.id).attachments.length, 1);
+      await button('Terminer').click(); await modal.waitFor({ state: 'hidden' });
+      assert.deepEqual(errors, []);
+      report.push({ engine, width, height, result: 'PASS explicit supplier, precise decimals, native rounding, automatic/manual dates, contextual errors, hidden options focus, notes and mobile focus, dirty exit, read-only, held save, single request, picker cancellation, receipt recovery and no overflow' });
+    } catch (error) { await page.screenshot({ path: `${out}/${width}-failure.png` }); await writeFile(`${out}/${width}-failure.html`, await page.content()); throw error; }
+    finally { await page.close(); }
+  }
+} catch (error) { report.push({ fatal: error.stack }); process.exitCode = 1; }
+finally { await browser.close(); }
+await writeFile(`${out}/report.json`, JSON.stringify(report, null, 2)); console.log(JSON.stringify(report, null, 2));
