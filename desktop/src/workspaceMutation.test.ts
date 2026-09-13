@@ -5,6 +5,7 @@ import { desktopApi } from './bridge';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
 import { PaymentOutcomeUnknownError } from './paymentWorkflow';
+import { SupplierPaymentOutcomeUnknownError } from './supplierPaymentWorkflow';
 import { ReceiptOutcomeUnknownError } from './receiptWorkflow';
 import { CreditAllocationOutcomeUnknownError } from './creditAllocationWorkflow';
 import type { EntityKind, Quote } from './types';
@@ -101,6 +102,10 @@ describe('reprise des ventes et achats après écriture locale confirmée', () =
     if (command === 'create_record') {
       const failure = await run().catch(reason => reason);
       expect(failure).toBeInstanceOf(WorkspaceCreationOutcomeUnknownError);
+      expect(failure.mutationCause).toBe(error);
+    } else if (command === 'record_supplier_payment') {
+      const failure = await run().catch(reason=>reason);
+      expect(failure).toBeInstanceOf(SupplierPaymentOutcomeUnknownError);
       expect(failure.mutationCause).toBe(error);
     } else if (command === 'record_payment') {
       const failure = await run().catch(reason=>reason);

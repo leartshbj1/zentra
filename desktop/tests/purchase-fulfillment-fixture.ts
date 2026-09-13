@@ -1,6 +1,7 @@
 // Isolated simulated persistence for browser acceptance. Excluded from production.
 import { desktopApi } from '../src/bridge';
 import { refreshWorkspaceAfterMutation } from '../src/workspaceMutation';
+import { runSupplierPaymentMutation } from '../src/supplierPaymentWorkflow';
 import { supplierDraftLineTotals } from '../src/PurchaseOrdersScreen';
 import { seedMultiOrderPurchase } from './purchase-multi-fixture';
 import type { SupplierCreditNote, SupplierInvoice, SupplierOrder, SupplierReceipt, Workspace } from '../src/types';
@@ -14,16 +15,18 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
   if (preparation) initial.suppliers.push({ ...initial.suppliers[0], id: 'supplier-second-qa', name: 'Papeterie des Alpes', paymentTermsDays: 14 });
   initial.catalogItems = [{ id: 'product-purchase-qa', kind: 'product', sku: 'MAT-001', name: 'Panneaux acoustiques en bois pour la salle de réunion', description: '', unit: 'pièces', salesPriceCents: 15000, purchaseCostCents: 10000, vatBp: new URLSearchParams(location.search).has('oldVat') ? 770 : 810, trackStock: true, stockQuantityMilli: 5000, reorderLevelMilli: 1000, archivedAt: null, createdAt: now, updatedAt: now }];
   initial.accountingSettings = { enabled: true, arAccountId: 'ar', revenueAccountId: 'revenue', vatPayableAccountId: 'vat-out', vatDeferredPayableAccountId: 'vat-deferred', bankAccountId: 'bank', expenseAccountId: 'expense', vatReceivableAccountId: 'vat-in', wagesExpenseAccountId: 'wages', wagesPayableAccountId: 'wages-payable', socialExpenseAccountId: 'social', socialPayableAccountId: 'social-payable', supplierPayableAccountId: 'ap' };
+  initial.accounts = [...initial.accounts.filter(row => row.id !== 'bank'), { id: 'bank', code: '1020', name: 'Compte de recette', accountType: 'asset', normalBalance: 'debit', reportSection: 'current_assets', active: true }];
   const invoice: SupplierInvoice = {
     id: 'invoice-purchase-qa', supplierId: initial.suppliers[0].id, projectId: null, documentDate: '2026-09-05', dueDate: '2026-10-05', supplierName: initial.suppliers[0].name, reference: 'FA-F-2026-0092', currency: 'CHF', documentStatus: 'draft', paymentStatus: 'pending', netCents: 20000, vatCents: 1620, totalCents: 21620, paidCents: 0, creditedCents: 0, balanceCents: 21620, matchStatus: 'unmatched', validatedAt: null, validationJournalEntryId: null, note: 'Première livraison partielle', payments: [], attachments: [], createdAt: now, updatedAt: now,
     lines: [{ id: 'invoice-line-purchase-qa', supplierInvoiceId: 'invoice-purchase-qa', position: 0, description: initial.catalogItems[0].name, quantityMilli: 2000, unit: 'pièces', unitPriceCents: 10000, discountBp: 0, vatBp: 810, netCents: 20000, vatCents: 1620, totalCents: 21620, category: 'Marchandises', expenseAccountId: 'expense', postedExpenseAccountId: null, projectId: null }],
   };
   initial.supplierInvoices = [invoice];
+  if (new URLSearchParams(location.search).has('supplierPayment')) { invoice.documentStatus = 'validated'; invoice.validationJournalEntryId = 'journal-purchase-qa'; }
   if (new URLSearchParams(location.search).has('multiOrders')) seedMultiOrderPurchase(initial, invoice);
   const review = new URLSearchParams(location.search).has('supplierReview');
   if (review && !new URLSearchParams(location.search).has('multiOrders')) invoice.reference = '';
   let persisted = structuredClone(initial);
-  if (review) sessionStorage.setItem('qa-purchase-documents', JSON.stringify(persisted.supplierInvoices));
+  if (review || preparation) sessionStorage.setItem('qa-purchase-documents', JSON.stringify(persisted.supplierInvoices));
   let readFailures = 0;
   const writes = new Set<string>();
   const reminderSettings = desktopApi.getReminderSettings;
@@ -59,12 +62,14 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     }
     return structuredClone(persisted);
   };
-  const afterWrite = async (mode: string | null) => {
+  const afterWrite = async (mode: string | null, read = true) => {
     readFailures = mode === 'refresh_twice' || mode === 'refresh_held' ? 2 : mode === 'refresh_once' ? 1 : 0;
     if (mode === 'refresh_held') sessionStorage.setItem('qa-purchase-hold-next-read', '1');
     sessionStorage.setItem('qa-purchase-persisted', JSON.stringify({ orders: persisted.supplierOrders.length, receipts: persisted.supplierReceipts.length, issued: persisted.supplierReceipts.filter((receipt) => receipt.status === 'issued').length, stock: persisted.catalogItems[0].stockQuantityMilli, matches: persisted.supplierInvoiceMatches, validated: persisted.supplierInvoices.filter((row) => row.documentStatus === 'validated').length }));
     sessionStorage.setItem('qa-purchase-documents', JSON.stringify(persisted.supplierInvoices));
-    if (mode === 'lost_response') throw new Error('Réponse interrompue après enregistrement.');
+    if (mode === 'lost_unreadable') sessionStorage.setItem('qa-purchase-block-reads', '1');
+    if (mode === 'lost_response' || mode === 'lost_unreadable') throw new Error('Réponse interrompue après enregistrement.');
+    if (!read) return structuredClone(persisted);
     return refreshWorkspaceAfterMutation(desktopApi.loadWorkspace);
   };
   desktopApi.saveSupplierInvoiceDraft = async (input) => {
@@ -163,14 +168,15 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     persisted.supplierInvoices.forEach((row) => { row.attachments = row.attachments.filter((file) => file.id !== id); });
     return afterWrite(mode);
   };
-  desktopApi.recordSupplierPayment = async (input) => {
+  desktopApi.recordSupplierPayment = async (input) => runSupplierPaymentMutation({ ...input, method: input.method || '', reference: input.reference || '', notes: input.notes || '' }, async () => {
     log('payment', input); const mode = failure('payment');
+    if (sessionStorage.getItem('qa-purchase-hold-payment') === '1') { sessionStorage.removeItem('qa-purchase-hold-payment'); await new Promise<void>(resolve => window.addEventListener('qa-release-payment', () => resolve(), { once: true })); }
     const row = persisted.supplierInvoices.find((entry) => entry.id === input.supplierInvoiceId)!;
     if (!row.payments.some((payment) => payment.requestId === input.requestId)) {
       if (input.amountCents > row.balanceCents) throw new Error('Le montant dépasse le solde restant.');
       row.payments.push({ ...input, id: crypto.randomUUID(), method: input.method || '', reference: input.reference || '', notes: input.notes || '', journalEntryId: 'journal-payment-qa', createdAt: now });
       row.paidCents += input.amountCents; row.balanceCents -= input.amountCents; row.paymentStatus = row.balanceCents ? 'partial' : 'paid';
     }
-    return afterWrite(mode);
-  };
+    return afterWrite(mode, false);
+  }, desktopApi.loadWorkspace);
 }

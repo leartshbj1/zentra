@@ -1,3 +1,4 @@
+import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
 import {runCustomerSettlementMutation,requireCustomerSettlementReverseContext,type CustomerSettlementInput} from './customerSettlementWorkflow';
 import type {PendingCustomerCreditRequest} from './customerCreditRequest';
 import { runPaymentMutation, type PaymentReview } from './paymentWorkflow';
@@ -5431,7 +5432,7 @@ export const desktopApi = {
     reference?: string;
     notes?: string;
   }) {
-    await invoke('record_supplier_payment', {
+    return runSupplierPaymentMutation({ ...input, method: input.method?.trim() || '', reference: input.reference?.trim() || '', notes: input.notes?.trim() || '' }, () => invoke('record_supplier_payment', {
       input: {
         request_id: input.requestId,
         supplier_invoice_id: input.supplierInvoiceId,
@@ -5441,8 +5442,7 @@ export const desktopApi = {
         reference: input.reference?.trim() || null,
         notes: input.notes?.trim() || null,
       },
-    });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    }), loadWorkspace);
   },
   async deleteSupplierInvoiceDraft(id: string) {
     await invoke('delete_supplier_invoice_draft', { id });

@@ -10,8 +10,10 @@ import { payrollSettingsTranslations } from './translationsPayrollSettings';
 import { tourTranslations } from './translationsTour';
 import { employeeTranslations } from './translationsEmployees';
 import { purchaseTranslations } from './translationsPurchases';
+import { supplierPaymentTranslations } from './translationsSupplierPayments';
 export const translations: Record<string, readonly [string, string, string]> = {
   ...purchaseTranslations,
+  ...supplierPaymentTranslations,
   ...connectionTranslations,
   ...guidanceTranslations,
   ...payrollTranslations,

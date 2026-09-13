@@ -21,9 +21,8 @@ import {
 } from './purchases';
 import { projectTerminology } from './terminology';
 import type { Attachment, Expense, ExpenseRefund, Supplier, SupplierInvoice, Workspace } from './types';
-import { centsFromInput, createId, errorMessage, formatDate, formatMoney, numberFromInput, todayIso } from './utils';
+import { centsFromInput, errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import { Button, EmptyState, ErrorPanel, Field, FormActions, Modal, SectionHeading, StatusBadge, submitForm } from './ui';
-import { supplierPaymentInput } from './purchaseFormValidation';
 import { SupplierInvoicePreparation } from './SupplierInvoiceWizard';
 import { SupplierInvoiceAttachments, formatAttachmentSize } from './SupplierInvoiceAttachments';
 export { formatAttachmentSize } from './SupplierInvoiceAttachments';
@@ -195,54 +194,7 @@ export function SupplierInvoiceDetail({ invoice, workspace, busy, close, onPayme
   </Modal>;
 }
 
-export function SupplierPaymentForm({ invoice: initialInvoice, workspace, busy, close, act }: { invoice: SupplierInvoice; workspace: Workspace; busy: boolean; close: () => void; act: ActionRunner }) {
-  const invoice = workspace.supplierInvoices.find((row) => row.id === initialInvoice.id) ?? initialInvoice;
-  const [requestId] = useState(() => createId());
-  const [amount, setAmount] = useState((invoice.balanceCents / 100).toFixed(2));
-  const defaultPaymentDate = todayIso() < invoice.documentDate ? invoice.documentDate : todayIso();
-  const [paymentDate, setPaymentDate] = useState(defaultPaymentDate);
-  const [formError, setFormError] = useState('');
-  const { amountCents, error: validationError } = supplierPaymentInput(amount, paymentDate, invoice.documentDate, invoice.balanceCents);
-  const recorded = invoice.payments.find((payment) => payment.requestId === requestId);
-  return <Modal className="purchase-entry-modal" title="Enregistrer un paiement fournisseur" description={`Facture ${invoice.reference} · ${invoice.supplierName}`} onClose={close} dismissible={!busy}>
-    {recorded ? <>
-      <div className="info-strip" role="status"><CheckCircle2 size={18} /><span>Votre paiement de {formatMoney(recorded.amountCents)} du {formatDate(recorded.date)} est bien enregistré. Le solde restant est de {formatMoney(invoice.balanceCents)}.</span></div>
-      <div className="form-actions"><Button type="button" onClick={close} disabled={busy}>Terminer</Button></div>
-    </> : <form noValidate onSubmit={submitForm(async (form) => {
-      if (busy) return;
-      setFormError('');
-      if (validationError) { setFormError(validationError); return; }
-      await act(
-        () => desktopApi.recordSupplierPayment({
-          requestId,
-          supplierInvoiceId: invoice.id,
-          amountCents,
-          date: paymentDate,
-          method: String(form.get('method')),
-          reference: String(form.get('reference')).trim(),
-          notes: String(form.get('notes')).trim(),
-        }),
-        amountCents === invoice.balanceCents ? 'La facture fournisseur est entièrement payée.' : 'Le paiement partiel a été enregistré.',
-        true,
-        (reason) => setFormError(errorMessage(reason, 'Le paiement n’a pas pu être enregistré. Les informations saisies sont conservées.')),
-      );
-    })}>
-      <fieldset disabled={busy}>
-      <div className="payment-summary"><div><span>Total</span><strong>{formatMoney(invoice.totalCents)}</strong></div><div><span>Déjà payé</span><strong>{formatMoney(invoice.paidCents)}</strong></div><div><span>Solde disponible</span><strong>{formatMoney(invoice.balanceCents)}</strong></div></div>
-      <div className="form-grid">
-        <Field label="Montant payé (CHF)" required hint="Le solde est proposé. Modifiez-le si vous avez payé seulement une partie."><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} required autoFocus /></Field>
-        <Field label="Date du paiement" required hint="Recopiez la date du débit bancaire ou du reçu."><input name="date" type="date" min={invoice.documentDate} value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} required /></Field>
-        <Field label="Mode de paiement" required><select name="method" defaultValue="bank_transfer" required><option value="bank_transfer">Virement bancaire</option><option value="card">Carte</option><option value="cash">Espèces</option><option value="other">Autre</option></select></Field>
-        <Field label="Référence"><input name="reference" maxLength={200} /></Field>
-        <Field label="Note" wide><textarea name="notes" rows={3} maxLength={2_000} /></Field>
-      </div>
-      <div className="info-strip"><WalletCards size={17} /><span>Zentra enregistre le règlement et l’écriture comptable ensemble. Aucun virement n’est envoyé à la banque.</span></div>
-      </fieldset>
-      {formError ? <ErrorPanel title="Vérifions le paiement" message={formError} reveal /> : null}
-      <FormActions onCancel={close} busy={busy} submitLabel={!validationError && amountCents === invoice.balanceCents ? 'Enregistrer et solder' : 'Enregistrer le paiement'} />
-    </form>}
-  </Modal>;
-}
+export { SupplierPaymentForm } from './SupplierPaymentForm';
 
 export function LegacyExpenseDetail({ expense: initialExpense, workspace, close, busy, act }: { expense: Expense; workspace: Workspace; close: () => void; busy: boolean; act: ActionRunner }) {
   const expense = workspace.expenses.find((row) => row.id === initialExpense.id) ?? initialExpense;

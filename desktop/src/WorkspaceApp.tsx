@@ -1,3 +1,4 @@
+import { SupplierPaymentOutcomeUnknownError, SupplierPaymentRefreshError, type SupplierPaymentResume } from './supplierPaymentWorkflow';
 import { t, useAppLanguage, getAppLocale } from './language';
 import { Languages } from 'lucide-react';
 import { LanguageSetting } from './LanguageSetting';
@@ -378,7 +379,7 @@ type ModalState = (
   | { type: 'legacyExpenseDetail'; expense: Expense }
   | { type: 'supplierInvoice'; item?: SupplierInvoice; initialTarget?: 'reference' | 'attachments' }
   | { type: 'supplierInvoiceDetail'; invoice: SupplierInvoice }
-  | { type: 'supplierPayment'; invoice: SupplierInvoice }
+  | { type: 'supplierPayment'; invoice: SupplierInvoice; resume?: SupplierPaymentResume }
   | { type: 'payslip'; item?: Payslip; initialEmployeeId?: string; initialPeriod?: string; initialPaymentDate?: string }
   | { type: 'payrollImport' }
   | { type: 'payslipPayment'; payslip: Payslip; returnToPosting?: boolean }
@@ -523,6 +524,7 @@ export function WorkspaceApp({
   const clearTeamStartSection = useCallback(() => setTeamStartSection(undefined), []);
   const [supplierInvoiceReviewId, setSupplierInvoiceReviewId] = useState<string | null>(null);
   const [supplierReviewReturnId, setSupplierReviewReturnId] = useState<string | null>(null);
+  const [supplierPaymentReturn, setSupplierPaymentReturn] = useState<Extract<ModalState, { type: 'supplierPayment' }> | null>(null);
   const [supplierMatchToOpenId, setSupplierMatchToOpenId] = useState<string | null>(null);
   const [clientFolderReturnId, setClientFolderReturnId] = useState<string | null>(null);
   const [bankAutoReconcile, setBankAutoReconcile] = useState(true);
@@ -954,8 +956,8 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError || reason instanceof PaymentOutcomeUnknownError || reason instanceof CustomerSettlementOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError || reason instanceof CustomerSettlementRefreshError) reason.validateRead(value); validateRead?.(value); };
+      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError || reason instanceof PaymentOutcomeUnknownError || reason instanceof SupplierPaymentOutcomeUnknownError || reason instanceof CustomerSettlementOutcomeUnknownError ? reason : null;
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError || reason instanceof SupplierPaymentRefreshError || reason instanceof CustomerSettlementRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
@@ -1829,6 +1831,7 @@ export function WorkspaceApp({
         <ProjectFileActivity key={cloudAccount?.organizationId ?? 'local'} sessions={projectFileSessions} disabled={busy || readOnly} projects={workspace.projects} currentProjectId={view === 'projects' ? projectFolderId : null} onOpen={id => { setProjectFolderId(id); setView('projects'); setSearch(''); }} />
         {invoiceIssueReturnId && !invoiceToIssueId && <div className="invoice-issue-resume" role="region" aria-label={t("Reprendre la facture")}><span>{t("Votre facture reste disponible. Après les corrections, reprenez sa vérification avant de l’émettre.")}</span><Button disabled={busy} onClick={() => { const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceIssueReturnId); if (invoice) { setView('invoices'); setSearch(''); setModal(invoice.quoteId ? { type: 'quoteInvoiceFolder', quoteId: invoice.quoteId } : null); setInvoiceToIssueId(invoice.id); } else setNotice({ tone: 'error', text: 'Cette facture n’est plus disponible. Actualisez la liste des factures.' }); }}>{t("Reprendre la facture")}</Button><Button variant="ghost" disabled={busy} onClick={() => setInvoiceIssueReturnId(null)}>{t("Plus tard")}</Button></div>}
         {payslipPostingReturnId && !payslipPostingId && <div className="payslip-posting-resume" role="region" aria-label={t("Reprendre la finalisation du salaire")}><span>{t("Après vos corrections, reprenez la vérification de la même fiche de salaire.")}</span><Button disabled={busy} onClick={() => { setModal(null); setSearch(''); setView('team'); setTeamStartSection('payslips'); setPayslipPostingId(payslipPostingReturnId); }}>{t("Reprendre la finalisation du salaire")}</Button><Button variant="ghost" disabled={busy} onClick={() => setPayslipPostingReturnId(null)}>{t("Plus tard")}</Button></div>}
+        {supplierPaymentReturn && <div className="supplier-review-resume" role="region" aria-label={t('Reprendre le paiement fournisseur')}><span>{t('Votre paiement reste à enregistrer. Reprenez-le après les corrections ; votre saisie est conservée.')} <strong>{supplierPaymentReturn.invoice.reference}</strong></span><Button disabled={busy || Boolean(modal)} onClick={() => { setView('expenses'); setSearch(''); setModal(supplierPaymentReturn); setSupplierPaymentReturn(null); }}>{t('Reprendre le paiement fournisseur')}</Button><Button variant="ghost" disabled={busy} onClick={() => { if (window.confirm(t('Abandonner la saisie de ce paiement ?'))) setSupplierPaymentReturn(null); }}>{t('Abandonner la saisie')}</Button></div>}
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label={t("Reprendre la facture fournisseur")}><span>{t("Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.")}</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>{t("Reprendre la facture fournisseur")}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>{t("Plus tard")}</Button></div>}
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
@@ -2358,6 +2361,10 @@ export function WorkspaceApp({
             actionInFlight.current=true;setBusy(true);
             try { const next=await desktopApi.loadWorkspace();requireStockWorkspace(next);workspaceRef.current=next;setWorkspace(next);return next; }
             finally {actionInFlight.current=false;setBusy(false);}
+          }}
+          onSuspendSupplierPayment={(state, section) => {
+            if (supplierPaymentReturn && supplierPaymentReturn.resume?.requestId !== state.resume?.requestId && !window.confirm(t('Un autre paiement attend une correction. Remplacer sa saisie conservée par celle-ci ?'))) return;
+            setSupplierPaymentReturn(state); setModal(null); setAccountingStartTab(section); setAccountingEntryFocus(null); setView('accounting'); setSearch('');
           }}
           onOpenInvoices={() => {
             setModal(null);
@@ -5846,6 +5853,7 @@ function WorkspaceModal({
   replace,
   act,
   onOpenInvoices,
+  onSuspendSupplierPayment,
   onOpenAccounting,
   onOpenBank,
   onConvertQuote,
@@ -5863,6 +5871,7 @@ function WorkspaceModal({
   replace: Dispatch<SetStateAction<ModalState>>;
   act: ActionRunner;
   onOpenInvoices: () => void;
+  onSuspendSupplierPayment: (state: Extract<ModalState, { type: 'supplierPayment' }>, section: 'accounts' | 'periods') => void;
   onOpenBank: () => void;
   onOpenAccounting: (section?: 'accounts' | 'periods') => void;
   onConvertQuote: (
@@ -6085,6 +6094,10 @@ function WorkspaceModal({
         invoice={state.invoice}
         workspace={workspace}
         busy={busy}
+        readOnly={readOnly}
+        resume={state.resume}
+        onReadWorkspace={onReadWorkspace}
+        onOpenAccounting={(section, resume) => onSuspendSupplierPayment({ type: 'supplierPayment', invoice: state.invoice, resume }, section)}
         close={close}
         act={act}
       />
