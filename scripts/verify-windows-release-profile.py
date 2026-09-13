@@ -81,7 +81,7 @@ def main():
         assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
         assert identity.is_file() and identity.stat().st_size > 0
         if mode == 'seed':
-            assert version in {'1.45.0', '1.58.0', '1.59.0', '1.60.0'}
+            assert version in {'1.45.0', '1.58.0', '1.59.0', '1.60.0', '1.61.0'}
             seed(connection, profile)
             baseline = {'tables': rows(connection), 'identitySha256': digest(identity), 'attachmentSha256': digest(profile / 'attachments/qa-plan.txt')}
             (profile / 'upgrade-baseline.json').write_text(json.dumps(baseline, indent=2) + '\n')
