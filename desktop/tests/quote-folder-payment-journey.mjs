@@ -54,6 +54,8 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
         for (const [card, name] of [[deposit, 'Ouvrir l’acompte'], [balance, 'Ouvrir le solde']]) {
           await card.getByRole('button', { name, exact: true }).click();
           await page.getByLabel('Début de prestation', { exact: false }).fill('2026-09-01');
+          await page.getByRole('button', { name: 'Continuer vers le paiement', exact: true }).click();
+          await page.getByRole('button', { name: 'Vérifier la facture', exact: true }).click();
           await page.getByRole('button', { name: 'Enregistrer et voir le dossier', exact: true }).click();
           await folder.waitFor();
         }
@@ -74,7 +76,7 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
         await page.screenshot({ path: `.qa/quote-folder-payment/${engine}-${width}-issue-period.png` });
         await correctDate.click();
         assert.equal(await page.getByLabel('Date d’émission', { exact: false }).inputValue(), '2026-09-01');
-        await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+        await page.getByRole('button', { name: 'Fermer « Facture d’acompte »', exact: true }).click();
         await page.getByRole('button', { name: 'Reprendre la facture', exact: true }).click();
         await issue.getByRole('button', { name: 'Confirmer et émettre l’acompte', exact: true }).click();
         await issue.getByText('La période est fermée', { exact: true }).waitFor();

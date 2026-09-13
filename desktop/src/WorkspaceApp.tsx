@@ -6336,7 +6336,7 @@ function WorkspaceModal({
   }
   if (state.type === 'document' && state.entity === 'invoices' && (state.item as Invoice | undefined)?.billingPair && state.item?.status === 'draft') {
     const invoice = workspace.invoices.find((invoice) => invoice.id === state.item?.id) ?? state.item as Invoice;
-    return <PairedInvoiceEditor invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} onFolder={() => replace({ type: 'quoteInvoiceFolder', quoteId: invoice.quoteId! })}/>;
+    return <PairedInvoiceEditor invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} correctDates={state.initialStep === 2} close={close} act={act} onFolder={() => replace({ type: 'quoteInvoiceFolder', quoteId: invoice.quoteId! })}/>;
   }
   if (state.type === 'document')
     return (

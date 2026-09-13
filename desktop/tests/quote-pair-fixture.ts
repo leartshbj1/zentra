@@ -39,6 +39,8 @@ export function installQuotePairFixture(data: Workspace) {
   desktopApi.createQuoteBalance = async () => { complete(); return afterWrite('balance'); };
   desktopApi.updateEntity = async (entity, id, patch) => {
     if (entity !== 'invoices') throw new Error('Unexpected fixture mutation');
+    sessionStorage.setItem('qa-pair-update-attempts', String(Number(sessionStorage.getItem('qa-pair-update-attempts') || 0) + 1));
+    if (sessionStorage.getItem('qa-pair-hold-update') === '1') await new Promise(resolve => window.addEventListener('qa-release-pair-update', resolve, { once: true }));
     if (sessionStorage.getItem('qa-pair-refuse-update') === '1') throw Error('Les dates n’ont pas pu être enregistrées. Réessayez.');
     Object.assign(data.invoices.find((invoice) => invoice.id === id)!, patch);
     return afterWrite('update');

@@ -6,6 +6,20 @@ Utilisez **Créer la facture**. Vous pouvez préparer une facture complète ou c
 
 L’aperçu indique le montant de l’acompte et celui du solde après déduction. Les deux factures sont créées en brouillon dans le dossier du devis. En cas de refus, le choix et le pourcentage restent présents. Pendant la création, les réglages et la fermeture sont verrouillés.
 
+## Préparer l’acompte et le solde — ajout après Windows 1.60.0
+
+Ouvrez l’une des deux factures dans le dossier. Le montant TTC reste visible et un parcours en trois étapes prépare ses dates et ses notes :
+
+1. **Prestation** : indiquez le jour ou la période des travaux ou du service facturé. Pour une seule journée, laissez la fin vide. Si l’autre facture du même dossier possède des dates valides, **Reprendre ces dates de prestation** les propose sans changer les dates de paiement ni les notes.
+2. **Paiement** : vérifiez la date d’émission et l’échéance. Les boutons **À 7 jours**, **À 14 jours**, **À 30 jours** et le délai habituel de l’entreprise proposent une échéance. Vous pouvez saisir une autre date. L’échéance suit une nouvelle date d’émission tant qu’elle correspond au délai habituel ; une échéance différente est conservée. Ajoutez éventuellement les notes, avec leurs retours à la ligne.
+3. **Vérifier** : relisez le client, la prestation, les dates, la TVA et les notes. **Enregistrer et voir le dossier** garde la facture en brouillon et retrouve les deux documents liés. L’émission et les paiements restent des actions séparées.
+
+Les étapes restent accessibles par leurs boutons. Une date manquante ou incohérente ouvre l’étape concernée et place le curseur sur le champ à corriger. Les raccourcis de correction depuis l’émission ouvrent directement les dates concernées. **Voir le détail du montant** permet de consulter les lignes et la déduction de l’acompte.
+
+Un refus d’enregistrement garde les valeurs et les notes présentes. Les actions et la fermeture sont verrouillées pendant la demande. Si vous quittez avec des modifications non enregistrées, choisissez **Rester sur la facture** ou **Quitter sans enregistrer**. En lecture seule, les étapes restent consultables, sans modification ni sauvegarde. Les documents émis gardent leur consultation verrouillée.
+
+Ce parcours est intégré au code après la version Windows 1.60.0 ; il n’est pas encore inclus dans cet installateur déjà publié. Les montants, les règles de déduction et le moteur de comptabilisation restent ceux du dossier existant. Recette : `desktop/tests/paired-preparation-journey.mjs`.
+
 ## Vérifier avant l’émission
 
 Dans la liste des factures ou dans le dossier du devis, choisissez **Émettre**. La fenêtre affiche en premier le total et le fait que l’émission rend le document non modifiable. Vérifiez ensuite le client, les dates, la période de prestation, le montant hors TVA et la TVA. **Relire les prestations** déplie le détail des lignes.

@@ -2,9 +2,8 @@ import { FileCheck2, FolderOpen, Receipt } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { desktopApi } from './bridge';
 import type { Invoice, Quote, Workspace } from './types';
-import { Button, ErrorPanel, Field, FormActions, Modal, StatusBadge, submitForm } from './ui';
-import { addDaysIso, documentTotals, errorMessage, formatMoney, invoiceCredited, invoiceOpenBalance, invoicePaid, todayIso } from './utils';
-import { invoiceDatesError } from './salesFormValidation';
+import { Button, ErrorPanel, Modal, StatusBadge } from './ui';
+import { documentTotals, errorMessage, formatMoney, invoiceCredited, invoiceOpenBalance, invoicePaid } from './utils';
 import { quoteFolderInvoiceStep, quoteFolderProgress } from './quoteFolderProgress';
 import './QuoteInvoiceFolder.css';
 
@@ -73,44 +72,4 @@ export function QuoteInvoiceFolder({ quote, workspace, busy, readOnly = false, c
   </Modal>;
 }
 
-/** Keep the two financial documents consistent while their dates remain editable. */
-export function PairedInvoiceEditor({ invoice, workspace, busy, readOnly = false, close, onFolder, act }: {
-  invoice: Invoice; workspace: Workspace; busy: boolean; readOnly?: boolean; close: () => void; onFolder: () => void; act: Act;
-}) {
-  const [initial] = useState(() => ({
-    issueDate: invoice.issueDate || todayIso(),
-    dueDate: invoice.dueDate || addDaysIso(invoice.issueDate || todayIso(), workspace.settings!.billing.paymentTermsDays),
-    serviceDateFrom: invoice.serviceDateFrom || '', serviceDateTo: invoice.serviceDateTo || '', notes: invoice.notes || '',
-  }));
-  const [fields, setFields] = useState(initial);
-  const [localError, setLocalError] = useState('');
-  const dirty = JSON.stringify(fields) !== JSON.stringify(initial);
-  async function save(openFolder = false) {
-    if (busy || readOnly) return;
-    const error = invoiceDatesError(fields);
-    if (error) { setLocalError(error); return; }
-    setLocalError('');
-    const saved = await act(() => desktopApi.updateEntity('invoices', invoice.id, fields),
-      'Les dates et les notes de la facture ont été enregistrées.', !openFolder,
-      reason => setLocalError(errorMessage(reason, 'Les modifications n’ont pas pu être enregistrées. Votre saisie est conservée.')));
-    if (saved && openFolder) onFolder();
-  }
-  const change = (name: keyof typeof fields, value: string) => { setFields(previous => ({ ...previous, [name]: value })); setLocalError(''); };
-  const totals = documentTotals(invoice.lines);
-  return <Modal title={invoice.type === 'deposit' ? 'Facture d’acompte' : 'Facture de solde'} description={invoice.number || invoice.title} onClose={close} dismissible={!busy} wide>
-    <form className="paired-invoice-editor" noValidate onSubmit={submitForm(async () => save())}>
-      <div className="info-strip"><span>Les montants sont liés au devis et à l’autre facture du dossier.</span><Button type="button" variant="secondary" disabled={busy || (readOnly && dirty)} onClick={() => dirty ? void save(true) : onFolder()}><FolderOpen size={17}/> {dirty ? 'Enregistrer et voir le dossier' : 'Voir le dossier'}</Button></div>
-      {localError && <ErrorPanel title="Vérifions les dates" message={localError} reveal />}
-      <fieldset disabled={busy || readOnly} className="document-form"><div className="form-grid">
-        <Field label="Date d’émission" required><input type="date" name="issueDate" value={fields.issueDate} onChange={event => change('issueDate', event.target.value)} required/></Field>
-        <Field label="Échéance" required><input type="date" name="dueDate" min={fields.issueDate} value={fields.dueDate} onChange={event => change('dueDate', event.target.value)} required/></Field>
-        <Field label="Début de prestation" hint="Pour une prestation d’un jour, renseignez seulement cette date." required><input type="date" name="serviceDateFrom" value={fields.serviceDateFrom} onChange={event => change('serviceDateFrom', event.target.value)} required/></Field>
-        <Field label="Fin de prestation"><input type="date" name="serviceDateTo" min={fields.serviceDateFrom} value={fields.serviceDateTo} onChange={event => change('serviceDateTo', event.target.value)}/></Field>
-        <Field label="Notes" wide><textarea name="notes" aria-label="Notes" rows={4} value={fields.notes} onChange={event => change('notes', event.target.value)}/></Field>
-      </div></fieldset>
-      <ul className="quote-invoice-folder__lines">{invoice.lines.map((line) => <li key={line.id}><span>{line.description}</span><strong>{formatMoney(documentTotals([line]).totalCents, invoice.currency)}</strong></li>)}</ul>
-      <div className="quote-invoice-folder__totals"><div><span>Total HT</span><strong>{formatMoney(totals.netCents, invoice.currency)}</strong></div><div><span>TVA</span><strong>{formatMoney(totals.vatCents, invoice.currency)}</strong></div><div><span>{invoice.type === 'deposit' ? 'Acompte TTC' : 'Solde TTC'}</span><strong>{formatMoney(totals.totalCents, invoice.currency)}</strong></div></div>
-      <FormActions busy={busy} disabled={readOnly} onCancel={close} submitLabel="Enregistrer les dates"/>
-    </form>
-  </Modal>;
-}
+export { PairedInvoiceEditor } from './PairedInvoiceEditor';
