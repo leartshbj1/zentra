@@ -25,7 +25,7 @@ macos)
   root=desktop/src-tauri/target/universal-apple-darwin/release/bundle
   app="$root/macos/Zentra.app"
   codesign --verify --deep --strict --verbose=2 "$app"
-  lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/Zentra"
+  lipo "$app/Contents/MacOS/Zentra" -verify_arch arm64 x86_64
   version=$(node -p "require('./desktop/package.json').version")
   mkdir -p desktop/artifacts/macos
   tar -czf "desktop/artifacts/macos/Zentra_${version}_macos-universal.app.tar.gz" -C "$root/macos" Zentra.app
