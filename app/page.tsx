@@ -18,7 +18,7 @@ import { HeroDashboard } from '@/components/hero-dashboard';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { buttonVariants } from '@/components/ui/button';
-import { ZENTRA_VERSION } from '@/lib/downloads';
+import { ZENTRA_WINDOWS_VERSION } from '@/lib/downloads';
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
@@ -156,7 +156,7 @@ export default function Home() {
           <div className="lg:col-span-2">
             <div className="grid gap-px overflow-hidden rounded-2xl border border-[#d9d6cc] bg-[#d9d6cc] sm:grid-cols-2 lg:grid-cols-4">
               {[
-                ['Version', `Zentra ${ZENTRA_VERSION}`],
+                ['Version', `Zentra ${ZENTRA_WINDOWS_VERSION}`],
                 ['Plateformes', 'Windows · macOS anticipé'],
                 ['Facturation', 'QR-factures suisses'],
                 ['Équipe', 'Accès sans prix par siège'],

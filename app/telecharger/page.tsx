@@ -43,23 +43,25 @@ import {
   ZENTRA_MAC_DMG_SHA256,
   ZENTRA_MAC_DMG_SIZE_MIB,
   ZENTRA_VERSION,
+  ZENTRA_WINDOWS_VERSION,
+  ZENTRA_MAC_VERSION,
   ZENTRA_WINDOWS_PREVIEW_VERSION,
   ZENTRA_WINDOWS_PREVIEW_PATH,
   ZENTRA_WINDOWS_PREVIEW_SHA256,
 } from '@/lib/downloads';
 
 export const metadata = {
-  title: `Télécharger Zentra — Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_VERSION}`,
-  description: `Découvrez Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} en accès anticipé et macOS ${ZENTRA_VERSION}, universel Intel et Apple Silicon. La version macOS est proposée avant notarisation Apple.`,
+  title: `Télécharger Zentra — Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_MAC_VERSION}`,
+  description: `Découvrez Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} en accès anticipé et macOS ${ZENTRA_MAC_VERSION}, universel Intel et Apple Silicon. La version macOS est proposée avant notarisation Apple.`,
   alternates: { canonical: '/download' },
   openGraph: {
     title: 'Télécharger Zentra',
-    description: `Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_VERSION} sont disponibles en accès anticipé.`,
+    description: `Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_MAC_VERSION} sont disponibles en accès anticipé.`,
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
   },
   twitter: {
     title: 'Télécharger Zentra',
-    description: `Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_VERSION} sont disponibles en accès anticipé.`,
+    description: `Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_MAC_VERSION} sont disponibles en accès anticipé.`,
     images: ['/og.png'],
   },
 };
@@ -132,11 +134,11 @@ export default function DownloadPage() {
         <section aria-labelledby="windows-preview-title" className="mx-auto max-w-7xl px-5 pt-8 lg:px-8">
           <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 max-w-2xl">
-              <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_PREVIEW_VERSION} · Accès anticipé</p>
+              <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
               <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Vos documents et votre paie, plus simplement.</h2>
               <p className="mt-3 text-base leading-7 text-[#667169]">Personnalisez vos documents dans un atelier plus spacieux. Choisissez le français, l’allemand, l’italien ou l’anglais dès la configuration. Le tutoriel, les collaborateurs et les étapes de paie expliquent les informations attendues et vous ramènent au champ à corriger. Vos saisies restent conservées après un échec ou un changement de langue.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Les traductions sont encore en préparation : certains écrans, contrôles natifs et PDF restent en français.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Pour une version plus ancienne, téléchargez l’installateur ci-contre. Cette préversion concerne Windows ; les versions des autres plateformes restent indiquées ci-dessous.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Sur Mac, installez cette version depuis le bouton ci-dessous pour recevoir les prochaines mises à jour dans Zentra. Les préversions mobiles publiques restent indiquées séparément.</p>
             </div>
             <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
               <a href={ZENTRA_WINDOWS_PREVIEW_PATH} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#315f47] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#173d2c]">
@@ -150,7 +152,7 @@ export default function DownloadPage() {
           <div data-reveal="left">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#d5dad5] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#496054]">
               <span className="local-pulse size-1.5 rounded-full bg-[#4e9d68]" />
-              Windows et macOS · version {ZENTRA_VERSION}
+              Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION}
             </div>
             <h1 className="mt-6 max-w-xl text-balance text-[2.6rem] font-semibold leading-[.99] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-[4.35rem]">
               Toute votre entreprise,
@@ -268,7 +270,7 @@ export default function DownloadPage() {
                   </p>
                   <div className="mt-7 space-y-4 text-[11px]">
                     {[
-                      ['Version', ZENTRA_VERSION],
+                      ['Version', ZENTRA_WINDOWS_VERSION],
                       ['Architecture', 'Windows x64'],
                       ['Emplacement', 'Applications de l’utilisateur'],
                       ['Données métier', 'Stockage local'],
@@ -648,7 +650,7 @@ export default function DownloadPage() {
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.9fr_1.1fr]">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-                Version {ZENTRA_VERSION}
+                Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
                 Retrouvez votre entreprise sur un nouvel appareil.
@@ -736,11 +738,11 @@ export default function DownloadPage() {
                     <RefreshCcw className="mt-0.5 size-4 shrink-0" />
                     <p>
                       <strong>Mises à jour intégrées et signées.</strong> La
-                      version {ZENTRA_VERSION} embarque la clé publique Zentra
+                      version {ZENTRA_WINDOWS_VERSION} embarque la clé publique Zentra
                       et vérifie la signature de chaque futur installateur avant
                       de proposer son installation. Si une ancienne version ne
                       propose pas la mise à jour intégrée, installez{' '}
-                      {ZENTRA_VERSION} manuellement depuis cette page.
+                      {ZENTRA_WINDOWS_VERSION} manuellement depuis cette page.
                     </p>
                   </div>
                   <div className="flex items-start gap-3 rounded-xl bg-[#fff5e6] p-4 text-[#75501f]">

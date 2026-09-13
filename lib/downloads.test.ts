@@ -13,6 +13,8 @@ import {
   ZENTRA_MAC_DMG_SHA256,
   ZENTRA_RELEASES_ORIGIN,
   ZENTRA_VERSION,
+  ZENTRA_WINDOWS_VERSION,
+  ZENTRA_MAC_VERSION,
   ZENTRA_WINDOWS_PREVIEW_VERSION,
   ZENTRA_WINDOWS_PREVIEW_PATH,
   ZENTRA_WINDOWS_PREVIEW_SHA256,
@@ -31,12 +33,13 @@ const manifest = JSON.parse(
 ) as UpdaterManifest;
 
 describe('contrat de téléchargement Zentra', () => {
-  it('keeps the manually installed Windows preview separate from stable automatic updates', () => {
+  it('publie le nouvel installateur sans modifier le manifeste partagé historique', () => {
     expect(ZENTRA_WINDOWS_PREVIEW_VERSION).not.toBe(ZENTRA_VERSION);
     expect(ZENTRA_WINDOWS_PREVIEW_PATH).toBe(`${ZENTRA_RELEASES_ORIGIN}/Zentra_${ZENTRA_WINDOWS_PREVIEW_VERSION}_x64-setup.exe`);
     expect(ZENTRA_WINDOWS_PREVIEW_SHA256).toMatch(/^[A-F0-9]{64}$/);
     expect(manifest.version).toBe(ZENTRA_VERSION);
     expect(manifest.platforms['windows-x86_64'].url).not.toBe(ZENTRA_WINDOWS_PREVIEW_PATH);
+    expect(ZENTRA_INSTALLER_PATH).toBe(ZENTRA_WINDOWS_PREVIEW_PATH);
   });
   it('centralise une version et des empreintes bien formées', () => {
     expect(ZENTRA_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
@@ -46,7 +49,7 @@ describe('contrat de téléchargement Zentra', () => {
 
   it('construit des chemins immuables pour les deux installateurs visibles', () => {
     expect(ZENTRA_INSTALLER_NAME).toBe(
-      `Zentra_${ZENTRA_VERSION}_x64-setup.exe`,
+      `Zentra_${ZENTRA_WINDOWS_VERSION}_x64-setup.exe`,
     );
     expect(ZENTRA_INSTALLER_PATH).toBe(
       `${ZENTRA_RELEASES_ORIGIN}/${ZENTRA_INSTALLER_NAME}`,
@@ -56,7 +59,7 @@ describe('contrat de téléchargement Zentra', () => {
     );
 
     expect(ZENTRA_MAC_DMG_NAME).toBe(
-      `Zentra_${ZENTRA_VERSION}_macos-universal.dmg`,
+      `Zentra_${ZENTRA_MAC_VERSION}_macos-universal.dmg`,
     );
     expect(ZENTRA_MAC_DMG_PATH).toBe(
       `${ZENTRA_RELEASES_ORIGIN}/${ZENTRA_MAC_DMG_NAME}`,
@@ -66,7 +69,7 @@ describe('contrat de téléchargement Zentra', () => {
     );
   });
 
-  it('garde le manifeste public aligné avec Windows et macOS', () => {
+  it('conserve les anciennes plateformes du manifeste partagé', () => {
     expect(manifest.version).toBe(ZENTRA_VERSION);
     expect(Object.keys(manifest.platforms).sort()).toEqual([
       'macos-universal',
@@ -75,7 +78,7 @@ describe('contrat de téléchargement Zentra', () => {
 
     const windows = manifest.platforms['windows-x86_64'];
     const macos = manifest.platforms['macos-universal'];
-    expect(windows.url).toBe(ZENTRA_INSTALLER_PATH);
+    expect(windows.url).toBe(`${ZENTRA_RELEASES_ORIGIN}/Zentra_${ZENTRA_VERSION}_x64-setup.exe`);
     expect(macos.url).toBe(
       `${ZENTRA_RELEASES_ORIGIN}/Zentra_${ZENTRA_VERSION}_macos-universal.app.tar.gz`,
     );
