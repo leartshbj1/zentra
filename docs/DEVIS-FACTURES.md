@@ -42,3 +42,18 @@ Quand l’émission a réussi mais que la relecture a échoué, utilisez **Actua
 Recettes : `desktop/tests/invoice-issue-journey.mjs`, `desktop/tests/quote-folder-payment-journey.mjs` et `desktop/tests/quote-pair-journey.mjs`. Les données utilisées sont synthétiques.
 
 Aucun nouvel installateur ni IPA n’a été publié dans ce lot. Cette recette ne prouve pas une installation sur téléphone physique, la synchronisation entre appareils, ni une certification fiscale.
+
+## Enregistrer l’argent reçu d’un client
+
+Depuis **Factures**, ouvrez **Enregistrer un paiement** sur la facture concernée. Le même parcours reste accessible depuis le dossier d’un devis, pour l’acompte ou le solde.
+
+1. Recopiez le montant réellement reçu et sa date. Le montant commence vide. **Tout le solde est reçu** remplit ce champ lorsque le client a tout payé ; ce bouton n’enregistre rien.
+2. Indiquez le moyen de paiement. La référence et la note sont facultatives, dans une rubrique à ouvrir si nécessaire.
+3. Choisissez **Vérifier le paiement**. Relisez le compte d’encaissement, le montant reçu et le reste à encaisser avant/après. **Modifier** retrouve votre saisie.
+4. Confirmez avec **Enregistrer le paiement**. Le solde de la facture et son écriture comptable sont enregistrés ensemble. Aucun virement n’est envoyé.
+
+La virgule et le point sont acceptés. Un montant trop élevé, une date impossible ou future et une information manquante reçoivent une explication à côté du champ. La chronologie tient compte des avoirs déjà appliqués. Un solde ou compte modifié après la vérification impose une nouvelle relecture. **Actualiser les factures** conserve la saisie.
+
+Un compte manquant ou une période fermée donne accès à la comptabilité. Après cette navigation, retrouvez la facture pour préparer à nouveau le paiement. Le message natif complet reste consultable. Une facture retirée des données courantes n’est pas remplacée par une ancienne copie.
+
+Si l’enregistrement ou sa relecture est interrompu, utilisez la vérification proposée. Zentra recherche la même demande, son contenu et sa preuve comptable ; la reprise ne renvoie pas le paiement. Une lecture vide ou sans preuve reste à reprendre. Cette interface est vérifiée avec des données de recette ; les nouveaux contrôles natifs nécessitent une nouvelle compilation de l’application.

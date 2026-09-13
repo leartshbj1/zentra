@@ -1,3 +1,4 @@
+import {installPaymentGuidedFixture} from './payment-guided-fixture';
 import { installAgendaGuidedFixture } from './agenda-guided-fixture';
 import { installStockGuidedFixture } from './stock-guided-fixture';
 import { installCatalogFormFixture } from './catalog-form-fixture';
@@ -225,6 +226,7 @@ if (new URLSearchParams(location.search).has('catalogForm')) installCatalogFormF
 if (new URLSearchParams(location.search).has('receiptGuided')) installReceiptGuidedFixture(data);
 if (new URLSearchParams(location.search).has('creditAllocation')) installCreditAllocationFixture(data);
 if (new URLSearchParams(location.search).has('supplierRefundGuided')) installSupplierRefundGuidedFixture(data);
+if (new URLSearchParams(location.search).has('paymentGuided')) installPaymentGuidedFixture(data);
 function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
@@ -234,7 +236,7 @@ function Harness() {
     __qaReloadPurchases: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; return next; },
   });
   const [projectAccount, setProjectAccount] = useState('');
-  if(new URLSearchParams(location.search).has('supplierRefundGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaSupplierRefundRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
+  if(new URLSearchParams(location.search).has('supplierRefundGuided')||new URLSearchParams(location.search).has('paymentGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaSupplierRefundRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if(new URLSearchParams(location.search).has('creditAllocation'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaCreditAllocationRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if(new URLSearchParams(location.search).has('receiptGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaReceiptRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if (new URLSearchParams(location.search).has('catalogForm')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaCatalogRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });

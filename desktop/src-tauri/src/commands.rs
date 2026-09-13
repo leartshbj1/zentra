@@ -1679,10 +1679,11 @@ pub fn verify_audit_log(state: State<'_, LocalStore>) -> Result<Value, String> {
 pub fn record_payment(
     state: State<'_, LocalStore>,
     input: RecordPaymentInput,
+    expected_review: Option<crate::models::PaymentReview>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;
-    state.record_payment(input).map_err(command_error)
+    state.record_payment_checked(input, expected_review.as_ref()).map_err(command_error)
 }
 
 #[tauri::command]

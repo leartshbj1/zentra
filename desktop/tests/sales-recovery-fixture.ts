@@ -5,6 +5,8 @@ import type { Invoice, Quote, Workspace } from '../src/types';
 
 // Synthetic native acknowledgements. Bridge tests separately exercise actual RPC boundaries.
 export function installSalesRecoveryFixture(data: Workspace) {
+  data.accounts=[{id:'bank',code:'1020',name:'Banque de recette',active:true,accountType:'asset'} as Workspace['accounts'][number]];
+  data.accountingSettings={enabled:true,bankAccountId:'bank'} as Workspace['accountingSettings'];
   const quote: Quote = { id: 'ecf3fc46-9b8b-4a5e-b1d7-b72b518cae9e', number: 'D-2026-0001', title: 'Devis original', clientId: 'client-qa', projectId: null, status: 'issued', issueDate: '2026-09-01', validUntil: '2026-09-30', currency: 'CHF', notes: 'Original conservé', terms: '', createdAt: '2026-09-01T09:00:00Z', lines: [{ id: 'original-line', description: 'Prestation', quantity: 1, unit: 'forfait', unitPriceCents: 100000, discountBp: 0, vatRateBp: 810 }] };
   const invoice: Invoice = { ...quote, id: '7393bc90-ae53-4c51-a9ba-a1c84f145bf0', number: 'F-2026-0001', title: 'Facture originale', type: 'final', quoteId: null, originalInvoiceId: null, dueDate: '2026-09-30', serviceDateFrom: '2026-09-01', serviceDateTo: '', depositPercentageBp: null, depositBasisLines: null, paidCents: 0 };
   data.quotes = [quote]; data.invoices = [invoice]; data.payments = []; data.invoiceCorrectionWorkflows = [];

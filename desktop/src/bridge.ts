@@ -1,3 +1,4 @@
+import { runPaymentMutation, type PaymentReview } from './paymentWorkflow';
 import { runSupplierRefundMutation, type SupplierRefundReview } from './supplierRefundWorkflow';
 import { runCreditAllocationMutation, type CreditBalances } from './creditAllocationWorkflow';
 import { requireAgendaWorkspace } from './agendaForm';
@@ -2983,6 +2984,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     employeePayrollTemplateFromRaw,
   );
   const payments: Payment[] = (raw.payments ?? []).map((row) => ({
+    notes: stringValue(row.notes),
     id: stringValue(row.id),
     invoiceId: stringValue(row.invoice_id),
     date: stringValue(row.date),
@@ -5784,21 +5786,10 @@ export const desktopApi = {
     });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
-  async addPayment(
-    invoiceId: string,
-    data: {
-      requestId: string;
-      amountCents: number;
-      date: string;
-      method: string;
-      reference: string;
-      notes: string;
-    },
-  ) {
-    await invoke('record_payment', {
-      input: { invoice_id: invoiceId, ...toBackendData(data) },
-    });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async addPayment(invoiceId: string, data: {requestId:string;amountCents:number;date:string;method:string;reference:string;notes:string;expectedReview?:PaymentReview}) {
+    const {expectedReview,...input}=data;
+    const normalized={...input,method:input.method.trim(),reference:input.reference.trim(),notes:input.notes.trim()};
+    return runPaymentMutation({...normalized,invoiceId},()=>invoke('record_payment',{input:{invoice_id:invoiceId,...toBackendData(normalized)},...(expectedReview?{expectedReview}:{})}),loadWorkspace);
   },
   async savePayslip(
     data: Record<string, unknown>,

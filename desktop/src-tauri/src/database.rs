@@ -4697,10 +4697,14 @@ impl LocalStore {
     }
 
     pub fn record_payment(&self, input: RecordPaymentInput) -> AppResult<Value> {
+        self.record_payment_checked(input, None)
+    }
+
+    pub fn record_payment_checked(&self, input: RecordPaymentInput, expected: Option<&crate::models::PaymentReview>) -> AppResult<Value> {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let record = record_payment_in_transaction(&transaction, input)?;
+        let record = record_payment_in_transaction_checked(&transaction, input, expected)?;
         transaction.commit()?;
         Ok(record)
     }
@@ -7045,6 +7049,10 @@ pub(crate) fn record_payment_in_transaction(
     transaction: &Transaction<'_>,
     input: RecordPaymentInput,
 ) -> AppResult<Value> {
+    record_payment_in_transaction_checked(transaction, input, None)
+}
+
+fn record_payment_in_transaction_checked(transaction: &Transaction<'_>, input: RecordPaymentInput, expected: Option<&crate::models::PaymentReview>) -> AppResult<Value> {
     if input.amount_cents <= 0 {
         return Err(AppError::Validation(
             "Le montant du paiement doit être supérieur à zéro.".into(),
@@ -7146,6 +7154,13 @@ pub(crate) fn record_payment_in_transaction(
         return Err(AppError::Validation(
             "Cette facture ne possède aucun montant payable.".into(),
         ));
+    }
+    if let Some(expected) = expected {
+        let available = total_cents.checked_sub(paid_cents).and_then(|value| value.checked_sub(credited_cents));
+        let bank: Option<String> = transaction.query_row("SELECT bank_account_id FROM accounting_settings WHERE id=1 AND enabled=1", [], |row| row.get(0)).optional()?.flatten();
+        if expected.balance_cents < 0 || available != Some(expected.balance_cents) || bank.as_deref() != Some(expected.bank_account_id.as_str()) {
+            return Err(AppError::Validation("Le solde ou le compte d’encaissement a changé depuis votre vérification. Actualisez la facture et relisez le paiement.".into()));
+        }
     }
     let settled_after_payment = paid_cents
         .checked_add(credited_cents)

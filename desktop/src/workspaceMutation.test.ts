@@ -4,6 +4,7 @@ vi.mock('@tauri-apps/api/core', () => ({ Channel: class {}, invoke: invokeMock }
 import { desktopApi } from './bridge';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
+import { PaymentOutcomeUnknownError } from './paymentWorkflow';
 import { ReceiptOutcomeUnknownError } from './receiptWorkflow';
 import { CreditAllocationOutcomeUnknownError } from './creditAllocationWorkflow';
 import type { EntityKind, Quote } from './types';
@@ -100,6 +101,10 @@ describe('reprise des ventes et achats après écriture locale confirmée', () =
     if (command === 'create_record') {
       const failure = await run().catch(reason => reason);
       expect(failure).toBeInstanceOf(WorkspaceCreationOutcomeUnknownError);
+      expect(failure.mutationCause).toBe(error);
+    } else if (command === 'record_payment') {
+      const failure = await run().catch(reason=>reason);
+      expect(failure).toBeInstanceOf(PaymentOutcomeUnknownError);
       expect(failure.mutationCause).toBe(error);
     } else if (['save_supplier_receipt_draft','issue_supplier_receipt','reverse_supplier_receipt'].includes(command)) {
       const failure = await run().catch(reason=>reason);

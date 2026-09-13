@@ -1,3 +1,5 @@
+import { PaymentForm } from './PaymentForm';
+import { PaymentOutcomeUnknownError, PaymentRefreshError } from './paymentWorkflow';
 import { SupplierRefundOutcomeUnknownError, SupplierRefundRefreshError } from './supplierRefundWorkflow';
 import { CreditAllocationOutcomeUnknownError, CreditAllocationRefreshError } from './creditAllocationWorkflow';
 import { TimeForm, TimerForm } from './WorkTimeForms';
@@ -102,7 +104,6 @@ import { requireStockWorkspace, WorkspaceStockOutcomeUnknownError, WorkspaceStoc
 import { CatalogSaveRefreshError } from './catalogForm';
 import { ReceiptOutcomeUnknownError, ReceiptRefreshError, requireReceiptWorkspace } from './receiptWorkflow';
 import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
-import { paymentInput } from './salesFormValidation';
 import { PayslipPostingRefreshError } from './payrollMutation';
 import { filterPayrollList } from './payrollList';
 import { useWorkspaceRecovery } from './useWorkspaceRecovery';
@@ -947,8 +948,8 @@ export function WorkspaceApp({
       if (close) setModal(null);
       return true;
     } catch (reason) {
-      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError) reason.validateRead(value); validateRead?.(value); };
+      const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError || reason instanceof PaymentOutcomeUnknownError ? reason : null;
+      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
@@ -2361,7 +2362,9 @@ export function WorkspaceApp({
             setView('invoices');
             setSearch('');
           }}
-          onOpenAccounting={() => {
+          onOpenAccounting={(section) => {
+            setAccountingStartTab(section === 'periods' ? 'periods' : 'accounts');
+            setAccountingEntryFocus(null);
             setModal(null);
             setView('accounting');
             setSearch('');
@@ -6253,7 +6256,7 @@ function WorkspaceModal({
   replace: Dispatch<SetStateAction<ModalState>>;
   act: ActionRunner;
   onOpenInvoices: () => void;
-  onOpenAccounting: () => void;
+  onOpenAccounting: (section?: 'accounts' | 'periods') => void;
   onConvertQuote: (
     quote: Quote,
     depositPercentageBp: number | null,
@@ -6518,7 +6521,9 @@ function WorkspaceModal({
   if (state.type === 'payment')
     return (
       <PaymentForm
-        invoice={workspace.invoices.find(invoice => invoice.id === state.invoice.id) ?? state.invoice}
+        invoiceId={state.invoice.id}
+        readOnly={readOnly}
+        onReadWorkspace={onReadWorkspace}
         workspace={workspace}
         busy={busy}
         close={state.returnToQuoteId ? () => replace({ type: 'quoteInvoiceFolder', quoteId: state.returnToQuoteId! }) : close}
@@ -7785,187 +7790,6 @@ function PayslipForm({
           </div>
         )}
         <FormActions onCancel={close} busy={busy} />
-      </form>
-    </Modal>
-  );
-}
-
-function PaymentForm({
-  invoice,
-  workspace,
-  busy,
-  close,
-  act,
-  onOpenAccounting,
-}: {
-  invoice: Invoice;
-  workspace: Workspace;
-  busy: boolean;
-  close: () => void;
-  act: ActionRunner;
-  onOpenAccounting: () => void;
-}) {
-  const [requestId] = useState(() => createId());
-  const [localError, setLocalError] = useState('');
-  const [accountingReload, setAccountingReload] = useState(0);
-  const [accountingState, setAccountingState] = useState<
-    'loading' | 'enabled' | 'disabled' | 'error'
-  >('loading');
-  const total = documentTotals(invoice.lines).totalCents;
-  const alreadyPaid = invoicePaid(invoice.id, workspace.payments);
-  const credited = invoiceCredited(invoice.id, workspace.invoices);
-  const balance = invoiceOpenBalance(
-    invoice,
-    workspace.invoices,
-    workspace.payments,
-  );
-
-  useEffect(() => {
-    let active = true;
-    setAccountingState('loading');
-    void desktopApi
-      .getAccountingSettings()
-      .then((settings) => {
-        if (active)
-          setAccountingState(settings.enabled ? 'enabled' : 'disabled');
-      })
-      .catch(() => {
-        if (active) setAccountingState('error');
-      });
-    return () => {
-      active = false;
-    };
-  }, [accountingReload]);
-
-  return (
-    <Modal
-      title="Enregistrer un paiement"
-      description={`${invoice.number || 'Facture'} · solde ouvert ${formatMoney(balance, invoice.currency)}`}
-      onClose={close}
-      dismissible={!busy}
-    >
-      <form
-        noValidate
-        onSubmit={submitForm(async (form) => {
-          if (busy || accountingState !== 'enabled') return;
-          setLocalError('');
-          const { amountCents, error } = paymentInput(String(form.get('amount') ?? ''), String(form.get('date') ?? ''), invoice.issueDate, balance);
-          if (error) { setLocalError(error); return; }
-          if (!String(form.get('method') ?? '').trim()) { setLocalError('Choisissez ou indiquez le mode de paiement.'); return; }
-          await act(
-            () =>
-              desktopApi.addPayment(invoice.id, {
-                requestId,
-                amountCents,
-                date: String(form.get('date')),
-                method: String(form.get('method')),
-                reference: String(form.get('reference')),
-                notes: String(form.get('notes')),
-              }),
-            'Le paiement est enregistré et le solde de la facture a été actualisé.',
-            true,
-            reason => setLocalError(errorMessage(reason, 'Le paiement n’a pas pu être enregistré. Les informations saisies sont conservées.')),
-          );
-        })}
-      >
-        {localError && <ErrorPanel title="Vérifions ce paiement" message={localError} reveal />}
-        {balance <= 0 && <p className="info-strip">Cette facture est déjà soldée. Aucun paiement supplémentaire n’est à enregistrer.</p>}
-        <div className="payment-summary">
-          <div>
-            <span>Total facture</span>
-            <strong>{formatMoney(total, invoice.currency)}</strong>
-          </div>
-          <div>
-            <span>Avoirs déduits</span>
-            <strong>{formatMoney(credited, invoice.currency)}</strong>
-          </div>
-          <div>
-            <span>Déjà encaissé</span>
-            <strong>{formatMoney(alreadyPaid, invoice.currency)}</strong>
-          </div>
-          <div>
-            <span>Solde</span>
-            <strong>{formatMoney(balance, invoice.currency)}</strong>
-          </div>
-        </div>
-        {accountingState === 'enabled' ? (
-          <div className="info-strip">
-            <Landmark size={17} />
-            <span>
-              Enregistrez ici l’argent déjà reçu. Le solde et la comptabilité
-              seront mis à jour ensemble. Cette action ne déclenche aucun virement.
-            </span>
-          </div>
-        ) : accountingState === 'disabled' ? (
-          <div className="warning-card">
-            <Landmark size={18} />
-            <div>
-              <strong>Comptabilité requise avant l’encaissement</strong>
-              <p>
-                Zentra ne modifiera ni le solde ni la facture sans écriture
-                comptable. Activez les liaisons; les anciennes factures seront
-                rattrapées sans doublon.
-              </p>
-              <Button
-                type="button"
-                variant="secondary"
-                size="small"
-                onClick={onOpenAccounting}
-              >
-                Configurer la comptabilité
-              </Button>
-            </div>
-          </div>
-        ) : accountingState === 'error' ? (
-          <div className="warning-card">
-            <MessageSquareWarning size={18} />
-            <div>
-              <strong>Le chargement a été interrompu</strong>
-              <p>
-                Vos informations sont conservées. Relancez la vérification pour enregistrer le paiement.
-              </p>
-              <Button type="button" variant="secondary" disabled={busy} onClick={() => setAccountingReload(value => value + 1)}>Réessayer la vérification</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="info-strip">
-            <LoaderCircle className="spin" size={17} />
-            <span>Chargement des réglages de paiement…</span>
-          </div>
-        )}
-        <fieldset disabled={busy} className="document-form"><div className="form-grid">
-          <Field label={`Montant encaissé (${invoice.currency})`} hint="Le solde est prérempli. Modifiez-le si le client n’a payé qu’une partie." required>
-            <input
-              name="amount"
-              type="number"
-              min="0.01"
-              max={balance / 100}
-              step="0.01"
-              defaultValue={(balance / 100).toFixed(2)}
-              required
-              autoFocus
-            />
-          </Field>
-          <Field label="Date de réception" required>
-            <input name="date" type="date" min={invoice.issueDate} defaultValue={todayIso()} required />
-          </Field>
-          <Field label="Mode de paiement" hint="Cette indication ne change pas le compte d’encaissement configuré." required>
-            <input name="method" list="invoice-payment-methods" maxLength={80} defaultValue="Virement bancaire" required />
-            <datalist id="invoice-payment-methods"><option value="Virement bancaire" /><option value="Carte bancaire" /><option value="TWINT" /></datalist>
-          </Field>
-          <Field label="Référence">
-            <input name="reference" maxLength={160} />
-          </Field>
-          <Field label="Note" wide>
-            <textarea name="notes" rows={2} maxLength={5000} />
-          </Field>
-        </div></fieldset>
-        <FormActions
-          onCancel={close}
-          busy={busy}
-          disabled={accountingState !== 'enabled' || balance <= 0}
-          submitLabel="Enregistrer le paiement"
-        />
       </form>
     </Modal>
   );

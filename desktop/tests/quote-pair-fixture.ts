@@ -6,6 +6,8 @@ import { documentTotals } from '../src/utils';
 import type { Invoice, Project, Quote, Workspace } from '../src/types';
 
 export function installQuotePairFixture(data: Workspace) {
+  data.accounts=[{id:'bank',code:'1020',name:'Banque de recette',active:true,accountType:'asset'} as Workspace['accounts'][number]];
+  data.accountingSettings={enabled:true,bankAccountId:'bank'} as Workspace['accountingSettings'];
   desktopApi.loadWorkspace = async () => {
     if (sessionStorage.getItem('qa-pair-block-reads') === '1') throw Error('Lecture du dossier momentanément indisponible.');
     return structuredClone(data);

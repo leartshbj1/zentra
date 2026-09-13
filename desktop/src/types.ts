@@ -774,6 +774,7 @@ export type SalesOrderInvoicePreview = {
 };
 
 export type Payment = {
+  notes?: string;
   id: Identifier;
   invoiceId: Identifier;
   date: string;

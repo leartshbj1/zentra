@@ -7951,6 +7951,34 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn payment_review_checks_current_balance_and_bank_without_changing_replay() {
+        let (_temporary, store) = initialized_store();
+        let accounts = enable_accounting(&store);
+        let client = value_id(&store.create_record("clients", test_client("Client vérification")).unwrap());
+        let invoice = value_id(&store.create_record("invoices",json!({"client_id":client,"title":"Paiement relu","service_date_from":"2026-05-01"})).unwrap());
+        store.create_record("invoice_items",json!({"invoice_id":invoice,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0})).unwrap();
+        store.issue_invoice(&invoice,Some("2026-05-01".into()),Some("2026-05-31".into())).unwrap();
+        let input=RecordPaymentInput{request_id:uuid::Uuid::new_v4().to_string(),invoice_id:invoice.clone(),amount_cents:1025,date:Some("2026-05-02".into()),method:Some("Virement".into()),reference:None,notes:None};
+        let review=crate::models::PaymentReview{balance_cents:10000,bank_account_id:accounts["bank"].clone()};
+        let connection=store.connect().unwrap();
+        let before:i64=connection.query_row("SELECT COUNT(*) FROM journal_entries",[],|row|row.get(0)).unwrap();
+        for wrong in [crate::models::PaymentReview{balance_cents:9999,..review.clone()},crate::models::PaymentReview{bank_account_id:accounts["ar"].clone(),..review.clone()}] {
+            assert!(store.record_payment_checked(input.clone(),Some(&wrong)).unwrap_err().to_string().contains("changé depuis"));
+        }
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM journal_entries",[],|row|row.get::<_,i64>(0)).unwrap(),before);
+        let first=store.record_payment_checked(input.clone(),Some(&review)).unwrap();
+        assert_eq!(first["amount_cents"],1025);
+        assert_eq!(store.record_payment_checked(input.clone(),Some(&review)).unwrap()["id"],first["id"]);
+        let second=RecordPaymentInput{request_id:uuid::Uuid::new_v4().to_string(),amount_cents:100,..input};
+        assert!(store.record_payment_checked(second.clone(),Some(&review)).unwrap_err().to_string().contains("changé depuis"));
+        let current=crate::models::PaymentReview{balance_cents:8975,..review};
+        store.record_payment_checked(second,Some(&current)).unwrap();
+        assert_eq!(connection.query_row("SELECT SUM(amount_cents) FROM payments WHERE invoice_id=?",[&invoice],|row|row.get::<_,i64>(0)).unwrap(),1125);
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM journal_entries WHERE source_type='payment'",[],|row|row.get::<_,i64>(0)).unwrap(),2);
+        assert_eq!(store.verify_audit_log().unwrap()["valid"],true);
+    }
+
+    #[test]
     fn fully_paid_invoice_is_posted_once_traceable_balanced_and_replay_safe() {
         let (_temporary, store) = initialized_store();
         let accounts = enable_accounting(&store);

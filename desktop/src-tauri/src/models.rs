@@ -219,6 +219,13 @@ fn default_true() -> bool {
     true
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all="camelCase", deny_unknown_fields)]
+pub struct PaymentReview {
+    pub balance_cents: i64,
+    pub bank_account_id: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordPaymentInput {
     /// Identifiant stable généré par l'interface avant l'appel. Une reprise avec
