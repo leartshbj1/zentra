@@ -4,6 +4,7 @@ import { normalizeRichText, richPlainText, richColor, richFont, richFontSize, do
 import { insertedTextRange, marksAtSelection, noTextMarks, paragraphStyleMarks, replaceRichSelection, richTextLimit, selectedParagraphs, setParagraphStyle, setRichMarks, typographyAtSelection, type ParagraphStyle, type TextMarks } from './richTextEditing';
 import { richTextFromClipboard } from './richTextClipboard';
 import { RichTextSearchPanel } from './RichTextSearchPanel';
+import { copyRichTextFormat } from './richTextEditing';
 
 type Mark = 'bold' | 'italic' | 'underline';
 type Bookmark = { start: number; end: number };
@@ -89,6 +90,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   const [activeMarks, setActiveMarks] = useState<TextMarks>(noTextMarks);
   const [typography, setTypography] = useState<ReturnType<typeof typographyAtSelection>>({ fontFamily: '', fontSize: '' });
   const [activeBullet, setActiveBullet] = useState(false);
+  const [copiedFormat, setCopiedFormat] = useState<TextMarks | null>(null);
   const [colorTool, setColorTool] = useState<'color' | 'highlight' | null>(null);
   const [keepPasteStyle, setKeepPasteStyle] = useState(true);
   const [search, setSearch] = useState<{ query: string; id: number } | null>(null);
@@ -218,6 +220,18 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   }
   return <div className="rich-editor">
     <div className="rich-editor__label">{label}</div>
+    <div className="rich-format-copy" role="group" aria-label="Reproduire la mise en forme" onMouseDown={e => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
+      <button type="button" disabled={disabled || !richPlainText(value).length} onClick={() => {
+        saved.current = bookmark(root.current!) || saved.current;
+        setCopiedFormat(copyRichTextFormat(current.current, saved.current));
+        setMessage('Style copié. Sélectionnez un autre passage dans ce texte, puis choisissez Appliquer le style. Si la sélection mélange plusieurs styles, celui du premier caractère est repris.');
+      }}>Copier le style</button>
+      <button type="button" disabled={disabled || !copiedFormat} onClick={() => {
+        if (!copiedFormat) return;
+        applyMarks(copiedFormat);
+        setMessage(saved.current.start === saved.current.end ? 'Le style copié est prêt pour la suite de votre saisie.' : 'Style appliqué. Annuler permet de retrouver la mise en forme précédente.');
+      }}>Appliquer le style</button>
+    </div>
     <button type="button" className="rich-editor__search-toggle" aria-expanded={!!search} onClick={() => search ? setSearch(null) : openSearch()}><Search size={17} /> Rechercher et remplacer</button>
     {search && <RichTextSearchPanel key={search.id} value={value} initialQuery={search.query} disabled={disabled} maxLength={maxLength} onSelect={selectMatch} onClose={() => { setSearch(null); selectMatch(saved.current); }} onReplace={(next, selection) => {
       if (disabled) return false;

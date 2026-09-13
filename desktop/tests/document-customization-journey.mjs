@@ -1,0 +1,94 @@
+import { createRequire } from 'node:module';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const engine = process.env.ZENTRA_QA_ENGINE || 'chromium';
+const driver = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright')[engine];
+const browser = await driver.launch({ headless:true, ...(engine === 'chromium' && process.platform === 'win32' ? { channel:'msedge' } : {}) });
+const folder = `.qa/document-customization-${engine}`;
+await mkdir(folder, { recursive:true });
+const report = [];
+try {
+  for (const [width,height] of [[320,568],[390,844],[844,390],[1440,1000]]) {
+    const page = await browser.newPage({ viewport:{width,height}, reducedMotion:'reduce' });
+    const errors=[]; page.on('pageerror', error=>errors.push(error.message));
+    await page.route('**/native-design-fixture/*.pdf', async route => {
+      const name = new URL(route.request().url()).pathname.split('/').at(-1);
+      const request = await page.evaluate(()=>JSON.parse(sessionStorage.getItem('design-request') || '{}'));
+      const path = request.style?.composition?.pageOrientation === 'landscape' ? `.qa/custom-pdfs/${request.kind}-custom.pdf` : `.qa/composition-pdfs/${name}`;
+      await route.fulfill({ contentType:'application/pdf', body:await readFile(path) });
+    });
+    await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5271'}/tests/document-design-harness.html?tools=1`);
+    const ready = () => page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({state:'attached', timeout:30000});
+    const history = page.getByRole('group',{name:'Historique de la présentation'});
+    const state = () => page.evaluate(()=>JSON.parse(sessionStorage.getItem('design-draft') || localStorage.getItem('design-settings') || '{}'));
+    const tools = async () => { const button = page.getByRole('button',{name:'Mes réglages',exact:true}); if (await button.isVisible()) await button.click(); };
+    const select = async (start,end) => page.getByRole('textbox',{name:'Conditions et message de fin',exact:true}).evaluate((element,{start,end})=>{
+      element.focus(); const nodes=[]; const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT); let node; while(node=walker.nextNode()) nodes.push(node);
+      const point = offset => { for (const node of nodes) { if(offset<=node.textContent.length) return [node,offset]; offset-=node.textContent.length; } throw Error('Selection outside text'); };
+      const range=document.createRange(); range.setStart(...point(start)); range.setEnd(...point(end)); const selection=getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
+    },{start,end});
+    await ready();
+    for(const [kind,label] of [['invoices','Factures'],['quotes','Devis'],['accounts','Bilan'],['payslips','Fiches de salaire']]) {
+      await tools(); await page.getByRole('button',{name:label,exact:true}).click();
+      await page.getByRole('button',{name:'Style',exact:true}).click();
+      await page.getByLabel('Police du titre',{exact:true}).selectOption('times');
+      await page.getByLabel('Taille du titre',{exact:true}).selectOption('30');
+      await page.getByRole('button',{name:'Mise en page',exact:true}).click();
+      await page.getByRole('button',{name:'Paysage A4 · plus de largeur',exact:true}).click();
+      await page.getByLabel('Position du logo',{exact:true}).selectOption('right');
+      await page.getByLabel('Présentation du tableau',{exact:true}).selectOption('striped');
+      const details=page.locator('details').filter({has:page.getByText('Personnaliser les couleurs du tableau',{exact:true})});
+      if(!await details.evaluate(el=>el.open)) await details.locator('summary').click();
+      for(const [label,color] of [['Fond des en-têtes et totaux','#182b49'],['Texte des en-têtes et totaux','#ffffff'],['Fond des lignes alternées','#eef3ef'],['Traits du tableau','#b3c6bb']]) await page.getByLabel(label,{exact:true}).fill(color);
+      await ready();
+      assert.equal((await state()).documentComposition[kind].pageOrientation,'landscape');
+      await history.getByRole('button',{name:'Annuler',exact:true}).click();
+      assert.equal((await state()).documentComposition[kind].tableLineColor,undefined);
+      await history.getByRole('button',{name:'Rétablir',exact:true}).click();
+      await ready();
+      await page.getByRole('button',{name:'Exporter cet exemple',exact:true}).click();
+      const exported=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('design-export')));
+      assert.equal(exported.kind,kind); assert.equal(exported.style.composition.titleFontFamily,'times'); assert.equal(exported.style.composition.tableHeaderColor,'#182b49');
+    }
+    await page.getByRole('button',{name:'Factures',exact:true}).click();
+    await page.getByRole('button',{name:'Textes',exact:true}).click();
+    const editor=page.getByRole('textbox',{name:'Conditions et message de fin',exact:true});
+    await editor.fill('Source Cible'); await select(0,6);
+    await page.getByLabel('Police du passage',{exact:true}).selectOption('times');
+    await page.getByLabel('Taille du passage',{exact:true}).selectOption('18');
+    await page.getByRole('button',{name:'Gras',exact:true}).click();
+    await page.getByRole('button',{name:'Copier le style',exact:true}).click();
+    await select(7,12); await page.getByRole('button',{name:'Appliquer le style',exact:true}).click();
+    let text=(await state()).documentComposition.invoices.closing;
+    assert.equal(text.map(p=>p.runs.map(r=>r.text).join('')).join('\n'),'Source Cible');
+    assert.deepEqual(text[0].runs.at(-1),{text:'Cible',bold:true,italic:false,underline:false,fontFamily:'times',fontSize:18});
+    await page.getByRole('button',{name:'Annuler la modification du texte',exact:true}).click();
+    assert.equal((await state()).documentComposition.invoices.closing[0].runs.at(-1).bold,false);
+    await page.getByRole('button',{name:'Rétablir la modification du texte',exact:true}).click();
+    await page.evaluate(()=>window.dispatchEvent(new CustomEvent('design-fixture-update',{detail:{busy:true}})));
+    await page.waitForFunction(()=>document.querySelector('.rich-format-copy button:last-child')?.disabled === true);
+    assert.equal(await page.getByRole('button',{name:'Appliquer le style',exact:true}).isDisabled(),true);
+    await page.evaluate(()=>window.dispatchEvent(new CustomEvent('design-fixture-update',{detail:{busy:false}})));
+    await page.waitForFunction(()=>document.querySelector('.rich-format-copy button:last-child')?.disabled === false);
+    await ready(); await history.getByRole('button',{name:'Enregistrer',exact:true}).click();
+    await page.getByText('Présentations enregistrées.',{exact:true}).waitFor();
+    await page.reload(); await ready(); await tools();
+    const saved=await state();
+    for(const kind of ['invoices','quotes','accounts','payslips']) assert.equal(saved.documentComposition[kind].pageOrientation,'landscape');
+    await page.getByRole('button',{name:'Mise en page',exact:true}).click();
+    await page.getByText('Format de la page',{exact:true}).scrollIntoViewIfNeeded();
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+    await page.screenshot({path:`${folder}/${width}-tools.png`,fullPage:true});
+    const previewSwitch=page.getByRole('button',{name:'Mon document',exact:true});
+    if(await previewSwitch.isVisible()) await previewSwitch.click();
+    await ready();
+    const dimensions=await page.locator('.design-studio__pages img').first().evaluate(img=>[img.naturalWidth,img.naturalHeight]);
+    assert.ok(dimensions[0]>dimensions[1]);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+    await page.screenshot({path:`${folder}/${width}-preview.png`,fullPage:true});
+    assert.deepEqual(errors,[]);
+    report.push({width,height,allFourCategories:true,formatPainter:true,history:true,readOnly:true,savedAndReloaded:true,exportRequest:true,noOverflow:true});
+    await page.close();
+  }
+  await writeFile(`${folder}/report.json`,JSON.stringify({engine,report},null,2)); console.log(JSON.stringify({engine,report}));
+} finally { await browser.close(); }

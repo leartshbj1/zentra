@@ -4,6 +4,18 @@ L’atelier est inclus dans la préversion Windows 1.59.0, publiée le 13 septem
 
 Dans **Paramètres → Présentation des documents**, ouvrez l’atelier de personnalisation puis choisissez **Factures**, **Devis**, **Bilan** ou **Fiches de salaire**.
 
+## Page, titres et tableaux sur mesure — ajout après 1.59.0
+
+Dans **Mise en page**, choisissez visuellement **Portrait** ou **Paysage**. Les textes et les tableaux se répartissent sur la largeur disponible ; les pages se créent automatiquement. Une section de paiement QR garde sa page A4 verticale, même si le reste de la facture est en paysage. Un titre de section ne reste pas seul en bas d’une page avec ces nouveaux formats. Le bouton **Importer ou changer mon logo** conduit directement au réglage de l’entreprise ; les choix de position et de taille restent dans l’atelier.
+
+Dans **Style → Police du titre**, choisissez une police différente du texte courant, ou **Suivre la police du document**. Les trois familles proposées sont Helvetica, Times et Courier. Les polices personnelles ou téléchargées ne sont pas importées.
+
+Ouvrez **Personnaliser les couleurs du tableau** pour régler le fond et le texte des en-têtes et totaux, le fond des lignes alternées et les traits. L’échantillon montre la combinaison choisie. **Automatique** rétablit la couleur issue de votre présentation ; le texte d’en-tête automatique adapte son contraste au fond. Le fond alterné apparaît avec le choix **Lignes alternées**. Les réglages se copient entre catégories avec **Réutiliser cette présentation** et restent annulables.
+
+Dans **Textes**, sélectionnez un passage puis choisissez **Copier le style**. Sélectionnez ensuite un autre passage dans la même zone et choisissez **Appliquer le style** : police, taille, gras, italique, soulignement, couleur et surlignage sont repris sans changer les mots. Si la source contient plusieurs styles, celui du premier caractère est utilisé. Sans sélection de destination, le style s’applique à la suite de votre saisie. **Annuler** retire cette modification en une fois.
+
+Ces ajouts sont intégrés au code, sans nouvel installateur dans ce lot. La recette `desktop/tests/document-customization-journey.mjs` contrôle les quatre catégories, la conservation des réglages, les exports et l’éditeur à 320, 390, 844 et 1 440 pixels. Les tests PDF natifs contrôlent la pagination, les valeurs imprimées, les polices, la page de paiement et l’enregistrement des réglages. Les anciens modèles sans ces options gardent leur comportement.
+
 ## Réglages précis et aperçu mobile — ajout après 1.59.0
 
 Les choix rapides restent disponibles. Pour une valeur intermédiaire, ouvrez **Style → Réglage précis de la typographie**, ou **Mise en page → Réglage précis de la page**. Déplacez un curseur ou utilisez les boutons − et +. La valeur apparaît à côté du réglage ; les menus rapides reprennent aussi la valeur choisie.

@@ -25,6 +25,12 @@ export type DocumentComposition = {
   blockSpacing?: number;
   textColor?: string;
   titleColor?: string;
+  titleFontFamily?: DocumentFont;
+  pageOrientation?: 'portrait' | 'landscape';
+  tableHeaderColor?: string;
+  tableHeaderTextColor?: string;
+  tableStripeColor?: string;
+  tableLineColor?: string;
   closingOnNewPage?: boolean;
   intro: RichText;
   closing: RichText;
@@ -74,6 +80,9 @@ export function normalizeComposition(value?: Partial<DocumentComposition>): Docu
     ...(value?.blockSpacing != null ? { blockSpacing: bounded(value.blockSpacing, .5, 2, 1) } : {}),
     ...(richColor(value?.textColor) ? { textColor: richColor(value?.textColor) } : {}),
     ...(richColor(value?.titleColor) ? { titleColor: richColor(value?.titleColor) } : {}),
+    ...(richFont(value?.titleFontFamily) ? { titleFontFamily: richFont(value?.titleFontFamily) } : {}),
+    ...(value?.pageOrientation ? { pageOrientation: choice(value.pageOrientation, ['portrait', 'landscape'] as const, 'portrait') } : {}),
+    ...Object.fromEntries((['tableHeaderColor', 'tableHeaderTextColor', 'tableStripeColor', 'tableLineColor'] as const).filter(key => richColor(value?.[key])).map(key => [key, richColor(value?.[key])])),
     ...(value?.closingOnNewPage === true ? { closingOnNewPage: true } : {}),
     intro: normalizeRichText(value?.intro), closing: normalizeRichText(value?.closing), footerText: normalizeRichText(value?.footerText),
   };

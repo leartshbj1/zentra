@@ -4,6 +4,12 @@ export type TextSelection = { start: number; end: number };
 export type TextMarks = Required<Pick<RichRun, 'bold' | 'italic' | 'underline'>> & Pick<RichRun, 'color' | 'highlight' | 'fontFamily' | 'fontSize'>;
 export const noTextMarks: TextMarks = { bold: false, italic: false, underline: false };
 
+/** Copy the first selected character's style; absent marks explicitly clear the target. */
+export function copyRichTextFormat(value: RichText, selection: TextSelection): TextMarks {
+  const source = marksAtSelection(value, selection.end > selection.start ? { start: selection.start, end: selection.start + 1 } : selection);
+  return { ...noTextMarks, color: undefined, highlight: undefined, fontFamily: undefined, fontSize: undefined, ...source };
+}
+
 export function selectedParagraphs(value: RichText, selection: TextSelection): number[] {
   let offset = 0;
   return value.flatMap((p, index) => {

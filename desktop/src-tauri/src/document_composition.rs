@@ -87,6 +87,18 @@ pub(crate) struct Composition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub title_font_family: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_orientation: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub table_header_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub table_header_text_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub table_stripe_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub table_line_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub closing_on_new_page: Option<bool>,
     pub intro: RichText,
     pub closing: RichText,
@@ -116,6 +128,12 @@ impl Default for Composition {
             block_spacing: None,
             text_color: None,
             title_color: None,
+            title_font_family: None,
+            page_orientation: None,
+            table_header_color: None,
+            table_header_text_color: None,
+            table_stripe_color: None,
+            table_line_color: None,
             closing_on_new_page: None,
             intro: vec![],
             closing: vec![],
@@ -184,7 +202,11 @@ impl Composition {
                 return Err(invalid("Choisissez un espacement parmi les valeurs proposées dans Mise en page."));
             }
         }
-        for color in [&self.text_color, &self.title_color].into_iter().flatten() {
+        if self.title_font_family.as_deref().is_some_and(|font| !["helvetica", "times", "courier"].contains(&font))
+            || self.page_orientation.as_deref().is_some_and(|orientation| !["portrait", "landscape"].contains(&orientation)) {
+            return Err(invalid("Choisissez une police de titre et un format de page parmi les options proposées."));
+        }
+        for color in [&self.text_color, &self.title_color, &self.table_header_color, &self.table_header_text_color, &self.table_stripe_color, &self.table_line_color].into_iter().flatten() {
             text_color(color)?;
         }
         for (text, limit) in [
@@ -431,6 +453,7 @@ fn draw(ops: &mut Vec<Operation>, glyphs: &[Glyph], x: f32, y: f32, size: f32, c
 
 pub(crate) struct Composer<'a> {
     pub pages: Vec<Vec<Operation>>,
+    page_sizes: Vec<[f32; 2]>,
     pub y: f32,
     pub style: &'a DocumentStyle,
     pub design: &'a Composition,
@@ -479,6 +502,7 @@ impl<'a> Composer<'a> {
         let bottom = 42. + footer_height;
         let mut result = Self {
             pages: vec![],
+            page_sizes: vec![],
             y: 0.,
             style,
             design,
@@ -500,14 +524,23 @@ impl<'a> Composer<'a> {
         self.design.margin_mm * 72. / 25.4
     }
     pub fn width(&self) -> f32 {
-        WIDTH - 2. * self.left()
+        self.page_size()[0] - 2. * self.left()
+    }
+    fn page_size(&self) -> [f32; 2] {
+        self.page_sizes.last().copied().unwrap_or([WIDTH, HEIGHT])
     }
     fn ops(&mut self) -> &mut Vec<Operation> {
         self.pages.last_mut().unwrap()
     }
     pub fn page(&mut self, first: bool) -> AppResult<()> {
+        self.page_with_format(first, false)
+    }
+    fn page_with_format(&mut self, first: bool, payment: bool) -> AppResult<()> {
+        let [page_width, page_height] = if !payment && self.design.page_orientation.as_deref() == Some("landscape") { [HEIGHT, WIDTH] } else { [WIDTH, HEIGHT] };
         self.pages.push(vec![]);
-        self.y = HEIGHT - self.design.top_margin_mm.unwrap_or(self.design.margin_mm) * 72. / 25.4;
+        self.page_sizes.push([page_width, page_height]);
+        if payment { self.payment_pages.push(self.pages.len() - 1); }
+        self.y = page_height - self.design.top_margin_mm.unwrap_or(self.design.margin_mm) * 72. / 25.4;
         if self.pages.len() > 200 {
             return Err(invalid(
                 "Le document dépasse 200 pages. Réduisez son contenu avant de l’exporter.",
@@ -515,7 +548,7 @@ impl<'a> Composer<'a> {
         }
         if self.style.layout == "signature" {
             let accent = self.style.accent();
-            rect(self.ops(), 0., HEIGHT - 6., WIDTH, 6., accent);
+            rect(self.ops(), 0., page_height - 6., page_width, 6., accent);
         }
         if first {
             if self.design.logo_position != "hidden" {
@@ -525,8 +558,8 @@ impl<'a> Composer<'a> {
                     let w = logo.width as f32 * scale;
                     let h = logo.height as f32 * scale;
                     let x = match self.design.logo_position.as_str() {
-                        "center" => (WIDTH - w) / 2.,
-                        "right" => WIDTH - self.left() - w,
+                        "center" => (page_width - w) / 2.,
+                        "right" => page_width - self.left() - w,
                         _ => self.left(),
                     };
                     let y = self.y - h;
@@ -563,6 +596,11 @@ impl<'a> Composer<'a> {
         self.y -= height * self.design.block_spacing.unwrap_or(1.);
     }
     pub fn paragraph(&mut self, text: &str, size: f32, bold: bool) -> AppResult<()> {
+        // Opted-in page layouts keep a section label with its first content line.
+        // Templates saved before this option preserve their original pagination.
+        if bold && self.design.page_orientation.is_some() && !text.trim().is_empty() {
+            self.ensure(size * self.design.line_spacing * 2.)?;
+        }
         self.aligned_paragraph(text, size, bold, "left")
     }
     pub fn company_line(&mut self, text: &str, size: f32, bold: bool) -> AppResult<()> {
@@ -596,6 +634,7 @@ impl<'a> Composer<'a> {
                 text: text.into(),
                 bold: self.design.title_bold,
                 italic: self.design.title_italic,
+                font_family: self.design.title_font_family.clone(),
                 underline: false,
                 ..Default::default()
             }],
@@ -681,7 +720,7 @@ impl<'a> Composer<'a> {
                 * size
                 * self.design.line_spacing
                 + self.design.table_padding;
-            if self.y - height < self.bottom && height < HEIGHT - self.left() - self.bottom - 70. {
+            if self.y - height < self.bottom && height < self.page_size()[1] - self.left() - self.bottom - 70. {
                 self.page(false)?;
                 self.table_row(
                     &headers.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
@@ -735,14 +774,19 @@ impl<'a> Composer<'a> {
             let top = self.y;
             let band = header && self.design.table_style == "band";
             if band || header || self.design.table_style == "striped" && index % 2 == 0 {
-                let color = if band {
-                    self.style.accent()
-                } else {
-                    self.style.pale()
-                };
+                let color = if header {
+                    self.design.table_header_color.as_deref().map(text_color).transpose()?.unwrap_or_else(|| if band { self.style.accent() } else { self.style.pale() })
+                } else { self.design.table_stripe_color.as_deref().map(text_color).transpose()?.unwrap_or_else(|| self.style.pale()) };
                 rect(self.ops(), left, top - height, width, height, color);
             }
-            let color = if band { self.style.on_accent() } else { self.body_ink() };
+            let color = if header {
+                self.design.table_header_text_color.as_deref().map(text_color).transpose()?.unwrap_or_else(|| {
+                    if let Some(background) = self.design.table_header_color.as_deref().and_then(|v| text_color(v).ok()) {
+                        let luminance: f32 = background.iter().zip([0.2126, 0.7152, 0.0722]).map(|(v, weight)| weight * if *v <= 0.04045 { *v / 12.92 } else { ((*v + 0.055) / 1.055).powf(2.4) }).sum();
+                        if luminance > 0.179 { INK } else { [1., 1., 1.] }
+                    } else if band { self.style.on_accent() } else { self.body_ink() }
+                })
+            } else { self.body_ink() };
             let mut x = left;
             for (column, (lines, f)) in wrapped.iter().zip(fractions).enumerate() {
                 for (row, (line, _, _, _)) in lines.iter().enumerate().take(end).skip(start) {
@@ -762,13 +806,14 @@ impl<'a> Composer<'a> {
                 }
                 x += width * f;
             }
+            let line_color = self.design.table_line_color.as_deref().map(text_color).transpose()?.unwrap_or([0.85, 0.87, 0.86]);
             rect(
                 self.ops(),
                 left,
                 top - height,
                 width,
                 0.4,
-                [0.85, 0.87, 0.86],
+                line_color,
             );
             self.y -= height;
             start = end;
@@ -789,10 +834,9 @@ impl<'a> Composer<'a> {
     }
     /// Payment sections have separate fonts and fixed coordinates, unaffected by the template.
     pub fn payment_page(&mut self, mut ops: Vec<Operation>) -> AppResult<()> {
-        self.page(false)?;
+        self.page_with_format(false, true)?;
         self.paragraph("Section de paiement", 14., true)?;
         self.paragraph("À utiliser avec la facture correspondante. Le montant et la référence proviennent du document figé.",9.,false)?;
-        self.payment_pages.push(self.pages.len() - 1);
         self.ops().append(&mut ops);
         Ok(())
     }
@@ -817,9 +861,10 @@ impl<'a> Composer<'a> {
         let resources = pdf.add_object(resources);
         let count = self.pages.len();
         let left = self.left();
-        let width = self.width();
         let mut kids = vec![];
         for (index, ops) in self.pages.iter_mut().enumerate() {
+            let [page_width, page_height] = self.page_sizes[index];
+            let width = page_width - 2. * left;
             let payment = self.payment_pages.contains(&index);
             let mut y = if payment {
                 330. + self
@@ -881,7 +926,7 @@ impl<'a> Composer<'a> {
                 .encode()
                 .map_err(|e| invalid(&e.to_string()))?,
             ));
-            kids.push(Object::Reference(pdf.add_object(dictionary!{"Type"=>"Page","Parent"=>pages_id,"MediaBox"=>vec![0.into(),0.into(),WIDTH.into(),HEIGHT.into()],"Resources"=>resources,"Contents"=>stream})));
+            kids.push(Object::Reference(pdf.add_object(dictionary!{"Type"=>"Page","Parent"=>pages_id,"MediaBox"=>vec![0.into(),0.into(),page_width.into(),page_height.into()],"Resources"=>resources,"Contents"=>stream})));
         }
         pdf.objects.insert(
             pages_id,

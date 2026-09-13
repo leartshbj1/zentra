@@ -1,6 +1,104 @@
 use super::*;
 use serde_json::json;
 
+#[test]
+fn document_customization_rejects_invalid_values_and_preserves_legacy_settings() {
+    let old: Composition = serde_json::from_value(json!({})).unwrap();
+    let serialized = serde_json::to_value(&old).unwrap();
+    for field in ["pageOrientation", "titleFontFamily", "tableHeaderColor", "tableHeaderTextColor", "tableStripeColor", "tableLineColor"] { assert!(serialized.get(field).is_none()); }
+    for bad in [json!({"pageOrientation":"sideways"}), json!({"titleFontFamily":"remote"}), json!({"tableHeaderColor":"white"}), json!({"tableHeaderTextColor":"#abcdefg"}), json!({"tableStripeColor":"url(x)"}), json!({"tableLineColor":"#123"})] {
+        assert!(serde_json::from_value::<Composition>(bad).unwrap().validate().is_err());
+    }
+}
+
+#[test]
+fn document_customization_landscape_paginates_and_keeps_payment_portrait() {
+    let design: Composition = serde_json::from_value(json!({"pageOrientation":"landscape","titleFontFamily":"times","titleSize":30,"tableStyle":"striped","tableHeaderColor":"#182b49","tableStripeColor":"#eef3ef","tableLineColor":"#793c32"})).unwrap();
+    let style = DocumentStyle { composition: Some(design), ..Default::default() };
+    let mut writer = Composer::new(&style, None, "Entreprise", "Document test").unwrap();
+    writer.heading("Document test").unwrap();
+    assert!(writer.pages[0].iter().any(|op| op.operator == "Tf" && op.operands[0].as_name().unwrap() == b"C5" && op.operands[1].as_float().unwrap() == 30.));
+    let rows: Vec<_> = (0..90).map(|i| (vec![format!("Prestation {i} {}", "Description détaillée ".repeat(20)), format!("{i}.00")], false)).collect();
+    writer.table(&["Description", "Montant"], &[0.8,0.2], &rows).unwrap();
+    writer.total("TOTAL", "CHF 540.50", true).unwrap();
+    let expected_qr_ops = vec![Operation::new("re", vec![0.into(),0.into(),WIDTH.into(),297.into()])];
+    writer.payment_page(expected_qr_ops.clone()).unwrap();
+    assert!(writer.pages.last().unwrap().iter().any(|op| op.operator == "re" && op.operands == expected_qr_ops[0].operands));
+    let (bytes, count) = writer.finish("Recette").unwrap();
+    assert!(count > 3);
+    let pdf = Document::load_mem(&bytes).unwrap();
+    let pages = pdf.get_pages();
+    for (number, id) in &pages {
+        let bounds = pdf.get_object(*id).unwrap().as_dict().unwrap().get(b"MediaBox").unwrap().as_array().unwrap();
+        let width = bounds[2].as_float().unwrap(); let height = bounds[3].as_float().unwrap();
+        assert_eq!([width,height], if *number as usize == count { [WIDTH,HEIGHT] } else { [HEIGHT,WIDTH] });
+        let ops = Content::decode(&pdf.get_page_content(*id).unwrap()).unwrap();
+        let (mut position, mut font, mut size) = ((0.,0.), 0usize, 9.);
+        for op in ops.operations {
+            match op.operator.as_str() {
+                "Tm" => position = (op.operands[4].as_float().unwrap(), op.operands[5].as_float().unwrap()),
+                "Tf" => { font = std::str::from_utf8(op.operands[0].as_name().unwrap()).unwrap().trim_start_matches('C').parse().unwrap(); size = op.operands[1].as_float().unwrap(); },
+                "Tj" => { let length: f32 = op.operands[0].as_str().unwrap().iter().map(|b| metrics::WIDTHS[font][*b as usize] as f32 * size / 1000.).sum(); assert!(position.0 >= 30. && position.0 + length <= width - 30.); assert!(position.1 >= 20. && position.1 <= height - 30.); },
+                _ => {}
+            }
+        }
+    }
+    let text = pdf.extract_text(&pages.keys().copied().collect::<Vec<_>>()).unwrap();
+    for i in 0..90 { assert!(text.contains(&format!("Prestation {i} "))); }
+    assert!(text.contains("540.50"));
+}
+
+#[test]
+fn document_customization_section_label_stays_with_following_text() {
+    let style = DocumentStyle { composition: Some(Composition { page_orientation: Some("landscape".into()), ..Default::default() }), ..Default::default() };
+    let mut writer = Composer::new(&style, None, "Entreprise", "Devis").unwrap();
+    writer.y = writer.bottom + style.composition.as_ref().unwrap().line_spacing * 9. * 1.5;
+    writer.paragraph("Remarques et conditions", 9., true).unwrap();
+    writer.paragraph("Paiement selon les conditions convenues.", 9., false).unwrap();
+    assert_eq!(writer.pages.len(), 2);
+    let (bytes, _) = writer.finish("Recette").unwrap();
+    let pdf = Document::load_mem(&bytes).unwrap();
+    assert!(!pdf.extract_text(&[1]).unwrap().contains("Remarques et conditions"));
+    let second = pdf.extract_text(&[2]).unwrap();
+    assert!(second.contains("Remarques et conditions") && second.contains("Paiement selon les conditions convenues."));
+}
+
+#[test]
+fn document_customization_all_four_exports_and_saved_settings_keep_new_options() {
+    use crate::database::LocalStore;
+    let temp = tempfile::tempdir().unwrap();
+    let store = LocalStore::initialize(temp.path().join("profile")).unwrap();
+    let source = temp.path().join("logo.png");
+    image::RgbImage::from_pixel(280, 64, image::Rgb([25,70,55])).save(&source).unwrap();
+    let logo = store.stage_company_logo(source.to_str().unwrap()).unwrap();
+    let issuer = json!({"company_name":"Atelier du Léman Sàrl","address_line1":"Rue du Lac 12","postal_code":"1000","city":"Lausanne","country":"CH","vat_registered":true,"uid_number":"CHE-123.456.789","vat_number":"CHE-123.456.789 TVA","logo_path":logo});
+    let composition = json!({"pageOrientation":"landscape","fontFamily":"helvetica","titleFontFamily":"times","titleSize":30,"logoPosition":"right","tableStyle":"striped","tableHeaderColor":"#182b49","tableHeaderTextColor":"#ffffff","tableStripeColor":"#eef3ef","tableLineColor":"#b3c6bb","intro":[{"runs":[{"text":"Votre document sur mesure.","bold":true}]}],"closing":[{"runs":[{"text":"Merci de votre confiance.","italic":true}]}]});
+    let mut designs = json!({});
+    for kind in ["invoices","quotes","accounts","payslips"] {
+        designs[kind] = composition.clone();
+        let bytes = store.document_design_example(kind, json!({"composition":composition}), issuer.clone()).unwrap();
+        let pdf = Document::load_mem(&bytes).unwrap();
+        let pages = pdf.get_pages();
+        let first_id = *pages.values().next().unwrap();
+        let bounds = pdf.get_object(first_id).unwrap().as_dict().unwrap().get(b"MediaBox").unwrap().as_array().unwrap();
+        assert_eq!(bounds[2].as_float().unwrap(), HEIGHT);
+        let content = Content::decode(&pdf.get_page_content(first_id).unwrap()).unwrap();
+        let text = pdf.extract_text(&pages.keys().copied().collect::<Vec<_>>()).unwrap();
+        assert!(text.contains(match kind { "accounts" => "178'000.00", "payslips" => "5'336.00", _ => "540.50" }));
+        assert!(text.contains("Votre document sur mesure."));
+        assert!(text.contains("Merci de votre confiance."));
+        assert!(content.operations.iter().any(|op| op.operator == "rg" && [0,1,2].map(|i| op.operands[i].as_float().unwrap()) == text_color("#182b49").unwrap()));
+        if let Some(directory) = std::env::var_os("ZENTRA_CUSTOM_SAMPLES") {
+            std::fs::create_dir_all(&directory).unwrap();
+            std::fs::write(std::path::Path::new(&directory).join(format!("{kind}-custom.pdf")), bytes).unwrap();
+        }
+    }
+    store.connect().unwrap().execute("INSERT INTO settings(id,onboarding_completed,company_name,noga_section,noga_division,activity_description,created_at,updated_at) VALUES(1,1,'Entreprise test','F','43','Travaux spécialisés','2026-09-13T01:00:00Z','2026-09-13T01:00:00Z')", []).unwrap();
+    let saved = store.update_settings(json!({"extra_settings_json":{"documentComposition":designs}})).unwrap();
+    let extra: serde_json::Value = serde_json::from_str(saved["extra_settings_json"].as_str().unwrap()).unwrap();
+    for kind in ["invoices","quotes","accounts","payslips"] { assert_eq!(extra["documentComposition"][kind], composition); }
+}
+
 fn printed(ops: &[Operation], needle: &str) -> (f32, f32, [f32; 3]) {
     let (mut x, mut y, mut ink) = (0., 0., INK);
     for op in ops {
