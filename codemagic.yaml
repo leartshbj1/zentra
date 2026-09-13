@@ -7,7 +7,7 @@ workflows:
       node: 22
       xcode: latest
       groups:
-        - owner_iphone
+        - owner_iphone_163
       vars:
         RUSTUP_TOOLCHAIN: stable
     scripts:
