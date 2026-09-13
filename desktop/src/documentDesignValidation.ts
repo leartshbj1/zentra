@@ -19,7 +19,7 @@ export function designExampleInput(settings: AppSettings, kind: DocumentDesignKi
   return { kind, issuer, style: { ...documentAppearance(settings.documentAppearance)[kind], ...(composition ? { composition: normalizeComposition(composition) } : {}) } };
 }
 
-/** The PDF's built-in fonts use Windows-1252. Return UTF-16 offsets for DOM selection. */
+/** Document fonts share Windows-1252 coverage. Return UTF-16 offsets for DOM selection. */
 export function unsupportedDesignCharacter(text: string, multiline = true) {
   let start = 0;
   for (const character of text) {

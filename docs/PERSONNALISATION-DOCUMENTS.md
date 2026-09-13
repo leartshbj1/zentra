@@ -1,6 +1,16 @@
 # Personnaliser les documents Zentra
 
-L’atelier et toutes les extensions décrites ci-dessous sont inclus dans la préversion Windows 1.60.0, publiée le 13 septembre 2026. Consultez [la note de livraison](RELEASE-WINDOWS-1.60.0.md) pour ses contrôles et leurs limites. Cette livraison ne comprend pas de nouveau lot macOS, iOS ou Android.
+L’atelier et les extensions marquées Windows 1.60.0 sont inclus dans cette préversion, publiée le 13 septembre 2026. L’ajout Inter et Literata décrit ci-dessous est postérieur à cette livraison et nécessite une prochaine compilation native. Consultez [la note de livraison](RELEASE-WINDOWS-1.60.0.md) pour les contrôles de la version publiée et leurs limites. Cette livraison ne comprend pas de nouveau lot macOS, iOS ou Android.
+
+## Inter et Literata — ajout après Windows 1.60.0
+
+Dans **Style → Police du document**, choisissez **Inter — nette et contemporaine** ou **Literata — élégante, style éditorial**. Un court échantillon montre la police choisie. **Police du titre** permet de combiner, par exemple, un texte Inter avec un titre Literata. Les familles Helvetica, Times et Courier restent disponibles et les présentations existantes ne changent pas automatiquement.
+
+Dans **Textes**, sélectionnez quelques mots et utilisez le menu **Police** pour leur donner une autre famille. Le gras, l’italique et le gras italique utilisent les véritables variantes de chaque police. Le collage reconnaît aussi Inter et Literata ; l’annulation, les modèles personnels et la sauvegarde conservent ces choix.
+
+Les nouvelles polices sont fournies avec l’application, fonctionnent hors ligne et sont intégrées aux PDF des quatre catégories : devis, factures, bilans et fiches de salaire. Le fichier PDF inclut uniquement les variantes utilisées. Cette extension conserve l’étendue actuelle des caractères imprimables ; elle n’ajoute pas l’import de polices personnelles ou de fichiers Word complets.
+
+Ces deux familles ne sont pas présentes dans l’installateur Windows 1.60.0 déjà publié. Sources, licences et reconstruction : [polices des documents](../desktop/assets/document-fonts/README.md). Recette : `desktop/tests/document-fonts-journey.mjs` et tests natifs `document_embedded_font_tests`.
 
 Dans **Paramètres → Présentation des documents**, ouvrez l’atelier de personnalisation puis choisissez **Factures**, **Devis**, **Bilan** ou **Fiches de salaire**.
 
@@ -14,7 +24,7 @@ Dans **Textes**, placez le curseur dans un paragraphe, ou sélectionnez plusieur
 
 Ouvrez **Espacement des paragraphes** pour choisir l’espace après le paragraphe : aucun, discret, équilibré, aéré ou très aéré. Ce réglage concerne seulement les paragraphes sélectionnés ; les marges et l’interligne du document restent réglables dans **Mise en page**. La sélection, le collage entre zones de Zentra, l’annulation et la sauvegarde conservent ces choix.
 
-Les quatre catégories utilisent ces options dans leurs PDF, y compris le pied de page. Un pied de page trop haut déclenche une explication avant l’enregistrement. Les montants restent ceux calculés par l’application. Les polices proposées restent Helvetica, Times et Courier ; les polices personnelles et les fichiers Word complets ne sont pas importés.
+Les quatre catégories utilisent ces options dans leurs PDF, y compris le pied de page. Un pied de page trop haut déclenche une explication avant l’enregistrement. Les montants restent ceux calculés par l’application. Windows 1.60.0 propose Helvetica, Times et Courier ; l’extension suivante ajoute Inter et Literata. Les polices personnelles et les fichiers Word complets ne sont pas importés.
 
 Ces ajouts sont inclus dans Windows 1.60.0. Recette : `desktop/tests/document-paragraph-journey.mjs` et tests natifs `document_composition::paragraph_tests`.
 
@@ -34,7 +44,7 @@ Recette : `desktop/tests/document-templates-journey.mjs` ; sauvegarde et génér
 
 Dans **Mise en page**, choisissez visuellement **Portrait** ou **Paysage**. Les textes et les tableaux se répartissent sur la largeur disponible ; les pages se créent automatiquement. Une section de paiement QR garde sa page A4 verticale, même si le reste de la facture est en paysage. Un titre de section ne reste pas seul en bas d’une page avec ces nouveaux formats. Le bouton **Importer ou changer mon logo** conduit directement au réglage de l’entreprise ; les choix de position et de taille restent dans l’atelier.
 
-Dans **Style → Police du titre**, choisissez une police différente du texte courant, ou **Suivre la police du document**. Les trois familles proposées sont Helvetica, Times et Courier. Les polices personnelles ou téléchargées ne sont pas importées.
+Dans **Style → Police du titre**, choisissez une police différente du texte courant, ou **Suivre la police du document**. Windows 1.60.0 propose Helvetica, Times et Courier ; Inter et Literata sont ajoutées dans l’extension décrite plus haut. Les polices personnelles ou téléchargées ne sont pas importées.
 
 Ouvrez **Personnaliser les couleurs du tableau** pour régler le fond et le texte des en-têtes et totaux, le fond des lignes alternées et les traits. L’échantillon montre la combinaison choisie. **Automatique** rétablit la couleur issue de votre présentation ; le texte d’en-tête automatique adapte son contraste au fond. Le fond alterné apparaît avec le choix **Lignes alternées**. Les réglages se copient entre catégories avec **Réutiliser cette présentation** et restent annulables.
 
@@ -80,11 +90,11 @@ La barre du haut donne accès à **Annuler**, **Rétablir**, **Aperçu** et **En
 
 Les boutons **Texte normal**, **Titre de section** et **Sous-titre** mettent en forme tout le paragraphe courant, ou les paragraphes sélectionnés. Les titres utilisent 18 points et les sous-titres 12 points ; vous pouvez ensuite ajuster chaque passage.
 
-Le collage depuis Word, Google Docs ou un autre texte de Zentra conserve les mises en forme prises en charge : gras, italique, soulignement, couleurs, surlignage, paragraphes, alignement et listes simples. Les polices sont adaptées à Helvetica, Times ou Courier et les tailles à la plage 8–24 points. Les numéros d’une liste collée deviennent du texte. Décochez **Conserver la mise en forme du texte collé** pour coller du texte seul. Les images, objets incorporés et mises en page complexes ne sont pas importés par ce collage ; le logo se règle dans **Logo**.
+Le collage depuis Word, Google Docs ou un autre texte de Zentra conserve les mises en forme prises en charge : gras, italique, soulignement, couleurs, surlignage, paragraphes, alignement et listes simples. Inter et Literata sont reconnues dans l’extension postérieure à 1.60.0 ; les autres polices sont adaptées à Helvetica, Times ou Courier. Les tailles restent dans la plage 8–24 points. Les numéros d’une liste collée deviennent du texte. Décochez **Conserver la mise en forme du texte collé** pour coller du texte seul. Les images, objets incorporés et mises en page complexes ne sont pas importés par ce collage ; le logo se règle dans **Logo**.
 
 Un collage trop long est refusé avec une explication et le texte précédent reste présent. Les limites sont de 5 000 caractères pour l’introduction et les conditions, 180 pour le pied de page mis en forme et 60 paragraphes. **Annuler** permet de retirer tout le dernier collage en une seule fois.
 
-Les polices proposées sont Helvetica, Times et Courier, avec leurs variantes en gras et en italique. La taille d’un passage va de 8 à 24 points. L’option « Du document » rétablit l’héritage des réglages généraux ; « Mixte » signale une sélection comportant différentes polices ou tailles. **Effacer la mise en forme** rétablit le texte normal du passage sélectionné. Les boutons **Annuler** et **Rétablir** permettent de revenir sur les modifications.
+Les polices proposées sont Helvetica, Times et Courier, ainsi qu’Inter et Literata dans l’extension postérieure à 1.60.0, avec leurs variantes en gras et en italique. La taille d’un passage va de 8 à 24 points. L’option « Du document » rétablit l’héritage des réglages généraux ; « Mixte » signale une sélection comportant différentes polices ou tailles. **Effacer la mise en forme** rétablit le texte normal du passage sélectionné. Les boutons **Annuler** et **Rétablir** permettent de revenir sur les modifications.
 
 Les textes de cet atelier sont des textes modèles pour la catégorie choisie. Les remarques propres au devis ou à la facture restent présentes. Les montants, références et données comptables sont calculés par l’application. Les documents émis et les fiches comptabilisées conservent leur présentation enregistrée.
 

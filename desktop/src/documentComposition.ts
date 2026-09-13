@@ -1,11 +1,19 @@
 /** Structured text only: never store HTML, executable markup or document totals here. */
-export type DocumentFont = 'helvetica' | 'times' | 'courier';
+export const documentFontIds = ['helvetica', 'times', 'courier', 'inter', 'literata'] as const;
+export type DocumentFont = typeof documentFontIds[number];
+export const documentFontChoices: { value: DocumentFont; name: string; description: string }[] = [
+  { value: 'helvetica', name: 'Helvetica', description: 'sobre et classique' },
+  { value: 'times', name: 'Times', description: 'traditionnelle' },
+  { value: 'courier', name: 'Courier', description: 'style dactylographié' },
+  { value: 'inter', name: 'Inter', description: 'nette et contemporaine' },
+  { value: 'literata', name: 'Literata', description: 'élégante, style éditorial' },
+];
 export type RichRun = { text: string; bold?: boolean; italic?: boolean; underline?: boolean; color?: string; highlight?: string; fontFamily?: DocumentFont; fontSize?: number };
 export type RichParagraph = { runs: RichRun[]; align?: 'left' | 'center' | 'right'; bullet?: boolean; numbered?: boolean; indent?: number; spaceAfter?: number };
 export type RichText = RichParagraph[];
 export type DocumentComposition = {
   version: 1;
-  fontFamily: 'helvetica' | 'times' | 'courier';
+  fontFamily: DocumentFont;
   bodySize: number;
   titleSize: number;
   titleBold: boolean;
@@ -45,7 +53,7 @@ export const defaultDocumentComposition: DocumentComposition = {
 const choice = <T extends string>(value: unknown, choices: readonly T[], fallback: T): T => choices.includes(value as T) ? value as T : fallback;
 const bounded = (value: unknown, min: number, max: number, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
 export const richColor = (value: unknown): string | undefined => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : undefined;
-export const richFont = (value: unknown): DocumentFont | undefined => ['helvetica', 'times', 'courier'].includes(value as string) ? value as DocumentFont : undefined;
+export const richFont = (value: unknown): DocumentFont | undefined => documentFontIds.includes(value as DocumentFont) ? value as DocumentFont : undefined;
 export const richFontSize = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) && value >= 8 && value <= 24 ? value : undefined;
 export function normalizeRichText(value: unknown): RichText {
   if (!Array.isArray(value)) return [];
@@ -67,7 +75,7 @@ export function normalizeRichText(value: unknown): RichText {
 }
 export function normalizeComposition(value?: Partial<DocumentComposition>): DocumentComposition {
   const d = defaultDocumentComposition;
-  return { version: 1, fontFamily: choice(value?.fontFamily, ['helvetica', 'times', 'courier'], d.fontFamily),
+  return { version: 1, fontFamily: choice(value?.fontFamily, documentFontIds, d.fontFamily),
     bodySize: bounded(value?.bodySize, 8, 12, d.bodySize), titleSize: bounded(value?.titleSize, 18, 34, d.titleSize),
     titleBold: value?.titleBold !== false, titleItalic: value?.titleItalic === true,
     titleAlign: choice(value?.titleAlign, ['left', 'center', 'right'], 'left'),
@@ -94,4 +102,4 @@ export function documentCompositions(value?: DocumentCompositions): DocumentComp
   return Object.fromEntries((['invoices', 'quotes', 'accounts', 'payslips'] as const).filter(k => value?.[k]).map(k => [k, normalizeComposition(value![k])]));
 }
 export const richPlainText = (value: RichText) => value.map(p => p.runs.map(r => r.text).join('')).join('\n');
-export const documentFontCss = { helvetica: 'Arial, Helvetica, sans-serif', times: '"Times New Roman", Times, serif', courier: '"Courier New", Courier, monospace' };
+export const documentFontCss: Record<DocumentFont, string> = { helvetica: 'Arial, Helvetica, sans-serif', times: '"Times New Roman", Times, serif', courier: '"Courier New", Courier, monospace', inter: '"Zentra Document Inter", Arial, sans-serif', literata: '"Zentra Document Literata", Georgia, serif' };

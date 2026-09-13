@@ -1,0 +1,3 @@
+# Preserve the upstream notices, including their original spacing and newlines.
+*-OFL.txt -text -whitespace
+*.ttf binary

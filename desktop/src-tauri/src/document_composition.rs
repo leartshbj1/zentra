@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 use std::{io::Write, path::Path};
 #[path = "document_font_metrics.rs"]
 mod metrics;
+#[path = "document_embedded_fonts.rs"]
+mod embedded_fonts;
+const FONT_FAMILIES: [&str; 5] = ["helvetica", "times", "courier", "inter", "literata"];
 const WIDTH: f32 = 595.276;
 const HEIGHT: f32 = 841.89;
 const INK: [f32; 3] = [0.12, 0.14, 0.15];
@@ -24,6 +27,9 @@ mod layout_tests;
 #[cfg(test)]
 #[path = "document_paragraph_tests.rs"]
 mod paragraph_tests;
+#[cfg(test)]
+#[path = "document_embedded_font_tests.rs"]
+mod embedded_font_tests;
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
@@ -182,7 +188,7 @@ fn encoded(value: &str) -> AppResult<Vec<u8>> {
 impl Composition {
     pub fn validate(&self) -> AppResult<()> {
         if self.version != 1
-            || !["helvetica", "times", "courier"].contains(&self.font_family.as_str())
+            || !FONT_FAMILIES.contains(&self.font_family.as_str())
             || !["left", "center", "right"].contains(&self.title_align.as_str())
             || !["left", "center", "right", "hidden"].contains(&self.logo_position.as_str())
             || !["band", "striped", "lines"].contains(&self.table_style.as_str())
@@ -214,7 +220,7 @@ impl Composition {
                 return Err(invalid("Choisissez un espacement parmi les valeurs proposées dans Mise en page."));
             }
         }
-        if self.title_font_family.as_deref().is_some_and(|font| !["helvetica", "times", "courier"].contains(&font))
+        if self.title_font_family.as_deref().is_some_and(|font| !FONT_FAMILIES.contains(&font))
             || self.page_orientation.as_deref().is_some_and(|orientation| !["portrait", "landscape"].contains(&orientation)) {
             return Err(invalid("Choisissez une police de titre et un format de page parmi les options proposées."));
         }
@@ -243,12 +249,12 @@ impl Composition {
                     if run
                         .font_family
                         .as_deref()
-                        .is_some_and(|font| !["helvetica", "times", "courier"].contains(&font))
+                        .is_some_and(|font| !FONT_FAMILIES.contains(&font))
                         || run
                             .font_size
                             .is_some_and(|size| !size.is_finite() || !(8. ..=24.).contains(&size))
                     {
-                        return Err(invalid("Pour ce passage, choisissez une des trois polices et une taille de 8 à 24 points."));
+                        return Err(invalid("Pour ce passage, choisissez une police de l’atelier et une taille de 8 à 24 points."));
                     }
                     for value in [&run.color, &run.highlight].into_iter().flatten() {
                         text_color(value)?;
@@ -280,6 +286,8 @@ fn font_index(family: &str, bold: bool, italic: bool) -> usize {
     (match family {
         "times" => 4,
         "courier" => 8,
+        "inter" => 12,
+        "literata" => 16,
         _ => 0,
     }) + usize::from(bold)
         + 2 * usize::from(italic)
@@ -312,8 +320,12 @@ struct Glyph {
 }
 fn measure(line: &[Glyph], size: f32) -> f32 {
     line.iter()
-        .map(|g| metrics::WIDTHS[g.font][g.byte as usize] as f32 * g.size.unwrap_or(size) / 1000.)
+        .map(|g| font_width(g.font, g.byte) * g.size.unwrap_or(size) / 1000.)
         .sum()
+}
+fn font_width(font: usize, byte: u8) -> f32 {
+    if font < 12 { metrics::WIDTHS[font][byte as usize] as f32 }
+    else { embedded_fonts::width(font, byte) }
 }
 fn line_size(line: &[Glyph], fallback: f32) -> f32 {
     line.iter().filter_map(|g| g.size).fold(fallback, f32::max)
@@ -870,6 +882,16 @@ impl<'a> Composer<'a> {
             let id=pdf.add_object(dictionary!{"Type"=>"Font","Subtype"=>"Type1","BaseFont"=>*name,"Encoding"=>"WinAnsiEncoding"});
             fonts.set(format!("C{i}"), id);
         }
+        let mut used_fonts = std::collections::BTreeSet::from([self.design.font(false, false)]);
+        for op in self.pages.iter().flatten().filter(|op| op.operator == "Tf") {
+            if let Some(name) = op.operands.first().and_then(|v| v.as_name().ok()).and_then(|v| std::str::from_utf8(v).ok()) {
+                if let Some(index) = name.strip_prefix('C').and_then(|v| v.parse::<usize>().ok()) { used_fonts.insert(index); }
+            }
+        }
+        for (line, _, marker, _, _) in &self.footer {
+            used_fonts.extend(line.iter().chain(marker).map(|glyph| glyph.font));
+        }
+        embedded_fonts::add_used(&mut pdf, &mut fonts, &used_fonts)?;
         // Original Swiss QR renderer uses F1/F2; never substitute these.
         for (key, name) in [("F1", "Helvetica"), ("F2", "Helvetica-Bold")] {
             let id=pdf.add_object(dictionary!{"Type"=>"Font","Subtype"=>"Type1","BaseFont"=>name,"Encoding"=>"WinAnsiEncoding"});
@@ -1177,7 +1199,7 @@ mod tests {
     }
     #[test]
     fn long_documents_reflow_without_losing_rows_or_crossing_the_page_edges() {
-        for family in ["helvetica", "times", "courier"] {
+        for family in FONT_FAMILIES {
             let mut style = DocumentStyle::default();
             let mut design = Composition::default();
             design.font_family = family.into();
@@ -1277,7 +1299,7 @@ mod tests {
                         let data = op.operands[0].as_str().unwrap();
                         let width = data
                             .iter()
-                            .map(|b| metrics::WIDTHS[font][*b as usize] as f32 * size / 1000.)
+                            .map(|b| font_width(font, *b) * size / 1000.)
                             .sum::<f32>();
                         assert!(
                             point.0 >= 0. && point.0 + width <= WIDTH - 30.,

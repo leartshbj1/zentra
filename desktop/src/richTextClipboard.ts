@@ -22,7 +22,13 @@ function marksFor(element: HTMLElement, inherited: Marks): Marks {
   if (css.fontStyle) marks.italic = /italic|oblique/.test(css.fontStyle);
   if (css.textDecoration || css.textDecorationLine) marks.underline = /underline/.test(css.textDecoration + css.textDecorationLine);
   const family = css.fontFamily.toLowerCase();
-  if (family) marks.fontFamily = /courier|consolas|monaco|monospace/.test(family) ? 'courier' : /times|georgia|cambria|serif/.test(family.replace(/sans-serif/g, '')) ? 'times' : 'helvetica';
+  if (family) {
+    const firstFamily = family.split(',')[0].replace(/["']/g, '').trim();
+    marks.fontFamily = /^(zentra document )?inter$/.test(firstFamily) ? 'inter'
+      : /^(zentra document )?literata$/.test(firstFamily) ? 'literata'
+      : /courier|consolas|monaco|monospace/.test(family) ? 'courier'
+      : /times|georgia|cambria|serif/.test(family.replace(/sans-serif/g, '')) ? 'times' : 'helvetica';
+  }
   const size = /^(\d+(?:\.\d+)?)(pt|px)$/.exec(css.fontSize);
   if (size) marks.fontSize = Math.max(8, Math.min(24, Math.round(Number(size[1]) * (size[2] === 'px' ? .75 : 1) * 2) / 2));
   const ownSize = Number(element.dataset.fontSize);

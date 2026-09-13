@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, ListOrdered, IndentIncrease, IndentDecrease, Undo2, Redo2, Highlighter, Baseline, RemoveFormatting, Search } from 'lucide-react';
-import { normalizeRichText, richPlainText, richColor, richFont, richFontSize, documentFontCss, type RichRun, type RichText } from './documentComposition';
+import { normalizeRichText, richPlainText, richColor, richFont, richFontSize, documentFontCss, documentFontChoices, type RichRun, type RichText } from './documentComposition';
+import './DocumentFonts.css';
 import { insertedTextRange, marksAtSelection, noTextMarks, paragraphStyleMarks, replaceRichSelection, richTextLimit, setParagraphStyle, setRichMarks, typographyAtSelection, type ParagraphStyle, type TextMarks } from './richTextEditing';
 import { richTextFromClipboard } from './richTextClipboard';
 import { RichTextSearchPanel } from './RichTextSearchPanel';
@@ -269,7 +270,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
       {([['normal', 'Texte normal'], ['heading', 'Titre de section'], ['subheading', 'Sous-titre']] as const).map(([style, title]) => <button type="button" key={style} disabled={disabled} className={`rich-editor__style--${style}`} onClick={() => paragraphStyle(style)}>{title}</button>)}
     </div>
     <div className="rich-editor__typography" role="group" aria-label={`Police et taille : ${label}`}>
-      <label>Police du passage<select aria-label="Police du passage" value={typography.fontFamily} disabled={disabled} onChange={event => applyMarks({ fontFamily: richFont(event.target.value) })}><option value="">Du document</option>{typography.fontFamily === 'mixed' && <option value="mixed" disabled>Mixte</option>}<option value="helvetica">Helvetica</option><option value="times">Times</option><option value="courier">Courier</option></select></label>
+      <label>Police du passage<select aria-label="Police du passage" value={typography.fontFamily} disabled={disabled} onChange={event => applyMarks({ fontFamily: richFont(event.target.value) })}><option value="">Du document</option>{typography.fontFamily === 'mixed' && <option value="mixed" disabled>Mixte</option>}{documentFontChoices.map(font => <option key={font.value} value={font.value}>{font.name}</option>)}</select></label>
       <label>Taille du passage<select aria-label="Taille du passage" value={typography.fontSize} disabled={disabled} onChange={event => applyMarks({ fontSize: richFontSize(Number(event.target.value)) })}><option value="">Du document</option>{typography.fontSize === 'mixed' && <option value="mixed" disabled>Mixte</option>}{[8,9,10,11,12,14,16,18,20,24].map(size => <option key={size} value={size}>{size} pt</option>)}{activeMarks.fontSize && ![8,9,10,11,12,14,16,18,20,24].includes(activeMarks.fontSize) && <option value={activeMarks.fontSize}>{activeMarks.fontSize} pt</option>}</select></label>
     </div>
     <details className="rich-editor__paragraph-options"><summary>Espacement des paragraphes</summary>
