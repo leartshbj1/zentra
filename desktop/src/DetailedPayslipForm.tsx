@@ -40,7 +40,7 @@ import {
   isPayrollCalculationCurrent,
   payrollCalculationFingerprint,
 } from './payrollCalculationFingerprint';
-import { assessSwissPayrollEligibility } from './payrollEligibility';
+import { assessPayrollForDisplay, payrollEligibilityText } from './payrollEligibilityLanguage';
 import {
   smallSalaryReasonLabel,
   smallSalarySectorLabel,
@@ -436,7 +436,7 @@ export function DetailedPayslipForm({
   }, [currentCalculationFingerprint]);
   const eligibility = useMemo(
     () =>
-      assessSwissPayrollEligibility({
+      assessPayrollForDisplay({
         employee: workspace.employees.find(
           (employee) => employee.id === employeeId,
         ),
@@ -2021,6 +2021,7 @@ export function DetailedPayslipForm({
                   }
                   onFix={fixPayroll}
                   disabled={busy || calculating}
+                  renderMessage={(message) => payrollEligibilityText(eligibility, message)}
                 />
               </div>
             ) : null}
@@ -2029,7 +2030,7 @@ export function DetailedPayslipForm({
                 <summary>{t("Points à vérifier · ")}{eligibility.warnings.length}
                 </summary>
                 {eligibility.warnings.map((message) => (
-                  <p key={message}>{message}</p>
+                  <p key={message}>{payrollEligibilityText(eligibility, message)}</p>
                 ))}
               </details>
             ) : null}
@@ -2046,8 +2047,8 @@ export function DetailedPayslipForm({
                 <div className="payroll-eligibility__facts">
                   {eligibility.facts.map((fact) => (
                     <div className={`is-${fact.tone}`} key={fact.label}>
-                      <span>{fact.label}</span>
-                      <strong>{fact.value}</strong>
+                      <span>{t(fact.label)}</span>
+                      <strong>{payrollEligibilityText(eligibility, fact.value)}</strong>
                     </div>
                   ))}
                 </div>
@@ -2055,7 +2056,7 @@ export function DetailedPayslipForm({
                   <div className="payroll-eligibility__issues is-blocking">
                     <strong>{t("Validation bloquée")}</strong>
                     {eligibility.blockers.map((message) => (
-                      <p key={message}>{message}</p>
+                      <p key={message}>{payrollEligibilityText(eligibility, message)}</p>
                     ))}
                   </div>
                 ) : null}
@@ -2063,7 +2064,7 @@ export function DetailedPayslipForm({
                   <div className="payroll-eligibility__issues">
                     <strong>{t("À confirmer")}</strong>
                     {eligibility.warnings.map((message) => (
-                      <p key={message}>{message}</p>
+                      <p key={message}>{payrollEligibilityText(eligibility, message)}</p>
                     ))}
                   </div>
                 ) : null}

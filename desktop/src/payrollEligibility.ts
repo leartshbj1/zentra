@@ -1,3 +1,4 @@
+import { payrollMessage, payrollText, type PayrollPresentationRegistry } from './payrollPresentation';
 import type {
   AppSettings,
   ContributionCategory,
@@ -104,13 +105,6 @@ function addCalendarMonths(value: string, months: number): string | null {
     .padStart(2, '0')}-${targetDay.toString().padStart(2, '0')}`;
 }
 
-function formatChf(cents: number): string {
-  return (cents / 100).toLocaleString('fr-CH', {
-    style: 'currency',
-    currency: 'CHF',
-  });
-}
-
 /**
  * Précontrôle explicatif du régime des salaires de minime importance. Il ne
  * remplace jamais la décision transactionnelle du moteur Rust, qui recalcule
@@ -125,7 +119,7 @@ export function assessSwissSmallSalaryEligibility(input: {
   avsDefinitionsSelected: boolean;
   statutoryAvsLiable: boolean | null;
   retiredAllowanceKept: boolean;
-}): SwissSmallSalaryUiAssessment {
+}, presentations?: PayrollPresentationRegistry): SwissSmallSalaryUiAssessment {
   const { employee } = input;
   const blockers: string[] = [];
   const warnings: string[] = [];
@@ -178,7 +172,7 @@ export function assessSwissSmallSalaryEligibility(input: {
     blockers.push('L’année d’évaluation des petits salaires est invalide.');
   if (input.assessmentYear !== null && year !== input.assessmentYear)
     blockers.push(
-      `La décision des petits salaires concerne ${year}; confirmez-la pour ${input.assessmentYear} avant de valider cette période.`,
+      payrollMessage(presentations, "La décision des petits salaires concerne {v0}; confirmez-la pour {v1} avant de valider cette période.", { v0: year, v1: input.assessmentYear }),
     );
   if (
     !isRealIsoDate(employee.smallSalaryDecisionDate) ||
@@ -241,7 +235,7 @@ export function assessSwissSmallSalaryEligibility(input: {
     decision = 'Cotisations dès le premier franc · ménage privé';
   } else if (cumulativeGrossCents > thresholdCents) {
     contributionsDue = true;
-    decision = `Seuil annuel de ${formatChf(thresholdCents)} dépassé`;
+    decision = payrollMessage(presentations, "Seuil annuel de {v0} dépassé", { v0: { kind: 'money', cents: thresholdCents } });
     if (
       openingGrossCents + recordedGrossBeforePeriodCents <=
       thresholdCents
@@ -251,13 +245,13 @@ export function assessSwissSmallSalaryEligibility(input: {
       );
   } else if (requestEffective) {
     contributionsDue = true;
-    decision = `Cotisations demandées dès le ${employee.smallSalaryDecisionDate}`;
+    decision = payrollMessage(presentations, "Cotisations demandées dès le {v0}", { v0: employee.smallSalaryDecisionDate });
   } else {
     decision = requested
-      ? `Demande enregistrée, effective dès le ${employee.smallSalaryDecisionDate}`
+      ? payrollMessage(presentations, "Demande enregistrée, effective dès le {v0}", { v0: employee.smallSalaryDecisionDate })
       : householdYouthYear
-        ? `Dispense ménage privé jusqu’au 31 décembre suivant le 25e anniversaire, sous ${formatChf(thresholdCents)}`
-        : `Dispense ordinaire sous ${formatChf(thresholdCents)}`;
+        ? payrollMessage(presentations, "Dispense ménage privé jusqu’au 31 décembre suivant le 25e anniversaire, sous {v0}", { v0: { kind: 'money', cents: thresholdCents } })
+        : payrollMessage(presentations, "Dispense ordinaire sous {v0}", { v0: { kind: 'money', cents: thresholdCents } });
   }
 
   if (
@@ -275,7 +269,7 @@ export function assessSwissSmallSalaryEligibility(input: {
     );
   if (openingContributedBasisCents > 0 && !requested)
     warnings.push(
-      `Une base d’ouverture de ${formatChf(openingContributedBasisCents)} est déjà cotisée. Ces cotisations ne sont pas remboursables; contrôlez la décision conservée dans la preuve.`,
+      payrollMessage(presentations, "Une base d’ouverture de {v0} est déjà cotisée. Ces cotisations ne sont pas remboursables; contrôlez la décision conservée dans la preuve.", { v0: { kind: 'money', cents: openingContributedBasisCents } }),
     );
 
   return {
@@ -285,7 +279,7 @@ export function assessSwissSmallSalaryEligibility(input: {
     thresholdCents,
     cumulativeGrossCents,
     contributionsDue,
-    decision: `${smallSalarySectorLabel(sector)} · ${decision} · ${employee.smallSalaryDecisionDate}`,
+    decision: payrollMessage(presentations, '{v0} · {v1} · {v2}', { v0: { source: smallSalarySectorLabel(sector) }, v1: payrollText(presentations, decision), v2: employee.smallSalaryDecisionDate }),
   };
 }
 
@@ -302,7 +296,7 @@ export function assessSwissLppEligibility(input: {
   contributionDate?: string;
   definitions: PayrollContributionDefinition[];
   selectedIds: ReadonlySet<string>;
-}): SwissLppUiAssessment {
+}, presentations?: PayrollPresentationRegistry): SwissLppUiAssessment {
   const employee = input.employee;
   const definitions = input.definitions;
   const [year, month] = input.period.split('-').map(Number);
@@ -409,7 +403,7 @@ export function assessSwissLppEligibility(input: {
         contributionDate > plan.effectiveTo
       )
         blockers.push(
-          `La date réglementaire ${contributionDate} sort de la fenêtre du règlement LPP ${plan.contractNumber} (${plan.effectiveFrom} à ${plan.effectiveTo}).`,
+          payrollMessage(presentations, "La date réglementaire {v0} sort de la fenêtre du règlement LPP {v1} ({v2} à {v3}).", { v0: contributionDate, v1: plan.contractNumber, v2: plan.effectiveFrom, v3: plan.effectiveTo }),
         );
       if (
         selected.some(
@@ -503,9 +497,9 @@ export function assessSwissLppEligibility(input: {
   }
   if (assessmentYear !== year) {
     blockers.push(
-      `L’évaluation salariale LPP du collaborateur porte sur ${assessmentYear}; confirmez-la pour ${year}.`,
+      payrollMessage(presentations, "L’évaluation salariale LPP du collaborateur porte sur {v0}; confirmez-la pour {v1}.", { v0: assessmentYear, v1: year }),
     );
-    return result(`Évaluation ${year} requise`, 'warning');
+    return result(payrollMessage(presentations, "Évaluation {v0} requise", { v0: year }), 'warning');
   }
   if (annualSalaryCents <= SWISS_LPP_ENTRY_THRESHOLD_CENTS_2026) {
     validatePlanAndDefinitions('none', null);
@@ -633,6 +627,7 @@ export function assessSwissFederalProfile(
   selectedIds: ReadonlySet<string> = new Set(
     definitions.filter((item) => item.active).map((item) => item.id),
   ),
+  presentations?: PayrollPresentationRegistry,
 ): SwissFederalProfileAssessment {
   const selected = definitions.filter(
     (item) => item.active && selectedIds.has(item.id),
@@ -657,7 +652,7 @@ export function assessSwissFederalProfile(
       if (!valid) {
         complete = false;
         issues.push(
-          `${code} manque ou ne correspond pas au taux, à la part ou au plafond officiel 2026.`,
+          payrollMessage(presentations, "{v0} manque ou ne correspond pas au taux, à la part ou au plafond officiel 2026.", { v0: code }),
         );
       }
     }
@@ -671,7 +666,7 @@ export function assessSwissFederalProfile(
       if (actualTotal !== expectedTotal) {
         complete = false;
         issues.push(
-          `${category === 'ac' ? 'AC' : 'AVS/AI/APG'} ${side === 'employee' ? 'employé' : 'employeur'} totalise ${(actualTotal / 100).toLocaleString('fr-CH')} % au lieu de ${(expectedTotal / 100).toLocaleString('fr-CH')} %.`,
+          payrollMessage(presentations, "{v0} {v1} totalise {v2} % au lieu de {v3} %.", { v0: category === 'ac' ? { source: "AC" } : { source: "AVS/AI/APG" }, v1: side === 'employee' ? { source: "employé" } : { source: "employeur" }, v2: { kind: 'number', value: (actualTotal / 100) }, v3: { kind: 'number', value: (expectedTotal / 100) } }),
         );
       }
     }
@@ -709,7 +704,7 @@ export function assessSwissPayrollEligibility(input: {
   definitions: PayrollContributionDefinition[];
   selectedIds: Set<string>;
   referenceAgeOverride?: RetirementReferenceOverride | null;
-}): PayrollEligibilityAssessment {
+}, presentations?: PayrollPresentationRegistry): PayrollEligibilityAssessment {
   const { employee, settings, period, definitions, selectedIds } = input;
   if (!employee)
     return {
@@ -738,7 +733,7 @@ export function assessSwissPayrollEligibility(input: {
   );
   const has = (category: ContributionCategory) =>
     selectedCategories.has(category);
-  const federalProfile = assessSwissFederalProfile(definitions, selectedIds);
+  const federalProfile = assessSwissFederalProfile(definitions, selectedIds, presentations);
   const blockers: string[] = [];
   const warnings: string[] = [];
   const lpp = assessSwissLppEligibility({
@@ -748,7 +743,7 @@ export function assessSwissPayrollEligibility(input: {
     contributionDate: input.contributionDate,
     definitions,
     selectedIds,
-  });
+  }, presentations);
 
   const birthDateValid = isRealIsoDate(employee.birthDate);
   const birthYear = birthDateValid ? employee.birthDate.slice(0, 4) : null;
@@ -789,7 +784,7 @@ export function assessSwissPayrollEligibility(input: {
     statutoryAvsLiable: avsLiable,
     retiredAllowanceKept:
       referenceAgeReached === true && employee.avsAllowanceWaived === false,
-  });
+  }, presentations);
   const avsContributionsMayBeDue = smallSalary.contributionsDue !== false;
 
   if (!periodValid)
@@ -898,7 +893,7 @@ export function assessSwissPayrollEligibility(input: {
       !laaMinorSalaryException.confirmedAllEmployeesOnlyMinorSalaries
     )
       blockers.push(
-        `L’exception LAA des petits salaires doit être confirmée pour ${periodValid ? year : 'l’année de la période'}, avec une preuve et l’attestation portant sur tous les salariés concernés pendant l’année.`,
+        payrollMessage(presentations, "L’exception LAA des petits salaires doit être confirmée pour {v0}, avec une preuve et l’attestation portant sur tous les salariés concernés pendant l’année.", { v0: periodValid ? year : { source: "l’année de la période" } }),
       );
     if (employee.smallSalarySector !== 'ordinary')
       blockers.push(
@@ -938,7 +933,7 @@ export function assessSwissPayrollEligibility(input: {
   );
   for (const category of invalidLaaCategories)
     blockers.push(
-      `${category.toUpperCase()} doit utiliser le taux positif de la police LAA, une assiette salaire AVS ou personnalisée documentée, sa source et le plafond fédéral 2026 de CHF 148’200.`,
+      payrollMessage(presentations, "{v0} doit utiliser le taux positif de la police LAA, une assiette salaire AVS ou personnalisée documentée, sa source et le plafond fédéral 2026 de CHF 148’200.", { v0: { source: category.toUpperCase() } }),
     );
 
   const familyAllowanceDefinitions = selectedDefinitions.filter(
@@ -994,7 +989,7 @@ export function assessSwissPayrollEligibility(input: {
           (evidence.effectiveTo && periodDate > evidence.effectiveTo))
       )
         blockers.push(
-          `La convention de prise en charge AANP employeur ne couvre pas la période ${period}.`,
+          payrollMessage(presentations, "La convention de prise en charge AANP employeur ne couvre pas la période {v0}.", { v0: period }),
         );
       if (
         aanpEmployerDefinitions.some(
@@ -1039,7 +1034,7 @@ export function assessSwissPayrollEligibility(input: {
       employee.acOpeningBasisCents == null)
   )
     blockers.push(
-      `Confirmez sur la fiche collaborateur la base d’ouverture AC ${periodValid ? year : 'de l’année'} (zéro compris); Zentra ajoutera automatiquement les bases des fiches antérieures.`,
+      payrollMessage(presentations, "Confirmez sur la fiche collaborateur la base d’ouverture AC {v0} (zéro compris); Zentra ajoutera automatiquement les bases des fiches antérieures.", { v0: periodValid ? year : { source: "de l’année" } }),
     );
   return {
     blockers: [...new Set(blockers)],
@@ -1048,7 +1043,7 @@ export function assessSwissPayrollEligibility(input: {
     facts: [
       {
         label: 'Âge à la période',
-        value: age === null ? 'Date de naissance manquante' : `${age} ans`,
+        value: age === null ? 'Date de naissance manquante' : payrollMessage(presentations, "{v0} ans", { v0: age }),
         tone: age === null ? 'warning' : 'ok',
       },
       {
@@ -1092,7 +1087,7 @@ export function assessSwissPayrollEligibility(input: {
         value:
           smallSalary.cumulativeGrossCents === null
             ? 'Décision annuelle manquante'
-            : formatChf(smallSalary.cumulativeGrossCents),
+            : payrollMessage(presentations, '{v0}', { v0: { kind: 'money', cents: smallSalary.cumulativeGrossCents } }),
         tone:
           smallSalary.cumulativeGrossCents === null ? 'warning' : 'neutral',
       },
@@ -1101,7 +1096,7 @@ export function assessSwissPayrollEligibility(input: {
         value:
           employee.smallSalaryOpeningContributedBasisCents == null
             ? 'À confirmer'
-            : formatChf(employee.smallSalaryOpeningContributedBasisCents),
+            : payrollMessage(presentations, '{v0}', { v0: { kind: 'money', cents: employee.smallSalaryOpeningContributedBasisCents } }),
         tone:
           employee.smallSalaryOpeningContributedBasisCents == null
             ? 'warning'
@@ -1111,21 +1106,21 @@ export function assessSwissPayrollEligibility(input: {
         label: 'Exception LAA entreprise',
         value: laaMinorSalaryException?.enabled
           ? laaMinorSalaryExceptionSubmissionConfigured
-            ? `Attestation ${laaMinorSalaryException.assessmentYear} saisie · contrôle global au moment de valider`
+            ? payrollMessage(presentations, "Attestation {v0} saisie · contrôle global au moment de valider", { v0: String(laaMinorSalaryException.assessmentYear) })
             : 'Configuration incomplète'
           : 'Non activée',
         tone: laaMinorSalaryException?.enabled ? 'warning' : 'neutral',
       },
       {
         label: 'Horaire contractuel',
-        value: weeklyHours === null ? 'Non renseigné' : `${weeklyHours.toLocaleString('fr-CH', { maximumFractionDigits: 2 })} h/semaine`,
+        value: weeklyHours === null ? 'Non renseigné' : payrollMessage(presentations, "{v0} h/semaine", { v0: { kind: 'number', value: weeklyHours, maximumFractionDigits: 2 } }),
         tone: weeklyHours === null ? 'warning' : weeklyHours >= 8 ? 'ok' : 'neutral',
       },
       {
         label: 'Ouverture AC',
         value:
           employee.acOpeningYear === year && employee.acOpeningBasisCents != null
-            ? `${(employee.acOpeningBasisCents / 100).toLocaleString('fr-CH', { style: 'currency', currency: 'CHF' })} · ${year}`
+            ? payrollMessage(presentations, '{v0} · {v1}', { v0: { kind: 'money', cents: employee.acOpeningBasisCents }, v1: year })
             : 'À confirmer pour la période',
         tone:
           employee.acOpeningYear === year && employee.acOpeningBasisCents != null
@@ -1142,7 +1137,7 @@ export function assessSwissPayrollEligibility(input: {
         value:
           lpp.annualSalaryCents === null
             ? 'À confirmer sur la fiche'
-            : formatChf(lpp.annualSalaryCents),
+            : payrollMessage(presentations, '{v0}', { v0: { kind: 'money', cents: lpp.annualSalaryCents } }),
         tone: lpp.annualSalaryCents === null ? 'warning' : 'ok',
       },
       {
@@ -1150,7 +1145,7 @@ export function assessSwissPayrollEligibility(input: {
         value:
           lpp.coordinatedAnnualSalaryCents === null
             ? 'Non applicable au statut actuel'
-            : formatChf(lpp.coordinatedAnnualSalaryCents),
+            : payrollMessage(presentations, '{v0}', { v0: { kind: 'money', cents: lpp.coordinatedAnnualSalaryCents } }),
         tone:
           lpp.coordinatedAnnualSalaryCents === null ? 'neutral' : 'ok',
       },

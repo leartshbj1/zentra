@@ -8,11 +8,13 @@ export function PayrollProblem({
   onFix,
   disabled = false,
   reveal = false,
+  renderMessage,
 }: {
   messages: string[];
   onFix?: (target: PayrollHelpTarget, selector?: string) => void;
   disabled?: boolean;
   reveal?: boolean;
+  renderMessage?: (message: string) => string;
 }) {
   useAppLanguage();
   const container = useRef<HTMLDivElement>(null);
@@ -46,7 +48,7 @@ export function PayrollProblem({
       <details>
         <summary>{t("Voir le message détaillé")}</summary>
         {help.messages.map((message) => (
-          <p key={message}>{message}</p>
+          <p key={message}>{renderMessage ? renderMessage(message) : message}</p>
         ))}
       </details>
     </section>

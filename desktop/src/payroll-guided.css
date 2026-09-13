@@ -34,6 +34,15 @@
 .payroll-details[open] > summary { margin-bottom: 12px; border-bottom: 1px solid #e5e9e9; }
 .payroll-details > :last-child { margin-bottom: 18px; }
 .payroll-wizard .payroll-selection, .payroll-wizard .payroll-eligibility, .payroll-wizard .pay-lines { margin: 16px 0; }
+.payroll-wizard .payroll-eligibility__facts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+.payroll-wizard .payroll-eligibility__facts :is(span, strong) { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.5; }
+.payroll-wizard .payroll-eligibility__facts span { font-size: 12px; }
+.payroll-wizard .payroll-eligibility__facts strong { font-size: 14px; }
+.payroll-wizard .payroll-eligibility > header > div { min-width: 0; }
+.payroll-wizard .payroll-eligibility > header svg { flex-shrink: 0; }
+.payroll-wizard .payroll-eligibility > header strong, .payroll-wizard .payroll-eligibility__issues > strong { font-size: 14px; }
+.payroll-wizard .payroll-eligibility > header small, .payroll-wizard .payroll-eligibility__issues p { font-size: 13px; line-height: 1.6; }
+.payroll-wizard .payroll-eligibility, .payroll-wizard .payroll-details > p { overflow-wrap: anywhere; }
 .payroll-wizard .payroll-net { display: grid; gap: 8px; background: #edf4f3; text-align: center; }
 .payroll-net > strong { color: #204d55; font-size: clamp(30px,6vw,44px); letter-spacing: -.04em; overflow-wrap: anywhere; }
 .payroll-net > span { font-size: 14px; color: #425b60; }
