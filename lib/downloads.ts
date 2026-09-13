@@ -1,9 +1,9 @@
 export const ZENTRA_VERSION = '1.46.1';
 // Published separately until the exact installation and cross-platform checks pass.
-export const ZENTRA_WINDOWS_PREVIEW_VERSION = '1.60.0';
+export const ZENTRA_WINDOWS_PREVIEW_VERSION = '1.61.0';
 export const ZENTRA_WINDOWS_PREVIEW_NAME = `Zentra_${ZENTRA_WINDOWS_PREVIEW_VERSION}_x64-setup.exe`;
 export const ZENTRA_WINDOWS_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_WINDOWS_PREVIEW_VERSION}/${ZENTRA_WINDOWS_PREVIEW_NAME}`;
-export const ZENTRA_WINDOWS_PREVIEW_SHA256 = '43D1BD6575B4272AA09FB89E0DACF035900A7C2F33D489513916D571FD72F626';
+export const ZENTRA_WINDOWS_PREVIEW_SHA256 = '94FA0E1A35E12A7A246DBA5750F3B0E9BDAF13232D3FA621DBE5AD3A1822005F';
 export const ZENTRA_GITHUB_RELEASE_PATH = `https://github.com/leartshbj1/zentra/releases/tag/v${ZENTRA_VERSION}`;
 export const ZENTRA_ANDROID_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_VERSION}/Zentra-${ZENTRA_VERSION}-Android-arm64-test.apk`;
 export const ZENTRA_IPHONE_IPA_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_VERSION}/Zentra-${ZENTRA_VERSION}-iPhone-unsigned.ipa`;
