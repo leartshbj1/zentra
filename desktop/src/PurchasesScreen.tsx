@@ -165,34 +165,11 @@ export function PurchasesScreen({
 export { supplierInvoiceLineTotals } from './supplierInvoicePreparation';
 export type { SupplierInvoiceDraftLine } from './supplierInvoicePreparation';
 
-function supplierPaymentMethodLabel(method: string): string {
-  return ({ bank_transfer: 'Virement bancaire', card: 'Carte', cash: 'Espèces', other: 'Autre' } as Record<string, string>)[method] ?? method;
-}
-
 export function SupplierInvoiceForm(props: { item?: SupplierInvoice; initialTarget?: 'reference' | 'attachments'; workspace: Workspace; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner }) {
   return <SupplierInvoicePreparation {...props} renderAttachments={(invoice, canEdit, busy, onPending) => <SupplierInvoiceAttachments invoice={invoice} canEdit={canEdit} busy={busy} act={props.act} onPending={onPending} />} />;
 }
 
-export function SupplierInvoiceDetail({ invoice, workspace, busy, close, onPayment }: { invoice: SupplierInvoice; workspace: Workspace; busy: boolean; close: () => void; onPayment: () => void }) {
-  const terminology = projectTerminology(workspace.settings!.business.nogaSection);
-  const currentInvoice = workspace.supplierInvoices.find((candidate) => candidate.id === invoice.id) ?? invoice;
-  const project = workspace.projects.find((candidate) => candidate.id === currentInvoice.projectId);
-  const paymentReady = Boolean(workspace.accountingSettings?.enabled && workspace.accountingSettings.bankAccountId);
-  return <Modal title={`Facture fournisseur ${currentInvoice.reference || 'sans référence'}`} description="Document validé, justificatifs et historique des règlements conservés localement." onClose={close} wide>
-    <div className="supplier-document-summary">
-      <div><span>Fournisseur</span><strong>{currentInvoice.supplierName}</strong></div>
-      <div><span>Date</span><strong>{formatDate(currentInvoice.documentDate)}</strong></div>
-      <div><span>Échéance</span><strong>{formatDate(currentInvoice.dueDate)}</strong></div>
-      <div><span>{terminology.singularTitle}</span><strong>{project?.name || `Aucun ${terminology.singular}`}</strong></div>
-    </div>
-    <div className="table-panel supplier-document-lines"><table><thead><tr><th>Description</th><th>Qté</th><th>Catégorie</th><th>Net</th><th>TVA</th><th>TTC</th></tr></thead><tbody>{currentInvoice.lines.map((line) => <tr key={line.id}><td><strong>{line.description}</strong><small>{line.unit}</small></td><td>{(line.quantityMilli / 1_000).toLocaleString('fr-CH')}</td><td>{line.category}</td><td>{formatMoney(line.netCents)}</td><td>{formatMoney(line.vatCents)}</td><td><strong>{formatMoney(line.totalCents)}</strong></td></tr>)}</tbody></table></div>
-    <div className="supplier-invoice-total"><div><span>Total</span><strong>{formatMoney(currentInvoice.totalCents)}</strong></div><div><span>Déjà payé</span><strong>{formatMoney(currentInvoice.paidCents)}</strong></div><div><span>Solde</span><strong>{formatMoney(currentInvoice.balanceCents)}</strong></div></div>
-    <SupplierInvoiceAttachments invoice={currentInvoice} canEdit={false} busy={busy} />
-    <section className="supplier-payment-history"><header><strong>Historique des paiements</strong>{currentInvoice.paymentStatus !== 'paid' ? <Button size="small" disabled={!paymentReady} title={paymentReady ? 'Enregistrer un règlement local' : 'Configurez le compte bancaire dans Plan & liaisons'} onClick={onPayment}><Banknote size={14} /> Enregistrer un paiement</Button> : <StatusBadge status="paid" />}</header>{currentInvoice.payments.length ? <div>{currentInvoice.payments.map((payment) => <article key={payment.id}><div><strong>{formatMoney(payment.amountCents)}</strong><span>{formatDate(payment.date)}</span></div><small>{[supplierPaymentMethodLabel(payment.method), payment.reference].filter(Boolean).join(' · ') || 'Sans détail de paiement'}</small>{payment.notes ? <p>{payment.notes}</p> : null}</article>)}</div> : <EmptyState icon={<Banknote size={22} />} title="Aucun paiement" text="Le premier règlement apparaîtra ici avec sa date et sa référence." />}</section>
-    {currentInvoice.note ? <div className="info-strip"><ReceiptText size={17} /><span>{currentInvoice.note}</span></div> : null}
-    <div className="form-actions"><Button type="button" variant="secondary" onClick={close}>Fermer</Button></div>
-  </Modal>;
-}
+export { SupplierInvoiceDetail } from './SupplierInvoiceDetail';
 
 export { SupplierPaymentForm } from './SupplierPaymentForm';
 

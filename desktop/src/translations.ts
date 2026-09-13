@@ -11,9 +11,11 @@ import { tourTranslations } from './translationsTour';
 import { employeeTranslations } from './translationsEmployees';
 import { purchaseTranslations } from './translationsPurchases';
 import { supplierPaymentTranslations } from './translationsSupplierPayments';
+import { supplierDetailTranslations } from './translationsSupplierDetail';
 export const translations: Record<string, readonly [string, string, string]> = {
   ...purchaseTranslations,
   ...supplierPaymentTranslations,
+  ...supplierDetailTranslations,
   ...connectionTranslations,
   ...guidanceTranslations,
   ...payrollTranslations,

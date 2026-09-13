@@ -378,7 +378,7 @@ type ModalState = (
   | { type: 'expense'; item?: Expense }
   | { type: 'legacyExpenseDetail'; expense: Expense }
   | { type: 'supplierInvoice'; item?: SupplierInvoice; initialTarget?: 'reference' | 'attachments' }
-  | { type: 'supplierInvoiceDetail'; invoice: SupplierInvoice }
+  | { type: 'supplierInvoiceDetail'; invoice: SupplierInvoice; initialSection?: number }
   | { type: 'supplierPayment'; invoice: SupplierInvoice; resume?: SupplierPaymentResume }
   | { type: 'payslip'; item?: Payslip; initialEmployeeId?: string; initialPeriod?: string; initialPaymentDate?: string }
   | { type: 'payrollImport' }
@@ -506,6 +506,7 @@ export function WorkspaceApp({
   );
   const [orderToOpenId, setOrderToOpenId] = useState<string | null>(null);
   const [supplierCreditToOpenId,setSupplierCreditToOpenId]=useState<string|null>(null);
+  const [supplierFileReturnId, setSupplierFileReturnId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   useCloudBackupBackground((message) => setNotice({ tone: 'error', text: message }));
   function openExpenseSource(expenseId: string) {
@@ -1831,6 +1832,7 @@ export function WorkspaceApp({
         <ProjectFileActivity key={cloudAccount?.organizationId ?? 'local'} sessions={projectFileSessions} disabled={busy || readOnly} projects={workspace.projects} currentProjectId={view === 'projects' ? projectFolderId : null} onOpen={id => { setProjectFolderId(id); setView('projects'); setSearch(''); }} />
         {invoiceIssueReturnId && !invoiceToIssueId && <div className="invoice-issue-resume" role="region" aria-label={t("Reprendre la facture")}><span>{t("Votre facture reste disponible. Après les corrections, reprenez sa vérification avant de l’émettre.")}</span><Button disabled={busy} onClick={() => { const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceIssueReturnId); if (invoice) { setView('invoices'); setSearch(''); setModal(invoice.quoteId ? { type: 'quoteInvoiceFolder', quoteId: invoice.quoteId } : null); setInvoiceToIssueId(invoice.id); } else setNotice({ tone: 'error', text: 'Cette facture n’est plus disponible. Actualisez la liste des factures.' }); }}>{t("Reprendre la facture")}</Button><Button variant="ghost" disabled={busy} onClick={() => setInvoiceIssueReturnId(null)}>{t("Plus tard")}</Button></div>}
         {payslipPostingReturnId && !payslipPostingId && <div className="payslip-posting-resume" role="region" aria-label={t("Reprendre la finalisation du salaire")}><span>{t("Après vos corrections, reprenez la vérification de la même fiche de salaire.")}</span><Button disabled={busy} onClick={() => { setModal(null); setSearch(''); setView('team'); setTeamStartSection('payslips'); setPayslipPostingId(payslipPostingReturnId); }}>{t("Reprendre la finalisation du salaire")}</Button><Button variant="ghost" disabled={busy} onClick={() => setPayslipPostingReturnId(null)}>{t("Plus tard")}</Button></div>}
+        {supplierFileReturnId && !modal && <div className="supplier-review-resume" role="region" aria-label={t('Revenir à la facture fournisseur')}><span>{t('Cet avoir est lié à une facture. Retrouvez son solde et son historique.')}</span><Button disabled={busy} onClick={() => { const invoice = workspaceRef.current.supplierInvoices.find(row => row.id === supplierFileReturnId); if (invoice) { setModal({ type: 'supplierInvoiceDetail', invoice, initialSection: 2 }); setSupplierFileReturnId(null); } else setNotice({ tone: 'error', text: t('La facture liée n’est plus disponible. Actualisez les achats.') }); }}>{t('Revenir à la facture fournisseur')}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierFileReturnId(null)}>{t('Plus tard')}</Button></div>}
         {supplierPaymentReturn && <div className="supplier-review-resume" role="region" aria-label={t('Reprendre le paiement fournisseur')}><span>{t('Votre paiement reste à enregistrer. Reprenez-le après les corrections ; votre saisie est conservée.')} <strong>{supplierPaymentReturn.invoice.reference}</strong></span><Button disabled={busy || Boolean(modal)} onClick={() => { setView('expenses'); setSearch(''); setModal(supplierPaymentReturn); setSupplierPaymentReturn(null); }}>{t('Reprendre le paiement fournisseur')}</Button><Button variant="ghost" disabled={busy} onClick={() => { if (window.confirm(t('Abandonner la saisie de ce paiement ?'))) setSupplierPaymentReturn(null); }}>{t('Abandonner la saisie')}</Button></div>}
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label={t("Reprendre la facture fournisseur")}><span>{t("Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.")}</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>{t("Reprendre la facture fournisseur")}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>{t("Plus tard")}</Button></div>}
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
@@ -2362,6 +2364,7 @@ export function WorkspaceApp({
             try { const next=await desktopApi.loadWorkspace();requireStockWorkspace(next);workspaceRef.current=next;setWorkspace(next);return next; }
             finally {actionInFlight.current=false;setBusy(false);}
           }}
+          onOpenSupplierCreditFromInvoice={(id, invoiceId) => { setSupplierFileReturnId(invoiceId); setModal(null); setSupplierCreditToOpenId(id); setSearch(''); setView('expenses'); }}
           onSuspendSupplierPayment={(state, section) => {
             if (supplierPaymentReturn && supplierPaymentReturn.resume?.requestId !== state.resume?.requestId && !window.confirm(t('Un autre paiement attend une correction. Remplacer sa saisie conservée par celle-ci ?'))) return;
             setSupplierPaymentReturn(state); setModal(null); setAccountingStartTab(section); setAccountingEntryFocus(null); setView('accounting'); setSearch('');
@@ -5854,6 +5857,7 @@ function WorkspaceModal({
   act,
   onOpenInvoices,
   onSuspendSupplierPayment,
+  onOpenSupplierCreditFromInvoice,
   onOpenAccounting,
   onOpenBank,
   onConvertQuote,
@@ -5871,6 +5875,7 @@ function WorkspaceModal({
   replace: Dispatch<SetStateAction<ModalState>>;
   act: ActionRunner;
   onOpenInvoices: () => void;
+  onOpenSupplierCreditFromInvoice: (id: string, invoiceId: string) => void;
   onSuspendSupplierPayment: (state: Extract<ModalState, { type: 'supplierPayment' }>, section: 'accounts' | 'periods') => void;
   onOpenBank: () => void;
   onOpenAccounting: (section?: 'accounts' | 'periods') => void;
@@ -6082,6 +6087,10 @@ function WorkspaceModal({
         invoice={state.invoice}
         workspace={workspace}
         busy={busy}
+        readOnly={readOnly}
+        onReadWorkspace={onReadWorkspace}
+        initialSection={state.initialSection}
+        onOpenCredit={(id) => onOpenSupplierCreditFromInvoice(id, state.invoice.id)}
         close={close}
         onPayment={() =>
           replace({ type: 'supplierPayment', invoice: state.invoice })

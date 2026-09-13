@@ -2,6 +2,7 @@
 import { desktopApi } from '../src/bridge';
 import { refreshWorkspaceAfterMutation } from '../src/workspaceMutation';
 import { runSupplierPaymentMutation } from '../src/supplierPaymentWorkflow';
+import { seedSupplierDetail } from './supplier-detail-fixture';
 import { supplierDraftLineTotals } from '../src/PurchaseOrdersScreen';
 import { seedMultiOrderPurchase } from './purchase-multi-fixture';
 import type { SupplierCreditNote, SupplierInvoice, SupplierOrder, SupplierReceipt, Workspace } from '../src/types';
@@ -21,6 +22,7 @@ export function installPurchaseFulfillmentFixture(initial: Workspace) {
     lines: [{ id: 'invoice-line-purchase-qa', supplierInvoiceId: 'invoice-purchase-qa', position: 0, description: initial.catalogItems[0].name, quantityMilli: 2000, unit: 'pièces', unitPriceCents: 10000, discountBp: 0, vatBp: 810, netCents: 20000, vatCents: 1620, totalCents: 21620, category: 'Marchandises', expenseAccountId: 'expense', postedExpenseAccountId: null, projectId: null }],
   };
   initial.supplierInvoices = [invoice];
+  if (new URLSearchParams(location.search).has('supplierDetail')) seedSupplierDetail(initial, invoice);
   if (new URLSearchParams(location.search).has('supplierPayment')) { invoice.documentStatus = 'validated'; invoice.validationJournalEntryId = 'journal-purchase-qa'; }
   if (new URLSearchParams(location.search).has('multiOrders')) seedMultiOrderPurchase(initial, invoice);
   const review = new URLSearchParams(location.search).has('supplierReview');
