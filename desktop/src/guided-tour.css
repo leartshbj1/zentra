@@ -8,6 +8,7 @@
   .guided-tour__scroll-hint { flex-shrink: 0; min-height: 18px; margin: 8px 0; font-size: 12px; color: #6a7e65; text-align: center; }
   .guided-tour__card > header strong:focus { outline: none; }
   .guided-tour__card > header { display: flex; gap: 12px; align-items: flex-start; padding: 0; }
+  .guided-tour__card > header > div { min-width: 0; overflow-wrap: anywhere; }
   .guided-tour__card > header > span { background: #f0f5f1; border: 0; border-radius: 16px; padding: 12px; }
   .guided-tour__card > header p { color: #69816c; font-size: 12px; text-transform: none; letter-spacing: 0; margin: 0 0 7px; }
   .guided-tour__card > header strong { display: block; font-size: 27px; line-height: 1.2; font-weight: 600; letter-spacing: -.035em; }
@@ -36,6 +37,13 @@
   .guided-tour__card > footer > span { display: none; }
   .guided-tour__card > footer .button:first-child { width: 100%; order: 3; }
   .guided-tour__card > footer .button:not(:first-child) { flex: 1; }
+}
+@media screen and (max-width: 600px) and (max-height: 700px) {
+  .guided-tour__card { padding: 18px 16px; }
+  .guided-tour__card > header strong { font-size: 22px; }
+  .guided-tour__contents { margin-block: 12px; }
+  .guided-tour__scroll-hint { margin-block: 4px; }
+  .guided-tour__card > footer { margin-top: 12px; }
 }
 @media screen and (max-height: 500px) { .guided-tour__card { inset-block: 8px; max-height: calc(100dvh - 16px); } }
 @media (prefers-reduced-motion: no-preference) { .guided-tour__lesson { animation: guide-lesson-in 220ms ease-out; } .guided-tour__progress i { transition: width 260ms ease; } }

@@ -10,6 +10,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, X } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import { Button } from './ui';
 import { GUIDE_PROGRESS_KEY, guideLessons, restoredGuideIndex } from './guideLessons';
+import { t, useAppLanguage } from './language';
 
 export type TourView =
   | 'dashboard'
@@ -245,6 +246,7 @@ function GuidedTourDialog({
   onClose: () => void;
   onNavigate: (view: TourView) => void;
 }) {
+  const language = useAppLanguage();
   const [index, setIndex] = useState(() => {
     if (mode === 'automatic') return 0;
     try { return restoredGuideIndex(guidedTourSteps.map((item) => item.id), window.localStorage.getItem(GUIDE_PROGRESS_KEY)); }
@@ -269,7 +271,7 @@ function GuidedTourDialog({
     reading.addEventListener('scroll', measure, { passive: true });
     measure();
     return () => { observer.disconnect(); reading.removeEventListener('scroll', measure); };
-  }, [step.id]);
+  }, [step.id, language]);
 
   useEffect(() => {
     if (mode !== 'complete') return;
@@ -293,17 +295,15 @@ function GuidedTourDialog({
     previousFocusRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    return () => {
-      previousFocusRef.current?.focus({ preventScroll: true });
-    };
-  }, []);
-
-  useEffect(() => {
     const root = dialogRef.current?.closest('.guided-tour');
     const siblings = Array.from(root?.parentElement?.children ?? []).filter((node): node is HTMLElement => node instanceof HTMLElement && node !== root);
     const states = siblings.map((node) => [node, node.inert] as const);
     for (const [node] of states) node.inert = true;
-    return () => { for (const [node, inert] of states) node.inert = inert; };
+    return () => {
+      // Release the background before returning focus to its launcher.
+      for (const [node, inert] of states) node.inert = inert;
+      previousFocusRef.current?.focus({ preventScroll: true });
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -418,39 +418,39 @@ function GuidedTourDialog({
       <header>
         <span><BrandMark size={34} /></span>
         <div>
-          <p>{mode === 'automatic' ? 'Vos premiers pas' : lesson.chapter}</p>
-          <strong id="guided-tour-title" ref={titleRef} tabIndex={-1}>{step.title}</strong>
+          <p>{t(mode === 'automatic' ? 'Vos premiers pas' : lesson.chapter)}</p>
+          <strong id="guided-tour-title" ref={titleRef} tabIndex={-1}>{t(step.title)}</strong>
         </div>
-        <button type="button" onClick={() => finish(mode === 'automatic')} aria-label={mode === 'automatic' ? 'Fermer le guide automatique' : 'Fermer le guide complet'}>
+        <button type="button" onClick={() => finish(mode === 'automatic')} aria-label={t(mode === 'automatic' ? 'Fermer le guide automatique' : 'Fermer le guide complet')}>
           <X size={18} />
         </button>
       </header>
-      <label className="guided-tour__contents">Explorer le guide
-        <select aria-label="Choisir un sujet du guide" value={index} onChange={(event) => setIndex(Number(event.target.value))}>
-          {Array.from(new Set(steps.map((item) => guideLessons[item.id].chapter))).map((chapter) => <optgroup key={chapter} label={chapter}>{steps.map((item, itemIndex) => guideLessons[item.id].chapter === chapter ? <option key={item.id} value={itemIndex}>{itemIndex + 1}. {item.eyebrow}</option> : null)}</optgroup>)}
+      <label className="guided-tour__contents">{t('Explorer le guide')}
+        <select aria-label={t('Choisir un sujet du guide')} value={index} onChange={(event) => setIndex(Number(event.target.value))}>
+          {Array.from(new Set(steps.map((item) => guideLessons[item.id].chapter))).map((chapter) => <optgroup key={chapter} label={t(chapter)}>{steps.map((item, itemIndex) => guideLessons[item.id].chapter === chapter ? <option key={item.id} value={itemIndex}>{itemIndex + 1}. {t(item.eyebrow)}</option> : null)}</optgroup>)}
         </select>
       </label>
-      <div className="guided-tour__lesson" ref={lessonRef} key={step.id} tabIndex={0} aria-label="Explications et étapes du guide">
-        <p className="guided-tour__text" id="guided-tour-description">{step.text}</p>
-        <ol className="guided-tour__actions">{lesson.actions.map((action) => <li key={action}>{action}</li>)}</ol>
-        <p className="guided-tour__tip"><span>À retenir</span>{lesson.tip}</p>
+      <div className="guided-tour__lesson" ref={lessonRef} key={step.id} tabIndex={0} aria-label={t('Explications et étapes du guide')}>
+        <p className="guided-tour__text" id="guided-tour-description">{t(step.text)}</p>
+        <ol className="guided-tour__actions">{lesson.actions.map((action) => <li key={action}>{t(action)}</li>)}</ol>
+        <p className="guided-tour__tip"><span>{t('À retenir')}</span>{t(lesson.tip)}</p>
       </div>
-      <p className="guided-tour__scroll-hint" aria-hidden="true" style={{visibility: moreToRead ? 'visible' : 'hidden'}}>Faites défiler pour lire la suite ↓</p>
+      <p className="guided-tour__scroll-hint" aria-hidden="true" style={{visibility: moreToRead ? 'visible' : 'hidden'}}>{t('Faites défiler pour lire la suite ↓')}</p>
       <div
         className="guided-tour__progress"
         role="progressbar"
-        aria-label="Progression du guide"
+        aria-label={t('Progression du guide')}
         aria-valuemin={1}
         aria-valuemax={steps.length}
         aria-valuenow={index + 1}
-        aria-valuetext={`Étape ${index + 1} sur ${steps.length}`}
+        aria-valuetext={t('Étape {index} sur {total}', { index: index + 1, total: steps.length })}
       >
         <span><i style={{ width: `${percent}%` }} /></span>
         <strong>{index + 1} / {steps.length}</strong>
       </div>
       <footer>
         <Button type="button" variant="ghost" size="small" onClick={() => finish(mode === 'automatic')}>
-          {mode === 'automatic' ? 'Découvrir plus tard' : 'Reprendre plus tard'}
+          {t(mode === 'automatic' ? 'Découvrir plus tard' : 'Reprendre plus tard')}
         </Button>
         <span />
         <Button
@@ -460,12 +460,12 @@ function GuidedTourDialog({
           disabled={index === 0}
           onClick={() => setIndex((current) => Math.max(0, current - 1))}
         >
-          <ArrowLeft size={15} /> Retour
+          <ArrowLeft size={15} /> {t('Retour')}
         </Button>
         <Button type="button" size="small" onClick={next}>
           {index === steps.length - 1
-            ? <><CheckCircle2 size={15} /> Terminer</>
-            : <>{index === 0 ? <Sparkles size={15} /> : null} Suivant <ArrowRight size={15} /></>}
+            ? <><CheckCircle2 size={15} /> {t('Terminer')}</>
+            : <>{index === 0 ? <Sparkles size={15} /> : null} {t('Suivant')} <ArrowRight size={15} /></>}
         </Button>
       </footer>
     </section>

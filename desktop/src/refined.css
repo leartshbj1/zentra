@@ -175,7 +175,7 @@
   [data-experience='clarity'] .finance-navigation__more select { min-height: 44px; font-size: 16px; }
 }
 @media screen and (max-height: 500px) and (min-width: 650px) {
-  .guided-tour__card { inset: 8px 16px; width: auto; max-height: calc(100dvh - 16px); padding: 18px 22px; display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 14px 24px; border-radius: 22px; }
+  .guided-tour__card { inset: 8px 16px; width: auto; max-height: calc(100dvh - 16px); padding: 18px 22px; display: grid; grid-template-columns: minmax(260px, 38%) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 14px 24px; border-radius: 22px; }
   .guided-tour__card > header { grid-column: 1 / -1; }
   .guided-tour__card > header > span { display: none; }
   .guided-tour__card > header strong { font-size: 22px; }
