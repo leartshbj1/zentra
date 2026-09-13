@@ -1,5 +1,7 @@
 # Personnaliser les documents Zentra
 
+Les outils décrits ici sont inclus dans la préversion Windows 1.59.0, publiée le 13 septembre 2026. Consultez [la note de livraison](RELEASE-WINDOWS-1.59.0.md) pour ses contrôles et leurs limites. Cette livraison ne comprend pas de nouveau lot macOS, iOS ou Android.
+
 Dans **Paramètres → Présentation des documents**, ouvrez l’atelier de personnalisation puis choisissez **Factures**, **Devis**, **Bilan** ou **Fiches de salaire**.
 
 Les raccourcis **Logo**, **Titre**, **Introduction**, **Mise en page**, **Conditions / Commentaire** et **Pied de page** ouvrent directement l’outil correspondant. Les trois petites pages du réglage du logo permettent de choisir visuellement sa position.
@@ -20,7 +22,7 @@ Dans **Mise en page → Ajuster les blocs et les espacements**, vous pouvez auss
 
 Dans **Style → Couleurs du titre et du texte**, le titre et le texte courant peuvent avoir leur propre couleur, indépendante des tableaux. Les passages colorés manuellement et le pied de page gardent leur couleur. Les boutons de couleur automatique permettent de revenir au réglage habituel. Vérifiez toujours la lisibilité sur le fond blanc dans l’aperçu.
 
-La barre du haut donne accès à **Annuler**, **Rétablir**, **Aperçu** et **Enregistrer**. Depuis l’aperçu, **Revenir aux réglages** retrouve les outils. Les nouvelles options de blocs et d’espacement sont intégrées au code le 13 septembre 2026 ; elles nécessitent une nouvelle compilation de l’application et ne sont pas encore distribuées dans un installateur ou IPA.
+La barre du haut donne accès à **Annuler**, **Rétablir**, **Aperçu** et **Enregistrer**. Depuis l’aperçu, **Revenir aux réglages** retrouve les outils. Les options de blocs et d’espacement sont disponibles dans Windows 1.59.0.
 
 Les boutons **Texte normal**, **Titre de section** et **Sous-titre** mettent en forme tout le paragraphe courant, ou les paragraphes sélectionnés. Les titres utilisent 18 points et les sous-titres 12 points ; vous pouvez ensuite ajuster chaque passage.
 
@@ -58,7 +60,7 @@ La copie vers une autre catégorie et **Revenir au style de départ** conservent
 
 L’historique de présentation concerne les catégories modifiées. Il conserve les autres réglages de l’entreprise actualisés entre-temps. Si la même présentation a été actualisée ailleurs, l’atelier la conserve et explique pourquoi l’ancien historique ne peut plus être appliqué. Après un changement de texte par cet historique, l’historique interne de l’éditeur est remis à zéro pour éviter de réintroduire l’ancien texte.
 
-Cette extension de recherche, copie et annulation est intégrée au code local. Elle n’est pas encore distribuée dans un nouvel installateur ou IPA.
+La recherche, la copie et l’annulation sont disponibles dans Windows 1.59.0.
 
 ## Validation de l’extension de typographie du 12 septembre 2026
 
@@ -68,7 +70,7 @@ Cette extension de recherche, copie et annulation est intégrée au code local. 
 
 Cette extension est incluse dans la préversion Windows 1.58.0, publiée le 12 septembre 2026. Consultez [la note de livraison](RELEASE-WINDOWS-1.58.0.md) pour les vérifications et leurs limites. Aucun nouveau lot macOS, iOS ou Android n’a été publié avec cette version Windows.
 
-## Extension de l’atelier — code local, non publiée
+## Validation initiale de l’extension de l’atelier
 
 Ajouts suivants : raccourcis vers les éléments de la page, position du logo illustrée, espace d’écriture agrandi, styles de paragraphes et collage avec mise en forme. Correction de la ligne vide parasite après effacement complet du texte.
 
