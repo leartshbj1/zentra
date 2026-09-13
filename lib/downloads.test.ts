@@ -33,7 +33,7 @@ const manifest = JSON.parse(
 describe('contrat de téléchargement Zentra', () => {
   it('keeps the manually installed Windows preview separate from stable automatic updates', () => {
     expect(ZENTRA_WINDOWS_PREVIEW_VERSION).not.toBe(ZENTRA_VERSION);
-    expect(ZENTRA_WINDOWS_PREVIEW_PATH).toBe(`https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_WINDOWS_PREVIEW_VERSION}/Zentra_${ZENTRA_WINDOWS_PREVIEW_VERSION}_x64-setup.exe`);
+    expect(ZENTRA_WINDOWS_PREVIEW_PATH).toBe(`${ZENTRA_RELEASES_ORIGIN}/Zentra_${ZENTRA_WINDOWS_PREVIEW_VERSION}_x64-setup.exe`);
     expect(ZENTRA_WINDOWS_PREVIEW_SHA256).toMatch(/^[A-F0-9]{64}$/);
     expect(manifest.version).toBe(ZENTRA_VERSION);
     expect(manifest.platforms['windows-x86_64'].url).not.toBe(ZENTRA_WINDOWS_PREVIEW_PATH);

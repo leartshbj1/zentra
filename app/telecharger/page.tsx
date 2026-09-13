@@ -133,8 +133,9 @@ export default function DownloadPage() {
           <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_PREVIEW_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Vos documents, à votre image.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Créez vos modèles de devis, factures, bilans et fiches de salaire : polices, couleurs, logo, page et tableaux. Inter et Literata s’ajoutent aux polices disponibles, jusque dans vos PDF et hors ligne. Mettez des passages en gras ou en italique et vérifiez le résultat dans l’aperçu. Les factures d’acompte et de solde se préparent en trois étapes, avec des dates simplifiées et un accès direct aux champs à corriger.</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Vos documents et votre paie, plus simplement.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Personnalisez vos documents dans un atelier plus spacieux. Choisissez le français, l’allemand, l’italien ou l’anglais dès la configuration. Le tutoriel, les collaborateurs et les étapes de paie expliquent les informations attendues et vous ramènent au champ à corriger. Vos saisies restent conservées après un échec ou un changement de langue.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Les traductions sont encore en préparation : certains écrans, contrôles natifs et PDF restent en français.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Pour une version plus ancienne, téléchargez l’installateur ci-contre. Cette préversion concerne Windows ; les versions des autres plateformes restent indiquées ci-dessous.</p>
             </div>
             <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
