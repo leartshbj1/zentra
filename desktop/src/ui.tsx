@@ -1,4 +1,5 @@
 import { AssistantHelpButton, useAssistantScreen } from './assistantContext';
+import { t, useAppLanguage } from './language';
 import { createContext, useContext, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { ButtonHTMLAttributes, FormEvent, KeyboardEvent, ReactNode } from 'react';
@@ -39,7 +40,7 @@ export function Field({
   return (
     <label className={`field ${wide ? 'field--wide' : ''} ${error ? 'field--error' : ''}`}>
       <span className="field__label">
-        {label} {required ? <em>obligatoire</em> : null}
+        {label} {required ? <em>{t('obligatoire')}</em> : null}
       </span>
       {children}
       {error ? <span className="field__error" role="alert">{error}</span> : hint ? <span className="field__hint">{hint}</span> : null}
@@ -143,6 +144,7 @@ export function Modal({
   dismissible?: boolean;
   className?: string;
 }) {
+  useAppLanguage();
   const dialogRef = useRef<HTMLElement>(null);
   const titleId = useId();
   const descriptionId = useId();
@@ -233,7 +235,7 @@ export function Modal({
             {description ? <p id={descriptionId}>{description}</p> : null}
           </div>
           <div className="modal__header-actions">{assistantHelp && <AssistantHelpButton compact />}
-          {dismissible ? <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label={`Fermer « ${title} »`}>
+          {dismissible ? <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label={t('Fermer « {title} »', { title })}>
             <X size={19} />
           </Button> : null}</div>
         </header>
@@ -270,15 +272,16 @@ export function FormActions({
   cancelLabel?: string;
 }) {
   const readOnly = useContext(ReadOnlyFormContext);
+  useAppLanguage();
   return (
     <div className={`form-actions${readOnly ? ' form-actions--read-only' : ''}`}>
-      {readOnly ? <p className="form-actions__read-only" role="status">Mode lecture seule : les modifications ne peuvent pas être enregistrées.</p> : null}
+      {readOnly ? <p className="form-actions__read-only" role="status">{t('Mode lecture seule : les modifications ne peuvent pas être enregistrées.')}</p> : null}
       <Button type="button" variant="secondary" onClick={onCancel} disabled={busy}>
-        {cancelLabel}
+        {t(cancelLabel)}
       </Button>
       <Button type="submit" disabled={busy || disabled || readOnly}>
         {busy ? <LoaderCircle className="spin" size={17} /> : null}
-        {busy ? 'Enregistrement…' : submitLabel}
+        {t(busy ? 'Enregistrement…' : submitLabel)}
       </Button>
     </div>
   );
@@ -312,7 +315,8 @@ const statusLabels: Record<string, string> = {
 };
 
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
-  return <span className={`status status--${status}`}>{label ?? statusLabels[status] ?? status}</span>;
+  useAppLanguage();
+  return <span className={`status status--${status}`}>{label ?? t(statusLabels[status] ?? status)}</span>;
 }
 
 export function DangerZone({ label, onArchive }: { label: string; onArchive: () => void }) {
@@ -335,6 +339,7 @@ export function ErrorPanel({
   reveal?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  useAppLanguage();
   useEffect(() => {
     if (!reveal) return;
     const frame = requestAnimationFrame(() => {
@@ -367,12 +372,12 @@ export function ErrorPanel({
     <div ref={panelRef} className="error-panel" role="alert">
       <AlertTriangle size={22} />
       <div>
-        <strong>{title}</strong>
-        <p>{message}</p>
+        <strong>{t(title)}</strong>
+        <p>{t(message)}</p>
       </div>
       {onRetry ? (
         <Button variant="secondary" size="small" onClick={onRetry}>
-          Réessayer
+          {t('Réessayer')}
         </Button>
       ) : null}
     </div>

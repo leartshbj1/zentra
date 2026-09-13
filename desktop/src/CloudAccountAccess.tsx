@@ -1,3 +1,4 @@
+import { t } from './language';
 import { useState } from 'react';
 import { UserRound } from 'lucide-react';
 import { CloudAccountPanel } from './CloudAccountPanel';
@@ -10,9 +11,9 @@ export function CloudAccountAccess({ account, onAccountChange }: {
 }) {
   const [open, setOpen] = useState(false);
   const connected = account?.status === 'connected';
-  const label = connected ? 'Mon compte' : 'Se connecter';
+  const label = t(connected ? 'Mon compte' : 'Se connecter');
   return <>
     <Button type="button" variant="secondary" size="small" className="account-launcher" aria-label={label} onClick={() => setOpen(true)}><UserRound size={17} /><span>{label}</span></Button>
-    {open ? <Modal title={connected ? 'Mon compte Zentra' : 'Se connecter à Zentra'} wide onClose={() => setOpen(false)}><CloudAccountPanel onAccountChange={onAccountChange} /></Modal> : null}
+    {open ? <Modal title={connected ? t("Mon compte Zentra") : t("Se connecter à Zentra")} wide onClose={() => setOpen(false)}><CloudAccountPanel onAccountChange={onAccountChange} /></Modal> : null}
   </>;
 }

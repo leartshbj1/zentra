@@ -1,4 +1,5 @@
 import type { DocumentLine, ExpenseRefund, Invoice, Payment, Payslip, Project, PurchaseCostEvidence, Quote, SupplierCreditNote, SupplierInvoice, TimeEntry } from './types';
+import { getAppLocale } from './language';
 
 export function errorMessage(reason: unknown, fallback: string): string {
   if (typeof reason === 'string' && reason.trim()) return reason.trim();
@@ -15,7 +16,7 @@ export function normalizeLicenseToken(value: string): string {
 }
 
 export function formatMoney(cents: number | null | undefined, currency = 'CHF'): string {
-  return new Intl.NumberFormat('fr-CH', {
+  return new Intl.NumberFormat(getAppLocale(), {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
@@ -27,14 +28,14 @@ export function formatDate(value: string | null | undefined): string {
   if (!value) return '—';
   const parsed = new Date(`${value.slice(0, 10)}T12:00:00`);
   if (Number.isNaN(parsed.getTime())) return '—';
-  return parsed.toLocaleDateString('fr-CH', { day: '2-digit', month: 'short', year: 'numeric' });
+  return parsed.toLocaleDateString(getAppLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '—';
-  return parsed.toLocaleString('fr-CH', { dateStyle: 'medium', timeStyle: 'short' });
+  return parsed.toLocaleString(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 export function formatMinutes(minutes: number): string {

@@ -1,4 +1,5 @@
 import { createContext, useContext, useId, useLayoutEffect } from 'react';
+import { t, useAppLanguage } from './language';
 import { MessageCircle } from 'lucide-react';
 import type { AssistantFacts } from './assistantGuide';
 
@@ -19,7 +20,8 @@ export function useAssistantScreen(context: AssistantScreen, priority = 0) {
 }
 
 export function AssistantHelpButton({ compact = false }: { compact?: boolean }) {
+  useAppLanguage();
   const assistant = useContext(AssistantContext);
   if (!assistant) return null;
-  return <button type="button" className={`assistant-help ${compact ? 'assistant-help--compact' : ''}`} onClick={assistant.open} aria-label="Demander à l’assistant Zentra" title="Demander à l’assistant Zentra"><MessageCircle size={19} aria-hidden="true" />{!compact && <span>Assistant</span>}</button>;
+  return <button type="button" className={`assistant-help ${compact ? 'assistant-help--compact' : ''}`} onClick={assistant.open} aria-label={t('Demander à l’assistant Zentra')} title={t('Demander à l’assistant Zentra')}><MessageCircle size={19} aria-hidden="true" />{!compact && <span>{t('Assistant')}</span>}</button>;
 }

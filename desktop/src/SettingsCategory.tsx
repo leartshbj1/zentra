@@ -1,3 +1,5 @@
+import { t } from './language';
+import { useAppLanguage } from './language';
 import { Children, cloneElement, createContext, isValidElement, useContext, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 
@@ -32,6 +34,7 @@ function openSettingsCategory(detail: HTMLDetailsElement) {
 
 /** Native details retain drafts and keep links from setup/update screens working. */
 export function SettingsBrowser({ children }: { children: ReactNode }) {
+  useAppLanguage();
   const root = useRef<HTMLDivElement>(null);
   const groupName = useId();
   const categories = Children.toArray(children).filter((child): child is ReactElement<CategoryProps> => isValidElement<CategoryProps>(child));
@@ -58,23 +61,23 @@ export function SettingsBrowser({ children }: { children: ReactNode }) {
   }
 
   return <div ref={root} className="settings-browser" data-settings-open={active ? 'true' : undefined}>
-    <nav className="settings-browser__navigation" aria-label="Rubriques des paramètres">
+    <nav className="settings-browser__navigation" aria-label={t("Rubriques des paramètres")}>
       {categories.map(({ props: { id, title, description, icon: Icon } }) => <button
         key={id} type="button" data-settings-link={id} aria-current={active === id ? 'true' : undefined}
         aria-controls={`${groupName}-${id}`} onClick={() => openCategory(id)}
       >
         <span className="settings-browser__icon"><Icon size={19} aria-hidden="true" /></span>
-        <span><strong>{title}</strong><small>{description}</small></span><ChevronRight size={16} aria-hidden="true" />
+        <span><strong>{t(title)}</strong><small>{t(description)}</small></span><ChevronRight size={16} aria-hidden="true" />
       </button>)}
     </nav>
     <div className="settings-browser__detail">
-      <button type="button" className="settings-browser__back" onClick={goBack}><ChevronLeft size={19} aria-hidden="true" /> Tous les paramètres</button>
+      <button type="button" className="settings-browser__back" onClick={goBack}><ChevronLeft size={19} aria-hidden="true" />{t(" Tous les paramètres")}</button>
       <div className="settings-categories">{categories.map(child => cloneElement(child, {
         groupName,
         initiallyOpen: child.props.id === initial,
         onOpenChange: (id, open) => setActive(current => open ? id : current === id ? null : current),
       }))}</div>
-      <p className="settings-browser__empty">Choisissez une rubrique pour retrouver ses réglages.</p>
+      <p className="settings-browser__empty">{t("Choisissez une rubrique pour retrouver ses réglages.")}</p>
     </div>
   </div>;
 }
@@ -86,7 +89,7 @@ export function SettingsCategory({ id, title, description, icon: Icon, children,
     if (open) setVisited(true);
     onOpenChange?.(id, open);
   }}>
-    <summary><Icon size={22} aria-hidden="true" /><span><strong>{title}</strong><small>{description}</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
+    <summary><Icon size={22} aria-hidden="true" /><span><strong>{t(title)}</strong><small>{t(description)}</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
     <div className="settings-category__content settings-layout"><CategoryVisited.Provider value={visited || initiallyOpen}>{!lazy || visited ? children : null}</CategoryVisited.Provider></div>
   </details>;
 }

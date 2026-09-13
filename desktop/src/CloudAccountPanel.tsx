@@ -1,3 +1,4 @@
+import { t, useAppLanguage } from './language';
 import { useEffect, useRef, useState } from 'react';
 import {
   Check,
@@ -25,6 +26,7 @@ export function CloudAccountPanel({
 }: {
   onAccountChange?: (account: CloudAccountState) => void;
 }) {
+  useAppLanguage();
   const [account, setAccount] = useState<CloudAccountState | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -102,7 +104,7 @@ export function CloudAccountPanel({
   async function disconnect() {
     if (
       !window.confirm(
-        'Déconnecter ce poste du compte Zentra ? Les données locales ne seront pas supprimées.',
+        t('Déconnecter ce poste du compte Zentra ? Les données locales ne seront pas supprimées.'),
       )
     )
       return;
@@ -142,14 +144,14 @@ export function CloudAccountPanel({
   return (
     <section className="panel settings-card settings-card--wide">
       <SectionHeading
-        eyebrow="Compte, équipe & fiduciaire"
-        title="Votre connexion Zentra"
-        description="Connectez-vous avec votre compte personnel. Si vous êtes invité, utilisez l’adresse e-mail de votre invitation pour rejoindre l’entreprise."
+        eyebrow={t("Compte, équipe & fiduciaire")}
+        title={t("Votre connexion Zentra")}
+        description={t("Connectez-vous avec votre compte personnel. Si vous êtes invité, utilisez l’adresse e-mail de votre invitation pour rejoindre l’entreprise.")}
       />
 
       <ol
         className="settings-cloud-steps"
-        aria-label="Étapes de connexion au compte"
+        aria-label={t("Étapes de connexion au compte")}
       >
         {[
           ['Se connecter', 'Ouvrez votre compte dans le navigateur.'],
@@ -167,8 +169,8 @@ export function CloudAccountPanel({
             >
               <span>{done ? <Check size={15} /> : step}</span>
               <div>
-                <strong>{title}</strong>
-                <small>{description}</small>
+                <strong>{t(title)}</strong>
+                <small>{t(description)}</small>
               </div>
             </li>
           );
@@ -178,7 +180,7 @@ export function CloudAccountPanel({
       {!account ? (
         <div className="settings-cloud-status">
           <LoaderCircle className="spin" size={20} />
-          <span>Lecture du compte protégé…</span>
+          <span>{t("Lecture du compte protégé…")}</span>
         </div>
       ) : connected ? (
         <div className="settings-cloud-account is-connected">
@@ -188,39 +190,32 @@ export function CloudAccountPanel({
           <div>
             <strong>{account.organizationName}</strong>
             <p>
-              {account.role ? ROLE_LABEL[account.role] : 'Membre'} · session de
-              ce poste valable jusqu’au{' '}
+              {account.role ? t(ROLE_LABEL[account.role]) : t("Membre")}{t(" · session de ce poste valable jusqu’au")}{' '}
               {account.sessionExpiresAt
                 ? formatDateTime(account.sessionExpiresAt)
-                : 'renouvellement'}
+                : t("renouvellement")}
             </p>
           </div>
         </div>
       ) : pending ? (
         <div className="settings-cloud-link">
           <div className="settings-cloud-link__code">
-            <span>Code à vérifier</span>
+            <span>{t("Code à vérifier")}</span>
             <strong>{account.userCode}</strong>
           </div>
-          <p>
-            Le navigateur doit confirmer ce même code. Zentra vérifie ensuite
-            automatiquement l’autorisation, sans recevoir votre mot de passe.
-          </p>
+          <p>{t("Le navigateur doit confirmer ce même code. Zentra vérifie ensuite automatiquement l’autorisation, sans recevoir votre mot de passe.")}</p>
           <div className="settings-actions">
             <Button
               variant="secondary"
               onClick={() => void desktopApi.openCloudAccountLink()}
             >
-              <ExternalLink size={16} /> Ouvrir la page sécurisée
-            </Button>
+              <ExternalLink size={16} />{t(" Ouvrir la page sécurisée")}</Button>
             <Button variant="secondary" onClick={() => void copyCode()}>
               {copied ? <Check size={16} /> : <Copy size={16} />}
-              {copied ? 'Code copié' : 'Copier le code'}
+              {copied ? t("Code copié") : t("Copier le code")}
             </Button>
             <Button disabled={busy} onClick={() => void poll(true)}>
-              {busy ? <LoaderCircle className="spin" size={16} /> : null}
-              Vérifier maintenant
-            </Button>
+              {busy ? <LoaderCircle className="spin" size={16} /> : null}{t("Vérifier maintenant")}</Button>
           </div>
         </div>
       ) : (
@@ -233,17 +228,17 @@ export function CloudAccountPanel({
             )}
             <strong>
               {inactive
-                ? 'Abonnement à réactiver'
+                ? t("Abonnement à réactiver")
                 : expired
-                  ? 'Session du poste expirée'
-                  : 'Aucun compte relié'}
+                  ? t("Session du poste expirée")
+                  : t("Aucun compte relié")}
             </strong>
             <p>
               {inactive
-                ? 'Les données locales restent lisibles. Réactivez l’abonnement puis reliez de nouveau ce poste pour modifier et archiver.'
+                ? t("Les données locales restent lisibles. Réactivez l’abonnement puis reliez de nouveau ce poste pour modifier et archiver.")
                 : expired
-                  ? 'Reconnectez ce poste pour reprendre les fonctions d’équipe et l’archivage.'
-                  : 'Reliez ce poste à l’entreprise pour utiliser les accès partagés et l’archive distante.'}
+                  ? t("Reconnectez ce poste pour reprendre les fonctions d’équipe et l’archivage.")
+                  : t("Reliez ce poste à l’entreprise pour utiliser les accès partagés et l’archive distante.")}
             </p>
           </div>
           <Button disabled={busy} onClick={() => void begin()}>
@@ -252,22 +247,16 @@ export function CloudAccountPanel({
             ) : (
               <Users size={16} />
             )}
-            {busy ? 'Préparation…' : 'Se connecter dans le navigateur'}
+            {busy ? t("Préparation…") : t("Se connecter dans le navigateur")}
           </Button>
         </div>
       )}
 
       <div className="settings-cloud-privacy">
         <LockKeyhole size={17} />
-        <p>
-          Votre connexion est protégée sur cet appareil. Chaque personne
-          utilise son propre compte et son propre mot de passe.
-        </p>
+        <p>{t("Votre connexion est protégée sur cet appareil. Chaque personne utilise son propre compte et son propre mot de passe.")}</p>
       </div>
-      <p className="settings-cloud-scope">
-        Les rôles encadrent les services connectés. « Lecture seule » bloque
-        aussi les modifications dans cette interface. Les plans, photos et documents ajoutés aux projets sont partagés avec l’entreprise et conservés hors ligne sur chaque appareil connecté. Les autres données métier restent locales.
-      </p>
+      <p className="settings-cloud-scope">{t("Les rôles encadrent les services connectés. « Lecture seule » bloque aussi les modifications dans cette interface. Les plans, photos et documents ajoutés aux projets sont partagés avec l’entreprise et conservés hors ligne sur chaque appareil connecté. Les autres données métier restent locales.")}</p>
       {connected ? (
         <div className="settings-actions">
           <Button
@@ -275,21 +264,17 @@ export function CloudAccountPanel({
             disabled={busy}
             onClick={() => void desktopApi.openCloudAccountPortal()}
           >
-            <ExternalLink size={16} /> Gérer l’équipe, la fiduciaire et les
-            appareils
-          </Button>
+            <ExternalLink size={16} />{t(" Gérer l’équipe, la fiduciaire et les appareils")}</Button>
           <Button
             variant="secondary"
             disabled={busy}
             onClick={() => void disconnect()}
-          >
-            Déconnecter ce poste
-          </Button>
+          >{t("Déconnecter ce poste")}</Button>
         </div>
       ) : null}
       {error ? (
         <p className="form-error" role="alert">
-          {error}
+          {t(error)}
         </p>
       ) : null}
     </section>

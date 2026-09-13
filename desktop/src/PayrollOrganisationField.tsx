@@ -1,3 +1,4 @@
+import { t, useAppLanguage } from './language';
 import { useId, useState } from 'react';
 import { Search, Check } from 'lucide-react';
 import {
@@ -32,6 +33,7 @@ export function PayrollOrganisationField({
   error?: string;
   dataField?: string;
 }) {
+  useAppLanguage();
   const [local, setLocal] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -46,7 +48,7 @@ export function PayrollOrganisationField({
   return (
     <div className="payroll-organisation field">
       <label htmlFor={id} className="field__label">
-        {help.label}
+        {t(help.label)}
       </label>
       <input
         id={id}
@@ -60,13 +62,13 @@ export function PayrollOrganisationField({
         maxLength={240}
         autoComplete="off"
         aria-describedby={`${id}-hint`}
-        placeholder="Nom indiqué sur votre contrat"
+        placeholder={t("Nom indiqué sur votre contrat")}
       />
       <span
         id={`${id}-hint`}
         className={error ? 'field__error' : 'field__hint'}
       >
-        {error || help.hint}
+        {error || t(help.hint)}
       </span>
       <button
         type="button"
@@ -77,25 +79,24 @@ export function PayrollOrganisationField({
         onClick={() => setOpen(!open)}
       >
         <Search size={16} />
-        {open ? 'Fermer la recherche' : 'Rechercher dans les caisses suisses'}
+        {open ? t("Fermer la recherche") : t("Rechercher dans les caisses suisses")}
       </button>
       {open && (
         <div id={`${id}-directory`} className="payroll-directory">
-          <label htmlFor={`${id}-search`}>
-            Rechercher {help.label.toLocaleLowerCase('fr-CH')}
+          <label htmlFor={`${id}-search`}>{t('Rechercher : {label}', { label: t(help.label) })}
           </label>
           <input
             id={`${id}-search`}
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Nom, numéro ou canton"
+            placeholder={t("Nom, numéro ou canton")}
             autoComplete="off"
             disabled={disabled}
           />
           <output className="field__hint">
-            {matches.length} résultat{matches.length > 1 ? 's' : ''}
-            {matches.length > 20 ? ' · Précisez le nom pour affiner.' : ''}
+            {t(matches.length === 1 ? '{count} résultat' : '{count} résultats', { count: matches.length })}
+            {matches.length > 20 ? t(" · Précisez le nom pour affiner.") : ''}
           </output>
           <ul>
             {matches.slice(0, 20).map((entry) => (
@@ -111,7 +112,7 @@ export function PayrollOrganisationField({
                   <span>
                     {entry.name}
                     <small>
-                      {entry.canton ? `${entry.canton} · ` : ''}N°{' '}
+                      {entry.canton ? `${entry.canton} · ` : ''}{t("N°")}{' '}
                       {entry.number}
                     </small>
                   </span>
@@ -121,22 +122,14 @@ export function PayrollOrganisationField({
             ))}
           </ul>
           {!matches.length && (
-            <p>
-              Aucun résultat. Vous pouvez saisir le nom exact directement dans
-              le champ ci-dessus.
-            </p>
+            <p>{t("Aucun résultat. Vous pouvez saisir le nom exact directement dans le champ ci-dessus.")}</p>
           )}
           <small>
-            {help.scope} Choisissez uniquement l’organisme auquel votre
-            entreprise est affiliée.
-          </small>
-          <small>
-            Répertoire vérifié le{' '}
+            {t(help.scope)}{t(" Choisissez uniquement l’organisme auquel votre entreprise est affiliée.")}</small>
+          <small>{t("Répertoire vérifié le")}{' '}
             {PAYROLL_DIRECTORY_CHECKED_ON.split('-').reverse().join('.')}.
           </small>
-          <a href={help.source} target="_blank" rel="noreferrer">
-            Consulter le répertoire officiel
-          </a>
+          <a href={help.source} target="_blank" rel="noreferrer">{t("Consulter le répertoire officiel")}</a>
         </div>
       )}
     </div>

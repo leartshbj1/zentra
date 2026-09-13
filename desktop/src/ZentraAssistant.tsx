@@ -7,9 +7,11 @@ import { localModelInstallation } from './localModelInstallation';
 import { payrollLocalAi } from './payrollLocalAi';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { Modal } from './ui';
+import { t, useAppLanguage } from './language';
 
 type Turn = AssistantMessage & { id: string; incomplete?: boolean; source?: 'guide' | 'qwen' };
 export function ZentraAssistantProvider({ children }: { children: ReactNode }) {
+  useAppLanguage();
   const registry = useRef(new Map<string, { priority: number; value: AssistantScreen }>());
   const [opened,setOpened]=useState(false);
   const [screen,setScreen]=useState<AssistantScreen>({screen:'Accueil Zentra'});
@@ -66,7 +68,7 @@ export function ZentraAssistantProvider({ children }: { children: ReactNode }) {
   }
   const guides=selectAssistantGuides(messages.filter(m=>m.role==='user').at(-1)?.content ?? screen.screen, screen.screen);
   return <AssistantContext.Provider value={context}>{children}
-    {!opened && createPortal(<button type="button" className="assistant-launcher" onClick={open} aria-label="Demander à l’assistant Zentra"><MessageCircle size={21}/><span>Assistant</span></button>,document.body)}
+    {!opened && createPortal(<button type="button" className="assistant-launcher" onClick={open} aria-label={t('Demander à l’assistant Zentra')}><MessageCircle size={21}/><span>{t('Assistant')}</span></button>,document.body)}
     {opened && <Modal title="Assistant Zentra" description="Votre aide locale, au fil de votre travail." onClose={close} className="zentra-assistant-dialog" assistantHelp={false}>
       <div className="assistant-context"><span><span className="assistant-status-dot"/>{screen.screen}</span><details><summary>Contexte utilisé</summary><p>Ces informations restent sur cet appareil. Aucun dossier complet n’est transmis.</p><dl>{Object.entries(assistantPrompt('',screen.screen,screen.facts??{},[]).facts).map(([key,value])=><div key={key}><dt>{key}</dt><dd>{value == null ? 'Non renseigné' : typeof value === 'boolean' ? value ? 'Oui' : 'Non' : String(value)}</dd></div>)}</dl></details></div>
       {model.phase !== 'installed' && <LocalAssistantSetup/>}

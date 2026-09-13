@@ -28,10 +28,10 @@ describe('fenêtre desktop responsive', () => {
     expect(compactSidebarHidden(false, false)).toBe(false);
     expect(source).toContain('inert={sidebarHidden ? true : undefined}');
     expect(source).toContain('aria-hidden={sidebarHidden ? true : undefined}');
-    expect(source).toContain('aria-label="Ouvrir la navigation"');
-    expect(source).toContain('title="Ouvrir la navigation"');
-    expect(source).toContain('aria-label="Fermer la navigation"');
-    expect(source).toContain('title="Fermer la navigation"');
+    expect(source).toContain('aria-label={t("Ouvrir la navigation")}');
+    expect(source).toContain('title={t("Ouvrir la navigation")}');
+    expect(source).toContain('aria-label={t("Fermer la navigation")}');
+    expect(source).toContain('title={t("Fermer la navigation")}');
   });
 
   it('garde la checklist de démarrage lisible et calme dans une fenêtre étroite', () => {

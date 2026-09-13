@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { ArrowRight, Search, type LucideIcon } from 'lucide-react';
 import { Modal } from './ui';
+import { t, useAppLanguage } from './language';
 
 export interface NavigationDestination<T extends string = string> {
   id: T;
@@ -17,6 +18,7 @@ export function NavigationPalette<T extends string>({ destinations, onSelect, on
   onSelect: (id: T) => void;
   onClose: () => void;
 }) {
+  useAppLanguage();
   const [query, setQuery] = useState('');
   const resultId = useId();
   const terms = normalize(query).trim().split(/\s+/).filter(Boolean);
@@ -25,20 +27,20 @@ export function NavigationPalette<T extends string>({ destinations, onSelect, on
     const label = normalize(item.label);
     return label === normalizedQuery ? 0 : label.startsWith(normalizedQuery) ? 1 : terms.every((term) => label.includes(term)) ? 2 : 3;
   };
-  const results = destinations.filter((item) => terms.every((term) => normalize(`${item.label} ${item.description}`).includes(term))).sort((left, right) => rank(left) - rank(right));
+  const results = destinations.map(item => ({ ...item, label: t(item.label), description: t(item.description) })).filter((item) => terms.every((term) => normalize(`${item.label} ${item.description}`).includes(term))).sort((left, right) => rank(left) - rank(right));
 
   return (
-    <Modal className="navigation-dialog" title="Aller à…" description="Retrouvez un écran de votre espace de travail." onClose={onClose}>
+    <Modal className="navigation-dialog" title={t('Aller à…')} description={t('Retrouvez un écran de votre espace de travail.')} onClose={onClose}>
       <div className="navigation-palette">
         <label className="navigation-palette__search">
           <Search size={20} aria-hidden="true" />
-          <input type="search" aria-label="Rechercher un écran" placeholder="Projets, factures, banque…" data-modal-initial-focus value={query} onChange={(event) => setQuery(event.target.value)} aria-controls={resultId} onKeyDown={(event) => {
+          <input type="search" aria-label={t('Rechercher un écran')} placeholder={t('Projets, factures, banque…')} data-modal-initial-focus value={query} onChange={(event) => setQuery(event.target.value)} aria-controls={resultId} onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
             if (event.key === 'Enter' && results.length) { event.preventDefault(); onSelect(results[0].id); }
             if (event.key === 'ArrowDown') { event.preventDefault(); document.getElementById(resultId)?.querySelector('button')?.focus(); }
           }} />
         </label>
-        <p className="navigation-palette__count" role="status">{results.length ? `${results.length} écran${results.length > 1 ? 's' : ''}` : 'Aucun écran trouvé. Essayez un autre mot.'}</p>
+        <p className="navigation-palette__count" role="status">{results.length ? t(results.length === 1 ? '{count} écran' : '{count} écrans', { count: results.length }) : t('Aucun écran trouvé. Essayez un autre mot.')}</p>
         <div id={resultId} className="navigation-palette__results" onKeyDown={(event) => {
           if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
           const buttons = Array.from(event.currentTarget.querySelectorAll('button'));

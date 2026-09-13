@@ -1,3 +1,6 @@
+import { t, useAppLanguage, getAppLocale } from './language';
+import { Languages } from 'lucide-react';
+import { LanguageSetting } from './LanguageSetting';
 import {CustomerSettlementOutcomeUnknownError,CustomerSettlementRefreshError} from './customerSettlementWorkflow';
 import { PaymentForm } from './PaymentForm';
 import { PaymentOutcomeUnknownError, PaymentRefreshError } from './paymentWorkflow';
@@ -467,6 +470,7 @@ export function WorkspaceApp({
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [view, setView] = useState<View>('dashboard');
+  useAppLanguage();
   useProjectSyncBackground(setWorkspace);
   const [modal, setModal] = useState<ModalState>(null);
   useAssistantScreen({screen: viewTitles[view]?.[0] ?? view, scope: `${workspace.settings?.organization.legalName ?? 'entreprise'}:${view}`, facts: {
@@ -1569,7 +1573,7 @@ export function WorkspaceApp({
 
   return (
     <div className="desktop-app" data-experience="clarity" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
-      {updaterOpen ? <Modal title="Mise à jour de Zentra" wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
+      {updaterOpen ? <Modal title={t("Mise à jour de Zentra")} wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
         <div className="standalone-updater-content"><AppUpdater onInstallingChange={setUpdateInstalling} /></div>
       </Modal> : null}
       {navigationDrawerOpen ? <div className="navigation-scrim" aria-hidden="true" onClick={() => setMenuOpen(false)} /> : null}
@@ -1580,7 +1584,7 @@ export function WorkspaceApp({
         inert={sidebarHidden ? true : undefined}
         role={navigationDrawerOpen ? 'dialog' : undefined}
         aria-modal={navigationDrawerOpen ? true : undefined}
-        aria-label={navigationDrawerOpen ? 'Tous les modules' : undefined}
+        aria-label={navigationDrawerOpen ? t("Tous les modules") : undefined}
       >
         <div className="sidebar__brand">
           <div className="sidebar__wordmark">
@@ -1591,16 +1595,16 @@ export function WorkspaceApp({
             size="icon"
             className="sidebar__close"
             onClick={() => setMenuOpen(false)}
-            aria-label="Fermer la navigation"
-            title="Fermer la navigation"
+            aria-label={t("Fermer la navigation")}
+            title={t("Fermer la navigation")}
             aria-controls="primary-navigation"
           >
             <X size={18} />
           </Button>
         </div>
-        <div className="sidebar__company"><Building2 size={19} /><div><strong>{workspace.settings?.organization.legalName || 'Mon entreprise'}</strong><span>Mon espace</span></div></div>
-        <button type="button" className="sidebar__search" aria-label="Aller à un écran" onClick={() => { setMenuOpen(false); setNavigationOpen(true); }}><Search size={17} /><span>Aller à…</span><kbd aria-hidden="true">⌘ / Ctrl K</kbd></button>
-        <nav ref={navigationRef} className="sidebar__nav" aria-label="Navigation principale">
+        <div className="sidebar__company"><Building2 size={19} /><div><strong>{workspace.settings?.organization.legalName || t('Mon entreprise')}</strong><span>{t("Mon espace")}</span></div></div>
+        <button type="button" className="sidebar__search" aria-label={t("Aller à un écran")} onClick={() => { setMenuOpen(false); setNavigationOpen(true); }}><Search size={17} /><span>{t("Aller à…")}</span><kbd aria-hidden="true">{t("⌘ / Ctrl K")}</kbd></button>
+        <nav ref={navigationRef} className="sidebar__nav" aria-label={t("Navigation principale")}>
           <span className="sidebar__selection" aria-hidden="true" />
           {navigation.map((item) => {
             const Icon =
@@ -1617,7 +1621,7 @@ export function WorkspaceApp({
                 : view === item.id;
             return (
               <div key={item.id}>
-                {item.group ? <p>{item.group}</p> : null}
+                {item.group ? <p>{t(item.group)}</p> : null}
                 <button
                   aria-current={active ? 'page' : undefined}
                   className={active ? 'is-active' : ''}
@@ -1630,7 +1634,7 @@ export function WorkspaceApp({
                   }}
                 >
                   <Icon size={17} />
-                  <span>{label}</span>
+                  <span>{t(label)}</span>
                   {(item.id === 'quotes' || item.id === 'reminders') &&
                   overdue.length ? (
                     <em>{overdue.length}</em>
@@ -1641,12 +1645,12 @@ export function WorkspaceApp({
             );
           })}
         </nav>
-        <button type="button" className="sidebar__guide" onClick={() => { setMenuOpen(false); guidedTour.start(); }}><CircleHelp size={22} /><span><strong>Un peu d’aide ?</strong><small>Découvrir Zentra, pas à pas</small></span><ArrowRight size={16} /></button>
+        <button type="button" className="sidebar__guide" onClick={() => { setMenuOpen(false); guidedTour.start(); }}><CircleHelp size={22} /><span><strong>{t("Un peu d’aide ?")}</strong><small>{t("Découvrir Zentra, pas à pas")}</small></span><ArrowRight size={16} /></button>
         <div className="sidebar__local">
           <ShieldCheck size={17} />
           <div>
-            <strong>Données locales</strong>
-            <span>Sur cet appareil</span>
+            <strong>{t("Données locales")}</strong>
+            <span>{t("Sur cet appareil")}</span>
           </div>
           <i />
         </div>
@@ -1660,14 +1664,14 @@ export function WorkspaceApp({
               size="icon"
               className="menu-button"
               onClick={() => setMenuOpen(true)}
-              aria-label="Ouvrir la navigation"
-              title="Ouvrir la navigation"
+              aria-label={t("Ouvrir la navigation")}
+              title={t("Ouvrir la navigation")}
               aria-controls="primary-navigation"
               aria-expanded={menuOpen}
             >
               <Menu size={20} />
             </Button>
-            <span className="topbar__company">{settings.organization.legalName || 'Mon entreprise'}</span>
+            <span className="topbar__company">{settings.organization.legalName || t('Mon entreprise')}</span>
           </div>
           <div className="topbar__tools">
             {searchableView ? (
@@ -1677,20 +1681,20 @@ export function WorkspaceApp({
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   type="search"
-                  aria-label={`Rechercher dans ${title[0]}`}
-                  placeholder={`Rechercher dans ${title[0].toLocaleLowerCase('fr')}`}
+                  aria-label={t('Rechercher dans {section}', { section: t(title[0]) })}
+                  placeholder={t('Rechercher dans {section}', { section: t(title[0]) })}
                 />
-                {search ? <button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={() => setSearch('')}><X size={15} /></button> : null}
+                {search ? <button type="button" className="search-clear" aria-label={t("Effacer la recherche")} onClick={() => setSearch('')}><X size={15} /></button> : null}
               </label>
             ) : null}
-            <Button type="button" variant="ghost" size="icon" className="navigation-launcher" aria-label="Aller à un écran" title="Aller à un écran (Ctrl / ⌘ K)" onClick={() => setNavigationOpen(true)}><Search size={19} /></Button>
+            <Button type="button" variant="ghost" size="icon" className="navigation-launcher" aria-label={t("Aller à un écran")} title={t("Aller à un écran (Ctrl / ⌘ K)")} onClick={() => setNavigationOpen(true)}><Search size={19} /></Button>
             <Button
               type="button"
               variant="ghost"
               size="small"
               className="update-launcher"
-              aria-label={availableUpdate ? 'Ouvrir les mises à jour de Zentra — 1 mise à jour disponible' : 'Ouvrir les mises à jour de Zentra'}
-              title={availableUpdate ? `Zentra ${availableUpdate} est disponible` : 'Vérifier les mises à jour'}
+              aria-label={availableUpdate ? t("Ouvrir les mises à jour de Zentra — 1 mise à jour disponible") : t("Ouvrir les mises à jour de Zentra")}
+              title={availableUpdate ? t("Zentra {v0} est disponible", { v0: availableUpdate }) : t("Vérifier les mises à jour")}
               onClick={openUpdater}
             >
               <RefreshCw size={18} />
@@ -1701,8 +1705,8 @@ export function WorkspaceApp({
               variant="ghost"
               size="small"
               className="tour-launcher"
-              aria-label="Ouvrir le guide complet"
-              title="Ouvrir le guide complet"
+              aria-label={t("Ouvrir le guide complet")}
+              title={t("Ouvrir le guide complet")}
               onClick={guidedTour.start}
             >
               <CircleHelp size={18} />
@@ -1711,15 +1715,12 @@ export function WorkspaceApp({
           </div>
         </header>
 
-        {availableUpdate && dismissedUpdate !== availableUpdate ? <div className="notice" role="status"><span><Download size={18} /> Zentra {availableUpdate} est disponible.</span><Button size="small" onClick={openUpdater}>Voir la mise à jour</Button><Button variant="ghost" size="icon" aria-label="Masquer la notification de mise à jour" onClick={() => setDismissedUpdate(availableUpdate)}><X size={16} /></Button></div> : null}
+        {availableUpdate && dismissedUpdate !== availableUpdate ? <div className="notice" role="status"><span><Download size={18} /> {t("Zentra {v0} est disponible", { v0: availableUpdate })}</span><Button size="small" onClick={openUpdater}>{t("Voir la mise à jour")}</Button><Button variant="ghost" size="icon" aria-label={t("Masquer la notification de mise à jour")} onClick={() => setDismissedUpdate(availableUpdate)}><X size={16} /></Button></div> : null}
 
         {readOnly && readOnlySource === 'cloud' ? (
           <div className="notice notice--warning" role="status">
             <span>
-              <LockKeyhole size={18} />
-              Accès « Lecture seule » : consultation et exports autorisés,
-              modifications bloquées sur ce poste.
-            </span>
+              <LockKeyhole size={18} />{t("Accès « Lecture seule » : consultation et exports autorisés, modifications bloquées sur ce poste.")}</span>
           </div>
         ) : null}
 
@@ -1727,7 +1728,7 @@ export function WorkspaceApp({
           <div className="timer-ribbon">
             <span className="timer-ribbon__pulse" />
             <div>
-              <strong>Pointage en cours · {formatTimer(timerSeconds)}</strong>
+              <strong>{t("Pointage en cours · ")}{formatTimer(timerSeconds)}</strong>
               <small>
                 {timerProject?.name ?? terminology.singularTitle}
                 {timerTask ? ` · ${timerTask.title}` : ''}
@@ -1746,31 +1747,30 @@ export function WorkspaceApp({
                 )
               }
             >
-              <Pause size={15} /> Arrêter
-            </Button>
+              <Pause size={15} />{t(" Arrêter")}</Button>
           </div>
         ) : null}
 
         {!activeProjectFolder ? <div className="page-header">
           <div>
-            <h1 key={view}>{view === 'quotes' ? 'Devis' : view === 'invoices' ? 'Factures' : view === 'orders' ? 'Commandes' : title[0]}</h1>
-            <p>{view === 'dashboard' ? new Date().toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long' }) : title[1]}</p>
+            <h1 key={view}>{t(view === 'quotes' ? 'Devis' : view === 'invoices' ? 'Factures' : view === 'orders' ? 'Commandes' : title[0])}</h1>
+            <p>{view === 'dashboard' ? new Date().toLocaleDateString(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }) : t(title[1])}</p>
           </div>
           <div className="page-header__actions">
-            <ScreenHelp key={view} view={view} title={view==='quotes'?'Devis':view==='invoices'?'Factures':title[0]}/>
+            <ScreenHelp key={view} view={view} title={view==='quotes'?t("Devis"):view==='invoices'?t("Factures"):title[0]}/>
             {view === 'dashboard' ? (
               <>
               <Button
                 variant="secondary"
                 className="dashboard-timer"
-                aria-label="Démarrer un pointage"
+                aria-label={t("Démarrer un pointage")}
                 disabled={Boolean(dashboardTimerBlock)}
-                title={dashboardTimerBlock || 'Démarrer un pointage réel'}
+                title={dashboardTimerBlock ? t(dashboardTimerBlock) : t('Démarrer un pointage réel')}
                 onClick={() => setModal({ type: 'timer' })}
               >
-                <Play size={16} /> <span>Démarrer un pointage</span>
+                <Play size={16} /> <span>{t("Démarrer un pointage")}</span>
               </Button>
-              <Button disabled={readOnly || Boolean(creationBlockReason('quotes', prerequisites))} title={creationBlockReason('quotes', prerequisites) || undefined} onClick={() => setModal({ type: 'document', entity: 'quotes' })}><Plus size={17} /> Préparer un devis</Button>
+              <Button disabled={readOnly || Boolean(creationBlockReason('quotes', prerequisites))} title={creationBlockReason('quotes', prerequisites) || undefined} onClick={() => setModal({ type: 'document', entity: 'quotes' })}><Plus size={17} />{t(" Préparer un devis")}</Button>
               </>
             ) : null}
             {view !== 'settings' &&
@@ -1818,7 +1818,7 @@ export function WorkspaceApp({
             <button
               type="button"
               onClick={() => setNotice(null)}
-              aria-label="Fermer le message"
+              aria-label={t("Fermer le message")}
             >
               <X size={15} />
             </button>
@@ -1826,10 +1826,10 @@ export function WorkspaceApp({
         ) : null}
 
         <ProjectFileActivity key={cloudAccount?.organizationId ?? 'local'} sessions={projectFileSessions} disabled={busy || readOnly} projects={workspace.projects} currentProjectId={view === 'projects' ? projectFolderId : null} onOpen={id => { setProjectFolderId(id); setView('projects'); setSearch(''); }} />
-        {invoiceIssueReturnId && !invoiceToIssueId && <div className="invoice-issue-resume" role="region" aria-label="Reprendre la facture"><span>Votre facture reste disponible. Après les corrections, reprenez sa vérification avant de l’émettre.</span><Button disabled={busy} onClick={() => { const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceIssueReturnId); if (invoice) { setView('invoices'); setSearch(''); setModal(invoice.quoteId ? { type: 'quoteInvoiceFolder', quoteId: invoice.quoteId } : null); setInvoiceToIssueId(invoice.id); } else setNotice({ tone: 'error', text: 'Cette facture n’est plus disponible. Actualisez la liste des factures.' }); }}>Reprendre la facture</Button><Button variant="ghost" disabled={busy} onClick={() => setInvoiceIssueReturnId(null)}>Plus tard</Button></div>}
-        {payslipPostingReturnId && !payslipPostingId && <div className="payslip-posting-resume" role="region" aria-label="Reprendre la finalisation du salaire"><span>Après vos corrections, reprenez la vérification de la même fiche de salaire.</span><Button disabled={busy} onClick={() => { setModal(null); setSearch(''); setView('team'); setTeamStartSection('payslips'); setPayslipPostingId(payslipPostingReturnId); }}>Reprendre la finalisation du salaire</Button><Button variant="ghost" disabled={busy} onClick={() => setPayslipPostingReturnId(null)}>Plus tard</Button></div>}
-        {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label="Reprendre la facture fournisseur"><span>Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>Reprendre la facture fournisseur</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>Plus tard</Button></div>}
-        {clientFolderReturnId && !modal && <div className="client-folder-return"><span>Retrouvez les coordonnées et les autres documents de ce client.</span><Button disabled={busy} onClick={() => returnToClientFolder()}>Revenir au dossier client</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>Plus tard</Button></div>}
+        {invoiceIssueReturnId && !invoiceToIssueId && <div className="invoice-issue-resume" role="region" aria-label={t("Reprendre la facture")}><span>{t("Votre facture reste disponible. Après les corrections, reprenez sa vérification avant de l’émettre.")}</span><Button disabled={busy} onClick={() => { const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceIssueReturnId); if (invoice) { setView('invoices'); setSearch(''); setModal(invoice.quoteId ? { type: 'quoteInvoiceFolder', quoteId: invoice.quoteId } : null); setInvoiceToIssueId(invoice.id); } else setNotice({ tone: 'error', text: 'Cette facture n’est plus disponible. Actualisez la liste des factures.' }); }}>{t("Reprendre la facture")}</Button><Button variant="ghost" disabled={busy} onClick={() => setInvoiceIssueReturnId(null)}>{t("Plus tard")}</Button></div>}
+        {payslipPostingReturnId && !payslipPostingId && <div className="payslip-posting-resume" role="region" aria-label={t("Reprendre la finalisation du salaire")}><span>{t("Après vos corrections, reprenez la vérification de la même fiche de salaire.")}</span><Button disabled={busy} onClick={() => { setModal(null); setSearch(''); setView('team'); setTeamStartSection('payslips'); setPayslipPostingId(payslipPostingReturnId); }}>{t("Reprendre la finalisation du salaire")}</Button><Button variant="ghost" disabled={busy} onClick={() => setPayslipPostingReturnId(null)}>{t("Plus tard")}</Button></div>}
+        {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label={t("Reprendre la facture fournisseur")}><span>{t("Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.")}</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>{t("Reprendre la facture fournisseur")}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>{t("Plus tard")}</Button></div>}
+        {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
@@ -1850,7 +1850,7 @@ export function WorkspaceApp({
             />
           ) : null}
           {view === 'agenda' ? (
-            <Suspense fallback={<ViewLoading label="Ouverture de l’agenda…" />}>
+            <Suspense fallback={<ViewLoading label={t("Ouverture de l’agenda…")} />}>
               <AgendaScreen
                 workspace={workspace}
                 busy={busy}
@@ -2154,7 +2154,7 @@ export function WorkspaceApp({
           ) : null}
           {view === 'reminders' ? (
             <Suspense
-              fallback={<ViewLoading label="Ouverture des relances…" />}
+              fallback={<ViewLoading label={t("Ouverture des relances…")} />}
             >
               <RemindersScreen
                 readOnly={readOnly}
@@ -2209,7 +2209,7 @@ export function WorkspaceApp({
             />
           ) : null}
           {view === 'expenses' ? (
-            <Suspense fallback={<ViewLoading label="Ouverture des achats…" />}>
+            <Suspense fallback={<ViewLoading label={t("Ouverture des achats…")} />}>
               <PurchaseOrdersScreen
                 onOpenBank={()=>{setView('bank');setSearch('');}}
                 onReadWorkspace={async () => {
@@ -2275,7 +2275,7 @@ export function WorkspaceApp({
             </Suspense>
           ) : null}
           {view === 'bank' ? (
-            <Suspense fallback={<ViewLoading label="Ouverture de la banque…" />}>
+            <Suspense fallback={<ViewLoading label={t("Ouverture de la banque…")} />}>
               <BankScreen
                 autoReconcile={bankAutoReconcile}
                 setAutoReconcile={setBankAutoReconcile}
@@ -2297,7 +2297,7 @@ export function WorkspaceApp({
           {view === 'reports' ? <ReportsScreen workspace={workspace} onOpenAccounting={() => { setView('accounting'); setSearch(''); }} /> : null}
           {view === 'accounting' ? (
             <Suspense
-              fallback={<ViewLoading label="Ouverture de la comptabilité…" />}
+              fallback={<ViewLoading label={t("Ouverture de la comptabilité…")} />}
             >
               <AccountingScreen
                 initialTab={accountingStartTab}
@@ -2333,12 +2333,12 @@ export function WorkspaceApp({
         { id: 'orders' as const, label: 'Commandes & livraisons', description: viewTitles.orders[1], icon: Package },
         { id: 'invoices' as const, label: 'Factures', description: viewTitles.invoices[1], icon: Receipt },
       ]} onClose={() => setNavigationOpen(false)} onSelect={(next) => { setView(next); setProjectFolderId(null); setSearch(''); setAccountingEntryFocus(null); setMenuOpen(false); setNavigationOpen(false); }} /> : null}
-      <nav ref={mobileNavigationRef} className="mobile-navigation" aria-label="Navigation mobile" hidden={nativeNavigation}>
+      <nav ref={mobileNavigationRef} className="mobile-navigation" aria-label={t("Navigation mobile")} hidden={nativeNavigation}>
         <span className="mobile-navigation__selection" aria-hidden="true" />
         {([
           ['dashboard', 'Accueil', Home], ['projects', 'Projets', FolderKanban], ['quotes', 'Ventes', Receipt],
-        ] as const).map(([target, label, Icon]) => <button key={target} type="button" aria-current={view === target || (target === 'quotes' && ['orders', 'invoices'].includes(view)) ? 'page' : undefined} onClick={() => navigateTour(target)}><Icon size={21} /><span>{label}</span></button>)}
-        <button type="button" aria-label="Tous les modules" aria-current={!['dashboard', 'projects', 'quotes', 'orders', 'invoices'].includes(view) ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} /><span>Menu</span></button>
+        ] as const).map(([target, label, Icon]) => <button key={target} type="button" aria-current={view === target || (target === 'quotes' && ['orders', 'invoices'].includes(view)) ? 'page' : undefined} onClick={() => navigateTour(target)}><Icon size={21} /><span>{t(label)}</span></button>)}
+        <button type="button" aria-label={t("Tous les modules")} aria-current={!['dashboard', 'projects', 'quotes', 'orders', 'invoices'].includes(view) ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} /><span>{t("Menu")}</span></button>
       </nav>
 
       {modal && !invoiceToIssueId && !supplierInvoiceReviewId && !payslipPostingId ? (
@@ -2383,11 +2383,11 @@ export function WorkspaceApp({
       ) : null}
       {invoiceToIssueId && (() => {
         const invoice = workspace.invoices.find(row => row.id === invoiceToIssueId);
-        return invoice ? <InvoiceIssueDialog key={invoice.id} invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={() => setInvoiceToIssueId(null)} onConfirm={confirmInvoiceIssue} onResolve={target => resolveInvoiceIssue(invoice, target)} /> : <Modal title="Facture indisponible" onClose={() => setInvoiceToIssueId(null)}><p>Ce document n’est plus présent dans les données chargées. Revenez à la liste des factures pour vérifier son état.</p><Button onClick={() => { setInvoiceToIssueId(null); setModal(null); setView('invoices'); setSearch(''); }}>Voir les factures</Button></Modal>;
+        return invoice ? <InvoiceIssueDialog key={invoice.id} invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={() => setInvoiceToIssueId(null)} onConfirm={confirmInvoiceIssue} onResolve={target => resolveInvoiceIssue(invoice, target)} /> : <Modal title={t("Facture indisponible")} onClose={() => setInvoiceToIssueId(null)}><p>{t("Ce document n’est plus présent dans les données chargées. Revenez à la liste des factures pour vérifier son état.")}</p><Button onClick={() => { setInvoiceToIssueId(null); setModal(null); setView('invoices'); setSearch(''); }}>{t("Voir les factures")}</Button></Modal>;
       })()}
       {supplierInvoiceReviewId && (() => {
         const invoice = workspace.supplierInvoices.find(row => row.id === supplierInvoiceReviewId);
-        return invoice ? <SupplierInvoiceReviewDialog key={invoice.id} invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={() => setSupplierInvoiceReviewId(null)} onConfirm={confirmSupplierInvoiceReview} onResolve={target => resolveSupplierReview(invoice, target)} onPayment={() => { setSupplierInvoiceReviewId(null); setModal({ type: 'supplierPayment', invoice }); }} /> : <Modal title="Facture fournisseur indisponible" onClose={() => setSupplierInvoiceReviewId(null)}><p>Cette facture n’est plus dans les données chargées. Consultez les achats pour vérifier son état.</p><Button onClick={() => { setSupplierInvoiceReviewId(null); setSupplierReviewReturnId(null); setView('expenses'); setSearch(''); }}>Voir les achats</Button></Modal>;
+        return invoice ? <SupplierInvoiceReviewDialog key={invoice.id} invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={() => setSupplierInvoiceReviewId(null)} onConfirm={confirmSupplierInvoiceReview} onResolve={target => resolveSupplierReview(invoice, target)} onPayment={() => { setSupplierInvoiceReviewId(null); setModal({ type: 'supplierPayment', invoice }); }} /> : <Modal title={t("Facture fournisseur indisponible")} onClose={() => setSupplierInvoiceReviewId(null)}><p>{t("Cette facture n’est plus dans les données chargées. Consultez les achats pour vérifier son état.")}</p><Button onClick={() => { setSupplierInvoiceReviewId(null); setSupplierReviewReturnId(null); setView('expenses'); setSearch(''); }}>{t("Voir les achats")}</Button></Modal>;
       })()}
       {printTarget ? (
         <PrintSheet
@@ -2398,7 +2398,7 @@ export function WorkspaceApp({
       ) : null}
       {payslipPostingId && (() => {
         const payslip = workspace.payslips.find(item => item.id === payslipPostingId);
-        return payslip ? <PayslipPostingDialog key={payslip.id} payslip={payslip} workspace={workspace} busy={busy} readOnly={readOnly} feedback={payslipPostingFeedback} close={() => { setPayslipPostingId(null); setPayslipPostingReturnId(null); }} onConfirm={postPayslip} onResolve={target => resolvePayslipPosting(payslip, target)} onPayment={() => { setPayslipPostingId(null); setModal({ type: 'payslipPayment', payslip, returnToPosting: true }); }} onPreview={() => { setPayslipPostingId(null); setPrintTarget({ entity: 'payslips', value: payslip }); }} /> : <Modal title="Fiche de salaire indisponible" onClose={() => setPayslipPostingId(null)}><p>Cette fiche n’est plus dans les données chargées. Revenez aux salaires pour vérifier son état.</p><Button onClick={() => { setPayslipPostingId(null); setPayslipPostingReturnId(null); setView('team'); setTeamStartSection('payslips'); setSearch(''); }}>Voir les fiches de salaire</Button></Modal>;
+        return payslip ? <PayslipPostingDialog key={payslip.id} payslip={payslip} workspace={workspace} busy={busy} readOnly={readOnly} feedback={payslipPostingFeedback} close={() => { setPayslipPostingId(null); setPayslipPostingReturnId(null); }} onConfirm={postPayslip} onResolve={target => resolvePayslipPosting(payslip, target)} onPayment={() => { setPayslipPostingId(null); setModal({ type: 'payslipPayment', payslip, returnToPosting: true }); }} onPreview={() => { setPayslipPostingId(null); setPrintTarget({ entity: 'payslips', value: payslip }); }} /> : <Modal title={t("Fiche de salaire indisponible")} onClose={() => setPayslipPostingId(null)}><p>{t("Cette fiche n’est plus dans les données chargées. Revenez aux salaires pour vérifier son état.")}</p><Button onClick={() => { setPayslipPostingId(null); setPayslipPostingReturnId(null); setView('team'); setTeamStartSection('payslips'); setSearch(''); }}>{t("Voir les fiches de salaire")}</Button></Modal>;
       })()}
       <GuidedTour
         open={guidedTour.open}
@@ -5440,6 +5440,7 @@ function SettingsScreen({
       </section>
 
       </SettingsCategory>
+      <SettingsCategory id="language" title={t('Langue et région')} description={t('Français, allemand, italien ou anglais')} icon={Languages}><LanguageSetting /></SettingsCategory>
       <SettingsCategory id="assistant" lazy title="Assistant local" description="Installer Qwen et obtenir de l’aide dans Zentra" icon={MessageCircle}><LocalAssistantSetup /></SettingsCategory>
       <SettingsCategory id="documents" lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
         <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={next => execute(() => desktopApi.saveSettings(next), 'Les présentations des documents ont été enregistrées.', true)} onRequestCompany={field => {

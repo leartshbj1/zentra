@@ -1,3 +1,5 @@
+import { t } from './language';
+import { useAppLanguage } from './language';
 import {
   useCallback,
   useEffect,
@@ -33,6 +35,7 @@ import { errorMessage, normalizeLicenseToken } from './utils';
 import { useMobileLayout } from './useMobileLayout';
 
 export function App() {
+  useAppLanguage();
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [license, setLicense] = useState<LicenseState | null>(null);
@@ -137,7 +140,7 @@ export function App() {
           <BrandMark size={58} />
         </div>
         <h1>Zentra</h1>
-        <p role="status">Ouverture de votre espace local sécurisé…</p>
+        <p role="status">{t("Ouverture de votre espace local sécurisé…")}</p>
         <LoaderCircle className="spin" size={22} aria-hidden="true" />
       </main>
     );
@@ -150,10 +153,10 @@ export function App() {
           <BrandMark size={58} />
         </div>
         <ErrorPanel
-          title="Espace indisponible"
+          title={t("Espace indisponible")}
           message={error || 'Aucune donnée locale n’a été retournée.'}
         />
-        <Button autoFocus onClick={() => void load()}>Réessayer</Button>
+        <Button autoFocus onClick={() => void load()}>{t("Réessayer")}</Button>
         <StandaloneUpdaterAccess />
       </main>
     );
@@ -189,7 +192,7 @@ export function App() {
     ) : workspace.activityProfileRequired || activityProfileMissing ? (
       <BusinessProfileGate workspace={workspace} onSaved={setWorkspace} />
     ) : (
-      <Suspense fallback={<main className="splash-screen"><LoaderCircle className="spin" size={24} /><p>Ouverture de votre espace…</p></main>}><WorkspaceApp
+      <Suspense fallback={<main className="splash-screen"><LoaderCircle className="spin" size={24} /><p>{t("Ouverture de votre espace…")}</p></main>}><WorkspaceApp
         workspace={workspace}
         setWorkspace={setWorkspace}
         readOnly={Boolean(license?.readOnly || cloudRoleReadOnly)}
@@ -235,11 +238,10 @@ export function StandaloneUpdaterAccess() {
         className="standalone-updater__launcher"
         onClick={() => setOpen(true)}
       >
-        <RefreshCw size={16} /> Mise à jour
-      </Button>
+        <RefreshCw size={16} />{t(" Mise à jour")}</Button>
       {open ? (
         <Modal
-          title="Mise à jour de Zentra"
+          title={t("Mise à jour de Zentra")}
           wide
           dismissible={!installing}
           onClose={() => { if (!installing) setOpen(false); }}
@@ -315,14 +317,14 @@ function LicenseActivation({
   }
   const identity = (
     <div className="license-banner__identity">
-      <span>Installation</span>
+      <span>{t("Installation")}</span>
       <code>{license.installationId || 'indisponible'}</code>
       {license.installationId ? (
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          title="Copier l’identifiant"
+          title={t("Copier l’identifiant")}
           onClick={() =>
             void navigator.clipboard.writeText(license.installationId)
           }
@@ -352,11 +354,11 @@ function LicenseActivation({
           ) : (
             <RefreshCw size={15} />
           )}
-          {refreshing ? 'Renouvellement…' : 'Renouveler en ligne'}
+          {refreshing ? t("Renouvellement…") : t("Renouveler en ligne")}
         </Button>
       ) : null}
       <label>
-        <span>Ou installer un nouveau jeton signé</span>
+        <span>{t("Ou installer un nouveau jeton signé")}</span>
         <textarea
           value={token}
           onChange={(event) => setToken(event.target.value)}
@@ -375,7 +377,7 @@ function LicenseActivation({
         ) : (
           <KeyRound size={15} />
         )}
-        {busy ? 'Vérification en ligne…' : 'Installer le jeton'}
+        {busy ? t("Vérification en ligne…") : t("Installer le jeton")}
       </Button>
     </form>
   );
@@ -396,8 +398,8 @@ function LicenseActivation({
           <strong>{licenseLabels[license.status]}</strong>
           <small>
             {license.readOnly
-              ? 'Application en lecture seule; sauvegarde et export restent disponibles.'
-              : `${license.customerName || 'Licence vérifiée'} · valable jusqu’au ${license.validUntil}`}
+              ? t("Application en lecture seule; sauvegarde et export restent disponibles.")
+              : t("{v0} · valable jusqu’au {v1}", { v0: license.customerName || 'Licence vérifiée', v1: license.validUntil })}
           </small>
         </div>
       </div>
@@ -405,7 +407,7 @@ function LicenseActivation({
         form
       ) : (
         <details>
-          <summary>Licence et identifiant d’installation</summary>
+          <summary>{t("Licence et identifiant d’installation")}</summary>
           {form}
         </details>
       )}
