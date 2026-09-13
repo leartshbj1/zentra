@@ -13,4 +13,5 @@
 .onboarding .language-setting { margin-bottom:28px; }
 html:not([lang^=fr]) :is(.button,.setup-steps button,.settings-browser__navigation button,.sidebar__link) { white-space:normal; overflow-wrap:anywhere; min-width:0; }
 html:not([lang^=fr]) :is(.modal__header h2,.section-heading h2,.setup-header h1,.settings-category__heading) { overflow-wrap:anywhere; hyphens:auto; }
+.field__label em { flex-shrink:0; white-space:nowrap; }
 @media(max-width:600px) { .language-setting { padding:16px; } .language-setting__choices { grid-template-columns:repeat(2,minmax(0,1fr)); } }

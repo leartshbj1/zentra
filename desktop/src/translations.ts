@@ -1,9 +1,13 @@
 // Reviewed interface copy, bundled with the application. Order: German (Switzerland), Italian, English.
 import { connectionTranslations } from './translationsConnections';
 import { guidanceTranslations } from './translationsGuidance';
+import { payrollTranslations } from './translationsPayroll';
+import { payrollHelpTranslations } from './translationsPayrollHelp';
 export const translations: Record<string, readonly [string, string, string]> = {
   ...connectionTranslations,
   ...guidanceTranslations,
+  ...payrollTranslations,
+  ...payrollHelpTranslations,
   'Langue de l’application': ['Sprache der Anwendung','Lingua dell’applicazione','Application language'],
   'Choisissez votre langue': ['Wählen Sie Ihre Sprache','Scegli la tua lingua','Choose your language'],
   'Vous pourrez la changer à tout moment dans les paramètres.': ['Sie können die Sprache jederzeit in den Einstellungen ändern.','Puoi cambiarla in qualsiasi momento nelle impostazioni.','You can change it at any time in settings.'],

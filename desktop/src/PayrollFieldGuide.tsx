@@ -1,20 +1,37 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { t, useAppLanguage } from './language';
+import { payrollDateValidity, payrollFieldMessage, type PayrollFieldValidation } from './payrollFieldLanguage';
 import { createPortal } from 'react-dom';
 import { Button } from './ui';
 import { revealPayrollField } from './payrollNavigation';
 
 type Control = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
+function dateFallback(field: Control) {
+  return field instanceof HTMLInputElement && field.getAttribute('type') === 'date' && field.type !== 'date'
+    ? payrollDateValidity(field.value, field.min, field.max) : null;
+}
+
 /** Keep validation in the form, including fields inside closed disclosures. */
 export function usePayrollFieldGuide() {
+  const language = useAppLanguage();
   const id = useId();
+  const [label, setLabel] = useState('');
   const control = useRef<Control | null>(null);
   const cleanup = useRef<(() => void) | null>(null);
   useEffect(() => () => cleanup.current?.(), []);
-  const [issue, setIssue] = useState<{ label: string; message: string } | null>(
+  const [issue, setIssue] = useState<{ message: string; validation?: PayrollFieldValidation } | null>(
     null,
   );
   useLayoutEffect(() => { if (issue) reveal(); }, [issue]);
+  useLayoutEffect(() => {
+    if (!issue || !control.current) return;
+    const field = control.current;
+    const labelNode = (field.closest('.field')?.querySelector('.field__label') ?? field.labels?.[0])?.cloneNode(true) as Element | undefined;
+    // Required markers are interface copy too; remove them structurally in every language.
+    labelNode?.querySelectorAll('em, input, select, textarea, .field__hint, .field__error, .payroll-inline-error').forEach(node => node.remove());
+    setLabel(labelNode?.textContent?.trim() || field.getAttribute('aria-label') || t('Ce champ'));
+  }, [issue, language]);
   function clear() {
     cleanup.current?.();
     cleanup.current = null;
@@ -48,7 +65,7 @@ export function usePayrollFieldGuide() {
       }
     }
   }
-  function reject(field: Control, message: string) {
+  function reject(field: Control, message: string, validation?: PayrollFieldValidation) {
     clear();
     control.current = field;
     field.setAttribute('aria-invalid', 'true');
@@ -69,51 +86,34 @@ export function usePayrollFieldGuide() {
       field.removeEventListener('change', editing);
       clearTimeout(timer);
     };
-    const label =
-      field
-        .closest('.field')
-        ?.querySelector('.field__label')
-        ?.textContent?.replace(/obligatoire\s*$/, '')
-        .trim() ||
-      field.getAttribute('aria-label') ||
-      field.labels?.[0]?.textContent?.trim() ||
-      'Ce champ';
-    setIssue({ label, message });
+    setIssue({ message, validation });
   }
   function check(form: HTMLElement) {
-    const field = form.querySelector<Control>(
-      'input:invalid, select:invalid, textarea:invalid',
-    );
+    const field = [...form.querySelectorAll<Control>('input, select, textarea')].find(candidate => {
+      if (!candidate.willValidate) return false;
+      const fallback = dateFallback(candidate);
+      return !candidate.validity.valid || fallback && (fallback.typeMismatch || fallback.rangeUnderflow || fallback.rangeOverflow);
+    });
     if (!field) {
       clear();
       return true;
     }
     const validity = field.validity;
-    const value = (text: string) =>
-      field instanceof HTMLInputElement && field.type === 'date'
-        ? text.split('-').reverse().join('.')
-        : text;
-    const dateRange =
-      field instanceof HTMLInputElement &&
-      field.type === 'date' &&
-      (validity.rangeUnderflow || validity.rangeOverflow);
-    const message = field instanceof HTMLInputElement && field.type === 'email' && validity.typeMismatch
-      ? `Indiquez une adresse e-mail complète, par exemple nom@exemple.ch.${!field.required ? ' Vous pouvez aussi laisser ce champ facultatif vide.' : ''}`
-      : dateRange
-      ? `La date saisie est le ${value(field.value)}. Choisissez une date${field.min ? ` à partir du ${value(field.min)}` : ''}${field.max ? ` et au plus tard le ${value(field.max)}` : ''}.${field.name === 'decisionDate' ? ' Recopiez le jour où le choix de cotisation a été confirmé sur votre déclaration ou confirmation écrite pour cette année.' : ' Recopiez la date indiquée sur votre document.'}`
-      : validity.valueMissing
-        ? field instanceof HTMLSelectElement
-          ? 'Choisissez une réponse dans la liste pour continuer.'
-          : 'Complétez ce champ pour continuer. Les autres informations restent conservées.'
-        : field instanceof HTMLInputElement &&
-            (validity.rangeUnderflow || validity.rangeOverflow)
-          ? `La valeur doit respecter ${field.min ? `le minimum ${value(field.min)}` : ''}${field.min && field.max ? ' et ' : ''}${field.max ? `le maximum ${value(field.max)}` : ''}. Vérifiez votre document avant de la corriger.`
-          : validity.stepMismatch
-            ? 'Indiquez le montant ou la valeur avec la précision demandée sous ce champ. Ne changez pas un taux de contrat pour le faire accepter.'
-            : 'Vérifiez le format de cette information. Pour une date, utilisez le calendrier ; pour un montant, saisissez uniquement un nombre.';
-    reject(field, message);
+    const input = field instanceof HTMLInputElement ? field : null;
+    const validation: PayrollFieldValidation = {
+      type: input?.getAttribute('type') ?? input?.type ?? '', name: field.name, value: field.value,
+      min: input?.min ?? '', max: input?.max ?? '', required: field.required,
+      select: field instanceof HTMLSelectElement,
+      typeMismatch: validity.typeMismatch, valueMissing: validity.valueMissing,
+      rangeUnderflow: validity.rangeUnderflow, rangeOverflow: validity.rangeOverflow,
+      stepMismatch: validity.stepMismatch,
+      ...dateFallback(field),
+    };
+    // Raw French stays available to existing routing and assistant classifiers.
+    reject(field, payrollFieldMessage(validation, 'fr'), validation);
     return false;
   }
+  const explanation = issue ? issue.validation ? payrollFieldMessage(issue.validation, language) : t(issue.message) : '';
   return {
     check,
     reject,
@@ -121,14 +121,14 @@ export function usePayrollFieldGuide() {
     message: issue?.message ?? '',
     guide: issue ? (<>
       <section className="payroll-field-guide" role="alert" id={id}>
-        <strong>À compléter : {issue.label}</strong>
-        <p>{issue.message}</p>
+        <strong>{t('À compléter : {field}', { field: label })}</strong>
+        <p>{explanation}</p>
         <Button type="button" size="small" variant="secondary" onClick={reveal}>
-          Aller au champ à corriger
+          {t('Aller au champ à corriger')}
         </Button>
       </section>
       {control.current?.closest('.field') && createPortal(
-        <span id={`${id}-inline`} className="payroll-inline-error">{issue.message}</span>,
+        <span id={`${id}-inline`} className="payroll-inline-error">{explanation}</span>,
         control.current.closest('.field')!,
       )}
       </>

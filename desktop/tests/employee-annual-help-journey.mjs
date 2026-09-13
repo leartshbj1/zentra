@@ -16,7 +16,8 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
       await page.goto(`${base}/tests/mobile-harness.html?browsing=1&design=1`);
       await page.getByRole('button', { name: 'Fermer le guide automatique', exact: true }).click();
       await page.evaluate(async () => {
-        const { desktopApi } = await import('/src/bridge.ts');
+        const bridgeUrl = performance.getEntriesByType('resource').map(entry => entry.name).findLast(url => new URL(url).pathname === '/src/bridge.ts') ?? '/src/bridge.ts';
+        const { desktopApi } = await import(bridgeUrl);
         const workspace = await desktopApi.loadWorkspace();
         window.employeeWrites = [];
         window.failEmployeeSave = true;
@@ -27,7 +28,7 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
           return { ...workspace, employees: [...workspace.employees, { ...data, id: 'employee-new', active: data.status === 'actif', salaryMode: data.monthlySalaryCents > 0 ? 'monthly' : 'hourly', grossSalaryCents: data.monthlySalaryCents, hourlyCostCents: data.hourlyRateCents }] };
         };
       });
-      await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
+      await page.locator(width > 1100 ? '.sidebar__search' : '.topbar .navigation-launcher').click();
       await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Équipe & salaires');
       await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Équipe & salaires', { exact: true }) }).click();
       await page.getByRole('button', { name: 'Nouveau collaborateur', exact: true }).click();

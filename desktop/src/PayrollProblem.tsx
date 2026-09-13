@@ -1,3 +1,4 @@
+import { t, useAppLanguage } from './language';
 import { useEffect, useRef } from 'react';
 import { Button } from './ui';
 import { groupedPayrollHelp, type PayrollHelpTarget } from './payrollHelp';
@@ -13,19 +14,20 @@ export function PayrollProblem({
   disabled?: boolean;
   reveal?: boolean;
 }) {
+  useAppLanguage();
   const container = useRef<HTMLDivElement>(null);
   const messageKey = messages.filter(Boolean).join('\n');
   const helpItems = groupedPayrollHelp(messages.filter(Boolean));
   const renderHelp = (help: (typeof helpItems)[number]) => (
     <section key={help.title} className="payroll-problem">
-      <strong>{help.title}</strong>
-      <p>{help.explanation}</p>
+      <strong>{t(help.title)}</strong>
+      <p>{t(help.explanation)}</p>
       {help.steps && (
         <details className="payroll-problem-guide">
-          <summary>Comment faire, étape par étape</summary>
+          <summary>{t("Comment faire, étape par étape")}</summary>
           <ol>
             {help.steps.map((text) => (
-              <li key={text}>{text}</li>
+              <li key={text}>{t(text)}</li>
             ))}
           </ol>
         </details>
@@ -38,11 +40,11 @@ export function PayrollProblem({
           disabled={disabled}
           onClick={() => onFix(help.target, help.selector)}
         >
-          {help.action}
+          {t(help.action)}
         </Button>
       )}
       <details>
-        <summary>Voir le message détaillé</summary>
+        <summary>{t("Voir le message détaillé")}</summary>
         {help.messages.map((message) => (
           <p key={message}>{message}</p>
         ))}
@@ -68,13 +70,8 @@ export function PayrollProblem({
       {helpItems[0] && renderHelp(helpItems[0])}
       {helpItems.length > 1 && (
         <details className="payroll-remaining" key="remaining-problems">
-          <summary>
-            Voir les {helpItems.length - 1} autres points à compléter
-          </summary>
-          <p>
-            Vous pouvez commencer par le premier point. Votre saisie reste dans
-            ce formulaire pendant les corrections.
-          </p>
+          <summary>{t(helpItems.length === 2 ? 'Voir l’autre point à compléter' : 'Voir les {count} autres points à compléter', { count: helpItems.length - 1 })}</summary>
+          <p>{t("Vous pouvez commencer par le premier point. Votre saisie reste dans ce formulaire pendant les corrections.")}</p>
           {helpItems.slice(1).map(renderHelp)}
         </details>
       )}

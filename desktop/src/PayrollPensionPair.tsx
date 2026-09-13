@@ -1,3 +1,4 @@
+import { t, useAppLanguage } from './language';
 import { useState } from 'react';
 import { desktopApi } from './bridge';
 import { Button, Field, submitForm } from './ui';
@@ -28,6 +29,7 @@ export function PayrollPensionPair({
   disabled: boolean;
   run: (action: () => Promise<Workspace>) => Promise<void>;
 }) {
+  useAppLanguage();
   const [ids] = useState(() => ({
     employee: existing.find((d) => d.side === 'employee')?.id ?? createId(),
     employer: existing.find((d) => d.side === 'employer')?.id ?? createId(),
@@ -149,23 +151,20 @@ export function PayrollPensionPair({
       {fieldGuide.guide}
       {error && (
         <p className="payroll-field-guide" role="alert">
-          {error}
+          {t(error)}
         </p>
       )}
       <fieldset disabled={disabled}>
-        <h4>Recopiez les deux montants mensuels du certificat</h4>
-        <p>
-          La part du salarié sera retenue sur son salaire. La part de
-          l’entreprise s’ajoute à son coût.
-        </p>
+        <h4>{t("Recopiez les deux montants mensuels du certificat")}</h4>
+        <p>{t("La part du salarié sera retenue sur son salaire. La part de l’entreprise s’ajoute à son coût.")}</p>
         <div className="form-grid">
           {(['employee', 'employer'] as const).map((side) => (
             <Field
               key={side}
               label={
                 side === 'employee'
-                  ? 'Part du salarié par mois (CHF)'
-                  : 'Part de l’entreprise par mois (CHF)'
+                  ? t("Part du salarié par mois (CHF)")
+                  : t("Part de l’entreprise par mois (CHF)")
               }
               required
             >
@@ -187,21 +186,21 @@ export function PayrollPensionPair({
             </Field>
           ))}
         </div>
-        <Field label="Que couvrent ces montants sur le certificat ?" required>
+        <Field label={t("Que couvrent ces montants sur le certificat ?")} required>
           <select
             name="component"
             required
             defaultValue={existing[0]?.lppComponent ?? ''}
           >
-            <option value="">Choisir d’après le certificat</option>
-            <option value="combined">Épargne et risques réunis</option>
-            <option value="risk">Risques uniquement</option>
-            <option value="savings">Épargne uniquement</option>
+            <option value="">{t("Choisir d’après le certificat")}</option>
+            <option value="combined">{t("Épargne et risques réunis")}</option>
+            <option value="risk">{t("Risques uniquement")}</option>
+            <option value="savings">{t("Épargne uniquement")}</option>
           </select>
         </Field>
         <details className="payroll-simple-guide">
-          <summary>Dates et référence reprises du contrat</summary>
-          <Field label="Début de validité" required>
+          <summary>{t("Dates et référence reprises du contrat")}</summary>
+          <Field label={t("Début de validité")} required>
             <input
               type="date"
               name="from"
@@ -211,7 +210,7 @@ export function PayrollPensionPair({
               defaultValue={existing[0]?.effectiveFrom ?? plan.effectiveFrom}
             />
           </Field>
-          <Field label="Fin de la période confirmée" required>
+          <Field label={t("Fin de la période confirmée")} required>
             <input
               type="date"
               name="to"
@@ -221,7 +220,7 @@ export function PayrollPensionPair({
               defaultValue={existing[0]?.effectiveTo ?? plan.effectiveTo}
             />
           </Field>
-          <Field label="Référence du règlement" required>
+          <Field label={t("Référence du règlement")} required>
             <input
               name="source"
               required
@@ -233,14 +232,9 @@ export function PayrollPensionPair({
         </details>
         <label className="check-card">
           <input type="checkbox" required />
-          <span>
-            J’ai vérifié ces deux montants et leur couverture sur le certificat
-            de prévoyance.
-          </span>
+          <span>{t("J’ai vérifié ces deux montants et leur couverture sur le certificat de prévoyance.")}</span>
         </label>
-        <Button type="submit" disabled={disabled}>
-          Enregistrer les deux montants
-        </Button>
+        <Button type="submit" disabled={disabled}>{t("Enregistrer les deux montants")}</Button>
       </fieldset>
     </form>
   );

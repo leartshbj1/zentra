@@ -17,7 +17,7 @@ export function hourlySalaryCents(hours: string, rate: string): number | undefin
   return rounded > 0 ? rounded : undefined;
 }
 
-const names: Partial<Record<PayrollContributionDefinition['category'], string>> = {
+export const payrollBasisNames: Partial<Record<PayrollContributionDefinition['category'], string>> = {
   avs_ai_apg: 'AVS, AI et APG', ac: 'Assurance chômage',
   aap: 'Accidents au travail', aanp: 'Accidents hors travail',
   family_allowance: 'Caisse d’allocations familiales', ijm: 'Perte de gain maladie',
@@ -55,7 +55,7 @@ export function payrollBasisQuestions(
         previous.definitions.push(definition);
         if (previous.amountCents !== amountCents) previous.amountCents = undefined;
       } else result.set(id, {
-        id, definitionId: definition.id, label: names[definition.category] ?? definition.label,
+        id, definitionId: definition.id, label: payrollBasisNames[definition.category] ?? definition.label,
         definitions: [definition], field, amountCents,
       });
     }
