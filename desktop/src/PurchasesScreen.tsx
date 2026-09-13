@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Banknote, Building2, CheckCircle2, Clock3, Eye, FileCheck2, FolderOpen, Mail, Paperclip, Pencil, Phone, Plus, ReceiptText, RotateCcw, Search, ShieldCheck, Trash2, Upload, WalletCards } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Archive, Banknote, Building2, CheckCircle2, Clock3, Eye, FileCheck2, FolderOpen, Mail, Paperclip, Pencil, Phone, Plus, ReceiptText, RotateCcw, Search, Trash2, WalletCards } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { ExpenseRefundForm, ExpenseRefundHistory } from './ExpenseRefundForm';
 import { RefundAttachmentForm } from './RefundAttachments';
 import { expenseRefundTotals } from './expenseRefunds';
-import { purchaseCostCategories, purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
+import { purchaseCostCategories } from './purchaseVat';
 import {
   filterPurchaseExpenses,
   filterSupplierInvoices,
@@ -25,6 +25,8 @@ import { centsFromInput, createId, errorMessage, formatDate, formatMoney, number
 import { Button, EmptyState, ErrorPanel, Field, FormActions, Modal, SectionHeading, StatusBadge, submitForm } from './ui';
 import { supplierPaymentInput } from './purchaseFormValidation';
 import { SupplierInvoicePreparation } from './SupplierInvoiceWizard';
+import { SupplierInvoiceAttachments, formatAttachmentSize } from './SupplierInvoiceAttachments';
+export { formatAttachmentSize } from './SupplierInvoiceAttachments';
 import './purchase-entry.css';
 
 type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
@@ -166,82 +168,6 @@ export type { SupplierInvoiceDraftLine } from './supplierInvoicePreparation';
 
 function supplierPaymentMethodLabel(method: string): string {
   return ({ bank_transfer: 'Virement bancaire', card: 'Carte', cash: 'Espèces', other: 'Autre' } as Record<string, string>)[method] ?? method;
-}
-
-export function formatAttachmentSize(sizeBytes: number): string {
-  if (sizeBytes < 1_024) return `${sizeBytes} o`;
-  if (sizeBytes < 1_024 * 1_024) return `${(sizeBytes / 1_024).toLocaleString('fr-CH', { maximumFractionDigits: 1 })} Ko`;
-  return `${(sizeBytes / (1_024 * 1_024)).toLocaleString('fr-CH', { maximumFractionDigits: 1 })} Mo`;
-}
-
-function attachmentTypeLabel(attachment: Attachment): string {
-  return ({ 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/jpeg': 'JPEG', 'image/webp': 'WebP' } as Record<string, string>)[attachment.mimeType] ?? 'Document';
-}
-
-function SupplierInvoiceAttachments({ invoice, canEdit, busy, act, onPending }: { invoice?: SupplierInvoice; canEdit: boolean; busy: boolean; act?: ActionRunner; onPending?: (pending: boolean) => void }) {
-  const [localError, setLocalError] = useState('');
-  const [pending, setPending] = useState(false);
-  const operation = useRef(false), alive = useRef(true), editable = useRef(canEdit);
-  editable.current = canEdit && invoice?.documentStatus === 'draft';
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  function markPending(value: boolean) { operation.current = value; setPending(value); onPending?.(value); }
-
-  async function addAttachment() {
-    if (!invoice || !act || busy || operation.current || !editable.current) return;
-    markPending(true);
-    setLocalError('');
-    try {
-      const sourcePath = await desktopApi.chooseSupplierInvoiceAttachment();
-      if (!sourcePath || !alive.current || !editable.current) return;
-      await act(
-        () => desktopApi.addSupplierInvoiceAttachment(invoice.id, sourcePath),
-        'Le justificatif a été copié et vérifié dans les données locales Zentra.',
-        false,
-        (reason) => setLocalError(errorMessage(reason, 'Le justificatif n’a pas pu être ajouté. Réessayez avec un PDF ou une image.')),
-      );
-    } catch (reason) {
-      setLocalError(errorMessage(reason, 'Le justificatif n’a pas pu être ajouté.'));
-    } finally {
-      markPending(false);
-    }
-  }
-
-  async function openAttachment(attachment: Attachment) {
-    setLocalError('');
-    try {
-      await desktopApi.openAttachment(attachment.id);
-    } catch (reason) {
-      setLocalError(errorMessage(reason, 'Le justificatif local n’a pas pu être ouvert.'));
-    }
-  }
-
-  async function deleteAttachment(attachment: Attachment) {
-    if (!invoice || !act || busy || operation.current || !editable.current || !window.confirm(`Supprimer le justificatif « ${attachment.originalName} » ?`)) return;
-    markPending(true);
-    setLocalError('');
-    try { await act(
-      () => desktopApi.deleteSupplierInvoiceAttachment(attachment.id),
-      'Le justificatif a été supprimé du stockage local.',
-      false,
-      (reason) => setLocalError(errorMessage(reason, 'Le justificatif n’a pas pu être supprimé.')),
-    ); } catch (reason) { setLocalError(errorMessage(reason, 'Le justificatif n’a pas pu être supprimé.')); }
-    finally { markPending(false); }
-  }
-
-  busy = busy || pending;
-  return <section className="supplier-attachments" aria-busy={busy}>
-    <header><div><strong><Paperclip size={16} /> Justificatifs</strong><small>PDF ou image · 25 Mio maximum · conservé sur cet appareil</small></div>{canEdit && invoice ? <Button type="button" variant="secondary" size="small" disabled={busy || invoice.attachments.length >= 20} onClick={() => void addAttachment()}><Upload size={14} /> Ajouter un justificatif</Button> : null}</header>
-    {!invoice ? <div className="supplier-attachments__empty"><Paperclip size={20} /><span>Enregistrez d’abord le brouillon pour joindre le document original.</span></div> : invoice.attachments.length ? <div className="supplier-attachments__list">{invoice.attachments.map((attachment) => <article key={attachment.id}>
-      <span className="supplier-attachments__icon"><ReceiptText size={17} /></span>
-      <div><strong>{attachment.originalName}</strong><small>{attachmentTypeLabel(attachment)} · {formatAttachmentSize(attachment.sizeBytes)}</small></div>
-      <div className="row-actions">
-        <Button type="button" variant="ghost" size="small" onClick={() => void openAttachment(attachment)}><FolderOpen size={14} /> Ouvrir</Button>
-        {canEdit ? <Button type="button" variant="ghost" size="icon" disabled={busy} onClick={() => void deleteAttachment(attachment)} title="Supprimer le justificatif" aria-label={`Supprimer ${attachment.originalName}`}><Trash2 size={15} /></Button> : null}
-      </div>
-    </article>)}</div> : <div className="supplier-attachments__empty"><Paperclip size={20} /><span>Aucun justificatif joint.{canEdit ? ' Vous pourrez valider sans pièce après une confirmation explicite.' : ''}</span></div>}
-    {invoice && invoice.attachments.length >= 20 && canEdit ? <div className="info-strip"><ShieldCheck size={16} /><span>La limite de 20 justificatifs pour cette facture est atteinte.</span></div> : null}
-    {localError ? <ErrorPanel title="Vérifions le justificatif" message={localError} reveal /> : null}
-  </section>;
 }
 
 export function SupplierInvoiceForm(props: { item?: SupplierInvoice; initialTarget?: 'reference' | 'attachments'; workspace: Workspace; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner }) {

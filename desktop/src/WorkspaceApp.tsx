@@ -2453,10 +2453,10 @@ function CreateButton({
     <Button
       disabled={Boolean(blockReason)}
       aria-describedby={help ? `creation-help-${view}` : undefined}
-      title={blockReason || current[0]}
+      title={blockReason || t(current[0])}
       onClick={() => onClick(current[1])}
     >
-      <Plus size={16} /> {current[0]}
+      <Plus size={16} /> {t(current[0])}
     </Button>
     {help && (
       <div className="creation-action__help" aria-label="Pour continuer">
@@ -2763,11 +2763,11 @@ function Dashboard({
           </button>
           <button
             disabled={Boolean(expenseBlock)}
-            title={expenseBlock || 'Créer une facture fournisseur'}
+            title={expenseBlock || t('Créer une facture fournisseur')}
             onClick={() => onCreate({ type: 'supplierInvoice' })}
           >
             <WalletCards />
-            <span>Facture fournisseur</span>
+            <span>{t('Facture fournisseur')}</span>
           </button>
         </div>
       </section>

@@ -9,7 +9,9 @@ import { payrollEligibilityTranslations } from './translationsPayrollEligibility
 import { payrollSettingsTranslations } from './translationsPayrollSettings';
 import { tourTranslations } from './translationsTour';
 import { employeeTranslations } from './translationsEmployees';
+import { purchaseTranslations } from './translationsPurchases';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...purchaseTranslations,
   ...connectionTranslations,
   ...guidanceTranslations,
   ...payrollTranslations,

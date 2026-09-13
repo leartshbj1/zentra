@@ -3,6 +3,7 @@ import { purchaseCostCategories, purchaseVatOptions } from './purchaseVat';
 import { selectableSuppliers, supplierDueDate } from './purchases';
 import { isSalesDate } from './salesFormValidation';
 import { createId, todayIso } from './utils';
+import { t } from './language';
 
 export type SupplierInvoiceDraftLine = {
   id: string; description: string; quantityMilli: number; unit: string; unitPriceCents: number;
@@ -13,7 +14,7 @@ export type PurchaseFields = {
   supplierId: string; reference: string; date: string; dueDate: string; projectId: string; note: string;
   vatTreatment: '' | 'input_materials' | 'input_investments' | 'non_deductible'; lines: PurchaseLineFields[];
 };
-export type PurchaseIssue = { step: 0 | 1; field: string; message: string };
+export type PurchaseIssue = { step: 0 | 1; field: string; message: string; line?: number };
 export const purchaseLineField = (id: string, field: string) => `line-${id}-${field}`;
 
 export function purchaseDecimal(value: string, decimals: number, max: number): number | null {
@@ -25,14 +26,14 @@ export function purchaseDecimal(value: string, decimals: number, max: number): n
 }
 
 function decimalText(value: number, places: number): string {
-  if (!Number.isSafeInteger(value) || value < 0) return 'À vérifier';
+  if (!Number.isSafeInteger(value) || value < 0) return t('À vérifier');
   const scale = 10n ** BigInt(places), number = BigInt(value);
   return `${number / scale}.${String(number % scale).padStart(places, '0')}`;
 }
 
 export function newPurchaseLine(workspace: Workspace): PurchaseLineFields {
   const settings = workspace.settings!;
-  return { id: createId(), description: '', quantity: '1', unit: 'unité', price: '', discount: '0',
+  return { id: createId(), description: '', quantity: '1', unit: t('unité'), price: '', discount: '0',
     vatBp: purchaseVatOptions(settings.organization.vatRegistered, settings.billing.vatRatesBp)[0] ?? 0,
     category: purchaseCostCategories(settings.work.costCategories)[0] ?? '', expenseAccountId: '', projectId: '' };
 }
@@ -97,7 +98,7 @@ export function purchaseIssue(fields: PurchaseFields, rates: number[], onlyStep?
   if (onlyStep === 0) return null;
   if (!fields.lines.length || fields.lines.length > 250) return { step: 1, field: 'purchase-lines', message: 'Cette facture doit contenir entre 1 et 250 lignes.' };
   for (const [index, line] of fields.lines.entries()) {
-    const issue = (field: string, message: string): PurchaseIssue => ({ step: 1, field: purchaseLineField(line.id, field), message: `Ligne ${index + 1} : ${message}` });
+    const issue = (field: string, message: string): PurchaseIssue => ({ step: 1, field: purchaseLineField(line.id, field), message, line: index + 1 });
     if (!line.description.trim() || line.description.length > 1_000) return issue('description', 'décrivez ce que vous avez acheté, en 1 000 caractères maximum.');
     const quantity = purchaseDecimal(line.quantity, 3, 1_000_000_000);
     if (quantity === null || quantity <= 0) return issue('quantity', 'indiquez une quantité supérieure à zéro, jusqu’à 1 000 000, avec trois décimales maximum. Exemple : 2,5.');

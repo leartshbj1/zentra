@@ -9,6 +9,8 @@ import { createId, errorMessage, formatDate, formatMoney } from './utils';
 import { isSalesDate } from './salesFormValidation';
 import { Button, ErrorPanel, Field, Modal, submitForm } from './ui';
 import { changePurchaseDate, newPurchaseLine, purchaseFields, purchaseIssue, purchaseLineField, purchaseLineValue, purchaseTotals, supplierInvoiceLineTotals, type PurchaseFields, type PurchaseIssue, type PurchaseLineFields } from './supplierInvoicePreparation';
+import { t, useAppLanguage, getAppLocale } from './language';
+import { purchaseIssueText, purchaseNativeMessage } from './purchaseLanguage';
 import './purchase-entry.css';
 
 export type SupplierPreparationProps = {
@@ -25,6 +27,7 @@ export function SupplierInvoicePreparation(props: SupplierPreparationProps) {
 }
 
 function Preparation({ item, initialTarget, workspace, busy, readOnly = false, close, act, renderAttachments }: SupplierPreparationProps) {
+  const language = useAppLanguage();
   const settings = workspace.settings!, terminology = projectTerminology(settings.business.nogaSection);
   const [draftId] = useState(() => item?.id ?? createId());
   const [initial] = useState(() => purchaseFields(workspace, item));
@@ -44,9 +47,9 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
   const supplier = choices.find(value => value.id === fields.supplierId);
   const rates = purchaseVatOptions(settings.organization.vatRegistered, settings.billing.vatRatesBp);
   const totals = purchaseTotals(fields.lines);
-  const money = (value: number | undefined) => value === undefined ? 'À compléter' : formatMoney(value);
-  const date = (value: string) => isSalesDate(value) ? formatDate(value) : 'À compléter';
-  const fieldError = (name: string) => issue?.field === name ? issue.message : undefined;
+  const money = (value: number | undefined) => value === undefined ? t("À compléter") : formatMoney(value);
+  const date = (value: string) => isSalesDate(value) ? formatDate(value) : t("À compléter");
+  const fieldError = (name: string) => issue?.field === name ? purchaseIssueText(issue) : undefined;
 
   useEffect(() => {
     if (locked) return;
@@ -81,9 +84,9 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
         if (bottom > top && (rect.top < top || rect.bottom > bottom)) body.scrollBy({ top: rect.top - top - Math.max(0, (bottom - top - rect.height) / 2), behavior: 'instant' });
       });
     };
-    container?.addEventListener('focusin', reveal); window.addEventListener('resize', reveal); window.visualViewport?.addEventListener('resize', reveal);
+    container?.addEventListener('focusin', reveal); window.addEventListener('resize', reveal); window.visualViewport?.addEventListener('resize', reveal); reveal();
     return () => { cancelAnimationFrame(frame); container?.removeEventListener('focusin', reveal); window.removeEventListener('resize', reveal); window.visualViewport?.removeEventListener('resize', reveal); };
-  }, []);
+  }, [language]);
 
   function change<K extends Exclude<keyof PurchaseFields, 'lines'>>(field: K, value: PurchaseFields[K]) {
     if (locked || cannotEdit || inFlight.current) return;
@@ -121,86 +124,86 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
         id: draftId, supplierId: fields.supplierId, projectId: fields.projectId || null, date: fields.date, dueDate: fields.dueDate,
         reference: fields.reference.trim(), note: fields.note.trim(), vatTreatment: fields.vatTreatment || undefined,
         items: fields.lines.map(value => { const line = purchaseLineValue(value)!; return { ...line, expenseAccountId: line.expenseAccountId || null, projectId: line.projectId || null }; }),
-      }), current ? 'Le brouillon fournisseur a été mis à jour.' : 'Le brouillon fournisseur a été enregistré. Ajoutez maintenant son justificatif.', false, report);
+      }), current ? t('Le brouillon fournisseur a été mis à jour.') : t('Le brouillon fournisseur a été enregistré. Ajoutez maintenant son justificatif.'), false, report);
       if (saved) { setBaseline(fields); setStep(3); }
       else if (!reported) setServerError('La sauvegarde n’est pas confirmée. Votre saisie reste présente ; vérifiez le message de reprise avant une nouvelle tentative.');
     } catch (reason) { report(reason); }
     finally { inFlight.current = false; setSaving(false); }
   }
 
-  return <Modal className="purchase-entry-modal supplier-preparation" title={item ? 'Modifier le brouillon fournisseur' : 'Nouvelle facture fournisseur'} description="Un pas à la fois : recopiez, vérifiez, puis gardez l’original." wide dismissible={!locked} onClose={requestClose}>
+  return <Modal className="purchase-entry-modal supplier-preparation" title={item ? t("Modifier le brouillon fournisseur") : t("Nouvelle facture fournisseur")} description={t("Un pas à la fois : recopiez, vérifiez, puis gardez l’original.")} wide dismissible={!locked} onClose={requestClose}>
     <form ref={form} noValidate onSubmit={submitForm(async () => { if (step < 2) go(step + 1); else if (step === 2) await save(); })}>
-      <nav className="supplier-preparation__steps" aria-label="Étapes de la facture fournisseur">{steps.map((label, index) => <Button key={label} type="button" variant="ghost" aria-current={step === index ? 'step' : undefined} disabled={locked || index === 3 && (!current || dirty)} onClick={() => go(index)}><span>{index + 1}</span>{label}</Button>)}</nav>
-      <div className="supplier-preparation__overview"><div><small>{supplier?.name || 'Fournisseur à choisir'}</small><strong>{fields.reference || 'Facture reçue'}</strong></div><div><small>Total TTC</small><strong>{money(totals?.totalCents)}</strong></div></div>
-      {readOnly && <p className="info-strip">Mode lecture seule : vous pouvez consulter les étapes, sans enregistrer de modification.</p>}
-      {matching && <p className="info-strip">Ce brouillon est rapproché avec une commande. Ses informations sont protégées ; les justificatifs restent accessibles. Retirez les liens dans le rapprochement pour modifier les achats.</p>}
-      {(finalized || unavailable) && <p className="info-strip">{finalized ? 'Cette facture a été validée. Ses informations sont maintenant protégées.' : 'Ce brouillon n’est plus dans la liste des achats. Fermez cette fenêtre et actualisez les achats.'}</p>}
+      <nav className="supplier-preparation__steps" aria-label={t("Étapes de la facture fournisseur")}>{steps.map((label, index) => <Button key={label} type="button" variant="ghost" aria-current={step === index ? 'step' : undefined} disabled={locked || index === 3 && (!current || dirty)} onClick={() => go(index)}><span>{index + 1}</span>{t(label)}</Button>)}</nav>
+      <div className="supplier-preparation__overview"><div><small>{supplier?.name || t("Fournisseur à choisir")}</small><strong>{fields.reference || t("Facture reçue")}</strong></div><div><small>{t("Total TTC")}</small><strong>{money(totals?.totalCents)}</strong></div></div>
+      {readOnly && <p className="info-strip">{t("Mode lecture seule : vous pouvez consulter les étapes, sans enregistrer de modification.")}</p>}
+      {matching && <p className="info-strip">{t("Ce brouillon est rapproché avec une commande. Ses informations sont protégées ; les justificatifs restent accessibles. Retirez les liens dans le rapprochement pour modifier les achats.")}</p>}
+      {(finalized || unavailable) && <p className="info-strip">{finalized ? t("Cette facture a été validée. Ses informations sont maintenant protégées.") : t("Ce brouillon n’est plus dans la liste des achats. Fermez cette fenêtre et actualisez les achats.")}</p>}
       <section className="supplier-preparation__page" key={step} tabIndex={-1} aria-labelledby="supplier-preparation-heading">
-        <h3 id="supplier-preparation-heading" ref={heading} tabIndex={-1}>{titles[step]}</h3>
+        <h3 id="supplier-preparation-heading" ref={heading} tabIndex={-1}>{t(titles[step])}</h3>
         {step === 0 && <fieldset disabled={locked || cannotEdit}>
-          <p>Gardez la facture devant vous. Recopiez son fournisseur et ses dates ; les achats viennent juste après.</p>
+          <p>{t("Gardez la facture devant vous. Recopiez son fournisseur et ses dates ; les achats viennent juste après.")}</p>
           <div className="form-grid">
-            <Field label="Fournisseur" required wide error={fieldError('supplierId')}><select name="supplierId" value={fields.supplierId} onChange={event => change('supplierId', event.target.value)}><option value="">Choisir un fournisseur</option>{choices.map(value => <option key={value.id} value={value.id}>{value.name}{value.archivedAt ? ' · archivé (historique)' : ''}</option>)}</select></Field>
-            <Field label="Numéro / référence fournisseur" error={fieldError('reference')} hint="Recopiez le numéro du document reçu. Vous pourrez le compléter avant la validation si vous ne l’avez pas encore."><input name="reference" value={fields.reference} maxLength={200} onChange={event => change('reference', event.target.value)} /></Field>
-            <Field label={terminology.singularTitle} hint="Facultatif. Rattachez cet achat au dossier concerné."><select name="projectId" value={fields.projectId} onChange={event => change('projectId', event.target.value)}><option value="">Aucun {terminology.singular}</option>{workspace.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>
-            <Field label="Date de facture" required error={fieldError('date')} hint="La date inscrite sur la facture reçue."><input name="date" type="date" value={fields.date} onChange={event => change('date', event.target.value)} /></Field>
-            <Field label="Échéance" required error={fieldError('dueDate')} hint="La date limite de paiement indiquée par le fournisseur."><input name="dueDate" type="date" value={fields.dueDate} onChange={event => change('dueDate', event.target.value)} /></Field>
+            <Field label={t("Fournisseur")} required wide error={fieldError('supplierId')}><select name="supplierId" value={fields.supplierId} onChange={event => change('supplierId', event.target.value)}><option value="">{t("Choisir un fournisseur")}</option>{choices.map(value => <option key={value.id} value={value.id}>{value.name}{value.archivedAt ? t(" · archivé (historique)") : ''}</option>)}</select></Field>
+            <Field label={t("Numéro / référence fournisseur")} error={fieldError('reference')} hint={t("Recopiez le numéro du document reçu. Vous pourrez le compléter avant la validation si vous ne l’avez pas encore.")}><input name="reference" value={fields.reference} maxLength={200} onChange={event => change('reference', event.target.value)} /></Field>
+            <Field label={t(terminology.singularTitle)} hint={t("Facultatif. Rattachez cet achat au dossier concerné.")}><select name="projectId" value={fields.projectId} onChange={event => change('projectId', event.target.value)}><option value="">{t("Aucun projet")}</option>{workspace.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>
+            <Field label={t("Date de facture")} required error={fieldError('date')} hint={t("La date inscrite sur la facture reçue.")}><input name="date" type="date" value={fields.date} onChange={event => change('date', event.target.value)} /></Field>
+            <Field label={t("Échéance")} required error={fieldError('dueDate')} hint={t("La date limite de paiement indiquée par le fournisseur.")}><input name="dueDate" type="date" value={fields.dueDate} onChange={event => change('dueDate', event.target.value)} /></Field>
           </div>
-          <Button type="button" variant="secondary" disabled={locked || cannotEdit || !isSalesDate(fields.date)} onClick={() => change('dueDate', supplierDueDate(fields.date, supplier, settings.billing.paymentTermsDays))}>Reprendre le délai habituel</Button>
-          <Field label="Note interne" error={fieldError('note')} hint="Facultatif. Cette note sert à votre suivi de l’achat."><textarea name="note" rows={3} value={fields.note} maxLength={10_000} onChange={event => change('note', event.target.value)} /></Field>
+          <Button type="button" variant="secondary" disabled={locked || cannotEdit || !isSalesDate(fields.date)} onClick={() => change('dueDate', supplierDueDate(fields.date, supplier, settings.billing.paymentTermsDays))}>{t("Reprendre le délai habituel")}</Button>
+          <Field label={t("Note interne")} error={fieldError('note')} hint={t("Facultatif. Cette note sert à votre suivi de l’achat.")}><textarea name="note" rows={3} value={fields.note} maxLength={10_000} onChange={event => change('note', event.target.value)} /></Field>
         </fieldset>}
         {step === 1 && <fieldset disabled={locked || cannotEdit}>
-          <p>Une ligne par article ou prestation. Recopiez le prix d’une unité hors TVA : le total se calcule en dessous.</p>
-          {!settings.organization.vatRegistered && <p className="info-strip">{nonRegisteredPurchaseVatHint}</p>}
+          <p>{t("Une ligne par article ou prestation. Recopiez le prix d’une unité hors TVA : le total se calcule en dessous.")}</p>
+          {!settings.organization.vatRegistered && <p className="info-strip">{t(nonRegisteredPurchaseVatHint)}</p>}
           <div data-purchase-lines tabIndex={-1} className="supplier-preparation__lines">
             {fields.lines.map((line, index) => {
               const value = purchaseLineValue(line), total = value && supplierInvoiceLineTotals(value);
               const name = (field: string) => purchaseLineField(line.id, field), error = (field: string) => fieldError(name(field));
               return <article className="supplier-preparation__line" key={line.id}>
-                <header><strong>Achat {index + 1}</strong><span>{money(total?.totalCents)}</span></header>
+                <header><strong>{t("Achat {number}", { number: index + 1 })}</strong><span>{money(total?.totalCents)}</span></header>
                 <div className="form-grid">
-                  <Field label="Description" required wide error={error('description')}><input name={name('description')} value={line.description} maxLength={1_000} onChange={event => patchLine(line.id, { description: event.target.value })} /></Field>
-                  <Field label="Quantité" required error={error('quantity')} hint="Exemple : 2 ou 2,5."><input name={name('quantity')} inputMode="decimal" value={line.quantity} maxLength={64} onChange={event => patchLine(line.id, { quantity: event.target.value })} /></Field>
-                  <Field label="Unité" required error={error('unit')}><input name={name('unit')} value={line.unit} maxLength={50} onChange={event => patchLine(line.id, { unit: event.target.value })} /></Field>
-                  <Field label="Prix unitaire net (CHF)" required error={error('price')} hint="Le prix d’une unité, hors TVA."><input name={name('price')} inputMode="decimal" value={line.price} maxLength={64} onChange={event => patchLine(line.id, { price: event.target.value })} /></Field>
-                  <Field label="TVA" required error={error('vatBp') || (!rates.includes(line.vatBp) ? 'Ce taux historique n’est plus disponible. Choisissez un taux de vos paramètres.' : undefined)}><select name={name('vatBp')} value={line.vatBp} onChange={event => patchLine(line.id, { vatBp: Number(event.target.value) })}>{[...new Set([...rates, line.vatBp])].map(rate => <option key={rate} value={rate}>{(rate / 100).toLocaleString('fr-CH', { maximumFractionDigits: 2 })} %{!rates.includes(rate) ? ' · à vérifier' : ''}</option>)}</select></Field>
+                  <Field label={t("Description")} required wide error={error('description')}><input name={name('description')} value={line.description} maxLength={1_000} onChange={event => patchLine(line.id, { description: event.target.value })} /></Field>
+                  <Field label={t("Quantité")} required error={error('quantity')} hint={t("Exemple : 2 ou 2,5.")}><input name={name('quantity')} inputMode="decimal" value={line.quantity} maxLength={64} onChange={event => patchLine(line.id, { quantity: event.target.value })} /></Field>
+                  <Field label={t("Unité")} required error={error('unit')}><input name={name('unit')} value={line.unit} maxLength={50} onChange={event => patchLine(line.id, { unit: event.target.value })} /></Field>
+                  <Field label={t("Prix unitaire net (CHF)")} required error={error('price')} hint={t("Le prix d’une unité, hors TVA.")}><input name={name('price')} inputMode="decimal" value={line.price} maxLength={64} onChange={event => patchLine(line.id, { price: event.target.value })} /></Field>
+                  <Field label={t("TVA")} required error={error('vatBp') || (!rates.includes(line.vatBp) ? t("Ce taux historique n’est plus disponible. Choisissez un taux de vos paramètres.") : undefined)}><select name={name('vatBp')} value={line.vatBp} onChange={event => patchLine(line.id, { vatBp: Number(event.target.value) })}>{[...new Set([...rates, line.vatBp])].map(rate => <option key={rate} value={rate}>{(rate / 100).toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} %{!rates.includes(rate) ? t(" · à vérifier") : ''}</option>)}</select></Field>
                 </div>
-                <details className="supplier-preparation__options"><summary>Remise, catégorie et projet de cette ligne</summary><div className="form-grid">
-                  <Field label="Remise (%)" error={error('discount')} hint="Facultatif. Laissez zéro si aucune remise n’est indiquée."><input name={name('discount')} inputMode="decimal" value={line.discount} maxLength={64} onChange={event => patchLine(line.id, { discount: event.target.value })} /></Field>
-                  <Field label="Catégorie" required error={error('category')} hint="Pour classer cet achat dans vos coûts."><select name={name('category')} value={line.category} onChange={event => patchLine(line.id, { category: event.target.value })}><option value="">Choisir</option>{[...new Set([...purchaseCostCategories(settings.work.costCategories), ...(line.category ? [line.category] : [])])].map(category => <option key={category} value={category}>{category}</option>)}</select></Field>
-                  <Field label={terminology.singularTitle} hint="Facultatif. À utiliser si cette ligne concerne un autre projet."><select name={name('projectId')} value={line.projectId} onChange={event => patchLine(line.id, { projectId: event.target.value })}><option value="">Reprendre le document</option>{workspace.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>
+                <details className="supplier-preparation__options"><summary>{t("Remise, catégorie et projet de cette ligne")}</summary><div className="form-grid">
+                  <Field label={t("Remise (%)")} error={error('discount')} hint={t("Facultatif. Laissez zéro si aucune remise n’est indiquée.")}><input name={name('discount')} inputMode="decimal" value={line.discount} maxLength={64} onChange={event => patchLine(line.id, { discount: event.target.value })} /></Field>
+                  <Field label={t("Catégorie")} required error={error('category')} hint={t("Pour classer cet achat dans vos coûts.")}><select name={name('category')} value={line.category} onChange={event => patchLine(line.id, { category: event.target.value })}><option value="">{t("Choisir")}</option>{[...new Set([...purchaseCostCategories(settings.work.costCategories), ...(line.category ? [line.category] : [])])].map(category => <option key={category} value={category}>{category}</option>)}</select></Field>
+                  <Field label={t(terminology.singularTitle)} hint={t("Facultatif. À utiliser si cette ligne concerne un autre projet.")}><select name={name('projectId')} value={line.projectId} onChange={event => patchLine(line.id, { projectId: event.target.value })}><option value="">{t("Reprendre le document")}</option>{workspace.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>
                 </div></details>
-                <footer><span>Net {money(total?.netCents)} · TVA {money(total?.vatCents)}</span>{fields.lines.length > 1 && <Button type="button" size="small" variant="ghost" onClick={() => { if (locked || cannotEdit || inFlight.current) return; setFields(previous => ({ ...previous, lines: previous.lines.filter(value => value.id !== line.id) })); setIssue(null); }}><Trash2 size={15} /> Retirer cet achat</Button>}</footer>
+                <footer><span>{t("Net")} {money(total?.netCents)} {t("· TVA")} {money(total?.vatCents)}</span>{fields.lines.length > 1 && <Button type="button" size="small" variant="ghost" onClick={() => { if (locked || cannotEdit || inFlight.current) return; setFields(previous => ({ ...previous, lines: previous.lines.filter(value => value.id !== line.id) })); setIssue(null); }}><Trash2 size={15} /> {t("Retirer cet achat")}</Button>}</footer>
               </article>;
             })}
           </div>
-          <Button type="button" variant="secondary" disabled={locked || cannotEdit || fields.lines.length >= 250} onClick={() => { if (locked || cannotEdit || inFlight.current) return; setFields(previous => ({ ...previous, lines: [...previous.lines, newPurchaseLine(workspace)] })); }}><Plus size={15} /> Ajouter une ligne</Button>
-          {settings.organization.vatRegistered && <Field label="Traitement TVA de ces achats" hint="Appliqué à toutes les lignes. Si leurs usages diffèrent, conservez le classement et vérifiez chaque ligne dans Comptabilité → TVA."><select name="vatTreatment" value={fields.vatTreatment} onChange={event => change('vatTreatment', event.target.value as PurchaseFields['vatTreatment'])}><option value="">Conserver le classement / classer ensuite</option><option value="input_materials">Marchandises et prestations professionnelles · TVA déductible (400)</option><option value="input_investments">Investissements et autres charges · TVA déductible (405)</option><option value="non_deductible">Sans droit à déduction / usage privé</option></select></Field>}
-          {issue?.field === 'purchase-lines' && <p role="alert" className="field__error">{issue.message}</p>}
+          <Button type="button" variant="secondary" disabled={locked || cannotEdit || fields.lines.length >= 250} onClick={() => { if (locked || cannotEdit || inFlight.current) return; setFields(previous => ({ ...previous, lines: [...previous.lines, newPurchaseLine(workspace)] })); }}><Plus size={15} /> {t("Ajouter une ligne")}</Button>
+          {settings.organization.vatRegistered && <Field label={t("Traitement TVA de ces achats")} hint={t("Appliqué à toutes les lignes. Si leurs usages diffèrent, conservez le classement et vérifiez chaque ligne dans Comptabilité → TVA.")}><select name="vatTreatment" value={fields.vatTreatment} onChange={event => change('vatTreatment', event.target.value as PurchaseFields['vatTreatment'])}><option value="">{t("Conserver le classement / classer ensuite")}</option><option value="input_materials">{t("Marchandises et prestations professionnelles · TVA déductible (400)")}</option><option value="input_investments">{t("Investissements et autres charges · TVA déductible (405)")}</option><option value="non_deductible">{t("Sans droit à déduction / usage privé")}</option></select></Field>}
+          {issue?.field === 'purchase-lines' && <p role="alert" className="field__error">{purchaseIssueText(issue)}</p>}
         </fieldset>}
         {step === 2 && <div className="supplier-preparation__review">
-          <p>Le total doit correspondre au document reçu. L’enregistrement garde un brouillon ; la validation et le paiement restent des actions séparées.</p>
-          <dl><div><dt>Fournisseur</dt><dd>{supplier?.name || 'À choisir'}</dd></div><div><dt>Référence</dt><dd>{fields.reference || 'À compléter avant validation'}</dd></div><div><dt>Date de facture</dt><dd>{date(fields.date)}</dd></div><div><dt>Échéance</dt><dd>{date(fields.dueDate)}</dd></div><div><dt>{terminology.singularTitle}</dt><dd>{workspace.projects.find(project => project.id === fields.projectId)?.name || 'Aucun'}</dd></div></dl>
-          <Button type="button" variant="ghost" disabled={locked} onClick={() => go(0)}>Corriger les informations</Button>
-          <ul>{fields.lines.map(line => { const value = purchaseLineValue(line), total = value && supplierInvoiceLineTotals(value); return <li key={line.id}><div><strong>{line.description || 'À compléter'}</strong><small>{line.quantity} {line.unit} · {line.category}{line.discount && Number(line.discount.replace(',', '.')) > 0 ? ` · remise ${line.discount} %` : ''}</small></div><strong>{money(total?.totalCents)}</strong></li>; })}</ul>
-          <Button type="button" variant="ghost" disabled={locked} onClick={() => go(1)}>Corriger les achats</Button>
-          <div className="supplier-invoice-total"><div><span>Net</span><strong>{money(totals?.netCents)}</strong></div><div><span>TVA</span><strong>{money(totals?.vatCents)}</strong></div><div><span>Total TTC</span><strong>{money(totals?.totalCents)}</strong></div></div>
-          {fields.vatTreatment && <p>Classement TVA : {fields.vatTreatment === 'input_materials' ? 'marchandises et prestations professionnelles (400)' : fields.vatTreatment === 'input_investments' ? 'investissements et autres charges (405)' : 'sans droit à déduction / usage privé'}.</p>}
-          {fields.note && <div className="supplier-preparation__note"><strong>Note interne</strong><p>{fields.note}</p></div>}
+          <p>{t("Le total doit correspondre au document reçu. L’enregistrement garde un brouillon ; la validation et le paiement restent des actions séparées.")}</p>
+          <dl><div><dt>{t("Fournisseur")}</dt><dd>{supplier?.name || t("À choisir")}</dd></div><div><dt>{t("Référence")}</dt><dd>{fields.reference || t("À compléter avant validation")}</dd></div><div><dt>{t("Date de facture")}</dt><dd>{date(fields.date)}</dd></div><div><dt>{t("Échéance")}</dt><dd>{date(fields.dueDate)}</dd></div><div><dt>{t(terminology.singularTitle)}</dt><dd>{workspace.projects.find(project => project.id === fields.projectId)?.name || t("Aucun")}</dd></div></dl>
+          <Button type="button" variant="ghost" disabled={locked} onClick={() => go(0)}>{t("Corriger les informations")}</Button>
+          <ul>{fields.lines.map(line => { const value = purchaseLineValue(line), total = value && supplierInvoiceLineTotals(value); return <li key={line.id}><div><strong>{line.description || t("À compléter")}</strong><small>{line.quantity} {line.unit} · {line.category}{line.discount && Number(line.discount.replace(',', '.')) > 0 ? t(" · remise {discount} %", { discount: line.discount }) : ''}</small></div><strong>{money(total?.totalCents)}</strong></li>; })}</ul>
+          <Button type="button" variant="ghost" disabled={locked} onClick={() => go(1)}>{t("Corriger les achats")}</Button>
+          <div className="supplier-invoice-total"><div><span>{t("Net")}</span><strong>{money(totals?.netCents)}</strong></div><div><span>{t("TVA")}</span><strong>{money(totals?.vatCents)}</strong></div><div><span>{t("Total TTC")}</span><strong>{money(totals?.totalCents)}</strong></div></div>
+          {fields.vatTreatment && <p>{t("Classement TVA :")} {fields.vatTreatment === 'input_materials' ? t("marchandises et prestations professionnelles (400)") : fields.vatTreatment === 'input_investments' ? t("investissements et autres charges (405)") : t("sans droit à déduction / usage privé")}.</p>}
+          {fields.note && <div className="supplier-preparation__note"><strong>{t("Note interne")}</strong><p>{fields.note}</p></div>}
         </div>}
         {step === 3 && <div>
-          <div className="purchase-entry-saved" role="status"><CheckCircle2 size={19} /><div><strong>Brouillon enregistré</strong><p>Joignez le PDF ou une photo. Vous retrouverez ensuite cette facture dans les brouillons des achats pour la vérifier et la valider.</p></div></div>
+          <div className="purchase-entry-saved" role="status"><CheckCircle2 size={19} /><div><strong>{t("Brouillon enregistré")}</strong><p>{t("Joignez le PDF ou une photo. Vous retrouverez ensuite cette facture dans les brouillons des achats pour la vérifier et la valider.")}</p></div></div>
           {renderAttachments(current, !readOnly && !finalized && !unavailable, locked, setAttachmentPending)}
-          <p className="info-strip"><ReceiptText size={17} /> Aucune écriture comptable ni aucun paiement n’a été créé par cet enregistrement.</p>
+          <p className="info-strip"><ReceiptText size={17} /> {t("Aucune écriture comptable ni aucun paiement n’a été créé par cet enregistrement.")}</p>
         </div>}
       </section>
-      {serverError && <div ref={problem} tabIndex={-1}><ErrorPanel title="Vérifions la facture" message={serverError} /></div>}
-      {leaving && <div ref={leavePanel} tabIndex={-1} role="alert" className="supplier-preparation__leave"><strong>Garder vos modifications ?</strong><p>Votre saisie n’est pas encore enregistrée. Restez ici pour la terminer.</p><div><Button type="button" disabled={locked} onClick={() => setLeaving(false)}>Rester sur la facture</Button><Button type="button" variant="ghost" disabled={locked} onClick={() => { if (!locked && !inFlight.current) close(); }}>Quitter sans enregistrer</Button></div></div>}
+      {serverError && <div ref={problem} tabIndex={-1}><ErrorPanel title={t("Vérifions la facture")} message={purchaseNativeMessage(serverError, "Le brouillon n’a pas pu être enregistré. Votre saisie est conservée.")} />{purchaseNativeMessage(serverError, "Le brouillon n’a pas pu être enregistré. Votre saisie est conservée.") !== serverError && <details><summary>{t("Voir le message détaillé")}</summary><p className="supplier-preparation__technical">{serverError}</p></details>}</div>}
+      {leaving && <div ref={leavePanel} tabIndex={-1} role="alert" className="supplier-preparation__leave"><strong>{t("Garder vos modifications ?")}</strong><p>{t("Votre saisie n’est pas encore enregistrée. Restez ici pour la terminer.")}</p><div><Button type="button" disabled={locked} onClick={() => setLeaving(false)}>{t("Rester sur la facture")}</Button><Button type="button" variant="ghost" disabled={locked} onClick={() => { if (!locked && !inFlight.current) close(); }}>{t("Quitter sans enregistrer")}</Button></div></div>}
       <div className="supplier-preparation__actions">
-        <Button type="button" variant="ghost" disabled={locked} onClick={requestClose}>{step === 3 ? 'Terminer' : 'Fermer'}</Button>
-        {step > 0 && <Button type="button" variant="secondary" disabled={locked} onClick={() => go(step === 3 ? 0 : step - 1)}><ArrowLeft size={15} /> {step === 3 ? 'Modifier les informations' : 'Retour'}</Button>}
-        {step < 2 && <Button type="submit" disabled={locked}>{step === 0 ? 'Continuer vers les achats' : 'Vérifier la facture'}</Button>}
-        {step === 2 && <Button type="submit" disabled={locked || cannotEdit}>{saving ? 'Enregistrement…' : current ? 'Mettre à jour le brouillon' : 'Enregistrer le brouillon'}</Button>}
+        <Button type="button" variant="ghost" disabled={locked} onClick={requestClose}>{step === 3 ? t("Terminer") : t("Fermer")}</Button>
+        {step > 0 && <Button type="button" variant="secondary" disabled={locked} onClick={() => go(step === 3 ? 0 : step - 1)}><ArrowLeft size={15} /> {step === 3 ? t("Modifier les informations") : t("Retour")}</Button>}
+        {step < 2 && <Button type="submit" disabled={locked}>{step === 0 ? t("Continuer vers les achats") : t("Vérifier la facture")}</Button>}
+        {step === 2 && <Button type="submit" disabled={locked || cannotEdit}>{saving ? t("Enregistrement…") : current ? t("Mettre à jour le brouillon") : t("Enregistrer le brouillon")}</Button>}
       </div>
     </form>
   </Modal>;

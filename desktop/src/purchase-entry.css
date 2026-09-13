@@ -24,7 +24,7 @@
 .supplier-preparation__steps .button > span { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 50%; font-size: 11px; }
 .supplier-preparation__steps [aria-current] { color: var(--ink); background: var(--accent-soft, #e8efeb); }
 .supplier-preparation__steps [aria-current] > span { background: var(--ink); color: white; border-color: transparent; }
-.supplier-preparation__overview { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 22px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
+.supplier-preparation__overview { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 20px; padding-bottom: 22px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
 .supplier-preparation__overview > div { min-width: 0; }
 .supplier-preparation__overview > div:last-child { text-align: right; }
 .supplier-preparation__overview strong, .supplier-preparation__overview small { display: block; overflow-wrap: anywhere; }
@@ -53,6 +53,9 @@
 .supplier-preparation__review li strong, .supplier-preparation__review li small { display: block; overflow-wrap: anywhere; }
 .supplier-preparation__review li small { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 5px; }
 .supplier-preparation__note p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.supplier-preparation__technical { font-size: 12px; overflow-wrap: anywhere; }
+.supplier-preparation__technical p { white-space: pre-wrap; }
+.supplier-preparation__technical summary { min-height: 44px; padding: 10px 0; cursor: pointer; }
 .supplier-preparation__leave { border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-top: 18px; }
 .supplier-preparation__leave > div { display: flex; gap: 10px; flex-wrap: wrap; }
 .supplier-preparation__actions { position: sticky; bottom: -24px; z-index: 2; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 16px 0; margin-top: 22px; border-top: 1px solid var(--line); background: var(--surface, white); }
@@ -61,6 +64,8 @@
 @keyframes supplier-preparation-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .supplier-preparation__page { animation: none; } }
 @media (max-width: 600px) {
+  .supplier-preparation__overview { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .supplier-preparation__overview > div:last-child { grid-row: 1; text-align: left; }
   .supplier-preparation__page h3 { font-size: 20px; }
   .supplier-preparation__line { padding: 14px; }
   .supplier-preparation__review dl { grid-template-columns: minmax(0, 1fr); gap: 14px; }
