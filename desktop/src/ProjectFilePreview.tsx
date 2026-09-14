@@ -7,6 +7,7 @@ import type { Attachment } from './types';
 import { Button, EmptyState, ErrorPanel, Modal } from './ui';
 import { errorMessage } from './utils';
 import './projectFilePreview.css';
+import { TouchImagePreview } from './TouchImagePreview';
 
 const PdfAttachmentPreview = lazy(() => import('./PdfAttachmentPreview'));
 
@@ -27,7 +28,7 @@ export function ProjectFilePreview({ file, bytes, url, onClose }: {
     <div className="attachment-preview">
       <div className="attachment-preview__content">
         {file.mimeType === 'application/pdf' ? <Suspense fallback={<p className="attachment-preview__status" role="status">Préparation du lecteur…</p>}><PdfAttachmentPreview bytes={bytes} name={file.originalName} /></Suspense>
-          : file.mimeType.startsWith('image/') && !imageFailed ? <div className="attachment-preview__image"><img src={url} alt={file.originalName} onError={() => setImageFailed(true)} /></div>
+          : file.mimeType.startsWith('image/') && !imageFailed ? <TouchImagePreview url={url} name={file.originalName} onError={() => setImageFailed(true)} />
           : <EmptyState icon={<FileText size={28} />} title={imageFailed ? 'Aperçu indisponible' : 'Document prêt'} text={imageFailed ? 'Cette image ne peut pas être affichée ici. Ouvrez-la dans une application compatible ou enregistrez-la.' : 'Ouvrez ou enregistrez ce fichier avec une application compatible.'} />}
       </div>
       <footer className="attachment-preview__footer">

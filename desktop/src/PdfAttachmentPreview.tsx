@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Scan, ZoomIn, ZoomOut } from 'lucide-react';
 import { getDocument, type PDFDocumentLoadingTask, type PDFDocumentProxy, type RenderTask } from './pdfRuntime';
 import { Button, ErrorPanel } from './ui';
+import { useTouchZoom } from './useTouchZoom';
 
 function previewError(reason: unknown) {
   const protectedPdf = reason instanceof Error && reason.name === 'PasswordException';
@@ -19,12 +20,14 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ReturnType<typeof previewError> | null>(null);
   const [text, setText] = useState('');
+  const [height, setHeight] = useState(1);
   const viewport = useRef<HTMLDivElement>(null);
   const surface = useRef<HTMLDivElement>(null);
+  useTouchZoom(viewport, surface, zoom, setZoom, !!document && !error, 1, 4);
 
   useEffect(() => {
     let cancelled = false;
-    setDocument(null); setPage(1); setError(null); setLoading(true);
+    setDocument(null); setPage(1); setZoom(1); setError(null); setLoading(true);
     // PDF.js transfers its data buffer to the worker. Keep the original bytes for
     // retry/download and destroy the worker when the reader is closed.
     let task: PDFDocumentLoadingTask | undefined;
@@ -58,11 +61,11 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
       if (cancelled) { pdfPage.cleanup(); return; }
       try {
         const initial = pdfPage.getViewport({ scale: 1 });
-        const cssWidth = Math.min(width, 1100) * zoom;
+        const cssWidth = Math.min(width, 1100);
         const cssHeight = cssWidth * initial.height / initial.width;
         // Only the current page is rasterized. Bound both area and dimensions,
         // including unusually large plans, on memory-limited mobile WebViews.
-        const ratio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(4_000_000 / (cssWidth * cssHeight)), 4096 / Math.max(cssWidth, cssHeight));
+        const ratio = Math.min(3, Math.sqrt(4_000_000 / (cssWidth * cssHeight)), 4096 / Math.max(cssWidth, cssHeight));
         const rendered = pdfPage.getViewport({ scale: cssWidth / initial.width * ratio });
         canvas.width = Math.max(1, Math.floor(rendered.width));
         canvas.height = Math.max(1, Math.floor(rendered.height));
@@ -75,6 +78,7 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
         await renderTask.promise;
         if (cancelled) return;
         surface.current!.replaceChildren(canvas);
+        setHeight(cssHeight);
         setLoading(false);
         // Expose the extracted text as an optional reading/copying view, keeping
         // untrusted PDF strings in React text nodes rather than HTML.
@@ -89,10 +93,11 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
       cancelled = true; renderTask?.cancel(); canvas.remove();
       void (renderTask?.promise ?? Promise.resolve()).catch(() => {}).finally(() => { canvas.width = 0; canvas.height = 0; });
     };
-  }, [document, page, width, zoom]);
+  }, [document, page, width]);
 
   function changePage(next: number) {
     setPage(next);
+    setZoom(1);
     viewport.current?.scrollTo({ top: 0, left: 0 });
   }
   return <div className="pdf-attachment-preview">
@@ -105,13 +110,13 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
       <div className="pdf-attachment-preview__zoom">
         <Button size="icon" variant="ghost" aria-label="Réduire" disabled={!document || zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - .5))}><ZoomOut size={18} /></Button>
         <Button variant="ghost" aria-label="Ajuster à la largeur" disabled={!document} onClick={() => setZoom(1)}><Scan size={16} /><span>{Math.round(zoom * 100)} %</span></Button>
-        <Button size="icon" variant="ghost" aria-label="Agrandir" disabled={!document || zoom >= 3} onClick={() => setZoom(value => Math.min(3, value + .5))}><ZoomIn size={18} /></Button>
+        <Button size="icon" variant="ghost" aria-label="Agrandir" disabled={!document || zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + .5))}><ZoomIn size={18} /></Button>
       </div>
     </div> : null}
-    <div ref={viewport} className="pdf-attachment-preview__viewport" tabIndex={0} role="region" aria-label="Page du PDF" aria-busy={loading}>
+    <div ref={viewport} data-touch-document className="pdf-attachment-preview__viewport" tabIndex={0} role="region" aria-label="Page du PDF" aria-busy={loading}>
       {loading ? <p className="attachment-preview__status" role="status">Chargement de la page…</p> : null}
       {error ? <ErrorPanel title="Aperçu indisponible" message={error.message} onRetry={error.retryable ? () => { viewport.current?.focus({ preventScroll: true }); setAttempt(value => value + 1); } : undefined} /> : null}
-      <div ref={surface} className="pdf-attachment-preview__page" hidden={!!error} />
+      <div className="pdf-attachment-preview__sizing" style={{width: Math.min(width, 1100) * zoom, height: height * zoom}} hidden={!!error}><div ref={surface} className="pdf-attachment-preview__page" style={{width: Math.min(width, 1100), transform: `scale(${zoom})`, transformOrigin: 'top left'}} /></div>
       {text.trim() ? <details className="pdf-attachment-preview__text" key={page}><summary>Texte de la page</summary><p>{text}</p></details> : null}
     </div>
   </div>;

@@ -1,0 +1,25 @@
+/* Semantic dark surfaces and exceptions to the compiled screen palette. */
+@media screen {
+ html[data-app-theme="dark"] {background:#131619;color:#eef1f4;--refined-ink:#eef1f4;--refined-secondary:#b1bbc4;--refined-canvas:#131619;--refined-line:#394149;--refined-green:#38634b;--clarity-ink:#eef1f4;--clarity-muted:#b1bbc4;--clarity-green:#38634b;--clarity-line:#394149;--clarity-surface:#191e23;--ink:#eef1f4;--muted:#b1bbc4;--cream:#131619;--paper:#20252a;--surface-app:#131619;--surface-subtle:#191e23;--surface-raised:#20252a;--surface-overlay:rgb(29 34 39 / 96%);--line:#394149;--line-soft:#30373e;--line-strong:#535e67;--shell-glass:rgb(29 34 39 / 90%);--green-950:#102d20;--green-900:#173d2c;--green-800:#24513b;--green-700:#34664d;--green-100:#263e32;--danger:#ffb2a8;--danger-soft:#422b2a;--success:#a2d9ba;--success-soft:#263e32;--amber:#f0cc97;--amber-soft:#463523;--shadow-xs:0 2px 8px #0002;--shadow-sm:0 5px 20px #0003;--shadow-md:0 20px 55px #0006;--shadow-lg:0 34px 100px #0008; }
+ html[data-app-theme="dark"] body,html[data-app-theme="dark"] .desktop-app,html[data-app-theme="dark"] .app-main {background:#131619;color:#eef1f4;}
+ html[data-app-theme="dark"] .sidebar {background:#1b2025;}
+ html[data-app-theme="dark"] .topbar {background:rgb(25 30 35 / 93%);border-color:#30373e;}
+ html[data-app-theme="dark"] .sidebar__selection {background:#303d35;border-color:#435b4c;box-shadow:none;}
+ html[data-app-theme="dark"] :is(.sidebar__wordmark,.brand-mark)>img {filter:brightness(0) invert(1);}
+ html[data-app-theme="dark"] :is(input,textarea,select):not(:where(.print-root *,.print-sheet *,.document-preview__paper *)) {background:#171b1f;color:#eef1f4;border-color:#48535d;box-shadow:none;}
+ html[data-app-theme="dark"] :is(input,textarea)::placeholder {color:#929fa9;opacity:1;}
+ html[data-app-theme="dark"] :is(button,a,input,textarea,select):focus-visible {outline:3px solid #a2d9ba;outline-offset:3px;}
+ html[data-app-theme="dark"] :is(.button--primary,.button--dark) {background:#38634b;color:#f5fbf7;border-color:#648a72;}
+ html[data-app-theme="dark"] :is(.button--primary,.button--dark):hover:not(:disabled) {background:#47795c;}
+ html[data-app-theme="dark"] .button--danger {background:#793f3b;color:#fff;border-color:#ba7871;}
+ html[data-app-theme="dark"] .mobile-navigation button {color:#b1bbc4;}
+ html[data-app-theme="dark"] .mobile-navigation button[aria-current] {color:#a2d9ba;}
+ html[data-app-theme="dark"] .button:disabled {opacity:.5;}
+ html[data-app-theme="dark"] :is(.document-preview__header,.document-preview__controls,.document-preview__export,.document-preview__outline,.pdf-attachment-preview__toolbar,.attachment-preview__footer) {background:#20252a;color:#eef1f4;border-color:#394149;}
+ html[data-app-theme="dark"] :is(.document-preview__viewport,.pdf-attachment-preview__viewport,.touch-image-reader__viewport) {background:#111417;}
+ html[data-app-theme="dark"] :is(.print-root,.print-sheet,.print-page,.document-preview__paper,.pdf-attachment-preview__page) {color-scheme:light;color:#15241c;--ink:#15241c;--muted:#6f7b74;--line:#deddd6;--line-soft:rgba(34,57,44,.1);--paper:#fffefb;--surface-raised:#fff;--green-950:#102d20;--green-900:#173d2c;--green-800:#24513b;--green-700:#34664d;--green-100:#e7efe9;--cream:#f5f3ee;--danger:#a13f35;--danger-soft:#fff0ed;--success:#2f6e4d;--success-soft:#e5f1e9;--amber:#e79b2f;--amber-soft:#fff0d8;}
+ html[data-app-theme="dark"] .document-preview__paper {background:#fff;}
+ html[data-app-theme="dark"] .appearance-sample--light {background:#eef0f2;border-color:#d6dadd;} html[data-app-theme="dark"] .appearance-sample--light i {background:#d3d9d6;} html[data-app-theme="dark"] .appearance-sample--light b {background:white;}
+ html[data-app-theme="dark"] .appearance-sample--dark {background:#15181b;border-color:#3f454b;} html[data-app-theme="dark"] .appearance-sample--dark i {background:#34443c;} html[data-app-theme="dark"] .appearance-sample--dark b {background:#2e3338;}
+}
+@media(prefers-reduced-transparency:reduce){html[data-app-theme="dark"] :is(.topbar,.mobile-navigation){background:#20252a;backdrop-filter:none;}}

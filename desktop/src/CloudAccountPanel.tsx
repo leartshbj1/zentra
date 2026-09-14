@@ -1,4 +1,6 @@
 import { t, useAppLanguage } from './language';
+import { CloudTeamPanel } from './CloudTeamPanel';
+import type { AppSettings } from './types';
 import { useEffect, useRef, useState } from 'react';
 import {
   Check,
@@ -23,82 +25,106 @@ const ROLE_LABEL: Record<NonNullable<CloudAccountState['role']>, string> = {
 
 export function CloudAccountPanel({
   onAccountChange,
+  settings,
+  joining = false,
 }: {
   onAccountChange?: (account: CloudAccountState) => void;
+  settings?: AppSettings | null;
+  joining?: boolean;
 }) {
   useAppLanguage();
   const [account, setAccount] = useState<CloudAccountState | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [now, setNow] = useState(Date.now());
   const pollInFlight = useRef(false);
+  const operation = useRef(0);
+  const starting = useRef(false);
+  const changeCallback = useRef(onAccountChange); changeCallback.current = onAccountChange;
 
   useEffect(() => {
     let active = true;
+    const revision = operation.current;
     desktopApi
       .getCloudAccountState()
       .then((value) => {
-        if (active) {
+        if (active && revision === operation.current) {
           setAccount(value);
-          onAccountChange?.(value);
+          changeCallback.current?.(value);
         }
       })
       .catch(() => {
-        if (active) {
+        if (active && revision === operation.current) {
           setAccount({ status: 'disconnected' });
           setError('La connexion enregistrée n’a pas pu être lue. Vous pouvez vous reconnecter.');
         }
       });
     return () => {
       active = false;
+      ++operation.current;
     };
-  }, [onAccountChange]);
+  }, []);
 
   useEffect(() => {
     if (account?.status !== 'pending') return;
     const interval = window.setInterval(
-      () => void poll(false),
+      () => { setNow(Date.now()); if (!account.authorizationExpiresAt || Date.parse(account.authorizationExpiresAt)>Date.now()) void poll(false); },
       Math.max(3, account.intervalSeconds ?? 3) * 1_000,
     );
     return () => window.clearInterval(interval);
-  }, [account?.status, account?.intervalSeconds]);
+  }, [account?.status, account?.intervalSeconds, account?.authorizationExpiresAt]);
 
   async function begin() {
+    if (starting.current) return;
+    starting.current = true;
+    const revision = ++operation.current;
     setBusy(true);
     setError('');
     try {
       const pending = await desktopApi.startCloudAccountLink();
+      if (revision !== operation.current) return;
       setAccount(pending);
-      onAccountChange?.(pending);
-      await desktopApi.openCloudAccountLink();
+      setCopied(false);
+      changeCallback.current?.(pending);
+      await openPage();
     } catch (reason) {
+      if (revision !== operation.current) return;
       setError(
         errorMessage(reason, 'La connexion au compte n’a pas pu démarrer.'),
       );
     } finally {
-      setBusy(false);
+      if (revision === operation.current) setBusy(false);
+      starting.current = false;
     }
   }
 
   async function poll(showError = true) {
-    if (pollInFlight.current) return;
+    if (pollInFlight.current || starting.current) return;
+    const revision = operation.current;
     pollInFlight.current = true;
     if (showError) setBusy(true);
     try {
       const next = await desktopApi.pollCloudAccountLink();
+      if (revision !== operation.current) return;
       setAccount(next);
-      onAccountChange?.(next);
-      setError('');
+      changeCallback.current?.(next);
+      if (showError || next.status === 'connected') setError('');
     } catch (reason) {
-      if (showError) {
+      if (showError && revision === operation.current) {
         setError(
           errorMessage(reason, 'L’autorisation n’a pas pu être vérifiée.'),
         );
       }
     } finally {
       pollInFlight.current = false;
-      if (showError) setBusy(false);
+      if (showError && revision === operation.current) setBusy(false);
     }
+  }
+
+  async function openPage() {
+    try { await desktopApi.openCloudAccountLink(); }
+    catch (reason) { setError(errorMessage(reason, 'La page sécurisée ne s’est pas ouverte. Réessayez avec le bouton ci-dessous ; votre code reste valable.')); }
   }
 
   async function disconnect() {
@@ -109,6 +135,7 @@ export function CloudAccountPanel({
     )
       return;
     setBusy(true);
+    ++operation.current;
     setError('');
     try {
       await desktopApi.disconnectCloudAccount();
@@ -139,6 +166,7 @@ export function CloudAccountPanel({
   const expired = account?.status === 'expired';
   const inactive = account?.status === 'inactive';
   const pending = account?.status === 'pending';
+  const codeExpired = pending && !!account.authorizationExpiresAt && Date.parse(account.authorizationExpiresAt) <= now;
   const currentStep = connected ? 3 : pending ? 2 : 1;
 
   return (
@@ -199,6 +227,7 @@ export function CloudAccountPanel({
         </div>
       ) : pending ? (
         <div className="settings-cloud-link">
+          {codeExpired && <p role="status">{t('Ce code a expiré. Demandez un nouveau code, puis confirmez uniquement celui affiché ici.')}</p>}
           <div className="settings-cloud-link__code">
             <span>{t("Code à vérifier")}</span>
             <strong>{account.userCode}</strong>
@@ -207,7 +236,8 @@ export function CloudAccountPanel({
           <div className="settings-actions">
             <Button
               variant="secondary"
-              onClick={() => void desktopApi.openCloudAccountLink()}
+              disabled={busy}
+              onClick={() => void openPage()}
             >
               <ExternalLink size={16} />{t(" Ouvrir la page sécurisée")}</Button>
             <Button variant="secondary" onClick={() => void copyCode()}>
@@ -216,6 +246,7 @@ export function CloudAccountPanel({
             </Button>
             <Button disabled={busy} onClick={() => void poll(true)}>
               {busy ? <LoaderCircle className="spin" size={16} /> : null}{t("Vérifier maintenant")}</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => void begin()}>{t('Demander un nouveau code')}</Button>
           </div>
         </div>
       ) : (
@@ -272,6 +303,7 @@ export function CloudAccountPanel({
           >{t("Déconnecter ce poste")}</Button>
         </div>
       ) : null}
+      {connected && !joining ? <CloudTeamPanel key={account.organizationId} settings={settings}/> : null}
       {error ? (
         <p className="form-error" role="alert">
           {t(error)}

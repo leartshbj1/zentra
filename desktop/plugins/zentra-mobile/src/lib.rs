@@ -89,3 +89,8 @@ pub fn file_name(url: &str) -> Result<String, String> {
         .map(str::to_owned)
         .ok_or("Nom du document indisponible".into())
 }
+
+pub fn configure_appearance(appearance:&str,dark:bool)->Result<(),String>{
+ let app=APP.get().ok_or("Apparence mobile indisponible")?;
+ app.state::<Mobile>().0.run_mobile_plugin::<Value>("configureAppearance",json!({"appearance":appearance,"dark":dark})).map(|_|()).map_err(|error|error.to_string())
+}

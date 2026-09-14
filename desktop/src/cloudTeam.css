@@ -1,0 +1,19 @@
+.cloud-team { margin-top:24px; padding-top:24px; border-top:1px solid var(--line); min-width:0; }
+.cloud-team header { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+.cloud-team header > div { flex:1; min-width:0; }
+.cloud-team h3 { margin:0; font-size:18px; letter-spacing:-.025em; }
+.cloud-team p { color:var(--muted); line-height:1.6; margin:8px 0; }
+.cloud-team form { display:grid; grid-template-columns:minmax(0,1fr) minmax(180px, .65fr); gap:14px; padding:20px; border-radius:20px; background:#f3f4f5; }
+.cloud-team form > p { grid-column:1/-1; margin:0; }
+.cloud-team form > button { grid-column:1/-1; justify-self:start; }
+.cloud-team__profile { display:flex; align-items:center; flex-wrap:wrap; gap:16px; border:1px solid var(--line); border-radius:18px; padding:18px; margin-block:18px; }
+.cloud-team__profile > div { min-width:0; flex:1 1 200px; }
+.cloud-team__profile p { line-height:1.6; color:var(--muted); }
+.cloud-team__people { list-style:none; padding:0; margin:20px 0 0; }
+.cloud-team__people li { display:flex; align-items:center; gap:10px; padding-block:14px; border-bottom:1px solid var(--line-soft); }
+.cloud-team__people li > span { flex:1; min-width:0; overflow-wrap:anywhere; }
+.cloud-team__people small { display:block; color:var(--muted); margin-top:5px; }
+.cloud-team__link { margin-top:16px; display:grid; gap:10px; }
+.cloud-team__link input { width:100%; margin-top:8px; }
+.cloud-team button { min-height:44px; white-space:normal; }
+@media(max-width:600px) { .cloud-team form { grid-template-columns:minmax(0,1fr); padding:16px; } .cloud-team__profile > button { width:100%; } .cloud-team__people li { flex-wrap:wrap; } .join-company-dialog .settings-cloud-steps { display:none; } .join-company-dialog .settings-card { padding:0; border:0; box-shadow:none; } }

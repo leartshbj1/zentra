@@ -1,6 +1,7 @@
 #![recursion_limit = "256"]
 
 mod account_cloud;
+mod appearance;
 mod macos_navigation;
 mod accounting;
 mod accounting_closure;
@@ -156,6 +157,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            appearance::set_app_appearance,
             macos_navigation::configure_macos_navigation,
             is_native_ready,
             add_project_document,
@@ -343,6 +345,8 @@ pub fn run() {
             install_license_token,
             refresh_license,
             account_cloud::get_cloud_account_state,
+            account_cloud::cloud_team_request,
+            account_cloud::join_cloud_company,
             account_cloud::start_cloud_account_link,
             account_cloud::poll_cloud_account_link,
             account_cloud::open_cloud_account_link,

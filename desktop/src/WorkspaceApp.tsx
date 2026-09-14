@@ -1,3 +1,4 @@
+import { AppearanceSetting } from './AppearanceSetting';
 import { SupplierPaymentOutcomeUnknownError, SupplierPaymentRefreshError, type SupplierPaymentResume } from './supplierPaymentWorkflow';
 import { SupplierInvoiceValidationOutcomeUnknownError, SupplierInvoiceValidationRefreshError } from './supplierInvoiceValidation';
 import { t, useAppLanguage, getAppLocale } from './language';
@@ -572,6 +573,7 @@ export function WorkspaceApp({
     (destination) => { if (destination === 'menu') setMenuOpen(true); else navigateTour(destination); },
   );
   const sidebarHidden = compactSidebarHidden(compactNavigation || (isNativeMacOS && nativeNavigation), menuOpen);
+  useEdgeDrawer(compactNavigation && !modal && !printTarget && !navigationOpen && !guidedTour.open, menuOpen, setMenuOpen);
   const navigationRef = useRef<HTMLElement>(null);
   const screenArrivalRef = useScreenArrival(view);
   const mobileNavigationRef = useRef<HTMLElement>(null);
@@ -1585,7 +1587,7 @@ export function WorkspaceApp({
       {updaterOpen ? <Modal title={t("Mise à jour de Zentra")} wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
         <div className="standalone-updater-content"><AppUpdater onInstallingChange={setUpdateInstalling} /></div>
       </Modal> : null}
-      {navigationDrawerOpen ? <div className="navigation-scrim" aria-hidden="true" onClick={() => setMenuOpen(false)} /> : null}
+      {(compactNavigation || navigationDrawerOpen) ? <div className={`navigation-scrim${navigationDrawerOpen ? "" : " navigation-scrim--closed"}`} aria-hidden="true" onClick={() => setMenuOpen(false)} /> : null}
       <aside
         id="primary-navigation"
         className={`sidebar ${menuOpen ? 'is-open' : ''}`}
@@ -4998,7 +5000,7 @@ function SettingsScreen({
       />
       </SettingsCategory>
       <SettingsCategory id="account" title="Compte et accès" description="Connexion, abonnement et accès à l’entreprise" icon={UserRound}>
-      <CloudAccountPanel onAccountChange={onCloudAccountChange} />
+      <CloudAccountPanel onAccountChange={onCloudAccountChange} settings={settings} />
       </SettingsCategory>
       <SettingsCategory id="company" title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
       <section className="panel settings-card settings-card--wide">
@@ -5426,6 +5428,7 @@ function SettingsScreen({
       </section>
 
       </SettingsCategory>
+      <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Languages}><AppearanceSetting /></SettingsCategory>
       <SettingsCategory id="language" title={t('Langue et région')} description={t('Français, allemand, italien ou anglais')} icon={Languages}><LanguageSetting /></SettingsCategory>
       <SettingsCategory id="assistant" lazy title="Assistant local" description="Installer Qwen et obtenir de l’aide dans Zentra" icon={MessageCircle}><LocalAssistantSetup /></SettingsCategory>
       <SettingsCategory id="documents" lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
@@ -9073,3 +9076,4 @@ function SwissQrPaymentSection({
     </section>
   );
 }
+import { useEdgeDrawer } from './useEdgeDrawer';

@@ -1,0 +1,19 @@
+:root { --safe-top: env(safe-area-inset-top, 0px); --safe-right: env(safe-area-inset-right, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); --safe-left: env(safe-area-inset-left, 0px); }
+[data-touch-document] { touch-action: pan-x pan-y; overscroll-behavior: contain; }
+.navigation-scrim--closed { visibility: hidden; opacity: 0; pointer-events: none; }
+html[data-drawer-dragging=true] .navigation-scrim { visibility: visible; opacity: var(--drawer-progress); pointer-events: none; transition: none; }
+@media screen and (max-width: 860px) {
+  .desktop-app .sidebar { padding: max(18px, var(--safe-top)) max(14px, var(--safe-right)) max(16px, var(--safe-bottom)) max(14px, var(--safe-left)); width: min(340px, calc(100vw - 44px)); border-radius: 0 28px 28px 0; transition: transform 320ms cubic-bezier(.22,1,.36,1), visibility 320ms; }
+  .desktop-app .sidebar[data-dragging=true] { visibility: visible !important; transform: translate3d(var(--drawer-offset),0,0) !important; transition: none !important; will-change: transform; }
+  .desktop-app .topbar { padding-top: max(14px, var(--safe-top)); padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }
+  .desktop-app .app-content { padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }
+  .desktop-app .mobile-navigation { left: max(12px, var(--safe-left)); right: max(12px, var(--safe-right)); bottom: max(10px, var(--safe-bottom)); }
+  .modal > .modal__header, .document-preview .document-preview__header { padding: max(12px, var(--safe-top)) max(16px, var(--safe-right)) 12px max(16px, var(--safe-left)); }
+  .modal .modal__body { padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }
+  .modal.attachment-preview-dialog > .modal__body { padding: 0; }
+  .document-preview .document-preview__export, .attachment-preview .attachment-preview__footer { padding: 12px max(16px, var(--safe-right)) max(12px, var(--safe-bottom)) max(16px, var(--safe-left)); }
+  .document-preview .document-preview__controls, .pdf-attachment-preview__toolbar { padding-left: max(12px, var(--safe-left)); padding-right: max(12px, var(--safe-right)); }
+  .document-preview button, .attachment-preview button { min-height: 44px; min-width: 44px; }
+  .document-preview__viewport, .pdf-attachment-preview__viewport { -webkit-overflow-scrolling: touch; }
+}
+@media (prefers-reduced-motion: reduce) { .desktop-app .sidebar { transition: none !important; } }

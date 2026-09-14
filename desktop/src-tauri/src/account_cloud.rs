@@ -31,6 +31,7 @@ const POLL_PATH: &str = "/api/account/device/poll";
 const ME_PATH: &str = "/api/account/me";
 const SESSION_PATH: &str = "/api/account/session";
 const ARCHIVE_PATH: &str = "/api/archive/invoices";
+const TEAM_PATH: &str = "/api/account/team";
 const ACCOUNT_SESSION_FILE: &str = "cloud-account-session.protected";
 const ACCOUNT_PENDING_FILE: &str = "cloud-account-link.protected";
 const ACCOUNT_EXCHANGE_FILE: &str = "cloud-account-exchange.protected";
@@ -289,6 +290,56 @@ pub async fn get_cloud_account_state(
     let store = state.inner().clone();
     let _guard = store.account_protected_cache.operation_lock.lock().await;
     cloud_account_state(&store).await.map_err(command_error)
+}
+
+async fn team_response(store: &LocalStore, data: Option<serde_json::Value>) -> AppResult<serde_json::Value> {
+    let session = read_session_secret(store)?.ok_or_else(|| AppError::Validation("Connectez cet appareil à votre entreprise.".into()))?;
+    validate_session_for_installation(&session, &store.installation_id)?;
+    if parse_future_or_past_date(&session.session_expires_at, "session")? <= Utc::now() {
+        return Err(AppError::Validation("Votre connexion a expiré. Demandez un nouveau code.".into()));
+    }
+    let method = if data.is_some() { Method::POST } else { Method::GET };
+    let body = data.map(|value| serde_json::to_vec(&value)).transpose()?;
+    if body.as_ref().is_some_and(|bytes| bytes.len() > 32_768) {
+        return Err(AppError::Validation("Les informations partagées sont trop volumineuses.".into()));
+    }
+    let (status, bytes) = account_request(method.clone(), TEAM_PATH, body, Some(&session.session_token)).await?;
+    if !status.is_success() { return Err(server_response_error(status, &bytes)); }
+    let response: serde_json::Value = parse_json(&bytes, "équipe")?;
+    if method == Method::GET && response["organizationId"].as_str() != Some(&session.organization_id) {
+        return Err(AppError::Validation("La réponse ne correspond pas à votre entreprise.".into()));
+    }
+    Ok(response)
+}
+
+#[tauri::command]
+pub async fn cloud_team_request(state: State<'_, LocalStore>, data: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+    let store = state.inner().clone();
+    let _guard = store.account_protected_cache.operation_lock.lock().await;
+    team_response(&store, data).await.map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn join_cloud_company(state: State<'_, LocalStore>) -> Result<(), String> {
+    let store = state.inner().clone();
+    let _account = store.account_protected_cache.operation_lock.lock().await;
+    let response = team_response(&store, None).await.map_err(command_error)?;
+    initialize_joined_company(&store, &response)
+}
+
+fn initialize_joined_company(store: &LocalStore, response: &serde_json::Value) -> Result<(), String> {
+    let profile = response.get("profile").filter(|value| value.is_object()).ok_or_else(|| "Le titulaire doit partager les coordonnées de l’entreprise dans Paramètres → Compte et équipe.".to_owned())?;
+    let mut input: crate::models::OnboardingInput = serde_json::from_value(profile.clone()).map_err(|_| "Les coordonnées partagées sont incomplètes. Demandez au titulaire de les actualiser.".to_owned())?;
+    input.logo_path = None;
+    input.extra_settings_json = None;
+    let _local = store.lock().map_err(command_error)?;
+    if store.app_state(env!("CARGO_PKG_VERSION")).map_err(command_error)?.onboarding_completed {
+        return Err("Une entreprise existe déjà sur cet appareil. Elle est conservée ; rejoindre ne peut pas la remplacer.".into());
+    }
+    // The server-verified member may initialize an empty local identity even in
+    // read-only mode. This command never overwrites an existing workspace.
+    store.complete_onboarding_scoped(input, env!("CARGO_PKG_VERSION"), crate::database::OnboardingValidationScope::Essential).map_err(command_error)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -966,7 +1017,7 @@ fn validate_verification_uri(value: &str, user_code: &str) -> AppResult<Url> {
 fn endpoint(path: &str) -> AppResult<Url> {
     if !matches!(
         path,
-        START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH
+        START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH | TEAM_PATH
             | "/api/projects/sync" | "/api/projects/sync/file"
             | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
             | "/api/sync/numbers"
@@ -1265,6 +1316,20 @@ pub(crate) async fn disconnect_live_qa_profile(store: &LocalStore) -> AppResult<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn joining_initializes_only_an_empty_workspace_and_ignores_local_paths() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        assert!(initialize_joined_company(&store, &json!({"profile":null})).is_err());
+        let profile = json!({"profile":{"company_name":"Entreprise partagée","noga_section":"F","noga_division":"43","activity_description":"Travaux de peinture","logo_path":"/private/other-device/logo.png","extra_settings_json":{"unsafe":true}}});
+        initialize_joined_company(&store,&profile).unwrap();
+        assert!(store.app_state(env!("CARGO_PKG_VERSION")).unwrap().onboarding_completed);
+        assert!(initialize_joined_company(&store,&json!({"profile":{"company_name":"Remplacement","noga_section":"F","noga_division":"43","activity_description":"Autre"}})).unwrap_err().contains("déjà"));
+        let state=store.get_workspace().unwrap();
+        assert_eq!(state["settings"]["company_name"],"Entreprise partagée");
+        assert!(state["settings"]["logo_path"].is_null());
+    }
 
     #[test]
     fn unfinished_license_adoption_still_exposes_its_session_for_revocation() {
