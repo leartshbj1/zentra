@@ -23,6 +23,14 @@ export type PayrollHelp = {
 };
 const rules: [RegExp, PayrollHelp][] = [
   [
+    /Renseignez l’assureur-accidents|assureur accidents manque/i,
+    {
+      title: 'Quel est votre assureur accidents ?',
+      explanation: 'Il manque le nom de la compagnie, pas un nouveau taux. Recopiez le nom sur votre police. Les cotisations déjà enregistrées seront conservées.',
+      target: 'insurance', selector: '[name=accidentInsurer]', action: 'Renseigner le nom de l’assureur',
+    },
+  ],
+  [
     /Classez comptablement la ligne/i,
     {
       title: 'Choisissez le compte de cette ligne',

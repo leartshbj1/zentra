@@ -1,5 +1,13 @@
 // Curated payroll guidance. Raw native messages and routing remain unchanged.
 export const payrollHelpTranslations: Record<string, readonly [string, string, string]> = {
+  "Le contrat doit être valable à la date de paie ({date}). Corrigez ses dates ou choisissez un autre contrat.": ["Der Vertrag muss am Lohndatum ({date}) gültig sein. Korrigieren Sie die Daten oder wählen Sie einen anderen Vertrag.", "Il contratto deve essere valido alla data di paga ({date}). Correggi le date o scegli un altro contratto.", "The contract must be valid on the pay date ({date}). Correct its dates or choose another contract."],
+  "Renseignez l’assureur-accidents de l’entreprise.": ["Geben Sie den Unfallversicherer des Unternehmens an.", "Indica l’assicuratore infortuni dell’azienda.", "Enter the company’s accident insurer."],
+  "Quel est votre assureur accidents ?": ["Wer ist Ihr Unfallversicherer?", "Chi è il vostro assicuratore infortuni?", "Who is your accident insurer?"],
+  "Il manque le nom de la compagnie, pas un nouveau taux. Recopiez le nom sur votre police. Les cotisations déjà enregistrées seront conservées.": ["Es fehlt der Name der Versicherungsgesellschaft. Übernehmen Sie ihn aus Ihrer Police. Bereits erfasste Beiträge bleiben erhalten.", "Manca il nome della compagnia. Copialo dalla polizza. I contributi già registrati saranno conservati.", "The insurance company’s name is missing. Copy it from your policy. Contributions already saved will be kept."],
+  "Renseigner le nom de l’assureur": ["Name des Versicherers eingeben", "Indicare il nome dell’assicuratore", "Enter the insurer’s name"],
+  "Choisissez le contrat de cette personne. Il sera utilisé dans la fiche sans créer une nouvelle cotisation.": ["Wählen Sie den Vertrag für diese Person. Er wird in der Abrechnung verwendet, ohne einen neuen Beitrag anzulegen.", "Scegli il contratto di questa persona. Sarà usato nella busta paga senza creare un nuovo contributo.", "Choose this person’s contract. It will be used in the payslip without creating a new contribution."],
+  "Utiliser cette cotisation": ["Diesen Beitrag verwenden", "Usare questo contributo", "Use this contribution"],
+  "Ajouter un autre contrat": ["Weiteren Vertrag hinzufügen", "Aggiungere un altro contratto", "Add another contract"],
   "Choisissez le compte de cette ligne": [
     "Wählen Sie das Konto dieser Zeile",
     "Scegli il conto di questa riga",

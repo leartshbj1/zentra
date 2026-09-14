@@ -27,6 +27,7 @@ export function PayrollContractSetup({
   workspace,
   employeeId,
   period,
+  contributionDate,
   busy,
   act,
   onSaved,
@@ -37,6 +38,7 @@ export function PayrollContractSetup({
   workspace: Workspace;
   employeeId: string;
   period: string;
+  contributionDate?: string;
   busy: boolean;
   act: (
     action: () => Promise<Workspace>,
@@ -44,7 +46,7 @@ export function PayrollContractSetup({
     close?: boolean,
     onError?: (reason: unknown) => void,
   ) => Promise<boolean>;
-  onSaved: () => void;
+  onSaved: (definitionIds?: readonly string[]) => void;
   destination?: {
     target: PayrollHelpTarget;
     selector?: string;
@@ -79,11 +81,13 @@ export function PayrollContractSetup({
   const fieldGuide = usePayrollFieldGuide();
   const [revision, setRevision] = useState(0);
   const [id, setId] = useState(createId);
+  const [creatingAnother, setCreatingAnother] = useState(false);
   const [editing, setEditing] = useState<PayrollContributionDefinition | null>(
     null,
   );
   if (destination !== seenDestination) {
     setSeenDestination(destination);
+    setCreatingAnother(false);
     if (destination?.target === 'pension-contributions' && category !== 'lpp') {
       setCategory('lpp');
       setEditing(null);
@@ -133,7 +137,7 @@ export function PayrollContractSetup({
       alive = false;
     };
   }, [revision]);
-  async function run(action: () => Promise<Workspace>) {
+  async function run(action: () => Promise<Workspace>, definitionIds?: readonly string[]) {
     if (lock.current || busy || loading) return;
     lock.current = true;
     setError('');
@@ -148,11 +152,12 @@ export function PayrollContractSetup({
           ),
       );
       if (ok) {
+        setCreatingAnother(false);
         setEditing(null);
         setId(createId());
         setLoading(true);
         setRevision((value) => value + 1);
-        onSaved();
+        onSaved(definitionIds);
       }
     } finally {
       lock.current = false;
@@ -163,8 +168,8 @@ export function PayrollContractSetup({
       d.active &&
       d.category === category &&
       (!pension || d.lppEmployeeId === employeeId) &&
-      d.effectiveFrom <= `${period}-01` &&
-      (!d.effectiveTo || d.effectiveTo >= `${period}-01`),
+      d.effectiveFrom <= (contributionDate || `${period}-01`) &&
+      (!d.effectiveTo || d.effectiveTo >= (contributionDate || `${period}-01`)),
   );
   const editable = (d: PayrollContributionDefinition) =>
     d.effectiveFrom.startsWith('2026-') &&
@@ -349,6 +354,7 @@ export function PayrollContractSetup({
         {existing.length > 0 && !pair && (
           <div className="payroll-callout">
             <strong>{t("Déjà enregistré pour cette période")}</strong>
+            {guided && <p>{t("Choisissez le contrat de cette personne. Il sera utilisé dans la fiche sans créer une nouvelle cotisation.")}</p>}
             {existing.map((d) => (
               <div key={d.id}>
                 <span>
@@ -358,6 +364,8 @@ export function PayrollContractSetup({
                     ? t("{v0} CHF", { v0: ((d.fixedAmountCents ?? 0) / 100).toLocaleString(getAppLocale()) })
                     : `${(d.rateBp / 100).toLocaleString(getAppLocale())} %`}
                 </span>
+                {guided && <Button type="button" size="small" disabled={busy || loading}
+                  onClick={() => onSaved([d.id])}>{t("Utiliser cette cotisation")}</Button>}
                 {editable(d) ? (
                   <Button
                     type="button"
@@ -408,8 +416,12 @@ export function PayrollContractSetup({
             run={run}
           />
         )}
+        {guided && existing.length > 0 && !pair && !editing && !creatingAnother &&
+          <Button type="button" variant="ghost" disabled={busy || loading} onClick={() => setCreatingAnother(true)}>
+            {t("Ajouter un autre contrat")}
+          </Button>}
         <form
-          hidden={pair}
+          hidden={pair || (guided && existing.length > 0 && !editing && !creatingAnother)}
           noValidate
           key={`${category}-${id}`}
           onSubmit={(event) => {
@@ -442,6 +454,12 @@ export function PayrollContractSetup({
                 const desired = editing
                   ? { ...input, code: editing.code, label: editing.label }
                   : input;
+                if (guided && contributionDate &&
+                    (desired.effectiveFrom > contributionDate || (desired.effectiveTo && desired.effectiveTo < contributionDate))) {
+                  const field = event.currentTarget.querySelector<HTMLInputElement>(desired.effectiveFrom > contributionDate ? '[name=from]' : '[name=to]');
+                  if (field) fieldGuide.reject(field, t('Le contrat doit être valable à la date de paie ({date}). Corrigez ses dates ou choisissez un autre contrat.', { date: contributionDate }));
+                  return;
+                }
                 if (pension && !planReady)
                   throw new Error(
                     'Contrat de pension incomplet : complétez le règlement avant les montants.',
@@ -482,7 +500,7 @@ export function PayrollContractSetup({
                   }
                   await desktopApi.upsertPayrollContributionDefinition(desired);
                   return desktopApi.loadWorkspace();
-                });
+                }, [desired.id]);
               } catch (reason) {
                 setError(
                   errorMessage(reason, 'Vérifiez les informations du contrat.'),
