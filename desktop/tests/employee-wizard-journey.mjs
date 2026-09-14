@@ -16,7 +16,7 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
       await page.goto(`${base}/tests/mobile-harness.html?browsing=1&design=1`);
       await page.getByRole('button', { name: 'Fermer le guide automatique', exact: true }).click();
       await page.evaluate(async () => {
-        const { desktopApi } = await import('/src/bridge.ts');
+        const desktopApi = window.__qaDesktopApi;
         const workspace = await desktopApi.loadWorkspace();
         window.employeeWrites = [];
         window.failEmployeeSave = true;
@@ -52,6 +52,9 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
       await next.click();
       await modal.locator('textarea[name=notes]').fill('Contrat à conserver\nDeuxième ligne');
       await modal.getByRole('button', { name: 'Ajouter le collaborateur', exact: true }).click();
+      await modal.locator('.error-panel[role="alert"]').waitFor();
+      assert.ok((await modal.locator('.error-panel').innerText()).includes('informations'), 'A plain-language explanation stays visible');
+      await modal.getByText('Voir le message détaillé', { exact: true }).click();
       await modal.getByText('Enregistrement momentanément indisponible. Réessayez.', { exact: true }).waitFor();
       assert.equal(await modal.locator('textarea[name=notes]').inputValue(), 'Contrat à conserver\nDeuxième ligne');
       await page.screenshot({ path: `.qa/employee-wizard/${engine}-${width}.png` });

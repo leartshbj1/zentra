@@ -25,6 +25,7 @@ import {
 import { desktopApi } from './bridge';
 import { formatMoney, errorMessage } from './utils';
 import { Button, ErrorPanel, Modal } from './ui';
+import { MobileDetails, useCompactLayout } from './MobileDetails';
 
 type FinanceSection =
   | 'journal'
@@ -56,6 +57,7 @@ export function FinanceOverview({
   onInstallStarter: () => Promise<void>;
 }) {
   const [configuration, setConfiguration] = useState(false);
+  const compact = useCompactLayout();
   const readable =
     !busy &&
     financeTotalsAvailable(income) &&
@@ -106,8 +108,9 @@ export function FinanceOverview({
       <div
         className="finance-overview__figures"
         aria-label="Résultat comptable de la période"
+        aria-busy={busy}
       >
-        {amounts.map((item) => (
+        {(compact && !readable ? amounts.slice(-1) : amounts).map((item) => (
           <article key={item.title}>
             <div>
               <item.icon size={18} />
@@ -208,7 +211,8 @@ export function FinanceOverview({
           </button>
         ))}
       </section>
-      <aside className="finance-overview__learn">
+      <MobileDetails title="Comprendre ces montants"><aside className="finance-overview__learn">
+        {compact && <dl>{amounts.map(item => <div key={item.title}><dt>{item.title}</dt><dd>{item.text}</dd></div>)}</dl>}
         <h3>Résultat et argent en banque</h3>
         <p>
           Le résultat suit les revenus et les charges. Le solde bancaire suit
@@ -219,7 +223,7 @@ export function FinanceOverview({
           Consulter les opérations
           <ArrowRight size={15} />
         </button>
-      </aside>
+      </aside></MobileDetails>
       {configuration ? (
         <FinanceConfiguration
           key={workspace.settings?.organization.legalName}

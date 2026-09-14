@@ -1,0 +1,205 @@
+/* Phone layouts only. Shared calculations, desktop layouts and printed documents
+   keep their existing behavior. Use the live theme tokens, never stored colors. */
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] { --mobile-gutter: max(20px, var(--safe-left, env(safe-area-inset-left))); }
+  html[data-app-theme] .desktop-app[data-experience] .app-main { background: var(--surface-app); }
+  html[data-app-theme] .desktop-app[data-experience] .topbar { padding: max(8px, var(--safe-top, env(safe-area-inset-top))) max(16px, var(--safe-right, env(safe-area-inset-right))) 8px max(16px, var(--safe-left, env(safe-area-inset-left))); min-height: 60px; border-bottom: 0; box-shadow: none; gap: 4px; }
+  html[data-app-theme] .desktop-app[data-experience] .topbar__company { font-size: 13px; font-weight: 500; color: var(--muted); }
+  /* The full guide is also in the drawer; the screen guide stays beside the title. */
+  html[data-app-theme] .desktop-app[data-experience] .topbar .tour-launcher { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .global-search { min-height: 44px; margin-top: 8px; border-radius: 13px; border: 0; background: var(--surface-subtle); }
+  html[data-app-theme] .desktop-app[data-experience] .global-search input { font-size: 16px; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; padding: 22px max(20px, var(--safe-right, env(safe-area-inset-right))) 22px var(--mobile-gutter); gap: 18px 8px; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header > div:first-child { min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header h1 { margin: 0; font-size: clamp(26px, 7.5vw, 32px); line-height: 1.16; font-weight: 650; letter-spacing: -.045em; text-wrap: initial; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header > div:first-child > p { display: none; }
+  html[data-app-theme] .desktop-app[data-experience][data-view=dashboard] .page-header > div:first-child > p { display: block; font-size: 13px; margin-top: 7px; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions { display: contents; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions > .creation-action { grid-column: 1 / -1; width: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .creation-action > .button { width: 100%; min-height: 48px; border-radius: 15px; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions > .button { grid-column: 1 / -1; width: 100%; min-height: 48px; border-radius: 15px; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions > .screen-help-launcher { grid-row: 1; grid-column: 2; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--muted); }
+  html[data-app-theme] .desktop-app[data-experience] .screen-help-launcher > span { display: none; }
+  html[data-app-theme] .desktop-app[data-experience][data-view=dashboard] .page-header { grid-template-columns: minmax(0, 1fr) 44px 44px; }
+  html[data-app-theme] .desktop-app[data-experience][data-view=dashboard] .page-header > div:first-child { grid-column: 1 / 3; padding-right: 8px; }
+  html[data-app-theme] .desktop-app[data-experience][data-view=dashboard] .screen-help-launcher { grid-column: 3; }
+  html[data-app-theme] .desktop-app[data-experience][data-view=dashboard] .page-header__actions > .dashboard-timer { grid-row: 2; grid-column: 3; width: 44px; min-height: 48px; padding: 0; }
+  html[data-app-theme] .desktop-app[data-experience][data-view=dashboard] .page-header__actions > .button:last-child { grid-column: 1 / 3; grid-row: 2; }
+  html[data-app-theme] .desktop-app[data-experience] .page-content { padding: 0 max(20px, var(--safe-right, env(safe-area-inset-right))) calc(124px + var(--safe-bottom, env(safe-area-inset-bottom))) var(--mobile-gutter); }
+  html[data-app-theme] .desktop-app[data-experience] :is(.stack-layout, .team-screen) { gap: 24px; }
+  html[data-app-theme] .desktop-app[data-experience] .section-heading { gap: 16px; margin-bottom: 20px; }
+  html[data-app-theme] .desktop-app[data-experience] .section-heading h2 { font-size: 20px; line-height: 1.3; letter-spacing: -.025em; }
+  html[data-app-theme] .desktop-app[data-experience] .section-heading > div:first-child > p { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.panel, .table-panel, .settings-card, .employee-card, .project-card) { box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience] .empty-state { min-height: 220px; padding: 30px 20px; }
+  html[data-app-theme] .desktop-app[data-experience] .empty-state p { max-width: 28ch; margin-inline: auto; line-height: 1.55; }
+
+  /* Secondary information is disclosed deliberately, not removed from the app. */
+  html[data-app-theme] .mobile-details { border: 0; border-top: 1px solid var(--line-soft); border-radius: 0; background: transparent; margin: 0; min-width: 0; }
+  html[data-app-theme] .mobile-details > summary { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 12px 0; color: var(--muted); font-size: 14px; line-height: 1.45; font-weight: 500; cursor: pointer; list-style: none; overflow-wrap: anywhere; }
+  .mobile-details > summary::-webkit-details-marker { display: none; }
+  .mobile-details > summary > span { flex: 1; min-width: 0; }
+  .mobile-details > summary > svg { flex-shrink: 0; transition: transform 180ms ease; }
+  .mobile-details[open] > summary > svg { transform: rotate(180deg); }
+  html[data-app-theme] .mobile-details > summary > small { border-radius: 6px; padding: 2px 6px; background: var(--surface-subtle); color: var(--ink); }
+  .mobile-details__content { min-width: 0; padding: 2px 0 16px; }
+  html[data-app-theme] .mobile-details__content :is(p, dd) { font-size: 14px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
+  html[data-app-theme] .mobile-details__content :is(button, summary) { min-height: 44px; }
+  html[data-app-theme] .mobile-details :is(button, summary):focus-visible { outline: 2px solid var(--green-700); outline-offset: 3px; }
+
+  /* One useful balance, followed by quiet, full-width list rows. */
+  html[data-app-theme] .mobile-home { display: grid; gap: 28px; color: var(--ink); }
+  html[data-app-theme] .mobile-home__balance { padding: 24px 22px 0; background: var(--paper); border: 1px solid var(--line-soft); border-radius: 24px; }
+  .mobile-home__balance-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; }
+  html[data-app-theme] .mobile-home__balance-heading select { min-width: 0; width: auto; min-height: 44px; border: 0; background: var(--surface-subtle); color: var(--ink); padding: 8px; border-radius: 10px; font-size: 16px; }
+  html[data-app-theme] .mobile-home__amount { display: block; margin-top: 14px; font-size: clamp(26px, 8vw, 36px); line-height: 1.2; font-weight: 600; letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  html[data-app-theme] .mobile-home__period { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 22px; }
+  html[data-app-theme] .mobile-home h2 { margin: 0 0 12px; font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+  .mobile-home__section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .mobile-home__section-heading h2 { flex: 1; }
+  html[data-app-theme] .mobile-home__section-heading > button { min-height: 44px; background: none; border: 0; color: var(--green-800); padding: 6px 0 12px 6px; font-size: 13px; }
+  html[data-app-theme] .mobile-home__list { border: 1px solid var(--line-soft); border-radius: 20px; padding: 0 16px; background: var(--paper); }
+  html[data-app-theme] .mobile-home__list > button, html[data-app-theme] .mobile-home__time { display: flex; align-items: center; gap: 13px; width: 100%; min-height: 66px; padding: 15px 0; border: 0; background: transparent; color: var(--ink); text-align: left; font: inherit; font-size: 15px; cursor: pointer; }
+  html[data-app-theme] .mobile-home__list > button + button { border-top: 1px solid var(--line-soft); }
+  .mobile-home__list > button > span, .mobile-home__time > span { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.4; }
+  html[data-app-theme] .mobile-home__list > button > svg, html[data-app-theme] .mobile-home__time > svg { flex-shrink: 0; color: var(--muted); stroke-width: 1.6; }
+  .mobile-home__list > button > strong { font-size: 17px; font-weight: 550; }
+  html[data-app-theme] .mobile-home__time { min-height: 54px; padding: 10px 8px; font-size: 14px; }
+  .mobile-home__time strong { font-weight: 500; }
+  .mobile-home dl { margin: 0; }
+  .mobile-home dl > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; font-size: 14px; }
+  html[data-app-theme] .mobile-home dd { margin: 0; color: var(--ink); }
+  html[data-app-theme] .mobile-home__balance .mobile-details__content > button { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; color: var(--green-800); padding: 0; font: inherit; font-size: 14px; }
+
+  /* Document rows: identity, amount and preview first. All editing stays available. */
+  html[data-app-theme] .desktop-app[data-experience] .sales-tabs { margin-bottom: 18px; }
+  html[data-app-theme] .desktop-app[data-experience] .document-list-tools__compact { padding: 12px 16px; background: transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-documents { border: 1px solid var(--line-soft); border-radius: 20px; overflow: hidden; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-documents table[data-mobile-cards] > tbody > tr { padding: 22px 16px; gap: 8px 12px; background: var(--paper); grid-template-columns: minmax(0, 1fr) minmax(90px, .8fr); grid-template-areas: 'identity identity' 'client client' 'date date' 'total status' 'actions actions'; border-bottom: 1px solid var(--line-soft); }
+  html[data-app-theme] .desktop-app[data-experience] .sales-documents--invoices table[data-mobile-cards] > tbody > tr { grid-template-areas: 'identity identity' 'client client' 'date status' 'total paid' 'actions actions'; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-documents table[data-mobile-cards] td::before { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-documents table[data-mobile-cards] :is(.sales-document__total, .sales-document__paid)::before { display: block; font-size: 11px; font-weight: 400; margin-bottom: 5px; color: var(--muted); }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__identity .document-cell > span { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__identity .document-cell { gap: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__identity strong { font-size: 16px; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__identity small { margin-top: 5px; font-size: 13px; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__identity .sales-document__creator { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-documents--quotes .sales-document__date small { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__client strong { font-size: 14px; font-weight: 450; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__date { font-size: 12px; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__date small { font-size: 11px; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__total strong { font-size: 21px; }
+  html[data-app-theme] .desktop-app[data-experience] .document-actions--compact { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 8px; max-width: none; padding: 12px 0 0; border: 0; align-items: start; }
+  html[data-app-theme] .desktop-app[data-experience] .document-actions--compact > .document-preview-action { width: 100%; min-height: 44px; border-radius: 12px; margin-bottom: 4px; }
+  html[data-app-theme] .desktop-app[data-experience] .document-actions--compact > .mobile-details { border: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .document-actions--compact > .mobile-details > summary { justify-content: center; font-size: 12px; padding: 8px 0; min-height: 44px; }
+  .document-actions--compact > .mobile-details[open] { grid-column: 1 / -1; }
+  .document-actions--compact .mobile-document-metadata { padding: 0 4px 8px; }
+  .document-actions--compact .mobile-document-metadata p { margin: 4px 0; }
+  .document-actions--compact > .mobile-details > summary > span { flex: 0 1 auto; }
+  .document-actions--compact .mobile-details__content { display: grid; gap: 8px; padding: 12px 0 0; }
+  html[data-app-theme] .desktop-app[data-experience] .document-actions--compact .mobile-details__content > .button { display: flex; width: 100%; height: auto; min-height: 44px; padding: 10px; justify-content: flex-start; text-align: left; font-size: 14px; line-height: 1.5; white-space: normal; }
+  .document-actions--compact .mobile-details__content > .button--icon[title]::after { content: attr(title); }
+
+  /* Projects and people are simple lists; their secondary figures fold away. */
+  html[data-app-theme] .desktop-app[data-experience] .project-card-grid { background: var(--paper); border-color: var(--line-soft); border-radius: 20px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-card-grid > .project-card { padding: 22px 18px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-card > .mobile-details { margin-top: 16px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-card footer { margin: 0; padding: 8px 0 0; border: 0; background: transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .project-card footer > .button:first-child { flex-basis: 100%; margin: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .project-stats { margin: 0; gap: 14px; }
+  html[data-app-theme] .desktop-app[data-experience] .team-navigation { background: var(--surface-subtle); border: 0; padding: 4px; border-radius: 14px; gap: 2px; }
+  html[data-app-theme] .desktop-app[data-experience] .team-navigation button { min-height: 52px; padding: 8px 4px; gap: 3px; flex-direction: row; flex-wrap: wrap; }
+  html[data-app-theme] .desktop-app[data-experience] .team-navigation button .team-navigation__title { font-size: 12px; line-height: 1.3; }
+  html[data-app-theme] .desktop-app[data-experience] .team-navigation button .team-navigation__count { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .team-navigation [aria-pressed=true] { background: var(--paper); color: var(--ink); box-shadow: 0 1px 3px #0000000d; }
+  html[data-app-theme] .desktop-app[data-experience] .team-directory > .section-heading > div:first-child { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .employee-grid { gap: 12px; }
+  html[data-app-theme] .desktop-app[data-experience] .employee-card { padding: 20px; border-radius: 20px; }
+  html[data-app-theme] .desktop-app[data-experience] .employee-card__main h3 { font-size: 17px; }
+  html[data-app-theme] .desktop-app[data-experience] .employee-card__main > div { gap: 12px; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-heading-actions { display: flex; flex-direction: column-reverse; align-items: stretch; gap: 8px; width: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-heading-actions > .mobile-details { text-align: left; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel > .section-heading > div:first-child { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-preparation { gap: 18px; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-preparation__next { padding: 20px; border-radius: 20px; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-preparation__next > h4 { font-size: 22px; line-height: 1.25; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-preparation__document { margin: 0; padding: 4px 0; background: transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-preparation__document strong { display: none; }
+
+  /* Accounting: two compact pickers, then the result and its components. */
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen--overview .accounting-toolbar { padding: 0; border: 0; background: transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen--overview .finance-navigation { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation__more { max-width: none; margin: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation :is(.section-navigation__mobile > span:first-child, .finance-navigation__more > span) { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation .section-navigation__current { min-height: 48px; padding: 10px 12px; gap: 6px; border: 1px solid var(--line-soft); background: var(--paper); border-radius: 13px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation .section-navigation__icon { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation__more select { min-height: 48px; padding: 10px; font-size: 14px; background: var(--paper); border: 1px solid var(--line-soft); border-radius: 13px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview { gap: 22px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__intro { padding: 0; display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__intro > div { flex: 1; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__intro h2, html[data-app-theme] .desktop-app[data-experience] .finance-overview__intro > div > p:last-child { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__eyebrow { margin: 0; font-size: 13px; color: var(--muted); }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__intro > .button { width: auto; min-height: 44px; padding: 8px 10px; border: 0; background: transparent; font-size: 13px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line-soft); border-radius: 22px; overflow: hidden; background: var(--paper); }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures article { display: grid; grid-template-columns: minmax(0, 1fr); padding: 18px 20px 8px; gap: 8px; border: 0; border-radius: 0; background: transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures article:last-child { order: -1; padding-top: 24px; border: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures article:not(:last-child) { border-top: 1px solid var(--line-soft); }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures article > div { gap: 8px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures h3 { font-size: 14px; font-weight: 450; line-height: 1.4; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures strong { font-size: 23px; font-weight: 550; line-height: 1.2; letter-spacing: -.035em; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures article:last-child strong { font-size: 32px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures article > p { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures article > button { min-height: 44px; margin: 0; font-size: 13px; padding: 6px 0; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__next { padding: 20px; gap: 16px; border: 1px solid var(--line-soft); background: var(--paper); }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__next h3 { font-size: 17px; line-height: 1.4; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__next p { font-size: 14px; line-height: 1.55; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths { gap: 0; border: 1px solid var(--line-soft); border-radius: 20px; padding: 0 16px; background: var(--paper); }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths > button { min-height: 70px; padding: 18px 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; gap: 12px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths > button + button { border-top: 1px solid var(--line-soft); }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths small { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__learn { padding: 4px 0 12px; background: transparent; border: 0; }
+  .finance-overview__learn dl { margin: 0 0 24px; }
+  .finance-overview__learn dt { font-size: 14px; font-weight: 600; margin-top: 18px; }
+  .finance-overview__learn dd { margin: 6px 0 0; }
+
+  /* Settings read like a familiar phone settings list. */
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation { background: var(--paper); border: 1px solid var(--line-soft); padding: 0 18px; border-radius: 22px; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation button { min-height: 68px; padding: 16px 0; gap: 14px; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation strong { font-size: 15px; font-weight: 500; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation small { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation button + button { border-color: var(--line-soft); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-card { padding: 22px 18px; border-radius: 20px; }
+  html[data-app-theme] .desktop-app[data-experience] .field { gap: 8px; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.form-grid, .settings-grid) { gap: 22px 16px; }
+  html[data-app-theme] .desktop-app[data-experience] .field :is(input, select, textarea) { font-size: 16px; min-height: 48px; border-radius: 12px; }
+  html[data-app-theme] .desktop-app[data-experience] .modal__header { padding: max(20px, var(--safe-top, env(safe-area-inset-top))) 20px 18px; }
+  html[data-app-theme] .desktop-app[data-experience] .modal__header h2 { font-size: 24px; line-height: 1.2; }
+  html[data-app-theme] .desktop-app[data-experience] .modal__body { padding-inline: max(20px, var(--safe-left, env(safe-area-inset-left))) max(20px, var(--safe-right, env(safe-area-inset-right))); }
+  /* These guided dialogs already explain the current step inside their body. */
+  html[data-app-theme] :is(.employee-dialog, .payroll-dialog, .document-assistant) .modal__header p { display: none; }
+  html[data-app-theme] :is(.employee-dialog, .payroll-dialog) .modal__header { padding-block: max(18px, var(--safe-top, env(safe-area-inset-top))) 18px; }
+  html[data-app-theme] :is(.employee-dialog, .payroll-dialog) .modal__header h2 { font-size: 22px; line-height: 1.25; }
+  html[data-app-theme] :is(.employee-dialog, .payroll-dialog) .form-grid { gap: 22px 16px; }
+  html[data-app-theme] :is(.employee-dialog, .payroll-dialog) .field :is(input, select, textarea) { min-height: 48px; font-size: 16px; border-radius: 12px; }
+  html[data-app-theme] .payroll-dialog .payroll-preparation__next { padding: 20px; border-radius: 20px; }
+  html[data-app-theme] .payroll-dialog .payroll-preparation__next > h4 { font-size: 22px; line-height: 1.25; }
+  html[data-app-theme] .payroll-dialog .payroll-preparation__document { margin: 0; padding: 4px 0; background: transparent; }
+  html[data-app-theme] .payroll-dialog .payroll-preparation__document strong { display: none; }
+  html[data-app-theme] .assistant-launcher { width: 46px; min-width: 46px; height: 46px; min-height: 46px; padding: 0; right: max(20px, var(--safe-right, env(safe-area-inset-right))); bottom: calc(88px + var(--safe-bottom, env(safe-area-inset-bottom))); background: var(--paper); border-color: var(--line); color: var(--ink); box-shadow: 0 3px 14px #00000014; }
+  .assistant-launcher > span { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .mobile-navigation { background: var(--shell-glass, var(--paper)); border-color: var(--line-soft); box-shadow: 0 4px 22px #00000012; }
+  html[data-app-theme] .desktop-app[data-experience] .mobile-navigation button { min-height: 52px; }
+  .mobile-home button, .mobile-details summary { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+}
+
+@media screen and (max-width: 860px) and (prefers-reduced-motion: no-preference) {
+  .mobile-details[open] > .mobile-details__content { animation: mobile-details-arrive 180ms ease-out; }
+  html[data-app-theme] .desktop-app[data-experience] .page-content { animation: mobile-details-arrive 220ms ease-out; }
+  .mobile-home__list > button { transition: background-color 150ms ease; }
+  .mobile-home__list > button:active { background: var(--surface-subtle); }
+  @keyframes mobile-details-arrive { from { opacity: .35; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+}
+@media screen and (max-width: 860px) and (prefers-reduced-motion: reduce) {
+  .mobile-details > summary > svg { transition: none; }
+}

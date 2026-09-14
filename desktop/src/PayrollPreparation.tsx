@@ -2,6 +2,7 @@ import { t, useAppLanguage } from './language';
 import { useEffect, useRef } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, FileText } from 'lucide-react';
 import { Button } from './ui';
+import { MobileDetails } from './MobileDetails';
 import type { PayrollHelpTarget } from './payrollHelp';
 import type { PayrollPreparationTask } from './payrollPreparationTasks';
 import './payroll-preparation.css';
@@ -103,13 +104,13 @@ export function PayrollPreparation({
           <span>{t("La prochaine action")}</span>
           <h4>{t(next.title)}</h4>
           <p>{t(next.explanation)}</p>
-          <div className="payroll-preparation__document">
+          <MobileDetails title="Document nécessaire"><div className="payroll-preparation__document">
             <FileText size={20} />
             <div>
               <strong>{t("À avoir sous les yeux")}</strong>
               <p>{t(next.document)}</p>
             </div>
-          </div>
+          </div></MobileDetails>
           <Button
             type="button"
             disabled={busy || unavailable}

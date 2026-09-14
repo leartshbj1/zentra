@@ -126,6 +126,8 @@ import { BrandMark, BrandWordmark } from './BrandMark';
 import { documentOrders, newestDocumentsFirst, readDocumentOrder, saveDocumentOrder, sortDocuments, type DocumentOrder } from './documentOrder';
 import { matchesSalesDocumentSearch, matchesSalesDocumentStatus, documentCreators, documentCreatorLabel, matchesDocumentCreator } from './salesDocumentList';
 import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
+import { MobileDetails, MobileDocumentActions, useCompactLayout } from './MobileDetails';
+import { MobileDashboard } from './MobileDashboard';
 import type { AgendaEventDraft } from './AgendaScreen';
 import { requireAgendaWorkspace } from './agendaForm';
 import { agendaNavigationTarget, type AgendaItem } from './agenda';
@@ -1850,7 +1852,7 @@ export function WorkspaceApp({
         {supplierPaymentReturn && <div className="supplier-review-resume" role="region" aria-label={t('Reprendre le paiement fournisseur')}><span>{t('Votre paiement reste à enregistrer. Reprenez-le après les corrections ; votre saisie est conservée.')} <strong>{supplierPaymentReturn.invoice.reference}</strong></span><Button disabled={busy || Boolean(modal)} onClick={() => { setView('expenses'); setSearch(''); setModal(supplierPaymentReturn); setSupplierPaymentReturn(null); }}>{t('Reprendre le paiement fournisseur')}</Button><Button variant="ghost" disabled={busy} onClick={() => { if (window.confirm(t('Abandonner la saisie de ce paiement ?'))) setSupplierPaymentReturn(null); }}>{t('Abandonner la saisie')}</Button></div>}
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label={t("Reprendre la facture fournisseur")}><span>{t("Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.")}</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>{t("Reprendre la facture fournisseur")}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>{t("Plus tard")}</Button></div>}
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
-        <section className="page-content" ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
+        <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -2507,6 +2509,7 @@ function Dashboard({
   onCreate: Dispatch<SetStateAction<ModalState>>;
   onOpenProject: (project: Project) => void;
 }) {
+  const compact = useCompactLayout();
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
@@ -2582,6 +2585,7 @@ function Dashboard({
     onNavigate(action.view);
   }
 
+  if (compact && hasActivity) return <MobileDashboard workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
   if (!hasActivity)
     return (
       <GettingStartedChecklist
@@ -3029,7 +3033,7 @@ function ProjectsScreen({
                   <StatusBadge status={project.status} />
                 </header>
                 {project.address ? <p className="project-card__address"><MapPin size={14} /> {project.address}</p> : null}
-                <div className="project-stats">
+                <MobileDetails title="Chiffres et planning"><div className="project-stats">
                   <div>
                     <span>Facturé TTC</span>
                     <strong>
@@ -3072,7 +3076,7 @@ function ProjectsScreen({
                     {completedTasks > 1 ? 's' : ''}
                   </span>
                 </div>
-                <footer>
+                </MobileDetails><footer>
                   <Button size="small" onClick={() => onFolderChange(project.id)}>
                     <FolderOpen size={16} /> Ouvrir le dossier
                   </Button>
@@ -3715,7 +3719,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                     {convertedOrder ? <small>Commande créée</small> : null}
                   </td>
                   <td className="sales-document__actions">
-                    <div className="document-actions">
+                    <MobileDocumentActions metadata={<div className="mobile-document-metadata"><p>{t(documentCreatorLabel(quote))}</p><p>{t('Valable au {date}', { date: formatDate(quote.validUntil) })}</p></div>}>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -3859,7 +3863,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         >
                           <Eye size={16} /> Aperçu
                         </Button>
-                    </div>
+                    </MobileDocumentActions>
                   </td>
                 </tr>
               );
@@ -4019,7 +4023,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                   ) : null}
                 </td>
                 <td className="sales-document__actions">
-                  <div className="document-actions">
+                  <MobileDocumentActions metadata={<div className="mobile-document-metadata"><p>{t(documentCreatorLabel(item))}</p></div>}>
                     <Button disabled={busy || (readOnly && item.status === 'draft' && !linkedOrderDraftBatch)}
                       variant="ghost"
                       size="icon"
@@ -4184,7 +4188,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         <Archive size={15} />
                       </Button>
                     ) : null}
-                  </div>
+                  </MobileDocumentActions>
                 </td>
               </tr>
             );
@@ -4618,6 +4622,7 @@ function TeamScreen({
           action={
             payrollEnabled ? (
               <div className="payroll-heading-actions">
+                <MobileDetails title="Options de la paie" badge={workspace.payrollImports.filter(item => item.status === 'needs_review').length || undefined}>
                 <Button variant="secondary" disabled={busy} onClick={onImportPayslips}>
                   <ScanLine size={16} />{t(" Importer des fiches")}{workspace.payrollImports.filter(
                     (item) => item.status === 'needs_review',
@@ -4631,6 +4636,7 @@ function TeamScreen({
                     </em>
                   ) : null}
                 </Button>
+                </MobileDetails>
                 <Button disabled={busy} onClick={onCreatePayslip}>
                   <Plus size={16} />{t(" Nouvelle fiche")}</Button>
               </div>
@@ -6509,6 +6515,7 @@ function EmployeeForm({
   return (
     <Modal
       title={item ? t("Modifier le collaborateur") : t("Nouveau collaborateur")}
+      className="employee-dialog"
       description={t("Trois étapes pour enregistrer la personne. Les réglages de paie pourront être complétés ensuite.")}
       onClose={() => { if (!busy && !savingRef.current) close(); }}
       dismissible={!pending}

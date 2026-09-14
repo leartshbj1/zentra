@@ -41,6 +41,7 @@ export function ScreenHelp({ view, title }: { view: string; title: string }) {
         variant="ghost"
         size="small"
         className="screen-help-launcher"
+        aria-label={t('Comprendre cet écran')}
         onClick={() => setOpen(true)}
       >
         <CircleHelp size={18} />

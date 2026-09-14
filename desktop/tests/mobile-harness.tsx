@@ -237,6 +237,8 @@ if (new URLSearchParams(location.search).has('supplierRefundGuided')) installSup
 if (new URLSearchParams(location.search).has('paymentGuided')) installPaymentGuidedFixture(data);
 if (new URLSearchParams(location.search).has('customerSettlementGuided')) installCustomerSettlementGuidedFixture(data);
 function Harness() {
+  // Tests use this exact mocked instance, including after Vite hot reloads.
+  Object.assign(window, { __qaDesktopApi: desktopApi });
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
   const [readOnly, setReadOnly] = useState(new URLSearchParams(location.search).has('readOnly'));
@@ -273,3 +275,4 @@ createRoot(document.getElementById('root')!).render(<ZentraAssistantProvider><Ha
 import '../src/appearance';
 import '../src/dark.generated.css';
 import '../src/dark.css';
+import '../src/mobile-air.css';

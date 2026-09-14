@@ -43,3 +43,4 @@ function Fixture(){const [view,setView]=useState(params.get('view')||'account');
 import '../src/appearance';
 import '../src/dark.generated.css';
 import '../src/dark.css';
+import '../src/mobile-air.css';
