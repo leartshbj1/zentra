@@ -22,6 +22,7 @@ desktopApi.openCloudAccountLink=async()=>{test.calls.push('open');};
 desktopApi.pollCloudAccountLink=()=>new Promise(resolve=>{const old={...state};test.resolvePoll=()=>resolve(old);});
 desktopApi.getCloudTeam=async()=>{test.calls.push('team');return structuredClone(team);};
 desktopApi.publishCloudCompany=async()=>{test.calls.push('profile');team.profile={company_name:'Atelier de démonstration'};return {saved:true};};
+desktopApi.publishCompanyCopy=async()=>{test.calls.push('company-copy');team.companyCopy={backupId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',publishedAt:'2026-09-14T12:00:00Z',sizeBytes:100};return {saved:true};};
 desktopApi.inviteCloudMember=async(email,role)=>{test.calls.push(`invite:${role}`);if(!team.seats.available)throw new Error('Toutes les places sont utilisées.');team.invitations.push({id:'inv_test',email,role,expiresAt:2000000000});team.seats.reserved++;team.seats.available--;return {invitation:{id:'inv_test',email,role,url:'https://example.invalid/invitation?token=test',expiresAt:2000000000}};};
 desktopApi.revokeCloudInvitation=async()=>{team.invitations=[];team.seats.reserved=0;team.seats.available=2;return {revoked:true};};
 desktopApi.joinCloudCompany=async()=>{test.calls.push('join');return {} as never;};

@@ -10,7 +10,7 @@ try {
   for(const theme of ['light','dark'])for(const width of [320,390,1280]){
     const page=await browser.newPage({viewport:{width,height:844}});
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
-    const url=`http://127.0.0.1:5296/tests/company-access-harness.html?theme=${theme}`;
+    const url=`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5296'}/tests/company-access-harness.html?theme=${theme}`;
     await page.goto(url);
     await page.getByRole('button',{name:'Réinitialiser cette application',exact:true}).click();
     const dialog=page.getByRole('dialog');
