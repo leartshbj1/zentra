@@ -32,11 +32,25 @@ describe('SupabaseServerClient', () => {
     const [url,options]=fetcher.mock.calls[0];
     expect(String(url)).toBe(`https://example.supabase.co/storage/v1/object/zentra-company-data/${path}`);
     expect(String(url)).not.toContain(serverSecret);
-    expect(options?.redirect).toBe('error');
+    expect(options?.redirect).toBe('manual');
     expect(new Headers(options?.headers).get('x-upsert')).toBe('false');
     fetcher.mockImplementation(async()=>new Response(null,{status:200}));
     await client.removeCompanyChunks([path]);
+    expect(fetcher.mock.calls[1][1]?.redirect).toBe('manual');
     expect(fetcher.mock.calls[1][1]?.body).toBe(JSON.stringify({prefixes:[path]}));
+  });
+  it('refuses storage redirects without retrying at an external credential destination', async () => {
+    const fetcher=vi.fn<TestFetch>(async()=>new Response(null,{status:302,headers:{Location:'https://untrusted.test/capture'}}));
+    const client=createSupabaseServerClient({url:'https://example.supabase.co',secretKey:serverSecret},fetcher);
+    const path=`${'a'.repeat(64)}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/0`;
+    await expect(client.companyChunk('POST',path,new Uint8Array([1,2]))).rejects.toMatchObject({status:302,code:'company_storage'});
+    await expect(client.companyChunk('GET',path)).rejects.toMatchObject({status:302,code:'company_storage'});
+    await expect(client.removeCompanyChunks([path])).rejects.toMatchObject({status:302,code:'company_storage_cleanup'});
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    for(const [url,init] of fetcher.mock.calls){
+      expect(new URL(String(url)).origin).toBe('https://example.supabase.co');
+      expect(init?.redirect).toBe('manual');
+    }
   });
   it('rejects publishable keys and unsafe origins', () => {
     expect(() =>

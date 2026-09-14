@@ -140,7 +140,9 @@ export class SupabaseServerClient {
   readonly #configuration: ValidatedConfiguration;
   readonly #fetch: Fetch;
 
-  constructor(configuration: SupabaseServerConfiguration, fetcher: Fetch = fetch) {
+  // Call the runtime's global fetch as a global function, not as a method on
+  // this client: workerd rejects an incorrect receiver with Illegal invocation.
+  constructor(configuration: SupabaseServerConfiguration, fetcher: Fetch = (input, init) => fetch(input, init)) {
     this.#configuration = validateSupabaseServerConfiguration(configuration);
     this.#fetch = fetcher;
   }
@@ -152,7 +154,9 @@ export class SupabaseServerClient {
     if (method === 'POST' && (!bytes?.length || bytes.length > 8 * 1024 * 1024))
       throw new TypeError('Invalid company chunk size.');
     const response = await this.#fetch(`${this.#configuration.origin}/storage/v1/object/zentra-company-data/${path}`, {
-      method, redirect: 'error', signal: AbortSignal.timeout(60_000),
+      // Workers rejects redirect:'error' before sending the request. Manual
+      // redirects keep credentials on this origin; !ok below rejects every 3xx.
+      method, redirect: 'manual', signal: AbortSignal.timeout(60_000),
       headers: { apikey: this.#configuration.secretKey, Authorization: `Bearer ${this.#configuration.secretKey}`,
         'Content-Type': 'application/octet-stream', 'x-upsert': 'false' },
       ...(bytes ? {body: bytes as BodyInit} : {}),
@@ -179,7 +183,7 @@ export class SupabaseServerClient {
     if(!paths.length||paths.length>64||paths.some(path=>!/^[a-f0-9]{64}\/[a-f0-9-]{36}\/(?:[0-9]|[1-5][0-9]|6[0-3])$/.test(path)))
       throw new TypeError('Invalid company cleanup paths.');
     const response=await this.#fetch(`${this.#configuration.origin}/storage/v1/object/zentra-company-data`,{
-      method:'DELETE',redirect:'error',signal:AbortSignal.timeout(60_000),
+      method:'DELETE',redirect:'manual',signal:AbortSignal.timeout(60_000),
       headers:{apikey:this.#configuration.secretKey,Authorization:`Bearer ${this.#configuration.secretKey}`,'Content-Type':'application/json'},
       body:JSON.stringify({prefixes:paths}),
     });
