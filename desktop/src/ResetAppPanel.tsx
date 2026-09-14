@@ -11,12 +11,17 @@ import './resetApp.css';
 export function ResetAppPanel({disabled = false}: {disabled?:boolean}) {
   const [open,setOpen] = useState(false), [confirmation,setConfirmation] = useState(''), [busy,setBusy] = useState(false), [error,setError] = useState('');
   const running = useRef(false);
+  const resetCompleted = useRef(false);
   async function reset() {
     if (running.current || confirmation !== 'REINITIALISER') return;
     running.current = true; setBusy(true); setError('');
     try {
       payrollLocalAi.cancel();
-      await desktopApi.resetLocalApp(confirmation);
+      // A cache cleanup error must never create a second (empty) recovery backup on retry.
+      if (!resetCompleted.current) {
+        await desktopApi.resetLocalApp(confirmation);
+        resetCompleted.current = true;
+      }
       await clearLocalAppPreferences();
       window.location.reload();
     } catch(reason) {
