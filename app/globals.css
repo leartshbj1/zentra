@@ -2,6 +2,20 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
+.legal-page { overflow-wrap: anywhere; }
+.legal-copy a { color: #315e48; text-decoration: underline; text-underline-offset: 3px; }
+.legal-copy ul { list-style: disc; padding-left: 1.25rem; }
+.legal-copy li + li { margin-top: .85rem; }
+.legal-related a { min-height: 44px; display: inline-flex; align-items: center; }
+@media print {
+  .legal-site-navigation, .legal-toc, .legal-print-button, .legal-related { display: none !important; }
+  .legal-page { background: white !important; padding: 0 !important; color: black !important; }
+  .legal-page .grid { display: block !important; }
+  .legal-page section { border: 0 !important; border-radius: 0 !important; padding: 1rem 0 !important; background: white !important; }
+  .legal-page h2 { break-after: avoid; }
+  .legal-copy { color: black !important; }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

@@ -114,7 +114,7 @@ describe('Native team API with real membership and capacity guards',()=>{
  });
  it('reserves places, rejects duplicates and owner role, frees a cancelled invitation',async()=>{
   const first=await POST(device({action:'invite',email:' Person@example.test ',role:'accountant'}));expect(first.status).toBe(201);
-  const body=await first.json();expect(body.invitation.email).toBe('person@example.test');expect(body.invitation.role).toBe('accountant');
+  const body=await first.json() as {invitation:{id:string;email:string;role:string}};expect(body.invitation.email).toBe('person@example.test');expect(body.invitation.role).toBe('accountant');
   expect((await POST(device({action:'invite',email:'person@example.test',role:'member'}))).status).toBe(409);
   expect((await POST(device({action:'invite',email:'owner2@example.test',role:'owner'}))).status).toBe(400);
   expect((await POST(device({action:'invite',email:'other@example.test',role:'read_only'}))).status).toBe(201);

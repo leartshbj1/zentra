@@ -1,133 +1,16 @@
-import { Cloud, Database, FileCheck2, LockKeyhole } from 'lucide-react';
-import { SiteFooter } from '@/components/site-footer';
-import { SiteHeader } from '@/components/site-header';
-
-export const metadata = {
-  title: 'Données et confidentialité — Zentra',
-  description:
-    'Comprendre précisément quelles données restent sur votre ordinateur et lesquelles sont traitées par le compte ou le coffre de factures Zentra.',
-  alternates: { canonical: '/confidentialite' },
-};
-
-const sections = [
-  {
-    icon: Database,
-    title: 'Données opérationnelles locales',
-    text: 'Clients, fournisseurs, salariés, salaires, projets, temps, banque, écritures et réglages sont conservés dans la base SQLite de l’application. Zentra ne les synchronise pas automatiquement.',
-  },
-  {
-    icon: LockKeyhole,
-    title: 'Compte et accès',
-    text: 'Supabase Auth traite l’adresse e-mail, le nom affiché, le mot de passe et la session de connexion. Zentra ne stocke jamais le mot de passe dans D1/R2 ni dans le navigateur : les jetons de session restent dans des cookies HttpOnly. Le service de compte conserve ensuite l’entreprise, le rôle, les appareils autorisés et les dates techniques utiles.',
-  },
-  {
-    icon: FileCheck2,
-    title: 'Coffre de factures sur option',
-    text: 'Un PDF n’est transmis que lorsque vous demandez son archivage. Chaque version conserve son numéro, ses dates, son motif éventuel, son empreinte SHA-256 et sa chaîne de versions.',
-  },
-  {
-    icon: Cloud,
-    title: 'Coordonnées partagées pour rejoindre une entreprise',
-    text: 'Le titulaire ou un administrateur partage le nom, les coordonnées et l’activité de l’entreprise depuis les paramètres. Ces informations sont enregistrées dans Supabase et accessibles aux appareils autorisés de cette entreprise. Rejoindre une entreprise les reprend dans un espace local vide. Ce partage ne transmet ni coordonnées bancaires, ni salaires, ni réglages personnels, et ne synchronise pas les écritures comptables entre appareils.',
-  },
-  {
-    icon: Cloud,
-    title: 'Fichiers des projets synchronisés',
-    text: 'Une fois l’appareil connecté à votre entreprise, les plans, photos et fichiers ajoutés aux projets sont transmis au serveur avec le nom et la référence du projet, le nom du fichier, son format, sa taille et son empreinte. Les appareils autorisés de la même entreprise les téléchargent et en gardent une copie hors ligne. Les ajouts et suppressions en attente reprennent au retour du réseau ou à la réouverture de l’app. La suppression est partagée ; un événement de suppression empêche une ancienne copie de remettre le fichier en ligne.',
-  },
-  {
-    icon: Cloud,
-    title: 'Sauvegarde complète distante sur option',
-    text: 'Depuis la version 1.46.1, le titulaire ou un administrateur peut envoyer une copie complète de la base et des pièces jointes, notamment les salaires. La copie quotidienne doit être activée explicitement ; elle s’exécute lorsque l’application est ouverte et connectée. Les secrets de connexion et la licence propre à l’appareil sont exclus. Le coffre privé conserve les copies jusqu’à leur suppression par un administrateur, dans la limite de 50 copies, 10 Go par entreprise et 512 Mo par copie. La restauration remplace les données de l’appareil après confirmation et conserve d’abord une copie locale de sécurité. Il ne s’agit pas d’une fusion du travail de plusieurs appareils.',
-  },
-  {
-    icon: Cloud,
-    title: 'Prestataires techniques',
-    text: 'Supabase fournit l’authentification et conserve les coordonnées d’entreprise partagées depuis un projet créé dans la région Zurich (eu-central-2). Stripe traite l’abonnement et sa facturation. Sites exécute le site ; D1/R2 sont utilisés par certaines routes de compte, les PDF archivés sur demande, les fichiers privés des projets synchronisés et les sauvegardes complètes distantes activées par l’entreprise. La région du projet Supabase ne constitue pas une garantie de localisation des données D1/R2 en Suisse.',
-  },
-];
-
-export default function PrivacyPage() {
-  return (
-    <>
-      <a href="#contenu" className="site-skip-link">
-        Aller au contenu
-      </a>
-      <SiteHeader />
-      <main
-        id="contenu"
-        tabIndex={-1}
-        className="min-h-screen bg-[#f6f4ee] px-5 py-10 text-[#173d2c] sm:py-16"
-      >
-        <div className="mx-auto max-w-5xl">
-          <header className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#a66b1f]">
-              Transparence des données
-            </p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-[-.045em] sm:text-6xl">
-              Local par défaut. Hébergé seulement quand c’est utile.
-            </h1>
-            <p className="mt-5 text-lg leading-8 text-[#5f6962]">
-              Cette page décrit le périmètre technique actuellement actif pour
-              Zentra. Le coffre de factures est facultatif et ne remplace jamais
-              votre sauvegarde locale complète.
-            </p>
-          </header>
-
-          <section className="mt-10 grid gap-4 sm:grid-cols-2">
-            {sections.map(({ icon: Icon, title, text }) => (
-              <article
-                key={title}
-                className="rounded-[1.6rem] border border-[#dedee3] bg-white p-6 shadow-[0_18px_50px_rgba(29,45,35,.05)]"
-              >
-                <Icon className="size-6 text-[#397150]" />
-                <h2 className="mt-5 text-xl font-semibold">{title}</h2>
-                <p className="mt-3 text-sm leading-7 text-[#667168]">{text}</p>
-              </article>
-            ))}
-          </section>
-
-          <section className="mt-8 rounded-[1.8rem] bg-[#173d2c] p-7 text-white sm:p-9">
-            <h2 className="text-2xl font-semibold">Conservation et contrôle</h2>
-            <div className="mt-5 grid gap-6 text-sm leading-7 text-white/76 sm:grid-cols-2">
-              <p>
-                Les PDF archivés sont conservés jusqu’à l’échéance calculée dix
-                ans après la fin de l’exercice comptable concerné. Une
-                correction crée une nouvelle version; l’original n’est pas
-                écrasé et aucune route de suppression d’archive n’est exposée.
-              </p>
-              <p>
-                Ces protections applicatives et empreintes facilitent la preuve
-                d’intégrité. La validation fiduciaire et une éventuelle
-                certification d’archivage restent des démarches distinctes du
-                logiciel.
-              </p>
-            </div>
-          </section>
-
-          <section className="mt-8 rounded-[1.8rem] border border-[#dedee3] bg-[#ffffff] p-7 sm:p-9">
-            <h2 className="text-2xl font-semibold">
-              Accès, rectification et contact
-            </h2>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-[#5f6962]">
-              Le propriétaire peut révoquer un membre, une invitation ou un
-              appareil depuis « Mon compte ». Pour une demande relative aux
-              données de compte, écrivez à{' '}
-              <a
-                href="mailto:leartshabija@gmail.com?subject=Zentra%20-%20données%20personnelles"
-                className="font-semibold text-[#315f47] underline underline-offset-4"
-              >
-                leartshabija@gmail.com
-              </a>
-              . Zentra n’expose actuellement aucune route utilisateur pour
-              supprimer une archive avant son échéance; une information erronée
-              est rectifiée par une nouvelle version traçable. Cette logique
-              conserve l’historique des versions dans l’application.
-            </p>
-          </section>
-        </div>
-      </main>
-      <SiteFooter />
-    </>
-  );
+import { LegalPage, OperatorContact } from '@/components/legal-page';
+export const metadata = {title:'Politique de confidentialité',description:'Les données traitées par Zentra, leurs finalités, leur conservation et vos droits.',alternates:{canonical:'/confidentialite'}};
+export default function Page() {
+  return <LegalPage title="Politique de confidentialité" intro="Ce qui reste sur votre appareil, ce qui est transmis et comment garder le contrôle de vos données." sections={[
+    {id:'responsable',title:'Responsable et périmètre',content:<><OperatorContact /><p>Shabija Leart est responsable des traitements du site, des comptes, de ses abonnements et de l’assistance Zentra. Pour les données qu’une entreprise confie aux services distants, cette entreprise reste responsable du traitement ; Zentra intervient pour son compte selon l’<a href="/sous-traitance">annexe de traitement des données</a>.</p><p>Cette politique concerne les visiteurs, titulaires, collaborateurs et personnes dont les données sont confiées à Zentra. La loi suisse sur la protection des données s’applique ; les autres dispositions impératives applicables restent réservées.</p></>},
+    {id:'compte',title:'Compte, paiement et support',content:<><p>Pour créer et sécuriser les accès, nous traitons l’e-mail, le nom affiché, les identifiants de compte et d’entreprise, les rôles, invitations et appareils autorisés. Le mot de passe est traité par Supabase Auth ; il n’est pas conservé en clair dans la base métier Zentra. Les jetons du site utilisent des cookies HttpOnly. La date et la version des conditions acceptées sont enregistrées pour documenter la relation contractuelle.</p><p>Stripe traite les informations de paiement et de facturation. Zentra reçoit notamment les références du client et de l’abonnement, la formule, les échéances, les statuts de paiement et les coordonnées de facturation. Zentra ne stocke pas le numéro complet de carte bancaire. Les échanges adressés au support servent à traiter et suivre votre demande.</p><p>Les données proviennent de vous, de l’administrateur qui vous invite, de votre appareil ou des services de connexion et de paiement. Elles servent à fournir le service, gérer le contrat, assurer la sécurité et satisfaire aux obligations de preuve. Un champ obligatoire est nécessaire à la fonction demandée ; sans lui, elle ne peut pas être fournie.</p></>},
+    {id:'local',title:'Données conservées sur l’appareil',content:<><p>Clients, fournisseurs, devis, factures, salariés, salaires, projets, temps, banque, écritures et réglages sont conservés dans la base locale de l’application. La connexion ne transmet pas systématiquement toute cette base à l’éditeur. Les fonctions distantes décrites ci-dessous ont un périmètre propre.</p><p>Protégez l’appareil, ses accès et ses sauvegardes. Désinstaller l’application ou effacer ses fichiers ne constitue pas une demande de suppression des copies hébergées.</p></>},
+    {id:'partage',title:'Partage, synchronisation et sauvegardes',content:<ul><li><strong>Profil d’entreprise :</strong> le titulaire ou un administrateur partage le nom, les coordonnées et l’activité depuis les paramètres. Supabase conserve ce profil, accessible aux appareils autorisés. Ce partage ne transmet pas à lui seul les coordonnées bancaires, les salaires ou les écritures.</li><li><strong>Fichiers des projets :</strong> sur un appareil connecté à l’entreprise, les plans, photos et fichiers ajoutés sont envoyés avec les références du projet, le nom, le type, la taille et l’empreinte du fichier. Les appareils autorisés de la même entreprise les téléchargent et gardent une copie hors ligne. Les opérations en attente reprennent au retour du réseau ou à la réouverture. Une suppression est partagée ; sa trace empêche une ancienne copie de remettre le fichier en ligne.</li><li><strong>Archivage de facture :</strong> le PDF n’est transmis que sur demande d’archivage, avec son numéro, ses dates, son empreinte et son historique.</li><li><strong>Sauvegarde distante complète :</strong> le titulaire ou un administrateur peut transmettre la base et les pièces jointes, y compris les salaires. La copie quotidienne doit être activée explicitement et nécessite une application ouverte et connectée. Les secrets de connexion et la licence de l’appareil sont exclus. La restauration remplace la base après confirmation et création d’une copie locale de sécurité ; elle ne fusionne pas deux bases.</li></ul>},
+    {id:'prestataires',title:'Prestataires et lieux de traitement',content:<><ul><li><strong>Supabase :</strong> authentification et profil d’entreprise partagé. Le projet principal est configuré à Zurich, Suisse (eu-central-2). Les fonctions d’assistance et certains sous-traitants peuvent intervenir depuis d’autres pays.</li><li><strong>OpenAI Sites et Cloudflare :</strong> site, protection du trafic et API. D1/R2 conserve les données de compte, fichiers de projets, archives et sauvegardes qui utilisent ces services. Leur localisation exclusive en Suisse n’est pas garantie.</li><li><strong>Stripe :</strong> paiement, facturation, abonnements et prévention de la fraude ; traitement international selon le service utilisé.</li><li><strong>Infomaniak :</strong> domaine et boîte de contact info@zentraapp.ch, hébergée en Suisse. Le fournisseur du correspondant intervient aussi dans l’acheminement de ses messages.</li><li><strong>E-mails de connexion :</strong> transport configuré dans Supabase Auth, distinct de la boîte de support Infomaniak. Il dépend du service SMTP actif.</li></ul><p>Des opérations peuvent intervenir notamment en Suisse, dans l’Espace économique européen et aux États-Unis, ainsi que dans les pays des sous-traitants publiés par les prestataires. Zurich et le domaine .ch ne constituent pas une garantie de localisation de l’ensemble du service. Pour une exigence de localisation ou les garanties applicables à un transfert, contactez-nous avant de confier les données concernées.</p><p>Informations des prestataires : <a href="https://supabase.com/privacy">Supabase</a>, <a href="https://openai.com/policies/privacy-policy/">OpenAI</a>, <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a>, <a href="https://stripe.com/ch/privacy">Stripe</a> et <a href="https://www.infomaniak.com/fr/cgv/politique-de-confidentialite">Infomaniak</a>. Les lieux et garanties doivent être examinés pour chaque service ; cette politique ne certifie pas les prestataires.</p></>},
+    {id:'conservation',title:'Durées et suppression',content:<><ul><li><strong>Données locales :</strong> conservées sur les appareils et sauvegardes jusqu’à leur suppression par l’entreprise, sous réserve de ses obligations.</li><li><strong>Compte, rôles et licence :</strong> nécessaires pendant la relation de service. Une demande de clôture permet de déterminer les données à supprimer et celles à conserver pour une obligation légale ou un litige. Révoquer un accès ne supprime pas tout l’historique de sécurité.</li><li><strong>Fichiers de projets :</strong> conservés jusqu’à leur suppression par une personne autorisée ; il faut aussi tenir compte des traces de suppression et des copies hors ligne ou sauvegardées.</li><li><strong>Sauvegardes distantes :</strong> conservées jusqu’à suppression par un administrateur, dans les limites de 50 copies, 10 Go par entreprise et 512 Mo par copie. Les anciennes copies ne sont pas toutes effacées automatiquement chaque jour.</li><li><strong>PDF archivés :</strong> échéance calculée dix ans après la fin de l’exercice concerné. Une correction crée une nouvelle version. L’interface ne propose pas de suppression anticipée. L’échéance n’est pas une preuve d’exécution automatique d’une purge.</li><li><strong>Cookies et tentatives :</strong> voir les <a href="/cookies">durées techniques</a>. Les tentatives de paiement expirées et compteurs anti-abus sont nettoyés lors de nouvelles opérations ; leur expiration ne signifie pas une suppression immédiate du serveur.</li></ul><p>Les échanges de support restent conservés pendant le traitement et le suivi nécessaire. La facturation propre à l’éditeur suit ses obligations comptables. Lors d’une demande, nous précisons les catégories conservées, leur motif et les critères de durée. Une suppression ne signifie pas l’effacement instantané de toutes les sauvegardes techniques.</p></>},
+    {id:'ia',title:'Assistant local',content:<p>Le modèle facultatif fonctionne sur l’appareil. Son téléchargement nécessite une connexion aux distributeurs de modèles et de composants, qui reçoivent les informations réseau correspondantes. Les documents et questions traités par cette fonction locale ne sont pas transmis à un service d’IA distant. Ses extractions et suggestions doivent être vérifiées. Il ne décide pas seul de l’engagement, du licenciement ou des droits d’un salarié.</p>},
+    {id:'securite',title:'Protection et accès',content:<p>Zentra utilise HTTPS, des contrôles d’appartenance à l’entreprise, des rôles, des appareils révocables et des contrôles d’intégrité. Le stockage distant n’est pas un chiffrement de bout en bout dont seul le client possède la clé. Limitez les accès accordés, installez les mises à jour et évitez de transmettre des dossiers complets au support. Aucun dispositif ne garantit l’absence de tout incident.</p>},
+    {id:'droits',title:'Vos droits et demandes',content:<><p>Vous pouvez demander des informations sur vos données, leur rectification ou leur suppression dans les conditions légales, et leur remise ou transmission lorsque ce droit s’applique. Vous pouvez retirer un consentement pour l’avenir lorsqu’un traitement repose sur celui-ci. Une obligation de conservation ou les droits d’autrui peuvent limiter une demande ; le motif vous est expliqué.</p><p>Écrivez à <a href="mailto:info@zentraapp.ch?subject=Zentra%20-%20demande%20relative%20aux%20donn%C3%A9es">info@zentraapp.ch</a> en précisant la demande et le compte ou l’entreprise concernés. Nous vérifions votre identité de manière proportionnée. N’envoyez pas spontanément de pièce d’identité, de mot de passe ou de dossier salarial. Pour des données d’employeur, contactez aussi l’entreprise responsable de leur utilisation.</p><p>Les fonctions d’export, de sauvegarde et de gestion des accès restent disponibles selon vos droits. La suppression du compte est demandée au support et reste distincte de la résiliation. En cas de difficulté, vous pouvez contacter le <a href="https://www.edoeb.admin.ch/fr/connaitre-et-faire-valoir-mes-droits">Préposé fédéral à la protection des données et à la transparence</a>.</p></>},
+    {id:'evolution',title:'Évolution de cette politique',content:<p>La version figure en tête de page. Une modification importante des finalités, des données ou des services concernés doit être portée à votre connaissance avant sa mise en œuvre. Les cookies font l’objet d’une page distincte ; aucune acceptation publicitaire n’est requise pour créer le compte.</p>},
+  ]}/>;
 }

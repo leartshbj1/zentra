@@ -32,6 +32,7 @@ export type SupabaseSignUpResult = {
 export type SupabasePkceSignUpOptions = {
   emailRedirectTo: string;
   codeChallenge: string;
+  legalAcceptance?: { version: string; acceptedAt: string };
 };
 
 export class SupabaseAuthError extends Error {
@@ -197,7 +198,13 @@ export function createSupabaseAuthClient(
         body: {
           email,
           password,
-          ...(displayName ? { data: { full_name: displayName } } : {}),
+          ...((displayName || options.legalAcceptance) ? { data: {
+            ...(displayName ? { full_name: displayName } : {}),
+            ...(options.legalAcceptance ? {
+              zentra_terms_version: options.legalAcceptance.version,
+              zentra_terms_accepted_at: options.legalAcceptance.acceptedAt,
+            } : {}),
+          } } : {}),
           code_challenge: options.codeChallenge,
           code_challenge_method: 's256',
         },

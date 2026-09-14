@@ -363,10 +363,10 @@ export default function SecurityPage() {
                 Pour une question relative au compte ou aux données, contactez
                 Zentra à{' '}
                 <a
-                  href="mailto:leartshabija@gmail.com?subject=Zentra%20-%20données%20et%20sécurité"
+                  href="mailto:info@zentraapp.ch?subject=Zentra%20-%20données%20et%20sécurité"
                   className="font-semibold text-[#315f47] underline underline-offset-4"
                 >
-                  leartshabija@gmail.com
+                  info@zentraapp.ch
                 </a>
                 .
               </p>

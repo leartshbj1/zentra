@@ -1,0 +1,13 @@
+import { LegalPage, OperatorContact } from '@/components/legal-page';
+
+export const metadata = {title: 'Mentions légales', alternates: {canonical: '/mentions-legales'}};
+
+export default function Page() {
+  return <LegalPage title="Mentions légales" intro="Qui édite Zentra, comment nous contacter et quels services hébergent vos informations." sections={[
+    {id:'editeur', title:'Éditeur et contact', content:<><OperatorContact /><p>Zentra est le nom commercial du logiciel exploité par Shabija Leart. Toute demande commerciale, technique ou relative aux données personnelles peut être adressée à ce contact.</p></>},
+    {id:'tva', title:'Statut TVA', content:<p>Shabija Leart n’est pas assujetti à la TVA suisse. Les prix de ses abonnements sont indiqués en francs suisses ; aucune TVA suisse n’est facturée par l’éditeur tant que ce statut reste applicable. Les réglages TVA des entreprises clientes sont distincts de ce statut.</p>},
+    {id:'hebergement', title:'Hébergement et services', content:<><p>Le site est publié avec OpenAI Sites et utilise l’infrastructure Cloudflare. Les services de compte et de fichiers utilisent Cloudflare D1/R2 ; Supabase fournit l’authentification et le profil d’entreprise partagé, sur le projet principal situé à Zurich. Infomaniak gère le domaine et la boîte de contact info@zentraapp.ch. Stripe intervient pour les abonnements et leur paiement.</p><p>Ces services ont des périmètres et des lieux de traitement différents. Voir la <a href="/confidentialite">politique de confidentialité</a> et la <a href="/sous-traitance">fiche de traitement des données</a>. L’utilisation d’un domaine .ch ne signifie pas que toutes les données sont hébergées exclusivement en Suisse.</p></>},
+    {id:'contenus', title:'Logiciel et contenus', content:<><p>Les contenus du site, la présentation de Zentra et les éléments originaux du logiciel restent soumis aux droits de leurs titulaires. Les composants tiers conservent leurs licences respectives. Le client conserve ses droits sur les données et documents qu’il importe ou crée.</p><p>Les exemples sont illustratifs. Les calculs et documents doivent être vérifiés dans le contexte de l’entreprise ; Zentra ne constitue pas une prestation de conseil fiduciaire. Le logiciel ne revendique pas de certification Swissdec ni de transmission ELM.</p></>},
+    {id:'signalement', title:'Signaler un problème', content:<p>Pour signaler une erreur, un contenu illicite ou une vulnérabilité, écrivez à <a href="mailto:info@zentraapp.ch">info@zentraapp.ch</a> avec la page ou la fonction concernée. Ne joignez pas de mot de passe, de jeton de licence ni de dossier salarial complet.</p>},
+  ]}/>;
+}

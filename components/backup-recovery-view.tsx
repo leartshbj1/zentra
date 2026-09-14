@@ -197,10 +197,10 @@ export function BackupRecoveryView({
         <p className="mt-8 text-sm leading-6 text-[#5f6962]">
           Besoin d’aide ?{' '}
           <a
-            href="mailto:leartshabija@gmail.com"
+            href="mailto:info@zentraapp.ch"
             className="break-all font-semibold underline underline-offset-4"
           >
-            leartshabija@gmail.com
+            info@zentraapp.ch
           </a>
         </p>
       </div>

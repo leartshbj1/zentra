@@ -4,6 +4,7 @@ import { CreditCard, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { planById, type PlanId } from '@/lib/plans';
+import { LEGAL_VERSION } from '@/lib/legal';
 
 type CheckoutStatus = {
   ready?: boolean;
@@ -40,6 +41,7 @@ export function PurchaseButton({
   const plan = planById(planId)!;
   const [ready, setReady] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState('');
   const [portalLoginUrl, setPortalLoginUrl] = useState('');
   const [accessRestricted, setAccessRestricted] = useState(false);
@@ -82,6 +84,10 @@ export function PurchaseButton({
       );
       return;
     }
+    if (!acceptTerms) {
+      setError('Lisez et acceptez les conditions avant de continuer vers le paiement.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -89,7 +95,7 @@ export function PurchaseButton({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: plan.id }),
+        body: JSON.stringify({ plan: plan.id, acceptTerms, legalVersion: LEGAL_VERSION }),
       });
       const body = (await response.json()) as { url?: string; error?: string };
       if (!response.ok || !body.url)
@@ -122,6 +128,13 @@ export function PurchaseButton({
 
   return (
     <div className="w-full">
+      {ready === true && !loginRequired && <div className="mb-3 text-sm leading-6">
+        <label className="flex min-h-11 cursor-pointer items-start gap-3">
+          <input type="checkbox" checked={acceptTerms} onChange={event => setAcceptTerms(event.target.checked)} className="mt-1 size-5 shrink-0 accent-[#315e48]" />
+          <span>J’accepte les <a href="/conditions" target="_blank" rel="noopener noreferrer" className="underline">conditions d’abonnement</a>, dont l’<a href="/sous-traitance" target="_blank" rel="noopener noreferrer" className="underline">annexe de traitement des données</a>.</span>
+        </label>
+        <p>{plan.priceChfCents / 100} CHF/mois · renouvellement mensuel · résiliation pour la prochaine échéance. Aucune TVA suisse facturée par l’éditeur.</p>
+      </div>}
       <button
         type="button"
         onClick={() => void checkout()}

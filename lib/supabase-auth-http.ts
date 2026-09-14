@@ -1,6 +1,7 @@
 import { SupabaseAuthError } from './supabase-auth';
 import { AccountPublicError } from './account-security';
 import { RequestBodyError } from './request-body';
+import { hasCurrentLegalAcceptance } from './legal';
 import {
   MAX_AUTH_PASSWORD_LENGTH,
   MIN_AUTH_PASSWORD_LENGTH,
@@ -48,7 +49,7 @@ export function requireAuthSameOrigin(
 
 export async function readAuthCredentials(
   request: Request,
-  options: { requireStrongPassword?: boolean } = {},
+  options: { requireStrongPassword?: boolean; requireLegalAcceptance?: boolean } = {},
 ) {
   const declaredLength = Number(request.headers.get('content-length') ?? '0');
   if (Number.isFinite(declaredLength) && declaredLength > 8_192) {
@@ -91,6 +92,9 @@ export async function readAuthCredentials(
   }
   if (displayName.length > 120) {
     throw new AuthPublicError('Le nom affiché est trop long.');
+  }
+  if (options.requireLegalAcceptance && !hasCurrentLegalAcceptance(body)) {
+    throw new AuthPublicError('Lisez et acceptez les conditions Zentra pour créer votre compte. Si la page est ancienne, rechargez-la.');
   }
   return {
     email,

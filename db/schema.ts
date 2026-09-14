@@ -505,6 +505,21 @@ export const projectDocumentEvents = sqliteTable('project_document_events', {
   index('project_document_event_project').on(table.organizationId, table.projectId),
 ]);
 
+// Authenticated checkout acceptance, distinct from a completed paid order.
+export const legalAcceptances = sqliteTable('legal_acceptances', {
+  acceptanceId: text('acceptance_id').primaryKey(),
+  userId: text('user_id').notNull(),
+  documentVersion: text('document_version').notNull(),
+  context: text('context').notNull(),
+  planId: text('plan_id').notNull(),
+  checkoutSessionId: text('checkout_session_id').notNull(),
+  origin: text('origin').notNull(),
+  acceptedAt: text('accepted_at').notNull(),
+}, table => [
+  uniqueIndex('legal_acceptance_checkout').on(table.checkoutSessionId),
+  index('legal_acceptance_user_date').on(table.userId, table.acceptedAt),
+]);
+
 export const checkoutAttempts = sqliteTable(
   'checkout_attempts',
   {

@@ -82,7 +82,7 @@ export default function PricingPage() {
                 Aucune petite ligne cachée.
               </h2>
               <a
-                href="mailto:leartshabija@gmail.com?subject=Zentra%20-%20question%20tarif"
+                href="mailto:info@zentraapp.ch?subject=Zentra%20-%20question%20tarif"
                 className="mt-6 inline-flex min-h-11 items-center gap-2 font-semibold text-[#315f47]"
               >
                 Poser une question <ArrowRight className="size-4" />

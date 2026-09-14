@@ -635,7 +635,7 @@ export default function DownloadPage() {
                 </a>
               </div>
               <a
-                href="mailto:leartshabija@gmail.com?subject=Zentra%20-%20activation"
+                href="mailto:info@zentraapp.ch?subject=Zentra%20-%20activation"
                 className="mt-3 flex min-h-12 items-center justify-center rounded-full border border-white/15 px-5 text-center text-sm font-semibold text-white"
               >
                 Besoin d’aide pour l’activation

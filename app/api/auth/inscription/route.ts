@@ -12,6 +12,7 @@ import {
 } from '@/lib/supabase-auth-runtime';
 import { createSupabasePkceFlow } from '@/lib/supabase-auth-pkce';
 import { enforceAccountRateLimit } from '@/lib/account';
+import { LEGAL_VERSION } from '@/lib/legal';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
       throw new AuthPublicError('Origine de la demande refusée.', 403);
     }
     const { email, password, displayName, returnTo } =
-      await readAuthCredentials(request, { requireStrongPassword: true });
+      await readAuthCredentials(request, { requireStrongPassword: true, requireLegalAcceptance: true });
     await Promise.all([
       enforceAccountRateLimit(request, 'auth-signup-email', email, 4),
       enforceAccountRateLimit(request, 'auth-signup-address', 'all', 12),
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     const result = await client.signUp(email, password, displayName, {
       emailRedirectTo: confirmationUrl.toString(),
       codeChallenge: pkce.challenge,
+      legalAcceptance: { version: LEGAL_VERSION, acceptedAt: new Date().toISOString() },
     });
     if (result.session) {
       try {

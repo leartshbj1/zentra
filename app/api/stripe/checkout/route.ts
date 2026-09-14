@@ -5,6 +5,7 @@ import { assertStripeCheckoutReady } from '@/lib/stripe-readiness';
 import { stripeTestAccessAllowed } from '@/lib/stripe-test-access';
 import { planById } from '@/lib/plans';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
+import { LEGAL_VERSION, hasCurrentLegalAcceptance } from '@/lib/legal';
 import {
   activationCookieName,
   createCheckoutSession,
@@ -39,6 +40,9 @@ export async function POST(request: Request) {
         403,
       );
     }
+    if (!hasCurrentLegalAcceptance(body)) {
+      throw new PublicError('Lisez et acceptez les conditions d’abonnement Zentra. Si la page est ancienne, rechargez-la.');
+    }
     await assertStripeCheckoutReady(plan.id);
     await enforceCheckoutRateLimit(request);
     const claim = randomBase64Url();
@@ -55,12 +59,13 @@ export async function POST(request: Request) {
       .prepare('DELETE FROM checkout_attempts WHERE expires_at<?')
       .bind(now)
       .run();
-    await db
-      .prepare(
+    await db.batch([db.prepare(
         'INSERT INTO checkout_attempts(claim_hash,checkout_session_id,created_at,expires_at) VALUES(?,?,?,?)',
       )
-      .bind(claimHash, session.id, now, now + 365 * 86_400)
-      .run();
+      .bind(claimHash, session.id, now, now + 365 * 86_400),
+      db.prepare('INSERT INTO legal_acceptances(acceptance_id,user_id,document_version,context,plan_id,checkout_session_id,origin,accepted_at) VALUES(?,?,?,?,?,?,?,?)')
+        .bind(crypto.randomUUID(), identity.userId, LEGAL_VERSION, 'checkout_requested', plan.id, session.id, origin, new Date().toISOString()),
+    ]);
     const jar = await cookies();
     jar.set(activationCookieName(session.id), claim, {
       httpOnly: true,

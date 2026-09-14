@@ -139,6 +139,7 @@ describe('Supabase Auth REST', () => {
     ).signUp('new@example.ch', 'mot-de-passe', 'Nouvelle personne', {
       emailRedirectTo: 'https://zentra.ch/api/auth/confirmation',
       codeChallenge: 'a'.repeat(43),
+      legalAcceptance: {version:'2026-09-14',acceptedAt:'2026-09-14T12:00:00.000Z'},
     });
     expect(result.session).toBeNull();
     expect(result.user.email).toBe('new@example.ch');
@@ -160,6 +161,7 @@ describe('Supabase Auth REST', () => {
     expect(JSON.parse(request.body)).toMatchObject({
       code_challenge: 'a'.repeat(43),
       code_challenge_method: 's256',
+      data: {full_name:'Nouvelle personne',zentra_terms_version:'2026-09-14',zentra_terms_accepted_at:'2026-09-14T12:00:00.000Z'},
     });
   });
 

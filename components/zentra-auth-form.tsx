@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { SubmitEvent } from 'react';
 import { useEffect, useState } from 'react';
+import { LEGAL_VERSION } from '@/lib/legal';
 import {
   MAX_AUTH_PASSWORD_LENGTH,
   MIN_AUTH_PASSWORD_LENGTH,
@@ -68,6 +69,7 @@ export function ZentraAuthForm({
           email: data.get('email'),
           password: data.get('password'),
           displayName: data.get('displayName'),
+          ...(mode === 'inscription' ? { acceptTerms: data.get('acceptTerms') === 'on', legalVersion: LEGAL_VERSION } : {}),
           returnTo,
         }),
       });
@@ -233,6 +235,13 @@ export function ZentraAuthForm({
             </span>
           </label>
 
+          {mode === 'inscription' && <div className="space-y-3 text-sm leading-6 text-[#48484d]">
+            <label className="flex min-h-11 cursor-pointer items-start gap-3">
+              <input name="acceptTerms" type="checkbox" required className="mt-1 size-5 shrink-0 accent-[#315e48]" />
+              <span>J’accepte les <a href="/conditions" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">conditions d’utilisation Zentra</a>.</span>
+            </label>
+            <p>Consultez la <a href="/confidentialite" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">politique de confidentialité</a> pour connaître les données traitées et vos droits. Créer un compte ne déclenche aucun paiement.</p>
+          </div>}
           <button
             type="submit"
             disabled={busy}

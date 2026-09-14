@@ -6,6 +6,10 @@ const links = [
   ['/security', 'Sécurité & données'],
   ['/download', 'Télécharger'],
   ['/confidentialite', 'Confidentialité'],
+  ['/conditions', 'Conditions'],
+  ['/mentions-legales', 'Mentions légales'],
+  ['/sous-traitance', 'Traitement des données'],
+  ['/cookies', 'Cookies'],
   ['/compte', 'Mon compte'],
 ] as const;
 
@@ -22,10 +26,10 @@ export function SiteFooter() {
             produit sont présentées aussi clairement que ses fonctions.
           </p>
           <a
-            href="mailto:leartshabija@gmail.com"
+            href="mailto:info@zentraapp.ch"
             className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[#315e48] underline decoration-[#d3a35e] underline-offset-4"
           >
-            leartshabija@gmail.com
+            info@zentraapp.ch
           </a>
         </div>
         <div className="sm:text-right">

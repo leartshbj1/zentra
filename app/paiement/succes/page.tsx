@@ -49,9 +49,9 @@ export default async function PaymentSuccessPage({
           Support :{' '}
           <a
             className="font-semibold underline"
-            href="mailto:leartshabija@gmail.com"
+            href="mailto:info@zentraapp.ch"
           >
-            leartshabija@gmail.com
+            info@zentraapp.ch
           </a>
         </p>
       </div>
