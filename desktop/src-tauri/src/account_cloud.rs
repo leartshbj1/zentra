@@ -68,7 +68,7 @@ impl ProjectSyncSession {
             }
             request = request.body(body);
         }
-        let response = request.send().await.map_err(|_| AppError::Validation("Hors ligne ou service indisponible. Les fichiers restent sur cet appareil ; l’envoi reprendra automatiquement.".into()))?;
+        let response = request.send().await.map_err(|_| AppError::Remote("Hors ligne ou service indisponible. Les fichiers restent sur cet appareil ; l’envoi reprendra automatiquement.".into()))?;
         let status = response.status();
         let bytes = read_response_with_limit(response,if file && status.is_success() {25*1024*1024} else {1024*1024}).await?;
         if !status.is_success() && status != StatusCode::GONE { return Err(server_response_error(status,&bytes)); }
@@ -1082,7 +1082,7 @@ async fn account_request_url(
         request = request.header(AUTHORIZATION, format!("Bearer {token}"));
     }
     let response = request.send().await.map_err(|_| {
-        AppError::Validation("Le service de compte Zentra est momentanément inaccessible.".into())
+        AppError::Remote("Le service de compte Zentra est momentanément inaccessible.".into())
     })?;
     let content_type_is_json = response
         .headers()
@@ -1146,7 +1146,7 @@ fn server_response_error(status: StatusCode, bytes: &[u8]) -> AppError {
         .map(|response| response.error.trim().to_owned())
         .filter(|message| !message.is_empty() && message.len() <= 500)
         .unwrap_or_else(|| format!("Le service de compte a répondu {status}."));
-    AppError::Validation(message)
+    AppError::Remote(message)
 }
 
 fn write_server_verified_secret<T: Serialize>(
@@ -1381,6 +1381,15 @@ mod tests {
         assert_eq!(url.as_str(), format!("{ACCOUNT_API_ORIGIN}/api/account/collaboration"));
         for refused in ["/api/account/collaboration/", "/api/account/collaboration?token=secret", "/api/account/collaboration/../team", "/api/account/anything", "https://example.test/api/account/collaboration"] {
             assert!(endpoint(refused).is_err());
+        }
+    }
+
+    #[test]
+    fn remote_account_failures_are_not_reported_as_invalid_form_fields() {
+        for status in [StatusCode::BAD_REQUEST, StatusCode::SERVICE_UNAVAILABLE] {
+            let error = server_response_error(status, br#"{"error":"Service indisponible. Reessayez."}"#);
+            assert!(matches!(error, AppError::Remote(_)));
+            assert_eq!(command_error(error), "Service indisponible. Reessayez.");
         }
     }
 

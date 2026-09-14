@@ -16,6 +16,10 @@ export const releaseHistoryCopy = {
 // Append a version with every shipped correction; never rewrite an older entry
 // to describe work that was added later. See docs/RELEASE-*.md for release evidence.
 export const releaseHistory = [
+  { version: '1.67.2', title: copy('Partage rétabli', 'Freigabe wiederhergestellt', 'Condivisione ripristinata', 'Sharing restored'), changes: [
+    copy('Le serveur peut à nouveau recevoir les documents de l’entreprise. Le correctif s’applique aussi aux installations 1.67.1.', 'Der Server kann Unternehmensdokumente wieder empfangen. Die Korrektur gilt auch für Installationen der Version 1.67.1.', 'Il server può nuovamente ricevere i documenti aziendali. La correzione si applica anche alle installazioni 1.67.1.', 'The server can receive company documents again. This fix also applies to installations running 1.67.1.'),
+    copy('Les erreurs de connexion ou de serveur ne sont plus présentées comme un champ mal rempli.', 'Verbindungs- oder Serverfehler werden nicht mehr als fehlerhaftes Formularfeld angezeigt.', 'Gli errori di connessione o del server non vengono più presentati come campi compilati male.', 'Connection and server errors are no longer shown as invalid form fields.'),
+  ] },
   { version: '1.67.1', title: copy('Inviter et partager, simplement', 'Einfach einladen und teilen', 'Invitare e condividere, facilmente', 'Invite and share, simply'), changes: [
     copy('Correction de « Route de compte refusée » lors du partage ou de la réception de l’entreprise.', 'Fehler „Kontoroute abgelehnt“ beim Teilen oder Empfangen des Unternehmens behoben.', 'Corretto l’errore di accesso al servizio durante la condivisione o la ricezione dell’azienda.', 'Fixed the rejected account route when sharing or receiving a company.'),
     copy('Correction du blocage du partage lorsque des coordonnées facultatives sont vides.', 'Die Freigabe wird nicht mehr durch leere optionale Unternehmensangaben blockiert.', 'La condivisione non viene più bloccata dai dati aziendali facoltativi vuoti.', 'Empty optional company details no longer block sharing.'),

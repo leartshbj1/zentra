@@ -14,6 +14,8 @@ pub enum AppError {
     Archive(#[from] zip::result::ZipError),
     #[error("Champ invalide : {0}")]
     Validation(String),
+    #[error("{0}")]
+    Remote(String),
     #[error("Enregistrement introuvable : {0}")]
     NotFound(String),
     #[error("Le questionnaire initial doit être terminé avant cette opération.")]
