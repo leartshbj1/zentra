@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { trustedSiteRequestOrigin } from '@/lib/site-origins';
 import { planById, planByLicense, type PlanId } from '@/lib/plans';
 import { RequestBodyError } from '@/lib/request-body';
 import { database, stripeConfiguration } from '@/lib/runtime';
@@ -250,7 +251,9 @@ export async function assertConfiguredStripeAccount(planId: PlanId = 'solo') {
     expectedLivemode,
     unitAmount: plan.priceChfCents,
     taxBehavior: STRIPE_PRICE_TAX_BEHAVIOR,
-    expectedWebhookUrl: `${siteUrl.replace(/\/$/, '')}/api/stripe/webhook`,
+    expectedWebhookUrl:
+      configuration.webhookUrl ||
+      `${siteUrl.replace(/\/$/, '')}/api/stripe/webhook`,
     expectedApiVersion: STRIPE_API_VERSION,
     requiredWebhookEvents: REQUIRED_STRIPE_WEBHOOK_EVENTS,
     allowPendingTaxInTestMode:
@@ -400,25 +403,16 @@ export function validatePaidZentraInvoice(
 }
 
 export function requestOrigin(request: Request) {
-  const configured = stripeConfiguration().siteUrl;
-  const candidate = configured || new URL(request.url).origin;
-  let url: URL;
+  const configuration = stripeConfiguration();
   try {
-    url = new URL(candidate);
+    return trustedSiteRequestOrigin(
+      request,
+      configuration.siteUrl,
+      configuration.siteOriginAliases,
+    );
   } catch {
-    throw new PublicError('Origine de paiement invalide.', 503);
-  }
-  const isLocalHttp =
-    url.protocol === 'http:' &&
-    ['localhost', '127.0.0.1'].includes(url.hostname);
-  if (
-    (url.protocol !== 'https:' && !isLocalHttp) ||
-    url.username ||
-    url.password
-  ) {
     throw new PublicError('Origine de paiement refusée.', 403);
   }
-  return url.origin;
 }
 
 export function requireSameOrigin(request: Request) {

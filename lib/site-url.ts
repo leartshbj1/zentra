@@ -1,4 +1,4 @@
-const FALLBACK_SITE_URL = 'https://elyko.alb-leart1.chatgpt.site';
+const FALLBACK_SITE_URL = 'https://zentraapp.ch';
 
 export function publicSiteUrl() {
   const configured =

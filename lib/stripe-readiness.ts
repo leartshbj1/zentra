@@ -142,6 +142,7 @@ export async function assertStripeCheckoutReady(planId: PlanId = 'solo') {
       configuration.priceIds[planId],
       configuration.signingKey,
       configuration.siteUrl,
+      configuration.webhookUrl,
       configuration.testMode,
     ].join('\u0000'),
   );

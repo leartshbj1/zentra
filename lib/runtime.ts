@@ -6,6 +6,7 @@ type RuntimeBindings = {
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_WEBHOOK_ENDPOINT_ID?: string;
+  STRIPE_WEBHOOK_URL?: string;
   STRIPE_PRICE_ID?: string;
   STRIPE_PRICE_SOLO_ID?: string;
   STRIPE_PRICE_START_ID?: string;
@@ -13,6 +14,7 @@ type RuntimeBindings = {
   LICENSE_SIGNING_KEY_PKCS8_B64URL?: string;
   OWNER_LICENSE_BINDING_SHA256?: string;
   PUBLIC_SITE_URL?: string;
+  SITE_ORIGIN_ALIASES?: string;
   STRIPE_TEST_MODE?: string;
   OWNER_ACCOUNT_USER_ID?: string;
   ZENTRA_OWNER_EMAIL?: string;
@@ -54,6 +56,7 @@ export function stripeConfiguration() {
     secretKey,
     webhookSecret,
     webhookEndpointId,
+    webhookUrl: runtimeValue('STRIPE_WEBHOOK_URL'),
     priceId,
     priceIds: {
       solo: runtimeValue('STRIPE_PRICE_SOLO_ID'),
@@ -62,6 +65,7 @@ export function stripeConfiguration() {
     },
     signingKey,
     siteUrl,
+    siteOriginAliases: runtimeValue('SITE_ORIGIN_ALIASES'),
     testMode,
     ownerAccountUserId,
     ownerEmail,
