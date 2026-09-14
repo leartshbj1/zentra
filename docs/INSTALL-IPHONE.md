@@ -1,6 +1,6 @@
 # Installer Zentra sur son iPhone
 
-Le fichier `Zentra-1.42.0-iPhone-unsigned.ipa` contient l'application native
+Le fichier `Zentra-<version>-iPhone-unsigned.ipa` contient l'application native
 ARM64 pour un vrai iPhone. La cible de compilation déclare iOS 15 minimum ;
 la compatibilité sur ton appareil reste à vérifier. Il doit être signé avec ton compte
 Apple par Sideloadly ou AltStore avant de pouvoir être lancé. Ouvrir le fichier
@@ -43,6 +43,6 @@ Les données de ton PC ne sont pas automatiquement synchronisées vers l'iPhone.
 Utiliser les fonctions de sauvegarde/restauration de Zentra si nécessaire.
 
 Cet IPA ne contient ni certificat de distribution Apple ni profil de
-provisionnement. Il n'est pas une version App Store ou TestFlight. La version
-1.42 améliore la sélection du menu et permet de classer les devis et factures
-par date de création ou date de document ; le contrôle du paquet ne remplace pas une recette sur iPhone physique.
+provisionnement. Il n'est pas une version App Store ou TestFlight. Le contrôle du paquet
+ne remplace pas une recette sur iPhone physique. Consultez les nouveautés
+de la version installée dans les paramètres de Zentra.
