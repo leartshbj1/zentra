@@ -5,6 +5,7 @@ import { teamSeats, requireInvitationCapacity } from '@/lib/team-seats';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { supabaseServerClient } from '@/lib/supabase-server-runtime';
 import { companyProfile } from '@/lib/company-profile';
+import { companyCopy, publishCompanyCopy } from '@/lib/company-copy';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
     const profiles = await supabaseServerClient().select<{profile: Record<string,unknown>;updated_at:string}>('zentra_company_profiles', { organization_id:`eq.${session.organizationId}`,select:'profile,updated_at',limit:1 });
     const members = manage ? await db.prepare('SELECT membership_id AS id,email,role FROM organization_members WHERE organization_id=? AND revoked_at IS NULL ORDER BY joined_at').bind(session.organizationId).all() : { results:[] };
     const invitations = manage ? await db.prepare('SELECT invitation_id AS id,invited_email AS email,role,expires_at AS expiresAt FROM organization_invitations WHERE organization_id=? AND revoked_at IS NULL AND accepted_at IS NULL AND expires_at>=? ORDER BY created_at DESC').bind(session.organizationId,Math.floor(Date.now()/1000)).all() : {results:[]};
-    return Response.json({ organizationId:session.organizationId, organizationName:session.organizationName,role:session.role,canManage:manage,seats:await teamSeats(session.organizationId),members:members.results,invitations:invitations.results,profile:profiles[0]?.profile ?? null },{headers:accountNoStoreHeaders()});
+    return Response.json({ organizationId:session.organizationId, organizationName:session.organizationName,role:session.role,canManage:manage,seats:await teamSeats(session.organizationId),members:members.results,invitations:invitations.results,profile:profiles[0]?.profile ?? null,companyCopy:await companyCopy(session.organizationId) },{headers:accountNoStoreHeaders()});
   } catch(error) { return accountJsonError(error); }
 }
 export async function POST(request: Request) {
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
     if (!roleCanManageMembers(actor.role)) throw new AccountPublicError('Seuls le titulaire et les administrateurs peuvent gérer les invitations et les coordonnées partagées.',403);
     const body = await readJsonObjectWithinLimit(request, 32_768), db = database(), now = Math.floor(Date.now()/1000);
     await enforceAccountRateLimit(request,'device-team',`${actor.userId}:${actor.organizationId}`,30);
+    if (body.action === 'company-copy') return Response.json({copy:await publishCompanyCopy(actor,body.backupId,body.confirmFullAccess)},{headers:accountNoStoreHeaders()});
     if (body.action === 'profile') {
       const profile = companyProfile(body.profile);
       await supabaseServerClient().upsert('zentra_company_profiles',{organization_id:actor.organizationId,profile,updated_by:actor.userId,updated_at:new Date().toISOString()},{onConflict:'organization_id'});

@@ -50,7 +50,7 @@ export function InvitationAccept({ token }: { token: string }) {
         <h2 className="mt-4 text-2xl font-semibold">Bienvenue dans l’équipe</h2>
         <p className="mt-2 leading-7 text-[#52645a]">
           Votre accès à <strong>{organization.name}</strong> est actif. Vous pouvez
-          maintenant connecter Zentra depuis l’application.
+          maintenant ouvrir Zentra, choisir « Rejoindre une entreprise » et vous connecter avec la même adresse e-mail. Si le titulaire a partagé la copie complète, elle sera récupérée automatiquement : clients, devis, factures, projets et documents.
         </p>
         <a
           href="/compte"
@@ -58,6 +58,7 @@ export function InvitationAccept({ token }: { token: string }) {
         >
           Ouvrir mon compte
         </a>
+        <a href="/download" className="mt-3 inline-flex min-h-11 items-center px-5 text-sm font-semibold underline">Installer Zentra sur cet appareil</a>
       </div>
     );
   }

@@ -267,6 +267,13 @@
       "when": 1789401161912,
       "tag": "0037_sloppy_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1789402693586,
+      "tag": "0038_military_silver_surfer",
+      "breakpoints": true
     }
   ]
 }

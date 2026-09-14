@@ -136,8 +136,8 @@ export default function DownloadPage() {
           <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Plus confortable, de jour comme de nuit.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Des fonds sombres plus doux, des textes mieux contrastés et un retour au mode clair qui restaure toutes les couleurs. Les devis, factures et fiches de salaire conservent leur mise en page et leurs couleurs à l’impression. Retrouvez le détail dans Paramètres → Nouveautés.</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Recommencer simplement. Retrouver son entreprise.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Windows 1.66 ajoute la remise à zéro avec sauvegarde de sécurité et la récupération d’une copie complète après invitation. Le titulaire partage l’entreprise depuis Compte et équipe ; le nouvel appareil reçoit les clients, devis, factures, salaires et documents. Les modifications métier suivantes restent locales. Retrouvez le détail dans Paramètres → Nouveautés.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Les traductions sont encore en préparation : certains écrans, contrôles natifs et PDF restent en français.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Sur Mac, installez cette version depuis le bouton ci-dessous pour recevoir les prochaines mises à jour dans Zentra. Les versions iPhone s’installent manuellement après signature avec votre compte Apple.</p>
             </div>

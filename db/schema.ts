@@ -467,6 +467,13 @@ export const documentNumberReservations = sqliteTable('document_number_reservati
   index('document_number_reservations_range').on(table.organizationId, table.prefix, table.year, table.endValue),
 ]);
 
+export const companyCopies = sqliteTable('company_copies', {
+  organizationId: text('organization_id').primaryKey(),
+  backupId: text('backup_id').notNull(),
+  publishedBy: text('published_by').notNull(),
+  publishedAt: text('published_at').notNull(),
+});
+
 export const workspaceBackups = sqliteTable('workspace_backups', {
   backupId: text('backup_id').primaryKey(),
   organizationId: text('organization_id').notNull().references(() => organizations.organizationId),
