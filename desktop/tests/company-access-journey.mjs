@@ -5,10 +5,12 @@ const { chromium,webkit }=createRequire(import.meta.url)(process.env.ZENTRA_PLAY
 const engine=process.env.ZENTRA_BROWSER==='webkit'?webkit:chromium;
 const browser=await engine.launch({headless:true,...(process.platform==='win32'&&engine===chromium?{channel:'msedge'}:{})});
 const results=[];
+let currentPage;
 await mkdir('.qa/company-access',{recursive:true});
 try {
   for(const theme of ['light','dark'])for(const width of [320,390,1280]){
     const page=await browser.newPage({viewport:{width,height:844}});
+    currentPage=page;
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     const url=`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5296'}/tests/company-access-harness.html?theme=${theme}`;
     await page.goto(url);
@@ -67,5 +69,13 @@ try {
     await page.getByText('Invitation créée. Transmettez le lien à cette personne.',{exact:true}).waitFor();
     assert.deepEqual(errors,[]);results.push({theme,width,status:'passed'});await page.close();
   }
+} catch(error) {
+  if(currentPage&&!currentPage.isClosed()){
+    const failure={error:String(error),url:currentPage.url(),text:await currentPage.locator('body').innerText()};
+    console.error(JSON.stringify(failure));
+    await writeFile('.qa/company-access/failure.json',JSON.stringify(failure,null,2));
+    await currentPage.screenshot({path:'.qa/company-access/failure.png',fullPage:true});
+  }
+  throw error;
 } finally {await browser.close();await writeFile(`.qa/company-access/results-${process.env.ZENTRA_BROWSER||'chromium'}.json`,JSON.stringify(results,null,2));}
 console.log(JSON.stringify(results));

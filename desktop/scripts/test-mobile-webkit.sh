@@ -15,15 +15,18 @@ cleanup() {
   for path in .qa/mobile-team-webkit/*; do
     if [[ -f "$path" ]]; then cp "$path" "desktop/artifacts/macos/webkit-$(basename "$path")"; fi
   done
+  for path in .qa/company-access/*; do
+    if [[ -f "$path" ]]; then cp "$path" "desktop/artifacts/macos/company-$(basename "$path")"; fi
+  done
 }
 trap cleanup EXIT
 for attempt in $(seq 1 60); do
   if curl -fsS "$ZENTRA_QA_ORIGIN/tests/touch-team-harness.html" >/dev/null; then break; fi
   sleep 1
 done
+ZENTRA_BROWSER=webkit node desktop/tests/company-access-journey.mjs
+cp .qa/company-access/results-webkit.json desktop/artifacts/macos/company-access-webkit-report.json
 node desktop/tests/touch-team-journey.mjs
 cp .qa/mobile-team-webkit/report.json desktop/artifacts/macos/mobile-webkit-report.json
 node desktop/tests/appearance-journey.mjs
 cp .qa/appearance165-webkit/report.json desktop/artifacts/macos/appearance-webkit-report.json
-ZENTRA_BROWSER=webkit node desktop/tests/company-access-journey.mjs
-cp .qa/company-access/results-webkit.json desktop/artifacts/macos/company-access-webkit-report.json
