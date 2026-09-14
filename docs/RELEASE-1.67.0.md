@@ -22,3 +22,19 @@ Il ne s’agit pas d’une fusion automatique des modifications concurrentes : s
 - L’essai bout en bout avec deux comptes clients réels et l’installation physique Apple restent à vérifier. Les tests automatisés utilisent des données synthétiques isolées.
 
 La disponibilité des exécutables et leur publication doivent être vérifiées séparément. L’IPA iPhone est non signé ; la version macOS publique utilise une signature ad hoc et une signature du mécanisme de mise à jour, sans notarisation Apple.
+
+## Publication vérifiée le 14 septembre 2026
+
+Les fichiers Apple ont été compilés sur Codemagic depuis `387aa3fc5ff3b8a78a578e925a7c0f35560264c5`, puis téléchargés de nouveau depuis le bucket public Supabase `zentra-releases`. Leurs tailles et SHA-256 correspondent aux sorties locales vérifiées. Le manifeste `latest-macos.json` propose la version 1.67.0 ; sa signature Tauri/Ed25519 a été vérifiée indépendamment. Le manifeste précédent est conservé sous `latest-macos-before-1.67-ui-20260914.json`.
+
+| Fichier | Octets | SHA-256 |
+| --- | ---: | --- |
+| `Zentra-1.67.0-iPhone-unsigned.ipa` | 25015192 | `3317C6953750CBFB483507767EFFB2BBC2B697A2644C36C0518BCD1E080DD20B` |
+| `Zentra_1.67.0_macos-universal.dmg` | 50229767 | `C11DC2BDDDF91FB63D5D25BB643FE7BAD9C02BBFCE6FD656AE2ABC91ADB3A920` |
+| `Zentra_1.67.0_macos-universal.app.tar.gz` | 50207586 | `D25CEE15D3DF1C73250CC223FCFBEC128DA23408083B8E69EB964C8034EDCAF5` |
+
+La page publique de téléchargement et l’API ont été déployées depuis `d21ad460ca92092f49fa84a9fe5a5222fa20e3e5` (publication Sites 140). Les 31 tests serveur ciblés et TypeScript passent. Le test WebKit de réception confirme que la saisie diffère l’application distante et que les commandes restent inactives jusqu’au chargement de l’entreprise reçue. Les filtres par créateur passent en clair et sombre à 320, 390 et 1280 pixels.
+
+L’exécutable Windows a été compilé depuis `9a435194cbc61a3258a93df982c7d3fa4e667614`. Ce commit ajoute uniquement les règles de palette générées à la source Apple ; la compilation Apple les génère également. L’installateur et son manifeste immuable sont téléversés et leurs empreintes publiques vérifiées, mais **le canal Windows reste en 1.66.0** : l’essai du démarrage et de la migration dans un profil synthétique attend la fermeture de l’application utilisateur. L’installateur Windows 1.67 n’est donc pas encore annoncé sur le site. Aucun test n’a été exécuté sur les données de l’utilisateur.
+
+Fichier Windows en attente de validation finale : `Zentra_1.67.0_x64-setup.exe`, 23476922 octets, SHA-256 `CDD697AD4A08CFEA086213B465453918C15D89607A4B7FAEF48D0BD35BB58392`. Le manifeste partagé historique `latest.json` reste en version 1.46.1.
