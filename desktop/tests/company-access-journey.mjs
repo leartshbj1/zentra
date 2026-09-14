@@ -1,15 +1,20 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdir,writeFile } from 'node:fs/promises';
+import { mkdir,mkdtemp,writeFile,rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 const { chromium,webkit }=createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE||'playwright');
 const engine=process.env.ZENTRA_BROWSER==='webkit'?webkit:chromium;
-const browser=await engine.launch({headless:true,...(process.platform==='win32'&&engine===chromium?{channel:'msedge'}:{})});
+// Tauri uses persistent website data. Safari private contexts cannot open OPFS,
+// so exercise the actual storage cleanup in an isolated persistent profile.
+const profile=await mkdtemp(join(tmpdir(),'zentra-company-access-'));
+const browser=await engine.launchPersistentContext(profile,{headless:true,...(process.platform==='win32'&&engine===chromium?{channel:'msedge'}:{})});
 const results=[];
 let currentPage;
 await mkdir('.qa/company-access',{recursive:true});
 try {
   for(const theme of ['light','dark'])for(const width of [320,390,1280]){
-    const page=await browser.newPage({viewport:{width,height:844}});
+    const page=await browser.newPage();await page.setViewportSize({width,height:844});
     currentPage=page;
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     const url=`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5296'}/tests/company-access-harness.html?theme=${theme}`;
@@ -77,5 +82,5 @@ try {
     await currentPage.screenshot({path:'.qa/company-access/failure.png',fullPage:true});
   }
   throw error;
-} finally {await browser.close();await writeFile(`.qa/company-access/results-${process.env.ZENTRA_BROWSER||'chromium'}.json`,JSON.stringify(results,null,2));}
+} finally {await browser.close();await rm(profile,{recursive:true,force:true});await writeFile(`.qa/company-access/results-${process.env.ZENTRA_BROWSER||'chromium'}.json`,JSON.stringify(results,null,2));}
 console.log(JSON.stringify(results));
