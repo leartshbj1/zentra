@@ -162,6 +162,15 @@ describe('assujettissement par date', () => {
     },
   } as AppSettings;
 
+  it('demande le nom de l’assureur même avant de sélectionner la prime déjà enregistrée', () => {
+    const result = assessSwissPayrollEligibility({
+      employee, settings: { ...settings, payroll: { ...settings.payroll, accidentInsurer: '' } },
+      period: '2026-09', grossCents: 500_000,
+      definitions: [...federal, aap, aanp], selectedIds: new Set(federal.map(d => d.id)),
+    });
+    expect(result.blockers).toContain('Renseignez l’assureur-accidents de l’entreprise.');
+  });
+
   it('applique AVS dès janvier de l’année qui suit le 17e anniversaire', () => {
     const result = assessSwissPayrollEligibility({
       employee,

@@ -17,6 +17,7 @@ import { PayrollMonthOverview } from './PayrollMonthOverview';
 import { PayrollBasisGuide } from './PayrollBasisGuide';
 import { PayrollHourlySalary } from './PayrollHourlySalary';
 import { mergePayrollProposals } from './payrollProposalMerge';
+import { approvedPayrollSetupDefinitions } from './payrollSetupSelections';
 import { missingPayrollBasis, payrollBasisQuestions } from './payrollSalaryEntry';
 import { payrollPreparationTasks } from './payrollPreparationTasks';
 import { usePayrollFieldGuide } from './PayrollFieldGuide';
@@ -114,7 +115,7 @@ export function DetailedPayslipForm({
   const [arrivalRevision, setArrivalRevision] = useState(0);
   const [configurationUpdated, setConfigurationUpdated] = useState(false);
   const setupProposalContext = useRef<{ ids: Set<string>; employeeId: string; period: string; paymentDate: string } | null>(null);
-  const [pendingSetupProposal, setPendingSetupProposal] = useState<(NonNullable<typeof setupProposalContext.current> & { revision: number }) | null>(null);
+  const [pendingSetupProposal, setPendingSetupProposal] = useState<(NonNullable<typeof setupProposalContext.current> & { revision: number; explicitIds?: readonly string[] }) | null>(null);
   const [loadedRatesRevision, setLoadedRatesRevision] = useState(-1);
   const [setupProposalCount, setSetupProposalCount] = useState(0);
   const fieldGuide = usePayrollFieldGuide();
@@ -788,9 +789,9 @@ export function DetailedPayslipForm({
   function addMissingProposals() {
     addApprovedProposals(new Set(missingProposals.map(definition => definition.id)));
   }
-  function addApprovedProposals(approvedIds: ReadonlySet<string>) {
+  function addApprovedProposals(approvedIds: ReadonlySet<string>, candidates = proposal) {
     const merged = mergePayrollProposals({
-      current: selectionDrafts, automaticIds: automaticBases, proposals: proposal, approvedIds,
+      current: selectionDrafts, automaticIds: automaticBases, proposals: candidates, approvedIds,
       grossCents: totals.earnings, ahvBasisCents: guidedBasis.amountCents,
       coordinatedAnnualCents: eligibility.coordinatedAnnualSalaryCents ?? undefined,
     });
@@ -806,10 +807,12 @@ export function DetailedPayslipForm({
         loadedRatesRevision < pendingSetupProposal.revision) return;
     setPendingSetupProposal(null);
     if (pendingSetupProposal.employeeId !== employeeId || pendingSetupProposal.period !== period || pendingSetupProposal.paymentDate !== paymentDate) return;
-    // Saving a correction includes its newly applicable proposals, never a previously omitted one.
-    const count = addApprovedProposals(new Set(proposal.filter(definition => !pendingSetupProposal.ids.has(definition.id)).map(definition => definition.id)));
+    const approved = approvedPayrollSetupDefinitions({ definitions, proposals: proposal,
+      previousProposalIds: pendingSetupProposal.ids, explicitIds: pendingSetupProposal.explicitIds,
+      employeeId, contributionDate: paymentDate || `${period}-01` });
+    const count = addApprovedProposals(new Set(approved.map(d => d.id)), approved);
     if (count) setSetupProposalCount(count);
-  }, [pendingSetupProposal, setup, busy, loadingRates, loadingAccounting, ratesError, accountingError, existingBlocked, loadedRatesRevision, employeeId, period, paymentDate, proposal]);
+  }, [pendingSetupProposal, setup, busy, loadingRates, loadingAccounting, ratesError, accountingError, existingBlocked, loadedRatesRevision, employeeId, period, paymentDate, proposal, definitions]);
 
   function requireHourlyAmount() {
     if (!hourlyPending) return false;
@@ -1093,12 +1096,12 @@ export function DetailedPayslipForm({
           onClose={() => setSetup(null)}
           guided
           returnToPreparation={preparing}
-          onSaved={() => {
+          onSaved={(explicitIds) => {
             setLocalError('');
             setConfigurationUpdated(true);
             invalidateCalculation();
             setConfigurationReload((value) => value + 1);
-            if (setupProposalContext.current) setPendingSetupProposal({ ...setupProposalContext.current, revision: configurationReload + 1 });
+            if (setupProposalContext.current) setPendingSetupProposal({ ...setupProposalContext.current, revision: configurationReload + 1, explicitIds });
           }}
         />
       )}

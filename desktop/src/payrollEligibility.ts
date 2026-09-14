@@ -1011,9 +1011,9 @@ export function assessSwissPayrollEligibility(input: {
     );
   blockers.push(...lpp.blockers);
   warnings.push(...lpp.warnings);
-  if ((has('aap') || has('aanp')) && !settings.payroll.accidentInsurer.trim())
+  if ((!laaMinorSalaryExceptionSubmissionConfigured || has('aap') || has('aanp')) && !settings.payroll.accidentInsurer.trim())
     blockers.push(
-      'L’assureur accidents manque pour les cotisations LAA sélectionnées.',
+      'Renseignez l’assureur-accidents de l’entreprise.',
     );
   if (has('ijm') && !settings.payroll.dailyAllowanceInsurer.trim())
     blockers.push('L’assureur IJM manque pour la cotisation sélectionnée.');

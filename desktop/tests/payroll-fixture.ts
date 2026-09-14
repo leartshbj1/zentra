@@ -60,6 +60,13 @@ export function installPayrollFixture(workspace: Workspace) {
     for (let index = definitions.length - 1; index >= 0; index--) if (definitions[index].category === 'lpp') definitions.splice(index, 1);
   }
   const snapshots = new Map<string, PayslipContributionSnapshot[]>();
+  const accidentCase = new URLSearchParams(location.search).get('payrollAccidentLoop');
+  if (accidentCase === 'missing' || accidentCase === 'new') workspace.settings.payroll.accidentInsurer = '';
+  if (accidentCase === 'new') definitions.splice(definitions.findIndex(d => d.id === 'AAP_TEST'), 1);
+  if (accidentCase === 'duplicates') {
+    definitions.find(d => d.id === 'AAP_TEST')!.effectiveFrom = '2026-09-15';
+    definitions.push({ ...definitions.find(d => d.id === 'AAP_TEST')!, id: 'AAP_OTHER', code: 'AAP_OTHER', label: 'Autre contrat accidents', rateBp: 150 });
+  }
   const counter = (name: string, input: unknown) => {
     const key = `qa-payroll-${name}`; const rows = JSON.parse(sessionStorage.getItem(key) || '[]'); rows.push(input); sessionStorage.setItem(key, JSON.stringify(rows)); return rows.length;
   };

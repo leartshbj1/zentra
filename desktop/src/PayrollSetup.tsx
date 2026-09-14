@@ -68,7 +68,7 @@ export function PayrollSetup({
   busy: boolean;
   act: Runner;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (definitionIds?: readonly string[]) => void;
   guided?: boolean;
   returnToPreparation?: boolean;
 }) {
@@ -189,6 +189,7 @@ export function PayrollSetup({
   const [exception, setException] = useState(employee?.lppExceptionCode ?? '');
   const pensionOnly = guided && destination.target === 'pension-person';
   const pensionPlanOnly = guided && destination.target === 'pension-plan';
+  const accidentInsurerOnly = guided && destination.target === 'insurance' && destination.selector === '[name=accidentInsurer]';
   const [question, setQuestion] = useState(0);
   const questionCount =
     section === 'person'
@@ -197,7 +198,7 @@ export function PayrollSetup({
         : 3
       : section === 'history'
         ? 3
-        : section === 'insurance' && !pensionPlanOnly
+        : section === 'insurance' && !pensionPlanOnly && !accidentInsurerOnly
           ? 2
           : 1;
   useEffect(() => {
@@ -235,7 +236,11 @@ export function PayrollSetup({
       };
       const data: Record<string, unknown> = {};
       if (section === 'insurance') {
-        const hasPlan = pensionPlanOnly || ['contractNumber', 'regulationReference', 'lppFrom', 'lppTo'].some(name => text(name)) || form.get('lppParity');
+        if (accidentInsurerOnly && !text('accidentInsurer')) {
+          rejectField('accidentInsurer', 'Renseignez l’assureur-accidents de l’entreprise.');
+          return;
+        }
+        const hasPlan = !accidentInsurerOnly && (pensionPlanOnly || ['contractNumber', 'regulationReference', 'lppFrom', 'lppTo'].some(name => text(name)) || form.get('lppParity'));
         if (hasPlan) {
           const plan = { contractNumber: text('contractNumber'), regulationReference: text('regulationReference'),
             effectiveFrom: text('lppFrom'), effectiveTo: text('lppTo'), employerAggregateShareConfirmed: form.get('lppParity') === 'on' };
@@ -365,18 +370,18 @@ export function PayrollSetup({
                 'Les assurances ont changé pendant votre saisie. Revenez à la fiche puis rouvrez les assurances pour retrouver les dernières informations.',
               );
             const payroll = { ...fresh.settings.payroll };
-            if (!pensionPlanOnly) payroll.payrollCanton = canton;
+            if (!pensionPlanOnly && !accidentInsurerOnly) payroll.payrollCanton = canton;
             for (const [field] of funds)
-              if (!pensionPlanOnly || field === 'pensionFund')
+              if (accidentInsurerOnly ? field === 'accidentInsurer' : !pensionPlanOnly || field === 'pensionFund')
                 payroll[field] = text(field);
             // Naming a fund never enables a module or marks a professional review complete.
-            if (
+            if (!accidentInsurerOnly && (
               text('contractNumber') ||
               text('regulationReference') ||
               text('lppFrom') ||
               text('lppTo') ||
               form.get('lppParity')
-            ) {
+            )) {
               payroll.lppPlanEvidence = {
                 contractNumber: text('contractNumber'),
                 regulationReference: text('regulationReference'),
@@ -888,7 +893,7 @@ export function PayrollSetup({
             data-payroll-question="insurance-0"
             hidden={guided && !pensionPlanOnly && question !== 0}
           >
-            {!pensionPlanOnly && (
+            {!pensionPlanOnly && !accidentInsurerOnly && (
               <Field label={t("Canton de paie")} required>
                 <PayrollSelect
                   value={canton}
@@ -905,7 +910,7 @@ export function PayrollSetup({
               </Field>
             )}
             {funds
-              .filter(([field]) => !pensionPlanOnly || field === 'pensionFund')
+              .filter(([field]) => accidentInsurerOnly ? field === 'accidentInsurer' : !pensionPlanOnly || field === 'pensionFund')
               .map(([field, kind]) => (
                 <PayrollOrganisationField
                   key={field}
@@ -914,6 +919,7 @@ export function PayrollSetup({
                   defaultValue={settings.payroll[field]}
                   canton={canton}
                   disabled={busy}
+                  required={accidentInsurerOnly}
                 />
               ))}
           </div>
@@ -921,7 +927,7 @@ export function PayrollSetup({
             data-payroll-question={
               pensionPlanOnly ? 'insurance-0-plan' : 'insurance-1'
             }
-            hidden={guided && !pensionPlanOnly && question !== 1}
+            hidden={accidentInsurerOnly || (guided && !pensionPlanOnly && question !== 1)}
           >
             <details
               className="payroll-simple-guide"
@@ -1081,13 +1087,14 @@ export function PayrollSetup({
           workspace={workspace}
           employeeId={employeeId}
           period={period}
+          contributionDate={contributionDate}
           busy={busy}
           act={act}
           destination={destination}
           guided={guided}
           onFix={navigate}
-          onSaved={() => {
-            onSaved();
+          onSaved={(definitionIds) => {
+            onSaved(definitionIds);
             if (guided) {
               onClose();
               return;

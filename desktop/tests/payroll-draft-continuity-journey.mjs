@@ -198,7 +198,7 @@ for (const [engine, type, widths] of [
       await modal.waitFor({ state: 'hidden' });
       assert.ok((await calls(page))[0].selections.length > 0);
       const row = page.locator('.payslip-list > article').first();
-      await row.getByRole('button', { name: 'Modifier', exact: true }).click();
+      await row.getByRole('button', { name: 'Contrôler la fiche', exact: true }).click();
       await modal
         .getByRole('button', { name: 'Continuer', exact: true })
         .click();

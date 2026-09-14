@@ -1,0 +1,9 @@
+# Zentra 1.63.1 — assurance accidents et fiche de salaire
+
+Le parcours pouvait demander indéfiniment de configurer l’AAP : son taux existait, mais le nom de l’assureur manquait. Le nom n’était contrôlé qu’après sélection de la cotisation, alors que les suggestions ne sélectionnaient aucune cotisation accidents sans ce nom. Réenregistrer le taux créait plusieurs contrats, supprimant ensuite la suggestion automatique réservée au contrat unique.
+
+Le guide demande désormais directement le seul champ assureur, en conservant les autres assurances et le plan de pension. Une cotisation déjà enregistrée peut être choisie explicitement pour la fiche. En présence de plusieurs contrats, aucune sélection arbitraire ni suppression n’est effectuée. Le formulaire de création devient une action secondaire explicite. Les contrats sont comparés à la date de paie, y compris quand leur validité commence en cours de mois. Les montants déjà saisis restent conservés ; un échec d’enregistrement reste visible et peut être réessayé.
+
+Le choix explicite est repris après relecture des définitions. Les contrats inactifs, hors période ou LPP d’une autre personne sont exclus. Les propositions auparavant écartées ne sont pas réintroduites. Aucun taux, calcul légal, schéma de données ou contrôle natif n’a été assoupli.
+
+Vérifications : défaut reproduit par un test de diagnostic avant correction ; 1 530 tests d’interface réussis. Douze parcours Edge/WebKit à 320 et 1 440 pixels créent une fiche avec salaire conservé et une seule AAP : assureur absent, nouveau contrat, contrats multiples, validité débutant en cours de mois et refus puis reprise de l’enregistrement. Tests réalisés avec données synthétiques, sans modification des salaires du propriétaire. Paquets et publication à renseigner après compilation.
