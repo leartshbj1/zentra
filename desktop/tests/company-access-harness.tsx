@@ -19,6 +19,11 @@ const query = new URLSearchParams(location.search);
 setAppearance(query.get('theme')==='dark'?'dark':'light');
 const company = {organizationId:'org_fixture',organizationName:'Entreprise de démonstration',role:'member',canManage:true,profile:{company_name:'Entreprise de démonstration'},companyCopy:query.has('missing')?null:{backupId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',publishedAt:'2026-09-14T12:00:00Z',sizeBytes:100},seats:{planName:'Start',limit:3,used:1,reserved:0,available:2,subscriptionActive:true},members:[],invitations:[]};
 let joined=0, resets=0;
+if(query.has('cacheFailure')) {
+  let failures=0;
+  const keys=caches.keys.bind(caches);
+  caches.keys=async()=>{if(failures++===0)throw new Error('Le cache est occupé. Réessayez.');return keys();};
+}
 desktopApi.getCloudAccountState=async()=>({status:'connected',organizationId:'org_fixture',role:'member',organizationName:company.organizationName});
 desktopApi.getCloudTeam=async()=>company;
 desktopApi.joinCloudCompany=async()=>{
@@ -31,7 +36,7 @@ desktopApi.resetLocalApp=async confirmation=>{
   resets++;
   if(confirmation!=='REINITIALISER')throw new Error('Confirmation absente');
   if(query.has('failure'))throw new Error('Un transfert est encore en cours. Réessayez dans un instant.');
-  history.replaceState(null,'','?resetDone=1');
+  history.replaceState(null,'',`?resetDone=1&resetCalls=${resets}`);
   return {reset:true};
 };
 desktopApi.publishCloudCompany=async()=>({});

@@ -47,6 +47,24 @@ try {
     await page.goto(url+'&recovery=1');
     await page.getByRole('button',{name:'Retrouver mon entreprise précédente',exact:true}).click();
     await page.getByRole('heading',{name:'Entreprise récupérée',exact:true}).waitFor();
+    await page.goto(url+'&cacheFailure=1');
+    await page.getByRole('button',{name:'Réinitialiser cette application',exact:true}).click();
+    await page.getByRole('dialog').getByRole('textbox').fill('REINITIALISER');
+    await page.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true}).click();
+    await page.getByText('Le cache est occupé. Réessayez.',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.companyFixture.resets),1);
+    await page.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true}).click();
+    await page.getByRole('heading',{name:'Créer, importer ou rejoindre une entreprise',exact:true}).waitFor();
+    assert.equal(new URL(page.url()).searchParams.get('resetCalls'),'1');
+    await page.goto(url+'&team=1&missing=1');
+    await page.getByRole('heading',{name:'Équipe et invitations',exact:true}).waitFor();
+    const invite=page.getByRole('button',{name:'Créer le lien d’invitation',exact:true});
+    assert.equal(await invite.isDisabled(),true);
+    await page.getByRole('checkbox').check();
+    await page.getByRole('textbox',{name:'Adresse e-mail',exact:true}).fill('personne@example.test');
+    await page.getByRole('combobox',{name:'Rôle',exact:true}).selectOption('read_only');
+    await invite.click();
+    await page.getByText('Invitation créée. Transmettez le lien à cette personne.',{exact:true}).waitFor();
     assert.deepEqual(errors,[]);results.push({theme,width,status:'passed'});await page.close();
   }
 } finally {await browser.close();await writeFile(`.qa/company-access/results-${process.env.ZENTRA_BROWSER||'chromium'}.json`,JSON.stringify(results,null,2));}
