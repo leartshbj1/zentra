@@ -51,6 +51,6 @@ function Harness(){
   if(query.has('resetDone'))return <main><h1>Créer, importer ou rejoindre une entreprise</h1></main>;
   if(query.has('recovery'))return result?<h1>Entreprise récupérée</h1>:<ResetRecovery onRestored={setResult}/>;
   if(query.has('join'))return result?<main><h1>Entreprise ouverte</h1><p>1 client · 1 facture · 1 projet</p></main>:closed?<p>Fermé</p>:<JoinCompany onClose={()=>setClosed(true)} onJoined={setResult}/>;
-  return <main style={{maxWidth:850,margin:'auto',padding:16}}><h1>Compte et appareil</h1><ResetAppPanel/>{query.has('team')&&<CloudTeamPanel settings={initialOnboardingSettings()}/>}</main>;
+  return <main style={{maxWidth:850,margin:'auto',padding:16}}><h1>Compte et appareil</h1><ResetAppPanel/>{query.has('team')&&<CloudTeamPanel settings={initialOnboardingSettings}/>}</main>;
 }
 createRoot(document.getElementById('root')!).render(<ZentraAssistantProvider><Harness/></ZentraAssistantProvider>);
