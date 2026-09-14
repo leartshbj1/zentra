@@ -34,6 +34,7 @@ import {
   ZENTRA_GITHUB_RELEASE_PATH,
   ZENTRA_IOS_PREVIEW_PATH,
   ZENTRA_IPHONE_IPA_PATH,
+  ZENTRA_IPHONE_VERSION,
   ZENTRA_INSTALLER_CHECKSUM_PATH,
   ZENTRA_INSTALLER_NAME,
   ZENTRA_INSTALLER_SHA256,
@@ -135,10 +136,10 @@ export default function DownloadPage() {
           <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Vos documents et votre paie, plus simplement.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Personnalisez vos documents dans un atelier plus spacieux. Choisissez le français, l’allemand, l’italien ou l’anglais dès la configuration. Le tutoriel, les collaborateurs et les étapes de paie expliquent les informations attendues et vous ramènent au champ à corriger. Vos saisies restent conservées après un échec ou un changement de langue.</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Plus confortable, de jour comme de nuit.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Des fonds sombres plus doux, des textes mieux contrastés et un retour au mode clair qui restaure toutes les couleurs. Les devis, factures et fiches de salaire conservent leur mise en page et leurs couleurs à l’impression. Retrouvez le détail dans Paramètres → Nouveautés.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Les traductions sont encore en préparation : certains écrans, contrôles natifs et PDF restent en français.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Sur Mac, installez cette version depuis le bouton ci-dessous pour recevoir les prochaines mises à jour dans Zentra. Les préversions mobiles publiques restent indiquées séparément.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Sur Mac, installez cette version depuis le bouton ci-dessous pour recevoir les prochaines mises à jour dans Zentra. Les versions iPhone s’installent manuellement après signature avec votre compte Apple.</p>
             </div>
             <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
               <a href={ZENTRA_WINDOWS_PREVIEW_PATH} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#315f47] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#173d2c]">
@@ -396,7 +397,7 @@ export default function DownloadPage() {
             </div>
             <div id="mobile-previews" className="mt-8 scroll-mt-24">
               <h3 className="text-xl font-semibold text-[#254333]">
-                Préversions mobiles {ZENTRA_VERSION}
+                Préversions mobiles
               </h3>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#607068]">
                 Pour les essais : les versions App Store et Google Play restent
@@ -407,7 +408,7 @@ export default function DownloadPage() {
               <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-2">
                 <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">
                   <h4 className="font-semibold text-[#263a2e]">
-                    Android — APK de test
+                    Android {ZENTRA_VERSION} — APK de test
                   </h4>
                   <p className="mt-3 text-sm leading-6 text-[#607068]">
                     Installation manuelle sur Android ARM64. La signature de
@@ -429,7 +430,7 @@ export default function DownloadPage() {
                 </article>
                 <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">
                   <h4 className="font-semibold text-[#263a2e]">
-                    iPhone — IPA à signer
+                    iPhone {ZENTRA_IPHONE_VERSION} — IPA à signer
                   </h4>
                   <p className="mt-3 text-sm leading-6 text-[#607068]">
                     Signez cet IPA avec votre compte Apple dans Sideloadly ou
@@ -451,7 +452,7 @@ export default function DownloadPage() {
                     href={ZENTRA_IOS_PREVIEW_PATH}
                     className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4"
                   >
-                    Télécharger pour le simulateur iOS
+                    Simulateur iOS — version {ZENTRA_VERSION}
                   </a>
                 </article>
               </div>
@@ -459,7 +460,7 @@ export default function DownloadPage() {
                 href={ZENTRA_GITHUB_RELEASE_PATH}
                 className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4"
               >
-                Notes de version et fichiers vérifiés
+                Archives Android et simulateur iOS
               </a>
             </div>
           </div>
