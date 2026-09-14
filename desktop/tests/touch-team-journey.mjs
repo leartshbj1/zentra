@@ -3,7 +3,9 @@ import {createRequire} from 'node:module';import {mkdir,writeFile} from 'node:fs
 const {chromium,webkit}=createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE||'playwright');
 const isWebKit=process.env.ZENTRA_QA_BROWSER==='webkit';const browser=await (isWebKit?webkit:chromium).launch({headless:true,...(!isWebKit?{channel:'msedge'}:{})});
 const origin=process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5271',out=`.qa/mobile-team-${isWebKit?'webkit':'edge'}`;await mkdir(out,{recursive:true});const report=[];let page;
-async function touch(selector,type,points){await page.locator(selector).first().evaluate((el,{type,points})=>{const touches=points.map((p,i)=>new Touch({identifier:i,target:el,clientX:p[0],clientY:p[1],pageX:p[0],pageY:p[1]}));el.dispatchEvent(new TouchEvent(type,{bubbles:true,cancelable:true,touches,targetTouches:touches,changedTouches:touches}));},{type,points});await page.evaluate(()=>new Promise(requestAnimationFrame));}
+// Desktop WebKit exposes Touch but rejects its constructor. Dispatch the same
+// touch payload through a DOM event; Chromium also tests actual browser input below.
+async function touch(selector,type,points){await page.locator(selector).first().evaluate((el,{type,points})=>{const touches=points.map((p,i)=>({identifier:i,target:el,clientX:p[0],clientY:p[1],pageX:p[0],pageY:p[1]}));const event=new Event(type,{bubbles:true,cancelable:true});Object.defineProperties(event,{touches:{value:touches},targetTouches:{value:touches},changedTouches:{value:touches}});el.dispatchEvent(event);},{type,points});await page.evaluate(()=>new Promise(requestAnimationFrame));}
 async function edgeMove(from,to,cancel=false){await touch('.app-main','touchstart',[from]);for(let i=1;i<=5;i++){await touch('.app-main','touchmove',[[from[0]+(to[0]-from[0])*i/5,from[1]+(to[1]-from[1])*i/5]]);}await touch('.app-main',cancel?'touchcancel':'touchend',[]);await page.waitForTimeout(380);}
 try{
 for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,height:390}]){
@@ -19,7 +21,10 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  await touch('#primary-navigation','touchstart',[[260,200]]);await touch('#primary-navigation','touchmove',[[20,205]]);await touch('#primary-navigation','touchend',[]);await page.waitForTimeout(380);assert.equal(await sidebar.getAttribute('aria-hidden'),'true','reverse closes');
  // Real Chromium touch dispatch additionally exercises the browser input path.
  if(!isWebKit){const cdp=await page.context().newCDPSession(page);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:5,y:220}]});for(const x of [30,70,130,200,290])await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:220}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForTimeout(400);assert.equal(await sidebar.getAttribute('aria-hidden'),null,'native browser touch opens');await page.locator('.navigation-scrim').click({position:{x:viewport.width-10,y:220}});}
- await page.evaluate(()=>Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))));await page.screenshot({path:`${out}/${viewport.width}-menu.png`});
+ await page.evaluate(()=>Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))));await page.evaluate(()=>{const style=document.documentElement.style;style.setProperty('--safe-left','47px');style.setProperty('--safe-right','47px');});
+ assert.ok(await page.locator('.page-content').evaluate(el=>parseFloat(getComputedStyle(el).paddingLeft)>=47),'content clears the notch');
+ assert.ok(await page.locator('.page-header').evaluate(el=>parseFloat(getComputedStyle(el).paddingRight)>=47),'actions clear rounded edges');
+ await page.screenshot({path:`${out}/${viewport.width}-menu.png`});
  for(const view of ['document','image','pdf']){
   await page.goto(`${origin}/tests/touch-team-harness.html?view=${view}`);await page.locator('[data-touch-document]').waitFor();
   if(view==='pdf')await page.locator('canvas').waitFor();if(view==='image')await page.waitForFunction(()=>document.querySelector('.touch-image-reader img')?.naturalWidth>1);
