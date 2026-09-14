@@ -5,7 +5,7 @@ export const ZENTRA_WINDOWS_PREVIEW_NAME = `Zentra_${ZENTRA_WINDOWS_PREVIEW_VERS
 export const ZENTRA_WINDOWS_PREVIEW_PATH = `https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/${ZENTRA_WINDOWS_PREVIEW_NAME}`;
 export const ZENTRA_WINDOWS_PREVIEW_SHA256 = 'A5CC7D9548F01B2ED5E89BBAB02F64D5570BA2405660C53D428C1E88F6266155';
 export const ZENTRA_WINDOWS_VERSION = ZENTRA_WINDOWS_PREVIEW_VERSION;
-export const ZENTRA_MAC_VERSION = '1.63.1';
+export const ZENTRA_MAC_VERSION = '1.64.0';
 export const ZENTRA_GITHUB_RELEASE_PATH = `https://github.com/leartshbj1/zentra/releases/tag/v${ZENTRA_VERSION}`;
 export const ZENTRA_ANDROID_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_VERSION}/Zentra-${ZENTRA_VERSION}-Android-arm64-test.apk`;
 export const ZENTRA_IPHONE_IPA_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_VERSION}/Zentra-${ZENTRA_VERSION}-iPhone-unsigned.ipa`;
@@ -22,6 +22,6 @@ export const ZENTRA_INSTALLER_SHA256 =
 export const ZENTRA_MAC_DMG_NAME = `Zentra_${ZENTRA_MAC_VERSION}_macos-universal.dmg`;
 export const ZENTRA_MAC_DMG_PATH = `${ZENTRA_RELEASES_ORIGIN}/${ZENTRA_MAC_DMG_NAME}`;
 export const ZENTRA_MAC_DMG_CHECKSUM_PATH = `${ZENTRA_MAC_DMG_PATH}.sha256.txt`;
-export const ZENTRA_MAC_DMG_SIZE_MIB = '47,67';
+export const ZENTRA_MAC_DMG_SIZE_MIB = '47,80';
 export const ZENTRA_MAC_DMG_SHA256 =
-  'C6B415A543D4DE5D31FCFCC462B994CDEC4AE92F7AA6166BFE867D6B5FBC6E13';
+  '1FDB8A48ED2719A32A4E1B9C68DCEEA749A8D76E075CFE5BDCC494437D83377A';
