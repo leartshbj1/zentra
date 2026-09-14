@@ -6,6 +6,7 @@ import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { supabaseServerClient } from '@/lib/supabase-server-runtime';
 import { companyProfile } from '@/lib/company-profile';
 import { companyCopy, publishCompanyCopy } from '@/lib/company-copy';
+import { collaborationHead } from '@/lib/company-collaboration';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
@@ -14,7 +15,8 @@ export async function GET(request: Request) {
     const profiles = await supabaseServerClient().select<{profile: Record<string,unknown>;updated_at:string}>('zentra_company_profiles', { organization_id:`eq.${session.organizationId}`,select:'profile,updated_at',limit:1 });
     const members = manage ? await db.prepare('SELECT membership_id AS id,email,role FROM organization_members WHERE organization_id=? AND revoked_at IS NULL ORDER BY joined_at').bind(session.organizationId).all() : { results:[] };
     const invitations = manage ? await db.prepare('SELECT invitation_id AS id,invited_email AS email,role,expires_at AS expiresAt FROM organization_invitations WHERE organization_id=? AND revoked_at IS NULL AND accepted_at IS NULL AND expires_at>=? ORDER BY created_at DESC').bind(session.organizationId,Math.floor(Date.now()/1000)).all() : {results:[]};
-    return Response.json({ organizationId:session.organizationId, organizationName:session.organizationName,role:session.role,canManage:manage,seats:await teamSeats(session.organizationId),members:members.results,invitations:invitations.results,profile:profiles[0]?.profile ?? null,companyCopy:await companyCopy(session.organizationId) },{headers:accountNoStoreHeaders()});
+    const collaboration=await collaborationHead(session);
+    return Response.json({ organizationId:session.organizationId, organizationName:session.organizationName,role:session.role,canManage:manage,seats:await teamSeats(session.organizationId),members:members.results,invitations:invitations.results,profile:profiles[0]?.profile ?? null,companyCopy:await companyCopy(session.organizationId),companyCollaboration:{enabled:collaboration.enabled,snapshotId:collaboration.snapshotId,revision:collaboration.revision,updatedAt:collaboration.updatedAt} },{headers:accountNoStoreHeaders()});
   } catch(error) { return accountJsonError(error); }
 }
 export async function POST(request: Request) {

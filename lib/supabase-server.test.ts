@@ -12,6 +12,32 @@ type TestFetch = (
 ) => Promise<Response>;
 
 describe('SupabaseServerClient', () => {
+  it('bounds private company storage paths, payloads and deletions before any network access', async () => {
+    const fetcher=vi.fn<TestFetch>();
+    const client=createSupabaseServerClient({url:'https://example.supabase.co',secretKey:serverSecret},fetcher);
+    for(const path of ['../other','https://example.test/file',`${'a'.repeat(64)}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/64`]) {
+      await expect(client.companyChunk('GET',path)).rejects.toThrow('path');
+      await expect(client.removeCompanyChunks([path])).rejects.toThrow('paths');
+    }
+    const path=`${'a'.repeat(64)}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/0`;
+    await expect(client.companyChunk('POST',path,new Uint8Array(8*1024*1024+1))).rejects.toThrow('size');
+    await expect(client.removeCompanyChunks([])).rejects.toThrow('paths');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('keeps company storage private and refuses an oversized streamed response', async () => {
+    const fetcher=vi.fn<TestFetch>(async()=>new Response(new Uint8Array(8*1024*1024+1)));
+    const client=createSupabaseServerClient({url:'https://example.supabase.co',secretKey:serverSecret},fetcher);
+    const path=`${'a'.repeat(64)}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/0`;
+    await expect(client.companyChunk('GET',path)).rejects.toBeInstanceOf(SupabaseServerError);
+    const [url,options]=fetcher.mock.calls[0];
+    expect(String(url)).toBe(`https://example.supabase.co/storage/v1/object/zentra-company-data/${path}`);
+    expect(String(url)).not.toContain(serverSecret);
+    expect(options?.redirect).toBe('error');
+    expect(new Headers(options?.headers).get('x-upsert')).toBe('false');
+    fetcher.mockImplementation(async()=>new Response(null,{status:200}));
+    await client.removeCompanyChunks([path]);
+    expect(fetcher.mock.calls[1][1]?.body).toBe(JSON.stringify({prefixes:[path]}));
+  });
   it('rejects publishable keys and unsafe origins', () => {
     expect(() =>
       validateSupabaseServerConfiguration({

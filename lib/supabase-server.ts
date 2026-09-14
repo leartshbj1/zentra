@@ -145,6 +145,48 @@ export class SupabaseServerClient {
     this.#fetch = fetcher;
   }
 
+  /** Private company chunks only. Never accept a URL from a caller. */
+  async companyChunk(method: 'GET' | 'POST', path: string, bytes?: Uint8Array): Promise<Uint8Array> {
+    if (!/^[a-f0-9]{64}\/[a-f0-9-]{36}\/(?:[0-9]|[1-5][0-9]|6[0-3])$/.test(path))
+      throw new TypeError('Invalid company chunk path.');
+    if (method === 'POST' && (!bytes?.length || bytes.length > 8 * 1024 * 1024))
+      throw new TypeError('Invalid company chunk size.');
+    const response = await this.#fetch(`${this.#configuration.origin}/storage/v1/object/zentra-company-data/${path}`, {
+      method, redirect: 'error', signal: AbortSignal.timeout(60_000),
+      headers: { apikey: this.#configuration.secretKey, Authorization: `Bearer ${this.#configuration.secretKey}`,
+        'Content-Type': 'application/octet-stream', 'x-upsert': 'false' },
+      ...(bytes ? {body: bytes as BodyInit} : {}),
+    });
+    if (!response.ok) throw new SupabaseServerError(response.status, 'company_storage');
+    if (method === 'POST') { await response.body?.cancel(); return new Uint8Array(); }
+    const reader = response.body?.getReader();
+    if (!reader) throw new SupabaseServerError(502, 'company_storage_empty');
+    const chunks: Uint8Array[] = []; let size = 0;
+    try {
+      for (;;) {
+        const next = await reader.read(); if (next.done) break;
+        size += next.value.byteLength;
+        if (size > 8 * 1024 * 1024) throw new SupabaseServerError(502, 'company_storage_size');
+        chunks.push(next.value);
+      }
+    } finally { await reader.cancel(); reader.releaseLock(); }
+    const result = new Uint8Array(size); let offset = 0;
+    for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
+    return result;
+  }
+
+  async removeCompanyChunks(paths:readonly string[]):Promise<void> {
+    if(!paths.length||paths.length>64||paths.some(path=>!/^[a-f0-9]{64}\/[a-f0-9-]{36}\/(?:[0-9]|[1-5][0-9]|6[0-3])$/.test(path)))
+      throw new TypeError('Invalid company cleanup paths.');
+    const response=await this.#fetch(`${this.#configuration.origin}/storage/v1/object/zentra-company-data`,{
+      method:'DELETE',redirect:'error',signal:AbortSignal.timeout(60_000),
+      headers:{apikey:this.#configuration.secretKey,Authorization:`Bearer ${this.#configuration.secretKey}`,'Content-Type':'application/json'},
+      body:JSON.stringify({prefixes:paths}),
+    });
+    if(!response.ok)throw new SupabaseServerError(response.status,'company_storage_cleanup');
+    await response.body?.cancel();
+  }
+
   async select<T>(relation: string, query?: SupabaseQuery): Promise<T[]> {
     return this.#request<T[]>(
       'GET',

@@ -13,6 +13,7 @@ import {
   reserveDocumentNumbers,
 } from '@/lib/document-number-reservations';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
+import { supabaseServerClient } from '@/lib/supabase-server-runtime';
 
 export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
@@ -32,7 +33,13 @@ export async function POST(request: Request) {
     const input = numberReservationRequest(
       await readJsonObjectWithinLimit(request, 8192),
     );
-    return Response.json(await reserveDocumentNumbers(session, input), {
+    const supabase=supabaseServerClient();
+    const shared=await supabase.select<{revision:number}>('zentra_workspaces',{organization_id:`eq.${session.organizationId}`,select:'revision',limit:1});
+    const reservation=shared[0]?.revision>0 ? await supabase.rpc('zentra_reserve_workspace_numbers',{
+      p_organization:session.organizationId,p_installation:session.installationId,p_request:input.request_id,
+      p_prefix:input.prefix,p_year:input.year,p_minimum:input.minimum,p_count:input.count,
+    }) : await reserveDocumentNumbers(session,input);
+    return Response.json(reservation, {
       headers: accountNoStoreHeaders(),
     });
   } catch (error) {
