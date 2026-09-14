@@ -7,7 +7,9 @@ export function companyProfile(input: unknown): Record<string, string | boolean>
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new AccountPublicError('Les coordonnées de l’entreprise sont absentes.');
   const raw = input as Record<string, unknown>, profile: Record<string, string | boolean> = {};
   for (const field of fields) {
-    if (raw[field] !== undefined && typeof raw[field] !== 'string') throw new AccountPublicError('Vérifiez les coordonnées de l’entreprise.');
+    // Native settings use null for empty optional fields, notably the detailed
+    // NOGA code. Treat it like an omitted value instead of rejecting sharing.
+    if (raw[field] != null && typeof raw[field] !== 'string') throw new AccountPublicError('Une coordonnée de l’entreprise doit contenir du texte. Vérifiez les paramètres de l’entreprise.');
     const value = typeof raw[field] === 'string' ? raw[field].trim() : '';
     if (value.length > (field === 'activity_description' ? 2000 : 300)) throw new AccountPublicError('Une coordonnée de l’entreprise est trop longue.');
     profile[field] = value;

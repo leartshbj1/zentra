@@ -134,4 +134,19 @@ describe('Native team API with real membership and capacity guards',()=>{
   for(const input of [null,[],{}, {...profile,company_name:''},{...profile,city:42},{...profile,activity_description:'x'.repeat(2001)}])expect(()=>companyProfile(input)).toThrow();
   expect(companyProfile({...profile,vat_registered:'true'}).vat_registered).toBe(false);
  });
+ it('accepts empty optional native settings when sharing a company',async()=>{
+  const nativeProfile={...profile,noga_detailed_code:null,vat_number:null,uid_number:null,address_line2:null,phone:null};
+  const response=await POST(device({action:'profile',profile:nativeProfile}));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({saved:true});
+  expect(stubs.upsert).toHaveBeenCalledWith('zentra_company_profiles',expect.objectContaining({
+   organization_id:'org_test',profile:expect.objectContaining({company_name:'Atelier test',noga_detailed_code:'',vat_number:'',uid_number:'',address_line2:'',phone:''}),
+  }),{onConflict:'organization_id'});
+ });
+ it('still rejects a missing required identity and structured optional values',async()=>{
+  for(const invalid of [{...profile,company_name:null},{...profile,noga_detailed_code:{code:'43'}},{...profile,phone:42}]){
+   expect((await POST(device({action:'profile',profile:invalid}))).status).toBe(400);
+  }
+  expect(stubs.upsert).not.toHaveBeenCalled();
+ });
 });
