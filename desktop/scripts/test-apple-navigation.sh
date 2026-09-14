@@ -7,7 +7,8 @@ root=$(pwd)
 test_root=$(mktemp -d "${TMPDIR:-/tmp}/zentra-navigation.XXXXXX")
 mkdir -p "$test_root/Sources" "$test_root/Tests" desktop/artifacts/navigation
 cp desktop/plugins/zentra-mobile/ios/Sources/GlassNavigation.swift "$test_root/Sources/"
-cp desktop/plugins/zentra-mobile/ios/Tests/NavigationTests.swift "$test_root/Tests/"
+cp desktop/plugins/zentra-mobile/ios/Sources/AppAppearance.swift "$test_root/Sources/"
+cp desktop/plugins/zentra-mobile/ios/Tests/*.swift "$test_root/Tests/"
 cat > "$test_root/Package.swift" <<'SWIFT'
 // swift-tools-version:5.9
 import PackageDescription

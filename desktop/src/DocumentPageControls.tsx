@@ -7,7 +7,7 @@ export function DocumentPageControls({ design, disabled, onChange }: Props) {
   return <fieldset className="document-page-format" disabled={disabled}>
     <legend>Format de la page</legend>
     <div>{(['portrait', 'landscape'] as const).map(value => <button type="button" key={value} aria-pressed={(design.pageOrientation ?? 'portrait') === value} onClick={() => onChange({ pageOrientation: value })}>
-      <span className="document-page-format__paper" data-orientation={value} aria-hidden="true"><i /><i /><i /></span>
+      <span className="document-page-format__paper" data-document-colors data-orientation={value} aria-hidden="true"><i /><i /><i /></span>
       <strong>{value === 'portrait' ? 'Portrait' : 'Paysage'}</strong><small>{value === 'portrait' ? 'A4 · page verticale' : 'A4 · plus de largeur'}</small>
     </button>)}</div>
     <small>Le contenu se répartit automatiquement sur les pages. La section de paiement QR garde sa page A4 verticale.</small>
@@ -28,7 +28,7 @@ export function DocumentTableColors({ design, style, disabled, onChange }: Props
   return <details className="design-studio__advanced">
     <summary>Personnaliser les couleurs du tableau</summary>
     <p className="design-studio__hint">Les couleurs automatiques suivent votre présentation. Pour le texte des en-têtes, le contraste s’adapte au fond jusqu’à ce que vous choisissiez une couleur.</p>
-    <div className="document-table-sample" aria-label="Échantillon des couleurs du tableau" style={{ borderColor: design.tableLineColor ?? '#d9dedb' }}>
+    <div className="document-table-sample" data-document-colors aria-label="Échantillon des couleurs du tableau" style={{ borderColor: design.tableLineColor ?? '#d9dedb' }}>
       <div style={{ background: header, color: onHeader }}><strong>Description</strong><strong>CHF</strong></div>
       <div style={{ background: design.tableStyle === 'striped' ? design.tableStripeColor ?? automatic['--document-pale'] : '#fff', color: design.textColor ?? '#1f2426' }}><span>Votre prestation</span><span>250.00</span></div>
     </div>

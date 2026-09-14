@@ -12,6 +12,10 @@ import { CreditAllocationOutcomeUnknownError, CreditAllocationRefreshError } fro
 import { TimeForm, TimerForm } from './WorkTimeForms';
 import { clientFolderDocuments } from './clientFolder';
 import './contact-forms.css';
+// Employee creation shares these steps with payroll, including before the
+// first payslip screen has been opened and its lazy module loaded.
+import './payroll-guided.css';
+import './payroll-simple.css';
 import { readyTimeEntries } from './timeBilling';
 import { PdfExportReceipt } from './PdfExportReceipt';
 import type { PdfExportReceipt as PdfReceipt } from './pdfExportDelivery';

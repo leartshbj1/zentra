@@ -1,25 +1,91 @@
-/* Semantic dark surfaces and exceptions to the compiled screen palette. */
+/* Screen appearance only: customer documents retain their chosen print colours. */
 @media screen {
- html[data-app-theme="dark"] {background:#131619;color:#eef1f4;--refined-ink:#eef1f4;--refined-secondary:#b1bbc4;--refined-canvas:#131619;--refined-line:#394149;--refined-green:#38634b;--clarity-ink:#eef1f4;--clarity-muted:#b1bbc4;--clarity-green:#38634b;--clarity-line:#394149;--clarity-surface:#191e23;--ink:#eef1f4;--muted:#b1bbc4;--cream:#131619;--paper:#20252a;--surface-app:#131619;--surface-subtle:#191e23;--surface-raised:#20252a;--surface-overlay:rgb(29 34 39 / 96%);--line:#394149;--line-soft:#30373e;--line-strong:#535e67;--shell-glass:rgb(29 34 39 / 90%);--green-950:#102d20;--green-900:#173d2c;--green-800:#24513b;--green-700:#34664d;--green-100:#263e32;--danger:#ffb2a8;--danger-soft:#422b2a;--success:#a2d9ba;--success-soft:#263e32;--amber:#f0cc97;--amber-soft:#463523;--shadow-xs:0 2px 8px #0002;--shadow-sm:0 5px 20px #0003;--shadow-md:0 20px 55px #0006;--shadow-lg:0 34px 100px #0008; }
- html[data-app-theme="dark"] body,html[data-app-theme="dark"] .desktop-app,html[data-app-theme="dark"] .app-main {background:#131619;color:#eef1f4;}
- html[data-app-theme="dark"] .sidebar {background:#1b2025;}
- html[data-app-theme="dark"] .topbar {background:rgb(25 30 35 / 93%);border-color:#30373e;}
- html[data-app-theme="dark"] .sidebar__selection {background:#303d35;border-color:#435b4c;box-shadow:none;}
- html[data-app-theme="dark"] :is(.sidebar__wordmark,.brand-mark)>img {filter:brightness(0) invert(1);}
- html[data-app-theme="dark"] :is(input,textarea,select):not(:where(.print-root *,.print-sheet *,.document-preview__paper *)) {background:#171b1f;color:#eef1f4;border-color:#48535d;box-shadow:none;}
- html[data-app-theme="dark"] :is(input,textarea)::placeholder {color:#929fa9;opacity:1;}
- html[data-app-theme="dark"] :is(button,a,input,textarea,select):focus-visible {outline:3px solid #a2d9ba;outline-offset:3px;}
- html[data-app-theme="dark"] :is(.button--primary,.button--dark) {background:#38634b;color:#f5fbf7;border-color:#648a72;}
- html[data-app-theme="dark"] :is(.button--primary,.button--dark):hover:not(:disabled) {background:#47795c;}
- html[data-app-theme="dark"] .button--danger {background:#793f3b;color:#fff;border-color:#ba7871;}
- html[data-app-theme="dark"] .mobile-navigation button {color:#b1bbc4;}
- html[data-app-theme="dark"] .mobile-navigation button[aria-current] {color:#a2d9ba;}
- html[data-app-theme="dark"] .button:disabled {opacity:.5;}
- html[data-app-theme="dark"] :is(.document-preview__header,.document-preview__controls,.document-preview__export,.document-preview__outline,.pdf-attachment-preview__toolbar,.attachment-preview__footer) {background:#20252a;color:#eef1f4;border-color:#394149;}
- html[data-app-theme="dark"] :is(.document-preview__viewport,.pdf-attachment-preview__viewport,.touch-image-reader__viewport) {background:#111417;}
- html[data-app-theme="dark"] :is(.print-root,.print-sheet,.print-page,.document-preview__paper,.pdf-attachment-preview__page) {color-scheme:light;color:#15241c;--ink:#15241c;--muted:#6f7b74;--line:#deddd6;--line-soft:rgba(34,57,44,.1);--paper:#fffefb;--surface-raised:#fff;--green-950:#102d20;--green-900:#173d2c;--green-800:#24513b;--green-700:#34664d;--green-100:#e7efe9;--cream:#f5f3ee;--danger:#a13f35;--danger-soft:#fff0ed;--success:#2f6e4d;--success-soft:#e5f1e9;--amber:#e79b2f;--amber-soft:#fff0d8;}
- html[data-app-theme="dark"] .document-preview__paper {background:#fff;}
- html[data-app-theme="dark"] .appearance-sample--light {background:#eef0f2;border-color:#d6dadd;} html[data-app-theme="dark"] .appearance-sample--light i {background:#d3d9d6;} html[data-app-theme="dark"] .appearance-sample--light b {background:white;}
- html[data-app-theme="dark"] .appearance-sample--dark {background:#15181b;border-color:#3f454b;} html[data-app-theme="dark"] .appearance-sample--dark i {background:#34443c;} html[data-app-theme="dark"] .appearance-sample--dark b {background:#2e3338;}
+  html[data-app-theme="dark"],
+  html[data-app-theme="dark"] .desktop-app[data-experience] {
+    --refined-ink: #f5f5f7;
+    --refined-secondary: #c3c3c8;
+    --refined-canvas: #141416;
+    --refined-line: #3d3d42;
+    --refined-green: #325b43;
+    --clarity-ink: #f5f5f7;
+    --clarity-muted: #c3c3c8;
+    --clarity-green: #325b43;
+    --clarity-line: #3d3d42;
+    --clarity-surface: #1b1b1e;
+    --ink: #f5f5f7;
+    --muted: #c3c3c8;
+    --cream: #141416;
+    --paper: #232326;
+    --surface-app: #141416;
+    --surface-subtle: #1b1b1e;
+    --surface-raised: #232326;
+    --surface-overlay: rgb(35 35 38 / 97%);
+    --line: #3d3d42;
+    --line-soft: #323236;
+    --line-strong: #626269;
+    --shell-glass: rgb(35 35 38 / 94%);
+    --green-950: #102d20;
+    --green-900: #173d2c;
+    --green-800: #24513b;
+    --green-700: #34664d;
+    --green-100: #27392e;
+    --danger: #ffb4ab;
+    --danger-soft: #402829;
+    --success: #a8dabb;
+    --success-soft: #27392e;
+    --amber: #f1cf99;
+    --amber-soft: #3f3423;
+    --shadow-xs: 0 2px 8px #0002;
+    --shadow-sm: 0 5px 20px #0003;
+    --shadow-md: 0 20px 55px #0006;
+    --shadow-lg: 0 34px 100px #0008;
+  }
+  html[data-app-theme="dark"] { background: #141416; color: #f5f5f7; }
+  /* Match the specificity of the accumulated workspace styles. */
+  html[data-app-theme="dark"] body,
+  html[data-app-theme="dark"] .desktop-app[data-experience],
+  html[data-app-theme="dark"] .desktop-app[data-experience] .app-main { background: #141416; color: #f5f5f7; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar { background: #1b1b1e; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .topbar { background: rgb(27 27 30 / 95%); border-color: #323236; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar__selection { background: #303a33; border-color: #4a6051; box-shadow: none; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar__local { background: transparent; color: #c3c3c8; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar__local strong { color: #c3c3c8; }
+  html[data-app-theme="dark"] :is(.sidebar__wordmark,.brand-mark)>img { filter: brightness(0) invert(1); }
+  html[data-app-theme="dark"] :is(input,textarea,select):not(:where([type="color"],.print-root *,.print-sheet *,.print-page *,.document-preview__paper *)) { background: #1b1b1e; color: #f5f5f7; border-color: #626269; box-shadow: none; }
+  html[data-app-theme="dark"] :is(input,textarea)::placeholder { color: #a2a2aa; opacity: 1; }
+  html[data-app-theme="dark"] :is(button,a,input,textarea,select):focus-visible { outline: 3px solid #a8dabb; outline-offset: 3px; }
+  html[data-app-theme="dark"] :is(.desktop-app[data-experience],body) :is(.button--primary,.button--dark) { background: #325b43; color: #fff; border-color: #648a72; }
+  html[data-app-theme="dark"] :is(.desktop-app[data-experience],body) :is(.button--primary,.button--dark):hover:not(:disabled) { background: #3e6b50; }
+  html[data-app-theme="dark"] .button--danger { background: #753b39; color: #fff; border-color: #ba7871; }
+  html[data-app-theme="dark"] .mobile-navigation button { color: #c3c3c8; }
+  html[data-app-theme="dark"] .mobile-navigation button[aria-current] { color: #a8dabb; }
+  html[data-app-theme="dark"] .button:disabled { opacity: .5; }
+  html[data-app-theme="dark"] :is(.document-preview__header,.document-preview__controls,.document-preview__export,.document-preview__outline,.pdf-attachment-preview__toolbar,.attachment-preview__footer) { background: #232326; color: #f5f5f7; border-color: #3d3d42; }
+  html[data-app-theme="dark"] :is(.document-preview__viewport,.pdf-attachment-preview__viewport,.touch-image-reader__viewport) { background: #111113; }
+  html[data-app-theme="dark"] :is(.print-root,.print-sheet,.print-page,.document-preview__paper,.pdf-attachment-preview__page) {
+    color-scheme: light; color: #15241c;
+    --ink: #15241c; --muted: #6f7b74; --line: #deddd6; --line-soft: rgba(34,57,44,.1);
+    --paper: #fffefb; --surface-raised: #fff;
+    --green-950: #102d20; --green-900: #173d2c; --green-800: #24513b; --green-700: #34664d; --green-100: #e7efe9;
+    --cream: #f5f3ee; --danger: #a13f35; --danger-soft: #fff0ed; --success: #2f6e4d; --success-soft: #e5f1e9; --amber: #e79b2f; --amber-soft: #fff0d8;
+  }
+  html[data-app-theme="dark"] .document-preview__paper { background: #fff; }
+  html[data-app-theme="dark"] .appearance-sample--light { background: #eef0f2; border-color: #d6dadd; }
+  html[data-app-theme="dark"] .appearance-sample--light i { background: #d3d9d6; }
+  html[data-app-theme="dark"] .appearance-sample--light b { background: white; }
+  html[data-app-theme="dark"] .appearance-sample--dark { background: #141416; border-color: #3d3d42; }
+  html[data-app-theme="dark"] .appearance-sample--dark i { background: #303a33; }
+  html[data-app-theme="dark"] .appearance-sample--dark b { background: #2c2c30; }
 }
-@media(prefers-reduced-transparency:reduce){html[data-app-theme="dark"] :is(.topbar,.mobile-navigation){background:#20252a;backdrop-filter:none;}}
+@media screen and (prefers-reduced-transparency: reduce) {
+  html[data-app-theme="dark"] .desktop-app[data-experience] :is(.topbar,.mobile-navigation) { background: #232326; backdrop-filter: none; }
+}
+@media screen and (prefers-contrast: more) {
+  html[data-app-theme="dark"] .desktop-app[data-experience] { --muted: #e0e0e5; --line: #77777e; --line-soft: #626269; }
+}
+/* Inline startup colours also need a print reset: a dark colour-scheme can
+   otherwise make default document text white even with screen CSS disabled. */
+@media print {
+  html { color-scheme: light !important; background: #fff !important; color: #15241c; }
+  body { background: #fff; color: #15241c; }
+}
