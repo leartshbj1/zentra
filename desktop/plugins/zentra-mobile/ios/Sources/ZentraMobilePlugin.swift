@@ -56,11 +56,7 @@ class ZentraMobilePlugin: Plugin {
     let args = try invoke.parseArgs(AppearanceArgs.self)
     guard ["system", "light", "dark"].contains(args.appearance) else { invoke.reject("Apparence inconnue"); return }
     DispatchQueue.main.async {
-      let style: UIUserInterfaceStyle = args.appearance == "system" ? .unspecified : args.appearance == "dark" ? .dark : .light
-      self.manager.viewController?.overrideUserInterfaceStyle = style
-      self.manager.viewController?.view.window?.overrideUserInterfaceStyle = style
-      self.webview?.backgroundColor = UIColor.systemBackground
-      self.manager.viewController?.setNeedsStatusBarAppearanceUpdate()
+      AppAppearance.apply(appearance: args.appearance, dark: args.dark, controller: self.manager.viewController, webview: self.webview)
       invoke.resolve()
     }
   }

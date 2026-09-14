@@ -23,3 +23,5 @@ for attempt in $(seq 1 60); do
 done
 node desktop/tests/touch-team-journey.mjs
 cp .qa/mobile-team-webkit/report.json desktop/artifacts/macos/mobile-webkit-report.json
+node desktop/tests/appearance-journey.mjs
+cp .qa/appearance165-webkit/report.json desktop/artifacts/macos/appearance-webkit-report.json

@@ -1,13 +1,13 @@
 {
   "name": "zentra-desktop",
-  "version": "1.64.0",
+  "version": "1.65.0",
   "private": true,
   "description": "Application locale Windows et macOS de gestion d’entreprise multisectorielle Zentra",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "test:ui": "vitest run",
-    "build:web": "tsc --noEmit && vite build",
+    "build:web": "node scripts/build-dark-palette.mjs && tsc --noEmit && vite build",
     "build": "pnpm build:windows",
     "build:windows": "pnpm build:web && tauri build --target x86_64-pc-windows-gnu --bundles nsis",
     "build:macos": "bash scripts/build-macos-updater.sh",

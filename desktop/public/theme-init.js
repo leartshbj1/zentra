@@ -1,1 +1,12 @@
-try { var p=localStorage.getItem('zentra.appearance.v1');var d=p==='dark'||p!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.dataset.appTheme=d?'dark':'light';document.documentElement.style.colorScheme=d?'dark':'light';document.documentElement.style.backgroundColor=d?'#131619':'#f5f5f7'; } catch(e) {}
+(function () {
+  var preference = 'system';
+  try {
+    var saved = localStorage.getItem('zentra.appearance.v1');
+    if (saved === 'light' || saved === 'dark') preference = saved;
+  } catch (_) { /* Follow the system even if persistent storage is unavailable. */ }
+  var dark = preference === 'dark' || preference === 'system' && matchMedia('(prefers-color-scheme: dark)').matches;
+  var root = document.documentElement;
+  root.dataset.appTheme = dark ? 'dark' : 'light';
+  root.style.colorScheme = dark ? 'dark' : 'light';
+  root.style.backgroundColor = dark ? '#141416' : '#f5f5f7';
+})();

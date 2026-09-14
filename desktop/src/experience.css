@@ -321,7 +321,7 @@
   .document-wizard-footer__total strong { font-size: 20px; }
   .document-wizard-footer .form-actions { width: 100%; gap: 8px; }
   .document-wizard-footer .button { min-width: 0; padding-inline: 12px; }
-  .document-wizard-footer .button:first-of-type { flex: 0 0 28%; }
+  .document-wizard-footer .button:first-of-type { flex: 0 0 auto; min-width: 5.5rem; overflow-wrap: normal; }
   .document-wizard-footer .button:last-child { flex: 1; }
   .document-review { padding: 22px 18px; }
   .document-review h4 { font-size: 23px; }

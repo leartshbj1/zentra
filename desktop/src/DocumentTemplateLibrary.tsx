@@ -63,7 +63,7 @@ export function DocumentTemplateLibrary({ settings, kind, disabled, onChange, on
       <legend>Réutiliser un modèle</legend>
       <label>Choisir un modèle<select aria-label="Choisir un modèle" value={selected.id} onChange={e => { setSelectedId(e.target.value); setRenaming(null); setIncludeText(false); setError(''); }}>{templates.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <div className="document-template-library__card">
-        <div className="document-template-library__paper" aria-hidden="true" data-orientation={design.pageOrientation ?? 'portrait'} style={{ color: selected.style.accentColor, fontFamily: documentFontCss[design.fontFamily] }}><span>Aa</span><i /><i /><i /></div>
+        <div className="document-template-library__paper" data-document-colors aria-hidden="true" data-orientation={design.pageOrientation ?? 'portrait'} style={{ color: selected.style.accentColor, fontFamily: documentFontCss[design.fontFamily] }}><span>Aa</span><i /><i /><i /></div>
         <div><strong>{selected.name}</strong><small>Créé depuis : {documentKindLabels[selected.sourceKind]}</small><small>{design.fontFamily === 'times' ? 'Times' : design.fontFamily === 'courier' ? 'Courier' : 'Helvetica'} · {design.pageOrientation === 'landscape' ? 'Paysage' : 'Portrait'}</small></div>
       </div>
       <label className="design-studio__choice"><input type="checkbox" checked={includeText} onChange={e => setIncludeText(e.target.checked)} />Reprendre aussi les textes du modèle</label>
