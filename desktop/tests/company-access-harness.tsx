@@ -21,8 +21,9 @@ const company = {organizationId:'org_fixture',organizationName:'Entreprise de d�
 let joined=0, resets=0;
 if(query.has('cacheFailure')) {
   let failures=0;
-  const keys=caches.keys.bind(caches);
-  caches.keys=async()=>{if(failures++===0)throw new Error('Le cache est occupé. Réessayez.');return keys();};
+  const proto=Object.getPrototypeOf(caches) as CacheStorage;
+  const keys=proto.keys;
+  proto.keys=async function(){if(failures++===0)throw new Error('Le cache est occupé. Réessayez.');return keys.call(this);};
 }
 desktopApi.getCloudAccountState=async()=>({status:'connected',organizationId:'org_fixture',role:'member',organizationName:company.organizationName});
 desktopApi.getCloudTeam=async()=>company;
