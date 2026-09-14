@@ -4,7 +4,7 @@ import { CloudAccountPanel } from './CloudAccountPanel';
 import { desktopApi, type CloudAccountState } from './bridge';
 import type { Workspace } from './types';
 import { Button, ErrorPanel, Modal } from './ui';
-import { t, getAppLocale } from './language';
+import { t } from './language';
 import { errorMessage } from './utils';
 import type { CloudTeam } from './CloudTeamPanel';
 
@@ -30,11 +30,11 @@ export function JoinCompany({onClose,onJoined,onAccountChange}: {onClose:()=>voi
     }
   },[team,account]);
   return <Modal title={t('Rejoindre une entreprise')} onClose={onClose} dismissible={!busy} wide className="join-company-dialog">
-    <p>{t('Acceptez le lien d’invitation avec votre adresse e-mail, puis connectez cet appareil avec le même compte. L’entreprise partagée sera récupérée automatiquement.')}</p>
+    <p>{t('Connectez-vous avec l’adresse qui a reçu l’invitation.')}</p>
     <div hidden={busy}><CloudAccountPanel joining onAccountChange={next=>{setAccount(next);onAccountChange?.(next);}}/></div>
     {error && <ErrorPanel message={error} onRetry={()=>void (team?.companyCopy?join():load())}/>}
     {team && <div className="cloud-team__profile"><Building2 size={26}/><div><h3>{team.organizationName}</h3>
-      {team.companyCopy ? <><p>{t('Clients, devis, factures, projets, comptabilité, salaires et documents seront disponibles sur cet appareil.')}</p><p>{t('Copie partagée le {date}',{date:new Date(team.companyCopy.publishedAt).toLocaleString(getAppLocale())})}</p><p>{t(team.continuous?'Les changements de votre équipe se synchroniseront automatiquement avec Supabase.':'Demandez au titulaire d’activer le partage continu pour recevoir aussi les prochains changements.')}</p></> : <p>{t('Le titulaire doit choisir « Partager l’entreprise complète » dans Paramètres → Compte et équipe. Actualisez ensuite cet écran.')}</p>}
+      {team.companyCopy ? <p>{t(team.continuous?'Toute votre entreprise se synchronise automatiquement.':'Le titulaire doit mettre à jour le partage pour synchroniser les prochains changements.')}</p> : <p>{t('Demandez au titulaire d’activer le partage dans Compte et équipe.')}</p>}
       {busy && <p role="status"><LoaderCircle className="spin" size={20}/>{t(' Récupération de l’entreprise et vérification des documents… Gardez Zentra ouvert.')}</p>}
     </div>
       {!busy && <Button disabled={!team.companyCopy} onClick={()=>void join()}>{t('Recevoir et ouvrir l’entreprise')}</Button>}

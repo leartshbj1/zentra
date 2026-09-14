@@ -17,8 +17,8 @@ import '../src/dark.generated.css';
 import '../src/dark.css';
 const query = new URLSearchParams(location.search);
 setAppearance(query.get('theme')==='dark'?'dark':'light');
-const company = {organizationId:'org_fixture',organizationName:'Entreprise de démonstration',role:'member',canManage:true,profile:{company_name:'Entreprise de démonstration'},companyCopy:query.has('missing')?null:{backupId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',publishedAt:'2026-09-14T12:00:00Z',sizeBytes:100},seats:{planName:'Start',limit:3,used:1,reserved:0,available:2,subscriptionActive:true},members:[],invitations:[]};
-let joined=0, resets=0;
+const company = {continuous:!query.has('missing'),organizationId:'org_fixture',organizationName:'Entreprise de démonstration',role:'member',canManage:true,profile:{company_name:'Entreprise de démonstration'},companyCopy:query.has('missing')?null:{backupId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',publishedAt:'2026-09-14T12:00:00Z',sizeBytes:100},seats:{planName:'Start',limit:3,used:1,reserved:0,available:2,subscriptionActive:true},members:[],invitations:[]};
+let joined=0, resets=0, shared=0, invited=0;
 if(query.has('cacheFailure')) {
   let failures=0;
   const proto=Object.getPrototypeOf(caches) as CacheStorage;
@@ -40,14 +40,14 @@ desktopApi.resetLocalApp=async confirmation=>{
   history.replaceState(null,'',`?resetDone=1&resetCalls=${resets}`);
   return {reset:true};
 };
-desktopApi.publishCloudCompany=async()=>({});
+desktopApi.publishCloudCompany=async()=>{throw new Error('Le partage complet ne doit pas envoyer un second profil.');};
 desktopApi.getResetRecovery=async()=>({available:true,createdAt:'2026-09-14'});
 desktopApi.restoreResetRecovery=async()=>({projects:[{id:'p'}],clients:[{id:'c'}],invoices:[{id:'i'}]} as Workspace);
-desktopApi.publishCompanyCopy=async()=>{company.companyCopy={backupId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',publishedAt:new Date().toISOString(),sizeBytes:100};return {};};
+desktopApi.publishCompanyCopy=async()=>{shared++;if(query.has('shareFailure')&&shared===1)throw new Error('Connexion interrompue. Réessayez le partage.');company.continuous=true;company.companyCopy={backupId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',publishedAt:new Date().toISOString(),sizeBytes:100};return {};};
 desktopApi.getCompanySyncState=async()=>({enabled:true,revision:1,pending:false,conflict:false});
 desktopApi.syncCompanyWorkspace=async()=>({enabled:true,revision:1,pending:false,conflict:false});
-desktopApi.inviteCloudMember=async()=>({invitation:{url:'https://zentra.example/invitation?token=example'}});
-Object.assign(window,{companyFixture:{get joined(){return joined},get resets(){return resets}}});
+desktopApi.inviteCloudMember=async()=>{if(!company.companyCopy)throw new Error('Partage requis avant invitation');invited++;return {invitation:{url:'https://zentra.example/invitation?token=example'}};};
+Object.assign(window,{companyFixture:{get joined(){return joined},get resets(){return resets},get shared(){return shared},get invited(){return invited}}});
 function Harness(){
   useMobileLayout();
   const [result,setResult]=useState<Workspace|null>(null),[closed,setClosed]=useState(false);

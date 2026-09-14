@@ -52,13 +52,13 @@ export function CompanySyncPanel(){
     finally{setBusy(false);setCompanyReceiving(false);}
   }
   if(!status.enabled)return null;
-  return <section className="company-sync-panel" aria-label={t('Entreprise partagée')}>
-    <header><Cloud size={22}/><div><h3>{t('Entreprise partagée')}</h3><p>{status.conflict?t('Des changements existent sur les deux appareils.'):status.pending?t('Vos changements attendent leur envoi.'):status.ready?t('Des changements de l’équipe sont prêts.'):t('Clients, documents, logo et réglages partagés avec votre équipe.')}</p></div></header>
+  return <section className={`company-sync-panel${status.conflict?'':' company-sync-panel--compact'}`} aria-label={t('Entreprise partagée')}>
+    <header><Cloud size={22}/><div><h3>{t('Entreprise partagée')}</h3><p>{status.conflict?t('Des changements existent sur les deux appareils.'):status.pending?t('Envoi en attente…'):status.ready?t('Mise à jour prête.'):t('À jour avec votre équipe.')}</p></div>{!status.conflict&&<Button size="icon" variant="ghost" disabled={busy} aria-label={t('Synchroniser maintenant')} onClick={()=>void synchronize()}><RefreshCw size={18} className={busy?'company-sync__spinner':undefined}/></Button>}</header>
     {status.lastSyncedAt&&<small>{t('Dernière synchronisation')} : {new Date(status.lastSyncedAt).toLocaleString()}</small>}
     {status.error&&<ErrorPanel message={status.error}/>}
-    {status.conflict?<><p>{t('Personne n’a perdu son travail. Pour recevoir la version de l’équipe, Zentra sauvegarde d’abord votre copie locale. Vos changements non envoyés resteront dans cette sauvegarde et devront être repris après la réception.')}</p>
+    {status.conflict?<><p>{t('Vos changements non envoyés seront sauvegardés. Vous devrez les reprendre après la réception.')}</p>
       <label className="company-sync__consent"><input type="checkbox" checked={confirm} onChange={event=>setConfirm(event.target.checked)}/>{t('Conserver ma copie en sauvegarde, puis utiliser la version de l’équipe.')}</label>
       <Button disabled={busy||!confirm} onClick={()=>void synchronize(true)}>{t('Sauvegarder ma copie et recevoir celle de l’équipe')}</Button>
-    </>:<Button variant="secondary" disabled={busy} onClick={()=>void synchronize()}><RefreshCw size={16}/>{t(busy?'Synchronisation…':'Synchroniser maintenant')}</Button>}
+    </>:null}
   </section>;
 }

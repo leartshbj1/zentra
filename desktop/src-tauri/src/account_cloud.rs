@@ -1031,6 +1031,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | "/api/projects/sync" | "/api/projects/sync/file"
             | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
             | "/api/sync/numbers"
+            | crate::company_collaboration::PATH
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }
@@ -1373,6 +1374,15 @@ mod tests {
     }
 
     const TEST_INSTALLATION_ID: &str = "55af29dd-fdaa-4993-ae78-17f9ca220e51";
+
+    #[test]
+    fn company_sharing_uses_the_trusted_route_without_allowing_arbitrary_account_routes() {
+        let url = endpoint(crate::company_collaboration::PATH).unwrap();
+        assert_eq!(url.as_str(), format!("{ACCOUNT_API_ORIGIN}/api/account/collaboration"));
+        for refused in ["/api/account/collaboration/", "/api/account/collaboration?token=secret", "/api/account/collaboration/../team", "/api/account/anything", "https://example.test/api/account/collaboration"] {
+            assert!(endpoint(refused).is_err());
+        }
+    }
 
     fn pending_for(installation_id: &str) -> PendingAuthorization {
         PendingAuthorization {

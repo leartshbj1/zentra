@@ -23,7 +23,7 @@ use std::{
 };
 use tauri::State;
 
-const PATH: &str = "/api/account/collaboration";
+pub(crate) const PATH: &str = "/api/account/collaboration";
 const STATE: &str = "company-collaboration.json";
 static GATES: OnceLock<Mutex<HashMap<PathBuf, Arc<AtomicBool>>>> = OnceLock::new();
 thread_local! { static APPLYING:Cell<bool>=const {Cell::new(false)}; }
@@ -933,6 +933,66 @@ mod tests {
             .unwrap()
             .execute("UPDATE document_creators SET user_id='bob'", [])
             .is_err());
+    }
+    #[test]
+    fn issued_invoice_and_member_payment_keep_all_company_balances_identical() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        let c = tempfile::tempdir().unwrap();
+        let alice = LocalStore::initialize(a.path().into()).unwrap();
+        let bob = LocalStore::initialize(b.path().into()).unwrap();
+        let reader = LocalStore::initialize(c.path().into()).unwrap();
+        let mut settings = crate::tests::test_onboarding();
+        settings.vat_registered = true;
+        settings.vat_number = Some("CHE-123.456.789 TVA".into());
+        settings.default_vat_bp = Some(810);
+        alice.complete_onboarding(settings, env!("CARGO_PKG_VERSION")).unwrap();
+        crate::tests::enable_accounting(&alice);
+        person(&alice, "alice");
+        person(&bob, "bob");
+        person(&reader, "reader");
+        let client = alice.create_record("clients", json!({"name":"Client partagé", "address_line1":"Rue du Test 1", "postal_code":"1200", "city":"Genève", "country":"CH"})).unwrap();
+        let invoice = alice.create_record("invoices", json!({"client_id":client["id"], "title":"Facture Alice", "service_date_from":"2026-09-14", "service_date_to":"2026-09-14"})).unwrap();
+        let id = invoice["id"].as_str().unwrap();
+        alice.create_record("invoice_items", json!({"invoice_id":id, "description":"Prestation", "quantity":1, "unit":"forfait", "unit_price_cents":100_000, "vat_bp":810})).unwrap();
+        alice.issue_invoice(id, Some("2026-09-14".into()), None).unwrap();
+        let first = prepare(&alice, "org-test", true).unwrap();
+        for target in [&bob, &reader] {
+            apply(target, &file_path(&alice, &first.id).unwrap(), "org-test", 1, clock(target).unwrap(), true, false).unwrap();
+        }
+        confirm_sent(&alice, &first.id, 1).unwrap();
+
+        // In production the join flow obtains a separate, server-reserved
+        // journal range for each device. Exercise its real adoption here too.
+        let reservation = crate::shared_numbering::prepare(&bob, "org-test", "J", 2026, 2).unwrap().unwrap();
+        let reservation_json = serde_json::to_value(&reservation).unwrap();
+        let reply = serde_json::from_value(json!({
+            "request_id":reservation_json["request_id"], "organization_id":"org-test", "installation_id":bob.installation_id,
+            "prefix":"J", "year":2026, "start_value":2, "end_value":201,
+        })).unwrap();
+        crate::shared_numbering::adopt(&bob, "org-test", &reservation, &reply).unwrap();
+        bob.record_payment(crate::models::RecordPaymentInput {
+            request_id: uuid::Uuid::new_v4().to_string(), invoice_id: id.into(),
+            amount_cents: 30_000, date: Some("2026-09-14".into()), method: Some("bank".into()), reference: None, notes: None,
+        }).unwrap();
+        let second = prepare(&bob, "org-test", false).unwrap();
+        for target in [&alice, &reader] {
+            apply(target, &file_path(&bob, &second.id).unwrap(), "org-test", 2, clock(target).unwrap(), false, false).unwrap();
+        }
+        confirm_sent(&bob, &second.id, 2).unwrap();
+        let balances = |store: &LocalStore| {
+            let db = store.connect().unwrap();
+            let amount = db.query_row("SELECT total_cents,paid_cents,total_cents-paid_cents FROM invoices WHERE id=?", [id], |r| Ok((r.get::<_,i64>(0)?,r.get::<_,i64>(1)?,r.get::<_,i64>(2)?))).unwrap();
+            assert_eq!(amount, (108_100,30_000,78_100));
+            assert_eq!(db.query_row("SELECT user_id FROM document_creators WHERE document_id=?", [id], |r| r.get::<_,String>(0)).unwrap(), "alice");
+            assert_eq!(db.query_row("SELECT COUNT(*) FROM journal_entries WHERE source_type IN ('invoice','payment')", [], |r| r.get::<_,i64>(0)).unwrap(), 2);
+            assert_eq!(db.query_row("SELECT COUNT(*) FROM (SELECT journal_entry_id FROM journal_lines GROUP BY journal_entry_id HAVING SUM(debit_cents)!=SUM(credit_cents))", [], |r| r.get::<_,i64>(0)).unwrap(), 0);
+            let mut statement = db.prepare("SELECT account_id,SUM(debit_cents),SUM(credit_cents) FROM journal_lines GROUP BY account_id ORDER BY account_id").unwrap();
+            statement.query_map([], |r| Ok((r.get::<_,String>(0)?,r.get::<_,i64>(1)?,r.get::<_,i64>(2)?))).unwrap().collect::<Result<Vec<_>,_>>().unwrap()
+        };
+        assert_eq!(balances(&alice), balances(&bob));
+        assert_eq!(balances(&alice), balances(&reader));
+        for store in [&alice, &bob, &reader] { assert_eq!(status(store).unwrap()["pending"], false); }
     }
     #[test]
     fn dirty_or_concurrent_local_work_is_never_silently_overwritten() {

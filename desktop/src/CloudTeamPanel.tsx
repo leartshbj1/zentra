@@ -13,12 +13,13 @@ const roles = [ ['member','Collaborateur','Travaille dans l’application, sans 
 export function CloudTeamPanel({settings}: {settings?:AppSettings|null}) {
   const [team,setTeam]=useState<CloudTeam|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[email,setEmail]=useState(''),[role,setRole]=useState('member'),[link,setLink]=useState(''),[notice,setNotice]=useState('');
   const pending=useRef(false);
-  const [shareFull,setShareFull]=useState(false),[stage,setStage]=useState('');
+  const [stage,setStage]=useState('');
   async function shareCompany() {
-    if(settings) await desktopApi.publishCloudCompany(settings);
     setStage('Envoi de l’entreprise et des documents…');
+    // The complete saved workspace already includes the company identity. A
+    // second, partial profile upload must not block sharing or use unsaved form values.
     try { await desktopApi.publishCompanyCopy(); }
-    finally { publishCompanySync(await desktopApi.getCompanySyncState()); }
+    finally { await desktopApi.getCompanySyncState().then(value=>publishCompanySync(value)).catch(()=>undefined); }
     window.dispatchEvent(new Event('zentra-project-documents-changed'));
     setStage('');
   }
@@ -32,20 +33,20 @@ export function CloudTeamPanel({settings}: {settings?:AppSettings|null}) {
     {notice && <p role="status">{t(notice)}</p>}
     <CompanySyncPanel/>
     {team?.canManage && <>
-      {settings && <div className="cloud-team__profile"><div><strong>{t('Toute l’entreprise, ensemble')}</strong><p>{t('Clients, devis, factures, projets, logo, comptabilité, salaires et pièces jointes : les membres retrouvent toute l’entreprise et ses changements.')}</p><p>{t('Activez le partage pour synchroniser automatiquement toute l’entreprise avec Supabase. Les changements hors ligne attendent le retour du réseau.')}</p><label className="cloud-team__consent"><input type="checkbox" checked={shareFull} disabled={busy} onChange={event=>setShareFull(event.target.checked)}/><span>{t('Je partage la base complète, y compris les salaires, avec les membres autorisés de cette entreprise.')}</span></label></div><Button variant="secondary" disabled={busy||!shareFull} onClick={()=>void run(async()=>{await shareCompany();setNotice('Le partage est actif. Les nouveaux changements seront synchronisés automatiquement.');}).finally(()=>setStage(''))}>{t(team.continuous?'Synchroniser l’entreprise':'Partager l’entreprise complète')}</Button></div>}
+      <p>{t('Toute l’entreprise est partagée : documents, montants, comptabilité, logo et salaires.')}</p>
+      {settings && !team.continuous && <Button variant="secondary" disabled={busy} onClick={()=>void run(async()=>{await shareCompany();setNotice('Partage activé.');}).finally(()=>setStage(''))}>{t('Activer le partage')}</Button>}
       {team.seats.reserved>0 && <p>{t('{count} invitation(s) en attente réservent une place.',{count:team.seats.reserved})}</p>}
-      <form onSubmit={event=>{event.preventDefault();void run(async()=>{if(!team.companyCopy&&!shareFull)throw new Error('Partagez d’abord une copie complète de l’entreprise.');if(shareFull)await shareCompany();setStage('Création du lien…');const result=await desktopApi.inviteCloudMember(email.trim(),role);setLink(result.invitation.url);setNotice('Invitation créée. Transmettez le lien à cette personne.');}).finally(()=>setStage(''));}}>
+      <form onSubmit={event=>{event.preventDefault();void run(async()=>{await shareCompany();setStage('Création du lien…');const result=await desktopApi.inviteCloudMember(email.trim(),role);setLink(result.invitation.url);setNotice('Invitation créée. Transmettez le lien à cette personne.');}).finally(()=>setStage(''));}}>
         <Field label={t('Adresse e-mail')} required><input aria-label={t('Adresse e-mail')} type="email" required autoComplete="email" value={email} disabled={busy||full} onChange={event=>{setEmail(event.target.value);setLink('');}}/></Field>
         <Field label={t('Rôle')}><select aria-label={t('Rôle')} value={role} disabled={busy||full} onChange={event=>{setRole(event.target.value);setLink('');}}>{roles.map(([value,label])=><option key={value} value={value}>{t(label)}</option>)}</select></Field>
         <p className="cloud-team__role">{t(roles.find(([value])=>value===role)![2])}</p>
         {full && <p role="status">{t('Toutes les places sont utilisées ou l’abonnement doit être renouvelé. Gérez les accès ou la formule dans votre compte.')}</p>}
-        {busy && stage && <p role="status">{t(stage)}</p>}
-        {!team.companyCopy&&!shareFull&&<p>{t('Cochez le partage de l’entreprise complète ci-dessus pour préparer l’invitation.')}</p>}
-        <Button type="submit" disabled={busy||full||(!team.companyCopy&&!shareFull)}>{t(busy?'Préparation…':'Créer le lien d’invitation')}</Button>
+        <Button type="submit" disabled={busy||full}>{t(busy?'Préparation…':'Créer le lien d’invitation')}</Button>
       </form>
+      {busy && stage && <p role="status">{t(stage)}</p>}
       {link && <div className="cloud-team__link"><label>{t('Lien réservé à l’adresse invitée')}<input readOnly value={link} onFocus={event=>event.currentTarget.select()}/></label><Button variant="secondary" onClick={()=>void navigator.clipboard.writeText(link).then(()=>setNotice('Lien copié.')).catch(()=>setError(t('Sélectionnez le lien pour le copier manuellement.')))}><Copy size={17}/>{t('Copier le lien')}</Button></div>}
       <ul className="cloud-team__people">{team.members.map(person=><li key={person.id}><Check size={16}/><span>{person.email}<small>{t(person.role==='owner'?'Propriétaire':roles.find(([value])=>value===person.role)?.[1]||person.role)}</small></span></li>)}{team.invitations.map(invitation=><li key={invitation.id}><span>{invitation.email}<small>{t('Invitation en attente')} · {t(roles.find(([value])=>value===invitation.role)?.[1]||invitation.role)}</small></span><Button variant="ghost" disabled={busy} onClick={()=>void run(()=>desktopApi.revokeCloudInvitation(invitation.id))}>{t('Annuler l’invitation')}</Button></li>)}</ul>
     </>}
-    {team && !team.canManage && <p>{t('Le titulaire ou un administrateur gère les invitations. Votre rôle est affiché dans votre connexion.')}</p>}
+    {team && !team.canManage && <p>{t('Les invitations sont gérées par un administrateur.')}</p>}
   </section>;
 }

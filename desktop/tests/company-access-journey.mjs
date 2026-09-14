@@ -36,7 +36,7 @@ try {
     await page.getByText('Un transfert est encore en cours. Réessayez dans un instant.',{exact:true}).waitFor();
     assert.equal(await page.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true}).isEnabled(),true);
     await page.goto(url+'&join=1&missing=1');
-    await page.getByText('Le titulaire doit choisir « Partager l’entreprise complète » dans Paramètres → Compte et équipe. Actualisez ensuite cet écran.',{exact:true}).waitFor();
+    await page.getByText('Demandez au titulaire d’activer le partage dans Compte et équipe.',{exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>window.companyFixture.joined),0);
     await page.goto(url+'&join=1&failure=1');
     await page.getByText('Connexion interrompue. Réessayez pour récupérer l’entreprise.',{exact:true}).waitFor();
@@ -66,12 +66,23 @@ try {
     await page.goto(url+'&team=1&missing=1');
     await page.getByRole('heading',{name:'Équipe et invitations',exact:true}).waitFor();
     const invite=page.getByRole('button',{name:'Créer le lien d’invitation',exact:true});
-    assert.equal(await invite.isDisabled(),true);
-    await page.getByRole('checkbox').check();
+    assert.equal(await invite.isEnabled(),true);
+    assert.equal(await page.getByRole('checkbox').count(),0);
     await page.getByRole('textbox',{name:'Adresse e-mail',exact:true}).fill('personne@example.test');
     await page.getByRole('combobox',{name:'Rôle',exact:true}).selectOption('read_only');
     await invite.click();
     await page.getByText('Invitation créée. Transmettez le lien à cette personne.',{exact:true}).waitFor();
+    assert.deepEqual(await page.evaluate(()=>({shared:window.companyFixture.shared,invited:window.companyFixture.invited})),{shared:1,invited:1});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+    await page.screenshot({path:`.qa/company-access/${theme}-${width}-team.png`,fullPage:true});
+    await page.goto(url+'&team=1&missing=1&shareFailure=1');
+    await page.getByRole('textbox',{name:'Adresse e-mail',exact:true}).fill('personne@example.test');
+    await page.getByRole('button',{name:'Créer le lien d’invitation',exact:true}).click();
+    await page.getByText('Connexion interrompue. Réessayez le partage.',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.companyFixture.invited),0);
+    await page.getByRole('button',{name:'Créer le lien d’invitation',exact:true}).click();
+    await page.getByText('Invitation créée. Transmettez le lien à cette personne.',{exact:true}).waitFor();
+    assert.deepEqual(await page.evaluate(()=>({shared:window.companyFixture.shared,invited:window.companyFixture.invited})),{shared:2,invited:1});
     assert.deepEqual(errors,[]);results.push({theme,width,status:'passed'});await page.close();
   }
 } catch(error) {
