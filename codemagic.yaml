@@ -1,4 +1,23 @@
 workflows:
+  android-preview:
+    name: Zentra Android ARM64 (free M2)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      node: 22
+      java: 17
+      xcode: latest
+      vars:
+        RUSTUP_TOOLCHAIN: stable
+        CARGO_PROFILE_DEV_DEBUG: 0
+        CARGO_PROFILE_DEV_STRIP: symbols
+    scripts:
+      - name: Prepare the build toolchain
+        script: bash desktop/scripts/codemagic-apple.sh prepare
+      - name: Build Android for local durable signing
+        script: bash desktop/scripts/codemagic-android.sh
+    artifacts:
+      - desktop/artifacts/android-build/*
   apple-appearance-tests:
     name: Apple appearance and Liquid Glass checks
     instance_type: mac_mini_m2
