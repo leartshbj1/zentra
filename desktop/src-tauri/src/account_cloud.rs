@@ -115,7 +115,7 @@ pub(crate) struct AccountProtectedCache {
     pending: ProtectedDataCache,
     exchange: ProtectedDataCache,
     session: ProtectedDataCache,
-    operation_lock: Arc<futures_util::lock::Mutex<()>>,
+    pub(crate) operation_lock: Arc<futures_util::lock::Mutex<()>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -292,7 +292,7 @@ pub async fn get_cloud_account_state(
     cloud_account_state(&store).await.map_err(command_error)
 }
 
-async fn team_response(store: &LocalStore, data: Option<serde_json::Value>) -> AppResult<serde_json::Value> {
+pub(crate) async fn team_response(store: &LocalStore, data: Option<serde_json::Value>) -> AppResult<serde_json::Value> {
     let session = read_session_secret(store)?.ok_or_else(|| AppError::Validation("Connectez cet appareil à votre entreprise.".into()))?;
     validate_session_for_installation(&session, &store.installation_id)?;
     if parse_future_or_past_date(&session.session_expires_at, "session")? <= Utc::now() {
@@ -324,9 +324,11 @@ pub async fn join_cloud_company(state: State<'_, LocalStore>) -> Result<(), Stri
     let store = state.inner().clone();
     let _account = store.account_protected_cache.operation_lock.lock().await;
     let response = team_response(&store, None).await.map_err(command_error)?;
-    initialize_joined_company(&store, &response)
+    let id = response["companyCopy"]["backupId"].as_str().ok_or_else(|| "Le titulaire doit partager une copie complète depuis Paramètres → Compte et équipe. Réessayez ensuite.".to_owned())?;
+    crate::cloud_backup::join_company_copy(&store, id).await.map_err(command_error)
 }
 
+#[cfg(test)]
 fn initialize_joined_company(store: &LocalStore, response: &serde_json::Value) -> Result<(), String> {
     let profile = response.get("profile").filter(|value| value.is_object()).ok_or_else(|| "Le titulaire doit partager les coordonnées de l’entreprise dans Paramètres → Compte et équipe.".to_owned())?;
     let mut input: crate::models::OnboardingInput = serde_json::from_value(profile.clone()).map_err(|_| "Les coordonnées partagées sont incomplètes. Demandez au titulaire de les actualiser.".to_owned())?;
@@ -1227,6 +1229,12 @@ where
         return Err(error);
     }
     Ok(value)
+}
+
+pub(crate) fn forget_local_account(store: &LocalStore) -> AppResult<()> {
+    remove_secret(&session_path(store), &store.account_protected_cache.session)?;
+    remove_secret(&pending_path(store), &store.account_protected_cache.pending)?;
+    remove_secret(&exchange_path(store), &store.account_protected_cache.exchange)
 }
 
 fn remove_secret(path: &Path, cache: &ProtectedDataCache) -> AppResult<()> {

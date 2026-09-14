@@ -1,6 +1,7 @@
 import { AppearanceSetting } from './AppearanceSetting';
 import { nogaLabel } from './nogaLanguage';
 import { t } from './language';
+import { ResetRecovery } from './ResetRecovery';
 import { useAppLanguage, getAppLocale } from './language';
 import { LanguageSetting } from './LanguageSetting';
 import { setupIssueText } from './setupLanguage';
@@ -367,6 +368,7 @@ export function Onboarding({
             {step === 0 ? (
               <SetupIntro onJoin={() => setJoining(true)} onCreate={() => { setHighestStep((value) => Math.max(value, 1)); setStep(1); }} onRestore={() => void restore()} busy={busy} />
             ) : null}
+            {step === 0 && onJoined ? <ResetRecovery onRestored={workspace=>{try { localStorage.removeItem(ONBOARDING_DRAFT_KEY); } catch { /* Recovery remains valid. */ } onJoined(workspace);}}/> : null}
             {step === 0 && cloudAccount?.status === 'connected' && onCloudRestore ? <CloudBackupPanel recoveryOnly disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
               await onCloudRestore(id);
               try { window.localStorage.removeItem(ONBOARDING_DRAFT_KEY); } catch { /* La restauration reste valide. */ }

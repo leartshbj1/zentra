@@ -4806,6 +4806,10 @@ export const desktopApi = {
   async joinCloudCompany() { await invoke('join_cloud_company'); const workspace = await loadWorkspace(); window.dispatchEvent(new Event('zentra-project-documents-changed')); return workspace; },
   openCloudAccountPortal: () => invoke<string>('open_cloud_account_portal'),
   disconnectCloudAccount: () => invoke<void>('disconnect_cloud_account'),
+  resetLocalApp: (confirmation: string) => invoke<{reset:boolean}>('reset_local_app', {confirmation}),
+  publishCompanyCopy: () => invoke('publish_company_copy', {confirmFullAccess:true}),
+  getResetRecovery: () => invoke<{available:boolean;createdAt?:string}>('get_reset_recovery'),
+  async restoreResetRecovery() { await invoke('restore_reset_recovery'); return loadWorkspace(); },
   async archiveInvoiceToCloud(
     invoiceId: string,
     correctionReason?: string,

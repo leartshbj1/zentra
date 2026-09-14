@@ -32,9 +32,9 @@ impl Drop for RestoreGuard {
         RESTORING.store(false, Ordering::Release);
     }
 }
-struct TransferGuard;
+pub(crate) struct TransferGuard;
 impl TransferGuard {
-    fn take() -> AppResult<Self> {
+    pub(crate) fn take() -> AppResult<Self> {
         RUNNING
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| validation("Une opération de sauvegarde est déjà en cours."))?;
@@ -524,8 +524,59 @@ pub async fn restore_cloud_backup(
     restore(&store, &backup_id).await.map_err(command_error)
 }
 async fn restore(store: &LocalStore, id: &str) -> AppResult<()> {
+    receive_copy(store,id,false).await
+}
+
+pub(crate) fn require_empty_company(store: &LocalStore) -> AppResult<()> {
+    let has_records: bool = store.connect()?.query_row("SELECT EXISTS(SELECT 1 FROM clients UNION ALL SELECT 1 FROM projects UNION ALL SELECT 1 FROM quotes UNION ALL SELECT 1 FROM invoices UNION ALL SELECT 1 FROM employees UNION ALL SELECT 1 FROM expenses UNION ALL SELECT 1 FROM journal_entries UNION ALL SELECT 1 FROM attachments LIMIT 1)",[],|row|row.get(0))?;
+    if store.app_state(env!("CARGO_PKG_VERSION"))?.onboarding_completed || has_records {
+        return Err(validation("Une entreprise existe déjà sur cet appareil. Pour en rejoindre une autre, utilisez Paramètres → Sauvegardes et mises à jour → Recommencer à zéro."));
+    }
+    Ok(())
+}
+
+async fn copy_session(store: &LocalStore, joining: bool) -> AppResult<ProjectSyncSession> {
+    if joining {
+        project_sync_session(store).await?.ok_or_else(|| validation("Reconnectez-vous avec l’adresse e-mail de votre invitation."))
+    } else { backup_session(store).await }
+}
+
+pub(crate) async fn join_company_copy(store: &LocalStore, id: &str) -> AppResult<()> {
+    let _operation = TransferGuard::take()?;
+    let _sync = crate::project_sync::pause_for_workspace_change()?;
+    RESTORING.store(true,Ordering::Release);
+    let _restore = RestoreGuard;
+    require_empty_company(store)?;
+    receive_copy(store,id,true).await
+}
+
+/// A separately published snapshot is visible to the team. Ordinary backup history stays restricted.
+#[tauri::command]
+pub async fn publish_company_copy(state: State<'_, LocalStore>, confirm_full_access: bool) -> Result<Value,String> {
+    if !confirm_full_access { return Err("Confirmez le partage de l’entreprise complète, y compris les salaires.".into()); }
+    let store = state.inner().clone();
+    let _account = store.account_protected_cache.operation_lock.lock().await;
+    let _transfer = TransferGuard::take().map_err(command_error)?;
+    let session = backup_session(&store).await.map_err(command_error)?;
+    if !store.app_state(env!("CARGO_PKG_VERSION")).map_err(command_error)?.onboarding_completed {
+        return Err("Configurez l’entreprise avant de la partager.".into());
+    }
+    // Complete an interrupted older backup first; publish a fresh snapshot of the current workspace.
+    if store.cloud_backup_preferences().map_err(command_error)?.pending.is_some() {
+        send_backup(&store,&session).await.map_err(command_error)?;
+    }
+    let owned = store.clone(); let org = session.organization_id.clone();
+    let pending = tauri::async_runtime::spawn_blocking(move || owned.prepare_cloud_backup(&org)).await
+        .map_err(|_| "La préparation de l’entreprise a été interrompue.".to_owned())?.map_err(command_error)?;
+    send_backup(&store,&session).await.map_err(command_error)?;
+    let current = backup_session(&store).await.map_err(command_error)?;
+    if current.organization_id != session.organization_id { return Err("Le compte a changé. Recommencez le partage.".into()); }
+    crate::account_cloud::team_response(&store,Some(json!({"action":"company-copy","backupId":pending.backup_id,"confirmFullAccess":true}))).await.map_err(command_error)
+}
+
+async fn receive_copy(store: &LocalStore, id: &str, joining: bool) -> AppResult<()> {
     validate_id(id)?;
-    let session = backup_session(store).await?;
+    let session = copy_session(store,joining).await?;
     // Observe commits on this exact connection throughout the download. Refuse to
     // replace edits made after the user confirmed the recovery operation.
     let watcher = store.connect()?;
@@ -533,11 +584,14 @@ async fn restore(store: &LocalStore, id: &str) -> AppResult<()> {
     let response = request(
         &session,
         Method::GET,
-        "/api/backups/item",
+        if joining { "/api/account/company-copy" } else { "/api/backups/item" },
         &[("id", id)],
         None,
     )
     .await?;
+    if joining && response["organizationId"].as_str() != Some(&session.organization_id) {
+        return Err(validation("La copie reçue ne correspond pas à votre entreprise."));
+    }
     let manifest: Manifest = serde_json::from_value(response["manifest"].clone())?;
     manifest.validate()?;
     let mut file = tempfile::Builder::new()
@@ -550,7 +604,7 @@ async fn restore(store: &LocalStore, id: &str) -> AppResult<()> {
         let (status, bytes) = session
             .request(
                 Method::GET,
-                "/api/backups/chunk",
+                if joining { "/api/account/company-copy" } else { "/api/backups/chunk" },
                 &[("id", id), ("index", &index)],
                 &[],
                 None,
@@ -570,7 +624,7 @@ async fn restore(store: &LocalStore, id: &str) -> AppResult<()> {
         ));
     }
     file.as_file().sync_all()?;
-    let current = backup_session(store).await?;
+    let current = copy_session(store,joining).await?;
     if current.organization_id != session.organization_id {
         return Err(validation(
             "Le compte connecté a changé. Relancez la restauration.",
@@ -583,7 +637,7 @@ async fn restore(store: &LocalStore, id: &str) -> AppResult<()> {
         let current_version: i64 = watcher.pragma_query_value(None, "data_version", |r| r.get(0))?;
         drop(watcher);
         if current_version != initial_version { return Err(validation("Des données ont changé pendant le téléchargement. Relancez la restauration après avoir terminé les modifications en cours.")); }
-        owned.require_backup_restore_access()?;
+        if joining { require_empty_company(&owned)?; } else { owned.require_backup_restore_access()?; }
         let prefs = owned.cloud_backup_preferences()?;
         if prefs.pending.is_some() { return Err(validation("Terminez ou abandonnez l’envoi en attente avant de restaurer une sauvegarde.")); }
         let next = Preferences { enabled: prefs.enabled, organization_id: Some(organization), ..Preferences::default() };
@@ -599,6 +653,15 @@ async fn restore(store: &LocalStore, id: &str) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn joining_never_replaces_an_existing_or_partially_configured_company() {
+        let dir=tempfile::tempdir().unwrap();
+        let store=LocalStore::initialize(dir.path().into()).unwrap();
+        require_empty_company(&store).unwrap();
+        store.connect().unwrap().execute("INSERT INTO clients(id,name,created_at,updated_at) VALUES('existing','Client à conserver','2026-09-14','2026-09-14')",[]).unwrap();
+        assert!(require_empty_company(&store).unwrap_err().to_string().contains("Recommencer à zéro"));
+        assert_eq!(store.connect().unwrap().query_row("SELECT COUNT(*) FROM clients",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    }
 
     #[test]
     #[ignore = "recette HTTPS réelle : deux autorisations navigateur dans une entreprise de test, puis suppression de la seule copie créée"]

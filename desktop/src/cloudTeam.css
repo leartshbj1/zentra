@@ -16,4 +16,7 @@
 .cloud-team__link { margin-top:16px; display:grid; gap:10px; }
 .cloud-team__link input { width:100%; margin-top:8px; }
 .cloud-team button { min-height:44px; white-space:normal; }
+.cloud-team__consent { display:flex; align-items:flex-start; gap:12px; margin-top:16px; line-height:1.6; }
+.cloud-team__consent input { flex:none; width:22px; height:22px; margin-top:3px; }
+.cloud-team__consent span { min-width:0; overflow-wrap:anywhere; }
 @media(max-width:600px) { .cloud-team form { grid-template-columns:minmax(0,1fr); padding:16px; } .cloud-team__profile > button { width:100%; } .cloud-team__people li { flex-wrap:wrap; } .join-company-dialog .settings-cloud-steps { display:none; } .join-company-dialog .settings-card { padding:0; border:0; box-shadow:none; } }

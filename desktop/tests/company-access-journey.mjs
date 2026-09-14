@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { mkdir,writeFile } from 'node:fs/promises';
+const { chromium,webkit }=createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE||'playwright');
+const engine=process.env.ZENTRA_BROWSER==='webkit'?webkit:chromium;
+const browser=await engine.launch({headless:true,...(process.platform==='win32'&&engine===chromium?{channel:'msedge'}:{})});
+const results=[];
+await mkdir('.qa/company-access',{recursive:true});
+try {
+  for(const theme of ['light','dark'])for(const width of [320,390,1280]){
+    const page=await browser.newPage({viewport:{width,height:844}});
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    const url=`http://127.0.0.1:5296/tests/company-access-harness.html?theme=${theme}`;
+    await page.goto(url);
+    await page.getByRole('button',{name:'Réinitialiser cette application',exact:true}).click();
+    const dialog=page.getByRole('dialog');
+    const erase=dialog.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true});
+    assert.equal(await erase.isDisabled(),true);
+    await dialog.getByRole('textbox').fill('REINITIALISER');
+    assert.equal(await erase.isEnabled(),true);
+    await page.screenshot({path:`.qa/company-access/${theme}-${width}-reset.png`,fullPage:true});
+    assert.equal(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);
+    await dialog.getByRole('button',{name:'Annuler',exact:true}).click();
+    assert.equal(await page.evaluate(()=>window.companyFixture.resets),0);
+    await page.goto(url+'&failure=1');
+    await page.getByRole('button',{name:'Réinitialiser cette application',exact:true}).click();
+    await page.getByRole('dialog').getByRole('textbox').fill('REINITIALISER');
+    await page.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true}).click();
+    await page.getByText('Un transfert est encore en cours. Réessayez dans un instant.',{exact:true}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true}).isEnabled(),true);
+    await page.goto(url+'&join=1&missing=1');
+    await page.getByText('Le titulaire doit choisir « Partager l’entreprise complète » dans Paramètres → Compte et équipe. Actualisez ensuite cet écran.',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.companyFixture.joined),0);
+    await page.goto(url+'&join=1&failure=1');
+    await page.getByText('Connexion interrompue. Réessayez pour récupérer l’entreprise.',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Recevoir et ouvrir l’entreprise',exact:true}).click();
+    await page.getByRole('heading',{name:'Entreprise ouverte',exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.companyFixture.joined),2);
+    await page.goto(url+'&join=1');
+    await page.getByRole('heading',{name:'Entreprise ouverte',exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.companyFixture.joined),1);
+    await page.goto(url);
+    await page.getByRole('button',{name:'Réinitialiser cette application',exact:true}).click();
+    await page.getByRole('dialog').getByRole('textbox').fill('REINITIALISER');
+    await page.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true}).click();
+    await page.getByRole('heading',{name:'Créer, importer ou rejoindre une entreprise',exact:true}).waitFor();
+    await page.goto(url+'&recovery=1');
+    await page.getByRole('button',{name:'Retrouver mon entreprise précédente',exact:true}).click();
+    await page.getByRole('heading',{name:'Entreprise récupérée',exact:true}).waitFor();
+    assert.deepEqual(errors,[]);results.push({theme,width,status:'passed'});await page.close();
+  }
+} finally {await browser.close();await writeFile(`.qa/company-access/results-${process.env.ZENTRA_BROWSER||'chromium'}.json`,JSON.stringify(results,null,2));}
+console.log(JSON.stringify(results));

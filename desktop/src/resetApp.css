@@ -1,0 +1,10 @@
+.reset-app { display:flex; flex-wrap:wrap; align-items:center; gap:1rem; }
+.reset-app > div { flex:1 1 18rem; min-width:0; }
+.reset-app p,.reset-app-dialog p { line-height:1.6; overflow-wrap:anywhere; }
+.reset-app-dialog { max-width:36rem; }
+.reset-app__notice { display:flex; align-items:flex-start; gap:.75rem; padding:1rem; border:1px solid var(--border, #b5b5b8); border-radius:1rem; }
+.reset-app__notice svg { flex-shrink:0; margin-top:.3rem; }
+.reset-app__notice p { margin:0; }
+.reset-app__actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.75rem; margin-top:1.5rem; padding-bottom:env(safe-area-inset-bottom,0px); }
+.reset-app-dialog input { font-size:1rem; min-height:48px; }
+@media(max-width:600px) { .reset-app__actions > button,.reset-app > button { width:100%; min-height:48px; white-space:normal; } }

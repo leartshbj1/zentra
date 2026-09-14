@@ -20,7 +20,12 @@ use uuid::Uuid;
 mod queue;
 
 static SYNCING: AtomicBool = AtomicBool::new(false);
-struct SyncGuard;
+pub(crate) struct SyncGuard;
+pub(crate) fn pause_for_workspace_change() -> AppResult<SyncGuard> {
+    SYNCING.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .map_err(|_| AppError::Validation("Les documents se synchronisent. Attendez la fin du transfert, puis réessayez.".into()))?;
+    Ok(SyncGuard)
+}
 impl Drop for SyncGuard {
     fn drop(&mut self) {
         SYNCING.store(false, Ordering::Release);
