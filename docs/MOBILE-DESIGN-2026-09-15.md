@@ -1,6 +1,6 @@
 # Refonte mobile — 15 septembre 2026
 
-Travail sur `codex/mobile-air-20260915`, depuis la version publiée 1.67.2. Les changements sont intégrés au code et compilés pour le web. Aucun nouvel installateur, APK ou IPA n’a été publié dans cette intervention.
+Travail sur `codex/mobile-air-20260915`, depuis la version publiée 1.67.2. La première intervention a intégré et vérifié l’interface web ; la publication native mobile qui a suivi est documentée dans [RELEASE-1.68.0.md](RELEASE-1.68.0.md).
 
 ## Principes et références
 
