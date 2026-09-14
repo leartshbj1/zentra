@@ -68,13 +68,20 @@ impl LocalStore {
         let fresh_dir = tempfile::Builder::new().prefix("reset-empty-").tempdir_in(&self.data_dir)?;
         let fresh = LocalStore::initialize(fresh_dir.path().to_path_buf())?;
         let archive = fresh.create_backup(None, env!("CARGO_PKG_VERSION"))?;
-        let recovery_name=format!("avant-reinitialisation-{}.zentra",uuid::Uuid::new_v4());
-        self.create_backup_at(&self.backups_dir.join(&recovery_name),env!("CARGO_PKG_VERSION"))?;
-        let marker=json!({"file":recovery_name,"createdAt":crate::database::now_iso()});
-        let mut marker_file=tempfile::NamedTempFile::new_in(&self.data_dir)?;
-        serde_json::to_writer(marker_file.as_file_mut(),&marker)?;
-        marker_file.as_file().sync_all()?;
-        marker_file.persist(self.data_dir.join("app-reset-recovery.json")).map_err(|e|AppError::Io(e.error))?;
+        // Native cleanup can fail after the empty database was installed (for example an
+        // export still open in another app). Retrying must keep the original recovery copy.
+        let previous_recovery = std::fs::read(self.data_dir.join("app-reset-recovery.json"))
+            .ok().and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+            .and_then(|marker| recovery_path(self, &marker).ok()).filter(|path| path.is_file());
+        if previous_recovery.is_none() || crate::cloud_backup::require_empty_company(self).is_err() {
+            let recovery_name=format!("avant-reinitialisation-{}.zentra",uuid::Uuid::new_v4());
+            self.create_backup_at(&self.backups_dir.join(&recovery_name),env!("CARGO_PKG_VERSION"))?;
+            let marker=json!({"file":recovery_name,"createdAt":crate::database::now_iso()});
+            let mut marker_file=tempfile::NamedTempFile::new_in(&self.data_dir)?;
+            serde_json::to_writer(marker_file.as_file_mut(),&marker)?;
+            marker_file.as_file().sync_all()?;
+            marker_file.persist(self.data_dir.join("app-reset-recovery.json")).map_err(|e|AppError::Io(e.error))?;
+        }
         // Disconnect locally even offline, before replacing the workspace. Existing identity/license
         // files remain bound to this device; account secrets never enter the safety backup.
         crate::account_cloud::forget_local_account(self)?;
@@ -114,6 +121,10 @@ mod tests {
         assert!(!reopened.data_dir.join("cloud-backup-state.json").exists());
         let marker: Value=serde_json::from_slice(&std::fs::read(reopened.data_dir.join("app-reset-recovery.json")).unwrap()).unwrap();
         let safety=recovery_path(&reopened,&marker).unwrap();
+        // A retry after native cleanup failed must still offer the original company.
+        reopened.reset_local_workspace().unwrap();
+        let retry_marker: Value=serde_json::from_slice(&std::fs::read(reopened.data_dir.join("app-reset-recovery.json")).unwrap()).unwrap();
+        assert_eq!(retry_marker, marker);
         reopened.restore_backup(safety.to_str().unwrap(),env!("CARGO_PKG_VERSION")).unwrap();
         assert_eq!(reopened.connect().unwrap().query_row("SELECT name FROM clients WHERE id='reset-client'", [], |r| r.get::<_,String>(0)).unwrap(),"Client local");
         assert_eq!(std::fs::read(reopened.attachments_dir.join("test.txt")).unwrap(),b"confidential");
