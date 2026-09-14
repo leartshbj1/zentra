@@ -1,9 +1,9 @@
 export const ZENTRA_VERSION = '1.46.1';
 // Published separately until the exact installation and cross-platform checks pass.
-export const ZENTRA_WINDOWS_PREVIEW_VERSION = '1.63.1';
+export const ZENTRA_WINDOWS_PREVIEW_VERSION = '1.64.0';
 export const ZENTRA_WINDOWS_PREVIEW_NAME = `Zentra_${ZENTRA_WINDOWS_PREVIEW_VERSION}_x64-setup.exe`;
 export const ZENTRA_WINDOWS_PREVIEW_PATH = `https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/${ZENTRA_WINDOWS_PREVIEW_NAME}`;
-export const ZENTRA_WINDOWS_PREVIEW_SHA256 = 'ED504EF660CCAB8059758E33D6545CA37C9CD8360B06BAF52B675376F822D452';
+export const ZENTRA_WINDOWS_PREVIEW_SHA256 = 'A5CC7D9548F01B2ED5E89BBAB02F64D5570BA2405660C53D428C1E88F6266155';
 export const ZENTRA_WINDOWS_VERSION = ZENTRA_WINDOWS_PREVIEW_VERSION;
 export const ZENTRA_MAC_VERSION = '1.63.1';
 export const ZENTRA_GITHUB_RELEASE_PATH = `https://github.com/leartshbj1/zentra/releases/tag/v${ZENTRA_VERSION}`;
@@ -15,7 +15,7 @@ export const ZENTRA_RELEASES_ORIGIN =
   'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases';
 export const ZENTRA_INSTALLER_PATH = `${ZENTRA_RELEASES_ORIGIN}/${ZENTRA_INSTALLER_NAME}`;
 export const ZENTRA_INSTALLER_CHECKSUM_PATH = `${ZENTRA_INSTALLER_PATH}.sha256.txt`;
-export const ZENTRA_INSTALLER_SIZE_MIB = '22,37';
+export const ZENTRA_INSTALLER_SIZE_MIB = '22,36';
 export const ZENTRA_INSTALLER_SHA256 =
   ZENTRA_WINDOWS_PREVIEW_SHA256;
 
