@@ -179,7 +179,7 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
         await employee.getByRole('button', { name: 'Continuer', exact: true }).click();
         await page.evaluate(() => sessionStorage.setItem('qa-payroll-refuse-employee', '1'));
         await employee.getByRole('button', { name: 'Ajouter le collaborateur', exact: true }).click();
-        await employee.locator('details').filter({ has: employee.getByText('Le numéro de collaborateur existe déjà.', { exact: true }) }).locator('summary').click();
+        await employee.locator('.employee-save-details summary').click();
         await employee.getByText('Le numéro de collaborateur existe déjà.', { exact: true }).waitFor();
         await page.evaluate(() => sessionStorage.removeItem('qa-payroll-refuse-employee'));
         await employee.getByRole('button', { name: 'Ajouter le collaborateur', exact: true }).click();
