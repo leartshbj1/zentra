@@ -5641,7 +5641,7 @@ function SettingsScreen({
       </SettingsCategory>
       <SettingsCategory id="storage" title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>
       <AppUpdater />
-      <ResetAppPanel disabled={busy} />
+      <ResetAppPanel disabled={operationBusy} />
       <CloudBackupPanel disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
         const next = await desktopApi.restoreCloudBackup(id);
         onWorkspace(next); setSettings(next.settings!);
