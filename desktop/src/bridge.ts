@@ -1,4 +1,5 @@
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
+import { errorMessage } from './utils';
 import { runSupplierInvoiceValidation } from './supplierInvoiceValidation';
 import {runCustomerSettlementMutation,requireCustomerSettlementReverseContext,type CustomerSettlementInput} from './customerSettlementWorkflow';
 import type {PendingCustomerCreditRequest} from './customerCreditRequest';
@@ -2354,6 +2355,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     updatedAt: stringValue(row.updated_at),
   }));
   const quotes: Quote[] = (raw.quotes ?? []).map((row) => ({
+    creator: row.creator_installation ? {id:nullableString(row.creator_id),name:stringValue(row.creator_name),installationId:stringValue(row.creator_installation)} : null,
     id: stringValue(row.id),
     number: stringValue(row.number),
     clientId: stringValue(row.client_id),
@@ -2541,6 +2543,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       notes: stringValue(row.notes),
       terms: stringValue(row.terms),
       depositPercentageBp: numberValue(row.deposit_percentage_bp) || null,
+      creator: row.creator_installation ? {id:nullableString(row.creator_id),name:stringValue(row.creator_name),installationId:stringValue(row.creator_installation)} : null,
       depositBasisLines: depositBasisLinesFromRaw(row.deposit_basis_json),
       createdAt: stringValue(row.created_at),
       snapshot,
@@ -4779,7 +4782,25 @@ export const desktopApi = {
     );
   },
   getProjectSyncStatus: () => invoke<ProjectSyncStatus>('get_project_sync_status'),
-  syncProjectDocuments: () => invoke<ProjectSyncStatus>('sync_project_documents'),
+  async syncProjectDocuments():Promise<ProjectSyncStatus> {
+    const local=await invoke<import('./companySync').CompanySyncState>('get_company_sync_state');
+    if(!local.enabled)return invoke<ProjectSyncStatus>('sync_project_documents');
+    const {publishCompanySync,companyReceiveAllowed,setCompanyReceiving,refreshReceivedCompany}=await import('./companySync');
+    const initialFocus=document.activeElement;
+    try {
+      let result=await invoke<import('./companySync').CompanySyncState>('sync_company_workspace',{receive:false,acceptRemote:false});
+      if(result.ready&&!result.conflict&&companyReceiveAllowed()&&document.activeElement===initialFocus){
+        setCompanyReceiving(true);
+        try{result=await invoke('apply_company_update');if(result.changed)await refreshReceivedCompany();}finally{setCompanyReceiving(false);}
+      }
+      publishCompanySync(result);
+      return {mode:'business',organizationId:result.organizationId,pending:result.pending?1:0,connected:true,syncing:false,changed:result.changed,
+        lastSyncedAt:result.lastSyncedAt,documents:[],...(result.conflict?{error:'Des modifications existent sur les deux appareils. Ouvrez Paramètres → Compte et équipe pour choisir la version à recevoir.'}:{})};
+    }catch(reason){publishCompanySync(local,errorMessage(reason,'La synchronisation reprendra automatiquement.'));throw reason;}
+  },
+  getCompanySyncState:()=>invoke<import('./companySync').CompanySyncState>('get_company_sync_state'),
+  syncCompanyWorkspace:(receive=false,acceptRemote=false)=>invoke<import('./companySync').CompanySyncState>('sync_company_workspace',{receive,acceptRemote}),
+  applyCompanyUpdate:()=>invoke<import('./companySync').CompanySyncState>('apply_company_update'),
   getCloudBackupState: () => invoke<CloudBackupState>('get_cloud_backup_state'),
   runCloudBackup: (manual: boolean) => invoke<CloudBackupState>('run_cloud_backup', { manual }),
   setCloudBackupEnabled: (enabled: boolean) => invoke<CloudBackupState>('set_cloud_backup_enabled', { enabled }),
@@ -4799,7 +4820,11 @@ export const desktopApi = {
     return account;
   },
   openCloudAccountLink: () => invoke<string>('open_cloud_account_link'),
-  getCloudTeam: () => invoke<import('./CloudTeamPanel').CloudTeam>('cloud_team_request', { data: null }),
+  async getCloudTeam() {
+    const team=await invoke<import('./CloudTeamPanel').CloudTeam & {companyCollaboration?:{snapshotId?:string;updatedAt?:string;revision:number}}>('cloud_team_request',{data:null});
+    if(team.companyCollaboration?.snapshotId){team.continuous=true;team.companyCopy={backupId:team.companyCollaboration.snapshotId,publishedAt:team.companyCollaboration.updatedAt||'',sizeBytes:0};}
+    return team;
+  },
   inviteCloudMember: (email: string, role: string) => invoke<{ invitation: { url: string } }>('cloud_team_request', { data: {action:'invite',email,role} }),
   revokeCloudInvitation: (invitationId: string) => invoke('cloud_team_request', {data:{action:'revoke',invitationId}}),
   publishCloudCompany: (settings: AppSettings) => invoke('cloud_team_request', { data: {action:'profile',profile:settingsToBackend(settings)} }),
@@ -4807,7 +4832,7 @@ export const desktopApi = {
   openCloudAccountPortal: () => invoke<string>('open_cloud_account_portal'),
   disconnectCloudAccount: () => invoke<void>('disconnect_cloud_account'),
   resetLocalApp: (confirmation: string) => invoke<{reset:boolean}>('reset_local_app', {confirmation}),
-  publishCompanyCopy: () => invoke('publish_company_copy', {confirmFullAccess:true}),
+  publishCompanyCopy: () => invoke('enable_company_sync', {confirmFullAccess:true}),
   getResetRecovery: () => invoke<{available:boolean;createdAt?:string}>('get_reset_recovery'),
   async restoreResetRecovery() { await invoke('restore_reset_recovery'); return loadWorkspace(); },
   async archiveInvoiceToCloud(

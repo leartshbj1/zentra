@@ -1,5 +1,6 @@
 import { mobileTeamTranslations } from './translationsMobileTeam';
 import { resetTeamTranslations } from './translationsResetTeam';
+import { companyTranslations } from './translationsCompany';
 // Reviewed interface copy, bundled with the application. Order: German (Switzerland), Italian, English.
 import { connectionTranslations } from './translationsConnections';
 import { guidanceTranslations } from './translationsGuidance';
@@ -16,6 +17,7 @@ import { supplierPaymentTranslations } from './translationsSupplierPayments';
 import { supplierDetailTranslations } from './translationsSupplierDetail';
 import { supplierReviewTranslations } from './translationsSupplierReview';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...companyTranslations,
   ...mobileTeamTranslations,
   ...resetTeamTranslations,
   ...purchaseTranslations,

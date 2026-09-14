@@ -59,6 +59,7 @@ export function useProjectSyncBackground(
   }, [onWorkspace]);
   useLayoutEffect(() => {
     publish(initial);
+    let active = true;
     const scheduler = startProjectSyncScheduler({
       local: desktopApi.getProjectSyncStatus,
       synchronize: desktopApi.syncProjectDocuments,
@@ -76,10 +77,22 @@ export function useProjectSyncBackground(
     const visible = () => { if (document.visibilityState === 'visible') wake(); };
     const events = ['online', 'offline', 'focus', 'zentra-project-documents-changed'];
     events.forEach(event => window.addEventListener(event, wake));
+    const received = (event:Event) => {
+      if (event instanceof CustomEvent && event.detail) {
+        if (active) onWorkspaceRef.current(event.detail as Workspace);
+        return;
+      }
+      void desktopApi.loadWorkspace()
+        .then(value => { if (active) onWorkspaceRef.current(value); })
+        .catch(reason => { if (active) publish({ ...snapshot, error: errorMessage(reason, 'Les données reçues doivent être rechargées.') }); });
+    };
+    window.addEventListener('zentra-company-workspace-received',received);
     document.addEventListener('visibilitychange', visible);
     return () => {
+      active = false;
       scheduler.stop();
       events.forEach(event => window.removeEventListener(event, wake));
+      window.removeEventListener('zentra-company-workspace-received',received);
       document.removeEventListener('visibilitychange', visible);
     };
   }, [accountScope]);

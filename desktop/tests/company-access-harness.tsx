@@ -44,6 +44,8 @@ desktopApi.publishCloudCompany=async()=>({});
 desktopApi.getResetRecovery=async()=>({available:true,createdAt:'2026-09-14'});
 desktopApi.restoreResetRecovery=async()=>({projects:[{id:'p'}],clients:[{id:'c'}],invoices:[{id:'i'}]} as Workspace);
 desktopApi.publishCompanyCopy=async()=>{company.companyCopy={backupId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',publishedAt:new Date().toISOString(),sizeBytes:100};return {};};
+desktopApi.getCompanySyncState=async()=>({enabled:true,revision:1,pending:false,conflict:false});
+desktopApi.syncCompanyWorkspace=async()=>({enabled:true,revision:1,pending:false,conflict:false});
 desktopApi.inviteCloudMember=async()=>({invitation:{url:'https://zentra.example/invitation?token=example'}});
 Object.assign(window,{companyFixture:{get joined(){return joined},get resets(){return resets}}});
 function Harness(){

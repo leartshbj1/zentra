@@ -31,6 +31,7 @@ import { ProjectFileActivity } from './ProjectFileActivity';
 import { employeeFormIssue, employeeNativeFieldIssue, type EmployeeFieldIssue } from './employeeFormValidation';
 import { CompanyLogo } from './CompanyLogo';
 import { useProjectSyncBackground } from './projectSync';
+import { CompanyReceivingOverlay } from './companySync';
 import { useCloudBackupBackground } from './cloudBackup';
 import { CloudBackupPanel } from './CloudBackupPanel';
 
@@ -123,7 +124,7 @@ import { WorkspaceRecoveryDialog } from './WorkspaceRecoveryDialog';
 import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark } from './BrandMark';
 import { documentOrders, newestDocumentsFirst, readDocumentOrder, saveDocumentOrder, sortDocuments, type DocumentOrder } from './documentOrder';
-import { matchesSalesDocumentSearch, matchesSalesDocumentStatus } from './salesDocumentList';
+import { matchesSalesDocumentSearch, matchesSalesDocumentStatus, documentCreators, documentCreatorLabel, matchesDocumentCreator } from './salesDocumentList';
 import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
 import type { AgendaEventDraft } from './AgendaScreen';
 import { requireAgendaWorkspace } from './agendaForm';
@@ -1589,6 +1590,7 @@ export function WorkspaceApp({
 
   return (
     <div className="desktop-app" data-experience="clarity" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
+      <CompanyReceivingOverlay/>
       {updaterOpen ? <Modal title={t("Mise à jour de Zentra")} wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
         <div className="standalone-updater-content"><AppUpdater onInstallingChange={setUpdateInstalling} /></div>
       </Modal> : null}
@@ -3596,11 +3598,14 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
   const clientsById = useMemo(() => new Map(workspace.clients.map((client) => [client.id, client])), [workspace.clients]);
   const [statuses, setStatuses] = useState({ quotes: 'all', invoices: 'all' });
   const status = statuses[entity];
+  const [creatorFilters,setCreatorFilters]=useState({quotes:'all',invoices:'all'});
+  const creators=documentCreators(documents),creator=creatorFilters[entity];
   const filtered = documents.filter((document) =>
     matchesSalesDocumentSearch(document, [clientsById.get(document.clientId)?.company, clientsById.get(document.clientId)?.name].filter(Boolean).join(' '), query)
-    && matchesSalesDocumentStatus(document, status, workspace.invoices, workspace.payments, todayIso()),
+    && matchesSalesDocumentStatus(document, status, workspace.invoices, workspace.payments, todayIso())
+    && matchesDocumentCreator(document,creator),
   );
-  const pageKey = JSON.stringify([entity, status, query, order]);
+  const pageKey = JSON.stringify([entity, status, query, order, creator]);
   const [pagination, setPagination] = useState({ key: pageKey, page: 0 });
   const pageCount = Math.max(1, Math.ceil(filtered.length / 25));
   const page = pagination.key === pageKey ? Math.min(pagination.page, pageCount - 1) : 0;
@@ -3614,7 +3619,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
     <span role="status">{page * 25 + 1}–{Math.min((page + 1) * 25, filtered.length)} sur {filtered.length}</span>
     <Button variant="secondary" disabled={page === pageCount - 1} onClick={() => changePage(page + 1)} aria-label="Page suivante">Suivant</Button>
   </nav> : null;
-  const filterBar = <DocumentListToolbar count={`${filtered.length} / ${documents.length} ${entity === 'quotes' ? 'devis' : 'factures'}`} orderLabel={documentOrders[order]} filtered={status !== 'all'}>
+  const filterBar = <DocumentListToolbar count={`${filtered.length} / ${documents.length} ${entity === 'quotes' ? 'devis' : 'factures'}`} orderLabel={documentOrders[order]} filtered={status !== 'all'||creator!=='all'}>
     <label><span>Afficher</span><select aria-label={entity === 'quotes' ? 'État des devis' : 'État des factures'} value={status} onChange={(event) => setStatuses({ ...statuses, [entity]: event.target.value })}>
       <option value="all">Tous les états</option>
       {entity === 'invoices' ? <><option value="open">À encaisser</option><option value="overdue">En retard</option><option value="partially_paid">Partiellement payées</option><option value="paid">Payées</option></> : <><option value="accepted">Acceptés</option><option value="refused">Refusés</option><option value="expired">Expirés</option></>}
@@ -3626,6 +3631,9 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
       saveDocumentOrder(entity, next);
     }}>
       {Object.entries(documentOrders).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+    </select></label>
+    <label><span>{t('Créé par')}</span><select aria-label={t('Créateur du document')} value={creator} onChange={event=>setCreatorFilters({...creatorFilters,[entity]:event.target.value})}>
+      <option value="all">{t('Toute l’équipe')}</option>{creators.map(author=><option key={author.id} value={author.id}>{t(author.name)}</option>)}
     </select></label>
   </DocumentListToolbar>;
   if (!documents.length) {
@@ -3683,6 +3691,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           {quote.number || 'Devis en préparation'}
                         </strong>
                         <small>{quote.title}</small>
+                        <small className="sales-document__creator">{t(documentCreatorLabel(quote))}</small>
                       </div>
                     </div>
                   </td>
@@ -3953,6 +3962,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         {item.number || (entity === 'quotes' ? 'Devis en préparation' : invoice?.type === 'credit_note' ? 'Avoir en préparation' : invoice?.type === 'deposit' ? 'Acompte en préparation' : 'Facture en préparation')}
                       </strong>
                       <small>{item.title}</small>
+                      <small className="sales-document__creator">{t(documentCreatorLabel(item))}</small>
                       {invoice?.quoteId ? <Button variant="ghost" size="small" onClick={() => sourceProps.onOpenFolder(invoice.quoteId!)}>Voir le dossier du devis</Button> : null}
                       {invoice?.qrBill?.input.reference ? <small className="invoice-payment-reference" title="Référence à utiliser pour le virement">Réf. {invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()}</small> : null}
                     </div>

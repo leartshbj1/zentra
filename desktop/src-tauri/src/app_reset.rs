@@ -57,7 +57,7 @@ impl LocalStore {
     pub(crate) fn reset_local_workspace(&self) -> AppResult<Value> {
         let _local = self.lock()?;
         // Validate cleanup targets before changing anything. Never follow a link out of the profile.
-        for name in ["exports", "cloud-backups"] {
+        for name in ["exports", "cloud-backups", "company-sync"] {
             let path = self.data_dir.join(name);
             if let Ok(meta) = std::fs::symlink_metadata(&path) {
                 if meta.file_type().is_symlink() || !meta.is_dir() {
@@ -86,11 +86,11 @@ impl LocalStore {
         // files remain bound to this device; account secrets never enter the safety backup.
         crate::account_cloud::forget_local_account(self)?;
         self.restore_backup(&archive, env!("CARGO_PKG_VERSION"))?;
-        for name in ["cloud-backup-state.json", "backup-status.json", "joined-company-copy.json"] {
+        for name in ["cloud-backup-state.json", "backup-status.json", "joined-company-copy.json", "company-collaboration.json"] {
             let path = self.data_dir.join(name);
             if path.exists() { std::fs::remove_file(path)?; }
         }
-        for name in ["exports", "cloud-backups"] {
+        for name in ["exports", "cloud-backups", "company-sync"] {
             let path = self.data_dir.join(name);
             if path.exists() { std::fs::remove_dir_all(&path)?; }
         }

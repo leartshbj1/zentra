@@ -6,8 +6,9 @@ import { t } from './language';
 import { Button, ErrorPanel, Field } from './ui';
 import { errorMessage } from './utils';
 import './cloudTeam.css';
+import { CompanySyncPanel, publishCompanySync } from './companySync';
 
-export type CloudTeam = {organizationId:string;organizationName:string;role:string;canManage:boolean;profile:Record<string,unknown>|null;companyCopy?:{backupId:string;publishedAt:string;sizeBytes:number}|null;seats:{planName:string;limit:number|null;used:number;reserved:number;available:number|null;subscriptionActive:boolean};members:{id:string;email:string;role:string}[];invitations:{id:string;email:string;role:string;expiresAt:number}[]};
+export type CloudTeam = {continuous?:boolean;organizationId:string;organizationName:string;role:string;canManage:boolean;profile:Record<string,unknown>|null;companyCopy?:{backupId:string;publishedAt:string;sizeBytes:number}|null;seats:{planName:string;limit:number|null;used:number;reserved:number;available:number|null;subscriptionActive:boolean};members:{id:string;email:string;role:string}[];invitations:{id:string;email:string;role:string;expiresAt:number}[]};
 const roles = [ ['member','Collaborateur','Travaille dans l’application, sans gérer les accès.'], ['admin','Administrateur','Travaille dans l’application et gère les accès.'], ['accountant','Comptable / fiduciaire','Consulte et travaille sur les données, sans gérer les accès.'], ['read_only','Lecture seule','Consulte et exporte, sans modifier les données.'] ];
 export function CloudTeamPanel({settings}: {settings?:AppSettings|null}) {
   const [team,setTeam]=useState<CloudTeam|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[email,setEmail]=useState(''),[role,setRole]=useState('member'),[link,setLink]=useState(''),[notice,setNotice]=useState('');
@@ -16,7 +17,9 @@ export function CloudTeamPanel({settings}: {settings?:AppSettings|null}) {
   async function shareCompany() {
     if(settings) await desktopApi.publishCloudCompany(settings);
     setStage('Envoi de l’entreprise et des documents…');
-    await desktopApi.publishCompanyCopy();
+    try { await desktopApi.publishCompanyCopy(); }
+    finally { publishCompanySync(await desktopApi.getCompanySyncState()); }
+    window.dispatchEvent(new Event('zentra-project-documents-changed'));
     setStage('');
   }
   async function reload() { setTeam(await desktopApi.getCloudTeam()); }
@@ -27,8 +30,9 @@ export function CloudTeamPanel({settings}: {settings?:AppSettings|null}) {
     <header><Users size={22}/><div><h3>{t('Équipe et invitations')}</h3><p>{team ? `${team.seats.planName} · ${team.seats.used}${team.seats.limit===null?'':` / ${team.seats.limit}`} ${t('personnes, titulaire compris')}` : t('Chargement des accès…')}</p></div><Button size="icon" variant="ghost" disabled={busy} aria-label={t('Actualiser les accès')} onClick={()=>void run(reload,false)}><RefreshCw size={18}/></Button></header>
     {error && <ErrorPanel message={error}/>}
     {notice && <p role="status">{t(notice)}</p>}
+    <CompanySyncPanel/>
     {team?.canManage && <>
-      {settings && <div className="cloud-team__profile"><div><strong>{t('Toute l’entreprise sur le nouvel appareil')}</strong><p>{t('Clients, devis, factures, projets, comptabilité, salaires et pièces jointes : les membres autorisés reçoivent la copie complète au moment de rejoindre.')}</p><p>{t('Les modifications métier suivantes restent locales. Seuls les documents des projets se synchronisent ensuite automatiquement.')}</p><label className="cloud-team__consent"><input type="checkbox" checked={shareFull} disabled={busy} onChange={event=>setShareFull(event.target.checked)}/><span>{t('Je partage la base complète, y compris les salaires, avec les membres autorisés de cette entreprise.')}</span></label></div><Button variant="secondary" disabled={busy||!shareFull} onClick={()=>void run(async()=>{await shareCompany();setNotice('La copie complète est prête pour les appareils invités.');}).finally(()=>setStage(''))}>{t(team.companyCopy?'Actualiser la copie partagée':'Partager l’entreprise complète')}</Button></div>}
+      {settings && <div className="cloud-team__profile"><div><strong>{t('Toute l’entreprise, ensemble')}</strong><p>{t('Clients, devis, factures, projets, logo, comptabilité, salaires et pièces jointes : les membres retrouvent toute l’entreprise et ses changements.')}</p><p>{t('Activez le partage pour synchroniser automatiquement toute l’entreprise avec Supabase. Les changements hors ligne attendent le retour du réseau.')}</p><label className="cloud-team__consent"><input type="checkbox" checked={shareFull} disabled={busy} onChange={event=>setShareFull(event.target.checked)}/><span>{t('Je partage la base complète, y compris les salaires, avec les membres autorisés de cette entreprise.')}</span></label></div><Button variant="secondary" disabled={busy||!shareFull} onClick={()=>void run(async()=>{await shareCompany();setNotice('Le partage est actif. Les nouveaux changements seront synchronisés automatiquement.');}).finally(()=>setStage(''))}>{t(team.continuous?'Synchroniser l’entreprise':'Partager l’entreprise complète')}</Button></div>}
       {team.seats.reserved>0 && <p>{t('{count} invitation(s) en attente réservent une place.',{count:team.seats.reserved})}</p>}
       <form onSubmit={event=>{event.preventDefault();void run(async()=>{if(!team.companyCopy&&!shareFull)throw new Error('Partagez d’abord une copie complète de l’entreprise.');if(shareFull)await shareCompany();setStage('Création du lien…');const result=await desktopApi.inviteCloudMember(email.trim(),role);setLink(result.invitation.url);setNotice('Invitation créée. Transmettez le lien à cette personne.');}).finally(()=>setStage(''));}}>
         <Field label={t('Adresse e-mail')} required><input aria-label={t('Adresse e-mail')} type="email" required autoComplete="email" value={email} disabled={busy||full} onChange={event=>{setEmail(event.target.value);setLink('');}}/></Field>

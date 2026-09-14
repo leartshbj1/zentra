@@ -529,6 +529,14 @@ impl LocalStore {
         app_version: &str,
         limits: ArchiveExtractionLimits,
     ) -> AppResult<()> {
+        self.restore_backup_finalized(source,app_version,limits,true,||crate::company_collaboration::after_manual_restore(self))
+    }
+
+    pub(crate) fn restore_company_snapshot<F:FnOnce()->AppResult<()>>(&self,source:&str,finalize:F)->AppResult<()> {
+        self.restore_backup_finalized(source,env!("CARGO_PKG_VERSION"),ARCHIVE_EXTRACTION_LIMITS,false,finalize)
+    }
+
+    fn restore_backup_finalized<F:FnOnce()->AppResult<()>>(&self,source:&str,app_version:&str,limits:ArchiveExtractionLimits,create_safety:bool,finalize:F)->AppResult<()> {
         let source = PathBuf::from(source);
         if !source.is_file() {
             return Err(AppError::Validation(
@@ -566,7 +574,7 @@ impl LocalStore {
         strip_restored_license(&extracted_database)?;
         crate::shared_numbering::strip_device_ranges(&Connection::open(&extracted_database)?)?;
 
-        let safety_path = if self.database_path.is_file() {
+        let safety_path = if create_safety && self.database_path.is_file() {
             let safety_path =
                 unique_default_path(&self.backups_dir, "avant-restauration", "zentra");
             self.create_backup_at(&safety_path, app_version)?;
@@ -583,6 +591,7 @@ impl LocalStore {
                 self.migrate()?;
                 self.restore_local_license(preserved_license.as_ref())?;
                 validate_database(&self.database_path)?;
+                finalize()?;
                 Ok(())
             },
         )
@@ -666,6 +675,7 @@ impl LocalStore {
         drop(backup);
         target.execute_batch("PRAGMA secure_delete=ON;")?;
         target.execute("DELETE FROM license_state", [])?;
+        crate::company_collaboration::strip_private(&target)?;
         crate::shared_numbering::strip_device_ranges(&target)?;
         target.execute_batch("PRAGMA journal_mode=DELETE; VACUUM;")?;
         Ok(())
@@ -1068,7 +1078,7 @@ fn write_csv_export_archive(
     result
 }
 
-fn validate_database(path: &Path) -> AppResult<()> {
+pub(crate) fn validate_database(path: &Path) -> AppResult<()> {
     let connection = Connection::open(path)?;
     connection.pragma_update(None, "foreign_keys", "ON")?;
     let integrity: String = connection.query_row("PRAGMA integrity_check", [], |row| row.get(0))?;

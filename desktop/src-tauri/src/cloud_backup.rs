@@ -52,19 +52,19 @@ fn validation(message: &str) -> AppError {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-struct Chunk {
-    sha256: String,
-    size_bytes: u64,
+pub(crate) struct Chunk {
+    pub(crate) sha256: String,
+    pub(crate) size_bytes: u64,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-struct Manifest {
+pub(crate) struct Manifest {
     format: String,
     version: u32,
     app_version: String,
-    sha256: String,
-    size_bytes: u64,
-    chunks: Vec<Chunk>,
+    pub(crate) sha256: String,
+    pub(crate) size_bytes: u64,
+    pub(crate) chunks: Vec<Chunk>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -87,7 +87,7 @@ fn valid_hash(hash: &str) -> bool {
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
-fn validate_id(id: &str) -> AppResult<()> {
+pub(crate) fn validate_id(id: &str) -> AppResult<()> {
     let parsed =
         Uuid::parse_str(id).map_err(|_| validation("Référence de sauvegarde invalide."))?;
     if parsed.get_version_num() != 4
@@ -99,7 +99,7 @@ fn validate_id(id: &str) -> AppResult<()> {
     Ok(())
 }
 impl Manifest {
-    fn validate(&self) -> AppResult<()> {
+    pub(crate) fn validate(&self) -> AppResult<()> {
         if self.format != "zentra-cloud-backup"
             || self.version != 1
             || self.chunks.is_empty()
@@ -224,7 +224,7 @@ impl LocalStore {
         Ok(())
     }
 }
-fn file_manifest(path: &Path) -> AppResult<Manifest> {
+pub(crate) fn file_manifest(path: &Path) -> AppResult<Manifest> {
     let mut source = File::open(path)?;
     let size = source.metadata()?.len();
     if size == 0 || size > (CHUNK_BYTES * MAX_CHUNKS) as u64 {

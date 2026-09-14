@@ -54,7 +54,7 @@ export function startProjectSyncScheduler(options: {
       } else {
         failures = 0; retryAt = 0;
         delay = status.busy ? 3_000 : status.mode === 'legacy' || !status.mode
-          ? status.connected && status.pending ? 5_000 : 60_000 : 60_000;
+          ? status.connected && status.pending ? 5_000 : 60_000 : 15_000;
       }
     } catch (reason) {
       failures++;

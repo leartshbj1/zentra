@@ -442,7 +442,9 @@ export type QuoteStatus =
   | 'expired'
   | 'cancelled';
 
+export type DocumentCreator = { id: string | null; name: string; installationId: string };
 export type Quote = {
+  creator?: DocumentCreator | null;
   id: Identifier;
   number: string;
   clientId: Identifier;
@@ -483,6 +485,7 @@ export type CustomerCreditSettlement = {
 };
 
 export type Invoice = {
+  creator?: DocumentCreator | null;
   creditRecovery?: {recordedAt: string; reference: string; reason: string; receivedVat?: boolean; vatAdjustments?: {date:string;reference:string;dueChangeCents:number}[]};
   customerCredit?: { allocatedCents: number; refundedCents: number; remainingCents: number };
   creditSettlements?: CustomerCreditSettlement[];

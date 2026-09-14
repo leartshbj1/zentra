@@ -179,6 +179,13 @@ if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFix
 if (['updater', 'updaterBadge'].some(key => new URLSearchParams(location.search).has(key))) installUpdaterFixture();
 if (new URLSearchParams(location.search).has('quotePair')) installQuotePairFixture(data);
 if (new URLSearchParams(location.search).has('design')) installDesignFixture(data);
+if (new URLSearchParams(location.search).has('companyCreators')) {
+  for (const documents of [data.quotes,data.invoices]) {
+    documents[0].creator={id:'alice',name:'alice.martin@entreprise-exemple.ch',installationId:'device-a'};
+    documents[1].creator={id:'bob',name:'bernard.dupont@entreprise-exemple.ch',installationId:'device-b'};
+    delete documents[2].creator;
+  }
+}
 if (new URLSearchParams(location.search).has('clarity')) installClarityFixture(data);
 if (new URLSearchParams(location.search).has('projectSync')) installProjectSyncFixture(()=>data);
 if (new URLSearchParams(location.search).has('customerCredits')) installCustomerCreditFixture(data);

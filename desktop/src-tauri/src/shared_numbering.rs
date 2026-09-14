@@ -163,7 +163,7 @@ pub(crate) fn adopt(
 
 type NumberSeries = BTreeMap<(i64, String), i64>;
 
-fn active_series(
+pub(crate) fn active_series(
     store: &LocalStore,
     current_year: i64,
 ) -> AppResult<Option<(String, NumberSeries)>> {

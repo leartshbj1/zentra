@@ -153,6 +153,10 @@ struct ServerLicense {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MeResponse {
+    #[serde(default)]
+    user_id: String,
+    #[serde(default)]
+    email: String,
     organization: PollOrganization,
     installation_id: String,
     entitlement_valid_until: String,
@@ -323,6 +327,7 @@ pub async fn cloud_team_request(state: State<'_, LocalStore>, data: Option<serde
 pub async fn join_cloud_company(state: State<'_, LocalStore>) -> Result<(), String> {
     let store = state.inner().clone();
     let _account = store.account_protected_cache.operation_lock.lock().await;
+    if crate::company_collaboration::join(&store).await.map_err(command_error)? {return Ok(());}
     let response = team_response(&store, None).await.map_err(command_error)?;
     let id = response["companyCopy"]["backupId"].as_str().ok_or_else(|| "Le titulaire doit partager une copie complète depuis Paramètres → Compte et équipe. Réessayez ensuite.".to_owned())?;
     crate::cloud_backup::join_company_copy(&store, id).await.map_err(command_error)
@@ -461,6 +466,9 @@ async fn cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState>
                     &session,
                     &store.account_protected_cache.session,
                 )?;
+            }
+            if !me.user_id.is_empty() && !me.email.is_empty() {
+                crate::company_collaboration::set_identity(store,&session.organization_id,&me.user_id,&me.email,&session.role)?;
             }
             return CloudAccountState::from_session(&session);
         }

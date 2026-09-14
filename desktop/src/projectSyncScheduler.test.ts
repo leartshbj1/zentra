@@ -126,11 +126,11 @@ describe('project document synchronization lifecycle', () => {
     expect(signal.aborted).toBe(true);
     finish();
   });
-  it('does not rapidly poll the legacy queue once the business history owns files', async () => {
+  it('refreshes the shared company periodically without using the legacy pending-file loop', async () => {
     const synchronize = vi.fn(async (): Promise<ProjectSyncStatus> => ({ ...status, mode: 'business', pending: 10 }));
     const { scheduler } = setup({ synchronize });
     await vi.advanceTimersByTimeAsync(59_000);
-    expect(synchronize).toHaveBeenCalledTimes(1);
+    expect(synchronize).toHaveBeenCalledTimes(4);
     scheduler.stop();
   });
 });

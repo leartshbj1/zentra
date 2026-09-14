@@ -16,6 +16,7 @@ mod attachments;
 mod audit;
 mod backup;
 mod cloud_backup;
+mod company_collaboration;
 mod bank_import;
 mod branding;
 mod document_design;
@@ -351,6 +352,10 @@ pub fn run() {
             app_reset::get_reset_recovery,
             app_reset::restore_reset_recovery,
             cloud_backup::publish_company_copy,
+            company_collaboration::get_company_sync_state,
+            company_collaboration::enable_company_sync,
+            company_collaboration::sync_company_workspace,
+            company_collaboration::apply_company_update,
             account_cloud::start_cloud_account_link,
             account_cloud::poll_cloud_account_link,
             account_cloud::open_cloud_account_link,

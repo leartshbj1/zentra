@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchesSalesDocumentSearch, matchesSalesDocumentStatus } from './salesDocumentList';
+import { matchesSalesDocumentSearch, matchesSalesDocumentStatus,documentCreators,matchesDocumentCreator,documentCreatorLabel } from './salesDocumentList';
 import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
 import { formatMoney, projectFinancials } from './utils';
 import type { Invoice, Payment, Project } from './types';
@@ -8,6 +8,16 @@ const invoice = { id: 'invoice', number: 'F-2026-001', title: 'Étude du bureau'
 const paid = [{ invoiceId: 'invoice', amountCents: 2500 }] as Payment[];
 
 describe('navigation des ventes', () => {
+  it('filtre un créateur par compte stable même sur plusieurs appareils, sans inventer les anciens auteurs',()=>{
+    const a={...invoice,creator:{id:'alice',name:'Alice',installationId:'pc-a'}};
+    const b={...invoice,id:'b',creator:{id:'alice',name:'Alice',installationId:'iphone'}};
+    const c={...invoice,id:'c',creator:{id:'bob',name:'Bob',installationId:'pc-b'}};
+    expect([a,b,c,invoice].filter(document=>matchesDocumentCreator(document,'user:alice'))).toEqual([a,b]);
+    expect(documentCreators([a,b,c,invoice])).toHaveLength(3);
+    expect(documentCreatorLabel(invoice)).toBe('Créateur non renseigné');
+    expect(matchesSalesDocumentSearch(a,'','alice')).toBe(true);
+    expect(matchesDocumentCreator(invoice,'unknown')).toBe(true);
+  });
   it('retrouve une référence copiée avec espaces, espaces insécables et minuscules', () => {
     expect(matchesSalesDocumentSearch(invoice, 'Entreprise Exemple SA', 'rf18\u00a05390 0754 7034')).toBe(true);
     expect(matchesSalesDocumentSearch(invoice, 'Entreprise Exemple SA', 'Entreprise Exemple')).toBe(true);

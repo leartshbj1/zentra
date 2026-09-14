@@ -1492,6 +1492,7 @@ impl LocalStore {
 
     pub fn connect(&self) -> AppResult<Connection> {
         let connection = Connection::open(&self.database_path)?;
+        crate::company_collaboration::register(self, &connection)?;
         let installation = self.installation_id.clone();
         connection.create_scalar_function("zentra_installation_id", 0,
             FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC | FunctionFlags::SQLITE_INNOCUOUS,
@@ -1795,6 +1796,9 @@ impl LocalStore {
         if current < 59 {
             transaction.execute_batch(crate::schema::MIGRATION_V59_SQL)?;
         }
+        if current < 60 {
+            crate::company_collaboration::migrate(&transaction)?;
+        }
         transaction.commit()?;
         if moves_plaintext_license {
             // Le rebuild a exécuté secure_delete; le checkpoint puis VACUUM
@@ -2081,7 +2085,7 @@ impl LocalStore {
         )?;
         let quotes = query_all(
             connection,
-            "SELECT * FROM quotes ORDER BY COALESCE(issue_date, created_at) DESC, created_at DESC",
+            "SELECT q.*,c.user_id AS creator_id,c.display_name AS creator_name,c.installation_id AS creator_installation FROM quotes q LEFT JOIN document_creators c ON c.entity='quotes' AND c.document_id=q.id ORDER BY COALESCE(q.issue_date, q.created_at) DESC, q.created_at DESC",
             [],
         )?;
         let quote_items = query_all(
@@ -2091,7 +2095,7 @@ impl LocalStore {
         )?;
         let invoices = query_all(
             connection,
-            "SELECT i.*,(SELECT COALESCE(SUM(amount_cents),0) FROM customer_invoice_credit_movements c WHERE c.invoice_id=i.id) AS credited_cents FROM invoices i ORDER BY COALESCE(issue_date, created_at) DESC, created_at DESC",
+            "SELECT i.*,creator.user_id AS creator_id,creator.display_name AS creator_name,creator.installation_id AS creator_installation,(SELECT COALESCE(SUM(amount_cents),0) FROM customer_invoice_credit_movements c WHERE c.invoice_id=i.id) AS credited_cents FROM invoices i LEFT JOIN document_creators creator ON creator.entity='invoices' AND creator.document_id=i.id ORDER BY COALESCE(i.issue_date, i.created_at) DESC, i.created_at DESC",
             [],
         )?;
         let invoice_correction_workflows = query_all(
