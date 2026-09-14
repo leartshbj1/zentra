@@ -9,7 +9,10 @@ export async function GET(request:Request) {
     await enforceAccountRateLimit(request,'collaboration-read',`${actor.organizationId}:${actor.installationId}`,3000);
     if(query.has('index')) {
       const bytes=await downloadCollaborationChunk(actor,query.get('id'),query.get('index'));
-      return new Response(bytes as BodyInit,{headers:{...accountNoStoreHeaders(),'Content-Type':'application/octet-stream','Content-Length':String(bytes.length)}});
+      const headers=new Headers(accountNoStoreHeaders());
+      headers.set('Content-Type','application/octet-stream');
+      headers.set('Content-Length',String(bytes.length));
+      return new Response(bytes as BodyInit,{headers});
     }
     return Response.json(await collaborationHead(actor),{headers:accountNoStoreHeaders()});
   }catch(error){return accountJsonError(error);}

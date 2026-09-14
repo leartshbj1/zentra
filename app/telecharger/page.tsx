@@ -136,8 +136,10 @@ export default function DownloadPage() {
           <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Recommencer simplement. Retrouver son entreprise.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Windows 1.66 ajoute la remise à zéro avec sauvegarde de sécurité et la récupération d’une copie complète après invitation. Le titulaire partage l’entreprise depuis Compte et équipe ; le nouvel appareil reçoit les clients, devis, factures, salaires et documents. Les modifications métier suivantes restent locales. Retrouvez le détail dans Paramètres → Nouveautés.</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Votre entreprise. Toute votre équipe.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">La version 1.67 ajoute le partage continu de l’entreprise avec Supabase : clients, devis, factures, logo, réglages, salaires et pièces jointes. Activez-le dans Paramètres → Compte et équipe, puis invitez les membres. Les devis et factures peuvent être filtrés par créateur. Tous les appareils doivent utiliser la version 1.67 ou ultérieure.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">La version 1.67 est disponible sur Mac et iPhone. Windows reste en version 1.66 pendant les derniers essais de démarrage ; cette version reçoit la copie initiale, mais ne participe pas au partage continu.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Les modifications concurrentes ne sont pas fusionnées automatiquement : Zentra propose de sauvegarder la copie locale avant de recevoir celle de l’équipe. Les changements non envoyés doivent ensuite être repris manuellement.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Les traductions sont encore en préparation : certains écrans, contrôles natifs et PDF restent en français.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Sur Mac, installez cette version depuis le bouton ci-dessous pour recevoir les prochaines mises à jour dans Zentra. Les versions iPhone s’installent manuellement après signature avec votre compte Apple.</p>
             </div>
@@ -334,12 +336,12 @@ export default function DownloadPage() {
                 [
                   Database,
                   'Données métier locales',
-                  'Votre base de travail reste sur l’appareil. Vous pouvez aussi activer une sauvegarde complète distante ; les fichiers des projets connectés se synchronisent entre vos appareils.',
+                  'Votre base de travail reste sur l’appareil. Avec la version 1.67, vous pouvez activer son partage complet via Supabase, y compris les documents et le logo, avec les membres autorisés.',
                 ],
                 [
                   WifiOff,
                   'Connexion limitée',
-                  'Activation, compte, coffre et mises à jour utilisent Internet; la gestion quotidienne reste locale et disponible hors ligne.',
+                  'Activation, compte, partage, coffre et mises à jour utilisent Internet. La gestion reste disponible hors ligne ; les changements attendent le retour du réseau.',
                 ],
               ].map(([Icon, title, text]) => (
                 <article
@@ -675,12 +677,12 @@ export default function DownloadPage() {
                 ))}
               </div>
               <p className="mt-5 text-sm leading-6 text-[#647068]">
-                La base de travail reste locale ; la sauvegarde permet de la
-                récupérer entièrement sur un autre appareil. La synchronisation
-                courante concerne les fichiers de projet. Les clients, devis,
-                factures, écritures comptables et le planning ne sont pas encore
-                fusionnés entre collaborateurs. Sur mobile, les transferts
-                reprennent aussi à la réouverture de l’application.
+                La sauvegarde permet de récupérer la base sur un autre appareil.
+                Le partage complet de la version 1.67 transmet aussi les nouvelles
+                révisions aux membres autorisés. Des modifications concurrentes
+                nécessitent un choix explicite, avec une sauvegarde locale et la
+                reprise manuelle des changements non envoyés. Sur mobile, les
+                transferts reprennent à la réouverture de l’application.
               </p>
             </div>
             <div className="space-y-3">

@@ -257,7 +257,7 @@ export default function SecurityPage() {
                 {[
                   [
                     'Supabase',
-                    'Authentification du compte et coordonnées d’entreprise partagées sur un projet Supabase créé dans la région Zurich (eu-central-2). Chaque profil est réservé aux appareils autorisés de son entreprise.',
+                    'Authentification, coordonnées et partage continu de la base complète à partir de la version 1.67, sur le projet Supabase créé dans la région Zurich (eu-central-2). Les révisions et fichiers restent privés et chaque requête vérifie le membre, son rôle et son appareil. Le partage inclut les salaires et exige une activation explicite.',
                   ],
                   [
                     'D1 / R2',
