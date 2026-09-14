@@ -38,6 +38,7 @@ const localData = [
 const onlineData = [
   'Adresse e-mail, nom affiché et session du compte',
   'Entreprise, rôles, invitations et appareils autorisés',
+  'Nom, coordonnées et activité partagés pour rejoindre une entreprise',
   'État de l’abonnement et de la licence',
   'PDF placés volontairement dans le coffre partagé',
   'Fichiers joints aux projets connectés à l’entreprise',
@@ -256,7 +257,7 @@ export default function SecurityPage() {
                 {[
                   [
                     'Supabase',
-                    'Authentification du compte sur un projet Supabase créé dans la région Zurich (eu-central-2). Le schéma Postgres et le coffre privé Zentra y sont préparés.',
+                    'Authentification du compte et coordonnées d’entreprise partagées sur un projet Supabase créé dans la région Zurich (eu-central-2). Chaque profil est réservé aux appareils autorisés de son entreprise.',
                   ],
                   [
                     'D1 / R2',
@@ -282,11 +283,11 @@ export default function SecurityPage() {
               </div>
             </div>
             <div className="mt-5 rounded-[1.4rem] border border-[#dedee3] bg-[#eeeef0] p-5 text-sm leading-6 text-[#626c65]">
-              L’authentification Supabase est reliée à Zurich. Le schéma, les
-              règles d’accès et le coffre cible y sont prêts. Les API de compte
-              et d’archives utilisent encore temporairement leur couche actuelle
-              jusqu’à leur remplacement complet; les données métier principales
-              restent locales dans l’application.
+              Supabase gère l’authentification et les coordonnées partagées
+              depuis Zurich. Les rôles, les appareils, les archives et les
+              fichiers des projets utilisent encore D1/R2. Les données métier
+              principales restent locales dans l’application ; rejoindre une
+              entreprise ne synchronise pas sa comptabilité entre appareils.
             </div>
           </div>
         </section>

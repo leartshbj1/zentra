@@ -27,6 +27,11 @@ const sections = [
   },
   {
     icon: Cloud,
+    title: 'Coordonnées partagées pour rejoindre une entreprise',
+    text: 'Le titulaire ou un administrateur partage le nom, les coordonnées et l’activité de l’entreprise depuis les paramètres. Ces informations sont enregistrées dans Supabase et accessibles aux appareils autorisés de cette entreprise. Rejoindre une entreprise les reprend dans un espace local vide. Ce partage ne transmet ni coordonnées bancaires, ni salaires, ni réglages personnels, et ne synchronise pas les écritures comptables entre appareils.',
+  },
+  {
+    icon: Cloud,
     title: 'Fichiers des projets synchronisés',
     text: 'Une fois l’appareil connecté à votre entreprise, les plans, photos et fichiers ajoutés aux projets sont transmis au serveur avec le nom et la référence du projet, le nom du fichier, son format, sa taille et son empreinte. Les appareils autorisés de la même entreprise les téléchargent et en gardent une copie hors ligne. Les ajouts et suppressions en attente reprennent au retour du réseau ou à la réouverture de l’app. La suppression est partagée ; un événement de suppression empêche une ancienne copie de remettre le fichier en ligne.',
   },
@@ -38,7 +43,7 @@ const sections = [
   {
     icon: Cloud,
     title: 'Prestataires techniques',
-    text: 'Supabase fournit l’authentification depuis un projet créé dans la région Zurich (eu-central-2). Stripe traite l’abonnement et sa facturation. Sites exécute le site ; D1/R2 sont utilisés par certaines routes de compte, les PDF archivés sur demande, les fichiers privés des projets synchronisés et les sauvegardes complètes distantes activées par l’entreprise. La région du projet Supabase ne constitue pas une garantie de localisation des données D1/R2 en Suisse.',
+    text: 'Supabase fournit l’authentification et conserve les coordonnées d’entreprise partagées depuis un projet créé dans la région Zurich (eu-central-2). Stripe traite l’abonnement et sa facturation. Sites exécute le site ; D1/R2 sont utilisés par certaines routes de compte, les PDF archivés sur demande, les fichiers privés des projets synchronisés et les sauvegardes complètes distantes activées par l’entreprise. La région du projet Supabase ne constitue pas une garantie de localisation des données D1/R2 en Suisse.',
   },
 ];
 

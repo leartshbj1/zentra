@@ -412,8 +412,9 @@ export default function Home() {
               <p className="mt-6 text-lg leading-8 text-[#647068]">
                 La gestion quotidienne est principalement conservée sur
                 l’ordinateur de l’entreprise. Le serveur intervient pour le
-                compte, les rôles, la licence et les PDF que vous choisissez
-                d’archiver.
+                compte, les rôles, la licence, les coordonnées partagées et les
+                fichiers des projets connectés. Les archives PDF et sauvegardes
+                distantes restent sur option.
               </p>
               <a
                 href="/security"
@@ -446,11 +447,11 @@ export default function Home() {
                   Services en ligne
                 </p>
                 <h3 className="mt-2 text-xl font-semibold">
-                  Accès et coffre optionnel
+                  Accès et partage
                 </h3>
                 <p className="mt-3 text-sm leading-7 text-[#675f54]">
-                  Authentification, membres, appareils, abonnement et uniquement
-                  les PDF transmis volontairement au coffre de l’entreprise.
+                  Compte, coordonnées partagées et fichiers des projets connectés.
+                  Archives PDF et sauvegardes complètes si vous les activez.
                 </p>
               </article>
               <p className="text-sm leading-6 text-[#6b746e] sm:col-span-2">
