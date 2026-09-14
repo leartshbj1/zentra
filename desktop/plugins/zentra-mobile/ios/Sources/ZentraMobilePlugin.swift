@@ -3,6 +3,7 @@ import Tauri
 import UIKit
 import WebKit
 
+struct AppearanceArgs: Decodable { let appearance: String; let dark: Bool }
 struct ShareArgs: Decodable { let path: String }
 struct UrlArgs: Decodable { let url: String }
 struct NavigationArgs: Decodable { let visible: Bool; let selected: String; let onNavigate: Channel? }
@@ -12,6 +13,8 @@ class ZentraMobilePlugin: Plugin {
   private var navigation: UIStackView?
   private var loadingObservation: NSKeyValueObservation?
   override func load(webview: WKWebView) {
+    // The app owns the left-edge gesture for its navigation drawer.
+    webview.allowsBackForwardNavigationGestures = false
     self.webview = webview
     loadingObservation = webview.observe(\.isLoading, options: [.new]) { [weak self] webview, _ in
       // A web reload can return to login without running React's unmount cleanup.
@@ -46,6 +49,19 @@ class ZentraMobilePlugin: Plugin {
       } else {
         invoke.resolve(["available": false])
       }
+    }
+  }
+
+  @objc func configureAppearance(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(AppearanceArgs.self)
+    guard ["system", "light", "dark"].contains(args.appearance) else { invoke.reject("Apparence inconnue"); return }
+    DispatchQueue.main.async {
+      let style: UIUserInterfaceStyle = args.appearance == "system" ? .unspecified : args.appearance == "dark" ? .dark : .light
+      self.manager.viewController?.overrideUserInterfaceStyle = style
+      self.manager.viewController?.view.window?.overrideUserInterfaceStyle = style
+      self.webview?.backgroundColor = UIColor.systemBackground
+      self.manager.viewController?.setNeedsStatusBarAppearanceUpdate()
+      invoke.resolve()
     }
   }
 

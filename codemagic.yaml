@@ -11,6 +11,8 @@ workflows:
     scripts:
       - name: Prepare the Apple toolchain
         script: bash desktop/scripts/codemagic-apple.sh prepare
+      - name: Verify mobile WebKit gestures
+        script: bash desktop/scripts/test-mobile-webkit.sh
       - name: Build and verify macOS
         script: bash desktop/scripts/codemagic-apple.sh macos
     artifacts:

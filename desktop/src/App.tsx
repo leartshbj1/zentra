@@ -179,6 +179,7 @@ export function App() {
   const content =
     !workspace.onboardingCompleted || !workspace.settings ? (
       <Onboarding
+        onJoined={setWorkspace}
         cloudAccount={cloudAccount}
         onCloudAccountChange={handleCloudAccountChange}
         onComplete={async (settings: AppSettings, scope) =>

@@ -1,3 +1,4 @@
+import './appearance';
 import { ZentraAssistantProvider } from './ZentraAssistant';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -20,3 +21,6 @@ createRoot(root).render(
     <ZentraAssistantProvider><App /></ZentraAssistantProvider>
   </StrictMode>,
 );
+
+import './dark.generated.css';
+import './dark.css';

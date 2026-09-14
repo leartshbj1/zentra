@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowUp, BookOpen, Check, FileText, List, Maximize, Minus, Plus, X } from 'lucide-react';
 import { Button } from './ui';
 import './DocumentPreviewFrame.css';
+import { useTouchZoom } from './useTouchZoom';
 
 /** A reading surface around the existing document; never changes its financial content. */
 export function DocumentPreviewFrame({ title, number, customer, total, finalDocument, actions, children, onClose }: {
@@ -14,7 +15,7 @@ export function DocumentPreviewFrame({ title, number, customer, total, finalDocu
   const viewport = useRef<HTMLDivElement>(null);
   const paper = useRef<HTMLDivElement>(null);
   const requestedSection = useRef<string | null>(null);
-  const [mode, setMode] = useState<'reading' | 'page'>(() => window.matchMedia('(max-width: 860px)').matches ? 'reading' : 'page');
+  const [mode, setMode] = useState<'reading' | 'page'>(() => 'page');
   const [zoom, setZoom] = useState<number | null>(null);
   const [measure, setMeasure] = useState({ width: 794, height: 1123 });
   const [sections, setSections] = useState<{ selector: string; label: string }[]>([]);
@@ -22,6 +23,7 @@ export function DocumentPreviewFrame({ title, number, customer, total, finalDocu
   const [progress, setProgress] = useState(0);
   const [lineCount, setLineCount] = useState(0);
   const scale = zoom ?? Math.min(1, measure.width / 794);
+  useTouchZoom(viewport, paper, scale, setZoom, mode === 'page', Math.min(1, measure.width / 794), 4);
 
   const goTo = (selector: string) => {
     const area = viewport.current;
@@ -142,7 +144,7 @@ export function DocumentPreviewFrame({ title, number, customer, total, finalDocu
         {mode === 'page' ? <div className="document-preview__zoom" role="group" aria-label="Zoom du document">
           <Button variant="ghost" size="icon" aria-label="Réduire le zoom" disabled={scale <= .25} onClick={() => setZoom(Math.max(.25, Math.round((scale - .15) * 100) / 100))}><Minus size={17} /></Button>
           <output aria-live="polite">{Math.round(scale * 100)} %</output>
-          <Button variant="ghost" size="icon" aria-label="Agrandir le document" disabled={scale >= 1.5} onClick={() => setZoom(Math.min(1.5, Math.round((scale + .15) * 100) / 100))}><Plus size={17} /></Button>
+          <Button variant="ghost" size="icon" aria-label="Agrandir le document" disabled={scale >= 4} onClick={() => setZoom(Math.min(4, Math.round((scale + .25) * 100) / 100))}><Plus size={17} /></Button>
           <Button variant="ghost" size="icon" aria-label="Ajuster à la largeur" title="Ajuster à la largeur" onClick={() => setZoom(null)}><Maximize size={17} /></Button>
         </div> : <p className="document-preview__reading-hint">Lecture adaptée à votre écran</p>}
         <button type="button" className="document-preview__amount" title="Aller au total du document" aria-label={`Aller au total du document : ${total}`} onClick={() => goTo('.print-totals')}><span>Total TTC <span aria-hidden="true">↗</span></span><strong>{total}</strong></button>
@@ -158,7 +160,7 @@ export function DocumentPreviewFrame({ title, number, customer, total, finalDocu
         </aside>
         <div className="document-preview__reading-area">
           <div className="document-preview__progress" aria-hidden="true"><span style={{ transform: `scaleX(${progress / 100})` }} /></div>
-          <div ref={viewport} className="document-preview__viewport" tabIndex={0} aria-label="Contenu du document">
+          <div ref={viewport} data-touch-document className="document-preview__viewport" tabIndex={0} aria-label="Contenu du document">
             <div className="document-preview__canvas" key={mode} style={mode === 'page' ? { width: 794 * scale, height: measure.height * scale } : undefined}>
               <div ref={paper} className="document-preview__paper" style={mode === 'page' ? { width: 794, transform: `scale(${scale})`, transformOrigin: 'top left' } : undefined}>{children}</div>
             </div>

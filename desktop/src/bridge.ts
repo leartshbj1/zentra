@@ -4799,6 +4799,11 @@ export const desktopApi = {
     return account;
   },
   openCloudAccountLink: () => invoke<string>('open_cloud_account_link'),
+  getCloudTeam: () => invoke<import('./CloudTeamPanel').CloudTeam>('cloud_team_request', { data: null }),
+  inviteCloudMember: (email: string, role: string) => invoke<{ invitation: { url: string } }>('cloud_team_request', { data: {action:'invite',email,role} }),
+  revokeCloudInvitation: (invitationId: string) => invoke('cloud_team_request', {data:{action:'revoke',invitationId}}),
+  publishCloudCompany: (settings: AppSettings) => invoke('cloud_team_request', { data: {action:'profile',profile:settingsToBackend(settings)} }),
+  async joinCloudCompany() { await invoke('join_cloud_company'); const workspace = await loadWorkspace(); window.dispatchEvent(new Event('zentra-project-documents-changed')); return workspace; },
   openCloudAccountPortal: () => invoke<string>('open_cloud_account_portal'),
   disconnectCloudAccount: () => invoke<void>('disconnect_cloud_account'),
   async archiveInvoiceToCloud(

@@ -262,3 +262,7 @@ function Harness() {
   </>;
 }
 createRoot(document.getElementById('root')!).render(<ZentraAssistantProvider><Harness /></ZentraAssistantProvider>);
+
+import '../src/appearance';
+import '../src/dark.generated.css';
+import '../src/dark.css';

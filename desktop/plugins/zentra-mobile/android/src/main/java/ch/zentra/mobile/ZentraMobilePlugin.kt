@@ -14,12 +14,23 @@ import app.tauri.plugin.Plugin
 import java.io.File
 import java.util.UUID
 
+@InvokeArg class AppearanceArgs { lateinit var appearance: String; var dark: Boolean = false }
 @InvokeArg class ShareArgs { lateinit var path: String }
 @InvokeArg class UrlArgs { lateinit var url: String }
 class ZentraFileProvider: FileProvider()
 
 @TauriPlugin
 class ZentraMobilePlugin(private val activity: Activity): Plugin(activity) {
+    @Command fun configureAppearance(invoke: Invoke) {
+        val args = invoke.parseArgs(AppearanceArgs::class.java)
+        if (args.appearance !in listOf("system", "light", "dark")) { invoke.reject("Apparence inconnue"); return }
+        activity.runOnUiThread {
+            val controls = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+            controls.isAppearanceLightStatusBars = !args.dark
+            controls.isAppearanceLightNavigationBars = !args.dark
+            invoke.resolve()
+        }
+    }
     @Command fun fileName(invoke: Invoke) {
         val args = invoke.parseArgs(UrlArgs::class.java)
         val uri = Uri.parse(args.url)

@@ -1,0 +1,1 @@
+try { var p=localStorage.getItem('zentra.appearance.v1');var d=p==='dark'||p!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.dataset.appTheme=d?'dark':'light';document.documentElement.style.colorScheme=d?'dark':'light';document.documentElement.style.backgroundColor=d?'#131619':'#f5f5f7'; } catch(e) {}

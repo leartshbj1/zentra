@@ -1,3 +1,4 @@
+import { AppearanceSetting } from './AppearanceSetting';
 import { nogaLabel } from './nogaLanguage';
 import { t } from './language';
 import { useAppLanguage, getAppLocale } from './language';
@@ -32,6 +33,8 @@ import {
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { CloudAccountAccess } from './CloudAccountAccess';
+import { JoinCompany } from './JoinCompany';
+import type { Workspace } from './types';
 import { isMobileRuntime } from './mobileRuntime';
 import { BrandWordmark } from './BrandMark';
 import type { AppSettings, NogaCatalog, NogaSectionCode, PayrollRate } from './types';
@@ -119,14 +122,17 @@ export function Onboarding({
   onCloudRestore,
   cloudAccount,
   onCloudAccountChange,
+  onJoined,
 }: {
   onComplete: (settings: AppSettings, scope: OnboardingValidationScope) => Promise<void>;
   onRestore: (path: string) => Promise<void>;
   onCloudRestore?: (backupId: string) => Promise<void>;
   cloudAccount?: CloudAccountState | null;
   onCloudAccountChange?: (account: CloudAccountState) => void;
+  onJoined?: (workspace: Workspace) => void;
 }) {
   const [draft] = useState(readOnboardingDraft);
+  const [joining, setJoining] = useState(false);
   useAppLanguage();
   const [step, setStep] = useState(() => Math.min(6, Math.max(0, draft?.step ?? 0)));
   const [highestStep, setHighestStep] = useState(() => Math.min(6, Math.max(0, draft?.highestStep ?? draft?.step ?? 0)));
@@ -354,18 +360,19 @@ export function Onboarding({
 
       <main className="onboarding__main">
         <div className="onboarding__content">
-          <LanguageSetting compact />
+          <LanguageSetting compact />{step === 0 && <AppearanceSetting compact />}
           <div className="setup-progress-meta"><span>{step === 0 ? t("Bienvenue") : step === 6 ? t("Vérification finale") : t('Étape {step} sur 5', { step })}</span><strong>{Math.round((step / (steps.length - 1)) * 100)} %</strong></div>
           <div className="setup-progress" aria-hidden="true"><span style={{ width: `${(step / (steps.length - 1)) * 100}%` }} /></div>
           <section className="setup-stage" key={step}>
             {step === 0 ? (
-              <SetupIntro onCreate={() => { setHighestStep((value) => Math.max(value, 1)); setStep(1); }} onRestore={() => void restore()} busy={busy} />
+              <SetupIntro onJoin={() => setJoining(true)} onCreate={() => { setHighestStep((value) => Math.max(value, 1)); setStep(1); }} onRestore={() => void restore()} busy={busy} />
             ) : null}
             {step === 0 && cloudAccount?.status === 'connected' && onCloudRestore ? <CloudBackupPanel recoveryOnly disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
               await onCloudRestore(id);
               try { window.localStorage.removeItem(ONBOARDING_DRAFT_KEY); } catch { /* La restauration reste valide. */ }
             }} /> : null}
             {step === 0 ? <LocalAssistantSetup onboarding /> : null}
+            {joining ? <JoinCompany onClose={() => setJoining(false)} onAccountChange={onCloudAccountChange} onJoined={workspace => { try { localStorage.removeItem(ONBOARDING_DRAFT_KEY); } catch { /* The completed join remains valid. */ } onJoined?.(workspace); setJoining(false); }} /> : null}
             {step === 1 ? <IdentityStep settings={settings} setSettings={setSettings} catalog={nogaCatalog} catalogError={nogaError} onRetryCatalog={() => void loadNogaCatalog()} issues={currentIssueMap} /> : null}
             {step === 2 ? <BillingStep settings={settings} setSettings={setSettings} vatText={vatText} setVatText={setVatText} issues={currentIssueMap} /> : null}
             {step === 3 ? <WorkStep settings={settings} setSettings={setSettings} categoriesText={categoriesText} setCategoriesText={setCategoriesText} issues={currentIssueMap} /> : null}
@@ -424,11 +431,12 @@ function StepHeader({ eyebrow, title, text }: { eyebrow: string; title: string; 
   return <header className="setup-header"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{text}</p></header>;
 }
 
-function SetupIntro({ onCreate, onRestore, busy }: { onCreate: () => void; onRestore: () => void; busy: boolean }) {
+function SetupIntro({ onCreate, onRestore, onJoin, busy }: { onCreate: () => void; onRestore: () => void; onJoin: () => void; busy: boolean }) {
   return (
     <div>
       <StepHeader eyebrow={t("Bienvenue")} title={t("Votre gestion d’activité commence ici.")} text={t("Créez d’abord le socle réel de votre entreprise, puis complétez les réglages à votre rythme. Aucun client, montant ou document fictif ne sera créé.")} />
       <div className="setup-choice-grid">
+        <button className="setup-choice" onClick={onJoin} disabled={busy}><span><Users size={25}/></span><div><strong>{t('Rejoindre une entreprise')}</strong><p>{t('Vous avez une invitation ou un compte existant ? Connectez cet appareil à votre entreprise.')}</p></div><ArrowRight size={20}/></button>
         <button className="setup-choice setup-choice--primary" onClick={onCreate} disabled={busy}>
           <span><BriefcaseBusiness size={25} /></span><div><strong>{t("Créer mon entreprise")}</strong><p>{t("Commencer par l’identité et le domaine, puis choisir entre un accès rapide et la configuration complète.")}</p></div><ArrowRight size={20} />
         </button>

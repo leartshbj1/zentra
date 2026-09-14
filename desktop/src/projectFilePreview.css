@@ -51,3 +51,13 @@
 @media (prefers-reduced-motion: no-preference) {
   .pdf-attachment-preview__page canvas { animation: experience-fade-in 160ms ease-out; }
 }
+
+.touch-image-reader { display:flex; flex-direction:column; height:100%; min-height:0; }
+.touch-image-reader__viewport { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; padding:16px; }
+.touch-image-reader__size, .pdf-attachment-preview__sizing { margin-inline:auto; }
+.touch-image-reader img { display:block; max-width:none; border-radius:8px; box-shadow:0 12px 40px #172b2420; }
+.touch-reader-hint { color:var(--muted); font-size:13px; line-height:1.5; }
+[data-touch-document] { touch-action:pan-x pan-y; }
+.pdf-attachment-preview__page { margin:0; }
+.pdf-attachment-preview__toolbar { background:#ffffffeb; }
+.pdf-attachment-preview__zoom { background:#eef0f2; border-radius:16px; padding:2px; }
