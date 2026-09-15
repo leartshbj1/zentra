@@ -48,7 +48,7 @@ describe('revalidation périodique du compte cloud', () => {
       status: 'pending',
       userCode: 'ABCD-EFGH',
       verificationUri:
-        'https://elyko.alb-leart1.chatgpt.site/appareil?code=ABCD-EFGH',
+        'https://zentraapp.ch/appareil?code=ABCD-EFGH',
       authorizationExpiresAt: '2026-09-04T12:00:00Z',
       intervalSeconds: 3,
     };

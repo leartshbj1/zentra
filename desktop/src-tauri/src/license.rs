@@ -64,7 +64,7 @@ const REFRESH_ATTEMPT_FILE: &str = "license-refresh-attempt.protected";
 const LICENSE_TOKEN_FILE: &str = "license-token.dpapi";
 #[cfg(not(windows))]
 const LICENSE_TOKEN_FILE: &str = "license-token.protected";
-const LICENSE_REFRESH_ENDPOINT: &str = "https://elyko.alb-leart1.chatgpt.site/api/stripe/refresh";
+const LICENSE_REFRESH_ENDPOINT: &str = "https://zentraapp.ch/api/stripe/refresh";
 const MAX_LICENSE_TOKEN_BYTES: usize = 8 * 1024;
 const MAX_REFRESH_RESPONSE_BYTES: u64 = 16 * 1024;
 const REFRESH_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -1686,7 +1686,7 @@ fn validated_refresh_endpoint() -> AppResult<reqwest::Url> {
         AppError::Validation("L’URL de renouvellement intégrée est invalide.".into())
     })?;
     if endpoint.scheme() != "https"
-        || endpoint.host_str() != Some("elyko.alb-leart1.chatgpt.site")
+        || endpoint.host_str() != Some("zentraapp.ch")
         || endpoint.path() != "/api/stripe/refresh"
         || !endpoint.username().is_empty()
         || endpoint.password().is_some()
@@ -3246,7 +3246,7 @@ mod tests {
     fn refresh_endpoint_is_an_exact_immutable_https_url() {
         let endpoint = validated_refresh_endpoint().unwrap();
         assert_eq!(endpoint.as_str(), LICENSE_REFRESH_ENDPOINT);
-        assert_eq!(endpoint.host_str(), Some("elyko.alb-leart1.chatgpt.site"));
+        assert_eq!(endpoint.host_str(), Some("zentraapp.ch"));
         assert_eq!(endpoint.path(), "/api/stripe/refresh");
         assert!(endpoint.query().is_none());
     }

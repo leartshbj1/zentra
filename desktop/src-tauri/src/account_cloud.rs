@@ -25,7 +25,7 @@ use crate::{
     models::GenerateSalesDocumentPdfInput,
 };
 
-const ACCOUNT_API_ORIGIN: &str = "https://elyko.alb-leart1.chatgpt.site";
+const ACCOUNT_API_ORIGIN: &str = "https://zentraapp.ch";
 const START_PATH: &str = "/api/account/device/start";
 const POLL_PATH: &str = "/api/account/device/poll";
 const ME_PATH: &str = "/api/account/me";
@@ -387,7 +387,7 @@ pub async fn open_cloud_account_portal() -> Result<String, String> {
     let url =
         Url::parse(&uri).map_err(|_| "L’adresse du compte Zentra est invalide.".to_owned())?;
     if url.scheme() != "https"
-        || url.host_str() != Some("elyko.alb-leart1.chatgpt.site")
+        || url.host_str() != Some("zentraapp.ch")
         || url.path() != "/compte"
         || url.query().is_some()
         || url.fragment().is_some()
@@ -1002,7 +1002,7 @@ fn parse_future_or_past_date(value: &str, label: &str) -> AppResult<DateTime<Utc
 }
 
 fn validate_verification_uri(value: &str, user_code: &str) -> AppResult<Url> {
-    let url = Url::parse(value)
+    let mut url = Url::parse(value)
         .map_err(|_| AppError::Validation("Le lien de connexion est invalide.".into()))?;
     let expected = Url::parse(ACCOUNT_API_ORIGIN)
         .map_err(|_| AppError::Validation("L’origine Zentra intégrée est invalide.".into()))?;
@@ -1010,7 +1010,7 @@ fn validate_verification_uri(value: &str, user_code: &str) -> AppResult<Url> {
         .query_pairs()
         .any(|(key, value)| key == "code" && value == user_code);
     if url.scheme() != "https"
-        || url.host_str() != expected.host_str()
+        || !matches!(url.host_str(), Some("zentraapp.ch" | "elyko.alb-leart1.chatgpt.site"))
         || url.port_or_known_default() != expected.port_or_known_default()
         || url.path() != "/appareil"
         || !url.username().is_empty()
@@ -1022,6 +1022,10 @@ fn validate_verification_uri(value: &str, user_code: &str) -> AppResult<Url> {
             "Le lien de connexion ne respecte pas la politique Zentra.".into(),
         ));
     }
+    // Pending authorizations created before the domain migration keep their code.
+    // Only the exact former first-party host is accepted, and never opened again.
+    url.set_host(expected.host_str())
+        .map_err(|_| AppError::Validation("Le lien de connexion est invalide.".into()))?;
     Ok(url)
 }
 
@@ -1167,11 +1171,15 @@ fn write_server_verified_secret<T: Serialize>(
 }
 
 fn read_pending_secret(store: &LocalStore) -> AppResult<Option<PendingAuthorization>> {
-    read_secret(
+    let pending: Option<PendingAuthorization> = read_secret(
         &pending_path(store),
         &store.account_protected_cache.pending,
         |pending| validate_pending_for_installation(pending, &store.installation_id),
-    )
+    )?;
+    pending.map(|mut pending| {
+        pending.verification_uri = validate_verification_uri(&pending.verification_uri, &pending.user_code)?.to_string();
+        Ok(pending)
+    }).transpose()
 }
 
 fn read_exchange_secret(store: &LocalStore) -> AppResult<Option<PendingExchange>> {
@@ -1418,6 +1426,21 @@ mod tests {
             role: "owner".into(),
             connected_at: "2026-09-04T12:00:00Z".into(),
         }
+    }
+
+    #[test]
+    fn former_verification_links_are_normalized_without_changing_the_code() {
+        for host in ["zentraapp.ch", "elyko.alb-leart1.chatgpt.site"] {
+            let url = validate_verification_uri(&format!("https://{host}/appareil?code=ABCD-EFGH"), "ABCD-EFGH").unwrap();
+            assert_eq!(url.as_str(), "https://zentraapp.ch/appareil?code=ABCD-EFGH");
+        }
+        for value in [
+            "https://zentraapp.ch.evil.example/appareil?code=ABCD-EFGH",
+            "https://zentraapp.ch:444/appareil?code=ABCD-EFGH",
+            "https://user@zentraapp.ch/appareil?code=ABCD-EFGH",
+            "http://zentraapp.ch/appareil?code=ABCD-EFGH",
+            "https://zentraapp.ch/appareil?code=WRONG",
+        ] { assert!(validate_verification_uri(value, "ABCD-EFGH").is_err()); }
     }
 
     #[test]
