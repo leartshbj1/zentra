@@ -1,3 +1,4 @@
+import { publicSiteUrl } from '@/lib/site-url';
 import { accountJsonError, accountNoStoreHeaders, enforceAccountRateLimit, normalizedEmail, requireDeviceSession } from '@/lib/account';
 import { AccountPublicError, hashOpaqueToken, isAccountRole, newInvitationToken, roleCanManageMembers } from '@/lib/account-security';
 import { database } from '@/lib/runtime';
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
     const token = newInvitationToken(), id = `inv_${crypto.randomUUID()}`, expires = now + 7*86400;
     // Existing database triggers enforce capacity again atomically, including concurrent invitations.
     await db.prepare('INSERT INTO organization_invitations(invitation_id,organization_id,token_hash,invited_email,role,created_by_user_id,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)').bind(id,actor.organizationId,await hashOpaqueToken('invitation',token),email,body.role,actor.userId,now,expires).run();
-    const url = new URL('/invitation', request.url); url.searchParams.set('token',token);
+    const url = new URL('/invitation', publicSiteUrl()); url.searchParams.set('token',token);
     return Response.json({invitation:{id,url:url.toString(),email,role:body.role,expiresAt:expires}},{status:201,headers:accountNoStoreHeaders()});
   } catch(error) { return accountJsonError(error); }
 }

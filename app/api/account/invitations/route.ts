@@ -1,3 +1,4 @@
+import { publicSiteUrl } from '@/lib/site-url';
 import { getZentraUser } from '@/app/zentra-auth';
 import {
   accountJsonError,
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
         expiresAt,
       )
       .run();
-    const invitationUrl = new URL('/invitation', request.url);
+    const invitationUrl = new URL('/invitation', publicSiteUrl());
     invitationUrl.searchParams.set('token', token);
     return Response.json(
       {
