@@ -51,7 +51,7 @@ describe('Zentra hosted Checkout contract', () => {
       'https://elyko.example/paiement/succes?session_id={CHECKOUT_SESSION_ID}',
     );
     expect(params.cancel_url).toBe(
-      'https://elyko.example/?paiement=annule#tarif',
+      'https://elyko.example/pricing?paiement=annule',
     );
   });
 });

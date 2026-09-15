@@ -60,9 +60,9 @@ export async function POST(request: Request) {
       .bind(now)
       .run();
     await db.batch([db.prepare(
-        'INSERT INTO checkout_attempts(claim_hash,checkout_session_id,created_at,expires_at) VALUES(?,?,?,?)',
+        'INSERT INTO checkout_attempts(claim_hash,checkout_session_id,created_at,expires_at,account_user_id,account_email,account_name) VALUES(?,?,?,?,?,?,?)',
       )
-      .bind(claimHash, session.id, now, now + 365 * 86_400),
+      .bind(claimHash, session.id, now, now + 365 * 86_400, identity.userId, identity.email, identity.displayName),
       db.prepare('INSERT INTO legal_acceptances(acceptance_id,user_id,document_version,context,plan_id,checkout_session_id,origin,accepted_at) VALUES(?,?,?,?,?,?,?,?)')
         .bind(crypto.randomUUID(), identity.userId, LEGAL_VERSION, 'checkout_requested', plan.id, session.id, origin, new Date().toISOString()),
     ]);

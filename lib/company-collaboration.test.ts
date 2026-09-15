@@ -2,6 +2,7 @@ import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {DeviceSessionContext} from './account';
 const stubs=vi.hoisted(()=>({client:vi.fn()}));
 vi.mock('./supabase-server-runtime',()=>({supabaseServerClient:stubs.client}));
+vi.mock('./company-realtime',()=>({announceCompanyRevision:vi.fn(async()=>undefined)}));
 vi.mock('./runtime',()=>({database:vi.fn(),fileArchive:vi.fn()}));
 import {collaborationHead,collaborationSnapshot,prepareCollaboration,receiveCollaborationChunk,downloadCollaborationChunk,commitCollaboration,pruneCollaborationHistory} from './company-collaboration';
 import {sha256Hex} from './account-security';

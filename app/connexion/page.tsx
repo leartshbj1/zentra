@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { chatGPTSignInPath } from '@/app/chatgpt-auth';
 import { ZentraAuthForm } from '@/components/zentra-auth-form';
 import { BrandWordmark } from '@/components/brand-mark';
 import { safeAuthReturnPath } from '@/lib/supabase-auth-http';
@@ -90,7 +89,6 @@ export default async function ConnexionPage({
 
         <ZentraAuthForm
           returnTo={returnTo}
-          sitesSignInUrl={chatGPTSignInPath(returnTo)}
           initialError={confirmationError}
         />
       </div>

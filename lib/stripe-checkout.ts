@@ -30,7 +30,7 @@ export function buildZentraCheckoutParams(input: {
     },
     subscription_data: {
       billing_mode: { type: 'flexible' },
-      description: 'Abonnement Zentra · licence Windows et macOS',
+      description: 'Abonnement Zentra · accès lié à votre compte',
       invoice_settings: { issuer: { type: 'self' } },
       metadata: {
         plan: input.plan,
@@ -38,6 +38,6 @@ export function buildZentraCheckoutParams(input: {
       },
     },
     success_url: `${input.origin}/paiement/succes?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${input.origin}/?paiement=annule#tarif`,
+    cancel_url: `${input.origin}/pricing?paiement=annule`,
   };
 }

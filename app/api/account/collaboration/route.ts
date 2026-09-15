@@ -1,11 +1,25 @@
 import { accountJsonError,accountNoStoreHeaders,enforceAccountRateLimit,requireDeviceSession } from '@/lib/account';
 import { AccountPublicError } from '@/lib/account-security';
-import { collaborationHead,commitCollaboration,downloadCollaborationChunk,prepareCollaboration,receiveCollaborationChunk } from '@/lib/company-collaboration';
+import { collaborationHead,collaborationRevision,collaborationRevisionHead,commitCollaboration,downloadCollaborationChunk,prepareCollaboration,receiveCollaborationChunk } from '@/lib/company-collaboration';
+import { watchCompanyRevision } from '@/lib/company-realtime';
+import { supabaseRealtimeConfiguration } from '@/lib/supabase-server-runtime';
 import { readBytesBodyWithinLimit,readJsonObjectWithinLimit } from '@/lib/request-body';
 export const dynamic='force-dynamic';
 export async function GET(request:Request) {
   try {
     const actor=await requireDeviceSession(request),query=new URL(request.url).searchParams;
+    if(query.has('watch')) {
+      const raw=query.get('watch')!;
+      if(!/^(0|[1-9][0-9]{0,15})$/.test(raw)||query.has('index'))throw new AccountPublicError('La version de l’entreprise est invalide.');
+      const after=collaborationRevision(Number(raw));
+      await enforceAccountRateLimit(request,'collaboration-watch',`${actor.organizationId}:${actor.installationId}`,1500);
+      const head=await watchCompanyRevision(actor.organizationId,after,request.signal,{
+        configuration:supabaseRealtimeConfiguration(),fetch:(...args)=>fetch(...args),head:()=>collaborationRevisionHead(actor),
+      });
+      // Membership may have been revoked during the long poll.
+      await requireDeviceSession(request);
+      return Response.json(head,{headers:accountNoStoreHeaders()});
+    }
     await enforceAccountRateLimit(request,'collaboration-read',`${actor.organizationId}:${actor.installationId}`,3000);
     if(query.has('index')) {
       const bytes=await downloadCollaborationChunk(actor,query.get('id'),query.get('index'));

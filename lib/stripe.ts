@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { linkPaidCheckoutAccount } from './subscription-account';
 import { trustedSiteRequestOrigin } from '@/lib/site-origins';
 import { planById, planByLicense, type PlanId } from '@/lib/plans';
 import { RequestBodyError } from '@/lib/request-body';
@@ -698,6 +699,7 @@ export async function upsertSubscription(
       paid ? plan.seats : 0,
     )
     .run();
+  await linkPaidCheckoutAccount(subscription.id);
 }
 
 export async function paidEntitlementForSubscription(subscriptionId: string) {

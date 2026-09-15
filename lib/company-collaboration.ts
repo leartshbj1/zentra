@@ -1,7 +1,8 @@
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, roleCanWriteInvoices, sha256Hex } from './account-security';
 import { backupId, backupManifest, type BackupManifest } from './workspace-backup';
-import { supabaseServerClient } from './supabase-server-runtime';
+import { supabaseServerClient, supabaseRealtimeConfiguration } from './supabase-server-runtime';
+import { announceCompanyRevision } from './company-realtime';
 
 type Head = {organization_id:string;revision:number;snapshot_id:string|null;updated_at:string;updated_by:string};
 type Snapshot = {id:string;organization_id:string;installation_id:string;created_by:string;base_revision:number;revision:number|null;manifest:BackupManifest;size_bytes:number};
@@ -17,6 +18,12 @@ export async function collaborationHead(actor: DeviceSessionContext) {
   const snapshot=head?.snapshot_id ? await collaborationSnapshot(actor,head.snapshot_id) : null;
   return {organizationId:actor.organizationId,userId:actor.userId,role:actor.role,enabled:Boolean(head),
     revision:head?.revision ?? 0,snapshotId:head?.snapshot_id ?? null,updatedAt:head?.updated_at ?? null,manifest:snapshot?.manifest ?? null};
+}
+export async function collaborationRevisionHead(actor: DeviceSessionContext) {
+  const rows = await supabaseServerClient().select<Head>('zentra_workspaces', {
+    organization_id: `eq.${actor.organizationId}`, select: 'revision', limit: 1,
+  });
+  return { organizationId: actor.organizationId, revision: rows[0]?.revision ?? 0, enabled: Boolean(rows[0]) };
 }
 export async function collaborationSnapshot(actor: DeviceSessionContext,id:unknown): Promise<Snapshot> {
   const rows=await supabaseServerClient().select<Snapshot>('zentra_workspace_snapshots',{
@@ -99,7 +106,12 @@ export async function commitCollaboration(actor:DeviceSessionContext,id:unknown)
   });
   // A cleanup failure must never disguise a successful commit and make the
   // sender repeat its business operation. The next successful commit retries.
-  if(result.committed)await pruneCollaborationHistory(actor.organizationId).catch(()=>undefined);
+  if(result.committed) {
+    // Commit first; no subscriber ever sees a partially uploaded company.
+    // A notification outage must not disguise a successful financial write.
+    try { await announceCompanyRevision(supabaseRealtimeConfiguration(), actor.organizationId, result.revision); } catch { /* Durable head is rechecked after reconnect/timeout. */ }
+    await pruneCollaborationHistory(actor.organizationId).catch(()=>undefined);
+  }
   return result;
 }
 

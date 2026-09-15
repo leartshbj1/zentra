@@ -53,7 +53,7 @@ async function assertDatabaseSchemaReady() {
   const db = database();
   await db.batch([
     db.prepare(
-      'SELECT claim_hash,checkout_session_id,created_at,expires_at FROM checkout_attempts LIMIT 0',
+      'SELECT claim_hash,checkout_session_id,account_user_id,account_email,account_name,created_at,expires_at FROM checkout_attempts LIMIT 0',
     ),
     db.prepare(
       'SELECT subscription_id,plan_id,entitlement_plan_id,seat_limit,entitlement_valid_until,last_paid_invoice_id,last_paid_at,last_payment_failure_invoice_id,last_payment_failure_at FROM subscriptions LIMIT 0',

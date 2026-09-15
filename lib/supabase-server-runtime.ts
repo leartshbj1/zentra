@@ -36,3 +36,8 @@ export function supabaseServerClient() {
   }
   return cached;
 }
+
+/** For the server-side realtime gateway only; never serialize to a client. */
+export function supabaseRealtimeConfiguration() {
+  return { url: runtimeValue('SUPABASE_URL'), secretKey: runtimeValue('SUPABASE_SECRET_KEY') || runtimeValue('SUPABASE_SERVICE_ROLE_KEY') };
+}

@@ -22,11 +22,9 @@ type AuthMode = 'connexion' | 'inscription';
 
 export function ZentraAuthForm({
   returnTo,
-  sitesSignInUrl,
   initialError,
 }: {
   returnTo: string;
-  sitesSignInUrl: string;
   initialError: string;
 }) {
   const [mode, setMode] = useState<AuthMode>('connexion');
@@ -279,18 +277,6 @@ export function ZentraAuthForm({
           </p>
         ) : null}
 
-        <div className="mt-6 border-t border-[#e4e1d9] pt-5 text-center">
-          <p className="text-xs leading-5 text-[#7a847e]">
-            Accès actuel via ChatGPT Sites pendant la transition ?
-          </p>
-          <a
-            href={sitesSignInUrl}
-            target="_top"
-            className="mt-2 inline-flex min-h-11 items-center justify-center text-sm font-semibold text-[#285d43] underline decoration-[#b3c7ba] underline-offset-4"
-          >
-            Continuer avec l’accès Sites
-          </a>
-        </div>
       </div>
 
       <p className="mt-5 px-5 text-center text-xs leading-5 text-[#748078]">

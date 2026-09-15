@@ -532,6 +532,9 @@ export const checkoutAttempts = sqliteTable(
   {
     claimHash: text('claim_hash').primaryKey(),
     checkoutSessionId: text('checkout_session_id'),
+    accountUserId: text('account_user_id'),
+    accountEmail: text('account_email'),
+    accountName: text('account_name'),
     createdAt: integer('created_at').notNull(),
     expiresAt: integer('expires_at').notNull(),
   },

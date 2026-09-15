@@ -1,10 +1,10 @@
 import { ShieldCheck } from 'lucide-react';
-import { LicenseDelivery } from '@/components/license-delivery';
+import { AccountActivation } from '@/components/account-activation';
 import { BrandMark } from '@/components/brand-mark';
 
 export const metadata = {
   title: 'Activer Zentra',
-  description: 'Récupérez votre licence Zentra après le paiement Stripe.',
+  description: 'Votre abonnement est associé automatiquement à votre compte Zentra.',
   robots: { index: false, follow: false },
 };
 
@@ -29,16 +29,12 @@ export default async function PaymentSuccessPage({
             Votre abonnement Zentra
           </h1>
           <p className="mt-4 text-base leading-7 text-[#5f6962]">
-            Stripe gère le paiement. Le service de licence Zentra conserve le nom
-            et l’e-mail de facturation, les identifiants Stripe nécessaires au
-            suivi de l’abonnement et l’identifiant de cette installation. Aucune
-            facture, fiche de salaire ni donnée métier créée dans l’application
-            n’est transmise automatiquement. Si vous activez plus tard le coffre
-            Zentra, seuls les PDF de factures archivés sur option seront envoyés.
+            Un seul compte pour votre abonnement et vos appareils.
+            Aucun jeton à copier : connectez-vous à Zentra pour activer votre accès.
           </p>
         </div>
         {sessionId ? (
-          <LicenseDelivery sessionId={sessionId} />
+          <AccountActivation sessionId={sessionId} />
         ) : (
           <div className="rounded-2xl border border-[#e0b5a8] bg-[#fff1ed] p-5 text-sm text-[#7b3e31]">
             La référence de paiement manque. Reprenez l’achat depuis la page
