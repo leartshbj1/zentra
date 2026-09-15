@@ -21,11 +21,17 @@ use std::{
         Arc, Mutex, OnceLock,
     },
 };
-use tauri::State;
+use tauri::{Emitter, State};
 
 pub(crate) const PATH: &str = "/api/account/collaboration";
 const STATE: &str = "company-collaboration.json";
 static GATES: OnceLock<Mutex<HashMap<PathBuf, Arc<AtomicBool>>>> = OnceLock::new();
+type ChangeListener = Arc<dyn Fn() + Send + Sync>;
+static LISTENERS: OnceLock<Mutex<HashMap<PathBuf, ChangeListener>>> = OnceLock::new();
+pub(crate) fn install_change_events(store: &LocalStore, app: tauri::AppHandle) {
+    LISTENERS.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner())
+        .insert(store.data_dir.clone(), Arc::new(move || { let _ = app.emit("zentra-company-data-changed", ()); }));
+}
 thread_local! { static APPLYING:Cell<bool>=const {Cell::new(false)}; }
 fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
@@ -40,6 +46,25 @@ fn gate(store: &LocalStore) -> Arc<AtomicBool> {
         .clone()
 }
 pub(crate) fn register(store: &LocalStore, connection: &Connection) -> AppResult<()> {
+    // The clock covers every shared table, including writes outside UI commands.
+    // Notify once per transaction, never for rolled-back edits or remote imports.
+    let dirty = Arc::new(AtomicBool::new(false));
+    let changed = dirty.clone();
+    connection.update_hook(Some(move |_: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
+        if table == "company_local_clock" && !APPLYING.get() { changed.store(true, Ordering::Release); }
+    }));
+    let rolled_back = dirty.clone();
+    connection.rollback_hook(Some(move || { rolled_back.store(false, Ordering::Release); }));
+    let directory = store.data_dir.clone();
+    connection.commit_hook(Some(move || {
+        if dirty.swap(false, Ordering::AcqRel) && !APPLYING.get() {
+            let callback = LISTENERS.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner()).get(&directory).cloned();
+            // No database work here. The receiver coalesces notifications and
+            // takes the normal SQLite lock before reading the committed state.
+            if let Some(callback) = callback { callback(); }
+        }
+        false
+    }));
     let gate = gate(store);
     connection.create_scalar_function(
         "zentra_company_write_allowed",
@@ -291,6 +316,28 @@ pub(crate) fn status(store: &LocalStore) -> AppResult<Value> {
 #[tauri::command]
 pub fn get_company_sync_state(state: State<'_, LocalStore>) -> Result<Value, String> {
     status(&state).map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn watch_company_workspace(state: State<'_, LocalStore>, after: Option<u64>) -> Result<Value, String> {
+    let store = state.inner().clone();
+    let prefs = load(&store).map_err(command_error)?;
+    if prefs.organization_id.is_none() { return Ok(json!({"enabled":false})); }
+    // Never hold operation_lock over a long poll: saving, sending, logout and
+    // account changes must remain available while waiting for a colleague.
+    let session = project_sync_session(&store).await.map_err(command_error)?
+        .ok_or("Reconnectez votre compte pour recevoir les changements de l’équipe.")?;
+    if prefs.organization_id.as_deref() != Some(&session.organization_id) {
+        return Err("Reconnectez le compte de cette entreprise.".into());
+    }
+    let known = prefs.received.as_ref().map_or(prefs.revision, |r| r.revision.max(prefs.revision))
+        .max(after.filter(|n| *n <= 9_007_199_254_740_991).unwrap_or(0));
+    let head = request(&session, Method::GET, &[("watch", &known.to_string())], None).await.map_err(command_error)?;
+    let revision = checked_head(&session, &head).map_err(command_error)?;
+    // Return only a hint. Applying data always revalidates current membership,
+    // organization, revision and hashes through the existing synchronization.
+    Ok(json!({"enabled":true,"organizationId":session.organization_id,"revision":revision,
+        "changed":revision>known,"realtime":head["realtime"]==true}))
 }
 
 struct WriteGate(Arc<AtomicBool>);
@@ -739,6 +786,12 @@ pub async fn sync_company_workspace(
     if prefs.pending.is_some() && !accept_remote {
         send(&store, &session, false).await.map_err(command_error)?;
     } else if revision > prefs.revision || accept_remote {
+        if !accept_remote && prefs.received.as_ref().is_some_and(|r| r.revision == revision && r.clock == prefs.base_clock)
+            && clock(&store).map_err(command_error)? == prefs.base_clock {
+            // Already downloaded and verified. Wait for the active form to
+            // close, without downloading every attachment again on each wake.
+            return status(&store).map_err(command_error);
+        }
         if clock(&store).map_err(command_error)? != prefs.base_clock && !accept_remote {
             let mut prefs = prefs;
             prefs.conflict = true;
@@ -845,6 +898,26 @@ pub async fn apply_company_update(state: State<'_, LocalStore>) -> Result<Value,
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn every_committed_shared_write_notifies_once_but_rollbacks_and_imports_do_not() {
+        use std::sync::atomic::AtomicUsize;
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temp.path().into()).unwrap();
+        seed(&store, "notification-client");
+        let count = Arc::new(AtomicUsize::new(0));
+        let observed = count.clone();
+        LISTENERS.get_or_init(Default::default).lock().unwrap().insert(store.data_dir.clone(), Arc::new(move || { observed.fetch_add(1, Ordering::AcqRel); }));
+        let mut c = store.connect().unwrap();
+        { let tx=c.transaction().unwrap(); assert_eq!(tx.execute("UPDATE clients SET name='Partagé' WHERE id='notification-client'", []).unwrap(), 1); tx.execute("UPDATE clients SET name='Final' WHERE id='notification-client'", []).unwrap(); tx.commit().unwrap(); }
+        assert_eq!(count.load(Ordering::Acquire), 1);
+        { let tx=c.transaction().unwrap(); tx.execute("UPDATE clients SET name='Annulé' WHERE id='notification-client'", []).unwrap(); }
+        assert_eq!(count.load(Ordering::Acquire), 1);
+        { let _gate=WriteGate::take(&store).unwrap(); c.execute("UPDATE clients SET name='Reçu' WHERE id='notification-client'", []).unwrap(); }
+        assert_eq!(count.load(Ordering::Acquire), 1);
+        assert_eq!(c.query_row("SELECT name FROM clients WHERE id='notification-client'", [], |r| r.get::<_,String>(0)).unwrap(), "Reçu");
+        assert_eq!(count.load(Ordering::Acquire), 1);
+        LISTENERS.get().unwrap().lock().unwrap().remove(&store.data_dir);
+    }
     fn person(store: &LocalStore, user: &str) {
         set_identity(
             store,

@@ -33,6 +33,7 @@ import type { AppSettings, LicenseState, Workspace } from './types';
 import { Button, ErrorPanel, Modal } from './ui';
 import { errorMessage, normalizeLicenseToken } from './utils';
 import { useMobileLayout } from './useMobileLayout';
+import { CloudAccountAccess } from './CloudAccountAccess';
 
 export function App() {
   useAppLanguage();
@@ -212,6 +213,8 @@ export function App() {
       {license && licenseNeedsAttention ? (
         <LicenseActivation
           license={license}
+          account={cloudAccount}
+          onAccountChange={handleCloudAccountChange}
           hasNavigation={workspaceReady}
           onInstall={async (token) => {
             const next = await desktopApi.installLicenseToken(token);
@@ -269,10 +272,14 @@ const licenseLabels: Record<LicenseState['status'], string> = {
 
 function LicenseActivation({
   license,
+  account,
+  onAccountChange,
   hasNavigation,
   onInstall,
   onRefresh,
 }: {
+  account?: import('./bridge').CloudAccountState | null;
+  onAccountChange?: (account: import('./bridge').CloudAccountState) => void;
   hasNavigation: boolean;
   license: LicenseState;
   onInstall: (token: string) => Promise<void>;
@@ -404,14 +411,14 @@ function LicenseActivation({
           </small>
         </div>
       </div>
-      {license.readOnly ? (
-        form
-      ) : (
-        <details>
-          <summary>{t("Licence et identifiant d’installation")}</summary>
-          {form}
-        </details>
-      )}
+      {license.readOnly && <div className="license-account-activation">
+        <p>{t('Connectez-vous au compte utilisé pour votre abonnement. Votre licence s’active automatiquement.')}</p>
+        <CloudAccountAccess account={account} onAccountChange={onAccountChange}/>
+      </div>}
+      <details>
+        <summary>{t("Licence et identifiant d’installation")}</summary>
+        {form}
+      </details>
       <p>
         {license.reason ||
           `Solo 49 CHF · Start 59 CHF · Pro 89 CHF par mois · toutes les fonctions actuelles et futures incluses`}

@@ -4799,6 +4799,7 @@ export const desktopApi = {
     }catch(reason){publishCompanySync(local,errorMessage(reason,'La synchronisation reprendra automatiquement.'));throw reason;}
   },
   getCompanySyncState:()=>invoke<import('./companySync').CompanySyncState>('get_company_sync_state'),
+  watchCompanyWorkspace:(after:number)=>invoke<import('./companyRealtime').CompanyRevisionNotice>('watch_company_workspace',{after}),
   syncCompanyWorkspace:(receive=false,acceptRemote=false)=>invoke<import('./companySync').CompanySyncState>('sync_company_workspace',{receive,acceptRemote}),
   applyCompanyUpdate:()=>invoke<import('./companySync').CompanySyncState>('apply_company_update'),
   getCloudBackupState: () => invoke<CloudBackupState>('get_cloud_backup_state'),

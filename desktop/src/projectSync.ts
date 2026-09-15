@@ -3,6 +3,10 @@ import { desktopApi } from './bridge';
 import { errorMessage } from './utils';
 import type { Workspace } from './types';
 import { startProjectSyncScheduler } from './projectSyncScheduler';
+import { startCompanyRealtime } from './companyRealtime';
+import { isTauri } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { watchCompanyReceiveOpportunity } from './companySync';
 
 export type ProjectSyncStatus = {
   mode?: 'legacy' | 'preparing' | 'business';
@@ -73,7 +77,22 @@ export function useProjectSyncBackground(
         if (!signal.aborted) onWorkspaceRef.current(workspace);
       },
     });
-    const wake = (event?: Event) => scheduler.wake(event?.type === 'online' || event?.type === 'offline' || (event instanceof CustomEvent && event.detail?.userRequested === true));
+    const realtime = startCompanyRealtime({
+      watch: desktopApi.watchCompanyWorkspace,
+      available: () => isTauri() && navigator.onLine !== false && document.visibilityState !== 'hidden',
+      onRevision: () => scheduler.wake(true),
+    });
+    const stopReceiveWatch=watchCompanyReceiveOpportunity(()=>scheduler.wake());
+    let unlisten: UnlistenFn | undefined;
+    if (isTauri()) void listen('zentra-company-data-changed', () => {
+      if (active) { scheduler.wake(); realtime.wake(); }
+    }).then(stop => { if (active) unlisten = stop; else stop(); }).catch(() => {
+      // Periodic reconciliation remains active if event registration fails.
+    });
+    const wake = (event?: Event) => {
+      scheduler.wake(event?.type === 'online' || event?.type === 'offline' || (event instanceof CustomEvent && event.detail?.userRequested === true));
+      realtime.wake();
+    };
     const visible = () => { if (document.visibilityState === 'visible') wake(); };
     const events = ['online', 'offline', 'focus', 'zentra-project-documents-changed'];
     events.forEach(event => window.addEventListener(event, wake));
@@ -91,6 +110,9 @@ export function useProjectSyncBackground(
     return () => {
       active = false;
       scheduler.stop();
+      realtime.stop();
+      stopReceiveWatch();
+      unlisten?.();
       events.forEach(event => window.removeEventListener(event, wake));
       window.removeEventListener('zentra-company-workspace-received',received);
       document.removeEventListener('visibilitychange', visible);

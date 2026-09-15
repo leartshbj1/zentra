@@ -26,6 +26,21 @@ export async function refreshReceivedCompany(){
     throw reason;
   }
 }
+export function watchCompanyReceiveOpportunity(wake:()=>void){
+  let requested=false;
+  const check=()=>{
+    if(!current.ready){requested=false;return;}
+    if(!requested&&!receiving&&!current.conflict&&companyReceiveAllowed()) { requested=true;wake(); }
+  };
+  // A finished/discarded editor or closed preview should release a waiting
+  // update immediately, even if no new database write is made on this device.
+  const observer=new MutationObserver(check);
+  observer.observe(document.body,{childList:true,subtree:true});
+  window.addEventListener('zentra-company-sync-status',check);
+  window.addEventListener('focusout',check);
+  window.addEventListener('pointerup',check);
+  return()=>{observer.disconnect();window.removeEventListener('zentra-company-sync-status',check);window.removeEventListener('focusout',check);window.removeEventListener('pointerup',check);};
+}
 function useStatus(){const [,render]=useState(0);useEffect(()=>{const update=()=>render(v=>v+1);window.addEventListener('zentra-company-sync-status',update);return()=>window.removeEventListener('zentra-company-sync-status',update);},[]);return {...current,error,receiving};}
 export function CompanyReceivingOverlay(){
   const {receiving}=useStatus();

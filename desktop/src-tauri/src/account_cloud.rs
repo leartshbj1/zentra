@@ -59,6 +59,7 @@ impl ProjectSyncSession {
         url.query_pairs_mut().extend_pairs(query.iter().copied());
         crate::app_updater::ensure_rustls_crypto_provider().map_err(AppError::Validation)?;
         let client = reqwest::Client::builder().https_only(true).redirect(Policy::none()).connect_timeout(CONNECT_TIMEOUT)
+            .user_agent(format!("Zentra/{}", env!("CARGO_PKG_VERSION")))
             .timeout(Duration::from_secs(90)).build().map_err(|_| AppError::Validation("Connexion sécurisée indisponible.".into()))?;
         let mut request = client.request(method,url).header(AUTHORIZATION,format!("Bearer {}",self.token));
         for (name,value) in headers { request = request.header(*name,value); }

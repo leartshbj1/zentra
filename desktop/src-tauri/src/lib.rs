@@ -145,6 +145,7 @@ pub fn run() {
             app_updater::initialize(app)?;
             let data_dir = resolve_data_dir(app.handle())?;
             let store = LocalStore::initialize(data_dir)?;
+            company_collaboration::install_change_events(&store, app.handle().clone());
             // `HELVICHANTIER_DATA_DIR` peut déplacer le profil hors de
             // `$APPLOCALDATA`. On n'ouvre jamais ce profil entier au protocole
             // asset : seuls les logos immuables, directement dans ce dossier,
@@ -353,6 +354,7 @@ pub fn run() {
             app_reset::restore_reset_recovery,
             cloud_backup::publish_company_copy,
             company_collaboration::get_company_sync_state,
+            company_collaboration::watch_company_workspace,
             company_collaboration::enable_company_sync,
             company_collaboration::sync_company_workspace,
             company_collaboration::apply_company_update,
