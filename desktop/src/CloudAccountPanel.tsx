@@ -12,7 +12,7 @@ import {
   Users,
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
-import { errorMessage, formatDateTime } from './utils';
+import { errorMessage } from './utils';
 import { Button, SectionHeading } from './ui';
 
 const ROLE_LABEL: Record<NonNullable<CloudAccountState['role']>, string> = {
@@ -170,14 +170,14 @@ export function CloudAccountPanel({
   const currentStep = connected ? 3 : pending ? 2 : 1;
 
   return (
-    <section className="panel settings-card settings-card--wide">
+    <section className="panel settings-card settings-card--wide cloud-account-panel">
       <SectionHeading
-        eyebrow={t("Compte, équipe & fiduciaire")}
-        title={t("Votre connexion Zentra")}
-        description={t("Connectez-vous avec votre compte personnel. Si vous êtes invité, utilisez l’adresse e-mail de votre invitation pour rejoindre l’entreprise.")}
+        eyebrow="Zentra"
+        title={t(connected ? "Votre compte" : "Connecter votre entreprise")}
+        description={connected ? undefined : t("Utilisez votre compte personnel ou l’adresse e-mail de votre invitation.")}
       />
 
-      <ol
+      {!connected && <ol
         className="settings-cloud-steps"
         aria-label={t("Étapes de connexion au compte")}
       >
@@ -203,7 +203,7 @@ export function CloudAccountPanel({
             </li>
           );
         })}
-      </ol>
+      </ol>}
 
       {!account ? (
         <div className="settings-cloud-status">
@@ -218,10 +218,7 @@ export function CloudAccountPanel({
           <div>
             <strong>{account.organizationName}</strong>
             <p>
-              {account.role ? t(ROLE_LABEL[account.role]) : t("Membre")}{t(" · session de ce poste valable jusqu’au")}{' '}
-              {account.sessionExpiresAt
-                ? formatDateTime(account.sessionExpiresAt)
-                : t("renouvellement")}
+              {account.role ? t(ROLE_LABEL[account.role]) : t("Membre")}
             </p>
           </div>
         </div>
@@ -283,27 +280,23 @@ export function CloudAccountPanel({
         </div>
       )}
 
-      <div className="settings-cloud-privacy">
-        <LockKeyhole size={17} />
-        <p>{t("Votre connexion est protégée sur cet appareil. Chaque personne utilise son propre compte et son propre mot de passe.")}</p>
-      </div>
-      <p className="settings-cloud-scope">{t("Les rôles encadrent les services connectés. « Lecture seule » bloque aussi les modifications dans cette interface. Les plans, photos et documents ajoutés aux projets sont partagés avec l’entreprise et conservés hors ligne sur chaque appareil connecté. Les autres données métier restent locales.")}</p>
+      {connected && !joining ? <CloudTeamPanel key={account.organizationId} settings={settings}/> : null}
       {connected ? (
-        <div className="settings-actions">
+        <div className="settings-actions cloud-account-panel__actions">
           <Button
             variant="secondary"
             disabled={busy}
             onClick={() => void desktopApi.openCloudAccountPortal()}
           >
-            <ExternalLink size={16} />{t(" Gérer l’équipe, la fiduciaire et les appareils")}</Button>
+            <ExternalLink size={16} />{t("Abonnement et appareils")}</Button>
           <Button
-            variant="secondary"
+            variant="ghost"
             disabled={busy}
             onClick={() => void disconnect()}
           >{t("Déconnecter ce poste")}</Button>
         </div>
       ) : null}
-      {connected && !joining ? <CloudTeamPanel key={account.organizationId} settings={settings}/> : null}
+      <div className="settings-cloud-privacy"><LockKeyhole size={15}/><p>{t("Connexion protégée sur cet appareil.")}</p></div>
       {error ? (
         <p className="form-error" role="alert">
           {t(error)}

@@ -3726,6 +3726,7 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let profile = temporary.path().join("v14-profile");
         let original = LocalStore::initialize(profile.clone()).unwrap();
+        crate::company_collaboration::remove_tracking_for_legacy_fixture(&original.connect().unwrap());
         expense_tests::drop_refund_bank_schema(&original.connect().unwrap());
         original
             .connect()

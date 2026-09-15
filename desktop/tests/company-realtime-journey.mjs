@@ -9,7 +9,7 @@ for(const engine of ['chromium','webkit']){
  try{for(const width of [1280,390]){
   const page=await browser.newPage({viewport:{width,height:844},hasTouch:width===390});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto('http://127.0.0.1:5273/tests/mobile-harness.html?browsing=1&design=1&companyRealtime=1');
+  await page.goto(`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5273'}/tests/mobile-harness.html?browsing=1&design=1&companyRealtime=1`);
   await page.getByRole('button',{name:'Fermer le guide automatique',exact:true}).click();
   await page.waitForFunction(()=>window.companyRealtimeFixture?.calls.some(c=>c.command==='sync_company_workspace'));
   const amount=width===390?page.locator('.mobile-home__amount'):page.locator('.metric-card').filter({hasText:'Reste à recevoir'}).locator('strong');

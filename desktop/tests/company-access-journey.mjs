@@ -65,6 +65,7 @@ try {
     assert.equal(new URL(page.url()).searchParams.get('resetCalls'),'1');
     await page.goto(url+'&team=1&missing=1');
     await page.getByRole('heading',{name:'Équipe et invitations',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Inviter une personne',exact:true}).click();
     const invite=page.getByRole('button',{name:'Créer le lien d’invitation',exact:true});
     assert.equal(await invite.isEnabled(),true);
     assert.equal(await page.getByRole('checkbox').count(),0);
@@ -76,6 +77,7 @@ try {
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
     await page.screenshot({path:`.qa/company-access/${theme}-${width}-team.png`,fullPage:true});
     await page.goto(url+'&team=1&missing=1&shareFailure=1');
+    await page.getByRole('button',{name:'Inviter une personne',exact:true}).click();
     await page.getByRole('textbox',{name:'Adresse e-mail',exact:true}).fill('personne@example.test');
     await page.getByRole('button',{name:'Créer le lien d’invitation',exact:true}).click();
     await page.getByText('Connexion interrompue. Réessayez le partage.',{exact:true}).waitFor();

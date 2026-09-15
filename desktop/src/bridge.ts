@@ -4788,19 +4788,19 @@ export const desktopApi = {
     const {publishCompanySync,companyReceiveAllowed,setCompanyReceiving,refreshReceivedCompany}=await import('./companySync');
     const initialFocus=document.activeElement;
     try {
-      let result=await invoke<import('./companySync').CompanySyncState>('sync_company_workspace',{receive:false,acceptRemote:false});
+      let result=await invoke<import('./companySync').CompanySyncState>('sync_company_workspace',{receive:false,acceptRemote:false,confirmedDuplicateReceipt:null});
       if(result.ready&&!result.conflict&&companyReceiveAllowed()&&document.activeElement===initialFocus){
         setCompanyReceiving(true);
         try{result=await invoke('apply_company_update');if(result.changed)await refreshReceivedCompany();}finally{setCompanyReceiving(false);}
       }
       publishCompanySync(result);
       return {mode:'business',organizationId:result.organizationId,pending:result.pending?1:0,connected:true,syncing:false,changed:result.changed,
-        lastSyncedAt:result.lastSyncedAt,documents:[],...(result.conflict?{error:'Des modifications existent sur les deux appareils. Ouvrez Paramètres → Compte et équipe pour choisir la version à recevoir.'}:{})};
+        lastSyncedAt:result.lastSyncedAt,documents:[],...(result.conflict?{error:result.conflictReason||'Un document a été modifié sur deux appareils. Les deux copies sont conservées. Consultez Paramètres → Compte pour le détail.'}:{})};
     }catch(reason){publishCompanySync(local,errorMessage(reason,'La synchronisation reprendra automatiquement.'));throw reason;}
   },
   getCompanySyncState:()=>invoke<import('./companySync').CompanySyncState>('get_company_sync_state'),
   watchCompanyWorkspace:(after:number)=>invoke<import('./companyRealtime').CompanyRevisionNotice>('watch_company_workspace',{after}),
-  syncCompanyWorkspace:(receive=false,acceptRemote=false)=>invoke<import('./companySync').CompanySyncState>('sync_company_workspace',{receive,acceptRemote}),
+  syncCompanyWorkspace:(receive=false,acceptRemote=false,confirmedDuplicateReceipt:import('./companySync').DuplicateReceipt|null=null)=>invoke<import('./companySync').CompanySyncState>('sync_company_workspace',{receive,acceptRemote,confirmedDuplicateReceipt}),
   applyCompanyUpdate:()=>invoke<import('./companySync').CompanySyncState>('apply_company_update'),
   getCloudBackupState: () => invoke<CloudBackupState>('get_cloud_backup_state'),
   runCloudBackup: (manual: boolean) => invoke<CloudBackupState>('run_cloud_backup', { manual }),

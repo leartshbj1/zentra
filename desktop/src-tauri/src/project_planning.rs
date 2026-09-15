@@ -680,6 +680,7 @@ mod tests {
     fn migration_v18_to_v19_is_idempotent() {
         let (_temporary, store) = initialized_store();
         let connection = store.connect().unwrap();
+        crate::company_collaboration::remove_tracking_for_legacy_fixture(&connection);
         connection
             .execute_batch(
                 "DROP TRIGGER IF EXISTS time_entries_task_insert_guard;

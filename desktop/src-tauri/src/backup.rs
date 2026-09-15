@@ -731,6 +731,13 @@ impl LocalStore {
         Ok(())
     }
 
+    pub(crate) fn extract_company_copy(&self, source: &Path, directory: &Path) -> AppResult<()> {
+        fs::create_dir_all(directory.join("attachments"))?;
+        let database = directory.join(DATABASE_ENTRY);
+        self.extract_and_validate_archive_with_limits(source, &database, &directory.join("attachments"), ARCHIVE_EXTRACTION_LIMITS)?;
+        validate_database(&database)
+    }
+
     fn extract_and_validate_archive_with_limits(
         &self,
         source: &Path,

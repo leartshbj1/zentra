@@ -54,6 +54,19 @@ fn gate(store: &LocalStore) -> Arc<AtomicBool> {
         .clone()
 }
 pub(crate) fn register(store: &LocalStore, connection: &Connection) -> AppResult<()> {
+    connection.create_scalar_function(
+        "zentra_company_logo_key",
+        1,
+        FunctionFlags::SQLITE_UTF8
+            | FunctionFlags::SQLITE_INNOCUOUS
+            | FunctionFlags::SQLITE_DETERMINISTIC,
+        |ctx| {
+            let value: Option<String> = ctx.get(0)?;
+            Ok(value.map(|s| {
+                crate::company_sync_digest::shared_text("settings", "logo_path", &s).to_owned()
+            }))
+        },
+    )?;
     // The clock covers every shared table, including writes outside UI commands.
     // Notify once per transaction, never for rolled-back edits or remote imports.
     let dirty = Arc::new(AtomicBool::new(false));
@@ -165,10 +178,30 @@ pub(crate) fn local_table(table: &str) -> bool {
                 | "active_timers"
         )
 }
+#[cfg(test)]
+pub(crate) fn remove_tracking_for_legacy_fixture(db: &Connection) {
+    // Tests construct old schemas from a current fixture. Those versions never
+    // contained column-aware collaboration triggers; remove that later layer
+    // before ALTER TABLE DROP COLUMN, then exercise the real migration normally.
+    let names = {
+        let mut q=db.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND (name LIKE 'company_clock_%' OR name LIKE 'company_guard_%')").unwrap();
+        let rows = q
+            .query_map([], |r| r.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        rows
+    };
+    for name in names {
+        db.execute_batch(&format!("DROP TRIGGER \"{}\"", name.replace('"', "\"\"")))
+            .unwrap();
+    }
+    db.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version; DROP TABLE IF EXISTS company_local_clock;").unwrap();
+}
 pub(crate) fn upgrade_tracking(connection: &Connection) -> AppResult<()> {
     connection.execute_batch("CREATE TABLE IF NOT EXISTS company_local_tracking_version(id INTEGER PRIMARY KEY CHECK(id=1),version INTEGER NOT NULL)")?;
     let ready: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM company_local_tracking_version WHERE id=1 AND version=2)",
+        "SELECT EXISTS(SELECT 1 FROM company_local_tracking_version WHERE id=1 AND version=3)",
         [],
         |r| r.get(0),
     )?;
@@ -195,7 +228,7 @@ pub(crate) fn upgrade_tracking(connection: &Connection) -> AppResult<()> {
             .iter()
             .filter_map(|r| r["name"].as_str())
             .filter(|c| !crate::company_sync_digest::ignored_column(table, c))
-            .map(|c| format!("OLD.\"{c}\" IS NOT NEW.\"{c}\""))
+            .map(|c| if table=="settings" && c=="logo_path" { "zentra_company_logo_key(OLD.logo_path) IS NOT zentra_company_logo_key(NEW.logo_path)".into() } else {format!("OLD.\"{c}\" IS NOT NEW.\"{c}\"")})
             .collect::<Vec<_>>()
             .join(" OR ");
         for operation in ["INSERT", "UPDATE", "DELETE"] {
@@ -226,7 +259,7 @@ pub(crate) fn upgrade_tracking(connection: &Connection) -> AppResult<()> {
               BEGIN UPDATE company_local_clock SET value=value+1 WHERE id=1; END;"))?;
         }
     }
-    connection.execute("INSERT INTO company_local_tracking_version VALUES(1,2) ON CONFLICT(id) DO UPDATE SET version=2",[])?;
+    connection.execute("INSERT INTO company_local_tracking_version VALUES(1,3) ON CONFLICT(id) DO UPDATE SET version=3",[])?;
     Ok(())
 }
 
@@ -268,6 +301,49 @@ fn baseline(store: &LocalStore, prefs: &Preferences) -> Option<String> {
         && value.digest.bytes().all(|c| c.is_ascii_hexdigit()))
     .then_some(value.digest)
 }
+fn remember_reference(
+    store: &LocalStore,
+    path: &Path,
+    organization: &str,
+    revision: u64,
+) -> AppResult<()> {
+    let digest = crate::company_sync_digest::archive(path)?;
+    let mut copy = tempfile::NamedTempFile::new_in(&store.data_dir)?;
+    std::io::copy(&mut File::open(path)?, copy.as_file_mut())?;
+    copy.as_file().sync_all()?;
+    copy.persist(store.data_dir.join("company-sync-reference.zentra"))
+        .map_err(|e| AppError::Io(e.error))?;
+    save_baseline(store, organization, revision, digest)
+}
+async fn reference_copy(
+    store: &LocalStore,
+    session: &ProjectSyncSession,
+    prefs: &Preferences,
+) -> AppResult<PathBuf> {
+    let path = store.data_dir.join("company-sync-reference.zentra");
+    if let Some(digest) = baseline(store, prefs) {
+        if path.is_file()
+            && crate::company_sync_digest::archive(&path).ok().as_deref() == Some(&digest)
+        {
+            return Ok(path);
+        }
+    }
+    let head = request(
+        session,
+        Method::GET,
+        &[("revision", &prefs.revision.to_string())],
+        None,
+    )
+    .await?;
+    if checked_head(session, &head)? != prefs.revision {
+        return Err(invalid("La copie de référence de cette entreprise est indisponible. Vos changements sont conservés."));
+    }
+    let downloaded = download(store, session, &head).await?;
+    // Older versions stored only a digest; recover their EXACT accepted revision.
+    // A v1.70 digest may include the now-ignored logo verification timestamp.
+    remember_reference(store, &downloaded, &session.organization_id, prefs.revision)?;
+    Ok(path)
+}
 fn reconcile_unchanged_local(store: &LocalStore, expected: &str) -> AppResult<bool> {
     let _lock = store.lock()?;
     let mut prefs = load(store)?;
@@ -282,6 +358,7 @@ fn reconcile_unchanged_local(store: &LocalStore, expected: &str) -> AppResult<bo
     prefs.base_clock = clock(store)?;
     prefs.pending = None;
     prefs.conflict = false;
+    prefs.conflict_reason = None;
     save(store, &prefs)?;
     Ok(true)
 }
@@ -292,19 +369,29 @@ async fn reconcile_idle_device(store: &LocalStore, session: &ProjectSyncSession)
     }
     let dirty = clock(store)? != prefs.base_clock || prefs.conflict || prefs.pending.is_some();
     let mut digest = baseline(store, &prefs);
-    if digest.is_none() && !dirty {
-        let _lock = store.lock()?;
-        if clock(store)? == prefs.base_clock {
-            save_baseline(
-                store,
-                &session.organization_id,
-                prefs.revision,
-                crate::company_sync_digest::local(store)?,
-            )?;
-        }
-        return Ok(());
-    }
     if !dirty {
+        if digest.is_none()
+            || !store
+                .data_dir
+                .join("company-sync-reference.zentra")
+                .is_file()
+        {
+            let owned = store.clone();
+            let org = session.organization_id.clone();
+            tauri::async_runtime::spawn_blocking(move || -> AppResult<()> {
+                let _lock = owned.lock()?;
+                let _gate = WriteGate::take(&owned)?;
+                if clock(&owned)? == prefs.base_clock && load(&owned)?.revision == prefs.revision {
+                    let temp = tempfile::tempdir_in(&owned.data_dir)?;
+                    let reference = temp.path().join("reference.zentra");
+                    owned.create_backup_at(&reference, env!("CARGO_PKG_VERSION"))?;
+                    remember_reference(&owned, &reference, &org, prefs.revision)?;
+                }
+                Ok(())
+            })
+            .await
+            .map_err(|_| invalid("La copie de référence sera préparée au prochain échange."))??;
+        }
         return Ok(());
     }
     if digest.is_none() {
@@ -376,6 +463,8 @@ struct Preferences {
     pending: Option<Pending>,
     last_synced_at: Option<String>,
     conflict: bool,
+    conflict_reason: Option<String>,
+    duplicate_receipt: Option<crate::company_merge::DuplicateReceipt>,
     received: Option<Received>,
 }
 #[derive(Clone, Serialize, Deserialize)]
@@ -386,6 +475,15 @@ struct Received {
     revision: u64,
     clock: i64,
     manifest: crate::cloud_backup::Manifest,
+    #[serde(default)]
+    merge: Option<MergeReception>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MergeReception {
+    local_digest: String,
+    reference_id: String,
+    reference_manifest: crate::cloud_backup::Manifest,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -416,6 +514,10 @@ fn load(store: &LocalStore) -> AppResult<Preferences> {
     if let Some(r) = &value.received {
         crate::cloud_backup::validate_id(&r.id)?;
         r.manifest.validate()?;
+        if let Some(m) = &r.merge {
+            crate::cloud_backup::validate_id(&m.reference_id)?;
+            m.reference_manifest.validate()?;
+        }
     }
     Ok(value)
 }
@@ -436,6 +538,7 @@ pub(crate) fn after_manual_restore(store: &LocalStore) -> AppResult<()> {
         prefs.received = None;
         prefs.base_clock = -1;
         prefs.conflict = true;
+        prefs.duplicate_receipt = None;
         save(store, &prefs)?;
     }
     Ok(())
@@ -471,6 +574,11 @@ fn clean_transport_copies(store: &LocalStore) -> AppResult<()> {
         if crate::cloud_backup::validate_id(id).is_err()
             || prefs.pending.as_ref().is_some_and(|p| p.id == id)
             || prefs.received.as_ref().is_some_and(|r| r.id == id)
+            || prefs
+                .received
+                .as_ref()
+                .and_then(|r| r.merge.as_ref())
+                .is_some_and(|m| m.reference_id == id)
         {
             continue;
         }
@@ -512,7 +620,7 @@ pub(crate) fn status(store: &LocalStore) -> AppResult<Value> {
     Ok(
         json!({"enabled":prefs.organization_id.is_some(),"organizationId":prefs.organization_id,"revision":prefs.revision,
       "pending":prefs.pending.is_some()||prefs.organization_id.is_some()&&clock(store)?!=prefs.base_clock,
-      "conflict":prefs.conflict,"ready":prefs.received.as_ref().is_some_and(|r|r.clock==prefs.base_clock&&clock(store).ok()==Some(r.clock)),"lastSyncedAt":prefs.last_synced_at,"syncing":gate(store).load(Ordering::Acquire)}),
+      "conflict":prefs.conflict,"conflictReason":prefs.conflict_reason,"duplicateReceipt":prefs.duplicate_receipt,"ready":prefs.received.as_ref().is_some_and(|r|(r.merge.is_some()||r.clock==prefs.base_clock)&&clock(store).ok()==Some(r.clock)),"lastSyncedAt":prefs.last_synced_at,"syncing":gate(store).load(Ordering::Acquire)}),
     )
 }
 #[tauri::command]
@@ -647,20 +755,20 @@ fn confirm_sent(store: &LocalStore, id: &str, revision: u64) -> AppResult<()> {
     if revision <= p.base_revision {
         return Err(invalid("La confirmation du serveur est incohérente."));
     }
-    let digest = crate::company_sync_digest::archive(&file_path(store, id)?)?;
-    save_baseline(
+    remember_reference(
         store,
+        &file_path(store, id)?,
         prefs
             .organization_id
             .as_deref()
             .ok_or_else(|| invalid("Entreprise de référence absente."))?,
         revision,
-        digest,
     )?;
     prefs.base_clock = p.clock;
     prefs.revision = revision;
     prefs.pending = None;
     prefs.conflict = false;
+    prefs.conflict_reason = None;
     prefs.last_synced_at = Some(now_iso());
     save(store, &prefs)?;
     let _ = clean_transport_copies(store);
@@ -900,12 +1008,7 @@ fn apply(
         restore_private(store, &private)?;
         crate::backup::validate_database(&store.database_path)?;
         prefs.base_clock = clock(store)?;
-        save_baseline(
-            store,
-            organization,
-            revision,
-            crate::company_sync_digest::local(store)?,
-        )?;
+        remember_reference(store, path, organization, revision)?;
         save(store, &prefs)
     })?;
     let _ = clean_transport_copies(store);
@@ -990,6 +1093,7 @@ pub async fn sync_company_workspace(
     state: State<'_, LocalStore>,
     receive: bool,
     accept_remote: bool,
+    confirmed_duplicate_receipt: Option<crate::company_merge::DuplicateReceipt>,
 ) -> Result<Value, String> {
     let store = state.inner().clone();
     let _account = store.account_protected_cache.operation_lock.lock().await;
@@ -1011,6 +1115,13 @@ pub async fn sync_company_workspace(
         .map_err(command_error)?;
     let revision = checked_head(&session, &head).map_err(command_error)?;
     let mut changed = false;
+    if confirmed_duplicate_receipt.is_some()
+        && (session.role == "read_only" || accept_remote || revision <= prefs.revision)
+    {
+        return Err(
+            "Cet encaissement doit être vérifié à nouveau. Aucune saisie n’a été supprimée.".into(),
+        );
+    }
     if revision < prefs.revision {
         return Err("La version du serveur est antérieure à celle de cet appareil. Contactez le support ; vos données sont conservées.".into());
     }
@@ -1023,10 +1134,50 @@ pub async fn sync_company_workspace(
     if accept_remote && !prefs.conflict {
         return Err("Le conflit a changé. Actualisez avant de choisir une version.".into());
     }
-    if prefs.conflict && !accept_remote {
+    if prefs.base_clock < 0 && !accept_remote {
         return status(&store).map_err(command_error);
     }
-    if prefs.pending.is_some() && !accept_remote {
+    if revision > prefs.revision
+        && !accept_remote
+        && (clock(&store).map_err(command_error)? != prefs.base_clock || prefs.pending.is_some())
+    {
+        let ready = prefs.received.as_ref().is_some_and(|r| {
+            r.merge.is_some() && r.revision == revision && clock(&store).ok() == Some(r.clock)
+        });
+        if !ready {
+            let reference = reference_copy(&store, &session, &prefs)
+                .await
+                .map_err(command_error)?;
+            let remote = download(&store, &session, &head)
+                .await
+                .map_err(command_error)?;
+            let owned = store.clone();
+            let org = session.organization_id.clone();
+            let prepared = tauri::async_runtime::spawn_blocking(move || {
+                stage_merge_confirmed(
+                    &owned,
+                    &reference,
+                    &remote,
+                    &org,
+                    revision,
+                    confirmed_duplicate_receipt.as_ref(),
+                )
+            })
+            .await
+            .map_err(|_| {
+                "La réunion des changements a été interrompue. Elle reprendra automatiquement."
+            })?;
+            if let Err(reason) = prepared {
+                let mut next = load(&store).map_err(command_error)?;
+                next.conflict = true;
+                next.conflict_reason = Some(match reason {
+                    AppError::Validation(message) => message,
+                    reason => reason.to_string(),
+                });
+                save(&store, &next).map_err(command_error)?;
+            }
+        }
+    } else if prefs.pending.is_some() && !accept_remote {
         send(&store, &session, false).await.map_err(command_error)?;
     } else if revision > prefs.revision || accept_remote {
         if !accept_remote
@@ -1079,7 +1230,10 @@ pub async fn sync_company_workspace(
                     clock: expected,
                     manifest: serde_json::from_value(head["manifest"].clone())
                         .map_err(|_| "Manifest reçu illisible.")?,
+                    merge: None,
                 });
+                next.conflict = false;
+                next.conflict_reason = None;
                 save(&store, &next).map_err(command_error)?;
             }
         }
@@ -1095,6 +1249,128 @@ pub async fn sync_company_workspace(
     result["changed"] = json!(changed);
     result["remoteRevision"] = json!(revision);
     Ok(result)
+}
+
+fn stage_merge(
+    store: &LocalStore,
+    reference: &Path,
+    remote: &Path,
+    organization: &str,
+    revision: u64,
+) -> AppResult<()> {
+    stage_merge_confirmed(store, reference, remote, organization, revision, None)
+}
+fn stage_merge_confirmed(
+    store: &LocalStore,
+    reference: &Path,
+    remote: &Path,
+    organization: &str,
+    revision: u64,
+    choice: Option<&crate::company_merge::DuplicateReceipt>,
+) -> AppResult<()> {
+    let work = tempfile::tempdir_in(&store.data_dir)?;
+    let local = work.path().join("local.zentra");
+    let (expected, digest) = {
+        let _lock = store.lock()?;
+        let _gate = WriteGate::take(store)?;
+        let expected = clock(store)?;
+        store.create_backup_at(&local, env!("CARGO_PKG_VERSION"))?;
+        (expected, crate::company_sync_digest::archive(&local)?)
+    };
+    let id = uuid::Uuid::new_v4().to_string();
+    let output = file_path(store, &id)?;
+    if let Err(reason) =
+        crate::company_merge::merge_confirmed(store, reference, &local, remote, &output, choice)
+    {
+        let candidate = crate::company_merge::duplicate_preview(store, reference, &local, remote)
+            .ok()
+            .flatten();
+        let _lock = store.lock()?;
+        let mut prefs = load(store)?;
+        if clock(store)? == expected && prefs.organization_id.as_deref() == Some(organization) {
+            prefs.duplicate_receipt = candidate;
+            save(store, &prefs)?;
+        }
+        return Err(reason);
+    }
+    let manifest = crate::cloud_backup::file_manifest(&output)?;
+    let _lock = store.lock()?;
+    let mut prefs = load(store)?;
+    if prefs.organization_id.as_deref() != Some(organization)
+        || revision <= prefs.revision
+        || clock(store)? != expected
+    {
+        return Ok(());
+    }
+    prefs.received = Some(Received {
+        id,
+        organization: organization.into(),
+        revision,
+        clock: expected,
+        manifest,
+        merge: Some(MergeReception {
+            local_digest: digest,
+            reference_id: remote
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .ok_or_else(|| invalid("Copie reçue inconnue."))?
+                .into(),
+            reference_manifest: crate::cloud_backup::file_manifest(remote)?,
+        }),
+    });
+    prefs.duplicate_receipt = None;
+    prefs.conflict = false;
+    prefs.conflict_reason = None;
+    save(store, &prefs)
+}
+fn apply_merged(store: &LocalStore, received: &Received, path: &Path) -> AppResult<()> {
+    let _lock = store.lock()?;
+    let _gate = WriteGate::take(store)?;
+    let m = received
+        .merge
+        .as_ref()
+        .ok_or_else(|| invalid("Réunion des changements absente."))?;
+    if clock(store)? != received.clock
+        || crate::company_sync_digest::local(store)? != m.local_digest
+    {
+        return Err(invalid(
+            "Votre dernière modification est conservée. Elle sera intégrée au prochain échange.",
+        ));
+    }
+    let reference = file_path(store, &m.reference_id)?;
+    if crate::cloud_backup::file_manifest(&reference)? != m.reference_manifest {
+        return Err(invalid(
+            "La copie de référence reçue a changé. Vos données sont conservées.",
+        ));
+    }
+    let mut prefs = load(store)?;
+    let private = private_rows(store)?;
+    // Recovery copy retains the entire original branch, including its audit chain.
+    store.create_backup(None, env!("CARGO_PKG_VERSION"))?;
+    store.restore_company_snapshot(&path.to_string_lossy(), || {
+        restore_private(store, &private)?;
+        crate::backup::validate_database(&store.database_path)?;
+        let id = uuid::Uuid::new_v4().to_string();
+        let upload = file_path(store, &id)?;
+        store.create_backup_at(&upload, env!("CARGO_PKG_VERSION"))?;
+        let clock = clock(store)?;
+        prefs.organization_id = Some(received.organization.clone());
+        prefs.revision = received.revision;
+        prefs.base_clock = clock;
+        prefs.pending = Some(Pending {
+            id,
+            base_revision: received.revision,
+            clock,
+            manifest: crate::cloud_backup::file_manifest(&upload)?,
+        });
+        prefs.received = None;
+        prefs.conflict = false;
+        prefs.conflict_reason = None;
+        remember_reference(store, &reference, &received.organization, received.revision)?;
+        save(store, &prefs)
+    })?;
+    let _ = clean_transport_copies(store);
+    Ok(())
 }
 
 #[tauri::command]
@@ -1125,6 +1401,9 @@ pub async fn apply_company_update(state: State<'_, LocalStore>) -> Result<Value,
                 "Les documents reçus ont changé. Relancez la synchronisation.",
             ));
         }
+        if received.merge.is_some() {
+            return apply_merged(&owned, &received, &path);
+        }
         apply(
             &owned,
             &path,
@@ -1146,6 +1425,343 @@ pub async fn apply_company_update(state: State<'_, LocalStore>) -> Result<Value,
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn issued(store: &LocalStore, client: &str, title: &str, cents: i64) -> String {
+        let invoice=store.create_record("invoices",json!({"client_id":client,"title":title,"service_date_from":"2026-09-15","service_date_to":"2026-09-15"})).unwrap();
+        let id = invoice["id"].as_str().unwrap();
+        store.create_record("invoice_items",json!({"invoice_id":id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":cents,"vat_bp":0})).unwrap();
+        store
+            .issue_invoice(id, Some("2026-09-15".into()), None)
+            .unwrap();
+        id.into()
+    }
+    fn reserve(store: &LocalStore, prefix: &str, start: i64) {
+        let request = crate::shared_numbering::prepare(store, "org-test", prefix, 2026, start)
+            .unwrap()
+            .unwrap();
+        let request_json = serde_json::to_value(&request).unwrap();
+        let reply=serde_json::from_value(json!({"request_id":request_json["request_id"],"organization_id":"org-test","installation_id":store.installation_id,"prefix":prefix,"year":2026,"start_value":start,"end_value":start+199})).unwrap();
+        crate::shared_numbering::adopt(store, "org-test", &request, &reply).unwrap();
+    }
+    fn pay(store: &LocalStore, invoice: &str, cents: i64) {
+        store
+            .record_payment(crate::models::RecordPaymentInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                invoice_id: invoice.into(),
+                amount_cents: cents,
+                date: Some("2026-09-15".into()),
+                method: Some("bank".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+    }
+    #[test]
+    fn simultaneous_new_invoice_and_receipt_merge_then_reach_every_device_with_audit_and_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let alice = LocalStore::initialize(dir.path().join("alice")).unwrap();
+        let bob = LocalStore::initialize(dir.path().join("bob")).unwrap();
+        let reader = LocalStore::initialize(dir.path().join("reader")).unwrap();
+        alice
+            .complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION"))
+            .unwrap();
+        crate::tests::enable_accounting(&alice);
+        person(&alice, "alice");
+        person(&bob, "bob");
+        person(&reader, "reader");
+        let client=alice.create_record("clients",json!({"name":"Client test","address_line1":"Rue Test 1","postal_code":"1200","city":"Genève","country":"CH"})).unwrap();
+        let client = client["id"].as_str().unwrap();
+        let first = issued(&alice, client, "Facture initiale", 10_000);
+        let p = prepare(&alice, "org-test", true).unwrap();
+        let base = dir.path().join("base.zentra");
+        fs::copy(file_path(&alice, &p.id).unwrap(), &base).unwrap();
+        for target in [&bob, &reader] {
+            apply(
+                target,
+                &base,
+                "org-test",
+                1,
+                clock(target).unwrap(),
+                true,
+                false,
+            )
+            .unwrap();
+        }
+        confirm_sent(&alice, &p.id, 1).unwrap();
+        reserve(&alice, "J", 201);
+        reserve(&alice, "F", 201);
+        reserve(&bob, "J", 401);
+        let second = issued(&alice, client, "Facture créée simultanément sur PC", 2_000);
+        fs::write(alice.attachments_dir.join("plan-pc.txt"), b"plan local").unwrap();
+        pay(&bob, &first, 3_000);
+        fs::write(
+            bob.attachments_dir.join("photo-iphone.txt"),
+            b"photo distante",
+        )
+        .unwrap();
+        let remote = prepare(&bob, "org-test", false).unwrap();
+        let remote_path = file_path(&bob, &remote.id).unwrap();
+        // The downloaded copy belongs to the target's transport directory.
+        let received_path = file_path(&alice, &remote.id).unwrap();
+        fs::copy(&remote_path, &received_path).unwrap();
+        confirm_sent(&bob, &remote.id, 2).unwrap();
+        let before = crate::company_sync_digest::local(&alice).unwrap();
+        stage_merge(&alice, &base, &received_path, "org-test", 2).unwrap();
+        assert_eq!(
+            crate::company_sync_digest::local(&alice).unwrap(),
+            before,
+            "staging must never mutate live data"
+        );
+        let staged = load(&alice).unwrap().received.unwrap();
+        assert_eq!(status(&alice).unwrap()["ready"], true);
+        fs::write(
+            alice.attachments_dir.join("changed-during-download.txt"),
+            b"latest local file",
+        )
+        .unwrap();
+        assert!(apply_merged(&alice, &staged, &file_path(&alice, &staged.id).unwrap()).is_err());
+        assert_eq!(load(&alice).unwrap().revision, 1);
+        fs::remove_file(alice.attachments_dir.join("changed-during-download.txt")).unwrap();
+        apply_merged(&alice, &staged, &file_path(&alice, &staged.id).unwrap()).unwrap();
+        let outgoing = load(&alice).unwrap().pending.unwrap();
+        assert_eq!(outgoing.base_revision, 2);
+        let archive = file_path(&alice, &outgoing.id).unwrap();
+        for target in [&bob, &reader] {
+            apply(
+                target,
+                &archive,
+                "org-test",
+                3,
+                clock(target).unwrap(),
+                false,
+                false,
+            )
+            .unwrap();
+        }
+        confirm_sent(&alice, &outgoing.id, 3).unwrap();
+        let digest = crate::company_sync_digest::local(&alice).unwrap();
+        for target in [&alice, &bob, &reader] {
+            assert_eq!(crate::company_sync_digest::local(target).unwrap(), digest);
+            let db = target.connect().unwrap();
+            assert_eq!(
+                db.query_row(
+                    "SELECT SUM(total_cents-paid_cents) FROM invoices WHERE number IS NOT NULL",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+                9_000
+            );
+            assert_eq!(
+                db.query_row("SELECT COUNT(*) FROM payments", [], |r| r.get::<_, i64>(0))
+                    .unwrap(),
+                1
+            );
+            assert_eq!(
+                db.query_row("SELECT COUNT(*) FROM invoices WHERE id=?", [&second], |r| r
+                    .get::<_, i64>(0))
+                    .unwrap(),
+                1
+            );
+            crate::audit::verify_audit_chain(&db).unwrap();
+            assert!(
+                db.query_row(
+                    "SELECT COUNT(*) FROM audit_log WHERE action='company.merge_branch'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap()
+                    > 0
+            );
+            assert!(target.attachments_dir.join("plan-pc.txt").is_file());
+            assert!(target.attachments_dir.join("photo-iphone.txt").is_file());
+            assert_eq!(status(target).unwrap()["pending"], false);
+            assert!(target
+                .data_dir
+                .join("company-sync-reference.zentra")
+                .is_file());
+        }
+        // A subsequent edit uses the newly accepted reference, not the stale
+        // base from the previous conflict. No endless pending/reception loop.
+        pay(&bob, &second, 500);
+        let next = prepare(&bob, "org-test", false).unwrap();
+        assert_eq!(next.base_revision, 3);
+        apply(
+            &alice,
+            &file_path(&bob, &next.id).unwrap(),
+            "org-test",
+            4,
+            clock(&alice).unwrap(),
+            false,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            alice
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT paid_cents FROM invoices WHERE id=?",
+                    [second],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            500
+        );
+    }
+    #[test]
+    fn duplicate_receipts_on_two_devices_are_never_summed_or_silently_discarded() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = LocalStore::initialize(dir.path().join("a")).unwrap();
+        let b = LocalStore::initialize(dir.path().join("b")).unwrap();
+        a.complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION"))
+            .unwrap();
+        crate::tests::enable_accounting(&a);
+        let client=a.create_record("clients",json!({"name":"Client test","address_line1":"Rue Test 1","postal_code":"1200","city":"Genève","country":"CH"})).unwrap();
+        let id = issued(
+            &a,
+            client["id"].as_str().unwrap(),
+            "Facture commune",
+            10_000,
+        );
+        let p = prepare(&a, "org-test", true).unwrap();
+        let base = dir.path().join("base.zentra");
+        fs::copy(file_path(&a, &p.id).unwrap(), &base).unwrap();
+        apply(&b, &base, "org-test", 1, clock(&b).unwrap(), true, false).unwrap();
+        confirm_sent(&a, &p.id, 1).unwrap();
+        reserve(&a, "J", 201);
+        reserve(&b, "J", 401);
+        pay(&a, &id, 10_000);
+        pay(&b, &id, 10_000);
+        reserve(&a, "F", 201);
+        let extra = issued(
+            &a,
+            client["id"].as_str().unwrap(),
+            "Nouvelle facture à conserver",
+            270_250,
+        );
+        let remote = prepare(&b, "org-test", false).unwrap();
+        let before = crate::company_sync_digest::local(&a).unwrap();
+        let error = stage_merge(
+            &a,
+            &base,
+            &file_path(&b, &remote.id).unwrap(),
+            "org-test",
+            2,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("paiement deux fois"), "{error}");
+        assert_eq!(crate::company_sync_digest::local(&a).unwrap(), before);
+        assert!(load(&a).unwrap().received.is_none());
+        let choice = load(&a)
+            .unwrap()
+            .duplicate_receipt
+            .expect("Only matching payment and journal bundles can be proposed");
+        let remote_path = file_path(&a, &remote.id).unwrap();
+        fs::copy(file_path(&b, &remote.id).unwrap(), &remote_path).unwrap();
+        let mut stale = choice.clone();
+        stale.amount_cents += 1;
+        assert!(
+            stage_merge_confirmed(&a, &base, &remote_path, "org-test", 2, Some(&stale)).is_err()
+        );
+        assert_eq!(crate::company_sync_digest::local(&a).unwrap(), before);
+        stage_merge_confirmed(&a, &base, &remote_path, "org-test", 2, Some(&choice)).unwrap();
+        assert_eq!(
+            crate::company_sync_digest::local(&a).unwrap(),
+            before,
+            "Even a confirmed review stages first"
+        );
+        let received = load(&a).unwrap().received.unwrap();
+        apply_merged(&a, &received, &file_path(&a, &received.id).unwrap()).unwrap();
+        let db = a.connect().unwrap();
+        assert_eq!(
+            db.query_row("SELECT COUNT(*) FROM payments", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.query_row(
+                "SELECT COUNT(*) FROM journal_entries WHERE source_type='payment'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.query_row(
+                "SELECT total_cents-paid_cents FROM invoices WHERE id=?",
+                [extra],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            270_250
+        );
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM audit_log WHERE action='company.merge_branch' AND json_extract(payload_json,'$.confirmed_duplicate_receipt.localId')=?",[&choice.local_id],|r|r.get::<_,i64>(0)).unwrap(),1);
+        crate::audit::verify_audit_chain(&db).unwrap();
+        let replay = a
+            .record_payment(crate::models::RecordPaymentInput {
+                request_id: choice.local_id.clone(),
+                invoice_id: id,
+                amount_cents: 10_000,
+                date: Some("2026-09-15".into()),
+                method: Some("bank".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+        assert_eq!(replay["id"].as_str(), Some(choice.remote_id.as_str()));
+        assert_eq!(
+            db.query_row("SELECT COUNT(*) FROM payments", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+    }
+    #[test]
+    fn logo_container_changes_are_not_company_edits_but_new_logo_bytes_are() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(dir.path().into()).unwrap();
+        store
+            .complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION"))
+            .unwrap();
+        let name = format!("logo-{}.png", "a".repeat(64));
+        let db = store.connect().unwrap();
+        for ch in ["a", "b"] {
+            let digest = ch.repeat(64);
+            db.execute("INSERT INTO company_brand_assets(sha256,file_name,media_type,byte_size,width,height,created_at,last_verified_at) VALUES(?,?,'image/png',1024,120,60,?,?)",params![digest,format!("logo-{digest}.png"),now_iso(),now_iso()]).unwrap();
+        }
+        db.execute(
+            "UPDATE settings SET logo_path=? WHERE id=1",
+            [format!("/private/var/mobile/attachments/branding/{name}")],
+        )
+        .unwrap();
+        let digest = crate::company_sync_digest::local(&store).unwrap();
+        let before = clock(&store).unwrap();
+        db.execute(
+            "UPDATE settings SET logo_path=? WHERE id=1",
+            [format!("C:\\Users\\local\\attachments\\branding\\{name}")],
+        )
+        .unwrap();
+        assert_eq!(clock(&store).unwrap(), before);
+        assert_eq!(crate::company_sync_digest::local(&store).unwrap(), digest);
+        db.execute(
+            "UPDATE company_brand_assets SET last_verified_at='2026-09-16T00:00:00Z'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(clock(&store).unwrap(), before);
+        assert_eq!(crate::company_sync_digest::local(&store).unwrap(), digest);
+        db.execute(
+            "UPDATE settings SET logo_path=? WHERE id=1",
+            [format!(
+                "C:\\Users\\local\\attachments\\branding\\logo-{}.png",
+                "b".repeat(64)
+            )],
+        )
+        .unwrap();
+        assert!(clock(&store).unwrap() > before);
+        assert_ne!(crate::company_sync_digest::local(&store).unwrap(), digest);
+    }
     #[test]
     fn idle_checks_do_not_dirty_shared_company_and_legacy_false_conflicts_recover() {
         let dir = tempfile::tempdir().unwrap();

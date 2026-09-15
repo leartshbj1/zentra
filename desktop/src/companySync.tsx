@@ -2,18 +2,19 @@ import { useEffect,useState } from 'react';
 import { createPortal,flushSync } from 'react-dom';
 import { Cloud,RefreshCw } from 'lucide-react';
 import { desktopApi } from './bridge';
-import { Button,ErrorPanel } from './ui';
+import { Button } from './ui';
 import { errorMessage } from './utils';
-import { t } from './language';
+import { t, getAppLocale } from './language';
 import './companySync.css';
 
-export type CompanySyncState={enabled:boolean;organizationId?:string;revision:number;pending:boolean;conflict:boolean;ready?:boolean;lastSyncedAt?:string;changed?:boolean;remoteRevision?:number};
+export type DuplicateReceipt={localId:string;remoteId:string;invoiceId:string;invoiceNumber:string;amountCents:number;currency:string;date:string;fingerprint:string};
+export type CompanySyncState={enabled:boolean;organizationId?:string;revision:number;pending:boolean;conflict:boolean;conflictReason?:string|null;duplicateReceipt?:DuplicateReceipt|null;ready?:boolean;lastSyncedAt?:string;changed?:boolean;remoteRevision?:number};
 let current:CompanySyncState={enabled:false,revision:0,pending:false,conflict:false};
 let error='';let receiving=false;
 const notify=()=>window.dispatchEvent(new Event('zentra-company-sync-status'));
 export function publishCompanySync(value:CompanySyncState,message=''){current=value;error=message;notify();}
 export function companyReceiveAllowed(){
-  const blockers=document.querySelectorAll('[role="dialog"], [aria-modal="true"], .modal-backdrop, [contenteditable="true"]:focus, input:not([type="search"]):focus, textarea:focus, select:focus, .editor-panel, .document-editor, .settings-form, .desktop-app main form, .desktop-app[data-view="settings"]');
+  const blockers=document.querySelectorAll('[role="dialog"], [aria-modal="true"], .modal-backdrop, [contenteditable="true"]:focus, input:not([type="search"]):focus, textarea:focus, select:focus, .editor-panel, .document-editor, .settings-form, .desktop-app main form:not([data-company-receive-safe="true"])');
   return !Array.from(blockers).some(node=>{
     if(node.closest('[hidden], [inert], [aria-hidden="true"]'))return false;
     const style=getComputedStyle(node);
@@ -58,27 +59,23 @@ export function CompanyReceivingOverlay(){
   return receiving?createPortal(<div className="company-receiving" role="status" aria-live="polite"><div><RefreshCw className="company-sync__spinner"/><strong>{t('Réception des changements de l’équipe…')}</strong><p>{t('Vos documents et les informations de l’entreprise se mettent à jour.')}</p></div></div>,document.body):null;
 }
 export function CompanySyncPanel(){
-  const status=useStatus();const [busy,setBusy]=useState(false),[confirm,setConfirm]=useState(false);
-  async function synchronize(acceptRemote=false){
+  const status=useStatus();
+  const [busy,setBusy]=useState(false);
+  const duplicate=status.conflict?status.duplicateReceipt:null;
+  const amount=duplicate?new Intl.NumberFormat(getAppLocale(),{style:'currency',currency:duplicate.currency}).format(duplicate.amountCents/100):'';
+  async function resolveReceipt(){
+    if(!duplicate||busy)return;
+    if(!window.confirm(t('Confirmer un seul encaissement de {amount} pour la facture {number} ? Les deux saisies originales seront conservées dans l’historique.',{amount,number:duplicate.invoiceNumber})))return;
     setBusy(true);
-    try{
-      if(acceptRemote)setCompanyReceiving(true);
-      let result=await desktopApi.syncCompanyWorkspace(acceptRemote,acceptRemote);
-      if(result.ready&&!result.conflict){setCompanyReceiving(true);result=await desktopApi.applyCompanyUpdate();}
-      publishCompanySync(result);
-      if(result.changed)await refreshReceivedCompany();
-      setConfirm(false);
-    }catch(reason){publishCompanySync(current,errorMessage(reason,'La synchronisation reprendra automatiquement.'));}
-    finally{setBusy(false);setCompanyReceiving(false);}
+    try{const result=await desktopApi.syncCompanyWorkspace(false,false,duplicate);publishCompanySync(result);window.dispatchEvent(new Event('zentra-project-documents-changed'));}
+    catch(reason){publishCompanySync(current,errorMessage(reason,'La vérification n’a pas abouti. Les deux copies sont conservées.'));}
+    finally{setBusy(false);}
   }
   if(!status.enabled)return null;
   return <section className={`company-sync-panel${status.conflict?'':' company-sync-panel--compact'}`} aria-label={t('Entreprise partagée')}>
-    <header><Cloud size={22}/><div><h3>{t('Entreprise partagée')}</h3><p>{status.conflict?t('Des changements existent sur les deux appareils.'):status.pending?t('Envoi en attente…'):status.ready?t('Mise à jour prête.'):t('À jour avec votre équipe.')}</p></div>{!status.conflict&&<Button size="icon" variant="ghost" disabled={busy} aria-label={t('Synchroniser maintenant')} onClick={()=>void synchronize()}><RefreshCw size={18} className={busy?'company-sync__spinner':undefined}/></Button>}</header>
+    <header><Cloud size={22}/><div><h3>{t('Entreprise partagée')}</h3><p role="status">{status.conflict?t('Un document nécessite une vérification.'):status.error?t('Reconnexion en cours…'):status.pending?t('Envoi automatique…'):status.ready?t('Réception automatique…'):t('À jour avec votre équipe.')}</p></div></header>
     {status.lastSyncedAt&&<small>{t('Dernière synchronisation')} : {new Date(status.lastSyncedAt).toLocaleString()}</small>}
-    {status.error&&<ErrorPanel message={status.error}/>}
-    {status.conflict?<><p>{t('Vos changements non envoyés seront sauvegardés. Vous devrez les reprendre après la réception.')}</p>
-      <label className="company-sync__consent"><input type="checkbox" checked={confirm} onChange={event=>setConfirm(event.target.checked)}/>{t('Conserver ma copie en sauvegarde, puis utiliser la version de l’équipe.')}</label>
-      <Button disabled={busy||!confirm} onClick={()=>void synchronize(true)}>{t('Sauvegarder ma copie et recevoir celle de l’équipe')}</Button>
-    </>:null}
+    {(status.conflict||status.error)&&<p role="alert">{t(status.conflictReason||status.error||'Les deux copies sont conservées. Contactez le support pour vérifier ce document.')}</p>}
+    {duplicate&&<div className="company-sync__receipt"><strong>{duplicate.invoiceNumber} · {amount}</strong><p>{t('Ce montant a été saisi sur deux appareils. S’agit-il du même paiement ?')}</p><Button disabled={busy} onClick={()=>void resolveReceipt()}>{t(busy?'Vérification…':'Oui, un seul paiement')}</Button></div>}
   </section>;
 }

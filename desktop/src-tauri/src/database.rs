@@ -7086,6 +7086,7 @@ fn record_payment_in_transaction_checked(transaction: &Transaction<'_>, input: R
                 "request_id doit être un UUID valide pour sécuriser la reprise du paiement.".into(),
             )
         })?;
+    let (request_id, reconciled_duplicate) = crate::company_merge::payment_request(transaction, &request_id)?;
     if let Some(existing) = query_optional_tx(
         transaction,
         "SELECT * FROM payments WHERE id=?",
@@ -7109,6 +7110,7 @@ fn record_payment_in_transaction_checked(transaction: &Transaction<'_>, input: R
                 .into(),
         ));
     }
+    if reconciled_duplicate { return Err(AppError::Validation("L’encaissement confirmé est introuvable. Aucun paiement supplémentaire n’a été créé.".into())); }
     ensure_accounting_date_open(transaction, &date)?;
     let (total_cents, paid_cents, credited_cents, invoice_type, invoice_status, number, issue_date): (
         i64,

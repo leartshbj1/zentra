@@ -3,3 +3,10 @@
 .company-receiving{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:24px;background:rgba(15,23,42,.45);backdrop-filter:blur(8px)}.company-receiving>div{display:grid;gap:14px;max-width:380px;padding:28px;border-radius:24px;background:var(--surface-raised,#fff);color:var(--ink,#172033);text-align:center;justify-items:center}.company-receiving p{margin:0;line-height:1.5}.company-sync__spinner{animation:company-sync-spin 1s linear infinite}@keyframes company-sync-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.company-sync__spinner{animation:none}}
 .sales-document__creator{overflow-wrap:anywhere;max-width:100%;font-size:11px;opacity:.75}
 .company-sync-panel--compact{gap:8px;padding:12px 14px}.company-sync-panel--compact header{margin:0}.company-sync-panel--compact header>div{flex:1;min-width:0}.company-sync-panel--compact header>button{flex:none}.company-sync-panel--compact small{font-size:12px;color:var(--muted)}
+.cloud-account-panel .company-sync-panel{padding:16px;border-radius:16px;background:var(--surface-soft,var(--surface));gap:8px;margin-block:16px}
+.cloud-account-panel .company-sync-panel header{margin:0}
+.cloud-account-panel .company-sync-panel h3{font-size:14px}
+.cloud-account-panel .company-sync-panel p{font-size:13px;margin:4px 0 0}
+.cloud-account-panel .company-sync-panel small{font-size:11px}
+.company-sync__receipt{display:grid;gap:12px;margin-top:8px;padding-top:14px;border-top:1px solid var(--line)}
+.company-sync__receipt strong{overflow-wrap:anywhere}

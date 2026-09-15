@@ -18,6 +18,7 @@ mod backup;
 mod cloud_backup;
 mod company_collaboration;
 mod company_sync_digest;
+mod company_merge;
 mod bank_import;
 mod branding;
 mod document_design;

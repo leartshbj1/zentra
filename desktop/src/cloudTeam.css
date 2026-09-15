@@ -3,7 +3,7 @@
 .cloud-team header > div { flex:1; min-width:0; }
 .cloud-team h3 { margin:0; font-size:18px; letter-spacing:-.025em; }
 .cloud-team p { color:var(--muted); line-height:1.6; margin:8px 0; }
-.cloud-team form { display:grid; grid-template-columns:minmax(0,1fr) minmax(180px, .65fr); gap:14px; padding:20px; border-radius:20px; background:#f3f4f5; }
+.cloud-team form { display:grid; grid-template-columns:minmax(0,1fr) minmax(180px, .65fr); gap:14px; padding:20px; border:1px solid var(--line); border-radius:18px; background:var(--surface-soft,var(--surface)); }
 .cloud-team form > p { grid-column:1/-1; margin:0; }
 .cloud-team form > button { grid-column:1/-1; justify-self:start; }
 .cloud-team__profile { display:flex; align-items:center; flex-wrap:wrap; gap:16px; border:1px solid var(--line); border-radius:18px; padding:18px; margin-block:18px; }
@@ -19,4 +19,17 @@
 .cloud-team__consent { display:flex; align-items:flex-start; gap:12px; margin-top:16px; line-height:1.6; }
 .cloud-team__consent input { flex:none; width:22px; height:22px; margin-top:3px; }
 .cloud-team__consent span { min-width:0; overflow-wrap:anywhere; }
+.cloud-account-panel .settings-cloud-account.is-connected{background:var(--surface-soft,var(--surface));border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:none;gap:14px}
+.cloud-account-panel .settings-cloud-account__icon{color:var(--accent);background:var(--surface-raised,var(--surface));border-radius:50%;width:44px;height:44px;display:grid;place-items:center;flex:none}
+.cloud-account-panel .settings-cloud-account strong{font-size:20px;letter-spacing:-.025em;overflow-wrap:anywhere}
+.cloud-account-panel .settings-cloud-account p{margin:5px 0 0;color:var(--muted)}
+.cloud-account-panel .settings-cloud-privacy{padding:0;margin:20px 0 0;border:0;background:none;font-size:12px;color:var(--muted);align-items:center;gap:7px}
+.cloud-account-panel .settings-cloud-privacy p{margin:0}
+.cloud-account-panel__actions{padding-top:20px;border-top:1px solid var(--line);margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}
+.cloud-team__invite-heading{display:flex;align-items:center;gap:20px;justify-content:space-between;margin-block:20px}
+.cloud-team__invite-heading p{max-width:38ch;line-height:1.5;font-size:13px}
+.cloud-team__invite-heading button{flex-shrink:0}
+.cloud-team__people li{padding:16px 0}
+.cloud-team__people li>svg{color:var(--accent);background:var(--surface-soft,var(--surface));width:32px;height:32px;padding:8px;border-radius:50%;flex:none}
+@media(max-width:600px){.cloud-team__invite-heading{align-items:stretch;flex-direction:column;gap:10px}.cloud-team__invite-heading p{max-width:none}.cloud-account-panel__actions>button{width:100%}.cloud-team__people li>button{margin-left:42px}.cloud-account-panel .settings-cloud-account.is-connected{padding:16px}.cloud-team header{gap:10px}.cloud-team header h3{font-size:17px}}
 @media(max-width:600px) { .cloud-team form { grid-template-columns:minmax(0,1fr); padding:16px; } .cloud-team__profile > button { width:100%; } .cloud-team__people li { flex-wrap:wrap; } .join-company-dialog .settings-cloud-steps { display:none; } .join-company-dialog .settings-card { padding:0; border:0; box-shadow:none; } }

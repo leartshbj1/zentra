@@ -528,6 +528,7 @@ fn input_vat_credit_simple_method_and_legacy_migration_preserve_closed_classific
         .find("CREATE TABLE IF NOT EXISTS vat_adjustments (")
         .unwrap()
         + table_start;
+    crate::company_collaboration::remove_tracking_for_legacy_fixture(&connection);
     connection.execute_batch("DROP TABLE vat_source_classifications; ALTER TABLE supplier_credit_note_items DROP COLUMN posted_expense_account_id;").unwrap();
     connection
         .execute_batch(&old[table_start..table_end])

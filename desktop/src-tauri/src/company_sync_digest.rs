@@ -12,7 +12,20 @@ use std::{
 };
 
 pub(crate) fn ignored_column(table: &str, column: &str) -> bool {
-    column == "updated_at" || table == "reminder_settings" && column == "last_scan_at"
+    column == "updated_at"
+        || table == "reminder_settings" && column == "last_scan_at"
+        || table == "company_brand_assets" && column == "last_verified_at"
+}
+pub(crate) fn shared_text<'a>(table: &str, column: &str, value: &'a str) -> &'a str {
+    // A managed logo is content-addressed. Its private iOS/Windows container
+    // prefix changes on another device; its immutable content identity does not.
+    if table == "settings"
+        && column == "logo_path"
+        && crate::branding::is_managed_logo_reference(value)
+    {
+        return value.trim().rsplit(['/', '\\']).next().unwrap_or(value);
+    }
+    value
 }
 
 pub(crate) fn noop_scan_sql(prefix: &str) -> String {
@@ -80,7 +93,12 @@ fn database_digest(db: &Connection) -> AppResult<Sha256> {
                     }
                     ValueRef::Text(v) => {
                         add(&mut row_hash, b"text");
-                        add(&mut row_hash, v);
+                        add(
+                            &mut row_hash,
+                            std::str::from_utf8(v)
+                                .map(|s| shared_text(&table, column, s).as_bytes())
+                                .unwrap_or(v),
+                        );
                     }
                     ValueRef::Blob(v) => {
                         add(&mut row_hash, b"blob");
