@@ -1,6 +1,6 @@
 import { accountJsonError,accountNoStoreHeaders,enforceAccountRateLimit,requireDeviceSession } from '@/lib/account';
 import { AccountPublicError } from '@/lib/account-security';
-import { collaborationHead,collaborationRevision,collaborationRevisionHead,commitCollaboration,downloadCollaborationChunk,prepareCollaboration,receiveCollaborationChunk } from '@/lib/company-collaboration';
+import { collaborationBase,collaborationHead,collaborationRevision,collaborationRevisionHead,commitCollaboration,downloadCollaborationChunk,prepareCollaboration,receiveCollaborationChunk } from '@/lib/company-collaboration';
 import { watchCompanyRevision } from '@/lib/company-realtime';
 import { supabaseRealtimeConfiguration } from '@/lib/supabase-server-runtime';
 import { readBytesBodyWithinLimit,readJsonObjectWithinLimit } from '@/lib/request-body';
@@ -21,6 +21,11 @@ export async function GET(request:Request) {
       return Response.json(head,{headers:accountNoStoreHeaders()});
     }
     await enforceAccountRateLimit(request,'collaboration-read',`${actor.organizationId}:${actor.installationId}`,3000);
+    if(query.has('revision')) {
+      const raw=query.get('revision')!;
+      if(!/^[1-9][0-9]{0,15}$/.test(raw)||query.has('index')||query.has('id'))throw new AccountPublicError('La version de référence est invalide.');
+      return Response.json(await collaborationBase(actor,Number(raw)),{headers:accountNoStoreHeaders()});
+    }
     if(query.has('index')) {
       const bytes=await downloadCollaborationChunk(actor,query.get('id'),query.get('index'));
       const headers=new Headers(accountNoStoreHeaders());

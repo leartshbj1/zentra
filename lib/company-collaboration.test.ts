@@ -4,7 +4,7 @@ const stubs=vi.hoisted(()=>({client:vi.fn()}));
 vi.mock('./supabase-server-runtime',()=>({supabaseServerClient:stubs.client}));
 vi.mock('./company-realtime',()=>({announceCompanyRevision:vi.fn(async()=>undefined)}));
 vi.mock('./runtime',()=>({database:vi.fn(),fileArchive:vi.fn()}));
-import {collaborationHead,collaborationSnapshot,prepareCollaboration,receiveCollaborationChunk,downloadCollaborationChunk,commitCollaboration,pruneCollaborationHistory} from './company-collaboration';
+import {collaborationBase,collaborationHead,collaborationSnapshot,prepareCollaboration,receiveCollaborationChunk,downloadCollaborationChunk,commitCollaboration,pruneCollaborationHistory} from './company-collaboration';
 import {sha256Hex} from './account-security';
 const a={organizationId:'org_a',installationId:'device-a',userId:'alice',role:'owner'} as DeviceSessionContext;
 const b={...a,organizationId:'org_b',installationId:'device-b',userId:'bob'};
@@ -23,6 +23,15 @@ function makeClient(){return {
 beforeEach(async()=>{rows={};blobs=new Map();db=makeClient();stubs.client.mockReturnValue(db);const sha256=await sha256Hex(bytes);manifest={format:'zentra-cloud-backup',version:1,app_version:'1.67.0',sha256,size_bytes:bytes.length,chunks:[{sha256,size_bytes:bytes.length}]};});
 async function prepare(actor=a){return prepareCollaboration(actor,{id,baseRevision:0,manifest,confirmFullAccess:true,numbers:[{prefix:'F',year:2026,minimum:42}]});}
 describe('Supabase complete company collaboration',()=>{
+ it('retrieves an exact committed baseline only within the device company',async()=>{
+  await prepare(); rows.zentra_workspace_snapshots[0].revision=7;
+  expect(await collaborationBase(a,7)).toMatchObject({organizationId:'org_a',revision:7,snapshotId:id,manifest});
+  await expect(collaborationBase(b,7)).rejects.toThrow('plus disponible');
+  await expect(collaborationBase(a,6)).rejects.toThrow('plus disponible');
+  for(const bad of [0,-1,1.2,NaN,Number.MAX_SAFE_INTEGER+1])await expect(collaborationBase(a,bad)).rejects.toThrow();
+  rows.zentra_workspace_snapshots[0].revision=null;
+  await expect(collaborationBase(a,7)).rejects.toThrow('plus disponible');
+ });
  it('requires explicit initial consent from a manager',async()=>{
   for(const role of ['member','accountant','read_only'])await expect(prepare({...a,role} as DeviceSessionContext)).rejects.toThrow();
   await expect(prepareCollaboration(a,{id,baseRevision:0,manifest,numbers:[]})).rejects.toThrow('titulaire');

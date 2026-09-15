@@ -25,6 +25,18 @@ export async function collaborationRevisionHead(actor: DeviceSessionContext) {
   });
   return { organizationId: actor.organizationId, revision: rows[0]?.revision ?? 0, enabled: Boolean(rows[0]) };
 }
+export async function collaborationBase(actor: DeviceSessionContext, value: unknown) {
+  const revision = collaborationRevision(value);
+  if (revision < 1) throw new AccountPublicError('La version de référence est invalide.');
+  const rows = await supabaseServerClient().select<Snapshot>('zentra_workspace_snapshots', {
+    organization_id: `eq.${actor.organizationId}`, revision: `eq.${revision}`, limit: 1,
+  });
+  const row = rows[0];
+  if (!row || row.revision !== revision || row.organization_id !== actor.organizationId)
+    throw new AccountPublicError('Cette version de référence n’est plus disponible.', 404);
+  return { organizationId: actor.organizationId, revision, enabled: true,
+    snapshotId: row.id, manifest: backupManifest(row.manifest) };
+}
 export async function collaborationSnapshot(actor: DeviceSessionContext,id:unknown): Promise<Snapshot> {
   const rows=await supabaseServerClient().select<Snapshot>('zentra_workspace_snapshots',{
     organization_id:`eq.${actor.organizationId}`,id:`eq.${backupId(id)}`,limit:1,
