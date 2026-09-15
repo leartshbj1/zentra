@@ -20,6 +20,10 @@
     --surface-subtle: #1b1b1e;
     --surface-raised: #232326;
     --surface-overlay: rgb(35 35 38 / 97%);
+    --surface: #232326;
+    --surface-soft: #1b1b1e;
+    --surface-selected: #303136;
+    --navigation-accent: #b0d9bf;
     --line: #3d3d42;
     --line-soft: #323236;
     --line-strong: #626269;
@@ -47,7 +51,7 @@
   html[data-app-theme="dark"] .desktop-app[data-experience] .app-main { background: #141416; color: #f5f5f7; }
   html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar { background: #1b1b1e; }
   html[data-app-theme="dark"] .desktop-app[data-experience] .topbar { background: rgb(27 27 30 / 95%); border-color: #323236; }
-  html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar__selection { background: #303a33; border-color: #4a6051; box-shadow: none; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar__selection { background: var(--surface-selected); border-color: #45464d; box-shadow: none; }
   html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar__local { background: transparent; color: #c3c3c8; }
   html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar__local strong { color: #c3c3c8; }
   html[data-app-theme="dark"] :is(.sidebar__wordmark,.brand-mark)>img { filter: brightness(0) invert(1); }
@@ -79,6 +83,76 @@
   html[data-app-theme="dark"] .appearance-sample--dark { background: #141416; border-color: #3d3d42; }
   html[data-app-theme="dark"] .appearance-sample--dark i { background: #303a33; }
   html[data-app-theme="dark"] .appearance-sample--dark b { background: #2c2c30; }
+
+  /* Explicit surface hierarchy separates category headings and nested cards. */
+  html[data-app-theme="dark"] .desktop-app[data-experience] :is(.panel,.table-panel,.stat-card,.settings-card,.employee-card,.project-card,.activity-shortcuts) {
+    background: var(--surface-raised); border-color: #3d3e45;
+    box-shadow: 0 4px 18px #00000018;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] :is(.dashboard-grid,.settings-layout,.settings-category__content) { gap: 24px; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser { gap: 32px; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation {
+    background: #1b1b1e; border-color: #37383e; padding: 8px; gap: 6px;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation button {
+    color: var(--ink); border-radius: 12px; background: transparent; box-shadow: none;
+  }
+  @media (hover: hover) {
+    html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation button:hover { background: #28292e; }
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation button[aria-current] {
+    background: var(--surface-selected); color: var(--ink); box-shadow: inset 0 0 0 1px #45464d;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation [data-settings-link] .settings-browser__icon {
+    color: #d4d6dc; background: #303136; box-shadow: none;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation [aria-current] .settings-browser__icon {
+    color: var(--navigation-accent); background: #24262a;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser .settings-category,
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser .settings-category > summary,
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser .settings-category__content {
+    background: transparent; border: 0; box-shadow: none;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser .settings-category > summary { padding-bottom: 24px; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser .settings-card { border: 1px solid #3d3e45; border-radius: 20px; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .setup-readiness__steps { gap: 16px; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .setup-readiness__step { background: #1b1b1e; border-color: #3d3e45; box-shadow: none; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .field :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),select,textarea) {
+    background: var(--surface-subtle); color: var(--ink); border-color: #53555d; box-shadow: none;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .field :is(input,select,textarea):focus {
+    background: var(--surface-subtle); border-color: #a8dabb;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar__nav button:is(.is-active,.is-active:hover,.is-active:focus) {
+    color: var(--ink); background: transparent; box-shadow: none;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar__nav button > svg {
+    background: transparent; color: #b8bbc3; box-shadow: none;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .sidebar__nav button.is-active > svg {
+    color: var(--navigation-accent); background: transparent;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] :is(.sales-tabs,.section-navigation__tabs,.tab-strip,.team-navigation) {
+    background: #1b1b1e; border-color: #3d3e45;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] :is(.sales-tabs__selection,.section-navigation__selection) {
+    background: var(--surface-selected); border-color: #45464d; box-shadow: none;
+  }
+  html[data-app-theme="dark"] .desktop-app[data-experience] :is(.sales-tabs button[aria-current],.section-navigation__tabs button[aria-selected="true"],.team-navigation button[aria-pressed="true"]) {
+    color: var(--ink); box-shadow: none;
+  }
+}
+@media screen and (max-width: 1100px) {
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser { gap: 20px; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation { padding: 8px 14px; gap: 0; background: var(--surface-raised); }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation button { padding: 18px 6px; border-radius: 0; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation button + button { border-top-color: #3d3e45; }
+}
+@media screen and (max-width: 860px) {
+  html[data-app-theme="dark"] .desktop-app[data-experience] .mobile-navigation button { color: #c3c3c8; background: transparent; border: 1px solid transparent; box-shadow: none; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .mobile-navigation button[aria-current] { color: var(--ink); background: var(--surface-selected); border-color: #45464d; box-shadow: none; }
+  html[data-app-theme="dark"] .desktop-app[data-experience] .mobile-navigation button[aria-current] > svg { color: var(--navigation-accent); background: transparent; }
 }
 @media screen and (prefers-reduced-transparency: reduce) {
   html[data-app-theme="dark"] .desktop-app[data-experience] :is(.topbar,.mobile-navigation) { background: #232326; backdrop-filter: none; }

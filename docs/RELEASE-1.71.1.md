@@ -1,6 +1,8 @@
-# Zentra 1.71.1 — réception discrète
+# Zentra 1.71.1 — mode sombre harmonisé et réception discrète
 
 ## Correction
+
+Sur mobile et ordinateur, les panneaux, en-têtes et sous-cartes du mode sombre sont séparés par des espacements et fonds distincts. Les icônes des paramètres suivent une palette neutre uniforme. Les menus sélectionnés utilisent un fond gris neutre et un accent vert limité à l’icône, sans cumul de rectangles verts. Le survol des rubriques est réservé aux appareils qui le prennent en charge. Les champs restent distincts des cartes qui les contiennent.
 
 Le panneau plein écran, l’assombrissement et l’animation de chargement de la réception des données ont été supprimés. La page actuelle reste affichée et ses montants sont actualisés à réception. Le téléchargement et la préparation restent en arrière-plan.
 
@@ -18,4 +20,4 @@ Les notes de version sont disponibles en français, allemand, italien et anglais
 
 ## Publication
 
-Correction préparée ; publication non effectuée. Le contrôle d’approbation automatique a refusé la commande regroupant l’envoi du code et le lancement des compilations distantes, avec le seul motif « blocked by policy ». Aucun de ces lancements n’a été exécuté par cette commande. La version publique précédente reste 1.71.0. Ne pas annoncer 1.71.1 disponible avant compilation, signature, vérification et publication des artefacts correspondants.
+Publication explicitement confirmée par l’utilisateur avec les améliorations du mode sombre. La commande du tour précédent n’avait pas été exécutée après le refus automatique. Ne pas annoncer 1.71.1 disponible avant compilation, signature, vérification et publication des artefacts correspondants.

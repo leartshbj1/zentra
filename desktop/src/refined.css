@@ -35,7 +35,7 @@
   [data-experience='clarity'] .sidebar__nav button { min-height: 42px; padding: 10px 12px; border-radius: 11px; font-size: 14px; gap: 12px; color: #505e54; }
   [data-experience='clarity'] .sidebar__nav button > svg { width: 19px; height: 19px; color: #6a7a6f; stroke-width: 1.7; }
   [data-experience='clarity'] .sidebar__nav button.is-active { color: #18492f; font-weight: 600; }
-  [data-experience='clarity'] .sidebar__nav button.is-active > svg { color: #225b40; stroke-width: 2; }
+  [data-experience='clarity'] .sidebar__nav button.is-active > svg { color: #225b40; background: transparent; stroke-width: 2; }
   [data-experience='clarity'] .sidebar__selection { border-radius: 11px; background: #fffffff2; border-color: #fff; box-shadow: 0 1px 3px #1c3d2410, 0 6px 14px -8px #1c3d241c; }
   [data-experience='clarity'] .sidebar__guide { margin-top: 10px; padding: 12px; background: #ffffff80; border-color: #ffffffb3; border-radius: 14px; }
   [data-experience='clarity'] .sidebar__guide strong { font-size: 13px; font-weight: 600; }
