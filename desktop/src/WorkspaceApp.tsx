@@ -31,7 +31,7 @@ import { ProjectFileActivity } from './ProjectFileActivity';
 import { employeeFormIssue, employeeNativeFieldIssue, type EmployeeFieldIssue } from './employeeFormValidation';
 import { CompanyLogo } from './CompanyLogo';
 import { useProjectSyncBackground } from './projectSync';
-import { CompanyReceivingOverlay } from './companySync';
+import { CompanyReceivingGuard } from './companySync';
 import { useCloudBackupBackground } from './cloudBackup';
 import { CloudBackupPanel } from './CloudBackupPanel';
 
@@ -1592,7 +1592,7 @@ export function WorkspaceApp({
 
   return (
     <div className="desktop-app" data-experience="clarity" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
-      <CompanyReceivingOverlay/>
+      <CompanyReceivingGuard/>
       {updaterOpen ? <Modal title={t("Mise à jour de Zentra")} wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
         <div className="standalone-updater-content"><AppUpdater onInstallingChange={setUpdateInstalling} /></div>
       </Modal> : null}

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {mkdir,writeFile} from 'node:fs/promises';
 const pw=createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE||'playwright');
-const out='.qa/company170';await mkdir(out,{recursive:true});
+const out='.qa/company1711';await mkdir(out,{recursive:true});
 const proof=[];
 for(const engine of ['chromium','webkit']){
  const browser=await pw[engine].launch({headless:true,...(engine==='chromium'&&process.platform==='win32'?{channel:'msedge'}:{})});
@@ -37,9 +37,26 @@ for(const engine of ['chromium','webkit']){
   await page.evaluate(()=>{document.querySelector('#qa-editor').remove();const search=document.createElement('input');search.type='search';search.id='qa-search';document.querySelector('main').append(search);search.focus();const hidden=document.createElement('div');hidden.hidden=true;hidden.innerHTML='<form class="editor-panel">Masqué</form>';document.body.append(hidden);});
   await page.waitForFunction(count=>window.companyRealtimeFixture.calls.filter(c=>c.command==='apply_company_update').length>count,count,{timeout:5000});
   await page.waitForFunction(()=>!document.getElementById('root').inert);
-  await page.screenshot({path:`${out}/${engine}-${width}.png`});
+  // Even a slow local swap keeps the dashboard visible. The narrow write
+  // guard must release and restore search focus on both success and failure.
+  await page.locator('#qa-search').fill('Recherche conservée');
+  for(const fail of [false,true]){
+   const before=await amount.innerText();
+   await page.evaluate(()=>{window.companyRealtimeFixture.holdNextApply();window.companyRealtimeFixture.issue();});
+   await page.waitForFunction(()=>document.getElementById('root').inert,{timeout:5500});
+   assert.equal(await page.locator('.company-receiving, .splash-screen').count(),0);
+   assert.equal(await amount.innerText(),before);
+   assert.equal(await amount.isVisible(),true);
+   assert.equal(await page.locator('#qa-search').inputValue(),'Recherche conservée');
+   await page.screenshot({path:`${out}/${engine}-${width}-${fail?'failure':'receiving'}.png`});
+   await page.evaluate(fail=>window.companyRealtimeFixture.finishApply(fail),fail);
+   await page.waitForFunction(()=>!document.getElementById('root').inert);
+   assert.equal(await page.evaluate(()=>document.activeElement?.id),'qa-search');
+   if(fail)assert.equal(await amount.innerText(),before);
+   else assert.notEqual(await amount.innerText(),before);
+  }
   assert.deepEqual(errors,[]);
-  proof.push({engine,width,issueDelay,baseline,issued,paid,automaticReception:true,editorPreserved:true,searchDoesNotBlock:true});
+  proof.push({engine,width,issueDelay,baseline,issued,paid,automaticReception:true,editorPreserved:true,searchDoesNotBlock:true,noLoadingOverlay:true,screenVisibleDuringReception:true,focusRestoredAfterSuccessAndFailure:true});
   await page.close();
  }}finally{await browser.close();}
 }

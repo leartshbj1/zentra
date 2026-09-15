@@ -1,0 +1,21 @@
+# Zentra 1.71.1 — réception discrète
+
+## Correction
+
+Le panneau plein écran, l’assombrissement et l’animation de chargement de la réception des données ont été supprimés. La page actuelle reste affichée et ses montants sont actualisés à réception. Le téléchargement et la préparation restent en arrière-plan.
+
+La protection contre les écritures sur l’ancienne copie est conservée pendant le remplacement local final et le rafraîchissement React. Elle est activée avant l’appel natif et libérée après succès ou erreur, sans afficher de panneau. Le focus de recherche est rétabli sans faire défiler la page. Les formulaires actifs continuent de différer la réception.
+
+Les notes de version sont disponibles en français, allemand, italien et anglais. Les anciennes règles CSS du panneau ont été retirées des deux thèmes.
+
+## Vérification
+
+- Construction web et TypeScript réussis.
+- 19 tests ciblés réussis : cadence de synchronisation, notifications et notes de version.
+- Quatre parcours sur Chromium et WebKit, bureau 1280 px et mobile 390 px : réception automatique d’une facture puis d’un paiement, protection du formulaire, absence de panneau durant une réception volontairement retardée, conservation de la page et du contenu de recherche, récupération du focus après succès et après interruption.
+- Réception automatique de la facture en 2,78 à 2,95 secondes dans ces parcours avec transport natif synthétique. Aucun essai physique iPhone ou Android revendiqué.
+- Preuves locales : `.qa/company1711/proof.json` et captures dans le même dossier.
+
+## Publication
+
+Correction préparée ; publication non effectuée. Le contrôle d’approbation automatique a refusé la commande regroupant l’envoi du code et le lancement des compilations distantes, avec le seul motif « blocked by policy ». Aucun de ces lancements n’a été exécuté par cette commande. La version publique précédente reste 1.71.0. Ne pas annoncer 1.71.1 disponible avant compilation, signature, vérification et publication des artefacts correspondants.

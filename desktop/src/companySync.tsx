@@ -1,6 +1,6 @@
-import { useEffect,useState } from 'react';
-import { createPortal,flushSync } from 'react-dom';
-import { Cloud,RefreshCw } from 'lucide-react';
+import { useEffect,useLayoutEffect,useState } from 'react';
+import { flushSync } from 'react-dom';
+import { Cloud } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { Button } from './ui';
 import { errorMessage } from './utils';
@@ -21,7 +21,7 @@ export function companyReceiveAllowed(){
     return style.display!=='none'&&style.visibility!=='hidden'&&node.getClientRects().length>0;
   });
 }
-export function setCompanyReceiving(value:boolean){receiving=value;notify();}
+export function setCompanyReceiving(value:boolean){receiving=value;flushSync(notify);}
 export async function refreshReceivedCompany(){
   try {
     const workspace=await desktopApi.loadWorkspace();
@@ -48,15 +48,23 @@ export function watchCompanyReceiveOpportunity(wake:()=>void){
   return()=>{observer.disconnect();window.removeEventListener('zentra-company-sync-status',check);window.removeEventListener('focusout',check);window.removeEventListener('pointerup',check);};
 }
 function useStatus(){const [,render]=useState(0);useEffect(()=>{const update=()=>render(v=>v+1);window.addEventListener('zentra-company-sync-status',update);return()=>window.removeEventListener('zentra-company-sync-status',update);},[]);return {...current,error,receiving};}
-export function CompanyReceivingOverlay(){
+export function CompanyReceivingGuard(){
   const {receiving}=useStatus();
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     if(!receiving)return;
     const root=document.getElementById('root');const previous=root?.inert;
+    const focused=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    // Downloads and preparation stay interactive. Only the final local swap
+    // and its React refresh exclude edits bound to the previous workspace.
+    // Keep the screen visible without a portal, backdrop or spinner.
     if(root)root.inert=true;
-    return()=>{if(root)root.inert=Boolean(previous);};
+    return()=>{
+      if(root)root.inert=Boolean(previous);
+      if(!previous&&focused?.isConnected&&root?.contains(focused)&&
+        (!document.activeElement||document.activeElement===document.body))focused.focus({preventScroll:true});
+    };
   },[receiving]);
-  return receiving?createPortal(<div className="company-receiving" role="status" aria-live="polite"><div><RefreshCw className="company-sync__spinner"/><strong>{t('Réception des changements de l’équipe…')}</strong><p>{t('Vos documents et les informations de l’entreprise se mettent à jour.')}</p></div></div>,document.body):null;
+  return null;
 }
 export function CompanySyncPanel(){
   const status=useStatus();
