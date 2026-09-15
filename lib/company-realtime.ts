@@ -18,7 +18,7 @@ function endpoint(configuration: RealtimeConfiguration, path: string) {
 }
 export async function announceCompanyRevision(configuration: RealtimeConfiguration, organization: string, revision: number, send: typeof fetch = (...args) => fetch(...args)) {
   const response = await send(endpoint(configuration, 'api/broadcast'), {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(3000),
+    method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(3000),
     headers: { apikey: configuration.secretKey, 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages: [{ topic: `zentra:company:${organization}`, event: 'revision', private: true, payload: { revision } }] }),
   });
@@ -52,7 +52,7 @@ export async function watchCompanyRevision(organization: string, after: number, 
     const handshake = new AbortController();
     handshakeTimer = setTimeout(() => handshake.abort(), 5000);
     const response = await dependencies.fetch(url, {
-      headers: { Upgrade: 'websocket' }, redirect: 'error',
+      headers: { Upgrade: 'websocket' }, redirect: 'manual',
       signal: AbortSignal.any([signal, handshake.signal]),
     });
     clearTimeout(handshakeTimer);

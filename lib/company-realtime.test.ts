@@ -10,7 +10,10 @@ const configuration={url:'https://example.supabase.co',secretKey:'test-server-on
 function fixture() {
   const socket=new FakeSocket(),controller=new AbortController(); let revision=1;
   const head=vi.fn(async()=>({organizationId:'one',revision,enabled:true}));
-  const fetcher=vi.fn(async()=>({webSocket:socket}) as unknown as Response);
+  const fetcher=vi.fn(async(_url:RequestInfo|URL,init?:RequestInit)=>{
+    if(init?.redirect==='error')throw new TypeError('Unsupported redirect mode on Workers');
+    return {webSocket:socket} as unknown as Response;
+  });
   const watch=watchCompanyRevision('one',1,controller.signal,{configuration,head,fetch:fetcher});
   return {socket,controller,head,fetcher,watch,change:(next:number)=>{revision=next;}};
 }
@@ -49,6 +52,7 @@ describe('private realtime company notifications',()=>{
     const send=vi.fn(async(_url:RequestInfo|URL,_init?:RequestInit)=>new Response(null,{status:202}));
     await announceCompanyRevision(configuration,'one',7,send);
     const init=send.mock.calls[0][1] as RequestInit;
+    expect(init.redirect).toBe('manual');
     expect(JSON.parse(init.body as string)).toEqual({messages:[{topic:'zentra:company:one',event:'revision',private:true,payload:{revision:7}}]});
     expect(init.body).not.toContain(configuration.secretKey);
   });
