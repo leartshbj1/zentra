@@ -483,7 +483,7 @@ export function WorkspaceApp({
 }) {
   const [view, setView] = useState<View>('dashboard');
   useAppLanguage();
-  useProjectSyncBackground(setWorkspace);
+  useProjectSyncBackground(setWorkspace, cloudAccount?.organizationId ?? 'local');
   const [modal, setModal] = useState<ModalState>(null);
   useAssistantScreen({screen: viewTitles[view]?.[0] ?? view, scope: `${workspace.settings?.organization.legalName ?? 'entreprise'}:${view}`, facts: {
     'Rubrique':view,'Canton de paie':workspace.settings?.payroll.payrollCanton,'Entreprise assujettie à la TVA':workspace.settings?.organization.vatRegistered,'Mode lecture seule':readOnly,

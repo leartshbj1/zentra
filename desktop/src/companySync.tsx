@@ -13,7 +13,12 @@ let error='';let receiving=false;
 const notify=()=>window.dispatchEvent(new Event('zentra-company-sync-status'));
 export function publishCompanySync(value:CompanySyncState,message=''){current=value;error=message;notify();}
 export function companyReceiveAllowed(){
-  return !document.querySelector('[role="dialog"], [aria-modal="true"], .modal-backdrop, [contenteditable="true"]:focus, input:focus, textarea:focus, select:focus, .editor-panel, .document-editor, .settings-form, .desktop-app main form, .desktop-app[data-view="settings"]');
+  const blockers=document.querySelectorAll('[role="dialog"], [aria-modal="true"], .modal-backdrop, [contenteditable="true"]:focus, input:not([type="search"]):focus, textarea:focus, select:focus, .editor-panel, .document-editor, .settings-form, .desktop-app main form, .desktop-app[data-view="settings"]');
+  return !Array.from(blockers).some(node=>{
+    if(node.closest('[hidden], [inert], [aria-hidden="true"]'))return false;
+    const style=getComputedStyle(node);
+    return style.display!=='none'&&style.visibility!=='hidden'&&node.getClientRects().length>0;
+  });
 }
 export function setCompanyReceiving(value:boolean){receiving=value;notify();}
 export async function refreshReceivedCompany(){

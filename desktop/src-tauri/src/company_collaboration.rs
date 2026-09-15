@@ -29,8 +29,16 @@ static GATES: OnceLock<Mutex<HashMap<PathBuf, Arc<AtomicBool>>>> = OnceLock::new
 type ChangeListener = Arc<dyn Fn() + Send + Sync>;
 static LISTENERS: OnceLock<Mutex<HashMap<PathBuf, ChangeListener>>> = OnceLock::new();
 pub(crate) fn install_change_events(store: &LocalStore, app: tauri::AppHandle) {
-    LISTENERS.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner())
-        .insert(store.data_dir.clone(), Arc::new(move || { let _ = app.emit("zentra-company-data-changed", ()); }));
+    LISTENERS
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(
+            store.data_dir.clone(),
+            Arc::new(move || {
+                let _ = app.emit("zentra-company-data-changed", ());
+            }),
+        );
 }
 thread_local! { static APPLYING:Cell<bool>=const {Cell::new(false)}; }
 fn invalid(message: &str) -> AppError {
@@ -50,18 +58,31 @@ pub(crate) fn register(store: &LocalStore, connection: &Connection) -> AppResult
     // Notify once per transaction, never for rolled-back edits or remote imports.
     let dirty = Arc::new(AtomicBool::new(false));
     let changed = dirty.clone();
-    connection.update_hook(Some(move |_: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
-        if table == "company_local_clock" && !APPLYING.get() { changed.store(true, Ordering::Release); }
-    }));
+    connection.update_hook(Some(
+        move |_: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
+            if table == "company_local_clock" && !APPLYING.get() {
+                changed.store(true, Ordering::Release);
+            }
+        },
+    ));
     let rolled_back = dirty.clone();
-    connection.rollback_hook(Some(move || { rolled_back.store(false, Ordering::Release); }));
+    connection.rollback_hook(Some(move || {
+        rolled_back.store(false, Ordering::Release);
+    }));
     let directory = store.data_dir.clone();
     connection.commit_hook(Some(move || {
         if dirty.swap(false, Ordering::AcqRel) && !APPLYING.get() {
-            let callback = LISTENERS.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner()).get(&directory).cloned();
+            let callback = LISTENERS
+                .get_or_init(Default::default)
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(&directory)
+                .cloned();
             // No database work here. The receiver coalesces notifications and
             // takes the normal SQLite lock before reading the committed state.
-            if let Some(callback) = callback { callback(); }
+            if let Some(callback) = callback {
+                callback();
+            }
         }
         false
     }));
@@ -126,10 +147,11 @@ pub(crate) fn migrate(connection: &Connection) -> AppResult<()> {
             "#))?;
         }
     }
+    upgrade_tracking(connection)?;
     connection.pragma_update(None, "user_version", 60)?;
     Ok(())
 }
-fn local_table(table: &str) -> bool {
+pub(crate) fn local_table(table: &str) -> bool {
     table.starts_with("sqlite_")
         || table.starts_with("company_local_")
         || matches!(
@@ -142,6 +164,186 @@ fn local_table(table: &str) -> bool {
                 | "project_sync_events"
                 | "active_timers"
         )
+}
+pub(crate) fn upgrade_tracking(connection: &Connection) -> AppResult<()> {
+    connection.execute_batch("CREATE TABLE IF NOT EXISTS company_local_tracking_version(id INTEGER PRIMARY KEY CHECK(id=1),version INTEGER NOT NULL)")?;
+    let ready: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM company_local_tracking_version WHERE id=1 AND version=2)",
+        [],
+        |r| r.get(0),
+    )?;
+    if ready {
+        return Ok(());
+    }
+    for row in query_all(
+        connection,
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+        [],
+    )? {
+        let table = row["name"].as_str().unwrap_or_default();
+        if local_table(table) {
+            continue;
+        }
+        if !table
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'_')
+        {
+            return Err(invalid("Table de partage inconnue."));
+        }
+        let columns = query_all(connection, &format!("PRAGMA table_info(\"{table}\")"), [])?;
+        let changed = columns
+            .iter()
+            .filter_map(|r| r["name"].as_str())
+            .filter(|c| !crate::company_sync_digest::ignored_column(table, c))
+            .map(|c| format!("OLD.\"{c}\" IS NOT NEW.\"{c}\""))
+            .collect::<Vec<_>>()
+            .join(" OR ");
+        for operation in ["INSERT", "UPDATE", "DELETE"] {
+            let mut conditions = Vec::new();
+            if operation == "UPDATE" {
+                conditions.push(format!("({changed})"));
+            }
+            if table == "reminder_operation_requests" {
+                let real = |prefix| {
+                    format!(
+                        "NOT COALESCE(({}),0)",
+                        crate::company_sync_digest::noop_scan_sql(prefix)
+                    )
+                };
+                conditions.push(match operation {
+                    "UPDATE" => format!("({} OR {})", real("OLD."), real("NEW.")),
+                    "DELETE" => real("OLD."),
+                    _ => real("NEW."),
+                });
+            }
+            let when = if conditions.is_empty() {
+                String::new()
+            } else {
+                format!("WHEN {}", conditions.join(" AND "))
+            };
+            connection.execute_batch(&format!("DROP TRIGGER IF EXISTS company_clock_{table}_{operation};
+              CREATE TRIGGER company_clock_{table}_{operation} AFTER {operation} ON \"{table}\" {when}
+              BEGIN UPDATE company_local_clock SET value=value+1 WHERE id=1; END;"))?;
+        }
+    }
+    connection.execute("INSERT INTO company_local_tracking_version VALUES(1,2) ON CONFLICT(id) DO UPDATE SET version=2",[])?;
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize)]
+struct Baseline {
+    organization: String,
+    revision: u64,
+    digest: String,
+}
+fn save_baseline(
+    store: &LocalStore,
+    organization: &str,
+    revision: u64,
+    digest: String,
+) -> AppResult<()> {
+    let mut file = tempfile::NamedTempFile::new_in(&store.data_dir)?;
+    serde_json::to_writer(
+        file.as_file_mut(),
+        &Baseline {
+            organization: organization.into(),
+            revision,
+            digest,
+        },
+    )?;
+    file.as_file_mut().sync_all()?;
+    file.persist(store.data_dir.join("company-sync-baseline.json"))
+        .map_err(|e| AppError::Io(e.error))?;
+    Ok(())
+}
+fn baseline(store: &LocalStore, prefs: &Preferences) -> Option<String> {
+    let path = store.data_dir.join("company-sync-baseline.json");
+    if fs::metadata(&path).ok()?.len() > 2048 {
+        return None;
+    }
+    let value: Baseline = serde_json::from_reader(File::open(path).ok()?).ok()?;
+    (prefs.organization_id.as_deref() == Some(&value.organization)
+        && prefs.revision == value.revision
+        && value.digest.len() == 64
+        && value.digest.bytes().all(|c| c.is_ascii_hexdigit()))
+    .then_some(value.digest)
+}
+fn reconcile_unchanged_local(store: &LocalStore, expected: &str) -> AppResult<bool> {
+    let _lock = store.lock()?;
+    let mut prefs = load(store)?;
+    if prefs.base_clock < 0 {
+        return Ok(false);
+    }
+    if crate::company_sync_digest::local(store)? != expected {
+        return Ok(false);
+    }
+    // Only bookkeeping changed. Every shared record, audit entry and attachment
+    // was compared to the last accepted revision before clearing the conflict.
+    prefs.base_clock = clock(store)?;
+    prefs.pending = None;
+    prefs.conflict = false;
+    save(store, &prefs)?;
+    Ok(true)
+}
+async fn reconcile_idle_device(store: &LocalStore, session: &ProjectSyncSession) -> AppResult<()> {
+    let prefs = load(store)?;
+    if prefs.base_clock < 0 || prefs.revision == 0 {
+        return Ok(());
+    }
+    let dirty = clock(store)? != prefs.base_clock || prefs.conflict || prefs.pending.is_some();
+    let mut digest = baseline(store, &prefs);
+    if digest.is_none() && !dirty {
+        let _lock = store.lock()?;
+        if clock(store)? == prefs.base_clock {
+            save_baseline(
+                store,
+                &session.organization_id,
+                prefs.revision,
+                crate::company_sync_digest::local(store)?,
+            )?;
+        }
+        return Ok(());
+    }
+    if !dirty {
+        return Ok(());
+    }
+    if digest.is_none() {
+        // Upgrade an installation already held by an old false conflict. The
+        // reference must be the exact committed revision of this company.
+        let Ok(head) = request(
+            session,
+            Method::GET,
+            &[("revision", &prefs.revision.to_string())],
+            None,
+        )
+        .await
+        else {
+            return Ok(());
+        };
+        if checked_head(session, &head)? != prefs.revision {
+            return Ok(());
+        }
+        let path = download(store, session, &head).await?;
+        let value = tauri::async_runtime::spawn_blocking(move || {
+            crate::company_sync_digest::archive(&path)
+        })
+        .await
+        .map_err(|_| invalid("La vérification de la copie de référence a été interrompue."))??;
+        save_baseline(
+            store,
+            &session.organization_id,
+            prefs.revision,
+            value.clone(),
+        )?;
+        digest = Some(value);
+    }
+    if let Some(digest) = digest {
+        let owned = store.clone();
+        tauri::async_runtime::spawn_blocking(move || reconcile_unchanged_local(&owned, &digest))
+            .await
+            .map_err(|_| invalid("La vérification des changements locaux a été interrompue."))??;
+    }
+    Ok(())
 }
 pub(crate) fn strip_private(connection: &Connection) -> AppResult<()> {
     let exists:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_identity')",[],|r|r.get(0))?;
@@ -319,25 +521,44 @@ pub fn get_company_sync_state(state: State<'_, LocalStore>) -> Result<Value, Str
 }
 
 #[tauri::command]
-pub async fn watch_company_workspace(state: State<'_, LocalStore>, after: Option<u64>) -> Result<Value, String> {
+pub async fn watch_company_workspace(
+    state: State<'_, LocalStore>,
+    after: Option<u64>,
+) -> Result<Value, String> {
     let store = state.inner().clone();
     let prefs = load(&store).map_err(command_error)?;
-    if prefs.organization_id.is_none() { return Ok(json!({"enabled":false})); }
+    if prefs.organization_id.is_none() {
+        return Ok(json!({"enabled":false}));
+    }
     // Never hold operation_lock over a long poll: saving, sending, logout and
     // account changes must remain available while waiting for a colleague.
-    let session = project_sync_session(&store).await.map_err(command_error)?
+    let session = project_sync_session(&store)
+        .await
+        .map_err(command_error)?
         .ok_or("Reconnectez votre compte pour recevoir les changements de l’équipe.")?;
     if prefs.organization_id.as_deref() != Some(&session.organization_id) {
         return Err("Reconnectez le compte de cette entreprise.".into());
     }
-    let known = prefs.received.as_ref().map_or(prefs.revision, |r| r.revision.max(prefs.revision))
+    let known = prefs
+        .received
+        .as_ref()
+        .map_or(prefs.revision, |r| r.revision.max(prefs.revision))
         .max(after.filter(|n| *n <= 9_007_199_254_740_991).unwrap_or(0));
-    let head = request(&session, Method::GET, &[("watch", &known.to_string())], None).await.map_err(command_error)?;
+    let head = request(
+        &session,
+        Method::GET,
+        &[("watch", &known.to_string())],
+        None,
+    )
+    .await
+    .map_err(command_error)?;
     let revision = checked_head(&session, &head).map_err(command_error)?;
     // Return only a hint. Applying data always revalidates current membership,
     // organization, revision and hashes through the existing synchronization.
-    Ok(json!({"enabled":true,"organizationId":session.organization_id,"revision":revision,
-        "changed":revision>known,"realtime":head["realtime"]==true}))
+    Ok(
+        json!({"enabled":true,"organizationId":session.organization_id,"revision":revision,
+        "changed":revision>known,"realtime":head["realtime"]==true}),
+    )
 }
 
 struct WriteGate(Arc<AtomicBool>);
@@ -426,6 +647,16 @@ fn confirm_sent(store: &LocalStore, id: &str, revision: u64) -> AppResult<()> {
     if revision <= p.base_revision {
         return Err(invalid("La confirmation du serveur est incohérente."));
     }
+    let digest = crate::company_sync_digest::archive(&file_path(store, id)?)?;
+    save_baseline(
+        store,
+        prefs
+            .organization_id
+            .as_deref()
+            .ok_or_else(|| invalid("Entreprise de référence absente."))?,
+        revision,
+        digest,
+    )?;
     prefs.base_clock = p.clock;
     prefs.revision = revision;
     prefs.pending = None;
@@ -669,6 +900,12 @@ fn apply(
         restore_private(store, &private)?;
         crate::backup::validate_database(&store.database_path)?;
         prefs.base_clock = clock(store)?;
+        save_baseline(
+            store,
+            organization,
+            revision,
+            crate::company_sync_digest::local(store)?,
+        )?;
         save(store, &prefs)
     })?;
     let _ = clean_transport_copies(store);
@@ -756,7 +993,7 @@ pub async fn sync_company_workspace(
 ) -> Result<Value, String> {
     let store = state.inner().clone();
     let _account = store.account_protected_cache.operation_lock.lock().await;
-    let prefs = load(&store).map_err(command_error)?;
+    let mut prefs = load(&store).map_err(command_error)?;
     if prefs.organization_id.is_none() {
         return status(&store).map_err(command_error);
     }
@@ -777,6 +1014,12 @@ pub async fn sync_company_workspace(
     if revision < prefs.revision {
         return Err("La version du serveur est antérieure à celle de cet appareil. Contactez le support ; vos données sont conservées.".into());
     }
+    if !accept_remote {
+        reconcile_idle_device(&store, &session)
+            .await
+            .map_err(command_error)?;
+        prefs = load(&store).map_err(command_error)?;
+    }
     if accept_remote && !prefs.conflict {
         return Err("Le conflit a changé. Actualisez avant de choisir une version.".into());
     }
@@ -786,8 +1029,13 @@ pub async fn sync_company_workspace(
     if prefs.pending.is_some() && !accept_remote {
         send(&store, &session, false).await.map_err(command_error)?;
     } else if revision > prefs.revision || accept_remote {
-        if !accept_remote && prefs.received.as_ref().is_some_and(|r| r.revision == revision && r.clock == prefs.base_clock)
-            && clock(&store).map_err(command_error)? == prefs.base_clock {
+        if !accept_remote
+            && prefs
+                .received
+                .as_ref()
+                .is_some_and(|r| r.revision == revision && r.clock == prefs.base_clock)
+            && clock(&store).map_err(command_error)? == prefs.base_clock
+        {
             // Already downloaded and verified. Wait for the active form to
             // close, without downloading every attachment again on each wake.
             return status(&store).map_err(command_error);
@@ -899,6 +1147,99 @@ pub async fn apply_company_update(state: State<'_, LocalStore>) -> Result<Value,
 mod tests {
     use super::*;
     #[test]
+    fn idle_checks_do_not_dirty_shared_company_and_legacy_false_conflicts_recover() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(dir.path().into()).unwrap();
+        store
+            .complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION"))
+            .unwrap();
+        seed(&store, "shared-client");
+        let pending = prepare(&store, "org-test", true).unwrap();
+        let expected =
+            crate::company_sync_digest::archive(&file_path(&store, &pending.id).unwrap()).unwrap();
+        confirm_sent(&store, &pending.id, 1).unwrap();
+        assert_eq!(crate::company_sync_digest::local(&store).unwrap(), expected);
+        let before = clock(&store).unwrap();
+        let db = store.connect().unwrap();
+        db.execute(
+            "UPDATE clients SET name=name,updated_at='2026-09-15T04:00:00Z'",
+            [],
+        )
+        .unwrap();
+        db.execute("UPDATE reminder_settings SET last_scan_at='2026-09-15T04:00:00Z',updated_at='2026-09-15T04:00:00Z'", []).unwrap();
+        db.execute("INSERT INTO reminder_operation_requests(request_id,operation,payload_sha256,payload_json,response_json,created_at) VALUES(?,'scan',?,'{}',?,'2026-09-15T04:00:00Z')",params![uuid::Uuid::new_v4().to_string(),"a".repeat(64),r#"{"created":[],"cancelled":[],"promoted":[]}"#]).unwrap();
+        assert_eq!(clock(&store).unwrap(), before);
+        assert_eq!(crate::company_sync_digest::local(&store).unwrap(), expected);
+        // Reproduce the bookkeeping clock increments left by 1.69.1.
+        db.execute("UPDATE company_local_clock SET value=value+20", [])
+            .unwrap();
+        let mut prefs = load(&store).unwrap();
+        prefs.conflict = true;
+        save(&store, &prefs).unwrap();
+        assert!(reconcile_unchanged_local(&store, &expected).unwrap());
+        assert!(!load(&store).unwrap().conflict);
+        assert_eq!(load(&store).unwrap().base_clock, clock(&store).unwrap());
+        db.execute(
+            "UPDATE clients SET name='Modification réelle' WHERE id='shared-client'",
+            [],
+        )
+        .unwrap();
+        assert!(clock(&store).unwrap() > before + 20);
+        assert!(!reconcile_unchanged_local(&store, &expected).unwrap());
+        assert_eq!(
+            db.query_row(
+                "SELECT name FROM clients WHERE id='shared-client'",
+                [],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+            "Modification réelle"
+        );
+    }
+    #[test]
+    fn baseline_matches_received_copy_but_never_discards_document_or_attachment_changes() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        let source = LocalStore::initialize(a.path().into()).unwrap();
+        let target = LocalStore::initialize(b.path().into()).unwrap();
+        seed(&source, "client-a");
+        fs::write(source.attachments_dir.join("logo.png"), b"original logo").unwrap();
+        let pending = prepare(&source, "org-test", true).unwrap();
+        let path = file_path(&source, &pending.id).unwrap();
+        let expected = crate::company_sync_digest::archive(&path).unwrap();
+        apply(
+            &target,
+            &path,
+            "org-test",
+            1,
+            clock(&target).unwrap(),
+            true,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            crate::company_sync_digest::local(&target).unwrap(),
+            expected
+        );
+        assert_eq!(
+            baseline(&target, &load(&target).unwrap()).unwrap(),
+            expected
+        );
+        fs::write(target.attachments_dir.join("logo.png"), b"modified logo").unwrap();
+        assert!(!reconcile_unchanged_local(&target, &expected).unwrap());
+        fs::write(target.attachments_dir.join("logo.png"), b"original logo").unwrap();
+        target.connect().unwrap().execute("INSERT INTO invoices(id,title,client_id,created_at,updated_at) VALUES('invoice-a','Facture locale','client-a',?,?)",params![now_iso(),now_iso()]).unwrap();
+        assert!(!reconcile_unchanged_local(&target, &expected).unwrap());
+        let mut prefs = load(&target).unwrap();
+        prefs.base_clock = -1;
+        save(&target, &prefs).unwrap();
+        assert!(!reconcile_unchanged_local(
+            &target,
+            &crate::company_sync_digest::local(&target).unwrap()
+        )
+        .unwrap());
+    }
+    #[test]
     fn every_committed_shared_write_notifies_once_but_rollbacks_and_imports_do_not() {
         use std::sync::atomic::AtomicUsize;
         let temp = tempfile::tempdir().unwrap();
@@ -906,17 +1247,69 @@ mod tests {
         seed(&store, "notification-client");
         let count = Arc::new(AtomicUsize::new(0));
         let observed = count.clone();
-        LISTENERS.get_or_init(Default::default).lock().unwrap().insert(store.data_dir.clone(), Arc::new(move || { observed.fetch_add(1, Ordering::AcqRel); }));
+        LISTENERS
+            .get_or_init(Default::default)
+            .lock()
+            .unwrap()
+            .insert(
+                store.data_dir.clone(),
+                Arc::new(move || {
+                    observed.fetch_add(1, Ordering::AcqRel);
+                }),
+            );
         let mut c = store.connect().unwrap();
-        { let tx=c.transaction().unwrap(); assert_eq!(tx.execute("UPDATE clients SET name='Partagé' WHERE id='notification-client'", []).unwrap(), 1); tx.execute("UPDATE clients SET name='Final' WHERE id='notification-client'", []).unwrap(); tx.commit().unwrap(); }
+        {
+            let tx = c.transaction().unwrap();
+            assert_eq!(
+                tx.execute(
+                    "UPDATE clients SET name='Partagé' WHERE id='notification-client'",
+                    []
+                )
+                .unwrap(),
+                1
+            );
+            tx.execute(
+                "UPDATE clients SET name='Final' WHERE id='notification-client'",
+                [],
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
         assert_eq!(count.load(Ordering::Acquire), 1);
-        { let tx=c.transaction().unwrap(); tx.execute("UPDATE clients SET name='Annulé' WHERE id='notification-client'", []).unwrap(); }
+        {
+            let tx = c.transaction().unwrap();
+            tx.execute(
+                "UPDATE clients SET name='Annulé' WHERE id='notification-client'",
+                [],
+            )
+            .unwrap();
+        }
         assert_eq!(count.load(Ordering::Acquire), 1);
-        { let _gate=WriteGate::take(&store).unwrap(); c.execute("UPDATE clients SET name='Reçu' WHERE id='notification-client'", []).unwrap(); }
+        {
+            let _gate = WriteGate::take(&store).unwrap();
+            c.execute(
+                "UPDATE clients SET name='Reçu' WHERE id='notification-client'",
+                [],
+            )
+            .unwrap();
+        }
         assert_eq!(count.load(Ordering::Acquire), 1);
-        assert_eq!(c.query_row("SELECT name FROM clients WHERE id='notification-client'", [], |r| r.get::<_,String>(0)).unwrap(), "Reçu");
+        assert_eq!(
+            c.query_row(
+                "SELECT name FROM clients WHERE id='notification-client'",
+                [],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+            "Reçu"
+        );
         assert_eq!(count.load(Ordering::Acquire), 1);
-        LISTENERS.get().unwrap().lock().unwrap().remove(&store.data_dir);
+        LISTENERS
+            .get()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .remove(&store.data_dir);
     }
     fn person(store: &LocalStore, user: &str) {
         set_identity(
@@ -1019,7 +1412,9 @@ mod tests {
         settings.vat_registered = true;
         settings.vat_number = Some("CHE-123.456.789 TVA".into());
         settings.default_vat_bp = Some(810);
-        alice.complete_onboarding(settings, env!("CARGO_PKG_VERSION")).unwrap();
+        alice
+            .complete_onboarding(settings, env!("CARGO_PKG_VERSION"))
+            .unwrap();
         crate::tests::enable_accounting(&alice);
         person(&alice, "alice");
         person(&bob, "bob");
@@ -1028,16 +1423,29 @@ mod tests {
         let invoice = alice.create_record("invoices", json!({"client_id":client["id"], "title":"Facture Alice", "service_date_from":"2026-09-14", "service_date_to":"2026-09-14"})).unwrap();
         let id = invoice["id"].as_str().unwrap();
         alice.create_record("invoice_items", json!({"invoice_id":id, "description":"Prestation", "quantity":1, "unit":"forfait", "unit_price_cents":100_000, "vat_bp":810})).unwrap();
-        alice.issue_invoice(id, Some("2026-09-14".into()), None).unwrap();
+        alice
+            .issue_invoice(id, Some("2026-09-14".into()), None)
+            .unwrap();
         let first = prepare(&alice, "org-test", true).unwrap();
         for target in [&bob, &reader] {
-            apply(target, &file_path(&alice, &first.id).unwrap(), "org-test", 1, clock(target).unwrap(), true, false).unwrap();
+            apply(
+                target,
+                &file_path(&alice, &first.id).unwrap(),
+                "org-test",
+                1,
+                clock(target).unwrap(),
+                true,
+                false,
+            )
+            .unwrap();
         }
         confirm_sent(&alice, &first.id, 1).unwrap();
 
         // In production the join flow obtains a separate, server-reserved
         // journal range for each device. Exercise its real adoption here too.
-        let reservation = crate::shared_numbering::prepare(&bob, "org-test", "J", 2026, 2).unwrap().unwrap();
+        let reservation = crate::shared_numbering::prepare(&bob, "org-test", "J", 2026, 2)
+            .unwrap()
+            .unwrap();
         let reservation_json = serde_json::to_value(&reservation).unwrap();
         let reply = serde_json::from_value(json!({
             "request_id":reservation_json["request_id"], "organization_id":"org-test", "installation_id":bob.installation_id,
@@ -1045,27 +1453,74 @@ mod tests {
         })).unwrap();
         crate::shared_numbering::adopt(&bob, "org-test", &reservation, &reply).unwrap();
         bob.record_payment(crate::models::RecordPaymentInput {
-            request_id: uuid::Uuid::new_v4().to_string(), invoice_id: id.into(),
-            amount_cents: 30_000, date: Some("2026-09-14".into()), method: Some("bank".into()), reference: None, notes: None,
-        }).unwrap();
+            request_id: uuid::Uuid::new_v4().to_string(),
+            invoice_id: id.into(),
+            amount_cents: 30_000,
+            date: Some("2026-09-14".into()),
+            method: Some("bank".into()),
+            reference: None,
+            notes: None,
+        })
+        .unwrap();
         let second = prepare(&bob, "org-test", false).unwrap();
         for target in [&alice, &reader] {
-            apply(target, &file_path(&bob, &second.id).unwrap(), "org-test", 2, clock(target).unwrap(), false, false).unwrap();
+            apply(
+                target,
+                &file_path(&bob, &second.id).unwrap(),
+                "org-test",
+                2,
+                clock(target).unwrap(),
+                false,
+                false,
+            )
+            .unwrap();
         }
         confirm_sent(&bob, &second.id, 2).unwrap();
         let balances = |store: &LocalStore| {
             let db = store.connect().unwrap();
-            let amount = db.query_row("SELECT total_cents,paid_cents,total_cents-paid_cents FROM invoices WHERE id=?", [id], |r| Ok((r.get::<_,i64>(0)?,r.get::<_,i64>(1)?,r.get::<_,i64>(2)?))).unwrap();
-            assert_eq!(amount, (108_100,30_000,78_100));
-            assert_eq!(db.query_row("SELECT user_id FROM document_creators WHERE document_id=?", [id], |r| r.get::<_,String>(0)).unwrap(), "alice");
+            let amount = db
+                .query_row(
+                    "SELECT total_cents,paid_cents,total_cents-paid_cents FROM invoices WHERE id=?",
+                    [id],
+                    |r| {
+                        Ok((
+                            r.get::<_, i64>(0)?,
+                            r.get::<_, i64>(1)?,
+                            r.get::<_, i64>(2)?,
+                        ))
+                    },
+                )
+                .unwrap();
+            assert_eq!(amount, (108_100, 30_000, 78_100));
+            assert_eq!(
+                db.query_row(
+                    "SELECT user_id FROM document_creators WHERE document_id=?",
+                    [id],
+                    |r| r.get::<_, String>(0)
+                )
+                .unwrap(),
+                "alice"
+            );
             assert_eq!(db.query_row("SELECT COUNT(*) FROM journal_entries WHERE source_type IN ('invoice','payment')", [], |r| r.get::<_,i64>(0)).unwrap(), 2);
             assert_eq!(db.query_row("SELECT COUNT(*) FROM (SELECT journal_entry_id FROM journal_lines GROUP BY journal_entry_id HAVING SUM(debit_cents)!=SUM(credit_cents))", [], |r| r.get::<_,i64>(0)).unwrap(), 0);
             let mut statement = db.prepare("SELECT account_id,SUM(debit_cents),SUM(credit_cents) FROM journal_lines GROUP BY account_id ORDER BY account_id").unwrap();
-            statement.query_map([], |r| Ok((r.get::<_,String>(0)?,r.get::<_,i64>(1)?,r.get::<_,i64>(2)?))).unwrap().collect::<Result<Vec<_>,_>>().unwrap()
+            statement
+                .query_map([], |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, i64>(1)?,
+                        r.get::<_, i64>(2)?,
+                    ))
+                })
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
         };
         assert_eq!(balances(&alice), balances(&bob));
         assert_eq!(balances(&alice), balances(&reader));
-        for store in [&alice, &bob, &reader] { assert_eq!(status(store).unwrap()["pending"], false); }
+        for store in [&alice, &bob, &reader] {
+            assert_eq!(status(store).unwrap()["pending"], false);
+        }
     }
     #[test]
     fn dirty_or_concurrent_local_work_is_never_silently_overwritten() {

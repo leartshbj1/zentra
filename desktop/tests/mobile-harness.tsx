@@ -35,6 +35,7 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { WorkspaceApp } from '../src/WorkspaceApp';
 import { desktopApi } from '../src/bridge';
+import { installCompanyRealtimeFixture } from './company-realtime-fixture';
 import { initialOnboardingSettings } from '../src/onboardingDraft';
 import { useMobileLayout } from '../src/useMobileLayout';
 import type { Project, Workspace } from '../src/types';
@@ -105,6 +106,7 @@ desktopApi.getBalanceSheet = async () => ({ asOf: scope.dateTo, exerciseFrom: sc
 desktopApi.getIncomeStatement = async () => ({ scope, currency, rows: [], sections: {}, previousSections: {}, revenueCents: 0, expenseCents: 0, profitCents: 0, previousRevenueCents: 0, previousExpenseCents: 0, previousProfitCents: 0 });
 desktopApi.getSecureUpdatePolicy = async () => ({ enabled: false, reason: 'Recette locale' }) as never;
 desktopApi.getProjectSyncStatus = async () => ({pending:0, syncing:false, connected:false, documents:[]});
+const productionCompanySynchronize = desktopApi.syncProjectDocuments;
 desktopApi.syncProjectDocuments = desktopApi.getProjectSyncStatus;
 desktopApi.getNogaCatalog = async () => ({ version: 'Recette', source: 'https://www.kubb-tool.bfs.admin.ch/fr/noga/2025', sections: [{ code: 'M', label: 'Activités immobilières', divisions: [{ code: '68', label: 'Activités immobilières' }] }] });
 desktopApi.saveProject = async (input, existingId) => {
@@ -236,6 +238,7 @@ if (new URLSearchParams(location.search).has('creditAllocation')) installCreditA
 if (new URLSearchParams(location.search).has('supplierRefundGuided')) installSupplierRefundGuidedFixture(data);
 if (new URLSearchParams(location.search).has('paymentGuided')) installPaymentGuidedFixture(data);
 if (new URLSearchParams(location.search).has('customerSettlementGuided')) installCustomerSettlementGuidedFixture(data);
+if (new URLSearchParams(location.search).has('companyRealtime')) installCompanyRealtimeFixture(data, productionCompanySynchronize);
 function Harness() {
   // Tests use this exact mocked instance, including after Vite hot reloads.
   Object.assign(window, { __qaDesktopApi: desktopApi });

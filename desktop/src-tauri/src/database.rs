@@ -1524,6 +1524,9 @@ impl LocalStore {
             )));
         }
         if current == SCHEMA_VERSION {
+            let transaction=connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            crate::company_collaboration::upgrade_tracking(&transaction)?;
+            transaction.commit()?;
             return Ok(());
         }
         let moves_plaintext_license = current != 0 && current < 38;

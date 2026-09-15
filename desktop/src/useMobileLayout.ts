@@ -1,10 +1,13 @@
 import { useEffect } from 'react';
+import { installMobileViewport } from './mobileViewport';
+import './mobileViewport.css';
 
 const mobileTableSelector = '.table-panel table';
 const printSelector = '.print-root, .print-page, .print-preview, .invoice-print-preview';
 
 /** Label only affected tables; timer ticks and unrelated forms do not rescan the workspace. */
 export function useMobileLayout() {
+  useEffect(installMobileViewport, []);
   useEffect(() => {
     const media = window.matchMedia('(max-width: 860px)');
     const pending = new Set<HTMLTableElement>();

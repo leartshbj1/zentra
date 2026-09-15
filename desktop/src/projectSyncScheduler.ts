@@ -1,5 +1,7 @@
 import type { ProjectSyncStatus } from './projectSync';
 
+export const COMPANY_SYNC_INTERVAL_MS = 3_000;
+
 export function startProjectSyncScheduler(options: {
   local: () => Promise<ProjectSyncStatus>;
   synchronize: () => Promise<ProjectSyncStatus>;
@@ -26,6 +28,7 @@ export function startProjectSyncScheduler(options: {
   async function tick() {
     if (!active || running) return;
     running = true;
+    const startedAt = Date.now();
     let delay = 60_000;
     try {
       await refresh();
@@ -53,8 +56,9 @@ export function startProjectSyncScheduler(options: {
         retryAt = Date.now() + delay;
       } else {
         failures = 0; retryAt = 0;
-        delay = status.busy ? 3_000 : status.mode === 'legacy' || !status.mode
-          ? status.connected && status.pending ? 5_000 : 60_000 : 15_000;
+        delay = status.busy ? COMPANY_SYNC_INTERVAL_MS : status.mode === 'legacy' || !status.mode
+          ? status.connected && status.pending ? 5_000 : 60_000
+          : Math.max(300, COMPANY_SYNC_INTERVAL_MS - (Date.now() - startedAt));
       }
     } catch (reason) {
       failures++;

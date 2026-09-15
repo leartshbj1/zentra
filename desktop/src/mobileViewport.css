@@ -1,0 +1,27 @@
+@media screen and (max-width: 860px), screen and (pointer: coarse) and (max-height: 500px) {
+  html.mobile-viewport-fixed, html.mobile-viewport-fixed body, html.mobile-viewport-fixed #root {
+    min-inline-size: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    overflow-x: clip;
+    touch-action: pan-x pan-y;
+  }
+  html.mobile-viewport-fixed { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  .mobile-viewport-fixed :is(input, select, textarea) { font-size: max(16px, 1em); }
+  .mobile-viewport-fixed :is(.desktop-app, .onboarding-shell, .onboarding-card, .modal, .modal-content, .panel, .table-panel, fieldset) {
+    min-inline-size: 0; max-inline-size: 100%; box-sizing: border-box;
+  }
+  .mobile-viewport-fixed .desktop-app :is(h1,h2,h3,h4,p,label,legend,summary):not(:where([data-touch-document] *, .print-page *, .print-root *)) {
+    min-inline-size: 0; overflow-wrap: anywhere;
+  }
+  .mobile-viewport-fixed :is(.desktop-app, .modal, .onboarding-shell) .button {
+    min-inline-size: 0; max-inline-size: 100%; min-block-size: 44px;
+    block-size: auto; white-space: normal; overflow-wrap: anywhere; line-height: 1.4;
+  }
+  .mobile-viewport-fixed .button > svg { flex-shrink: 0; }
+  .mobile-viewport-fixed :is(.metric-card, .finance-overview__figures article, .mobile-home__figure, .field, .form-grid > *, .form-actions > *) {
+    min-inline-size: 0; max-inline-size: 100%;
+  }
+  .mobile-viewport-fixed :is(.metric-card, .finance-overview__figures article) strong { overflow-wrap: anywhere; }
+  .mobile-viewport-fixed .form-actions { flex-wrap: wrap; }
+}

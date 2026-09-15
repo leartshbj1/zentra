@@ -126,11 +126,41 @@ describe('project document synchronization lifecycle', () => {
     expect(signal.aborted).toBe(true);
     finish();
   });
-  it('refreshes the shared company periodically without using the legacy pending-file loop', async () => {
-    const synchronize = vi.fn(async (): Promise<ProjectSyncStatus> => ({ ...status, mode: 'business', pending: 10 }));
+  it('receives a colleague invoice within the next three-second check without a notification or manual wake', async () => {
+    let colleagueSaved = false;
+    const synchronize = vi.fn(async (): Promise<ProjectSyncStatus> => ({ ...status, mode: 'business', changed: colleagueSaved }));
+    const onWorkspaceChanged = vi.fn(async () => {});
+    const { scheduler } = setup({ synchronize, onWorkspaceChanged });
+    await vi.advanceTimersByTimeAsync(300);
+    colleagueSaved = true;
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(onWorkspaceChanged).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(onWorkspaceChanged).toHaveBeenCalledTimes(1);
+    expect(synchronize).toHaveBeenCalledTimes(2);
+    scheduler.stop();
+  });
+  it('keeps three-second checks after sending, without a pending-file requirement', async () => {
+    const synchronize = vi.fn(async (): Promise<ProjectSyncStatus> => ({ ...status, mode: 'business', pending: 0 }));
     const { scheduler } = setup({ synchronize });
-    await vi.advanceTimersByTimeAsync(59_000);
+    await vi.advanceTimersByTimeAsync(9_300);
     expect(synchronize).toHaveBeenCalledTimes(4);
     scheduler.stop();
+  });
+  it('includes network time in the cadence and never overlaps a slow company transfer', async () => {
+    let finish!: (value: ProjectSyncStatus) => void;
+    const synchronize = vi.fn(() => new Promise<ProjectSyncStatus>(resolve => { finish = resolve; }));
+    const { scheduler } = setup({ synchronize });
+    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(2000);
+    finish({ ...status, mode: 'business' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(synchronize).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(9000);
+    expect(synchronize).toHaveBeenCalledTimes(2);
+    finish({ ...status, mode: 'business' });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(synchronize).toHaveBeenCalledTimes(3);
+    scheduler.stop(); finish(status);
   });
 });
