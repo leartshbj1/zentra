@@ -138,7 +138,7 @@ export default function DownloadPage() {
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
               <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Votre entreprise. Toute votre équipe.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">La version 1.67.2 rétablit le transfert de l’entreprise et clarifie les erreurs de connexion. Dans Paramètres → Compte et équipe, créez un lien : toute l’entreprise est partagée, avec ses documents, montants, logo et salaires.</p>
+              <p className="mt-3 text-base leading-7 text-[#667169]">La version 1.69.1 envoie automatiquement les modifications enregistrées aux membres de votre entreprise : factures, encaissements, devis, comptabilité et documents. Le compte et la licence utilisent zentraapp.ch. Les autres appareils doivent être connectés à la même entreprise.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Téléchargements disponibles : Windows {ZENTRA_WINDOWS_VERSION}, iPhone {ZENTRA_IPHONE_VERSION} et Mac {ZENTRA_MAC_VERSION}. Les conditions d’installation sont précisées ci-dessous pour chaque plateforme.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Les modifications concurrentes ne sont pas fusionnées automatiquement : Zentra propose de sauvegarder la copie locale avant de recevoir celle de l’équipe. Les changements non envoyés doivent ensuite être repris manuellement.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Les traductions sont encore en préparation : certains écrans, contrôles natifs et PDF restent en français.</p>
@@ -403,11 +403,11 @@ export default function DownloadPage() {
                 Préversions mobiles
               </h3>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#607068]">
-                Nouvelle interface mobile 1.68.0 : plus d’espace, moins de texte
-                et les détails accessibles au toucher. Pour les essais : les versions App Store et Google Play restent
-                en préparation. Les fichiers joints aux projets se synchronisent
-                entre les appareils connectés à la même entreprise. Les mises à
-                jour de ces préversions mobiles s’installent manuellement.
+                Une interface aérée, avec les détails accessibles au toucher.
+                Les documents et les données de l’entreprise partagée se mettent
+                à jour automatiquement lorsque l’application est ouverte et
+                connectée. Les versions App Store et Google Play restent en
+                préparation ; ces préversions s’installent manuellement.
               </p>
               <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-2">
                 <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">
@@ -548,7 +548,7 @@ export default function DownloadPage() {
                 [
                   '03',
                   'Activez la licence',
-                  'Copiez l’identifiant affiché, récupérez la licence signée après le paiement et validez-la une fois en ligne.',
+                  'Connectez-vous avec le compte de votre abonnement, puis autorisez cet appareil. La licence est récupérée automatiquement.',
                   LockKeyhole,
                 ],
                 [
@@ -693,7 +693,7 @@ export default function DownloadPage() {
                   [
                     HardDrive,
                     'Données sur votre appareil',
-                    'Vos données restent enregistrées localement. Les fichiers des projets sont aussi synchronisés entre vos appareils connectés.',
+                    'Votre appareil conserve une copie locale. Dans une entreprise partagée, les données et documents se mettent à jour automatiquement entre les appareils autorisés.',
                   ],
                   [
                     WifiOff,

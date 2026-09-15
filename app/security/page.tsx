@@ -42,6 +42,7 @@ const onlineData = [
   'État de l’abonnement et de la licence',
   'PDF placés volontairement dans le coffre partagé',
   'Fichiers joints aux projets connectés à l’entreprise',
+  'Base complète, salaires, logo et pièces jointes de l’entreprise partagée',
   'Base complète et pièces jointes lorsque la sauvegarde distante est activée',
 ] as const;
 
@@ -104,7 +105,7 @@ export default function SecurityPage() {
                   <HardDrive className="size-5" />
                 </span>
                 <p className="mt-7 text-xs font-bold uppercase tracking-[.13em] text-[#3f7454]">
-                  Reste sur l’ordinateur
+                  Copie sur votre appareil
                 </p>
                 <h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">
                   La base métier locale
@@ -135,10 +136,12 @@ export default function SecurityPage() {
                   Le compte et les fichiers partagés
                 </h2>
                 <p className="mt-4 text-sm leading-7 text-white/70">
-                  Le serveur ne synchronise pas automatiquement la base métier.
-                  Il traite les accès, l’abonnement, les PDF archivés sur demande
-                  et les fichiers joints aux projets. Ces fichiers se
-                  synchronisent entre les appareils connectés à votre entreprise.
+                  Une entreprise partagée synchronise automatiquement sa base
+                  métier et ses pièces jointes entre les appareils autorisés.
+                  Les modifications enregistrées déclenchent leur envoi et une
+                  notification accélère leur réception. Les accès, l’abonnement,
+                  les archives et les sauvegardes utilisent aussi des services
+                  en ligne.
                 </p>
                 <ul className="mt-7 grid gap-2.5 text-sm leading-6 text-white/78 sm:grid-cols-2">
                   {onlineData.map((item) => (
@@ -269,7 +272,7 @@ export default function SecurityPage() {
                   ],
                   [
                     'Sites',
-                    'Hébergement transitoire du site public. La future adresse personnalisée sera pilotée par la configuration et le DNS.',
+                    'Hébergement du site public et de ses API, accessibles sur zentraapp.ch.',
                   ],
                 ].map(([name, text]) => (
                   <div
@@ -283,11 +286,14 @@ export default function SecurityPage() {
               </div>
             </div>
             <div className="mt-5 rounded-[1.4rem] border border-[#dedee3] bg-[#eeeef0] p-5 text-sm leading-6 text-[#626c65]">
-              Supabase gère l’authentification et les coordonnées partagées
-              depuis Zurich. Les rôles, les appareils, les archives et les
-              fichiers des projets utilisent encore D1/R2. Les données métier
-              principales restent locales dans l’application ; rejoindre une
-              entreprise ne synchronise pas sa comptabilité entre appareils.
+              Supabase gère l’authentification et les révisions privées de
+              l’entreprise partagée. La comptabilité, les documents, les salaires
+              et les réglages sont reçus automatiquement par ses membres
+              autorisés. Une réception attend la fermeture des formulaires en
+              cours. Deux copies modifiées simultanément peuvent nécessiter une
+              résolution de conflit ; les modifications locales sont sauvegardées.
+              Les rôles, les appareils, les archives et les services historiques
+              de fichiers utilisent également D1/R2.
             </div>
           </div>
         </section>

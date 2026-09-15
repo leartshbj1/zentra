@@ -410,11 +410,11 @@ export default function Home() {
                 votre logiciel.
               </h2>
               <p className="mt-6 text-lg leading-8 text-[#647068]">
-                La gestion quotidienne est principalement conservée sur
-                l’ordinateur de l’entreprise. Le serveur intervient pour le
-                compte, les rôles, la licence, les coordonnées partagées et les
-                fichiers des projets connectés. Les archives PDF et sauvegardes
-                distantes restent sur option.
+                Votre appareil conserve une copie de travail. Dans une entreprise
+                partagée, les modifications enregistrées sont envoyées
+                automatiquement aux membres autorisés avec Supabase : documents,
+                comptabilité, salaires, logo et réglages. Les archives PDF et
+                sauvegardes distantes restent des fonctions distinctes.
               </p>
               <a
                 href="/security"
@@ -450,8 +450,9 @@ export default function Home() {
                   Accès et partage
                 </h3>
                 <p className="mt-3 text-sm leading-7 text-[#675f54]">
-                  Compte, coordonnées partagées et fichiers des projets connectés.
-                  Archives PDF et sauvegardes complètes si vous les activez.
+                  Compte, licence et données complètes de l’entreprise partagée,
+                  y compris les salaires et pièces jointes. Archives PDF et
+                  sauvegardes supplémentaires si vous les activez.
                 </p>
               </article>
               <p className="text-sm leading-6 text-[#6b746e] sm:col-span-2">
