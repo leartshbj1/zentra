@@ -29,7 +29,13 @@ export async function GET(request:Request) {
       return new Response(bytes as BodyInit,{headers});
     }
     return Response.json(await collaborationHead(actor),{headers:accountNoStoreHeaders()});
-  }catch(error){return accountJsonError(error);}
+  }catch(error){
+    if(new URL(request.url).searchParams.has('watch'))console.error('Company watch failed',{
+      kind:error instanceof Error?error.name:'UnknownError',
+      reason:error instanceof Error?error.message.replace(/(?:sb_secret_|eyJ|zds_)[A-Za-z0-9_.-]+/g,'[redacted]').replace(/https?:\S+/g,'[endpoint]').slice(0,240):'Unavailable',
+    });
+    return accountJsonError(error);
+  }
 }
 export async function POST(request:Request) {
   try {

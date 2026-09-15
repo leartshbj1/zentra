@@ -57,7 +57,7 @@ export async function watchCompanyRevision(organization: string, after: number, 
     });
     clearTimeout(handshakeTimer);
     socket = (response as Response & { webSocket?: Socket }).webSocket;
-    if (!socket) { await response.body?.cancel(); throw new Error('Realtime connection unavailable'); }
+    if (!socket) { await response.body?.cancel(); throw new Error(`Realtime handshake unavailable (${response.status})`); }
     const activeSocket = socket;
     activeSocket.accept();
     activeSocket.addEventListener('message', event => {
