@@ -2,6 +2,7 @@ import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
 import { isAccountRole, type AccountRole } from '@/lib/account-security';
 import { planByLicense, validLicensePrice } from '@/lib/plans';
 import { requireMemberSeat } from '@/lib/team-seats';
+import { offeredLicenseEntitlement } from '@/lib/founder-access';
 import {
   LICENSE_KEY_ID,
   LICENSE_PLAN,
@@ -120,12 +121,6 @@ export async function issueLicense(input: {
     );
   const db = database();
   const now = Math.floor(Date.now() / 1000);
-  if (input.periodEnd + 3 * 86_400 < now) {
-    throw new PublicError(
-      'La dernière période payée est expirée. Régularisez l’abonnement dans le portail Stripe.',
-      402,
-    );
-  }
   const accountUserId = input.accountUserId?.trim() || null;
   const accountSessionId = input.accountSessionId?.trim() || null;
   if (
@@ -140,9 +135,16 @@ export async function issueLicense(input: {
       400,
     );
   }
-  const entitlement = await paidEntitlementForSubscription(
+  const offered = await offeredLicenseEntitlement(
     input.subscriptionId,
+    accountUserId,
   );
+  const entitlement =
+    offered ?? (await paidEntitlementForSubscription(input.subscriptionId));
+  const periodEnd = offered ? offered.entitlement_valid_until : input.periodEnd;
+  if (periodEnd + (offered ? 0 : 3 * 86_400) < now) {
+    throw new PublicError('La période d’accès est expirée.', 402);
+  }
   const plan = planByLicense(entitlement.entitlement_plan_id);
   if (!plan || entitlement.seat_limit !== plan.seats) {
     throw new PublicError(
@@ -228,7 +230,9 @@ export async function issueLicense(input: {
     price_chf_cents: plan.priceChfCents,
     issued_at: new Date().toISOString(),
     valid_from: isoDate(now - 86_400),
-    valid_until: isoDate(input.periodEnd + 3 * 86_400),
+    valid_until: isoDate(
+      offered ? Math.min(periodEnd, now + 86_400) : periodEnd + 3 * 86_400,
+    ),
   };
   return { token: await signPayload(payload), payload };
 }
@@ -366,31 +370,41 @@ export async function refreshLicense(token: string) {
       403,
     );
   }
-  const subscription = await retrieveSubscription(activation.subscription_id);
-  validateActiveZentraSubscription(subscription);
-  const latestInvoiceId = referenceId(subscription.latest_invoice);
-  if (!latestInvoiceId) {
-    throw new PublicError(
-      'La dernière facture Stripe de cet abonnement est absente.',
-      502,
-    );
+  const offered = await offeredLicenseEntitlement(
+    activation.subscription_id,
+    payload.account_user_id,
+  );
+  if (activation.subscription_id.startsWith('manual_') && !offered) {
+    throw new PublicError('L’accès offert a expiré ou a été retiré.', 402);
   }
-  const latestInvoice = await retrieveInvoice(latestInvoiceId);
-  const paidThrough = validatePaidZentraInvoice(latestInvoice, subscription);
-  await upsertSubscription(subscription, null, {
-    paidInvoiceId: latestInvoice.id,
-    paidThrough,
-    paidAt:
-      latestInvoice.status_transitions?.paid_at ??
-      Math.floor(Date.now() / 1000),
-  });
-  const entitlement = await paidEntitlementForSubscription(subscription.id);
+  let entitlement = offered;
+  if (!offered) {
+    const subscription = await retrieveSubscription(activation.subscription_id);
+    validateActiveZentraSubscription(subscription);
+    const latestInvoiceId = referenceId(subscription.latest_invoice);
+    if (!latestInvoiceId) {
+      throw new PublicError(
+        'La dernière facture Stripe de cet abonnement est absente.',
+        502,
+      );
+    }
+    const latestInvoice = await retrieveInvoice(latestInvoiceId);
+    const paidThrough = validatePaidZentraInvoice(latestInvoice, subscription);
+    await upsertSubscription(subscription, null, {
+      paidInvoiceId: latestInvoice.id,
+      paidThrough,
+      paidAt:
+        latestInvoice.status_transitions?.paid_at ??
+        Math.floor(Date.now() / 1000),
+    });
+    entitlement = await paidEntitlementForSubscription(subscription.id);
+  }
   const organization = await db
     .prepare(
       `SELECT organization_id FROM organizations
         WHERE subscription_id=? LIMIT 1`,
     )
-    .bind(subscription.id)
+    .bind(activation.subscription_id)
     .first<{ organization_id: string }>();
   let accessRole: AccountRole = payload.access_role;
   let accountUserId = payload.account_user_id;
@@ -443,10 +457,10 @@ export async function refreshLicense(token: string) {
     accountSessionId = null;
   }
   return issueLicense({
-    subscriptionId: subscription.id,
+    subscriptionId: activation.subscription_id,
     installationId,
-    customerName: entitlement.customer_name,
-    periodEnd: entitlement.entitlement_valid_until,
+    customerName: entitlement!.customer_name,
+    periodEnd: entitlement!.entitlement_valid_until,
     channel: 'refresh',
     accessRole,
     accountUserId,

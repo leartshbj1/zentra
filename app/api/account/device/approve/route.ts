@@ -13,6 +13,7 @@ import {
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { database } from '@/lib/runtime';
 import { requireMemberSeat } from '@/lib/team-seats';
+import { effectiveAccountUntil } from '@/lib/founder-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +63,14 @@ export async function POST(request: Request) {
       )
       .bind(membership.organizationId)
       .first<{ entitlement_valid_until: number }>();
-    if (!entitlement || entitlement.entitlement_valid_until < now) {
+    const effectiveUntil = entitlement
+      ? await effectiveAccountUntil(
+          membership.subscriptionId,
+          user.userId,
+          entitlement.entitlement_valid_until,
+        )
+      : 0;
+    if (!entitlement || effectiveUntil < now) {
       throw new AccountPublicError(
         'L’abonnement de cette entreprise doit être régularisé avant d’ajouter un appareil.',
         402,

@@ -14,6 +14,7 @@ import { issueLicense } from '@/lib/license-token';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { database } from '@/lib/runtime';
 import { requireMemberSeat } from '@/lib/team-seats';
+import { effectiveAccountUntil } from '@/lib/founder-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,11 +106,14 @@ export async function POST(request: Request) {
           entitlement_valid_until: number;
           role: string;
         }>();
-      if (
-        !account ||
-        !isAccountRole(account.role) ||
-        account.entitlement_valid_until < now
-      ) {
+      const effectiveUntil = account
+        ? await effectiveAccountUntil(
+            account.subscription_id,
+            authorization.approved_by_user_id,
+            account.entitlement_valid_until,
+          )
+        : 0;
+      if (!account || !isAccountRole(account.role) || effectiveUntil < now) {
         throw new AccountPublicError(
           'Le compte ou son abonnement n’est plus actif.',
           402,
@@ -127,7 +131,7 @@ export async function POST(request: Request) {
         subscriptionId: account.subscription_id,
         installationId: authorization.installation_id,
         customerName: account.customer_name ?? account.name,
-        periodEnd: account.entitlement_valid_until,
+        periodEnd: effectiveUntil,
         channel: 'account',
         accessRole: account.role,
         accountUserId: authorization.approved_by_user_id,

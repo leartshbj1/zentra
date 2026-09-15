@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Zentra Fondateur</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-icon">Z</div><div>Zentra<span>FONDATEUR</span></div></div>
+    <div class="private-label"><a href="index.html">← Accès par e-mail</a></div>
+    <button id="new" class="nav active"><span>＋</span> Nouvelle signature</button>
+    <div class="section-title">APPAREILS ET JETONS <button id="reload" aria-label="Actualiser les appareils" title="Actualiser">↻</button></div>
+    <div id="devices" class="devices" aria-live="polite"><p class="muted">Chargement du coffre…</p></div>
+    <div class="sidebar-bottom"><span class="shield">◇</span><p>Clé privée dans le coffre Windows.<br>Signature sur ce PC.</p></div>
+  </aside>
+  <main>
+    <header><div class="eyebrow">ACTIVATION MANUELLE</div><div id="key-status" class="key-status">Ouverture du coffre…</div></header>
+    <div class="intro"><h1>Signer une activation.</h1><p>Collez un jeton ou l’identifiant de l’appareil, puis récupérez le jeton signé.</p></div>
+    <div id="error" class="notice error" role="alert" hidden></div>
+    <section class="card" aria-labelledby="source-title">
+      <div class="card-heading"><h2 id="source-title"><span class="step">1</span> Appareil à activer</h2><span class="quiet">Jeton · Identifiant · JSON</span></div>
+      <label class="sr-only" for="source">Jeton ou identifiant d’installation</label>
+      <textarea id="source" spellcheck="false" autocomplete="off" maxlength="8192" placeholder="Collez ici le jeton ou l’identifiant d’installation affiché dans Zentra…"></textarea>
+      <div class="source-actions"><button id="import" class="text-button">Importer un fichier</button><input id="file" type="file" accept=".txt,.json,.token" hidden><span id="source-hint">L’identifiant se trouve dans la licence de l’application.</span><button id="inspect" class="button secondary">Lire le contenu <span>→</span></button></div>
+      <div id="preview" class="preview" hidden>
+        <div class="identity"><div><span class="field-label">INSTALLATION</span><code id="installation"></code></div><span id="source-state" class="tag"></span></div>
+        <div class="fields"><label>Nom du bénéficiaire<input id="customer" maxlength="120" autocomplete="off"></label><label>Valable jusqu’au<input id="until" type="date" max="2099-12-31"></label></div>
+        <div class="details-line"><span id="plan"></span><span id="role"></span></div>
+        <p id="new-device-note" class="notice" hidden>Nouvelle licence propriétaire : la signature sera créée sur ce PC. Le serveur devra ensuite autoriser cet appareil avant son activation.</p>
+      </div>
+    </section>
+    <div class="sign-row"><label class="check"><input id="online" type="checkbox" checked><span>Vérifier aussi l’activation auprès de Zentra<small>Connexion Internet requise pour cette vérification.</small></span></label><button id="sign" class="button primary" disabled>Signer le jeton <span>↗</span></button></div>
+    <section id="result" class="card result" aria-labelledby="result-title" hidden>
+      <div class="card-heading"><h2 id="result-title"><span class="step">2</span> Votre jeton signé</h2><span id="result-badge" class="tag">Signature vérifiée</span></div>
+      <p id="result-message" role="status" class="result-message"></p>
+      <label class="sr-only" for="output">Jeton signé à copier dans Zentra</label><textarea id="output" readonly spellcheck="false"></textarea>
+      <div class="result-actions"><span id="effective-date" class="quiet"></span><button id="verify" class="button secondary">Vérifier l’activation</button><button id="copy" class="button primary">Copier le jeton</button></div>
+      <details id="technical"><summary>Identité de licence et autorisation serveur</summary><dl><dt>Licence</dt><dd id="license-id"></dd><dt>Empreinte d’autorisation</dt><dd><code id="binding"></code><button id="copy-binding" class="text-button">Copier l’empreinte</button></dd><dt>Empreinte du jeton (SHA-256)</dt><dd id="fingerprint"></dd></dl><p>Pour une <strong>nouvelle licence propriétaire</strong>, ajouter cette empreinte à <code>OWNER_LICENSE_BINDING_SHA256</code> dans l’environnement du serveur, en conservant les valeurs existantes, puis publier la configuration. Revenez ensuite vérifier l’activation ici. Cette application ne change pas la configuration serveur.</p></details>
+    </section>
+    <footer><details><summary>Comment activer Zentra avec ce jeton ?</summary><ol><li>Sur l’appareil à activer, ouvrez la section licence de Zentra et copiez son identifiant d’installation.</li><li>Collez cet identifiant ici, ou choisissez un appareil déjà présent dans le coffre. Vous pouvez aussi coller un ancien jeton ou un contenu de licence JSON/Base64URL.</li><li>Lisez le contenu, contrôlez le nom et la date, puis signez. La signature est locale ; le serveur détermine si l’activation est autorisée et peut ajuster l’échéance.</li><li>Quand l’activation est acceptée, copiez le résultat dans « Ou installer un nouveau jeton signé » sur l’appareil concerné. Celui-ci doit disposer d’Internet pour cette étape.</li></ol><p>Les jetons générés restent chiffrés dans votre coffre Windows. Ils ne se transfèrent pas à un autre appareil et ne créent ni abonnement, ni compte, ni accès aux données partagées.</p></details><span class="version">Zentra Fondateur 1.0</span></footer>
+  </main><div id="toast" class="toast" role="status" hidden></div>
+</body></html>

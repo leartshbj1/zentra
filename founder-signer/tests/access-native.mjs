@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+const {chromium}=createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE||'playwright');
+const browser=await chromium.connectOverCDP('http://127.0.0.1:9225');
+const page=browser.contexts().flatMap(c=>c.pages()).find(p=>p.url().includes('tauri.localhost'));
+assert(page,'Start the installed founder app with its temporary local WebView2 test port.');
+page.setDefaultTimeout(45000);
+const output=fileURLToPath(new URL('../artifacts/qa/',import.meta.url));await mkdir(output,{recursive:true});
+const email='qa-fondateur-20260915@example.invalid';
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+const request=action=>page.evaluate(action=>window.__TAURI__.core.invoke('founder_request',{action}),action);
+const lookup=()=>request({operation:'lookup',email});
+const ready=()=>page.waitForFunction(()=>!document.querySelector('#lookup').disabled);
+const checkUiError=async()=>{if(await page.locator('#error').isVisible())throw new Error(await page.locator('#error').textContent());};
+async function resetQa(){const state=await lookup();if(state.record&&['active','pending'].includes(state.record.status))await request({operation:'revoke',email,note:'Vérification technique terminée',expectedRevision:state.record.revision,operationId:crypto.randomUUID()});}
+try{
+  await ready();await checkUiError();await resetQa();
+  const denied=await fetch('https://www.zentraapp.ch/api/founder/access',{method:'POST',redirect:'manual',headers:{'Content-Type':'application/json'},body:'{"operation":"list"}'});
+  assert.equal(denied.status,401,'Unsigned internet commands must be rejected.');
+  await page.locator('#email').fill(email);await page.locator('#lookup').click();await ready();await checkUiError();await page.locator('#account').waitFor();
+  await page.locator('#grant').click();await ready();await checkUiError();await page.locator('#success').waitFor();
+  const granted=await lookup();assert.equal(granted.record.status,'pending');
+  assert(Math.abs(Date.parse(granted.record.expiresAt)-Date.parse(granted.serverTime)-14*86400000)<60000);
+  await page.screenshot({path:output+'/native-access-granted.png',fullPage:true});
+  await page.locator('.duration').filter({hasText:'Un mois'}).click();await page.locator('#grant').click();await ready();await checkUiError();
+  const extended=await lookup();assert.equal(extended.record.revision,granted.record.revision+1);
+  assert(Date.parse(extended.record.expiresAt)>Date.parse(granted.record.expiresAt)+27*86400000);
+  await page.locator('.duration').filter({hasText:'Personnalisée'}).click();
+  const customDate=new Date(Date.now()+7*86400000).toISOString().slice(0,10);await page.locator('#custom-date').fill(customDate);await page.locator('#grant').click();await ready();await checkUiError();
+  const custom=await lookup();assert.equal(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Zurich',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(custom.record.expiresAt)),customDate);
+  await page.reload();await ready();await checkUiError();await page.locator('.record').filter({hasText:email}).click();await ready();assert.equal(await page.locator('#account-title').textContent(),email);
+  await page.locator('#revoke').click();await page.locator('#confirm-revoke').click();await ready();await checkUiError();
+  assert.equal((await lookup()).record.status,'revoked');
+  assert.equal(await page.locator('.record').filter({hasText:email}).count(),0);
+  assert.deepEqual(errors,[]);await page.locator('#new').click();await page.evaluate(()=>window.scrollTo(0,0));
+  await page.screenshot({path:output+'/native-access-ready.png',fullPage:true});
+  const report={nativeApp:true,server:'https://www.zentraapp.ch',unsignedRequestsRejected:true,emailLookup:true,grant14Days:true,extendCalendarMonth:true,customDate:true,persistentAfterReload:true,revoke:true,qaEmail:email,qaGrantRevoked:true,errors};
+  await writeFile(output+'/access-native-results.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+}finally{await resetQa();await browser.close();}

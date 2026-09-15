@@ -13,6 +13,7 @@ type RuntimeBindings = {
   STRIPE_PRICE_PRO_ID?: string;
   LICENSE_SIGNING_KEY_PKCS8_B64URL?: string;
   OWNER_LICENSE_BINDING_SHA256?: string;
+  FOUNDER_ADMIN_PUBLIC_KEY_B64URL?: string;
   PUBLIC_SITE_URL?: string;
   SITE_ORIGIN_ALIASES?: string;
   STRIPE_TEST_MODE?: string;

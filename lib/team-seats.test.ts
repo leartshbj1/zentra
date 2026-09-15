@@ -86,17 +86,17 @@ describe('Paid plan seats in the actual migrated database', () => {
     );
     const allowed = (user: string) =>
       db.prepare(MEMBER_HAS_SEAT_SQL).get('org_test', user);
-    expect(allowed('owner')).toEqual({ user_id: 'owner' });
-    expect(allowed('a')).toEqual({ user_id: 'a' });
-    expect(allowed('b')).toEqual({ user_id: 'b' });
+    expect(allowed('owner')).toMatchObject({ user_id: 'owner' });
+    expect(allowed('a')).toMatchObject({ user_id: 'a' });
+    expect(allowed('b')).toMatchObject({ user_id: 'b' });
     expect(allowed('c')).toBeUndefined();
     db.exec("UPDATE organization_members SET revoked_at=102 WHERE user_id='a'");
     expect(allowed('a')).toBeUndefined();
-    expect(allowed('c')).toEqual({ user_id: 'c' });
+    expect(allowed('c')).toMatchObject({ user_id: 'c' });
     db.exec(
       "UPDATE subscriptions SET seat_limit=1,entitlement_plan_id='zentra-solo-monthly-49-chf'",
     );
-    expect(allowed('owner')).toEqual({ user_id: 'owner' });
+    expect(allowed('owner')).toMatchObject({ user_id: 'owner' });
     expect(allowed('b')).toBeUndefined();
   });
   it.each(ZENTRA_PLANS)(

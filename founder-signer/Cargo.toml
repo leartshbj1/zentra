@@ -1,0 +1,36 @@
+[package]
+name = "zentra-founder"
+version = "1.1.0"
+edition = "2021"
+description = "Outil personnel de signature des licences Zentra"
+
+[[bin]]
+name = "ZentraFondateur"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+embed-resource = "3"
+
+[dependencies]
+tauri = { version = "2", features = ["custom-protocol"] }
+tauri-plugin-single-instance = "2"
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+ed25519-dalek = { version = "2", features = ["pkcs8"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+zeroize = "1"
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "stream", "system-proxy"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+futures-util = "0.3"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_DataExchange", "Win32_System_Memory"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+strip = true
+opt-level = "s"

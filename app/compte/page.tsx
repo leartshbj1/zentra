@@ -251,8 +251,11 @@ export default async function AccountPage() {
                   <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d8e2d8] bg-[#f0f5ee] p-4">
                     <div>
                       <p className="font-semibold">
-                        {organization.seats.planName} ·{' '}
-                        {organization.seats.priceChfCents / 100} CHF / mois
+                        {organization.seats.offeredUntil
+                          ? `Accès offert jusqu’au ${new Intl.DateTimeFormat('fr-CH', { dateStyle: 'long', timeZone: 'Europe/Zurich' }).format(new Date(organization.seats.offeredUntil * 1000))}`
+                          : organization.seats.manualAccess
+                            ? 'Accès offert terminé'
+                            : `${organization.seats.planName} · ${organization.seats.priceChfCents / 100} CHF / mois`}
                       </p>
                       <p className="mt-1 text-sm text-[#657068]">
                         {organization.seats.used}

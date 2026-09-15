@@ -1,6 +1,7 @@
 import { RequestBodyError } from '@/lib/request-body';
 import { database } from '@/lib/runtime';
 import { requireMemberSeat } from '@/lib/team-seats';
+import { effectiveAccountUntil } from '@/lib/founder-access';
 import {
   AccountPublicError,
   bearerSessionToken,
@@ -186,7 +187,12 @@ export async function requireDeviceSession(
       401,
     );
   }
-  if (row.entitlement_valid_until < now) {
+  const effectiveUntil = await effectiveAccountUntil(
+    row.subscription_id,
+    row.user_id,
+    row.entitlement_valid_until,
+  );
+  if (effectiveUntil < now) {
     throw new AccountPublicError(
       'L’abonnement de cette entreprise n’est plus actif.',
       402,
@@ -213,7 +219,7 @@ export async function requireDeviceSession(
     role: row.role,
     userId: row.user_id,
     installationId: row.installation_id,
-    entitlementValidUntil: row.entitlement_valid_until,
+    entitlementValidUntil: effectiveUntil,
   };
 }
 

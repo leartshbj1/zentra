@@ -7,6 +7,43 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
+export const founderAccountIdentities = sqliteTable('founder_account_identities', {
+  userId: text('user_id').primaryKey(),
+  email: text('email').notNull(),
+  displayName: text('display_name').notNull(),
+  provider: text('provider').notNull(),
+  lastSeenAt: integer('last_seen_at').notNull(),
+}, table => [index('founder_identities_email_idx').on(table.email)]);
+
+export const founderAccessGrants = sqliteTable('founder_access_grants', {
+  email: text('email').primaryKey(),
+  grantId: text('grant_id').notNull().unique(),
+  userId: text('user_id').unique(),
+  organizationId: text('organization_id').references(() => organizations.organizationId),
+  validUntil: integer('valid_until').notNull(),
+  revokedAt: integer('revoked_at'),
+  revision: integer('revision').notNull(),
+  note: text('note').notNull().default(''),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  lastOperationId: text('last_operation_id').notNull(),
+}, table => [index('founder_grants_organization_idx').on(table.organizationId)]);
+
+export const founderAccessEvents = sqliteTable('founder_access_events', {
+  operationId: text('operation_id').primaryKey(),
+  email: text('email').notNull(),
+  actionHash: text('action_hash').notNull(),
+  operation: text('operation').notNull(),
+  validUntil: integer('valid_until').notNull(),
+  createdAt: integer('created_at').notNull(),
+  revision: integer('revision').notNull(),
+});
+
+export const founderAdminNonces = sqliteTable('founder_admin_nonces', {
+  nonce: text('nonce').primaryKey(),
+  expiresAt: integer('expires_at').notNull(),
+}, table => [index('founder_nonces_expiry_idx').on(table.expiresAt)]);
+
 export const businessSyncSpaces = sqliteTable('business_sync_spaces', {
   organizationId: text('organization_id').primaryKey().references(() => organizations.organizationId),
   generation: text('generation').notNull(),

@@ -11,6 +11,7 @@ import {
 } from '@/lib/supabase-auth-http';
 import { optionalSupabaseAuthClient } from '@/lib/supabase-auth-runtime';
 import type { SupabaseAuthUser } from '@/lib/supabase-auth';
+import { registerAccessIdentity } from '@/lib/founder-access';
 
 export type ZentraUser = {
   userId: string;
@@ -24,6 +25,13 @@ export type ZentraUser = {
 type ZentraUserOptions = {
   refreshSession?: boolean;
 };
+
+async function withOfferedAccess(
+  user: ZentraUser | null,
+): Promise<ZentraUser | null> {
+  if (user) await registerAccessIdentity(user);
+  return user;
+}
 
 function fromSupabaseUser(user: SupabaseAuthUser): ZentraUser | null {
   if (!user.emailConfirmed) return null;
@@ -51,7 +59,7 @@ export async function getZentraUser(
     if (!client) return null;
     try {
       const user = await client.getUser(accessToken);
-      return fromSupabaseUser(user);
+      return withOfferedAccess(fromSupabaseUser(user));
     } catch (error) {
       if (!isRejectedAuthCredential(error)) throw error;
     }
@@ -62,7 +70,7 @@ export async function getZentraUser(
     try {
       const renewed = await client.refresh(refreshToken);
       await writeSupabaseAuthCookies(renewed);
-      return fromSupabaseUser(renewed.user);
+      return withOfferedAccess(fromSupabaseUser(renewed.user));
     } catch (error) {
       if (!isRejectedAuthCredential(error)) throw error;
       await clearSupabaseAuthCookies();
@@ -83,13 +91,15 @@ export async function getZentraUser(
   if (accessToken || refreshToken) return null;
 
   const sitesUser = await getChatGPTUser();
-  return sitesUser
-    ? {
-        ...sitesUser,
-        provider: 'sites',
-        emailConfirmed: true,
-      }
-    : null;
+  return withOfferedAccess(
+    sitesUser
+      ? {
+          ...sitesUser,
+          provider: 'sites',
+          emailConfirmed: true,
+        }
+      : null,
+  );
 }
 
 export async function requireZentraUser(returnTo: string): Promise<ZentraUser> {

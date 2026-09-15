@@ -1,6 +1,8 @@
 import { database } from '@/lib/runtime';
 import { AccountPublicError } from '@/lib/account-security';
 import { planByLicense } from '@/lib/plans';
+import { offerForOrganization, grantForAccount } from '@/lib/founder-access';
+import { SOLO_PLAN } from '@/lib/founder-access-policy';
 
 export type TeamSeats = {
   plan: string;
@@ -11,13 +13,15 @@ export type TeamSeats = {
   reserved: number;
   available: number | null;
   subscriptionActive: boolean;
+  offeredUntil?: number;
+  manualAccess?: boolean;
 };
 
 export async function teamSeats(organizationId: string): Promise<TeamSeats> {
   const now = Math.floor(Date.now() / 1000);
   const row = await database()
     .prepare(`
-    SELECT s.entitlement_plan_id,s.seat_limit,s.entitlement_valid_until,
+    SELECT s.entitlement_plan_id,s.seat_limit,s.entitlement_valid_until,s.subscription_id,
       (SELECT COUNT(*) FROM organization_members m WHERE m.organization_id=o.organization_id AND m.revoked_at IS NULL) AS used,
       (SELECT COUNT(*) FROM organization_invitations i WHERE i.organization_id=o.organization_id AND i.revoked_at IS NULL AND i.accepted_at IS NULL AND i.expires_at>=?) AS reserved
     FROM organizations o JOIN subscriptions s ON s.subscription_id=o.subscription_id
@@ -26,11 +30,21 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
     .bind(now, organizationId)
     .first<{
       entitlement_plan_id: string;
+      subscription_id: string;
       seat_limit: number | null;
       entitlement_valid_until: number;
       used: number;
       reserved: number;
     }>();
+  const offer =
+    row && row.entitlement_valid_until < now
+      ? await offerForOrganization(organizationId)
+      : null;
+  if (offer && row) {
+    row.entitlement_plan_id = SOLO_PLAN;
+    row.seat_limit = 1;
+    row.entitlement_valid_until = offer.valid_until;
+  }
   const plan = planByLicense(row?.entitlement_plan_id);
   if (!row || !plan || row.seat_limit !== plan.seats) {
     throw new AccountPublicError(
@@ -40,8 +54,18 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
   }
   return {
     plan: plan.id,
-    planName: plan.name,
-    priceChfCents: plan.priceChfCents,
+    planName:
+      offer || row.subscription_id.startsWith('manual_')
+        ? 'Accès offert'
+        : plan.name,
+    priceChfCents:
+      offer || row.subscription_id.startsWith('manual_')
+        ? 0
+        : plan.priceChfCents,
+    ...(row.subscription_id.startsWith('manual_')
+      ? { manualAccess: true }
+      : {}),
+    ...(offer ? { offeredUntil: offer.valid_until } : {}),
     limit: row.seat_limit,
     used: row.used,
     reserved: row.reserved,
@@ -56,13 +80,13 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
 /** Stable order keeps the owner first if a paid plan is reduced externally. */
 export const MEMBER_HAS_SEAT_SQL = `
   WITH ranked AS (
-    SELECT m.user_id,s.seat_limit,
+    SELECT m.user_id,s.seat_limit,s.subscription_id,
       ROW_NUMBER() OVER (ORDER BY CASE WHEN m.role='owner' THEN 0 ELSE 1 END,m.joined_at,m.membership_id) AS seat
     FROM organization_members m
     JOIN organizations o ON o.organization_id=m.organization_id
     JOIN subscriptions s ON s.subscription_id=o.subscription_id
     WHERE m.organization_id=? AND m.revoked_at IS NULL
-  ) SELECT user_id FROM ranked WHERE user_id=? AND (seat_limit IS NULL OR seat<=seat_limit)`;
+  ) SELECT user_id,subscription_id FROM ranked WHERE user_id=? AND (seat_limit IS NULL OR seat<=seat_limit)`;
 
 export async function requireMemberSeat(
   organizationId: string,
@@ -71,8 +95,26 @@ export async function requireMemberSeat(
   const allowed = await database()
     .prepare(MEMBER_HAS_SEAT_SQL)
     .bind(organizationId, userId)
-    .first();
+    .first<{ subscription_id: string }>();
+  if (allowed?.subscription_id.startsWith('manual_')) {
+    if (await grantForAccount(allowed.subscription_id, userId)) return;
+    throw new AccountPublicError(
+      'L’accès offert a expiré ou a été retiré.',
+      402,
+    );
+  }
   if (!allowed) {
+    const organization = await database()
+      .prepare(
+        'SELECT subscription_id FROM organizations WHERE organization_id=?',
+      )
+      .bind(organizationId)
+      .first<{ subscription_id: string }>();
+    if (
+      organization &&
+      (await grantForAccount(organization.subscription_id, userId))
+    )
+      return;
     throw new AccountPublicError(
       'Votre accès dépasse le nombre de personnes incluses. Demandez au titulaire de gérer les accès ou de changer de formule.',
       403,

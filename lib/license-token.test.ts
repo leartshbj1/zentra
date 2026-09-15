@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+vi.mock('@/lib/founder-access', () => ({ offeredLicenseEntitlement: vi.fn().mockResolvedValue(null), grantForAccount: vi.fn().mockResolvedValue(null) }));
 import {
   afterEach,
   beforeAll,

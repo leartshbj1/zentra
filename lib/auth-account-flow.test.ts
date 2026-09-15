@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { LEGAL_VERSION } from './legal';
+vi.mock('@/lib/founder-access', () => ({ registerAccessIdentity: vi.fn() }));
 
 const stubs = vi.hoisted(() => ({
   jar: new Map<string, string>(),
@@ -176,6 +178,7 @@ describe('Account authentication routes and cookie flow', () => {
         password: 'test-password-123',
         displayName: 'Test owner',
         returnTo,
+        acceptTerms: true, legalVersion: LEGAL_VERSION,
       }),
     );
     expect(created.status).toBe(202);
@@ -208,6 +211,7 @@ describe('Account authentication routes and cookie flow', () => {
         email: user.email,
         password: 'test-password-123',
         returnTo: '//attacker.example',
+        acceptTerms: true, legalVersion: LEGAL_VERSION,
       }),
     );
     expect(stubs.jar.get(SUPABASE_AUTH_RETURN_COOKIE)).toBe('/compte');
