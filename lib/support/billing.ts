@@ -406,6 +406,7 @@ export async function verifySupportBilling() {
         submit: { message: 'Vérification interne Zentra. Ne pas payer.' },
       },
     });
+    let validationError:unknown;
     try {
       if (
         !session.url ||
@@ -424,14 +425,13 @@ export async function verifySupportBilling() {
       });
       if (!page.ok)
         throw new SupportError('La page Stripe ne s’ouvre pas.', 503);
-    } finally {
-      const expired = await stripe.checkout.sessions.expire(session.id);
-      if (expired.status !== 'expired')
-        throw new SupportError(
-          'Le paiement de vérification doit être fermé dans Stripe.',
-          503,
-        );
+    } catch(error) {
+      validationError=error;
     }
+    const expired = await stripe.checkout.sessions.expire(session.id);
+    if (expired.status !== 'expired')
+      throw new SupportError('Le paiement de vérification doit être fermé dans Stripe.',503);
+    if(validationError) throw validationError;
     results.push({ plan: plan.id, amount: plan.priceChfCents, expired: true });
   }
   return {
