@@ -1,4 +1,5 @@
 import type { Decision, Directory, Provider, Rules } from '@/lib/support/types';
+import type { SupportBillingState } from '@/lib/support/plans';
 export type SupportTicket = {
   id: string;
   connectionId: string;
@@ -26,6 +27,8 @@ export type SupportConnection = {
   hookUrl: string;
 };
 export type SupportState = {
+  billing?: SupportBillingState;
+  zendesk?: { ready: boolean };
   user: { name: string; email: string };
   platformOwner: boolean;
   workspaces: { id: string; name: string; role: string }[];

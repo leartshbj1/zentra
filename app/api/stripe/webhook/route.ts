@@ -7,6 +7,7 @@ import {
   verifyStripeEvent,
 } from '@/lib/stripe';
 import { readTextBodyWithinLimit } from '@/lib/request-body';
+import { persistSupportStripeEvent } from '@/lib/support/billing';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,8 @@ export async function POST(request: Request) {
     const rawBody = await readTextBodyWithinLimit(request, 1_048_576);
     const event = await verifyStripeEvent(rawBody, signature);
     await recordVerifiedStripeWebhook(event);
-    await persistStripeEvent(event);
+    if (!(await persistSupportStripeEvent(event)))
+      await persistStripeEvent(event);
     return Response.json({ received: true }, { headers: noStoreHeaders() });
   } catch (error) {
     return jsonError(error);

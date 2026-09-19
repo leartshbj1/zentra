@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
 import { BrandWordmark } from '@/components/brand-mark';
 import { Button } from '@/components/ui/button';
+import { ZendeskAdmin } from './zendesk-admin';
 import { Field } from './controls';
 import type { CalibrationReport } from '@/lib/support/calibration';
 
@@ -11,6 +12,14 @@ export function SupportAdministration() {
     ready: boolean;
     verifiedAt: number | null;
     calibration: CalibrationReport | null;
+    billing?: { ready: boolean; livemode: boolean | null };
+    zendesk?: {
+      configured?: boolean;
+      ready: boolean;
+      developerDomain?: string;
+      redirectUri?: string;
+      scopes?: string;
+    };
   } | null>(null);
   const [access, setAccess] = useState(0),
     [error, setError] = useState(''),
@@ -34,6 +43,14 @@ export function SupportAdministration() {
         ready: boolean;
         verifiedAt: number | null;
         calibration: CalibrationReport | null;
+        billing?: { ready: boolean; livemode: boolean | null };
+        zendesk?: {
+          configured?: boolean;
+          ready: boolean;
+          developerDomain?: string;
+          redirectUri?: string;
+          scopes?: string;
+        };
         error?: string;
       };
       if (response.status === 401 || response.status === 403) {
@@ -213,6 +230,61 @@ export function SupportAdministration() {
               </Button>
             </form>
             {message && <p role="status">{message}</p>}
+            <ZendeskAdmin status={status.zendesk} onSaved={load} />
+            <section className="support-admin-validation">
+              <h2>Abonnements clients</h2>
+              <p>
+                Starter : 29 CHF / 2 000 analyses. Équipe : 49 CHF / 5 000.
+                Business : 99 CHF / 15 000 par mois.
+              </p>
+              <p className="support-notice">
+                {status.billing?.ready
+                  ? status.billing.livemode
+                    ? 'Paiements réels configurés.'
+                    : 'Stripe en mode test privé.'
+                  : 'Les paiements attendent la configuration Stripe.'}
+              </p>
+              <Button
+                variant="outline"
+                disabled={busy || checking}
+                onClick={async () => {
+                  setBusy(true);
+                  setError('');
+                  try {
+                    const response = await fetch('/api/support', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'configureBilling' }),
+                    });
+                    const result = (await response.json()) as {
+                      error?: string;
+                    };
+                    if (!response.ok)
+                      throw new Error(
+                        result.error || 'Configuration Stripe impossible.',
+                      );
+                    await load();
+                    setMessage(
+                      'Les trois formules et le portail d’abonnement sont configurés. Aucun client n’a été débité.',
+                    );
+                  } catch (e) {
+                    setError(
+                      e instanceof Error
+                        ? e.message
+                        : 'Configuration impossible.',
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {busy
+                  ? 'Configuration…'
+                  : status.billing?.ready
+                    ? 'Vérifier les formules Stripe'
+                    : 'Configurer les trois formules Stripe'}
+              </Button>
+            </section>
             <section className="support-admin-validation">
               <h2>Vérifier la qualité du tri</h2>
               <p>

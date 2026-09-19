@@ -63,6 +63,44 @@ const send = await call(
   },
   auth,
 );
+if (!initial.value.billing?.active) {
+  assert(
+    send.status === 402,
+    'Unpaid webhook must stop before provider access',
+  );
+  const privateState = await call('/api/support');
+  assert(
+    privateState.value.tickets.length === 0,
+    'Unpaid space must not expose ticket content',
+  );
+  const blocked = await call('/api/support', {
+    action: 'approve',
+    workspaceId,
+    ticketId: 'unpaid-fixture',
+    revision: 1,
+  });
+  assert(blocked.status === 402, 'Unpaid manual processing must also stop');
+  await call('/api/support', {
+    action: 'disconnect',
+    workspaceId,
+    connectionId: connect.value.connectionId,
+  });
+  console.log(
+    JSON.stringify({
+      result: 'passed',
+      realLocalD1: true,
+      checks: [
+        'creation',
+        'free connector setup',
+        'paid webhook gate',
+        'paid content gate',
+        'paid mutation gate',
+        'admin isolation',
+      ],
+    }),
+  );
+  process.exit(0);
+}
 assert(
   send.status === 503 && send.value.error.includes('analyse'),
   'Missing key must be explicit',

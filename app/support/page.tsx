@@ -1,3 +1,4 @@
+import { zendeskAvailability } from '@/lib/support/zendesk-oauth';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import {
@@ -15,11 +16,13 @@ import {
   TimeEstimator,
 } from '@/components/support/presentation';
 import './presentation.css';
+import './support.css';
+import { SupportPrices } from '@/components/support/billing-panel';
 
 export const metadata: Metadata = {
   title: 'Zentra Support — Le bon ticket. La bonne équipe.',
   description:
-    'Automatisez le tri de vos tickets support : catégorie, priorité et affectation à la bonne équipe. Connectez Zendesk, Freshdesk, Gorgias ou votre outil via API.',
+    'Automatisez le tri de vos tickets support : catégorie, priorité et affectation à la bonne équipe. Connectez Freshdesk ou votre outil via API. Zendesk et Gorgias : disponibilité indiquée dans Connexions.',
   alternates: { canonical: '/support' },
   openGraph: {
     title: 'Zentra Support — Moins de tri. Plus de temps pour vos clients.',
@@ -33,6 +36,7 @@ export default async function SupportPage({
   searchParams: Promise<{ workspace?: string }>;
 }) {
   const params = await searchParams;
+  const zendesk = await zendeskAvailability();
   if (params.workspace)
     redirect(
       `/support/espace?workspace=${encodeURIComponent(params.workspace)}`,
@@ -47,6 +51,7 @@ export default async function SupportPage({
         <nav aria-label="Zentra Support">
           <a href="#fonctionnement">Comment ça marche</a>
           <a href="#connexions">Connexions</a>
+          <a href="#tarifs">Tarifs</a>
           <a className="sp-header-account" href="/support/espace">
             Mon espace <ArrowUpRight size={15} />
           </a>
@@ -87,13 +92,15 @@ export default async function SupportPage({
         </section>
         <section
           className="sp-compatible sp-wrap"
-          aria-label="Connecteurs disponibles"
+          aria-label="Logiciels pris en charge et prévus"
         >
           <p>PENSÉ POUR VOTRE ÉQUIPE. CONNECTÉ À VOTRE QUOTIDIEN.</p>
           <div>
-            <span>Zendesk</span>
+            <span>Zendesk{!zendesk.ready && <small> · bientôt</small>}</span>
             <span>Freshdesk</span>
-            <span>Gorgias</span>
+            <span>
+              Gorgias<small> · bientôt</small>
+            </span>
             <span className="sp-api">
               Votre outil, via API <ArrowUpRight size={16} />
             </span>
@@ -261,15 +268,38 @@ export default async function SupportPage({
                 <h3>{name}</h3>
                 <p>{description}</p>
                 <span className="sp-integration-type">
-                  {letter === '↗' ? 'API & webhooks' : 'Connecteur intégré'}
+                  {letter === '↗'
+                    ? 'API & webhooks'
+                    : letter === 'G' || (letter === 'Z' && !zendesk.ready)
+                      ? 'Bientôt disponible'
+                      : 'Connexion disponible'}
                 </span>
               </article>
             ))}
           </div>
           <p className="sp-caption">
+            Vérifiez la disponibilité de votre connexion avant de souscrire.
             L’accès API et les webhooks doivent être disponibles dans
             l’abonnement de votre outil. L’installation guidée précise les
             autorisations nécessaires.
+          </p>
+        </section>
+        <section className="sp-section sp-wrap" id="tarifs">
+          <div className="sp-section-title">
+            <p className="sp-kicker">UNE FORMULE POUR VOTRE VOLUME</p>
+            <h2>Votre équipe. Un abonnement.</h2>
+            <p>
+              Le tri, la priorité et le routage. Sans supplément par
+              collaborateur.
+            </p>
+          </div>
+          <SupportPrices />
+          <p className="sp-caption">
+            Paiement mensuel en CHF. Résiliation pour la prochaine échéance.
+            Aucun dépassement facturé automatiquement : le tri se met en pause
+            une fois le volume atteint. L’abonnement de votre logiciel de
+            support reste séparé. Éditeur non assujetti à la TVA suisse.{' '}
+            <a href="/support/conditions">Conditions de Zentra Support</a>.
           </p>
         </section>
         <section className="sp-section sp-soft">

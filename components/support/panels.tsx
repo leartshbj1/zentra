@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { ConnectionWizard } from './connection-wizard';
 import { Check, Copy, KeyRound, Link2, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -163,12 +164,7 @@ export function ConnectionsPanel({
   demo: boolean;
   error?: string;
 }) {
-  const [open, setOpen] = useState(false),
-    [provider, setProvider] = useState('zendesk'),
-    [domain, setDomain] = useState(''),
-    [login, setLogin] = useState(''),
-    [apiKey, setApiKey] = useState(''),
-    [label, setLabel] = useState('');
+  const [open, setOpen] = useState(false);
   const [hook, setHook] = useState<{ id: string; token: string } | null>(null),
     [guide, setGuide] = useState<string | null>(null),
     [copied, setCopied] = useState(''),
@@ -202,7 +198,8 @@ export function ConnectionsPanel({
           <Link2 size={30} />
           <h3>Choisissez votre première connexion.</h3>
           <p>
-            Zendesk, Freshdesk, Gorgias ou une API compatible avec votre outil.
+            Commencez par choisir votre logiciel pour voir les connexions
+            disponibles.
           </p>
           <Button
             className="support-primary"
@@ -258,7 +255,13 @@ export function ConnectionsPanel({
           </div>
           {guide === c.id && (
             <div className="support-integration-guide">
+              <p className="support-eyebrow">3 · DERNIÈRE ÉTAPE</p>
               <h4>Recevoir les tickets automatiquement</h4>
+              <p>
+                La connexion est vérifiée. Activez maintenant l’envoi des
+                nouveaux tickets dans votre logiciel, puis choisissez vos
+                équipes dans Routage.
+              </p>
               <ol>
                 <li>
                   Dans{' '}
@@ -409,111 +412,24 @@ export function ConnectionsPanel({
           )}
         </section>
       ))}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="support-dialog">
-          <DialogHeader>
-            <DialogTitle>Connecter votre support</DialogTitle>
-            <DialogDescription>
-              La connexion vérifie vos équipes et agents. Vous choisissez
-              ensuite les règles de routage.
-            </DialogDescription>
-          </DialogHeader>
-          {error && (
-            <p className="support-notice support-error" role="alert">
-              {error}
-            </p>
-          )}
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const result = await mutate({
-                action: 'connect',
-                provider,
-                domain,
-                login,
-                apiKey,
-                label,
-              });
-              if (result) {
-                setApiKey('');
-                setOpen(false);
-                setGuide(String(result.connectionId));
-                setHook({
-                  id: String(result.connectionId),
-                  token: String(result.hookToken),
-                });
-              }
-            }}
-          >
-            <Choice
-              label="Votre outil"
-              value={provider}
-              onChange={setProvider}
-              options={Object.entries(PROVIDERS).map(([value, label]) => ({
-                value,
-                label,
-              }))}
-            />
-            <Field
-              label="Nom de cette connexion"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Support de ma boutique"
-              maxLength={100}
-            />
-            {provider !== 'api' && (
-              <>
-                <Field
-                  label="Domaine de votre compte"
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  placeholder={`entreprise.${provider}.com`}
-                  required
-                />
-                {provider !== 'freshdesk' && (
-                  <Field
-                    label="Adresse e-mail du compte API"
-                    type="email"
-                    value={login}
-                    onChange={(e) => setLogin(e.target.value)}
-                    required
-                  />
-                )}
-                <Field
-                  label="Clé API"
-                  type="password"
-                  autoComplete="new-password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  required
-                  disabled={demo}
-                />
-                <p className="support-small">
-                  La clé doit permettre de lire les tickets, les équipes et les
-                  agents, puis de modifier l’affectation et la priorité.
-                </p>
-              </>
-            )}
-            {provider === 'api' && (
-              <p>
-                Votre outil doit pouvoir envoyer des requêtes HTTP et appliquer
-                la décision reçue. Compatible avec un scénario Make/n8n ou une
-                intégration sur mesure.
-              </p>
-            )}
-            <Button
-              className="support-primary"
-              type="submit"
-              disabled={busy || demo}
-            >
-              {busy ? 'Vérification…' : 'Vérifier la connexion'}
-            </Button>
-            {demo && (
-              <a href="/support/espace">Configurer mon véritable espace</a>
-            )}
-          </form>
-        </DialogContent>
-      </Dialog>
+      {open && (
+        <ConnectionWizard
+          open={open}
+          onOpenChange={setOpen}
+          data={data}
+          mutate={mutate}
+          busy={busy}
+          demo={demo}
+          error={error}
+          onConnected={(result) => {
+            setGuide(String(result.connectionId));
+            setHook({
+              id: String(result.connectionId),
+              token: String(result.hookToken),
+            });
+          }}
+        />
+      )}
       <Dialog
         open={!!disconnect}
         onOpenChange={(open) => {

@@ -9,7 +9,13 @@ import {
   evaluateTicket,
   verifyPlatformApiKey,
 } from './jev';
-import { encryptSecret, decryptSecret } from './crypto';
+import { encryptSecret, decryptSecret, digest, newHookToken } from './crypto';
+import {
+  configureZendesk,
+  startZendesk,
+  completeZendesk,
+  zendeskSecret,
+} from './zendesk-oauth';
 import { createAdminSession, adminCookie } from './admin-session';
 import {
   providerDomain,
@@ -257,13 +263,19 @@ describe('Décisions Jev', () => {
 });
 
 describe('Connecteurs', () => {
-  it('interdit les domaines externes, identifiants dans URL et chemins', () => {
+  it('accepte un lien copié et interdit domaines externes et identifiants URL', () => {
     expect(providerDomain('zendesk', 'boutique')).toBe('boutique.zendesk.com');
+    expect(
+      providerDomain(
+        'zendesk',
+        'https://boutique.zendesk.com/agent/tickets/2?x=3',
+      ),
+    ).toBe('boutique.zendesk.com');
     for (const domain of [
       'localhost',
       'https://x.zendesk.com.attacker.test',
       'https://name:key@x.zendesk.com',
-      'https://x.zendesk.com/api',
+      'https://x.zendesk.com:444/api',
       '127.0.0.1',
     ]) {
       if (domain === 'localhost') continue;
@@ -485,6 +497,17 @@ describe('Parcours complet dans une vraie base SQLite', () => {
         'utf8',
       ),
     );
+    for (const name of [
+      '0043_support_billing',
+      '0044_support_onboarding',
+      '0045_support_oauth_rotation',
+    ])
+      sql.exec(
+        readFileSync(
+          new URL('../../drizzle/' + name + '.sql', import.meta.url),
+          'utf8',
+        ),
+      );
     state.user = {
       userId: 'owner-1',
       email: 'owner@example.test',
@@ -495,6 +518,7 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     state.env = {
       SUPPORT_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
       TYPESAFE_API_KEY: 'test-only-key',
+      STRIPE_SECRET_KEY: 'sk_test_fixture',
     };
     vi.stubGlobal(
       'fetch',
@@ -503,6 +527,12 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     workspace = (
       await json(await post({ action: 'createWorkspace', name: 'QA Support' }))
     ).workspaceId;
+    const time = Math.floor(Date.now() / 1000);
+    sql
+      .prepare(
+        "INSERT INTO support_subscriptions(workspace_id,subscription_id,customer_id,plan_id,status,paid_from,paid_until,paid_plan_id,livemode,updated_at) VALUES(?,'sub_fixture','cus_fixture','team','active',?,?,'team',0,?)",
+      )
+      .run(workspace, time - 60, time + 86400, time);
     const created = await json(
       await post({ action: 'connect', provider: 'api', label: 'QA API' }),
     );
@@ -520,6 +550,125 @@ describe('Parcours complet dans une vraie base SQLite', () => {
   afterEach(() => {
     sql.close();
     vi.unstubAllGlobals();
+  });
+  it('refuse les clés personnelles Zendesk et Gorgias pour de nouveaux clients', async () => {
+    for (const provider of ['zendesk', 'gorgias'])
+      await expect(
+        post({
+          action: 'connect',
+          provider,
+          domain: 'qa-company',
+          login: 'owner@example.test',
+          apiKey: 'secret-fixture',
+        }),
+      ).rejects.toThrow('autorisation officielle');
+  });
+  it('autorise Zendesk avec état à usage unique, PKCE et secret chiffré', async () => {
+    state.env.PUBLIC_SITE_URL = 'https://zentraapp.ch';
+    await configureZendesk(
+      {
+        clientId: 'zdg-zentra-support',
+        clientSecret: 'client-secret-fixture',
+        developerDomain: 'd3v-fixture',
+        approved: false,
+      },
+      'owner',
+    );
+    await expect(
+      startZendesk(workspace, state.user.userId, { domain: 'customer' }),
+    ).rejects.toMatchObject({ status: 503 });
+    const link = await startZendesk(
+      workspace,
+      state.user.userId,
+      { domain: 'd3v-fixture' },
+      true,
+    );
+    const authorize = new URL(link.url);
+    expect(authorize.hostname).toBe('d3v-fixture.zendesk.com');
+    expect(authorize.searchParams.get('code_challenge_method')).toBe('S256');
+    const request = new Request(
+      'https://zentraapp.ch/api/support/oauth/zendesk?code=fixture-code&state=' +
+        authorize.searchParams.get('state'),
+    );
+    await expect(
+      completeZendesk(request, 'other-user', 'other@example.test'),
+    ).rejects.toMatchObject({ status: 403 });
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      if (String(url).includes('/oauth/tokens')) {
+        expect(JSON.parse(String(init?.body)).code_verifier).toBeTruthy();
+        return Response.json({
+          access_token: 'access-token-fixture',
+          refresh_token: 'refresh-token-fixture',
+          expires_in: 3600,
+          refresh_token_expires_in: 7776000,
+          token_type: 'bearer',
+        });
+      }
+      expect(new Headers(init?.headers).get('Authorization')).toBe(
+        'Bearer access-token-fixture',
+      );
+      return Response.json(
+        String(url).includes('groups')
+          ? { groups: [{ id: 12, name: 'Technique' }] }
+          : { users: [] },
+      );
+    });
+    const result = await completeZendesk(
+      request,
+      state.user.userId,
+      state.user.email,
+    );
+    const row = sql
+      .prepare('SELECT * FROM support_connections WHERE id=?')
+      .get(result.connectionId!) as unknown as Connection;
+    expect(row.secret).not.toContain('access-token-fixture');
+    expect(await zendeskSecret(row)).toBe('access-token-fixture');
+    await expect(
+      completeZendesk(request, state.user.userId, state.user.email),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+  it('renouvelle un jeton expiré sans perdre son nouveau refresh token', async () => {
+    state.env.PUBLIC_SITE_URL = 'https://zentraapp.ch';
+    await configureZendesk(
+      {
+        clientId: 'zdg-zentra-support',
+        clientSecret: 'client-secret-fixture',
+        developerDomain: 'd3v-fixture',
+        approved: true,
+      },
+      'owner',
+    );
+    const sealed = await encryptSecret(
+      state.env.SUPPORT_ENCRYPTION_KEY,
+      JSON.stringify({
+        accessToken: 'old-access',
+        refreshToken: 'old-refresh',
+        expiresAt: 0,
+        refreshExpiresAt: Math.floor(Date.now() / 1000) + 86400,
+      }),
+      `connection:${workspace}:${connection}`,
+    );
+    sql
+      .prepare(
+        "UPDATE support_connections SET provider='zendesk',domain='d3v-fixture.zendesk.com',login='oauth:zendesk',secret=? WHERE id=?",
+      )
+      .run(sealed, connection);
+    const row = sql
+      .prepare('SELECT * FROM support_connections WHERE id=?')
+      .get(connection) as unknown as Connection;
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      expect(JSON.parse(String(init?.body)).grant_type).toBe('refresh_token');
+      return Response.json({
+        access_token: 'rotated-access-fixture',
+        refresh_token: 'rotated-refresh-fixture',
+        expires_in: 3600,
+        refresh_token_expires_in: 7776000,
+        token_type: 'bearer',
+      });
+    });
+    expect(await zendeskSecret(row)).toBe('rotated-access-fixture');
+    expect(await zendeskSecret(row)).toBe('rotated-access-fixture');
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
   it('limite le jeton au panneau privé sans donner accès aux espaces clients', async () => {
     const { createHash } = await import('node:crypto');
@@ -633,15 +782,45 @@ describe('Parcours complet dans une vraie base SQLite', () => {
         }
         return Response.json(provider === 'zendesk' ? { ticket } : ticket);
       });
-      const connected = await json(
-        await post({
-          action: 'connect',
-          provider,
-          domain: 'qa-company',
-          login: 'owner@example.test',
-          apiKey: 'provider-fixture-key',
-        }),
-      );
+      const connected =
+        provider === 'freshdesk'
+          ? await json(
+              await post({
+                action: 'connect',
+                provider,
+                domain: 'qa-company',
+                login: 'owner@example.test',
+                apiKey: 'provider-fixture-key',
+              }),
+            )
+          : { connectionId: crypto.randomUUID(), hookToken: newHookToken() };
+      if (provider !== 'freshdesk') {
+        // Existing private connections remain readable; public onboarding uses OAuth.
+        sql
+          .prepare(
+            'INSERT INTO support_connections(id,workspace_id,provider,label,domain,login,secret,hook_hash,directory_json,routes_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+          )
+          .run(
+            connected.connectionId,
+            workspace,
+            provider,
+            'Existing fixture',
+            `qa-company.${provider}.com`,
+            'owner@example.test',
+            await encryptSecret(
+              state.env.SUPPORT_ENCRYPTION_KEY,
+              'provider-fixture-key',
+              `connection:${workspace}:${connected.connectionId}`,
+            ),
+            await digest(connected.hookToken),
+            JSON.stringify({
+              teams: [{ id: '12', name: 'Technique' }],
+              agents: [],
+            }),
+            '{}',
+            Math.floor(Date.now() / 1000),
+          );
+      }
       await post({
         action: 'routes',
         connectionId: connected.connectionId,

@@ -10,14 +10,14 @@ export function OperatorContact() {
   return <address className="not-italic"><strong>{LEGAL_OPERATOR.name} · Zentra</strong><br />{LEGAL_OPERATOR.street}<br />{LEGAL_OPERATOR.locality}, {LEGAL_OPERATOR.country}<br /><a href={`mailto:${LEGAL_OPERATOR.email}`}>{LEGAL_OPERATOR.email}</a></address>;
 }
 
-export function LegalPage({title, intro, sections}: {title: string; intro: string; sections: LegalSection[]}) {
+export function LegalPage({title, intro, sections, versionDate=LEGAL_DATE}: {title: string; intro: string; sections: LegalSection[]; versionDate?:string}) {
   return <>
     <a href="#contenu" className="site-skip-link">Aller au contenu</a>
     <div className="legal-site-navigation"><SiteHeader /></div>
     <main id="contenu" tabIndex={-1} className="legal-page min-h-screen bg-[#f5f5f7] px-5 py-10 text-[#1d1d1f] sm:py-16">
       <div className="mx-auto max-w-5xl">
         <header className="max-w-3xl">
-          <p className="text-sm font-medium text-[#626267]">Zentra · Version du {LEGAL_DATE}</p>
+          <p className="text-sm font-medium text-[#626267]">Zentra · Version du {versionDate}</p>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h1>
           <p className="mt-5 text-lg leading-8 text-[#626267]">{intro}</p>
           <div className="mt-6"><LegalPrintButton /></div>

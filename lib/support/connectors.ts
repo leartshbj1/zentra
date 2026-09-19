@@ -17,14 +17,7 @@ export function providerDomain(provider: Provider, input: string) {
   let domain = input.trim().toLowerCase();
   if (domain.startsWith('https://')) {
     const u = new URL(domain);
-    if (
-      u.pathname !== '/' ||
-      u.search ||
-      u.hash ||
-      u.port ||
-      u.username ||
-      u.password
-    )
+    if (u.port || u.username || u.password)
       throw new SupportError('Indiquez seulement le domaine de votre outil.');
     domain = u.hostname;
   }
@@ -40,6 +33,8 @@ export function providerDomain(provider: Provider, input: string) {
   return domain;
 }
 function authorization(provider: Provider, login: string, secret: string) {
+  if (provider === 'zendesk' && login === 'oauth:zendesk')
+    return `Bearer ${secret}`;
   const identity =
     provider === 'freshdesk'
       ? `${secret}:X`

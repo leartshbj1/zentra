@@ -38,6 +38,7 @@ yarn-error.log*
 
 # local environment
 .env*
+.dev.vars*
 !.env.supabase.example
 
 # deployment and generated files

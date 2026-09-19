@@ -44,6 +44,8 @@ export const supportConnections = sqliteTable(
     login: text('login').notNull(),
     secret: text('secret').notNull(),
     hookHash: text('hook_hash').notNull(),
+    refreshLease: text('refresh_lease'),
+    refreshLeaseUntil: integer('refresh_lease_until').notNull().default(0),
     directoryJson: text('directory_json').notNull(),
     routesJson: text('routes_json').notNull(),
     active: integer('active').notNull().default(1),
@@ -108,4 +110,82 @@ export const supportSecrets = sqliteTable('support_platform_secrets', {
   secret: text('secret').notNull(),
   updatedBy: text('updated_by').notNull(),
   updatedAt: integer('updated_at').notNull(),
+});
+
+export const supportBillingConfig = sqliteTable('support_billing_config', {
+  id: text('id').primaryKey(),
+  configuration: text('configuration').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+export const supportSubscriptions = sqliteTable('support_subscriptions', {
+  workspaceId: text('workspace_id')
+    .primaryKey()
+    .references(() => supportWorkspaces.id),
+  subscriptionId: text('subscription_id').notNull().unique(),
+  customerId: text('customer_id').notNull(),
+  planId: text('plan_id').notNull(),
+  status: text('status').notNull(),
+  paidFrom: integer('paid_from').notNull().default(0),
+  paidUntil: integer('paid_until').notNull().default(0),
+  paidPlanId: text('paid_plan_id'),
+  lastPaidInvoiceId: text('last_paid_invoice_id'),
+  cancelAtPeriodEnd: integer('cancel_at_period_end').notNull().default(0),
+  livemode: integer('livemode').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+export const supportCheckouts = sqliteTable('support_checkouts', {
+  workspaceId: text('workspace_id')
+    .primaryKey()
+    .references(() => supportWorkspaces.id),
+  nonce: text('nonce').notNull(),
+  planId: text('plan_id').notNull(),
+  sessionId: text('session_id'),
+  sessionUrl: text('session_url'),
+  expiresAt: integer('expires_at').notNull(),
+  ownerId: text('owner_id').notNull(),
+  acceptedVersion: text('accepted_version').notNull(),
+  acceptedAt: integer('accepted_at').notNull(),
+});
+export const supportAnalysisUsage = sqliteTable(
+  'support_analysis_usage',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => supportWorkspaces.id),
+    periodStart: integer('period_start').notNull(),
+    ticketId: text('ticket_id').notNull(),
+    state: text('state').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('support_usage_period').on(t.workspaceId, t.periodStart, t.state),
+  ],
+);
+
+export const supportCheckoutAcceptances = sqliteTable(
+  'support_checkout_acceptances',
+  {
+    sessionId: text('session_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => supportWorkspaces.id),
+    ownerId: text('owner_id').notNull(),
+    planId: text('plan_id').notNull(),
+    legalVersion: text('legal_version').notNull(),
+    acceptedAt: integer('accepted_at').notNull(),
+  },
+);
+
+export const supportOauthStates = sqliteTable('support_oauth_states', {
+  stateHash: text('state_hash').primaryKey(),
+  userId: text('user_id').notNull(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => supportWorkspaces.id),
+  domain: text('domain').notNull(),
+  label: text('label').notNull(),
+  verifier: text('verifier').notNull(),
+  expiresAt: integer('expires_at').notNull(),
 });

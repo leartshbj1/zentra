@@ -14,6 +14,7 @@ import {
   X,
   Plus,
   AlertCircle,
+  CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -39,6 +40,7 @@ import {
   ReviewForm,
 } from './panels';
 import { Choice, Field, formatDate } from './controls';
+import { BillingPanel } from './billing-panel';
 import {
   emptyState,
   demoState,
@@ -53,6 +55,7 @@ const sections = [
   { id: 'connections', label: 'Connexions', icon: Link2 },
   { id: 'insights', label: 'Résultats', icon: BarChart3 },
   { id: 'team', label: 'Équipe', icon: Users },
+  { id: 'billing', label: 'Abonnement', icon: CreditCard },
 ];
 export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
   const [data, setData] = useState<SupportState>(() =>
@@ -80,10 +83,24 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
   dataRef.current = data;
   workspaceRef.current = workspaceId;
   useEffect(() => {
-    if (!demo)
+    if (!demo) {
       setWorkspace(
         new URLSearchParams(window.location.search).get('workspace') || '',
       );
+      const section = new URLSearchParams(window.location.search).get(
+        'section',
+      );
+      if (section && sections.some((s) => s.id === section)) setTab(section);
+      const zendesk = new URLSearchParams(window.location.search).get(
+        'zendesk',
+      );
+      if (zendesk)
+        setNotice(
+          zendesk === 'connecte'
+            ? 'Zendesk est connecté. Ouvrez le guide de connexion pour activer la réception des tickets.'
+            : 'L’autorisation Zendesk a été annulée. Vous pouvez la reprendre dans Connexions.',
+        );
+    }
   }, [demo]);
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search.trim()), 250);
@@ -474,323 +491,358 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
           </aside>
           <main className="support-main">
             {noticeView}
-            <TabsContent value="inbox">
-              <div className="support-page-heading">
-                <div>
-                  <p className="support-eyebrow">
-                    LE BON TICKET. LA BONNE ÉQUIPE.
-                  </p>
-                  <h1>Votre support, bien orienté.</h1>
-                  <p>
-                    {data.workspace.mode === 'automatic'
-                      ? 'Le tri s’occupe de l’ordre. Votre équipe s’occupe des clients.'
-                      : 'Vérifiez vos premières décisions, puis activez le tri automatique.'}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (!data.connections.length) setTab('connections');
-                    else {
-                      setConnection(
-                        data.connections.find((c) => c.provider !== 'api')
-                          ?.id || '',
-                      );
-                      setImportOpen(true);
-                    }
-                  }}
-                  disabled={readOnly}
-                >
-                  <Plus size={17} />{' '}
-                  {data.connections.length
-                    ? 'Importer un ticket'
-                    : 'Connecter un outil'}
-                </Button>
-              </div>
-              {!data.workspace.aiReady && (
-                <div className="support-setup">
-                  <CircleHelp size={20} />
+            {!demo &&
+              data.billing &&
+              !data.billing.active &&
+              tab !== 'billing' && (
+                <div className="support-notice">
                   <span>
-                    Le tri automatique est en cours d’activation par Zentra.
-                    Vous pouvez déjà connecter votre outil.
+                    Préparez votre connexion, puis choisissez une formule pour
+                    activer le tri.
                   </span>
-                  {data.platformOwner && (
-                    <a href="/support/admin">Administration</a>
-                  )}
+                  <Button variant="outline" onClick={() => setTab('billing')}>
+                    Voir les formules
+                  </Button>
                 </div>
               )}
-              <div className="support-filters" aria-label="Filtrer les tickets">
-                {[
-                  ['', 'Tous'],
-                  ['review', 'À vérifier'],
-                  ['error', 'À reprendre'],
-                  ['ready', 'À appliquer'],
-                  ['routed', 'Affectés'],
-                  ['pending', 'En attente'],
-                ].map(([value, label]) => (
-                  <Button
-                    key={value}
-                    variant="ghost"
-                    aria-pressed={filter === value}
-                    onClick={() => {
-                      setFilter(value);
-                      setSelected(null);
-                    }}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
-              <div className="support-inbox-layout" data-detail={!!ticket}>
-                <section className="support-ticket-list">
-                  <div className="support-list-heading">
-                    <h2>Boîte de réception</h2>
-                    <span>
-                      {tickets.length}
-                      {data.hasMore ? '+' : ''}
-                    </span>
-                  </div>
-                  <label className="support-search">
-                    <Search size={18} />
-                    <input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Rechercher un ticket"
-                      aria-label="Rechercher un ticket"
-                    />
-                  </label>
-                  {tickets.map((t) => (
-                    <button
-                      key={t.id}
-                      className={`support-ticket-row ${selected === t.id ? 'selected' : ''}`}
-                      onClick={() => setSelected(t.id)}
-                    >
-                      <div>
-                        <span>#{t.externalId}</span>
-                        {t.decision && (
-                          <span
-                            className={`support-priority ${t.decision.priority === 'urgent' ? 'urgent' : ''}`}
-                          >
-                            {PRIORITIES[t.decision.priority]}
-                          </span>
-                        )}
-                      </div>
-                      <strong>{t.subject}</strong>
-                      <p>{t.body}</p>
-                      <footer>
-                        <span className="support-category">
-                          {t.decision
-                            ? CATEGORIES[t.decision.category]
-                            : 'À analyser'}
-                        </span>
-                        <span>{STATES[t.state] || t.state}</span>
-                      </footer>
-                    </button>
-                  ))}
-                  {data.hasMore && (
-                    <Button
-                      variant="ghost"
-                      className="support-load-more"
-                      disabled={busy}
-                      onClick={() => void load({ append: true })}
-                    >
-                      Voir les tickets précédents
-                    </Button>
-                  )}
-                  {!tickets.length && (
-                    <div className="support-empty">
-                      <Inbox size={32} />
-                      <h3>
-                        {search || filter
-                          ? 'Aucun ticket dans cette vue.'
-                          : 'Votre boîte de réception est prête.'}
-                      </h3>
-                      <p>
-                        {search || filter
-                          ? 'Essayez un autre filtre ou un autre mot.'
-                          : 'Les tickets apparaîtront automatiquement dès que votre outil sera connecté.'}
+            <TabsContent value="inbox">
+              {!demo && data.billing && !data.billing.active ? (
+                <BillingPanel
+                  billing={data.billing}
+                  owner={data.workspace.role === 'owner'}
+                  busy={busy}
+                  mutate={mutate}
+                />
+              ) : (
+                <>
+                  <div className="support-page-heading">
+                    <div>
+                      <p className="support-eyebrow">
+                        LE BON TICKET. LA BONNE ÉQUIPE.
                       </p>
-                      {!search && !filter && (
-                        <Button
-                          variant="link"
-                          onClick={() => setTab('connections')}
-                        >
-                          Configurer les connexions <ArrowUpRight size={16} />
-                        </Button>
+                      <h1>Votre support, bien orienté.</h1>
+                      <p>
+                        {data.workspace.mode === 'automatic'
+                          ? 'Le tri s’occupe de l’ordre. Votre équipe s’occupe des clients.'
+                          : 'Vérifiez vos premières décisions, puis activez le tri automatique.'}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (!data.connections.length) setTab('connections');
+                        else {
+                          setConnection(
+                            data.connections.find((c) => c.provider !== 'api')
+                              ?.id || '',
+                          );
+                          setImportOpen(true);
+                        }
+                      }}
+                      disabled={readOnly}
+                    >
+                      <Plus size={17} />{' '}
+                      {data.connections.length
+                        ? 'Importer un ticket'
+                        : 'Connecter un outil'}
+                    </Button>
+                  </div>
+                  {!data.workspace.aiReady && (
+                    <div className="support-setup">
+                      <CircleHelp size={20} />
+                      <span>
+                        Le tri automatique est en cours d’activation par Zentra.
+                        Vous pouvez déjà connecter votre outil.
+                      </span>
+                      {data.platformOwner && (
+                        <a href="/support/admin">Administration</a>
                       )}
                     </div>
                   )}
-                </section>
-                <section className="support-detail">
-                  {ticket ? (
-                    <>
+                  <div
+                    className="support-filters"
+                    aria-label="Filtrer les tickets"
+                  >
+                    {[
+                      ['', 'Tous'],
+                      ['review', 'À vérifier'],
+                      ['error', 'À reprendre'],
+                      ['ready', 'À appliquer'],
+                      ['routed', 'Affectés'],
+                      ['pending', 'En attente'],
+                    ].map(([value, label]) => (
                       <Button
-                        className="support-mobile-back"
+                        key={value}
                         variant="ghost"
-                        onClick={() => setSelected(null)}
+                        aria-pressed={filter === value}
+                        onClick={() => {
+                          setFilter(value);
+                          setSelected(null);
+                        }}
                       >
-                        <ArrowLeft size={18} /> Tous les tickets
+                        {label}
                       </Button>
-                      <div className="support-detail-heading">
-                        <span>Ticket #{ticket.externalId}</span>
-                        <span className="support-category">
-                          {STATES[ticket.state]}
+                    ))}
+                  </div>
+                  <div className="support-inbox-layout" data-detail={!!ticket}>
+                    <section className="support-ticket-list">
+                      <div className="support-list-heading">
+                        <h2>Boîte de réception</h2>
+                        <span>
+                          {tickets.length}
+                          {data.hasMore ? '+' : ''}
                         </span>
                       </div>
-                      <h2>{ticket.subject}</h2>
-                      <p className="support-sender">
-                        {connection?.label || 'Connexion archivée'} ·{' '}
-                        {formatDate(ticket.updatedAt)}
-                      </p>
-                      {externalUrl && !demo && (
-                        <a
-                          className="support-small"
-                          href={externalUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                      <label className="support-search">
+                        <Search size={18} />
+                        <input
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          placeholder="Rechercher un ticket"
+                          aria-label="Rechercher un ticket"
+                        />
+                      </label>
+                      {tickets.map((t) => (
+                        <button
+                          key={t.id}
+                          className={`support-ticket-row ${selected === t.id ? 'selected' : ''}`}
+                          onClick={() => setSelected(t.id)}
                         >
-                          Ouvrir dans mon outil <ArrowUpRight size={14} />
-                        </a>
-                      )}
-                      <div className="support-message">{ticket.body}</div>
-                      {ticket.error && (
-                        <div className="support-notice support-error">
-                          <span>{ticket.error}</span>
-                          <Button
-                            variant="link"
-                            onClick={() => setTab('connections')}
-                          >
-                            Voir les connexions
-                          </Button>
-                        </div>
-                      )}
-                      {ticket.decision && (
-                        <div className="support-decision">
                           <div>
-                            <ShieldCheck size={21} />
-                            <h3>
-                              {ticket.decision.manual
-                                ? 'Décision de votre équipe'
-                                : ticket.state === 'review'
-                                  ? 'Un regard humain est nécessaire'
-                                  : 'La décision de Zentra'}
-                            </h3>
-                          </div>
-                          <dl>
-                            <div>
-                              <dt>Catégorie</dt>
-                              <dd>{CATEGORIES[ticket.decision.category]}</dd>
-                            </div>
-                            <div>
-                              <dt>Équipe</dt>
-                              <dd>
-                                {connection?.directory.teams.find(
-                                  (t) =>
-                                    t.id ===
-                                    ticket.decision?.destination?.teamId,
-                                )?.name || 'À choisir'}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt>Priorité</dt>
-                              <dd>{PRIORITIES[ticket.decision.priority]}</dd>
-                            </div>
-                            {!ticket.decision.manual && (
-                              <div>
-                                <dt>Confiance{demo ? ' — exemple' : ''}</dt>
-                                <dd>
-                                  {Math.round(ticket.decision.confidence * 100)}{' '}
-                                  %
-                                </dd>
-                              </div>
+                            <span>#{t.externalId}</span>
+                            {t.decision && (
+                              <span
+                                className={`support-priority ${t.decision.priority === 'urgent' ? 'urgent' : ''}`}
+                              >
+                                {PRIORITIES[t.decision.priority]}
+                              </span>
                             )}
-                            {ticket.decision.signals &&
-                              !ticket.decision.manual && (
-                                <>
-                                  <div>
-                                    <dt>Langue détectée</dt>
-                                    <dd>
-                                      {ticket.decision.signals
-                                        .languageConfidence >= 0.7
-                                        ? LANGUAGES[
-                                            ticket.decision.signals.language
-                                          ]
-                                        : 'À confirmer'}
-                                    </dd>
-                                  </div>
-                                  <div>
-                                    <dt>Insatisfaction exprimée</dt>
-                                    <dd>
-                                      {ticket.decision.signals
-                                        .frustrationConfidence < 0.7
-                                        ? 'À confirmer'
-                                        : ticket.decision.signals.frustration >=
-                                            1.6
-                                          ? 'Forte'
-                                          : ticket.decision.signals
-                                                .frustration >= 0.6
-                                            ? 'Modérée'
-                                            : 'Peu ou pas exprimée'}
-                                    </dd>
-                                  </div>
-                                </>
-                              )}
-                          </dl>
-                          <p>{ticket.decision.reason}</p>
-                          {!ticket.decision.manual && (
-                            <p>
-                              Ce score aide au tri ; il ne garantit pas
-                              l’exactitude.
-                            </p>
+                          </div>
+                          <strong>{t.subject}</strong>
+                          <p>{t.body}</p>
+                          <footer>
+                            <span className="support-category">
+                              {t.decision
+                                ? CATEGORIES[t.decision.category]
+                                : 'À analyser'}
+                            </span>
+                            <span>{STATES[t.state] || t.state}</span>
+                          </footer>
+                        </button>
+                      ))}
+                      {data.hasMore && (
+                        <Button
+                          variant="ghost"
+                          className="support-load-more"
+                          disabled={busy}
+                          onClick={() => void load({ append: true })}
+                        >
+                          Voir les tickets précédents
+                        </Button>
+                      )}
+                      {!tickets.length && (
+                        <div className="support-empty">
+                          <Inbox size={32} />
+                          <h3>
+                            {search || filter
+                              ? 'Aucun ticket dans cette vue.'
+                              : 'Votre boîte de réception est prête.'}
+                          </h3>
+                          <p>
+                            {search || filter
+                              ? 'Essayez un autre filtre ou un autre mot.'
+                              : 'Les tickets apparaîtront automatiquement dès que votre outil sera connecté.'}
+                          </p>
+                          {!search && !filter && (
+                            <Button
+                              variant="link"
+                              onClick={() => setTab('connections')}
+                            >
+                              Configurer les connexions{' '}
+                              <ArrowUpRight size={16} />
+                            </Button>
                           )}
                         </div>
                       )}
-                      {connection &&
-                        ticket.state !== 'processing' &&
-                        !readOnly && (
-                          <>
-                            <ReviewForm
-                              key={ticket.id}
-                              ticket={ticket}
-                              connection={connection}
-                              mutate={mutate}
-                              busy={busy}
-                              readOnly={!!readOnly}
-                            />
-                            {['pending', 'error', 'review'].includes(
-                              ticket.state,
-                            ) && (
+                    </section>
+                    <section className="support-detail">
+                      {ticket ? (
+                        <>
+                          <Button
+                            className="support-mobile-back"
+                            variant="ghost"
+                            onClick={() => setSelected(null)}
+                          >
+                            <ArrowLeft size={18} /> Tous les tickets
+                          </Button>
+                          <div className="support-detail-heading">
+                            <span>Ticket #{ticket.externalId}</span>
+                            <span className="support-category">
+                              {STATES[ticket.state]}
+                            </span>
+                          </div>
+                          <h2>{ticket.subject}</h2>
+                          <p className="support-sender">
+                            {connection?.label || 'Connexion archivée'} ·{' '}
+                            {formatDate(ticket.updatedAt)}
+                          </p>
+                          {externalUrl && !demo && (
+                            <a
+                              className="support-small"
+                              href={externalUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Ouvrir dans mon outil <ArrowUpRight size={14} />
+                            </a>
+                          )}
+                          <div className="support-message">{ticket.body}</div>
+                          {ticket.error && (
+                            <div className="support-notice support-error">
+                              <span>{ticket.error}</span>
                               <Button
-                                variant="ghost"
-                                disabled={
-                                  busy || !data.workspace.aiReady || demo
-                                }
-                                onClick={() =>
-                                  mutate({
-                                    action: 'retry',
-                                    ticketId: ticket.id,
-                                    revision: ticket.revision,
-                                  })
-                                }
+                                variant="link"
+                                onClick={() => setTab('connections')}
                               >
-                                Relancer l’analyse
+                                Voir les connexions
                               </Button>
+                            </div>
+                          )}
+                          {ticket.decision && (
+                            <div className="support-decision">
+                              <div>
+                                <ShieldCheck size={21} />
+                                <h3>
+                                  {ticket.decision.manual
+                                    ? 'Décision de votre équipe'
+                                    : ticket.state === 'review'
+                                      ? 'Un regard humain est nécessaire'
+                                      : 'La décision de Zentra'}
+                                </h3>
+                              </div>
+                              <dl>
+                                <div>
+                                  <dt>Catégorie</dt>
+                                  <dd>
+                                    {CATEGORIES[ticket.decision.category]}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>Équipe</dt>
+                                  <dd>
+                                    {connection?.directory.teams.find(
+                                      (t) =>
+                                        t.id ===
+                                        ticket.decision?.destination?.teamId,
+                                    )?.name || 'À choisir'}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>Priorité</dt>
+                                  <dd>
+                                    {PRIORITIES[ticket.decision.priority]}
+                                  </dd>
+                                </div>
+                                {!ticket.decision.manual && (
+                                  <div>
+                                    <dt>Confiance{demo ? ' — exemple' : ''}</dt>
+                                    <dd>
+                                      {Math.round(
+                                        ticket.decision.confidence * 100,
+                                      )}{' '}
+                                      %
+                                    </dd>
+                                  </div>
+                                )}
+                                {ticket.decision.signals &&
+                                  !ticket.decision.manual && (
+                                    <>
+                                      <div>
+                                        <dt>Langue détectée</dt>
+                                        <dd>
+                                          {ticket.decision.signals
+                                            .languageConfidence >= 0.7
+                                            ? LANGUAGES[
+                                                ticket.decision.signals.language
+                                              ]
+                                            : 'À confirmer'}
+                                        </dd>
+                                      </div>
+                                      <div>
+                                        <dt>Insatisfaction exprimée</dt>
+                                        <dd>
+                                          {ticket.decision.signals
+                                            .frustrationConfidence < 0.7
+                                            ? 'À confirmer'
+                                            : ticket.decision.signals
+                                                  .frustration >= 1.6
+                                              ? 'Forte'
+                                              : ticket.decision.signals
+                                                    .frustration >= 0.6
+                                                ? 'Modérée'
+                                                : 'Peu ou pas exprimée'}
+                                        </dd>
+                                      </div>
+                                    </>
+                                  )}
+                              </dl>
+                              <p>{ticket.decision.reason}</p>
+                              {!ticket.decision.manual && (
+                                <p>
+                                  Ce score aide au tri ; il ne garantit pas
+                                  l’exactitude.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {connection &&
+                            ticket.state !== 'processing' &&
+                            !readOnly && (
+                              <>
+                                <ReviewForm
+                                  key={ticket.id}
+                                  ticket={ticket}
+                                  connection={connection}
+                                  mutate={mutate}
+                                  busy={busy}
+                                  readOnly={!!readOnly}
+                                />
+                                {['pending', 'error', 'review'].includes(
+                                  ticket.state,
+                                ) && (
+                                  <Button
+                                    variant="ghost"
+                                    disabled={
+                                      busy || !data.workspace.aiReady || demo
+                                    }
+                                    onClick={() =>
+                                      mutate({
+                                        action: 'retry',
+                                        ticketId: ticket.id,
+                                        revision: ticket.revision,
+                                      })
+                                    }
+                                  >
+                                    Relancer l’analyse
+                                  </Button>
+                                )}
+                              </>
                             )}
-                          </>
-                        )}
-                    </>
-                  ) : (
-                    <div className="support-empty support-detail-empty">
-                      <CircleHelp size={35} />
-                      <h3>Une décision, en un coup d’œil.</h3>
-                      <p>
-                        Sélectionnez un ticket pour voir son contenu, sa
-                        priorité et son affectation.
-                      </p>
-                    </div>
-                  )}
-                </section>
-              </div>
+                        </>
+                      ) : (
+                        <div className="support-empty support-detail-empty">
+                          <CircleHelp size={35} />
+                          <h3>Une décision, en un coup d’œil.</h3>
+                          <p>
+                            Sélectionnez un ticket pour voir son contenu, sa
+                            priorité et son affectation.
+                          </p>
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </>
+              )}
             </TabsContent>
             <TabsContent value="routing">
               <RoutingPanel data={data} mutate={mutate} busy={busy} />
@@ -809,6 +861,15 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
             </TabsContent>
             <TabsContent value="team">
               <TeamPanel data={data} mutate={mutate} busy={busy} />
+            </TabsContent>
+            <TabsContent value="billing">
+              <BillingPanel
+                billing={data.billing}
+                owner={data.workspace.role === 'owner'}
+                busy={busy}
+                mutate={mutate}
+                demo={demo}
+              />
             </TabsContent>
           </main>
         </Tabs>

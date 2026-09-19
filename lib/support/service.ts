@@ -20,7 +20,27 @@ import {
   canAutomaticallyRoute,
   TRIAGE_POLICY_VERSION,
 } from './jev';
+import {
+  zendeskAvailability,
+  configureZendesk,
+  startZendesk,
+  zendeskSecret,
+  completeZendesk,
+} from './zendesk-oauth';
 import { hasAdminSession } from './admin-session';
+import {
+  rememberSupportOwner,
+  cancelSupportCheckout,
+  billingState,
+  supportBillingAdminState,
+  provisionSupportBilling,
+  createSupportCheckout,
+  createSupportPortal,
+  refreshSupportPayment,
+  requireSupportSubscription,
+  reserveAnalysis,
+  finishAnalysis,
+} from './billing';
 import { evaluateCalibration, type CalibrationReport } from './calibration';
 import {
   loadDirectory,
@@ -96,6 +116,7 @@ async function signedIn() {
       'Connectez-vous à Zentra pour ouvrir votre espace support.',
       401,
     );
+  await rememberSupportOwner(user);
   return user;
 }
 async function workspaces(user: ZentraUser) {
@@ -159,6 +180,8 @@ async function connectionFor(workspaceId: string, id: string) {
   return c;
 }
 async function secretFor(connection: Connection) {
+  if (connection.provider === 'zendesk' && connection.login === 'oauth:zendesk')
+    return zendeskSecret(connection);
   return connection.provider === 'api'
     ? ''
     : decryptSecret(
@@ -225,6 +248,8 @@ export async function getPlatformState(request?: Request) {
     ready: !!key,
     verifiedAt: row?.updated_at ?? null,
     calibration,
+    billing: await supportBillingAdminState(),
+    zendesk: await zendeskAvailability(true),
   });
 }
 function destination(
@@ -342,6 +367,7 @@ export async function getWorkspaceState(request: Request) {
           .all()
       ).results
     : [];
+  const billing = await billingState(workspace);
   const events = await database()
     .prepare(
       'SELECT id,ticket_id AS ticketId,kind,detail,actor,created_at AS createdAt FROM support_events WHERE workspace_id=? ORDER BY created_at DESC,id DESC LIMIT 80',
@@ -362,11 +388,25 @@ export async function getWorkspaceState(request: Request) {
       aiReady: !!(await aiKey()),
     },
     connections: connections.results.map(publicConnection),
-    tickets: tickets.results.slice(0, 60).map(publicTicket),
-    hasMore: tickets.results.length > 60,
-    counts,
+    zendesk: await zendeskAvailability(),
+    tickets: billing.active
+      ? tickets.results.slice(0, 60).map(publicTicket)
+      : [],
+    hasMore: billing.active && tickets.results.length > 60,
+    counts: billing.active
+      ? counts
+      : {
+          total: 0,
+          review: 0,
+          errors: 0,
+          ready: 0,
+          routed: 0,
+          automatic: 0,
+          corrections: 0,
+        },
     members,
-    events: events.results,
+    billing,
+    events: billing.active ? events.results : [],
   });
 }
 
@@ -375,6 +415,16 @@ export async function mutateWorkspace(request: Request) {
   const body = await readJsonObjectWithinLimit(request, 64000),
     action = text(body.action, 40),
     db = database();
+  if (action === 'configureZendesk') {
+    const actor = await platformAccess(request);
+    await enforceAccountRateLimit(request, 'support-admin-oauth', actor, 10);
+    return supportJson(await configureZendesk(body, actor));
+  }
+  if (action === 'configureBilling') {
+    const actor = await platformAccess(request);
+    await enforceAccountRateLimit(request, 'support-admin-billing', actor, 6);
+    return supportJson(await provisionSupportBilling());
+  }
   if (action === 'validateTriage') {
     const actor = await platformAccess(request);
     await enforceAccountRateLimit(
@@ -444,6 +494,7 @@ export async function mutateWorkspace(request: Request) {
     [
       'settings',
       'connect',
+      'startZendesk',
       'disconnect',
       'refreshDirectory',
       'routes',
@@ -452,6 +503,28 @@ export async function mutateWorkspace(request: Request) {
       'revokeMember',
     ].includes(action),
   );
+  if (
+    ['checkout', 'billingPortal', 'refreshPayment', 'cancelCheckout'].includes(
+      action,
+    )
+  ) {
+    await enforceAccountRateLimit(request, 'support-billing', user.userId, 30);
+    if (action === 'checkout')
+      return supportJson(await createSupportCheckout(workspace, user, body));
+    if (action === 'cancelCheckout')
+      return supportJson(await cancelSupportCheckout(workspace, user));
+    if (action === 'billingPortal')
+      return supportJson(await createSupportPortal(workspace, user));
+    return supportJson(
+      await refreshSupportPayment(
+        workspace,
+        user,
+        text(body.sessionId, 200) || undefined,
+      ),
+    );
+  }
+  if (['importTicket', 'retry', 'approve', 'invite'].includes(action))
+    await requireSupportSubscription(workspace);
   if (action === 'settings') {
     const name = text(body.name, 100),
       threshold = Number(body.threshold),
@@ -545,11 +618,20 @@ export async function mutateWorkspace(request: Request) {
       inviteUrl: `${publicSiteUrl()}/support/espace?workspace=${workspace.id}`,
     });
   }
+  if (action === 'startZendesk')
+    return supportJson(
+      await startZendesk(workspace.id, user.userId, body, platformOwner(user)),
+    );
   if (action === 'connect') {
     const provider = text(body.provider) as Provider;
     if (!['zendesk', 'freshdesk', 'gorgias', 'api'].includes(provider))
       throw new SupportError('Choisissez un outil de support.');
-    const domain = providerDomain(provider, text(body.domain, 200)),
+    if (provider === 'zendesk' || provider === 'gorgias')
+      throw new SupportError(
+        'Utilisez l’autorisation officielle du logiciel. Les clés personnelles ne sont pas acceptées pour cette connexion.',
+        400,
+      );
+    const domain = providerDomain(provider, text(body.domain, 500)),
       login = text(body.login, 254),
       key = text(body.apiKey, 8192),
       label = text(body.label, 100) || domain || 'API personnalisée';
@@ -866,6 +948,7 @@ export async function processTicket(
   expectedRevision?: number,
 ) {
   if (workspace.mode === 'paused' && !manual) return;
+  await requireSupportSubscription(workspace);
   const db = database(),
     lease = crypto.randomUUID(),
     time = now();
@@ -900,6 +983,7 @@ export async function processTicket(
       );
     return;
   }
+  let reservation: string | null = null;
   try {
     const active = await connectionFor(workspace.id, connection.id);
     const currentWorkspace = await db
@@ -931,6 +1015,8 @@ export async function processTicket(
         );
       source = fresh;
     }
+    if (!manual)
+      reservation = await reserveAnalysis(currentWorkspace, id, lease);
     let decision =
       manual ??
       (await evaluateTicket(
@@ -942,6 +1028,8 @@ export async function processTicket(
         undefined,
         currentWorkspace.triage_context || '',
       ));
+    await finishAnalysis(reservation, true);
+    reservation = null;
     let auto =
       !manual &&
       currentWorkspace.mode === 'automatic' &&
@@ -1030,6 +1118,7 @@ export async function processTicket(
       manual ? actor : 'Zentra Support',
     );
   } catch (error) {
+    await finishAnalysis(reservation, false);
     const message =
       error instanceof SupportError
         ? error.message
@@ -1065,6 +1154,7 @@ export async function receiveHook(request: Request, connectionId: string) {
     .bind(c.workspace_id)
     .first<Workspace>();
   if (!workspace) throw new SupportError('Espace introuvable.', 404);
+  await requireSupportSubscription(workspace);
   if (request.method === 'GET') {
     if (c.provider !== 'api')
       throw new SupportError(
@@ -1179,4 +1269,16 @@ export async function receiveHook(request: Request, connectionId: string) {
     { ticket: publicTicket(updated!), retry: updated?.state === 'pending' },
     updated?.state === 'pending' ? 202 : 200,
   );
+}
+
+export async function zendeskCallback(request: Request) {
+  const user = await signedIn();
+  const result = await completeZendesk(request, user.userId, user.email);
+  return new Response(null, {
+    status: 303,
+    headers: {
+      ...headers,
+      Location: `${publicSiteUrl()}/support/espace?workspace=${encodeURIComponent(result.workspaceId)}&section=connections&zendesk=${result.canceled ? 'annule' : 'connecte'}`,
+    },
+  });
 }
