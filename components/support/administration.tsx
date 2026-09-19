@@ -146,7 +146,7 @@ export function SupportAdministration() {
             <p className="support-small">
               L’accès reste ouvert pendant 8 heures dans ce navigateur.
             </p>
-            <a href="/connexion?retour=%2Fsupport%2Fadmin">
+            <a href="/connexion?autre=1&retour=%2Fsupport%2Fadmin">
               Ou utiliser mon compte propriétaire
             </a>
           </>

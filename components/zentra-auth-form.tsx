@@ -23,9 +23,11 @@ type AuthMode = 'connexion' | 'inscription';
 export function ZentraAuthForm({
   returnTo,
   initialError,
+  switchAccount = false,
 }: {
   returnTo: string;
   initialError: string;
+  switchAccount?: boolean;
 }) {
   const [mode, setMode] = useState<AuthMode>('connexion');
   const [busy, setBusy] = useState(false);
@@ -34,6 +36,7 @@ export function ZentraAuthForm({
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
+    if (switchAccount) return;
     const controller = new AbortController();
     void fetch('/api/auth/session', {
       credentials: 'same-origin',
@@ -47,7 +50,7 @@ export function ZentraAuthForm({
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [returnTo]);
+  }, [returnTo, switchAccount]);
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,7 +70,12 @@ export function ZentraAuthForm({
           email: data.get('email'),
           password: data.get('password'),
           displayName: data.get('displayName'),
-          ...(mode === 'inscription' ? { acceptTerms: data.get('acceptTerms') === 'on', legalVersion: LEGAL_VERSION } : {}),
+          ...(mode === 'inscription'
+            ? {
+                acceptTerms: data.get('acceptTerms') === 'on',
+                legalVersion: LEGAL_VERSION,
+              }
+            : {}),
           returnTo,
         }),
       });
@@ -133,16 +141,23 @@ export function ZentraAuthForm({
 
         <div className="mt-7">
           <p className="text-xs font-bold uppercase tracking-[.18em] text-[#a66b1f]">
-            {mode === 'connexion' ? 'Bon retour' : 'Votre espace Zentra'}
+            {mode === 'connexion'
+              ? switchAccount
+                ? 'Changer de compte'
+                : 'Bon retour'
+              : 'Votre espace Zentra'}
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.04em] text-[#173d2c]">
             {mode === 'connexion'
-              ? 'Accédez à votre entreprise'
+              ? switchAccount
+                ? 'Connectez votre autre compte'
+                : 'Accédez à votre entreprise'
               : 'Créez votre accès sécurisé'}
           </h1>
           <p className="mt-3 text-sm leading-6 text-[#657168]">
-            Un compte personnel pour vous et chaque membre de votre équipe.
-            Retrouvez votre entreprise avec les accès de votre formule.
+            {switchAccount
+              ? 'Saisissez l’adresse e-mail et le mot de passe du compte à utiliser. La connexion réussie remplacera votre session dans ce navigateur.'
+              : 'Un compte personnel pour vous et chaque membre de votre équipe. Retrouvez votre entreprise avec les accès de votre formule.'}
           </p>
         </div>
 
@@ -233,13 +248,43 @@ export function ZentraAuthForm({
             </span>
           </label>
 
-          {mode === 'inscription' && <div className="space-y-3 text-sm leading-6 text-[#48484d]">
-            <label className="flex min-h-11 cursor-pointer items-start gap-3">
-              <input name="acceptTerms" type="checkbox" required className="mt-1 size-5 shrink-0 accent-[#315e48]" />
-              <span>J’accepte les <a href="/conditions" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">conditions d’utilisation Zentra</a>.</span>
-            </label>
-            <p>Consultez la <a href="/confidentialite" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">politique de confidentialité</a> pour connaître les données traitées et vos droits. Créer un compte ne déclenche aucun paiement.</p>
-          </div>}
+          {mode === 'inscription' && (
+            <div className="space-y-3 text-sm leading-6 text-[#48484d]">
+              <label className="flex min-h-11 cursor-pointer items-start gap-3">
+                <input
+                  name="acceptTerms"
+                  type="checkbox"
+                  required
+                  className="mt-1 size-5 shrink-0 accent-[#315e48]"
+                />
+                <span>
+                  J’accepte les{' '}
+                  <a
+                    href="/conditions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-4"
+                  >
+                    conditions d’utilisation Zentra
+                  </a>
+                  .
+                </span>
+              </label>
+              <p>
+                Consultez la{' '}
+                <a
+                  href="/confidentialite"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-4"
+                >
+                  politique de confidentialité
+                </a>{' '}
+                pour connaître les données traitées et vos droits. Créer un
+                compte ne déclenche aucun paiement.
+              </p>
+            </div>
+          )}
           <button
             type="submit"
             disabled={busy}
@@ -276,7 +321,6 @@ export function ZentraAuthForm({
             {error}
           </p>
         ) : null}
-
       </div>
 
       <p className="mt-5 px-5 text-center text-xs leading-5 text-[#748078]">

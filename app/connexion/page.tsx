@@ -18,6 +18,7 @@ export default async function ConnexionPage({
 }: {
   searchParams: Promise<{
     retour?: string;
+    autre?: string;
     erreur?: string;
     confirmation?: string | string[];
     code?: string | string[];
@@ -34,7 +35,11 @@ export default async function ConnexionPage({
     <main className="relative min-h-screen overflow-hidden bg-[#f5f5f7] px-5 py-8 text-[#173d2c] sm:grid sm:place-items-center sm:py-14">
       <div className="relative mx-auto grid w-full min-w-0 max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-center lg:gap-16">
         <section className="pt-3 lg:pt-0">
-          <a href="/" className="inline-flex min-h-11 items-center" aria-label="Zentra, accueil">
+          <a
+            href="/"
+            className="inline-flex min-h-11 items-center"
+            aria-label="Zentra, accueil"
+          >
             <BrandWordmark className="w-28" />
           </a>
           <p className="mt-12 hidden text-xs font-bold uppercase tracking-[.2em] text-[#a66b1f] lg:block">
@@ -90,6 +95,7 @@ export default async function ConnexionPage({
         <ZentraAuthForm
           returnTo={returnTo}
           initialError={confirmationError}
+          switchAccount={parameters.autre === '1'}
         />
       </div>
     </main>

@@ -22,14 +22,22 @@ export function ZentraSignOut({
 
   const safeReturnTo = safeAuthReturnPath(returnTo);
   return (
-    <form
-      method="post"
-      action={`/api/auth/deconnexion?retour=${encodeURIComponent(safeReturnTo)}`}
-      className="self-start"
-    >
-      <button type="submit" className={className}>
-        <LogOut className="size-4" /> Déconnexion
-      </button>
-    </form>
+    <div className="flex flex-wrap gap-3">
+      <form
+        method="post"
+        action={`/api/auth/deconnexion?retour=${encodeURIComponent(safeReturnTo)}`}
+        className="self-start"
+      >
+        <button type="submit" className={className}>
+          <LogOut className="size-4" /> Déconnexion
+        </button>
+      </form>
+      <a
+        href={`/connexion?autre=1&retour=${encodeURIComponent(safeReturnTo)}`}
+        className={className}
+      >
+        Changer de compte
+      </a>
+    </div>
   );
 }
