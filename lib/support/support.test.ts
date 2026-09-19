@@ -865,6 +865,21 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       expect(result.counts.automatic).toBe(1);
     },
   );
+  it('réserve les lots de test au propriétaire sans modifier les tickets clients', async () => {
+    const payload = {action:'evaluateTestBatch', tickets:[{id:'probe-1',subject:'Erreur',body:'Export bloqué : erreur 500.'}]};
+    await expect(post(payload)).rejects.toMatchObject({status:403});
+    expect(fetch).not.toHaveBeenCalled();
+    state.env.OWNER_ACCOUNT_USER_ID = state.user.userId;
+    const before = sql.prepare('SELECT COUNT(*) AS count FROM support_tickets').get();
+    const report = await json(await post(payload));
+    expect(report.results).toHaveLength(1);
+    expect(report.results[0]).toMatchObject({id:'probe-1', automatic:true, decision:{destination:{teamId:'evaluation-bug'}}});
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(sql.prepare('SELECT COUNT(*) AS count FROM support_tickets').get()).toEqual(before);
+    expect(JSON.stringify(report)).not.toContain('test-only-key');
+    await expect(post({...payload,tickets:Array(11).fill(payload.tickets[0])})).rejects.toMatchObject({status:400});
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
   it('réserve la clé plateforme et son état au propriétaire de Zentra', async () => {
     await expect(getPlatformState()).rejects.toMatchObject({ status: 403 });
     await expect(

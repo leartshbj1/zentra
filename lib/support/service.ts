@@ -43,6 +43,7 @@ import {
   finishAnalysis,
 } from './billing';
 import { evaluateCalibration, type CalibrationReport } from './calibration';
+import { evaluationTickets, evaluateTestBatch } from './evaluation';
 import {
   loadDirectory,
   providerDomain,
@@ -458,6 +459,12 @@ export async function mutateWorkspace(request: Request) {
       .bind(sealed, actor, now())
       .run();
     return supportJson({ report });
+  }
+  if (action === 'evaluateTestBatch') {
+    const actor = await platformAccess(request);
+    const tickets = evaluationTickets(body.tickets);
+    await enforceAccountRateLimit(request, 'support-admin-test-batch', actor, 300);
+    return supportJson(await evaluateTestBatch(await aiKey(), tickets));
   }
   if (action === 'platformKey') {
     const actor = await platformAccess(request);
