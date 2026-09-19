@@ -39,7 +39,11 @@ export function SupportAdministration() {
           response = await fetch('/api/support?admin=1', { cache: 'no-store' });
       }
       setAccess(response.status);
-      const data = (await response.json()) as {
+      const data = (await response.json().catch(() => {
+        throw new Error(
+          'Le service ne répond pas correctement. Rechargez la page puis réessayez.',
+        );
+      })) as {
         ready: boolean;
         verifiedAt: number | null;
         calibration: CalibrationReport | null;
@@ -104,7 +108,11 @@ export function SupportAdministration() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ token }),
                   });
-                  const result = (await response.json()) as { error?: string };
+                  const result = (await response.json().catch(() => {
+                    throw new Error(
+                      'Le service ne répond pas correctement. Rechargez la page puis réessayez.',
+                    );
+                  })) as { error?: string };
                   if (!response.ok)
                     throw new Error(result.error || 'Accès refusé.');
                   setToken('');
@@ -174,7 +182,11 @@ export function SupportAdministration() {
                       apiKey: key,
                     }),
                   });
-                  const result = (await response.json()) as { error?: string };
+                  const result = (await response.json().catch(() => {
+                    throw new Error(
+                      'Le service ne répond pas correctement. Rechargez la page puis réessayez.',
+                    );
+                  })) as { error?: string };
                   if (!response.ok)
                     throw new Error(
                       result.error || 'La clé n’a pas pu être enregistrée.',
@@ -256,7 +268,11 @@ export function SupportAdministration() {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ action: 'configureBilling' }),
                     });
-                    const result = (await response.json()) as {
+                    const result = (await response.json().catch(() => {
+                      throw new Error(
+                        'Le service ne répond pas correctement. Rechargez la page puis réessayez.',
+                      );
+                    })) as {
                       error?: string;
                     };
                     if (!response.ok)
@@ -304,7 +320,11 @@ export function SupportAdministration() {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ action: 'validateTriage' }),
                     });
-                    const result = (await response.json()) as {
+                    const result = (await response.json().catch(() => {
+                      throw new Error(
+                        'Le service ne répond pas correctement. Rechargez la page puis réessayez.',
+                      );
+                    })) as {
                       error?: string;
                       report?: CalibrationReport;
                     };

@@ -377,6 +377,71 @@ export async function supportBillingAdminState() {
   };
 }
 
+// Private operational check: create then expire each checkout, without customer,
+// subscription, consent, payment or entitlement. Never return a payable URL.
+export async function verifySupportBilling() {
+  const config = await configuration();
+  if (!config)
+    throw new SupportError('Configurez d’abord les formules Stripe.', 503);
+  const stripe = client(),
+    results: { plan: string; amount: number; expired: boolean }[] = [];
+  for (const plan of SUPPORT_PLANS) {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      locale: 'fr',
+      billing_address_collection: 'required',
+      payment_method_types: ['card'],
+      automatic_tax: { enabled: false },
+      allow_promotion_codes: false,
+      line_items: [{ price: config.prices[plan.id], quantity: 1 }],
+      metadata: { service: 'zentra-support-preview' },
+      subscription_data: {
+        metadata: { service: 'zentra-support-preview' },
+        billing_mode: { type: 'flexible' },
+      },
+      success_url: runtimeValue('PUBLIC_SITE_URL') + '/support/admin',
+      cancel_url: runtimeValue('PUBLIC_SITE_URL') + '/support/admin',
+      expires_at: now() + 1860,
+      custom_text: {
+        submit: { message: 'Vérification interne Zentra. Ne pas payer.' },
+      },
+    });
+    try {
+      if (
+        !session.url ||
+        session.livemode !== config.livemode ||
+        session.amount_total !== plan.priceChfCents ||
+        session.currency !== 'chf' ||
+        session.mode !== 'subscription'
+      )
+        throw new SupportError(
+          'Le paiement Stripe ne correspond pas à la formule.',
+          503,
+        );
+      const page = await fetch(session.url, {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!page.ok)
+        throw new SupportError('La page Stripe ne s’ouvre pas.', 503);
+    } finally {
+      const expired = await stripe.checkout.sessions.expire(session.id);
+      if (expired.status !== 'expired')
+        throw new SupportError(
+          'Le paiement de vérification doit être fermé dans Stripe.',
+          503,
+        );
+    }
+    results.push({ plan: plan.id, amount: plan.priceChfCents, expired: true });
+  }
+  return {
+    verified: true,
+    livemode: config.livemode,
+    checkouts: results,
+    paymentTaken: false,
+  };
+}
+
 // Entitlements come only from a complete, paid invoice for our exact Price.
 export function paidSupportPeriod(
   invoice: Stripe.Invoice,

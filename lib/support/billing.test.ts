@@ -41,6 +41,7 @@ vi.mock('stripe', () => ({
         },
         expire: async () => {
           state.session = { ...(state.session as object), status: 'expired' };
+          return state.session;
         },
       },
     };
@@ -48,6 +49,7 @@ vi.mock('stripe', () => ({
 }));
 import {
   billingState,
+  verifySupportBilling,
   paidAccess,
   paidSupportPeriod,
   requireSupportSubscription,
@@ -431,5 +433,11 @@ it('refuse la configuration d’un autre mode Stripe', async () => {
   state.env.STRIPE_SECRET_KEY = 'sk_test_fixture';
   expect((await billingState(workspace)).ready).toBe(false);
   seedPaid();
+  expect((await billingState(workspace)).active).toBe(false);
+});
+
+it('ferme le checkout de contrôle même quand sa validation échoue',async()=>{
+  await expect(verifySupportBilling()).rejects.toMatchObject({status:503});
+  expect((state.session as Stripe.Checkout.Session).status).toBe('expired');
   expect((await billingState(workspace)).active).toBe(false);
 });

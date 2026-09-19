@@ -140,7 +140,11 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
           setSignedOut(true);
           return;
         }
-        const result = (await response.json()) as SupportState & {
+        const result = (await response.json().catch(() => {
+          throw new Error(
+            'Le service ne répond pas correctement. Rechargez la page puis réessayez.',
+          );
+        })) as SupportState & {
           error?: string;
         };
         if (!response.ok)
@@ -259,7 +263,11 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId: data.workspace?.id, ...body }),
       });
-      const result = (await response.json()) as {
+      const result = (await response.json().catch(() => {
+        throw new Error(
+          'Le service ne répond pas correctement. Rechargez la page puis réessayez.',
+        );
+      })) as {
         error?: string;
         workspaceId?: string;
         ticketId?: string;

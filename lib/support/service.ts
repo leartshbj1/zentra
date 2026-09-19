@@ -34,6 +34,7 @@ import {
   billingState,
   supportBillingAdminState,
   provisionSupportBilling,
+  verifySupportBilling,
   createSupportCheckout,
   createSupportPortal,
   refreshSupportPayment,
@@ -419,6 +420,16 @@ export async function mutateWorkspace(request: Request) {
     const actor = await platformAccess(request);
     await enforceAccountRateLimit(request, 'support-admin-oauth', actor, 10);
     return supportJson(await configureZendesk(body, actor));
+  }
+  if (action === 'verifyBilling') {
+    const actor = await platformAccess(request);
+    await enforceAccountRateLimit(
+      request,
+      'support-admin-billing-probe',
+      actor,
+      3,
+    );
+    return supportJson(await verifySupportBilling());
   }
   if (action === 'configureBilling') {
     const actor = await platformAccess(request);
