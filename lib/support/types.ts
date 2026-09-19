@@ -22,6 +22,13 @@ export type Directory = {
   agents: { id: string; name: string }[];
 };
 export type Rules = Partial<Record<Category, Destination>>;
+export const LANGUAGES = {
+  fr: 'Français',
+  de: 'Allemand',
+  it: 'Italien',
+  en: 'Anglais',
+  other: 'Autre / indéterminée',
+} as const;
 export type Decision = {
   category: Category;
   priority: Priority;
@@ -34,6 +41,13 @@ export type Decision = {
   destination: Destination | null;
   reason: string;
   manual?: boolean;
+  signals?: {
+    language: keyof typeof LANGUAGES;
+    languageConfidence: number;
+    frustration: number;
+    frustrationConfidence: number;
+    humanRequested: number;
+  };
 };
 export type SourceTicket = {
   externalId: string;

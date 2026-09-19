@@ -16,7 +16,7 @@ import {
   assignProviderTicket,
   readProviderTicket,
 } from './connectors';
-import { CATEGORIES, PRIORITIES, type Connection } from './types';
+import { CATEGORIES, PRIORITIES, LANGUAGES, type Connection } from './types';
 
 const state = vi.hoisted(() => ({
   db: null as unknown,
@@ -41,7 +41,12 @@ vi.mock('@/lib/account', () => ({
 vi.mock('@/lib/site-url', () => ({
   publicSiteUrl: () => 'https://zentraapp.ch',
 }));
-import { getWorkspaceState, mutateWorkspace, receiveHook } from './service';
+import {
+  getWorkspaceState,
+  getPlatformState,
+  mutateWorkspace,
+  receiveHook,
+} from './service';
 
 const choice = (keys: string[], winner: string, confidence = 0.98) => ({
   type: 'choice',
@@ -57,6 +62,14 @@ function answer(category = 'bug', confidence = 0.98) {
     answers: {
       category: choice(Object.keys(CATEGORIES), category, confidence),
       priority: choice(Object.keys(PRIORITIES), 'high'),
+      language: choice(Object.keys(LANGUAGES), 'fr'),
+      frustration: {
+        type: 'score',
+        score: 0.1,
+        confidence: 0.9,
+        probabilities: { '0': 0.9, '1': 0.1, '2': 0 },
+      },
+      human_requested: { type: 'noul', noul: 0.01 },
     },
   };
 }
@@ -104,7 +117,44 @@ describe('Décisions Jev', () => {
         85,
         vi.fn(async () => new Response('sensitive-key', { status: 401 })),
       ),
-    ).rejects.toThrow('clé TypeSafe est refusée');
+    ).rejects.toThrow('nécessite une intervention de Zentra');
+  });
+  it('conserve les signaux documentés sans confondre insatisfaction et urgence', () => {
+    const response = answer();
+    response.answers.frustration = {
+      type: 'score',
+      score: 1.9,
+      confidence: 0.9,
+      probabilities: { '0': 0, '1': 0.1, '2': 0.9 },
+    };
+    const decision = parseDecision(response, rules, 85);
+    expect(decision.signals).toMatchObject({
+      language: 'fr',
+      frustration: 1.9,
+      humanRequested: 0.01,
+    });
+    expect(decision.priority).toBe('high');
+    expect(canAutomaticallyRoute(decision, 85)).toBe(true);
+  });
+  it('renvoie une demande humaine ou incertaine en validation malgré une catégorie fiable', () => {
+    for (const probability of [0.2, 0.5, 0.99]) {
+      const response = answer();
+      response.answers.human_requested.noul = probability;
+      const decision = parseDecision(response, rules, 85);
+      expect(canAutomaticallyRoute(decision, 85)).toBe(false);
+      expect(decision.reason).toContain('humaine');
+    }
+  });
+  it('refuse les signaux manquants, hors bornes ou incohérents', () => {
+    const missing = answer();
+    delete (missing.answers as Partial<typeof missing.answers>).human_requested;
+    expect(() => parseDecision(missing, rules, 85)).toThrow();
+    const invalid = answer();
+    invalid.answers.human_requested.noul = 2;
+    expect(() => parseDecision(invalid, rules, 85)).toThrow();
+    const score = answer();
+    score.answers.frustration.score = 1.5;
+    expect(() => parseDecision(score, rules, 85)).toThrow();
   });
   it('chiffre les secrets et les lie à leur espace', async () => {
     const key = randomBytes(32).toString('base64'),
@@ -339,6 +389,70 @@ describe('Parcours complet dans une vraie base SQLite', () => {
   afterEach(() => {
     sql.close();
     vi.unstubAllGlobals();
+  });
+  it('réserve la clé plateforme et son état au propriétaire de Zentra', async () => {
+    await expect(getPlatformState()).rejects.toMatchObject({ status: 403 });
+    await expect(
+      post({ action: 'platformKey', apiKey: 'client-attempt' }),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      post({ action: 'aiKey', apiKey: 'client-attempt' }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(fetch).not.toHaveBeenCalled();
+    state.env.OWNER_ACCOUNT_USER_ID = state.user.userId;
+    await post({ action: 'platformKey', apiKey: 'founder-shared-key' });
+    const stored = String(
+      sql.prepare('SELECT secret FROM support_platform_secrets').get()!.secret,
+    );
+    expect(stored).not.toContain('founder-shared-key');
+    const status = await json(await getPlatformState());
+    expect(status.ready).toBe(true);
+    expect(JSON.stringify(status)).not.toContain('key');
+    const invalidEmail = {
+      ...state.user,
+      userId: 'impostor',
+      emailConfirmed: false,
+    };
+    state.env.ZENTRA_OWNER_EMAIL = invalidEmail.email;
+    state.user = invalidEmail;
+    await expect(getPlatformState()).rejects.toMatchObject({ status: 403 });
+  });
+  it('utilise la clé de Zentra, ignore les anciennes clés clients et ne la renvoie jamais', async () => {
+    state.env.OWNER_ACCOUNT_USER_ID = state.user.userId;
+    await post({ action: 'platformKey', apiKey: 'founder-shared-key' });
+    sql
+      .prepare('UPDATE support_workspaces SET ai_secret=?')
+      .run('legacy-unreadable-key');
+    vi.mocked(fetch).mockClear();
+    const response = await json(
+      await hook({ ticketId: 'shared-ai', subject: 'Erreur', body: 'Bug' }),
+    );
+    expect(
+      new Headers(vi.mocked(fetch).mock.calls[0]?.[1]?.headers).get(
+        'Authorization',
+      ),
+    ).toBe('Bearer founder-shared-key');
+    expect(response.ticket.state).toBe('review');
+    const publicState = await json(
+      await getWorkspaceState(new Request('https://zentraapp.ch/api/support')),
+    );
+    expect(publicState.workspace.aiReady).toBe(true);
+    expect(publicState.workspace).not.toHaveProperty('ownAiKey');
+    expect(JSON.stringify(publicState)).not.toMatch(
+      /founder-shared-key|legacy-unreadable-key|jev/i,
+    );
+    delete state.env.TYPESAFE_API_KEY;
+    state.user = {
+      ...state.user,
+      userId: 'customer-2',
+      email: 'customer2@example.test',
+    };
+    await post({ action: 'createWorkspace', name: 'Second client' });
+    const second = await json(
+      await getWorkspaceState(new Request('https://zentraapp.ch/api/support')),
+    );
+    expect(second.workspace.aiReady).toBe(true);
+    expect(second.tickets).toHaveLength(0);
   });
   it('valide puis confirme un ticket et déduplique les rediffusions', async () => {
     const received = await json(

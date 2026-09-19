@@ -169,9 +169,7 @@ export function ConnectionsPanel({
     [login, setLogin] = useState(''),
     [apiKey, setApiKey] = useState(''),
     [label, setLabel] = useState('');
-  const [jev, setJev] = useState(''),
-    [platformJev, setPlatformJev] = useState(''),
-    [hook, setHook] = useState<{ id: string; token: string } | null>(null),
+  const [hook, setHook] = useState<{ id: string; token: string } | null>(null),
     [guide, setGuide] = useState<string | null>(null),
     [copied, setCopied] = useState(''),
     [disconnect, setDisconnect] = useState<SupportConnection | null>(null);
@@ -411,91 +409,6 @@ export function ConnectionsPanel({
           )}
         </section>
       ))}
-      <section className="support-card">
-        <div className="support-card-heading">
-          <div>
-            <p className="support-eyebrow">INTELLIGENCE DE TRI</p>
-            <h3>Jev, par TypeSafe</h3>
-            <p>
-              {data.workspace?.aiReady
-                ? 'L’analyse est disponible pour cet espace.'
-                : 'Connectez Jev pour commencer les analyses.'}
-            </p>
-          </div>
-          <span className="support-category">
-            {data.workspace?.aiReady ? 'Disponible' : 'À configurer'}
-          </span>
-        </div>
-        <p className="support-small">
-          Le texte des tickets est transmis à TypeSafe pour déterminer la
-          catégorie et l’urgence. Les pièces jointes ne sont pas envoyées.
-        </p>
-        {manage && (
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (await mutate({ action: 'aiKey', apiKey: jev })) setJev('');
-            }}
-            className="support-key-form"
-          >
-            <Field
-              label="Clé TypeSafe propre à cet espace (facultatif si Zentra fournit l’accès)"
-              type="password"
-              autoComplete="new-password"
-              value={jev}
-              onChange={(e) => setJev(e.target.value)}
-              disabled={demo}
-            />
-            <Button
-              variant="outline"
-              type="submit"
-              disabled={busy || demo || !jev}
-            >
-              Vérifier et enregistrer
-            </Button>
-            {data.workspace?.ownAiKey && (
-              <Button
-                variant="ghost"
-                type="button"
-                disabled={busy || demo}
-                onClick={() => mutate({ action: 'aiKey', apiKey: '' })}
-              >
-                Retirer cette clé
-              </Button>
-            )}
-          </form>
-        )}
-        {data.platformOwner && (
-          <form
-            className="support-platform-key"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (await mutate({ action: 'platformKey', apiKey: platformJev }))
-                setPlatformJev('');
-            }}
-          >
-            <h4>Administration Zentra</h4>
-            <p className="support-small">
-              Cette clé rend Jev disponible pour les clients de Zentra Support.
-              Elle reste chiffrée et n’est jamais affichée aux clients.
-            </p>
-            <Field
-              label="Clé TypeSafe de la plateforme"
-              type="password"
-              autoComplete="new-password"
-              value={platformJev}
-              onChange={(e) => setPlatformJev(e.target.value)}
-            />
-            <Button
-              className="support-primary"
-              type="submit"
-              disabled={busy || !platformJev}
-            >
-              Vérifier et activer Jev pour Zentra
-            </Button>
-          </form>
-        )}
-      </section>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="support-dialog">
           <DialogHeader>
@@ -595,7 +508,9 @@ export function ConnectionsPanel({
             >
               {busy ? 'Vérification…' : 'Vérifier la connexion'}
             </Button>
-            {demo && <a href="/support">Configurer mon véritable espace</a>}
+            {demo && (
+              <a href="/support/espace">Configurer mon véritable espace</a>
+            )}
           </form>
         </DialogContent>
       </Dialog>
@@ -650,7 +565,8 @@ export function RoutingPanel({
         <div>
           <h2>À chaque demande, son équipe.</h2>
           <p>
-            Choisissez les destinations. Jev s’occupe de reconnaître la demande.
+            Choisissez les destinations. Zentra reconnaît la demande et applique
+            vos règles.
           </p>
         </div>
       </div>

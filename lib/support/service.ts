@@ -160,15 +160,7 @@ async function secretFor(connection: Connection) {
         `connection:${connection.workspace_id}:${connection.id}`,
       );
 }
-async function aiKey(workspace: Workspace) {
-  if (workspace.ai_secret)
-    return decryptSecret(
-      runtimeValue('SUPPORT_ENCRYPTION_KEY'),
-      workspace.ai_secret,
-      `workspace:${workspace.id}`,
-    );
-  const configured = runtimeValue('TYPESAFE_API_KEY');
-  if (configured) return configured;
+async function aiKey() {
   const row = await database()
     .prepare("SELECT secret FROM support_platform_secrets WHERE id='typesafe'")
     .first<{ secret: string }>();
@@ -178,7 +170,24 @@ async function aiKey(workspace: Workspace) {
         row.secret,
         'platform:typesafe',
       )
-    : '';
+    : runtimeValue('TYPESAFE_API_KEY');
+}
+export async function getPlatformState() {
+  const user = await signedIn();
+  if (!platformOwner(user))
+    throw new SupportError(
+      'Cet espace est réservé au propriétaire de Zentra.',
+      403,
+    );
+  const row = await database()
+    .prepare(
+      "SELECT updated_at FROM support_platform_secrets WHERE id='typesafe'",
+    )
+    .first<{ updated_at: number }>();
+  return supportJson({
+    ready: !!(await aiKey()),
+    verifiedAt: row?.updated_at ?? null,
+  });
 }
 function destination(
   value: unknown,
@@ -220,7 +229,10 @@ function publicTicket(t: Ticket) {
     revision: t.revision,
     state: t.state,
     decision: t.decision_json
-      ? (JSON.parse(t.decision_json) as Decision)
+      ? {
+          ...(JSON.parse(t.decision_json) as Decision),
+          model: 'Zentra Support',
+        }
       : null,
     error: t.error,
     automatic: !!t.automatic,
@@ -308,8 +320,7 @@ export async function getWorkspaceState(request: Request) {
       baselineSeconds: workspace.baseline_seconds,
       role: workspace.role,
       canManage: manage,
-      aiReady: !!(await aiKey(workspace)),
-      ownAiKey: !!workspace.ai_secret,
+      aiReady: !!(await aiKey()),
     },
     connections: connections.results.map(publicConnection),
     tickets: tickets.results.slice(0, 60).map(publicTicket),
@@ -385,7 +396,6 @@ export async function mutateWorkspace(request: Request) {
       'refreshDirectory',
       'routes',
       'rotateHook',
-      'aiKey',
       'invite',
       'revokeMember',
     ].includes(action),
@@ -407,9 +417,9 @@ export async function mutateWorkspace(request: Request) {
       throw new SupportError(
         'Vérifiez le nom, le seuil (50 à 100 %) et le temps de tri (5 à 900 secondes).',
       );
-    if (body.mode === 'automatic' && !(await aiKey(workspace)))
+    if (body.mode === 'automatic' && !(await aiKey()))
       throw new SupportError(
-        'Connectez Jev avant d’activer le routage automatique.',
+        'Le tri automatique est en cours d’activation par Zentra. Vous pouvez déjà connecter votre outil.',
       );
     await db
       .prepare(
@@ -426,40 +436,11 @@ export async function mutateWorkspace(request: Request) {
     );
     return supportJson({ saved: true });
   }
-  if (action === 'aiKey') {
-    const key = text(body.apiKey, 8192);
-    if (key)
-      await evaluateTicket(
-        key,
-        'Question produit',
-        'Comment consulter les horaires de votre service ?',
-        {},
-        85,
-      );
-    const sealed = key
-      ? await encryptSecret(
-          runtimeValue('SUPPORT_ENCRYPTION_KEY'),
-          key,
-          `workspace:${workspace.id}`,
-        )
-      : null;
-    await db
-      .prepare(
-        'UPDATE support_workspaces SET ai_secret=?,updated_at=? WHERE id=?',
-      )
-      .bind(sealed, now(), workspace.id)
-      .run();
-    await event(
-      workspace.id,
-      null,
-      'connection',
-      key
-        ? 'Connexion TypeSafe vérifiée.'
-        : 'Clé TypeSafe personnelle retirée.',
-      user.email,
+  if (action === 'aiKey')
+    throw new SupportError(
+      'L’analyse est fournie par Zentra. Aucune clé IA client n’est nécessaire.',
+      403,
     );
-    return supportJson({ saved: true });
-  }
   if (action === 'invite' || action === 'revokeMember') {
     if (workspace.role !== 'owner')
       throw new SupportError(
@@ -496,7 +477,7 @@ export async function mutateWorkspace(request: Request) {
     );
     return supportJson({
       saved: true,
-      inviteUrl: `${publicSiteUrl()}/support?workspace=${workspace.id}`,
+      inviteUrl: `${publicSiteUrl()}/support/espace?workspace=${workspace.id}`,
     });
   }
   if (action === 'connect') {
@@ -888,7 +869,7 @@ export async function processTicket(
     let decision =
       manual ??
       (await evaluateTicket(
-        await aiKey(currentWorkspace),
+        await aiKey(),
         ticket.subject,
         ticket.body,
         JSON.parse(active.routes_json) as Rules,
@@ -979,7 +960,7 @@ export async function processTicket(
         : state === 'ready'
           ? 'Décision disponible pour votre connecteur API. Confirmation attendue.'
           : decision.reason,
-      manual ? actor : 'Jev',
+      manual ? actor : 'Zentra Support',
     );
   } catch (error) {
     const message =

@@ -25,7 +25,12 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { BrandWordmark } from '@/components/brand-mark';
-import { CATEGORIES, PRIORITIES, type Decision } from '@/lib/support/types';
+import {
+  CATEGORIES,
+  PRIORITIES,
+  LANGUAGES,
+  type Decision,
+} from '@/lib/support/types';
 import {
   ConnectionsPanel,
   RoutingPanel,
@@ -326,7 +331,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         <span className="support-mode">
           {demo ? 'Démonstration' : data.user.name}
         </span>
-        <a href={demo ? '/support' : '/compte'}>
+        <a href={demo ? '/support/espace' : '/compte'}>
           {demo ? 'Créer mon espace' : 'Mon compte'} <ArrowUpRight size={16} />
         </a>
       </header>
@@ -350,7 +355,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
             Plus de temps pour vos clients.
           </h1>
           <p>
-            Connectez votre outil de support. Jev classe vos tickets, propose
+            Connectez votre outil de support. Zentra classe vos tickets, propose
             une priorité et les dirige vers la bonne équipe.
           </p>
           <div className="support-actions">
@@ -359,7 +364,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               nativeButton={false}
               render={
                 <a
-                  href={`/connexion?retour=${encodeURIComponent('/support' + (workspaceId ? '?workspace=' + workspaceId : ''))}`}
+                  href={`/connexion?retour=${encodeURIComponent('/support/espace' + (workspaceId ? '?workspace=' + workspaceId : ''))}`}
                 />
               }
             >
@@ -504,10 +509,13 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               {!data.workspace.aiReady && (
                 <div className="support-setup">
                   <CircleHelp size={20} />
-                  <span>Connectez Jev pour analyser vos premiers tickets.</span>
-                  <Button variant="link" onClick={() => setTab('connections')}>
-                    Configurer Jev
-                  </Button>
+                  <span>
+                    Le tri automatique est en cours d’activation par Zentra.
+                    Vous pouvez déjà connecter votre outil.
+                  </span>
+                  {data.platformOwner && (
+                    <a href="/support/admin">Administration</a>
+                  )}
                 </div>
               )}
               <div className="support-filters" aria-label="Filtrer les tickets">
@@ -664,7 +672,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                                 ? 'Décision de votre équipe'
                                 : ticket.state === 'review'
                                   ? 'Un regard humain est nécessaire'
-                                  : 'La décision de Jev'}
+                                  : 'La décision de Zentra'}
                             </h3>
                           </div>
                           <dl>
@@ -695,6 +703,37 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                                 </dd>
                               </div>
                             )}
+                            {ticket.decision.signals &&
+                              !ticket.decision.manual && (
+                                <>
+                                  <div>
+                                    <dt>Langue détectée</dt>
+                                    <dd>
+                                      {ticket.decision.signals
+                                        .languageConfidence >= 0.7
+                                        ? LANGUAGES[
+                                            ticket.decision.signals.language
+                                          ]
+                                        : 'À confirmer'}
+                                    </dd>
+                                  </div>
+                                  <div>
+                                    <dt>Insatisfaction exprimée</dt>
+                                    <dd>
+                                      {ticket.decision.signals
+                                        .frustrationConfidence < 0.7
+                                        ? 'À confirmer'
+                                        : ticket.decision.signals.frustration >=
+                                            1.6
+                                          ? 'Forte'
+                                          : ticket.decision.signals
+                                                .frustration >= 0.6
+                                            ? 'Modérée'
+                                            : 'Peu ou pas exprimée'}
+                                    </dd>
+                                  </div>
+                                </>
+                              )}
                           </dl>
                           <p>{ticket.decision.reason}</p>
                           {!ticket.decision.manual && (
@@ -833,7 +872,9 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                 guide se trouve dans Connexions.
               </p>
             )}
-            {demo && <a href="/support">Configurer mon véritable espace</a>}
+            {demo && (
+              <a href="/support/espace">Configurer mon véritable espace</a>
+            )}
           </form>
         </DialogContent>
       </Dialog>

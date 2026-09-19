@@ -1,6 +1,7 @@
 import {
   CATEGORIES,
   PRIORITIES,
+  LANGUAGES,
   record,
   SupportError,
   type Decision,
@@ -44,7 +45,85 @@ export function triageQuestions(subject: string, body: string) {
             'A confirmed service-wide outage, ongoing security incident or immediate widespread inability to use the service or pay.',
         },
       },
+      language: {
+        type: 'choice',
+        instructions: `${instructions} What language does the customer use? For mixed or unclear language choose other.`,
+        criteria: {
+          fr: 'Predominantly French.',
+          de: 'Predominantly German.',
+          it: 'Predominantly Italian.',
+          en: 'Predominantly English.',
+          other: 'Another language, mixed languages, or insufficient text.',
+        },
+      },
+      frustration: {
+        type: 'score',
+        instructions: `${instructions} How much dissatisfaction is explicitly expressed in the customer message? Judge wording, not personality or implied mood.`,
+        criteria: [
+          'Neutral or positive wording, stating facts without dissatisfaction.',
+          'Explicit dissatisfaction or repeated inconvenience, expressed civilly.',
+          'Strong dissatisfaction, hostile wording or explicit threat to leave due to poor service.',
+        ],
+      },
+      human_requested: {
+        type: 'noul',
+        instructions: `${instructions} Does the customer explicitly request a human, supervisor, or escalation?`,
+        criteria: {
+          true: 'The message explicitly asks to speak to a human, a supervisor or to escalate the case.',
+          false: 'No explicit request for a human, supervisor or escalation.',
+        },
+      },
     },
+  };
+}
+function unit(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 1
+  );
+}
+function signals(
+  answers: Record<string, unknown>,
+): NonNullable<Decision['signals']> {
+  const language = choice(answers.language, Object.keys(LANGUAGES));
+  const frustration = record(answers.frustration),
+    probabilities = record(frustration.probabilities);
+  const human = record(answers.human_requested);
+  if (
+    human.type !== 'noul' ||
+    !unit(human.noul) ||
+    frustration.type !== 'score' ||
+    !unit(frustration.confidence) ||
+    typeof frustration.score !== 'number' ||
+    !Number.isFinite(frustration.score) ||
+    frustration.score < 0 ||
+    frustration.score > 2 ||
+    Object.keys(probabilities).length !== 3 ||
+    !['0', '1', '2'].every((k) => unit(probabilities[k])) ||
+    Math.abs(
+      Number(probabilities['0']) +
+        Number(probabilities['1']) +
+        Number(probabilities['2']) -
+        1,
+    ) > 0.02 ||
+    Math.abs(
+      Number(probabilities['1']) +
+        2 * Number(probabilities['2']) -
+        frustration.score,
+    ) > 0.03
+  )
+    throw new SupportError(
+      'L’analyse est incomplète. Le ticket reste à vérifier.',
+      502,
+    );
+  return {
+    language: language.choice as keyof typeof LANGUAGES,
+    languageConfidence: language.confidence,
+    frustration: frustration.score,
+    frustrationConfidence: frustration.confidence,
+    humanRequested: human.noul,
   };
 }
 function choice(value: unknown, keys: string[]) {
@@ -60,7 +139,7 @@ function choice(value: unknown, keys: string[]) {
     Object.keys(distribution).length !== keys.length
   )
     throw new SupportError(
-      'La réponse de Jev est incomplète. Le ticket reste à vérifier.',
+      'L’analyse est incomplète. Le ticket reste à vérifier.',
       502,
     );
   let total = 0;
@@ -73,7 +152,7 @@ function choice(value: unknown, keys: string[]) {
       probability > 1
     )
       throw new SupportError(
-        'Jev a renvoyé des probabilités invalides. Réessayez.',
+        'L’analyse a produit un résultat invalide. Réessayez.',
         502,
       );
     total += probability;
@@ -86,10 +165,7 @@ function choice(value: unknown, keys: string[]) {
         Number(distribution[String(answer.choice)]) + 0.001,
     )
   )
-    throw new SupportError(
-      'La décision de Jev est incohérente. Réessayez.',
-      502,
-    );
+    throw new SupportError('L’analyse doit être vérifiée. Réessayez.', 502);
   return {
     choice: String(answer.choice),
     confidence: answer.confidence,
@@ -105,16 +181,19 @@ export function parseDecision(
     answers = record(response.answers);
   const category = choice(answers.category, Object.keys(CATEGORIES)),
     priority = choice(answers.priority, Object.keys(PRIORITIES));
+  const detected = signals(answers);
   const confidence = Math.min(category.confidence, priority.confidence);
   const destination = rules[category.choice as keyof Rules] ?? null;
   const reason =
-    category.choice === 'other'
-      ? 'La demande nécessite une précision.'
-      : confidence < threshold / 100
-        ? 'La confiance est inférieure à votre seuil.'
-        : !destination
-          ? 'Choisissez une équipe pour cette catégorie dans Routage.'
-          : 'Catégorie et priorité suffisamment claires pour votre seuil.';
+    detected.humanRequested >= 0.2
+      ? 'Une intervention humaine a été demandée ou doit être vérifiée.'
+      : category.choice === 'other'
+        ? 'La demande nécessite une précision.'
+        : confidence < threshold / 100
+          ? 'La confiance est inférieure à votre seuil.'
+          : !destination
+            ? 'Choisissez une équipe pour cette catégorie dans Routage.'
+            : 'Catégorie et priorité suffisamment claires pour votre seuil.';
   return {
     category: category.choice as Decision['category'],
     priority: priority.choice as Decision['priority'],
@@ -132,12 +211,15 @@ export function parseDecision(
     ),
     destination,
     reason,
+    signals: detected,
   };
 }
 export function canAutomaticallyRoute(decision: Decision, threshold: number) {
   return (
     decision.category !== 'other' &&
     decision.confidence >= threshold / 100 &&
+    !!decision.signals &&
+    decision.signals.humanRequested < 0.2 &&
     !!decision.destination?.teamId
   );
 }
@@ -151,7 +233,7 @@ export async function evaluateTicket(
 ): Promise<Decision> {
   if (!key)
     throw new SupportError(
-      'Connectez Jev dans Connexions pour analyser les tickets.',
+      'Le service d’analyse est en cours d’activation par Zentra. Votre ticket est conservé.',
       503,
     );
   let response: Response;
@@ -168,26 +250,32 @@ export async function evaluateTicket(
     });
   } catch {
     throw new SupportError(
-      'Jev ne répond pas pour le moment. Le ticket est conservé ; réessayez.',
+      'Le service d’analyse ne répond pas pour le moment. Le ticket est conservé ; réessayez.',
       503,
     );
   }
   if (!response.ok)
     throw new SupportError(
       response.status === 401 || response.status === 403
-        ? 'La clé TypeSafe est refusée. Remplacez-la dans Connexions.'
+        ? 'Le service d’analyse nécessite une intervention de Zentra. Contactez info@zentraapp.ch.'
         : response.status === 429
-          ? 'La limite TypeSafe est atteinte. Réessayez plus tard.'
-          : 'TypeSafe est momentanément indisponible. Le ticket est conservé.',
+          ? 'Le service d’analyse est très sollicité. Réessayez plus tard.'
+          : 'Le service d’analyse est momentanément indisponible. Le ticket est conservé.',
       503,
     );
   const bodyText = await response.text();
   if (bodyText.length > 64000)
-    throw new SupportError('La réponse TypeSafe est trop volumineuse.', 502);
+    throw new SupportError(
+      'La réponse du service d’analyse est trop volumineuse.',
+      502,
+    );
   try {
     return parseDecision(JSON.parse(bodyText), rules, threshold);
   } catch (error) {
     if (error instanceof SupportError) throw error;
-    throw new SupportError('TypeSafe a renvoyé une réponse illisible.', 502);
+    throw new SupportError(
+      'Le service d’analyse a renvoyé une réponse illisible.',
+      502,
+    );
   }
 }

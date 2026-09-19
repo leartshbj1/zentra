@@ -23,6 +23,25 @@ const create = await call('/api/support', {
 });
 assert(create.status < 300, `create ${create.status}: ${create.value.error}`);
 const workspaceId = create.value.workspaceId;
+const initial = await call('/api/support');
+const priorRouted = initial.value.counts.routed || 0;
+const forbidden = await call('/api/support', {
+  action: 'aiKey',
+  workspaceId,
+  apiKey: 'test-only-never-provider',
+});
+assert(forbidden.status === 403, 'Client AI key must be forbidden');
+const admin = await call('/api/support?admin=1');
+assert(admin.status === 403, 'Platform admin must be owner-only');
+for (const connection of initial.value.connections.filter(
+  (c) => c.provider === 'api' && c.label === 'QA locale API',
+)) {
+  await call('/api/support', {
+    action: 'disconnect',
+    workspaceId,
+    connectionId: connection.id,
+  });
+}
 const connect = await call('/api/support', {
   action: 'connect',
   workspaceId,
@@ -45,11 +64,15 @@ const send = await call(
   auth,
 );
 assert(
-  send.status === 503 && send.value.error.includes('Jev'),
+  send.status === 503 && send.value.error.includes('analyse'),
   'Missing key must be explicit',
 );
 const loaded = await call('/api/support');
-const ticket = loaded.value.tickets.find((t) => t.externalId === 'qa-local-1');
+const ticket = loaded.value.tickets.find(
+  (t) =>
+    t.externalId === 'qa-local-1' &&
+    t.connectionId === connect.value.connectionId,
+);
 assert(ticket?.state === 'error', 'Ticket must survive model unavailability');
 const approve = await call('/api/support', {
   action: 'approve',
@@ -79,7 +102,10 @@ const ack = await call(
 );
 assert(ack.status === 200, 'ACK failed');
 const confirmed = await call('/api/support');
-assert(confirmed.value.counts.routed === 1, 'Routed counter must reflect ACK');
+assert(
+  confirmed.value.counts.routed === priorRouted + 1,
+  'Routed counter must reflect ACK',
+);
 assert(
   !JSON.stringify(confirmed.value).includes(connect.value.hookToken),
   'Webhook secret leaked',
@@ -88,6 +114,11 @@ const other = await call(`/api/support?workspace=${workspaceId}`, undefined, {
   Cookie: '',
 });
 assert(other.status === 401, 'Cross-workspace access was not denied');
+await call('/api/support', {
+  action: 'disconnect',
+  workspaceId,
+  connectionId: connect.value.connectionId,
+});
 console.log(
   JSON.stringify({
     result: 'passed',

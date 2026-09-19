@@ -38,7 +38,6 @@ export type SupportState = {
     role: string;
     canManage: boolean;
     aiReady: boolean;
-    ownAiKey: boolean;
   } | null;
   connections: SupportConnection[];
   tickets: SupportTicket[];
@@ -161,7 +160,6 @@ export function demoState(): SupportState {
       role: 'owner',
       canManage: true,
       aiReady: true,
-      ownAiKey: false,
     },
     connections: [
       {

@@ -1,11 +1,11 @@
 # Zentra Support
 
-Application web distincte à `/support`, avec démonstration fictive à `/support/demo`. L’ERP, ses licences, son abonnement et ses données restent indépendants. Chaque titulaire possède un espace ; des membres peuvent rejoindre plusieurs espaces avec leur adresse vérifiée. Rôles : propriétaire, administrateur, validation, lecture seule.
+Présentation publique à `/support`, application distincte à `/support/espace`, démonstration fictive à `/support/demo` et administration du propriétaire à `/support/admin`. Les anciens liens `/support?workspace=…` redirigent vers l’espace. L’ERP, ses licences, son abonnement et ses données restent indépendants. Chaque titulaire possède un espace ; des membres peuvent rejoindre plusieurs espaces avec leur adresse vérifiée. Rôles : propriétaire, administrateur, validation, lecture seule.
 
 ## Configuration
 
 1. Se connecter avec son compte Zentra et créer son espace.
-2. Connexions → Jev : le propriétaire de la plateforme peut activer sa clé TypeSafe pour les espaces. Un administrateur d’espace peut utiliser sa propre clé à la place. Le serveur vérifie la clé sur un texte fictif avant de la chiffrer. Aucune clé ne revient dans les réponses de lecture.
+2. Le propriétaire de Zentra configure une seule clé TypeSafe à `/support/admin`. Aucun client ne fournit de clé IA ni ne voit de marque fournisseur dans son espace. L’accès admin et l’écriture de la clé sont contrôlés côté serveur. Le serveur vérifie la clé sur un texte fictif avant de la chiffrer. Aucune clé ne revient dans les réponses de lecture. Les anciennes clés par espace sont ignorées et ne peuvent plus être modifiées.
 3. Ajouter Zendesk, Freshdesk, Gorgias ou « Autre outil · API ». Pour un connecteur natif, fournir le sous-domaine officiel et une clé permettant lecture des équipes/agents/tickets et modification de l’affectation/priorité. Certains abonnements du fournisseur peuvent restreindre ces APIs.
 4. Copier l’adresse et la clé de webhook affichée une seule fois. Dans l’outil, configurer un POST JSON lors de la création d’un ticket avec `Authorization: Bearer <clé>` et `{"ticketId":"<identifiant dynamique>"}`. Choisir uniquement l’événement de création pour éviter les boucles lors des affectations. Tester avec un ticket non client.
 5. Routage → associer catégories et équipes, éventuellement un agent. D’abord valider quelques décisions, puis activer le mode automatique et choisir le seuil.
@@ -35,7 +35,7 @@ Les connecteurs relisent le ticket avant écriture et vérifient affectation ET 
 
 Les historiques trop longs sont signalés pour validation : au-delà de 30 conversations Freshdesk, d’une page de 100 commentaires/messages Zendesk/Gorgias, ou de 24 000 caractères. Les pièces jointes ne sont pas analysées. Les répertoires sont limités à 2 000 entrées par type. Limite d’entrée : 1 000 nouveaux tickets par espace et jour UTC, 1 200 appels par connexion/adresse/heure ; interface : 180 mutations par compte/adresse/heure. Ces limites sont techniques, pas des tarifs.
 
-`SUPPORT_ENCRYPTION_KEY` : secret serveur aléatoire 32 octets en base64, nécessaire au chiffrement AES-256-GCM des clés TypeSafe et des outils. Ne pas le remplacer sans réencrypter les secrets enregistrés. `TYPESAFE_API_KEY` est une alternative d’exploitation à la clé plateforme chiffrée en base. Aucun secret ne doit être ajouté à Git.
+`SUPPORT_ENCRYPTION_KEY` : secret serveur aléatoire 32 octets en base64, nécessaire au chiffrement AES-256-GCM des clés TypeSafe et des outils. Ne pas le remplacer sans réencrypter les secrets enregistrés. `TYPESAFE_API_KEY` est une alternative d’exploitation, utilisée seulement si aucune clé plateforme chiffrée n’est enregistrée en base. Aucun secret ne doit être ajouté à Git.
 
 Migration additive `0041_mysterious_brother_voodoo.sql` : six tables Support et leurs index. Aucun changement des anciennes migrations. Suppression/export d’un espace : via le support de l’éditeur pour cette version ; déconnecter l’outil conserve l’historique.
 
@@ -61,3 +61,13 @@ Les minutes affichées correspondent aux affectations automatiques non corrigée
 - https://developers.gorgias.com/reference/update-ticket
 - https://developers.gorgias.com/reference/list-messages
 - https://developers.gorgias.com/docs/sync-gorgias-data-with-a-database
+
+## Analyse enrichie et offre intégrée
+
+Une requête combine cinq questions documentées : Choice pour catégorie, priorité et langue (fr/de/it/en/autre), Score pour insatisfaction exprimée (trois niveaux descriptifs), Noul pour demande explicite d’un humain. Chaque réponse est validée, y compris les distributions et la moyenne pondérée du Score. Une probabilité de demande humaine >= 0,2 bloque le routage automatique, même si catégorie et priorité sont fiables. La langue et l’insatisfaction restent indicatives et ne modifient pas seules la priorité. Les faibles confiances sont affichées comme à confirmer.
+
+Le simulateur public est explicitement fictif et le calcul de temps est une simulation configurable (volume × temps manuel × part automatisée). Aucun pourcentage de gain réel n’est promis.
+
+Tests supplémentaires : refus de clés IA clients ; lecture et écriture de la clé plateforme réservées au propriétaire ; chiffrement ; partage entre espaces isolés ; absence de secrets dans les réponses ; demande humaine prioritaire sur la confiance ; signaux manquants ou incohérents refusés.
+
+Documentation complémentaire : https://docs.typesafe.ai/primitives/score ; https://docs.typesafe.ai/primitives/noul ; https://docs.typesafe.ai/confidence.
