@@ -7,6 +7,7 @@ import {
   triageQuestions,
   canAutomaticallyRoute,
   evaluateTicket,
+  verifyPlatformApiKey,
 } from './jev';
 import { encryptSecret, decryptSecret } from './crypto';
 import { createAdminSession, adminCookie } from './admin-session';
@@ -121,7 +122,93 @@ describe('Décisions Jev', () => {
         85,
         vi.fn(async () => new Response('sensitive-key', { status: 401 })),
       ),
-    ).rejects.toThrow('nécessite une intervention de Zentra');
+    ).rejects.toThrow('Le ticket est conservé');
+  });
+  it('vérifie une clé copiée avec Bearer sans redirection ni fuite de secret', async () => {
+    const mock = vi.fn(
+      async (_url: string | URL | Request, _init?: RequestInit) =>
+        Response.json(answer()),
+    );
+    expect(
+      await verifyPlatformApiKey('  Bearer fixture-private-key  ', mock),
+    ).toBe('fixture-private-key');
+    expect(mock).toHaveBeenCalledTimes(1);
+    expect(mock.mock.calls[0][1]).toMatchObject({
+      redirect: 'manual',
+      headers: { Authorization: 'Bearer fixture-private-key' },
+    });
+  });
+  it.each([301, 302, 307, 308])(
+    'refuse une redirection IA %s sans envoyer la clé à une autre adresse',
+    async (status) => {
+      const mock = vi.fn(
+        async () =>
+          new Response(null, {
+            status,
+            headers: { Location: 'https://untrusted.example/steal' },
+          }),
+      );
+      await expect(
+        verifyPlatformApiKey('fixture-private-key', mock),
+      ).rejects.toThrow('redirigée');
+      expect(mock).toHaveBeenCalledTimes(1);
+    },
+  );
+  it.each([
+    [401, 'TypeSafe refuse cette clé'],
+    [403, 'Vérifiez les autorisations'],
+    [402, 'crédits'],
+    [429, 'Attendez une minute'],
+    [422, 'format de la demande'],
+    [529, 'temporairement indisponible'],
+  ] as const)(
+    'explique le refus %s au propriétaire sans exposer la réponse du fournisseur',
+    async (status, message) => {
+      const mock = vi.fn(
+        async () => new Response('fixture-private-key', { status }),
+      );
+      await expect(
+        verifyPlatformApiKey('fixture-private-key', mock),
+      ).rejects.toThrow(message);
+    },
+  );
+  it('distingue une erreur réseau, un délai dépassé et une réponse invalide', async () => {
+    await expect(
+      verifyPlatformApiKey(
+        'fixture-private-key',
+        vi.fn(async () => {
+          throw new TypeError('fixture-private-key');
+        }),
+      ),
+    ).rejects.toThrow('problème de connexion');
+    await expect(
+      verifyPlatformApiKey(
+        'fixture-private-key',
+        vi.fn(async () => {
+          throw new DOMException('fixture-private-key', 'TimeoutError');
+        }),
+      ),
+    ).rejects.toThrow('délai prévu');
+    await expect(
+      verifyPlatformApiKey(
+        'fixture-private-key',
+        vi.fn(async () => Response.json({ answers: {} })),
+      ),
+    ).rejects.toThrow('analyse n’a pas pu être validée');
+  });
+  it.each([
+    '',
+    'short',
+    'fixture\nprivate-key',
+    'é-private-key-fixture',
+    'zsa_' + 'a'.repeat(64),
+    'a'.repeat(8193),
+  ])('refuse les collages invalides avant tout appel', async (input) => {
+    const mock = vi.fn();
+    await expect(verifyPlatformApiKey(input, mock)).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(mock).not.toHaveBeenCalled();
   });
   it('conserve les signaux documentés sans confondre insatisfaction et urgence', () => {
     const response = answer();
@@ -224,8 +311,31 @@ describe('Connecteurs', () => {
       undefined,
       mock,
     );
-    expect(mock.mock.calls[0]?.[1]).toMatchObject({ redirect: 'error' });
+    expect(mock.mock.calls[0]?.[1]).toMatchObject({ redirect: 'manual' });
   });
+  it.each([301, 302, 307, 308])(
+    'arrête une redirection de connecteur %s sans propager ses identifiants',
+    async (status) => {
+      const mock = vi.fn(
+        async () =>
+          new Response(null, {
+            status,
+            headers: { Location: 'https://untrusted.example/steal' },
+          }),
+      );
+      await expect(
+        providerRequest(
+          { provider: 'zendesk', domain: 'a.zendesk.com', login: 'a@test.ch' },
+          'fixture-secret',
+          '/api/v2/groups.json',
+          'GET',
+          undefined,
+          mock,
+        ),
+      ).rejects.toThrow('Aucun identifiant');
+      expect(mock).toHaveBeenCalledTimes(1);
+    },
+  );
   it('utilise la nouvelle API Gorgias et détecte un historique tronqué', async () => {
     const c = {
       provider: 'gorgias',
@@ -602,6 +712,29 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     state.env.ZENTRA_OWNER_EMAIL = invalidEmail.email;
     state.user = invalidEmail;
     await expect(getPlatformState()).rejects.toMatchObject({ status: 403 });
+  });
+  it('préserve la clé déjà active lorsqu’un remplacement échoue', async () => {
+    state.env.OWNER_ACCOUNT_USER_ID = state.user.userId;
+    await post({ action: 'platformKey', apiKey: 'founder-shared-key' });
+    const before = sql
+      .prepare(
+        "SELECT secret FROM support_platform_secrets WHERE id='typesafe'",
+      )
+      .get()!.secret;
+    vi.mocked(fetch).mockResolvedValue(
+      new Response('private-rejected-key', { status: 401 }),
+    );
+    await expect(
+      post({ action: 'platformKey', apiKey: 'private-rejected-key' }),
+    ).rejects.toThrow('TypeSafe refuse cette clé');
+    expect(
+      sql
+        .prepare(
+          "SELECT secret FROM support_platform_secrets WHERE id='typesafe'",
+        )
+        .get()!.secret,
+    ).toBe(before);
+    expect((await json(await getPlatformState())).ready).toBe(true);
   });
   it('utilise la clé de Zentra, ignore les anciennes clés clients et ne la renvoie jamais', async () => {
     state.env.OWNER_ACCOUNT_USER_ID = state.user.userId;

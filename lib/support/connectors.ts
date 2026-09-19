@@ -68,7 +68,8 @@ export async function providerRequest(
   try {
     response = await fetcher(`https://${domain}${path}`, {
       method,
-      redirect: 'error',
+      // Workerd supports manual redirects; never forward provider credentials.
+      redirect: 'manual',
       headers: {
         Authorization: authorization(
           connection.provider,
@@ -87,6 +88,11 @@ export async function providerRequest(
       503,
     );
   }
+  if (response.status >= 300 && response.status < 400)
+    throw new SupportError(
+      'Votre outil redirige cette connexion. Vérifiez son domaine dans Connexions. Aucun identifiant n’a été transmis à la nouvelle adresse.',
+      502,
+    );
   if (!response.ok) {
     if (response.status === 401 || response.status === 403)
       throw new SupportError(

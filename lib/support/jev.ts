@@ -235,6 +235,82 @@ export function canAutomaticallyRoute(decision: Decision, threshold: number) {
     !!decision.destination?.teamId
   );
 }
+class AnalysisConnectionError extends SupportError {
+  constructor(
+    message: string,
+    readonly adminMessage: string,
+    readonly adminStatus = 503,
+  ) {
+    super(message, 503);
+  }
+}
+function connectionFailure(code: string, providerStatus?: number) {
+  // Do not log the exception, response body, ticket, or Authorization header.
+  console.warn('support_analysis_connection_failed', { code, providerStatus });
+  const publicMessage =
+    'Le service d’analyse est momentanément indisponible. Le ticket est conservé.';
+  const messages: Record<string, string> = {
+    authentication:
+      'TypeSafe refuse cette clé. Copiez une clé API active depuis votre console TypeSafe, puis collez-la ici.',
+    permission:
+      'TypeSafe refuse l’accès au modèle. Vérifiez les autorisations de cette clé et l’accès à Jev dans votre compte TypeSafe.',
+    credits:
+      'TypeSafe indique que votre compte doit être approvisionné. Vérifiez les crédits et la facturation dans votre console TypeSafe.',
+    rate_limit:
+      'La limite de requêtes TypeSafe est atteinte. Attendez une minute avant de relancer la vérification.',
+    request:
+      'TypeSafe refuse le format de la demande envoyée par Zentra. La clé n’est pas en cause ; cette intégration doit être corrigée.',
+    redirect:
+      'La connexion TypeSafe a été redirigée. Par sécurité, votre clé n’a pas été transmise à cette autre adresse. L’intégration doit être vérifiée.',
+    timeout:
+      'TypeSafe n’a pas répondu dans le délai prévu. Votre clé n’a pas été enregistrée ; relancez la vérification dans un instant.',
+    network:
+      'Le serveur Zentra ne parvient pas à joindre TypeSafe. Votre clé n’a pas pu être vérifiée ; il s’agit d’un problème de connexion.',
+    unavailable:
+      'TypeSafe est temporairement indisponible. Votre clé n’a pas été enregistrée ; réessayez dans quelques minutes.',
+  };
+  return new AnalysisConnectionError(
+    publicMessage,
+    messages[code] || messages.unavailable,
+    ['authentication', 'permission', 'credits'].includes(code) ? 400 : 503,
+  );
+}
+
+export async function verifyPlatformApiKey(
+  input: unknown,
+  fetcher: typeof fetch = fetch,
+): Promise<string> {
+  const key =
+    typeof input === 'string' ? input.trim().replace(/^Bearer\s+/i, '') : '';
+  if (!/^[\x21-\x7e]{12,8192}$/.test(key))
+    throw new SupportError(
+      'Collez la clé API complète de TypeSafe, sans espace ni retour à la ligne. Ce champ ne demande pas le jeton administrateur Zentra.',
+    );
+  if (key.startsWith('zsa_'))
+    throw new SupportError(
+      'Ce jeton ouvre l’administration Zentra. Pour activer l’analyse, collez ici votre clé API TypeSafe.',
+    );
+  try {
+    await evaluateTicket(
+      key,
+      'Question produit',
+      'Comment consulter les horaires de votre service ?',
+      {},
+      85,
+      fetcher,
+    );
+  } catch (error) {
+    if (error instanceof AnalysisConnectionError)
+      throw new SupportError(error.adminMessage, error.adminStatus);
+    if (error instanceof SupportError)
+      throw new SupportError(
+        'TypeSafe a répondu, mais son analyse n’a pas pu être validée par Zentra. La clé n’a pas été enregistrée ; l’intégration doit être vérifiée.',
+        502,
+      );
+    throw error;
+  }
+  return key;
+}
 export async function evaluateTicket(
   key: string,
   subject: string,
@@ -253,7 +329,9 @@ export async function evaluateTicket(
   try {
     response = await fetcher(JEV_ENDPOINT, {
       method: 'POST',
-      redirect: 'error',
+      // The deployed Workerd runtime rejects redirect: 'error'. With manual,
+      // reject 3xx explicitly before reading a body or forwarding credentials.
+      redirect: 'manual',
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
@@ -261,22 +339,37 @@ export async function evaluateTicket(
       body: JSON.stringify(triageQuestions(subject, body, businessContext)),
       signal: AbortSignal.timeout(8000),
     });
-  } catch {
-    throw new SupportError(
-      'Le service d’analyse ne répond pas pour le moment. Le ticket est conservé ; réessayez.',
-      503,
+  } catch (error) {
+    throw connectionFailure(
+      error instanceof Error &&
+        ['TimeoutError', 'AbortError'].includes(error.name)
+        ? 'timeout'
+        : 'network',
     );
   }
+  if (response.status >= 300 && response.status < 400)
+    throw connectionFailure('redirect', response.status);
   if (!response.ok)
-    throw new SupportError(
-      response.status === 401 || response.status === 403
-        ? 'Le service d’analyse nécessite une intervention de Zentra. Contactez info@zentraapp.ch.'
-        : response.status === 429
-          ? 'Le service d’analyse est très sollicité. Réessayez plus tard.'
-          : 'Le service d’analyse est momentanément indisponible. Le ticket est conservé.',
-      503,
+    throw connectionFailure(
+      response.status === 401
+        ? 'authentication'
+        : response.status === 403
+          ? 'permission'
+          : response.status === 402
+            ? 'credits'
+            : response.status === 429
+              ? 'rate_limit'
+              : [400, 422].includes(response.status)
+                ? 'request'
+                : 'unavailable',
+      response.status,
     );
-  const bodyText = await response.text();
+  let bodyText: string;
+  try {
+    bodyText = await response.text();
+  } catch {
+    throw connectionFailure('network');
+  }
   if (bodyText.length > 64000)
     throw new SupportError(
       'La réponse du service d’analyse est trop volumineuse.',

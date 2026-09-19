@@ -193,7 +193,16 @@ export function SupportAdministration() {
               />
               <p className="support-small">
                 Stockée chiffrée sur le serveur. Elle n’est jamais affichée aux
-                clients. La vérification effectue une analyse d’un texte fictif.
+                clients. La vérification effectue une analyse d’un texte fictif.{' '}
+                Utilisez une clé de votre{' '}
+                <a
+                  href="https://console.typesafe.ai/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  console TypeSafe
+                </a>
+                , distincte de votre jeton administrateur.
               </p>
               <Button
                 className="support-primary"

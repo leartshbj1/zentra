@@ -16,6 +16,7 @@ import {
 } from './crypto';
 import {
   evaluateTicket,
+  verifyPlatformApiKey,
   canAutomaticallyRoute,
   TRIAGE_POLICY_VERSION,
 } from './jev';
@@ -400,14 +401,7 @@ export async function mutateWorkspace(request: Request) {
   if (action === 'platformKey') {
     const actor = await platformAccess(request);
     await enforceAccountRateLimit(request, 'support-admin-key', actor, 15);
-    const key = text(body.apiKey, 8192);
-    await evaluateTicket(
-      key,
-      'Question produit',
-      'Comment consulter les horaires de votre service ?',
-      {},
-      85,
-    );
+    const key = await verifyPlatformApiKey(body.apiKey);
     const sealed = await encryptSecret(
       runtimeValue('SUPPORT_ENCRYPTION_KEY'),
       key,
