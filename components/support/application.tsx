@@ -389,7 +389,8 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
           <h1>Votre support commence ici.</h1>
           <p>
             Créez votre espace, connectez votre outil, puis choisissez vos
-            équipes. Les premières décisions attendront votre validation.
+            équipes. Les tickets suffisamment clairs seront affectés
+            automatiquement.
           </p>
           <form
             onSubmit={async (e) => {

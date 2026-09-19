@@ -14,7 +14,13 @@ import {
   equalHash,
   newHookToken,
 } from './crypto';
-import { evaluateTicket, canAutomaticallyRoute } from './jev';
+import {
+  evaluateTicket,
+  canAutomaticallyRoute,
+  TRIAGE_POLICY_VERSION,
+} from './jev';
+import { hasAdminSession } from './admin-session';
+import { evaluateCalibration, type CalibrationReport } from './calibration';
 import {
   loadDirectory,
   providerDomain,
@@ -172,21 +178,52 @@ async function aiKey() {
       )
     : runtimeValue('TYPESAFE_API_KEY');
 }
-export async function getPlatformState() {
+async function platformAccess(request?: Request) {
+  if (request && (await hasAdminSession(request))) return 'support-admin-token';
   const user = await signedIn();
   if (!platformOwner(user))
     throw new SupportError(
       'Cet espace est réservé au propriétaire de Zentra.',
       403,
     );
+  return user.userId;
+}
+export async function getPlatformState(request?: Request) {
+  await platformAccess(request);
   const row = await database()
     .prepare(
       "SELECT updated_at FROM support_platform_secrets WHERE id='typesafe'",
     )
     .first<{ updated_at: number }>();
+  const key = await aiKey();
+  const savedReport = await database()
+    .prepare(
+      "SELECT secret FROM support_platform_secrets WHERE id='triage-evaluation'",
+    )
+    .first<{ secret: string }>();
+  let calibration: CalibrationReport | null = null;
+  if (savedReport && key) {
+    try {
+      const saved = JSON.parse(
+        await decryptSecret(
+          runtimeValue('SUPPORT_ENCRYPTION_KEY'),
+          savedReport.secret,
+          'platform:triage-evaluation',
+        ),
+      );
+      if (
+        saved.keyBinding === (await digest(key)) &&
+        saved.report?.policyVersion === TRIAGE_POLICY_VERSION
+      )
+        calibration = saved.report;
+    } catch {
+      /* A stale diagnostic never prevents updating the provider key. */
+    }
+  }
   return supportJson({
-    ready: !!(await aiKey()),
+    ready: !!key,
     verifiedAt: row?.updated_at ?? null,
+    calibration,
   });
 }
 function destination(
@@ -318,6 +355,7 @@ export async function getWorkspaceState(request: Request) {
       mode: workspace.mode,
       threshold: workspace.threshold,
       baselineSeconds: workspace.baseline_seconds,
+      triageContext: workspace.triage_context || '',
       role: workspace.role,
       canManage: manage,
       aiReady: !!(await aiKey()),
@@ -333,38 +371,35 @@ export async function getWorkspaceState(request: Request) {
 
 export async function mutateWorkspace(request: Request) {
   requireSameOrigin(request);
-  const user = await signedIn();
-  await enforceAccountRateLimit(request, 'support-ui', user.userId, 180);
   const body = await readJsonObjectWithinLimit(request, 64000),
     action = text(body.action, 40),
     db = database();
-  if (action === 'createWorkspace') {
-    const name = text(body.name, 100);
-    if (name.length < 2)
-      throw new SupportError(
-        'Indiquez le nom de votre entreprise ou de votre équipe.',
-      );
-    const existing = await db
-      .prepare('SELECT id FROM support_workspaces WHERE owner_id=?')
-      .bind(user.userId)
-      .first<{ id: string }>();
-    if (existing) return supportJson({ workspaceId: existing.id });
-    const id = crypto.randomUUID();
+  if (action === 'validateTriage') {
+    const actor = await platformAccess(request);
+    await enforceAccountRateLimit(
+      request,
+      'support-admin-evaluation',
+      actor,
+      4,
+    );
+    const key = await aiKey(),
+      report = await evaluateCalibration(key);
+    const sealed = await encryptSecret(
+      runtimeValue('SUPPORT_ENCRYPTION_KEY'),
+      JSON.stringify({ keyBinding: await digest(key), report }),
+      'platform:triage-evaluation',
+    );
     await db
       .prepare(
-        'INSERT INTO support_workspaces(id,owner_id,name,created_at,updated_at) VALUES(?,?,?,?,?)',
+        "INSERT INTO support_platform_secrets(id,secret,updated_by,updated_at) VALUES('triage-evaluation',?,?,?) ON CONFLICT(id) DO UPDATE SET secret=excluded.secret,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
       )
-      .bind(id, user.userId, name, now(), now())
+      .bind(sealed, actor, now())
       .run();
-    await event(id, null, 'workspace', 'Espace support créé.', user.email);
-    return supportJson({ workspaceId: id }, 201);
+    return supportJson({ report });
   }
   if (action === 'platformKey') {
-    if (!platformOwner(user))
-      throw new SupportError(
-        'Cette action est réservée au propriétaire de Zentra.',
-        403,
-      );
+    const actor = await platformAccess(request);
+    await enforceAccountRateLimit(request, 'support-admin-key', actor, 15);
     const key = text(body.apiKey, 8192);
     await evaluateTicket(
       key,
@@ -382,9 +417,32 @@ export async function mutateWorkspace(request: Request) {
       .prepare(
         "INSERT INTO support_platform_secrets(id,secret,updated_by,updated_at) VALUES('typesafe',?,?,?) ON CONFLICT(id) DO UPDATE SET secret=excluded.secret,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
       )
-      .bind(sealed, user.userId, now())
+      .bind(sealed, actor, now())
       .run();
     return supportJson({ saved: true });
+  }
+  const user = await signedIn();
+  await enforceAccountRateLimit(request, 'support-ui', user.userId, 180);
+  if (action === 'createWorkspace') {
+    const name = text(body.name, 100);
+    if (name.length < 2)
+      throw new SupportError(
+        'Indiquez le nom de votre entreprise ou de votre équipe.',
+      );
+    const existing = await db
+      .prepare('SELECT id FROM support_workspaces WHERE owner_id=?')
+      .bind(user.userId)
+      .first<{ id: string }>();
+    if (existing) return supportJson({ workspaceId: existing.id });
+    const id = crypto.randomUUID();
+    await db
+      .prepare(
+        "INSERT INTO support_workspaces(id,owner_id,name,mode,created_at,updated_at) VALUES(?,?,?,'automatic',?,?)",
+      )
+      .bind(id, user.userId, name, now(), now())
+      .run();
+    await event(id, null, 'workspace', 'Espace support créé.', user.email);
+    return supportJson({ workspaceId: id }, 201);
   }
   const workspace = await access(
     user,
@@ -403,7 +461,11 @@ export async function mutateWorkspace(request: Request) {
   if (action === 'settings') {
     const name = text(body.name, 100),
       threshold = Number(body.threshold),
-      baseline = Number(body.baselineSeconds);
+      baseline = Number(body.baselineSeconds),
+      triageContext =
+        body.triageContext === undefined
+          ? workspace.triage_context || ''
+          : text(body.triageContext, 2001);
     if (
       name.length < 2 ||
       !['automatic', 'review'].includes(String(body.mode)) ||
@@ -412,7 +474,8 @@ export async function mutateWorkspace(request: Request) {
       threshold > 100 ||
       !Number.isInteger(baseline) ||
       baseline < 5 ||
-      baseline > 900
+      baseline > 900 ||
+      triageContext.length > 2000
     )
       throw new SupportError(
         'Vérifiez le nom, le seuil (50 à 100 %) et le temps de tri (5 à 900 secondes).',
@@ -423,9 +486,17 @@ export async function mutateWorkspace(request: Request) {
       );
     await db
       .prepare(
-        'UPDATE support_workspaces SET name=?,mode=?,threshold=?,baseline_seconds=?,updated_at=? WHERE id=?',
+        'UPDATE support_workspaces SET name=?,mode=?,threshold=?,baseline_seconds=?,triage_context=?,updated_at=? WHERE id=?',
       )
-      .bind(name, body.mode, threshold, baseline, now(), workspace.id)
+      .bind(
+        name,
+        body.mode,
+        threshold,
+        baseline,
+        triageContext,
+        now(),
+        workspace.id,
+      )
       .run();
     await event(
       workspace.id,
@@ -874,6 +945,8 @@ export async function processTicket(
         ticket.body,
         JSON.parse(active.routes_json) as Rules,
         currentWorkspace.threshold,
+        undefined,
+        currentWorkspace.triage_context || '',
       ));
     let auto =
       !manual &&

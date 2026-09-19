@@ -8,7 +8,7 @@ Présentation publique à `/support`, application distincte à `/support/espace`
 2. Le propriétaire de Zentra configure une seule clé TypeSafe à `/support/admin`. Aucun client ne fournit de clé IA ni ne voit de marque fournisseur dans son espace. L’accès admin et l’écriture de la clé sont contrôlés côté serveur. Le serveur vérifie la clé sur un texte fictif avant de la chiffrer. Aucune clé ne revient dans les réponses de lecture. Les anciennes clés par espace sont ignorées et ne peuvent plus être modifiées.
 3. Ajouter Zendesk, Freshdesk, Gorgias ou « Autre outil · API ». Pour un connecteur natif, fournir le sous-domaine officiel et une clé permettant lecture des équipes/agents/tickets et modification de l’affectation/priorité. Certains abonnements du fournisseur peuvent restreindre ces APIs.
 4. Copier l’adresse et la clé de webhook affichée une seule fois. Dans l’outil, configurer un POST JSON lors de la création d’un ticket avec `Authorization: Bearer <clé>` et `{"ticketId":"<identifiant dynamique>"}`. Choisir uniquement l’événement de création pour éviter les boucles lors des affectations. Tester avec un ticket non client.
-5. Routage → associer catégories et équipes, éventuellement un agent. D’abord valider quelques décisions, puis activer le mode automatique et choisir le seuil.
+5. Routage → associer catégories et équipes, éventuellement un agent. Les nouveaux espaces sont en mode automatique avec seuil de 85 %. Au-dessus du seuil pour catégorie ET priorité, le serveur affecte les nouveaux tickets sans validation manuelle. Le mode validation reste disponible ; les réglages existants sont conservés.
 
 Pour les autres outils, l’intégration nécessite une API ou un scénario Make/n8n capable d’envoyer le ticket ET de modifier son affectation. Ce n’est pas une promesse de connecteur natif pour tous les logiciels.
 
@@ -71,3 +71,13 @@ Le simulateur public est explicitement fictif et le calcul de temps est une simu
 Tests supplémentaires : refus de clés IA clients ; lecture et écriture de la clé plateforme réservées au propriétaire ; chiffrement ; partage entre espaces isolés ; absence de secrets dans les réponses ; demande humaine prioritaire sur la confiance ; signaux manquants ou incohérents refusés.
 
 Documentation complémentaire : https://docs.typesafe.ai/primitives/score ; https://docs.typesafe.ai/primitives/noul ; https://docs.typesafe.ai/confidence.
+
+## Accès privé et vérification du routage
+
+Le propriétaire peut ouvrir `/support/admin` avec un jeton aléatoire de 384 bits (`zsa_` + 64 caractères base64url). Seule son empreinte SHA-256 est configurée dans `SUPPORT_ADMIN_TOKEN_SHA256`. `SUPPORT_ADMIN_SESSION_KEY` est une clé HMAC indépendante de 32 octets base64url. L’échange se fait uniquement par POST de même origine, limité à 12 essais/adresse/heure, contre un cookie signé de 8 heures, HttpOnly, Secure en production, SameSite=Strict, sans Domain et limité à `/api/support`. Aucun jeton dans l’URL, le code client ou le stockage navigateur. Le jeton ne donne accès qu’à la configuration du service IA et à son évaluation, jamais aux tickets, comptes ou licences des clients. La rotation de l’empreinte maître ou de la clé HMAC invalide les anciennes sessions. L’accès du compte propriétaire reste disponible.
+
+`validateTriage` est limité à quatre évaluations par heure et adresse/administrateur. Il utilise 12 textes fictifs, au plus trois appels simultanés, et vérifie catégorie, priorité, passage automatique pour les cas clairs, blocage pour demande humaine/injection. Le rapport chiffré est lié à la clé et à la version des instructions ; un changement masque les anciens résultats. C’est un contrôle de configuration, pas une preuve statistique de précision.
+
+Migration additive `0042_support_triage_context.sql` : contexte métier facultatif (2 000 caractères), envoyé comme vocabulaire de domaine, sans pouvoir changer les règles ni les destinataires. Politique `support-2026-09-19-v2` : frontières remboursement/livraison, incident technique/accès, négations, antériorité et vrais impacts opérationnels. Aucune promesse de « zéro erreur ».
+
+Vérifications supplémentaires : tests de session expirée, modifiée, révoquée, jeton incorrect, limitation et HTTPS ; portée administration seule ; seuil exact 85 %, 84,9 % sur chacune des décisions ; trois parcours complets Zendesk/Freshdesk/Gorgias avec transports simulés, écriture automatique et confirmation, puis rejeu sans seconde écriture.

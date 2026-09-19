@@ -37,6 +37,7 @@ export type Decision = {
   priorityConfidence: number;
   probabilities: Record<string, number>;
   model: string;
+  policyVersion?: string;
   inputTokens: number;
   destination: Destination | null;
   reason: string;
@@ -64,6 +65,7 @@ export type Workspace = {
   id: string;
   owner_id: string;
   name: string;
+  triage_context: string;
   mode: 'automatic' | 'review' | 'paused';
   threshold: number;
   baseline_seconds: number;

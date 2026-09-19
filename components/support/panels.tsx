@@ -736,6 +736,7 @@ function WorkspaceSettings({
     [mode, setMode] = useState(w.mode),
     [threshold, setThreshold] = useState(w.threshold),
     [baseline, setBaseline] = useState(w.baselineSeconds),
+    [triageContext, setTriageContext] = useState(w.triageContext),
     [name, setName] = useState(w.name);
   return (
     <form
@@ -748,6 +749,7 @@ function WorkspaceSettings({
           mode,
           threshold,
           baselineSeconds: baseline,
+          triageContext,
         });
       }}
     >
@@ -792,10 +794,28 @@ function WorkspaceSettings({
         />
       </div>
       <p className="support-small">
-        Commencez par valider quelques tickets. Ajustez ensuite le seuil selon
-        vos résultats. La confiance du modèle n’est pas une garantie
-        d’exactitude.
+        En mode automatique, catégorie et priorité doivent atteindre le seuil.
+        Les nouveaux tickets sont alors affectés sans clic de votre part. Les
+        cas ambigus restent à vérifier. Ajustez le seuil selon vos résultats.
       </p>
+      <details className="support-context-details">
+        <summary>Préciser mon activité (facultatif)</summary>
+        <label className="support-field">
+          Vos produits et votre vocabulaire
+          <textarea
+            value={triageContext}
+            onChange={(e) => setTriageContext(e.target.value)}
+            maxLength={2000}
+            rows={4}
+            disabled={!w.canManage}
+            placeholder="Ex. : boutique de vêtements. Un échange signifie remplacer la taille, sans remboursement."
+          />
+        </label>
+        <p className="support-small">
+          Décrivez votre activité et les termes spécifiques. Les destinataires
+          restent ceux choisis dans vos règles de routage.
+        </p>
+      </details>
       <Button
         className="support-primary"
         disabled={busy || !w.canManage}

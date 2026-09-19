@@ -21,6 +21,8 @@ type RuntimeBindings = {
   ZENTRA_OWNER_EMAIL?: string;
   SUPPORT_ENCRYPTION_KEY?: string;
   TYPESAFE_API_KEY?: string;
+  SUPPORT_ADMIN_TOKEN_SHA256?: string;
+  SUPPORT_ADMIN_SESSION_KEY?: string;
 };
 
 const bindings = env as unknown as RuntimeBindings;

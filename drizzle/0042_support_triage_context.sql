@@ -1,0 +1,1 @@
+ALTER TABLE `support_workspaces` ADD `triage_context` text DEFAULT '' NOT NULL;

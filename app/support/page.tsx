@@ -155,9 +155,9 @@ export default async function SupportPage({
               <span>Zentra s’en occupe.</span>
             </h2>
             <p>
-              Commencez par valider les premières propositions. Quand vos règles
-              vous conviennent, activez le tri automatique. Ajustez votre seuil
-              de confiance à tout moment.
+              Le tri automatique est activé pour les nouveaux espaces.
+              Choisissez vos destinations et votre seuil de confiance. Vous
+              pouvez aussi passer en validation manuelle à tout moment.
             </p>
             <a className="sp-text-link" href="/support/demo">
               Essayer une validation <ArrowRight size={17} />

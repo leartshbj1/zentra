@@ -35,6 +35,7 @@ export type SupportState = {
     mode: string;
     threshold: number;
     baselineSeconds: number;
+    triageContext: string;
     role: string;
     canManage: boolean;
     aiReady: boolean;
@@ -157,6 +158,7 @@ export function demoState(): SupportState {
       mode: 'automatic',
       threshold: 85,
       baselineSeconds: 60,
+      triageContext: '',
       role: 'owner',
       canManage: true,
       aiReady: true,

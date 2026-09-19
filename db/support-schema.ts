@@ -10,6 +10,7 @@ export const supportWorkspaces = sqliteTable('support_workspaces', {
   id: text('id').primaryKey(),
   ownerId: text('owner_id').notNull().unique(),
   name: text('name').notNull(),
+  triageContext: text('triage_context').notNull().default(''),
   mode: text('mode').notNull().default('review'),
   threshold: integer('threshold').notNull().default(85),
   baselineSeconds: integer('baseline_seconds').notNull().default(60),

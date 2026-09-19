@@ -9,6 +9,7 @@ import {
   evaluateTicket,
 } from './jev';
 import { encryptSecret, decryptSecret } from './crypto';
+import { createAdminSession, adminCookie } from './admin-session';
 import {
   providerDomain,
   assignmentPayload,
@@ -19,6 +20,7 @@ import {
 import { CATEGORIES, PRIORITIES, LANGUAGES, type Connection } from './types';
 
 const state = vi.hoisted(() => ({
+  signedOut: false,
   db: null as unknown,
   user: {
     userId: 'owner-1',
@@ -33,7 +35,9 @@ vi.mock('@/lib/runtime', () => ({
   database: () => state.db,
   runtimeValue: (k: string) => state.env[k] || '',
 }));
-vi.mock('@/app/zentra-auth', () => ({ getZentraUser: async () => state.user }));
+vi.mock('@/app/zentra-auth', () => ({
+  getZentraUser: async () => (state.signedOut ? null : state.user),
+}));
 vi.mock('@/lib/account', () => ({
   enforceAccountRateLimit: async () => {},
   normalizedEmail: (v: string) => v.toLowerCase(),
@@ -328,6 +332,7 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       connection,
     );
   beforeEach(async () => {
+    state.signedOut = false;
     sql = new DatabaseSync(':memory:');
     sql.exec('PRAGMA foreign_keys=ON');
     sql.exec(
@@ -361,6 +366,15 @@ describe('Parcours complet dans une vraie base SQLite', () => {
         return api;
       },
     };
+    sql.exec(
+      readFileSync(
+        new URL(
+          '../../drizzle/0042_support_triage_context.sql',
+          import.meta.url,
+        ).pathname.replace(/^\/([A-Z]:)/, '$1'),
+        'utf8',
+      ),
+    );
     state.user = {
       userId: 'owner-1',
       email: 'owner@example.test',
@@ -385,11 +399,183 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     connection = created.connectionId;
     token = created.hookToken;
     await post({ action: 'routes', connectionId: connection, rules });
+    await post({
+      action: 'settings',
+      name: 'QA Support',
+      mode: 'review',
+      threshold: 85,
+      baselineSeconds: 60,
+    });
   });
   afterEach(() => {
     sql.close();
     vi.unstubAllGlobals();
   });
+  it('limite le jeton au panneau privé sans donner accès aux espaces clients', async () => {
+    const { createHash } = await import('node:crypto');
+    const master = 'zsa_' + randomBytes(48).toString('base64url');
+    state.env.SUPPORT_ADMIN_TOKEN_SHA256 = createHash('sha256')
+      .update(master)
+      .digest('hex');
+    state.env.SUPPORT_ADMIN_SESSION_KEY = randomBytes(32).toString('base64url');
+    const req = new Request('https://zentraapp.ch/api/support');
+    const cookie = adminCookie(
+      req,
+      await createAdminSession(req, master),
+    ).split(';')[0];
+    state.signedOut = true;
+    const request = new Request('https://zentraapp.ch/api/support?admin=1', {
+      headers: { Cookie: cookie },
+    });
+    expect((await json(await getPlatformState(request))).ready).toBe(true);
+    await expect(getWorkspaceState(request)).rejects.toMatchObject({
+      status: 401,
+    });
+    await expect(
+      mutateWorkspace(
+        new Request('https://zentraapp.ch/api/support', {
+          method: 'POST',
+          headers: {
+            Cookie: cookie,
+            Origin: 'https://zentraapp.ch',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'createWorkspace', name: 'Denied' }),
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(
+      (
+        await mutateWorkspace(
+          new Request('https://zentraapp.ch/api/support', {
+            method: 'POST',
+            headers: {
+              Cookie: cookie,
+              Origin: 'https://zentraapp.ch',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              action: 'platformKey',
+              apiKey: 'platform-key-fixture',
+            }),
+          }),
+        )
+      ).status,
+    ).toBe(200);
+  });
+  it.each(['zendesk', 'freshdesk', 'gorgias'] as const)(
+    'affecte réellement via le transport %s sans validation manuelle',
+    async (provider) => {
+      let writes = 0,
+        analyses = 0;
+      const ticket: Record<string, unknown> = {
+        id: 101,
+        subject: 'Erreur',
+        description: 'Export bloqué',
+        description_text: 'Export bloqué',
+        excerpt: 'Export bloqué',
+        requester_id: 77,
+        status: provider === 'freshdesk' ? 2 : 'open',
+        updated_at: '2026-09-19T10:00:00Z',
+        group_id: null,
+        assignee_id: null,
+        responder_id: null,
+        assignee_team: null,
+        assignee_user: null,
+        priority: provider === 'freshdesk' ? 2 : 'normal',
+      };
+      vi.mocked(fetch).mockImplementation(async (url, init) => {
+        const u = new URL(String(url));
+        if (u.hostname === 'api.typesafe.ai') {
+          analyses++;
+          return Response.json(answer());
+        }
+        if (u.pathname.includes('groups'))
+          return Response.json(
+            provider === 'zendesk'
+              ? { groups: [{ id: 12, name: 'Technique' }] }
+              : [{ id: 12, name: 'Technique' }],
+          );
+        if (u.pathname === '/api/teams')
+          return Response.json({ data: [{ id: 12, name: 'Technique' }] });
+        if (u.pathname.includes('users') || u.pathname.includes('agents'))
+          return Response.json(
+            provider === 'zendesk'
+              ? { users: [] }
+              : provider === 'freshdesk'
+                ? []
+                : { data: [] },
+          );
+        if (u.pathname.includes('comments'))
+          return Response.json({
+            comments: [{ author_id: 77, public: true, body: 'Export bloqué' }],
+          });
+        if (u.pathname.includes('conversations')) return Response.json([]);
+        if (u.pathname === '/api/messages')
+          return Response.json({
+            data: [{ from_agent: false, body_text: 'Export bloqué' }],
+          });
+        if (init?.method === 'PUT') {
+          writes++;
+          const data = JSON.parse(String(init.body));
+          Object.assign(ticket, provider === 'zendesk' ? data.ticket : data);
+          ticket.updated_at = '2026-09-19T10:01:00Z';
+        }
+        return Response.json(provider === 'zendesk' ? { ticket } : ticket);
+      });
+      const connected = await json(
+        await post({
+          action: 'connect',
+          provider,
+          domain: 'qa-company',
+          login: 'owner@example.test',
+          apiKey: 'provider-fixture-key',
+        }),
+      );
+      await post({
+        action: 'routes',
+        connectionId: connected.connectionId,
+        rules: { bug: { teamId: '12' } },
+      });
+      await post({
+        action: 'settings',
+        name: 'QA',
+        mode: 'automatic',
+        threshold: 85,
+        baselineSeconds: 60,
+      });
+      const fire = () =>
+        receiveHook(
+          new Request(
+            `https://zentraapp.ch/api/support/hooks/${connected.connectionId}`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${connected.hookToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ ticketId: '101' }),
+            },
+          ),
+          connected.connectionId,
+        );
+      expect((await json(await fire())).ticket).toMatchObject({
+        state: 'routed',
+        automatic: true,
+      });
+      expect(writes).toBe(1);
+      expect(analyses).toBe(1);
+      expect((await json(await fire())).ticket.state).toBe('routed');
+      expect(writes).toBe(1);
+      expect(analyses).toBe(1);
+      const result = await json(
+        await getWorkspaceState(
+          new Request('https://zentraapp.ch/api/support'),
+        ),
+      );
+      expect(result.counts.automatic).toBe(1);
+    },
+  );
   it('réserve la clé plateforme et son état au propriétaire de Zentra', async () => {
     await expect(getPlatformState()).rejects.toMatchObject({ status: 403 });
     await expect(
@@ -452,6 +638,7 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       await getWorkspaceState(new Request('https://zentraapp.ch/api/support')),
     );
     expect(second.workspace.aiReady).toBe(true);
+    expect(second.workspace.mode).toBe('automatic');
     expect(second.tickets).toHaveLength(0);
   });
   it('valide puis confirme un ticket et déduplique les rediffusions', async () => {
@@ -508,6 +695,56 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     expect(
       (await json(await hook({ ticketId: 'b', subject: 'B', body: 'Unsure' })))
         .ticket.state,
+    ).toBe('review');
+  });
+  it('applique le seuil aux deux décisions et transmet le contexte sans intervention', async () => {
+    await post({
+      action: 'settings',
+      name: 'QA',
+      mode: 'automatic',
+      threshold: 85,
+      baselineSeconds: 60,
+      triageContext: 'Vente de vêtements et retours de tailles.',
+    });
+    for (const [id, categoryConfidence, priorityConfidence, expected] of [
+      ['at-threshold', 0.85, 0.85, 'ready'],
+      ['category-low', 0.849, 0.99, 'review'],
+      ['priority-low', 0.99, 0.849, 'review'],
+    ] as const) {
+      const result = answer('bug', categoryConfidence);
+      result.answers.priority.confidence = priorityConfidence;
+      vi.mocked(fetch).mockResolvedValueOnce(Response.json(result));
+      expect(
+        (
+          await json(
+            await hook({
+              ticketId: id,
+              subject: 'Bug',
+              body: 'Export en erreur',
+            }),
+          )
+        ).ticket.state,
+      ).toBe(expected);
+    }
+    const sent = JSON.parse(
+      String(vi.mocked(fetch).mock.calls.at(-1)?.[1]?.body),
+    );
+    expect(sent.state.business_context).toBe(
+      'Vente de vêtements et retours de tailles.',
+    );
+    const human = answer();
+    human.answers.human_requested.noul = 0.95;
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json(human));
+    expect(
+      (
+        await json(
+          await hook({
+            ticketId: 'human-review',
+            subject: 'Bug',
+            body: 'Je veux parler à un humain',
+          }),
+        )
+      ).ticket.state,
     ).toBe('review');
   });
   it('bloque un autre client et un lecteur, et révoque immédiatement l’accès', async () => {
