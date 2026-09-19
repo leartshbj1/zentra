@@ -406,7 +406,7 @@ export async function verifySupportBilling() {
         submit: { message: 'Vérification interne Zentra. Ne pas payer.' },
       },
     });
-    let validationError:unknown;
+    let validationError: unknown;
     try {
       if (
         !session.url ||
@@ -425,13 +425,16 @@ export async function verifySupportBilling() {
       });
       if (!page.ok)
         throw new SupportError('La page Stripe ne s’ouvre pas.', 503);
-    } catch(error) {
-      validationError=error;
+    } catch (error) {
+      validationError = error;
     }
     const expired = await stripe.checkout.sessions.expire(session.id);
     if (expired.status !== 'expired')
-      throw new SupportError('Le paiement de vérification doit être fermé dans Stripe.',503);
-    if(validationError) throw validationError;
+      throw new SupportError(
+        'Le paiement de vérification doit être fermé dans Stripe.',
+        503,
+      );
+    if (validationError) throw validationError;
     results.push({ plan: plan.id, amount: plan.priceChfCents, expired: true });
   }
   return {
@@ -644,6 +647,7 @@ export async function createSupportCheckout(
       expires_at: number;
       accepted_at: number;
       accepted_version: string;
+      owner_id: string;
     }>();
   if (!attempt)
     throw new SupportError('Impossible de préparer le paiement.', 503);
@@ -652,10 +656,31 @@ export async function createSupportCheckout(
       'Un paiement est déjà ouvert pour une autre formule. Terminez-le ou annulez ce paiement pour choisir une autre formule.',
       409,
     );
+  const recordAcceptance = async (sessionId: string) => {
+    // Persist the original consent before exposing a payable URL. Repeating
+    // this also repairs links prepared before an interrupted storage write.
+    await db
+      .prepare(
+        'INSERT INTO support_checkout_acceptances(session_id,workspace_id,owner_id,plan_id,legal_version,accepted_at) VALUES(?,?,?,?,?,?) ON CONFLICT(session_id) DO NOTHING',
+      )
+      .bind(
+        sessionId,
+        workspace.id,
+        attempt.owner_id,
+        attempt.plan_id,
+        attempt.accepted_version,
+        attempt.accepted_at,
+      )
+      .run();
+  };
   if (attempt.session_id) {
     const session = await stripe.checkout.sessions.retrieve(attempt.session_id);
-    if (session.status === 'open' && session.url) return { url: session.url };
+    if (session.status === 'open' && session.url) {
+      await recordAcceptance(session.id);
+      return { url: session.url };
+    }
     if (session.status === 'complete') {
+      await recordAcceptance(session.id);
       await refreshSupportPayment(workspace, user, session.id);
       return {
         url: `/support/espace?workspace=${workspace.id}&section=billing`,
@@ -704,24 +729,12 @@ export async function createSupportCheckout(
   );
   if (!session.url || session.livemode !== config.livemode)
     throw new SupportError('Le lien de paiement n’a pas pu être préparé.', 503);
+  await recordAcceptance(session.id);
   await db
     .prepare(
       'UPDATE support_checkouts SET session_id=?,session_url=? WHERE workspace_id=? AND nonce=?',
     )
     .bind(session.id, session.url, workspace.id, attempt.nonce)
-    .run();
-  await db
-    .prepare(
-      'INSERT INTO support_checkout_acceptances(session_id,workspace_id,owner_id,plan_id,legal_version,accepted_at) VALUES(?,?,?,?,?,?) ON CONFLICT(session_id) DO NOTHING',
-    )
-    .bind(
-      session.id,
-      workspace.id,
-      user.userId,
-      plan.id,
-      attempt.accepted_version,
-      attempt.accepted_at,
-    )
     .run();
   return { url: session.url };
 }

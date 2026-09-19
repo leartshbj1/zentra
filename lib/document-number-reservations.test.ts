@@ -6,8 +6,16 @@ const mocks = vi.hoisted(() => ({
   db: vi.fn(),
   session: vi.fn(),
   rate: vi.fn(),
+  shared: vi.fn(),
+  reserveShared: vi.fn(),
 }));
 vi.mock('@/lib/runtime', () => ({ database: mocks.db }));
+vi.mock('@/lib/supabase-server-runtime', () => ({
+  supabaseServerClient: () => ({
+    select: mocks.shared,
+    rpc: mocks.reserveShared,
+  }),
+}));
 vi.mock('@/lib/account', async (original) => ({
   ...(await original<typeof import('./account')>()),
   requireDeviceSession: mocks.session,
@@ -57,6 +65,8 @@ function prepared(sql: string) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.shared.mockResolvedValue([]);
+  mocks.reserveShared.mockReset();
   db = new DatabaseSync(':memory:');
   const folder = new URL('../drizzle/', import.meta.url);
   for (const file of readdirSync(folder)
@@ -261,4 +271,52 @@ it('keeps historical reservations but refuses to replay them while the shared hi
       .prepare('SELECT COUNT(*) AS count FROM document_number_reservations')
       .get()!.count,
   ).toBe(1);
+});
+
+it('reserves in the authoritative Supabase company with the authenticated identity', async () => {
+  mocks.shared.mockResolvedValue([{ revision: 4 }]);
+  const sharedResult = {
+    organization_id: owner.organizationId,
+    installation_id: owner.installationId,
+    start_value: 401,
+    end_value: 500,
+  };
+  mocks.reserveShared.mockResolvedValue(sharedResult);
+  const response = await POST(
+    request({
+      ...base,
+      organization_id: 'foreign',
+      installation_id: 'foreign',
+    }),
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual(sharedResult);
+  expect(mocks.reserveShared).toHaveBeenCalledWith(
+    'zentra_reserve_workspace_numbers',
+    {
+      p_organization: owner.organizationId,
+      p_installation: owner.installationId,
+      p_request: id,
+      p_prefix: 'F',
+      p_year: 2026,
+      p_minimum: 1,
+      p_count: 100,
+    },
+  );
+  expect(
+    db.prepare('SELECT COUNT(*) AS n FROM document_number_reservations').get()
+      ?.n,
+  ).toBe(0);
+});
+
+it('never falls back to an independent local counter after a shared service failure', async () => {
+  mocks.shared.mockResolvedValue([{ revision: 4 }]);
+  mocks.reserveShared.mockRejectedValue(
+    new Error('Shared service unavailable'),
+  );
+  expect((await POST(request())).status).toBe(500);
+  expect(
+    db.prepare('SELECT COUNT(*) AS n FROM document_number_reservations').get()
+      ?.n,
+  ).toBe(0);
 });

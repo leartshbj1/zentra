@@ -436,8 +436,62 @@ it('refuse la configuration d’un autre mode Stripe', async () => {
   expect((await billingState(workspace)).active).toBe(false);
 });
 
-it('ferme le checkout de contrôle même quand sa validation échoue',async()=>{
-  await expect(verifySupportBilling()).rejects.toMatchObject({status:503});
+it('reprend un paiement interrompu sans perdre la preuve des conditions', async () => {
+  const body = {
+    plan: 'starter',
+    acceptTerms: true,
+    legalVersion: SUPPORT_LEGAL_VERSION,
+  };
+  sql.exec(
+    "CREATE TRIGGER fail_acceptance BEFORE INSERT ON support_checkout_acceptances BEGIN SELECT RAISE(ABORT, 'temporary storage failure'); END",
+  );
+  await expect(createSupportCheckout(workspace, user, body)).rejects.toThrow(
+    'temporary storage failure',
+  );
+  sql.exec('DROP TRIGGER fail_acceptance');
+  const result = await createSupportCheckout(workspace, user, body);
+  expect(result.url).toBe((state.session as Stripe.Checkout.Session).url);
+  expect(
+    sql
+      .prepare(
+        'SELECT session_id,owner_id,legal_version FROM support_checkout_acceptances',
+      )
+      .all(),
+  ).toEqual([
+    {
+      session_id: 'cs_live_fixture',
+      owner_id: user.userId,
+      legal_version: SUPPORT_LEGAL_VERSION,
+    },
+  ]);
+  expect(
+    new Set(
+      state.calls.map(
+        (call) => (call.options as { idempotencyKey: string }).idempotencyKey,
+      ),
+    ).size,
+  ).toBe(1);
+});
+
+it('répare la preuve manquante d’un lien déjà préparé avec les conditions acceptées initialement', async () => {
+  const body = {
+    plan: 'starter',
+    acceptTerms: true,
+    legalVersion: SUPPORT_LEGAL_VERSION,
+  };
+  await createSupportCheckout(workspace, user, body);
+  sql.exec('DELETE FROM support_checkout_acceptances');
+  sql.prepare('UPDATE support_checkouts SET accepted_at=?').run(time - 300);
+  await createSupportCheckout(workspace, user, body);
+  expect(
+    sql.prepare('SELECT accepted_at FROM support_checkout_acceptances').get()
+      ?.accepted_at,
+  ).toBe(time - 300);
+  expect(state.calls).toHaveLength(1);
+});
+
+it('ferme le checkout de contrôle même quand sa validation échoue', async () => {
+  await expect(verifySupportBilling()).rejects.toMatchObject({ status: 503 });
   expect((state.session as Stripe.Checkout.Session).status).toBe('expired');
   expect((await billingState(workspace)).active).toBe(false);
 });

@@ -54,7 +54,7 @@ export function SupportPrices({
           ) : (
             <a
               className="sp-button sp-button-dark"
-              href={`/support/espace?plan=${plan.id}`}
+              href={`/support/espace?section=billing&plan=${plan.id}`}
             >
               Choisir {plan.name}
               <ArrowUpRight size={16} />

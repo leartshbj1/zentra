@@ -389,7 +389,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               nativeButton={false}
               render={
                 <a
-                  href={`/connexion?retour=${encodeURIComponent('/support/espace' + (workspaceId ? '?workspace=' + workspaceId : ''))}`}
+                  href={`/connexion?retour=${encodeURIComponent('/support/espace?' + new URLSearchParams({ section: tab, ...(workspaceId ? { workspace: workspaceId } : {}) }).toString())}`}
                 />
               }
             >
