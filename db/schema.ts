@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+export * from './support-schema';
 import {
   index,
   integer,

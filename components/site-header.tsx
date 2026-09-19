@@ -12,6 +12,7 @@ const navigation = [
   ['/pricing', 'Tarifs'],
   ['/security', 'Sécurité & données'],
   ['/download', 'Télécharger'],
+  ['/support', 'Support IA'],
 ] as const;
 
 export function SiteHeader() {

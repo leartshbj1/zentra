@@ -288,6 +288,13 @@
       "when": 1789489781122,
       "tag": "0040_founder_email_access",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1789815362892,
+      "tag": "0041_mysterious_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }

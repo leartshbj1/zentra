@@ -10,6 +10,7 @@ const links = [
   ['/pricing', 'Tarifs'],
   ['/security', 'Sécurité & données'],
   ['/download', 'Télécharger'],
+  ['/support', 'Zentra Support · IA'],
   ['/compte', 'Compte & équipe'],
 ] as const;
 
