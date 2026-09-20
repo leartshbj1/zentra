@@ -79,6 +79,16 @@ mod vat_reporting;
 use commands::*;
 use database::LocalStore;
 
+/// Explicit, opt-in maintenance tool. Never compiled into normal releases.
+#[cfg(feature = "maintenance")]
+pub async fn repair_empty_company_link(profile: std::path::PathBuf, email: &str, previous_org: &str) -> Result<serde_json::Value, String> {
+    if !profile.join("helvichantier.sqlite3").is_file() || !profile.join("cloud-account-session.protected").is_file() {
+        return Err("Profil existant et compte connecté requis.".into());
+    }
+    let store = LocalStore::initialize(profile).map_err(error::command_error)?;
+    company_collaboration::repair::run(&store, email, previous_org).await.map_err(error::command_error)
+}
+
 #[tauri::command]
 fn is_native_ready(app: tauri::AppHandle) -> bool {
     use tauri::Manager;

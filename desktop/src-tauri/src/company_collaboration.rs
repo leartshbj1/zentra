@@ -25,6 +25,9 @@ use tauri::{Emitter, State};
 
 pub(crate) const PATH: &str = "/api/account/collaboration";
 const STATE: &str = "company-collaboration.json";
+#[cfg(any(test, feature = "maintenance"))]
+#[path = "company_link_repair.rs"]
+pub(crate) mod repair;
 static GATES: OnceLock<Mutex<HashMap<PathBuf, Arc<AtomicBool>>>> = OnceLock::new();
 type ChangeListener = Arc<dyn Fn() + Send + Sync>;
 static LISTENERS: OnceLock<Mutex<HashMap<PathBuf, ChangeListener>>> = OnceLock::new();

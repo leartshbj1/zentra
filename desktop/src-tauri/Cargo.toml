@@ -10,6 +10,13 @@ rust-version = "1.88"
 name = "helvichantier_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+maintenance = []
+
+[[example]]
+name = "repair_empty_company_link"
+required-features = ["maintenance"]
+
 [[bin]]
 name = "Zentra"
 path = "src/main.rs"
