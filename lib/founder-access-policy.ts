@@ -76,6 +76,8 @@ export function accessExpiry(
 }
 
 export type FounderAction = {
+  product?: 'support';
+  plan?: 'starter' | 'team' | 'business';
   operation: 'lookup' | 'list' | 'grant' | 'revoke';
   email?: string;
   duration?: '14_days' | 'one_month' | 'custom';
@@ -100,6 +102,8 @@ export function parseAction(value: unknown): FounderAction {
           'operationId',
           'expectedRevision',
           'note',
+          'product',
+          'plan',
         ].includes(key),
     )
   )
@@ -109,6 +113,19 @@ export function parseAction(value: unknown): FounderAction {
   const action: FounderAction = {
     operation: a.operation as FounderAction['operation'],
   };
+  if (a.product !== undefined && a.product !== 'support')
+    throw new AccountPublicError('Produit inconnu.');
+  if (a.product === 'support') action.product = 'support';
+  if (
+    a.plan !== undefined &&
+    (a.product !== 'support' || a.operation !== 'grant')
+  )
+    throw new AccountPublicError('Formule inattendue.');
+  if (a.product === 'support' && a.operation === 'grant') {
+    if (!['starter', 'team', 'business'].includes(String(a.plan)))
+      throw new AccountPublicError('Choisissez une formule Zentra Support.');
+    action.plan = a.plan as FounderAction['plan'];
+  }
   if (action.operation !== 'list') action.email = grantEmail(a.email);
   if (action.operation === 'grant' || action.operation === 'revoke') {
     if (
@@ -122,7 +139,7 @@ export function parseAction(value: unknown): FounderAction {
     if (
       typeof a.note !== 'string' ||
       a.note.length > 300 ||
-    a.note.split('').some((char) => char.charCodeAt(0) < 32)
+      a.note.split('').some((char) => char.charCodeAt(0) < 32)
     )
       throw new AccountPublicError(
         'La note est limitée à 300 caractères sur une ligne.',

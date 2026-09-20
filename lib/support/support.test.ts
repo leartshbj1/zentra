@@ -596,6 +596,7 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       '0043_support_billing',
       '0044_support_onboarding',
       '0045_support_oauth_rotation',
+      '0046_founder_support_access',
     ])
       sql.exec(
         readFileSync(

@@ -13,6 +13,7 @@ import { stripeTestAccessAllowed } from '@/lib/stripe-test-access';
 import type { ZentraUser } from '@/app/zentra-auth';
 import { digest } from './crypto';
 import { SupportError, type Workspace } from './types';
+import { supportGrant } from './founder-access';
 import {
   SUPPORT_PRODUCT,
   SUPPORT_LEGAL_VERSION,
@@ -132,30 +133,39 @@ export async function billingState(
   const config = await configuration(),
     row = await subscriptionRow(workspace.id),
     ownerAccess = await isSupportOwner(workspace),
-    plan = supportPlan(row?.paid_plan_id);
-  const usage = row
+    paid = paidAccess(
+      row,
+      stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
+    ),
+    offered = !ownerAccess && !paid ? await supportGrant(workspace) : null,
+    plan = offered?.plan ?? supportPlan(row?.paid_plan_id);
+  const usage = offered
     ? await database()
         .prepare(
-          "SELECT COUNT(*) AS used FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND state='charged'",
+          "SELECT COUNT(*) AS used FROM founder_support_usage WHERE workspace_id=? AND period_start=? AND state='charged'",
         )
-        .bind(workspace.id, row.paid_from)
+        .bind(workspace.id, offered.start)
         .first<{ used: number }>()
-    : null;
+    : row
+      ? await database()
+          .prepare(
+            "SELECT COUNT(*) AS used FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND state='charged'",
+          )
+          .bind(workspace.id, row.paid_from)
+          .first<{ used: number }>()
+      : null;
   return {
-    active:
-      ownerAccess ||
-      paidAccess(
-        row,
-        stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
-      ),
+    active: ownerAccess || paid || !!offered,
     ownerAccess,
+    offeredAccess: !!offered,
+    offeredUntil: offered?.expiresAt ?? null,
     ready: !!config,
     testMode: config?.livemode === false,
     plan: plan?.id ?? null,
-    status: row?.status ?? 'none',
+    status: offered ? 'offered' : (row?.status ?? 'none'),
     used: usage?.used ?? 0,
     limit: plan?.analyses ?? 0,
-    periodEnd: row?.paid_until || null,
+    periodEnd: offered?.end ?? (row?.paid_until || null),
     cancelAtPeriodEnd: !!row?.cancel_at_period_end,
     hasSubscription:
       !!row && !['canceled', 'incomplete_expired'].includes(row.status),
@@ -167,7 +177,11 @@ export async function requireSupportSubscription(
   if (await isSupportOwner(workspace)) return;
   const row = await subscriptionRow(workspace.id);
   if (
-    !paidAccess(row, stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')))
+    !paidAccess(
+      row,
+      stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
+    ) &&
+    !(await supportGrant(workspace))
   )
     throw new SupportError(
       'Activez un abonnement dans Abonnement pour utiliser le tri et le routage. Vos tickets restent dans votre logiciel de support.',
@@ -182,8 +196,48 @@ export async function reserveAnalysis(
   if (await isSupportOwner(workspace)) return null;
   await requireSupportSubscription(workspace);
   const row = await subscriptionRow(workspace.id),
-    plan = supportPlan(row?.paid_plan_id);
-  if (!row || !plan)
+    offered = !paidAccess(
+      row,
+      stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
+    )
+      ? await supportGrant(workspace)
+      : null,
+    plan = offered?.plan ?? supportPlan(row?.paid_plan_id);
+  if (offered) {
+    const time = now();
+    const result = await database()
+      .prepare(`INSERT INTO founder_support_usage(id,workspace_id,period_start,ticket_id,state,expires_at,created_at)
+      SELECT ?,?,?,?,'reserved',?,? WHERE EXISTS(SELECT 1 FROM founder_support_grants WHERE workspace_id=? AND user_id=? AND revision=? AND revoked_at IS NULL AND valid_until>?)
+      AND (SELECT COUNT(*) FROM founder_support_usage WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?)))<?`)
+      .bind(
+        lease,
+        workspace.id,
+        offered.start,
+        ticketId,
+        time + 180,
+        time,
+        workspace.id,
+        workspace.owner_id,
+        offered.revision,
+        time,
+        workspace.id,
+        offered.start,
+        time,
+        offered.plan.analyses,
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new SupportError(
+        'Le volume d’analyses offert est atteint ou l’accès a changé. Actualisez votre espace. Aucun supplément ne sera facturé.',
+        402,
+      );
+    return 'founder:' + lease;
+  }
+  if (
+    !row ||
+    !plan ||
+    !paidAccess(row, stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')))
+  )
     throw new SupportError('L’abonnement doit être actualisé.', 402);
   const time = now();
   const result = await database()
@@ -217,9 +271,12 @@ export async function finishAnalysis(
   if (reservation)
     await database()
       .prepare(
-        "UPDATE support_analysis_usage SET state=? WHERE id=? AND state='reserved'",
+        `UPDATE ${reservation.startsWith('founder:') ? 'founder_support_usage' : 'support_analysis_usage'} SET state=? WHERE id=? AND state='reserved'`,
       )
-      .bind(success ? 'charged' : 'released', reservation)
+      .bind(
+        success ? 'charged' : 'released',
+        reservation.startsWith('founder:') ? reservation.slice(8) : reservation,
+      )
       .run();
 }
 

@@ -13,6 +13,11 @@ if ($Build) {
     if ($LASTEXITCODE -ne 0) { throw 'La compilation a échoué.' }
 }
 if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) { throw "Compilez d'abord avec installer-local.ps1 -Build." }
+$taskAppControl=Get-ItemPropertyValue -LiteralPath 'HKLM:/SYSTEM/CurrentControlSet/Control/CI/Policy' -Name VerifiedAndReputablePolicyState -ErrorAction SilentlyContinue
+if ($taskAppControl -eq 1 -and (Get-AuthenticodeSignature -LiteralPath $binary).Status -ne 'Valid') {
+    & (Join-Path $sourceRoot 'installer-compatible.ps1')
+    return
+}
 New-Item -ItemType Directory -Path $installRoot,$vaultRoot -Force | Out-Null
 
 # Keep the vault readable by this Windows user and SYSTEM only. DPAPI adds

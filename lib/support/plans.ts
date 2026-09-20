@@ -30,6 +30,8 @@ export function supportPlan(value: unknown) {
 export type SupportBillingState = {
   active: boolean;
   ownerAccess: boolean;
+  offeredAccess?: boolean;
+  offeredUntil?: number | null;
   ready: boolean;
   testMode: boolean;
   plan: SupportPlanId | null;
