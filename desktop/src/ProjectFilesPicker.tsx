@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Camera, Paperclip, X } from 'lucide-react';
 import { Button, ErrorPanel } from './ui';
+import { FileClassification } from './AutomationDocument';
 import { fileSizeLabel, PROJECT_FILE_ACCEPT, projectFileError } from './projectDocuments';
 
 export function ProjectFilesPicker({ files, onChange, disabled = false }: { files: File[]; onChange: (files: File[]) => void; disabled?: boolean }) {
@@ -30,6 +31,7 @@ export function ProjectFilesPicker({ files, onChange, disabled = false }: { file
     {error ? <ErrorPanel message={error} /> : null}
     {files.length ? <ul className="project-pending-files">{files.map((file, index) => <li key={`${file.name}-${file.lastModified}-${index}`}>
       <span><strong>{file.name}</strong><small>{fileSizeLabel(file.size)}</small></span>
+      {index===0&&<FileClassification file={file}/>}
       <Button type="button" size="icon" variant="ghost" disabled={disabled} aria-label={`Retirer ${file.name}`} onClick={() => onChange(files.filter((_, current) => current !== index))}><X size={17} /></Button>
     </li>)}</ul> : null}
   </div>;

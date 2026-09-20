@@ -8,6 +8,7 @@ import { payrollLocalAi } from './payrollLocalAi';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { Modal } from './ui';
 import { t, useAppLanguage } from './language';
+import { AssistantAutomationAction } from './AssistantAutomationAction';
 
 type Turn = AssistantMessage & { id: string; incomplete?: boolean; source?: 'guide' | 'qwen' };
 export function ZentraAssistantProvider({ children }: { children: ReactNode }) {
@@ -79,6 +80,7 @@ export function ZentraAssistantProvider({ children }: { children: ReactNode }) {
       </div>
       <span className="sr-only" role="status">{busy ? 'L’assistant prépare une réponse.' : messages.at(-1)?.role==='assistant' ? 'La réponse de l’assistant est disponible.' : ''}</span>
       {error && <p className="assistant-error" role="alert">{error}</p>}
+      {!busy&&messages.at(-1)?.role==='assistant'&&!messages.at(-1)?.incomplete&&<AssistantAutomationAction text={messages.filter(message=>message.role==='user').at(-1)?.content??''} close={close}/>}
       <details className="assistant-guide"><summary><BookOpen size={16}/> Guide Zentra et raccourcis</summary>{guides.map(guide=><section key={guide.id}><h4>{guide.title}</h4><p>{guide.text}</p></section>)}{screen.actions?.map(action=><button type="button" key={action.label} className="button button--secondary" disabled={busy} onClick={()=>{close(); action.run();}}>{action.label}</button>)}</details>
       <form className="assistant-composer" onSubmit={event=>{event.preventDefault();void ask();}}><label className="sr-only" htmlFor="zentra-assistant-question">Votre question</label><textarea id="zentra-assistant-question" value={question} onChange={event=>setQuestion(event.target.value)} placeholder="Posez votre question…" maxLength={900} rows={2} disabled={busy} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();void ask();}}}/>{busy ? <button type="button" onClick={stop} aria-label="Arrêter la réponse"><Square size={19}/></button> : <button type="submit" disabled={!question.trim()||model.phase!=='installed'} aria-label="Envoyer la question"><ArrowUp size={21}/></button>}</form>
       <div className="assistant-footer"><small>Pour les chiffres et les cotisations, vérifiez les calculs Zentra et vos documents.</small><button type="button" disabled={busy||!messages.length} onClick={()=>{setMessages([]);setError('');}} aria-label="Effacer la conversation"><Trash2 size={16}/></button></div>

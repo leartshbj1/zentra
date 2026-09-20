@@ -21,6 +21,9 @@ import type { Workspace } from './types';
 import { centsFromInput, createId, errorMessage, formatMoney } from './utils';
 import { Button, Field, FormActions, Modal } from './ui';
 import './SupplierEmailIntake.css';
+import { SupplierRouting } from './AutomationDocument';
+import { AutomationChoice,useAutomation } from './AutomationControls';
+import { automationResourceFeedback,type AutomationDecision } from './automation';
 
 type RunAction = (
   action: () => Promise<Workspace>,
@@ -91,6 +94,9 @@ export function SupplierEmailIntake({
     useState(false);
   const [localBusy, setLocalBusy] = useState(false);
   const [error, setError] = useState('');
+  const [routingDecision,setRoutingDecision]=useState<AutomationDecision|null>(null);
+  const messageExcerpt=inspection?.subject?.slice(0,1500)||'';
+  const emailDecision=useAutomation('email_classification',messageExcerpt?{text:messageExcerpt}:null,inspection?.sha256);
   const effectiveInspection = inspection
     ? {
         ...inspection,
@@ -183,7 +189,7 @@ export function SupplierEmailIntake({
       'Le brouillon et son justificatif ont été enregistrés localement. Contrôlez-les puis validez la facture pour la comptabiliser.',
       false,
     );
-    if (success) close();
+    if (success) {void automationResourceFeedback(routingDecision,{supplier:draft.supplierId||null,project:draft.projectId||null,expense_category:draft.category||null});close();}
   }
 
   const vatRates = workspace.settings?.organization.vatRegistered
@@ -195,6 +201,7 @@ export function SupplierEmailIntake({
       className="supplier-email-intake"
       aria-label="Import des factures reçues par e-mail"
     >
+      {messageExcerpt&&<><AutomationChoice decision={emailDecision} labels={{quote:'Demande de devis',invoice:'Facture',complaint:'Réclamation',question:'Question',support:'Support',payment:'Paiement',administration:'Administratif',other:'Autre'}} question="type"/><SupplierRouting text={messageExcerpt} workspace={workspace} disabled={localBusy||busy} onDecision={setRoutingDecision} onApply={ids=>setDraft(previous=>previous?{...previous,...(ids.supplier?{supplierId:ids.supplier}:{}),...(ids.project?{projectId:ids.project}:{}),...(ids.category?{category:ids.category}:{})}:previous)}/></>}
       <div className="supplier-email-intake__icon">
         <MailCheck size={22} />
       </div>

@@ -1,10 +1,10 @@
+import { t } from './language';
 import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Upload, X } from 'lucide-react';
 import {
   CATALOG_IMPORT_MAX_BYTES,
   applyCatalogVatFallback,
   catalogRowFromEdit,
-  previewCatalogFile,
   recheckCatalogRows,
   type CatalogImportPreview,
   type CatalogImportRow,
@@ -15,6 +15,9 @@ import type { CatalogItem } from './types';
 import { errorMessage, formatMoney } from './utils';
 import { Button, ErrorPanel, Field, FormActions, Modal, submitForm } from './ui';
 import './CatalogImportWizard.css';
+import { AutomationCatalogMapping } from './AutomationCatalogMapping';
+import { catalogMappingSource,previewCatalogGrid,catalogHeaders,type CatalogMappingSource } from './catalogImport';
+import { automationFeedback,type AutomationDecision } from './automation';
 
 export type CatalogImportConflictPolicy = 'update' | 'skip';
 
@@ -37,6 +40,8 @@ export function CatalogImportWizard({
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<CatalogImportPreview | null>(null);
+  const [mappingSource,setMappingSource]=useState<CatalogMappingSource|null>(null);
+  const mappingAudit=useRef<{decision:AutomationDecision|null;choices:Record<string,string>}|null>(null);
   const [error, setError] = useState('');
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -86,9 +91,13 @@ export function CatalogImportWizard({
     if (!file || locked) return;
     setError('');
     setPreview(null);
+    setMappingSource(null);mappingAudit.current=null;
     setParsing(true);
     try {
-      const next = await previewCatalogFile(file);
+      const source=await catalogMappingSource(file);
+      catalogHeaders(source,source.headerIndex);
+      setMappingSource(source);
+      const next = previewCatalogGrid(source.fileName,source.sheetName,source.rows);
       setPreview(next);
       setPage(0);
       setOnlyIssues(next.rows.some(row => row.errors.length > 0));
@@ -111,7 +120,7 @@ export function CatalogImportWizard({
         reported = true;
         setError(errorMessage(reason, 'L’import a été refusé. Vos lignes corrigées sont conservées.'));
       });
-      if (success) close();
+      if (success) {if(mappingAudit.current)void automationFeedback(mappingAudit.current.decision,mappingAudit.current.choices);close();}
       else if (!reported) setError('L’import n’a pas pu être terminé. Votre fichier et vos corrections sont conservés ; réessayez.');
     } catch (reason) {
       setError(errorMessage(reason, 'L’import n’a pas pu être terminé. Vos corrections sont conservées.'));
@@ -133,6 +142,7 @@ export function CatalogImportWizard({
         setError('');
       }} /> :
       <div className="catalog-import-wizard">
+        {mappingSource&&<details open={!preview}><summary>{t('Choisir les colonnes du fichier')}</summary><AutomationCatalogMapping key={mappingSource.fileName} source={mappingSource} disabled={locked} onPrepared={(value,decision,choices)=>{setPreview(value);setError('');setPage(0);mappingAudit.current={decision,choices};}}/></details>}
         <fieldset disabled={locked}>
         <input
           ref={fileInput}

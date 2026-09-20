@@ -23,6 +23,7 @@ import type { PdfExportReceipt as PdfReceipt } from './pdfExportDelivery';
 import { deferView } from './DeferredView';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { useAssistantScreen } from './assistantContext';
+import { AutomationSetup } from './AutomationControls';
 import { useScreenArrival } from './useScreenArrival';
 import { PayrollSettingsForm } from './PayrollSettingsForm';
 import { usePayrollFieldGuide } from './PayrollFieldGuide';
@@ -482,9 +483,15 @@ export function WorkspaceApp({
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [view, setView] = useState<View>('dashboard');
+  useEffect(()=>{const navigate=(event:Event)=>{const requested=(event as CustomEvent<unknown>).detail;const allowed:Record<string,View>={purchases:'expenses',invoices:'invoices',quotes:'quotes',clients:'clients',bank:'bank',projects:'projects',payroll:'team',accounting:'accounting',planning:'agenda'};if(typeof requested==='string'&&allowed[requested]&&!document.querySelector('[role="dialog"]'))setView(allowed[requested]);};window.addEventListener('zentra-automation-navigate',navigate);return()=>window.removeEventListener('zentra-automation-navigate',navigate);},[]);
   useAppLanguage();
   useProjectSyncBackground(setWorkspace, cloudAccount?.organizationId ?? 'local');
   const [modal, setModal] = useState<ModalState>(null);
+  useEffect(()=>{const openAction=(event:Event)=>{const action=(event as CustomEvent<unknown>).detail;if(typeof action!=='string'||document.querySelector('[role="dialog"]'))return;
+    const routes:Record<string,View>={search_customer:'clients',search_supplier:'expenses',search_invoice:'invoices',get_bank_transactions:'bank',classify_transaction:'bank',analyze_expenses:'expenses',get_project:'projects',create_task:'agenda',search_document:'projects'};
+    if(['create_invoice','create_quote'].includes(action)){if(readOnly)return;const entity=action==='create_invoice'?'invoices':'quotes';setView(entity);setModal({type:'document',entity});}
+    else if(routes[action])setView(routes[action]);
+  };window.addEventListener('zentra-automation-action',openAction);return()=>window.removeEventListener('zentra-automation-action',openAction);},[readOnly]);
   useAssistantScreen({screen: viewTitles[view]?.[0] ?? view, scope: `${workspace.settings?.organization.legalName ?? 'entreprise'}:${view}`, facts: {
     'Rubrique':view,'Canton de paie':workspace.settings?.payroll.payrollCanton,'Entreprise assujettie à la TVA':workspace.settings?.organization.vatRegistered,'Mode lecture seule':readOnly,
   }, actions: [
@@ -5023,6 +5030,7 @@ function SettingsScreen({
       <SettingsCategory id="account" title="Compte et accès" description="Connexion, abonnement et accès à l’entreprise" icon={UserRound}>
       <CloudAccountPanel onAccountChange={onCloudAccountChange} settings={settings} />
       </SettingsCategory>
+      <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions, activation et abonnement" icon={ListChecks}><AutomationSetup /></SettingsCategory>
       <SettingsCategory id="company" title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
       <section className="panel settings-card settings-card--wide">
         <SectionHeading

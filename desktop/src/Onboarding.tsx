@@ -56,6 +56,8 @@ import {
   type OnboardingValidationScope,
 } from './onboardingValidation';
 
+import { AutomationSetup } from './AutomationControls';
+
 const steps = [
   { label: 'Départ', icon: BriefcaseBusiness },
   { label: 'Entreprise', icon: Building2 },
@@ -134,6 +136,7 @@ export function Onboarding({
 }) {
   const [draft] = useState(readOnboardingDraft);
   const [joining, setJoining] = useState(false);
+  const [automationScope,setAutomationScope]=useState<OnboardingValidationScope|null>(null);
   useAppLanguage();
   const [step, setStep] = useState(() => Math.min(6, Math.max(0, draft?.step ?? 0)));
   const [highestStep, setHighestStep] = useState(() => Math.min(6, Math.max(0, draft?.highestStep ?? draft?.step ?? 0)));
@@ -255,7 +258,7 @@ export function Onboarding({
     }
   }
 
-  async function finish(scope: OnboardingValidationScope = 'complete') {
+  async function finish(scope: OnboardingValidationScope = 'complete', optionReviewed=false) {
     if (submitting.current) return;
     const normalized = normalizeOnboardingSettings(settings);
     setSettings(normalized);
@@ -269,6 +272,8 @@ export function Onboarding({
       focusIssue(issues[0]);
       return;
     }
+    if(!optionReviewed){setAutomationScope(scope);return;}
+    setAutomationScope(null);
     submitting.current = true;
     setBusy(true);
     setError('');
@@ -323,6 +328,7 @@ export function Onboarding({
     setSettings((current) => setDeep(current, 'payroll', { [target]: current.payroll[target].filter((rate) => rate.id !== id) }));
   }
 
+  if(automationScope) return <div className="onboarding"><main className="onboarding__main"><AutomationSetup onContinue={()=>void finish(automationScope,true)} onSkip={()=>void finish(automationScope,true)}/><Button variant="ghost" onClick={()=>setAutomationScope(null)}>{t('Retour')}</Button></main></div>;
   return (
     <div className={`onboarding${isMobileRuntime() ? ' onboarding--mobile' : ''}`}>
       <aside className="onboarding__rail">

@@ -1,0 +1,287 @@
+export const automationTranslations: Record<
+  string,
+  readonly [string, string, string]
+> = {
+  Support: ['Support', 'Supporto', 'Support'],
+  Administratif: ['Verwaltung', 'Amministrazione', 'Administration'],
+  Réclamation: ['Reklamation', 'Reclamo', 'Complaint'],
+  Question: ['Frage', 'Domanda', 'Question'],
+  Normal: ['Normal', 'Normale', 'Normal'],
+  Important: ['Wichtig', 'Importante', 'Important'],
+  Urgent: ['Dringend', 'Urgente', 'Urgent'],
+  Justificatif: ['Beleg', 'Giustificativo', 'Supporting document'],
+  Contrat: ['Vertrag', 'Contratto', 'Contract'],
+  Reçu: ['Quittung', 'Ricevuta', 'Receipt'],
+  Type: ['Typ', 'Tipo', 'Type'],
+  'Prix de vente': ['Verkaufspreis', 'Prezzo di vendita', 'Sale price'],
+  'Prix achat': ['Einkaufspreis', 'Prezzo d’acquisto', 'Purchase price'],
+  Désignation: ['Bezeichnung', 'Denominazione', 'Name'],
+  Remboursement: ['Rückerstattung', 'Rimborso', 'Refund'],
+  Marketing: ['Marketing', 'Marketing', 'Marketing'],
+  Restauration: ['Verpflegung', 'Ristorazione', 'Meals'],
+  Transport: ['Transport', 'Trasporti', 'Transport'],
+  Assurances: ['Versicherungen', 'Assicurazioni', 'Insurance'],
+  Télécommunications: [
+    'Telekommunikation',
+    'Telecomunicazioni',
+    'Telecommunications',
+  ],
+  Logiciels: ['Software', 'Software', 'Software'],
+  Loyer: ['Miete', 'Affitto', 'Rent'],
+  Salaires: ['Löhne', 'Salari', 'Salaries'],
+  Confirmer: ['Bestätigen', 'Conferma', 'Confirm'],
+  'Choix appliqué à cet écran.': [
+    'Auswahl auf dieser Ansicht angewendet.',
+    'Scelta applicata a questa schermata.',
+    'Selection applied to this screen.',
+  ],
+  'Zentra Automation': [
+    'Zentra Automation',
+    'Zentra Automation',
+    'Zentra Automation',
+  ],
+  'Suggestions, activation et abonnement': [
+    'Vorschläge, Aktivierung und Abonnement',
+    'Suggerimenti, attivazione e abbonamento',
+    'Suggestions, activation and subscription',
+  ],
+  'Moins de tri, plus de temps pour vous.': [
+    'Weniger Sortieren. Mehr Zeit für Sie.',
+    'Meno lavoro di classificazione, più tempo per te.',
+    'Less sorting. More time for you.',
+  ],
+  'Des suggestions pour classer vos opérations et documents. Vous validez les actions importantes.':
+    [
+      'Vorschläge zum Einordnen Ihrer Buchungen und Dokumente. Wichtige Aktionen bestätigen Sie selbst.',
+      'Suggerimenti per classificare operazioni e documenti. Le azioni importanti richiedono la tua conferma.',
+      'Suggestions to classify transactions and documents. You confirm important actions.',
+    ],
+  'par mois et par entreprise': [
+    'pro Monat und Unternehmen',
+    'al mese per azienda',
+    'per month per company',
+  ],
+  'Option facultative. Les extraits nécessaires sont traités en ligne après votre accord. Le fichier complet n’est pas transmis au service d’analyse.':
+    [
+      'Freiwillige Option. Erforderliche Auszüge werden nach Ihrer Zustimmung online verarbeitet. Die vollständige Datei wird nicht an den Analysedienst übermittelt.',
+      'Opzione facoltativa. Gli estratti necessari vengono elaborati online con il tuo consenso. Il file completo non viene trasmesso al servizio di analisi.',
+      'Optional add-on. Necessary excerpts are processed online with your consent. The complete file is not sent to the analysis service.',
+    ],
+  'Votre option est active.': [
+    'Ihre Option ist aktiv.',
+    'La tua opzione è attiva.',
+    'Your add-on is active.',
+  ],
+  'Gérer Zentra Automation': [
+    'Zentra Automation verwalten',
+    'Gestisci Zentra Automation',
+    'Manage Zentra Automation',
+  ],
+  'Découvrir et activer': [
+    'Ansehen und aktivieren',
+    'Scopri e attiva',
+    'Explore and activate',
+  ],
+  'Continuer sans cette option': [
+    'Ohne diese Option fortfahren',
+    'Continua senza questa opzione',
+    'Continue without this add-on',
+  ],
+  'L’ouverture du compte ne déclenche aucun paiement. Le prix et les conditions sont confirmés avant activation.':
+    [
+      'Das Öffnen des Kontos löst keine Zahlung aus. Preis und Bedingungen werden vor der Aktivierung bestätigt.',
+      'Aprire l’account non comporta pagamenti. Prezzo e condizioni vengono confermati prima dell’attivazione.',
+      'Opening your account does not trigger payment. Confirm the price and terms before activation.',
+    ],
+  'Ouvrez zentraapp.ch/compte/automation dans votre navigateur.': [
+    'Öffnen Sie zentraapp.ch/compte/automation im Browser.',
+    'Apri zentraapp.ch/compte/automation nel browser.',
+    'Open zentraapp.ch/compte/automation in your browser.',
+  ],
+  'Suggestion Zentra': [
+    'Zentra-Vorschlag',
+    'Suggerimento Zentra',
+    'Zentra suggestion',
+  ],
+  Classification: ['Klassifizierung', 'Classificazione', 'Classification'],
+  'Choisissez la catégorie qui convient.': [
+    'Wählen Sie die passende Kategorie.',
+    'Scegli la categoria adatta.',
+    'Choose the appropriate category.',
+  ],
+  'Catégorie à retenir': [
+    'Zu verwendende Kategorie',
+    'Categoria da usare',
+    'Category to use',
+  ],
+  'Choisir ou corriger': [
+    'Auswählen oder korrigieren',
+    'Scegli o correggi',
+    'Choose or correct',
+  ],
+  'Choix enregistré.': [
+    'Auswahl gespeichert.',
+    'Scelta salvata.',
+    'Choice saved.',
+  ],
+  'Le choix n’a pas été enregistré. Votre travail reste disponible.': [
+    'Die Auswahl wurde nicht gespeichert. Ihre Arbeit bleibt erhalten.',
+    'La scelta non è stata salvata. Il tuo lavoro rimane disponibile.',
+    'The choice was not saved. Your work is still available.',
+  ],
+  'Suggestion indisponible. Vous pouvez continuer manuellement.': [
+    'Vorschlag nicht verfügbar. Sie können manuell fortfahren.',
+    'Suggerimento non disponibile. Puoi continuare manualmente.',
+    'Suggestion unavailable. You can continue manually.',
+  ],
+  'Priorité suggérée': [
+    'Vorgeschlagene Priorität',
+    'Priorità suggerita',
+    'Suggested priority',
+  ],
+  'À examiner, sans blocage': [
+    'Zur Prüfung, ohne Sperre',
+    'Da esaminare, senza blocchi',
+    'For review, without blocking',
+  ],
+  'Faible priorité': ['Niedrige Priorität', 'Priorità bassa', 'Low priority'],
+  'Opération normale': [
+    'Übliche Buchung',
+    'Operazione normale',
+    'Normal transaction',
+  ],
+  'Opération inhabituelle': [
+    'Ungewöhnliche Buchung',
+    'Operazione insolita',
+    'Unusual transaction',
+  ],
+  'Préparer depuis un document': [
+    'Aus einem Dokument vorbereiten',
+    'Prepara da un documento',
+    'Prepare from a document',
+  ],
+  'Lecture du document…': [
+    'Dokument wird gelesen…',
+    'Lettura del documento…',
+    'Reading document…',
+  ],
+  'La lecture n’a pas abouti. Vous pouvez remplir le formulaire.': [
+    'Das Lesen war nicht erfolgreich. Sie können das Formular ausfüllen.',
+    'Lettura non riuscita. Puoi compilare il modulo.',
+    'Reading failed. You can fill in the form.',
+  ],
+  'Reprendre dans le brouillon': [
+    'In den Entwurf übernehmen',
+    'Riporta nella bozza',
+    'Use in draft',
+  ],
+  'Vérifiez puis enregistrez le brouillon. Aucun paiement n’est déclenché.': [
+    'Prüfen und speichern Sie den Entwurf. Es wird keine Zahlung ausgelöst.',
+    'Verifica e salva la bozza. Nessun pagamento viene avviato.',
+    'Review and save the draft. No payment is triggered.',
+  ],
+  'Reprendre les colonnes proposées': [
+    'Vorgeschlagene Spalten übernehmen',
+    'Usa le colonne suggerite',
+    'Use suggested columns',
+  ],
+  'Ligne des titres': ['Kopfzeile', 'Riga delle intestazioni', 'Header row'],
+  Colonne: ['Spalte', 'Colonna', 'Column'],
+  'Ne pas importer': ['Nicht importieren', 'Non importare', 'Do not import'],
+  'Vérifier les lignes avant import': [
+    'Zeilen vor dem Import prüfen',
+    'Verifica le righe prima di importare',
+    'Review rows before importing',
+  ],
+  'Vérifiez les colonnes.': [
+    'Prüfen Sie die Spalten.',
+    'Verifica le colonne.',
+    'Check the columns.',
+  ],
+  'Choisir les colonnes du fichier': [
+    'Dateispalten auswählen',
+    'Scegli le colonne del file',
+    'Choose file columns',
+  ],
+  'Préparer une facture': [
+    'Rechnung vorbereiten',
+    'Prepara una fattura',
+    'Prepare an invoice',
+  ],
+  'Préparer un devis': [
+    'Offerte vorbereiten',
+    'Prepara un preventivo',
+    'Prepare a quote',
+  ],
+  'Préparer une tâche': [
+    'Aufgabe vorbereiten',
+    'Prepara un’attività',
+    'Prepare a task',
+  ],
+  'Classer une opération': [
+    'Buchung einordnen',
+    'Classifica un’operazione',
+    'Classify a transaction',
+  ],
+  'Voir les opérations bancaires': [
+    'Bankbuchungen ansehen',
+    'Vedi le operazioni bancarie',
+    'View bank transactions',
+  ],
+  'Voir les dépenses': ['Ausgaben ansehen', 'Vedi le spese', 'View expenses'],
+  'Rechercher un document': [
+    'Dokument suchen',
+    'Cerca un documento',
+    'Search for a document',
+  ],
+  'Le formulaire s’ouvre pour vérification. Rien n’est enregistré sans votre confirmation.':
+    [
+      'Das Formular wird zur Prüfung geöffnet. Ohne Ihre Bestätigung wird nichts gespeichert.',
+      'Il modulo si apre per la verifica. Nulla viene salvato senza la tua conferma.',
+      'The form opens for review. Nothing is saved without your confirmation.',
+    ],
+  'Matériel et marchandises': [
+    'Material und Waren',
+    'Materiali e merci',
+    'Materials and goods',
+  ],
+  'Impôts et taxes': [
+    'Steuern und Abgaben',
+    'Imposte e tasse',
+    'Taxes and duties',
+  ],
+  'Revenu client': ['Kundeneinnahme', 'Entrata da cliente', 'Customer income'],
+  'Relevé bancaire': ['Kontoauszug', 'Estratto conto', 'Bank statement'],
+  'Document fiscal': ['Steuerdokument', 'Documento fiscale', 'Tax document'],
+  'Frais bancaires': ['Bankgebühren', 'Spese bancarie', 'Bank fees'],
+  'Demande de devis': [
+    'Offertanfrage',
+    'Richiesta di preventivo',
+    'Quote request',
+  ],
+  'Choisissez une ligne d’en-tête valide.': [
+    'Wählen Sie eine gültige Kopfzeile.',
+    'Scegli una riga di intestazione valida.',
+    'Choose a valid header row.',
+  ],
+  'Chaque champ doit correspondre à une seule colonne.': [
+    'Jedes Feld muss genau einer Spalte entsprechen.',
+    'Ogni campo deve corrispondere a una sola colonna.',
+    'Each field must match a single column.',
+  ],
+  'Choisissez les colonnes Référence, Désignation et Prix de vente.': [
+    'Wählen Sie die Spalten Referenz, Bezeichnung und Verkaufspreis.',
+    'Scegli le colonne Riferimento, Descrizione e Prezzo di vendita.',
+    'Choose the Reference, Name and Sale price columns.',
+  ],
+  'Vérifiez le choix de chaque colonne.': [
+    'Prüfen Sie die Auswahl jeder Spalte.',
+    'Verifica la scelta per ogni colonna.',
+    'Check the selection for every column.',
+  ],
+  'Conservez au maximum 100 colonnes dans ce fichier.': [
+    'Behalten Sie höchstens 100 Spalten in dieser Datei.',
+    'Mantieni al massimo 100 colonne nel file.',
+    'Keep at most 100 columns in this file.',
+  ],
+};

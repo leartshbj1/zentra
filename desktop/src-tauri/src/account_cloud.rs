@@ -32,6 +32,7 @@ const ME_PATH: &str = "/api/account/me";
 const SESSION_PATH: &str = "/api/account/session";
 const ARCHIVE_PATH: &str = "/api/archive/invoices";
 const TEAM_PATH: &str = "/api/account/team";
+const AUTOMATION_PATH: &str = "/api/automation";
 const ACCOUNT_SESSION_FILE: &str = "cloud-account-session.protected";
 const ACCOUNT_PENDING_FILE: &str = "cloud-account-link.protected";
 const ACCOUNT_EXCHANGE_FILE: &str = "cloud-account-exchange.protected";
@@ -322,6 +323,38 @@ pub async fn cloud_team_request(state: State<'_, LocalStore>, data: Option<serde
     let store = state.inner().clone();
     let _guard = store.account_protected_cache.operation_lock.lock().await;
     team_response(&store, data).await.map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn automation_request(state: State<'_, LocalStore>, data: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+    let store = state.inner().clone();
+    let session = {
+        let _guard = store.account_protected_cache.operation_lock.lock().await;
+        let session = read_session_secret(&store).map_err(command_error)?.ok_or("Connectez votre compte dans Paramètres → Compte et accès.")?;
+        validate_session_for_installation(&session,&store.installation_id).map_err(command_error)?;
+        if parse_future_or_past_date(&session.session_expires_at,"session").map_err(command_error)? <= Utc::now() {
+            return Err("Reconnectez votre compte Zentra pour obtenir des suggestions.".into());
+        }
+        session
+    };
+    let body = data.map(|value| crate::automation::prepare_request(&store,&session.organization_id,&session.role,value))
+        .transpose().map_err(command_error)?.map(|value|serde_json::to_vec(&value)).transpose().map_err(|_|"La demande est invalide.".to_string())?;
+    let method=if body.is_some(){Method::POST}else{Method::GET};
+    let (status,bytes)=account_request_url(method,endpoint(AUTOMATION_PATH).map_err(command_error)?,body,Some(&session.session_token),Duration::from_secs(20)).await.map_err(command_error)?;
+    if !status.is_success(){return Err(command_error(server_response_error(status,&bytes)));}
+    let value:serde_json::Value=parse_json(&bytes,"suggestion").map_err(command_error)?;
+    // An account change during the request invalidates the response.
+    let _guard=store.account_protected_cache.operation_lock.lock().await;
+    let current=read_session_secret(&store).map_err(command_error)?.ok_or("La connexion a changé.")?;
+    if current.organization_id!=session.organization_id || current.session_token!=session.session_token {return Err("La connexion a changé. Relancez la suggestion.".into());}
+    crate::automation::validate_response(&store,&session.organization_id,&value).map_err(command_error)?;
+    Ok(value)
+}
+
+#[tauri::command]
+pub async fn open_automation_settings() -> Result<String,String> {
+    let uri="https://zentraapp.ch/compte/automation".to_string();
+    tauri::async_runtime::spawn_blocking(move||{launch_external_url(&uri).map_err(command_error)?;Ok(uri)}).await.map_err(|error|error.to_string())?
 }
 
 #[tauri::command]
@@ -1032,7 +1065,7 @@ fn validate_verification_uri(value: &str, user_code: &str) -> AppResult<Url> {
 fn endpoint(path: &str) -> AppResult<Url> {
     if !matches!(
         path,
-        START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH | TEAM_PATH
+        START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH | TEAM_PATH | AUTOMATION_PATH
             | "/api/projects/sync" | "/api/projects/sync/file"
             | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
             | "/api/sync/numbers"

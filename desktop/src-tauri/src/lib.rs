@@ -1,6 +1,7 @@
 #![recursion_limit = "256"]
 
 mod account_cloud;
+mod automation;
 mod app_reset;
 mod appearance;
 mod macos_navigation;
@@ -350,6 +351,8 @@ pub fn run() {
             refresh_license,
             account_cloud::get_cloud_account_state,
             account_cloud::cloud_team_request,
+            account_cloud::automation_request,
+            account_cloud::open_automation_settings,
             account_cloud::join_cloud_company,
             app_reset::reset_local_app,
             app_reset::get_reset_recovery,

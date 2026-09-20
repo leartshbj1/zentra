@@ -310,8 +310,9 @@ export function previewCatalogGrid(
   fileName: string,
   sheetName: string,
   rows: GridRow[],
+  explicit?: {rowIndex:number;columns:Map<CatalogImportColumn,number>},
 ): CatalogImportPreview {
-  const { rowIndex: headerIndex, columns } = findHeader(rows);
+  const { rowIndex: headerIndex, columns } = explicit??findHeader(rows);
   const warnings: string[] = [];
   if (!columns.has('purchaseCostCents')) {
     warnings.push('Aucune colonne de prix d’achat détectée : la valeur 0 sera utilisée.');
@@ -566,6 +567,18 @@ export async function previewCatalogXlsxBuffer(
 export async function previewCatalogFile(file: File): Promise<CatalogImportPreview> {
   const { sheetName, rows } = await workbookRows(file);
   return previewCatalogGrid(file.name, sheetName, rows);
+}
+
+export type CatalogMappingSource={fileName:string;sheetName:string;rows:GridRow[];headerIndex:number};
+export const catalogMappingFields:Record<CatalogImportColumn,string>={sku:'Référence',name:'Désignation',description:'Description',unit:'Unité',purchaseCostCents:'Prix achat',salesPriceCents:'Prix de vente',vatBp:'TVA',kind:'Type'};
+export async function catalogMappingSource(file:File):Promise<CatalogMappingSource>{const source=await workbookRows(file);let headerIndex=source.rows.findIndex(row=>row.some(cell=>cellText(cell.value)));try{headerIndex=findHeader(source.rows).rowIndex;}catch{/* The user chooses the header and its mapping. */}return {...source,fileName:file.name,headerIndex:Math.max(0,headerIndex)};}
+export function catalogHeaders(source:CatalogMappingSource,headerIndex:number){if(!Number.isInteger(headerIndex)||headerIndex<0||headerIndex>=Math.min(source.rows.length,20))throw Error('Choisissez une ligne d’en-tête valide.');const row=source.rows[headerIndex];if(row.length>100)throw Error('Conservez au maximum 100 colonnes dans ce fichier.');return row.map(visibleCellText);}
+export function defaultCatalogMapping(source:CatalogMappingSource,headerIndex:number){return catalogHeaders(source,headerIndex).map(value=>headerKey(value)||'ignore');}
+export function previewMappedCatalog(source:CatalogMappingSource,headerIndex:number,mapping:string[]){
+  const headers=catalogHeaders(source,headerIndex);if(mapping.length!==headers.length)throw Error('Vérifiez le choix de chaque colonne.');
+  const columns=new Map<CatalogImportColumn,number>();mapping.forEach((field,index)=>{if(field==='ignore')return;if(!(Object.hasOwn(catalogMappingFields,field))||columns.has(field as CatalogImportColumn))throw Error('Chaque champ doit correspondre à une seule colonne.');columns.set(field as CatalogImportColumn,index);});
+  if(!columns.has('sku')||!columns.has('name')||!columns.has('salesPriceCents'))throw Error('Choisissez les colonnes Référence, Désignation et Prix de vente.');
+  return previewCatalogGrid(source.fileName,source.sheetName,source.rows,{rowIndex:headerIndex,columns});
 }
 
 export function applyCatalogVatFallback(

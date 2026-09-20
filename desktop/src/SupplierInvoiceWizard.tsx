@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, CheckCircle2, Plus, ReceiptText, Trash2 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { AutomationDocumentReader,SupplierRouting } from './AutomationDocument';
+import { DocumentClassification,AttentionSuggestion } from './AutomationControls';
+import { automationResourceFeedback,type AutomationDecision } from './automation';
 import type { SupplierInvoice, Workspace } from './types';
 import { selectableSuppliers, supplierDueDate } from './purchases';
 import { purchaseCostCategories, purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
@@ -30,6 +33,8 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
   const language = useAppLanguage();
   const settings = workspace.settings!, terminology = projectTerminology(settings.business.nogaSection);
   const [draftId] = useState(() => item?.id ?? createId());
+  const [automationText,setAutomationText]=useState('');
+  const automationDecision=useRef<AutomationDecision|null>(null);
   const [initial] = useState(() => purchaseFields(workspace, item));
   const [fields, setFields] = useState(initial), [baseline, setBaseline] = useState(initial);
   const [step, setStep] = useState(initialTarget === 'attachments' && item ? 3 : 0);
@@ -125,7 +130,7 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
         reference: fields.reference.trim(), note: fields.note.trim(), vatTreatment: fields.vatTreatment || undefined,
         items: fields.lines.map(value => { const line = purchaseLineValue(value)!; return { ...line, expenseAccountId: line.expenseAccountId || null, projectId: line.projectId || null }; }),
       }), current ? t('Le brouillon fournisseur a été mis à jour.') : t('Le brouillon fournisseur a été enregistré. Ajoutez maintenant son justificatif.'), false, report);
-      if (saved) { setBaseline(fields); setStep(3); }
+      if (saved) { void automationResourceFeedback(automationDecision.current,{supplier:fields.supplierId||null,project:fields.projectId||null,expense_category:fields.lines[0]?.category||null});setBaseline(fields); setStep(3); }
       else if (!reported) setServerError('La sauvegarde n’est pas confirmée. Votre saisie reste présente ; vérifiez le message de reprise avant une nouvelle tentative.');
     } catch (reason) { report(reason); }
     finally { inFlight.current = false; setSaving(false); }
@@ -141,6 +146,8 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
       <section className="supplier-preparation__page" key={step} tabIndex={-1} aria-labelledby="supplier-preparation-heading">
         <h3 id="supplier-preparation-heading" ref={heading} tabIndex={-1}>{t(titles[step])}</h3>
         {step === 0 && <fieldset disabled={locked || cannotEdit}>
+          <AutomationDocumentReader disabled={locked||cannotEdit} onRead={setAutomationText}/>
+          {automationText&&<><DocumentClassification text={automationText} identity={`supplier:${draftId}`}/><SupplierRouting text={automationText} workspace={workspace} disabled={locked||cannotEdit} onDecision={value=>{automationDecision.current=value;}} onApply={ids=>{setFields(previous=>({...previous,...(ids.supplier?{supplierId:ids.supplier}:{}),...(ids.project?{projectId:ids.project}:{}),lines:ids.category?previous.lines.map(line=>({...line,category:ids.category!})):previous.lines}));}}/></>}
           <p>{t("Gardez la facture devant vous. Recopiez son fournisseur et ses dates ; les achats viennent juste après.")}</p>
           <div className="form-grid">
             <Field label={t("Fournisseur")} required wide error={fieldError('supplierId')}><select name="supplierId" value={fields.supplierId} onChange={event => change('supplierId', event.target.value)}><option value="">{t("Choisir un fournisseur")}</option>{choices.map(value => <option key={value.id} value={value.id}>{value.name}{value.archivedAt ? t(" · archivé (historique)") : ''}</option>)}</select></Field>
@@ -150,6 +157,7 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
             <Field label={t("Échéance")} required error={fieldError('dueDate')} hint={t("La date limite de paiement indiquée par le fournisseur.")}><input name="dueDate" type="date" value={fields.dueDate} onChange={event => change('dueDate', event.target.value)} /></Field>
           </div>
           <Button type="button" variant="secondary" disabled={locked || cannotEdit || !isSalesDate(fields.date)} onClick={() => change('dueDate', supplierDueDate(fields.date, supplier, settings.billing.paymentTermsDays))}>{t("Reprendre le délai habituel")}</Button>
+          {fields.dueDate&&<AttentionSuggestion context={{dueDate:fields.dueDate,resolved:false}} identity={`supplier-due:${draftId}`}/>}
           <Field label={t("Note interne")} error={fieldError('note')} hint={t("Facultatif. Cette note sert à votre suivi de l’achat.")}><textarea name="note" rows={3} value={fields.note} maxLength={10_000} onChange={event => change('note', event.target.value)} /></Field>
         </fieldset>}
         {step === 1 && <fieldset disabled={locked || cannotEdit}>

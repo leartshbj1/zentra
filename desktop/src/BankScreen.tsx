@@ -19,6 +19,8 @@ import {
   Unlink,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { BankClassification,AttentionSuggestion } from './AutomationControls';
+import { bankContext,anomalyContext } from './automation';
 import { BankCustomerPending, BankCustomerRefundCreate, useBankCustomerRequests } from './BankCustomerRefunds';
 import { removeBankCustomerRequest, runBankCustomerRequest, type BankCustomerRequest } from './bankCustomerRefundRequests';
 import {
@@ -616,7 +618,7 @@ export function BankScreen({
         {(Object.keys(filterLabels) as BankMovementFilter[]).map((item) => <button type="button" role="tab" aria-selected={filter === item} className={filter === item ? 'is-active' : ''} key={item} onClick={() => { setFilter(item); setMovementLimit(25); }}>{filterLabels[item]} <em>{counts[item]}</em></button>)}
       </div>
       {movements.length ? <div className="bank-movement-list">
-        {movements.slice(0, movementLimit).map((movement) => {
+        {movements.slice(0, movementLimit).map((movement,index) => {
           const account = accountFor(movement);
           const selectedDocumentId = choices[movement.id] ?? '';
           const candidateQuery = candidateQueries[movement.id] ?? '';
@@ -631,6 +633,7 @@ export function BankScreen({
             <div className="bank-movement__identity"><div><strong>{movement.counterpartyName || (movement.creditDebit === 'DBIT' ? 'Bénéficiaire non renseigné' : 'Payeur non renseigné')}</strong><span className={`bank-status bank-status--${movement.status.toLowerCase()}`}>{movement.status === 'BOOK' ? 'Inscrit au relevé' : 'En attente'}</span><span className="bank-status">{supplierDirection ? 'Sortie bancaire' : 'Entrée bancaire'}</span>{movement.reversal ? <span className="bank-status bank-status--reversal">Extourne</span> : null}</div><p>{formatDate(movement.bookingDate || movement.valueDate)} · {movement.accountId || 'Compte non renseigné'}{movement.counterpartyIban ? ` · ${movement.counterpartyIban}` : ''}</p><small>{referenceLabel(movement.referenceType)} · {movement.reference || movement.unstructured || 'Aucune communication'}</small></div>
             <div className="bank-movement__amount"><strong>{displayMovementAmount(movement)}</strong><small>{movement.valueDate && movement.valueDate !== movement.bookingDate ? `Valeur ${formatDate(movement.valueDate)}` : movement.currency}</small></div>
             <div className="bank-movement__match">
+              {index<10&&!readOnly&&<><BankClassification context={bankContext(movement)} identity={movement.id}/><AttentionSuggestion context={anomalyContext(movement,bank?.movements??[])} identity={movement.id} kind="anomaly_detection"/></>}
               {movement.reconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Rapproché avec {reconciledInvoice?.number || 'une facture'}</strong><small>Confirmé le {formatDateTime(movement.reconciliation.confirmedAt)}</small></span></div>
                 : movement.supplierReconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Réglé avec {reconciledSupplierInvoice?.reference || 'une facture fournisseur'}</strong><small>Confirmé le {formatDateTime(movement.supplierReconciliation.confirmedAt)}</small></span></div>
                   : movement.expenseReconciliation ? <div className="bank-match-confirmed"><CheckCircle2 size={16} /><span><strong>Dépense rapprochée · {workspace.expenses.find((expense) => expense.id === movement.expenseReconciliation?.expenseId)?.reference || movement.expenseReconciliation.reference || 'Pièce enregistrée'}</strong><small>Confirmé le {formatDateTime(movement.expenseReconciliation.confirmedAt)}</small>{movement.expenseReconciliation.dateDifferenceReason ? <small>Écart de dates documenté : {movement.expenseReconciliation.dateDifferenceReason}</small> : null}</span><Button type="button" variant="secondary" size="small" disabled={writesDisabled} onClick={() => setCorrectionMovement(movement)}>Dissocier du relevé</Button></div>

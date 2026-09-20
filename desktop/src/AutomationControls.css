@@ -1,0 +1,126 @@
+.automation-setup,
+.automation-choice {
+  color: var(--ink, #172029);
+  background: var(--surface-raised, #fff);
+  border: 1px solid var(--line, #dfe3e8);
+  border-radius: 20px;
+  padding: 24px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.automation-setup {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.automation-setup p,
+.automation-setup h3 {
+  margin: 0;
+}
+.automation-setup h3 {
+  font-size: clamp(22px, 4vw, 32px);
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+}
+.automation-setup p {
+  line-height: 1.65;
+  max-width: 65ch;
+}
+.automation-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+  color: var(--muted, #616c76);
+}
+.automation-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+.automation-price strong {
+  font-size: 32px;
+  letter-spacing: -0.04em;
+}
+.automation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.automation-actions > * {
+  max-width: 100%;
+  min-width: 0;
+}
+.automation-choice {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+.automation-choice > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+.automation-choice select {
+  max-width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line, #dfe3e8);
+  border-radius: 10px;
+  background: var(--surface-raised, #fff);
+  color: inherit;
+  padding: 8px 12px;
+  flex: 1 1 180px;
+}
+.automation-setup small,
+.automation-choice small {
+  color: var(--muted, #616c76);
+  line-height: 1.6;
+}
+.automation-file {
+  display: grid;
+  gap: 14px;
+}
+.automation-file textarea {
+  width: 100%;
+  min-height: 110px;
+  max-height: 260px;
+  resize: vertical;
+}
+.automation-map {
+  display: grid;
+  gap: 12px;
+}
+.automation-map label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+.automation-map label span {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .automation-setup {
+    padding: 20px;
+  }
+  .automation-actions .button {
+    flex: 1 1 auto;
+  }
+  .automation-map label {
+    grid-template-columns: 1fr;
+  }
+}
+[data-app-theme='dark'] .automation-setup,
+[data-app-theme='dark'] .automation-choice {
+  background: var(--surface-raised, #1f242b);
+  border-color: var(--line, #3b4551);
+  color: var(--ink, #f2f4f7);
+}
+[data-app-theme='dark'] .automation-choice select {
+  background: var(--surface-raised, #252b33);
+  color: inherit;
+}
