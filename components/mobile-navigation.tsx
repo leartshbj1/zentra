@@ -7,6 +7,7 @@ import { SiteNavLink } from '@/components/site-nav-link';
 const links = [
   ['/produits', 'Nos produits'],
   ['/features', 'Fonctionnalités'],
+  ['/automation', 'Zentra Automation'],
   ['/pricing', 'Tarifs'],
   ['/security', 'Sécurité & données'],
   ['/download', 'Télécharger'],

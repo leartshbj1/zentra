@@ -3,6 +3,9 @@ import {
   Check,
   FileText,
   FolderOpen,
+  Landmark,
+  ShoppingBag,
+  TableProperties,
   SlidersHorizontal,
 } from 'lucide-react';
 import { SiteHeader } from '@/components/site-header';
@@ -40,12 +43,14 @@ export default function AutomationPage() {
               <span>Plus de temps pour vous.</span>
             </h1>
             <p>
-              Vos opérations trouvent leur catégorie. Vos documents, le bon
-              écran. Zentra prépare le travail ; vous gardez le dernier mot.
+              Zentra Automation propose un classement pour vos opérations
+              bancaires, vous aide à traiter vos documents et prépare les
+              choix de vos achats. Directement dans Zentra Gestion : vous
+              vérifiez, vous corrigez si besoin, puis vous validez.
             </p>
             <div className="automation-actions">
               <a className="automation-button" href="/compte/automation">
-                Découvrir mon option <ArrowRight size={17} />
+                Configurer Zentra Automation <ArrowRight size={17} />
               </a>
               <span>15 CHF / mois par entreprise</span>
             </div>
@@ -53,6 +58,9 @@ export default function AutomationPage() {
               En complément de Zentra Gestion. Activation volontaire,
               résiliation à la prochaine échéance.
             </p>
+            <a className="automation-how-link" href="#utilisation">
+              Voir comment l’activer dans l’application
+            </a>
           </header>
           <section
             className="automation-stage"
@@ -94,6 +102,29 @@ export default function AutomationPage() {
               </div>
             </div>
           </section>
+          <section className="automation-use-cases" aria-labelledby="automation-use-cases-title">
+            <p className="automation-eyebrow">CONCRÈTEMENT, DANS VOTRE APPLICATION</p>
+            <h2 id="automation-use-cases-title">Moins de choix à refaire chaque jour.</h2>
+            <div className="automation-use-cases-grid">
+              {[
+                { icon: Landmark, title: 'Classer les opérations bancaires', text: 'Une catégorie est proposée à partir du libellé de l’opération. Confirmez-la ou choisissez une autre catégorie.', example: 'Achat de fournitures → Matériel et marchandises' },
+                { icon: FolderOpen, title: 'Trouver le bon écran pour un document', text: 'Un extrait du document permet de reconnaître son type et de vous orienter vers le parcours adapté.', example: 'Facture fournisseur → Achats' },
+                { icon: ShoppingBag, title: 'Préparer une facture fournisseur', text: 'Le fournisseur, le projet et la catégorie peuvent être proposés parmi les données de votre entreprise. Vous complétez et enregistrez le brouillon.', example: 'Vos fournisseurs et vos projets existants' },
+                { icon: TableProperties, title: 'Importer un catalogue plus simplement', text: 'Zentra propose les correspondances entre les colonnes de votre fichier CSV ou Excel et votre catalogue. Vérifiez l’aperçu avant l’import.', example: 'Désignation, référence, prix…' },
+              ].map(({ icon: Icon, title, text, example }) => (
+                <article key={title}>
+                  <Icon aria-hidden="true" size={26} />
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                  <span>{example}</span>
+                </article>
+              ))}
+            </div>
+            <p className="automation-control-note">
+              Vous gardez la validation des paiements, des factures et des
+              écritures comptables. Une suggestion ne déclenche pas ces actions.
+            </p>
+          </section>
           <section className="automation-benefits">
             <article>
               <FolderOpen />
@@ -120,6 +151,19 @@ export default function AutomationPage() {
                 dans vos tâches quotidiennes.
               </p>
             </article>
+          </section>
+          <section className="automation-start" id="utilisation" aria-labelledby="automation-start-title">
+            <div>
+              <p className="automation-eyebrow">PRÊT DANS VOS PARAMÈTRES</p>
+              <h2 id="automation-start-title">Activez l’option à votre rythme.</h2>
+              <p>Sur Windows, Mac, iPhone et Android, ouvrez <strong>Paramètres → Zentra Automation</strong>. L’option est aussi proposée lors de la première configuration.</p>
+              <a href="/download">Télécharger la dernière version de Zentra</a>
+            </div>
+            <ol>
+              <li><strong>Ouvrez « Découvrir et activer ».</strong><p>Votre compte s’ouvre dans le navigateur. Sélectionnez l’entreprise concernée ; ouvrir cette page ne déclenche aucun paiement.</p></li>
+              <li><strong>Confirmez l’option à 15 CHF/mois.</strong><p>Le titulaire de l’entreprise autorise le traitement des extraits nécessaires et confirme l’abonnement. Un abonnement Zentra Gestion actif est requis.</p></li>
+              <li><strong>Choisissez vos suggestions.</strong><p>Activez les fonctions utiles et le mode Suggestions, puis revenez dans l’application. Vous pouvez modifier ces réglages depuis les paramètres.</p></li>
+            </ol>
           </section>
           <section className="automation-panel automation-price-panel">
             <div>

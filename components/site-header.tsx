@@ -9,6 +9,7 @@ import { SiteNavLink } from '@/components/site-nav-link';
 const navigation = [
   ['/produits', 'Nos produits'],
   ['/features', 'Fonctionnalités'],
+  ['/automation', 'Automation'],
   ['/pricing', 'Tarifs'],
   ['/security', 'Sécurité & données'],
   ['/download', 'Télécharger'],
