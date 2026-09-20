@@ -5,12 +5,12 @@ import { useEffect, useRef, useState } from 'react';
 import { SiteNavLink } from '@/components/site-nav-link';
 
 const links = [
-  ['/#workflow', 'Produit'],
+  ['/produits', 'Nos produits'],
   ['/features', 'Fonctionnalités'],
   ['/pricing', 'Tarifs'],
   ['/security', 'Sécurité & données'],
   ['/download', 'Télécharger'],
-  ['/support', 'Zentra Support · IA'],
+  ['/support', 'Zentra Support'],
   ['/compte', 'Compte & équipe'],
 ] as const;
 

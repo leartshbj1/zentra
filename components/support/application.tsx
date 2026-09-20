@@ -348,7 +348,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
   return (
     <div className="support-app">
       <header className="support-topbar">
-        <a href="/" aria-label="Accueil Zentra">
+        <a href="/support" aria-label="Accueil Zentra Support">
           <BrandWordmark className="support-wordmark" />
         </a>
         <span className="support-product">Support</span>

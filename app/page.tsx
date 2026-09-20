@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { HeroDashboard } from '@/components/hero-dashboard';
+import { ProductRange } from '@/components/product-range';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { buttonVariants } from '@/components/ui/button';
@@ -141,7 +142,7 @@ export default function Home() {
       >
         <section id="accueil" className="home-hero mx-auto w-full max-w-7xl px-5 lg:px-8">
           <div className="home-hero__intro">
-            <p className="home-hero__eyebrow">Zentra pour les PME suisses</p>
+            <p className="home-hero__eyebrow">Zentra Gestion · pour les PME suisses</p>
             <h1>Votre entreprise.<br /><span>L’esprit libre.</span></h1>
             <p className="home-hero__description">Devis, factures, projets et salaires.<br className="hidden sm:block" /> Tout votre quotidien, dans un espace simple.</p>
             <div className="home-hero__actions">
@@ -173,6 +174,7 @@ export default function Home() {
             </div>
           </div>
         </section>
+        <ProductRange compact />
 
         <section
           className="border-y border-[#dedad0] bg-[#ffffff] px-5 py-16 sm:py-24 lg:px-8"

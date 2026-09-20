@@ -1,6 +1,9 @@
 import { BrandWordmark } from '@/components/brand-mark';
 
 const links = [
+  ['/produits', 'Nos produits'],
+  ['/', 'Zentra Gestion'],
+  ['/support', 'Zentra Support'],
   ['/features', 'Fonctionnalités'],
   ['/pricing', 'Tarifs'],
   ['/security', 'Sécurité & données'],
@@ -22,8 +25,8 @@ export function SiteFooter() {
             <BrandWordmark className="w-24" />
           </a>
           <p className="mt-2 max-w-md text-sm leading-6 text-[#657068]">
-            Logiciel de gestion local-first pour les PME suisses. Les limites du
-            produit sont présentées aussi clairement que ses fonctions.
+            Zentra Gestion pour votre entreprise. Zentra Support pour votre
+            service client. Deux produits indépendants pour simplifier le quotidien.
           </p>
           <a
             href="mailto:info@zentraapp.ch"

@@ -7,12 +7,12 @@ import { AccountLink } from '@/components/account-link';
 import { SiteNavLink } from '@/components/site-nav-link';
 
 const navigation = [
-  ['/#workflow', 'Produit'],
+  ['/produits', 'Nos produits'],
   ['/features', 'Fonctionnalités'],
   ['/pricing', 'Tarifs'],
   ['/security', 'Sécurité & données'],
   ['/download', 'Télécharger'],
-  ['/support', 'Support IA'],
+  ['/support', 'Zentra Support'],
 ] as const;
 
 export function SiteHeader() {

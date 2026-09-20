@@ -1,0 +1,222 @@
+.products-page {
+  background: #fafbf9;
+  color: #1d2d26;
+}
+.products-header {
+  width: min(1200px, calc(100% - 48px));
+  margin: auto;
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #dce4de;
+}
+.products-header img {
+  width: 100px;
+}
+.products-header nav {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.products-header a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  font-size: 14px;
+}
+.products-intro {
+  text-align: center;
+  padding: 88px 24px 64px;
+  margin: auto;
+  max-width: 1000px;
+}
+.products-intro > p:first-child,
+.products-section-heading > p {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: #546b5e;
+  font-weight: 600;
+}
+.products-intro h1 {
+  font-size: clamp(36px, 4.6vw, 64px);
+  line-height: 1.1;
+  font-weight: 550;
+  letter-spacing: -0.055em;
+  margin: 22px 0;
+}
+.products-intro h1 span {
+  color: #70877a;
+}
+.products-intro > p:last-child {
+  font-size: 17px;
+  line-height: 1.8;
+  color: #5f6f66;
+}
+.products-showcase {
+  width: min(1200px, calc(100% - 48px));
+  margin: 0 auto;
+}
+.products-showcase * {
+  min-width: 0;
+  box-sizing: border-box;
+}
+.products-showcase-compact {
+  padding: 64px 0;
+}
+.products-section-heading {
+  margin-bottom: 28px;
+}
+.products-section-heading h2 {
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+  font-weight: 500;
+  margin: 12px 0;
+}
+.products-section-heading a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 10px;
+  font-size: 14px;
+}
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.product-card {
+  display: flex;
+  flex-direction: column;
+  padding: clamp(24px, 3vw, 44px);
+  border-radius: 26px;
+  border: 1px solid #dce4de;
+  background: #fff;
+}
+.product-support {
+  background: #eaf0e9;
+  border-color: #d2decf;
+}
+.product-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: 0.09em;
+  font-size: 10px;
+  color: #526b5b;
+}
+.product-card h2 {
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1.15;
+  margin: 27px 0 14px;
+  font-weight: 550;
+  letter-spacing: -0.04em;
+}
+.product-card > p {
+  font-size: 15px;
+  color: #637267;
+  line-height: 1.8;
+  max-width: 430px;
+}
+.product-visual {
+  border: 1px solid #dfe5de;
+  background: #fafbf8;
+  border-radius: 14px;
+  margin: 28px 0 20px;
+  padding: 10px 20px;
+}
+.product-visual > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 0;
+  font-size: 12px;
+}
+.product-visual > div + div {
+  border-top: 1px solid #e1e7de;
+}
+.product-visual strong {
+  font-weight: 550;
+  color: #42614e;
+}
+.product-card ul {
+  list-style: none;
+  padding: 0;
+  font-size: 13px;
+  line-height: 2;
+  color: #5c6c60;
+  margin-bottom: 24px;
+}
+.product-card > a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 50px;
+  padding-top: 15px;
+  border-top: 1px solid #d6dfd2;
+  margin-top: auto;
+  font-size: 14px;
+  font-weight: 550;
+  color: #284936;
+}
+.product-card a svg {
+  flex-shrink: 0;
+}
+.products-independence {
+  padding: 70px 24px 90px;
+  max-width: 700px;
+  text-align: center;
+  margin: auto;
+}
+.products-independence h2 {
+  font-size: 28px;
+  letter-spacing: -0.035em;
+}
+.products-independence p {
+  font-size: 15px;
+  line-height: 1.9;
+  color: #657568;
+  margin: 18px 0;
+}
+.products-independence a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.products-page a:focus-visible,
+.products-showcase a:focus-visible {
+  outline: 3px solid #668873;
+  outline-offset: 4px;
+}
+@media (max-width: 700px) {
+  .products-grid {
+    grid-template-columns: 1fr;
+  }
+  .products-intro {
+    padding-top: 52px;
+    padding-bottom: 38px;
+  }
+  .products-header {
+    flex-wrap: wrap;
+    gap: 0 20px;
+    padding: 12px 0;
+  }
+  .products-header nav {
+    gap: 18px;
+  }
+  .products-header nav a {
+    font-size: 12px;
+  }
+  .products-intro > p:last-child {
+    font-size: 15px;
+  }
+  .products-showcase-compact {
+    padding-block: 45px;
+  }
+}

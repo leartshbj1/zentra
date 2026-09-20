@@ -25,7 +25,7 @@ const questions = [
   ],
   [
     'Faut-il acheter des modules séparément ?',
-    'Toutes les fonctions actuelles et futures sont incluses dans les trois formules. Le nombre de personnes qui peuvent se connecter est la seule différence. Les fiches de salariés dans la paie ne consomment pas de place.',
+    'Toutes les fonctions de Zentra Gestion, actuelles et futures, sont incluses dans les trois formules. Le nombre de personnes qui peuvent se connecter est la seule différence. Les fiches de salariés dans la paie ne consomment pas de place. Zentra Support est un produit avec un abonnement distinct.',
   ],
   [
     'Comment fonctionne la résiliation ?',

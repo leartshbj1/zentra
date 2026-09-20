@@ -1,3 +1,5 @@
+import { SupportMarketingHeader } from '@/components/support/marketing-header';
+import { SupportMarketingFooter } from '@/components/support/marketing-shell';
 import { LegalPage, OperatorContact } from '@/components/legal-page';
 import { SUPPORT_PLANS } from '@/lib/support/plans';
 export const metadata = {
@@ -7,6 +9,16 @@ export const metadata = {
 export default function SupportTerms() {
   return (
     <LegalPage
+      header={
+        <div className="support-presentation">
+          <SupportMarketingHeader />
+        </div>
+      }
+      footer={
+        <div className="support-presentation">
+          <SupportMarketingFooter />
+        </div>
+      }
       title="Conditions de Zentra Support"
       versionDate="19 septembre 2026"
       intro="Offre pour les entreprises et indépendants — version du 19 septembre 2026."

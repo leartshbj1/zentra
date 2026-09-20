@@ -10,10 +10,10 @@ export function OperatorContact() {
   return <address className="not-italic"><strong>{LEGAL_OPERATOR.name} · Zentra</strong><br />{LEGAL_OPERATOR.street}<br />{LEGAL_OPERATOR.locality}, {LEGAL_OPERATOR.country}<br /><a href={`mailto:${LEGAL_OPERATOR.email}`}>{LEGAL_OPERATOR.email}</a></address>;
 }
 
-export function LegalPage({title, intro, sections, versionDate=LEGAL_DATE}: {title: string; intro: string; sections: LegalSection[]; versionDate?:string}) {
+export function LegalPage({title, intro, sections, versionDate=LEGAL_DATE, header, footer}: {title: string; intro: string; sections: LegalSection[]; versionDate?:string; header?: ReactNode; footer?: ReactNode}) {
   return <>
     <a href="#contenu" className="site-skip-link">Aller au contenu</a>
-    <div className="legal-site-navigation"><SiteHeader /></div>
+    <div className="legal-site-navigation">{header ?? <SiteHeader />}</div>
     <main id="contenu" tabIndex={-1} className="legal-page min-h-screen bg-[#f5f5f7] px-5 py-10 text-[#1d1d1f] sm:py-16">
       <div className="mx-auto max-w-5xl">
         <header className="max-w-3xl">
@@ -37,6 +37,6 @@ export function LegalPage({title, intro, sections, versionDate=LEGAL_DATE}: {tit
         </nav>
       </div>
     </main>
-    <div className="legal-site-navigation"><SiteFooter /></div>
+    <div className="legal-site-navigation">{footer ?? <SiteFooter />}</div>
   </>;
 }
