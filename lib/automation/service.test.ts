@@ -42,6 +42,7 @@ import {
 } from './config';
 import { authorizedResources, nativeResources } from './resources';
 import { DecisionFailure } from './types';
+import { automationCompanyState, automationDay } from './activity';
 let sql: DatabaseSync;
 const actor = {
   organizationId: 'org_a',
@@ -355,4 +356,124 @@ it('releases stale processing responses to manual fallback without making anothe
     status: 'manual',
   });
   expect(p.decide).toHaveBeenCalledTimes(1);
+});
+
+it.each(['owner', 'admin', 'accountant', 'member', 'read_only'])(
+  'shares one company option with the %s role, without a personal subscription',
+  async (role) => {
+    const colleague = {
+      ...actor,
+      userId: `colleague_${role}`,
+      role,
+      founder: false,
+      device: true,
+    };
+    const state = await automationCompanyState(colleague);
+    expect(state.active).toBe(true);
+    expect(state.canManage).toBe(['owner', 'admin'].includes(role));
+    expect((await decideForActor(colleague, payload, provider())).status).toBe(
+      'suggestion',
+    );
+    expect(
+      sql.prepare('SELECT COUNT(*) AS n FROM automation_subscriptions').get()
+        ?.n,
+    ).toBe(1);
+    expect(
+      (await automationCompanyState({ ...colleague, organizationId: 'org_b' }))
+        .activity,
+    ).toBeNull();
+  },
+);
+
+it('aggregates the whole team but distinguishes suggestions, confirmations, observation and failed analyses', async () => {
+  const now = new Date('2026-09-20T14:00:00Z');
+  const stamp = now.getTime() / 1000;
+  const add = (id: string, user = 'owner_a', confidence = 0.95) =>
+    decideForActor(
+      { ...actor, userId: user },
+      { ...payload, requestId: `activity_${id.padEnd(16, '_')}` },
+      provider(confidence),
+    );
+  const first = await add('owner');
+  await recordFeedback(actor, {
+    id: 'id' in first ? first.id : '',
+    feedback: 'accepted',
+    choices: { category: 'material' },
+  });
+  await add('colleague', 'colleague_a');
+  await add('uncertain', 'colleague_a', 0.2);
+  sql.exec("UPDATE automation_settings SET mode='shadow'");
+  await add('observation');
+  const failure = await add('failure');
+  sql
+    .prepare(
+      "UPDATE automation_decisions SET state='failed',result=NULL WHERE id=?",
+    )
+    .run('id' in failure ? failure.id : '');
+  sql
+    .prepare(
+      'UPDATE automation_decisions SET created_at=?,completed_at=?,reviewed_at=CASE WHEN feedback IS NOT NULL THEN ? ELSE NULL END',
+    )
+    .run(stamp - 30, stamp, stamp);
+  // Yesterday's proposal, confirmed today: count the confirmation only.
+  sql.exec("UPDATE automation_settings SET mode='suggest'");
+  const old = await add('yesterday');
+  await recordFeedback(actor, {
+    id: 'id' in old ? old.id : '',
+    feedback: 'accepted',
+    choices: { category: 'material' },
+  });
+  sql
+    .prepare(
+      'UPDATE automation_decisions SET completed_at=?,created_at=?,reviewed_at=? WHERE id=?',
+    )
+    .run(stamp - 86400, stamp - 86410, stamp, 'id' in old ? old.id : '');
+  const foreign = await add('foreign');
+  sql
+    .prepare(
+      "UPDATE automation_decisions SET organization_id='org_b',completed_at=? WHERE id=?",
+    )
+    .run(stamp, 'id' in foreign ? foreign.id : '');
+  const a = await automationCompanyState(actor, now);
+  const b = await automationCompanyState(
+    { ...actor, userId: 'colleague_a', role: 'member' },
+    now,
+  );
+  expect(a.activity?.totals).toEqual({
+    analyzed: 4,
+    suggestions: 2,
+    confirmed: 2,
+    needsReview: 2,
+    observed: 1,
+  });
+  expect(b.activity?.totals).toEqual(a.activity?.totals);
+  expect(a.activity?.features).toHaveLength(1);
+  expect(JSON.stringify(a.activity)).not.toMatch(
+    /owner_a|colleague_a|DO_NOT_LOG|material|observedChoices/,
+  );
+  sql.exec('UPDATE automation_subscriptions SET paid_until=0');
+  expect((await automationCompanyState(actor, now)).activity).toBeNull();
+});
+
+it('uses Swiss midnight and the correct daylight-saving day length', () => {
+  expect(automationDay(new Date('2026-09-19T22:05:00Z')).date).toBe(
+    '2026-09-20',
+  );
+  const spring = automationDay(new Date('2026-03-29T12:00:00Z'));
+  const autumn = automationDay(new Date('2026-10-25T12:00:00Z'));
+  expect(spring.until - spring.from).toBe(23 * 3600);
+  expect(autumn.until - autumn.from).toBe(25 * 3600);
+});
+
+it('rejects revoked memberships before exposing shared activity', async () => {
+  mocks.identity = { userId: 'revoked' };
+  mocks.membership.mockRejectedValueOnce(
+    Object.assign(new Error('revoked'), { status: 403 }),
+  );
+  await expect(
+    automationActor(
+      new Request('https://zentraapp.ch/api/automation?organizationId=org_a'),
+      'org_a',
+    ),
+  ).rejects.toMatchObject({ status: 403 });
 });

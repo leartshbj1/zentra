@@ -379,6 +379,13 @@
       "when": 1789902910369,
       "tag": "0053_founder_platform_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1789904461684,
+      "tag": "0054_automation_company_activity",
+      "breakpoints": true
     }
   ]
 }
