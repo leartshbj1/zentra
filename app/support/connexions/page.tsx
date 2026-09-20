@@ -23,7 +23,7 @@ export default async function SupportConnections() {
       ready: true,
       text: 'Reliez votre boîte mail pour récupérer les nouveaux messages et les classer par catégorie et priorité dans Zentra Support.',
       detail:
-        'Clé Infomaniak workspace:mail. Réception périodique en arrière-plan ; vos dossiers Infomaniak restent inchangés.',
+        'Clé Infomaniak workspace:mail. Gardez votre espace Support ouvert pour la réception automatique ; vos dossiers Infomaniak restent inchangés.',
     },
     {
       name: 'Freshdesk',

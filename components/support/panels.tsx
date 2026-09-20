@@ -285,6 +285,13 @@ export function ConnectionsPanel({
                     Support. Les cas incertains et les mails avec pièces jointes
                     restent à vérifier.
                   </p>
+                  {!data.mailSync?.background && (
+                    <p className="support-notice">
+                      Gardez votre espace Support ouvert : la réception
+                      automatique fonctionne pendant son ouverture. La réception
+                      lorsque la page est fermée n’est pas encore active.
+                    </p>
+                  )}
                   <p className="support-small">
                     {mailbox?.lastSyncAt
                       ? `Dernière récupération : ${formatDate(mailbox.lastSyncAt)}`

@@ -741,9 +741,10 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       threshold: 85,
       baselineSeconds: 60,
     });
-    expect(
-      await json(await post({ action: 'syncMailbox', connectionId: c.id })),
-    ).toMatchObject({ imported: 1, processed: 1 });
+    expect(await json(await post({ action: 'syncMailboxes' }))).toMatchObject({
+      imported: 1,
+      processed: 1,
+    });
     expect(
       sql
         .prepare(
@@ -759,6 +760,10 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     );
     expect(JSON.stringify(view)).not.toContain('mailbox-token');
     expect(view.mailboxes[0].lastSyncAt).toBeGreaterThan(0);
+    expect(view.mailSync.background).toBe(false);
+    expect(await json(await post({ action: 'syncMailboxes' }))).toEqual({
+      idle: true,
+    });
     await post({ action: 'disconnect', connectionId: c.id });
     await expect(
       post({ action: 'syncMailbox', connectionId: c.id }),

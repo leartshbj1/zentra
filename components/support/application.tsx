@@ -195,6 +195,42 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
       document.removeEventListener('visibilitychange', refresh);
     };
   }, [demo, load]);
+  const mailWorkspace =
+    !demo &&
+    data.workspace?.canManage &&
+    data.connections.some((c) => c.provider === 'infomaniak')
+      ? data.workspace.id
+      : '';
+  useEffect(() => {
+    if (!mailWorkspace) return;
+    let cancelled = false,
+      inFlight = false;
+    const receiveMail = async () => {
+      if (cancelled || inFlight || busyRef.current) return;
+      inFlight = true;
+      try {
+        await fetch('/api/support', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'syncMailboxes',
+            workspaceId: mailWorkspace,
+          }),
+        });
+        if (!cancelled) await load({ quiet: true });
+      } catch {
+        /* Keep the last successful sync visible; retry at the next tick. */
+      } finally {
+        inFlight = false;
+      }
+    };
+    void receiveMail();
+    const timer = setInterval(receiveMail, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [mailWorkspace, load]);
   const mutate: Mutate = async (body) => {
     if (busyRef.current) return null;
     busyRef.current = true;

@@ -395,6 +395,9 @@ export async function getWorkspaceState(request: Request) {
     },
     connections: connections.results.map(publicConnection),
     mailboxes: await mailboxStates(workspace.id),
+    mailSync: {
+      background: runtimeValue('SUPPORT_MAIL_BACKGROUND_ENABLED') === '1',
+    },
     zendesk: await zendeskAvailability(),
     tickets: billing.active
       ? tickets.results.slice(0, 60).map(publicTicket)
@@ -524,6 +527,7 @@ export async function mutateWorkspace(request: Request) {
       'connect',
       'connectMailbox',
       'syncMailbox',
+      'syncMailboxes',
       'startZendesk',
       'disconnect',
       'refreshDirectory',
@@ -667,6 +671,21 @@ export async function mutateWorkspace(request: Request) {
       ),
       201,
     );
+  }
+  if (action === 'syncMailboxes') {
+    await enforceAccountRateLimit(
+      request,
+      'support-mail-poll',
+      user.userId,
+      120,
+    );
+    const c = await db
+      .prepare(
+        "SELECT c.* FROM support_connections c JOIN support_mailboxes m ON m.connection_id=c.id WHERE c.workspace_id=? AND c.active=1 AND c.provider='infomaniak' AND m.next_sync_at<=? AND m.lease_until<=? ORDER BY m.next_sync_at,m.connection_id LIMIT 1",
+      )
+      .bind(workspace.id, now(), now())
+      .first<Connection>();
+    return supportJson(c ? await syncMailbox(workspace, c) : { idle: true });
   }
   if (action === 'syncMailbox') {
     await enforceAccountRateLimit(

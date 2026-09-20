@@ -219,10 +219,13 @@ export function ConnectionWizard({
                     />
                     <p className="support-small">
                       La clé est chiffrée côté serveur. Seuls les mails reçus à
-                      partir de la connexion sont récupérés, même lorsque cette
-                      page est fermée. Le texte est analysé par le service de
-                      tri de Zentra ; les pièces jointes ne sont pas importées.
-                      Aucun mail n’est envoyé, déplacé ou supprimé.
+                      partir de la connexion sont récupérés.{' '}
+                      {data.mailSync?.background
+                        ? 'La réception continue lorsque cette page est fermée.'
+                        : 'Gardez votre espace Support ouvert pour la réception automatique. La réception lorsque la page est fermée n’est pas encore active.'}{' '}
+                      Le texte est analysé par le service de tri de Zentra ; les
+                      pièces jointes ne sont pas importées. Aucun mail n’est
+                      envoyé, déplacé ou supprimé.
                     </p>
                   </>
                 )}

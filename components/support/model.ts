@@ -27,6 +27,7 @@ export type SupportConnection = {
   hookUrl: string;
 };
 export type SupportState = {
+  mailSync?: { background: boolean };
   billing?: SupportBillingState;
   zendesk?: { ready: boolean };
   user: { name: string; email: string };
