@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Check, Workflow } from 'lucide-react';
 import { useCompanyAutomation } from './AutomationCompany';
 import { AutomationSetup } from './AutomationControls';
@@ -73,6 +74,7 @@ function CompanySettings({ state }: { state: AutomationState }) {
       }}><Check size={17} />{t(busy ? 'Enregistrement…' : 'Enregistrer pour toute l’équipe')}</Button>
     </>}
     {message && <p role="status">{t(message)}</p>}
+    <div className="automation-settings__quickstart"><strong>{t('De la boîte mail à la comptabilité')}</strong><p>{t('Reliez Support pour recevoir les factures fournisseurs dans Gestion. L’enregistrement automatique s’active séparément pour cette entreprise.')}</p><Button variant="secondary" onClick={()=>void invoke('open_supplier_inbox_settings').catch(()=>setMessage('Ouvrez zentraapp.ch/support/espace dans votre navigateur.'))}>{t('Régler la réception des factures')}</Button></div>
     <Button variant="ghost" onClick={() => void openAutomationSettings().catch(() => setMessage('Ouvrez zentraapp.ch/compte/automation dans votre navigateur.'))}>{t('Confidentialité et abonnement')}</Button>
   </section>;
 }

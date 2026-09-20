@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Scan, ZoomIn, ZoomOut } from 'lucide-react';
 import { getDocument, type PDFDocumentLoadingTask, type PDFDocumentProxy, type RenderTask } from './pdfRuntime';
 import { Button, ErrorPanel } from './ui';
 import { useTouchZoom } from './useTouchZoom';
+import { t, useAppLanguage } from './language';
 
 function previewError(reason: unknown) {
   const protectedPdf = reason instanceof Error && reason.name === 'PasswordException';
@@ -12,6 +13,7 @@ function previewError(reason: unknown) {
 }
 
 export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Array; name: string }) {
+  const language=useAppLanguage();
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);
   const [zoom, setZoom] = useState(1);
@@ -71,7 +73,7 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
         canvas.height = Math.max(1, Math.floor(rendered.height));
         canvas.style.width = `${cssWidth}px`; canvas.style.height = `${cssHeight}px`;
         canvas.setAttribute('role', 'img');
-        canvas.setAttribute('aria-label', `${name} — page ${page} sur ${document.numPages}`);
+        canvas.setAttribute('aria-label', `${name} — ${t('Page {page} sur {count}',{page,count:document.numPages})}`);
         const context = canvas.getContext('2d', { alpha: false });
         if (!context) throw new Error('Canvas unavailable');
         renderTask = pdfPage.render({ canvas, canvasContext: context, viewport: rendered });
@@ -93,7 +95,7 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
       cancelled = true; renderTask?.cancel(); canvas.remove();
       void (renderTask?.promise ?? Promise.resolve()).catch(() => {}).finally(() => { canvas.width = 0; canvas.height = 0; });
     };
-  }, [document, page, width]);
+  }, [document, page, width, language]);
 
   function changePage(next: number) {
     setPage(next);
@@ -101,23 +103,23 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
     viewport.current?.scrollTo({ top: 0, left: 0 });
   }
   return <div className="pdf-attachment-preview">
-    {document || !error ? <div className="pdf-attachment-preview__toolbar" role="group" aria-label="Lecture du PDF">
+    {document || !error ? <div className="pdf-attachment-preview__toolbar" role="group" aria-label={t('Lecture du PDF')}>
       <div className="pdf-attachment-preview__pages">
-        <Button size="icon" variant="ghost" aria-label="Page précédente" disabled={!document || page <= 1} onClick={() => changePage(page - 1)}><ChevronLeft size={20} /></Button>
-        <span aria-live="polite">{document ? `Page ${page} sur ${document.numPages}` : 'PDF'}</span>
-        <Button size="icon" variant="ghost" aria-label="Page suivante" disabled={!document || page >= document.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={20} /></Button>
+        <Button size="icon" variant="ghost" aria-label={t('Page précédente')} disabled={!document || page <= 1} onClick={() => changePage(page - 1)}><ChevronLeft size={20} /></Button>
+        <span aria-live="polite">{document ? t('Page {page} sur {count}',{page,count:document.numPages}) : 'PDF'}</span>
+        <Button size="icon" variant="ghost" aria-label={t('Page suivante')} disabled={!document || page >= document.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={20} /></Button>
       </div>
       <div className="pdf-attachment-preview__zoom">
-        <Button size="icon" variant="ghost" aria-label="Réduire" disabled={!document || zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - .5))}><ZoomOut size={18} /></Button>
-        <Button variant="ghost" aria-label="Ajuster à la largeur" disabled={!document} onClick={() => setZoom(1)}><Scan size={16} /><span>{Math.round(zoom * 100)} %</span></Button>
-        <Button size="icon" variant="ghost" aria-label="Agrandir" disabled={!document || zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + .5))}><ZoomIn size={18} /></Button>
+        <Button size="icon" variant="ghost" aria-label={t('Réduire')} disabled={!document || zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - .5))}><ZoomOut size={18} /></Button>
+        <Button variant="ghost" aria-label={t('Ajuster à la largeur')} disabled={!document} onClick={() => setZoom(1)}><Scan size={16} /><span>{Math.round(zoom * 100)} %</span></Button>
+        <Button size="icon" variant="ghost" aria-label={t('Agrandir')} disabled={!document || zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + .5))}><ZoomIn size={18} /></Button>
       </div>
     </div> : null}
-    <div ref={viewport} data-touch-document className="pdf-attachment-preview__viewport" tabIndex={0} role="region" aria-label="Page du PDF" aria-busy={loading}>
-      {loading ? <p className="attachment-preview__status" role="status">Chargement de la page…</p> : null}
-      {error ? <ErrorPanel title="Aperçu indisponible" message={error.message} onRetry={error.retryable ? () => { viewport.current?.focus({ preventScroll: true }); setAttempt(value => value + 1); } : undefined} /> : null}
+    <div ref={viewport} data-touch-document className="pdf-attachment-preview__viewport" tabIndex={0} role="region" aria-label={t('Page du PDF')} aria-busy={loading}>
+      {loading ? <p className="attachment-preview__status" role="status">{t('Chargement de la page…')}</p> : null}
+      {error ? <ErrorPanel title={t('Aperçu indisponible')} message={t(error.message)} onRetry={error.retryable ? () => { viewport.current?.focus({ preventScroll: true }); setAttempt(value => value + 1); } : undefined} /> : null}
       <div className="pdf-attachment-preview__sizing" style={{width: Math.min(width, 1100) * zoom, height: height * zoom}} hidden={!!error}><div ref={surface} className="pdf-attachment-preview__page" style={{width: Math.min(width, 1100), transform: `scale(${zoom})`, transformOrigin: 'top left'}} /></div>
-      {text.trim() ? <details className="pdf-attachment-preview__text" key={page}><summary>Texte de la page</summary><p>{text}</p></details> : null}
+      {text.trim() ? <details className="pdf-attachment-preview__text" key={page}><summary>{t('Texte de la page')}</summary><p>{text}</p></details> : null}
     </div>
   </div>;
 }

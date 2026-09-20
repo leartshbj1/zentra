@@ -41,7 +41,7 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
         <div><strong>{inbox.received}</strong><span>{t('Justificatifs reçus aujourd’hui')}</span></div>
         <Button variant="secondary" onClick={()=>window.dispatchEvent(new CustomEvent('zentra-automation-navigate',{detail:'purchases'}))}>{inbox.needsReview?t('{count} factures à vérifier',{count:inbox.needsReview}):t('Voir les achats')}<ArrowRight size={16}/></Button>
       </div>}
-      {hasActivity && <>
+      {(analyzed > 0 || confirmed > 0) && <>
         <dl className="automation-daily__stats">
           <div><dd>{analyzed}</dd><dt>{t('Analyses terminées')}</dt></div>
           <div><dd>{suggestions}</dd><dt>{t('Suggestions préparées')}</dt></div>
