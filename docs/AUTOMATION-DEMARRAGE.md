@@ -10,11 +10,13 @@
 
 Le compte doit disposer d’un abonnement Zentra Gestion actif. L’option et l’abonnement principal sont distincts. Le prix est de 15 CHF par mois et par entreprise. Le parrainage s’applique à Gestion, pas à cette option.
 
-## Travailler en équipe avec la version 1.73.0
+## Travailler en équipe avec la version 1.74.0
 
 Une seule option suffit pour tous les collaborateurs de l’entreprise. Chacun se connecte à cette même entreprise dans Zentra Gestion ; les droits habituels restent appliqués. Le titulaire gère l’abonnement. Le titulaire et les administrateurs peuvent configurer les fonctions ; les autres collaborateurs consultent les réglages et utilisent les outils permis par leur rôle.
 
-Dans **Paramètres → Zentra Automation**, choisir le mode et les fonctions, puis **Enregistrer pour toute l’équipe**. Les seuils se trouvent dans **Réglages avancés**. Les réglages sont partagés et actualisés en arrière-plan. Une modification distante détectée pendant une saisie demande de recharger les réglages avant de continuer.
+L’accès **Zentra Automation** apparaît dans le menu dès que l’option de l’entreprise est reconnue. **Vue d’ensemble** présente son état et son activité ; **Outils** réunit les analyses et les raccourcis vers la gestion ; **Réglages** permet de configurer l’équipe sans sortir de l’application. Le même réglage reste accessible dans **Paramètres → Zentra Automation**.
+
+Pour commencer, sélectionner **Utiliser les réglages conseillés**, lire et cocher l’accord d’analyse en ligne, puis **Enregistrer pour toute l’équipe**. Ce préréglage prépare les fonctions disponibles en mode suggestion, sans enregistrer ni consentir automatiquement. Les seuils se trouvent dans **Réglages avancés**. Une modification distante détectée pendant une saisie demande de recharger les réglages avant de continuer.
 
 Le tableau de bord affiche le bilan de la journée suisse pour toute l’entreprise : analyses terminées, suggestions préparées et choix validés par l’équipe. Une confirmation n’est pas un paiement ou une écriture automatique. Le détail sépare les analyses en observation et les choix à vérifier. Aucune statistique fictive de gain de temps n’est présentée. Les entreprises sans option ne voient pas ce bloc.
 

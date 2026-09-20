@@ -1,0 +1,64 @@
+import { ArrowRight, Banknote, FileText, Package, Receipt, Users, Workflow } from 'lucide-react';
+import { useCompanyAutomation } from './AutomationCompany';
+import { AutomationDailySummary } from './AutomationDailySummary';
+import { AutomationSettings } from './AutomationSettings';
+import { AutomationTools } from './AutomationTools';
+import { automationReadiness, automationWorkflows, readinessLabels, workflowReady, type AutomationDestination, type AutomationPage } from './automationExperience';
+import { t, useAppLanguage } from './language';
+import type { Workspace } from './types';
+import { Button } from './ui';
+import './AutomationHub.css';
+
+const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
+
+export function AutomationHub({ workspace, page, onPage, onNavigate }: {
+  workspace: Workspace; page: AutomationPage; onPage: (page: AutomationPage) => void; onNavigate: (view: AutomationDestination) => void;
+}) {
+  useAppLanguage();
+  const { state, status, refresh, readOnly } = useCompanyAutomation();
+  if (!state) return <section className="automation-hub automation-hub__empty" aria-busy={status === 'loading'}>
+    <Workflow size={32} aria-hidden="true" />
+    <h2>{t(status === 'loading' ? 'Retrouvons votre espace Automation…' : status === 'disconnected' ? 'Reliez votre entreprise' : 'Automation attend la connexion')}</h2>
+    <p>{t(status === 'disconnected' ? 'Connectez cette entreprise à votre compte pour retrouver son accès partagé.' : status === 'loading' ? 'Les réglages de votre entreprise arrivent.' : 'Vos outils de gestion restent disponibles. Automation reviendra automatiquement avec la connexion.')}</p>
+    {status === 'disconnected' ? <Button onClick={() => onNavigate('settings')}>{t('Ouvrir le compte')}</Button> : status !== 'loading' && <Button variant="secondary" onClick={() => void refresh()}>{t('Réessayer')}</Button>}
+  </section>;
+  if (!state.active) return <div className="automation-hub"><AutomationSettings /></div>;
+  const readiness = automationReadiness(state);
+  const ready = readiness === 'ready' || readiness === 'observation';
+  const canManage = state.canManage && !readOnly;
+  return <div className="automation-hub">
+    <header className="automation-hub__identity">
+      <span className="automation-hub__mark"><Workflow size={25} aria-hidden="true" /></span>
+      <div><strong>{workspace.settings?.organization.legalName || t('Mon entreprise')}</strong><span><Users size={14} aria-hidden="true" />{t('Inclus pour tous les collaborateurs')}</span></div>
+      <span className="automation-hub__status" data-ready={ready}>{t(readinessLabels[readiness])}</span>
+    </header>
+    <nav className="automation-hub__navigation" aria-label={t('Espace Automation')}>
+      {(['overview', 'tools', 'settings'] as const).map(tab => <button key={tab} type="button" aria-current={page === tab ? 'page' : undefined} onClick={() => onPage(tab)}>{t(tab === 'overview' ? 'Vue d’ensemble' : tab === 'tools' ? 'Outils' : 'Réglages')}</button>)}
+    </nav>
+    <section hidden={page !== 'overview'} aria-label={t('Vue d’ensemble')}>
+      {!ready && <div className="automation-hub__welcome">
+        <div><h2>{t(readiness === 'consent' ? 'Votre accès est actif. Commençons.' : 'Retrouvez vos suggestions')}</h2><p>{t(canManage ? 'Choisissez les fonctions de votre équipe dans les réglages. Tout se passe ici, dans Zentra.' : 'Votre accès est inclus. Le titulaire ou un administrateur peut terminer les réglages pour toute l’équipe.')}</p></div>
+        <Button onClick={() => onPage('settings')}>{t(canManage ? 'Configurer mon équipe' : 'Voir les réglages')}<ArrowRight size={17} aria-hidden="true" /></Button>
+      </div>}
+      {(ready || Boolean(state.activity && (state.activity.totals.analyzed || state.activity.totals.confirmed))) && <AutomationDailySummary />}
+      <div className="automation-hub__section-title"><h2>{t('Automation dans votre quotidien')}</h2>{ready && <Button variant="ghost" onClick={() => onPage('tools')}>{t('Tous les outils')}<ArrowRight size={16} aria-hidden="true" /></Button>}</div>
+      <div className="automation-hub__workflows">{automationWorkflows.map(flow => {
+        const enabled = workflowReady(state, flow.features);
+        const available = flow.features.some(feature => state.available.includes(feature));
+        const Icon = icons[flow.destination];
+        return <article key={flow.destination}>
+          <Icon size={23} aria-hidden="true" />
+          <h3>{t(flow.title)}</h3><p>{t(flow.description)}</p>
+          <div><span className="automation-hub__feature-state">{t(enabled ? (state.settings.mode === 'shadow' ? 'Observation' : 'Suggestions actives') : available ? 'À configurer' : 'Indisponible pour le moment')}</span>
+          <Button size="small" variant="secondary" onClick={() => enabled ? onNavigate(flow.destination) : onPage('settings')}>{t(enabled ? 'Ouvrir' : 'Voir les réglages')}<ArrowRight size={15} aria-hidden="true" /></Button></div>
+        </article>;
+      })}</div>
+    </section>
+    <section hidden={page !== 'tools'} aria-label={t('Outils')}>
+      {ready ? <AutomationTools screen="automation" workspace={workspace} expanded /> : <div className="automation-hub__welcome"><p>{t('Terminez les réglages pour retrouver les outils de votre équipe.')}</p><Button onClick={() => onPage('settings')}>{t('Voir les réglages')}</Button></div>}
+      {ready && <div className="automation-hub__destinations"><h2>{t('Dans vos écrans de gestion')}</h2>{automationWorkflows.filter(flow => workflowReady(state, flow.features)).map(flow => <Button key={flow.destination} variant="secondary" onClick={() => onNavigate(flow.destination)}>{t(flow.title)}<ArrowRight size={16} aria-hidden="true" /></Button>)}</div>}
+    </section>
+    <section hidden={page !== 'settings'} aria-label={t('Réglages')} className="automation-hub__settings"><AutomationSettings /></section>
+    <footer className="automation-hub__footer"><Users size={16} aria-hidden="true" /><span>{t('Un espace partagé. Chacun conserve les droits de son rôle.')}</span></footer>
+  </div>;
+}

@@ -1,4 +1,5 @@
 import {installCustomerSettlementGuidedFixture} from './customer-settlement-guided-fixture';
+import { installAutomationCompanyFixture } from './automation-company-fixture';
 import {installPaymentGuidedFixture} from './payment-guided-fixture';
 import { installAgendaGuidedFixture } from './agenda-guided-fixture';
 import { installStockGuidedFixture } from './stock-guided-fixture';
@@ -239,6 +240,7 @@ if (new URLSearchParams(location.search).has('supplierRefundGuided')) installSup
 if (new URLSearchParams(location.search).has('paymentGuided')) installPaymentGuidedFixture(data);
 if (new URLSearchParams(location.search).has('customerSettlementGuided')) installCustomerSettlementGuidedFixture(data);
 if (new URLSearchParams(location.search).has('companyRealtime')) installCompanyRealtimeFixture(data, productionCompanySynchronize);
+if (new URLSearchParams(location.search).has('automation')) installAutomationCompanyFixture();
 function Harness() {
   // Tests use this exact mocked instance, including after Vite hot reloads.
   Object.assign(window, { __qaDesktopApi: desktopApi });
@@ -249,7 +251,7 @@ function Harness() {
     __qaSetReadOnly: setReadOnly,
     __qaReloadPurchases: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; return next; },
   });
-  const [projectAccount, setProjectAccount] = useState('');
+  const [projectAccount, setProjectAccount] = useState(new URLSearchParams(location.search).has('automation') ? 'automation-qa' : '');
   if(new URLSearchParams(location.search).has('supplierRefundGuided')||new URLSearchParams(location.search).has('paymentGuided')||new URLSearchParams(location.search).has('customerSettlementGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaSupplierRefundRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if(new URLSearchParams(location.search).has('creditAllocation'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaCreditAllocationRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if(new URLSearchParams(location.search).has('receiptGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaReceiptRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});

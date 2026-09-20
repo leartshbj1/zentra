@@ -4,12 +4,14 @@ import { useCompanyAutomation } from './AutomationCompany';
 import { AutomationChoice, AttentionSuggestion, DocumentClassification, useAutomation } from './AutomationControls';
 import { AutomationDocumentReader } from './AutomationDocument';
 import { featureReady, actionLabels, bankCategories, automationFeedback } from './automation';
+import { openAutomationHub } from './automationExperience';
 import type { Workspace } from './types';
 import { Button } from './ui';
 import { t, useAppLanguage } from './language';
 import './AutomationTools.css';
 
 export function automationToolsForScreen(screen: string) {
+  if (screen === 'automation') return ['assistant', 'document', 'bank', 'priority', 'email'] as const;
   const tools: ('document' | 'bank' | 'priority' | 'assistant' | 'email')[] = ['assistant'];
   if (['projects', 'quotes', 'orders', 'invoices', 'expenses', 'team', 'accounting', 'reports'].includes(screen)) tools.unshift('document');
   if (['bank', 'accounting'].includes(screen)) tools.unshift('bank');
@@ -25,19 +27,22 @@ const kinds = {
   email: { title: 'Classer un e-mail', feature: 'email_classification' },
 } as const;
 
-export function AutomationTools({ screen, workspace }: { screen: string; workspace: Workspace }) {
+export function AutomationTools({ screen, workspace, expanded = false }: { screen: string; workspace: Workspace; expanded?: boolean }) {
   useAppLanguage();
   const { state } = useCompanyAutomation();
   const [open, setOpen] = useState(false), [selected, setSelected] = useState<keyof typeof kinds | null>(null);
   const available = automationToolsForScreen(screen).filter(key => featureReady(state, kinds[key].feature));
   if (!state?.active || !available.length) return null;
   const chosen = selected && available.includes(selected) ? selected : available[0];
-  return <details className="automation-tools" onToggle={e => setOpen(e.currentTarget.open)}>
-    <summary><Workflow size={17} aria-hidden="true" /><span>Zentra Automation</span><span className="automation-tools__hint">{t('Les outils de cet écran')}</span></summary>
-    {open && <div className="automation-tools__content">
+  const content = <div className="automation-tools__content">
       <div className="automation-tools__tabs" role="group" aria-label={t('Choisir un outil Automation')}>{available.map(key => <Button key={key} size="small" variant={chosen === key ? 'secondary' : 'ghost'} aria-pressed={chosen === key} onClick={() => setSelected(key)}>{t(kinds[key].title)}</Button>)}</div>
       <AutomationTool key={chosen} kind={chosen} workspace={workspace} />
-    </div>}
+      {!expanded && <div className="automation-tools__manage"><Button size="small" variant="ghost" onClick={() => openAutomationHub()}>{t('Ouvrir l’espace Automation')}</Button></div>}
+    </div>;
+  if (expanded) return <div className="automation-tools__expanded">{content}</div>;
+  return <details className="automation-tools" onToggle={e => setOpen(e.currentTarget.open)}>
+    <summary><Workflow size={17} aria-hidden="true" /><span>Zentra Automation</span><span className="automation-tools__hint">{t('Les outils de cet écran')}</span></summary>
+    {open && content}
   </details>;
 }
 

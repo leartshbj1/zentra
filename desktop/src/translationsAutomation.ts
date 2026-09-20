@@ -1,9 +1,11 @@
 import { automationSettingsTranslations } from './translationsAutomationSettings';
+import { automationHubTranslations } from './translationsAutomationHub';
 export const automationTranslations: Record<
   string,
   readonly [string, string, string]
 > = {
   ...automationSettingsTranslations,
+  ...automationHubTranslations,
   'Votre journée avec Zentra Automation': ['Ihr Tag mit Zentra Automation', 'La giornata con Zentra Automation', 'Your day with Zentra Automation'],
   'Toute l’équipe': ['Das ganze Team', 'Tutto il team', 'The whole team'],
   'Bonjour, {name}': ['Hallo, {name}', 'Buongiorno, {name}', 'Hello, {name}'],

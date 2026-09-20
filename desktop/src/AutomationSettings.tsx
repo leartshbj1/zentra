@@ -4,16 +4,19 @@ import { useCompanyAutomation } from './AutomationCompany';
 import { AutomationSetup } from './AutomationControls';
 import { saveAutomationSettings, openAutomationSettings, type AutomationState } from './automation';
 import { automationFeatures } from './automationFeatures';
+import { automationReadiness, openAutomationHub, readinessLabels, recommendedAutomationSettings } from './automationExperience';
 import { t, useAppLanguage } from './language';
 import { Button } from './ui';
 import './AutomationSettings.css';
 
-export function AutomationSettings() {
+export function AutomationSettings({ showHubLink = false }: { showHubLink?: boolean }) {
   useAppLanguage();
-  const { state, organizationId, refresh } = useCompanyAutomation();
-  if (!state && organizationId) return <section className="automation-settings"><h3>Zentra Automation</h3><p>{t('Connectez-vous à Internet pour retrouver les réglages de votre équipe.')}</p><Button variant="secondary" onClick={() => void refresh()}>{t('Réessayer')}</Button></section>;
+  const { state, organizationId, status, refresh } = useCompanyAutomation();
+  if (status === 'loading') return <section className="automation-settings" role="status"><p>{t('Retrouvons votre espace Automation…')}</p></section>;
+  if (!organizationId) return <section className="automation-settings"><h3>{t('Reliez votre entreprise')}</h3><p>{t('Connectez cette entreprise à votre compte pour retrouver son accès partagé.')}</p><Button variant="secondary" onClick={() => window.dispatchEvent(new Event('zentra-automation-account'))}>{t('Ouvrir le compte')}</Button></section>;
+  if (!state) return <section className="automation-settings"><h3>Zentra Automation</h3><p>{t('Connectez-vous à Internet pour retrouver les réglages de votre équipe.')}</p><Button variant="secondary" onClick={() => void refresh()}>{t('Réessayer')}</Button></section>;
   if (!state?.active) return <AutomationSetup />;
-  return <CompanySettings key={state.organizationId} state={state} />;
+  return <><CompanySettings key={state.organizationId} state={state} />{showHubLink && <Button variant="secondary" onClick={() => openAutomationHub()}>{t('Ouvrir l’espace Automation')}</Button>}</>;
 }
 
 function CompanySettings({ state }: { state: AutomationState }) {
@@ -21,7 +24,7 @@ function CompanySettings({ state }: { state: AutomationState }) {
   const { refresh, readOnly } = useCompanyAutomation();
   const [draft, setDraft] = useState(state.settings), [baseline, setBaseline] = useState(JSON.stringify(state.settings));
   const [consent, setConsent] = useState(state.settings.consent), [busy, setBusy] = useState(false), [message, setMessage] = useState('');
-  const dirty = JSON.stringify(draft) !== baseline || consent !== state.settings.consent;
+  const dirty = JSON.stringify({ ...draft, consent }) !== baseline;
   const canManage = state.canManage && !readOnly;
   const current = JSON.stringify(state.settings);
   const changedElsewhere = dirty && baseline !== current;
@@ -30,7 +33,12 @@ function CompanySettings({ state }: { state: AutomationState }) {
   }, [current]);
   return <section className="automation-settings">
     <header><Workflow size={26} /><div><h3>{t('Automation pour toute votre équipe')}</h3><p>{t('Un seul réglage pour tous les collaborateurs de cette entreprise.')}</p></div></header>
+    <span className="automation-settings__status">{t(readinessLabels[automationReadiness(state)])}</span>
     {!canManage && <p className="automation-settings__notice">{t('Vous bénéficiez des fonctions activées. Le titulaire ou un administrateur gère les réglages.')}</p>}
+    {canManage && (!state.settings.consent || !state.settings.flags.length) && <div className="automation-settings__quickstart">
+      <strong>{t('Un démarrage simple')}</strong><p>{t('Préparez les fonctions disponibles en mode suggestion. Vous relisez les résultats avant toute action.')}</p>
+      <Button variant="secondary" disabled={busy || !state.available.length} onClick={() => { setDraft(recommendedAutomationSettings(state)); setMessage('Réglages préparés. Vérifiez votre accord puis enregistrez pour l’équipe.'); }}>{t('Utiliser les réglages conseillés')}</Button>
+    </div>}
     <fieldset disabled={!canManage || busy}>
       <legend>{t('Fonctionnement')}</legend>
       <label className="automation-settings__toggle"><span><strong>{t('Activer les suggestions')}</strong><small>{t('Vous gardez la validation des actions importantes.')}</small></span><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /></label>
@@ -46,6 +54,7 @@ function CompanySettings({ state }: { state: AutomationState }) {
     </fieldset>
     {canManage && <>
       {!state.settings.consent && <label className="automation-settings__consent"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={busy} /><span>{t('J’autorise l’analyse en ligne des extraits nécessaires pour cette entreprise.')}</span></label>}
+      {draft.enabled && !consent && <p>{t('Cochez votre accord ci-dessus pour enregistrer l’activation.')}</p>}
       <details><summary>{t('Réglages avancés')}</summary><div className="automation-settings__thresholds">
         <label>{t('Suggestion à partir de (%)')}<input type="number" min="50" max="99" step="1" disabled={busy} value={Math.round(draft.thresholds.medium * 100)} onChange={e => setDraft({ ...draft, thresholds: { ...draft.thresholds, medium: Number(e.target.value) / 100 } })} /></label>
         <label>{t('Confiance élevée à partir de (%)')}<input type="number" min="51" max="100" step="1" disabled={busy} value={Math.round(draft.thresholds.high * 100)} onChange={e => setDraft({ ...draft, thresholds: { ...draft.thresholds, high: Number(e.target.value) / 100 } })} /></label>

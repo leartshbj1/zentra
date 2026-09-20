@@ -2,6 +2,8 @@ import { Workflow } from 'lucide-react';
 import { type AutomationFeature, type AutomationState } from './automation';
 import { useCompanyAutomation } from './AutomationCompany';
 import { t, useAppLanguage } from './language';
+import { Button } from './ui';
+import { openAutomationHub } from './automationExperience';
 import './AutomationDailySummary.css';
 
 const labels: Record<AutomationFeature, string> = {
@@ -11,14 +13,14 @@ const labels: Record<AutomationFeature, string> = {
   email_classification: 'E-mails importés', import_mapping: 'Import de données',
 };
 
-export function AutomationDailySummary() {
+export function AutomationDailySummary({ link = false }: { link?: boolean }) {
   useAppLanguage();
   const { state } = useCompanyAutomation();
   if (!state?.active || !state.activity) return null;
-  return <AutomationDailySummaryView state={state} />;
+  return <AutomationDailySummaryView state={state} link={link} />;
 }
 
-export function AutomationDailySummaryView({ state }: { state: AutomationState }) {
+export function AutomationDailySummaryView({ state, link = false }: { state: AutomationState; link?: boolean }) {
   useAppLanguage();
   if (!state.active || !state.activity) return null;
   const activity = state.activity;
@@ -51,6 +53,7 @@ export function AutomationDailySummaryView({ state }: { state: AutomationState }
         </details>
         {paused && <small>{t('Automation est actuellement en pause.')}</small>}
       </>}
+      {link && <Button className="automation-daily__open" variant="secondary" onClick={() => openAutomationHub(paused ? 'settings' : 'overview')}>{t(paused ? 'Voir les réglages Automation' : 'Ouvrir l’espace Automation')}</Button>}
     </section>
   );
 }

@@ -24,7 +24,9 @@ import { deferView } from './DeferredView';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { useAssistantScreen } from './assistantContext';
 import { AutomationDailySummary } from './AutomationDailySummary';
-import { AutomationCompanyProvider } from './AutomationCompany';
+import { AutomationCompanyProvider, useCompanyAutomation } from './AutomationCompany';
+import { AutomationHub } from './AutomationHub';
+import { type AutomationPage } from './automationExperience';
 import { AutomationSettings } from './AutomationSettings';
 import { AutomationTools } from './AutomationTools';
 import type { ComponentProps } from 'react';
@@ -362,7 +364,7 @@ function ViewLoading({ label }: { label: string }) {
   );
 }
 
-type View = TourView | 'orders' | 'agenda';
+type View = TourView | 'orders' | 'agenda' | 'automation';
 type ModalState = (
   | { type: 'client'; item?: Client }
   | { type: 'clientDetail'; client: Client }
@@ -419,6 +421,7 @@ const navigation: Array<{
   group?: string;
 }> = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+  { id: 'automation', label: 'Zentra Automation', icon: ListChecks },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
   { id: 'projects', label: 'Projets', icon: FolderKanban },
   { id: 'clients', label: 'Clients', icon: UserRound },
@@ -435,6 +438,7 @@ const navigation: Array<{
 ];
 
 const viewTitles: Record<View, [string, string]> = {
+  automation: ['Zentra Automation', 'Votre équipe, vos outils et vos réglages réunis'],
   dashboard: [
     'Tableau de bord',
     'L’essentiel de votre activité, en un coup d’œil',
@@ -494,6 +498,9 @@ function WorkspaceContent({
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [view, setView] = useState<View>('dashboard');
+  const companyAutomation = useCompanyAutomation();
+  const visibleNavigation = navigation.filter(item => item.id !== 'automation' || companyAutomation.knownActive);
+  const [automationPage, setAutomationPage] = useState<AutomationPage>('overview');
   useEffect(()=>{const navigate=(event:Event)=>{const requested=(event as CustomEvent<unknown>).detail;const allowed:Record<string,View>={purchases:'expenses',invoices:'invoices',quotes:'quotes',clients:'clients',bank:'bank',projects:'projects',payroll:'team',accounting:'accounting',planning:'agenda'};if(typeof requested==='string'&&allowed[requested]&&!document.querySelector('[role="dialog"]'))setView(allowed[requested]);};window.addEventListener('zentra-automation-navigate',navigate);return()=>window.removeEventListener('zentra-automation-navigate',navigate);},[]);
   useAppLanguage();
   useProjectSyncBackground(setWorkspace, cloudAccount?.organizationId ?? 'local');
@@ -565,6 +572,18 @@ function WorkspaceContent({
   const [settingsFocusTarget, setSettingsFocusTarget] = useState<string | null>(
     null,
   );
+  useEffect(() => {
+    const openHub = (event: Event) => {
+      if (document.querySelector('[role="dialog"]')) return;
+      const page = (event as CustomEvent<unknown>).detail;
+      setAutomationPage(page === 'settings' || page === 'tools' ? page : 'overview');
+      setView('automation'); setSearch(''); setMenuOpen(false);
+    };
+    const openAccount = () => { setView('settings'); setSettingsFocusTarget('automation-account-target'); setSearch(''); setMenuOpen(false); };
+    window.addEventListener('zentra-automation-hub', openHub);
+    window.addEventListener('zentra-automation-account', openAccount);
+    return () => { window.removeEventListener('zentra-automation-hub', openHub); window.removeEventListener('zentra-automation-account', openAccount); };
+  }, []);
   const [agendaPlanningTarget, setAgendaPlanningTarget] = useState<
     string | null
   >(null);
@@ -1644,7 +1663,7 @@ function WorkspaceContent({
         <button type="button" className="sidebar__search" aria-label={t("Aller à un écran")} onClick={() => { setMenuOpen(false); setNavigationOpen(true); }}><Search size={17} /><span>{t("Aller à…")}</span><kbd aria-hidden="true">{t("⌘ / Ctrl K")}</kbd></button>
         <nav ref={navigationRef} className="sidebar__nav" aria-label={t("Navigation principale")}>
           <span className="sidebar__selection" aria-hidden="true" />
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const Icon =
               item.id === 'projects' && terminology.icon === 'hard-hat'
                 ? HardHat
@@ -1667,6 +1686,7 @@ function WorkspaceContent({
                     setAccountingEntryFocus(null);
                     setProjectFolderId(null);
                     setView(item.id);
+                    if (item.id === 'automation') setAutomationPage('overview');
                     setSearch('');
                     setMenuOpen(false);
                   }}
@@ -1871,7 +1891,8 @@ function WorkspaceContent({
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label={t("Reprendre la facture fournisseur")}><span>{t("Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.")}</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>{t("Reprendre la facture fournisseur")}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>{t("Plus tard")}</Button></div>}
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
-          {view !== 'dashboard' && view !== 'settings' && <AutomationTools key={view} screen={view} workspace={workspace} />}
+          {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && <AutomationTools key={view} screen={view} workspace={workspace} />}
+          {view === 'automation' && <AutomationHub key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -1883,7 +1904,7 @@ function WorkspaceContent({
           ) : null}
           {view === 'dashboard' ? (
             <>
-            <AutomationDailySummary />
+            <AutomationDailySummary link />
             <Dashboard
               workspace={workspace}
               readOnly={readOnly}
@@ -2373,7 +2394,7 @@ function WorkspaceContent({
       </main>
 
       {navigationOpen ? <NavigationPalette destinations={[
-        ...navigation.map((item) => ({ ...item, label: item.id === 'quotes' ? 'Devis' : item.label, description: viewTitles[item.id][1] })),
+        ...visibleNavigation.map((item) => ({ ...item, label: item.id === 'quotes' ? 'Devis' : item.label, description: viewTitles[item.id][1] })),
         { id: 'orders' as const, label: 'Commandes & livraisons', description: viewTitles.orders[1], icon: Package },
         { id: 'invoices' as const, label: 'Factures', description: viewTitles.invoices[1], icon: Receipt },
       ]} onClose={() => setNavigationOpen(false)} onSelect={(next) => { setView(next); setProjectFolderId(null); setSearch(''); setAccountingEntryFocus(null); setMenuOpen(false); setNavigationOpen(false); }} /> : null}
@@ -5043,9 +5064,10 @@ function SettingsScreen({
       />
       </SettingsCategory>
       <SettingsCategory id="account" title="Compte et accès" description="Connexion, abonnement et accès à l’entreprise" icon={UserRound}>
+      <span id="automation-account-target" tabIndex={-1} />
       <CloudAccountPanel onAccountChange={onCloudAccountChange} settings={settings} />
       </SettingsCategory>
-      <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings /></SettingsCategory>
+      <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings showHubLink /></SettingsCategory>
       <SettingsCategory id="company" title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
       <section className="panel settings-card settings-card--wide">
         <SectionHeading
