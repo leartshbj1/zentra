@@ -456,7 +456,10 @@ export async function assignProviderTicket(
   );
   if (
     verified.groupId !== destination.teamId ||
-    verified.agentId !== (destination.agentId || null) ||
+    // Zendesk can assign the group's sole agent even when we delegate to the team.
+    // An explicitly selected agent must still match exactly.
+    ((connection.provider !== 'zendesk' || destination.agentId) &&
+      verified.agentId !== (destination.agentId || null)) ||
     verified.priority !== priority
   )
     throw new SupportError(

@@ -426,6 +426,101 @@ describe('Connecteurs', () => {
   });
 });
 
+describe('Confirmation du routage Zendesk', () => {
+  it.each([
+    {
+      group: 12,
+      agent: 42,
+      priority: 'high',
+      requestedAgent: undefined,
+      succeeds: true,
+    },
+    {
+      group: 12,
+      agent: 42,
+      priority: 'high',
+      requestedAgent: '42',
+      succeeds: true,
+    },
+    {
+      group: 12,
+      agent: 42,
+      priority: 'high',
+      requestedAgent: '99',
+      succeeds: false,
+    },
+    {
+      group: 99,
+      agent: 42,
+      priority: 'high',
+      requestedAgent: undefined,
+      succeeds: false,
+    },
+    {
+      group: 12,
+      agent: 42,
+      priority: 'normal',
+      requestedAgent: undefined,
+      succeeds: false,
+    },
+  ])('respecte la destination demandée : %j', async (scenario) => {
+    const connection = {
+      provider: 'zendesk',
+      domain: 'a.zendesk.com',
+      login: '',
+    } as Connection;
+    let written = false;
+    const mock = vi.fn(
+      async (url: string | URL | Request, init?: RequestInit) => {
+        if (init?.method === 'PUT') {
+          written = true;
+          return Response.json({});
+        }
+        if ((url instanceof Request ? url.url : url.toString()).includes('/comments.json'))
+          return Response.json({ comments: [], next_page: null });
+        return Response.json({
+          ticket: {
+            id: 5,
+            subject: 'Facture',
+            description: 'Deux prélèvements',
+            group_id: written ? scenario.group : 1,
+            assignee_id: written ? scenario.agent : null,
+            priority: written ? scenario.priority : 'normal',
+            status: 'open',
+            updated_at: '2026-09-20T00:00:00Z',
+          },
+        });
+      },
+    );
+    const source = {
+      externalId: '5',
+      subject: 'Facture',
+      body: 'Deux prélèvements',
+      version: '2026-09-20T00:00:00Z',
+      groupId: '1',
+      agentId: null,
+      closed: false,
+    };
+    const result = assignProviderTicket(
+      connection,
+      'key',
+      source,
+      {
+        teamId: '12',
+        ...(scenario.requestedAgent
+          ? { agentId: scenario.requestedAgent }
+          : {}),
+      },
+      'high',
+      mock,
+    );
+    if (scenario.succeeds) await expect(result).resolves.toBeUndefined();
+    else
+      await expect(result).rejects.toThrow('priorité ne sont pas confirmées');
+    expect(written).toBe(true);
+  });
+});
+
 describe('Parcours complet dans une vraie base SQLite', () => {
   let sql: DatabaseSync, workspace: string, connection: string, token: string;
   const json = async (response: Response) =>
