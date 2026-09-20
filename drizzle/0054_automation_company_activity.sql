@@ -1,0 +1,2 @@
+CREATE INDEX `automation_org_completed` ON `automation_decisions` (`organization_id`,`completed_at`);--> statement-breakpoint
+CREATE INDEX `automation_org_reviewed` ON `automation_decisions` (`organization_id`,`reviewed_at`);

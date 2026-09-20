@@ -108,25 +108,40 @@ export function AutomationCompanySettings({
   useEffect(() => {
     let live = true;
     if (!org) return;
-    // Reconcile Stripe before reading the entitlement, including when its webhook is delayed.
-    api('/api/automation/billing', org, {
-      action:
-        paymentReturned && org === initialOrganization ? 'refresh' : 'state',
-    })
-      .then(
-        async (b) => [(await api('/api/automation', org)) as State, b] as const,
-      )
-      .then(([s, b]) => {
+    // Team access never depends on loading the owner's billing controls.
+    api('/api/automation', org)
+      .then((data) => {
+        const s = data as State;
         if (live) {
           setState(s);
           setSettings(s.settings);
           setConsent(s.settings.consent);
-          setBilling(b as unknown as Billing);
         }
       })
       .catch((e) => {
         if (live) setMessage(e.message);
       });
+    if (organizations.find((o) => o.organizationId === org)?.role === 'owner') {
+      api('/api/automation/billing', org, {
+        action:
+          paymentReturned && org === initialOrganization ? 'refresh' : 'state',
+      })
+        .then(async (b) => {
+          if (!live) return;
+          setBilling(b as unknown as Billing);
+          if (paymentReturned) {
+            const s = (await api('/api/automation', org)) as State;
+            if (live) {
+              setState(s);
+              setSettings(s.settings);
+              setConsent(s.settings.consent);
+            }
+          }
+        })
+        .catch((e) => {
+          if (live) setMessage(e.message);
+        });
+    }
     return () => {
       live = false;
     };
@@ -215,6 +230,14 @@ export function AutomationCompanySettings({
           ? 'Votre option est active'
           : 'Simplifiez les tâches répétitives'}
       </h2>
+      {state?.active && (
+        <p>
+          <strong>Disponible pour toute votre équipe.</strong> Chaque
+          collaborateur connecté à cette entreprise retrouve Automation dans
+          Zentra Gestion, avec ses droits habituels. Aucune activation
+          individuelle.
+        </p>
+      )}
       {billing?.offeredAccess &&
       billing.offeredUntil &&
       !billing.hasSubscription ? (
@@ -223,97 +246,113 @@ export function AutomationCompanySettings({
           {new Date(billing.offeredUntil * 1000).toLocaleDateString('fr-CH')}.
           Aucun paiement demandé.
         </output>
-      ) : (
+      ) : !state?.active ? (
         <div className="automation-price">
           15 CHF <small>/ mois par entreprise</small>
         </div>
-      )}
+      ) : null}
       <p>
         En complément de Zentra Gestion. Les écritures, paiements et
         suppressions restent soumis à votre validation.
       </p>
-      {state && !state.active && !billing?.hasSubscription && (
-        <>
-          <div className="automation-checks">
-            <label>
-              <input
-                type="checkbox"
-                checked={terms}
-                onChange={(e) => setTerms(e.target.checked)}
-              />
-              <span>
-                J’accepte les{' '}
-                <a
-                  href="/automation/conditions"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  conditions de l’option
-                </a>
+      {state &&
+        !state.active &&
+        !billing?.hasSubscription &&
+        organizations.find((o) => o.organizationId === org)?.role ===
+          'owner' && (
+          <>
+            <div className="automation-checks">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={terms}
+                  onChange={(e) => setTerms(e.target.checked)}
+                />
+                <span>
+                  J’accepte les{' '}
+                  <a
+                    href="/automation/conditions"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    conditions de l’option
+                  </a>
+                  .
+                </span>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                />
+                <span>
+                  J’autorise le traitement des extraits nécessaires aux
+                  suggestions, décrit dans les{' '}
+                  <a
+                    href="/automation/conditions"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    conditions
+                  </a>
+                  .
+                </span>
+              </label>
+            </div>
+            <button
+              disabled={
+                busy ||
+                !terms ||
+                !consent ||
+                !billing?.ready ||
+                organizations.find((o) => o.organizationId === org)?.role !==
+                  'owner'
+              }
+              onClick={() => void action('checkout')}
+            >
+              Activer · 15 CHF/mois
+            </button>
+            {!billing?.ready && (
+              <p>
+                Le paiement de cette option est en cours de préparation. Aucun
+                montant n’est prélevé.
+              </p>
+            )}
+          </>
+        )}
+      {billing?.hasSubscription &&
+        organizations.find((o) => o.organizationId === org)?.role ===
+          'owner' && (
+          <div className="automation-actions">
+            <button
+              disabled={
+                busy ||
+                organizations.find((o) => o.organizationId === org)?.role !==
+                  'owner'
+              }
+              onClick={() => void action('portal')}
+            >
+              Gérer mon abonnement
+            </button>
+            {billing.cancelAtPeriodEnd && billing.periodEnd && (
+              <p>
+                Fin de l’option le{' '}
+                {new Date(billing.periodEnd * 1000).toLocaleDateString('fr-CH')}
                 .
-              </span>
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={consent}
-                onChange={(e) => setConsent(e.target.checked)}
-              />
-              <span>
-                J’autorise le traitement des extraits nécessaires aux
-                suggestions, décrit dans les{' '}
-                <a
-                  href="/automation/conditions"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  conditions
-                </a>
-                .
-              </span>
-            </label>
+              </p>
+            )}
           </div>
-          <button
-            disabled={
-              busy ||
-              !terms ||
-              !consent ||
-              !billing?.ready ||
-              organizations.find((o) => o.organizationId === org)?.role !==
-                'owner'
-            }
-            onClick={() => void action('checkout')}
-          >
-            Activer · 15 CHF/mois
-          </button>
-          {!billing?.ready && (
-            <p>
-              Le paiement de cette option est en cours de préparation. Aucun
-              montant n’est prélevé.
-            </p>
-          )}
-        </>
-      )}
-      {billing?.hasSubscription && (
-        <div className="automation-actions">
-          <button
-            disabled={
-              busy ||
-              organizations.find((o) => o.organizationId === org)?.role !==
-                'owner'
-            }
-            onClick={() => void action('portal')}
-          >
-            Gérer mon abonnement
-          </button>
-          {billing.cancelAtPeriodEnd && billing.periodEnd && (
-            <p>
-              Fin de l’option le{' '}
-              {new Date(billing.periodEnd * 1000).toLocaleDateString('fr-CH')}.
-            </p>
-          )}
-        </div>
-      )}
+        )}
+      {state &&
+        !state.active &&
+        organizations.find((o) => o.organizationId === org)?.role !==
+          'owner' && (
+          <p>
+            Le titulaire peut activer Automation une seule fois pour toute
+            l’entreprise.
+          </p>
+        )}
       {state &&
         organizations.find((o) => o.organizationId === org)?.role ===
           'owner' && (
@@ -325,7 +364,13 @@ export function AutomationCompanySettings({
             Vérifier mon activation
           </button>
         )}
-      {state?.active && (
+      {state?.active && !state.canManage && (
+        <p>
+          Les réglages sont partagés avec votre équipe. Le titulaire ou un
+          administrateur peut les modifier.
+        </p>
+      )}
+      {state?.active && state.canManage && (
         <fieldset disabled={busy || !state.canManage}>
           <legend>Comment souhaitez-vous utiliser Automation ?</legend>
           <div className="automation-checks">

@@ -1,16 +1,9 @@
 import { accountJsonError, accountNoStoreHeaders } from '@/lib/account';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { automationActor } from '@/lib/automation/access';
-import {
-  globalFlags,
-  saveSettings,
-  settingsFor,
-} from '@/lib/automation/config';
-import {
-  automationEntitlement,
-  recordFeedback,
-  requestDecision,
-} from '@/lib/automation/service';
+import { saveSettings } from '@/lib/automation/config';
+import { automationCompanyState } from '@/lib/automation/activity';
+import { recordFeedback, requestDecision } from '@/lib/automation/service';
 import { DecisionFailure } from '@/lib/automation/types';
 import { AccountPublicError } from '@/lib/account-security';
 export const dynamic = 'force-dynamic';
@@ -22,18 +15,7 @@ export async function GET(request: Request) {
       request,
       new URL(request.url).searchParams.get('organizationId'),
     );
-    const [settings, available, active] = await Promise.all([
-      settingsFor(actor.organizationId),
-      globalFlags(),
-      automationEntitlement(actor),
-    ]);
-    return json({
-      organizationId: actor.organizationId,
-      settings,
-      available,
-      active,
-      canManage: ['owner', 'admin'].includes(actor.role),
-    });
+    return json(await automationCompanyState(actor));
   } catch (error) {
     return accountJsonError(error);
   }

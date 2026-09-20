@@ -132,6 +132,8 @@ export const automationDecisions = sqliteTable(
       t.requestId,
     ),
     index('automation_org_created').on(t.organizationId, t.createdAt),
+    index('automation_org_completed').on(t.organizationId, t.completedAt),
+    index('automation_org_reviewed').on(t.organizationId, t.reviewedAt),
     index('automation_decision_created').on(t.createdAt),
   ],
 );
