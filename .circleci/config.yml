@@ -1,0 +1,61 @@
+version: 2.1
+
+# Opt-in only: ordinary pushes never consume the free release quota.
+# Signing and publication remain local after artifact verification.
+parameters:
+  release:
+    type: boolean
+    default: false
+
+jobs:
+  windows:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - checkout
+      - run:
+          name: Test and build Windows without production credentials
+          command: ./desktop/scripts/cloud-release-windows.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: windows
+  apple:
+    macos:
+      xcode: "26.4.1"
+    resource_class: m4pro.medium
+    environment:
+      RUSTUP_TOOLCHAIN: stable
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - checkout
+      - run:
+          name: Prepare Apple build tools
+          command: bash desktop/scripts/cloud-release-apple.sh prepare
+      - run:
+          name: Verify native synchronization and mobile gestures
+          command: bash desktop/scripts/cloud-release-apple.sh test
+          no_output_timeout: 20m
+      - run:
+          name: Build universal Mac
+          command: bash desktop/scripts/codemagic-apple.sh macos
+          no_output_timeout: 20m
+      - run:
+          name: Build physical iPhone IPA and verify touch controls
+          command: bash desktop/scripts/cloud-release-apple.sh iphone
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts
+          destination: apple
+
+workflows:
+  release-candidate:
+    when: << pipeline.parameters.release >>
+    jobs:
+      - windows
+      - apple
