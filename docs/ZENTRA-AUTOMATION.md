@@ -63,12 +63,18 @@ Owner/admin obtains a company code in `/compte/automation`. A new company enters
 
 ## Verification on 20 September 2026
 
-- Full web suite: 1,100 passed, 63 pre-existing skips, one outdated legal-checkout fixture failed because its simplified table omitted the real unique session index. Fixture updated; all four legal checkout tests then passed, alongside 75 Automation tests.
+- Full web suite, final rerun: 1,102 passed in 84 files, 63 pre-existing skips. The outdated legal-checkout fixture now includes the real unique session index. Browser and native-device entitlement parity is covered, including the founder account without a paid add-on.
 - 14 referral tests and 58 existing Support tests pass with central transport. Invalid payloads, low confidence, timeouts, redirects, secret filtering, changed/foreign resources, stale requests, permissions, duplicate feedback, failed payment resumes, session expiry and missing consent are covered.
 - Native frontend full suite: 1,558 tests in 187 files pass. Native TypeScript and production Vite build pass (existing large-chunk advisory).
 - Rust check passes; all four new actual-SQLite Automation tests pass (723 other tests filtered). Existing dead-code warnings remain.
 - New web files pass targeted oxlint; full-repository lint reports existing Support/device-team/legacy test errors unrelated to this feature. Web TypeScript and Sites production build pass.
 - Mobile 320 px interactive fixture: category correction and editable column mapping produce a preview without committing data; no horizontal overflow. Four-language strings added. Live publication and native distribution evidence are recorded separately after they actually succeed.
+
+## Production configuration verified
+
+The presentation, account configuration, terms and referral pages were published on 20 September 2026. The founder's existing encrypted key passed a real synthetic operation using the Automation provider. The monthly CHF 15 Stripe product and price were verified through the founder settings without a purchase or charge. All eight global feature flags are available; company consent and enablement remain explicit. Founder administration does not silently grant a paid company add-on: browser and device sessions use the same organization entitlement.
+
+The founder company can retrieve its referral code in the account. No real customer payment or real referral reward was fabricated. A company owner still completes Checkout personally and chooses the features to enable. The native changes are released as 1.72.0 from branch `codex/automation-native-20260920`; see the release evidence for the exact tested source and each platform's distribution limitations.
 
 ## Remaining operator steps
 

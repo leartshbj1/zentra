@@ -29,7 +29,11 @@ vi.mock('@/lib/stripe', () => ({
       throw Error('origin');
   },
 }));
-import { decideForActor, recordFeedback } from './service';
+import {
+  automationEntitlement,
+  decideForActor,
+  recordFeedback,
+} from './service';
 import { automationActor, requireAutomationFounder } from './access';
 import {
   saveSettings,
@@ -103,6 +107,9 @@ beforeEach(async () => {
   sql.exec(
     "INSERT INTO subscriptions(subscription_id,customer_id,price_id,status,current_period_end,livemode,updated_at) VALUES('sub_a','cus_a','price','active',2000000000,1,1),('sub_b','cus_b','price','active',2000000000,1,1); INSERT INTO organizations VALUES('org_a','A','sub_a','owner_a',1,1),('org_b','B','sub_b','owner_b',1,1)",
   );
+  sql.exec(
+    "UPDATE subscriptions SET entitlement_valid_until=2000000000 WHERE subscription_id='sub_a'; INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,livemode,updated_at) VALUES('org_a','sub_automation_a','cus_a','active',1,2000000000,1,1)",
+  );
   mocks.db = { prepare };
   await setGlobalFlags(
     ['transaction_classification', 'supplier_routing'],
@@ -168,12 +175,26 @@ it('falls back on outage while retaining audit error code', async () => {
 });
 it('requires consent and payment even if client asks for a feature', async () => {
   const p = provider();
-  await expect(
-    decideForActor({ ...actor, founder: false }, payload, p),
-  ).rejects.toMatchObject({ status: 402 });
+  sql.exec('UPDATE automation_subscriptions SET paid_until=0');
+  await expect(decideForActor(actor, payload, p)).rejects.toMatchObject({
+    status: 402,
+  });
+  sql.exec('UPDATE automation_subscriptions SET paid_until=2000000000');
   sql.exec('UPDATE automation_settings SET consent_version=NULL');
   expect((await decideForActor(actor, payload, p)).status).toBe('disabled');
   expect(p.decide).not.toHaveBeenCalled();
+});
+it('uses identical paid company access for founders, ordinary browsers and devices', async () => {
+  const identities = [
+    actor,
+    { ...actor, founder: false },
+    { ...actor, founder: false, device: true },
+  ];
+  for (const identity of identities)
+    expect(await automationEntitlement(identity)).toBe(true);
+  sql.exec('DELETE FROM automation_subscriptions');
+  for (const identity of identities)
+    expect(await automationEntitlement(identity)).toBe(false);
 });
 it('computes corrected versus accepted feedback itself and prevents double votes', async () => {
   const r = await decideForActor(actor, payload, provider());

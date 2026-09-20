@@ -29,7 +29,8 @@ type AuditRow = {
   created_at: number;
 };
 export async function automationEntitlement(actor: AutomationActor) {
-  if (actor.founder) return true;
+  // Founder administration is separate from a company's paid option. Browser
+  // and device sessions must see the same organization entitlement.
   const row = await database()
     .prepare(
       `SELECT a.paid_from,a.paid_until,a.status,a.livemode FROM automation_subscriptions a
