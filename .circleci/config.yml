@@ -10,8 +10,51 @@ parameters:
     type: enum
     enum: [all, windows, apple]
     default: all
+  smoke-windows-job:
+    type: integer
+    default: 0
+  smoke-apple-job:
+    type: integer
+    default: 0
+  smoke-windows-source:
+    type: string
+    default: ""
+  smoke-apple-source:
+    type: string
+    default: ""
 
 jobs:
+  windows-package-smoke:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      ZENTRA_SMOKE_JOB: << pipeline.parameters.smoke-windows-job >>
+      ZENTRA_SMOKE_SOURCE: << pipeline.parameters.smoke-windows-source >>
+    steps:
+      - checkout
+      - run:
+          name: Verify the downloaded installer in a disposable Windows profile
+          command: python desktop/scripts/cloud-package-smoke.py windows $env:ZENTRA_SMOKE_JOB $env:ZENTRA_SMOKE_SOURCE
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
+  apple-package-smoke:
+    macos:
+      xcode: "26.4.1"
+    resource_class: m4pro.medium
+    environment:
+      ZENTRA_SMOKE_JOB: << pipeline.parameters.smoke-apple-job >>
+      ZENTRA_SMOKE_SOURCE: << pipeline.parameters.smoke-apple-source >>
+    steps:
+      - checkout
+      - run:
+          name: Verify the downloaded universal app in a disposable Mac profile
+          command: python3 desktop/scripts/cloud-package-smoke.py macos "$ZENTRA_SMOKE_JOB" "$ZENTRA_SMOKE_SOURCE"
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
   windows:
     resource_class: windows.medium
     machine:
@@ -58,6 +101,18 @@ jobs:
           destination: apple
 
 workflows:
+  verify-windows-package:
+    when:
+      not:
+        equal: [0, << pipeline.parameters.smoke-windows-job >>]
+    jobs:
+      - windows-package-smoke
+  verify-apple-package:
+    when:
+      not:
+        equal: [0, << pipeline.parameters.smoke-apple-job >>]
+    jobs:
+      - apple-package-smoke
   windows-release-candidate:
     when:
       and:
