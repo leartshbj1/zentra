@@ -49,6 +49,8 @@ try {
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'company_', '--', '--nocapture', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'account_cloud::tests', '--', '--test-threads=1')
+    Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'supplier_inbox::tests', '--', '--test-threads=1')
+    if ($env:ZENTRA_VERIFY_ONLY -eq 'true') { return }
     $config = Get-Content desktop/src-tauri/tauri.updater.conf.json -Raw | ConvertFrom-Json
     $config.bundle.createUpdaterArtifacts = $false
     $env:ELYKO_UPDATER_PUBLIC_KEY = (Get-Content desktop/src-tauri/updater-public-key.txt -Raw).Trim()

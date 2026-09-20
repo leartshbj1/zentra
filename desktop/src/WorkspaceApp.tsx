@@ -24,6 +24,8 @@ import { deferView } from './DeferredView';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { useAssistantScreen } from './assistantContext';
 import { AutomationDailySummary } from './AutomationDailySummary';
+import { SupplierInbox } from './SupplierInboxPanel';
+import { useSupplierInbox } from './supplierInbox';
 import { AutomationCompanyProvider, useCompanyAutomation } from './AutomationCompany';
 import { AutomationHub } from './AutomationHub';
 import { type AutomationPage } from './automationExperience';
@@ -593,6 +595,7 @@ function WorkspaceContent({
   const recurrenceRequestIds = useRef(new Map<string, string>());
   const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
+  const supplierInbox=useSupplierInbox(cloudAccount?.status==='connected'?cloudAccount.organizationId??null:null,readOnly,()=>actionInFlight.current||busy||!!modal||!!document.querySelector('[role="dialog"]'),next=>{workspaceRef.current=next;setWorkspace(next);});
   const workspaceMounted = useRef(true);
   const projectWorkspaceReceiver = useRef(setWorkspace);
   useLayoutEffect(() => { projectWorkspaceReceiver.current = setWorkspace; }, [setWorkspace]);
@@ -2275,6 +2278,7 @@ function WorkspaceContent({
           ) : null}
           {view === 'expenses' ? (
             <Suspense fallback={<ViewLoading label={t("Ouverture des achats…")} />}>
+              <SupplierInbox inbox={supplierInbox} workspace={workspace} readOnly={readOnly} onNewSupplier={()=>setModal({type:'supplier'})} onOpen={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('La facture arrive avec la synchronisation de l’entreprise.')});}}/>
               <PurchaseOrdersScreen
                 onOpenBank={()=>{setView('bank');setSearch('');}}
                 onReadWorkspace={async () => {

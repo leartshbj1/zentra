@@ -1,4 +1,4 @@
-import { Workflow } from 'lucide-react';
+import { Workflow,ArrowRight,CheckCircle2 } from 'lucide-react';
 import { type AutomationFeature, type AutomationState } from './automation';
 import { useCompanyAutomation } from './AutomationCompany';
 import { t, useAppLanguage } from './language';
@@ -25,7 +25,8 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
   if (!state.active || !state.activity) return null;
   const activity = state.activity;
   const { analyzed, suggestions, confirmed, needsReview, observed } = activity.totals;
-  const hasActivity = analyzed > 0 || confirmed > 0;
+  const inbox=activity.supplierInbox;
+  const hasActivity = analyzed > 0 || confirmed > 0 || !!inbox?.received || !!inbox?.imported;
   const paused = !state.settings.enabled || !state.settings.consent || !state.available.some(f => state.settings.flags.includes(f));
   return (
     <section className="automation-daily" aria-label={t('Votre journée avec Zentra Automation')}>
@@ -34,7 +35,12 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
         <span className="automation-daily__period">{t('Aujourd’hui')} · {t('Toute l’équipe')}</span>
       </div>
       <h2>{activity.displayName ? t('Bonjour, {name}', { name: activity.displayName }) : t('Bonjour')}</h2>
-      <p>{hasActivity ? t('Voici ce que Zentra a préparé pour votre entreprise aujourd’hui.') : paused ? t('Automation est en pause pour cette entreprise.') : t('Votre équipe est prête. Les prochaines analyses apparaîtront ici.')}</p>
+      <p>{hasActivity ? t('Voici ce que Zentra a fait pour votre entreprise aujourd’hui.') : paused ? t('Automation est en pause pour cette entreprise.') : t('Votre équipe est prête. Les prochaines analyses apparaîtront ici.')}</p>
+      {inbox&&!!(inbox.received||inbox.imported||inbox.needsReview)&&<div className="automation-daily__mail">
+        <div><CheckCircle2 size={22}/><strong>{inbox.automatic}</strong><span>{t('Factures comptabilisées automatiquement')}</span></div>
+        <div><strong>{inbox.received}</strong><span>{t('Justificatifs reçus aujourd’hui')}</span></div>
+        <Button variant="secondary" onClick={()=>window.dispatchEvent(new CustomEvent('zentra-automation-navigate',{detail:'purchases'}))}>{inbox.needsReview?t('{count} factures à vérifier',{count:inbox.needsReview}):t('Voir les achats')}<ArrowRight size={16}/></Button>
+      </div>}
       {hasActivity && <>
         <dl className="automation-daily__stats">
           <div><dd>{analyzed}</dd><dt>{t('Analyses terminées')}</dt></div>
@@ -49,7 +55,7 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
           </li>)}</ul>
           {needsReview > 0 && <p>{t('{count} analyses du jour restent à vérifier dans leurs écrans.', { count: needsReview })}</p>}
           {observed > 0 && <p>{t('{count} analyses en observation, sans modification de vos données.', { count: observed })}</p>}
-          <p>{t('Les choix validés sont des suggestions confirmées par l’équipe, pas des paiements ou des écritures automatiques.')}</p>
+          <p>{t('Les choix validés sont des suggestions confirmées par l’équipe. Les factures comptabilisées automatiquement sont indiquées séparément.')}</p>
         </details>
         {paused && <small>{t('Automation est actuellement en pause.')}</small>}
       </>}

@@ -614,7 +614,7 @@ pub(crate) fn record_supplier_payment_in_transaction(
     Ok(json!({"payment_id":payment_id,"idempotent":false,"document":result}))
 }
 
-fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> AppResult<Value> {
+pub(crate) fn validate_supplier_invoice_in_transaction(tx: &Transaction<'_>, id: &str) -> AppResult<Value> {
     let invoice_row: SupplierInvoiceValidationRow = tx
         .query_row(
             "SELECT status,supplier_id,supplier_name,document_date,due_date,reference,reference_normalized,currency,net_cents,vat_cents,total_cents,project_id,note FROM supplier_invoices WHERE id=?",

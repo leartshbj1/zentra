@@ -22,6 +22,8 @@ test)
   cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib account_cloud::tests -- --test-threads=1 \
     2>&1 | tee desktop/artifacts/validation/account-tests-macos.log
   bash desktop/scripts/test-mobile-webkit.sh
+  cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib supplier_inbox::tests -- --test-threads=1 \
+    2>&1 | tee desktop/artifacts/validation/supplier-inbox-tests-macos.log
   ;;
 iphone)
   bash desktop/scripts/codemagic-apple.sh iphone

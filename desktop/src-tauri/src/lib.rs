@@ -68,6 +68,7 @@ mod schema;
 mod shared_numbering;
 mod stock;
 mod supplier_email;
+mod supplier_inbox;
 mod supplier_invoices;
 mod supplier_procurement;
 mod supplier_credit_refunds;
@@ -363,7 +364,9 @@ pub fn run() {
             account_cloud::get_cloud_account_state,
             account_cloud::cloud_team_request,
             account_cloud::automation_request,
+            supplier_inbox::supplier_inbox_request,
             account_cloud::open_automation_settings,
+            account_cloud::open_supplier_inbox_settings,
             account_cloud::join_cloud_company,
             app_reset::reset_local_app,
             app_reset::get_reset_recovery,

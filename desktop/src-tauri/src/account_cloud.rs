@@ -370,6 +370,11 @@ pub async fn open_automation_settings() -> Result<String,String> {
     let uri="https://zentraapp.ch/compte/automation".to_string();
     tauri::async_runtime::spawn_blocking(move||{launch_external_url(&uri).map_err(command_error)?;Ok(uri)}).await.map_err(|error|error.to_string())?
 }
+#[tauri::command]
+pub async fn open_supplier_inbox_settings() -> Result<String,String> {
+    let uri="https://zentraapp.ch/support/espace?section=connections".to_string();
+    tauri::async_runtime::spawn_blocking(move||{launch_external_url(&uri).map_err(command_error)?;Ok(uri)}).await.map_err(|error|error.to_string())?
+}
 
 #[tauri::command]
 pub async fn join_cloud_company(state: State<'_, LocalStore>) -> Result<(), String> {
@@ -1084,6 +1089,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
             | "/api/sync/numbers"
             | crate::company_collaboration::PATH
+            | crate::supplier_inbox::PATH
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }

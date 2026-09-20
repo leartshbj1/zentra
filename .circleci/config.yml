@@ -3,6 +3,9 @@ version: 2.1
 # Opt-in only: ordinary pushes never consume the free release quota.
 # Signing and publication remain local after artifact verification.
 parameters:
+  verify-only:
+    type: boolean
+    default: false
   release:
     type: boolean
     default: false
@@ -62,6 +65,7 @@ jobs:
       shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
     environment:
       RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      ZENTRA_VERIFY_ONLY: << pipeline.parameters.verify-only >>
       CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - checkout

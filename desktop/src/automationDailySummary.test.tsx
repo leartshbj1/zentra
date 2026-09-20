@@ -21,8 +21,12 @@ it('shows the same company totals to a collaborator and a manager without claimi
   expect(member).toBe(owner);
   expect(member).toContain('Bonjour, Camille');
   expect(member).toContain('Choix validés par l’équipe');
-  expect(member).toContain('pas des paiements ou des écritures automatiques');
+  expect(member).toContain('factures comptabilisées automatiquement sont indiquées séparément');
   expect(member).not.toContain('15 CHF');
+});
+it('shows actual mailbox counts separately from model suggestions',()=>{
+  const html=renderToStaticMarkup(<AutomationDailySummaryView state={{...state,activity:{...state.activity!,supplierInbox:{received:8,imported:6,automatic:5,needsReview:2,recent:[]}}}}/>);
+  expect(html).toContain('Factures comptabilisées automatiquement');expect(html).toContain('2 factures à vérifier');expect(html).toContain('<strong>5</strong>');expect(html).not.toContain('heures économisées');
 });
 it('keeps an honest empty state instead of displaying invented savings or completed tasks', () => {
   const html = renderToStaticMarkup(<AutomationDailySummaryView state={{ ...state, activity: { ...state.activity!, totals: { analyzed: 0, suggestions: 0, confirmed: 0, needsReview: 0, observed: 0 }, features: [] } }} />);

@@ -32,3 +32,4 @@
   .automation-daily__stats dd { font-size:28px; }
   .automation-daily__stats dt { font-size:14px; }
 }
+.automation-daily__mail{display:flex;align-items:center;gap:26px;flex-wrap:wrap;margin-top:24px;padding:20px;border:1px solid var(--line-soft);border-radius:18px;background:var(--surface-soft)}.automation-daily__mail>div{display:flex;align-items:center;gap:10px;min-width:0;flex:1}.automation-daily__mail strong{font-size:28px;line-height:1.1}.automation-daily__mail span{font-size:13px;color:var(--muted);max-width:19ch}.automation-daily__mail svg{flex:none}.automation-daily__mail>.button{margin-left:auto}@media(max-width:600px){.automation-daily__mail{padding:16px;gap:18px}.automation-daily__mail>div{flex-basis:100%}.automation-daily__mail>.button{width:100%;white-space:normal}}
