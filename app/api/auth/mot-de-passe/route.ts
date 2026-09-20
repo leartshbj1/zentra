@@ -1,6 +1,6 @@
 import { enforceAccountRateLimit } from '@/lib/account';
 import { enforcePasswordRecoveryRateLimit } from '@/lib/password-recovery-rate-limit';
-import { database } from '@/lib/runtime';
+import { revokeAccountSessions } from '@/lib/account-session-policy';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import {
   authJsonError,
@@ -102,12 +102,7 @@ export async function PUT(request: Request) {
     await enforceAccountRateLimit(request, 'auth-password-update', user.id, 5);
     const client = supabaseAuthClient();
     await client.updatePassword(accessToken, password);
-    await database()
-      .prepare(
-        'UPDATE device_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL',
-      )
-      .bind(Math.floor(Date.now() / 1000), user.id)
-      .run();
+    await revokeAccountSessions(user.id);
     await client.signOut(accessToken, 'global');
     await clearSupabaseAuthCookies();
     return Response.json({ updated: true }, { headers: authNoStoreHeaders() });

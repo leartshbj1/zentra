@@ -18,6 +18,24 @@ export async function linkPaidCompany(subscriptionId: string, owner: Owner) {
   const existing=await find();
   if(existing && existing.created_by_user_id!==owner.userId)throw new AccountPublicError('Cet abonnement appartient déjà à un autre compte Zentra.',409);
   if(existing)return {id:existing.organization_id,name:existing.name};
+  // A verified purchase upgrades the existing trial workspace, preserving its documents.
+  const trial=await db.prepare(`SELECT t.organization_id,t.subscription_id FROM account_trials t
+    JOIN organizations o ON o.organization_id=t.organization_id AND o.subscription_id=t.subscription_id
+    JOIN organization_members m ON m.organization_id=o.organization_id AND m.user_id=t.user_id AND m.role='owner' AND m.revoked_at IS NULL
+    WHERE t.user_id=? AND t.converted_subscription_id IS NULL`).bind(owner.userId).first<{organization_id:string;subscription_id:string}>();
+  if(trial){
+    await db.batch([
+      db.prepare('UPDATE organizations SET subscription_id=?,updated_at=? WHERE organization_id=? AND subscription_id=? AND created_by_user_id=?')
+        .bind(subscriptionId,now,trial.organization_id,trial.subscription_id,owner.userId),
+      db.prepare('UPDATE account_trials SET converted_subscription_id=? WHERE user_id=? AND converted_subscription_id IS NULL AND EXISTS(SELECT 1 FROM organizations WHERE organization_id=? AND subscription_id=?)')
+        .bind(subscriptionId,owner.userId,trial.organization_id,subscriptionId),
+      db.prepare('UPDATE license_activations SET subscription_id=? WHERE subscription_id=? AND EXISTS(SELECT 1 FROM organizations WHERE organization_id=? AND subscription_id=?)')
+        .bind(subscriptionId,trial.subscription_id,trial.organization_id,subscriptionId),
+    ]);
+    const upgraded=await find();
+    if(!upgraded||upgraded.created_by_user_id!==owner.userId)throw new AccountPublicError('Une autre activation est en cours. Rechargez votre compte.',409);
+    return {id:upgraded.organization_id,name:upgraded.name};
+  }
   const name=(paid.customer_name || owner.displayName || 'Mon entreprise').trim().slice(0,160);
   // Both statements use the unique subscription binding. Concurrent webhook,
   // return-page and account requests create exactly one company and owner.

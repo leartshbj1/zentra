@@ -39,7 +39,7 @@ export default async function Page({
             <AutomationCompanySettings
               organizations={organizations}
               initialOrganization={
-                typeof query.entreprise === 'string' ? query.entreprise : ''
+                typeof query.organizationId === 'string' ? query.organizationId : typeof query.entreprise === 'string' ? query.entreprise : ''
               }
               paymentReturned={query.paiement === 'retour'}
             />

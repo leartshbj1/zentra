@@ -15,6 +15,7 @@ export type TeamSeats = {
   subscriptionActive: boolean;
   offeredUntil?: number;
   manualAccess?: boolean;
+  trialUntil?: number;
 };
 
 export async function teamSeats(organizationId: string): Promise<TeamSeats> {
@@ -55,17 +56,18 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
   return {
     plan: plan.id,
     planName:
-      offer || row.subscription_id.startsWith('manual_')
+      row.subscription_id.startsWith('trial_') ? 'Essai Solo · 14 jours' : offer || row.subscription_id.startsWith('manual_')
         ? 'Accès offert'
         : plan.name,
     priceChfCents:
-      offer || row.subscription_id.startsWith('manual_')
+      offer || /^(manual_|trial_)/.test(row.subscription_id)
         ? 0
         : plan.priceChfCents,
     ...(row.subscription_id.startsWith('manual_')
       ? { manualAccess: true }
       : {}),
     ...(offer ? { offeredUntil: offer.valid_until } : {}),
+    ...(row.subscription_id.startsWith('trial_') ? { trialUntil: row.entitlement_valid_until } : {}),
     limit: row.seat_limit,
     used: row.used,
     reserved: row.reserved,

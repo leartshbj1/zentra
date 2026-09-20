@@ -315,6 +315,20 @@ export function createSupabaseAuthClient(
       });
     },
 
+    async updateProfile(accessToken: string, displayName: string): Promise<SupabaseAuthUser> {
+      const payload = await request<JsonRecord>('/auth/v1/user', {
+        method: 'PUT', accessToken, body: { data: { full_name: displayName } },
+      });
+      return parseUser(payload);
+    },
+
+    async updateEmail(accessToken: string, email: string, redirectTo: string): Promise<void> {
+      const redirect = validatedAuthRedirect(redirectTo);
+      await request<JsonRecord>(`/auth/v1/user?redirect_to=${encodeURIComponent(redirect)}`, {
+        method: 'PUT', accessToken, body: { email },
+      });
+    },
+
     async signOut(
       accessToken: string,
       scope: 'local' | 'global' = 'local',

@@ -13,7 +13,8 @@ function prepare(sql:string) {
 }
 beforeEach(()=>{
   db=new DatabaseSync(':memory:');
-  db.exec(`CREATE TABLE subscriptions(subscription_id TEXT PRIMARY KEY,checkout_session_id TEXT,customer_name TEXT,last_paid_invoice_id TEXT,entitlement_valid_until INTEGER,seat_limit INTEGER);
+  db.exec(`CREATE TABLE account_trials(user_id TEXT PRIMARY KEY,organization_id TEXT,subscription_id TEXT,converted_subscription_id TEXT);
+    CREATE TABLE subscriptions(subscription_id TEXT PRIMARY KEY,checkout_session_id TEXT,customer_name TEXT,last_paid_invoice_id TEXT,entitlement_valid_until INTEGER,seat_limit INTEGER);
     CREATE TABLE checkout_attempts(checkout_session_id TEXT PRIMARY KEY,account_user_id TEXT,account_email TEXT,account_name TEXT);
     CREATE TABLE organizations(organization_id TEXT PRIMARY KEY,name TEXT,subscription_id TEXT UNIQUE,created_by_user_id TEXT,created_at INTEGER,updated_at INTEGER);
     CREATE TABLE organization_members(membership_id TEXT PRIMARY KEY,organization_id TEXT,user_id TEXT,email TEXT,display_name TEXT,role TEXT,joined_at INTEGER,revoked_at INTEGER,UNIQUE(organization_id,user_id));`);

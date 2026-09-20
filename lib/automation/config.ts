@@ -12,6 +12,7 @@ import { AccountPublicError } from '@/lib/account-security';
 
 export const AUTOMATION_CONSENT_VERSION = 'automation-2026-09-20';
 export type Settings = {
+  revision?: number;
   enabled: boolean;
   mode: Mode;
   flags: Feature[];
@@ -84,6 +85,7 @@ export async function settingsFor(organizationId: string): Promise<Settings> {
       medium_threshold: number;
       high_threshold: number;
       consent_version: string | null;
+      revision: number;
     }>();
   if (!row)
     return {
@@ -92,6 +94,7 @@ export async function settingsFor(organizationId: string): Promise<Settings> {
       flags: [],
       thresholds: DEFAULT_THRESHOLDS,
       consent: false,
+      revision: 0,
     };
   let flags: unknown = [];
   try {
@@ -101,6 +104,7 @@ export async function settingsFor(organizationId: string): Promise<Settings> {
   }
   return {
     enabled: row.enabled === 1,
+    revision: row.revision,
     mode: row.mode === 'suggest' ? 'suggest' : 'shadow',
     flags: Array.isArray(flags)
       ? FEATURES.filter((f) => flags.includes(f))
@@ -126,6 +130,8 @@ export async function saveSettings(
   )
     throw new AccountPublicError('Vérifiez les réglages Automation.');
   const old = await settingsFor(organizationId);
+  if (raw.revision !== undefined && (!Number.isSafeInteger(raw.revision) || raw.revision !== old.revision))
+    throw new AccountPublicError('Les réglages ont changé sur un autre appareil. Rechargez-les avant de continuer.', 409);
   if (
     raw.enabled &&
     !old.consent &&
@@ -135,9 +141,9 @@ export async function saveSettings(
       'Acceptez l’analyse des extraits nécessaires avant d’activer Automation.',
     );
   const now = Math.floor(Date.now() / 1000);
-  await database()
+  const saved = await database()
     .prepare(
-      `INSERT INTO automation_settings(organization_id,enabled,mode,flags,medium_threshold,high_threshold,consent_version,consent_by,consent_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(organization_id) DO UPDATE SET enabled=excluded.enabled,mode=excluded.mode,flags=excluded.flags,medium_threshold=excluded.medium_threshold,high_threshold=excluded.high_threshold,consent_version=COALESCE(excluded.consent_version,automation_settings.consent_version),consent_by=COALESCE(excluded.consent_by,automation_settings.consent_by),consent_at=COALESCE(excluded.consent_at,automation_settings.consent_at),updated_at=excluded.updated_at`,
+      `INSERT INTO automation_settings(organization_id,enabled,mode,flags,medium_threshold,high_threshold,consent_version,consent_by,consent_at,updated_at,revision) VALUES(?,?,?,?,?,?,?,?,?,?,1) ON CONFLICT(organization_id) DO UPDATE SET enabled=excluded.enabled,mode=excluded.mode,flags=excluded.flags,medium_threshold=excluded.medium_threshold,high_threshold=excluded.high_threshold,consent_version=COALESCE(excluded.consent_version,automation_settings.consent_version),consent_by=COALESCE(excluded.consent_by,automation_settings.consent_by),consent_at=COALESCE(excluded.consent_at,automation_settings.consent_at),updated_at=excluded.updated_at,revision=automation_settings.revision+1 WHERE automation_settings.revision=?`,
     )
     .bind(
       organizationId,
@@ -152,7 +158,9 @@ export async function saveSettings(
       raw.consentVersion === AUTOMATION_CONSENT_VERSION ? actor : null,
       raw.consentVersion === AUTOMATION_CONSENT_VERSION ? now : null,
       now,
+      old.revision ?? 0,
     )
     .run();
+  if (!saved.meta.changes) throw new AccountPublicError('Les réglages viennent de changer. Rechargez-les avant de continuer.', 409);
   return settingsFor(organizationId);
 }

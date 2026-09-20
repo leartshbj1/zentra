@@ -12,6 +12,7 @@ import {
 } from '@/lib/supabase-auth-http';
 import { supabaseAuthClient } from '@/lib/supabase-auth-runtime';
 import type { SupabaseAuthUser } from '@/lib/supabase-auth';
+import { accountSessionAllowed } from '@/lib/account-session-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
     }
     const client = supabaseAuthClient();
     let user: SupabaseAuthUser | null = null;
+    let verifiedToken = accessToken || '';
 
     if (accessToken) {
       try {
@@ -43,13 +45,14 @@ export async function GET(request: Request) {
         const renewed = await client.refresh(refreshToken);
         await writeSupabaseAuthCookies(renewed);
         user = renewed.user;
+        verifiedToken = renewed.accessToken;
       } catch (error) {
         if (!isRejectedAuthCredential(error)) throw error;
         await clearSupabaseAuthCookies();
       }
     }
 
-    if (!user?.emailConfirmed) {
+    if (!user?.emailConfirmed || !(await accountSessionAllowed(user.id, verifiedToken))) {
       if (accessToken || refreshToken) await clearSupabaseAuthCookies();
       return Response.json(
         { authenticated: false },

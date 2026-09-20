@@ -27,6 +27,7 @@ async function api(path: string, org: string, body?: Record<string, unknown>) {
   return data;
 }
 type Settings = {
+  revision?: number;
   enabled: boolean;
   mode: Mode;
   flags: Feature[];

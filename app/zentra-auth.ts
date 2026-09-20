@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
 import {
   clearSupabaseAuthCookies,
   readSupabaseAuthCookies,
@@ -13,6 +12,7 @@ import { optionalSupabaseAuthClient } from '@/lib/supabase-auth-runtime';
 import type { SupabaseAuthUser } from '@/lib/supabase-auth';
 import { registerAccessIdentity } from '@/lib/founder-access';
 import { attachAutomationAccess } from '@/lib/automation/founder-access';
+import { accountSessionAllowed } from '@/lib/account-session-policy';
 
 export type ZentraUser = {
   userId: string;
@@ -65,7 +65,8 @@ export async function getZentraUser(
     if (!client) return null;
     try {
       const user = await client.getUser(accessToken);
-      return withOfferedAccess(fromSupabaseUser(user));
+      if (await accountSessionAllowed(user.id, accessToken)) return withOfferedAccess(fromSupabaseUser(user));
+      return null;
     } catch (error) {
       if (!isRejectedAuthCredential(error)) throw error;
     }
@@ -75,6 +76,7 @@ export async function getZentraUser(
     if (!client) return null;
     try {
       const renewed = await client.refresh(refreshToken);
+      if (!(await accountSessionAllowed(renewed.user.id, renewed.accessToken))) return null;
       await writeSupabaseAuthCookies(renewed);
       return withOfferedAccess(fromSupabaseUser(renewed.user));
     } catch (error) {
@@ -96,16 +98,8 @@ export async function getZentraUser(
   // dont la route de session renouvelle le refresh token de façon atomique.
   if (accessToken || refreshToken) return null;
 
-  const sitesUser = await getChatGPTUser();
-  return withOfferedAccess(
-    sitesUser
-      ? {
-          ...sitesUser,
-          provider: 'sites',
-          emailConfirmed: true,
-        }
-      : null,
-  );
+  // A hosting session is never proof of ownership of a Zentra account.
+  return null;
 }
 
 export async function requireZentraUser(returnTo: string): Promise<ZentraUser> {

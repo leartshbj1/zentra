@@ -21,6 +21,8 @@ const stubs = vi.hoisted(() => ({
   rate: vi.fn(),
   recoveryRate: vi.fn(),
   run: vi.fn(),
+  batch: vi.fn(),
+  first: vi.fn(),
   bind: vi.fn(),
   prepare: vi.fn(),
   sitesUser: vi.fn(),
@@ -42,7 +44,7 @@ vi.mock('@/lib/password-recovery-rate-limit', () => ({
   enforcePasswordRecoveryRateLimit: stubs.recoveryRate,
 }));
 vi.mock('@/lib/runtime', () => ({
-  database: () => ({ prepare: stubs.prepare }),
+  database: () => ({ prepare: stubs.prepare, batch: stubs.batch }),
 }));
 vi.mock('@/lib/supabase-auth-runtime', () => ({
   supabaseAuthClient: () => stubs,
@@ -110,13 +112,15 @@ beforeEach(() => {
   stubs.getUser.mockResolvedValue(user);
   stubs.refresh.mockResolvedValue(session);
   stubs.prepare.mockReturnValue({ bind: stubs.bind });
-  stubs.bind.mockReturnValue({ run: stubs.run });
+  stubs.bind.mockReturnValue({ run: stubs.run, first: stubs.first });
+  stubs.first.mockResolvedValue(null);
+  stubs.batch.mockResolvedValue([]);
   stubs.run.mockResolvedValue({ success: true });
   stubs.sitesUser.mockResolvedValue(null);
 });
 
 describe('Account authentication routes and cookie flow', () => {
-  it('recognizes the existing Sites account in navigation without redirecting personal sign-in', async () => {
+  it('never grants Zentra access from a hosting identity', async () => {
     stubs.sitesUser.mockResolvedValue({
       userId: 'sites-owner',
       email: 'owner@example.test',
@@ -126,10 +130,9 @@ describe('Account authentication routes and cookie flow', () => {
     const response = await browserSession(
       new Request('https://zentra.example/api/account/browser-session'),
     );
-    expect(await response.json()).toEqual({ authenticated: true });
-    expect(attachAutomationAccess).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'sites-owner', emailConfirmed: true }),
-    );
+    expect(await response.json()).toEqual({ authenticated: false });
+    expect(attachAutomationAccess).not.toHaveBeenCalled();
+    expect(stubs.sitesUser).not.toHaveBeenCalled();
     expect(response.headers.get('cache-control')).toContain('no-store');
     expect(
       await (

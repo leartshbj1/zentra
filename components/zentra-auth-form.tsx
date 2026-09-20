@@ -11,7 +11,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import type { SubmitEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LEGAL_VERSION } from '@/lib/legal';
 import { notifyAuthChanged } from '@/lib/auth-browser-events';
 import {
@@ -31,7 +31,8 @@ export function ZentraAuthForm({
   switchAccount?: boolean;
 }) {
   const [mode, setMode] = useState<AuthMode>('connexion');
-  const [busy, setBusy] = useState(switchAccount);
+  const [busy, setBusy] = useState(true);
+  const submitting = useRef(false);
   const [currentEmail, setCurrentEmail] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -76,7 +77,8 @@ export function ZentraAuthForm({
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || submitting.current) return;
+    submitting.current = true;
     const form = event.currentTarget;
     setBusy(true);
     setError('');
@@ -127,6 +129,7 @@ export function ZentraAuthForm({
         reason instanceof Error ? reason.message : 'La demande n’a pas abouti.',
       );
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }

@@ -54,6 +54,7 @@ const ACCOUNT_DATE = new Intl.DateTimeFormat('fr-CH', {
 
 export function TeamAccessList({
   organizationId,
+  visibleSection = 'all',
   currentUserId,
   canManage,
   canRemoveAdmins,
@@ -62,6 +63,7 @@ export function TeamAccessList({
   invitations: initialInvitations,
 }: {
   organizationId: string;
+  visibleSection?: 'all' | 'team' | 'devices';
   currentUserId: string;
   canManage: boolean;
   canRemoveAdmins: boolean;
@@ -156,8 +158,8 @@ export function TeamAccessList({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <section className="rounded-3xl border border-[#d9d4c9] bg-white p-5">
+    <div className={`account-team-list grid gap-5 ${visibleSection==='all'?'lg:grid-cols-2':''}`}>
+      {visibleSection !== 'devices' && <section className="rounded-3xl border border-[#d9d4c9] bg-white p-5">
         <div className="flex items-center gap-3">
           <ShieldCheck className="size-5 text-[#a66b1f]" />
           <h3 className="font-semibold">Personnes autorisées</h3>
@@ -204,8 +206,8 @@ export function TeamAccessList({
             );
           })}
         </div>
-      </section>
-      <section className="rounded-3xl border border-[#d9d4c9] bg-white p-5">
+      </section>}
+      {visibleSection !== 'team' && <section className="rounded-3xl border border-[#d9d4c9] bg-white p-5">
         <div className="flex items-center gap-3">
           <Laptop className="size-5 text-[#a66b1f]" />
           <h3 className="font-semibold">Sessions d’appareils</h3>
@@ -255,8 +257,8 @@ export function TeamAccessList({
             </p>
           )}
         </div>
-      </section>
-      {canManage ? (
+      </section>}
+      {canManage && visibleSection !== 'devices' ? (
         <section className="rounded-3xl border border-[#d9d4c9] bg-white p-5 lg:col-span-2">
           <div className="flex items-center gap-3">
             <Link2 className="size-5 text-[#a66b1f]" />

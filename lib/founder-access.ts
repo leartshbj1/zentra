@@ -121,7 +121,7 @@ export async function registerAccessIdentity(
     return;
   }
   const now = nowSeconds();
-  await database()
+  const identityWrite = await database()
     .prepare(
       `INSERT INTO founder_account_identities(user_id,email,display_name,provider,last_seen_at) VALUES(?,?,?,?,?)
      ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,provider=excluded.provider,last_seen_at=excluded.last_seen_at
@@ -136,6 +136,10 @@ export async function registerAccessIdentity(
       now - 300,
     )
     .run();
+  if ((identityWrite?.meta?.changes ?? 0) > 0) {
+    await database().prepare('UPDATE organization_members SET email=?,display_name=? WHERE user_id=? AND (email<>? OR display_name<>?)')
+      .bind(email,user.displayName.slice(0,160),user.userId,email,user.displayName.slice(0,160)).run();
+  }
   const grant = await readGrant(email);
   if (
     !grant ||

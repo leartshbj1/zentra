@@ -3,6 +3,7 @@ import { isAccountRole, type AccountRole } from '@/lib/account-security';
 import { planByLicense, validLicensePrice } from '@/lib/plans';
 import { requireMemberSeat } from '@/lib/team-seats';
 import { offeredLicenseEntitlement } from '@/lib/founder-access';
+import { trialLicenseEntitlement } from '@/lib/account-trial';
 import {
   LICENSE_KEY_ID,
   LICENSE_PLAN,
@@ -135,7 +136,7 @@ export async function issueLicense(input: {
       400,
     );
   }
-  const offered = await offeredLicenseEntitlement(
+  const offered = await trialLicenseEntitlement(input.subscriptionId, accountUserId) ?? await offeredLicenseEntitlement(
     input.subscriptionId,
     accountUserId,
   );
@@ -370,11 +371,11 @@ export async function refreshLicense(token: string) {
       403,
     );
   }
-  const offered = await offeredLicenseEntitlement(
+  const offered = await trialLicenseEntitlement(activation.subscription_id, payload.account_user_id) ?? await offeredLicenseEntitlement(
     activation.subscription_id,
     payload.account_user_id,
   );
-  if (activation.subscription_id.startsWith('manual_') && !offered) {
+  if (/^(manual_|trial_)/.test(activation.subscription_id) && !offered) {
     throw new PublicError('L’accès offert a expiré ou a été retiré.', 402);
   }
   let entitlement = offered;

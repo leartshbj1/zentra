@@ -1,0 +1,1 @@
+export default function Loading(){return <div role="status" aria-label="Chargement des réglages" className="account-stack"><div className="account-skeleton"/><div className="account-skeleton"/></div>}
