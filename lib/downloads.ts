@@ -5,11 +5,12 @@ export const ZENTRA_WINDOWS_PREVIEW_NAME = `Zentra_${ZENTRA_WINDOWS_PREVIEW_VERS
 export const ZENTRA_WINDOWS_PREVIEW_PATH = `https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/${ZENTRA_WINDOWS_PREVIEW_NAME}`;
 export const ZENTRA_WINDOWS_PREVIEW_SHA256 = 'D07F620056513553C039CB02C8D94261E2EC690001C9C6D9766BAC89CB78D36B';
 export const ZENTRA_WINDOWS_VERSION = ZENTRA_WINDOWS_PREVIEW_VERSION;
-export const ZENTRA_MAC_VERSION = '1.72.0';
-export const ZENTRA_GITHUB_RELEASE_PATH = `https://github.com/leartshbj1/zentra/releases/tag/v${ZENTRA_WINDOWS_VERSION}`;
-export const ZENTRA_ANDROID_VERSION = '1.72.0';
+export const ZENTRA_MAC_VERSION = '1.73.0';
+export const ZENTRA_RELEASE_VERSION = '1.73.0';
+export const ZENTRA_GITHUB_RELEASE_PATH = `https://github.com/leartshbj1/zentra/releases/tag/v${ZENTRA_RELEASE_VERSION}`;
+export const ZENTRA_ANDROID_VERSION = '1.73.0';
 export const ZENTRA_ANDROID_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_ANDROID_VERSION}/Zentra-${ZENTRA_ANDROID_VERSION}-Android-arm64-test.apk`;
-export const ZENTRA_IPHONE_VERSION = '1.72.0';
+export const ZENTRA_IPHONE_VERSION = '1.73.0';
 export const ZENTRA_IPHONE_IPA_PATH = `https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/Zentra-${ZENTRA_IPHONE_VERSION}-iPhone-unsigned.ipa`;
 export const ZENTRA_IOS_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_VERSION}/Zentra-${ZENTRA_VERSION}-iOS-simulateur.zip`;
 export const ZENTRA_INSTALLER_NAME = `Zentra_${ZENTRA_WINDOWS_VERSION}_x64-setup.exe`;
@@ -24,6 +25,6 @@ export const ZENTRA_INSTALLER_SHA256 =
 export const ZENTRA_MAC_DMG_NAME = `Zentra_${ZENTRA_MAC_VERSION}_macos-universal.dmg`;
 export const ZENTRA_MAC_DMG_PATH = `${ZENTRA_RELEASES_ORIGIN}/${ZENTRA_MAC_DMG_NAME}`;
 export const ZENTRA_MAC_DMG_CHECKSUM_PATH = `${ZENTRA_MAC_DMG_PATH}.sha256.txt`;
-export const ZENTRA_MAC_DMG_SIZE_MIB = '48,19';
+export const ZENTRA_MAC_DMG_SIZE_MIB = '48,20';
 export const ZENTRA_MAC_DMG_SHA256 =
-  '1328510E708F1C4D61A547BE9D120FFB446E1D759D061D88768C1EEB6FA044B1';
+  '0C87AD977FADF60FAB04E2D82FC7A202C78E0FB7605479DF800408FF4A780332';
