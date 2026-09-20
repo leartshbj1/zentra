@@ -33,6 +33,7 @@ export function ZentraAuthForm({
   const [mode, setMode] = useState<AuthMode>('connexion');
   const [busy, setBusy] = useState(switchAccount);
   const [currentEmail, setCurrentEmail] = useState('');
+  const [formEmail, setFormEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(initialError);
   const [notice, setNotice] = useState('');
@@ -75,6 +76,7 @@ export function ZentraAuthForm({
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     const form = event.currentTarget;
     setBusy(true);
     setError('');
@@ -115,7 +117,7 @@ export function ZentraAuthForm({
       }
       if (payload.requiresEmailConfirmation) {
         setNotice(
-          'Compte créé. Ouvrez le message envoyé par Zentra dans ce même navigateur pour confirmer votre adresse.',
+          'Dernière étape : confirmez votre adresse avec le lien reçu par e-mail, dans ce même navigateur. Si vous avez déjà un compte, connectez-vous ou utilisez « Mot de passe oublié ».',
         );
         setMode('connexion');
         form.reset();
@@ -148,6 +150,7 @@ export function ZentraAuthForm({
               key={item}
               type="button"
               role="tab"
+              disabled={busy}
               aria-selected={mode === item}
               onClick={() => selectMode(item)}
               className={`min-h-11 min-w-0 rounded-full px-2 text-sm font-semibold transition sm:px-4 ${
@@ -239,6 +242,8 @@ export function ZentraAuthForm({
                 required
                 name="email"
                 type="email"
+                value={formEmail}
+                onChange={(event) => setFormEmail(event.target.value)}
                 inputMode="email"
                 autoComplete="email"
                 maxLength={254}

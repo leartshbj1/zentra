@@ -179,6 +179,15 @@ export function authJsonError(error: unknown) {
     } else if (code.includes('rate') || error.status === 429) {
       status = 429;
       message = 'Trop de tentatives. Réessayez dans quelques minutes.';
+    } else if (
+      error.status >= 500 &&
+      /^error sending (?:confirmation|recovery|magic link|email change|email)\b/i.test(
+        error.message,
+      )
+    ) {
+      status = 503;
+      message =
+        'Zentra ne peut pas envoyer l’e-mail nécessaire pour terminer cette demande. Le problème vient de notre service d’envoi. Réessayez plus tard avec la même adresse.';
     } else if (error.status >= 400 && error.status < 500) {
       status = 400;
       message = 'La demande d’authentification a été refusée.';

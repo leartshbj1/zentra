@@ -224,6 +224,30 @@ describe('Account authentication routes and cookie flow', () => {
     });
   });
 
+  it('keeps signup unconfirmed on an email failure and allows a later successful retry', async () => {
+    const body = {
+      email: user.email,
+      password: 'test-password-123',
+      acceptTerms: true,
+      legalVersion: LEGAL_VERSION,
+    };
+    stubs.signUp.mockRejectedValueOnce(
+      new SupabaseAuthError('Error sending confirmation email', 500, 'unexpected_failure'),
+    );
+    const failed = await signUp(request('/api/auth/inscription', body));
+    expect(failed.status).toBe(503);
+    expect(await failed.json()).toEqual({ error: expect.stringContaining('notre service d’envoi') });
+    expect(stubs.jar.has(SUPABASE_PKCE_COOKIE)).toBe(false);
+    expect(stubs.jar.has(SUPABASE_ACCESS_COOKIE)).toBe(false);
+    expect(stubs.jar.has(SUPABASE_REFRESH_COOKIE)).toBe(false);
+
+    const retried = await signUp(request('/api/auth/inscription', body));
+    expect(retried.status).toBe(202);
+    expect(await retried.json()).toEqual({ authenticated: false, requiresEmailConfirmation: true });
+    expect(stubs.jar.has(SUPABASE_PKCE_COOKIE)).toBe(true);
+    expect(stubs.jar.has(SUPABASE_ACCESS_COOKIE)).toBe(false);
+  });
+
   it('blocks an open redirect supplied at signup and consumes the PKCE verifier once', async () => {
     await signUp(
       request('/api/auth/inscription', {

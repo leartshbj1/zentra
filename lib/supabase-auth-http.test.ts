@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  authJsonError,
   isRejectedAuthCredential,
   readAuthCredentials,
   requireAuthSameOrigin,
@@ -8,6 +9,34 @@ import {
 import { SupabaseAuthError } from './supabase-auth';
 
 describe('garde-fous HTTP Auth', () => {
+  it.each(['confirmation', 'recovery', 'magic link', 'email change'])(
+    'explique un échec d’envoi %s sans exposer les détails du fournisseur',
+    async (kind) => {
+      const response = authJsonError(
+        new SupabaseAuthError(
+          `Error sending ${kind} email: SMTP private-detail@example.test`,
+          500,
+          'unexpected_failure',
+        ),
+      );
+      expect(response.status).toBe(503);
+      expect(response.headers.get('cache-control')).toContain('no-store');
+      const body = await response.json();
+      expect(body).toEqual({ error: expect.stringContaining('notre service d’envoi') });
+      expect(JSON.stringify(body)).not.toMatch(/SMTP|private-detail|unexpected_failure/);
+    },
+  );
+
+  it('ne confond pas une erreur de base de données avec un échec d’envoi', async () => {
+    const response = authJsonError(
+      new SupabaseAuthError('Database error saving new user', 500, 'unexpected_failure'),
+    );
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({
+      error: 'L’authentification est temporairement indisponible.',
+    });
+  });
+
   it('refuse une origine croisée', () => {
     const request = new Request('https://zentra.ch/api/auth/connexion', {
       method: 'POST',
