@@ -16,6 +16,7 @@ export type AutomationState = {
   available: AutomationFeature[];
   activity?: AutomationActivity | null;
   settings: {
+    revision?: number;
     enabled: boolean;
     consent: boolean;
     mode: 'shadow' | 'suggest';

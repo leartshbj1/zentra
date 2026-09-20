@@ -21,8 +21,8 @@ use crate::{
     schema::SCHEMA_VERSION,
 };
 
-const BACKUP_FORMAT: &str = "helvichantier-backup";
-const BACKUP_FORMAT_VERSION: u32 = 1;
+const BACKUP_FORMAT: &str = "zentra-backup";
+const BACKUP_FORMAT_VERSION: u32 = 2;
 const DATABASE_ENTRY: &str = "database.sqlite3";
 const ATTACHMENTS_PREFIX: &str = "attachments/";
 const MAX_MANIFEST_BYTES: u64 = 64 * 1024;
@@ -548,11 +548,9 @@ impl LocalStore {
             .and_then(|value| value.to_str())
             .unwrap_or_default();
         if !extension.eq_ignore_ascii_case("zentra")
-            && !extension.eq_ignore_ascii_case("elyko")
-            && !extension.eq_ignore_ascii_case("hchantier")
         {
             return Err(AppError::Validation(
-                "La restauration exige un fichier .zentra, .elyko ou une ancienne sauvegarde .hchantier."
+                "Choisissez une sauvegarde .zentra créée avec la Phase 2. Les anciennes sauvegardes de test ne sont plus acceptées."
                     .into(),
             ));
         }
@@ -764,7 +762,7 @@ impl LocalStore {
             || manifest.attachments_prefix != ATTACHMENTS_PREFIX
         {
             return Err(AppError::Validation(
-                "Le format de cette sauvegarde n'est pas reconnu.".into(),
+                "Cette sauvegarde appartient à une ancienne version. La Phase 2 accepte uniquement les nouvelles sauvegardes .zentra.".into(),
             ));
         }
 
@@ -1571,7 +1569,7 @@ mod tests {
     }
 
     #[test]
-    fn new_backups_use_zentra_extension_and_legacy_extensions_remain_readable() {
+    fn phase2_backups_roundtrip_and_reject_legacy_extensions() {
         let temporary = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
 
@@ -1587,10 +1585,37 @@ mod tests {
         for extension in ["elyko", "hchantier"] {
             let legacy = temporary.path().join(format!("legacy.{extension}"));
             fs::copy(&current, &legacy).unwrap();
-            store
-                .restore_backup(legacy.to_str().unwrap(), "1.13.0")
-                .unwrap();
+            assert!(store.restore_backup(legacy.to_str().unwrap(), "1.13.0").is_err());
         }
+    }
+
+    #[test]
+    fn renamed_old_backup_is_refused_before_replacing_local_data() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        let current = store.create_backup(None, "1.77.0").unwrap();
+        store.connect().unwrap().execute_batch("CREATE TABLE phase2_sentinel(value TEXT); INSERT INTO phase2_sentinel VALUES('keep');").unwrap();
+        let renamed = temporary.path().join("ancienne-renommee.zentra");
+        let mut original = ZipArchive::new(File::open(current).unwrap()).unwrap();
+        let mut writer = ZipWriter::new(File::create(&renamed).unwrap());
+        for index in 0..original.len() {
+            let mut entry = original.by_index(index).unwrap();
+            let name = entry.name().to_owned();
+            let mut bytes = Vec::new(); entry.read_to_end(&mut bytes).unwrap();
+            if name == "manifest.json" {
+                let mut manifest: Value = serde_json::from_slice(&bytes).unwrap();
+                manifest["format"] = json!("helvichantier-backup");
+                manifest["format_version"] = json!(1);
+                bytes = serde_json::to_vec(&manifest).unwrap();
+            }
+            writer.start_file(name, SimpleFileOptions::default()).unwrap();
+            writer.write_all(&bytes).unwrap();
+        }
+        writer.finish().unwrap();
+        let error = store.restore_backup(renamed.to_str().unwrap(), "1.77.0").unwrap_err();
+        assert!(error.to_string().contains("Phase 2"));
+        let value: String = store.connect().unwrap().query_row("SELECT value FROM phase2_sentinel", [], |row| row.get(0)).unwrap();
+        assert_eq!(value, "keep");
     }
 
     #[test]
@@ -1642,7 +1667,7 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let source = LocalStore::initialize(temporary.path().join("source")).unwrap();
         let source_token = seed_license(&source, "lic-source-must-not-travel");
-        let archive = temporary.path().join("source.hchantier");
+        let archive = temporary.path().join("source.zentra");
         source.create_backup_at(&archive, "1.0.0").unwrap();
 
         let destination = LocalStore::initialize(temporary.path().join("destination")).unwrap();
@@ -1778,7 +1803,7 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let source = LocalStore::initialize(temporary.path().join("source")).unwrap();
         fs::write(source.attachments_dir.join("oversized.bin"), vec![0x41; 65]).unwrap();
-        let archive = temporary.path().join("oversized.elyko");
+        let archive = temporary.path().join("oversized.zentra");
         source.create_backup_at(&archive, "1.0.0").unwrap();
 
         let destination = LocalStore::initialize(temporary.path().join("destination")).unwrap();

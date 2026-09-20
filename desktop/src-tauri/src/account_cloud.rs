@@ -434,24 +434,27 @@ pub async fn open_cloud_account_link(state: State<'_, LocalStore>) -> Result<Str
 }
 
 #[tauri::command]
-pub async fn open_cloud_account_portal() -> Result<String, String> {
-    let uri = format!("{ACCOUNT_API_ORIGIN}/compte");
-    let url =
-        Url::parse(&uri).map_err(|_| "L’adresse du compte Zentra est invalide.".to_owned())?;
-    if url.scheme() != "https"
-        || url.host_str() != Some("zentraapp.ch")
-        || url.path() != "/compte"
-        || url.query().is_some()
-        || url.fragment().is_some()
-    {
-        return Err("L’adresse du compte Zentra est refusée.".to_owned());
-    }
+pub async fn open_cloud_account_portal(state: State<'_, LocalStore>, section: Option<String>) -> Result<String, String> {
+    let organization = read_session_secret(state.inner()).map_err(command_error)?.map(|session|session.organization_id);
+    let uri = account_portal_uri(section.as_deref(), organization.as_deref()).map_err(command_error)?;
     tauri::async_runtime::spawn_blocking(move || {
         launch_external_url(&uri).map_err(command_error)?;
         Ok(uri)
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+fn account_portal_uri(section: Option<&str>, organization: Option<&str>) -> AppResult<String> {
+    let section = section.unwrap_or("");
+    if !["", "profil", "entreprise", "equipe", "securite", "connexions", "apparence", "abonnement", "automation", "donnees"].contains(&section) {
+        return Err(AppError::Validation("Choisissez une rubrique du compte Zentra.".into()));
+    }
+    let path = if section.is_empty() { "/compte".to_owned() } else { format!("/compte/{section}") };
+    let mut url = Url::parse(ACCOUNT_API_ORIGIN).map_err(|_|AppError::Validation("Adresse du compte indisponible.".into()))?;
+    url.set_path(&path);
+    if let Some(id) = organization { url.query_pairs_mut().append_pair("organizationId",id); }
+    Ok(url.to_string())
 }
 
 #[tauri::command]
@@ -1395,6 +1398,18 @@ pub(crate) async fn disconnect_live_qa_profile(store: &LocalStore) -> AppResult<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn account_settings_links_preserve_the_company_and_reject_arbitrary_destinations() {
+        let uri=account_portal_uri(Some("abonnement"),Some("org_a&other=b")).unwrap();
+        let url=Url::parse(&uri).unwrap();
+        assert_eq!(url.host_str(),Some("zentraapp.ch"));
+        assert_eq!(url.path(),"/compte/abonnement");
+        assert_eq!(url.query_pairs().collect::<Vec<_>>(),vec![("organizationId".into(),"org_a&other=b".into())]);
+        assert!(account_portal_uri(Some("https://other.example"),None).is_err());
+        assert!(account_portal_uri(Some("../admin"),None).is_err());
+        assert_eq!(account_portal_uri(None,None).unwrap(),"https://zentraapp.ch/compte");
+    }
 
     #[test]
     fn joining_initializes_only_an_empty_workspace_and_ignores_local_paths() {

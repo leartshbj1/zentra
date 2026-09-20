@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   Users,
+  UserRound, ShieldCheck, CreditCard, Link2, Database, ChevronRight,
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { errorMessage } from './utils';
@@ -281,14 +282,15 @@ export function CloudAccountPanel({
       )}
 
       {connected && !joining ? <CloudTeamPanel key={account.organizationId} settings={settings}/> : null}
+      {connected && <nav className="cloud-account-shortcuts" aria-label={t('Paramètres du compte')}>
+        {([
+          ['profil','Profil',UserRound],['securite','Sécurité',ShieldCheck],
+          ['abonnement','Abonnement',CreditCard],['connexions','Appareils connectés',Link2],
+          ['donnees','Données et confidentialité',Database],
+        ] as const).map(([section,label,Icon])=><button key={section} type="button" disabled={busy} onClick={()=>void desktopApi.openCloudAccountPortal(section).catch(reason=>setError(errorMessage(reason,'La page du compte ne s’est pas ouverte. Réessayez.')))}><Icon size={19}/><span>{t(label)}</span><ChevronRight size={17}/></button>)}
+      </nav>}
       {connected ? (
         <div className="settings-actions cloud-account-panel__actions">
-          <Button
-            variant="secondary"
-            disabled={busy}
-            onClick={() => void desktopApi.openCloudAccountPortal()}
-          >
-            <ExternalLink size={16} />{t("Abonnement et appareils")}</Button>
           <Button
             variant="ghost"
             disabled={busy}

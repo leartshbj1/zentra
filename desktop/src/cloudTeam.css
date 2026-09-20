@@ -25,6 +25,7 @@
 .cloud-account-panel .settings-cloud-account p{margin:5px 0 0;color:var(--muted)}
 .cloud-account-panel .settings-cloud-privacy{padding:0;margin:20px 0 0;border:0;background:none;font-size:12px;color:var(--muted);align-items:center;gap:7px}
 .cloud-account-panel .settings-cloud-privacy p{margin:0}
+.cloud-account-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:24px}.cloud-account-shortcuts button{display:flex;align-items:center;gap:12px;min-height:56px;width:100%;border:1px solid var(--line);border-radius:14px;background:var(--surface-raised);color:var(--ink);padding:12px 16px;text-align:left;font:inherit;cursor:pointer}.cloud-account-shortcuts button span{flex:1;min-width:0;overflow-wrap:anywhere}.cloud-account-shortcuts svg{flex-shrink:0}.cloud-account-shortcuts button:focus-visible{outline:2px solid currentColor;outline-offset:3px}@media(max-width:600px){.cloud-account-shortcuts{grid-template-columns:minmax(0,1fr);gap:0;border:1px solid var(--line);border-radius:16px;overflow:hidden}.cloud-account-shortcuts button{border:0;border-bottom:1px solid var(--line);border-radius:0;min-height:60px}.cloud-account-shortcuts button:last-child{border-bottom:0}}
 .cloud-account-panel__actions{padding-top:20px;border-top:1px solid var(--line);margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}
 .cloud-team__invite-heading{display:flex;align-items:center;gap:20px;justify-content:space-between;margin-block:20px}
 .cloud-team__invite-heading p{max-width:38ch;line-height:1.5;font-size:13px}

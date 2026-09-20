@@ -4830,7 +4830,7 @@ export const desktopApi = {
   revokeCloudInvitation: (invitationId: string) => invoke('cloud_team_request', {data:{action:'revoke',invitationId}}),
   publishCloudCompany: (settings: AppSettings) => invoke('cloud_team_request', { data: {action:'profile',profile:settingsToBackend(settings)} }),
   async joinCloudCompany() { await invoke('join_cloud_company'); const workspace = await loadWorkspace(); window.dispatchEvent(new Event('zentra-project-documents-changed')); return workspace; },
-  openCloudAccountPortal: () => invoke<string>('open_cloud_account_portal'),
+  openCloudAccountPortal: (section?: 'profil'|'entreprise'|'equipe'|'securite'|'connexions'|'apparence'|'abonnement'|'automation'|'donnees') => invoke<string>('open_cloud_account_portal', {section:section ?? null}),
   disconnectCloudAccount: () => invoke<void>('disconnect_cloud_account'),
   resetLocalApp: (confirmation: string) => invoke<{reset:boolean}>('reset_local_app', {confirmation}),
   publishCompanyCopy: () => invoke('enable_company_sync', {confirmFullAccess:true}),
@@ -6093,7 +6093,7 @@ export const desktopApi = {
       filters: [
         {
           name: 'Sauvegarde Zentra',
-          extensions: ['zentra', 'elyko', 'hchantier'],
+          extensions: ['zentra'],
         },
       ],
     }),

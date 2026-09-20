@@ -1,5 +1,11 @@
 // Interface and guidance only. Organisation names and saved business data stay verbatim.
 export const connectionTranslations: Record<string, readonly [string, string, string]> = {
+  'Paramètres du compte': ['Kontoeinstellungen','Impostazioni account','Account settings'],
+  'Profil': ['Profil','Profilo','Profile'],
+  'Données et confidentialité': ['Daten und Datenschutz','Dati e privacy','Data and privacy'],
+  'Appareils connectés': ['Verbundene Geräte','Dispositivi collegati','Connected devices'],
+  'La facture arrive avec la synchronisation de l’entreprise.': ['Die Rechnung wird mit der Unternehmenssynchronisierung übertragen.','La fattura arriva con la sincronizzazione aziendale.','The invoice will arrive through company synchronization.'],
+  'La page du compte ne s’est pas ouverte. Réessayez.': ['Die Kontoseite konnte nicht geöffnet werden. Versuchen Sie es erneut.','Impossibile aprire la pagina dell’account. Riprova.','The account page could not be opened. Try again.'],
   'La sauvegarde choisie sera contrôlée avant de remplacer les données locales. Les anciennes sauvegardes peuvent ne pas contenir les exports TVA et les dossiers de clôture. Continuer ?': ['Die gewählte Sicherung wird geprüft, bevor lokale Daten ersetzt werden. Ältere Sicherungen enthalten möglicherweise keine MWST-Exporte und Abschlussdossiers. Fortfahren?','Il backup scelto sarà verificato prima di sostituire i dati locali. I backup meno recenti potrebbero non contenere le esportazioni IVA e i dossier di chiusura. Continuare?','The selected backup will be checked before replacing local data. Older backups may not include VAT exports and closing files. Continue?'],
   'Fermer « {title} »': ['«{title}» schliessen','Chiudi «{title}»','Close “{title}”'],
   'Choisissez votre secteur d’activité': ['Wählen Sie Ihre Branche','Scegli il tuo settore di attività','Choose your business sector'],
