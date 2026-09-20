@@ -287,7 +287,17 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         setSearch('');
       }
       setNotice(
-        body.action === 'approve' ? 'Décision enregistrée.' : 'Enregistré.',
+        body.action === 'approve'
+          ? 'Décision enregistrée.'
+          : body.action === 'connectMailbox'
+            ? 'Boîte mail connectée. La réception automatique est prête.'
+            : body.action === 'syncMailbox'
+              ? result.syncing
+                ? 'Une synchronisation est déjà en cours.'
+                : result.paused
+                  ? 'Le traitement de cet espace est en pause.'
+                  : `${result.imported ?? 0} nouveau(x) mail(s) récupéré(s), ${result.processed ?? 0} analysé(s).`
+              : 'Enregistré.',
       );
       return result;
     } catch (e) {
@@ -314,7 +324,9 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     readOnly = data.workspace?.role === 'read_only';
   const externalUrl =
     ticket && connection && connection.provider !== 'api'
-      ? `https://${connection.domain}/${connection.provider === 'zendesk' ? 'agent/tickets' : connection.provider === 'freshdesk' ? 'a/tickets' : 'app/ticket'}/${encodeURIComponent(ticket.externalId)}`
+      ? connection.provider === 'infomaniak'
+        ? 'https://ksuite.infomaniak.com/mail'
+        : `https://${connection.domain}/${connection.provider === 'zendesk' ? 'agent/tickets' : connection.provider === 'freshdesk' ? 'a/tickets' : 'app/ticket'}/${encodeURIComponent(ticket.externalId)}`
       : null;
   const noticeView = (
     <>
@@ -918,7 +930,9 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               options={[
                 { value: '', label: 'Choisir une connexion' },
                 ...data.connections
-                  .filter((c) => c.provider !== 'api')
+                  .filter(
+                    (c) => c.provider !== 'api' && c.provider !== 'infomaniak',
+                  )
                   .map((c) => ({ value: c.id, label: c.label })),
               ]}
             />
@@ -936,7 +950,9 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
             >
               {busy ? 'Analyse…' : 'Importer et analyser'}
             </Button>
-            {!data.connections.some((c) => c.provider !== 'api') && (
+            {!data.connections.some(
+              (c) => c.provider !== 'api' && c.provider !== 'infomaniak',
+            ) && (
               <p>
                 Avec une connexion API, envoyez le ticket depuis votre outil. Le
                 guide se trouve dans Connexions.

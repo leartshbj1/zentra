@@ -32,7 +32,7 @@ export function ConnectionWizard({
   onConnected: (result: Record<string, unknown>) => void;
 }) {
   const [step, setStep] = useState(1),
-    [provider, setProvider] = useState('freshdesk'),
+    [provider, setProvider] = useState('infomaniak'),
     [domain, setDomain] = useState(''),
     [key, setKey] = useState('');
   const waiting =
@@ -49,18 +49,20 @@ export function ConnectionWizard({
         <DialogHeader>
           <DialogTitle>
             {step === 1
-              ? 'Quel logiciel utilisez-vous ?'
+              ? 'Que souhaitez-vous connecter ?'
               : `Connecter ${PROVIDERS[provider as keyof typeof PROVIDERS]}`}
           </DialogTitle>
           <DialogDescription>
             {step === 1
               ? 'Choisissez votre outil. Nous vous guidons pour la suite.'
-              : 'Votre mot de passe reste chez votre éditeur. Zentra vérifie les équipes disponibles.'}
+              : provider === 'infomaniak'
+                ? 'Les nouveaux mails seront classés dans Zentra Support. Votre boîte Infomaniak reste inchangée.'
+                : 'Votre mot de passe reste chez votre éditeur. Zentra vérifie les équipes disponibles.'}
           </DialogDescription>
         </DialogHeader>
         <ol className="support-wizard-steps" aria-label="Étapes de connexion">
           <li aria-current={step === 1 ? 'step' : undefined}>
-            1 · Votre outil
+            1 · Votre connexion
           </li>
           <li aria-current={step === 2 ? 'step' : undefined}>
             2 · Autorisation
@@ -86,15 +88,17 @@ export function ConnectionWizard({
                   </span>
                   <strong>{name}</strong>
                   <small>
-                    {id === 'zendesk'
-                      ? data.zendesk?.ready
-                        ? 'Autorisation en un clic'
-                        : 'En préparation'
-                      : id === 'gorgias'
-                        ? 'Bientôt disponible'
-                        : id === 'api'
-                          ? 'Pour votre équipe technique'
-                          : 'Installation guidée'}
+                    {id === 'infomaniak'
+                      ? 'Votre boîte mail, directement'
+                      : id === 'zendesk'
+                        ? data.zendesk?.ready
+                          ? 'Autorisation en un clic'
+                          : 'En préparation'
+                        : id === 'gorgias'
+                          ? 'Bientôt disponible'
+                          : id === 'api'
+                            ? 'Pour votre équipe technique'
+                            : 'Installation guidée'}
                   </small>
                   {provider === id && <Check size={17} />}
                 </button>
@@ -110,16 +114,18 @@ export function ConnectionWizard({
               e.preventDefault();
               if (waiting || demo) return;
               const result = await mutate(
-                provider === 'zendesk'
-                  ? { action: 'startZendesk', domain }
-                  : {
-                      action: 'connect',
-                      provider,
-                      domain,
-                      apiKey: key,
-                      label:
-                        provider === 'api' ? 'Mon outil de support' : domain,
-                    },
+                provider === 'infomaniak'
+                  ? { action: 'connectMailbox', email: domain, apiKey: key }
+                  : provider === 'zendesk'
+                    ? { action: 'startZendesk', domain }
+                    : {
+                        action: 'connect',
+                        provider,
+                        domain,
+                        apiKey: key,
+                        label:
+                          provider === 'api' ? 'Mon outil de support' : domain,
+                      },
               );
               if (!result) return;
               if (typeof result.url === 'string') {
@@ -158,7 +164,7 @@ export function ConnectionWizard({
               </div>
             ) : (
               <>
-                {provider !== 'api' && (
+                {provider !== 'api' && provider !== 'infomaniak' && (
                   <Field
                     label="Adresse de votre logiciel"
                     placeholder={`https://votre-entreprise.${provider}.com`}
@@ -168,6 +174,57 @@ export function ConnectionWizard({
                     maxLength={500}
                     autoComplete="url"
                   />
+                )}
+                {provider === 'infomaniak' && (
+                  <>
+                    <Field
+                      label="Adresse de votre boîte mail"
+                      type="email"
+                      placeholder="contact@votre-entreprise.ch"
+                      value={domain}
+                      onChange={(e) => setDomain(e.target.value)}
+                      required
+                      maxLength={254}
+                      autoComplete="email"
+                    />
+                    <div className="support-guided-help">
+                      <strong>Autoriser Zentra à lire vos mails</strong>
+                      <ol>
+                        <li>Ouvrez les clés API de votre compte Infomaniak.</li>
+                        <li>
+                          Créez une clé dédiée à Zentra Support avec le droit{' '}
+                          <code>workspace:mail</code>.
+                        </li>
+                        <li>
+                          Copiez cette clé ci-dessous. Vous pourrez la révoquer
+                          à tout moment chez Infomaniak.
+                        </li>
+                      </ol>
+                      <a
+                        href="https://manager.infomaniak.com/v3/ng/accounts/token"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Ouvrir Infomaniak <ArrowUpRight size={14} />
+                      </a>
+                    </div>
+                    <Field
+                      label="Clé de connexion Infomaniak"
+                      type="password"
+                      autoComplete="new-password"
+                      value={key}
+                      onChange={(e) => setKey(e.target.value)}
+                      required
+                      maxLength={8192}
+                    />
+                    <p className="support-small">
+                      La clé est chiffrée côté serveur. Seuls les mails reçus à
+                      partir de la connexion sont récupérés, même lorsque cette
+                      page est fermée. Le texte est analysé par le service de
+                      tri de Zentra ; les pièces jointes ne sont pas importées.
+                      Aucun mail n’est envoyé, déplacé ou supprimé.
+                    </p>
+                  </>
                 )}
                 {provider === 'freshdesk' && (
                   <>

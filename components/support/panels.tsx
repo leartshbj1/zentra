@@ -145,7 +145,9 @@ export function ReviewForm({
         <Check size={17} />{' '}
         {connection?.provider === 'api'
           ? 'Valider pour mon connecteur'
-          : 'Appliquer dans mon outil'}
+          : connection?.provider === 'infomaniak'
+            ? 'Classer dans Zentra Support'
+            : 'Appliquer dans mon outil'}
       </Button>
     </form>
   );
@@ -182,15 +184,18 @@ export function ConnectionsPanel({
     <div className="support-panels">
       <div className="support-section-heading">
         <div>
-          <h2>Vos outils, connectés.</h2>
-          <p>Gardez votre logiciel de support. Zentra s’occupe du tri.</p>
+          <h2>Vos mails et outils, connectés.</h2>
+          <p>
+            Connectez votre boîte mail ou votre logiciel de support pour trier
+            les demandes.
+          </p>
         </div>
         <Button
           className="support-primary"
           onClick={() => setOpen(true)}
           disabled={!manage}
         >
-          <Plus size={18} /> Ajouter un outil
+          <Plus size={18} /> Ajouter une connexion
         </Button>
       </div>
       {data.connections.length === 0 && (
@@ -198,8 +203,8 @@ export function ConnectionsPanel({
           <Link2 size={30} />
           <h3>Choisissez votre première connexion.</h3>
           <p>
-            Commencez par choisir votre logiciel pour voir les connexions
-            disponibles.
+            Commencez par choisir votre boîte mail ou votre logiciel pour voir
+            les connexions disponibles.
           </p>
           <Button
             className="support-primary"
@@ -228,13 +233,26 @@ export function ConnectionsPanel({
             </span>
           </div>
           <div className="support-actions">
-            <Button
-              variant="outline"
-              onClick={() => setGuide(guide === c.id ? null : c.id)}
-            >
-              Guide de connexion
-            </Button>
-            {c.provider !== 'api' && (
+            {c.provider !== 'infomaniak' && (
+              <Button
+                variant="outline"
+                onClick={() => setGuide(guide === c.id ? null : c.id)}
+              >
+                Guide de connexion
+              </Button>
+            )}
+            {c.provider === 'infomaniak' && (
+              <Button
+                variant="outline"
+                disabled={busy || !manage || demo}
+                onClick={() =>
+                  mutate({ action: 'syncMailbox', connectionId: c.id })
+                }
+              >
+                <RefreshCw size={15} /> Synchroniser maintenant
+              </Button>
+            )}
+            {c.provider !== 'api' && c.provider !== 'infomaniak' && (
               <Button
                 variant="outline"
                 disabled={busy || !manage}
@@ -253,7 +271,43 @@ export function ConnectionsPanel({
               Déconnecter
             </Button>
           </div>
-          {guide === c.id && (
+          {c.provider === 'infomaniak' &&
+            (() => {
+              const mailbox = data.mailboxes?.find(
+                (m) => m.connectionId === c.id,
+              );
+              return (
+                <div className="support-integration-guide">
+                  <h4>Réception et tri automatiques</h4>
+                  <p>
+                    Les nouveaux mails de la boîte de réception sont récupérés
+                    environ toutes les cinq minutes, puis classés dans Zentra
+                    Support. Les cas incertains et les mails avec pièces jointes
+                    restent à vérifier.
+                  </p>
+                  <p className="support-small">
+                    {mailbox?.lastSyncAt
+                      ? `Dernière récupération : ${formatDate(mailbox.lastSyncAt)}`
+                      : 'En attente de la première récupération.'}{' '}
+                    Le classement se fait dans Support ; les dossiers Infomaniak
+                    restent inchangés.
+                  </p>
+                  {mailbox?.lastError && (
+                    <p role="alert" className="support-notice support-error">
+                      {mailbox.lastError}
+                    </p>
+                  )}
+                  <Button
+                    variant="ghost"
+                    disabled={busy || !manage}
+                    onClick={() => setOpen(true)}
+                  >
+                    Remplacer la clé de connexion
+                  </Button>
+                </div>
+              );
+            })()}
+          {guide === c.id && c.provider !== 'infomaniak' && (
             <div className="support-integration-guide">
               <p className="support-eyebrow">3 · DERNIÈRE ÉTAPE</p>
               <h4>Recevoir les tickets automatiquement</h4>
@@ -423,10 +477,11 @@ export function ConnectionsPanel({
           error={error}
           onConnected={(result) => {
             setGuide(String(result.connectionId));
-            setHook({
-              id: String(result.connectionId),
-              token: String(result.hookToken),
-            });
+            if (result.hookToken)
+              setHook({
+                id: String(result.connectionId),
+                token: String(result.hookToken),
+              });
           }}
         />
       )}

@@ -15,7 +15,12 @@ export const PRIORITIES = {
 } as const;
 export type Category = keyof typeof CATEGORIES;
 export type Priority = keyof typeof PRIORITIES;
-export type Provider = 'zendesk' | 'freshdesk' | 'gorgias' | 'api';
+export type Provider =
+  | 'zendesk'
+  | 'freshdesk'
+  | 'gorgias'
+  | 'api'
+  | 'infomaniak';
 export type Destination = { teamId: string; agentId?: string };
 export type Directory = {
   teams: { id: string; name: string }[];

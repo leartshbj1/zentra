@@ -100,6 +100,32 @@ export const supportConnections = sqliteTable(
   },
   (t) => [index('support_connections_workspace').on(t.workspaceId)],
 );
+export const supportMailboxes = sqliteTable(
+  'support_mailboxes',
+  {
+    connectionId: text('connection_id')
+      .primaryKey()
+      .references(() => supportConnections.id),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => supportWorkspaces.id),
+    email: text('email').notNull(),
+    mailboxId: text('mailbox_id').notNull(),
+    folderId: text('folder_id').notNull(),
+    sinceAt: integer('since_at').notNull(),
+    scanOffset: integer('scan_offset').notNull().default(0),
+    nextSyncAt: integer('next_sync_at').notNull().default(0),
+    lastSyncAt: integer('last_sync_at'),
+    lastError: text('last_error'),
+    lease: text('lease'),
+    leaseUntil: integer('lease_until').notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex('support_mailboxes_identity').on(t.workspaceId, t.email),
+    index('support_mailboxes_due').on(t.nextSyncAt, t.leaseUntil),
+  ],
+);
+
 export const supportTickets = sqliteTable(
   'support_tickets',
   {

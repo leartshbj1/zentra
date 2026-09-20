@@ -1,0 +1,40 @@
+name: Zentra Support - Synchronisation mail
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: support-mail-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Recuperer et classer les nouveaux mails
+        env:
+          SUPPORT_MAIL_SYNC_TOKEN: ${{ secrets.SUPPORT_MAIL_SYNC_TOKEN }}
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          const token = process.env.SUPPORT_MAIL_SYNC_TOKEN;
+          if (!token) throw new Error('La synchronisation mail doit être configurée.');
+          const started = Date.now();
+          let imported = 0, processed = 0, failed = 0;
+          for (let batch = 0; batch < 60 && Date.now() - started < 12 * 60 * 1000; batch++) {
+            const response = await fetch('https://zentraapp.ch/api/support/mail-sync', {
+              method: 'POST', redirect: 'error',
+              headers: { Authorization: `Bearer ${token}` },
+              signal: AbortSignal.timeout(300000),
+            });
+            if (!response.ok) throw new Error(`Synchronisation indisponible (${response.status}).`);
+            const result = await response.json();
+            if (result.idle) break;
+            imported += result.imported || 0;
+            processed += result.processed || 0;
+            failed += result.failed ? 1 : 0;
+          }
+          console.log(JSON.stringify({ imported, processed, failed }));
+          if (failed) throw new Error('Une boîte nécessite une vérification dans Zentra Support.');
+          JS

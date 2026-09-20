@@ -17,6 +17,15 @@ export default async function SupportConnections() {
   const zendesk = await zendeskAvailability();
   const connectors = [
     {
+      name: 'Infomaniak Mail',
+      icon: 'I',
+      status: 'Connexion directe',
+      ready: true,
+      text: 'Reliez votre boîte mail pour récupérer les nouveaux messages et les classer par catégorie et priorité dans Zentra Support.',
+      detail:
+        'Clé Infomaniak workspace:mail. Réception périodique en arrière-plan ; vos dossiers Infomaniak restent inchangés.',
+    },
+    {
       name: 'Freshdesk',
       icon: 'F',
       status: 'Installation guidée',
@@ -65,7 +74,7 @@ export default async function SupportConnections() {
             <em>Améliorez le parcours.</em>
           </>
         }
-        description="Zentra Support se connecte à votre logiciel de service client. La disponibilité et les prérequis sont indiqués pour chaque connexion."
+        description="Zentra Support se connecte à votre boîte Infomaniak ou à votre logiciel de service client. La disponibilité et les prérequis sont indiqués pour chaque connexion."
       />
       <section className="sp-wrap sp-section sp-section-first">
         <div className="sp-integrations sp-integrations-detailed">

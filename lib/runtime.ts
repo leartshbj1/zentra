@@ -20,6 +20,7 @@ type RuntimeBindings = {
   OWNER_ACCOUNT_USER_ID?: string;
   ZENTRA_OWNER_EMAIL?: string;
   SUPPORT_ENCRYPTION_KEY?: string;
+  SUPPORT_MAIL_SYNC_TOKEN?: string;
   TYPESAFE_API_KEY?: string;
   SUPPORT_ADMIN_TOKEN_SHA256?: string;
   SUPPORT_ADMIN_SESSION_KEY?: string;

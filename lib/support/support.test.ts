@@ -25,6 +25,7 @@ import {
   readProviderTicket,
 } from './connectors';
 import { CATEGORIES, PRIORITIES, LANGUAGES, type Connection } from './types';
+import { runMailSync } from './mail-sync';
 
 const state = vi.hoisted(() => ({
   signedOut: false,
@@ -476,7 +477,11 @@ describe('Confirmation du routage Zendesk', () => {
           written = true;
           return Response.json({});
         }
-        if ((url instanceof Request ? url.url : url.toString()).includes('/comments.json'))
+        if (
+          (url instanceof Request ? url.url : url.toString()).includes(
+            '/comments.json',
+          )
+        )
           return Response.json({ comments: [], next_page: null });
         return Response.json({
           ticket: {
@@ -562,6 +567,19 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       ),
     );
     state.db = {
+      async batch(statements: { run: () => Promise<unknown> }[]) {
+        sql.exec('BEGIN');
+        try {
+          const result = [];
+          for (const statement of statements)
+            result.push(await statement.run());
+          sql.exec('COMMIT');
+          return result;
+        } catch (error) {
+          sql.exec('ROLLBACK');
+          throw error;
+        }
+      },
       prepare(query: string) {
         let values: any[] = [];
         const api = {
@@ -597,6 +615,7 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       '0044_support_onboarding',
       '0045_support_oauth_rotation',
       '0046_founder_support_access',
+      '0052_support_mailboxes',
     ])
       sql.exec(
         readFileSync(
@@ -646,6 +665,257 @@ describe('Parcours complet dans une vraie base SQLite', () => {
   afterEach(() => {
     sql.close();
     vi.unstubAllGlobals();
+  });
+  function mockMailbox(
+    options: {
+      total?: number;
+      failRead?: boolean;
+      attachments?: boolean;
+      lowConfidence?: boolean;
+    } = {},
+  ) {
+    const mailboxFetch = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const url = new URL(String(input));
+        if (url.hostname !== 'mail.infomaniak.com')
+          return Response.json(
+            answer('bug', options.lowConfidence ? 0.4 : 0.98),
+          );
+        expect(init?.method).toBe('GET');
+        expect(init?.redirect).toBe('manual');
+        expect(new Headers(init?.headers).get('Authorization')).toBe(
+          'Bearer mailbox-token',
+        );
+        let data: unknown;
+        if (url.pathname === '/api/mailbox')
+          data = [{ uuid: 'mailbox-1', email: 'inbox@example.test' }];
+        else if (url.pathname.endsWith('/folder'))
+          data = [{ id: 'inbox', role: 'INBOX' }];
+        else if (url.pathname.endsWith('/message')) {
+          const offset = Number(url.searchParams.get('offset'));
+          const total = options.total ?? 1;
+          data = {
+            threads: Array.from(
+              { length: Math.max(0, Math.min(20, total - offset)) },
+              (_, i) => ({
+                date: Date.now() / 1000,
+                messages: [
+                  { uid: `${offset + i + 1}@inbox`, folder_id: 'inbox' },
+                ],
+              }),
+            ),
+          };
+        } else {
+          if (options.failRead) return new Response('', { status: 503 });
+          data = {
+            subject: 'Paiement bloqué',
+            body: '<p>Le paiement est impossible</p>',
+            from: [{ name: 'Client', email: 'client@example.test' }],
+            has_attachments: !!options.attachments,
+          };
+        }
+        return Response.json({ result: 'success', data });
+      },
+    );
+    vi.stubGlobal('fetch', mailboxFetch);
+    return mailboxFetch;
+  }
+  it('connecte, chiffre, récupère et classe les mails sans modifier Infomaniak ni créer de doublons', async () => {
+    mockMailbox();
+    const created = await json(
+      await post({
+        action: 'connectMailbox',
+        email: 'INBOX@example.test',
+        apiKey: 'mailbox-token',
+      }),
+    );
+    const c = sql
+      .prepare('SELECT * FROM support_connections WHERE id=?')
+      .get(created.connectionId) as any;
+    expect(c.secret).not.toContain('mailbox-token');
+    expect(c.hook_hash).toBe('');
+    await post({
+      action: 'settings',
+      name: 'Mail',
+      mode: 'automatic',
+      threshold: 85,
+      baselineSeconds: 60,
+    });
+    expect(
+      await json(await post({ action: 'syncMailbox', connectionId: c.id })),
+    ).toMatchObject({ imported: 1, processed: 1 });
+    expect(
+      sql
+        .prepare(
+          'SELECT state,automatic FROM support_tickets WHERE connection_id=?',
+        )
+        .get(c.id),
+    ).toMatchObject({ state: 'routed', automatic: 1 });
+    expect(
+      await json(await post({ action: 'syncMailbox', connectionId: c.id })),
+    ).toMatchObject({ imported: 0, processed: 0 });
+    const view = await json(
+      await getWorkspaceState(new Request('https://zentraapp.ch/api/support')),
+    );
+    expect(JSON.stringify(view)).not.toContain('mailbox-token');
+    expect(view.mailboxes[0].lastSyncAt).toBeGreaterThan(0);
+    await post({ action: 'disconnect', connectionId: c.id });
+    await expect(
+      post({ action: 'syncMailbox', connectionId: c.id }),
+    ).rejects.toThrow();
+    const again = await json(
+      await post({
+        action: 'connectMailbox',
+        email: 'inbox@example.test',
+        apiKey: 'mailbox-token',
+      }),
+    );
+    expect(again.connectionId).toBe(c.id);
+    expect(
+      await json(await post({ action: 'syncMailbox', connectionId: c.id })),
+    ).toMatchObject({ imported: 0 });
+  });
+  it('récupère au-delà de la première page et garde les pièces jointes à vérifier', async () => {
+    mockMailbox({ total: 23, attachments: true });
+    const c = await json(
+      await post({
+        action: 'connectMailbox',
+        email: 'inbox@example.test',
+        apiKey: 'mailbox-token',
+      }),
+    );
+    await post({
+      action: 'settings',
+      name: 'Mail',
+      mode: 'automatic',
+      threshold: 85,
+      baselineSeconds: 60,
+    });
+    expect(
+      await json(
+        await post({ action: 'syncMailbox', connectionId: c.connectionId }),
+      ),
+    ).toMatchObject({ imported: 20, more: true });
+    expect(
+      await json(
+        await post({ action: 'syncMailbox', connectionId: c.connectionId }),
+      ),
+    ).toMatchObject({ imported: 3, more: false });
+    expect(
+      sql.prepare('SELECT COUNT(*) AS n FROM support_tickets').get(),
+    ).toMatchObject({ n: 23 });
+    expect(
+      sql
+        .prepare(
+          "SELECT COUNT(*) AS n FROM support_tickets WHERE state='routed'",
+        )
+        .get(),
+    ).toMatchObject({ n: 0 });
+    const ticket = sql
+      .prepare("SELECT * FROM support_tickets WHERE state='review' LIMIT 1")
+      .get() as any;
+    await post({
+      action: 'approve',
+      ticketId: ticket.id,
+      revision: ticket.revision,
+      category: 'bug',
+      priority: 'high',
+      destination: { teamId: 'bug' },
+    });
+    expect(
+      sql
+        .prepare('SELECT state FROM support_tickets WHERE id=?')
+        .get(ticket.id),
+    ).toMatchObject({ state: 'routed' });
+  });
+  it('reprend une lecture interrompue sans avancer le curseur ni exposer la clé', async () => {
+    mockMailbox({ failRead: true });
+    const c = await json(
+      await post({
+        action: 'connectMailbox',
+        email: 'inbox@example.test',
+        apiKey: 'mailbox-token',
+      }),
+    );
+    await expect(
+      post({ action: 'syncMailbox', connectionId: c.connectionId }),
+    ).rejects.toThrow('Impossible de lire');
+    expect(
+      sql
+        .prepare('SELECT scan_offset,lease_until FROM support_mailboxes')
+        .get(),
+    ).toMatchObject({ scan_offset: 0, lease_until: 0 });
+    mockMailbox();
+    await post({ action: 'syncMailbox', connectionId: c.connectionId });
+    expect(
+      sql.prepare('SELECT COUNT(*) AS n FROM support_tickets').get(),
+    ).toMatchObject({ n: 1 });
+  });
+  it('protège le traitement serveur et ne lit pas les boîtes des abonnements expirés', async () => {
+    const fetcher = mockMailbox();
+    const c = await json(
+      await post({
+        action: 'connectMailbox',
+        email: 'inbox@example.test',
+        apiKey: 'mailbox-token',
+      }),
+    );
+    await expect(
+      runMailSync(
+        new Request('https://zentraapp.ch/api/support/mail-sync', {
+          method: 'POST',
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 401 });
+    state.env.SUPPORT_MAIL_SYNC_TOKEN = 'cron-test';
+    const req = () =>
+      new Request('https://zentraapp.ch/api/support/mail-sync', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer cron-test' },
+      });
+    expect(await runMailSync(req())).toMatchObject({
+      imported: 1,
+      idle: false,
+    });
+    expect(await runMailSync(req())).toMatchObject({ idle: true });
+    sql.prepare('UPDATE support_subscriptions SET paid_until=0').run();
+    sql.prepare('UPDATE support_mailboxes SET next_sync_at=0').run();
+    fetcher.mockClear();
+    expect(await runMailSync(req())).toMatchObject({ failed: true });
+    expect(fetcher).not.toHaveBeenCalled();
+    await expect(
+      post({ action: 'syncMailbox', connectionId: c.connectionId }),
+    ).rejects.toThrow();
+  });
+  it('isole les espaces et refuse les connexions mail aux membres en lecture seule', async () => {
+    mockMailbox();
+    const c = await json(
+      await post({
+        action: 'connectMailbox',
+        email: 'inbox@example.test',
+        apiKey: 'mailbox-token',
+      }),
+    );
+    state.user = {
+      ...state.user,
+      userId: 'intruder',
+      email: 'intruder@example.test',
+    };
+    await expect(
+      post({ action: 'syncMailbox', connectionId: c.connectionId }),
+    ).rejects.toMatchObject({ status: 404 });
+    sql
+      .prepare(
+        'INSERT INTO support_members(id,workspace_id,email,role,created_at) VALUES(?,?,?,?,?)',
+      )
+      .run('read-only', workspace, state.user.email, 'read_only', 0);
+    await expect(
+      post({
+        action: 'connectMailbox',
+        email: 'inbox@example.test',
+        apiKey: 'mailbox-token',
+      }),
+    ).rejects.toMatchObject({ status: 403 });
   });
   it('refuse les clés personnelles Zendesk et Gorgias pour de nouveaux clients', async () => {
     for (const provider of ['zendesk', 'gorgias'])
@@ -962,18 +1232,37 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     },
   );
   it('réserve les lots de test au propriétaire sans modifier les tickets clients', async () => {
-    const payload = {action:'evaluateTestBatch', tickets:[{id:'probe-1',subject:'Erreur',body:'Export bloqué : erreur 500.'}]};
-    await expect(post(payload)).rejects.toMatchObject({status:403});
+    const payload = {
+      action: 'evaluateTestBatch',
+      tickets: [
+        {
+          id: 'probe-1',
+          subject: 'Erreur',
+          body: 'Export bloqué : erreur 500.',
+        },
+      ],
+    };
+    await expect(post(payload)).rejects.toMatchObject({ status: 403 });
     expect(fetch).not.toHaveBeenCalled();
     state.env.OWNER_ACCOUNT_USER_ID = state.user.userId;
-    const before = sql.prepare('SELECT COUNT(*) AS count FROM support_tickets').get();
+    const before = sql
+      .prepare('SELECT COUNT(*) AS count FROM support_tickets')
+      .get();
     const report = await json(await post(payload));
     expect(report.results).toHaveLength(1);
-    expect(report.results[0]).toMatchObject({id:'probe-1', automatic:true, decision:{destination:{teamId:'evaluation-bug'}}});
+    expect(report.results[0]).toMatchObject({
+      id: 'probe-1',
+      automatic: true,
+      decision: { destination: { teamId: 'evaluation-bug' } },
+    });
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(sql.prepare('SELECT COUNT(*) AS count FROM support_tickets').get()).toEqual(before);
+    expect(
+      sql.prepare('SELECT COUNT(*) AS count FROM support_tickets').get(),
+    ).toEqual(before);
     expect(JSON.stringify(report)).not.toContain('test-only-key');
-    await expect(post({...payload,tickets:Array(11).fill(payload.tickets[0])})).rejects.toMatchObject({status:400});
+    await expect(
+      post({ ...payload, tickets: Array(11).fill(payload.tickets[0]) }),
+    ).rejects.toMatchObject({ status: 400 });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
   it('réserve la clé plateforme et son état au propriétaire de Zentra', async () => {

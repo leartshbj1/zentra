@@ -28,6 +28,8 @@ import {
   completeZendesk,
 } from './zendesk-oauth';
 import { hasAdminSession } from './admin-session';
+import { connectMailbox, mailboxStates, syncMailbox } from './mail-sync';
+import { MAIL_DIRECTORY } from './infomaniak';
 import { attachSupportAccess } from './founder-access';
 import {
   rememberSupportOwner,
@@ -392,6 +394,7 @@ export async function getWorkspaceState(request: Request) {
       aiReady: !!(await aiKey()),
     },
     connections: connections.results.map(publicConnection),
+    mailboxes: await mailboxStates(workspace.id),
     zendesk: await zendeskAvailability(),
     tickets: billing.active
       ? tickets.results.slice(0, 60).map(publicTicket)
@@ -465,7 +468,12 @@ export async function mutateWorkspace(request: Request) {
   if (action === 'evaluateTestBatch') {
     const actor = await platformAccess(request);
     const tickets = evaluationTickets(body.tickets);
-    await enforceAccountRateLimit(request, 'support-admin-test-batch', actor, 300);
+    await enforceAccountRateLimit(
+      request,
+      'support-admin-test-batch',
+      actor,
+      300,
+    );
     return supportJson(await evaluateTestBatch(await aiKey(), tickets));
   }
   if (action === 'platformKey') {
@@ -514,6 +522,8 @@ export async function mutateWorkspace(request: Request) {
     [
       'settings',
       'connect',
+      'connectMailbox',
+      'syncMailbox',
       'startZendesk',
       'disconnect',
       'refreshDirectory',
@@ -642,6 +652,32 @@ export async function mutateWorkspace(request: Request) {
     return supportJson(
       await startZendesk(workspace.id, user.userId, body, platformOwner(user)),
     );
+  if (action === 'connectMailbox') {
+    await enforceAccountRateLimit(
+      request,
+      'support-mail-connect',
+      user.userId,
+      10,
+    );
+    return supportJson(
+      await connectMailbox(
+        workspace,
+        text(body.email, 254),
+        text(body.apiKey, 8192),
+      ),
+      201,
+    );
+  }
+  if (action === 'syncMailbox') {
+    await enforceAccountRateLimit(
+      request,
+      'support-mail-sync',
+      user.userId,
+      20,
+    );
+    const c = await connectionFor(workspace.id, text(body.connectionId, 50));
+    return supportJson(await syncMailbox(workspace, c));
+  }
   if (action === 'connect') {
     const provider = text(body.provider) as Provider;
     if (!['zendesk', 'freshdesk', 'gorgias', 'api'].includes(provider))
@@ -740,6 +776,10 @@ export async function mutateWorkspace(request: Request) {
       return supportJson({ saved: true });
     }
     if (action === 'rotateHook') {
+      if (c.provider === 'infomaniak')
+        throw new SupportError(
+          'La boîte mail se synchronise directement, sans webhook.',
+        );
       const token = newHookToken();
       await db
         .prepare(
@@ -750,7 +790,10 @@ export async function mutateWorkspace(request: Request) {
       return supportJson({ hookToken: token, connectionId: c.id });
     }
     if (action === 'refreshDirectory') {
-      const directory = await loadDirectory(c, await secretFor(c));
+      const directory =
+        c.provider === 'infomaniak'
+          ? MAIL_DIRECTORY
+          : await loadDirectory(c, await secretFor(c));
       await db
         .prepare(
           'UPDATE support_connections SET directory_json=? WHERE workspace_id=? AND id=?',
@@ -818,7 +861,7 @@ export async function mutateWorkspace(request: Request) {
     );
   if (action === 'importTicket') {
     const c = await connectionFor(workspace.id, text(body.connectionId, 50));
-    if (c.provider === 'api')
+    if (c.provider === 'api' || c.provider === 'infomaniak')
       throw new SupportError(
         'Utilisez l’API de cette connexion pour transmettre un ticket.',
       );
@@ -1022,7 +1065,11 @@ export async function processTicket(
       return;
     }
     let source = JSON.parse(ticket.source_json) as SourceTicket;
-    if (manual && active.provider !== 'api') {
+    if (
+      manual &&
+      active.provider !== 'api' &&
+      active.provider !== 'infomaniak'
+    ) {
       const fresh = await readProviderTicket(
         active,
         await secretFor(active),
@@ -1096,6 +1143,7 @@ export async function processTicket(
     let state = 'review';
     if (shouldRoute && decision.destination) {
       if (active.provider === 'api') state = 'ready';
+      else if (active.provider === 'infomaniak') state = 'routed';
       else {
         await assignProviderTicket(
           active,
@@ -1131,7 +1179,9 @@ export async function processTicket(
       id,
       state,
       state === 'routed'
-        ? `Affectation confirmée dans ${active.label} · ${CATEGORIES[decision.category]} · priorité ${PRIORITIES[decision.priority]}.`
+        ? active.provider === 'infomaniak'
+          ? `Mail classé dans Zentra Support · ${CATEGORIES[decision.category]} · priorité ${PRIORITIES[decision.priority]}.`
+          : `Affectation confirmée dans ${active.label} · ${CATEGORIES[decision.category]} · priorité ${PRIORITIES[decision.priority]}.`
         : state === 'ready'
           ? 'Décision disponible pour votre connecteur API. Confirmation attendue.'
           : decision.reason,

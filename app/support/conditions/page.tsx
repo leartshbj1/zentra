@@ -20,8 +20,8 @@ export default function SupportTerms() {
         </div>
       }
       title="Conditions de Zentra Support"
-      versionDate="19 septembre 2026"
-      intro="Offre pour les entreprises et indépendants — version du 19 septembre 2026."
+      versionDate="20 septembre 2026"
+      intro="Offre pour les entreprises et indépendants — version du 20 septembre 2026."
       sections={[
         {
           id: 'service',
@@ -32,11 +32,21 @@ export default function SupportTerms() {
               <p>
                 Zentra Support est un abonnement distinct du logiciel de gestion
                 Zentra. Il analyse le texte des tickets transmis par un logiciel
-                de support connecté, propose une catégorie et une priorité et
-                applique les affectations prévues lorsque les conditions
-                configurées sont remplies. Les cas incertains restent à
-                vérifier. Il ne répond pas aux clients et ne procède pas à des
-                remboursements.
+                de support connecté ou une boîte Infomaniak, propose une
+                catégorie et une priorité et applique les affectations prévues
+                lorsque les conditions configurées sont remplies. Les cas
+                incertains restent à vérifier. Il ne répond pas aux clients et
+                ne procède pas à des remboursements.
+              </p>
+              <p>
+                Pour Infomaniak, les nouveaux messages de la boîte de réception
+                sont récupérés périodiquement depuis la date de connexion. Le
+                classement se fait dans Zentra Support ; les messages ne sont ni
+                déplacés, ni supprimés, ni marqués comme lus chez Infomaniak.
+                Les pièces jointes ne sont pas importées. La réception
+                automatique vise un intervalle de cinq minutes, sans garantie de
+                traitement instantané ; une récupération manuelle est
+                disponible.
               </p>
             </>
           ),
@@ -89,9 +99,10 @@ export default function SupportTerms() {
                 Aucun dépassement n’est facturé automatiquement. Lorsque le
                 volume est atteint ou la période payée expirée, le traitement
                 est suspendu. Les tickets restent dans le logiciel source ; les
-                tickets non reçus pendant la suspension ne sont pas importés
-                rétroactivement automatiquement. Le client doit organiser leur
-                reprise.
+                tickets non reçus pendant la suspension via webhook nécessitent
+                une reprise par le client. Pour Infomaniak, la récupération
+                reprend après réactivation pour les messages toujours présents
+                dans la boîte de réception depuis sa connexion.
               </p>
             </>
           ),

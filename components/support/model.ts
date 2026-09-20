@@ -44,6 +44,13 @@ export type SupportState = {
     aiReady: boolean;
   } | null;
   connections: SupportConnection[];
+  mailboxes?: {
+    connectionId: string;
+    email: string;
+    lastSyncAt: number | null;
+    lastError: string | null;
+    nextSyncAt: number;
+  }[];
   tickets: SupportTicket[];
   hasMore: boolean;
   counts: {
@@ -69,6 +76,7 @@ export type Mutate = (
   body: Record<string, unknown>,
 ) => Promise<Record<string, unknown> | null>;
 export const PROVIDERS = {
+  infomaniak: 'Infomaniak Mail',
   zendesk: 'Zendesk',
   freshdesk: 'Freshdesk',
   gorgias: 'Gorgias',
