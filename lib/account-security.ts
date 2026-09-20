@@ -18,6 +18,7 @@ export class AccountPublicError extends Error {
   constructor(
     message: string,
     public readonly status = 400,
+    public readonly retryAfterSeconds?: number,
   ) {
     super(message);
   }

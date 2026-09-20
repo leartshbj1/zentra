@@ -256,6 +256,12 @@ export function PasswordRecoveryForm({ reset = false }: { reset?: boolean }) {
                     />
                   </label>
                 )}
+                {!reset ? (
+                  <p className="text-xs leading-5 text-[#657068]">
+                    5 demandes maximum par adresse e-mail. Après la 5e, attendez
+                    30 minutes.
+                  </p>
+                ) : null}
                 <button disabled={busy} className={button}>
                   {busy ? (
                     <LoaderCircle className="size-4 animate-spin" />

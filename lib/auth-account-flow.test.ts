@@ -15,6 +15,7 @@ const stubs = vi.hoisted(() => ({
   getUser: vi.fn(),
   refresh: vi.fn(),
   rate: vi.fn(),
+  recoveryRate: vi.fn(),
   run: vi.fn(),
   bind: vi.fn(),
   prepare: vi.fn(),
@@ -33,6 +34,9 @@ vi.mock('next/headers', () => ({
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 vi.mock('@/app/chatgpt-auth', () => ({ getChatGPTUser: stubs.sitesUser }));
 vi.mock('@/lib/account', () => ({ enforceAccountRateLimit: stubs.rate }));
+vi.mock('@/lib/password-recovery-rate-limit', () => ({
+  enforcePasswordRecoveryRateLimit: stubs.recoveryRate,
+}));
 vi.mock('@/lib/runtime', () => ({
   database: () => ({ prepare: stubs.prepare }),
 }));

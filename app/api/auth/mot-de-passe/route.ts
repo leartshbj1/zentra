@@ -1,4 +1,5 @@
 import { enforceAccountRateLimit } from '@/lib/account';
+import { enforcePasswordRecoveryRateLimit } from '@/lib/password-recovery-rate-limit';
 import { database } from '@/lib/runtime';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import {
@@ -64,10 +65,7 @@ export async function POST(request: Request) {
       typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       throw new AuthPublicError('Saisissez une adresse e-mail valide.');
-    await Promise.all([
-      enforceAccountRateLimit(request, 'auth-recovery-email', email, 3),
-      enforceAccountRateLimit(request, 'auth-recovery-address', 'all', 10),
-    ]);
+    await enforcePasswordRecoveryRateLimit(request, email);
     const pkce = await createSupabasePkceFlow();
     await supabaseAuthClient().requestPasswordReset(email, {
       emailRedirectTo: new URL('/api/auth/confirmation', origin).href,

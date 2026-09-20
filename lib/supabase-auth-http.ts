@@ -49,7 +49,10 @@ export function requireAuthSameOrigin(
 
 export async function readAuthCredentials(
   request: Request,
-  options: { requireStrongPassword?: boolean; requireLegalAcceptance?: boolean } = {},
+  options: {
+    requireStrongPassword?: boolean;
+    requireLegalAcceptance?: boolean;
+  } = {},
 ) {
   const declaredLength = Number(request.headers.get('content-length') ?? '0');
   if (Number.isFinite(declaredLength) && declaredLength > 8_192) {
@@ -94,7 +97,9 @@ export async function readAuthCredentials(
     throw new AuthPublicError('Le nom affiché est trop long.');
   }
   if (options.requireLegalAcceptance && !hasCurrentLegalAcceptance(body)) {
-    throw new AuthPublicError('Lisez et acceptez les conditions Zentra pour créer votre compte. Si la page est ancienne, rechargez-la.');
+    throw new AuthPublicError(
+      'Lisez et acceptez les conditions Zentra pour créer votre compte. Si la page est ancienne, rechargez-la.',
+    );
   }
   return {
     email,
@@ -182,8 +187,21 @@ export function authJsonError(error: unknown) {
     }
   }
   return Response.json(
-    { error: message },
-    { status, headers: authNoStoreHeaders() },
+    {
+      error: message,
+      ...(error instanceof AccountPublicError && error.retryAfterSeconds
+        ? { retryAfterSeconds: error.retryAfterSeconds }
+        : {}),
+    },
+    {
+      status,
+      headers: {
+        ...authNoStoreHeaders(),
+        ...(error instanceof AccountPublicError && error.retryAfterSeconds
+          ? { 'Retry-After': String(error.retryAfterSeconds) }
+          : {}),
+      },
+    },
   );
 }
 
