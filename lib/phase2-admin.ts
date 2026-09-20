@@ -34,7 +34,10 @@ export async function phase2Read(action:Action):Promise<unknown|Response>{
     const schema=await tables();const counts=[];
     if(schema.some(table=>!/^[a-z_][a-z0-9_]*$/.test(table.name)))throw new AccountPublicError('Schéma inattendu.',409);
     const totals:{name:string;n:number}[]=[];
-    for(let i=0;i<schema.length;i+=20)totals.push(...(await database().prepare(schema.slice(i,i+20).map(table=>`SELECT '${table.name}' AS name,COUNT(*) AS n FROM "${table.name}"`).join(' UNION ALL ')).all<{name:string;n:number}>()).results);
+    for(let i=0;i<schema.length;i+=20){
+      const counts=(await database().prepare('SELECT '+schema.slice(i,i+20).map(table=>`(SELECT COUNT(*) FROM "${table.name}") AS "${table.name}"`).join(',')).all<Record<string,number>>()).results[0];
+      totals.push(...Object.entries(counts).map(([name,n])=>({name,n})));
+    }
     for(const table of schema){
       if(!/^[a-z_][a-z0-9_]*$/.test(table.name))throw new AccountPublicError('Schéma inattendu.',409);
       counts.push({...table,count:totals.find(row=>row.name===table.name)?.n??0});

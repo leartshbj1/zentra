@@ -7,7 +7,7 @@ vi.mock('./supabase-server-runtime',()=>({supabaseRealtimeConfiguration:()=>({ur
 import { phase2Read,parsePhase2Action } from './phase2-admin';
 it('inventories the migrated database within the D1 compound-query budget',async()=>{
  const db=new DatabaseSync(':memory:');for(const f of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync('drizzle/'+f,'utf8'));
- let calls=0;mock.db={prepare(sql:string){calls++;expect(sql.split(' UNION ALL ').length).toBeLessThanOrEqual(20);return {async all(){return {results:db.prepare(sql).all()}}}}};
+ let calls=0;mock.db={prepare(sql:string){calls++;expect(sql).not.toContain(' UNION ALL ');return {async all(){return {results:db.prepare(sql).all()}}}}};
  try{const result=await phase2Read({operation:'inventory'}) as {tables:unknown[]};expect(result.tables.length).toBeGreaterThan(80);expect(calls).toBeLessThan(10);}finally{db.close();}
 });
 it('never follows a Supabase redirect carrying server credentials',async()=>{
