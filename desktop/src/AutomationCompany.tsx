@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
-import { automationState } from './automation';
+import { loadAutomationState } from './automation';
 import { createAutomationCompanySession, type AutomationCompanySnapshot } from './automationCompanySession';
 
 type CompanyContext = AutomationCompanySnapshot & { organizationId: string | null; readOnly: boolean; refresh: () => Promise<void> };
@@ -8,7 +8,7 @@ export const useCompanyAutomation = () => useContext(Context);
 
 /** One background refresh for the opened company; no persisted business activity. */
 export function AutomationCompanyProvider({ organizationId, readOnly = false, children }: { organizationId: string | null; readOnly?: boolean; children: ReactNode }) {
-  const session = useMemo(() => createAutomationCompanySession(organizationId, automationState), [organizationId]);
+  const session = useMemo(() => createAutomationCompanySession(organizationId, loadAutomationState, () => navigator.onLine), [organizationId]);
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   useEffect(() => {
     session.start();

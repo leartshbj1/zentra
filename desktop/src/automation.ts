@@ -107,9 +107,12 @@ export const workflowScreens: Record<string, string> = {
 };
 let stateRequest: Promise<AutomationState | null> | null = null;
 export function automationState(): Promise<AutomationState | null> {
+  return loadAutomationState().catch(() => null);
+}
+/** Settings retain the real failure; optional suggestions may fall back to manual entry. */
+export function loadAutomationState(): Promise<AutomationState | null> {
   if (!stateRequest)
     stateRequest = invoke<AutomationState>('automation_request', { data: null })
-      .catch(() => null)
       .finally(() => {
         stateRequest = null;
       });

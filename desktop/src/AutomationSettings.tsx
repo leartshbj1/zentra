@@ -8,13 +8,14 @@ import { automationReadiness, openAutomationHub, readinessLabels, recommendedAut
 import { t, useAppLanguage } from './language';
 import { Button } from './ui';
 import './AutomationSettings.css';
+import { AutomationConnectionNotice } from './AutomationConnectionNotice';
 
 export function AutomationSettings({ showHubLink = false }: { showHubLink?: boolean }) {
   useAppLanguage();
-  const { state, organizationId, status, refresh } = useCompanyAutomation();
+  const { state, organizationId, status } = useCompanyAutomation();
   if (status === 'loading') return <section className="automation-settings" role="status"><p>{t('Retrouvons votre espace Automation…')}</p></section>;
   if (!organizationId) return <section className="automation-settings"><h3>{t('Reliez votre entreprise')}</h3><p>{t('Connectez cette entreprise à votre compte pour retrouver son accès partagé.')}</p><Button variant="secondary" onClick={() => window.dispatchEvent(new Event('zentra-automation-account'))}>{t('Ouvrir le compte')}</Button></section>;
-  if (!state) return <section className="automation-settings"><h3>Zentra Automation</h3><p>{t('Connectez-vous à Internet pour retrouver les réglages de votre équipe.')}</p><Button variant="secondary" onClick={() => void refresh()}>{t('Réessayer')}</Button></section>;
+  if (!state) return <AutomationConnectionNotice />;
   if (!state?.active) return <AutomationSetup />;
   return <><CompanySettings key={state.organizationId} state={state} />{showHubLink && <Button variant="secondary" onClick={() => openAutomationHub()}>{t('Ouvrir l’espace Automation')}</Button>}</>;
 }
@@ -67,7 +68,7 @@ function CompanySettings({ state }: { state: AutomationState }) {
           const result = await saveAutomationSettings(draft, consent);
           setDraft(result); setBaseline(JSON.stringify(result)); setConsent(result.consent);
           await refresh(); setMessage('Les réglages sont enregistrés pour toute votre équipe.');
-        } catch { setMessage('Les réglages n’ont pas été enregistrés. Vérifiez votre connexion puis réessayez.'); }
+        } catch { await refresh(); setMessage('Les réglages n’ont pas été enregistrés. Réessayez après avoir vérifié l’état du compte et d’Automation.'); }
         finally { setBusy(false); }
       }}><Check size={17} />{t(busy ? 'Enregistrement…' : 'Enregistrer pour toute l’équipe')}</Button>
     </>}

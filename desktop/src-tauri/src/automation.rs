@@ -8,8 +8,11 @@ fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
 }
 pub(crate) fn bound(store: &LocalStore, org: &str) -> AppResult<()> {
-    if crate::company_collaboration::status(store)?["organizationId"].as_str() != Some(org) {
-        return Err(invalid("Connectez et partagez cette entreprise dans Paramètres → Compte et accès. Le travail manuel reste disponible."));
+    let status = crate::company_collaboration::status(store)?;
+    match status["organizationId"].as_str() {
+        Some(current) if current == org => {},
+        Some(_) => return Err(invalid("[automation:company_mismatch] Le compte connecté ne correspond pas à l’entreprise de cet appareil. Ouvrez Compte et équipe pour rétablir le bon lien.")),
+        None => return Err(invalid("[automation:company_unlinked] Reliez cette entreprise dans Compte et équipe avant d’utiliser Automation.")),
     }
     Ok(())
 }
@@ -125,6 +128,7 @@ mod tests {
     #[test]
     fn refuses_another_company() {
         let (_dir, store) = fixture();
+        assert!(bound(&store, "org_b").unwrap_err().to_string().contains("[automation:company_mismatch]"));
         assert!(prepare_request(
             &store,
             "org_b",
@@ -132,6 +136,13 @@ mod tests {
             json!({"action":"decide","feature":"supplier_routing"})
         )
         .is_err());
+    }
+    #[test]
+    fn distinguishes_unlinked_from_mismatched_companies() {
+        let (dir, store) = fixture();
+        assert!(bound(&store, "org_a").is_ok());
+        std::fs::remove_file(dir.path().join("company-collaboration.json")).unwrap();
+        assert!(bound(&store, "org_a").unwrap_err().to_string().contains("[automation:company_unlinked]"));
     }
     #[test]
     fn ignores_webview_resources_and_reads_only_current_database() {

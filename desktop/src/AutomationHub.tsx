@@ -8,6 +8,7 @@ import { t, useAppLanguage } from './language';
 import type { Workspace } from './types';
 import { Button } from './ui';
 import './AutomationHub.css';
+import { AutomationConnectionNotice } from './AutomationConnectionNotice';
 
 const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
 
@@ -16,6 +17,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate }: {
 }) {
   useAppLanguage();
   const { state, status, refresh, readOnly } = useCompanyAutomation();
+  if (!state && status === 'unavailable') return <div className="automation-hub"><AutomationConnectionNotice /></div>;
   if (!state) return <section className="automation-hub automation-hub__empty" aria-busy={status === 'loading'}>
     <Workflow size={32} aria-hidden="true" />
     <h2>{t(status === 'loading' ? 'Retrouvons votre espace Automation…' : status === 'disconnected' ? 'Reliez votre entreprise' : 'Automation attend la connexion')}</h2>

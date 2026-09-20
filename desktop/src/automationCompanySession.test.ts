@@ -15,7 +15,7 @@ it('discovers a company activation and removes access immediately when revoked',
 it('retains only menu discovery during outages, with no stale actionable state', async () => {
   const session = createAutomationCompanySession('a', vi.fn().mockResolvedValueOnce(active).mockRejectedValueOnce(Error('offline')).mockResolvedValueOnce(active)); session.start();
   await session.refresh(); await session.refresh();
-  expect(session.getSnapshot()).toEqual({ state: null, knownActive: true, status: 'unavailable' });
+  expect(session.getSnapshot()).toEqual({ state: null, knownActive: true, status: 'unavailable', problem: 'service' });
   expect(workflowReady(session.getSnapshot().state, ['document_routing'])).toBe(false);
   await session.refresh(); expect(session.getSnapshot().status).toBe('ready');
 });
@@ -25,7 +25,7 @@ it('isolates organizations, ignores late responses and never loads a disconnecte
   const pending = old.refresh(); old.stop(); finish(active); await pending;
   expect(old.getSnapshot().state).toBeNull();
   const current = createAutomationCompanySession('b', async () => active); current.start(); await current.refresh();
-  expect(current.getSnapshot()).toEqual({ state: null, knownActive: false, status: 'unavailable' });
+  expect(current.getSnapshot()).toEqual({ state: null, knownActive: false, status: 'unavailable', problem: 'company_mismatch' });
   const load = vi.fn(); const offline = createAutomationCompanySession(null, load); offline.start(); await offline.refresh(); expect(load).not.toHaveBeenCalled();
 });
 it('rechecks changes that arrive during a pending refresh without overlapping requests', async () => {

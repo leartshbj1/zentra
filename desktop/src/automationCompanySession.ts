@@ -1,13 +1,15 @@
 import type { AutomationState } from './automation';
+import { automationProblem, type AutomationProblem } from './automationConnection';
 
 export type AutomationCompanySnapshot = {
   state: AutomationState | null;
   knownActive: boolean;
   status: 'disconnected' | 'loading' | 'ready' | 'unavailable';
+  problem?: AutomationProblem;
 };
 
 /** A company-scoped, memory-only session. An outage may retain the menu, never permission to act. */
-export function createAutomationCompanySession(organizationId: string | null, load: () => Promise<AutomationState | null>) {
+export function createAutomationCompanySession(organizationId: string | null, load: () => Promise<AutomationState | null>, online = () => true) {
   let snapshot: AutomationCompanySnapshot = { state: null, knownActive: false, status: organizationId ? 'loading' : 'disconnected' };
   let live = false;
   let generation = 0;
@@ -22,10 +24,13 @@ export function createAutomationCompanySession(organizationId: string | null, lo
     pending = (async () => {
       do {
         requested = false;
-        const next = await load().catch(() => null);
+        let problem: AutomationProblem = online() ? 'service' : 'offline';
+        let next: AutomationState | null;
+        try { next = await load(); }
+        catch (reason) { problem = automationProblem(reason, online()); next = null; }
         if (!live || generation !== epoch) return;
         if (next && next.organizationId === organizationId) publish({ state: next, knownActive: next.active, status: 'ready' });
-        else publish({ state: null, knownActive: next ? false : snapshot.knownActive, status: 'unavailable' });
+        else publish({ state: null, knownActive: next ? false : snapshot.knownActive, status: 'unavailable', problem: next ? 'company_mismatch' : problem });
       } while (requested);
     })().finally(() => { if (epoch === generation) pending = null; });
     return pending;
