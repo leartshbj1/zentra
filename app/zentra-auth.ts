@@ -12,6 +12,7 @@ import {
 import { optionalSupabaseAuthClient } from '@/lib/supabase-auth-runtime';
 import type { SupabaseAuthUser } from '@/lib/supabase-auth';
 import { registerAccessIdentity } from '@/lib/founder-access';
+import { attachAutomationAccess } from '@/lib/automation/founder-access';
 
 export type ZentraUser = {
   userId: string;
@@ -29,7 +30,10 @@ type ZentraUserOptions = {
 async function withOfferedAccess(
   user: ZentraUser | null,
 ): Promise<ZentraUser | null> {
-  if (user) await registerAccessIdentity(user);
+  if (user) {
+    await registerAccessIdentity(user);
+    await attachAutomationAccess(user);
+  }
   return user;
 }
 

@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LEGAL_VERSION } from './legal';
 vi.mock('@/lib/founder-access', () => ({ registerAccessIdentity: vi.fn() }));
+vi.mock('@/lib/automation/founder-access', () => ({
+  attachAutomationAccess: vi.fn(),
+}));
+import { attachAutomationAccess } from './automation/founder-access';
 
 const stubs = vi.hoisted(() => ({
   jar: new Map<string, string>(),
@@ -123,6 +127,9 @@ describe('Account authentication routes and cookie flow', () => {
       new Request('https://zentra.example/api/account/browser-session'),
     );
     expect(await response.json()).toEqual({ authenticated: true });
+    expect(attachAutomationAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'sites-owner', emailConfirmed: true }),
+    );
     expect(response.headers.get('cache-control')).toContain('no-store');
     expect(
       await (

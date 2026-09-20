@@ -6,6 +6,7 @@ import { decisionApiKey, globalFlags, settingsFor } from './config';
 import { buildPolicy, safeWorkflow } from './policies';
 import { authorizedResources, nativeResources } from './resources';
 import { JevDecisionProvider } from './provider';
+import { automationGrant } from './founder-access';
 import {
   POLICY_VERSION,
   DecisionFailure,
@@ -47,14 +48,14 @@ export async function automationEntitlement(actor: AutomationActor) {
     }>();
   const now = Math.floor(Date.now() / 1000);
   const live = stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'));
-  return (
+  const paid =
     !!row &&
     live !== null &&
     row.livemode === Number(live) &&
     row.paid_from <= now &&
     row.paid_until > now &&
-    ['active', 'past_due'].includes(row.status)
-  );
+    ['active', 'past_due'].includes(row.status);
+  return paid || !!(await automationGrant(actor.organizationId));
 }
 export function publicDecision(row: AuditRow) {
   if (row.state === 'processing')

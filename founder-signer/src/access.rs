@@ -23,6 +23,8 @@ pub struct Action {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<String>,
@@ -38,8 +40,11 @@ pub struct Action {
 
 impl Action {
     fn validate(&self) -> Result<()> {
-        if self.product.as_deref().is_some_and(|v| v != "support") {
+        if self.product.as_deref().is_some_and(|v| !["support", "automation"].contains(&v)) {
             return Err("Produit inconnu.".into());
+        }
+        if self.organization_id.as_ref().is_some_and(|v| self.product.as_deref() != Some("automation") || self.operation != "grant" || v.is_empty() || v.len() > 255 || !v.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')) {
+            return Err("Entreprise invalide.".into());
         }
         let support_grant = self.product.as_deref() == Some("support") && self.operation == "grant";
         if (self.plan.is_some() && !support_grant)
@@ -256,6 +261,7 @@ mod tests {
         Action {
             product: None,
             plan: None,
+            organization_id: None,
             operation: "grant".into(),
             email: Some("test@example.invalid".into()),
             duration: Some("14_days".into()),

@@ -26,10 +26,16 @@ test('Support product and plan are validated and protected by the founder signat
  assert(!verify(null,Buffer.from('zentra-founder-access-v1\n'+Buffer.from(JSON.stringify(changed)).toString('base64url')),keys.publicKey,Buffer.from(e.signature,'base64url')));
  assert.throws(()=>validateAction({...action(),plan:'starter'}));assert.throws(()=>validateAction({...a,plan:'pro'}));assert.throws(()=>validateAction({...a,product:'unknown'}));
 });
+test('Automation and its chosen company are signed, without a Support formula',()=>{
+ const a={...action(),product:'automation',organizationId:'org_test'};const e=envelope(a,keys.privateKey);
+ const payload=JSON.parse(Buffer.from(e.payload,'base64url'));assert.deepEqual(payload.action,a);
+ payload.action.organizationId='org_elsewhere';assert(!verify(null,Buffer.from('zentra-founder-access-v1\n'+Buffer.from(JSON.stringify(payload)).toString('base64url')),keys.publicKey,Buffer.from(e.signature,'base64url')));
+ assert.throws(()=>validateAction({...a,plan:'starter'}));assert.throws(()=>validateAction({...a,product:'support',plan:'starter'}));assert.throws(()=>validateAction({...a,operation:'revoke'}));
+});
 test('An uncertain write survives restart, prohibits other writes, and retries the same operation',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'zentra-founder-test-'));const vault=new Vault(root);vault.key=async()=>keys.privateKey;
  try{
-  const a={...action(),product:'support',plan:'team'};const first=new Backend(vault,{post:async()=>{throw Error('simulated offline');}});
+  const a={...action(),product:'automation',organizationId:'org_test'};const first=new Backend(vault,{post:async()=>{throw Error('simulated offline');}});
   await assert.rejects(first.invoke('founder_request',{action:a}),/Connexion interrompue/);
   const stored=await readFile(path.join(root,'founder-pending-access.dpapi'));assert(!stored.includes(Buffer.from(a.email)));
   let received;const restarted=new Backend(vault,{post:async(url,e)=>{received=JSON.parse(Buffer.from(e.payload,'base64url')).action;return {status:200,body:{replayed:true}};}});

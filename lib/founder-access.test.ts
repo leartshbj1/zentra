@@ -53,6 +53,14 @@ import {
 } from './support/billing';
 import { getWorkspaceState } from './support/service';
 import type { Workspace } from './support/types';
+import {
+  attachAutomationAccess,
+  lookupAutomationAccess,
+  automationGrant,
+} from './automation/founder-access';
+import { automationEntitlement, decideForActor } from './automation/service';
+import { automationBillingState } from './automation/billing';
+import { settingsFor } from './automation/config';
 
 const keys = generateKeyPairSync('ed25519');
 const publicKey = keys.publicKey.export({ format: 'jwk' }).x!;
@@ -176,6 +184,229 @@ beforeEach(() => {
 afterEach(() => {
   db.close();
   vi.useRealTimers();
+});
+
+describe('Founder offers for Zentra Automation', () => {
+  const offer = (revision = 0, extra: Record<string, unknown> = {}) =>
+    write(revision, 'grant', { product: 'automation', ...extra });
+  async function gestion() {
+    await registerAccessIdentity(person);
+    const result = await command(write());
+    expect(result.status).toBe(200);
+    return (await readGrant(email))!.organization_id!;
+  }
+  const actor = (organizationId: string) => ({
+    organizationId,
+    userId: person.userId,
+    role: 'owner',
+    founder: false,
+  });
+  it('offers by email before signup, attaches to Gestion later, and keeps all three products separate', async () => {
+    const granted = await command(offer());
+    expect(granted.status).toBe(200);
+    expect(granted.body.record).toMatchObject({
+      status: 'pending',
+      accountLinked: false,
+    });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM subscriptions').get()?.n).toBe(
+      0,
+    );
+    await attachAutomationAccess({ ...person, emailConfirmed: false });
+    expect(
+      db.prepare('SELECT user_id FROM founder_automation_grants').get()
+        ?.user_id,
+    ).toBeNull();
+    await registerAccessIdentity(person);
+    await attachAutomationAccess(person);
+    expect((await lookupAutomationAccess(email)).availability).toBe(
+      'organization_required',
+    );
+    const organizationId = await gestion();
+    expect(await automationEntitlement(actor(organizationId))).toBe(true);
+    expect(
+      await automationEntitlement({ ...actor(organizationId), device: true }),
+    ).toBe(true);
+    const found = await lookupAutomationAccess(email);
+    expect(found.record).toMatchObject({ status: 'active', organizationId });
+    expect(found.availability).toBe('ready');
+    expect(await settingsFor(organizationId)).toMatchObject({
+      enabled: false,
+      consent: false,
+    });
+    expect(
+      db.prepare('SELECT COUNT(*) AS n FROM automation_subscriptions').get()?.n,
+    ).toBe(0);
+    expect(
+      db.prepare('SELECT COUNT(*) AS n FROM founder_support_grants').get()?.n,
+    ).toBe(0);
+    const before = await readGrant(email);
+    expect(
+      (await command(write(1, 'revoke', { product: 'automation' }))).status,
+    ).toBe(200);
+    expect(await automationEntitlement(actor(organizationId))).toBe(false);
+    expect(await readGrant(email)).toEqual(before);
+  });
+  it('requires an active Gestion entitlement and blocks requests after expiry or revocation', async () => {
+    const org = await gestion();
+    await command(offer());
+    const provider = { decide: vi.fn() };
+    // An offer must never silently turn on processing or consent.
+    expect(
+      await decideForActor(
+        actor(org),
+        { requestId: 'automation_founder_fixture', feature: 'priority' },
+        provider,
+      ),
+    ).toMatchObject({ status: 'disabled' });
+    expect(provider.decide).not.toHaveBeenCalled();
+    await command(write(1, 'revoke'));
+    expect(await automationGrant(org)).toBeNull();
+    await expect(
+      decideForActor(
+        actor(org),
+        { requestId: 'automation_founder_fixture', feature: 'priority' },
+        provider,
+      ),
+    ).rejects.toMatchObject({ status: 402 });
+    await command(write(2));
+    expect(await automationGrant(org)).not.toBeNull();
+    vi.setSystemTime(new Date(fixed.getTime() + 15 * 86400000));
+    expect(await automationGrant(org)).toBeNull();
+  });
+  it('retries a lost response once, extends a calendar month, supports a Swiss end date, and rejects stale revisions', async () => {
+    const action = offer();
+    const first = await command(action),
+      replay = await command(action);
+    expect(replay.body.replayed).toBe(true);
+    expect(replay.body.record).toEqual(first.body.record);
+    expect((await command({ ...action, duration: 'one_month' })).status).toBe(
+      409,
+    );
+    expect((await command(offer())).status).toBe(409);
+    const extended = await command(offer(1, { duration: 'one_month' }));
+    expect(extended.body.record?.expiresAt).toBe('2026-10-29T12:00:00.000Z');
+    const precise = await command(
+      offer(2, { duration: 'custom', customDate: '2026-12-31' }),
+    );
+    expect(precise.body.record?.expiresAt).toBe('2026-12-31T22:59:59.000Z');
+    expect(
+      db.prepare('SELECT COUNT(*) AS n FROM founder_automation_events').get()
+        ?.n,
+    ).toBe(3);
+  });
+  it('requires an explicit choice for multiple owned companies and cannot target another owner', async () => {
+    const first = await gestion();
+    db.exec(
+      "INSERT INTO subscriptions(subscription_id,customer_id,price_id,status,current_period_end,livemode,updated_at) VALUES('sub_second','cus_second','price','active',2100000000,1,1)",
+    );
+    db.prepare('INSERT INTO organizations VALUES(?,?,?,?,?,?)').run(
+      'org_second',
+      'Deuxième',
+      'sub_second',
+      person.userId,
+      1,
+      1,
+    );
+    db.prepare(
+      "INSERT INTO organization_members(membership_id,organization_id,user_id,email,display_name,role,joined_at) VALUES('mem_second','org_second',?,?,?,'owner',1)",
+    ).run(person.userId, email, 'Person');
+    const lookup = await lookupAutomationAccess(email);
+    expect(lookup.organizations).toHaveLength(2);
+    expect(lookup.availability).toBe('organization_ambiguous');
+    expect((await command(offer())).status).toBe(409);
+    expect(
+      (await command(offer(0, { organizationId: 'org_someone_else' }))).status,
+    ).toBe(409);
+    expect((await command(offer(0, { organizationId: first }))).status).toBe(
+      200,
+    );
+    expect(await automationEntitlement(actor(first))).toBe(true);
+    expect(await automationEntitlement(actor('org_second'))).toBe(false);
+    expect(
+      (await command(offer(1, { organizationId: 'org_second' }))).status,
+    ).toBe(409);
+    db.prepare(
+      'UPDATE organization_members SET revoked_at=1 WHERE organization_id=?',
+    ).run(first);
+    expect(await automationGrant(first)).toBeNull();
+  });
+  it('preserves a paid Automation subscription when the offered access is removed', async () => {
+    const org = await gestion();
+    stubs.value.mockImplementation((k: string) =>
+      k === 'FOUNDER_ADMIN_PUBLIC_KEY_B64URL'
+        ? publicKey
+        : k === 'STRIPE_SECRET_KEY'
+          ? 'sk_live_fixture'
+          : '',
+    );
+    db.exec(
+      'UPDATE subscriptions SET entitlement_valid_until=2100000000,livemode=1',
+    );
+    db.prepare(
+      "INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,livemode,updated_at) VALUES(?,'sub_auto','cus_auto','active',1,2100000000,1,1)",
+    ).run(org);
+    await command(offer());
+    const before = db.prepare('SELECT * FROM automation_subscriptions').get();
+    await command(write(1, 'revoke', { product: 'automation' }));
+    expect(await automationEntitlement(actor(org))).toBe(true);
+    expect(db.prepare('SELECT * FROM automation_subscriptions').get()).toEqual(
+      before,
+    );
+    expect(await automationBillingState(org)).toMatchObject({
+      hasSubscription: true,
+      offeredAccess: false,
+    });
+  });
+  it('shows a free offer in billing, and an expired base cannot use it', async () => {
+    const org = await gestion();
+    await command(offer());
+    expect(await automationBillingState(org)).toMatchObject({
+      hasSubscription: false,
+      offeredAccess: true,
+      offeredUntil: Math.floor(fixed.getTime() / 1000) + 14 * 86400,
+    });
+    await command(write(1, 'revoke'));
+    expect(await automationBillingState(org)).toMatchObject({
+      offeredAccess: false,
+    });
+    expect((await lookupAutomationAccess(email)).availability).toBe(
+      'gestion_required',
+    );
+  });
+  it('does not reassign an email to another identity or allow plan/product tampering', async () => {
+    const org = await gestion();
+    await command(offer());
+    const other = { ...person, userId: 'reassigned' };
+    await attachAutomationAccess(other);
+    expect(
+      db.prepare('SELECT user_id FROM founder_automation_grants').get()
+        ?.user_id,
+    ).toBe(person.userId);
+    expect(() =>
+      db.exec("UPDATE founder_automation_grants SET user_id='reassigned'"),
+    ).toThrow(/immutable/);
+    expect((await command(offer(1, { plan: 'business' }))).status).toBe(400);
+    expect(
+      (
+        await command(
+          write(0, 'grant', {
+            product: 'support',
+            plan: 'starter',
+            organizationId: org,
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    const body = signed(offer(1));
+    const payload = JSON.parse(
+      Buffer.from(body.payload, 'base64url').toString(),
+    );
+    payload.action.product = 'support';
+    body.payload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    expect((await admin(request('/api/founder/access', body))).status).toBe(
+      401,
+    );
+  });
 });
 
 describe('Founder offers for Zentra Support', () => {

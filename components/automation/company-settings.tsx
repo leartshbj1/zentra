@@ -40,6 +40,8 @@ type State = {
   canManage: boolean;
 };
 type Billing = {
+  offeredAccess?: boolean;
+  offeredUntil?: number | null;
   ready: boolean;
   status: string;
   hasSubscription: boolean;
@@ -213,13 +215,22 @@ export function AutomationCompanySettings({
           ? 'Votre option est active'
           : 'Simplifiez les tâches répétitives'}
       </h2>
-      <div className="automation-price">
-        15 CHF <small>/ mois par entreprise</small>
-      </div>
+      {billing?.offeredAccess &&
+      billing.offeredUntil &&
+      !billing.hasSubscription ? (
+        <output>
+          Accès offert jusqu’au{' '}
+          {new Date(billing.offeredUntil * 1000).toLocaleDateString('fr-CH')}.
+          Aucun paiement demandé.
+        </output>
+      ) : (
+        <div className="automation-price">
+          15 CHF <small>/ mois par entreprise</small>
+        </div>
+      )}
       <p>
-        En complément de Zentra Gestion. Résiliable pour la prochaine échéance.
-        Les écritures, paiements et suppressions restent soumis à votre
-        validation.
+        En complément de Zentra Gestion. Les écritures, paiements et
+        suppressions restent soumis à votre validation.
       </p>
       {state && !state.active && !billing?.hasSubscription && (
         <>

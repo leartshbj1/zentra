@@ -30,8 +30,9 @@ export function verifyToken(token){
   return validatePayload(JSON.parse(Buffer.from(parts[0],'base64url').toString('utf8')));
 }
 export function validateAction(a){
-  if(!a||typeof a!=='object'||Array.isArray(a)||Object.keys(a).some(k=>!['operation','email','duration','customDate','operationId','expectedRevision','note','product','plan'].includes(k))||!['lookup','list','grant','revoke'].includes(a.operation))throw Error('Commande d’accès invalide.');
-  if(a.product!==undefined&&a.product!=='support')throw Error('Produit inconnu.');
+  if(!a||typeof a!=='object'||Array.isArray(a)||Object.keys(a).some(k=>!['operation','email','duration','customDate','operationId','expectedRevision','note','product','plan','organizationId'].includes(k))||!['lookup','list','grant','revoke'].includes(a.operation))throw Error('Commande d’accès invalide.');
+  if(a.product!==undefined&&!['support','automation'].includes(a.product))throw Error('Produit inconnu.');
+  if(a.organizationId!==undefined&&(a.product!=='automation'||a.operation!=='grant'||typeof a.organizationId!=='string'||!/^[a-zA-Z0-9_-]{1,255}$/.test(a.organizationId)))throw Error('Entreprise invalide.');
   if(a.plan!==undefined&&(a.product!=='support'||a.operation!=='grant'))throw Error('Formule inattendue.');
   if(a.product==='support'&&a.operation==='grant'&&!['starter','team','business'].includes(a.plan))throw Error('Choisissez une formule Zentra Support.');
   if(a.operation!=='list'&&(typeof a.email!=='string'||a.email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email)))throw Error('Saisissez une adresse e-mail complète.');

@@ -76,7 +76,8 @@ export function accessExpiry(
 }
 
 export type FounderAction = {
-  product?: 'support';
+  product?: 'support' | 'automation';
+  organizationId?: string;
   plan?: 'starter' | 'team' | 'business';
   operation: 'lookup' | 'list' | 'grant' | 'revoke';
   email?: string;
@@ -104,6 +105,7 @@ export function parseAction(value: unknown): FounderAction {
           'note',
           'product',
           'plan',
+          'organizationId',
         ].includes(key),
     )
   )
@@ -113,9 +115,24 @@ export function parseAction(value: unknown): FounderAction {
   const action: FounderAction = {
     operation: a.operation as FounderAction['operation'],
   };
-  if (a.product !== undefined && a.product !== 'support')
+  if (
+    a.product !== undefined &&
+    a.product !== 'support' &&
+    a.product !== 'automation'
+  )
     throw new AccountPublicError('Produit inconnu.');
-  if (a.product === 'support') action.product = 'support';
+  if (a.product === 'support' || a.product === 'automation')
+    action.product = a.product;
+  if (a.organizationId !== undefined) {
+    if (
+      a.product !== 'automation' ||
+      a.operation !== 'grant' ||
+      typeof a.organizationId !== 'string' ||
+      !/^[a-zA-Z0-9_-]{1,255}$/.test(a.organizationId)
+    )
+      throw new AccountPublicError('Entreprise invalide.');
+    action.organizationId = a.organizationId;
+  }
   if (
     a.plan !== undefined &&
     (a.product !== 'support' || a.operation !== 'grant')

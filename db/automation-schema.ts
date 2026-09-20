@@ -8,6 +8,38 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import { organizations } from './schema';
 
+export const founderAutomationGrants = sqliteTable(
+  'founder_automation_grants',
+  {
+    email: text('email').primaryKey(),
+    grantId: text('grant_id').notNull().unique(),
+    userId: text('user_id').unique(),
+    organizationId: text('organization_id')
+      .unique()
+      .references(() => organizations.organizationId),
+    validFrom: integer('valid_from').notNull(),
+    validUntil: integer('valid_until').notNull(),
+    revokedAt: integer('revoked_at'),
+    revision: integer('revision').notNull(),
+    note: text('note').notNull().default(''),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    lastOperationId: text('last_operation_id').notNull(),
+  },
+);
+export const founderAutomationEvents = sqliteTable(
+  'founder_automation_events',
+  {
+    operationId: text('operation_id').primaryKey(),
+    email: text('email').notNull(),
+    actionHash: text('action_hash').notNull(),
+    operation: text('operation').notNull(),
+    validUntil: integer('valid_until').notNull(),
+    createdAt: integer('created_at').notNull(),
+    revision: integer('revision').notNull(),
+  },
+);
+
 export const automationPlatform = sqliteTable('automation_platform', {
   id: text('id').primaryKey(),
   value: text('value').notNull(),

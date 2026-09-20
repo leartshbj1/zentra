@@ -21,7 +21,7 @@ export async function startServer(root,backend,options={}){
     if(req.headers.host!==host||req.socket.remoteAddress!=='127.0.0.1')return json(403,{error:'Origine locale requise.'});
     if(req.headers.origin&&req.headers.origin!==origin)return json(403,{error:'Origine refusée.'});
     const url=new URL(req.url,origin);
-    if(url.pathname==='/health'&&req.method==='GET'&&req.headers['x-launch-token']===launchToken){lastSeen=Date.now();return json(200,{app:'ZentraFondateur',version:'1.2.0',pid:process.pid});}
+    if(url.pathname==='/health'&&req.method==='GET'&&req.headers['x-launch-token']===launchToken){lastSeen=Date.now();return json(200,{app:'ZentraFondateur',version:'1.3.0',pid:process.pid});}
     if(url.pathname==='/launch/'+launchToken&&req.method==='GET'){
       lastSeen=Date.now();res.writeHead(303,{'Set-Cookie':`${cookieName}=${cookie}; HttpOnly; SameSite=Strict; Path=/`,Location:'/'});return res.end();
     }
@@ -42,7 +42,7 @@ export async function startServer(root,backend,options={}){
     }
     const name=url.pathname==='/'?'index.html':url.pathname.slice(1);
     if(!allowedFiles.has(name))return json(404,{error:'Fichier introuvable.'});
-    try{let content=await readFile(path.join(root,'ui',name));if(name.endsWith('.html'))content=Buffer.from(content.toString('utf8').replace(/<script src="(access|app)\.js"/,'<script src="bridge.js" defer></script><script src="$1.js"').replace(/Zentra Fondateur 1\.\d+(?:\.\d+)?/g,'Zentra Fondateur 1.2.0'));
+    try{let content=await readFile(path.join(root,'ui',name));if(name.endsWith('.html'))content=Buffer.from(content.toString('utf8').replace(/<script src="(access|app)\.js"/,'<script src="bridge.js" defer></script><script src="$1.js"').replace(/Zentra Fondateur 1\.\d+(?:\.\d+)?/g,'Zentra Fondateur 1.3.0'));
       res.writeHead(200,{'Content-Type':textTypes[path.extname(name)]});res.end(content);
     }catch{json(404,{error:'Fichier local indisponible.'});}
   });
@@ -52,10 +52,12 @@ export async function startServer(root,backend,options={}){
   const timer=setInterval(()=>{if(!active&&Date.now()-lastSeen>(options.idleMs??300000))server.close();},10000);timer.unref();server.on('close',()=>clearInterval(timer));
   return {server,port,origin,launchToken,pid:process.pid};
 }
-function openWindow(root,state){
+async function openWindow(root,state){
   const edge=['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
   if(!edge)throw Error('Microsoft Edge est nécessaire pour ouvrir cette version locale.');
-  const child=spawn(edge,[`--app=http://127.0.0.1:${state.port}/launch/${state.launchToken}`,'--user-data-dir='+path.join(root,'edge-profile'),'--no-first-run','--no-default-browser-check','--window-size=1140,850'],{windowsHide:false,detached:true,stdio:'ignore'});child.on('error',()=>{});child.unref();
+  const child=spawn(edge,[`--app=http://127.0.0.1:${state.port}/launch/${state.launchToken}`,'--user-data-dir='+path.join(root,'edge-profile'),'--no-first-run','--no-default-browser-check','--window-size=1140,850'],{windowsHide:false,detached:true,stdio:'ignore'});
+  // Keep the launcher alive until Edge has taken over the app window.
+  await new Promise((resolve,reject)=>{child.once('error',reject);child.once('spawn',()=>setTimeout(resolve,2500));});child.unref();
 }
 async function main(){
   const root=path.resolve(fileURLToPath(new URL('..',import.meta.url)));const statePath=path.join(root,'local-session.json'),lockPath=path.join(root,'local-session.lock');
@@ -65,7 +67,7 @@ async function main(){
     catch(e){if(e.code!=='EEXIST')throw e;
       try{const state=JSON.parse(await readFile(statePath,'utf8'));if(Number.isSafeInteger(state.port)&&/^[A-Za-z0-9_-]{43}$/.test(state.launchToken)){
         const response=await fetch('http://127.0.0.1:'+state.port+'/health',{headers:{'X-Launch-Token':state.launchToken},signal:AbortSignal.timeout(1000)});
-        if(response.ok&&(await response.json()).app==='ZentraFondateur'){openWindow(root,state);return;}
+        if(response.ok&&(await response.json()).app==='ZentraFondateur'){await openWindow(root,state);return;}
       }}catch{}
       try{const owner=JSON.parse(await readFile(lockPath,'utf8'));try{process.kill(owner.pid,0);}catch(e){if(e.code==='ESRCH'){await unlink(lockPath);continue;}}}catch{}
       await new Promise(resolve=>setTimeout(resolve,400));
@@ -76,7 +78,7 @@ async function main(){
     const service=await startServer(root,new Backend(new Vault(path.join(root,'vault'))));
     await writeFile(statePath,JSON.stringify({port:service.port,launchToken:service.launchToken,pid:process.pid}),{mode:0o600});
     service.server.on('close',async()=>{await lock.close();await unlink(lockPath).catch(()=>{});await unlink(statePath).catch(()=>{});});
-    openWindow(root,service);
+    await openWindow(root,service);
   }catch(e){await lock.close();await unlink(lockPath).catch(()=>{});throw e;}
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href)main().catch(()=>{process.stderr.write('Impossible d’ouvrir Zentra Fondateur. Vérifiez les composants locaux et le coffre Windows.\n');process.exitCode=1;});

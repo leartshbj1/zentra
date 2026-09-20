@@ -3,6 +3,11 @@ import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { authenticateFounder } from '@/lib/founder-admin';
 import { changeAccess, listAccess, lookupAccess } from '@/lib/founder-access';
 import {
+  changeAutomationAccess,
+  listAutomationAccess,
+  lookupAutomationAccess,
+} from '@/lib/automation/founder-access';
+import {
   changeSupportAccess,
   listSupportAccess,
   lookupSupportAccess,
@@ -14,17 +19,23 @@ export async function POST(request: Request) {
     const body = await readJsonObjectWithinLimit(request, 12288);
     const action = await authenticateFounder(body, request);
     const result =
-      action.product === 'support'
+      action.product === 'automation'
         ? action.operation === 'list'
-          ? await listSupportAccess()
+          ? await listAutomationAccess()
           : action.operation === 'lookup'
-            ? await lookupSupportAccess(action.email!)
-            : await changeSupportAccess(action)
-        : action.operation === 'list'
-          ? await listAccess()
-          : action.operation === 'lookup'
-            ? await lookupAccess(action.email!)
-            : await changeAccess(action);
+            ? await lookupAutomationAccess(action.email!)
+            : await changeAutomationAccess(action)
+        : action.product === 'support'
+          ? action.operation === 'list'
+            ? await listSupportAccess()
+            : action.operation === 'lookup'
+              ? await lookupSupportAccess(action.email!)
+              : await changeSupportAccess(action)
+          : action.operation === 'list'
+            ? await listAccess()
+            : action.operation === 'lookup'
+              ? await lookupAccess(action.email!)
+              : await changeAccess(action);
     return Response.json(result, { headers: accountNoStoreHeaders() });
   } catch (error) {
     return accountJsonError(error);

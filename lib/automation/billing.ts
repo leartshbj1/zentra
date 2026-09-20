@@ -20,6 +20,7 @@ import { requireBrowserMembership } from '@/lib/account';
 import { digest } from '@/lib/support/crypto';
 import { AUTOMATION_PRODUCT, AUTOMATION_PRICE_CENTS } from './types';
 import { AUTOMATION_CONSENT_VERSION } from './config';
+import { automationGrant } from './founder-access';
 
 export const AUTOMATION_TERMS_VERSION = 'automation-2026-09-20';
 type Config = {
@@ -183,8 +184,9 @@ export async function provisionAutomationBilling(actor: string) {
   return { ready: true, priceChfCents: AUTOMATION_PRICE_CENTS, livemode: live };
 }
 export async function automationBillingState(organizationId: string) {
-  const [config, row] = await Promise.all([
+  const [config, offered, row] = await Promise.all([
     automationBillingConfig(),
+    automationGrant(organizationId),
     database()
       .prepare(
         'SELECT status,paid_until,cancel_at_period_end FROM automation_subscriptions WHERE organization_id=?',
@@ -198,6 +200,8 @@ export async function automationBillingState(organizationId: string) {
   ]);
   return {
     ready: !!config,
+    offeredAccess: !!offered,
+    offeredUntil: offered?.valid_until ?? null,
     priceChfCents: AUTOMATION_PRICE_CENTS,
     status: row?.status ?? 'none',
     periodEnd: row?.paid_until ?? null,
@@ -250,6 +254,11 @@ export async function createAutomationCheckout(
   if (billing.hasSubscription)
     throw new AccountPublicError(
       'L’option possède déjà un abonnement. Ouvrez Gérer mon abonnement.',
+      409,
+    );
+  if (billing.offeredAccess)
+    throw new AccountPublicError(
+      'Un accès Automation vous est déjà offert. Actualisez votre compte pour le retrouver.',
       409,
     );
   const stripe = automationStripe(),

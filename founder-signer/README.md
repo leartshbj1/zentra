@@ -93,3 +93,9 @@ cargo test --manifest-path founder-signer/Cargo.toml --locked live_owner_signing
 ```
 
 Ce test signe en mémoire et contrôle l’acceptation serveur ; il ne modifie pas la licence installée dans Zentra.
+
+## Zentra Automation — version 1.3.0
+
+Choisissez **Zentra Automation**, saisissez l’e-mail confirmé du titulaire, puis accordez 14 jours, un mois ou une date personnalisée. Si plusieurs entreprises sont disponibles, choisissez celle à activer. L’offre est indépendante des accès Gestion et Support. Elle nécessite une entreprise Zentra Gestion active (abonnement ou accès offert). Le titulaire choisit ensuite ses suggestions et confirme leur utilisation dans https://www.zentraapp.ch/compte/automation. Les sessions de son application récupèrent l’accès à leur prochaine vérification en ligne.
+
+Une adresse inconnue reste en attente de connexion et de création de son entreprise. La durée commence dès l’attribution. Aucun abonnement Stripe n’est créé, aucun paiement ni e-mail n’est envoyé. Prolongation, date précise et retrait fonctionnent comme pour les autres produits. Un retrait de l’offre conserve un abonnement Automation payé valide.
