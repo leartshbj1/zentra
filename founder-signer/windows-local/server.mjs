@@ -9,7 +9,7 @@ import {Vault} from './vault.mjs';
 import {Backend} from './backend.mjs';
 
 const textTypes={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
-const allowedFiles=new Set(['index.html','signature.html','access.js','access.css','app.js','style.css']);
+const allowedFiles=new Set(['index.html','signature.html','keys.html','keys.js','access.js','access.css','app.js','style.css']);
 export async function startServer(root,backend,options={}){
   const launchToken=randomBytes(32).toString('base64url'),cookie=randomBytes(32).toString('base64url'),csrf=randomBytes(32).toString('base64url');
   let origin,host,cookieName,lastSeen=Date.now(),active=0;
@@ -21,7 +21,7 @@ export async function startServer(root,backend,options={}){
     if(req.headers.host!==host||req.socket.remoteAddress!=='127.0.0.1')return json(403,{error:'Origine locale requise.'});
     if(req.headers.origin&&req.headers.origin!==origin)return json(403,{error:'Origine refusée.'});
     const url=new URL(req.url,origin);
-    if(url.pathname==='/health'&&req.method==='GET'&&req.headers['x-launch-token']===launchToken){lastSeen=Date.now();return json(200,{app:'ZentraFondateur',version:'1.3.0',pid:process.pid});}
+    if(url.pathname==='/health'&&req.method==='GET'&&req.headers['x-launch-token']===launchToken){lastSeen=Date.now();return json(200,{app:'ZentraFondateur',version:'1.4.0',pid:process.pid});}
     if(url.pathname==='/launch/'+launchToken&&req.method==='GET'){
       lastSeen=Date.now();res.writeHead(303,{'Set-Cookie':`${cookieName}=${cookie}; HttpOnly; SameSite=Strict; Path=/`,Location:'/'});return res.end();
     }
@@ -42,7 +42,7 @@ export async function startServer(root,backend,options={}){
     }
     const name=url.pathname==='/'?'index.html':url.pathname.slice(1);
     if(!allowedFiles.has(name))return json(404,{error:'Fichier introuvable.'});
-    try{let content=await readFile(path.join(root,'ui',name));if(name.endsWith('.html'))content=Buffer.from(content.toString('utf8').replace(/<script src="(access|app)\.js"/,'<script src="bridge.js" defer></script><script src="$1.js"').replace(/Zentra Fondateur 1\.\d+(?:\.\d+)?/g,'Zentra Fondateur 1.3.0'));
+    try{let content=await readFile(path.join(root,'ui',name));if(name.endsWith('.html'))content=Buffer.from(content.toString('utf8').replace(/<script src="(access|app|keys)\.js"/,'<script src="bridge.js" defer></script><script src="$1.js"').replace(/Zentra Fondateur 1\.\d+(?:\.\d+)?/g,'Zentra Fondateur 1.4.0'));
       res.writeHead(200,{'Content-Type':textTypes[path.extname(name)]});res.end(content);
     }catch{json(404,{error:'Fichier local indisponible.'});}
   });

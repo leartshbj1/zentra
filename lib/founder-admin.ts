@@ -21,10 +21,23 @@ export async function authenticateFounder(
   body: Record<string, unknown>,
   request: Request,
 ) {
-  if (
-    request.headers.has('Origin') ||
-    new URL(request.url).pathname !== FOUNDER_PATH
-  )
+  return authenticateFounderCommand(
+    body,
+    request,
+    FOUNDER_PATH,
+    FOUNDER_DOMAIN,
+    parseAction,
+  );
+}
+
+export async function authenticateFounderCommand<T>(
+  body: Record<string, unknown>,
+  request: Request,
+  path: string,
+  domain: string,
+  parse: (input: unknown) => T,
+) {
+  if (request.headers.has('Origin') || new URL(request.url).pathname !== path)
     throw new AccountPublicError(
       'Cette commande est réservée à votre application PC.',
       403,
@@ -37,7 +50,7 @@ export async function authenticateFounder(
     );
   if (
     typeof body.payload !== 'string' ||
-    body.payload.length > 10000 ||
+    body.payload.length > 16000 ||
     typeof body.signature !== 'string' ||
     body.signature.length !== 86 ||
     Object.keys(body).some((k) => k !== 'payload' && k !== 'signature')
@@ -61,7 +74,7 @@ export async function authenticateFounder(
       'Ed25519',
       key,
       decode(body.signature),
-      new TextEncoder().encode(FOUNDER_DOMAIN + body.payload),
+      new TextEncoder().encode(domain + body.payload),
     );
     if (!valid) throw new Error('signature');
     envelope = JSON.parse(
@@ -84,7 +97,7 @@ export async function authenticateFounder(
       401,
     );
   }
-  const action = parseAction(envelope.action);
+  const action = parse(envelope.action);
   const now = Math.floor(Date.now() / 1000);
   const db = database();
   await db

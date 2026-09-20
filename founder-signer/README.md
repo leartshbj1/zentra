@@ -2,7 +2,7 @@
 
 Application Windows personnelle du fondateur pour accorder un accès Zentra à partir d’une adresse e-mail.
 
-## Version locale compatible Windows — 1.2.0
+## Version locale compatible Windows — 1.4.0
 
 Le raccourci **Zentra Fondateur** ouvre maintenant une fenêtre dédiée de Microsoft Edge. Le traitement reste sur ce PC, avec le moteur Node.js officiellement signé par OpenJS et PowerShell fourni par Microsoft. L’installation ne désactive aucune protection Windows et n’ajoute aucun certificat de confiance ni exception antivirus.
 
@@ -13,7 +13,7 @@ L’accès par e-mail et la signature avancée restent disponibles. La connexion
 ## Accorder un accès par e-mail
 
 1. Ouvrir **Zentra Fondateur** depuis le Bureau ou le menu Démarrer.
-   Choisir **Zentra** ou **Zentra Support** dans « Application à offrir ».
+   Choisir **Zentra Gestion**, **Zentra Automation** ou **Zentra Support** dans « Application à offrir ».
 2. Saisir l’adresse utilisée pour se connecter à Zentra, puis **Vérifier le compte**.
 3. Choisir **14 jours**, **Un mois** ou **Personnalisée**, avec le dernier jour d’accès inclus, heure suisse.
 4. Cliquer **Accorder l’accès**. Attendre le message de confirmation du serveur.
@@ -94,8 +94,18 @@ cargo test --manifest-path founder-signer/Cargo.toml --locked live_owner_signing
 
 Ce test signe en mémoire et contrôle l’acceptation serveur ; il ne modifie pas la licence installée dans Zentra.
 
-## Zentra Automation — version 1.3.0
+## Zentra Automation
 
 Choisissez **Zentra Automation**, saisissez l’e-mail confirmé du titulaire, puis accordez 14 jours, un mois ou une date personnalisée. Si plusieurs entreprises sont disponibles, choisissez celle à activer. L’offre est indépendante des accès Gestion et Support. Elle nécessite une entreprise Zentra Gestion active (abonnement ou accès offert). Le titulaire choisit ensuite ses suggestions et confirme leur utilisation dans https://www.zentraapp.ch/compte/automation. Les sessions de son application récupèrent l’accès à leur prochaine vérification en ligne.
 
 Une adresse inconnue reste en attente de connexion et de création de son entreprise. La durée commence dès l’attribution. Aucun abonnement Stripe n’est créé, aucun paiement ni e-mail n’est envoyé. Prolongation, date précise et retrait fonctionnent comme pour les autres produits. Un retrait de l’offre conserve un abonnement Automation payé valide.
+
+### Utiliser le compte connecté sur ce PC
+
+Le bouton **Utiliser le compte de ce PC** vérifie la session de l’application Zentra installée, renseigne son adresse et sélectionne son entreprise pour Automation. Un avertissement apparaît si l’adresse saisie est différente. Les anciennes sessions et les comptes du site peuvent correspondre à des entreprises différentes : choisissez celle indiquée **App ouverte sur ce PC**. Cela ne fusionne pas les comptes et ne déplace aucune donnée.
+
+### Clé API Jev pour Automation et Support
+
+Ouvrir **Clé API Jev · Automation et Support** dans le menu. La clé est commune aux deux produits. Coller la nouvelle clé puis cliquer **Vérifier et enregistrer** : l’application vérifie les deux services avant de remplacer la clé existante. Le bouton **Tester la clé actuelle** permet de contrôler la configuration sans la changer.
+
+La clé est envoyée au serveur Zentra par une commande HTTPS signée par le PC fondateur et conservée chiffrée sur le serveur. Elle n’est jamais renvoyée à l’interface ni aux applications clientes. En cas de coupure pendant l’enregistrement, une copie chiffrée Windows DPAPI est gardée uniquement pour **Reprendre la modification**, puis supprimée une fois son résultat confirmé. Aucun accès client n’est modifié par cette page.

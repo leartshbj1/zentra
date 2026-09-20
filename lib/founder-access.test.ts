@@ -201,6 +201,65 @@ describe('Founder offers for Zentra Automation', () => {
     role: 'owner',
     founder: false,
   });
+  it('explicitly targets a legacy device company without merging same-email login identities', async () => {
+    const currentOrg = await gestion();
+    stubs.value.mockImplementation((k: string) =>
+      k === 'FOUNDER_ADMIN_PUBLIC_KEY_B64URL'
+        ? publicKey
+        : k === 'STRIPE_SECRET_KEY'
+          ? 'sk_live_fixture'
+          : '',
+    );
+    db.exec(
+      "INSERT INTO subscriptions(subscription_id,customer_id,price_id,status,current_period_end,entitlement_valid_until,livemode,updated_at) VALUES('sub_legacy','cus_legacy','price','active',2100000000,2100000000,1,1)",
+    );
+    db.exec(
+      "INSERT INTO organizations VALUES('org_legacy','Ancien compte','sub_legacy','legacy-owner',1,1)",
+    );
+    db.prepare(
+      "INSERT INTO organization_members(membership_id,organization_id,user_id,email,display_name,role,joined_at) VALUES('mem_legacy','org_legacy','legacy-owner',?,'Owner','owner',1)",
+    ).run(email);
+    db.exec(
+      "INSERT INTO device_sessions(session_id,token_hash,organization_id,user_id,installation_id,created_at,last_seen_at,expires_at) VALUES('dss_legacy','test-hash','org_legacy','legacy-owner','installation-legacy',1,1,2100000000)",
+    );
+    const lookup = await lookupAutomationAccess(email);
+    expect(lookup.organizations.map((o) => o.id)).toEqual([
+      currentOrg,
+      'org_legacy',
+    ]);
+    expect((await command(offer())).status).toBe(409);
+    expect(
+      (await command(offer(0, { organizationId: 'org_legacy' }))).status,
+    ).toBe(200);
+    expect(
+      await automationEntitlement({
+        ...actor('org_legacy'),
+        userId: 'legacy-owner',
+        device: true,
+      }),
+    ).toBe(true);
+    expect(await automationEntitlement(actor(currentOrg))).toBe(false);
+    await attachAutomationAccess(person);
+    expect(
+      db.prepare('SELECT user_id FROM founder_automation_grants').get()
+        ?.user_id,
+    ).toBe('legacy-owner');
+    expect(
+      (await command(offer(1, { organizationId: currentOrg }))).status,
+    ).toBe(409);
+    expect((await lookupAutomationAccess(email)).availability).toBe('ready');
+    expect(
+      db
+        .prepare('SELECT user_id FROM founder_account_identities WHERE email=?')
+        .get(email)?.user_id,
+    ).toBe(person.userId);
+    db.exec(
+      "UPDATE device_sessions SET revoked_at=1 WHERE session_id='dss_legacy'",
+    );
+    expect(
+      (await lookupAutomationAccess(email)).organizations.map((o) => o.id),
+    ).toEqual([currentOrg]);
+  });
   it('offers by email before signup, attaches to Gestion later, and keeps all three products separate', async () => {
     const granted = await command(offer());
     expect(granted.status).toBe(200);

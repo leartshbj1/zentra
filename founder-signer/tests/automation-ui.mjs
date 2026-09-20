@@ -15,6 +15,7 @@ try{for(const viewport of [{width:1140,height:850},{width:820,height:650}]){
   const key=a=>(a.product||'zentra')+':'+a.email;
   const result=a=>({email:a.email,record:f.records[key(a)]||null,accountKnown:true,availability:'organization_ambiguous',organizations:[{id:'org_one',name:'Entreprise une'},{id:'org_two',name:'Entreprise deux'}],serverTime:new Date().toISOString()});
   window.__TAURI__={core:{invoke:async(command,args)=>{
+   if(command==='desktop_account')return {connected:true,email:'pc@example.invalid',organizationId:'org_two',organizationName:'Entreprise deux',role:'owner'};
    if(command==='founder_status')return {ready:true,pending:f.pending};
    if(command!=='founder_request')throw Error('Unknown command');const a=args.action;await new Promise(r=>setTimeout(r,20));
    if(a.operation==='list')return {records:Object.values(f.records).filter(r=>r.product===a.product)};
@@ -34,7 +35,9 @@ try{for(const viewport of [{width:1140,height:850},{width:820,height:650}]){
  const lookup=async()=>{await page.locator('#email').fill('demo@example.invalid');await page.locator('#lookup').click();await ready();await check();};
  await page.goto('http://127.0.0.1:'+server.address().port);await ready();await lookup();await page.locator('#grant').click();await ready();
  await choose('automation');assert.equal(await page.locator('.record').count(),0);await lookup();
- assert(await page.locator('#grant').isDisabled());await page.locator('#automation-company').selectOption('org_two');
+ assert(await page.locator('#desktop-mismatch').isVisible());assert(await page.locator('#grant').isDisabled());
+ await page.locator('#use-desktop-account').click();await ready();await check();assert.equal(await page.locator('#email').inputValue(),'pc@example.invalid');assert.equal(await page.locator('#automation-company').inputValue(),'org_two');assert(await page.locator('#desktop-mismatch').isHidden());assert(!(await page.locator('#grant').isDisabled()));
+ await lookup();await page.locator('#automation-company').selectOption('org_two');
  for(const duration of ['14_days','one_month','custom']){await page.locator('.duration').filter({has:page.locator('input[value="'+duration+'"]')}).click();if(duration==='custom')await page.locator('#custom-date').fill('2026-12-31');await page.locator('#grant').click();await ready();await check();assert.equal(await page.locator('#automation-company').inputValue(),'org_two');}
  assert.match(await page.locator('#success-description').textContent(),/compte\/automation/);
  await choose('zentra');await lookup();assert(await page.locator('#support-plan-field').isHidden());assert.equal(await page.evaluate(()=>window.fixture.records['zentra:demo@example.invalid'].revision),1);

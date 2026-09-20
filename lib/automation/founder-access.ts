@@ -54,6 +54,26 @@ async function owned(userId: string) {
     .all<{ id: string; name: string }>();
   return rows.results;
 }
+async function companiesForEmail(email: string, userId?: string) {
+  const current = userId
+    ? (await owned(userId)).map((o) => ({ ...o, userId, deviceAccount: false }))
+    : [];
+  // Older desktop sessions can belong to a different login provider. Expose
+  // their existing company only to the signed founder UI and require an
+  // explicit company selection; never merge account identities by email.
+  const device = await database()
+    .prepare(
+      `SELECT o.organization_id AS id,o.name,m.user_id AS userId FROM organizations o JOIN organization_members m ON m.organization_id=o.organization_id AND m.user_id=o.created_by_user_id WHERE lower(trim(m.email))=? AND m.role='owner' AND m.revoked_at IS NULL AND EXISTS(SELECT 1 FROM device_sessions d WHERE d.organization_id=o.organization_id AND d.user_id=m.user_id AND d.revoked_at IS NULL AND d.expires_at>?)`,
+    )
+    .bind(email, now())
+    .all<{ id: string; name: string; userId: string }>();
+  return [
+    ...current,
+    ...device.results
+      .filter((o) => !current.some((c) => c.id === o.id))
+      .map((o) => ({ ...o, deviceAccount: true })),
+  ];
+}
 export async function automationBaseActive(organizationId: string) {
   const row = await database()
     .prepare(
@@ -96,10 +116,12 @@ function present(g: Grant | null) {
 export async function lookupAutomationAccess(email: string) {
   await attachKnown(email);
   const [grant, user] = await Promise.all([read(email), identity(email)]);
-  const organizations =
-    user && (!grant?.user_id || grant.user_id === user.user_id)
-      ? await owned(user.user_id)
-      : [];
+  const companies = await companiesForEmail(email, user?.user_id);
+  const organizations = companies.map(({ id, name, deviceAccount }) => ({
+    id,
+    name,
+    deviceAccount,
+  }));
   const selected =
     grant?.organization_id ||
     (organizations.length === 1 ? organizations[0].id : null);
@@ -108,18 +130,19 @@ export async function lookupAutomationAccess(email: string) {
     email,
     product: 'automation',
     record: present(grant),
-    accountKnown: !!user,
+    accountKnown: !!user || !!organizations.length,
     accountName: user?.display_name ?? null,
     organizations,
-    availability: !user
-      ? 'account_required'
-      : !available
-        ? organizations.length > 1
-          ? 'organization_ambiguous'
-          : 'organization_required'
-        : (await automationBaseActive(selected!))
-          ? 'ready'
-          : 'gestion_required',
+    availability:
+      !user && !organizations.length
+        ? 'account_required'
+        : !available
+          ? organizations.length > 1
+            ? 'organization_ambiguous'
+            : 'organization_required'
+          : (await automationBaseActive(selected!))
+            ? 'ready'
+            : 'gestion_required',
     serverTime: new Date().toISOString(),
   };
 }
@@ -162,11 +185,15 @@ export async function attachAutomationAccess(
       .first()
   )
     return;
-  const organizations = await owned(user.userId);
+  const organizations = await companiesForEmail(email, user.userId);
   const organization = selectedOrganization
-    ? organizations.find((o) => o.id === selectedOrganization)
+    ? organizations.find(
+        (o) => o.id === selectedOrganization && o.userId === user.userId,
+      )
     : organizations.length === 1
-      ? organizations[0]
+      ? organizations[0].userId === user.userId
+        ? organizations[0]
+        : null
       : null;
   // Reserve the verified identity even before a company exists. Never create a
   // Gestion subscription or choose one of several companies on the user's behalf.
@@ -245,12 +272,7 @@ export async function changeAutomationAccess(action: FounderAction) {
   let userId: string | null = current?.user_id ?? null;
   if (action.operation === 'grant') {
     const user = await identity(email);
-    if (current?.user_id && user?.user_id !== current.user_id)
-      throw new AccountPublicError(
-        'Cette adresse n’est plus liée au compte bénéficiaire initial.',
-        409,
-      );
-    const organizations = user ? await owned(user.user_id) : [];
+    const organizations = await companiesForEmail(email, user?.user_id);
     if (
       action.organizationId &&
       (!organizations.some((o) => o.id === action.organizationId) ||
@@ -260,7 +282,12 @@ export async function changeAutomationAccess(action: FounderAction) {
         'Cette entreprise n’appartient pas à ce bénéficiaire ou cet accès est déjà lié à une autre entreprise.',
         409,
       );
-    if (!organizationId && organizations.length > 1 && !action.organizationId)
+    if (
+      !organizationId &&
+      (organizations.length > 1 ||
+        organizations.some((o) => o.deviceAccount)) &&
+      !action.organizationId
+    )
       throw new AccountPublicError(
         'Choisissez l’entreprise à laquelle offrir Automation.',
         409,
@@ -268,7 +295,14 @@ export async function changeAutomationAccess(action: FounderAction) {
     organizationId ||=
       action.organizationId ||
       (organizations.length === 1 ? organizations[0].id : null);
-    userId ||= user?.user_id ?? null;
+    const selected = organizations.find((o) => o.id === organizationId);
+    const targetUser = selected?.userId ?? user?.user_id ?? null;
+    if (current?.user_id && targetUser !== current.user_id)
+      throw new AccountPublicError(
+        'Cette adresse n’est plus liée au compte bénéficiaire initial.',
+        409,
+      );
+    userId ||= targetUser;
     if (
       userId &&
       (await db

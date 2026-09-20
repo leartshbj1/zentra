@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const invoke=(command,args)=>window.__TAURI__.core.invoke(command,args);
-let ready=false,busy=false,selected=null,records=[],pending=null;
+let ready=false,busy=false,selected=null,records=[],pending=null,desktop=null;
 const isSupport=()=>$('product').value==='support';
 const isAutomation=()=>$('product').value==='automation';
 const names={zentra:'Zentra Gestion',support:'Zentra Support',automation:'Zentra Automation'};
@@ -24,6 +24,7 @@ function updateControls(){
   $('grant').disabled=busy||!ready||!selected||!!pending||(isAutomation()&&!$('automation-company-field').hidden&&!$('automation-company').value);
   $('automation-company').disabled=busy||!ready||!!selected?.record?.organizationId;
   $('confirm-revoke').disabled=busy||!ready||!selected||!!pending;
+  $('use-desktop-account').disabled=busy||!ready||!desktop?.connected;
   $('pending').hidden=!pending;
   if(pending)$('pending-description').textContent=`${pending.operation==='revoke'?'Retrait':'Attribution'} ${names[pending.product||'zentra']} pour ${pending.email}. Reprenez-la avant une autre modification.`;
 }
@@ -50,13 +51,17 @@ function showAccount(result){
   $('automation-company').replaceChildren();
   if(isAutomation()){
     const choices=result.organizations||[];
-    if(choices.length>1&&!r?.organizationId){const option=document.createElement('option');option.value='';option.textContent='Choisir une entreprise';$('automation-company').append(option);}
-    for(const company of choices){const option=document.createElement('option');option.value=company.id;option.textContent=company.name;$('automation-company').append(option);}
+    if((choices.length>1||choices.some(c=>c.deviceAccount))&&!r?.organizationId){const option=document.createElement('option');option.value='';option.textContent='Choisir une entreprise';$('automation-company').append(option);}
+    for(const company of choices){const option=document.createElement('option');option.value=company.id;option.textContent=company.name+(desktop?.organizationId===company.id?' · App ouverte sur ce PC':company.deviceAccount?' · Compte connecté sur un appareil':'');$('automation-company').append(option);}
     if(r?.organizationId)$('automation-company').value=r.organizationId;
+    else if(desktop?.email===result.email&&choices.some(c=>c.id===desktop.organizationId))$('automation-company').value=desktop.organizationId;
   }
   $('account-state').textContent=r?labels[r.status]:result.accountKnown?'Compte reconnu':'Première attribution';
+  if(isAutomation()&&r?.status==='pending')$('account-state').textContent='En attente de rattachement';
   $('account-description').textContent=r?.accountLinked?`Cet accès est lié ${isSupport()?'à l’espace Zentra Support':'au compte Zentra'} de cette personne.`:result.accountKnown?`Le compte est connu. L’accès sera rattaché à son espace ${productName()}.`:'L’accès sera récupéré lorsque la personne se connectera avec cette adresse e-mail confirmée.';
   if(isAutomation())$('account-description').textContent=({ready:'L’entreprise est prête à recevoir Automation. Le client choisit ensuite ses suggestions et confirme leur utilisation dans son compte.',gestion_required:'L’offre Automation sera enregistrée. Un accès Zentra Gestion valide est aussi nécessaire : vous pouvez le donner séparément dans cette app.',organization_ambiguous:'Ce titulaire possède plusieurs entreprises. Choisissez celle qui recevra Automation.',organization_required:'L’offre restera en attente d’une entreprise dont cette personne est titulaire. Automation ne crée pas d’accès Gestion.',account_required:'L’offre sera rattachée après connexion avec cet e-mail confirmé, à l’entreprise dont la personne est titulaire. Un accès Gestion valide est nécessaire.'})[result.availability]||'Option Automation liée à l’entreprise du titulaire.';
+  $('desktop-mismatch').hidden=!(desktop?.connected&&desktop.email!==result.email);
+  $('desktop-mismatch').textContent=desktop?.connected?`Attention : l’app de ce PC est connectée avec ${desktop.email}. Cet accès est destiné à ${result.email} et ne s’affichera pas sur ce compte différent.`:'';
   $('current').hidden=!active(r);if(r)$('current-date').textContent=formatDate(r.expiresAt);
   $('note').value=r?.note||'';$('grant').replaceChildren(document.createTextNode(active(r)?'Prolonger l’accès':'Accorder l’accès'));
   $('revoke-area').hidden=!active(r);$('revoke-confirm').hidden=true;$('revoke').hidden=false;durationHint();renderRecords();updateControls();
@@ -79,6 +84,7 @@ $('show-all').addEventListener('change',renderRecords);
 $('product').addEventListener('change',()=>task(async()=>{clearNotice();selected=null;records=[];$('account').hidden=true;$('email').value='';productView();renderRecords();await list();}));
 for(const radio of document.querySelectorAll('[name=duration]'))radio.addEventListener('change',durationHint);
 $('automation-company').addEventListener('change',updateControls);
+$('use-desktop-account').addEventListener('click',()=>task(async()=>{if(!desktop?.connected)return;clearNotice();await lookup(desktop.email);}));
 $('grant').addEventListener('click',()=>task(async()=>{if(!selected)return;clearNotice();const duration=document.querySelector('[name=duration]:checked').value;
   if(duration==='custom'&&!$('custom-date').value)throw new Error('Choisissez le dernier jour d’accès.');
   await apply(actionForProduct({operation:'grant',email:selected.email,duration,customDate:duration==='custom'?$('custom-date').value:'',note:$('note').value,expectedRevision:selected.record?.revision||0,operationId:crypto.randomUUID(),...(isSupport()?{plan:$('support-plan').value}:{}),...(isAutomation()&&$('automation-company').value?{organizationId:$('automation-company').value}:{})}));
@@ -88,4 +94,4 @@ $('cancel-revoke').addEventListener('click',()=>{$('revoke-confirm').hidden=true
 $('confirm-revoke').addEventListener('click',()=>task(async()=>{if(!selected)return;clearNotice();await apply(actionForProduct({operation:'revoke',email:selected.email,note:$('note').value,expectedRevision:selected.record.revision,operationId:crypto.randomUUID()}));}));
 $('retry').addEventListener('click',()=>task(async()=>{if(!pending)return;clearNotice();await apply(pending);}));
 const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Zurich',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());$('custom-date').min=today;
-task(async()=>{await syncStatus();if(pending)$('product').value=pending.product||'zentra';productView();if(ready)await list();else fail($('key-status').textContent);});
+task(async()=>{await syncStatus();if(pending)$('product').value=pending.product||'zentra';productView();if(ready){await list();try{desktop=await invoke('desktop_account');$('desktop-account').textContent=desktop.connected?`Compte du PC : ${desktop.email} · ${desktop.organizationName}`:desktop.message;}catch{$('desktop-account').textContent='Le compte du PC n’a pas pu être vérifié.';}}else fail($('key-status').textContent);});

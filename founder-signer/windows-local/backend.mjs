@@ -3,6 +3,7 @@ import {isDeepStrictEqual} from 'node:util';
 import {unlink} from 'node:fs/promises';
 import path from 'node:path';
 import {rawPublic} from './vault.mjs';
+import {PlatformBackend,desktopAccount} from './platform.mjs';
 
 const PUBLIC='FySkIPXpEIfZ9UCBlXuhFAgFx3LpchgBFWTh65Aa040';
 const licenseKey=createPublicKey({key:{kty:'OKP',crv:'Ed25519',x:PUBLIC},format:'jwk'});
@@ -48,7 +49,7 @@ async function post(url,body,max=262144){
   const chunks=[];let size=0;for await(const chunk of response.body){size+=chunk.length;if(size>max)throw Error('Réponse trop volumineuse.');chunks.push(chunk);}return {status:response.status,body:JSON.parse(Buffer.concat(chunks).toString('utf8'))};
 }
 export class Backend {
-  constructor(vault,options={}){this.vault=vault;this.post=options.post||post;this.tail=Promise.resolve();}
+  constructor(vault,options={}){this.vault=vault;this.post=options.post||post;this.platform=new PlatformBackend(vault,this.post);this.tail=Promise.resolve();}
   invoke(command,args={}){const next=this.tail.then(()=>this.dispatch(command,args));this.tail=next.catch(()=>{});return next;}
   async pending(){try{const clear=await this.vault.read(pendingFile);try{return validateAction(JSON.parse(clear.toString('utf8')));}finally{clear.fill(0);}}catch(e){if(e.code==='ENOENT')return null;throw e;}}
   async founderStatus(){try{await this.vault.key('admin');return {ready:true,message:'Clé personnelle protégée par Windows',pending:await this.pending()};}catch{return {ready:false,message:'Le coffre Windows ou la clé personnelle est indisponible.',pending:null};}}
@@ -88,6 +89,10 @@ export class Backend {
   }
   async dispatch(command,args){
     switch(command){
+      case 'desktop_account':return desktopAccount();
+      case 'platform_status':return this.platform.status();
+      case 'platform_request':return this.platform.request(args.action);
+      case 'platform_retry':return this.platform.retry();
       case 'founder_status':return this.founderStatus();
       case 'founder_request':return this.founderRequest(args.action);
       case 'status':{let keyReady=true;let keyMessage='Clé Zentra vérifiée · protégée par Windows';try{await this.licenseSigner();}catch{keyReady=false;keyMessage='La clé des licences n’est pas disponible.';}return {keyReady,keyMessage,...await this.devices()};}

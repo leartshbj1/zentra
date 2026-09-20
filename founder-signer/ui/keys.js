@@ -1,0 +1,13 @@
+'use strict';
+const $=id=>document.getElementById(id),invoke=(command,args)=>window.__TAURI__.core.invoke(command,args);
+let busy=false,ready=false,pending=null,current=null;
+function controls(){for(const el of document.querySelectorAll('button,input'))el.disabled=busy||!ready;$('save').disabled=busy||!ready||!current||!!pending;$('api-key').disabled=busy||!ready||!!pending;$('test').disabled=busy||!ready||!current?.configured||!!pending;$('pending').hidden=!pending;}
+function show(state){current=state;$('configured').textContent=state.configured?'Clé Jev configurée':'Aucune clé Jev enregistrée';$('updated').textContent=state.updatedAt?'Dernière mise à jour : '+new Intl.DateTimeFormat('fr-CH',{dateStyle:'long',timeStyle:'short'}).format(new Date(state.updatedAt)):'Commune à Zentra Automation et Zentra Support.';}
+async function refresh(){show(await invoke('platform_request',{action:{operation:'state'}}));}
+async function task(callback){if(busy)return;busy=true;$('error').hidden=true;$('success').hidden=true;controls();try{await callback();}catch(e){$('error').textContent=String(e?.message||'La demande n’a pas abouti.');$('error').hidden=false;}finally{try{pending=(await invoke('platform_status')).pending;}catch{$('error').textContent='Impossible de vérifier les demandes en attente.';$('error').hidden=false;ready=false;}busy=false;controls();}}
+function success(title,text){$('success-title').textContent=title;$('success-description').textContent=text;$('success').hidden=false;}
+$('key-form').addEventListener('submit',e=>{e.preventDefault();const apiKey=$('api-key').value.trim();if(!apiKey||!current)return;$('api-key').value='';task(async()=>{const result=await invoke('platform_request',{action:{operation:'save_key',apiKey,expectedRevision:current.revision,operationId:crypto.randomUUID()}});show(result);success('Clé vérifiée et enregistrée','Automation et Support utilisent cette clé.');});});
+$('reload').addEventListener('click',()=>task(refresh));
+$('test').addEventListener('click',()=>task(async()=>{const result=await invoke('platform_request',{action:{operation:'test'}});show(result);success('Automation et Support répondent','Connexion Jev vérifiée avec des données fictives.');}));
+$('retry').addEventListener('click',()=>task(async()=>{await invoke('platform_retry');await refresh();success('Modification confirmée','L’état affiché correspond à la clé actuellement enregistrée.');}));
+task(async()=>{const status=await invoke('founder_status');ready=status.ready;$('key-status').textContent=ready?'Votre clé personnelle est prête':status.message;if(ready)await refresh();});

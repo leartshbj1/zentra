@@ -372,6 +372,13 @@
       "when": 1789901940497,
       "tag": "0052_support_mailboxes",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "6",
+      "when": 1789902910369,
+      "tag": "0053_founder_platform_keys",
+      "breakpoints": true
     }
   ]
 }

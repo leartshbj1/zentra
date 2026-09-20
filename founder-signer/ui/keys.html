@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zentra Fondateur · Clé Jev</title><link rel="stylesheet" href="access.css"><script src="keys.js" defer></script></head>
+<body>
+<aside><div class="brand"><b class="logo">Z</b><div>Zentra<span>FONDATEUR</span></div></div><div class="personal"><i></i> Votre espace personnel</div><a href="index.html" class="nav">← Donner un accès</a><div class="sidebar-foot"><p>Votre clé de signature reste dans le coffre Windows de ce PC.</p></div></aside>
+<main><header><span class="eyebrow">CONFIGURATION DU SERVICE</span><span id="key-status" class="key-status">Vérification…</span></header>
+<div class="intro"><h1>Votre clé Jev.</h1><p>Une même clé pour les suggestions d’Automation et le tri des tickets Support.</p></div>
+<div id="error" class="notice error" role="alert" hidden></div>
+<div id="pending" class="notice pending" hidden><div><strong>Une modification attend sa confirmation.</strong><p>Reprenez-la pour connaître le résultat. La clé reste protégée dans le coffre Windows pendant cette attente.</p></div><button id="retry" class="button secondary">Reprendre</button></div>
+<section class="card"><div class="card-heading"><div><div class="eyebrow">TYPE SAFE · JEV</div><h2 id="configured">Chargement…</h2></div><button id="reload" class="button secondary">Actualiser</button></div><p id="updated" class="hint"></p>
+<p>La clé enregistrée est chiffrée sur le serveur Zentra et utilisée par Automation et Support. Les clients ne la voient jamais.</p>
+<form id="key-form"><label for="api-key">Nouvelle clé API Jev</label><input id="api-key" type="password" autocomplete="off" spellcheck="false" maxlength="8192" placeholder="Collez votre clé Jev" required><p class="hint">L’enregistrement vérifie la clé avec deux exemples fictifs. Une clé refusée ne remplace pas celle qui fonctionne.</p><div class="grant-row"><p>Aucun accès client n’est modifié.</p><button id="save" class="button primary" type="submit">Vérifier et enregistrer</button></div></form>
+</section>
+<section class="card"><h2>Vérifier la connexion</h2><p>Testez la clé déjà enregistrée avec une opération fictive et un ticket fictif.</p><button id="test" class="button secondary">Tester Automation et Support</button></section>
+<section id="success" class="success" role="status" hidden><span class="success-icon">✓</span><div><h2 id="success-title"></h2><p id="success-description"></p></div></section>
+<footer><a href="index.html">Retour aux accès</a><span>Zentra Fondateur 1.4.0</span></footer></main></body></html>

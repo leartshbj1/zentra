@@ -7,6 +7,15 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import { organizations } from './schema';
+export const founderPlatformOperations = sqliteTable(
+  'founder_platform_operations',
+  {
+    operationId: text('operation_id').primaryKey(),
+    actionHash: text('action_hash').notNull(),
+    resultJson: text('result_json').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+);
 
 export const founderAutomationGrants = sqliteTable(
   'founder_automation_grants',

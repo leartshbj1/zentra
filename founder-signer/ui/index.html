@@ -9,7 +9,7 @@
   <div class="sidebar-label">ACCÈS RÉCENTS<button id="reload" title="Actualiser les accès" aria-label="Actualiser les accès">↻</button></div>
   <label class="filter"><input id="show-all" type="checkbox"> Voir aussi les accès terminés</label>
   <div id="records" class="records" aria-live="polite"><p class="muted">Chargement…</p></div>
-  <div class="sidebar-foot"><a href="signature.html">Signature avancée des jetons ↗</a><p>Gestion depuis ce PC.<br>Clé privée dans le coffre Windows.</p></div>
+  <div class="sidebar-foot"><a href="keys.html">Clé API Jev · Automation et Support ↗</a><br><a href="signature.html">Signature avancée des jetons ↗</a><p>Gestion depuis ce PC.<br>Clé privée dans le coffre Windows.</p></div>
 </aside>
 <main>
   <header><span class="eyebrow">GESTION DES ACCÈS</span><span id="key-status" class="key-status">Ouverture du coffre…</span></header>
@@ -17,6 +17,7 @@
   <div class="product-choice"><label for="product">Application à offrir</label><select id="product"><option value="zentra">Zentra · Gestion d’entreprise</option><option value="support">Zentra Support · Tri des tickets</option><option value="automation">Zentra Automation · Suggestions et classement</option></select><p id="product-hint" class="hint">Accès individuel Zentra Solo.</p></div>
   <div id="error" class="notice error" role="alert" hidden></div>
   <div id="pending" class="notice pending" hidden><div><strong>Une demande attend sa confirmation.</strong><p id="pending-description"></p></div><button id="retry" class="button secondary">Reprendre la demande</button></div>
+  <section class="card"><p id="desktop-account" class="hint">Vérification du compte connecté dans Zentra sur ce PC…</p><button id="use-desktop-account" class="button secondary" type="button">Utiliser le compte de ce PC</button></section>
   <form id="lookup-form" class="card">
     <h2><span class="step">1</span> Le compte à activer</h2>
     <label for="email">Adresse e-mail de connexion</label>
@@ -25,7 +26,7 @@
   </form>
   <section id="account" class="card account-card" hidden aria-labelledby="account-title">
     <div class="card-heading"><div><div class="eyebrow">COMPTE SÉLECTIONNÉ</div><h2 id="account-title"></h2></div><span id="account-state" class="badge"></span></div>
-    <p id="account-description"></p>
+    <p id="account-description"></p><p id="desktop-mismatch" class="notice pending" hidden></p>
     <div id="current" class="current" hidden><span>Accès offert jusqu’au</span><strong id="current-date"></strong></div>
     <div id="support-plan-field" class="custom-field" hidden><label for="support-plan">Formule Zentra Support</label><select id="support-plan"><option value="starter">Starter · 2 000 analyses / mois</option><option value="team">Équipe · 5 000 analyses / mois</option><option value="business">Business · 15 000 analyses / mois</option></select><p class="hint">Le quota se renouvelle chaque mois depuis la première attribution. Prolonger ou changer de formule ne remet pas le compteur à zéro. Un abonnement payé actif conserve sa formule.</p></div>
     <div id="automation-company-field" class="custom-field" hidden><label for="automation-company">Entreprise du titulaire</label><select id="automation-company"></select><p class="hint">L’accès reste lié à cette entreprise. Il couvre Automation pour son équipe, tant que Gestion est valide.</p></div>
@@ -42,6 +43,6 @@
     <div id="revoke-area" class="revoke-area" hidden><button id="revoke" class="text-button danger">Retirer cet accès offert</button><div id="revoke-confirm" hidden><p>Retirer l’accès offert à <strong id="revoke-email"></strong> ?</p><p class="hint">Le retrait prend effet à la prochaine vérification en ligne. Un éventuel abonnement payé reste valable.</p><div><button id="cancel-revoke" class="button secondary">Annuler</button><button id="confirm-revoke" class="button destructive">Confirmer le retrait</button></div></div></div>
   </section>
   <section id="success" class="success" role="status" hidden><span class="success-icon">✓</span><div><h2 id="success-title"></h2><p id="success-description"></p></div></section>
-  <footer><details><summary>Comment la personne reçoit-elle son accès ?</summary><p>Elle se connecte avec son adresse e-mail confirmée, puis ouvre l’application choisie : Zentra Gestion, Zentra Support sur zentraapp.ch/support/espace, ou Automation sur zentraapp.ch/compte/automation. Son accès est récupéré automatiquement. Aucun jeton à copier et aucun e-mail envoyé par cet outil.</p><p>Une adresse encore inconnue reste en attente de connexion. La durée commence dès votre attribution. Les prolongations de 14 jours ou d’un mois s’ajoutent à la fin de l’accès en cours. Une date personnalisée fixe une échéance précise.</p><p>Les accès se donnent séparément. Automation complète une entreprise Zentra Gestion active ; le titulaire choisit ses suggestions et confirme leur utilisation. L’offre Support s’applique à l’espace dont la personne est titulaire et à son équipe. Le retrait bloque les nouveaux traitements en ligne. Pour Zentra, un appareil hors ligne peut rester utilisable jusqu’à la fin du dernier jour couvert par sa licence déjà signée.</p></details><span>Zentra Fondateur 1.3.0</span></footer>
+  <footer><details><summary>Comment la personne reçoit-elle son accès ?</summary><p>Elle se connecte avec son adresse e-mail confirmée, puis ouvre l’application choisie : Zentra Gestion, Zentra Support sur zentraapp.ch/support/espace, ou Automation sur zentraapp.ch/compte/automation. Son accès est récupéré automatiquement. Aucun jeton à copier et aucun e-mail envoyé par cet outil.</p><p>Une adresse encore inconnue reste en attente de connexion. La durée commence dès votre attribution. Les prolongations de 14 jours ou d’un mois s’ajoutent à la fin de l’accès en cours. Une date personnalisée fixe une échéance précise.</p><p>Les accès se donnent séparément. Automation complète une entreprise Zentra Gestion active ; le titulaire choisit ses suggestions et confirme leur utilisation. L’offre Support s’applique à l’espace dont la personne est titulaire et à son équipe. Le retrait bloque les nouveaux traitements en ligne. Pour Zentra, un appareil hors ligne peut rester utilisable jusqu’à la fin du dernier jour couvert par sa licence déjà signée.</p></details><span>Zentra Fondateur 1.4.0</span></footer>
 </main>
 </body></html>
