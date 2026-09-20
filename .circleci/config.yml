@@ -6,6 +6,10 @@ parameters:
   release:
     type: boolean
     default: false
+  platform:
+    type: enum
+    enum: [all, windows, apple]
+    default: all
 
 jobs:
   windows:
@@ -54,8 +58,21 @@ jobs:
           destination: apple
 
 workflows:
-  release-candidate:
-    when: << pipeline.parameters.release >>
+  windows-release-candidate:
+    when:
+      and:
+        - << pipeline.parameters.release >>
+        - or:
+            - equal: [all, << pipeline.parameters.platform >>]
+            - equal: [windows, << pipeline.parameters.platform >>]
     jobs:
       - windows
+  apple-release-candidate:
+    when:
+      and:
+        - << pipeline.parameters.release >>
+        - or:
+            - equal: [all, << pipeline.parameters.platform >>]
+            - equal: [apple, << pipeline.parameters.platform >>]
+    jobs:
       - apple
