@@ -19,6 +19,7 @@ import {
 import { constructVerifiedStripeEvent } from '@/lib/stripe-webhook';
 import { UPSERT_STRIPE_WEBHOOK_PROOF_SQL } from '@/lib/stripe-webhook-proof';
 import { stripeAutomaticTaxRequired } from '@/lib/stripe-test-access';
+import { authorizedReferralDiscount } from '@/lib/referrals';
 import {
   paidThroughFromInvoice,
   stripeReferenceId,
@@ -130,6 +131,7 @@ export async function createCheckoutSession(
   claimHash: string,
   account: { userId: string; email: string },
   planId: PlanId,
+  referral?: {claimId:string;couponId:string},
 ) {
   const configuration = stripeConfiguration();
   const plan = planById(planId);
@@ -147,6 +149,7 @@ export async function createCheckoutSession(
         accountUserId: account.userId,
         accountEmail: account.email,
         automaticTax: stripeAutomaticTaxRequired(configuration),
+        referral,
       }),
       { idempotencyKey: `hc_checkout_${claimHash}` },
     ),
@@ -376,7 +379,7 @@ function elykoSubscriptionItem(subscription: StripeSubscription) {
   return item.current_period_end ? item : null;
 }
 
-export function validatePaidZentraInvoice(
+export async function validatePaidZentraInvoice(
   invoice: Stripe.Invoice,
   subscription: StripeSubscription,
 ) {
@@ -393,6 +396,7 @@ export function validatePaidZentraInvoice(
     unitAmount: planByLicense(subscription.metadata?.plan)!.priceChfCents,
     livemode: subscription.livemode,
     automaticTaxRequired: stripeAutomaticTaxRequired(stripeConfiguration()),
+    authorizedDiscountCents: await authorizedReferralDiscount(invoice,subscription),
   });
   if (!paidThrough) {
     throw new PublicError(
@@ -772,7 +776,7 @@ export async function persistStripeEvent(event: StripeEvent) {
         : null;
       const paidThrough =
         event.type === 'invoice.paid' && invoice
-          ? validatePaidZentraInvoice(invoice, subscription)
+          ? await validatePaidZentraInvoice(invoice, subscription)
           : undefined;
       const paidInvoiceId = paidThrough ? invoice?.id : undefined;
       const isFailure = [

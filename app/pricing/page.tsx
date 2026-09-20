@@ -7,12 +7,12 @@ import { SiteHeader } from '@/components/site-header';
 export const metadata: Metadata = {
   title: 'Tarifs — Solo, Start et Pro dès 49 CHF par mois',
   description:
-    'Solo 49 CHF pour 1 personne, Start 59 CHF pour 3 et Pro 89 CHF pour 10. Toutes les fonctions actuelles et futures incluses, titulaire compris.',
+    'Solo 49 CHF pour 1 personne, Start 59 CHF pour 3 et Pro 89 CHF pour 10. Fonctions de gestion incluses, titulaire compris. Zentra Automation est une option séparée à 15 CHF/mois.',
   alternates: { canonical: '/pricing' },
   openGraph: {
     title: 'Zentra — Solo 49 CHF, Start 59 CHF, Pro 89 CHF',
     description:
-      'Trois formules selon la taille de votre équipe, avec les mêmes fonctionnalités actuelles et futures.',
+      'Trois formules selon la taille de votre équipe, avec les mêmes fonctions de gestion.',
     url: '/pricing',
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
   },
@@ -25,7 +25,7 @@ const questions = [
   ],
   [
     'Faut-il acheter des modules séparément ?',
-    'Toutes les fonctions de Zentra Gestion, actuelles et futures, sont incluses dans les trois formules. Le nombre de personnes qui peuvent se connecter est la seule différence. Les fiches de salariés dans la paie ne consomment pas de place. Zentra Support est un produit avec un abonnement distinct.',
+    'Les fonctions de gestion décrites dans ces trois formules sont incluses. Zentra Automation est une option facultative à 15 CHF/mois par entreprise. Le nombre de personnes qui peuvent se connecter est la seule différence. Les fiches de salariés dans la paie ne consomment pas de place. Zentra Support est un produit avec un abonnement distinct.',
   ],
   [
     'Comment fonctionne la résiliation ?',
@@ -55,12 +55,12 @@ export default function PricingPage() {
             <h1 className="mt-5 text-balance text-[2.8rem] font-semibold leading-[.98] tracking-[-.06em] sm:text-6xl lg:text-7xl">
               Votre équipe choisit le rythme.
               <br />
-              <span className="text-[#b86b16]">Tout Zentra est inclus.</span>
+              <span className="text-[#b86b16]">La gestion reste complète.</span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-[#657068]">
               Solo, Start ou Pro : choisissez le nombre de personnes qui se
-              connectent. Toutes les fonctionnalités actuelles et futures vous
-              accompagnent.
+              connectent. Les mêmes fonctions de gestion vous accompagnent.
+              Zentra Automation est disponible en option à 15 CHF par mois.
             </p>
           </div>
         </section>

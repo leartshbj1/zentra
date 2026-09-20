@@ -1,0 +1,239 @@
+.automation-marketing {
+  padding-top: 0;
+}
+.automation-product-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #dddfe1;
+  padding: 1rem 0;
+  flex-wrap: wrap;
+}
+.automation-product-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.automation-hero {
+  padding: clamp(3rem, 9vw, 7rem) 0 5rem;
+  max-width: 900px;
+}
+.automation-hero h1 {
+  font-size: clamp(2.8rem, 7.5vw, 6rem);
+  font-weight: 650;
+  line-height: 1.04;
+  letter-spacing: -0.055em;
+}
+.automation-hero h1 span {
+  color: #748279;
+}
+.automation-hero > p:not(.automation-eyebrow):not(.automation-fine) {
+  font-size: clamp(1.15rem, 2.3vw, 1.45rem);
+  max-width: 620px;
+}
+.automation-hero .automation-actions {
+  margin-top: 2rem;
+}
+.automation-fine {
+  font-size: 0.875rem !important;
+  max-width: 600px !important;
+}
+.automation-stage {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  align-items: center;
+  gap: 2.5rem;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  background: #e7ece8;
+  border: 1px solid #dfe5df;
+  border-radius: 2rem;
+  margin-bottom: 5rem;
+}
+.automation-stage h2,
+.automation-benefits h2,
+.automation-questions h2,
+.automation-referral-teaser h2 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.15;
+  font-weight: 600;
+}
+.automation-example {
+  min-width: 0;
+  box-shadow: 0 18px 45px #1937230d;
+  background: #fff;
+  border: 1px solid #e0e5e0;
+  border-radius: 1.4rem;
+  padding: 1.25rem;
+}
+.automation-example-caption {
+  font-size: 0.75rem;
+  color: #808681;
+  display: block;
+  margin-bottom: 1.5rem;
+}
+.automation-example-top {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.875rem;
+}
+.automation-example-top strong {
+  display: block;
+}
+.automation-example-top span {
+  display: block;
+  color: #7b817c;
+  font-size: 0.75rem;
+  margin-top: 0.4rem;
+}
+.automation-icon {
+  background: #edf2ee;
+  border-radius: 0.8rem;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+.automation-example-suggestion {
+  background: #f3f6f3;
+  padding: 1rem;
+  margin: 1.5rem 0;
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.7rem;
+}
+.automation-example-suggestion > span {
+  font-size: 0.8rem;
+  color: #6a786c;
+}
+.automation-example-suggestion strong {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 1rem;
+}
+.automation-example-bottom {
+  font-size: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: #737a75;
+}
+.automation-example-bottom span:last-child {
+  color: #45624d;
+  font-weight: 600;
+}
+.automation-benefits {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  padding: 1rem 0 5rem;
+}
+.automation-benefits article > svg {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 1.5rem;
+  stroke-width: 1.5;
+  color: #657d6c;
+}
+.automation-benefits p {
+  max-width: 43ch;
+}
+.automation-price-panel {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 3rem;
+  align-items: center;
+}
+.automation-price-panel .automation-button {
+  margin-top: 1.5rem;
+}
+.automation-questions {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 0 3rem;
+  padding: 5rem 0;
+}
+.automation-questions h2 {
+  grid-row: span 4;
+}
+.automation-questions details {
+  border-bottom: 1px solid #d9dce0;
+  padding: 1rem 0;
+}
+.automation-questions summary {
+  font-size: 1rem;
+  line-height: 1.5;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0.5rem 0;
+}
+.automation-referral-teaser {
+  padding: 3rem 0 4rem;
+  text-align: center;
+}
+.automation-referral-teaser p {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 50ch;
+}
+.automation-referral-teaser > a {
+  margin: 1rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.automation-button svg {
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+@media (max-width: 700px) {
+  .automation-stage,
+  .automation-price-panel {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  .automation-benefits {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .automation-questions {
+    display: block;
+    padding: 3rem 0;
+  }
+  .automation-example-top {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+  .automation-example-top > strong {
+    grid-column: 2;
+  }
+  .automation-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .automation-stage {
+    margin-bottom: 3rem;
+  }
+  .automation-hero {
+    padding-bottom: 3rem;
+  }
+  .automation-product-nav {
+    font-size: 0.9rem;
+  }
+  .automation-hero h1 {
+    overflow-wrap: break-word;
+  }
+  .automation-price-panel {
+    margin-top: 0;
+  }
+  .automation-benefits {
+    padding-bottom: 2rem;
+  }
+}

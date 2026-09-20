@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     url: '/',
     title: 'Zentra — Toute votre PME. Un seul logiciel.',
     description:
-      'Un ERP local-first conçu pour les PME suisses. Solo, Start et Pro dès 49 CHF par mois, toutes les fonctions actuelles et futures incluses.',
+      'Un ERP local-first conçu pour les PME suisses. Solo, Start et Pro dès 49 CHF par mois, fonctions de gestion incluses. Zentra Automation est une option facultative.',
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
   },
 };

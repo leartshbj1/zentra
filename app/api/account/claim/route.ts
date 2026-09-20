@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       throw new AccountPublicError('La facture Stripe payée est absente.', 502);
     }
     const paidInvoice = await retrieveInvoice(paidInvoiceId);
-    const paidThrough = validatePaidZentraInvoice(paidInvoice, subscription);
+    const paidThrough = await validatePaidZentraInvoice(paidInvoice, subscription);
     await upsertSubscription(subscription, session, {
       paidInvoiceId,
       paidThrough,

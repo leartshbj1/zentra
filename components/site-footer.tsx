@@ -4,6 +4,8 @@ const links = [
   ['/produits', 'Nos produits'],
   ['/', 'Zentra Gestion'],
   ['/support', 'Zentra Support'],
+  ['/automation', 'Zentra Automation'],
+  ['/parrainage/conditions', 'Parrainage'],
   ['/features', 'Fonctionnalités'],
   ['/pricing', 'Tarifs'],
   ['/security', 'Sécurité & données'],

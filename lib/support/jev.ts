@@ -8,7 +8,8 @@ import {
   type Rules,
 } from './types';
 
-export const JEV_ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
+import { jevRequest, readJevResponse } from '../automation/transport';
+export { JEV_ENDPOINT } from '../automation/transport';
 export const TRIAGE_POLICY_VERSION = 'support-2026-09-19-v2';
 export function triageQuestions(
   subject: string,
@@ -327,18 +328,11 @@ export async function evaluateTicket(
     );
   let response: Response;
   try {
-    response = await fetcher(JEV_ENDPOINT, {
-      method: 'POST',
-      // The deployed Workerd runtime rejects redirect: 'error'. With manual,
-      // reject 3xx explicitly before reading a body or forwarding credentials.
-      redirect: 'manual',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(triageQuestions(subject, body, businessContext)),
-      signal: AbortSignal.timeout(8000),
-    });
+    response = await jevRequest(
+      key,
+      JSON.stringify(triageQuestions(subject, body, businessContext)),
+      { fetcher, timeoutMs: 8000 },
+    );
   } catch (error) {
     throw connectionFailure(
       error instanceof Error &&
@@ -366,7 +360,7 @@ export async function evaluateTicket(
     );
   let bodyText: string;
   try {
-    bodyText = await response.text();
+    bodyText = await readJevResponse(response);
   } catch {
     throw connectionFailure('network');
   }

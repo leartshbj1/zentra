@@ -1,0 +1,1 @@
+ALTER TABLE `automation_checkouts` ADD `request_json` text;

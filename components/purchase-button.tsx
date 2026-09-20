@@ -46,6 +46,7 @@ export function PurchaseButton({
   const [portalLoginUrl, setPortalLoginUrl] = useState('');
   const [accessRestricted, setAccessRestricted] = useState(false);
   const [loginRequired, setLoginRequired] = useState(false);
+  const [referralCode,setReferralCode]=useState('');
 
   useEffect(() => {
     let active = true;
@@ -95,7 +96,7 @@ export function PurchaseButton({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: plan.id, acceptTerms, legalVersion: LEGAL_VERSION }),
+        body: JSON.stringify({ plan: plan.id, acceptTerms, legalVersion: LEGAL_VERSION,referralCode:referralCode.trim().toUpperCase() }),
       });
       const body = (await response.json()) as { url?: string; error?: string };
       if (!response.ok || !body.url)
@@ -129,6 +130,7 @@ export function PurchaseButton({
   return (
     <div className="w-full">
       {ready === true && !loginRequired && <div className="mb-3 text-sm leading-6">
+        <details className="mb-4"><summary className="cursor-pointer py-3">Vous avez un code de parrainage ?</summary><label className="block">Code de l’entreprise qui vous invite<input value={referralCode} maxLength={30} onChange={e=>setReferralCode(e.target.value)} autoCapitalize="characters" placeholder="ZT-…" className="my-2 block min-h-12 w-full rounded-xl border border-[#c5cdc7] bg-white px-3 text-base text-[#173d2c]"/></label><p>−50 % sur votre premier mois, puis {plan.priceChfCents/100} CHF/mois. Réservé aux nouvelles entreprises clientes. <a href="/parrainage/conditions" className="underline" target="_blank" rel="noreferrer">Conditions</a></p></details>
         <label className="flex min-h-11 cursor-pointer items-start gap-3">
           <input type="checkbox" checked={acceptTerms} onChange={event => setAcceptTerms(event.target.checked)} className="mt-1 size-5 shrink-0 accent-[#315e48]" />
           <span>J’accepte les <a href="/conditions" target="_blank" rel="noopener noreferrer" className="underline">conditions d’abonnement</a>, dont l’<a href="/sous-traitance" target="_blank" rel="noopener noreferrer" className="underline">annexe de traitement des données</a>.</span>

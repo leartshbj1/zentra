@@ -330,6 +330,34 @@
       "when": 1789866360841,
       "tag": "0046_founder_support_access",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1789868599910,
+      "tag": "0047_zentra_automation",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1789869100693,
+      "tag": "0048_automation_checkout_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1789869386950,
+      "tag": "0049_referral_reward_invoice",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1789871354004,
+      "tag": "0050_automation_checkout_retry",
+      "breakpoints": true
     }
   ]
 }

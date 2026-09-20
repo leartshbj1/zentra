@@ -389,7 +389,7 @@ export async function refreshLicense(token: string) {
       );
     }
     const latestInvoice = await retrieveInvoice(latestInvoiceId);
-    const paidThrough = validatePaidZentraInvoice(latestInvoice, subscription);
+    const paidThrough = await validatePaidZentraInvoice(latestInvoice, subscription);
     await upsertSubscription(subscription, null, {
       paidInvoiceId: latestInvoice.id,
       paidThrough,

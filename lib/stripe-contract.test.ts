@@ -22,7 +22,7 @@ describe('Stripe SDK and webhook version contract', () => {
       'const latestInvoice = await retrieveInvoice(latestInvoiceId);',
     );
     expect(licenseSource).toContain(
-      'const paidThrough = validatePaidZentraInvoice(latestInvoice, subscription);',
+      'const paidThrough = await validatePaidZentraInvoice(latestInvoice, subscription);',
     );
     expect(licenseSource).toContain(
       'await upsertSubscription(subscription, null, {',
@@ -80,7 +80,7 @@ describe('Stripe SDK and webhook version contract', () => {
       new URL('../app/api/stripe/portal/route.ts', import.meta.url),
       'utf8',
     );
-    expect(checkoutSource).toMatch(/createCheckoutSession\(\s*origin,\s*claimHash,\s*identity,\s*plan\.id,?\s*\)/);
+    expect(checkoutSource).toMatch(/createCheckoutSession\(\s*origin,\s*claimHash,\s*identity,\s*plan\.id,\s*referral\s*\?\?\s*undefined,?\s*\)/);
     expect(claimSource).toContain('assertCheckoutAccount(session, user)');
     expect(licenseSource).toContain('getZentraUser({ refreshSession: true })');
     expect(licenseSource).toContain('assertCheckoutAccount(session, user)');

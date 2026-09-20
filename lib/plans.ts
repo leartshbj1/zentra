@@ -1,4 +1,4 @@
-/** Every plan includes the same current and future product features. */
+/** Gestion plans share their core features; optional separately priced services are explicit. */
 export const ZENTRA_PLANS = [
   {
     id: 'solo',
@@ -62,6 +62,6 @@ export function validLicensePrice(plan: unknown, price: unknown): boolean {
 }
 
 export const PLAN_FEATURE_PROMISE =
-  'Toutes les fonctionnalités actuelles et futures sont incluses dans chaque formule.';
+  'Les mêmes fonctions de gestion dans chaque formule. Zentra Automation est une option à 15 CHF/mois ; Zentra Support est un produit distinct.';
 export const PLAN_SEAT_EXPLANATION =
   'Le titulaire compte dans le total. Une personne peut utiliser plusieurs appareils. Les fiches de salariés ne consomment pas d’accès.';

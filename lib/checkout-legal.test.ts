@@ -61,7 +61,7 @@ beforeEach(() => {
   mocks.failBatch = false;
   db = new DatabaseSync(':memory:');
   db.exec(
-    'CREATE TABLE checkout_attempts(claim_hash TEXT PRIMARY KEY,checkout_session_id TEXT,created_at INTEGER,expires_at INTEGER)',
+    'CREATE TABLE checkout_attempts(claim_hash TEXT PRIMARY KEY,checkout_session_id TEXT UNIQUE,created_at INTEGER,expires_at INTEGER)',
   );
   db.exec(
     readFileSync(

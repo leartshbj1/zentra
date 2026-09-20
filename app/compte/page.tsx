@@ -211,6 +211,7 @@ export default async function AccountPage() {
           </div>
           <ZentraSignOut provider={user.provider} returnTo="/compte" />
         </header>
+        <a href="/compte/automation" className="mt-6 inline-flex min-h-12 items-center rounded-full border border-[#ced8d1] bg-white px-6 font-semibold">Zentra Automation · Réglages</a>
 
         {organizations.length === 0 ? (
           <section className="mt-10 rounded-[2rem] border border-[#e2c98e] bg-[#fff8e9] p-7 sm:p-9">

@@ -46,6 +46,8 @@ export type ZentraInvoiceValidation = {
   unitAmount: number;
   livemode: boolean;
   automaticTaxRequired?: boolean;
+  /** Only a server-verified, recorded referral may set this. */
+  authorizedDiscountCents?: number;
 };
 
 /**
@@ -69,7 +71,10 @@ export function paidThroughFromInvoice(
     invoice.status !== 'paid' ||
     invoice.livemode !== expected.livemode ||
     invoice.currency.toLowerCase() !== 'chf' ||
-    invoice.total !== expected.unitAmount ||
+    !Number.isSafeInteger(expected.authorizedDiscountCents ?? 0) ||
+    (expected.authorizedDiscountCents ?? 0) < 0 ||
+    (expected.authorizedDiscountCents ?? 0) >= expected.unitAmount ||
+    invoice.total !== expected.unitAmount - (expected.authorizedDiscountCents ?? 0) ||
     !validAutomaticTax ||
     invoice.parent?.type !== 'subscription_details' ||
     stripeReferenceId(

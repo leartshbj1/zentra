@@ -48,6 +48,7 @@ export default function ProductsPage() {
           </p>
         </section>
         <ProductRange />
+        <section className="products-independence"><h2>Zentra Automation</h2><p>Ajoutez des suggestions de classement et de parcours à Zentra Gestion. Une option volontaire à 15 CHF par mois et par entreprise.</p><a href="/automation">Découvrir l’option Automation →</a></section>
         <section className="products-independence">
           <h2>Choisissez selon votre besoin.</h2>
           <p>
