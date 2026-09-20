@@ -476,11 +476,12 @@ export default function Home() {
             <div className="text-center">
               <p className="site-eyebrow">Un prix simple</p>
               <h2 id="pricing-title" className="site-section-title mt-4">
-                Trois formules. Tout Zentra.
+                Trois formules pour votre entreprise.
               </h2>
               <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#657068]">
-                1, 3 ou 10 personnes, titulaire compris. Toutes les fonctions
-                actuelles et futures sont incluses.
+                1, 3 ou 10 personnes, titulaire compris. Les fonctions de
+                gestion sont incluses. Zentra Automation est une option
+                facultative à 15 CHF/mois par entreprise.
               </p>
             </div>
 

@@ -47,8 +47,8 @@ export function PricingPlans() {
             <p className="mt-1 text-sm text-[#657068]">Titulaire compris</p>
             <ul className="my-6 space-y-3 text-sm leading-6">
               {[
-                'Toutes les fonctions actuelles',
-                'Toutes les fonctions futures',
+                'Fonctions de Zentra Gestion',
+                'Automation en option : 15 CHF/mois',
                 'Mises à jour incluses',
                 'Plusieurs appareils par personne',
               ].map((feature) => (

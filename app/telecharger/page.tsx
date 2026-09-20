@@ -197,7 +197,7 @@ export default function DownloadPage() {
                 {ZENTRA_INSTALLER_SIZE_MIB} Mio / {ZENTRA_MAC_DMG_SIZE_MIB} Mio
               </span>
               <span>Dès 49 CHF / mois</span>
-              <span>Toutes les fonctions incluses</span>
+              <span>Fonctions de gestion incluses</span>
             </div>
             <p className="mt-3 max-w-xl text-xs leading-5 text-[#7a857e]">
               Le téléchargement ne déclenche aucun paiement. Une licence active
@@ -592,7 +592,7 @@ export default function DownloadPage() {
                 Licence Zentra
               </p>
               <h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
-                Toute l’application, dès 49 CHF par mois.
+                Zentra Gestion, dès 49 CHF par mois.
               </h2>
               <p className="mt-5 max-w-2xl text-lg leading-8 text-white/78">
                 Le paiement est traité par Stripe. L’abonnement peut être
@@ -604,12 +604,12 @@ export default function DownloadPage() {
               </p>
               <div className="mt-7 grid gap-3 text-sm text-white/72 sm:grid-cols-2">
                 {[
-                  'Toutes les fonctions incluses',
+                  'Fonctions de gestion incluses',
                   'Nouvelles versions incluses',
                   'Paiement sécurisé par Stripe',
                   'Résiliation depuis le portail client',
                   'Solo : 1 · Start : 3 · Pro : 10 personnes',
-                  'Fonctions actuelles et futures incluses',
+                  'Automation : option à 15 CHF/mois',
                 ].map((item) => (
                   <div key={item} className="flex items-center gap-2">
                     <Check className="size-4 text-[#77cf92]" /> {item}
@@ -626,8 +626,9 @@ export default function DownloadPage() {
               </div>
               <p className="mt-3 text-xs leading-5 text-white/74">
                 Solo 49 CHF, Start 59 CHF ou Pro 89 CHF par mois, pour 1, 3 ou
-                10 personnes, titulaire compris. Toutes les fonctions actuelles
-                et futures sont incluses. Taxe incluse lorsqu’elle s’applique ;
+                10 personnes, titulaire compris. Les fonctions de gestion sont
+                incluses. Zentra Automation est une option facultative à
+                15 CHF/mois par entreprise. Taxe incluse lorsqu’elle s’applique ;
                 résiliation pour la fin de la période en cours.
               </p>
               <div className="mt-7">
