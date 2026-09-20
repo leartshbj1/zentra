@@ -65,6 +65,16 @@ def main():
         installer = download(name)
         hashes = {f['name']: f['sha256'] for f in proof['files']}
         assert hashlib.sha256(installer.read_bytes()).hexdigest() == hashes[name]
+        original = download('Zentra.exe').read_bytes()
+        assert hashlib.sha256(original).hexdigest() == hashes['Zentra.exe']
+        # Tauri 2.11.4 patches the first bundle-type marker when packaging NSIS
+        # and restores the loose build executable afterwards. Reproduce that
+        # documented transform, then require an exact hash of every byte.
+        # https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.11.4/crates/tauri-bundler/src/bundle.rs
+        marker = b'__TAURI_BUNDLE_TYPE_VAR_UNK'
+        assert original.count(marker) == 1
+        packaged = original.replace(marker, b'__TAURI_BUNDLE_TYPE_VAR_NSS', 1)
+        expected_payload = hashlib.sha256(packaged).hexdigest()
         install_dir = root / 'application'
         subprocess.run([str(installer), '/S', '/D=' + str(install_dir)], check=True, timeout=180)
         exe = install_dir / 'Zentra.exe'
@@ -75,11 +85,11 @@ def main():
         while time.monotonic() < deadline:
             if exe.is_file():
                 actual_hash = hashlib.sha256(exe.read_bytes()).hexdigest()
-                if actual_hash == hashes['Zentra.exe']:
+                if actual_hash == expected_payload:
                     break
             time.sleep(1)
-        if actual_hash != hashes['Zentra.exe']:
-            evidence = dict(expected=hashes['Zentra.exe'], actual=actual_hash,
+        if actual_hash != expected_payload:
+            evidence = dict(expected=expected_payload, original=hashes['Zentra.exe'], actual=actual_hash,
                             installedBytes=exe.stat().st_size if exe.is_file() else None)
             print(json.dumps(evidence), flush=True)
             (out / 'installer-mismatch.json').write_text(json.dumps(evidence, indent=2))
@@ -130,6 +140,9 @@ def main():
     result = dict(version=version, source=args.source, system=args.system, buildJob=args.job,
                   schema=schema, integrity='ok', isolatedProfile=True, startupAndRelaunchPassed=True,
                   scope='Packaged binary startup and SQLite integrity, without interactive UI or customer data')
+    if args.system == 'windows':
+        result.update(installedExecutableSha256=expected_payload,
+                      rawExecutableSha256=hashes['Zentra.exe'], nsisBundleMarkerVerified=True)
     (out / f'{args.system}-smoke.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
 
