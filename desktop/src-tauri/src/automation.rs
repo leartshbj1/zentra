@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 fn invalid(message: &str) -> AppError {
     AppError::Validation(message.into())
 }
-fn bound(store: &LocalStore, org: &str) -> AppResult<()> {
+pub(crate) fn bound(store: &LocalStore, org: &str) -> AppResult<()> {
     if crate::company_collaboration::status(store)?["organizationId"].as_str() != Some(org) {
         return Err(invalid("Connectez et partagez cette entreprise dans Paramètres → Compte et accès. Le travail manuel reste disponible."));
     }

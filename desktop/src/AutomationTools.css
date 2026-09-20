@@ -1,0 +1,16 @@
+.automation-tools { min-width:0; margin:0 0 18px; border:1px solid var(--line-soft); border-radius:16px; background:var(--surface-raised); color:var(--ink); }
+.automation-tools > summary { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-height:48px; padding:12px 16px; font-size:14px; font-weight:600; cursor:pointer; }
+.automation-tools > summary::after { content:'+'; margin-left:auto; font-size:20px; font-weight:400; }
+.automation-tools[open] > summary::after { content:'−'; }
+.automation-tools > summary:focus-visible { outline:2px solid currentColor; outline-offset:3px; border-radius:14px; }
+.automation-tools__hint { font-weight:400; color:var(--muted); }
+.automation-tools__content { padding:4px 16px 20px; }
+.automation-tools__tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+.automation-tools .button { min-height:44px; max-width:100%; white-space:normal; }
+.automation-tools__form { display:grid; gap:12px; max-width:720px; }
+.automation-tools__form label { display:grid; gap:8px; font-size:14px; font-weight:500; }
+.automation-tools__form textarea,.automation-tools__form select { width:100%; max-width:100%; min-width:0; min-height:44px; border:1px solid var(--line); border-radius:12px; background:var(--surface-subtle); color:var(--ink); padding:12px; font-size:16px; }
+.automation-tools__form textarea { min-height:92px; resize:vertical; }
+.automation-tools__form > .button { justify-self:start; }
+.automation-tools__form p { color:var(--muted); font-size:14px; line-height:1.6; margin:0; }
+@media(max-width:540px) { .automation-tools__hint { display:none; } .automation-tools__tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .automation-tools__tabs .button { width:100%; } .automation-tools__form > .button { width:100%; } }

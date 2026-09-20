@@ -9,6 +9,7 @@ import {
 } from './automation';
 import { DocumentClassification, useAutomation } from './AutomationControls';
 import type { Workspace } from './types';
+import { useCompanyAutomation } from './AutomationCompany';
 
 export async function localDocumentExcerpt(file: File) {
   if (!file.size || file.size > 20 * 1024 * 1024)
@@ -50,6 +51,8 @@ export function AutomationDocumentReader({
   disabled?: boolean;
 }) {
   useAppLanguage();
+  const company = useCompanyAutomation();
+  const configuration = JSON.stringify([company.state?.active, company.state?.settings, company.state?.available]);
   const input = useRef<HTMLInputElement>(null),
     generation = useRef(0);
   const [available, setAvailable] = useState(false),
@@ -68,7 +71,7 @@ export function AutomationDocumentReader({
       live = false;
       generation.current++;
     };
-  }, []);
+  }, [configuration]);
   if (!available) return null;
   return (
     <div className="automation-file">

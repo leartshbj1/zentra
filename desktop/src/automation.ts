@@ -14,6 +14,7 @@ export type AutomationState = {
   active: boolean;
   canManage: boolean;
   available: AutomationFeature[];
+  activity?: AutomationActivity | null;
   settings: {
     enabled: boolean;
     consent: boolean;
@@ -21,6 +22,21 @@ export type AutomationState = {
     flags: AutomationFeature[];
     thresholds: { medium: number; high: number };
   };
+};
+export type AutomationCounts = {
+  analyzed: number;
+  suggestions: number;
+  confirmed: number;
+  needsReview: number;
+  observed: number;
+};
+export type AutomationActivity = {
+  date: string;
+  timeZone: string;
+  updatedAt: number;
+  displayName: string | null;
+  totals: AutomationCounts;
+  features: (AutomationCounts & { feature: AutomationFeature })[];
 };
 export type AutomationDecision = {
   id?: string;
@@ -162,6 +178,7 @@ export async function automationFeedback(
         choices,
       },
     });
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('zentra-automation-updated'));
     return true;
   } catch {
     return false;
@@ -169,6 +186,14 @@ export async function automationFeedback(
 }
 export const openAutomationSettings = () =>
   invoke<string>('open_automation_settings');
+export async function saveAutomationSettings(settings: AutomationState['settings'], consent = false) {
+  const result = await invoke<AutomationState['settings']>('automation_request', { data: {
+    action: 'settings', ...settings,
+    ...(consent ? { consentVersion: 'automation-2026-09-20' } : {}),
+  } });
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('zentra-automation-updated'));
+  return result;
+}
 export async function automationResourceFeedback(
   decision: AutomationDecision | null,
   resourceIds: Record<string, string | null>,
@@ -184,6 +209,7 @@ export async function automationResourceFeedback(
         resourceIds,
       },
     });
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('zentra-automation-updated'));
     return true;
   } catch {
     return false;

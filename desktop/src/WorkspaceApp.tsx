@@ -23,7 +23,11 @@ import type { PdfExportReceipt as PdfReceipt } from './pdfExportDelivery';
 import { deferView } from './DeferredView';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { useAssistantScreen } from './assistantContext';
-import { AutomationSetup } from './AutomationControls';
+import { AutomationDailySummary } from './AutomationDailySummary';
+import { AutomationCompanyProvider } from './AutomationCompany';
+import { AutomationSettings } from './AutomationSettings';
+import { AutomationTools } from './AutomationTools';
+import type { ComponentProps } from 'react';
 import { useScreenArrival } from './useScreenArrival';
 import { PayrollSettingsForm } from './PayrollSettingsForm';
 import { usePayrollFieldGuide } from './PayrollFieldGuide';
@@ -467,7 +471,14 @@ const viewTitles: Record<View, [string, string]> = {
   settings: ['Paramètres', 'Entreprise, confidentialité et portabilité'],
 };
 
-export function WorkspaceApp({
+export function WorkspaceApp(props: ComponentProps<typeof WorkspaceContent>) {
+  const account = props.cloudAccount;
+  return <AutomationCompanyProvider organizationId={account?.status === 'connected' ? account.organizationId ?? null : null} readOnly={props.readOnly}>
+    <WorkspaceContent {...props} />
+  </AutomationCompanyProvider>;
+}
+
+function WorkspaceContent({
   workspace,
   setWorkspace,
   readOnly = false,
@@ -1860,6 +1871,7 @@ export function WorkspaceApp({
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label={t("Reprendre la facture fournisseur")}><span>{t("Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.")}</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>{t("Reprendre la facture fournisseur")}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>{t("Plus tard")}</Button></div>}
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
+          {view !== 'dashboard' && view !== 'settings' && <AutomationTools key={view} screen={view} workspace={workspace} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -1870,6 +1882,8 @@ export function WorkspaceApp({
             />
           ) : null}
           {view === 'dashboard' ? (
+            <>
+            <AutomationDailySummary />
             <Dashboard
               workspace={workspace}
               readOnly={readOnly}
@@ -1877,6 +1891,7 @@ export function WorkspaceApp({
               onCreate={setModal}
               onOpenProject={(project) => { setProjectFolderId(project.id); setSearch(''); setView('projects'); }}
             />
+            </>
           ) : null}
           {view === 'agenda' ? (
             <Suspense fallback={<ViewLoading label={t("Ouverture de l’agenda…")} />}>
@@ -5030,7 +5045,7 @@ function SettingsScreen({
       <SettingsCategory id="account" title="Compte et accès" description="Connexion, abonnement et accès à l’entreprise" icon={UserRound}>
       <CloudAccountPanel onAccountChange={onCloudAccountChange} settings={settings} />
       </SettingsCategory>
-      <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions, activation et abonnement" icon={ListChecks}><AutomationSetup /></SettingsCategory>
+      <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings /></SettingsCategory>
       <SettingsCategory id="company" title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
       <section className="panel settings-card settings-card--wide">
         <SectionHeading

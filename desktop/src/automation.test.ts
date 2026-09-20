@@ -7,6 +7,7 @@ import {
   bankContext,
   anomalyContext,
   featureReady,
+  saveAutomationSettings,
   workflowScreens,
   type AutomationState,
 } from './automation';
@@ -89,6 +90,17 @@ it('does not invent a completed feedback record after a network failure', async 
       { category: 'material' },
     ),
   ).toBe(false);
+});
+it('saves one company configuration and sends consent only when explicitly supplied', async () => {
+  mock.invoke.mockResolvedValue(state.settings);
+  await saveAutomationSettings(state.settings);
+  expect(mock.invoke.mock.calls[0][1].data).not.toHaveProperty('consentVersion');
+  await saveAutomationSettings(state.settings, true);
+  expect(mock.invoke.mock.calls[1][1].data).toMatchObject({ action: 'settings', consentVersion: 'automation-2026-09-20' });
+});
+it('propagates a failed settings save rather than claiming the team configuration changed', async () => {
+  mock.invoke.mockRejectedValue(Error('offline'));
+  await expect(saveAutomationSettings(state.settings)).rejects.toThrow('offline');
 });
 it('does not include bank identifiers in decision context', () => {
   const movement = {

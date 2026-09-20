@@ -337,6 +337,8 @@ pub async fn automation_request(state: State<'_, LocalStore>, data: Option<serde
         }
         session
     };
+    // Even read-only summaries must belong to the company opened locally.
+    crate::automation::bound(&store, &session.organization_id).map_err(command_error)?;
     let body = data.map(|value| crate::automation::prepare_request(&store,&session.organization_id,&session.role,value))
         .transpose().map_err(command_error)?.map(|value|serde_json::to_vec(&value)).transpose().map_err(|_|"La demande est invalide.".to_string())?;
     let method=if body.is_some(){Method::POST}else{Method::GET};
@@ -347,6 +349,7 @@ pub async fn automation_request(state: State<'_, LocalStore>, data: Option<serde
     let _guard=store.account_protected_cache.operation_lock.lock().await;
     let current=read_session_secret(&store).map_err(command_error)?.ok_or("La connexion a changé.")?;
     if current.organization_id!=session.organization_id || current.session_token!=session.session_token {return Err("La connexion a changé. Relancez la suggestion.".into());}
+    crate::automation::bound(&store, &session.organization_id).map_err(command_error)?;
     crate::automation::validate_response(&store,&session.organization_id,&value).map_err(command_error)?;
     Ok(value)
 }

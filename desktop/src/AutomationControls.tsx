@@ -15,6 +15,7 @@ import {
   type AutomationState,
 } from './automation';
 import './AutomationControls.css';
+import { useCompanyAutomation } from './AutomationCompany';
 
 export function useAutomation(
   feature: AutomationFeature,
@@ -22,10 +23,12 @@ export function useAutomation(
   identity?: string,
 ) {
   const [decision, setDecision] = useState<AutomationDecision | null>(null);
+  const company = useCompanyAutomation();
+  const configuration = JSON.stringify([company.state?.organizationId, company.state?.active, company.state?.settings, company.state?.available]);
   const serialized = JSON.stringify(context);
   useEffect(() => {
     let live = true;
-    setDecision(null);
+    setDecision(context ? { status: 'pending' } : null);
     if (!context) return;
     const timer = setTimeout(() => {
       void automationRequest(feature, JSON.parse(serialized), identity).then(
@@ -38,7 +41,7 @@ export function useAutomation(
       live = false;
       clearTimeout(timer);
     };
-  }, [feature, serialized, identity]);
+  }, [feature, serialized, identity, configuration]);
   return decision;
 }
 export function AutomationSetup({
@@ -59,9 +62,11 @@ export function AutomationSetup({
       });
     };
     refresh();
+    const timer = window.setInterval(refresh, 15000);
     window.addEventListener('focus', refresh);
     return () => {
       active = false;
+      window.clearInterval(timer);
       window.removeEventListener('focus', refresh);
     };
   }, []);
@@ -69,22 +74,22 @@ export function AutomationSetup({
     <section className="automation-setup">
       <Workflow size={28} />
       <p className="automation-eyebrow">Zentra Automation</p>
-      <h3>{t('Moins de tri, plus de temps pour vous.')}</h3>
+      <h3>{t(state?.active ? 'Automation pour toute votre équipe' : 'Moins de tri, plus de temps pour vous.')}</h3>
       <p>
         {t(
           'Des suggestions pour classer vos opérations et documents. Vous validez les actions importantes.',
         )}
       </p>
-      <div className="automation-price">
+      {!state?.active && <div className="automation-price">
         <strong>15 CHF</strong>
         <span>{t('par mois et par entreprise')}</span>
-      </div>
+      </div>}
       <p>
         {t(
           'Option facultative. Les extraits nécessaires sont traités en ligne après votre accord. Le fichier complet n’est pas transmis au service d’analyse.',
         )}
       </p>
-      {state?.active && <p role="status">{t('Votre option est active.')}</p>}
+      {state?.active && <p role="status">{t('L’option est active pour cette entreprise. Tous ses collaborateurs en bénéficient, sans activation individuelle.')}</p>}
       <div className="automation-actions">
         <Button
           type="button"
@@ -100,7 +105,7 @@ export function AutomationSetup({
         >
           <ArrowUpRight size={16} />
           {t(
-            state?.active ? 'Gérer Zentra Automation' : 'Découvrir et activer',
+            state?.active ? (state.canManage ? 'Gérer Zentra Automation' : 'Voir les réglages de l’entreprise') : 'Découvrir et activer',
           )}
         </Button>
         {onSkip && (
@@ -129,7 +134,7 @@ export function AutomationChoice({
   question,
   onChoose,
   title = 'Suggestion Zentra',
-  disabled = false,
+  disabled: disabledProp = false,
 }: {
   decision: AutomationDecision | null;
   labels: Record<string, string>;
@@ -139,6 +144,8 @@ export function AutomationChoice({
   disabled?: boolean;
 }) {
   useAppLanguage();
+  const company = useCompanyAutomation();
+  const disabled = disabledProp || company.readOnly;
   const [value, setValue] = useState(''),
     [notice, setNotice] = useState(''),
     [saving, setSaving] = useState(false),
