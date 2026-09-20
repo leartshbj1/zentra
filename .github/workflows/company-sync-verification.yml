@@ -1,0 +1,42 @@
+name: Company synchronization verification
+on:
+  push:
+    branches: [codex/automation-native-20260920]
+    paths:
+      - desktop/src-tauri/src/company*.rs
+      - desktop/src-tauri/src/account_cloud.rs
+      - desktop/src/companyRealtime*
+      - desktop/src/projectSync*
+      - .github/workflows/company-sync-verification.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: company-sync-verification-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: 0
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir desktop exec vitest run src/companyRealtime.test.ts src/projectSyncScheduler.test.ts src/automationCompanySession.test.ts
+      - run: pnpm --dir desktop build:web
+      - name: Native collaboration, content cache and account verification
+        shell: pwsh
+        run: |
+          cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib company_ -- --nocapture --test-threads=1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib account_cloud::tests -- --test-threads=1
+          exit $LASTEXITCODE

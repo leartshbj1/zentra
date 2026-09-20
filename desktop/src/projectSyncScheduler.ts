@@ -1,6 +1,7 @@
 import type { ProjectSyncStatus } from './projectSync';
 
 export const COMPANY_SYNC_INTERVAL_MS = 3_000;
+export const COMPANY_RECONCILE_INTERVAL_MS = 60_000;
 
 export function startProjectSyncScheduler(options: {
   local: () => Promise<ProjectSyncStatus>;
@@ -14,6 +15,7 @@ export function startProjectSyncScheduler(options: {
   const controller = new AbortController();
   let active = true, running = false, wakePending = false, failures = 0, retryAt = 0;
   let refreshPending = false, initial = true, retryPending = false;
+  let realtimeHealthy = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   function schedule(delay: number) {
     clearTimeout(timer);
@@ -58,7 +60,7 @@ export function startProjectSyncScheduler(options: {
         failures = 0; retryAt = 0;
         delay = status.busy ? COMPANY_SYNC_INTERVAL_MS : status.mode === 'legacy' || !status.mode
           ? status.connected && status.pending ? 5_000 : 60_000
-          : Math.max(300, COMPANY_SYNC_INTERVAL_MS - (Date.now() - startedAt));
+          : Math.max(300, (realtimeHealthy && !status.pending ? COMPANY_RECONCILE_INTERVAL_MS : COMPANY_SYNC_INTERVAL_MS) - (Date.now() - startedAt));
       }
     } catch (reason) {
       failures++;
@@ -77,6 +79,13 @@ export function startProjectSyncScheduler(options: {
   }
   schedule(300);
   return {
+    setRealtimeHealthy(healthy: boolean) {
+      if (!active || realtimeHealthy === healthy) return;
+      realtimeHealthy = healthy;
+      // Do not postpone a pending local edit or a retry. Losing notifications
+      // immediately restores the lightweight three-second fallback.
+      if (!healthy) { if (running) wakePending = true; else schedule(300); }
+    },
     wake(retryNow = false) {
       if (!active) return;
       if (retryNow) retryAt = 0;

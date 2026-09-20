@@ -80,7 +80,8 @@ export function useProjectSyncBackground(
     const realtime = startCompanyRealtime({
       watch: desktopApi.watchCompanyWorkspace,
       available: () => isTauri() && navigator.onLine !== false && document.visibilityState !== 'hidden',
-      onRevision: () => scheduler.wake(true),
+        onRevision: () => scheduler.wake(true),
+        onHealth: healthy => scheduler.setRealtimeHealthy(healthy),
     });
     const stopReceiveWatch=watchCompanyReceiveOpportunity(()=>scheduler.wake());
     let unlisten: UnlistenFn | undefined;

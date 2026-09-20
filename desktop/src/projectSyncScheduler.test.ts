@@ -12,6 +12,20 @@ function setup(overrides: Partial<Parameters<typeof startProjectSyncScheduler>[0
 describe('project document synchronization lifecycle', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
+  it('uses notifications while idle, sends local edits immediately and reconciles a missed notice',async()=>{
+    const synchronize=vi.fn(async():Promise<ProjectSyncStatus>=>({...status,mode:'business'}));
+    const {scheduler}=setup({synchronize});scheduler.setRealtimeHealthy(true);
+    await vi.advanceTimersByTimeAsync(30_300);expect(synchronize).toHaveBeenCalledTimes(1);
+    scheduler.wake();await vi.advanceTimersByTimeAsync(300);expect(synchronize).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(60_000);expect(synchronize).toHaveBeenCalledTimes(3);
+    scheduler.setRealtimeHealthy(false);await vi.advanceTimersByTimeAsync(300);expect(synchronize).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(3000);expect(synchronize).toHaveBeenCalledTimes(5);scheduler.stop();
+  });
+  it('never slows an unfinished outbox even with a healthy realtime channel',async()=>{
+    const synchronize=vi.fn(async():Promise<ProjectSyncStatus>=>({...status,mode:'business',pending:1}));
+    const {scheduler}=setup({synchronize});scheduler.setRealtimeHealthy(true);
+    await vi.advanceTimersByTimeAsync(9300);expect(synchronize).toHaveBeenCalledTimes(4);scheduler.stop();
+  });
   it('keeps slow offline reads single-flight and resumes after connectivity returns', async () => {
     let online = false, finish!: (status: ProjectSyncStatus) => void;
     const local = vi.fn(() => new Promise<ProjectSyncStatus>(r => { finish = r; }));

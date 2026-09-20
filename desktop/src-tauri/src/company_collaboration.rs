@@ -495,6 +495,10 @@ struct Pending {
     base_revision: u64,
     clock: i64,
     manifest: crate::cloud_backup::Manifest,
+    // 0: legacy/in-flight before this upgrade; 1: content upload; 2: new,
+    // protocol not negotiated yet. Never change an already prepared upload.
+    #[serde(default)]
+    content_version: u8,
 }
 fn folder(store: &LocalStore) -> AppResult<PathBuf> {
     let p = store.data_dir.join("company-sync");
@@ -742,6 +746,7 @@ fn prepare(store: &LocalStore, organization: &str, activate: bool) -> AppResult<
         manifest,
         clock: before,
         base_revision: prefs.revision,
+        content_version: 2,
     };
     prefs.pending = Some(pending.clone());
     prefs.organization_id = Some(organization.into());
@@ -777,10 +782,15 @@ fn confirm_sent(store: &LocalStore, id: &str, revision: u64) -> AppResult<()> {
     let _ = clean_transport_copies(store);
     Ok(())
 }
-async fn send(store: &LocalStore, session: &ProjectSyncSession, activate: bool) -> AppResult<bool> {
+async fn send(
+    store: &LocalStore,
+    session: &ProjectSyncSession,
+    activate: bool,
+    supports_content: bool,
+) -> AppResult<bool> {
     let owned = store.clone();
     let org = session.organization_id.clone();
-    let p = tauri::async_runtime::spawn_blocking(move || prepare(&owned, &org, activate))
+    let mut p = tauri::async_runtime::spawn_blocking(move || prepare(&owned, &org, activate))
         .await
         .map_err(|_| invalid("L’envoi a été interrompu. Il reprendra automatiquement."))??;
     let numbers = crate::shared_numbering::active_series(
@@ -794,7 +804,27 @@ async fn send(store: &LocalStore, session: &ProjectSyncSession, activate: bool) 
             .collect::<Vec<_>>()
     })
     .unwrap_or_default();
-    let response=request(session,Method::POST,&[],Some(json!({"action":"prepare","id":p.id,"baseRevision":p.base_revision,"manifest":p.manifest,"confirmFullAccess":activate,"numbers":numbers}))).await?;
+    if p.content_version == 2 {
+        p.content_version = u8::from(supports_content);
+        let mut prefs = load(store)?;
+        prefs.pending = Some(p.clone());
+        save(store, &prefs)?;
+    }
+    let cache = crate::company_content::directory(&store.data_dir, &session.organization_id)?;
+    let entries = if p.content_version == 1 {
+        let path = file_path(store, &p.id)?;
+        let directory = cache.clone();
+        let parts = tauri::async_runtime::spawn_blocking(move || {
+            crate::company_content::prepare(&path, &directory)
+        })
+        .await
+        .map_err(|_| invalid("La préparation reprendra automatiquement."))??;
+        crate::company_content::validate(&parts, &p.manifest)?;
+        Some(parts)
+    } else {
+        None
+    };
+    let response=request(session,Method::POST,&[],Some(json!({"action":if entries.is_some(){"prepare-content"}else{"prepare"},"entries":entries,"id":p.id,"baseRevision":p.base_revision,"manifest":p.manifest,"confirmFullAccess":activate,"numbers":numbers}))).await?;
     if response["conflict"] == true {
         let mut prefs = load(store)?;
         prefs.conflict = true;
@@ -805,31 +835,62 @@ async fn send(store: &LocalStore, session: &ProjectSyncSession, activate: bool) 
         confirm_sent(store, &p.id, revision)?;
         return Ok(true);
     }
-    let received = response["received"]
-        .as_array()
-        .ok_or_else(|| invalid("La liste des documents reçus est invalide."))?;
-    let mut file = File::open(file_path(store, &p.id)?)?;
-    for (index, part) in p.manifest.chunks.iter().enumerate() {
-        let mut bytes = vec![0; part.size_bytes as usize];
-        file.read_exact(&mut bytes)?;
-        if format!("{:x}", Sha256::digest(&bytes)) != part.sha256 {
-            return Err(invalid(
-                "L’envoi local a été modifié. Vos données originales sont conservées.",
-            ));
+    if let Some(parts) = &entries {
+        let missing = response["missing"]
+            .as_array()
+            .ok_or_else(|| invalid("La liste des changements reçus est invalide."))?;
+        let mut sent = std::collections::HashSet::new();
+        for value in missing {
+            let hash = value
+                .as_str()
+                .ok_or_else(|| invalid("Référence de changement invalide."))?;
+            let part = parts
+                .iter()
+                .find(|p| p.sha256 == hash)
+                .ok_or_else(|| invalid("Le serveur demande un changement inconnu."))?;
+            if !sent.insert(hash) {
+                continue;
+            }
+            let bytes = crate::company_content::cached(&cache, part)?
+                .ok_or_else(|| invalid("Le cache d’envoi doit être préparé à nouveau."))?;
+            session
+                .request(
+                    Method::PUT,
+                    PATH,
+                    &[("id", &p.id), ("blob", hash)],
+                    &[],
+                    Some(bytes),
+                    false,
+                )
+                .await?;
         }
-        if received.iter().any(|v| v.as_u64() == Some(index as u64)) {
-            continue;
+    } else {
+        let received = response["received"]
+            .as_array()
+            .ok_or_else(|| invalid("La liste des documents reçus est invalide."))?;
+        let mut file = File::open(file_path(store, &p.id)?)?;
+        for (index, part) in p.manifest.chunks.iter().enumerate() {
+            let mut bytes = vec![0; part.size_bytes as usize];
+            file.read_exact(&mut bytes)?;
+            if format!("{:x}", Sha256::digest(&bytes)) != part.sha256 {
+                return Err(invalid(
+                    "L’envoi local a été modifié. Vos données originales sont conservées.",
+                ));
+            }
+            if received.iter().any(|v| v.as_u64() == Some(index as u64)) {
+                continue;
+            }
+            session
+                .request(
+                    Method::PUT,
+                    PATH,
+                    &[("id", &p.id), ("index", &index.to_string())],
+                    &[],
+                    Some(bytes),
+                    false,
+                )
+                .await?;
         }
-        session
-            .request(
-                Method::PUT,
-                PATH,
-                &[("id", &p.id), ("index", &index.to_string())],
-                &[],
-                Some(bytes),
-                false,
-            )
-            .await?;
     }
     let current = project_sync_session(store)
         .await?
@@ -852,6 +913,7 @@ async fn send(store: &LocalStore, session: &ProjectSyncSession, activate: bool) 
                 .as_u64()
                 .ok_or_else(|| invalid("La confirmation de version est invalide."))?,
         )?;
+        let _ = crate::company_content::trim(&cache);
         return Ok(true);
     }
     if result["conflict"] == true {
@@ -879,6 +941,9 @@ async fn download(
     let path = file_path(store, id)?;
     if path.is_file() && crate::cloud_backup::file_manifest(&path)? == manifest {
         return Ok(path);
+    }
+    if head["contentVersion"] == 1 {
+        return download_content(store, session, id, &path, &manifest).await;
     }
     let mut file = tempfile::Builder::new()
         .prefix(".receive-")
@@ -912,7 +977,73 @@ async fn download(
     }
     file.as_file().sync_all()?;
     file.persist(&path).map_err(|e| AppError::Io(e.error))?;
+    if head["contentTransfer"] == 1 {
+        let cache = crate::company_content::directory(&store.data_dir, &session.organization_id)?;
+        let copy = path.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            crate::company_content::prepare(&copy, &cache)?;
+            crate::company_content::trim(&cache)
+        })
+        .await
+        .map_err(|_| invalid("La préparation du cache a été interrompue."))??;
+    }
     Ok(path)
+}
+async fn download_content(
+    store: &LocalStore,
+    session: &ProjectSyncSession,
+    id: &str,
+    path: &Path,
+    manifest: &crate::cloud_backup::Manifest,
+) -> AppResult<PathBuf> {
+    let value = request(session, Method::GET, &[("id", id), ("content", "1")], None).await?;
+    let parts: Vec<crate::cloud_backup::Chunk> = serde_json::from_value(value["entries"].clone())?;
+    crate::company_content::validate(&parts, manifest)?;
+    let cache = crate::company_content::directory(&store.data_dir, &session.organization_id)?;
+    // Upgrade an old installation without re-downloading unchanged attachments.
+    if fs::read_dir(&cache)?.next().is_none() {
+        let reference = store.data_dir.join("company-sync-reference.zentra");
+        if reference.is_file() {
+            let directory = cache.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                crate::company_content::prepare(&reference, &directory)
+            })
+            .await
+            .map_err(|_| invalid("La préparation du cache a été interrompue."))??;
+        }
+    }
+    let mut file = tempfile::Builder::new()
+        .prefix(".receive-content-")
+        .tempfile_in(folder(store)?)?;
+    for part in &parts {
+        let bytes = match crate::company_content::cached(&cache, part)? {
+            Some(bytes) => bytes,
+            None => {
+                let (_, bytes) = session
+                    .request(
+                        Method::GET,
+                        PATH,
+                        &[("id", id), ("blob", &part.sha256)],
+                        &[],
+                        None,
+                        true,
+                    )
+                    .await?;
+                crate::company_content::put(&cache, part, &bytes)?;
+                bytes
+            }
+        };
+        file.write_all(&bytes)?;
+    }
+    file.as_file().sync_all()?;
+    if crate::cloud_backup::file_manifest(file.path())? != *manifest {
+        return Err(invalid(
+            "La copie de l’entreprise est incomplète. Aucune donnée n’a été modifiée.",
+        ));
+    }
+    file.persist(path).map_err(|e| AppError::Io(e.error))?;
+    let _ = crate::company_content::trim(&cache);
+    Ok(path.to_owned())
 }
 const PRIVATE_ROWS: &[&str] = &[
     "company_local_identity",
@@ -1083,7 +1214,10 @@ pub async fn enable_company_sync(
     {
         return Err("Terminez la configuration de votre entreprise avant de la partager.".into());
     }
-    if !send(&store, &session, true).await.map_err(command_error)? {
+    if !send(&store, &session, true, head["contentTransfer"] == 1)
+        .await
+        .map_err(command_error)?
+    {
         return Err("L’équipe a enregistré des changements. Ouvrez Entreprise partagée pour comparer les versions avant de continuer.".into());
     }
     crate::shared_numbering::replenish_active_series(&store, &session)
@@ -1113,7 +1247,13 @@ pub async fn sync_company_workspace(
     if prefs.organization_id.as_deref() != Some(&session.organization_id) {
         return Err("Ces données appartiennent à une autre entreprise. Reconnectez le compte correspondant.".into());
     }
-    let head = request(&session, Method::GET, &[], None)
+    let known = prefs.revision.to_string();
+    let query = if accept_remote {
+        vec![]
+    } else {
+        vec![("after", known.as_str())]
+    };
+    let head = request(&session, Method::GET, &query, None)
         .await
         .map_err(command_error)?;
     let revision = checked_head(&session, &head).map_err(command_error)?;
@@ -1127,6 +1267,19 @@ pub async fn sync_company_workspace(
     }
     if revision < prefs.revision {
         return Err("La version du serveur est antérieure à celle de cet appareil. Contactez le support ; vos données sont conservées.".into());
+    }
+    // No full archive/digest scan or number-range HTTP requests while idle.
+    // Local transaction clocks and the server revision must BOTH be unchanged.
+    if !accept_remote
+        && head["unchanged"] == true
+        && revision == prefs.revision
+        && prefs.base_clock >= 0
+        && prefs.pending.is_none()
+        && prefs.received.is_none()
+        && !prefs.conflict
+        && clock(&store).map_err(command_error)? == prefs.base_clock
+    {
+        return status(&store).map_err(command_error);
     }
     if !accept_remote {
         reconcile_idle_device(&store, &session)
@@ -1181,7 +1334,9 @@ pub async fn sync_company_workspace(
             }
         }
     } else if prefs.pending.is_some() && !accept_remote {
-        send(&store, &session, false).await.map_err(command_error)?;
+        send(&store, &session, false, head["contentTransfer"] == 1)
+            .await
+            .map_err(command_error)?;
     } else if revision > prefs.revision || accept_remote {
         if !accept_remote
             && prefs
@@ -1243,7 +1398,9 @@ pub async fn sync_company_workspace(
     } else if clock(&store).map_err(command_error)? != prefs.base_clock
         && session.role != "read_only"
     {
-        send(&store, &session, false).await.map_err(command_error)?;
+        send(&store, &session, false, head["contentTransfer"] == 1)
+            .await
+            .map_err(command_error)?;
     }
     crate::shared_numbering::replenish_active_series(&store, &session)
         .await
@@ -1365,6 +1522,7 @@ fn apply_merged(store: &LocalStore, received: &Received, path: &Path) -> AppResu
             base_revision: received.revision,
             clock,
             manifest: crate::cloud_backup::file_manifest(&upload)?,
+            content_version: 2,
         });
         prefs.received = None;
         prefs.conflict = false;
@@ -1457,6 +1615,102 @@ mod tests {
                 notes: None,
             })
             .unwrap();
+    }
+    #[test]
+    fn an_invoice_edit_reuses_attachment_blocks_and_rebuilds_an_exact_company_archive() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(dir.path().join("sender")).unwrap();
+        store
+            .complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION"))
+            .unwrap();
+        crate::tests::enable_accounting(&store);
+        let client=store.create_record("clients",json!({"name":"Client test","address_line1":"Rue Test 1","postal_code":"1200","city":"Genève","country":"CH"})).unwrap();
+        let invoice = issued(
+            &store,
+            client["id"].as_str().unwrap(),
+            "Facture partagée",
+            10_000,
+        );
+        let mut seed = 37u64;
+        let attachment: Vec<u8> = (0..12 * 1024 * 1024)
+            .map(|_| {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                seed as u8
+            })
+            .collect();
+        fs::write(store.attachments_dir.join("document-test.bin"), &attachment).unwrap();
+        let cache = crate::company_content::directory(&store.data_dir, "org-test").unwrap();
+        let initial = prepare(&store, "org-test", true).unwrap();
+        let before =
+            crate::company_content::prepare(&file_path(&store, &initial.id).unwrap(), &cache)
+                .unwrap();
+        confirm_sent(&store, &initial.id, 1).unwrap();
+        reserve(&store, "J", 201);
+        pay(&store, &invoice, 3_000);
+        let next = prepare(&store, "org-test", false).unwrap();
+        let after =
+            crate::company_content::prepare(&file_path(&store, &next.id).unwrap(), &cache).unwrap();
+        crate::company_content::validate(&after, &next.manifest).unwrap();
+        let previous: std::collections::HashSet<_> = before.iter().map(|p| &p.sha256).collect();
+        let changed: u64 = after
+            .iter()
+            .filter(|p| !previous.contains(&p.sha256))
+            .map(|p| p.size_bytes)
+            .sum();
+        assert!(
+            changed < next.manifest.size_bytes / 4,
+            "Delta too large: {changed} / {}",
+            next.manifest.size_bytes
+        );
+        let rebuilt = dir.path().join("received.zentra");
+        let mut output = File::create(&rebuilt).unwrap();
+        for part in &after {
+            output
+                .write_all(
+                    &crate::company_content::cached(&cache, part)
+                        .unwrap()
+                        .unwrap(),
+                )
+                .unwrap();
+        }
+        drop(output);
+        assert_eq!(
+            crate::cloud_backup::file_manifest(&rebuilt).unwrap(),
+            next.manifest
+        );
+        let receiver = LocalStore::initialize(dir.path().join("receiver")).unwrap();
+        apply(
+            &receiver,
+            &rebuilt,
+            "org-test",
+            2,
+            clock(&receiver).unwrap(),
+            true,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            receiver
+                .connect()
+                .unwrap()
+                .query_row(
+                    "SELECT paid_cents FROM invoices WHERE id=?",
+                    [invoice],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            3000
+        );
+        assert_eq!(
+            fs::read(receiver.attachments_dir.join("document-test.bin")).unwrap(),
+            attachment
+        );
+        println!(
+            "ARCHIVE_DELTA {} / {} bytes for an invoice payment",
+            changed, next.manifest.size_bytes
+        );
     }
     #[test]
     fn simultaneous_new_invoice_and_receipt_merge_then_reach_every_device_with_audit_and_files() {

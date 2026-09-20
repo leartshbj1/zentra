@@ -48,20 +48,31 @@ pub(crate) struct ProjectSyncSession {
 }
 
 pub(crate) async fn project_sync_session(store: &LocalStore) -> AppResult<Option<ProjectSyncSession>> {
-    let account = cloud_account_state(store).await?;
-    if account.status != "connected" { return Ok(None); }
-    let session = read_session_secret(store)?.ok_or_else(|| AppError::Validation("Reconnectez votre compte Zentra.".into()))?;
+    // Background operations already authenticate/recheck membership on their
+    // own endpoint. An additional /me round-trip per poll added no protection.
+    // The account screen/license refresh continues to refresh profile/roles.
+    let Some(session) = read_session_secret(store)? else {return Ok(None);};
+    if CloudAccountState::from_session(&session)?.status != "connected" {return Ok(None);}
     Ok(Some(ProjectSyncSession { organization_id: session.organization_id, role: session.role, token: session.session_token }))
+}
+
+fn project_transport() -> AppResult<reqwest::Client> {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    if let Some(client)=CLIENT.get(){return Ok(client.clone());}
+    crate::app_updater::ensure_rustls_crypto_provider().map_err(AppError::Validation)?;
+    let client=reqwest::Client::builder().https_only(true).redirect(Policy::none()).connect_timeout(CONNECT_TIMEOUT)
+        .user_agent(format!("Zentra/{}", env!("CARGO_PKG_VERSION"))).timeout(Duration::from_secs(90))
+        .pool_max_idle_per_host(4).build().map_err(|_|AppError::Validation("Connexion sécurisée indisponible.".into()))?;
+    let _=CLIENT.set(client.clone());Ok(client)
 }
 
 impl ProjectSyncSession {
     pub async fn request(&self, method: Method, path: &str, query: &[(&str,&str)], headers: &[(&str,String)], body: Option<Vec<u8>>, file: bool) -> AppResult<(StatusCode,Vec<u8>)> {
         let mut url = endpoint(path)?;
         url.query_pairs_mut().extend_pairs(query.iter().copied());
-        crate::app_updater::ensure_rustls_crypto_provider().map_err(AppError::Validation)?;
-        let client = reqwest::Client::builder().https_only(true).redirect(Policy::none()).connect_timeout(CONNECT_TIMEOUT)
-            .user_agent(format!("Zentra/{}", env!("CARGO_PKG_VERSION")))
-            .timeout(Duration::from_secs(90)).build().map_err(|_| AppError::Validation("Connexion sécurisée indisponible.".into()))?;
+        // Reuse TLS connections; bearer credentials remain per-request and are
+        // never stored as default headers on this process-wide connection pool.
+        let client = project_transport()?;
         let mut request = client.request(method,url).header(AUTHORIZATION,format!("Bearer {}",self.token));
         for (name,value) in headers { request = request.header(*name,value); }
         if let Some(body) = body {

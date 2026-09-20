@@ -2,6 +2,13 @@ import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
 import { startCompanyRealtime, type CompanyRevisionNotice } from './companyRealtime';
 describe('company realtime lifecycle',()=>{
   beforeEach(()=>vi.useFakeTimers());afterEach(()=>vi.useRealTimers());
+  it('reports a failed or unavailable notification channel so fallback checks resume',async()=>{
+    const onHealth=vi.fn();const watch=vi.fn().mockResolvedValueOnce({enabled:true,realtime:true,revision:1}).mockRejectedValueOnce(new Error('socket lost')).mockResolvedValueOnce({enabled:true,realtime:false,revision:1});
+    const loop=startCompanyRealtime({watch,onHealth,onRevision:vi.fn(),available:()=>true});
+    await vi.advanceTimersByTimeAsync(1000);expect(onHealth).toHaveBeenLastCalledWith(true);
+    await vi.advanceTimersByTimeAsync(250);expect(onHealth).toHaveBeenLastCalledWith(false);
+    await vi.advanceTimersByTimeAsync(5000);expect(onHealth).toHaveBeenLastCalledWith(false);loop.stop();
+  });
   it('keeps one watch and ignores a response after logout',async()=>{
     let resolve!:(n:CompanyRevisionNotice)=>void;
     const watch=vi.fn(()=>new Promise<CompanyRevisionNotice>(r=>{resolve=r;})),onRevision=vi.fn();
