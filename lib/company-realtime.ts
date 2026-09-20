@@ -39,6 +39,7 @@ export async function watchCompanyRevision(organization: string, after: number, 
   let joined = false;
   let finish!: () => void;
   const notified = new Promise<void>(resolve => { finish = resolve; });
+  const disconnected = () => { joined = false; finish(); };
   const aborted = () => finish();
   signal.addEventListener('abort', aborted, { once: true });
   try {
@@ -69,20 +70,20 @@ export async function watchCompanyRevision(organization: string, after: number, 
           if (message.payload?.status !== 'ok') { finish(); return; }
           joined = true; clearTimeout(joinTimer);
           // Covers a commit between the initial SELECT and subscribe ack.
-          void dependencies.head().then(head => { if (head.revision > after) finish(); }, finish);
+          void dependencies.head().then(head => { if (head.revision > after) finish(); }, disconnected);
         }
         if (message.event === 'broadcast' && message.payload?.event === 'revision' &&
             Number.isSafeInteger(message.payload?.payload?.revision) && message.payload.payload.revision > after) finish();
-        if (message.event === 'phx_error' || message.event === 'phx_close') finish();
+        if (message.event === 'phx_error' || message.event === 'phx_close') disconnected();
       } catch { /* Discard malformed notices; the durable head is authoritative. */ }
     });
-    activeSocket.addEventListener('error', finish);
-    activeSocket.addEventListener('close', finish);
+    activeSocket.addEventListener('error', disconnected);
+    activeSocket.addEventListener('close', disconnected);
     timer = setTimeout(finish, 25_000);
     joinTimer = setTimeout(finish, 5000);
     heartbeat = setInterval(() => {
       try { activeSocket.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'heartbeat' })); }
-      catch { finish(); }
+      catch { disconnected(); }
     }, 15_000);
     activeSocket.send(JSON.stringify({ topic, event: 'phx_join', ref: 'join', payload: {
       config: { private: true, broadcast: { self: false, ack: false }, presence: { enabled: false } },

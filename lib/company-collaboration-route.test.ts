@@ -1,13 +1,14 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 const mock=vi.hoisted(()=>({session:vi.fn(),limit:vi.fn(),head:vi.fn(),download:vi.fn(),prepare:vi.fn(),commit:vi.fn(),receive:vi.fn(),watch:vi.fn()}));
 vi.mock('./account',()=>({
- requireDeviceSession:mock.session,enforceAccountRateLimit:mock.limit,
+ requireDeviceSession:mock.session,enforceSyncRateLimit:mock.limit,
  accountNoStoreHeaders:()=>new Headers({'Cache-Control':'no-store','Pragma':'no-cache'}),
  accountJsonError:()=>Response.json({error:'Accès refusé'},{status:401}),
 }));
 vi.mock('./company-collaboration',()=>({collaborationHead:mock.head,collaborationRevision:(value:number)=>{if(!Number.isSafeInteger(value))throw new Error('invalid');return value;},collaborationRevisionHead:mock.head,downloadCollaborationChunk:mock.download,prepareCollaboration:mock.prepare,commitCollaboration:mock.commit,receiveCollaborationChunk:mock.receive}));
 vi.mock('./supabase-server-runtime',()=>({supabaseRealtimeConfiguration:()=>({url:'https://test.supabase.co',secretKey:'server'})}));
 vi.mock('./company-realtime',()=>({watchCompanyRevision:mock.watch}));
+vi.mock('./company-content',()=>({companyContentManifest:vi.fn(),prepareCompanyContent:vi.fn(),readCompanyContent:vi.fn(),receiveCompanyContent:vi.fn()}));
 import {GET,POST,PUT} from '../app/api/account/collaboration/route';
 const actor={organizationId:'organization-a',installationId:'device-a',userId:'user-a',role:'owner'};
 beforeEach(()=>{vi.clearAllMocks();mock.session.mockResolvedValue(actor);mock.limit.mockResolvedValue(undefined);});

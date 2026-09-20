@@ -223,6 +223,23 @@ export async function requireDeviceSession(
   };
 }
 
+/** Frequent background sync uses one atomic counter statement. Authentication
+ * and membership are still checked on every request; no shared auth cache. */
+export async function enforceSyncRateLimit(request: Request, scope: string, subject: string, maximum: number): Promise<void> {
+  const address=request.headers.get('CF-Connecting-IP')?.trim()||'unknown';
+  const now=Math.floor(Date.now()/1000),start=Math.floor(now/3600)*3600;
+  const key=await sha256Hex(`zentra-account-rate-v1:${scope}:${start}:${address}:${subject}`);
+  const db=database();
+  const row=await db.prepare(`INSERT INTO checkout_rate_limits(rate_key,count,window_started_at,expires_at)
+    VALUES(?,1,?,?) ON CONFLICT(rate_key) DO UPDATE SET count=checkout_rate_limits.count+1 RETURNING count`)
+    .bind(key,start,start+7200).first<{count:number}>();
+  if(!row)throw new AccountPublicError('La synchronisation reprendra automatiquement.',503);
+  // Expired rows are also removed by ordinary account requests. Bound cleanup
+  // work here to the first request per installation/scope/hour, not every poll.
+  if(row.count===1)await db.prepare('DELETE FROM checkout_rate_limits WHERE rate_key IN (SELECT rate_key FROM checkout_rate_limits WHERE expires_at<? LIMIT 100)').bind(now).run();
+  if(row.count>maximum)throw new AccountPublicError('Trop de tentatives. La synchronisation reprendra automatiquement.',429);
+}
+
 export async function enforceAccountRateLimit(
   request: Request,
   scope: string,

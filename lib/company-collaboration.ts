@@ -3,21 +3,23 @@ import { AccountPublicError, roleCanWriteInvoices, sha256Hex } from './account-s
 import { backupId, backupManifest, type BackupManifest } from './workspace-backup';
 import { supabaseServerClient, supabaseRealtimeConfiguration } from './supabase-server-runtime';
 import { announceCompanyRevision } from './company-realtime';
+import { legacyContentChunk, pruneCompanyContent } from './company-content';
 
 type Head = {organization_id:string;revision:number;snapshot_id:string|null;updated_at:string;updated_by:string};
-type Snapshot = {id:string;organization_id:string;installation_id:string;created_by:string;base_revision:number;revision:number|null;manifest:BackupManifest;size_bytes:number};
+type Snapshot = {id:string;organization_id:string;installation_id:string;created_by:string;base_revision:number;revision:number|null;manifest:BackupManifest;size_bytes:number;content_version?:number};
 const noWrite = () => new AccountPublicError('Votre rôle permet de consulter l’entreprise, sans la modifier.',403);
 export function collaborationRevision(value: unknown): number {
   if (!Number.isSafeInteger(value) || Number(value)<0) throw new AccountPublicError('La version de l’entreprise est invalide. Actualisez la synchronisation.');
   return Number(value);
 }
-export async function collaborationHead(actor: DeviceSessionContext) {
+export async function collaborationHead(actor: DeviceSessionContext, knownRevision?: number) {
   const db=supabaseServerClient();
   const heads=await db.select<Head>('zentra_workspaces',{organization_id:`eq.${actor.organizationId}`,limit:1});
   const head=heads[0];
+  if(head && knownRevision === head.revision) return {organizationId:actor.organizationId,userId:actor.userId,role:actor.role,enabled:true,revision:head.revision,unchanged:true,contentTransfer:1};
   const snapshot=head?.snapshot_id ? await collaborationSnapshot(actor,head.snapshot_id) : null;
   return {organizationId:actor.organizationId,userId:actor.userId,role:actor.role,enabled:Boolean(head),
-    revision:head?.revision ?? 0,snapshotId:head?.snapshot_id ?? null,updatedAt:head?.updated_at ?? null,manifest:snapshot?.manifest ?? null};
+    revision:head?.revision ?? 0,snapshotId:head?.snapshot_id ?? null,updatedAt:head?.updated_at ?? null,manifest:snapshot?.manifest ?? null,contentTransfer:1,contentVersion:snapshot?.content_version??0};
 }
 export async function collaborationRevisionHead(actor: DeviceSessionContext) {
   const rows = await supabaseServerClient().select<Head>('zentra_workspaces', {
@@ -35,7 +37,7 @@ export async function collaborationBase(actor: DeviceSessionContext, value: unkn
   if (!row || row.revision !== revision || row.organization_id !== actor.organizationId)
     throw new AccountPublicError('Cette version de référence n’est plus disponible.', 404);
   return { organizationId: actor.organizationId, revision, enabled: true,
-    snapshotId: row.id, manifest: backupManifest(row.manifest) };
+    snapshotId: row.id, manifest: backupManifest(row.manifest), contentTransfer:1, contentVersion:row.content_version??0 };
 }
 export async function collaborationSnapshot(actor: DeviceSessionContext,id:unknown): Promise<Snapshot> {
   const rows=await supabaseServerClient().select<Snapshot>('zentra_workspace_snapshots',{
@@ -68,7 +70,7 @@ export async function prepareCollaboration(actor: DeviceSessionContext,input:Rec
   const saved=await db.select<Snapshot>('zentra_workspace_snapshots',{organization_id:`eq.${actor.organizationId}`,id:`eq.${id}`,limit:1});
   if(saved[0]) {
     const row=saved[0];
-    if(row.installation_id!==actor.installationId||row.created_by!==actor.userId||row.base_revision!==base
+    if(row.content_version===1||row.installation_id!==actor.installationId||row.created_by!==actor.userId||row.base_revision!==base
       ||JSON.stringify(backupManifest(row.manifest))!==JSON.stringify(manifest))
       throw new AccountPublicError('Cet envoi ne correspond plus aux données préparées.',409);
   } else {
@@ -107,6 +109,7 @@ export async function receiveCollaborationChunk(actor:DeviceSessionContext,id:un
 }
 export async function downloadCollaborationChunk(actor:DeviceSessionContext,id:unknown,index:string|null) {
   const snapshot=await collaborationSnapshot(actor,id),n=chunkIndex(snapshot,index),part=snapshot.manifest.chunks[n];
+  if(snapshot.content_version===1)return legacyContentChunk(actor,snapshot.id,snapshot.manifest,n);
   const bytes=await supabaseServerClient().companyChunk('GET',await chunkPath(actor.organizationId,snapshot.id,n));
   if(bytes.byteLength!==part.size_bytes||await sha256Hex(bytes)!==part.sha256)throw new AccountPublicError('Le document reçu est incomplet. Aucune donnée ne sera remplacée.',502);
   return bytes;
@@ -123,6 +126,7 @@ export async function commitCollaboration(actor:DeviceSessionContext,id:unknown)
     // A notification outage must not disguise a successful financial write.
     try { await announceCompanyRevision(supabaseRealtimeConfiguration(), actor.organizationId, result.revision); } catch { /* Durable head is rechecked after reconnect/timeout. */ }
     await pruneCollaborationHistory(actor.organizationId).catch(()=>undefined);
+    await pruneCompanyContent(actor.organizationId).catch(()=>undefined);
   }
   return result;
 }
@@ -136,9 +140,11 @@ export async function pruneCollaborationHistory(organization:string) {
   const old=await db.select<Snapshot>('zentra_workspace_snapshots',{organization_id:`eq.${organization}`,revision:'not.is.null',order:'revision.desc',offset:10,limit:2});
   for(const snapshot of old){
     if(snapshot.revision===null||snapshot.id===head.snapshot_id||snapshot.revision>=head.revision)continue;
-    const manifest=backupManifest(snapshot.manifest);
-    const paths=await Promise.all(manifest.chunks.map((_,index)=>chunkPath(organization,backupId(snapshot.id),index)));
-    await db.removeCompanyChunks(paths);
+    if(snapshot.content_version!==1){
+      const manifest=backupManifest(snapshot.manifest);
+      const paths=await Promise.all(manifest.chunks.map((_,index)=>chunkPath(organization,backupId(snapshot.id),index)));
+      await db.removeCompanyChunks(paths);
+    }
     await db.delete('zentra_workspace_snapshots',{organization_id:`eq.${organization}`,id:`eq.${snapshot.id}`,revision:`eq.${snapshot.revision}`});
   }
 }

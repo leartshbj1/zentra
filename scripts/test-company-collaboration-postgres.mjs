@@ -7,6 +7,7 @@ const idA='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',idB='bbbbbbbb-bbbb-4bbb-8bbb-bb
 try {
   await db.exec('CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS; CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);');
   await db.exec(await readFile(new URL('../supabase/migrations/202609140200_company_collaboration.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/202609200300_company_content.sql',import.meta.url),'utf8'));
   await db.query('INSERT INTO zentra_workspaces(organization_id,updated_by,number_floors) VALUES($1,$2,$3),($4,$5,$6)', ['org_a','alice',JSON.stringify([{prefix:'F',year:2026,minimum:125}]),'org_b','eve','[]']);
   const manifest={format:'zentra-cloud-backup',version:1,app_version:'1.67.0',sha256:'a'.repeat(64),size_bytes:3,chunks:[{sha256:'a'.repeat(64),size_bytes:3}]};
   async function candidate(id,device,user,base) { await db.query('INSERT INTO zentra_workspace_snapshots(organization_id,id,installation_id,created_by,base_revision,manifest,size_bytes) VALUES($1,$2,$3,$4,$5,$6,$7)',['org_a',id,device,user,base,JSON.stringify(manifest),3]); }

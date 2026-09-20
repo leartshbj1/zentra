@@ -43,6 +43,12 @@ describe('private realtime company notifications',()=>{
     await vi.advanceTimersByTimeAsync(25_000); expect((await f.watch).revision).toBe(3);
     expect(vi.getTimerCount()).toBe(0);
   });
+  it('marks a closed subscription unhealthy even after it successfully joined',async()=>{
+    const f=fixture();await vi.advanceTimersByTimeAsync(0);
+    f.socket.message('phx_reply',{status:'ok'},undefined,'join');await vi.advanceTimersByTimeAsync(0);
+    f.socket.dispatchEvent(new Event('close'));
+    expect((await f.watch).realtime).toBe(false);expect(vi.getTimerCount()).toBe(0);
+  });
   it('closes the private subscription when the client disconnects',async()=>{
     const f=fixture(); const rejected=expect(f.watch).rejects.toThrow();
     await vi.advanceTimersByTimeAsync(0); f.controller.abort(); await rejected;

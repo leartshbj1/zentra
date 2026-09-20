@@ -23,6 +23,12 @@ function makeClient(){return {
 beforeEach(async()=>{rows={};blobs=new Map();db=makeClient();stubs.client.mockReturnValue(db);const sha256=await sha256Hex(bytes);manifest={format:'zentra-cloud-backup',version:1,app_version:'1.67.0',sha256,size_bytes:bytes.length,chunks:[{sha256,size_bytes:bytes.length}]};});
 async function prepare(actor=a){return prepareCollaboration(actor,{id,baseRevision:0,manifest,confirmFullAccess:true,numbers:[{prefix:'F',year:2026,minimum:42}]});}
 describe('Supabase complete company collaboration',()=>{
+ it('answers an unchanged revision with one metadata read and no archive manifest',async()=>{
+  rows.zentra_workspaces=[{organization_id:'org_a',revision:7,snapshot_id:id}];
+  const result=await collaborationHead(a,7);
+  expect(result).toMatchObject({unchanged:true,revision:7,contentTransfer:1});expect(result).not.toHaveProperty('manifest');
+  expect(db.select).toHaveBeenCalledTimes(1);expect(db.select.mock.calls[0][0]).toBe('zentra_workspaces');
+ });
  it('retrieves an exact committed baseline only within the device company',async()=>{
   await prepare(); rows.zentra_workspace_snapshots[0].revision=7;
   expect(await collaborationBase(a,7)).toMatchObject({organizationId:'org_a',revision:7,snapshotId:id,manifest});
