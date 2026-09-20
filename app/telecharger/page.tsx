@@ -464,7 +464,7 @@ export default function DownloadPage() {
                 href={ZENTRA_GITHUB_RELEASE_PATH}
                 className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4"
               >
-                Archives Android et simulateur iOS
+                Fichiers et notes de la version
               </a>
             </div>
           </div>

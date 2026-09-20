@@ -1,5 +1,7 @@
 # Zentra Automation — implementation and verification
 
+French operating guide: [AUTOMATION-DEMARRAGE.md](AUTOMATION-DEMARRAGE.md). Complete changed-file inventory: [AUTOMATION-FICHIERS.md](AUTOMATION-FICHIERS.md).
+
 ## Architecture inspected (20 September 2026)
 
 - Public site and account: React 19 / Vinext, Cloudflare Worker, D1 migrations via Drizzle, R2 documents. Supabase supplies verified account identity. Organization membership and device sessions are enforced by `lib/account.ts`; subscription ownership is separate from membership.
