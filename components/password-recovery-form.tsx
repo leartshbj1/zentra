@@ -84,7 +84,9 @@ export function PasswordRecoveryForm({ reset = false }: { reset?: boolean }) {
     setBusy(true);
     setError('');
     try {
-      const requestedEmail = String(form.get('email') ?? '').trim();
+      const emailValue = form.get('email');
+      const requestedEmail =
+        typeof emailValue === 'string' ? emailValue.trim() : '';
       const response = await fetch('/api/auth/mot-de-passe', {
         method: reset ? 'PUT' : 'POST',
         credentials: 'same-origin',
@@ -140,10 +142,10 @@ export function PasswordRecoveryForm({ reset = false }: { reset?: boolean }) {
                 : 'Mot de passe oublié ?'}
           </h1>
           {checking ? (
-            <p role="status" className="mt-6 flex items-center gap-3 text-sm">
+            <output className="mt-6 flex items-center gap-3 text-sm">
               <LoaderCircle className="size-5 animate-spin" /> Vérification de
               votre lien…
-            </p>
+            </output>
           ) : linkError ? (
             <div className="mt-5 space-y-5">
               <p role="alert" className="text-sm leading-7 text-[#657068]">
@@ -155,7 +157,7 @@ export function PasswordRecoveryForm({ reset = false }: { reset?: boolean }) {
             </div>
           ) : done ? (
             <div className="mt-5 space-y-5">
-              <p role="status" className="text-sm leading-7 text-[#657068]">
+              <output className="block text-sm leading-7 text-[#657068]">
                 {reset ? (
                   'Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.'
                 ) : (
@@ -168,7 +170,7 @@ export function PasswordRecoveryForm({ reset = false }: { reset?: boolean }) {
                     passe. Utilisez le lien du message le plus récent.
                   </>
                 )}
-              </p>
+              </output>
               <a href="/connexion?autre=1" className={button}>
                 Se connecter
               </a>
