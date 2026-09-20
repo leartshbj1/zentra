@@ -72,6 +72,7 @@ Branche : codex/support-jev-20260919.
 - `lib/stripe.ts`
 - `lib/support/jev.ts`
 - `app/telecharger/page.tsx`
+- `components/pricing-plans.tsx`
 - `docs/AUTOMATION-FICHIERS.md`
 - `docs/RELEASE-1.72.0.md`
 
