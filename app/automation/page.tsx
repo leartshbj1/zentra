@@ -24,15 +24,6 @@ export default function AutomationPage() {
       <SiteHeader />
       <main className="automation-page automation-marketing" id="contenu">
         <div className="automation-wrap">
-          <nav
-            className="automation-product-nav"
-            aria-label="Zentra Automation"
-          >
-            <a href="/automation">Zentra Automation</a>
-            <a href="/compte/automation">
-              Mon option <ArrowRight size={16} />
-            </a>
-          </nav>
           <header className="automation-hero">
             <p className="automation-eyebrow">
               L’OPTION QUI ALLÈGE VOTRE GESTION
@@ -165,7 +156,7 @@ export default function AutomationPage() {
               <li><strong>Choisissez vos suggestions.</strong><p>Activez les fonctions utiles et le mode Suggestions, puis revenez dans l’application. Vous pouvez modifier ces réglages depuis les paramètres.</p></li>
             </ol>
           </section>
-          <section className="automation-panel automation-price-panel">
+          <section className="automation-panel automation-price-panel" id="tarif">
             <div>
               <p className="automation-eyebrow">
                 UNE OPTION POUR TOUTE L’ENTREPRISE

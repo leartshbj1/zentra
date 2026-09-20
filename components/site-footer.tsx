@@ -1,59 +1,80 @@
-import { BrandWordmark } from '@/components/brand-mark';
+import { BrandWordmark } from './brand-mark';
 
-const links = [
-  ['/produits', 'Nos produits'],
-  ['/', 'Zentra Gestion'],
-  ['/support', 'Zentra Support'],
-  ['/automation', 'Zentra Automation'],
-  ['/parrainage/conditions', 'Parrainage'],
-  ['/features', 'Fonctionnalités'],
-  ['/pricing', 'Tarifs'],
-  ['/security', 'Sécurité & données'],
-  ['/download', 'Télécharger'],
-  ['/confidentialite', 'Confidentialité'],
-  ['/conditions', 'Conditions'],
-  ['/mentions-legales', 'Mentions légales'],
-  ['/sous-traitance', 'Traitement des données'],
-  ['/cookies', 'Cookies'],
-  ['/compte', 'Mon compte'],
+const groups = [
+  {
+    title: 'Zentra Gestion',
+    links: [
+      ['/gestion', 'Découvrir Gestion'],
+      ['/features', 'Fonctionnalités'],
+      ['/pricing', 'Tarifs Gestion'],
+      ['/download', 'Télécharger'],
+      ['/demo-facture', 'Voir la démo'],
+    ],
+  },
+  {
+    title: 'Zentra Support',
+    links: [
+      ['/support', 'Découvrir Support'],
+      ['/support/connexions', 'Connexions'],
+      ['/support/tarifs', 'Tarifs Support'],
+      ['/support/demo', 'Voir la démo'],
+      ['/support/espace', 'Mon espace Support'],
+    ],
+  },
+  {
+    title: 'Zentra Automation',
+    links: [
+      ['/automation', 'Découvrir l’option'],
+      ['/automation#utilisation', 'Comment l’activer'],
+      ['/compte/automation', 'Mes réglages'],
+      ['/parrainage/conditions', 'Parrainage'],
+    ],
+  },
 ] as const;
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-[#dedee3] bg-[#eeeef0] px-5 py-10 lg:px-8">
-      <div className="mx-auto grid max-w-7xl gap-8 sm:grid-cols-[1fr_auto] sm:items-end">
-        <div>
-          <a href="/" className="inline-flex min-h-11 items-center">
-            <BrandWordmark className="w-24" />
+    <footer className="catalog-footer">
+      <div className="catalog-footer-inner">
+        <div className="catalog-footer-brand">
+          <a href="/" aria-label="Zentra, tous les produits">
+            <BrandWordmark />
           </a>
-          <p className="mt-2 max-w-md text-sm leading-6 text-[#657068]">
-            Zentra Gestion pour votre entreprise. Zentra Support pour votre
-            service client. Deux produits indépendants pour simplifier le quotidien.
+          <p>Des outils pour alléger le quotidien de votre entreprise.</p>
+          <a href="mailto:info@zentraapp.ch">info@zentraapp.ch</a>
+          <p>
+            <a href="/produits">Voir tous les produits</a>
           </p>
-          <a
-            href="mailto:info@zentraapp.ch"
-            className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[#315e48] underline decoration-[#d3a35e] underline-offset-4"
-          >
-            info@zentraapp.ch
-          </a>
         </div>
-        <div className="sm:text-right">
-          <nav
-            className="flex max-w-xl flex-wrap gap-x-5 gap-y-1 text-sm text-[#536158] sm:justify-end"
-            aria-label="Navigation de pied de page"
-          >
-            {links.map(([href, label]) => (
-              <a
-                key={href}
-                href={href}
-                className="inline-flex min-h-11 items-center"
-              >
-                {label}
-              </a>
-            ))}
-          </nav>
-          <p className="mt-3 text-xs text-[#788078]">© 2026 Zentra</p>
-        </div>
+        {groups.map((group) => (
+          <section key={group.title}>
+            <h2>{group.title}</h2>
+            <nav aria-label={group.title + ' — pied de page'}>
+              {group.links.map(([href, label]) => (
+                <a key={href} href={href}>
+                  {label}
+                </a>
+              ))}
+            </nav>
+          </section>
+        ))}
+      </div>
+      <div className="catalog-footer-legal" aria-label="Informations légales">
+        <a href="/security">Sécurité et données</a>
+        <a href="/confidentialite">Confidentialité</a>
+        <a href="/conditions">Conditions Gestion</a>
+        <a href="/support/conditions">Conditions Support</a>
+        <a href="/automation/conditions">Conditions Automation</a>
+        <a href="/mentions-legales">Mentions légales</a>
+        <a href="/sous-traitance">Traitement des données</a>
+        <a href="/cookies">Cookies</a>
+      </div>
+      <div className="catalog-footer-bottom">
+        <span>© 2026 Zentra</span>
+        <span>
+          Gestion et Support : deux abonnements distincts. Automation : une
+          option de Gestion.
+        </span>
       </div>
     </footer>
   );

@@ -1,64 +1,183 @@
-import { ArrowUpRight } from 'lucide-react';
-import { BrandWordmark } from '@/components/brand-mark';
-import { MobileNavigation } from '@/components/mobile-navigation';
-import { buttonVariants } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { AccountLink } from '@/components/account-link';
-import { SiteNavLink } from '@/components/site-nav-link';
+'use client';
 
-const navigation = [
-  ['/produits', 'Nos produits'],
-  ['/features', 'Fonctionnalités'],
-  ['/automation', 'Automation'],
-  ['/pricing', 'Tarifs'],
-  ['/security', 'Sécurité & données'],
-  ['/download', 'Télécharger'],
-  ['/support', 'Zentra Support'],
+import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { ChevronDown } from 'lucide-react';
+import { BrandWordmark } from './brand-mark';
+import { AccountLink } from './account-link';
+
+const products = [
+  { name: 'Gestion', href: '/gestion', key: 'gestion' },
+  { name: 'Support', href: '/support', key: 'support' },
+  { name: 'Automation', href: '/automation', key: 'automation' },
 ] as const;
+const productMenus = {
+  gestion: {
+    name: 'Zentra Gestion',
+    href: '/gestion',
+    action: ['Voir la démo', '/demo-facture'],
+    links: [
+      ['Présentation', '/gestion'],
+      ['Fonctionnalités', '/features'],
+      ['Tarifs', '/pricing'],
+      ['Sécurité', '/security'],
+      ['Télécharger', '/download'],
+    ],
+  },
+  support: {
+    name: 'Zentra Support',
+    href: '/support',
+    action: ['Mon espace', '/support/espace'],
+    links: [
+      ['Présentation', '/support'],
+      ['Fonctionnalités', '/support/fonctionnalites'],
+      ['Cas d’usage', '/support/solutions'],
+      ['Connexions', '/support/connexions'],
+      ['Tarifs', '/support/tarifs'],
+      ['Sécurité', '/support/securite'],
+      ['Démo', '/support/demo'],
+    ],
+  },
+  automation: {
+    name: 'Zentra Automation',
+    href: '/automation',
+    action: ['Configurer', '/compte/automation'],
+    links: [
+      ['Présentation', '/automation'],
+      ['Utilisation', '/automation#utilisation'],
+      ['Tarif', '/automation#tarif'],
+      ['Mes réglages', '/compte/automation'],
+    ],
+  },
+} as const;
 
 export function SiteHeader() {
+  const pathname = usePathname() ?? '/';
+  const product = pathname.startsWith('/support')
+    ? 'support'
+    : pathname.includes('/automation')
+      ? 'automation'
+      : [
+            '/gestion',
+            '/features',
+            '/pricing',
+            '/download',
+            '/telecharger',
+            '/demo-facture',
+            '/security',
+          ].some((path) => pathname === path || pathname.startsWith(path + '/'))
+        ? 'gestion'
+        : null;
+  const menu = product ? productMenus[product] : null;
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const previousPath = useRef(pathname);
+  useEffect(() => {
+    if (previousPath.current !== pathname) setOpen(false);
+    previousPath.current = pathname;
+  }, [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        toggle.current?.focus();
+      }
+    };
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target))
+        setOpen(false);
+    };
+    document.addEventListener('keydown', key);
+    document.addEventListener('pointerdown', outside);
+    return () => {
+      document.removeEventListener('keydown', key);
+      document.removeEventListener('pointerdown', outside);
+    };
+  }, [open]);
   return (
-    <header className="site-header site-header--floating sticky top-0 z-40">
-      <div className="site-header__surface mx-auto flex w-full items-center justify-between gap-4">
+    <header className="catalog-header" ref={root}>
+      <div className="catalog-global">
         <a
+          className="catalog-brand"
           href="/"
-          className="flex min-h-11 shrink-0 items-center"
-          aria-label="Zentra, accueil"
+          aria-label="Zentra, tous les produits"
         >
-          <BrandWordmark className="w-[5.6rem] min-[360px]:w-[6.4rem] sm:w-[6.9rem]" />
+          <BrandWordmark />
         </a>
-
-        <nav
-          className="hidden items-center gap-6 text-sm font-medium text-[#536158] xl:flex"
-          aria-label="Navigation principale"
-        >
-          {navigation.map(([href, label]) => (
-            <SiteNavLink
-              key={href}
-              href={href}
-              className="inline-flex min-h-11 items-center whitespace-nowrap transition-colors hover:text-[#173d2c]"
+        <nav className="catalog-products" aria-label="Les produits Zentra">
+          {products.map((item) => (
+            <a
+              key={item.key}
+              href={item.href}
+              aria-current={product === item.key ? 'true' : undefined}
             >
-              {label}
-            </SiteNavLink>
+              {item.name}
+            </a>
           ))}
         </nav>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <AccountLink className="px-1 sm:px-2" />
-          <MobileNavigation />
-          <a
-            href="/demo-facture"
-            className={cn(
-              buttonVariants({ size: 'lg' }),
-              'hidden h-11 rounded-full bg-[#173d2c] px-4 text-sm text-white hover:bg-[#24563f] sm:inline-flex',
-            )}
-          >
-            <span className="hidden min-[360px]:inline">Essayer Zentra</span>
-            <span className="min-[360px]:hidden">Essayer</span>
-            <ArrowUpRight className="size-3.5" />
-          </a>
-        </div>
+        <AccountLink className="catalog-account" />
       </div>
+      {menu && (
+        <div className="catalog-local">
+          <div className="catalog-local-row">
+            <a className="catalog-product-title" href={menu.href}>
+              {menu.name}
+            </a>
+            <nav
+              className="catalog-desktop-links"
+              aria-label={'Explorer ' + menu.name}
+            >
+              {menu.links.map(([label, href]) => (
+                <a
+                  key={href}
+                  href={href}
+                  aria-current={pathname === href ? 'page' : undefined}
+                >
+                  {label}
+                </a>
+              ))}
+            </nav>
+            <div className="catalog-local-actions">
+              <button
+                className="catalog-menu-toggle"
+                ref={toggle}
+                type="button"
+                aria-label={'Menu ' + menu.name}
+                aria-expanded={open}
+                aria-controls="catalog-product-menu"
+                onClick={() => setOpen((value) => !value)}
+              >
+                <ChevronDown size={20} aria-hidden="true" />
+              </button>
+              <a className="catalog-action" href={menu.action[1]}>
+                {menu.action[0]}
+              </a>
+            </div>
+          </div>
+          <nav
+            className="catalog-mobile-links"
+            id="catalog-product-menu"
+            aria-label={'Explorer ' + menu.name + ' sur mobile'}
+            hidden={!open}
+          >
+            {menu.links.map(([label, href]) => (
+              <a
+                key={href}
+                href={href}
+                aria-current={pathname === href ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
+                {label}
+              </a>
+            ))}
+            <a href="/produits" onClick={() => setOpen(false)}>
+              Voir tous les produits
+            </a>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

@@ -4,6 +4,7 @@ import { absoluteSiteUrl } from '@/lib/site-url';
 export default function sitemap(): MetadataRoute.Sitemap {
   const pages = [
     ['/', 1, 'weekly'],
+    ['/gestion', 0.95, 'weekly'],
     ['/features', 0.9, 'weekly'],
     ['/support', 0.9, 'weekly'],
     ['/produits', 0.9, 'monthly'],

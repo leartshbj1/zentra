@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { BrandWordmark } from '@/components/brand-mark';
+import { SiteFooter } from '@/components/site-footer';
 import { SupportMarketingHeader } from './marketing-header';
-import { supportNavigation } from '@/lib/support/marketing';
 import '@/app/support/presentation.css';
 import '@/app/support/support.css';
 
@@ -64,38 +63,5 @@ export function SupportCallToAction() {
 }
 
 export function SupportMarketingFooter() {
-  return (
-    <footer className="sp-footer sp-wrap">
-      <div>
-        <a
-          href="/support"
-          className="sp-brand"
-          aria-label="Zentra Support, accueil"
-        >
-          <BrandWordmark />
-          <span>Support</span>
-        </a>
-        <p>Le bon ticket. La bonne équipe.</p>
-      </div>
-      <nav aria-label="Explorer Zentra Support">
-        {supportNavigation.map(([href, label]) => (
-          <a key={href} href={href}>
-            {label}
-          </a>
-        ))}
-        <a href="/support/demo">Démo</a>
-      </nav>
-      <nav aria-label="Informations Zentra Support">
-        <a href="/support/conditions">Conditions de Zentra Support</a>
-        <a href="/confidentialite#support-ia">Confidentialité</a>
-        <a href="/mentions-legales">Mentions légales</a>
-        <a href="mailto:info@zentraapp.ch">Nous contacter</a>
-        <a href="/produits">Tous nos produits</a>
-      </nav>
-      <small>
-        © 2026 Zentra · Zentra Support est un produit et un abonnement distincts
-        de Zentra Gestion.
-      </small>
-    </footer>
-  );
+  return <SiteFooter />;
 }

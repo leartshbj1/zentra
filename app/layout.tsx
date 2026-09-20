@@ -5,6 +5,7 @@ import { ScrollExperience } from '@/components/scroll-experience';
 import { publicSiteUrl } from '@/lib/site-url';
 import './globals.css';
 import './refined.css';
+import './product-navigation.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

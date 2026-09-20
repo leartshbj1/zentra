@@ -1,0 +1,321 @@
+.catalog-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: rgb(250 250 252 / 0.94);
+  color: #1d1d1f;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid #1d1d1f14;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.catalog-global {
+  max-width: 1200px;
+  margin: auto;
+  min-height: 60px;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+.catalog-brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+.catalog-brand img,
+.catalog-brand svg {
+  width: 90px;
+  height: auto;
+}
+.catalog-products {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+  flex: 1;
+  justify-content: center;
+}
+.catalog-products a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 52px;
+  font-size: 14px;
+  color: #505055;
+  position: relative;
+  text-decoration: none;
+}
+.catalog-products a:hover,
+.catalog-products a[aria-current] {
+  color: #173d2c;
+}
+.catalog-products a[aria-current]::after {
+  content: '';
+  position: absolute;
+  bottom: 7px;
+  height: 2px;
+  background: currentColor;
+  left: 0;
+  right: 0;
+  border-radius: 2px;
+}
+.catalog-account {
+  font-weight: 500 !important;
+  color: #45454a !important;
+}
+.catalog-local {
+  border-top: 1px solid #1d1d1f0c;
+}
+.catalog-local-row {
+  max-width: 1200px;
+  margin: auto;
+  padding: 0 28px;
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+.catalog-product-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+  margin-right: auto;
+}
+.catalog-desktop-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.catalog-desktop-links a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  color: #55555b;
+  white-space: nowrap;
+}
+.catalog-desktop-links a[aria-current] {
+  color: #173d2c;
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+.catalog-local-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.catalog-header .catalog-action {
+  min-height: 44px;
+  border-radius: 999px;
+  background: #173d2c;
+  color: white;
+  font-size: 14px;
+  padding: 8px 18px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.catalog-menu-toggle {
+  display: none;
+  background: transparent;
+  border: 0;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+}
+.catalog-menu-toggle svg {
+  transition: transform 0.2s;
+}
+.catalog-menu-toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.catalog-mobile-links {
+  display: none;
+}
+.catalog-header a:focus-visible,
+.catalog-header button:focus-visible {
+  outline: 3px solid #427a60;
+  outline-offset: 3px;
+  border-radius: 5px;
+}
+.catalog-footer {
+  background: #f5f5f7;
+  border-top: 1px solid #dedee3;
+  padding: 54px 28px 24px;
+  color: #515157;
+}
+.catalog-footer-inner {
+  max-width: 1144px;
+  margin: auto;
+  display: grid;
+  grid-template-columns: 1.4fr repeat(3, 1fr);
+  gap: 36px;
+}
+.catalog-footer-brand img {
+  width: 92px;
+}
+.catalog-footer-brand > a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+.catalog-footer p {
+  font-size: 14px;
+  line-height: 1.7;
+  max-width: 25ch;
+  margin: 12px 0;
+}
+.catalog-footer h2 {
+  font-size: 14px;
+  color: #1d1d1f;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.catalog-footer nav {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.catalog-footer nav a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+}
+.catalog-footer a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.catalog-footer-bottom {
+  max-width: 1144px;
+  margin: 32px auto 0;
+  padding-top: 20px;
+  border-top: 1px solid #dedee3;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.catalog-footer-legal {
+  max-width: 1144px;
+  margin: 32px auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 24px;
+}
+.catalog-footer-legal a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  font-size: 13px;
+}
+.catalog-header ~ main [id],
+.automation-marketing section[id] {
+  scroll-margin-top: 170px;
+}
+@media (max-width: 1120px) {
+  .catalog-desktop-links {
+    display: none;
+  }
+  .catalog-menu-toggle {
+    display: inline-flex;
+  }
+  .catalog-mobile-links:not([hidden]) {
+    display: grid;
+    max-width: 1200px;
+    margin: auto;
+    padding: 6px 28px 20px;
+    gap: 0;
+    max-height: 60dvh;
+    overflow: auto;
+    animation: catalog-menu-in 0.2s ease-out;
+  }
+  .catalog-mobile-links a {
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    border-top: 1px solid #1d1d1f0d;
+    font-size: 15px;
+  }
+  .catalog-mobile-links a[aria-current] {
+    color: #173d2c;
+    font-weight: 600;
+  }
+}
+@media (max-width: 600px) {
+  .catalog-global {
+    padding: 4px 20px 0;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  .catalog-brand img,
+  .catalog-brand svg {
+    width: 76px;
+  }
+  .catalog-products {
+    order: 3;
+    flex-basis: 100%;
+    gap: 0;
+    justify-content: space-between;
+    padding: 0 12px;
+  }
+  .catalog-products a {
+    min-height: 44px;
+    font-size: 14px;
+  }
+  .catalog-local-row {
+    padding: 0 16px;
+    min-height: 60px;
+    gap: 4px;
+  }
+  .catalog-product-title {
+    font-size: 17px;
+    white-space: normal;
+    line-height: 1.25;
+  }
+  .catalog-header .catalog-action {
+    font-size: 13px;
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+  .catalog-mobile-links:not([hidden]) {
+    padding-inline: 20px;
+    max-height: calc(100dvh - 158px);
+  }
+  .catalog-footer {
+    padding: 40px 24px 24px;
+  }
+  .catalog-footer-inner {
+    grid-template-columns: 1fr 1fr;
+    gap: 28px 20px;
+  }
+  .catalog-footer-brand {
+    grid-column: 1/-1;
+  }
+  .catalog-footer p {
+    max-width: 42ch;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catalog-menu-toggle svg {
+    transition: none;
+  }
+  .catalog-mobile-links:not([hidden]) {
+    animation: none;
+  }
+}
+@keyframes catalog-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

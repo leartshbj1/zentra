@@ -1,86 +1,162 @@
-import { ArrowRight, FileText, MessagesSquare } from 'lucide-react';
+import {
+  ArrowRight,
+  FileText,
+  MessagesSquare,
+  Workflow,
+  Check,
+} from 'lucide-react';
 import '@/app/produits/products.css';
+
+const range = [
+  {
+    name: 'Gestion',
+    kind: 'LE LOGICIEL POUR VOTRE PME',
+    icon: FileText,
+    className: 'management',
+    title: 'Tout votre quotidien.\nAu même endroit.',
+    description:
+      'Devis, factures, comptabilité, projets et salaires pour les PME suisses.',
+    price: 'Dès 49 CHF',
+    period: '/ mois',
+    detail: 'Application pour ordinateur et mobile',
+    features: [
+      'Devis et QR-factures reliés',
+      'Projets, comptabilité et salaires',
+      'Travail local et collaboration',
+    ],
+    example: [
+      ['Devis', 'Accepté'],
+      ['Facture', 'Émise'],
+      ['Paiement', 'Encaissé'],
+    ],
+    href: '/gestion',
+    secondary: '/pricing',
+    secondaryLabel: 'Comparer les formules',
+    cta: 'Découvrir Gestion',
+  },
+  {
+    name: 'Support',
+    kind: 'LE SERVICE POUR VOTRE ÉQUIPE',
+    icon: MessagesSquare,
+    className: 'support',
+    title: 'Le bon ticket.\nLa bonne équipe.',
+    description:
+      'Classez et orientez les demandes de vos clients depuis votre logiciel de support.',
+    price: 'Dès 29 CHF',
+    period: '/ mois',
+    detail: 'Service en ligne · abonnement indépendant',
+    features: [
+      'Catégorie et priorité proposées',
+      'Routage selon vos règles',
+      'Cas incertains confiés à votre équipe',
+    ],
+    example: [
+      ['Demande reçue', 'Double prélèvement'],
+      ['Catégorie', 'Facturation'],
+      ['Destination', 'Équipe facturation'],
+    ],
+    href: '/support',
+    secondary: '/support/tarifs',
+    secondaryLabel: 'Comparer les formules',
+    cta: 'Découvrir Support',
+  },
+  {
+    name: 'Automation',
+    kind: 'L’OPTION DE ZENTRA GESTION',
+    icon: Workflow,
+    className: 'automation',
+    title: 'Moins de tri.\nPlus de temps.',
+    description:
+      'Des suggestions pour classer vos opérations, traiter vos documents et préparer vos achats.',
+    price: '15 CHF',
+    period: '/ mois',
+    detail: 'Par entreprise · abonnement Gestion requis',
+    features: [
+      'Classement des opérations bancaires',
+      'Orientation de vos documents',
+      'Vous validez les actions importantes',
+    ],
+    example: [
+      ['Opération', 'Achat de fournitures'],
+      ['Suggestion', 'Matériel'],
+      ['Votre choix', 'À confirmer'],
+    ],
+    href: '/automation',
+    secondary: '/automation#utilisation',
+    secondaryLabel: 'Comment l’activer',
+    cta: 'Découvrir Automation',
+  },
+] as const;
 
 export function ProductRange({ compact = false }: { compact?: boolean }) {
   return (
     <section
-      className={`products-showcase ${compact ? 'products-showcase-compact' : ''}`}
-      aria-label="Les produits Zentra"
+      className={
+        'products-showcase' + (compact ? ' products-showcase-compact' : '')
+      }
+      aria-label="Découvrez les produits Zentra"
     >
       {compact && (
         <div className="products-section-heading">
-          <p>LES PRODUITS ZENTRA</p>
-          <h2>Deux métiers. Deux produits.</h2>
+          <p>LA GAMME ZENTRA</p>
+          <h2>À chaque besoin, sa solution.</h2>
           <a href="/produits">
-            Découvrir notre gamme <ArrowRight size={16} />
+            Voir toute la gamme <ArrowRight size={16} aria-hidden="true" />
           </a>
         </div>
       )}
       <div className="products-grid">
-        <article className="product-card product-management">
-          <span className="product-label">
-            <FileText size={19} aria-hidden="true" /> GESTION D’ENTREPRISE
-          </span>
-          <h2>Zentra Gestion</h2>
-          <p>
-            Devis, factures, comptabilité, projets et salaires. Le quotidien de
-            votre PME suisse dans un même logiciel.
-          </p>
-          <div className="product-visual" aria-hidden="true">
-            <div>
-              <span>Facture</span>
-              <strong>Émise</strong>
+        {range.map((product) => (
+          <article
+            className={'product-card product-' + product.className}
+            key={product.name}
+          >
+            <div className="product-label">
+              <product.icon size={22} aria-hidden="true" />
+              <span>{product.kind}</span>
             </div>
-            <div>
-              <span>Paiement</span>
-              <strong>Encaissé</strong>
+            <p className="product-name">Zentra {product.name}</p>
+            <h2>
+              {product.title.split('\n').map((line, index) => (
+                <span key={line}>
+                  {index > 0 && <br />}
+                  {line}
+                </span>
+              ))}
+            </h2>
+            <p className="product-description">{product.description}</p>
+            <p className="product-price">
+              <strong>{product.price}</strong>
+              <span>{product.period}</span>
+            </p>
+            <p className="product-detail">{product.detail}</p>
+            <div className="product-card-actions">
+              <a className="product-discover" href={product.href}>
+                {product.cta} <ArrowRight size={16} aria-hidden="true" />
+              </a>
+              <a className="product-secondary" href={product.secondary}>
+                {product.secondaryLabel}
+              </a>
             </div>
-            <div>
-              <span>Comptabilité</span>
-              <strong>Reliée</strong>
+            <div className="product-visual">
+              <span className="product-example-label">EXEMPLE DE PARCOURS</span>
+              {product.example.map(([label, value]) => (
+                <div key={label}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
             </div>
-          </div>
-          <ul>
-            <li>Application pour ordinateur et mobile</li>
-            <li>Travail local et collaboration synchronisée</li>
-            <li>Abonnement Gestion indépendant</li>
-          </ul>
-          <a href={compact ? '/features' : '/'}>
-            Découvrir Zentra Gestion <ArrowRight size={18} />
-          </a>
-        </article>
-        <article className="product-card product-support">
-          <span className="product-label">
-            <MessagesSquare size={19} aria-hidden="true" /> SERVICE CLIENT
-          </span>
-          <h2>Zentra Support</h2>
-          <p>
-            Tri, priorité et routage automatiques des tickets. Votre équipe se
-            concentre sur les demandes qui ont besoin d’elle.
-          </p>
-          <div className="product-visual" aria-hidden="true">
-            <div>
-              <span>Nouveau ticket</span>
-              <strong>Facturation</strong>
-            </div>
-            <div>
-              <span>Priorité</span>
-              <strong>Élevée</strong>
-            </div>
-            <div>
-              <span>Destination</span>
-              <strong>Comptabilité</strong>
-            </div>
-          </div>
-          <ul>
-            <li>Service en ligne dans votre navigateur</li>
-            <li>Se connecte à votre outil de support</li>
-            <li>Abonnement Support indépendant</li>
-          </ul>
-          <a href="/support">
-            Découvrir Zentra Support <ArrowRight size={18} />
-          </a>
-        </article>
+            <ul>
+              {product.features.map((feature) => (
+                <li key={feature}>
+                  <Check size={16} aria-hidden="true" />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
       </div>
     </section>
   );
