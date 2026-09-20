@@ -253,6 +253,64 @@ describe('Founder offers for Zentra Automation', () => {
         .prepare('SELECT user_id FROM founder_account_identities WHERE email=?')
         .get(email)?.user_id,
     ).toBe(person.userId);
+    const initial = (await lookupAutomationAccess(email)).record!;
+    const move = write(1, 'reassign', {
+      product: 'automation',
+      organizationId: currentOrg,
+      duration: undefined,
+    });
+    expect((await command({ ...move, product: 'support' })).status).toBe(400);
+    expect(
+      (await command({ ...move, organizationId: 'org_foreign' })).status,
+    ).toBe(409);
+    expect((await command(move)).status).toBe(200);
+    expect((await command(move)).body.replayed).toBe(true);
+    expect((await lookupAutomationAccess(email)).record).toMatchObject({
+      organizationId: currentOrg,
+      revision: 2,
+      expiresAt: initial.expiresAt,
+      createdAt: initial.createdAt,
+    });
+    expect(await automationEntitlement(actor(currentOrg))).toBe(true);
+    expect(
+      await automationEntitlement({
+        ...actor('org_legacy'),
+        userId: 'legacy-owner',
+        device: true,
+      }),
+    ).toBe(false);
+    expect(
+      (await command({ ...move, operationId: crypto.randomUUID() })).status,
+    ).toBe(409);
+    expect(
+      (
+        await command(
+          write(2, 'reassign', {
+            product: 'automation',
+            organizationId: 'org_legacy',
+            duration: undefined,
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    expect((await lookupAutomationAccess(email)).record).toMatchObject({
+      organizationId: 'org_legacy',
+      revision: 3,
+      expiresAt: initial.expiresAt,
+    });
+    await attachAutomationAccess(person);
+    expect(
+      await automationEntitlement({
+        ...actor('org_legacy'),
+        userId: 'legacy-owner',
+        device: true,
+      }),
+    ).toBe(true);
+    expect(() =>
+      db
+        .prepare('UPDATE founder_automation_grants SET organization_id=?')
+        .run(currentOrg),
+    ).toThrow(/immutable/);
     db.exec(
       "UPDATE device_sessions SET revoked_at=1 WHERE session_id='dss_legacy'",
     );

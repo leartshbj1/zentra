@@ -31,18 +31,19 @@ export function verifyToken(token){
   return validatePayload(JSON.parse(Buffer.from(parts[0],'base64url').toString('utf8')));
 }
 export function validateAction(a){
-  if(!a||typeof a!=='object'||Array.isArray(a)||Object.keys(a).some(k=>!['operation','email','duration','customDate','operationId','expectedRevision','note','product','plan','organizationId'].includes(k))||!['lookup','list','grant','revoke'].includes(a.operation))throw Error('Commande d’accès invalide.');
+  if(!a||typeof a!=='object'||Array.isArray(a)||Object.keys(a).some(k=>!['operation','email','duration','customDate','operationId','expectedRevision','note','product','plan','organizationId'].includes(k))||!['lookup','list','grant','revoke','reassign'].includes(a.operation))throw Error('Commande d’accès invalide.');
   if(a.product!==undefined&&!['support','automation'].includes(a.product))throw Error('Produit inconnu.');
-  if(a.organizationId!==undefined&&(a.product!=='automation'||a.operation!=='grant'||typeof a.organizationId!=='string'||!/^[a-zA-Z0-9_-]{1,255}$/.test(a.organizationId)))throw Error('Entreprise invalide.');
+  if(a.organizationId!==undefined&&(a.product!=='automation'||!['grant','reassign'].includes(a.operation)||typeof a.organizationId!=='string'||!/^[a-zA-Z0-9_-]{1,255}$/.test(a.organizationId)))throw Error('Entreprise invalide.');
   if(a.plan!==undefined&&(a.product!=='support'||a.operation!=='grant'))throw Error('Formule inattendue.');
   if(a.product==='support'&&a.operation==='grant'&&!['starter','team','business'].includes(a.plan))throw Error('Choisissez une formule Zentra Support.');
   if(a.operation!=='list'&&(typeof a.email!=='string'||a.email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email)))throw Error('Saisissez une adresse e-mail complète.');
+  if(a.operation==='reassign'&&(a.product!=='automation'||!a.organizationId||a.duration!==undefined||a.customDate!==undefined))throw Error('Correction d’entreprise invalide.');
   if(writes(a)){
     if(!UUID.test(a.operationId)||!Number.isSafeInteger(a.expectedRevision)||a.expectedRevision<0||typeof a.note!=='string'||a.note.length>300||a.note.split('').some(c=>c.charCodeAt(0)<32))throw Error('Vérifiez le compte avant de modifier son accès.');
     if(a.operation==='grant'&&!['14_days','one_month','custom'].includes(a.duration))throw Error('Durée invalide.');
   }return a;
 }
-const writes=a=>['grant','revoke'].includes(a.operation);
+const writes=a=>['grant','revoke','reassign'].includes(a.operation);
 export function envelope(action,key){validateAction(action);const payload=Buffer.from(JSON.stringify({version:1,timestamp:Math.floor(Date.now()/1000),nonce:randomUUID(),action})).toString('base64url');return {payload,signature:sign(null,Buffer.from('zentra-founder-access-v1\n'+payload),key).toString('base64url')};}
 async function post(url,body,max=262144){
   const response=await fetch(url,{method:'POST',redirect:'manual',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(35000)});

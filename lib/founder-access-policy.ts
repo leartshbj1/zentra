@@ -79,7 +79,7 @@ export type FounderAction = {
   product?: 'support' | 'automation';
   organizationId?: string;
   plan?: 'starter' | 'team' | 'business';
-  operation: 'lookup' | 'list' | 'grant' | 'revoke';
+  operation: 'lookup' | 'list' | 'grant' | 'revoke' | 'reassign';
   email?: string;
   duration?: '14_days' | 'one_month' | 'custom';
   customDate?: string;
@@ -110,7 +110,11 @@ export function parseAction(value: unknown): FounderAction {
     )
   )
     throw new AccountPublicError('Champ de commande inconnu.');
-  if (!['lookup', 'list', 'grant', 'revoke'].includes(String(a.operation)))
+  if (
+    !['lookup', 'list', 'grant', 'revoke', 'reassign'].includes(
+      String(a.operation),
+    )
+  )
     throw new AccountPublicError('Commande inconnue.');
   const action: FounderAction = {
     operation: a.operation as FounderAction['operation'],
@@ -126,7 +130,7 @@ export function parseAction(value: unknown): FounderAction {
   if (a.organizationId !== undefined) {
     if (
       a.product !== 'automation' ||
-      a.operation !== 'grant' ||
+      !['grant', 'reassign'].includes(String(a.operation)) ||
       typeof a.organizationId !== 'string' ||
       !/^[a-zA-Z0-9_-]{1,255}$/.test(a.organizationId)
     )
@@ -144,7 +148,15 @@ export function parseAction(value: unknown): FounderAction {
     action.plan = a.plan as FounderAction['plan'];
   }
   if (action.operation !== 'list') action.email = grantEmail(a.email);
-  if (action.operation === 'grant' || action.operation === 'revoke') {
+  if (
+    action.operation === 'reassign' &&
+    (action.product !== 'automation' ||
+      !action.organizationId ||
+      a.duration !== undefined ||
+      a.customDate !== undefined)
+  )
+    throw new AccountPublicError('Correction d’entreprise invalide.');
+  if (['grant', 'revoke', 'reassign'].includes(action.operation)) {
     if (
       !isUuid(a.operationId) ||
       !Number.isSafeInteger(a.expectedRevision) ||

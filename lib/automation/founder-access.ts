@@ -235,7 +235,7 @@ async function attachKnown(email: string, organizationId?: string) {
 export async function changeAutomationAccess(action: FounderAction) {
   if (
     action.product !== 'automation' ||
-    !['grant', 'revoke'].includes(action.operation)
+    !['grant', 'revoke', 'reassign'].includes(action.operation)
   )
     throw new AccountPublicError('Commande Automation invalide.');
   const db = database(),
@@ -268,6 +268,83 @@ export async function changeAutomationAccess(action: FounderAction) {
       'Aucun accès Automation offert à retirer.',
       404,
     );
+  if (action.operation === 'reassign') {
+    if (!current || current.revoked_at !== null || current.valid_until <= time)
+      throw new AccountPublicError(
+        'Seul un accès offert en cours peut changer d’entreprise.',
+        409,
+      );
+    const user = await identity(email);
+    const companies = await companiesForEmail(email, user?.user_id);
+    const source = companies.find(
+      (o) => o.id === current.organization_id && o.userId === current.user_id,
+    );
+    const target = companies.find((o) => o.id === action.organizationId);
+    if (!source || !target || source.id === target.id)
+      throw new AccountPublicError(
+        'Vérifiez les deux entreprises du bénéficiaire avant de corriger cet accès.',
+        409,
+      );
+    if (
+      await db
+        .prepare(
+          'SELECT email FROM founder_automation_grants WHERE email<>? AND (user_id=? OR organization_id=?)',
+        )
+        .bind(email, target.userId, target.id)
+        .first()
+    )
+      throw new AccountPublicError(
+        'Cette entreprise ou ce compte possède déjà une offre Automation.',
+        409,
+      );
+    // Replace the immutable grant explicitly and atomically. Keep its original
+    // period and event history; neither ordinary grants nor login can move it.
+    const result = await db.batch([
+      db
+        .prepare(
+          'DELETE FROM founder_automation_grants WHERE email=? AND revision=? AND grant_id=?',
+        )
+        .bind(email, action.expectedRevision, current.grant_id),
+      db
+        .prepare(
+          'INSERT INTO founder_automation_grants(email,grant_id,user_id,organization_id,valid_from,valid_until,revoked_at,revision,note,created_at,updated_at,last_operation_id) SELECT ?,?,?,?,?,?,NULL,?,?,?,?,? WHERE changes()=1',
+        )
+        .bind(
+          email,
+          `agr_${crypto.randomUUID()}`,
+          target.userId,
+          target.id,
+          current.valid_from,
+          current.valid_until,
+          current.revision + 1,
+          action.note,
+          current.created_at,
+          time,
+          action.operationId,
+        ),
+      db
+        .prepare(
+          'INSERT INTO founder_automation_events(operation_id,email,action_hash,operation,valid_until,created_at,revision) SELECT ?,?,?,?,?,?,revision FROM founder_automation_grants WHERE email=? AND last_operation_id=? AND revision=?',
+        )
+        .bind(
+          action.operationId,
+          email,
+          hash,
+          'reassign',
+          current.valid_until,
+          time,
+          email,
+          action.operationId,
+          current.revision + 1,
+        ),
+    ]);
+    if (result[0].meta.changes !== 1 || result[1].meta.changes !== 1)
+      throw new AccountPublicError(
+        'Cet accès a changé. Actualisez le compte avant de confirmer.',
+        409,
+      );
+    return { ...(await lookupAutomationAccess(email)), replayed: false };
+  }
   let organizationId: string | null = current?.organization_id ?? null;
   let userId: string | null = current?.user_id ?? null;
   if (action.operation === 'grant') {

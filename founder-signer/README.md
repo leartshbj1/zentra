@@ -2,7 +2,7 @@
 
 Application Windows personnelle du fondateur pour accorder un accès Zentra à partir d’une adresse e-mail.
 
-## Version locale compatible Windows — 1.4.0
+## Version locale compatible Windows — 1.4.1
 
 Le raccourci **Zentra Fondateur** ouvre maintenant une fenêtre dédiée de Microsoft Edge. Le traitement reste sur ce PC, avec le moteur Node.js officiellement signé par OpenJS et PowerShell fourni par Microsoft. L’installation ne désactive aucune protection Windows et n’ajoute aucun certificat de confiance ni exception antivirus.
 
@@ -103,6 +103,8 @@ Une adresse inconnue reste en attente de connexion et de création de son entrep
 ### Utiliser le compte connecté sur ce PC
 
 Le bouton **Utiliser le compte de ce PC** vérifie la session de l’application Zentra installée, renseigne son adresse et sélectionne son entreprise pour Automation. Un avertissement apparaît si l’adresse saisie est différente. Les anciennes sessions et les comptes du site peuvent correspondre à des entreprises différentes : choisissez celle indiquée **App ouverte sur ce PC**. Cela ne fusionne pas les comptes et ne déplace aucune donnée.
+
+Si l’offre existe déjà pour une autre entreprise, **Confirmer le changement d’entreprise** corrige son rattachement. Sa date de fin reste identique et l’ancienne entreprise perd uniquement cette offre Automation. La correction doit être confirmée depuis ce PC fondateur ; une connexion du client ou une simple prolongation ne transfère jamais l’offre.
 
 ### Clé API Jev pour Automation et Support
 

@@ -5,6 +5,7 @@ let ready=false,busy=false,selected=null,records=[],pending=null,desktop=null;
 const isSupport=()=>$('product').value==='support';
 const isAutomation=()=>$('product').value==='automation';
 const names={zentra:'Zentra Gestion',support:'Zentra Support',automation:'Zentra Automation'};
+const changingCompany=()=>isAutomation()&&active(selected?.record)&&!!selected?.record?.organizationId&&!!$('automation-company').value&&$('automation-company').value!==selected.record.organizationId;
 const productName=()=>names[$('product').value];
 const plans={starter:'Starter',team:'Équipe',business:'Business'};
 const actionForProduct=action=>$('product').value==='zentra'?action:{...action,product:$('product').value};
@@ -21,12 +22,13 @@ function clearNotice(){$('error').hidden=true;$('success').hidden=true;}
 function updateControls(){
   for(const element of document.querySelectorAll('button,input,select'))element.disabled=busy||!ready;
   $('product').disabled=busy||!ready||!!pending;
-  $('grant').disabled=busy||!ready||!selected||!!pending||(isAutomation()&&!$('automation-company-field').hidden&&!$('automation-company').value);
-  $('automation-company').disabled=busy||!ready||!!selected?.record?.organizationId;
+  $('grant').disabled=busy||!ready||!selected||!!pending||changingCompany()||(isAutomation()&&!$('automation-company-field').hidden&&!$('automation-company').value);
+  $('automation-company').disabled=busy||!ready||!!pending;
+  $('reassign-area').hidden=!changingCompany();$('reassign').disabled=busy||!ready||!!pending||!changingCompany();
   $('confirm-revoke').disabled=busy||!ready||!selected||!!pending;
   $('use-desktop-account').disabled=busy||!ready||!desktop?.connected;
   $('pending').hidden=!pending;
-  if(pending)$('pending-description').textContent=`${pending.operation==='revoke'?'Retrait':'Attribution'} ${names[pending.product||'zentra']} pour ${pending.email}. Reprenez-la avant une autre modification.`;
+  if(pending)$('pending-description').textContent=`${pending.operation==='revoke'?'Retrait':pending.operation==='reassign'?'Correction d’entreprise':'Attribution'} ${names[pending.product||'zentra']} pour ${pending.email}. Reprenez-la avant une autre modification.`;
 }
 async function syncStatus(){const status=await invoke('founder_status');ready=status.ready;pending=status.pending;$('key-status').textContent=status.ready?'Votre clé personnelle est prête':status.message;updateControls();}
 async function task(callback){if(busy)return;busy=true;updateControls();try{await callback();}catch(e){fail(e);}finally{try{await syncStatus();}catch(e){fail(e);}busy=false;updateControls();}}
@@ -73,6 +75,7 @@ async function apply(action){
   $('success').hidden=false;$('success-title').textContent=action.operation==='revoke'?'Accès offert retiré':`Accès accordé jusqu’au ${formatDate(result.record.expiresAt)}`;
   $('success-description').textContent=action.operation==='revoke'?`L’accès offert ${productName()} de ${result.email} est retiré. Le changement sera pris en compte à la prochaine vérification en ligne.`:isSupport()?`${result.email} peut se connecter sur zentraapp.ch/support/espace avec son adresse confirmée. Formule ${plans[result.record.plan]}.`:result.record.status==='pending'?`${result.email} pourra récupérer son accès en se connectant à Zentra avec cette adresse confirmée.`:`${result.email} peut ouvrir ou reconnecter son application Zentra pour récupérer son accès.`;
   if(isAutomation()&&action.operation==='grant'){$('success-title').textContent=`Automation offert jusqu’au ${formatDate(result.record.expiresAt)}`;$('success-description').textContent=`${result.email} retrouvera l’option sur zentraapp.ch/compte/automation. `+(result.availability==='ready'?'Le client choisit les suggestions et confirme leur utilisation. Son application récupère l’accès en ligne.':$('account-description').textContent);}
+  if(action.operation==='reassign'){$('success-title').textContent='Entreprise corrigée';$('success-description').textContent=`L’offre Automation est rattachée à l’entreprise choisie. Sa date de fin reste le ${formatDate(result.record.expiresAt)}.`;}
   try{await list();}catch{fail('La modification est confirmée. La liste des accès sera actualisée à la prochaine connexion.');}
   $('success').scrollIntoView({block:'nearest',behavior:'smooth'});
 }
@@ -84,11 +87,12 @@ $('show-all').addEventListener('change',renderRecords);
 $('product').addEventListener('change',()=>task(async()=>{clearNotice();selected=null;records=[];$('account').hidden=true;$('email').value='';productView();renderRecords();await list();}));
 for(const radio of document.querySelectorAll('[name=duration]'))radio.addEventListener('change',durationHint);
 $('automation-company').addEventListener('change',updateControls);
-$('use-desktop-account').addEventListener('click',()=>task(async()=>{if(!desktop?.connected)return;clearNotice();await lookup(desktop.email);}));
+$('use-desktop-account').addEventListener('click',()=>task(async()=>{if(!desktop?.connected)return;clearNotice();await lookup(desktop.email);if(isAutomation()&&selected?.organizations?.some(c=>c.id===desktop.organizationId)){$('automation-company').value=desktop.organizationId;updateControls();}}));
 $('grant').addEventListener('click',()=>task(async()=>{if(!selected)return;clearNotice();const duration=document.querySelector('[name=duration]:checked').value;
   if(duration==='custom'&&!$('custom-date').value)throw new Error('Choisissez le dernier jour d’accès.');
   await apply(actionForProduct({operation:'grant',email:selected.email,duration,customDate:duration==='custom'?$('custom-date').value:'',note:$('note').value,expectedRevision:selected.record?.revision||0,operationId:crypto.randomUUID(),...(isSupport()?{plan:$('support-plan').value}:{}),...(isAutomation()&&$('automation-company').value?{organizationId:$('automation-company').value}:{})}));
 }));
+$('reassign').addEventListener('click',()=>task(async()=>{if(!changingCompany())return;clearNotice();await apply({operation:'reassign',product:'automation',email:selected.email,organizationId:$('automation-company').value,note:$('note').value,expectedRevision:selected.record.revision,operationId:crypto.randomUUID()});}));
 $('revoke').addEventListener('click',()=>{$('revoke-confirm').hidden=false;$('revoke').hidden=true;$('revoke-email').textContent=selected.email;});
 $('cancel-revoke').addEventListener('click',()=>{$('revoke-confirm').hidden=true;$('revoke').hidden=false;});
 $('confirm-revoke').addEventListener('click',()=>task(async()=>{if(!selected)return;clearNotice();await apply(actionForProduct({operation:'revoke',email:selected.email,note:$('note').value,expectedRevision:selected.record.revision,operationId:crypto.randomUUID()}));}));
