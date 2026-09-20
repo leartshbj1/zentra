@@ -139,6 +139,14 @@ export function BillingPanel({
           Paiement de test privé. Aucune vente réelle n’est ouverte.
         </p>
       )}
+      {billing?.offeredAccess && (
+        <p className="support-notice">
+          Zentra vous offre cet accès jusqu’au{' '}
+          {new Date(billing.offeredUntil! * 1000).toLocaleDateString('fr-CH')}.
+          Aucun paiement ni renouvellement automatique. Le quota se renouvelle
+          chaque mois à partir de la première attribution.
+        </p>
+      )}
       {billing?.plan && (
         <section className="support-card">
           <h3>
@@ -148,7 +156,7 @@ export function BillingPanel({
           <p>
             {billing.used.toLocaleString('fr-CH')} /{' '}
             {billing.limit.toLocaleString('fr-CH')} analyses utilisées pour la
-            période payée.
+            {billing.offeredAccess ? 'période offerte.' : 'période payée.'}
           </p>
           <progress
             max={billing.limit}
@@ -156,9 +164,11 @@ export function BillingPanel({
             aria-label="Analyses utilisées"
           />
           <p>
-            {billing.cancelAtPeriodEnd
-              ? 'Fin du renouvellement demandée. Accès jusqu’au'
-              : 'Période payée jusqu’au'}{' '}
+            {billing.offeredAccess
+              ? 'Période offerte jusqu’au'
+              : billing.cancelAtPeriodEnd
+                ? 'Fin du renouvellement demandée. Accès jusqu’au'
+                : 'Période payée jusqu’au'}{' '}
             {billing.periodEnd
               ? new Date(billing.periodEnd * 1000).toLocaleDateString('fr-CH')
               : '—'}
@@ -172,7 +182,8 @@ export function BillingPanel({
         </p>
       ) : (
         <>
-          {billing?.hasSubscription || billing?.plan ? (
+          {billing?.hasSubscription ||
+          (billing?.plan && !billing.offeredAccess) ? (
             <div className="support-actions">
               <Button
                 disabled={disabled}

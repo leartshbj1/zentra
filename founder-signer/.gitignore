@@ -3,3 +3,7 @@
 /gen/
 *.dpapi
 *.pem
+/runtime/
+/edge-profile/
+/local-session.json
+/local-session.lock

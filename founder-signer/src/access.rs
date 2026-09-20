@@ -19,6 +19,10 @@ const PENDING_FILE: &str = "founder-pending-access.dpapi";
 pub struct Action {
     pub operation: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub product: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<String>,
@@ -34,6 +38,15 @@ pub struct Action {
 
 impl Action {
     fn validate(&self) -> Result<()> {
+        if self.product.as_deref().is_some_and(|v| v != "support") {
+            return Err("Produit inconnu.".into());
+        }
+        let support_grant = self.product.as_deref() == Some("support") && self.operation == "grant";
+        if (self.plan.is_some() && !support_grant)
+            || (support_grant && !self.plan.as_deref().is_some_and(|p| ["starter", "team", "business"].contains(&p)))
+        {
+            return Err("Choisissez une formule Zentra Support.".into());
+        }
         if !["list", "lookup", "grant", "revoke"].contains(&self.operation.as_str()) {
             return Err("Commande d’accès inconnue.".into());
         }
@@ -241,6 +254,8 @@ mod tests {
     use super::*;
     fn action() -> Action {
         Action {
+            product: None,
+            plan: None,
             operation: "grant".into(),
             email: Some("test@example.invalid".into()),
             duration: Some("14_days".into()),

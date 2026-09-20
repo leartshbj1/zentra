@@ -28,6 +28,7 @@ import {
   completeZendesk,
 } from './zendesk-oauth';
 import { hasAdminSession } from './admin-session';
+import { attachSupportAccess } from './founder-access';
 import {
   rememberSupportOwner,
   cancelSupportCheckout,
@@ -119,6 +120,7 @@ async function signedIn() {
       401,
     );
   await rememberSupportOwner(user);
+  await attachSupportAccess(user);
   return user;
 }
 async function workspaces(user: ZentraUser) {

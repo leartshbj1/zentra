@@ -2,9 +2,18 @@
 
 Application Windows personnelle du fondateur pour accorder un accès Zentra à partir d’une adresse e-mail.
 
+## Version locale compatible Windows — 1.2.0
+
+Le raccourci **Zentra Fondateur** ouvre maintenant une fenêtre dédiée de Microsoft Edge. Le traitement reste sur ce PC, avec le moteur Node.js officiellement signé par OpenJS et PowerShell fourni par Microsoft. L’installation ne désactive aucune protection Windows et n’ajoute aucun certificat de confiance ni exception antivirus.
+
+La clé reste dans le coffre Windows DPAPI existant. Elle n’est jamais transmise à Edge. Le service local écoute uniquement sur `127.0.0.1`, exige une session privée et refuse les requêtes des autres sites. Il s’arrête quelques minutes après fermeture de l’interface. L’outil n’est pas hébergé sur Internet et n’est pas accessible depuis les autres ordinateurs du réseau.
+
+L’accès par e-mail et la signature avancée restent disponibles. La connexion Internet sert aux échanges avec le serveur Zentra. Pour réinstaller cette édition, utiliser `installer-compatible.ps1` depuis le dossier `founder-signer`. L’ancien exécutable et son raccourci de sauvegarde sont conservés ; cet exécutable non signé nécessite une signature d’éditeur reconnue avant de pouvoir être utilisé avec Smart App Control.
+
 ## Accorder un accès par e-mail
 
 1. Ouvrir **Zentra Fondateur** depuis le Bureau ou le menu Démarrer.
+   Choisir **Zentra** ou **Zentra Support** dans « Application à offrir ».
 2. Saisir l’adresse utilisée pour se connecter à Zentra, puis **Vérifier le compte**.
 3. Choisir **14 jours**, **Un mois** ou **Personnalisée**, avec le dernier jour d’accès inclus, heure suisse.
 4. Cliquer **Accorder l’accès**. Attendre le message de confirmation du serveur.
@@ -25,6 +34,12 @@ La liste à gauche permet de retrouver les accès, de les prolonger et de les re
 Une clé de gestion distincte est créée sur ce PC et chiffrée par Windows DPAPI pour votre session Windows. Le serveur connaît uniquement sa clé publique. Copier l’exécutable sur un autre PC ne donne pas le pouvoir d’accorder des accès. Gardez votre session Windows et son coffre privés.
 
 Le service de gestion est `https://www.zentraapp.ch/api/founder/access`. Chaque requête est signée, horodatée et protégée contre la réutilisation. La clé privée n’est jamais envoyée au site ni à l’interface. Une connexion Internet est nécessaire.
+
+### Offrir Zentra Support
+
+Choisir **Zentra Support**, vérifier l’e-mail de connexion puis sélectionner **Starter** (2 000 analyses par mois), **Équipe** (5 000) ou **Business** (15 000). Les durées sont 14 jours, un mois ou une date personnalisée. Le destinataire ouvre `https://www.zentraapp.ch/support/espace` avec son adresse confirmée. L’offre concerne l’espace dont il est titulaire et ses membres ; son espace existant est conservé, ou un espace est préparé à la première connexion.
+
+Les offres Zentra et Support sont indépendantes. Aucune souscription ou facture Stripe n’est créée. Un abonnement Support payé actif conserve sa formule et son quota. Sinon l’offre donne accès au tri et au routage avec le volume de la formule choisie. Le quota se renouvelle chaque mois à partir de la première attribution, sans report ni prorata ; une prolongation, un changement de formule ou un retrait suivi d’une réattribution ne remet pas le compteur de la période à zéro. Le changement de formule offerte s’applique immédiatement. Le retrait ou l’expiration bloque les nouveaux traitements, sauf si un abonnement payé reste actif.
 
 ## Signature avancée des jetons
 

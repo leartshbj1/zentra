@@ -1,5 +1,15 @@
 # Accès offerts depuis le PC fondateur
 
+## Zentra Support
+
+Le choix de produit `support` et la formule `starter`, `team` ou `business` font partie de la commande signée. Le même point d’entrée authentifié sépare les offres Support des offres Zentra historiques ; les anciennes commandes sans produit restent compatibles. Le PC propose les trois formules avec 14 jours, un mois ou une échéance personnalisée.
+
+La migration additive 0046 conserve les offres, reçus et consommations Support dans des tables dédiées. L’identité confirmée et l’espace titulaire sont liés une seule fois et protégés par contrainte d’unicité et déclencheur. Une offre en attente est récupérée à l’ouverture de Support, sans créer de souscription Stripe. Les membres bénéficient de l’accès de leur espace, avec ses contrôles de rôle habituels.
+
+Un abonnement payé actif garde priorité. Sinon le quota offert est celui de la formule (2 000 / 5 000 / 15 000 analyses), renouvelé au mois calendaire depuis l’ancrage initial. Prolonger, changer de formule ou retirer puis réattribuer ne réinitialise pas la consommation du mois. Les réservations atomiques incluent les analyses en cours ; les échecs sont libérés. Le retrait ou l’expiration empêche immédiatement les nouveaux traitements, sous réserve d’un droit payé indépendant. Aucun fournisseur IA n’est appelé par une simple attribution.
+
+Tests : commandes signées, séparation des produits, trois formules, rattachement après connexion confirmée, identité non transférable, conservation d’espace, reprise sans double prolongation, quotas concurrents, échecs, renouvellement mensuel, retrait, expiration et maintien des droits payés. Les tests publics utilisent uniquement une adresse `.invalid` et retirent toutes leurs offres.
+
 L’application Windows `founder-signer` accorde un accès individuel à une adresse de connexion confirmée. Les durées sont 14 jours, un mois calendaire ou une date de fin incluse, en heure suisse. La durée démarre à l’attribution ; une prolongation prédéfinie commence après l’échéance active. L’application peut retirer l’offre.
 
 ## Authentification et stockage

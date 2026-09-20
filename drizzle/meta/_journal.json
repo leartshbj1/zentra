@@ -323,6 +323,13 @@
       "when": 1789852883833,
       "tag": "0045_support_oauth_rotation",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1789866360841,
+      "tag": "0046_founder_support_access",
+      "breakpoints": true
     }
   ]
 }

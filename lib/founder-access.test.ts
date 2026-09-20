@@ -40,6 +40,19 @@ import {
 import { refreshLicense } from './license-token';
 import { requireDeviceSession } from './account';
 import { teamSeats } from './team-seats';
+import {
+  attachSupportAccess,
+  lookupSupportAccess,
+  supportGrantPeriod,
+} from './support/founder-access';
+import {
+  billingState,
+  requireSupportSubscription,
+  reserveAnalysis,
+  finishAnalysis,
+} from './support/billing';
+import { getWorkspaceState } from './support/service';
+import type { Workspace } from './support/types';
 
 const keys = generateKeyPairSync('ed25519');
 const publicKey = keys.publicKey.export({ format: 'jwk' }).x!;
@@ -163,6 +176,219 @@ beforeEach(() => {
 afterEach(() => {
   db.close();
   vi.useRealTimers();
+});
+
+describe('Founder offers for Zentra Support', () => {
+  const offer = (revision = 0, extra: Record<string, unknown> = {}) =>
+    write(revision, 'grant', { product: 'support', plan: 'starter', ...extra });
+  const workspace = () =>
+    db
+      .prepare('SELECT * FROM support_workspaces WHERE owner_id=?')
+      .get(person.userId) as unknown as Workspace;
+  it.each([
+    ['starter', 2000],
+    ['team', 5000],
+    ['business', 15000],
+  ])(
+    'activates %s through the customer workspace without a payment',
+    async (plan, limit) => {
+      expect((await command(offer(0, { plan }))).status).toBe(200);
+      expect((await lookupSupportAccess(email)).record?.status).toBe('pending');
+      const response = await getWorkspaceState(
+        new Request('https://zentra.example/api/support'),
+      );
+      const state = (await response.json()) as {
+        billing: unknown;
+        workspace: { id: string };
+      };
+      expect(state.billing).toMatchObject({
+        active: true,
+        offeredAccess: true,
+        plan,
+        limit,
+        used: 0,
+        hasSubscription: false,
+      });
+      expect(state.workspace.id).toBe(workspace().id);
+      expect((await lookupSupportAccess(email)).record?.status).toBe('active');
+      expect(
+        db.prepare('SELECT COUNT(*) AS n FROM subscriptions').get()?.n,
+      ).toBe(0);
+      expect(
+        db.prepare('SELECT COUNT(*) AS n FROM support_subscriptions').get()?.n,
+      ).toBe(0);
+      expect(stubs.stripe).not.toHaveBeenCalled();
+    },
+  );
+  it('separates products, validates formulas and authenticates the signed product', async () => {
+    expect((await command(offer(0, { plan: 'pro' }))).status).toBe(400);
+    expect((await command(write(0, 'grant', { plan: 'starter' }))).status).toBe(
+      400,
+    );
+    const payload = signed(offer());
+    const decoded = JSON.parse(
+      Buffer.from(payload.payload, 'base64url').toString(),
+    );
+    delete decoded.action.product;
+    expect(
+      (
+        await admin(
+          request('/api/founder/access', {
+            ...payload,
+            payload: Buffer.from(JSON.stringify(decoded)).toString('base64url'),
+          }),
+        )
+      ).status,
+    ).toBe(401);
+    expect((await command(write())).status).toBe(200);
+    expect((await command(offer())).status).toBe(200);
+    expect(
+      (await command(write(1, 'revoke', { product: 'support' }))).status,
+    ).toBe(200);
+    expect((await readGrant(email))?.revoked_at).toBeNull();
+  });
+  it('binds only a verified owner once and keeps existing workspaces and subscriptions intact', async () => {
+    await command(offer());
+    await attachSupportAccess({ ...person, emailConfirmed: false });
+    expect(workspace()).toBeUndefined();
+    db.prepare(
+      "INSERT INTO support_workspaces(id,owner_id,name,created_at,updated_at) VALUES('existing',?,'Existing',1,1)",
+    ).run(person.userId);
+    await attachSupportAccess(person);
+    expect(workspace().id).toBe('existing');
+    await attachSupportAccess({ ...person, userId: 'replacement' });
+    expect(
+      db.prepare('SELECT user_id FROM founder_support_grants').get()?.user_id,
+    ).toBe(person.userId);
+    await command(offer(0, { email: 'new@example.invalid' }));
+    await attachSupportAccess({ ...person, email: 'new@example.invalid' });
+    expect(
+      (await lookupSupportAccess('new@example.invalid')).record?.accountLinked,
+    ).toBe(false);
+    expect(() =>
+      db
+        .prepare(
+          "UPDATE founder_support_grants SET user_id='replacement' WHERE email=?",
+        )
+        .run(email),
+    ).toThrow(/immutable/);
+    expect(
+      await billingState({ id: 'existing', owner_id: 'replacement' }),
+    ).toMatchObject({ active: false });
+  });
+  it('retries a lost response once, rejects stale revisions and preserves the monthly anchor when extending', async () => {
+    const a = offer();
+    expect((await command(a)).status).toBe(200);
+    const first = (await lookupSupportAccess(email)).record!;
+    expect((await command(a)).body.replayed).toBe(true);
+    expect((await lookupSupportAccess(email)).record?.expiresAt).toBe(
+      first.expiresAt,
+    );
+    expect((await command(offer())).status).toBe(409);
+    const anchor = db
+      .prepare('SELECT valid_from FROM founder_support_grants')
+      .get()?.valid_from;
+    await command(offer(1, { duration: 'one_month', plan: 'business' }));
+    expect((await lookupSupportAccess(email)).record?.plan).toBe('business');
+    expect((await lookupSupportAccess(email)).record?.expiresAt).toBe(
+      '2026-10-29T12:00:00.000Z',
+    );
+    await command(offer(2, { duration: 'custom', customDate: '2026-12-20' }));
+    expect((await lookupSupportAccess(email)).record?.expiresAt).toBe(
+      '2026-12-20T22:59:59.000Z',
+    );
+    expect(
+      db.prepare('SELECT valid_from FROM founder_support_grants').get()
+        ?.valid_from,
+    ).toBe(anchor);
+  });
+  it('enforces quota atomically, releases failures, carries usage across changes and renews monthly', async () => {
+    await command(offer(0, { duration: 'custom', customDate: '2027-01-15' }));
+    await attachSupportAccess(person);
+    const w = workspace(),
+      anchor = Math.floor(fixed.getTime() / 1000);
+    db.prepare(
+      "WITH RECURSIVE x(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM x WHERE n<1999) INSERT INTO founder_support_usage SELECT 'seed-'||n,?,?,'ticket','charged',0,? FROM x",
+    ).run(w.id, anchor, anchor);
+    const reservations = await Promise.allSettled([
+      reserveAnalysis(w, 'a', 'a'),
+      reserveAnalysis(w, 'b', 'b'),
+    ]);
+    expect(reservations.filter((r) => r.status === 'fulfilled')).toHaveLength(
+      1,
+    );
+    const reservation = reservations.find(
+      (r) => r.status === 'fulfilled',
+    ) as PromiseFulfilledResult<string>;
+    await finishAnalysis(reservation.value, false);
+    await finishAnalysis(await reserveAnalysis(w, 'c', 'c'), true);
+    expect((await billingState(w)).used).toBe(2000);
+    await expect(reserveAnalysis(w, 'd', 'd')).rejects.toMatchObject({
+      status: 402,
+    });
+    await command(offer(1, { plan: 'team' }));
+    expect(await billingState(w)).toMatchObject({ used: 2000, limit: 5000 });
+    await command(write(2, 'revoke', { product: 'support' }));
+    await expect(requireSupportSubscription(w)).rejects.toMatchObject({
+      status: 402,
+    });
+    await command(
+      offer(3, {
+        plan: 'starter',
+        duration: 'custom',
+        customDate: '2027-01-15',
+      }),
+    );
+    await expect(reserveAnalysis(w, 'e', 'e')).rejects.toMatchObject({
+      status: 402,
+    });
+    vi.setSystemTime(new Date('2026-10-15T12:00:00Z'));
+    expect(await billingState(w)).toMatchObject({ used: 0, limit: 2000 });
+    await expect(reserveAnalysis(w, 'f', 'f')).resolves.toBe('founder:f');
+    expect(
+      supportGrantPeriod(
+        Date.parse('2027-01-31T12:00:00Z') / 1000,
+        Date.parse('2027-03-01T00:00:00Z') / 1000,
+      ),
+    ).toEqual({
+      start: Date.parse('2027-02-28T12:00:00Z') / 1000,
+      end: Date.parse('2027-03-31T12:00:00Z') / 1000,
+    });
+  });
+  it('expires immediately and preserves independent paid rights after revocation', async () => {
+    await command(offer(0, { plan: 'business' }));
+    await attachSupportAccess(person);
+    const w = workspace();
+    vi.setSystemTime(new Date('2026-09-29T12:00:00Z'));
+    expect((await billingState(w)).active).toBe(false);
+    await expect(reserveAnalysis(w, 't', 'lease')).rejects.toMatchObject({
+      status: 402,
+    });
+    vi.setSystemTime(fixed);
+    stubs.value.mockImplementation((name: string) =>
+      name === 'STRIPE_SECRET_KEY'
+        ? 'sk_live_fixture'
+        : name === 'FOUNDER_ADMIN_PUBLIC_KEY_B64URL'
+          ? publicKey
+          : '',
+    );
+    const t = Math.floor(fixed.getTime() / 1000);
+    db.prepare(
+      "INSERT INTO support_subscriptions(workspace_id,subscription_id,customer_id,plan_id,status,paid_from,paid_until,paid_plan_id,livemode,updated_at) VALUES(?,'sub_paid','cus_paid','starter','active',?,?,'starter',1,?)",
+    ).run(w.id, t - 60, t + 86400, t);
+    expect(await billingState(w)).toMatchObject({
+      active: true,
+      offeredAccess: false,
+      plan: 'starter',
+    });
+    await command(write(1, 'revoke', { product: 'support' }));
+    await expect(requireSupportSubscription(w)).resolves.toBeUndefined();
+    await expect(reserveAnalysis(w, 'paid', 'paid')).resolves.toBe('paid');
+    expect(
+      db.prepare('SELECT subscription_id FROM support_subscriptions').get()
+        ?.subscription_id,
+    ).toBe('sub_paid');
+  });
 });
 
 describe('Founder command authentication', () => {

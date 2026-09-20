@@ -18,6 +18,53 @@ export const supportWorkspaces = sqliteTable('support_workspaces', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
+export const founderSupportGrants = sqliteTable('founder_support_grants', {
+  email: text('email').primaryKey(),
+  grantId: text('grant_id').notNull().unique(),
+  userId: text('user_id').unique(),
+  workspaceId: text('workspace_id')
+    .unique()
+    .references(() => supportWorkspaces.id),
+  planId: text('plan_id').notNull(),
+  validFrom: integer('valid_from').notNull(),
+  validUntil: integer('valid_until').notNull(),
+  revokedAt: integer('revoked_at'),
+  revision: integer('revision').notNull(),
+  note: text('note').notNull().default(''),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  lastOperationId: text('last_operation_id').notNull(),
+});
+export const founderSupportEvents = sqliteTable('founder_support_events', {
+  operationId: text('operation_id').primaryKey(),
+  email: text('email').notNull(),
+  actionHash: text('action_hash').notNull(),
+  operation: text('operation').notNull(),
+  validUntil: integer('valid_until').notNull(),
+  createdAt: integer('created_at').notNull(),
+  revision: integer('revision').notNull(),
+});
+export const founderSupportUsage = sqliteTable(
+  'founder_support_usage',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => supportWorkspaces.id),
+    periodStart: integer('period_start').notNull(),
+    ticketId: text('ticket_id').notNull(),
+    state: text('state').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('founder_support_usage_period').on(
+      t.workspaceId,
+      t.periodStart,
+      t.state,
+    ),
+  ],
+);
 export const supportMembers = sqliteTable(
   'support_members',
   {
