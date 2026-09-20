@@ -9,6 +9,7 @@ const stubs = vi.hoisted(() => ({
   signUp: vi.fn(),
   exchangePkceCode: vi.fn(),
   requestPasswordReset: vi.fn(),
+  verifyRecoveryToken: vi.fn(),
   updatePassword: vi.fn(),
   signOut: vi.fn(),
   getUser: vi.fn(),
@@ -47,7 +48,10 @@ import { GET as confirm } from '../app/api/auth/confirmation/route';
 import {
   POST as recover,
   PUT as update,
+  GET as recoveryStatus,
 } from '../app/api/auth/mot-de-passe/route';
+import { POST as verifyRecovery } from '../app/api/auth/recuperation/route';
+import { writeSupabaseAuthCookies } from './supabase-auth-cookies';
 import { POST as signOut } from '../app/api/auth/deconnexion/route';
 import { GET as currentSession } from '../app/api/auth/session/route';
 import { GET as browserSession } from '../app/api/account/browser-session/route';
@@ -57,6 +61,8 @@ import {
   SUPABASE_AUTH_RETURN_COOKIE,
   SUPABASE_PKCE_COOKIE,
   SUPABASE_REFRESH_COOKIE,
+  SUPABASE_SIGNED_OUT_COOKIE,
+  SUPABASE_RECOVERY_COOKIE,
 } from './supabase-auth-cookie-policy';
 import { SupabaseAuthError } from './supabase-auth';
 
@@ -91,6 +97,7 @@ beforeEach(() => {
   stubs.cookieOptions.clear();
   stubs.signIn.mockResolvedValue(session);
   stubs.exchangePkceCode.mockResolvedValue(session);
+  stubs.verifyRecoveryToken.mockResolvedValue(session);
   stubs.signUp.mockResolvedValue({ user, session: null });
   stubs.getUser.mockResolvedValue(user);
   stubs.refresh.mockResolvedValue(session);
@@ -178,7 +185,8 @@ describe('Account authentication routes and cookie flow', () => {
         password: 'test-password-123',
         displayName: 'Test owner',
         returnTo,
-        acceptTerms: true, legalVersion: LEGAL_VERSION,
+        acceptTerms: true,
+        legalVersion: LEGAL_VERSION,
       }),
     );
     expect(created.status).toBe(202);
@@ -211,7 +219,8 @@ describe('Account authentication routes and cookie flow', () => {
         email: user.email,
         password: 'test-password-123',
         returnTo: '//attacker.example',
-        acceptTerms: true, legalVersion: LEGAL_VERSION,
+        acceptTerms: true,
+        legalVersion: LEGAL_VERSION,
       }),
     );
     expect(stubs.jar.get(SUPABASE_AUTH_RETURN_COOKIE)).toBe('/compte');
@@ -301,11 +310,11 @@ describe('Account authentication routes and cookie flow', () => {
   });
 
   it('updates a confirmed user password and revokes device and browser sessions', async () => {
-    stubs.jar.set(SUPABASE_ACCESS_COOKIE, session.accessToken);
+    stubs.jar.set(SUPABASE_RECOVERY_COOKIE, session.accessToken);
     const response = await update(
       request(
         '/api/auth/mot-de-passe',
-        { password: 'new-password-1234' },
+        { password: 'new-password-1234', expectedEmail: user.email },
         'PUT',
       ),
     );
@@ -320,6 +329,7 @@ describe('Account authentication routes and cookie flow', () => {
     expect(stubs.bind).toHaveBeenCalledWith(expect.any(Number), user.id);
     expect(stubs.signOut).toHaveBeenCalledWith(session.accessToken, 'global');
     expect(stubs.jar.get(SUPABASE_ACCESS_COOKIE)).toBe('');
+    expect(stubs.jar.get(SUPABASE_RECOVERY_COOKIE)).toBe('');
   });
 
   it('rejects malformed bodies, cross-site recovery and unauthenticated password updates', async () => {
@@ -373,5 +383,143 @@ describe('Account authentication routes and cookie flow', () => {
     );
     expect(stubs.jar.get(SUPABASE_ACCESS_COOKIE)).toBe('');
     expect(stubs.jar.get(SUPABASE_REFRESH_COOKIE)).toBe('');
+  });
+
+  it('actually signs out legacy identities and cannot be undone by a late refresh', async () => {
+    stubs.sitesUser.mockResolvedValue({ userId: 'legacy', email: user.email });
+    const response = await signOut(
+      new Request(
+        'https://zentra.example/api/auth/deconnexion?retour=//evil.test',
+        {
+          method: 'POST',
+          headers: { Origin: 'https://zentra.example', Accept: 'text/html' },
+        },
+      ),
+    );
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe(
+      '/connexion?autre=1&deconnecte=1&retour=%2Fcompte',
+    );
+    expect(response.headers.get('cache-control')).toContain('no-store');
+    await writeSupabaseAuthCookies(session); // already in flight when logout occurred
+    expect(await getZentraUser({ refreshSession: true })).toBeNull();
+    expect(
+      await (
+        await currentSession(
+          new Request('https://zentra.example/api/auth/session'),
+        )
+      ).json(),
+    ).toEqual({ authenticated: false });
+    expect(stubs.sitesUser).not.toHaveBeenCalled();
+    await signIn(
+      request('/api/auth/connexion', {
+        email: user.email,
+        password: 'test-password',
+      }),
+    );
+    expect(stubs.jar.get(SUPABASE_SIGNED_OUT_COOKIE)).toBe('');
+    expect((await getZentraUser())?.userId).toBe(user.id);
+  });
+
+  it('opens recovery for account B while A is signed in, without granting a normal login', async () => {
+    stubs.jar.set(SUPABASE_ACCESS_COOKIE, 'account-a-access');
+    stubs.jar.set(SUPABASE_REFRESH_COOKIE, 'account-a-refresh');
+    const response = await verifyRecovery(
+      request('/api/auth/recuperation', { tokenHash: 'a'.repeat(64) }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ready: true, email: user.email });
+    expect(stubs.jar.get(SUPABASE_RECOVERY_COOKIE)).toBe(session.accessToken);
+    expect(stubs.cookieOptions.get(SUPABASE_RECOVERY_COOKIE)).toMatchObject({
+      httpOnly: true,
+      secure: true,
+      maxAge: 600,
+    });
+    expect(stubs.jar.get(SUPABASE_ACCESS_COOKIE)).toBe('');
+    expect(await getZentraUser({ refreshSession: true })).toBeNull();
+    expect(
+      await (
+        await recoveryStatus(
+          new Request('https://zentra.example/api/auth/mot-de-passe'),
+        )
+      ).json(),
+    ).toEqual({ ready: true, email: user.email });
+    expect(stubs.getUser).toHaveBeenCalledWith(session.accessToken);
+  });
+
+  it('refuses a normal login as recovery proof and a different account than the form displays', async () => {
+    stubs.jar.set(SUPABASE_ACCESS_COOKIE, session.accessToken);
+    expect(
+      (
+        await update(
+          request(
+            '/api/auth/mot-de-passe',
+            { password: 'test-password-123', expectedEmail: user.email },
+            'PUT',
+          ),
+        )
+      ).status,
+    ).toBe(401);
+    stubs.jar.set(SUPABASE_RECOVERY_COOKIE, session.accessToken);
+    expect(
+      (
+        await update(
+          request(
+            '/api/auth/mot-de-passe',
+            {
+              password: 'test-password-123',
+              expectedEmail: 'another@example.test',
+            },
+            'PUT',
+          ),
+        )
+      ).status,
+    ).toBe(409);
+    expect(stubs.updatePassword).not.toHaveBeenCalled();
+  });
+
+  it('rejects expired, replayed, malformed and cross-site recovery links', async () => {
+    stubs.verifyRecoveryToken.mockRejectedValue(
+      new SupabaseAuthError('expired', 403, 'otp_expired'),
+    );
+    const failed = await verifyRecovery(
+      request('/api/auth/recuperation', { tokenHash: 'a'.repeat(64) }),
+    );
+    expect(failed.status).toBe(400);
+    expect(await failed.text()).toContain('déjà été utilisé');
+    expect(stubs.jar.has(SUPABASE_RECOVERY_COOKIE)).toBe(false);
+    stubs.verifyRecoveryToken.mockClear();
+    expect(
+      (
+        await verifyRecovery(
+          request('/api/auth/recuperation', { tokenHash: 'bad' }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await verifyRecovery(
+          request(
+            '/api/auth/recuperation',
+            { tokenHash: 'a'.repeat(64) },
+            'POST',
+            'https://evil.test',
+          ),
+        )
+      ).status,
+    ).toBe(403);
+    expect(stubs.verifyRecoveryToken).not.toHaveBeenCalled();
+  });
+
+  it('keeps older PKCE recovery links on the reset page and isolated from normal sessions', async () => {
+    await recover(request('/api/auth/mot-de-passe', { email: user.email }));
+    const response = await confirm(
+      new Request(
+        'https://zentra.example/api/auth/confirmation?code=valid-code-for-testing-12345',
+      ),
+    );
+    expect(response.headers.get('location')).toBe('/mot-de-passe/nouveau');
+    expect(stubs.jar.get(SUPABASE_RECOVERY_COOKIE)).toBe(session.accessToken);
+    expect(stubs.jar.get(SUPABASE_ACCESS_COOKIE)).toBe('');
   });
 });

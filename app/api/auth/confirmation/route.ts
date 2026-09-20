@@ -3,6 +3,7 @@ import {
   readSupabasePkceCookie,
   readSupabaseAuthReturnCookie,
   writeSupabaseAuthCookies,
+  writeSupabaseRecoveryCookie,
 } from '@/lib/supabase-auth-cookies';
 import {
   authNoStoreHeaders,
@@ -38,9 +39,15 @@ export async function GET(request: Request) {
       authCode,
       verifier,
     );
-    await writeSupabaseAuthCookies(session);
+    if (returnTo === '/mot-de-passe/nouveau') {
+      await writeSupabaseRecoveryCookie(session);
+    } else {
+      await writeSupabaseAuthCookies(session, true);
+    }
     return redirectResponse(returnTo);
   } catch {
+    if (returnTo === '/mot-de-passe/nouveau')
+      return redirectResponse('/mot-de-passe/nouveau?erreur=lien_invalide');
     return confirmationFailure('echange_echoue');
   }
 }

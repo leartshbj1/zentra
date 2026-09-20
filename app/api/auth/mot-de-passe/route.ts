@@ -1,4 +1,3 @@
-import { getZentraUser } from '@/app/zentra-auth';
 import { enforceAccountRateLimit } from '@/lib/account';
 import { database } from '@/lib/runtime';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
@@ -10,7 +9,7 @@ import {
 } from '@/lib/supabase-auth-http';
 import {
   clearSupabaseAuthCookies,
-  readSupabaseAuthCookies,
+  readSupabaseRecoveryCookie,
   writeSupabasePkceCookie,
 } from '@/lib/supabase-auth-cookies';
 import { createSupabasePkceFlow } from '@/lib/supabase-auth-pkce';
@@ -24,6 +23,35 @@ import {
 } from '@/lib/supabase-auth-runtime';
 
 export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
+  try {
+    requireAuthSameOrigin(request);
+    const { user } = await recoveryIdentity();
+    return Response.json(
+      { ready: true, email: user.email },
+      { headers: authNoStoreHeaders() },
+    );
+  } catch {
+    return Response.json({ ready: false }, { headers: authNoStoreHeaders() });
+  }
+}
+
+async function recoveryIdentity() {
+  const accessToken = await readSupabaseRecoveryCookie();
+  if (!accessToken)
+    throw new AuthPublicError(
+      'Ouvrez le dernier lien reçu par e-mail pour choisir votre mot de passe.',
+      401,
+    );
+  const user = await supabaseAuthClient().getUser(accessToken);
+  if (!user.emailConfirmed)
+    throw new AuthPublicError(
+      'Ce lien a expiré. Demandez un nouveau lien.',
+      401,
+    );
+  return { accessToken, user };
+}
 
 export async function POST(request: Request) {
   try {
@@ -58,14 +86,14 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     requireAuthSameOrigin(request, { requireOrigin: true });
-    const user = await getZentraUser({ refreshSession: true });
-    if (!user || user.provider !== 'supabase' || !user.emailConfirmed)
-      throw new AuthPublicError(
-        'Ouvrez le lien reçu par e-mail pour choisir votre mot de passe.',
-        401,
-      );
+    const { user, accessToken } = await recoveryIdentity();
     const body = await readJsonObjectWithinLimit(request, 4_096);
     const password = typeof body.password === 'string' ? body.password : '';
+    if (body.expectedEmail !== user.email)
+      throw new AuthPublicError(
+        'Le compte à réinitialiser a changé dans un autre onglet. Rechargez cette page avant de continuer.',
+        409,
+      );
     if (
       password.length < MIN_AUTH_PASSWORD_LENGTH ||
       password.length > MAX_AUTH_PASSWORD_LENGTH
@@ -73,20 +101,14 @@ export async function PUT(request: Request) {
       throw new AuthPublicError(
         `Le mot de passe doit contenir entre ${MIN_AUTH_PASSWORD_LENGTH} et ${MAX_AUTH_PASSWORD_LENGTH} caractères.`,
       );
-    await enforceAccountRateLimit(
-      request,
-      'auth-password-update',
-      user.userId,
-      5,
-    );
-    const { accessToken } = await readSupabaseAuthCookies();
+    await enforceAccountRateLimit(request, 'auth-password-update', user.id, 5);
     const client = supabaseAuthClient();
     await client.updatePassword(accessToken, password);
     await database()
       .prepare(
         'UPDATE device_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL',
       )
-      .bind(Math.floor(Date.now() / 1000), user.userId)
+      .bind(Math.floor(Date.now() / 1000), user.id)
       .run();
     await client.signOut(accessToken, 'global');
     await clearSupabaseAuthCookies();

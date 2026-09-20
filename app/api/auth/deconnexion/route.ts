@@ -13,8 +13,12 @@ import { optionalSupabaseAuthClient } from '@/lib/supabase-auth-runtime';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
-  const acceptsHtml = request.headers.get('accept')?.includes('text/html') ?? false;
-  const returnTo = safeAuthReturnPath(new URL(request.url).searchParams.get('retour'));
+  const acceptsHtml =
+    request.headers.get('accept')?.includes('text/html') ?? false;
+  const returnTo = safeAuthReturnPath(
+    new URL(request.url).searchParams.get('retour'),
+  );
+  const destination = `/connexion?autre=1&deconnecte=1&retour=${encodeURIComponent(returnTo)}`;
   try {
     requireAuthSameOrigin(request);
   } catch (error) {
@@ -34,16 +38,22 @@ export async function POST(request: Request) {
     }
     await clearSupabaseAuthCookies();
     if (acceptsHtml) {
-      return Response.redirect(new URL(returnTo, request.url), 303);
+      return new Response(null, {
+        status: 303,
+        headers: { ...authNoStoreHeaders(), Location: destination },
+      });
     }
     return Response.json(
-      { authenticated: false },
+      { authenticated: false, redirectTo: destination },
       { headers: authNoStoreHeaders() },
     );
   } catch (error) {
     await clearSupabaseAuthCookies();
     if (acceptsHtml) {
-      return Response.redirect(new URL('/connexion', request.url), 303);
+      return new Response(null, {
+        status: 303,
+        headers: { ...authNoStoreHeaders(), Location: destination },
+      });
     }
     return authJsonError(error);
   }

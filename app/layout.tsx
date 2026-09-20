@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { AuthSessionGuard } from '@/components/auth-session-guard';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ScrollExperience } from '@/components/scroll-experience';
 import { publicSiteUrl } from '@/lib/site-url';
@@ -57,6 +58,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ScrollExperience />
+        <AuthSessionGuard />
         {children}
       </body>
     </html>

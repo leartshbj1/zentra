@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       enforceAccountRateLimit(request, 'auth-login-address', 'all', 50),
     ]);
     const session = await supabaseAuthClient().signIn(email, password);
-    await writeSupabaseAuthCookies(session);
+    await writeSupabaseAuthCookies(session, true);
     await clearSupabasePkceCookie();
     return Response.json(
       { authenticated: true, user: publicAuthUser(session.user) },

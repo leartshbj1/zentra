@@ -9,6 +9,9 @@ import {
   SUPABASE_REFRESH_COOKIE,
   SUPABASE_PKCE_COOKIE,
   SUPABASE_AUTH_RETURN_COOKIE,
+  SUPABASE_SIGNED_OUT_COOKIE,
+  SUPABASE_RECOVERY_COOKIE,
+  RECOVERY_COOKIE_MAX_AGE,
 } from './supabase-auth-cookie-policy';
 import { isValidPkceVerifier } from './supabase-auth-pkce';
 
@@ -17,10 +20,14 @@ export async function readSupabaseAuthCookies() {
   return {
     accessToken: jar.get(SUPABASE_ACCESS_COOKIE)?.value ?? '',
     refreshToken: jar.get(SUPABASE_REFRESH_COOKIE)?.value ?? '',
+    signedOut: jar.get(SUPABASE_SIGNED_OUT_COOKIE)?.value === '1',
   };
 }
 
-export async function writeSupabaseAuthCookies(session: SupabaseAuthSession) {
+export async function writeSupabaseAuthCookies(
+  session: SupabaseAuthSession,
+  explicitSignIn = false,
+) {
   if (!session.user.emailConfirmed)
     throw new SupabaseAuthError(
       'Confirmez votre adresse e-mail avant de vous connecter.',
@@ -28,6 +35,10 @@ export async function writeSupabaseAuthCookies(session: SupabaseAuthSession) {
       'email_not_confirmed',
     );
   const jar = await cookies();
+  if (explicitSignIn) {
+    jar.set(SUPABASE_SIGNED_OUT_COOKIE, '', authCookieOptions(0));
+    jar.set(SUPABASE_RECOVERY_COOKIE, '', authCookieOptions(0));
+  }
   jar.set(
     SUPABASE_ACCESS_COOKIE,
     session.accessToken,
@@ -46,6 +57,33 @@ export async function clearSupabaseAuthCookies() {
   jar.set(SUPABASE_REFRESH_COOKIE, '', authCookieOptions(0));
   jar.set(SUPABASE_PKCE_COOKIE, '', authCookieOptions(0));
   jar.set(SUPABASE_AUTH_RETURN_COOKIE, '', authCookieOptions(0));
+  jar.set(SUPABASE_RECOVERY_COOKIE, '', authCookieOptions(0));
+  // A late refresh response or a legacy Sites identity must not undo logout.
+  jar.set(
+    SUPABASE_SIGNED_OUT_COOKIE,
+    '1',
+    authCookieOptions(REFRESH_COOKIE_MAX_AGE),
+  );
+}
+
+export async function writeSupabaseRecoveryCookie(
+  session: SupabaseAuthSession,
+) {
+  if (!session.user.emailConfirmed)
+    throw new SupabaseAuthError('Lien invalide.', 403);
+  await clearSupabaseAuthCookies();
+  const jar = await cookies();
+  jar.set(
+    SUPABASE_RECOVERY_COOKIE,
+    session.accessToken,
+    authCookieOptions(
+      Math.min(RECOVERY_COOKIE_MAX_AGE, accessCookieMaxAge(session)),
+    ),
+  );
+}
+
+export async function readSupabaseRecoveryCookie() {
+  return (await cookies()).get(SUPABASE_RECOVERY_COOKIE)?.value ?? '';
 }
 
 export async function writeSupabasePkceCookie(

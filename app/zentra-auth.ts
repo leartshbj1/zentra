@@ -53,7 +53,9 @@ function fromSupabaseUser(user: SupabaseAuthUser): ZentraUser | null {
 export async function getZentraUser(
   options: ZentraUserOptions = {},
 ): Promise<ZentraUser | null> {
-  const { accessToken, refreshToken } = await readSupabaseAuthCookies();
+  const { accessToken, refreshToken, signedOut } =
+    await readSupabaseAuthCookies();
+  if (signedOut) return null;
   const client = optionalSupabaseAuthClient();
   if (accessToken) {
     if (!client) return null;

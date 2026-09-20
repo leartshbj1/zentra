@@ -13,6 +13,7 @@ import {
 import type { SubmitEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { LEGAL_VERSION } from '@/lib/legal';
+import { notifyAuthChanged } from '@/lib/auth-browser-events';
 import {
   MAX_AUTH_PASSWORD_LENGTH,
   MIN_AUTH_PASSWORD_LENGTH,
@@ -30,25 +31,45 @@ export function ZentraAuthForm({
   switchAccount?: boolean;
 }) {
   const [mode, setMode] = useState<AuthMode>('connexion');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(switchAccount);
+  const [currentEmail, setCurrentEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(initialError);
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
-    if (switchAccount) return;
     const controller = new AbortController();
-    void fetch('/api/auth/session', {
+    void fetch(switchAccount ? '/api/auth/deconnexion' : '/api/auth/session', {
+      method: switchAccount ? 'POST' : 'GET',
       credentials: 'same-origin',
       cache: 'no-store',
       signal: controller.signal,
     })
       .then(async (response) => {
-        if (!response.ok) return;
-        const payload = (await response.json()) as { authenticated?: boolean };
-        if (payload.authenticated) window.location.replace(returnTo);
+        if (!response.ok)
+          throw new Error('La session n’a pas pu être vérifiée. Réessayez.');
+        const payload = (await response.json()) as {
+          authenticated?: boolean;
+          user?: { email: string };
+        };
+        if (switchAccount)
+          setNotice(
+            'Vous êtes déconnecté. Connectez le compte de votre choix.',
+          );
+        else if (payload.authenticated)
+          setCurrentEmail(payload.user?.email ?? '');
       })
-      .catch(() => undefined);
+      .catch((reason) => {
+        if (!controller.signal.aborted)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'La session n’a pas pu être vérifiée.',
+          );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBusy(false);
+      });
     return () => controller.abort();
   }, [returnTo, switchAccount]);
 
@@ -88,6 +109,7 @@ export function ZentraAuthForm({
         throw new Error(payload.error || 'La demande n’a pas abouti.');
       }
       if (payload.authenticated) {
+        notifyAuthChanged();
         window.location.assign(returnTo);
         return;
       }
@@ -156,10 +178,32 @@ export function ZentraAuthForm({
           </h1>
           <p className="mt-3 text-sm leading-6 text-[#657168]">
             {switchAccount
-              ? 'Saisissez l’adresse e-mail et le mot de passe du compte à utiliser. La connexion réussie remplacera votre session dans ce navigateur.'
+              ? 'Saisissez l’adresse e-mail du compte que vous souhaitez utiliser.'
               : 'Un compte personnel pour vous et chaque membre de votre équipe. Retrouvez votre entreprise avec les accès de votre formule.'}
           </p>
         </div>
+
+        {currentEmail ? (
+          <div className="mt-5 rounded-2xl bg-[#edf5ef] p-4 text-sm">
+            <p className="break-all">
+              Connecté avec <strong>{currentEmail}</strong>
+            </p>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+              <a
+                className="inline-flex min-h-11 items-center font-semibold underline"
+                href={returnTo}
+              >
+                Continuer avec ce compte
+              </a>
+              <a
+                className="inline-flex min-h-11 items-center font-semibold underline"
+                href={`/connexion?autre=1&retour=${encodeURIComponent(returnTo)}`}
+              >
+                Changer de compte
+              </a>
+            </div>
+          </div>
+        ) : null}
 
         <form
           className="mt-7 space-y-4"

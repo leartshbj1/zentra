@@ -18,8 +18,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     requireAuthSameOrigin(request);
-    const { accessToken, refreshToken } = await readSupabaseAuthCookies();
-    if (!accessToken && !refreshToken) {
+    const { accessToken, refreshToken, signedOut } =
+      await readSupabaseAuthCookies();
+    if (signedOut || (!accessToken && !refreshToken)) {
       return Response.json(
         { authenticated: false },
         { headers: authNoStoreHeaders() },

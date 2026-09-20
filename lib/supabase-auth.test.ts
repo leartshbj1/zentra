@@ -33,6 +33,35 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 describe('Supabase Auth REST', () => {
+  it('verifies only recovery tokens and keeps their session on the server', async () => {
+    const fetcher = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        jsonResponse({
+          access_token: 'recovery-access',
+          refresh_token: 'recovery-refresh',
+          expires_in: 3600,
+          user: {
+            id: 'recovering-account',
+            email: 'recover@example.test',
+            email_confirmed_at: '2026-01-01T00:00:00Z',
+          },
+        }),
+    );
+    const client = createSupabaseAuthClient(
+      configuration,
+      fetcher as typeof fetch,
+    );
+    const session = await client.verifyRecoveryToken('pkce_' + 'a'.repeat(56));
+    expect(session.user.email).toBe('recover@example.test');
+    const [url, init] = fetcher.mock.calls[0];
+    expect(url).toBe('https://example.supabase.co/auth/v1/verify');
+    expect(JSON.parse(String(init?.body))).toEqual({
+      token_hash: 'pkce_' + 'a'.repeat(56),
+      type: 'recovery',
+    });
+    await expect(client.verifyRecoveryToken('invalid')).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('n’accepte qu’une URL sûre et une clé publiable', () => {
     expect(
       validateSupabaseAuthConfiguration({
@@ -139,7 +168,10 @@ describe('Supabase Auth REST', () => {
     ).signUp('new@example.ch', 'mot-de-passe', 'Nouvelle personne', {
       emailRedirectTo: 'https://zentra.ch/api/auth/confirmation',
       codeChallenge: 'a'.repeat(43),
-      legalAcceptance: {version:'2026-09-14',acceptedAt:'2026-09-14T12:00:00.000Z'},
+      legalAcceptance: {
+        version: '2026-09-14',
+        acceptedAt: '2026-09-14T12:00:00.000Z',
+      },
     });
     expect(result.session).toBeNull();
     expect(result.user.email).toBe('new@example.ch');
@@ -161,7 +193,11 @@ describe('Supabase Auth REST', () => {
     expect(JSON.parse(request.body)).toMatchObject({
       code_challenge: 'a'.repeat(43),
       code_challenge_method: 's256',
-      data: {full_name:'Nouvelle personne',zentra_terms_version:'2026-09-14',zentra_terms_accepted_at:'2026-09-14T12:00:00.000Z'},
+      data: {
+        full_name: 'Nouvelle personne',
+        zentra_terms_version: '2026-09-14',
+        zentra_terms_accepted_at: '2026-09-14T12:00:00.000Z',
+      },
     });
   });
 

@@ -198,13 +198,20 @@ export function createSupabaseAuthClient(
         body: {
           email,
           password,
-          ...((displayName || options.legalAcceptance) ? { data: {
-            ...(displayName ? { full_name: displayName } : {}),
-            ...(options.legalAcceptance ? {
-              zentra_terms_version: options.legalAcceptance.version,
-              zentra_terms_accepted_at: options.legalAcceptance.acceptedAt,
-            } : {}),
-          } } : {}),
+          ...(displayName || options.legalAcceptance
+            ? {
+                data: {
+                  ...(displayName ? { full_name: displayName } : {}),
+                  ...(options.legalAcceptance
+                    ? {
+                        zentra_terms_version: options.legalAcceptance.version,
+                        zentra_terms_accepted_at:
+                          options.legalAcceptance.acceptedAt,
+                      }
+                    : {}),
+                },
+              }
+            : {}),
           code_challenge: options.codeChallenge,
           code_challenge_method: 's256',
         },
@@ -284,6 +291,20 @@ export function createSupabaseAuthClient(
           },
         },
       );
+    },
+
+    async verifyRecoveryToken(tokenHash: string): Promise<SupabaseAuthSession> {
+      if (!/^[A-Za-z0-9_-]{32,256}$/.test(tokenHash))
+        throw new SupabaseAuthError(
+          'Lien de récupération invalide.',
+          400,
+          'invalid_recovery_token',
+        );
+      const payload = await request<JsonRecord>('/auth/v1/verify', {
+        method: 'POST',
+        body: { token_hash: tokenHash, type: 'recovery' },
+      });
+      return parseSession(payload);
     },
 
     async updatePassword(accessToken: string, password: string): Promise<void> {
