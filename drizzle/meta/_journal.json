@@ -386,6 +386,13 @@
       "when": 1789904461684,
       "tag": "0054_automation_company_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "6",
+      "when": 1789939480083,
+      "tag": "0055_supplier_inbox",
+      "breakpoints": true
     }
   ]
 }

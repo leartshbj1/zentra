@@ -3,6 +3,7 @@ import type { AutomationActor } from './access';
 import { automationEntitlement } from './service';
 import { globalFlags, settingsFor } from './config';
 import { FEATURES, type Feature } from './types';
+import { inboxDaily } from '@/lib/supplier-inbox/service';
 
 const zone = 'Europe/Zurich';
 const dateFormat = new Intl.DateTimeFormat('en-CA', {
@@ -107,6 +108,7 @@ async function companyActivity(actor: AutomationActor, now: Date) {
     displayName: name && !name.includes('@') ? name.slice(0, 80) : null,
     totals,
     features,
+    supplierInbox: await inboxDaily(actor.organizationId,day.from,day.until),
   };
 }
 

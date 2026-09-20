@@ -1355,3 +1355,10 @@
 .support-guided-help ol {
   list-style: decimal;
 }
+/* Shared mailbox-to-accounting connection, with a compact mobile layout. */
+.support-gestion-link{padding:clamp(20px,3vw,32px);border:1px solid var(--border,#dde2e5);border-radius:24px;background:var(--card,#fff);min-width:0}
+.support-gestion-link__intro{display:flex;gap:16px;align-items:flex-start}.support-gestion-link__intro>span{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:14px;background:#edf4f1;color:#245845}
+.support-gestion-link h3{font-size:clamp(21px,3vw,28px);letter-spacing:-.04em;margin:4px 0 10px}.support-gestion-link p{max-width:65ch;color:#626c72;line-height:1.6}.support-gestion-link__flow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:24px 0;color:#36584e;font-size:14px}
+.support-gestion-link__controls{display:grid;gap:18px;max-width:640px}.support-gestion-link__controls label:not(.support-gestion-link__check){display:grid;gap:7px;font-size:14px}.support-gestion-link select{border:1px solid #dce2de;border-radius:12px;background:transparent;padding:12px;width:100%;min-width:0;font:inherit;color:inherit}
+.support-gestion-link__check{display:flex;gap:12px;align-items:flex-start;font-size:14px}.support-gestion-link__check input{margin-top:4px;flex:none;width:18px;height:18px}.support-gestion-link__check small{display:block;margin-top:5px;color:#626c72;line-height:1.5}.support-gestion-link>.support-small{margin-top:22px;font-size:12px}
+@media(max-width:600px){.support-gestion-link__flow{gap:9px;font-size:12px}.support-gestion-link__intro{gap:12px}.support-gestion-link .support-actions{display:grid}.support-gestion-link button{white-space:normal;height:auto;min-height:44px}.support-gestion-link__intro>span{display:none}}

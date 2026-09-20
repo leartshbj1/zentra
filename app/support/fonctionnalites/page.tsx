@@ -53,8 +53,7 @@ export default function SupportFeatures() {
               décision.
             </li>
             <li>
-              Le texte du ticket est analysé ; les pièces jointes ne le sont
-              pas.
+              Le texte du ticket est analysé. Avec la liaison Gestion, les factures PDF lisibles peuvent aussi être préremplies dans les achats ; les autres justificatifs restent à vérifier.
             </li>
           </ul>
         </div>

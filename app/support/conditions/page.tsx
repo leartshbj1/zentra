@@ -43,7 +43,7 @@ export default function SupportTerms() {
                 sont récupérés périodiquement depuis la date de connexion. Le
                 classement se fait dans Zentra Support ; les messages ne sont ni
                 déplacés, ni supprimés, ni marqués comme lus chez Infomaniak.
-                Les pièces jointes ne sont pas importées. La réception
+                Si vous reliez une entreprise Gestion, les justificatifs PDF, PNG et JPEG admissibles sont conservés dans sa boîte fournisseurs et les PDF lisibles sont analysés pour le préremplissage. Une analyse de document compte dans le volume de votre formule. La comptabilisation automatique nécessite Automation, son activation explicite et les contrôles de Gestion ; elle ne déclenche aucun paiement. Sans cela, une validation humaine reste nécessaire. La réception
                 automatique vise un intervalle de cinq minutes, sans garantie de
                 traitement instantané ; une récupération manuelle est
                 disponible.

@@ -17,6 +17,7 @@ import {
 } from './types';
 import { requireSupportSubscription } from './billing';
 import { ingest, processTicket } from './service';
+import { mailboxCaptureNeeded, captureMailboxInvoices } from '@/lib/supplier-inbox/capture';
 
 type Mailbox = {
   connection_id: string;
@@ -141,6 +142,8 @@ export async function syncMailbox(
   if (!mailbox) return { syncing: true };
   let imported = 0,
     processed = 0;
+  let captured=0,captureDeferred=false;
+  let captureError:string|null=null;
   try {
     const token = await decryptSecret(
       runtimeValue('SUPPORT_ENCRYPTION_KEY'),
@@ -181,7 +184,10 @@ export async function syncMailbox(
         )
         .bind(connection.id, external)
         .first();
-      if (duplicate) continue;
+      const capture=await mailboxCaptureNeeded(workspace.id,connection.id,external);
+      if(capture && captured>=3) captureDeferred=true;
+      if(duplicate && capture && captured>=3) continue;
+      if (duplicate && !capture) continue;
       const active = await db
         .prepare('SELECT active FROM support_connections WHERE id=?')
         .bind(connection.id)
@@ -194,8 +200,12 @@ export async function syncMailbox(
         mailbox.folder_id,
         ref,
       );
-      await ingest(connection, source);
-      imported++;
+      if(capture && captured<3) {
+        if(source.mail?.attachments.length)captured++;
+        try {await captureMailboxInvoices({workspace,connectionId:connection.id,source,token,mailboxId:mailbox.mailbox_id,folderId:mailbox.folder_id,uid:ref.uid});}
+        catch(error){captureError=error instanceof SupportError?error.message:'Certains justificatifs n’ont pas pu être importés dans Gestion. La réception réessaiera ; les tickets Support continuent d’être traités. Pour un document de plus de 6 Mo ou un mail de plus de 12 pièces, utilisez l’import manuel de Gestion.';}
+      }
+      if(!duplicate){await ingest(connection, source);imported++;}
     }
     // Repeat complete scans from the connection date. There is no newest-N cap;
     // restarting each scan also recovers changes to offset pagination during delivery.
@@ -228,10 +238,11 @@ export async function syncMailbox(
     }
     await db
       .prepare(
-        'UPDATE support_mailboxes SET next_sync_at=?,last_error=NULL,lease=NULL,lease_until=0 WHERE connection_id=? AND lease=?',
+        'UPDATE support_mailboxes SET next_sync_at=?,last_error=?,lease=NULL,lease_until=0 WHERE connection_id=? AND lease=?',
       )
       .bind(
-        now() + (more || pending.results.length === 5 ? 30 : 300),
+        now() + (more || captureDeferred || pending.results.length === 5 ? 30 : 300),
+        captureError,
         connection.id,
         lease,
       )

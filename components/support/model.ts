@@ -27,6 +27,7 @@ export type SupportConnection = {
   hookUrl: string;
 };
 export type SupportState = {
+  gestion?: { linked:boolean;organizationId:string|null;autoPost:boolean;choices:{id:string;name:string}[] };
   mailSync?: { background: boolean };
   billing?: SupportBillingState;
   zendesk?: { ready: boolean };

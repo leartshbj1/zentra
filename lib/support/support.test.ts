@@ -26,6 +26,7 @@ import {
 } from './connectors';
 import { CATEGORIES, PRIORITIES, LANGUAGES, type Connection } from './types';
 import { runMailSync } from './mail-sync';
+import * as invoiceCapture from '@/lib/supplier-inbox/capture';
 
 const state = vi.hoisted(() => ({
   signedOut: false,
@@ -47,6 +48,7 @@ vi.mock('@/app/zentra-auth', () => ({
   getZentraUser: async () => (state.signedOut ? null : state.user),
 }));
 vi.mock('@/lib/account', () => ({
+  membershipsForUser: async () => [],
   enforceAccountRateLimit: async () => {},
   normalizedEmail: (v: string) => v.toLowerCase(),
 }));
@@ -616,6 +618,7 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       '0045_support_oauth_rotation',
       '0046_founder_support_access',
       '0052_support_mailboxes',
+      '0055_supplier_inbox',
     ])
       sql.exec(
         readFileSync(
@@ -832,6 +835,20 @@ describe('Parcours complet dans une vraie base SQLite', () => {
         .prepare('SELECT state FROM support_tickets WHERE id=?')
         .get(ticket.id),
     ).toMatchObject({ state: 'routed' });
+  });
+  it('continue les tickets et conserve une erreur lisible si l’import du justificatif échoue', async () => {
+    mockMailbox();
+    const c = await json(await post({ action:'connectMailbox', email:'inbox@example.test', apiKey:'mailbox-token' }));
+    const needed=vi.spyOn(invoiceCapture,'mailboxCaptureNeeded').mockResolvedValue(true);
+    const capture=vi.spyOn(invoiceCapture,'captureMailboxInvoices').mockRejectedValue(new Error('private-internal-storage-path'));
+    try {
+      expect(await json(await post({action:'syncMailbox',connectionId:c.connectionId}))).toMatchObject({imported:1,processed:1});
+      const mailbox=sql.prepare('SELECT last_error,lease_until FROM support_mailboxes').get() as any;
+      expect(mailbox.last_error).toContain('justificatifs');
+      expect(mailbox.last_error).not.toContain('private-internal');
+      expect(mailbox.lease_until).toBe(0);
+      expect(sql.prepare('SELECT COUNT(*) AS n FROM support_tickets').get()).toMatchObject({n:1});
+    } finally {needed.mockRestore();capture.mockRestore();}
   });
   it('reprend une lecture interrompue sans avancer le curseur ni exposer la clé', async () => {
     mockMailbox({ failRead: true });

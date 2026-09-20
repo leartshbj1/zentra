@@ -88,7 +88,7 @@ export default function SupportSecurity() {
               <strong>Réception</strong>
               <p>
                 L’objet et le texte sont transmis depuis votre outil connecté.
-                Les pièces jointes ne sont pas importées.
+                Les pièces jointes restent dans votre outil sauf activation de la réception fournisseurs vers Gestion. Les justificatifs sont alors conservés dans un espace privé de l’entreprise et leurs extraits utiles servent au préremplissage.
               </p>
             </li>
             <li>

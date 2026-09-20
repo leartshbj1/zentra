@@ -30,6 +30,7 @@ import {
 import { hasAdminSession } from './admin-session';
 import { connectMailbox, mailboxStates, syncMailbox } from './mail-sync';
 import { MAIL_DIRECTORY } from './infomaniak';
+import { gestionLinkState, saveGestionLink } from '@/lib/supplier-inbox/service';
 import { attachSupportAccess } from './founder-access';
 import {
   rememberSupportOwner,
@@ -395,6 +396,7 @@ export async function getWorkspaceState(request: Request) {
     },
     connections: connections.results.map(publicConnection),
     mailboxes: await mailboxStates(workspace.id),
+    gestion: await gestionLinkState(workspace.id,user.userId,manage),
     mailSync: {
       background: runtimeValue('SUPPORT_MAIL_BACKGROUND_ENABLED') === '1',
     },
@@ -526,6 +528,7 @@ export async function mutateWorkspace(request: Request) {
       'settings',
       'connect',
       'connectMailbox',
+      'linkGestion',
       'syncMailbox',
       'syncMailboxes',
       'startZendesk',
@@ -671,6 +674,10 @@ export async function mutateWorkspace(request: Request) {
       ),
       201,
     );
+  }
+  if(action==='linkGestion') {
+    await requireSupportSubscription(workspace);
+    return supportJson(await saveGestionLink(workspace,user.userId,body));
   }
   if (action === 'syncMailboxes') {
     await enforceAccountRateLimit(

@@ -56,6 +56,7 @@ export type Decision = {
   };
 };
 export type SourceTicket = {
+  mail?: { sender: string; attachments: { id: string; name: string; size: number }[] };
   externalId: string;
   subject: string;
   body: string;

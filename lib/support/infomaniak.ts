@@ -265,6 +265,8 @@ export async function readMail(
   const subject = text(m.subject, 300) || 'Mail sans objet';
   return {
     externalId: await mailExternalId(mailboxId, folderId, ref.uid),
+    mail: { sender: Array.isArray(m.from) ? text(record(m.from[0]).email,254).toLowerCase() : '',
+      attachments: (Array.isArray(m.attachments)?m.attachments:[]).map(record).filter(a=>!a.is_inline&&/\.(pdf|png|jpe?g)$/i.test(text(a.name))).map(a=>({id:String(a.resource?String(a.resource).split('/').pop():a.part_id??''),name:text(a.name,180),size:Number(a.size||0)})).filter(a=>a.id) },
     subject,
     body: `${from ? `De : ${from}\n\n` : ''}${body || subject}`.slice(0, 24000),
     version: String(m.date ?? ref.date ?? ''),
@@ -277,4 +279,16 @@ export async function readMail(
       !!m.has_attachments ||
       (Array.isArray(m.attachments) && m.attachments.length > 0),
   };
+}
+
+/** Fetch only the fixed provider endpoint, never an attachment-controlled URL. */
+export async function readMailAttachment(token:string,mailboxId:string,folderId:string,uid:string,id:string,fetcher:typeof fetch=fetch) {
+  const response=await fetcher(`${ORIGIN}/mail/${segment(mailboxId)}/folder/${segment(folderId)}/message/${segment(uid)}/attachment/${segment(id)}`,{headers:{Authorization:`Bearer ${token}`},redirect:'manual',signal:AbortSignal.timeout(15000)});
+  if(!response.ok) throw new SupportError('La pièce jointe est indisponible. La réception sera réessayée.',503);
+  const max=6*1024*1024;
+  if(Number(response.headers.get('content-length'))>max) throw new SupportError('Une pièce jointe dépasse 6 Mo. Importez-la directement dans Gestion.');
+  const reader=response.body?.getReader();if(!reader) throw new SupportError('Pièce jointe vide.',502);
+  const chunks:Uint8Array[]=[];let size=0;
+  try { for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>max){await reader.cancel();throw new SupportError('Une pièce jointe dépasse 6 Mo. Importez-la directement dans Gestion.');}chunks.push(part.value);} } finally {reader.releaseLock();}
+  const result=new Uint8Array(size);let offset=0;for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.length;}return result;
 }

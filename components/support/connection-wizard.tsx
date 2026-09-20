@@ -224,7 +224,7 @@ export function ConnectionWizard({
                         ? 'La réception continue lorsque cette page est fermée.'
                         : 'Gardez votre espace Support ouvert pour la réception automatique. La réception lorsque la page est fermée n’est pas encore active.'}{' '}
                       Le texte est analysé par le service de tri de Zentra ; les
-                      pièces jointes ne sont pas importées. Aucun mail n’est
+                      pièces jointes ne sont importées que si vous reliez ensuite votre entreprise Gestion. Aucun mail n’est
                       envoyé, déplacé ou supprimé.
                     </p>
                   </>

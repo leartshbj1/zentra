@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { ConnectionWizard } from './connection-wizard';
+import { GestionLink } from './gestion-link';
 import { Check, Copy, KeyRound, Link2, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -198,6 +199,7 @@ export function ConnectionsPanel({
           <Plus size={18} /> Ajouter une connexion
         </Button>
       </div>
+      <GestionLink key={data.workspace?.id} data={data} mutate={mutate} busy={busy} demo={demo}/>
       {data.connections.length === 0 && (
         <div className="support-empty support-card">
           <Link2 size={30} />
