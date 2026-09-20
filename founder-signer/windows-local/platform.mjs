@@ -36,10 +36,13 @@ export async function desktopAccount(options={}){
  try{const clear=(options.unprotect||dpapi)(await (options.read||readFile)(file));try{session=JSON.parse(clear.toString('utf8'));}finally{clear.fill(0);}}catch{return {connected:false,message:'Aucun compte Zentra associé à ce PC. Connectez-vous dans Zentra → Paramètres → Compte et accès.'};}
  if(session.version!==1||typeof session.session_token!=='string'||!session.session_token||session.session_token.length>1024||!Number.isFinite(Date.parse(session.session_expires_at))||Date.parse(session.session_expires_at)<=Date.now())return {connected:false,message:'Reconnectez votre compte dans Zentra pour retrouver son adresse.'};
  try{
+  const identity=(options.unprotect||dpapi)(await (options.read||readFile)(path.join(path.dirname(file),'installation-identity.dpapi')));
+  let installationId;try{installationId=identity.toString('utf8').trim();}finally{identity.fill(0);}
+  if(!installationId||session.installation_id!==installationId)return {connected:false,message:'L’ancienne connexion ne correspond pas à cette installation. Reconnectez le compte dans Zentra.'};
   const res=await (options.fetcher||fetch)('https://zentraapp.ch/api/account/me',{headers:{Authorization:'Bearer '+session.session_token},redirect:'manual',signal:AbortSignal.timeout(12000)});
   if(!res.ok)return {connected:false,message:'Le compte associé au PC doit être reconnecté dans Zentra.'};
   const body=await res.json();
-  if(typeof body.email!=='string'||body.email.length>254||!body.email.includes('@')||body.organization?.id!==session.organization_id)throw Error('Réponse invalide');
+  if(typeof body.email!=='string'||body.email.length>254||!body.email.includes('@')||body.organization?.id!==session.organization_id||body.installationId!==installationId)throw Error('Réponse invalide');
   return {connected:true,email:body.email,organizationName:String(body.organization.name||'').slice(0,160),organizationId:body.organization.id,role:body.organization.role};
  }catch{return {connected:false,message:'Impossible de vérifier le compte du PC pour le moment. Vous pouvez saisir un e-mail manuellement.'};}
  finally{session.session_token='';}

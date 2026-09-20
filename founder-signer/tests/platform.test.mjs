@@ -25,9 +25,10 @@ test('an uncertain key write is DPAPI protected, redacted from status and resume
  }finally{assert(path.resolve(root).startsWith(path.join(os.tmpdir(),'zentra-key-test-')));await rm(root,{recursive:true});}
 });
 test('desktop account detection returns verified identity only and keeps its token out of the renderer',async()=>{
- const token='fixture-device-secret',session={version:1,session_token:token,organization_id:'org_a',session_expires_at:new Date(Date.now()+86400000).toISOString()};
- const options={read:async()=>Buffer.from('protected'),unprotect:()=>Buffer.from(JSON.stringify(session)),fetcher:async(url,opts)=>{assert.equal(url,'https://zentraapp.ch/api/account/me');assert.equal(opts.headers.Authorization,'Bearer '+token);assert.equal(opts.redirect,'manual');return new Response(JSON.stringify({email:'connected@example.invalid',organization:{id:'org_a',name:'Test company',role:'owner'},unexpectedSecret:token}));}};
+ const token='fixture-device-secret',session={version:1,session_token:token,installation_id:'installation_a',organization_id:'org_a',session_expires_at:new Date(Date.now()+86400000).toISOString()};
+ const options={read:async(file)=>Buffer.from(file.endsWith('installation-identity.dpapi')?'installation_a':JSON.stringify(session)),unprotect:b=>Buffer.from(b),fetcher:async(url,opts)=>{assert.equal(url,'https://zentraapp.ch/api/account/me');assert.equal(opts.headers.Authorization,'Bearer '+token);assert.equal(opts.redirect,'manual');return new Response(JSON.stringify({email:'connected@example.invalid',installationId:'installation_a',organization:{id:'org_a',name:'Test company',role:'owner'},unexpectedSecret:token}));}};
  const result=await desktopAccount(options);assert.equal(result.email,'connected@example.invalid');assert(!JSON.stringify(result).includes(token));
  assert.equal((await desktopAccount({...options,fetcher:async()=>new Response('{}',{status:401})})).connected,false);
  assert.equal((await desktopAccount({...options,fetcher:async()=>new Response(JSON.stringify({email:'test@example.invalid',organization:{id:'other'}}))})).connected,false);
+ session.installation_id='old_test_installation';let called=false;assert.equal((await desktopAccount({...options,fetcher:async()=>{called=true;throw Error('Must not use a foreign installation session');}})).connected,false);assert.equal(called,false);
 });

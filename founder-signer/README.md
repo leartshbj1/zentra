@@ -2,7 +2,7 @@
 
 Application Windows personnelle du fondateur pour accorder un accès Zentra à partir d’une adresse e-mail.
 
-## Version locale compatible Windows — 1.4.1
+## Version locale compatible Windows — 1.4.2
 
 Le raccourci **Zentra Fondateur** ouvre maintenant une fenêtre dédiée de Microsoft Edge. Le traitement reste sur ce PC, avec le moteur Node.js officiellement signé par OpenJS et PowerShell fourni par Microsoft. L’installation ne désactive aucune protection Windows et n’ajoute aucun certificat de confiance ni exception antivirus.
 
