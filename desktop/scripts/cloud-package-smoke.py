@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shutil
 import sqlite3
 import subprocess
 import tarfile
@@ -67,7 +68,24 @@ def main():
         install_dir = root / 'application'
         subprocess.run([str(installer), '/S', '/D=' + str(install_dir)], check=True, timeout=180)
         exe = install_dir / 'Zentra.exe'
-        assert hashlib.sha256(exe.read_bytes()).hexdigest() == hashes['Zentra.exe']
+        # NSIS can hand off to a child installer. Wait for the exact payload,
+        # rather than reading the executable while the child is extracting it.
+        deadline = time.monotonic() + 30
+        actual_hash = None
+        while time.monotonic() < deadline:
+            if exe.is_file():
+                actual_hash = hashlib.sha256(exe.read_bytes()).hexdigest()
+                if actual_hash == hashes['Zentra.exe']:
+                    break
+            time.sleep(1)
+        if actual_hash != hashes['Zentra.exe']:
+            evidence = dict(expected=hashes['Zentra.exe'], actual=actual_hash,
+                            installedBytes=exe.stat().st_size if exe.is_file() else None)
+            print(json.dumps(evidence), flush=True)
+            (out / 'installer-mismatch.json').write_text(json.dumps(evidence, indent=2))
+            if exe.is_file():
+                shutil.copy2(exe, out / 'installed-Zentra.exe')
+            raise RuntimeError('Installed executable differs from the verified build payload')
     else:
         assert download('SOURCE.txt').read_text().strip() == args.source
         name = f'Zentra_{version}_macos-universal.app.tar.gz'
