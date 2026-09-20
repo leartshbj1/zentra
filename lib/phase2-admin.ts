@@ -24,8 +24,7 @@ export async function phase2Read(action:Action):Promise<unknown|Response>{
     const {url,secretKey}=supabaseRealtimeConfiguration();
     if(!url.startsWith('https://')||!secretKey)throw new AccountPublicError('Stockage non configuré.',503);
     const path=action.operation==='supabase-users'?'/auth/v1/admin/users?page=1&per_page=1000':action.operation==='supabase-buckets'?'/storage/v1/bucket':action.operation==='supabase-objects'?`/storage/v1/object/list/${encodeURIComponent(action.bucket!)}`:`/storage/v1/object/authenticated/${encodeURIComponent(action.bucket!)}/${action.key!.split('/').map(encodeURIComponent).join('/')}`;
-    const headers:Record<string,string>={apikey:secretKey,'Content-Type':'application/json'};
-    if(!secretKey.startsWith('sb_secret_'))headers.Authorization=`Bearer ${secretKey}`;
+    const headers:Record<string,string>={apikey:secretKey,Authorization:`Bearer ${secretKey}`,'Content-Type':'application/json'};
     const response=await fetch(`${url}${path}`,{method:action.operation==='supabase-objects'?'POST':'GET',headers,redirect:'error',signal:AbortSignal.timeout(30000),...(action.operation==='supabase-objects'?{body:JSON.stringify({prefix:action.prefix,offset:action.offset,limit:100,sortBy:{column:'name',order:'asc'}})}:{})});
     if(!response.ok)throw new AccountPublicError(`Lecture de sécurité Supabase impossible (${response.status}).`,502);
     if(action.operation==='supabase-object')return new Response(response.body,{headers:{'Content-Type':'application/octet-stream','Cache-Control':'no-store'}});
@@ -37,8 +36,7 @@ export async function phase2Read(action:Action):Promise<unknown|Response>{
     const totals=(await database().prepare(schema.map(table=>`SELECT '${table.name}' AS name,COUNT(*) AS n FROM "${table.name}"`).join(' UNION ALL ')).all<{name:string;n:number}>()).results;
     for(const table of schema){
       if(!/^[a-z_][a-z0-9_]*$/.test(table.name))throw new AccountPublicError('Schéma inattendu.',409);
-      const fks=await database().prepare(`PRAGMA foreign_key_list("${table.name}")`).all();
-      counts.push({...table,count:totals.find(row=>row.name===table.name)?.n??0,foreignKeys:fks.results});
+      counts.push({...table,count:totals.find(row=>row.name===table.name)?.n??0});
     }
     return {tables:counts,triggers:(await database().prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all()).results};
   }
