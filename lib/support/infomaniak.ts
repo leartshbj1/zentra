@@ -182,7 +182,16 @@ export async function verifyMailbox(
     // The optional virtual-folder expansion can fail independently of IMAP folders.
     // Retry only provider 5xx errors, at the same authorized mailbox and endpoint.
     if (!(error instanceof MailProviderError) || error.providerStatus < 500) throw error;
-    folders = await mailRequest(token, folderPath, fetcher);
+    try {
+      folders = await mailRequest(token, folderPath, fetcher);
+    } catch (fallbackError) {
+      if (fallbackError instanceof MailProviderError && fallbackError.providerStatus >= 500)
+        throw new MailProviderError(
+          'Votre boîte est reconnue, mais Infomaniak renvoie une erreur à l’ouverture des dossiers. Réessayez plus tard. Si cela continue, signalez cette erreur au support Infomaniak.',
+          fallbackError.providerStatus,
+        );
+      throw fallbackError;
+    }
   }
   const flatten = (items: unknown, depth = 0): Record<string, unknown>[] =>
     Array.isArray(items) && depth < 10

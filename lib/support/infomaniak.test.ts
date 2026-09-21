@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { listMail, mailRequest, normalizeMailToken, readMail, verifyMailbox } from './infomaniak';
 
 describe('API Infomaniak', () => {
+  it('distingue une boîte reconnue et une erreur interne persistante des dossiers', async () => {
+    const fetcher=vi.fn(async(url:string|URL|Request)=>String(url).includes('/mailbox?')
+      ?Response.json({result:'success',data:[{uuid:'box',email:'info@example.test'}]})
+      :Response.json({error:{code:'unexpected_error'}},{status:500}));
+    await expect(verifyMailbox('info@example.test','token',fetcher)).rejects.toMatchObject({status:503,message:expect.stringContaining('Votre boîte est reconnue')});
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
   it('reprend les dossiers standards si les dossiers virtuels échouent', async () => {
     const fetcher = vi.fn(async (url: string | URL | Request) => {
       if (String(url).includes('/mailbox?')) return Response.json({result:'success',data:[{uuid:'my-box',email:'info@example.test'}]});
