@@ -979,7 +979,7 @@ export async function ingest(connection: Connection, source: SourceTicket) {
       'Ce ticket ne contient pas encore de texte à analyser.',
     );
   const db = database(),
-    hash = await digest(JSON.stringify([source.subject, mailAnalysisBody(source)]));
+    hash = await digest(JSON.stringify([source.subject, mailAnalysisBody(source), !!source.incomplete]));
   await db
     .prepare(
       `INSERT INTO support_tickets(id,workspace_id,connection_id,external_id,subject,body,source_json,fingerprint,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(connection_id,external_id) DO NOTHING`,

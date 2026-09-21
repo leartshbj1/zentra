@@ -36,6 +36,14 @@ it('keeps scans, failed reads and unsupported attachments for human review', asy
   const extra=source();extra.mail!.attachmentCount=2;
   expect((await prepareMailDocuments(extra,async()=>pdf)).source.incomplete).toBe(true);
 });
+it('accepts the same calendar inline and attached but keeps different calendars for review',async()=>{
+ const mail=source();mail.mail!.attachments=[{id:'1:0',name:'inline.ics',size:120},{id:'1:1',name:'invitation.ics',size:120}];mail.mail!.attachmentCount=2;
+ const calendar='BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:meeting-1\r\nSUMMARY:Visite\r\nEND:VEVENT\r\nEND:VCALENDAR';
+ const duplicate=await prepareMailDocuments(mail,async id=>new TextEncoder().encode(id==='1:0'?calendar:calendar.replace(/\r\n/g,'\n')));
+ expect(duplicate.source.incomplete).toBe(false);expect(duplicate.documents.size).toBe(0);
+ const different=await prepareMailDocuments(mail,async id=>new TextEncoder().encode(id==='1:0'?calendar:calendar.replace('meeting-1','meeting-2')));
+ expect(different.source.incomplete).toBe(true);
+});
 it('does not silently truncate documents or large mail bodies and caps attachment reads', async () => {
   const long=source();long.body='x'.repeat(22990);
   const result=await prepareMailDocuments(long,async()=>pdf);

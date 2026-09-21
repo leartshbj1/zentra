@@ -66,6 +66,7 @@ export async function captureAppointment(
       source.subject,
       source.body,
       source.mail.calendarText || '',
+      !!source.incomplete,
     ]),
   );
   const already = await database()

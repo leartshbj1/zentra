@@ -19,7 +19,12 @@ export async function prepareMailDocuments(
       const bytes = await read(attachment.id);
       if (/\.ics$/i.test(attachment.name) && bytes.length <= 32000) {
         const calendar = new TextDecoder().decode(bytes);
-        if (calendar.includes('BEGIN:VCALENDAR') && !calendarText) {calendarText=calendar;excerpts.push(`Calendrier joint : ${attachment.name}\n${calendar}`);continue;}
+        if (calendar.includes('BEGIN:VCALENDAR')) {
+          if (!calendarText) {calendarText=calendar;excerpts.push(`Calendrier joint : ${attachment.name}\n${calendar}`);continue;}
+          // Mail providers may expose the same invitation inline and as an attachment.
+          // Only identical calendar content is redundant; distinct events still require review.
+          if (calendar.replace(/\r\n/g,'\n').trim() === calendarText.replace(/\r\n/g,'\n').trim()) continue;
+        }
       }
       const media = invoiceMedia(bytes);
       const text = media ? await invoiceText(bytes, media) : '';
