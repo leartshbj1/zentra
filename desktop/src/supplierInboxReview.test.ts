@@ -10,8 +10,8 @@ describe('Préparation de la confirmation finale',()=>{
     const item={...invoice,extraction:{...invoice.extraction,kind:'supplier_invoice',confidence:0,kindConfidence:.99,fieldConfidence:{supplierName:.98,vatCents:0}}};
     expect(canPrepareMailboxSupplier(item)).toBe(true);
     expect(canPrepareMailboxSupplier({...item,extraction:{...item.extraction,fieldConfidence:{supplierName:.7}}})).toBe(false);
-    expect(canPrepareMailboxSupplier({...item,extraction:{...item.extraction,kind:'other'}})).toBe(false);
-    expect(canPrepareMailboxSupplier({...item,extraction:{...item.extraction,kindConfidence:.8}})).toBe(false);
+    expect(canPrepareMailboxSupplier({...item,extraction:{...item.extraction,kind:'other'}})).toBe(true);
+    expect(canPrepareMailboxSupplier({...item,extraction:{...item.extraction,kindConfidence:.8}})).toBe(true);
   });
   it('reconnaît un fournisseur unique même sans adresse e-mail et respecte les doublons',()=>{
     const noMail={...workspace,suppliers:[{...workspace.suppliers[0],email:''}]};

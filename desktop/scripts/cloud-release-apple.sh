@@ -14,7 +14,7 @@ prepare)
   ;;
 test)
   mkdir -p desktop/artifacts/validation
-  pnpm --dir desktop exec vitest run src/companyAccount.test.ts src/companyRealtime.test.ts src/projectSyncScheduler.test.ts src/automationCompanySession.test.ts src/appReleaseNotes.test.ts src/automationDailySummary.test.tsx src/automationHub.test.tsx src/supplierInboxReview.test.ts src/languageCatalogCoverage.test.ts src/projectReport.test.ts \
+  pnpm --dir desktop exec vitest run src/companyAccount.test.ts src/companyRealtime.test.ts src/projectSyncScheduler.test.ts src/automationCompanySession.test.ts src/appReleaseNotes.test.ts src/automationDailySummary.test.tsx src/automationHub.test.tsx src/supplierInboxReview.test.ts src/supplierInboxBatch.test.ts src/languageCatalogCoverage.test.ts src/projectReport.test.ts \
     2>&1 | tee desktop/artifacts/validation/ui-tests.log
   pnpm --dir desktop build:web
   cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib company_ -- --nocapture --test-threads=1 \

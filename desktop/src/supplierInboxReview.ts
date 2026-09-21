@@ -10,11 +10,9 @@ export const inboxCategoryLabels: Record<string,string> = { materials:'Matériel
 export function canPrepareMailboxSupplier(item: MailInvoice) {
   const e = item.extraction;
   const nameConfidence = e.fieldConfidence?.supplierName ?? e.confidence;
-  const kindConfidence = e.kindConfidence ?? e.fieldConfidence?.kind ?? e.confidence;
-  return (!e.kind || e.kind === 'supplier_invoice') && !!normalized(e.supplierName || '')
+  return !!normalized(e.supplierName || '')
     && (e.supplierName?.length || 0) <= 200
-    && Number.isFinite(nameConfidence) && nameConfidence >= .95
-    && Number.isFinite(kindConfidence) && kindConfidence >= .95;
+    && Number.isFinite(nameConfidence) && nameConfidence >= .95;
 }
 
 /** Only reuse a unique supplier and an unambiguous, already validated classification. */

@@ -2,10 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { desktopApi } from './bridge';
 import type { Workspace } from './types';
+import { prepareMailboxBatch, type MailboxBatch } from './supplierInboxBatch';
 import {
-  mailboxInvoiceDefaults,
   canPrepareMailboxSupplier,
-  normalizedSupplier,
 } from './supplierInboxReview';
 export type SupplierHabit = {
   id: string;
@@ -212,15 +211,9 @@ export function useSupplierInbox(
       void refresh();
     }
   };
-  const [batch, setBatch] = useState<{
-    done: number;
-    total: number;
-    results: { id: string; label: string; outcome: string }[];
-  } | null>(null);
-  useEffect(() => {
-    setBatch(null);
-  }, [org]);
-  const prepareAll = async (workspace: Workspace) => {
+  const [batch, setBatch] = useState<MailboxBatch | null>(null);
+  useEffect(() => { setBatch(null); }, [org]);
+  const prepareAll = async (_workspace?: Workspace) => {
     if (!org || readOnly || !state?.prepareEnabled) return;
     if (running.current) {
       setError('La réception s’actualise. Réessayez dans un instant.');
@@ -229,139 +222,30 @@ export function useSupplierInbox(
     setError('');
     running.current = true;
     setBusy(true);
-    const queue = pendingMailInvoices(state).filter((i) => !i.otherDevice),
-      results: { id: string; label: string; outcome: string }[] = [];
-    setBatch({ done: 0, total: queue.length, results: [] });
-    let local = workspace;
+    const isCurrent = () => current.current.org === org && !current.current.blocked();
     try {
-      for (const item of queue) {
-        if (current.current.org !== org) break;
-        let outcome = '';
-        try {
-          if (state.autoPost && item.state === 'ready')
-            try {
-              const r = await inboxRequest<{
-                saved?: boolean;
-                posted?: boolean;
-              }>({ action: 'import', id: item.id, automatic: true });
-              if (r.saved)
-                outcome = r.posted
-                  ? 'Comptabilisée'
-                  : 'Brouillon préparé · à confirmer';
-            } catch {
-              /* Prepare a reviewed draft below, preserving the posting guard. */
-            }
-          if (!outcome) {
-            const e = item.extraction;
-            if (
-              e.currency !== 'CHF' ||
-              !e.reference ||
-              !e.invoiceDate ||
-              !e.dueDate ||
-              e.netCents === null ||
-              e.netCents <= 0 ||
-              e.vatBp === null ||
-              e.vatCents === null ||
-              e.totalCents !== e.netCents + e.vatCents ||
-              Math.round((e.netCents * e.vatBp) / 10000) !== e.vatCents
-            )
-              throw Error('Vérifiez les dates, la référence ou les montants.');
-            const defaults = mailboxInvoiceDefaults(item, local, state.habits);
-            const habit = state.habits?.find(
-              (h) =>
-                h.sender === item.sender.trim().toLowerCase() &&
-                h.supplierName === normalizedSupplier(e.supplierName || '') &&
-                local.suppliers.some(
-                  (s) => s.id === h.supplierId && !s.archivedAt,
-                ),
-            );
-            let supplier = habit?.supplierId || defaults.supplierId;
-            if (!supplier) {
-              if (
-                !canPrepareMailboxSupplier(item) ||
-                local.suppliers.some(
-                  (s) =>
-                    !s.archivedAt &&
-                    normalizedSupplier(s.name) ===
-                      normalizedSupplier(e.supplierName || ''),
-                )
-              )
-                throw Error(
-                  'Choisissez le fournisseur parmi les correspondances.',
-                );
-              const prepared = await inboxRequest<{ supplierId: string }>({
-                action: 'prepareSupplier',
-                id: item.id,
-              });
-              supplier = prepared.supplierId;
-              local = await desktopApi.loadWorkspace();
-            }
-            if (current.current.org !== org) break;
-            const category = defaults.category;
-            if (!category)
-              throw Error('Choisissez le classement de cet achat.');
-            const account =
-              habit &&
-              normalizedSupplier(habit.category) ===
-                normalizedSupplier(category) &&
-              local.accounts.some(
-                (a) =>
-                  a.id === habit.accountId &&
-                  a.active &&
-                  a.accountType === 'expense',
-              )
-                ? habit.accountId
-                : defaults.accountId;
-            const saved = await inboxRequest<{ id: string }>({
-              action: 'import',
-              id: item.id,
-              automatic: false,
-              confirm: false,
-              invoice: {
-                supplier_id: supplier,
-                date: e.invoiceDate,
-                due_date: e.dueDate,
-                reference: e.reference,
-                items: [
-                  {
-                    description: `Facture ${e.reference}`,
-                    quantity_milli: 1000,
-                    unit_price_cents: e.netCents,
-                    vat_bp: e.vatBp,
-                    category,
-                    expense_account_id: account || null,
-                  },
-                ],
-              },
-            });
-            local = await desktopApi.loadWorkspace();
-            outcome =
-              local.supplierInvoices.find((i) => i.id === saved.id)
-                ?.documentStatus === 'validated'
-                ? 'Comptabilisée'
-                : 'Brouillon préparé · à confirmer';
-          }
-        } catch (e) {
-          outcome = String(e instanceof Error ? e.message : e);
-        }
-        results.push({
-          id: item.id,
-          label: item.extraction.reference || item.fileName,
-          outcome,
-        });
-        if (current.current.org === org)
-          setBatch({
-            done: results.length,
-            total: queue.length,
-            results: [...results],
-          });
-      }
-      if (current.current.org === org) {
-        const w = await desktopApi.loadWorkspace();
-        if (current.current.org === org) current.current.onWorkspace(w);
-        window.dispatchEvent(new Event('zentra-automation-updated'));
-      }
+      const latest = await inboxRequest<SupplierInboxState>();
+      if (!isCurrent() || latest.organizationId !== org) return;
+      setState(latest);
+      await prepareMailboxBatch(latest, {
+        request: inboxRequest,
+        loadWorkspace: desktopApi.loadWorkspace,
+        isCurrent,
+        progress: next => { if (isCurrent()) setBatch(next); },
+      });
+    } catch (reason) {
+      if (current.current.org === org) setError(String(reason instanceof Error ? reason.message : reason));
     } finally {
+      // Supplier preparation may succeed even if an invoice needs an amount corrected.
+      if (current.current.org === org) {
+        try {
+          const workspace = await desktopApi.loadWorkspace();
+          if (current.current.org === org) current.current.onWorkspace(workspace);
+          window.dispatchEvent(new Event('zentra-automation-updated'));
+        } catch (reason) {
+          if (current.current.org === org) setError(String(reason instanceof Error ? reason.message : reason));
+        }
+      }
       running.current = false;
       setBusy(false);
       void refresh();

@@ -38,17 +38,11 @@ fn prepare_supplier(store: &LocalStore, item: &Value) -> AppResult<Value> {
         .as_f64()
         .or_else(|| e["confidence"].as_f64())
         .unwrap_or(0.);
-    let kind_confidence = e["kindConfidence"]
-        .as_f64()
-        .or_else(|| e["fieldConfidence"]["kind"].as_f64())
-        .or_else(|| e["confidence"].as_f64())
-        .unwrap_or(0.);
+    // A named supplier can be prepared even while the document type needs review.
+    // This does not validate the invoice: automatic_draft keeps its own posting guards.
     if name.len() > 200
-        || e["kind"] != "supplier_invoice"
         || !name_confidence.is_finite()
         || name_confidence < 0.95
-        || !kind_confidence.is_finite()
-        || kind_confidence < 0.95
         || normalized(name).is_empty()
     {
         return Err(invalid("Vérifiez le nom du fournisseur."));
@@ -652,7 +646,28 @@ mod tests {
         assert!(prepare_supplier(&store, &item).is_err());
         item["extraction"]["fieldConfidence"]["supplierName"] = json!(0.99);
         item["extraction"]["kind"] = json!("other");
-        assert!(prepare_supplier(&store, &item).is_err());
+        assert_eq!(prepare_supplier(&store, &item).unwrap()["created"], false);
+        assert!(automatic_draft(&store, &item).is_err());
+    }
+    #[test]
+    fn prepares_vendors_for_a_batch_without_validating_uncertain_documents() {
+        let (_d, store, original, _, _) = fixture();
+        let mut ids = Vec::new();
+        for i in 0..12 {
+            let mut item = original.clone();
+            item["extraction"]["supplierName"] = json!(format!("Fournisseur du lot {} SA", i % 4));
+            item["extraction"]["kind"] = json!("unknown");
+            item["extraction"]["confidence"] = json!(0.0);
+            item["extraction"]["fieldConfidence"] = json!({"supplierName":0.99});
+            let resolved = prepare_supplier(&store, &item).unwrap();
+            if i < 4 { ids.push(resolved["supplierId"].clone()); }
+            assert_eq!(resolved["supplierId"], ids[i % 4]);
+            assert_eq!(resolved["created"], i < 4);
+            assert!(automatic_draft(&store, &item).is_err());
+        }
+        let db = store.connect().unwrap();
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM suppliers", [], |r| r.get::<_,i64>(0)).unwrap(), 5);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM supplier_invoices", [], |r| r.get::<_,i64>(0)).unwrap(), 0);
     }
     #[test]
     fn unique_supplier_needs_no_email_and_ambiguity_requires_a_choice() {
