@@ -1,12 +1,14 @@
 import { database, fileArchive } from '@/lib/runtime';
 import { AccountPublicError } from '@/lib/account-security';
 import { supabaseRealtimeConfiguration } from '@/lib/supabase-server-runtime';
+import { parsePhase2Reset, phase2Reset } from './phase2-reset';
 export const PHASE2_PATH='/api/founder/phase2';
 export const PHASE2_DOMAIN='zentra-phase2-audit-v1\n';
 type Action={operation:'inventory'|'table'|'objects'|'object'|'supabase-users'|'supabase-buckets'|'supabase-objects'|'supabase-object';table?:string;offset?:number;cursor?:string;key?:string;bucket?:string;prefix?:string};
-export function parsePhase2Action(input:unknown):Action {
+export function parsePhase2Action(input:unknown):Action | ReturnType<typeof parsePhase2Reset> {
   if(!input||typeof input!=='object'||Array.isArray(input))throw new AccountPublicError('Commande invalide.');
   const a=input as Record<string,unknown>;
+  if(String(a.operation).startsWith('reset-'))return parsePhase2Reset(a);
   if(!['inventory','table','objects','object','supabase-users','supabase-buckets','supabase-objects','supabase-object'].includes(String(a.operation))||Object.keys(a).some(k=>!['operation','table','offset','cursor','key','bucket','prefix'].includes(k)))throw new AccountPublicError('Commande inconnue.');
   if(a.operation==='table'&&(typeof a.table!=='string'||!/^[a-z][a-z0-9_]{0,80}$/.test(a.table)||!Number.isSafeInteger(a.offset)||Number(a.offset)<0))throw new AccountPublicError('Table ou pagination invalide.');
   if(a.operation==='objects'&&a.cursor!==undefined&&(typeof a.cursor!=='string'||a.cursor.length>4096))throw new AccountPublicError('Pagination invalide.');
@@ -19,7 +21,11 @@ export function parsePhase2Action(input:unknown):Action {
   return a as Action;
 }
 async function tables(){return (await database().prepare("SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'd1_%' ORDER BY name").all<{name:string;sql:string}>()).results;}
-export async function phase2Read(action:Action):Promise<unknown|Response>{
+export async function phase2Read(action:Action | ReturnType<typeof parsePhase2Reset>):Promise<unknown|Response>{
+  if(action.operation.startsWith('reset-'))return phase2Reset(action as ReturnType<typeof parsePhase2Reset>);
+  return phase2AuditRead(action as Action);
+}
+async function phase2AuditRead(action:Action):Promise<unknown|Response>{
   if(action.operation.startsWith('supabase-')) {
     const {url,secretKey}=supabaseRealtimeConfiguration();
     if(!url.startsWith('https://')||!secretKey)throw new AccountPublicError('Stockage non configuré.',503);

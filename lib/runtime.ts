@@ -26,6 +26,7 @@ type RuntimeBindings = {
   SUPPORT_ADMIN_TOKEN_SHA256?: string;
   SUPPORT_ADMIN_SESSION_KEY?: string;
   PHASE2_RESET_MODE?: string;
+  PHASE2_RESET_BACKUP_SHA256?: string;
 };
 
 const bindings = env as unknown as RuntimeBindings;
