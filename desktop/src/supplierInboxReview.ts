@@ -6,6 +6,17 @@ export const normalizedSupplier = (value: string) => value.normalize('NFKD').rep
 const normalized=normalizedSupplier;
 export const inboxCategoryLabels: Record<string,string> = { materials:'Matériel et marchandises', software:'Logiciels', telecom:'Télécommunications', rent:'Loyer', insurance:'Assurances', transport:'Transport', services:'Prestations de services', other:'Autres charges' };
 
+/** Confidence in vendor identity is independent from totals, dates and category. */
+export function canPrepareMailboxSupplier(item: MailInvoice) {
+  const e = item.extraction;
+  const nameConfidence = e.fieldConfidence?.supplierName ?? e.confidence;
+  const kindConfidence = e.kindConfidence ?? e.fieldConfidence?.kind ?? e.confidence;
+  return (!e.kind || e.kind === 'supplier_invoice') && !!normalized(e.supplierName || '')
+    && (e.supplierName?.length || 0) <= 200
+    && Number.isFinite(nameConfidence) && nameConfidence >= .95
+    && Number.isFinite(kindConfidence) && kindConfidence >= .95;
+}
+
 /** Only reuse a unique supplier and an unambiguous, already validated classification. */
 export function mailboxInvoiceDefaults(item: MailInvoice, workspace: Workspace, habits: SupplierHabit[] = []) {
   const name = normalized(item.extraction.supplierName || '');

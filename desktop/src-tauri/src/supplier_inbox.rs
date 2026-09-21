@@ -34,8 +34,21 @@ fn text<'a>(value: &'a Value, key: &str) -> AppResult<&'a str> {
 fn prepare_supplier(store: &LocalStore, item: &Value) -> AppResult<Value> {
     let e = &item["extraction"];
     let name = text(e, "supplierName")?.trim();
+    let name_confidence = e["fieldConfidence"]["supplierName"]
+        .as_f64()
+        .or_else(|| e["confidence"].as_f64())
+        .unwrap_or(0.);
+    let kind_confidence = e["kindConfidence"]
+        .as_f64()
+        .or_else(|| e["fieldConfidence"]["kind"].as_f64())
+        .or_else(|| e["confidence"].as_f64())
+        .unwrap_or(0.);
     if name.len() > 200
-        || e["confidence"].as_f64().unwrap_or(0.) < 0.95
+        || e["kind"] != "supplier_invoice"
+        || !name_confidence.is_finite()
+        || name_confidence < 0.95
+        || !kind_confidence.is_finite()
+        || kind_confidence < 0.95
         || normalized(name).is_empty()
     {
         return Err(invalid("Vérifiez le nom du fournisseur."));
@@ -45,17 +58,46 @@ fn prepare_supplier(store: &LocalStore, item: &Value) -> AppResult<Value> {
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let suppliers =
         crate::database::query_all(&tx, "SELECT id,name,email,archived_at FROM suppliers", [])?;
-    let matches: Vec<_> = suppliers
+    if let Some(id) = item["habit"]["supplierId"].as_str() {
+        if suppliers
+            .iter()
+            .any(|s| s["id"] == id && s["archived_at"].is_null())
+        {
+            return Ok(json!({"supplierId":id,"created":false}));
+        }
+    }
+    let named: Vec<_> = suppliers
         .iter()
         .filter(|s| normalized(s["name"].as_str().unwrap_or("")) == normalized(name))
         .collect();
-    if matches.len() == 1 && matches[0]["archived_at"].is_null() {
+    let active: Vec<_> = named
+        .iter()
+        .copied()
+        .filter(|s| s["archived_at"].is_null())
+        .collect();
+    let sender = item["sender"].as_str().unwrap_or("").trim();
+    let exact: Vec<_> = active
+        .iter()
+        .copied()
+        .filter(|s| {
+            !sender.is_empty()
+                && s["email"]
+                    .as_str()
+                    .unwrap_or("")
+                    .trim()
+                    .eq_ignore_ascii_case(sender)
+        })
+        .collect();
+    let matches = if exact.len() == 1 { &exact } else { &active };
+    if matches.len() == 1 {
         return Ok(json!({"supplierId":matches[0]["id"],"created":false}));
     }
-    if !matches.is_empty() {
-        return Err(invalid(
-            "Plusieurs fiches ou une fiche archivée correspondent. Choisissez le fournisseur.",
-        ));
+    if !named.is_empty() {
+        return Err(invalid(if active.is_empty() {
+            "Ce fournisseur est archivé. Réactivez sa fiche ou choisissez un autre fournisseur."
+        } else {
+            "Plusieurs fournisseurs portent ce nom. Choisissez celui qui figure sur la facture."
+        }));
     }
     // Stable across devices handling different invoices from the same previously unknown supplier.
     let hash = Sha256::digest(format!("zentra-mail-supplier-v1:{}", normalized(name)).as_bytes());
@@ -129,30 +171,10 @@ pub(crate) fn automatic_draft(
     {
         return Err(invalid("Les montants et la TVA doivent être vérifiés."));
     }
+    // Supplier identity does not depend on a sender address or an existing purchase.
+    let resolution = prepare_supplier(store, item)?;
+    let supplier = text(&resolution, "supplierId")?;
     let db = store.connect()?;
-    let name = normalized(text(e, "supplierName")?);
-    let sender = text(item, "sender")?.to_lowercase();
-    let suppliers = crate::database::query_all(
-        &db,
-        "SELECT id,name,email FROM suppliers WHERE archived_at IS NULL",
-        [],
-    )?;
-    let matched: Vec<&Value> = suppliers
-        .iter()
-        .filter(|s| {
-            item["habit"]["supplierId"]
-                .as_str()
-                .is_some_and(|id| s["id"] == id)
-                || s["email"]
-                    .as_str()
-                    .is_some_and(|v| v.trim().eq_ignore_ascii_case(&sender))
-                    && s["name"].as_str().is_some_and(|v| normalized(v) == name)
-        })
-        .collect();
-    if matched.len() != 1 {
-        return Err(invalid("Choisissez le fournisseur. Le nom imprimé et l’adresse de l’expéditeur doivent correspondre à un fournisseur connu pour un import automatique."));
-    }
-    let supplier = text(matched[0], "id")?;
     let mut history=crate::database::query_all(&db,"SELECT DISTINCT l.category,l.posted_expense_account_id AS account_id FROM supplier_invoice_items l JOIN supplier_invoices i ON i.id=l.supplier_invoice_id WHERE i.supplier_id=? AND i.status='validated' AND l.posted_expense_account_id IS NOT NULL LIMIT 2",params![supplier])?;
     let habit = &item["habit"];
     if habit["supplierId"]==supplier && habit["accountId"].as_str().is_some_and(|id| db.query_row("SELECT EXISTS(SELECT 1 FROM accounts WHERE id=? AND active=1 AND account_type='expense')",params![id],|r|r.get::<_,bool>(0)).unwrap_or(false)) {
@@ -346,6 +368,75 @@ pub async fn supplier_inbox_request(
             .map_err(command_error)?;
         return serde_json::from_slice(&bytes).map_err(|_| "Réponse invalide.".into());
     }
+    if action == "prepareSupplier" || action == "prepareSuppliers" {
+        let ids: Vec<&str> = if action == "prepareSupplier" {
+            vec![data["id"].as_str().ok_or("Choisissez une facture reçue.")?]
+        } else {
+            data["ids"]
+                .as_array()
+                .filter(|v| !v.is_empty() && v.len() <= 10)
+                .ok_or("Choisissez au maximum dix factures.")?
+                .iter()
+                .map(|v| v.as_str().ok_or("Choisissez une facture reçue."))
+                .collect::<Result<_, _>>()?
+        };
+        if ids.iter().any(|id| Uuid::parse_str(id).is_err()) {
+            return Err("Choisissez une facture reçue.".into());
+        }
+        let (_, bytes) = session
+            .request(Method::GET, PATH, &[], &[], None, false)
+            .await
+            .map_err(command_error)?;
+        let inbox: Value =
+            serde_json::from_slice(&bytes).map_err(|_| "La réception est indisponible.")?;
+        if inbox["organizationId"] != session.organization_id
+            || inbox["prepareEnabled"] != true
+            || inbox["linked"] != true
+        {
+            return Err("Activez Automation pour préparer le fournisseur.".into());
+        }
+        let _guard = store.lock().map_err(command_error)?;
+        store.require_write_access().map_err(command_error)?;
+        crate::automation::bound(&store, &session.organization_id).map_err(command_error)?;
+        let mut results = Vec::new();
+        for id in ids {
+            let result = (|| -> AppResult<Value> {
+                let mut item = inbox["items"]
+                    .as_array()
+                    .and_then(|v| {
+                        v.iter().find(|i| {
+                            i["id"] == id
+                                && i["otherDevice"] != true
+                                && i["state"] != "ignored"
+                                && i["state"] != "imported"
+                        })
+                    })
+                    .cloned()
+                    .ok_or_else(|| invalid("Cette facture n’est plus à préparer."))?;
+                if let Some(habit) = inbox["habits"].as_array().and_then(|rows| {
+                    rows.iter().find(|h| {
+                        h["sender"].as_str().unwrap_or("")
+                            == item["sender"].as_str().unwrap_or("").trim().to_lowercase()
+                            && h["supplierName"].as_str().unwrap_or("")
+                                == normalized(
+                                    item["extraction"]["supplierName"].as_str().unwrap_or(""),
+                                )
+                    })
+                }) {
+                    item["habit"] = habit.clone();
+                }
+                prepare_supplier(&store, &item)
+            })();
+            if action == "prepareSupplier" {
+                return result.map_err(command_error);
+            }
+            results.push(match result {
+                Ok(v) => json!({"id":id,"supplierId":v["supplierId"],"created":v["created"]}),
+                Err(e) => json!({"id":id,"error":command_error(e)}),
+            });
+        }
+        return Ok(json!({"results":results}));
+    }
     let id = data["id"]
         .as_str()
         .filter(|v| Uuid::parse_str(v).is_ok())
@@ -377,25 +468,6 @@ pub async fn supplier_inbox_request(
             .map_err(command_error)?;
         return serde_json::from_slice(&bytes)
             .map_err(|_| "Le classement n’a pas pu être retenu.".into());
-    }
-    if action == "prepareSupplier" {
-        let (_, bytes) = session
-            .request(Method::GET, PATH, &[], &[], None, false)
-            .await
-            .map_err(command_error)?;
-        let inbox: Value =
-            serde_json::from_slice(&bytes).map_err(|_| "La réception est indisponible.")?;
-        if inbox["organizationId"] != session.organization_id || inbox["prepareEnabled"] != true {
-            return Err("Activez Automation pour préparer le fournisseur.".into());
-        }
-        let item = inbox["items"]
-            .as_array()
-            .and_then(|items| items.iter().find(|i| i["id"] == id))
-            .ok_or("Facture introuvable.")?;
-        let _guard = store.lock().map_err(command_error)?;
-        store.require_write_access().map_err(command_error)?;
-        crate::automation::bound(&store, &session.organization_id).map_err(command_error)?;
-        return prepare_supplier(&store, item).map_err(command_error);
     }
     if action == "ignore" {
         let (_, bytes) = session
@@ -563,6 +635,77 @@ mod tests {
                 .connect()
                 .unwrap()
                 .query_row("SELECT COUNT(*) FROM suppliers", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+    }
+    #[test]
+    fn supplier_identity_is_independent_from_invoice_amounts_and_category() {
+        let (_d, store, mut item, _, _) = fixture();
+        item["extraction"]["supplierName"] = json!("Nouveau fournisseur SA");
+        item["extraction"]["confidence"] = json!(0.0);
+        item["extraction"]["kindConfidence"] = json!(0.99);
+        item["extraction"]["fieldConfidence"] = json!({"supplierName":0.99,"vatCents":0.0});
+        assert_eq!(prepare_supplier(&store, &item).unwrap()["created"], true);
+        assert!(automatic_draft(&store, &item).is_err());
+        item["extraction"]["fieldConfidence"]["supplierName"] = json!(0.5);
+        assert!(prepare_supplier(&store, &item).is_err());
+        item["extraction"]["fieldConfidence"]["supplierName"] = json!(0.99);
+        item["extraction"]["kind"] = json!("other");
+        assert!(prepare_supplier(&store, &item).is_err());
+    }
+    #[test]
+    fn unique_supplier_needs_no_email_and_ambiguity_requires_a_choice() {
+        let (_d, store, item, _, _) = fixture();
+        let db = store.connect().unwrap();
+        db.execute("UPDATE suppliers SET email='' WHERE id='vendor'", [])
+            .unwrap();
+        assert_eq!(
+            prepare_supplier(&store, &item).unwrap()["supplierId"],
+            "vendor"
+        );
+        let now = now_iso();
+        db.execute("INSERT INTO suppliers(id,name,email,created_at,updated_at) VALUES('second','Acme SA','invoice@acme.example',?,?)",params![now,now]).unwrap();
+        assert_eq!(
+            prepare_supplier(&store, &item).unwrap()["supplierId"],
+            "second"
+        );
+        db.execute("UPDATE suppliers SET email=''", []).unwrap();
+        assert!(prepare_supplier(&store, &item).is_err());
+        db.execute(
+            "UPDATE suppliers SET archived_at=? WHERE id='second'",
+            params![now],
+        )
+        .unwrap();
+        assert_eq!(
+            prepare_supplier(&store, &item).unwrap()["supplierId"],
+            "vendor"
+        );
+        db.execute("UPDATE suppliers SET archived_at=?", params![now])
+            .unwrap();
+        assert!(prepare_supplier(&store, &item).is_err());
+    }
+    #[test]
+    fn confirmed_supplier_habit_survives_a_renamed_record() {
+        let (_d, store, mut item, _, _) = fixture();
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE suppliers SET name='Prestataire habituel',email=''",
+                [],
+            )
+            .unwrap();
+        item["habit"] = json!({"supplierId":"vendor"});
+        assert_eq!(
+            prepare_supplier(&store, &item).unwrap()["supplierId"],
+            "vendor"
+        );
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT count(*) FROM suppliers", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
             1
         );

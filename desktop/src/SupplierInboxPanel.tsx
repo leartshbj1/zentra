@@ -6,7 +6,7 @@ import { t,useAppLanguage,getAppLocale } from './language';
 import type { Workspace } from './types';
 import { inboxRequest,pendingMailInvoices,type MailInvoice,type SupplierHabit,type useSupplierInbox } from './supplierInbox';
 import { TouchImagePreview } from './TouchImagePreview';
-import { inboxCategoryLabels as categoryLabels, mailboxInvoiceAmounts, mailboxInvoiceDefaults } from './supplierInboxReview';
+import { inboxCategoryLabels as categoryLabels, mailboxInvoiceAmounts, mailboxInvoiceDefaults, canPrepareMailboxSupplier } from './supplierInboxReview';
 import './SupplierInbox.css';
 import { filterMailInvoices } from './supplierInboxQueue';
 type CreateSupplier = (name: string, email: string) => Promise<string>;
@@ -40,11 +40,23 @@ function ReviewMailInvoice({habits,automationActive,item,workspace,busy,readOnly
   const defaults=mailboxInvoiceDefaults(item,workspace,habits);
   const [editing,setEditing]=useState(!defaults.supplierId||!e.reference||!e.invoiceDate||!e.dueDate||e.netCents===null||e.vatBp===null||!e.category||e.issues.length>0);
   const [posting,setPosting]=useState(false);
-  const [addingSupplier,setAddingSupplier]=useState(false),[supplierName,setSupplierName]=useState(e.supplierName||''),[supplierEmail,setSupplierEmail]=useState(item.sender||'');
+  const [supplierStatus,setSupplierStatus]=useState(''),[choosingSupplier,setChoosingSupplier]=useState(false);
+  const [addingSupplier,setAddingSupplier]=useState(false),[supplierName,setSupplierName]=useState(e.supplierName||''),[supplierEmail,setSupplierEmail]=useState('');
   const working=busy||posting;
   const [supplier,setSupplier]=useState(defaults.supplierId),[reference,setReference]=useState(e.reference||''),[date,setDate]=useState(e.invoiceDate||''),[due,setDue]=useState(e.dueDate||''),[net,setNet]=useState(e.netCents===null?'':(e.netCents/100).toFixed(2)),[vat,setVat]=useState(e.vatBp===null?'':String(e.vatBp/100)),[category,setCategory]=useState(defaults.category),[account,setAccount]=useState(defaults.accountId),[error,setError]=useState(''),[source,setSource]=useState<{bytes:Uint8Array;url:string}|null>(null),[documentError,setDocumentError]=useState('');
   useEffect(()=>{let alive=true,url='';void inboxRequest<{base64:string}>({action:'document',id:item.id}).then(result=>{if(!alive)return;const bytes=Uint8Array.from(atob(result.base64),c=>c.charCodeAt(0));url=URL.createObjectURL(new Blob([bytes],{type:item.mediaType}));setSource({bytes,url});}).catch(()=>{if(alive)setDocumentError('Le justificatif ne peut pas être chargé. Fermez puis rouvrez cette facture.');});return()=>{alive=false;if(url)URL.revokeObjectURL(url);};},[item.id,item.mediaType]);
-  useEffect(()=>{let alive=true;if(!automationActive||readOnly||supplier||!e.supplierName||e.confidence<.95)return;setPosting(true);void inboxRequest<{supplierId:string}>({action:'prepareSupplier',id:item.id}).then(result=>{if(alive){setSupplier(result.supplierId);setAddingSupplier(false);}}).catch(()=>{/* Ambiguous suppliers stay visible for a manual choice. */}).finally(()=>{if(alive)setPosting(false);});return()=>{alive=false;};},[item.id,automationActive,readOnly]);
+  useEffect(()=>{if(!supplier && defaults.supplierId)setSupplier(defaults.supplierId);},[defaults.supplierId,supplier]);
+  useEffect(()=>{
+    let alive=true;
+    if(!automationActive||readOnly||supplier||defaults.supplierId)return;
+    if(!canPrepareMailboxSupplier(item)){setSupplierStatus('Le nom du fournisseur reste incertain. Choisissez sa fiche ou ajoutez-la.');return;}
+    setPosting(true);setSupplierStatus('Automation recherche le fournisseur…');
+    void inboxRequest<{supplierId:string;created:boolean}>({action:'prepareSupplier',id:item.id})
+      .then(result=>{if(alive){setSupplier(result.supplierId);setAddingSupplier(false);setSupplierStatus(result.created?'Fournisseur créé par Automation':'Fournisseur reconnu par Automation');}})
+      .catch(reason=>{if(alive){setEditing(true);setSupplierStatus(String(reason instanceof Error?reason.message:reason));}})
+      .finally(()=>{if(alive)setPosting(false);});
+    return()=>{alive=false;};
+  },[item.id,automationActive,readOnly]);
   const amounts=mailboxInvoiceAmounts(net,vat);
   const total=amounts?.totalCents;
   const confirmInvoice=async(confirm:boolean)=>{
@@ -64,7 +76,7 @@ function ReviewMailInvoice({habits,automationActive,item,workspace,busy,readOnly
     if(!supplierName.trim()){setError('Indiquez le nom qui figure sur la facture du fournisseur.');return;}
     if(supplierEmail.trim()&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supplierEmail.trim())){setError('Vérifiez l’adresse e-mail du fournisseur, ou laissez ce champ vide.');return;}
     setPosting(true);setError('');
-    try{setSupplier(await onCreateSupplier(supplierName.trim(),supplierEmail.trim()));setAddingSupplier(false);}
+    try{setSupplier(await onCreateSupplier(supplierName.trim(),supplierEmail.trim()));setAddingSupplier(false);setChoosingSupplier(false);setSupplierStatus('');}
     catch(reason){setError(reason instanceof Error?reason.message:String(reason));}
     finally{setPosting(false);}
   };
@@ -72,8 +84,13 @@ function ReviewMailInvoice({habits,automationActive,item,workspace,busy,readOnly
     <div className="supplier-inbox-review__summary"><div><span>{t('Fournisseur')}</span><strong>{workspace.suppliers.find(s=>s.id===supplier)?.name||e.supplierName||item.sender}</strong><p>{reference||t('Référence à compléter')} · {category?t(category):t('Catégorie à compléter')}</p></div><strong>{total!==undefined?(total/100).toFixed(2):'—'} CHF</strong></div>
     <p className="supplier-inbox-review__intro">{t('Vérifiez le justificatif, puis confirmez. Zentra enregistrera la facture et son écriture comptable ensemble. Aucun paiement ne sera envoyé.')}</p>
     <div className="supplier-inbox-review__grid"><div className="supplier-inbox-review__document">{source?<Suspense fallback={<p>{t('Ouverture du document…')}</p>}>{item.mediaType==='application/pdf'?<PdfPreview bytes={source.bytes} name={item.fileName}/>:<TouchImagePreview url={source.url} name={item.fileName} onError={()=>setDocumentError('Cette image ne peut pas être affichée.')}/>}</Suspense>:<p>{t(documentError||'Chargement du justificatif…')}</p>}</div><fieldset disabled={working||readOnly}><details className="supplier-inbox-review__fields" open={editing} onToggle={event=>setEditing(event.currentTarget.open)}><summary>{t(editing?'Informations et classement':'Modifier les informations')}</summary><div>
-    <Field label={t('Fournisseur')}><select required value={supplier} onChange={event=>setSupplier(event.target.value)}><option value="">{t('Choisir un fournisseur')}</option>{supplier&&!workspace.suppliers.some(s=>s.id===supplier)&&<option value={supplier}>{e.supplierName}</option>}{workspace.suppliers.filter(s=>!s.archivedAt).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></Field><Button type="button" variant="ghost" onClick={()=>setAddingSupplier(!addingSupplier)}>{t(addingSupplier?'Annuler':'Ajouter un fournisseur')}</Button>
-    {addingSupplier&&<div className="supplier-inbox-review__new-supplier"><Field label={t('Nom du fournisseur')}><input maxLength={200} value={supplierName} onChange={event=>setSupplierName(event.target.value)}/></Field><Field label={t('E-mail du fournisseur')}><input type="email" maxLength={254} value={supplierEmail} onChange={event=>setSupplierEmail(event.target.value)}/></Field><Button type="button" variant="secondary" onClick={()=>void createSupplier()}>{t('Ajouter et sélectionner')}</Button></div>}
+    <div className="supplier-inbox-review__supplier">
+      {supplier&&!choosingSupplier?<><span className="field__label">{t('Fournisseur')}</span><div><strong>{workspace.suppliers.find(s=>s.id===supplier)?.name||e.supplierName}</strong><Button type="button" variant="ghost" onClick={()=>setChoosingSupplier(true)}>{t('Modifier')}</Button></div></>:<>
+        <Field label={t('Fournisseur')}><select required value={supplier} onChange={event=>{setSupplier(event.target.value);setSupplierStatus('');if(event.target.value)setChoosingSupplier(false);}}><option value="">{t('Choisir un fournisseur')}</option>{supplier&&!workspace.suppliers.some(s=>s.id===supplier)&&<option value={supplier}>{e.supplierName}</option>}{workspace.suppliers.filter(s=>!s.archivedAt).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></Field><Button type="button" variant="ghost" onClick={()=>setAddingSupplier(!addingSupplier)}>{t(addingSupplier?'Annuler':'Ajouter un fournisseur')}</Button>
+        {addingSupplier&&<div className="supplier-inbox-review__new-supplier"><Field label={t('Nom du fournisseur')}><input maxLength={200} value={supplierName} onChange={event=>setSupplierName(event.target.value)}/></Field><Field label={t('E-mail du fournisseur')}><input type="email" maxLength={254} value={supplierEmail} onChange={event=>setSupplierEmail(event.target.value)}/></Field><Button type="button" variant="secondary" onClick={()=>void createSupplier()}>{t('Ajouter et sélectionner')}</Button></div>}
+      </>}
+      {supplierStatus&&<p role="status">{t(supplierStatus)}</p>}
+    </div>
     <Field label={t('Référence')}><input required maxLength={200} value={reference} onChange={event=>setReference(event.target.value)}/></Field>
     <div className="supplier-inbox-review__dates"><Field label={t('Date de facture')}><input type="date" required value={date} onChange={event=>setDate(event.target.value)}/></Field><Field label={t('Échéance')}><input type="date" required min={date} value={due} onChange={event=>setDue(event.target.value)}/></Field></div>
     <div className="supplier-inbox-review__dates"><Field label={t('Hors taxe (CHF)')}><input inputMode="decimal" required value={net} onChange={event=>setNet(event.target.value)}/></Field><Field label={t('TVA (%)')}><input inputMode="decimal" required value={vat} onChange={event=>setVat(event.target.value)}/></Field></div>

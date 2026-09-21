@@ -4,6 +4,7 @@ import { desktopApi } from './bridge';
 import type { Workspace } from './types';
 import {
   mailboxInvoiceDefaults,
+  canPrepareMailboxSupplier,
   normalizedSupplier,
 } from './supplierInboxReview';
 export type SupplierHabit = {
@@ -29,6 +30,9 @@ export type MailInvoice = {
   otherDevice: boolean;
   createdAt: number;
   extraction: {
+    kind?: string;
+    kindConfidence?: number;
+    fieldConfidence?: Record<string, number>;
     supplierName: string | null;
     reference: string | null;
     invoiceDate: string | null;
@@ -86,6 +90,8 @@ export function useSupplierInbox(
   const current = useRef({ org, blocked, onWorkspace });
   current.current = { org, blocked, onWorkspace };
   const running = useRef(false);
+  const preparedSuppliers = useRef(new Set<string>());
+  useEffect(() => { preparedSuppliers.current.clear(); }, [org]);
   const refresh = useCallback(async () => {
     if (
       !org ||
@@ -101,6 +107,20 @@ export function useSupplierInbox(
       setState(value);
       setError('');
       if (!readOnly && !current.current.blocked()) {
+        let changed = false;
+        if (value.prepareEnabled && value.linked) {
+          const preparationKey = (i: MailInvoice) => JSON.stringify([org, i.id, i.extraction.supplierName, i.extraction.fieldConfidence, i.extraction.confidence, value.habits]);
+          const candidates = pendingMailInvoices(value).filter(i => !i.otherDevice && canPrepareMailboxSupplier(i) && !preparedSuppliers.current.has(preparationKey(i))).slice(0, 10);
+          if (candidates.length) {
+            const result = await inboxRequest<{results: {id: string; supplierId?: string; created?: boolean; error?: string}[]}>({action:'prepareSuppliers', ids:candidates.map(i=>i.id)});
+            if (current.current.org !== org) return;
+            for (const row of result.results) {
+              const item = candidates.find(i=>i.id === row.id);
+              if (item) preparedSuppliers.current.add(preparationKey(item));
+              changed = changed || !!row.created;
+            }
+          }
+        }
         const queue = value.items
           .filter(
             (i) =>
@@ -109,7 +129,6 @@ export function useSupplierInbox(
                 (value.autoPost && i.state === 'ready')),
           )
           .slice(0, 10);
-        let changed = false;
         for (const next of queue) {
           if (current.current.org !== org || current.current.blocked()) break;
           try {
@@ -128,7 +147,7 @@ export function useSupplierInbox(
             if (current.current.org === org) setError(String(reason));
           }
         }
-        if (queue.length) {
+        if (queue.length || changed) {
           if (changed) {
             const workspace = await desktopApi.loadWorkspace();
             if (current.current.org === org)
@@ -259,8 +278,7 @@ export function useSupplierInbox(
             let supplier = habit?.supplierId || defaults.supplierId;
             if (!supplier) {
               if (
-                !e.supplierName ||
-                e.confidence < 0.95 ||
+                !canPrepareMailboxSupplier(item) ||
                 local.suppliers.some(
                   (s) =>
                     !s.archivedAt &&

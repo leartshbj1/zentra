@@ -3,6 +3,12 @@ export const automationWorkflowTranslations: Record<
   string,
   readonly [string, string, string]
 > = {
+  'Automation recherche le fournisseur…': ['Automation sucht den Lieferanten…', 'Automation cerca il fornitore…', 'Automation is finding the supplier…'],
+  'Fournisseur créé par Automation': ['Lieferant von Automation erstellt', 'Fornitore creato da Automation', 'Supplier created by Automation'],
+  'Fournisseur reconnu par Automation': ['Lieferant von Automation erkannt', 'Fornitore riconosciuto da Automation', 'Supplier identified by Automation'],
+  'Le nom du fournisseur reste incertain. Choisissez sa fiche ou ajoutez-la.': ['Der Lieferantenname ist unklar. Wählen Sie den Eintrag aus oder erstellen Sie ihn.', 'Il nome del fornitore è incerto. Seleziona la sua scheda o aggiungila.', 'The supplier name is uncertain. Select its record or add one.'],
+  'Plusieurs fournisseurs portent ce nom. Choisissez celui qui figure sur la facture.': ['Mehrere Lieferanten haben diesen Namen. Wählen Sie den auf der Rechnung.', 'Più fornitori hanno questo nome. Scegli quello riportato sulla fattura.', 'Several suppliers have this name. Select the one shown on the invoice.'],
+  'Ce fournisseur est archivé. Réactivez sa fiche ou choisissez un autre fournisseur.': ['Dieser Lieferant ist archiviert. Reaktivieren Sie ihn oder wählen Sie einen anderen.', 'Questo fornitore è archiviato. Riattivalo o scegli un altro fornitore.', 'This supplier is archived. Reactivate it or select another supplier.'],
   'Vos rapports de projet': [
     'Ihre Projektberichte',
     'I tuoi rapporti di progetto',

@@ -1,11 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { mailboxInvoiceAmounts, mailboxInvoiceDefaults } from './supplierInboxReview';
+import { mailboxInvoiceAmounts, mailboxInvoiceDefaults, canPrepareMailboxSupplier } from './supplierInboxReview';
 import type { MailInvoice } from './supplierInbox';
 import type { Workspace } from './types';
 
 const invoice = { sender:'factures@vendor.test', extraction: { supplierName:'Atelier Étoile SA', category:'software' } } as MailInvoice;
 const workspace = { suppliers:[{id:'s',name:'Atelier Etoile SA',email:invoice.sender,archivedAt:null}], accounts:[{id:'6000',active:true,accountType:'expense'}], supplierInvoices:[{supplierId:'s',documentStatus:'validated',lines:[{category:'Logiciels',postedExpenseAccountId:'6000'}]}] } as unknown as Workspace;
 describe('Préparation de la confirmation finale',()=>{
+  it('distingue un fournisseur fiable d’une catégorie ou d’une TVA incertaine',()=>{
+    const item={...invoice,extraction:{...invoice.extraction,kind:'supplier_invoice',confidence:0,kindConfidence:.99,fieldConfidence:{supplierName:.98,vatCents:0}}};
+    expect(canPrepareMailboxSupplier(item)).toBe(true);
+    expect(canPrepareMailboxSupplier({...item,extraction:{...item.extraction,fieldConfidence:{supplierName:.7}}})).toBe(false);
+    expect(canPrepareMailboxSupplier({...item,extraction:{...item.extraction,kind:'other'}})).toBe(false);
+    expect(canPrepareMailboxSupplier({...item,extraction:{...item.extraction,kindConfidence:.8}})).toBe(false);
+  });
+  it('reconnaît un fournisseur unique même sans adresse e-mail et respecte les doublons',()=>{
+    const noMail={...workspace,suppliers:[{...workspace.suppliers[0],email:''}]};
+    expect(mailboxInvoiceDefaults(invoice,noMail).supplierId).toBe('s');
+    const duplicate={...workspace,suppliers:[...noMail.suppliers,{...workspace.suppliers[0],id:'correct'}]};
+    expect(mailboxInvoiceDefaults(invoice,duplicate).supplierId).toBe('correct');
+  });
   it('reprend le classement validé du fournisseur identifié par son nom et son adresse',()=>{
     expect(mailboxInvoiceDefaults(invoice,workspace)).toEqual({supplierId:'s',category:'Logiciels',accountId:'6000'});
   });

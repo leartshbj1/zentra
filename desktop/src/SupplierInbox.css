@@ -56,3 +56,9 @@
 
 .supplier-inbox--embedded>header h2{text-align:left}
 @media(max-width:680px){.supplier-inbox--embedded>header>div>p{display:none}.supplier-inbox__batch{margin-top:16px}.supplier-inbox__batch p{font-size:13px}}
+
+.supplier-inbox-review__supplier{min-width:0;display:grid;gap:8px}
+.supplier-inbox-review__supplier>div{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+.supplier-inbox-review__supplier strong{min-width:0;overflow-wrap:anywhere;font-size:15px;line-height:1.5}
+.supplier-inbox-review__supplier>p{margin:0;font-size:13px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.supplier-inbox-review__supplier .supplier-inbox-review__new-supplier{display:grid}
