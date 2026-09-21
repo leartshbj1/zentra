@@ -1,4 +1,5 @@
 export const assistantTranslations: Record<string, readonly [string,string,string]> = {
+  "Ouverture du document…": ["Dokument wird geöffnet…", "Apertura del documento…", "Opening document…"],
   "Le fournisseur a été ajouté.": ["Der Lieferant wurde hinzugefügt.", "Il fornitore è stato aggiunto.", "The supplier has been added."],
   "Indiquez le nom qui figure sur la facture du fournisseur.": ["Geben Sie den Namen auf der Lieferantenrechnung ein.", "Indica il nome riportato sulla fattura del fornitore.", "Enter the name shown on the supplier invoice."],
   "Nom du fournisseur": ["Name des Lieferanten", "Nome del fornitore", "Supplier name"],
