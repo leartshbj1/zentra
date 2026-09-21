@@ -55,6 +55,10 @@ export async function mailRequest(
       503,
     );
   }
+  if (!response.ok) console.error('support_mail_connection_failed', {
+    providerStatus: response.status,
+    operation: path.startsWith('/mailbox?') ? 'mailboxes' : path.includes('/folder?') ? 'folders' : 'messages',
+  });
   if (response.status === 401)
     throw new SupportError(
       'Cette clé API est refusée par Infomaniak. Elle peut être expirée ou révoquée. Créez une nouvelle clé API et collez-la ici, à la place du mot de passe de la boîte mail.',
