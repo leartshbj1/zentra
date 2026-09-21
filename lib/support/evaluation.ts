@@ -10,8 +10,26 @@ import {
   type Decision,
   type Rules,
 } from './types';
+import { JevDecisionProvider } from '../automation/provider';
+import { extractInvoice, type InvoiceExtraction } from '../supplier-inbox/extraction';
 
 export type EvaluationTicket = { id: string; subject: string; body: string };
+export type EvaluationDocument = EvaluationTicket & { recipient: string };
+
+export function evaluationDocuments(value: unknown): EvaluationDocument[] {
+  if (!Array.isArray(value)) throw new SupportError('Lot de documents invalide.');
+  const recipients = value.map(input => {
+    const row = record(input);
+    if (typeof row.recipient !== 'string' || !row.recipient.trim() || row.recipient.length > 160)
+      throw new SupportError('Indiquez l’entreprise destinataire du document fictif.');
+    return row.recipient.trim();
+  });
+  const tickets = evaluationTickets(value.map(input => {
+    const { recipient: _recipient, ...ticket } = record(input);
+    return ticket;
+  }));
+  return tickets.map((ticket, index) => ({ ...ticket, recipient: recipients[index] }));
+}
 
 export function evaluationTickets(value: unknown): EvaluationTicket[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > 10)
@@ -82,4 +100,24 @@ export async function evaluateTestBatch(
     );
   }
   return { policyVersion: TRIAGE_POLICY_VERSION, threshold: 85, results };
+}
+
+// Same production extraction, but no supplier, invoice, accounting or mailbox write.
+export async function evaluateDocumentBatch(
+  key: string,
+  tickets: EvaluationDocument[],
+  classify = (items: EvaluationDocument[]) => evaluateTestBatch(key, items),
+  extract: (item: EvaluationDocument) => Promise<InvoiceExtraction> = item =>
+    extractInvoice(item.body, item.recipient, new JevDecisionProvider(key)),
+) {
+  const report = await classify(tickets);
+  const results = [];
+  for (let offset = 0; offset < tickets.length; offset += 2) {
+    results.push(...await Promise.all(tickets.slice(offset, offset + 2).map(async item => {
+      const classification = report.results.find(result => result.id === item.id)!;
+      try { return { ...classification, extraction: await extract(item) }; }
+      catch { return { ...classification, extractionError: 'analysis_unavailable' }; }
+    })));
+  }
+  return { ...report, results };
 }

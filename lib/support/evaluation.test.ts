@@ -1,9 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
-import { evaluationTickets, evaluateTestBatch } from './evaluation';
+import { evaluationTickets, evaluateTestBatch, evaluationDocuments, evaluateDocumentBatch } from './evaluation';
+import { emptyExtraction } from '../supplier-inbox/extraction';
 import type { Decision } from './types';
 
 describe('Évaluation privée de tickets fictifs', () => {
   const ticket = { id: 'case-1', subject: 'Question', body: 'Comment faire ?' };
+  it('valide le destinataire et interdit des critères attendus ou instructions de test arbitraires', () => {
+    expect(evaluationDocuments([{...ticket, recipient: 'Entreprise Test'}])[0].recipient).toBe('Entreprise Test');
+    for (const input of [null, [], [{...ticket}], [{...ticket, recipient:''}], [{...ticket, recipient:'Test', expected:'supplier_invoice'}]])
+      expect(() => evaluationDocuments(input)).toThrow();
+  });
+  it('mesure séparément extraction et classement sans masquer un échec ni exposer un secret', async () => {
+    const items = [0,1].map(i => ({...ticket,id:`doc-${i}`,recipient:'Test'}));
+    const result = await evaluateDocumentBatch('unused', items,
+      async () => ({policyVersion:'test',threshold:85,results:items.map(item => ({id:item.id,automatic:false,error:'analysis_unavailable',durationMs:1}))}),
+      async item => {if(item.id==='doc-1') throw Error('private-secret'); return emptyExtraction('à vérifier');},
+    );
+    expect(result.results[0]).toHaveProperty('extraction.kind','unknown');
+    expect(result.results[1]).toHaveProperty('extractionError','analysis_unavailable');
+    expect(JSON.stringify(result)).not.toContain('private-secret');
+  });
   it('refuse les lots invalides et les réponses attendues envoyées au modèle', () => {
     for (const value of [
       null,

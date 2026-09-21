@@ -33,6 +33,7 @@ it.each([
   ['Référence :\nFAC-2026-091', 'FAC-2026-091'],
   ['Invoice\nNumber INV-908', 'INV-908'],
   ['Rechnung\nNr. RE-2026-8', 'RE-2026-8'],
+  ['Rechnungsnummer: RE-2026-84', 'RE-2026-84'],
   ['Fattura\nn. IT-234', 'IT-234'],
 ])('offers the printed reference across PDF line breaks: %s', (text, value) => {
   expect(invoiceCandidates(text).reference.map(c => c.value)).toContain(value);

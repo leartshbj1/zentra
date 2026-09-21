@@ -1335,14 +1335,15 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       expect(result.counts.automatic).toBe(1);
     },
   );
-  it('réserve les lots de test au propriétaire sans modifier les tickets clients', async () => {
+  it.each(['evaluateTestBatch', 'evaluateDocumentBatch'])('réserve %s au propriétaire sans modifier les tickets clients', async (action) => {
     const payload = {
-      action: 'evaluateTestBatch',
+      action,
       tickets: [
         {
           id: 'probe-1',
           subject: 'Erreur',
           body: 'Export bloqué : erreur 500.',
+          ...(action === 'evaluateDocumentBatch' ? { recipient: 'Test SA' } : {}),
         },
       ],
     };

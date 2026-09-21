@@ -106,14 +106,14 @@ export function invoiceCandidates(source: string) {
     for (const match of line.matchAll(/\b(CHF|EUR|USD|GBP)\b/g))
       add('currency', match[1], line);
     const ref =
-      /(?:facture|invoice|rechnung|fattura|référence|reference)\s*(?:n[°oº.]?|number|no\.?|nummer|#|:)\s*[:#]?\s*([\p{L}\d][\p{L}\d_./-]{1,99})/iu.exec(
+      /(?:facture|invoice|rechnungs?|fattura|référence|reference)\s*(?:number|nummer|nr\.?|no\.?|n[°oº.]?|#|:)\s*[:#]?\s*([\p{L}\d][\p{L}\d_./-]{1,99})/iu.exec(
         line,
       );
     if (ref) add('reference', ref[1], line);
     // PDF text often puts the heading and its number on separate lines.
     // Supply literal candidates to Jev; never invent a reference from a file name.
     const context = lines.slice(lineIndex, lineIndex + 3).join(' ');
-    const labelled = /^(?:(?:facture|invoice|rechnung|fattura)\s*(?:number|nummer|nr\.?|no\.?|n[°oº.]?|#)?|(?:référence|reference|referenz|riferimento)(?:\s+(?:de\s+(?:facture|suivi)|facture|factura))?)\s*[:#]?\s*([\p{L}\d][\p{L}\d_./-]{1,99})/iu.exec(context);
+    const labelled = /^(?:(?:facture|invoice|rechnungs?|fattura)\s*(?:number|nummer|nr\.?|no\.?|n[°oº.]?|#)?|(?:référence|reference|referenz|riferimento)(?:\s+(?:de\s+(?:facture|suivi)|facture|factura))?)\s*[:#]?\s*([\p{L}\d][\p{L}\d_./-]{1,99})/iu.exec(context);
     if (labelled && /\d/.test(labelled[1]) && !canonicalDate(labelled[1]))
       add('reference', labelled[1], context);
     // Decimal amounts only: account numbers, quantities and dates cannot become totals.

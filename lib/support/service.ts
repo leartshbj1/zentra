@@ -48,7 +48,7 @@ import {
   finishAnalysis,
 } from './billing';
 import { evaluateCalibration, type CalibrationReport } from './calibration';
-import { evaluationTickets, evaluateTestBatch } from './evaluation';
+import { evaluationTickets, evaluateTestBatch, evaluationDocuments, evaluateDocumentBatch } from './evaluation';
 import {
   loadDirectory,
   providerDomain,
@@ -482,6 +482,12 @@ export async function mutateWorkspace(request: Request) {
       300,
     );
     return supportJson(await evaluateTestBatch(await aiKey(), tickets));
+  }
+  if (action === 'evaluateDocumentBatch') {
+    const actor = await platformAccess(request);
+    const documents = evaluationDocuments(body.tickets);
+    await enforceAccountRateLimit(request, 'support-admin-test-batch', actor, 300);
+    return supportJson(await evaluateDocumentBatch(await aiKey(), documents));
   }
   if (action === 'platformKey') {
     const actor = await platformAccess(request);

@@ -29,10 +29,11 @@ export function mailConnection(c: Connection): Connection {
   if (c.provider !== 'infomaniak') return c;
   const directory = JSON.parse(c.directory_json) as Directory;
   const rules = JSON.parse(c.routes_json) as Rules;
-  if (!directory.teams.some(t => t.id === 'supplier_invoice'))
-    directory.teams.push({ id: 'supplier_invoice', name: CATEGORIES.supplier_invoice });
-  if (!Object.hasOwn(rules, 'supplier_invoice'))
-    rules.supplier_invoice = { teamId: 'supplier_invoice' };
+  for (const id of ['supplier_invoice', 'quote', 'credit_note', 'payment_reminder', 'receipt'] as const) {
+    if (!directory.teams.some(t => t.id === id))
+      directory.teams.push({ id, name: CATEGORIES[id] });
+    if (!Object.hasOwn(rules, id)) rules[id] = { teamId: id };
+  }
   return { ...c, directory_json: JSON.stringify(directory), routes_json: JSON.stringify(rules) };
 }
 function segment(value: unknown): string {
