@@ -14,7 +14,7 @@
 - CircleCI job 20 : le paquet Mac exact du job 19 démarre et se rouvre dans un profil vierge ; intégrité SQLite et clés étrangères vérifiées. Ce contrôle ne constitue pas un essai interactif sur l’appareil d’un client.
 - Mac et IPA : téléchargements récupérés, provenance et SHA-256 vérifiés, fichiers versionnés 1.78.0 déposés sur le stockage public et retéléchargés pour comparaison. Signature de mise à jour Mac vérifiée ; canal stable promu en 1.78.0.
 - Windows job 18 terminé : 53 tests UI et 69 tests natifs passent (2 ignorés). Job 21 : installation du paquet exact, démarrage et réouverture dans un profil vierge ; SQLite intact, schéma 60 et empreinte de l’exécutable NSIS vérifiés. Signature de mise à jour vérifiée ; téléchargement public retéléchargé puis canal stable promu en 1.78.0.
-- Publication GitHub `v1.78.0` vérifiée : 10 fichiers, tag sur la source exacte ci-dessus. La page de téléchargement 1.78.0 est préparée sur la source site `373fc1472681a6b29e420d378141e40f9ffc35b6`, déploiement en cours au point de contrôle.
+- Publication GitHub `v1.78.0` vérifiée : 10 fichiers, tag sur la source exacte ci-dessus. Page de téléchargement 1.78.0 publiée sur la source site `373fc1472681a6b29e420d378141e40f9ffc35b6` : version Site 209, déploiement `appgdep_6ab09f9253f081919d882a83722112ad`, succès à 03:08 UTC. Les deux premières tentatives avaient omis le fichier à cause du mauvais nom de paramètre (`archive_path`) ; la reprise avec le paramètre documenté `archive` a joint le paquet vérifié et réussi.
 
 ## Non validé / restant
 
