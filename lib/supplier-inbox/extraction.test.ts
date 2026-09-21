@@ -28,6 +28,19 @@ it('only supplies source-grounded candidates with an abstention option', () => {
     if (!['kind', 'category'].includes(key))
       expect(q.options.absent).toBeTruthy();
 });
+it.each([
+  ['FACTURE\nN° ZT-QA-20260921-02', 'ZT-QA-20260921-02'],
+  ['Référence :\nFAC-2026-091', 'FAC-2026-091'],
+  ['Invoice\nNumber INV-908', 'INV-908'],
+  ['Rechnung\nNr. RE-2026-8', 'RE-2026-8'],
+  ['Fattura\nn. IT-234', 'IT-234'],
+])('offers the printed reference across PDF line breaks: %s', (text, value) => {
+  expect(invoiceCandidates(text).reference.map(c => c.value)).toContain(value);
+});
+it('does not manufacture a reference from a date or a bare number', () => {
+  expect(invoiceCandidates('FACTURE\n21.09.2026\nCHF 100.00\nCommande 1234').reference).toEqual([]);
+  expect(invoiceCandidates('21.09.2026\n123456').reference).toEqual([]);
+});
 const provider = {
   decide: async (input: DecisionInput) => ({
     answers: Object.fromEntries(

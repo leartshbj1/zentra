@@ -1,6 +1,7 @@
 export const CATEGORIES = {
   bug: 'Bug',
   billing: 'Facturation',
+  supplier_invoice: 'Factures fournisseurs',
   product: 'Question produit',
   refund: 'Remboursement',
   shipping: 'Livraison',
@@ -56,7 +57,14 @@ export type Decision = {
   };
 };
 export type SourceTicket = {
-  mail?: { sender: string; attachments: { id: string; name: string; size: number }[] };
+  mail?: {
+    sender: string;
+    uid?: string;
+    attachments: { id: string; name: string; size: number }[];
+    attachmentCount?: number;
+    bodyIncomplete?: boolean;
+    analysisText?: string;
+  };
   externalId: string;
   subject: string;
   body: string;
@@ -66,6 +74,7 @@ export type SourceTicket = {
   priority?: Priority;
   closed: boolean;
   incomplete?: boolean;
+  incompleteReason?: string;
 };
 export type Workspace = {
   id: string;

@@ -95,7 +95,7 @@ export async function openImapMailbox(email: string, password: string, expectedF
           const subject = (parsed.subject || 'Mail sans objet').slice(0, 300);
           return {
             externalId: await mailExternalId(mailboxId, folderId, ref.uid),
-            mail: { sender, attachments }, subject,
+            mail: { sender, uid: ref.uid, attachments, attachmentCount: parsed.attachments.filter(file => file.disposition !== 'inline' && !file.related).length, bodyIncomplete: body.length > 23000 }, subject,
             body: `${sender ? `De : ${sender}\n\n` : ''}${body || subject}`.slice(0, 24000),
             version: String(ref.date ?? ''), groupId: null, agentId: null, closed: false,
             incomplete: !body || body.length > 23000 || parsed.attachments.length > 0,

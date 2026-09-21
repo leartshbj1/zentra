@@ -85,7 +85,7 @@ export function invoiceCandidates(source: string) {
       return;
     lists[field].push({ value, evidence: line.slice(0, 110) });
   };
-  for (const line of lines) {
+  for (const [lineIndex, line] of lines.entries()) {
     // Names remain literal source strings; sender display names never become vendor identity.
     if (line.length >= 3 && line.length <= 140 && /[\p{L}]{3}/u.test(line))
       add(
@@ -110,6 +110,12 @@ export function invoiceCandidates(source: string) {
         line,
       );
     if (ref) add('reference', ref[1], line);
+    // PDF text often puts the heading and its number on separate lines.
+    // Supply literal candidates to Jev; never invent a reference from a file name.
+    const context = lines.slice(lineIndex, lineIndex + 3).join(' ');
+    const labelled = /^(?:(?:facture|invoice|rechnung|fattura)\s*(?:number|nummer|nr\.?|no\.?|n[°oº.]?|#)?|(?:référence|reference|referenz|riferimento)(?:\s+(?:de\s+(?:facture|suivi)|facture|factura))?)\s*[:#]?\s*([\p{L}\d][\p{L}\d_./-]{1,99})/iu.exec(context);
+    if (labelled && /\d/.test(labelled[1]) && !canonicalDate(labelled[1]))
+      add('reference', labelled[1], context);
     // Decimal amounts only: account numbers, quantities and dates cannot become totals.
     for (const match of line.matchAll(
       /(?<![\w.,/])\d{1,3}(?:[’'\s,]\d{3})*[.,]\d{2}(?!\d|\s*%)|(?<![\w.,/])\d{1,9}[.,]\d{2}(?!\d|\s*%)/g,
@@ -141,7 +147,7 @@ export function extractionInput(source: string, companyName: string) {
   };
   for (const [key, values] of Object.entries(candidates))
     questions[key.toLowerCase()] = {
-      instructions: `${instructions} Champ recherché : ${key}.`,
+      instructions: `${instructions} Champ recherché : ${key}.${key === 'reference' ? ' Numéro unique de la facture émis par le fournisseur (Facture N°, Invoice number, Rechnungsnummer, Fattura n.). Le titre et le numéro peuvent être sur deux lignes. Exclure numéro de commande/client, IBAN, référence de paiement QR et numéro TVA.' : ''}`,
       options: {
         absent: 'Absent, ambigu ou non applicable',
         ...Object.fromEntries(

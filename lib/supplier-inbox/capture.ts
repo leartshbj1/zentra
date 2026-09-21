@@ -2,7 +2,7 @@ import { database, fileArchive } from '@/lib/runtime';
 import { decisionApiKey } from '@/lib/automation/config';
 import { JevDecisionProvider } from '@/lib/automation/provider';
 import { extractInvoice, emptyExtraction } from './extraction';
-import { invoiceMedia, invoiceText } from './documents';
+import { invoiceMedia, invoiceText, type PreparedMailDocument } from './documents';
 import {
   documentDigest,
   gestionActive,
@@ -34,6 +34,7 @@ export async function captureMailboxInvoices(input: {
   folderId: string;
   uid: string;
   readAttachment?: (id: string) => Promise<Uint8Array>;
+  documents?: Map<string, PreparedMailDocument>;
 }) {
   const workspaceId = input.workspace.id;
   const link = await workspaceLink(workspaceId);
@@ -64,14 +65,15 @@ export async function captureMailboxInvoices(input: {
   // Do not silently mark an oversized mail as complete: the mailbox surfaces the reason and will retry.
   if (attachments.length > 12) throw new Error('too_many_invoice_attachments');
   for (const attachment of attachments) {
-    const bytes = input.readAttachment ? await input.readAttachment(attachment.id) : await readMailAttachment(
+    const prepared = input.documents?.get(attachment.id);
+    const bytes = prepared?.bytes ?? (input.readAttachment ? await input.readAttachment(attachment.id) : await readMailAttachment(
         input.token,
         input.mailboxId,
         input.folderId,
         input.uid,
         attachment.id,
-      ),
-      media = invoiceMedia(bytes);
+      )),
+      media = prepared ? prepared.media : invoiceMedia(bytes);
     if (!media) continue;
     const sha = await documentDigest(bytes);
     if (
@@ -85,7 +87,7 @@ export async function captureMailboxInvoices(input: {
       continue;
     let text = '';
     try {
-      text = await invoiceText(bytes, media);
+      text = prepared ? prepared.text : await invoiceText(bytes, media);
     } catch {
       /* Preserve the original for manual review. */
     }

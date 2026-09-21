@@ -863,7 +863,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                                   busy={busy}
                                   readOnly={!!readOnly}
                                 />
-                                {['pending', 'error', 'review'].includes(
+                                {['pending', 'error', 'review', 'routed'].includes(
                                   ticket.state,
                                 ) && (
                                   <Button

@@ -1,6 +1,7 @@
 import { getDocumentProxy, extractText } from 'unpdf';
 
 export const MAX_INVOICE_BYTES = 6 * 1024 * 1024;
+export type PreparedMailDocument = { bytes: Uint8Array; media: string | null; text: string };
 export function invoiceMedia(
   bytes: Uint8Array,
 ): 'application/pdf' | 'image/png' | 'image/jpeg' | null {

@@ -28,6 +28,7 @@ import { CATEGORIES, PRIORITIES, LANGUAGES, type Connection } from './types';
 import { runMailSync } from './mail-sync';
 import * as invoiceCapture from '@/lib/supplier-inbox/capture';
 import * as imapConnector from './infomaniak-imap';
+import * as invoiceDocuments from '@/lib/supplier-inbox/documents';
 import { mailExternalId } from './infomaniak';
 
 const state = vi.hoisted(() => ({
@@ -715,6 +716,40 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       await expect(post({action:'connectMailbox',authMode:'imap',email:'inbox@example.test',password:'bad'})).rejects.toThrow();
       expect(sql.prepare('SELECT secret FROM support_connections WHERE id=?').get(first.connectionId)).toEqual(before);
     } finally { open.mockRestore(); }
+  });
+  it('analyse le PDF avec Jev, classe une facture fournisseur automatiquement et permet sa relecture sans doublon', async () => {
+    const uid='201', mailboxId='imap:inbox@example.test', folderId='imap:INBOX:100';
+    const mail = {
+      mailboxId,folderId,nextUid:200,close:vi.fn(),list:vi.fn().mockResolvedValue({messages:[{uid,date:Math.floor(Date.now()/1000)}],count:1}),
+      read:vi.fn().mockResolvedValue({ externalId:await mailExternalId(mailboxId,folderId,uid),subject:'Votre facture',body:'Voir pièce jointe.',version:'1',groupId:null,agentId:null,closed:false,incomplete:true,
+        mail:{uid,sender:'supplier@example.test',bodyIncomplete:false,attachmentCount:1,attachments:[{id:'201:0',name:'facture.pdf',size:25}]} }),
+      attachment:vi.fn().mockResolvedValue(new TextEncoder().encode('%PDF-1.4 synthetic fixture')),
+    };
+    const open=vi.spyOn(imapConnector,'openImapMailbox').mockResolvedValue(mail);
+    const extract=vi.spyOn(invoiceDocuments,'invoiceText').mockResolvedValue('Fournisseur Acme SA\nFACTURE\nN° TEST-201\nDestinataire QA Support\nTotal CHF 108.10');
+    const calls=vi.fn(async (_url:unknown,init?:RequestInit)=>{
+      expect(JSON.parse(String(init?.body)).state.customer_message).toContain('N° TEST-201');
+      return Response.json(answer('supplier_invoice'));
+    });
+    vi.stubGlobal('fetch',calls);
+    try {
+      const created=await json(await post({action:'connectMailbox',authMode:'imap',email:'inbox@example.test',password:'test-password'}));
+      // Old connections have no supplier folder: it must work without reconnecting.
+      sql.prepare('UPDATE support_connections SET directory_json=?,routes_json=? WHERE id=?').run(JSON.stringify({teams:[{id:'billing',name:'Facturation'}],agents:[]}),JSON.stringify({billing:{teamId:'billing'}}),created.connectionId);
+      await post({action:'settings',name:'Mail',mode:'automatic',threshold:85,baselineSeconds:60});
+      await post({action:'syncMailbox',connectionId:created.connectionId});
+      let row=sql.prepare('SELECT * FROM support_tickets WHERE connection_id=?').get(created.connectionId)!;
+      expect(row).toMatchObject({state:'routed',automatic:1});
+      expect(JSON.parse(String(row.decision_json))).toMatchObject({category:'supplier_invoice',destination:{teamId:'supplier_invoice'}});
+      // Also exercise backwards compatibility for an old IMAP source without uid.
+      const previous=JSON.parse(String(row.source_json));delete previous.mail.uid;
+      sql.prepare('UPDATE support_tickets SET source_json=? WHERE id=?').run(JSON.stringify(previous),row.id);
+      await post({action:'retry',ticketId:row.id,revision:row.revision});
+      expect(calls).toHaveBeenCalledTimes(2);
+      expect(sql.prepare('SELECT COUNT(*) AS n FROM support_tickets WHERE connection_id=?').get(created.connectionId)).toMatchObject({n:1});
+      row=sql.prepare('SELECT * FROM support_tickets WHERE id=?').get(row.id)!;
+      expect(row).toMatchObject({state:'routed',automatic:1});
+    } finally {open.mockRestore();extract.mockRestore();}
   });
   function mockMailbox(
     options: {

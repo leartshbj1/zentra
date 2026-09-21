@@ -6,6 +6,7 @@ import {
   type Directory,
   type Rules,
   type SourceTicket,
+  type Connection,
 } from './types';
 import { digest } from './crypto';
 
@@ -23,6 +24,17 @@ export const MAIL_DIRECTORY: Directory = {
 export const MAIL_RULES: Rules = Object.fromEntries(
   Object.keys(CATEGORIES).map((id) => [id, { teamId: id }]),
 );
+// Existing mailboxes gain the new internal folder without changing any custom routing.
+export function mailConnection(c: Connection): Connection {
+  if (c.provider !== 'infomaniak') return c;
+  const directory = JSON.parse(c.directory_json) as Directory;
+  const rules = JSON.parse(c.routes_json) as Rules;
+  if (!directory.teams.some(t => t.id === 'supplier_invoice'))
+    directory.teams.push({ id: 'supplier_invoice', name: CATEGORIES.supplier_invoice });
+  if (!Object.hasOwn(rules, 'supplier_invoice'))
+    rules.supplier_invoice = { teamId: 'supplier_invoice' };
+  return { ...c, directory_json: JSON.stringify(directory), routes_json: JSON.stringify(rules) };
+}
 function segment(value: unknown): string {
   const id = String(value ?? '');
   if (!id || id.length > 200 || /[\x00-\x20]/.test(id))
@@ -326,7 +338,9 @@ export async function readMail(
   const subject = text(m.subject, 300) || 'Mail sans objet';
   return {
     externalId: await mailExternalId(mailboxId, folderId, ref.uid),
-    mail: { sender: Array.isArray(m.from) ? text(record(m.from[0]).email,254).toLowerCase() : '',
+    mail: { sender: Array.isArray(m.from) ? text(record(m.from[0]).email,254).toLowerCase() : '', uid: ref.uid,
+      attachmentCount: Array.isArray(m.attachments) ? m.attachments.map(record).filter(a => !a.is_inline).length || Number(!!m.has_attachments) : Number(!!m.has_attachments),
+      bodyIncomplete: body.length > 23000,
       attachments: (Array.isArray(m.attachments)?m.attachments:[]).map(record).filter(a=>!a.is_inline&&/\.(pdf|png|jpe?g)$/i.test(text(a.name))).map(a=>({id:String(a.resource?String(a.resource).split('/').pop():a.part_id??''),name:text(a.name,180),size:Number(a.size||0)})).filter(a=>a.id) },
     subject,
     body: `${from ? `De : ${from}\n\n` : ''}${body || subject}`.slice(0, 24000),

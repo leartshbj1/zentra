@@ -5,6 +5,7 @@ import {
   normalizeMailToken,
   listMail,
   readMail,
+  readMailAttachment,
   mailExternalId,
   MAIL_DIRECTORY,
   MAIL_RULES,
@@ -15,11 +16,13 @@ import {
   type Connection,
   type Workspace,
   type Ticket,
+  type SourceTicket,
 } from './types';
 import { openImapMailbox, decodeImapCredentials, encodeImapCredentials, type ImapMailbox } from './infomaniak-imap';
 import { requireSupportSubscription } from './billing';
 import { ingest, processTicket } from './service';
 import { mailboxCaptureNeeded, captureMailboxInvoices } from '@/lib/supplier-inbox/capture';
+import { prepareMailDocuments } from './mail-documents';
 
 type Mailbox = {
   connection_id: string;
@@ -143,6 +146,24 @@ export async function mailboxStates(workspaceId: string) {
       .all()
   ).results;
 }
+export async function refreshMailboxTicket(workspace: Workspace, connection: Connection, previous: SourceTicket) {
+  await requireSupportSubscription(workspace);
+  const mailbox = await database().prepare('SELECT * FROM support_mailboxes WHERE connection_id=? AND workspace_id=?')
+    .bind(connection.id, workspace.id).first<Mailbox>();
+  if (!mailbox) throw new SupportError('Reconnectez cette boîte mail avant de relancer l’analyse.');
+  const token = await decryptSecret(runtimeValue('SUPPORT_ENCRYPTION_KEY'), connection.secret, `connection:${workspace.id}:${connection.id}`);
+  const credentials = decodeImapCredentials(token);
+  const uid = previous.mail?.uid || (credentials ? /^(\d+):/.exec(previous.mail?.attachments[0]?.id || '')?.[1] : undefined);
+  if (!uid || await mailExternalId(mailbox.mailbox_id, mailbox.folder_id, uid) !== previous.externalId)
+    throw new SupportError('Cet ancien mail ne peut pas être relu automatiquement. Vérifiez son classement manuellement. Les nouveaux mails prennent en charge la nouvelle analyse.');
+  const imap = credentials ? await openImapMailbox(mailbox.email, credentials.password, mailbox.folder_id) : null;
+  try {
+    const ref = { uid, date: null };
+    const source = imap ? await imap.read(ref) : await readMail(token, mailbox.mailbox_id, mailbox.folder_id, ref);
+    const readAttachment = imap?.attachment ?? ((id: string) => readMailAttachment(token, mailbox.mailbox_id, mailbox.folder_id, uid, id));
+    return (await prepareMailDocuments(source, readAttachment)).source;
+  } finally { imap?.close(); }
+}
 export async function syncMailbox(
   workspace: Workspace,
   connection: Connection,
@@ -163,6 +184,7 @@ export async function syncMailbox(
   let imported = 0,
     processed = 0;
   let captured=0,captureDeferred=false;
+  let preparedMessages = 0;
   let captureError:string|null=null;
   let imap: ImapMailbox | undefined;
   try {
@@ -227,9 +249,16 @@ export async function syncMailbox(
         if (imap && error instanceof SupportError && error.status === 422) { captureError = error.message; continue; }
         throw error;
       }
+      if (!duplicate && source.mail?.attachments.length) {
+        if (preparedMessages >= 3) { captureDeferred = true; continue; }
+        preparedMessages++;
+      }
+      const readAttachment = imap?.attachment ?? ((id: string) => readMailAttachment(token, mailbox.mailbox_id, mailbox.folder_id, ref.uid, id));
+      const prepared = !duplicate ? await prepareMailDocuments(source, readAttachment) : null;
+      if (prepared) source = prepared.source;
       if(capture && captured<3) {
         if(source.mail?.attachments.length)captured++;
-        try {await captureMailboxInvoices({workspace,connectionId:connection.id,source,token,mailboxId:mailbox.mailbox_id,folderId:mailbox.folder_id,uid:ref.uid,readAttachment:imap?.attachment});}
+        try {await captureMailboxInvoices({workspace,connectionId:connection.id,source,token,mailboxId:mailbox.mailbox_id,folderId:mailbox.folder_id,uid:ref.uid,readAttachment,documents:prepared?.documents});}
         catch(error){captureError=error instanceof SupportError?error.message:'Certains justificatifs n’ont pas pu être importés dans Gestion. La réception réessaiera ; les tickets Support continuent d’être traités. Pour un document de plus de 6 Mo ou un mail de plus de 12 pièces, utilisez l’import manuel de Gestion.';}
       }
       if(!duplicate){await ingest(connection, source);imported++;}

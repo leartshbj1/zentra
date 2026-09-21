@@ -28,8 +28,9 @@ import {
   completeZendesk,
 } from './zendesk-oauth';
 import { hasAdminSession } from './admin-session';
-import { connectMailbox, mailboxStates, syncMailbox } from './mail-sync';
-import { MAIL_DIRECTORY } from './infomaniak';
+import { connectMailbox, mailboxStates, syncMailbox, refreshMailboxTicket } from './mail-sync';
+import { MAIL_DIRECTORY, mailConnection } from './infomaniak';
+import { mailAnalysisBody } from './mail-documents';
 import { gestionLinkState, saveGestionLink } from '@/lib/supplier-inbox/service';
 import { attachSupportAccess } from './founder-access';
 import {
@@ -184,7 +185,7 @@ async function connectionFor(workspaceId: string, id: string) {
       'Cette connexion n’est plus active. Reconnectez votre outil.',
       404,
     );
-  return c;
+  return mailConnection(c);
 }
 async function secretFor(connection: Connection) {
   if (connection.provider === 'zendesk' && connection.login === 'oauth:zendesk')
@@ -278,6 +279,7 @@ function destination(
   return { teamId, ...(agentId ? { agentId } : {}) };
 }
 function publicConnection(c: Connection) {
+  c = mailConnection(c);
   return {
     id: c.id,
     provider: c.provider,
@@ -916,7 +918,7 @@ export async function mutateWorkspace(request: Request) {
     const c = await connectionFor(workspace.id, ticket.connection_id);
     if (action === 'retry') {
       if (c.provider !== 'api') {
-        const fresh = await readProviderTicket(
+        const fresh = c.provider === 'infomaniak' ? await refreshMailboxTicket(workspace, c, JSON.parse(ticket.source_json) as SourceTicket) : await readProviderTicket(
           c,
           await secretFor(c),
           ticket.external_id,
@@ -970,7 +972,7 @@ export async function ingest(connection: Connection, source: SourceTicket) {
       'Ce ticket ne contient pas encore de texte à analyser.',
     );
   const db = database(),
-    hash = await digest(JSON.stringify([source.subject, source.body]));
+    hash = await digest(JSON.stringify([source.subject, mailAnalysisBody(source)]));
   await db
     .prepare(
       `INSERT INTO support_tickets(id,workspace_id,connection_id,external_id,subject,body,source_json,fingerprint,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(connection_id,external_id) DO NOTHING`,
@@ -1117,7 +1119,7 @@ export async function processTicket(
       (await evaluateTicket(
         await aiKey(),
         ticket.subject,
-        ticket.body,
+        mailAnalysisBody(source),
         JSON.parse(active.routes_json) as Rules,
         currentWorkspace.threshold,
         undefined,
@@ -1136,7 +1138,9 @@ export async function processTicket(
       decision = {
         ...decision,
         reason:
-          'Ce ticket est long ou contient un historique étendu. Consultez-le dans votre outil avant de valider.',
+          source.incompleteReason || (source.mail?.attachments.length
+            ? 'Une pièce jointe nécessite votre vérification avant le classement.'
+            : 'Ce ticket est long ou contient un historique étendu. Consultez-le dans votre outil avant de valider.'),
       };
     else if (!manual && source.closed)
       decision = {
