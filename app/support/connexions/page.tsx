@@ -1,3 +1,4 @@
+import { ConnectorLogo } from '@/components/support/connector-logo';
 import { ArrowRight, Plug, Settings2, Send } from 'lucide-react';
 import {
   SupportCallToAction,
@@ -18,16 +19,16 @@ export default async function SupportConnections() {
   const connectors = [
     {
       name: 'Infomaniak Mail',
-      icon: 'I',
+      provider: 'infomaniak',
       status: 'Connexion directe',
       ready: true,
       text: 'Reliez votre boîte mail pour récupérer les nouveaux messages et les classer par catégorie et priorité dans Zentra Support.',
       detail:
-        'Clé Infomaniak workspace:mail. Gardez votre espace Support ouvert pour la réception automatique ; vos dossiers Infomaniak restent inchangés.',
+        'Adresse mail et mot de passe de la boîte. Connexion chiffrée, réglages automatiques. Gardez votre espace Support ouvert pour la réception automatique ; vos dossiers Infomaniak restent inchangés.',
     },
     {
       name: 'Freshdesk',
-      icon: 'F',
+      provider: 'freshdesk',
       status: 'Installation guidée',
       ready: true,
       text: 'Connectez votre compte avec ses accès API, retrouvez vos équipes et configurez l’envoi des nouveaux tickets.',
@@ -35,7 +36,7 @@ export default async function SupportConnections() {
     },
     {
       name: 'Zendesk',
-      icon: 'Z',
+      provider: 'zendesk',
       status: zendesk.ready ? 'Connexion par autorisation' : 'En préparation',
       ready: zendesk.ready,
       text: zendesk.ready
@@ -47,7 +48,7 @@ export default async function SupportConnections() {
     },
     {
       name: 'Gorgias',
-      icon: 'G',
+      provider: 'gorgias',
       status: 'Bientôt disponible',
       ready: false,
       text: 'Une connexion pour les équipes de commerce en ligne est prévue. Elle n’est pas encore ouverte aux clients.',
@@ -55,7 +56,7 @@ export default async function SupportConnections() {
     },
     {
       name: 'Votre outil',
-      icon: '↗',
+      provider: 'api',
       status: 'API & webhooks',
       ready: true,
       text: 'Votre équipe technique peut envoyer des tickets et recevoir les décisions pour les appliquer dans votre outil, par exemple via Make ou n8n.',
@@ -81,7 +82,7 @@ export default async function SupportConnections() {
           {connectors.map((item) => (
             <article key={item.name}>
               <div className="sp-integration-icon" aria-hidden="true">
-                {item.icon}
+                <ConnectorLogo provider={item.provider} />
               </div>
               <span
                 className={`sp-status ${item.ready ? 'sp-status-ready' : ''}`}

@@ -33,6 +33,7 @@ export async function captureMailboxInvoices(input: {
   mailboxId: string;
   folderId: string;
   uid: string;
+  readAttachment?: (id: string) => Promise<Uint8Array>;
 }) {
   const workspaceId = input.workspace.id;
   const link = await workspaceLink(workspaceId);
@@ -63,7 +64,7 @@ export async function captureMailboxInvoices(input: {
   // Do not silently mark an oversized mail as complete: the mailbox surfaces the reason and will retry.
   if (attachments.length > 12) throw new Error('too_many_invoice_attachments');
   for (const attachment of attachments) {
-    const bytes = await readMailAttachment(
+    const bytes = input.readAttachment ? await input.readAttachment(attachment.id) : await readMailAttachment(
         input.token,
         input.mailboxId,
         input.folderId,

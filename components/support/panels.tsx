@@ -1,4 +1,5 @@
 'use client';
+import { ConnectorLogo } from './connector-logo';
 import { useState } from 'react';
 import { ConnectionWizard } from './connection-wizard';
 import { GestionLink } from './gestion-link';
@@ -221,6 +222,7 @@ export function ConnectionsPanel({
         <section className="support-card" key={c.id}>
           <div className="support-card-heading">
             <div>
+              <ConnectorLogo provider={c.provider} />
               <p className="support-eyebrow">{PROVIDERS[c.provider]}</p>
               <h3>{c.label}</h3>
               <p>
@@ -311,7 +313,7 @@ export function ConnectionsPanel({
                     disabled={busy || !manage}
                     onClick={() => setOpen(true)}
                   >
-                    Remplacer la clé de connexion
+                    Modifier la connexion
                   </Button>
                 </div>
               );

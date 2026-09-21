@@ -660,6 +660,7 @@ export async function mutateWorkspace(request: Request) {
       await startZendesk(workspace.id, user.userId, body, platformOwner(user)),
     );
   if (action === 'connectMailbox') {
+    if (body.authMode != null && body.authMode !== 'imap' && body.authMode !== 'api') throw new SupportError('Mode de connexion invalide.', 422);
     await enforceAccountRateLimit(
       request,
       'support-mail-connect',
@@ -670,7 +671,8 @@ export async function mutateWorkspace(request: Request) {
       await connectMailbox(
         workspace,
         text(body.email, 254),
-        text(body.apiKey, 8192),
+        body.authMode === 'imap' ? (typeof body.password === 'string' ? body.password : '') : text(body.apiKey, 8192),
+        body.authMode === 'imap' ? 'imap' : 'api',
       ),
       201,
     );

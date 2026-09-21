@@ -1,6 +1,6 @@
 'use client';
-import { useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Check, Link2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowUpRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { ConnectorLogo } from './connector-logo';
 import { Field } from './controls';
 import { PROVIDERS, type SupportState, type Mutate } from './model';
 
@@ -34,8 +35,11 @@ export function ConnectionWizard({
   const [step, setStep] = useState(1),
     [provider, setProvider] = useState('infomaniak'),
     [domain, setDomain] = useState(''),
-    [key, setKey] = useState('');
+    [key, setKey] = useState(''),
+    [mailMode, setMailMode] = useState<'imap' | 'api'>('imap');
   const submitting = useRef(false);
+  const dialog = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (open) dialog.current?.scrollTo({ top: 0, behavior: 'instant' }); }, [step, open]);
   const waiting =
     provider === 'gorgias' ||
     (provider === 'zendesk' && !data.zendesk?.ready && !data.platformOwner);
@@ -49,7 +53,7 @@ export function ConnectionWizard({
         }
       }}
     >
-      <DialogContent className="support-dialog support-connect-wizard">
+      <DialogContent ref={dialog} className="support-dialog support-connect-wizard">
         <DialogHeader>
           <DialogTitle>
             {step === 1
@@ -88,7 +92,7 @@ export function ConnectionWizard({
                   }}
                 >
                   <span className="support-provider-icon">
-                    {id === 'api' ? <Link2 size={22} /> : name[0]}
+                    <ConnectorLogo provider={id} />
                   </span>
                   <strong>{name}</strong>
                   <small>
@@ -121,7 +125,7 @@ export function ConnectionWizard({
               try {
               const result = await mutate(
                 provider === 'infomaniak'
-                  ? { action: 'connectMailbox', email: domain, apiKey: key }
+                  ? { action: 'connectMailbox', email: domain, authMode: mailMode, ...(mailMode === 'imap' ? { password: key } : { apiKey: key }) }
                   : provider === 'zendesk'
                     ? { action: 'startZendesk', domain }
                     : {
@@ -196,29 +200,8 @@ export function ConnectionWizard({
                       maxLength={254}
                       autoComplete="email"
                     />
-                    <div className="support-guided-help">
-                      <strong>Autoriser Zentra à lire vos mails</strong>
-                      <ol>
-                        <li>Connectez-vous au compte Infomaniak qui peut ouvrir cette boîte mail.</li>
-                        <li>
-                          Créez une clé dédiée à Zentra Support avec le droit{' '}
-                          <code>workspace:mail</code>.
-                        </li>
-                        <li>
-                          Copiez cette clé ci-dessous. Vous pourrez la révoquer
-                          à tout moment chez Infomaniak.
-                        </li>
-                      </ol>
-                      <a
-                        href="https://manager.infomaniak.com/v3/ng/accounts/token"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Ouvrir Infomaniak <ArrowUpRight size={14} />
-                      </a>
-                    </div>
                     <Field
-                      label="Clé API Infomaniak"
+                      label={mailMode === 'imap' ? 'Mot de passe de cette boîte mail' : 'Clé API Infomaniak'}
                       type="password"
                       autoComplete="new-password"
                       value={key}
@@ -227,19 +210,39 @@ export function ConnectionWizard({
                       maxLength={8192}
                     />
                     <p className="support-small">
-                      Utilisez la clé créée ci-dessus, pas le mot de passe de votre boîte mail.
+                      {mailMode === 'imap'
+                        ? 'Le mot de passe utilisé dans votre application mail. Il est chiffré sur le serveur Zentra.'
+                        : 'Collez une clé avec le droit workspace:mail. Si la lecture des dossiers échoue, utilisez la connexion par mot de passe.'}
                     </p>
+                    <details className="support-guided-help">
+                      <summary>Où trouver le bon accès ?</summary>
+                      <p className="support-small">
+                        Dans Infomaniak, ouvrez les réglages de cette adresse puis les accès des applications mail.
+                        Si la double authentification est activée, créez un mot de passe d’application pour Zentra.
+                        Le mot de passe de votre compte Infomaniak peut être différent de celui de la boîte.
+                      </p>
+                      <a href="https://config.infomaniak.com/" target="_blank" rel="noreferrer">
+                        Ouvrir le guide Infomaniak <ArrowUpRight size={14} />
+                      </a>
+                      <label className="support-mail-method">
+                        Méthode de connexion
+                        <select value={mailMode} onChange={(e) => { setMailMode(e.target.value as 'imap' | 'api'); setKey(''); }} disabled={busy}>
+                          <option value="imap">Mot de passe de la boîte (recommandé)</option>
+                          <option value="api">Clé API (ancienne méthode)</option>
+                        </select>
+                      </label>
+                    </details>
                     <details className="support-guided-help">
                       <summary>Quels e-mails seront récupérés ?</summary>
                       <p className="support-small">
-                      La clé est chiffrée côté serveur. Seuls les mails reçus à
+                      Seuls les mails reçus à
                       partir de la connexion sont récupérés.{' '}
                       {data.mailSync?.background
                         ? 'La réception continue lorsque cette page est fermée.'
                         : 'Gardez votre espace Support ouvert pour la réception automatique. La réception lorsque la page est fermée n’est pas encore active.'}{' '}
                       Le texte est analysé par le service de tri de Zentra ; les
                       pièces jointes ne sont importées que si vous reliez ensuite votre entreprise Gestion. Aucun mail n’est
-                      envoyé, déplacé ou supprimé.
+                      envoyé, marqué comme lu, déplacé ou supprimé.
                     </p>
                     </details>
                   </>

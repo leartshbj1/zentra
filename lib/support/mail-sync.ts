@@ -16,6 +16,7 @@ import {
   type Workspace,
   type Ticket,
 } from './types';
+import { openImapMailbox, decodeImapCredentials, encodeImapCredentials, type ImapMailbox } from './infomaniak-imap';
 import { requireSupportSubscription } from './billing';
 import { ingest, processTicket } from './service';
 import { mailboxCaptureNeeded, captureMailboxInvoices } from '@/lib/supplier-inbox/capture';
@@ -39,17 +40,34 @@ export async function connectMailbox(
   workspace: Workspace,
   email: string,
   token: string,
+  mode: 'api' | 'imap' = 'api',
 ) {
   const db = database();
   const address = email.trim().toLowerCase();
-  token = normalizeMailToken(token);
-  const verified = await verifyMailbox(address, token);
+
   const existing = await db
     .prepare('SELECT * FROM support_mailboxes WHERE workspace_id=? AND email=?')
     .bind(workspace.id, address)
     .first<Mailbox>();
+  if (existing && existing.lease_until > now())
+    throw new SupportError('Une synchronisation est en cours. Réessayez dans quelques instants.', 409);
+  let verified: { mailboxId: string; folderId: string };
+  let switching = false;
+  if (mode === 'imap') {
+    const previous = existing ? await db.prepare('SELECT secret FROM support_connections WHERE id=? AND workspace_id=?').bind(existing.connection_id, workspace.id).first<{ secret: string }>() : null;
+    const credentials = previous ? decodeImapCredentials(await decryptSecret(runtimeValue('SUPPORT_ENCRYPTION_KEY'), previous.secret, `connection:${workspace.id}:${existing!.connection_id}`)) : null;
+    const session = await openImapMailbox(address, token, credentials ? existing!.folder_id : undefined);
+    try {
+      verified = session;
+      token = encodeImapCredentials({ password: token, firstUid: credentials?.firstUid ?? session.nextUid });
+      switching = !!existing && !credentials;
+    } finally { session.close(); }
+  } else {
+    token = normalizeMailToken(token);
+    verified = await verifyMailbox(address, token);
+  }
   if (
-    existing &&
+    existing && !switching &&
     (existing.mailbox_id !== verified.mailboxId ||
       existing.folder_id !== verified.folderId)
   )
@@ -76,9 +94,9 @@ export async function connectMailbox(
         .bind(secret, id, workspace.id),
       db
         .prepare(
-          'UPDATE support_mailboxes SET last_error=NULL,next_sync_at=0 WHERE connection_id=?',
+          'UPDATE support_mailboxes SET mailbox_id=?,folder_id=?,since_at=?,scan_offset=?,last_error=NULL,next_sync_at=0 WHERE connection_id=?',
         )
-        .bind(id),
+        .bind(verified.mailboxId, verified.folderId, switching ? now() : existing.since_at, switching ? 0 : existing.scan_offset, id),
     ]);
   } else {
     await db.batch([
@@ -146,13 +164,16 @@ export async function syncMailbox(
     processed = 0;
   let captured=0,captureDeferred=false;
   let captureError:string|null=null;
+  let imap: ImapMailbox | undefined;
   try {
     const token = await decryptSecret(
       runtimeValue('SUPPORT_ENCRYPTION_KEY'),
       connection.secret,
       `connection:${workspace.id}:${connection.id}`,
     );
-    const newest = await listMail(
+    const credentials = decodeImapCredentials(token);
+    if (credentials) imap = await openImapMailbox(mailbox.email, credentials.password, mailbox.folder_id);
+    const newest = imap ? await imap.list(0, credentials!.firstUid) : await listMail(
       token,
       mailbox.mailbox_id,
       mailbox.folder_id,
@@ -162,7 +183,7 @@ export async function syncMailbox(
     // Check new arrivals on every run, even during a long historical scan.
     const page =
       mailbox.scan_offset > 0
-        ? await listMail(
+        ? imap ? await imap.list(mailbox.scan_offset, credentials!.firstUid) : await listMail(
             token,
             mailbox.mailbox_id,
             mailbox.folder_id,
@@ -196,15 +217,19 @@ export async function syncMailbox(
         .first<{ active: number }>();
       if (!active?.active)
         throw new SupportError('La boîte a été déconnectée.');
-      const source = await readMail(
+      let source;
+      try { source = imap ? await imap.read(ref) : await readMail(
         token,
         mailbox.mailbox_id,
         mailbox.folder_id,
         ref,
-      );
+      ); } catch (error) {
+        if (imap && error instanceof SupportError && error.status === 422) { captureError = error.message; continue; }
+        throw error;
+      }
       if(capture && captured<3) {
         if(source.mail?.attachments.length)captured++;
-        try {await captureMailboxInvoices({workspace,connectionId:connection.id,source,token,mailboxId:mailbox.mailbox_id,folderId:mailbox.folder_id,uid:ref.uid});}
+        try {await captureMailboxInvoices({workspace,connectionId:connection.id,source,token,mailboxId:mailbox.mailbox_id,folderId:mailbox.folder_id,uid:ref.uid,readAttachment:imap?.attachment});}
         catch(error){captureError=error instanceof SupportError?error.message:'Certains justificatifs n’ont pas pu être importés dans Gestion. La réception réessaiera ; les tickets Support continuent d’être traités. Pour un document de plus de 6 Mo ou un mail de plus de 12 pièces, utilisez l’import manuel de Gestion.';}
       }
       if(!duplicate){await ingest(connection, source);imported++;}
@@ -262,7 +287,7 @@ export async function syncMailbox(
       .bind(message, now() + 300, connection.id, lease)
       .run();
     throw new SupportError(message, 503);
-  }
+  } finally { imap?.close(); }
 }
 export async function runMailSync(request: Request) {
   const expected = runtimeValue('SUPPORT_MAIL_SYNC_TOKEN');

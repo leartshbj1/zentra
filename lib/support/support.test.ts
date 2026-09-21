@@ -27,6 +27,8 @@ import {
 import { CATEGORIES, PRIORITIES, LANGUAGES, type Connection } from './types';
 import { runMailSync } from './mail-sync';
 import * as invoiceCapture from '@/lib/supplier-inbox/capture';
+import * as imapConnector from './infomaniak-imap';
+import { mailExternalId } from './infomaniak';
 
 const state = vi.hoisted(() => ({
   signedOut: false,
@@ -668,6 +670,51 @@ describe('Parcours complet dans une vraie base SQLite', () => {
   afterEach(() => {
     sql.close();
     vi.unstubAllGlobals();
+  });
+  it('connecte IMAP, chiffre le mot de passe, importe une seule fois et conserve le curseur après reconnexion', async () => {
+    const mail = {
+      mailboxId:'imap:inbox@example.test', folderId:'imap:INBOX:100', nextUid:200,
+      close:vi.fn(), list:vi.fn().mockResolvedValue({messages:[{uid:'201',date:Math.floor(Date.now()/1000)}],count:1}),
+      read:vi.fn().mockResolvedValue({ externalId:await mailExternalId('imap:inbox@example.test','imap:INBOX:100','201'), subject:'Une facture', body:'Voici la facture de votre commande.', version:'1',groupId:null,agentId:null,closed:false,incomplete:false,mail:{sender:'supplier@example.test',attachments:[]} }),
+      attachment:vi.fn(),
+    };
+    const open = vi.spyOn(imapConnector, 'openImapMailbox').mockResolvedValue(mail);
+    try {
+      const created = await json(await post({action:'connectMailbox',authMode:'imap',email:'inbox@example.test',password:' dedicated password '}));
+      let row = sql.prepare('SELECT secret FROM support_connections WHERE id=?').get(created.connectionId)!;
+      expect(String(row.secret)).not.toContain('dedicated password');
+      const saved = imapConnector.decodeImapCredentials(await decryptSecret(state.env.SUPPORT_ENCRYPTION_KEY,String(row.secret),`connection:${workspace}:${created.connectionId}`));
+      expect(saved).toEqual({password:' dedicated password ',firstUid:200});
+      expect(open).toHaveBeenCalledWith('inbox@example.test',' dedicated password ',undefined);
+      await post({action:'syncMailbox',connectionId:created.connectionId});
+      await post({action:'syncMailbox',connectionId:created.connectionId});
+      expect(sql.prepare('SELECT COUNT(*) AS n FROM support_tickets WHERE connection_id=?').get(created.connectionId)).toMatchObject({n:1});
+      expect(mail.read).toHaveBeenCalledOnce();
+      mail.nextUid=900;
+      await post({action:'connectMailbox',authMode:'imap',email:'inbox@example.test',password:'new dedicated password'});
+      row = sql.prepare('SELECT secret FROM support_connections WHERE id=?').get(created.connectionId)!;
+      expect(imapConnector.decodeImapCredentials(await decryptSecret(state.env.SUPPORT_ENCRYPTION_KEY,String(row.secret),`connection:${workspace}:${created.connectionId}`))).toEqual({password:'new dedicated password',firstUid:200});
+      expect(open).toHaveBeenLastCalledWith('inbox@example.test','new dedicated password','imap:INBOX:100');
+      expect(mail.close).toHaveBeenCalledTimes(4);
+      const view=await json(await getWorkspaceState(new Request('https://zentraapp.ch/api/support')));
+      expect(JSON.stringify(view)).not.toContain('dedicated password');
+    } finally { open.mockRestore(); }
+  });
+  it('remplace l’API défaillante par IMAP sans supprimer les tickets et sans importer les anciens mails', async () => {
+    mockMailbox();
+    const first=await json(await post({action:'connectMailbox',email:'inbox@example.test',apiKey:'mailbox-token'}));
+    await post({action:'syncMailbox',connectionId:first.connectionId});
+    const open=vi.spyOn(imapConnector,'openImapMailbox').mockResolvedValue({mailboxId:'imap:inbox@example.test',folderId:'imap:INBOX:99',nextUid:400,close:vi.fn(),list:vi.fn(),read:vi.fn(),attachment:vi.fn()});
+    try {
+      const connected=await json(await post({action:'connectMailbox',authMode:'imap',email:'inbox@example.test',password:'new-password'}));
+      expect(connected.connectionId).toBe(first.connectionId);
+      expect(sql.prepare('SELECT COUNT(*) AS n FROM support_tickets WHERE connection_id=?').get(first.connectionId)).toMatchObject({n:1});
+      expect(sql.prepare('SELECT mailbox_id,folder_id,scan_offset FROM support_mailboxes WHERE connection_id=?').get(first.connectionId)).toMatchObject({mailbox_id:'imap:inbox@example.test',folder_id:'imap:INBOX:99',scan_offset:0});
+      const before=sql.prepare('SELECT secret FROM support_connections WHERE id=?').get(first.connectionId)!;
+      open.mockRejectedValueOnce(new Error('refused'));
+      await expect(post({action:'connectMailbox',authMode:'imap',email:'inbox@example.test',password:'bad'})).rejects.toThrow();
+      expect(sql.prepare('SELECT secret FROM support_connections WHERE id=?').get(first.connectionId)).toEqual(before);
+    } finally { open.mockRestore(); }
   });
   function mockMailbox(
     options: {
