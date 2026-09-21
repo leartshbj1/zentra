@@ -39,21 +39,21 @@ export function ConfirmAccountAction({
         event.preventDefault();
         if (!busy) onCancel();
       }}
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border border-[#d9d4c9] bg-[#f6f4ee] p-6 text-[#173d2c] shadow-xl backdrop:bg-black/40"
+      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border border-[var(--ac-line,#d9d4c9)] bg-[var(--ac-panel,#f6f4ee)] p-6 text-[var(--ac-ink,#173d2c)] shadow-xl backdrop:bg-black/40"
     >
       <h3 id={titleId} className="break-words text-xl font-semibold">
         {title}
       </h3>
       <p
         id={descriptionId}
-        className="mt-3 break-words text-sm leading-6 text-[#5f6962]"
+        className="mt-3 break-words text-sm leading-6 text-[var(--ac-muted,#5f6962)]"
       >
         {description}
       </p>
       {error ? (
         <p
           role="alert"
-          className="mt-4 break-words rounded-xl bg-[#fff1ed] p-3 text-sm text-[#8b3f2e]"
+          className="mt-4 break-words rounded-xl bg-[var(--ac-panel,#fff1ed)] p-3 text-sm text-[var(--ac-danger,#8b3f2e)]"
         >
           {error}
         </p>
@@ -64,7 +64,7 @@ export function ConfirmAccountAction({
           type="button"
           disabled={busy}
           onClick={onCancel}
-          className="min-h-12 rounded-full border border-[#d9d4c9] bg-white px-4 text-sm font-semibold disabled:opacity-50"
+          className="min-h-12 rounded-full border border-[var(--ac-line,#d9d4c9)] bg-[var(--ac-panel,#fff)] px-4 text-sm font-semibold disabled:opacity-50"
         >
           Annuler
         </button>

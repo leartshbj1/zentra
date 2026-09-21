@@ -6,7 +6,7 @@ vi.mock('@/lib/runtime',()=>({database:()=>mock.db,runtimeValue:()=>''}));
 vi.mock('@/app/zentra-auth',()=>({getZentraUser:async()=>mock.user}));
 vi.mock('@/lib/account',async original=>({...await original<typeof import('./account')>(),enforceAccountRateLimit:mock.rate,membershipsForUser:mock.memberships}));
 vi.mock('@/lib/supabase-auth-runtime',()=>({supabaseAuthClient:()=>mock,supabaseAuthSiteOrigin:()=> 'https://zentra.example'}));
-vi.mock('@/lib/supabase-auth-cookies',()=>({clearSupabaseAuthCookies:mock.clear,readSupabaseAuthCookies:async()=>({accessToken:'existing'})}));
+vi.mock('@/lib/supabase-auth-cookies',()=>({clearSupabaseAuthCookies:mock.clear,readSupabaseAuthCookies:async()=>({accessToken:'existing'}),writeSupabasePkceCookie:vi.fn()}));
 vi.mock('next/headers',()=>({cookies:async()=>({get:()=>undefined})}));
 vi.mock('@/lib/stripe',async original=>({...await original<typeof import('./stripe')>(),requireSameOrigin:()=> 'https://zentra.example',createPortalSession:mock.portal}));
 import { startAccountTrial, trialLicenseEntitlement } from './account-trial';
@@ -23,6 +23,12 @@ function request(body:unknown,path='/api/account/profile',origin='https://zentra
 beforeEach(()=>{vi.resetAllMocks();db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');for(const f of readdirSync('drizzle').filter(x=>x.endsWith('.sql')).sort())db.exec(readFileSync(`drizzle/${f}`,'utf8'));mock.db={prepare,async batch(statements:ReturnType<typeof prepare>[]){db.exec('BEGIN');try{const r=statements.map(item=>{const x=db.prepare(item.query).run(...item.args);return {success:true,meta:{changes:Number(x.changes)}}});db.exec('COMMIT');return r;}catch(e){db.exec('ROLLBACK');throw e;}}};mock.user=user;mock.signIn.mockResolvedValue({accessToken:'verified',user:{id:'user-a',emailConfirmed:true}});mock.signOut.mockResolvedValue(undefined);mock.memberships.mockResolvedValue([{organizationId:'org-a',subscriptionId:'sub-a',role:'owner'}]);mock.portal.mockResolvedValue('https://billing.stripe.com/p/session_fixture');db.exec(`INSERT INTO subscriptions(subscription_id,customer_id,price_id,status,current_period_end,updated_at)VALUES('sub-a','cus_fixture','price-a','active',1,1);INSERT INTO organizations(organization_id,name,subscription_id,created_by_user_id,created_at,updated_at)VALUES('org-a','A','sub-a','user-a',1,1);`);});
 afterEach(()=>db.close());
 describe('Phase 2 account mutations',()=>{
+  it('uses the verified current identity for an email-change confirmation',async()=>{
+    const res=await profile(request({action:'email',email:'next@example.test',currentPassword:'correct-password',expectedUserId:user.userId}));
+    expect(res.status).toBe(200);expect(mock.signIn).toHaveBeenCalledWith(user.email,'correct-password');
+    expect(mock.updateEmail).toHaveBeenCalledWith('verified','next@example.test','https://zentra.example/api/auth/confirmation',expect.stringMatching(/^[A-Za-z0-9_-]{43}$/));
+    expect(mock.signOut).toHaveBeenCalledWith('verified','local');
+  });
   it('keeps preferences isolated and rejects a stale browser save',async()=>{const p=await saveAccountPreferences('user-a',{revision:0,theme:'dark'});expect(p.revision).toBe(1);expect((await accountPreferences('user-b')).theme).toBe('system');await expect(saveAccountPreferences('user-a',{revision:0,theme:'light'})).rejects.toMatchObject({status:409});expect((await accountPreferences('user-a')).theme).toBe('dark');});
   it('permits only one simultaneous initial preferences save',async()=>{const results=await Promise.allSettled([saveAccountPreferences('new',{revision:0,theme:'dark'}),saveAccountPreferences('new',{revision:0,theme:'light'})]);expect(results.filter(x=>x.status==='fulfilled')).toHaveLength(1);});
   it('refuses cross-origin profile mutation before authentication',async()=>{expect((await profile(request({action:'name'},undefined,'https://evil.test'))).status).toBe(403);expect(mock.updateProfile).not.toHaveBeenCalled();});

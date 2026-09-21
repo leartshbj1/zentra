@@ -2,7 +2,8 @@ import { getZentraUser } from '@/app/zentra-auth';
 import { enforceAccountRateLimit, normalizedEmail } from '@/lib/account';
 import { database } from '@/lib/runtime';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
-import { clearSupabaseAuthCookies, readSupabaseAuthCookies } from '@/lib/supabase-auth-cookies';
+import { clearSupabaseAuthCookies, readSupabaseAuthCookies, writeSupabasePkceCookie } from '@/lib/supabase-auth-cookies';
+import { createSupabasePkceFlow } from '@/lib/supabase-auth-pkce';
 import { supabaseAuthClient, supabaseAuthSiteOrigin } from '@/lib/supabase-auth-runtime';
 import { authJsonError, authNoStoreHeaders, AuthPublicError, requireAuthSameOrigin } from '@/lib/supabase-auth-http';
 import { MAX_AUTH_PASSWORD_LENGTH, MIN_AUTH_PASSWORD_LENGTH } from '@/lib/supabase-auth-policy';
@@ -37,7 +38,9 @@ export async function PUT(request: Request) {
       if (body.action === 'email') {
         const email = normalizedEmail(typeof body.email === 'string' ? body.email : '');
         if (email === user.email) throw new AuthPublicError('Cette adresse est déjà celle de votre compte.');
-        await client.updateEmail(fresh.accessToken, email, `${supabaseAuthSiteOrigin(request)}/compte/profil`);
+        const pkce=await createSupabasePkceFlow();
+        await client.updateEmail(fresh.accessToken, email, `${supabaseAuthSiteOrigin(request)}/api/auth/confirmation`,pkce.challenge);
+        await writeSupabasePkceCookie(pkce.verifier,'/compte/profil');
         return Response.json({ confirmationRequired: true }, { headers: authNoStoreHeaders() });
       }
       if (body.action === 'password') {

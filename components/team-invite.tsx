@@ -2,7 +2,7 @@
 
 import { Check, Copy, LoaderCircle, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { TeamSeats } from '@/lib/team-seats';
 
 const ROLE_OPTIONS = [
@@ -36,6 +36,7 @@ export function TeamInvite({
   seats: TeamSeats;
 }) {
   const router = useRouter();
+  const pending = useRef(false);
   const [email, setEmail] = useState('');
   const [role, setRole] =
     useState<(typeof ROLE_OPTIONS)[number]['value']>('member');
@@ -45,6 +46,8 @@ export function TeamInvite({
   const [error, setError] = useState('');
 
   async function createInvitation() {
+    if (pending.current) return;
+    pending.current = true;
     setBusy(true);
     setError('');
     setCopied(false);
@@ -92,20 +95,20 @@ export function TeamInvite({
       : '';
 
   return (
-    <div className="rounded-3xl border border-[#d9d4c9] bg-white p-5 sm:p-6">
+    <div className="rounded-3xl border border-[var(--ac-line,#d9d4c9)] bg-[var(--ac-panel,#fff)] p-5 sm:p-6">
       <div className="flex items-center gap-3">
-        <span className="grid size-10 place-items-center rounded-2xl bg-[#edf5ef] text-[#24593d]">
+        <span className="grid size-10 place-items-center rounded-2xl bg-[var(--ac-tint,#edf5ef)] text-[var(--ac-accent,#24593d)]">
           <UserPlus className="size-5" />
         </span>
         <div>
           <h3 className="font-semibold">Inviter une personne</h3>
-          <p className="text-sm text-[#667168]">
+          <p className="text-sm text-[var(--ac-muted,#667168)]">
             Le lien expire après 7 jours et réserve une place.
           </p>
         </div>
       </div>
       {seats.available === 0 || !seats.subscriptionActive ? (
-        <output className="mt-4 block rounded-2xl bg-[#fff3df] p-4 text-sm leading-6 text-[#785c28]">
+        <output className="mt-4 block rounded-2xl bg-[var(--ac-tint,#fff3df)] p-4 text-sm leading-6 text-[var(--ac-accent,#785c28)]">
           {!seats.subscriptionActive
             ? 'Renouvelez votre abonnement pour inviter une personne.'
             : `Les ${seats.limit} places de la formule ${seats.planName} sont utilisées ou réservées. Retirez un accès ou annulez une invitation en attente pour libérer une place.`}{' '}
@@ -114,7 +117,7 @@ export function TeamInvite({
           </a>
         </output>
       ) : (
-        <p className="mt-4 text-sm text-[#657068]">
+        <p className="mt-4 text-sm text-[var(--ac-muted,#657068)]">
           {seats.available === null
             ? 'Ancienne formule sans limite de personnes.'
             : `${seats.available} place${seats.available === 1 ? '' : 's'} disponible${seats.available === 1 ? '' : 's'}, titulaire compris.`}
@@ -130,7 +133,7 @@ export function TeamInvite({
             onChange={(event) => setEmail(event.target.value)}
             placeholder="collaborateur@entreprise.ch"
             autoComplete="email"
-            className="mt-2 h-12 w-full rounded-2xl border border-[#cbc7bd] bg-[#fffdf9] px-4 font-normal outline-none"
+            className="mt-2 h-12 w-full rounded-2xl border border-[var(--ac-line,#cbc7bd)] bg-[var(--ac-input,#fffdf9)] px-4 font-normal outline-none"
           />
         </label>
         <label className="text-sm font-semibold">
@@ -142,7 +145,7 @@ export function TeamInvite({
                 event.target.value as (typeof ROLE_OPTIONS)[number]['value'],
               )
             }
-            className="mt-2 h-12 w-full rounded-2xl border border-[#cbc7bd] bg-white px-4 font-normal"
+            className="mt-2 h-12 w-full rounded-2xl border border-[var(--ac-line,#cbc7bd)] bg-[var(--ac-panel,#fff)] px-4 font-normal"
           >
             {ROLE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -152,8 +155,8 @@ export function TeamInvite({
           </select>
         </label>
       </div>
-      <p className="mt-3 rounded-2xl bg-[#f4f2ec] px-4 py-3 text-sm leading-6 text-[#5f6962]">
-        <strong className="text-[#173d2c]">{selectedRole.label} :</strong>{' '}
+      <p className="mt-3 rounded-2xl bg-[var(--ac-input,#f4f2ec)] px-4 py-3 text-sm leading-6 text-[var(--ac-muted,#5f6962)]">
+        <strong className="text-[var(--ac-ink,#173d2c)]">{selectedRole.label} :</strong>{' '}
         {selectedRole.description}
       </p>
       <button
@@ -171,8 +174,8 @@ export function TeamInvite({
         {busy ? 'Création…' : 'Créer le lien sécurisé'}
       </button>
       {invitationUrl ? (
-        <div className="mt-5 rounded-2xl bg-[#f4f2ec] p-4">
-          <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#667168]">
+        <div className="mt-5 rounded-2xl bg-[var(--ac-input,#f4f2ec)] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--ac-muted,#667168)]">
             Invitation prête
           </p>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
@@ -180,12 +183,12 @@ export function TeamInvite({
               readOnly
               value={invitationUrl}
               aria-label="Lien d’invitation"
-              className="h-11 min-w-0 flex-1 rounded-xl border border-[#d9d4c9] bg-white px-3 text-sm"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--ac-line,#d9d4c9)] bg-[var(--ac-panel,#fff)] px-3 text-sm"
             />
             <button
               type="button"
               onClick={() => void copyInvitation()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#b9c8bd] bg-white px-4 text-sm font-semibold"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--ac-line,#b9c8bd)] bg-[var(--ac-panel,#fff)] px-4 text-sm font-semibold"
             >
               {copied ? (
                 <Check className="size-4" />
@@ -197,7 +200,7 @@ export function TeamInvite({
             {invitationMailto ? (
               <a
                 href={invitationMailto}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#b9c8bd] bg-white px-4 text-sm font-semibold"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--ac-line,#b9c8bd)] bg-[var(--ac-panel,#fff)] px-4 text-sm font-semibold"
               >
                 Préparer l’e-mail
               </a>
@@ -207,7 +210,7 @@ export function TeamInvite({
       ) : null}
       {error ? (
         <p
-          className="mt-4 rounded-2xl bg-[#fff1ed] p-4 text-sm text-[#8b3f2e]"
+          className="mt-4 rounded-2xl bg-[var(--ac-panel,#fff1ed)] p-4 text-sm text-[var(--ac-danger,#8b3f2e)]"
           role="alert"
         >
           {error}

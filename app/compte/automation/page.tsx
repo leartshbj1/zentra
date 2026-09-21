@@ -5,6 +5,7 @@ import { AutomationCompanySettings } from '@/components/automation/company-setti
 import { membershipsForUser } from '@/lib/account';
 import { ReferralPanel } from '@/components/automation/referral-panel';
 import '@/components/automation/automation.css';
+import { notFound } from 'next/navigation';
 export const dynamic = 'force-dynamic';
 export const metadata = {
   title: 'Zentra Automation · Mon compte',
@@ -18,8 +19,10 @@ export default async function Page({
   const query = await searchParams;
   const user = await getZentraUser();
   const organizations = user ? await membershipsForUser(user.userId) : [];
+  const selected = typeof query.organizationId === 'string' ? query.organizationId : typeof query.entreprise === 'string' ? query.entreprise : '';
+  if(user && selected && !organizations.some(org=>org.organizationId===selected))notFound();
   return (
-    <main className="automation-page">
+    <div className="automation-page">
       <div className="automation-wrap">
         <a href="/compte">← Mon compte</a>
         <h1>Zentra Automation</h1>
@@ -48,6 +51,6 @@ export default async function Page({
           </>
         )}
       </div>
-    </main>
+    </div>
   );
 }

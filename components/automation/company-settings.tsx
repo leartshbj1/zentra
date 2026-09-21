@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_THRESHOLDS,
   type Feature,
@@ -14,8 +14,9 @@ async function api(path: string, org: string, body?: Record<string, unknown>) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...body, organizationId: org }),
+          signal: AbortSignal.timeout(25000),
         }
-      : { cache: 'no-store' },
+      : { cache: 'no-store',signal: AbortSignal.timeout(25000) },
   );
   const data = (await res.json()) as Record<string, unknown>;
   if (!res.ok)
@@ -35,6 +36,7 @@ type Settings = {
   consent: boolean;
 };
 type State = {
+  activity?: {date:string;totals:{analyzed:number;suggestions:number;confirmed:number;needsReview:number};features:{feature:Feature;analyzed:number;confirmed:number}[]} | null;
   settings: Settings;
   available: Feature[];
   active: boolean;
@@ -64,6 +66,7 @@ export function AutomationCompanySettings({
     role: string;
   }[];
 }) {
+  const pending=useRef(false);
   const [org, setOrg] = useState(
       organizations.some((o) => o.organizationId === initialOrganization)
         ? initialOrganization
@@ -87,6 +90,7 @@ export function AutomationCompanySettings({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, organizationId: org }),
+      signal: AbortSignal.timeout(25000),
     });
     const data = (await res.json()) as Record<string, unknown>;
     if (!res.ok)
@@ -100,7 +104,7 @@ export function AutomationCompanySettings({
   async function load() {
     const res = await fetch(
       `/api/automation?organizationId=${encodeURIComponent(org)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store',signal: AbortSignal.timeout(25000) },
     );
     const data = (await res.json()) as State & { error?: string };
     if (!res.ok) throw new Error(data.error || 'Réessayez.');
@@ -108,6 +112,7 @@ export function AutomationCompanySettings({
   }
   useEffect(() => {
     let live = true;
+    setState(null);setBilling(null);setConsent(false);setTerms(false);setMessage('');
     if (!org) return;
     // Team access never depends on loading the owner's billing controls.
     api('/api/automation', org)
@@ -148,6 +153,8 @@ export function AutomationCompanySettings({
     };
   }, [org, initialOrganization, paymentReturned]);
   async function action(which: 'save' | 'checkout' | 'portal' | 'refresh') {
+    if(pending.current)return;
+    pending.current=true;
     setBusy(true);
     setMessage('');
     try {
@@ -190,6 +197,7 @@ export function AutomationCompanySettings({
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Réessayez.');
     } finally {
+      pending.current=false;
       setBusy(false);
     }
   }
@@ -226,6 +234,7 @@ export function AutomationCompanySettings({
           </option>
         ))}
       </select>
+      {!state && !message && <p role="status">Chargement des réglages…</p>}
       <h2>
         {state?.active
           ? 'Votre option est active'
@@ -247,7 +256,7 @@ export function AutomationCompanySettings({
           {new Date(billing.offeredUntil * 1000).toLocaleDateString('fr-CH')}.
           Aucun paiement demandé.
         </output>
-      ) : !state?.active ? (
+      ) : state && !state.active ? (
         <div className="automation-price">
           15 CHF <small>/ mois par entreprise</small>
         </div>
@@ -371,6 +380,7 @@ export function AutomationCompanySettings({
           administrateur peut les modifier.
         </p>
       )}
+      {state?.active && state.activity && <section className="account-card automation-daily" aria-label="Activité du jour"><h2>Aujourd’hui, dans votre entreprise</h2><dl className="automation-metrics"><div><dt>Analyses</dt><dd>{state.activity.totals.analyzed}</dd></div><div><dt>À vérifier</dt><dd>{state.activity.totals.needsReview}</dd></div><div><dt>Validées par l’équipe</dt><dd>{state.activity.totals.confirmed}</dd></div></dl>{!state.activity.totals.analyzed && <p>Les analyses apparaîtront ici dès que vous utiliserez Automation dans Zentra Gestion.</p>}<p className="account-caption">Bilan du jour, heure suisse. Une suggestion n’est comptée comme validée qu’après confirmation par un utilisateur.</p></section>}
       {state?.active && state.canManage && (
         <fieldset disabled={busy || !state.canManage}>
           <legend>Comment souhaitez-vous utiliser Automation ?</legend>

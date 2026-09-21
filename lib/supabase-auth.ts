@@ -322,10 +322,11 @@ export function createSupabaseAuthClient(
       return parseUser(payload);
     },
 
-    async updateEmail(accessToken: string, email: string, redirectTo: string): Promise<void> {
+    async updateEmail(accessToken: string, email: string, redirectTo: string, codeChallenge: string): Promise<void> {
       const redirect = validatedAuthRedirect(redirectTo);
+      if(!isValidPkceChallenge(codeChallenge))throw new SupabaseAuthError('Confirmation invalide.',400);
       await request<JsonRecord>(`/auth/v1/user?redirect_to=${encodeURIComponent(redirect)}`, {
-        method: 'PUT', accessToken, body: { email },
+        method: 'PUT', accessToken, body: { email, code_challenge: codeChallenge, code_challenge_method:'s256' },
       });
     },
 

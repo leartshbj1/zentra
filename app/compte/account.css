@@ -8,3 +8,12 @@
 @media(prefers-reduced-motion:reduce){.account-content,.account-skeleton{animation:none}.account-sidebar nav a{transition:none}}
 
 .account-form .account-consent{display:flex;align-items:flex-start;gap:12px;font-weight:400;line-height:1.6}.account-consent input{width:20px;height:20px;min-height:20px;margin-top:2px;flex-shrink:0}.account-consent a{text-decoration:underline}
+
+/* Account surfaces share one palette, including embedded product settings. */
+.account-content .automation-page p,.account-content .automation-metrics dt{color:var(--ac-muted)}
+.account-content .automation-metrics div{background:var(--ac-input)}
+.account-content .automation-page button,.account-content .automation-page .automation-button{background:var(--ac-ink);color:var(--ac-bg)}
+.account-content .automation-page input,.account-content .automation-page textarea,.account-content .automation-page select{background:var(--ac-input);color:var(--ac-ink);border-color:var(--ac-line)}
+.account-content .automation-checks input{accent-color:var(--ac-accent)}
+.account-content .automation-daily{padding:20px;border-radius:16px}
+@media(max-width:760px){.account-index.account-onboarding .account-workspace{display:flex;flex-direction:column}.account-index.account-onboarding .account-content{order:-1;padding-top:0}.account-index.account-onboarding .account-sidebar{margin-top:32px}.account-content .automation-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.account-content .automation-metrics div{padding:12px}.account-content .automation-metrics dt{font-size:12px}}

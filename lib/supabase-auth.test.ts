@@ -33,6 +33,17 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 describe('Supabase Auth REST', () => {
+  it('binds email changes to a PKCE confirmation rather than exposing a fragment session',async()=>{
+    const fetcher=vi.fn(async()=>jsonResponse({}));
+    const client=createSupabaseAuthClient(configuration,fetcher as typeof fetch);
+    const pkce=await createSupabasePkceFlow();
+    await client.updateEmail('existing-access','new@example.test','https://zentraapp.ch/api/auth/confirmation',pkce.challenge);
+    const call=fetcher.mock.calls[0] as unknown as [string,RequestInit];
+    expect(new URL(call[0]).searchParams.get('redirect_to')).toBe('https://zentraapp.ch/api/auth/confirmation');
+    expect(JSON.parse(String(call[1].body))).toMatchObject({email:'new@example.test',code_challenge:pkce.challenge,code_challenge_method:'s256'});
+    await expect(client.updateEmail('access','x@example.test','https://zentraapp.ch/api/auth/confirmation','bad')).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('verifies only recovery tokens and keeps their session on the server', async () => {
     const fetcher = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit) =>

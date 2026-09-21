@@ -159,9 +159,9 @@ export function TeamAccessList({
 
   return (
     <div className={`account-team-list grid gap-5 ${visibleSection==='all'?'lg:grid-cols-2':''}`}>
-      {visibleSection !== 'devices' && <section className="rounded-3xl border border-[#d9d4c9] bg-white p-5">
+      {visibleSection !== 'devices' && <section className="rounded-3xl border border-[var(--ac-line,#d9d4c9)] bg-[var(--ac-panel,#fff)] p-5">
         <div className="flex items-center gap-3">
-          <ShieldCheck className="size-5 text-[#a66b1f]" />
+          <ShieldCheck className="size-5 text-[var(--ac-accent,#a66b1f)]" />
           <h3 className="font-semibold">Personnes autorisées</h3>
         </div>
         <div className="mt-4 space-y-2">
@@ -174,13 +174,13 @@ export function TeamAccessList({
             return (
               <div
                 key={member.id}
-                className="flex items-center gap-3 rounded-2xl bg-[#f5f3ed] p-3"
+                className="flex items-center gap-3 rounded-2xl bg-[var(--ac-input,#f5f3ed)] p-3"
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">
                     {member.displayName || member.email}
                   </p>
-                  <p className="truncate text-xs text-[#667168]">
+                  <p className="truncate text-xs text-[var(--ac-muted,#667168)]">
                     {member.email} · {ROLE_LABEL[member.role] || member.role}
                   </p>
                 </div>
@@ -193,7 +193,7 @@ export function TeamAccessList({
                     }}
                     disabled={Boolean(busyId)}
                     title="Retirer ce membre"
-                    className="grid size-12 shrink-0 place-items-center rounded-xl bg-white text-[#8b3f2e] disabled:opacity-50"
+                    className="grid size-12 shrink-0 place-items-center rounded-xl bg-[var(--ac-panel,#fff)] text-[var(--ac-danger,#8b3f2e)] disabled:opacity-50"
                   >
                     {busyId === member.id ? (
                       <LoaderCircle className="size-4 animate-spin" />
@@ -207,9 +207,9 @@ export function TeamAccessList({
           })}
         </div>
       </section>}
-      {visibleSection !== 'team' && <section className="rounded-3xl border border-[#d9d4c9] bg-white p-5">
+      {visibleSection !== 'team' && <section className="rounded-3xl border border-[var(--ac-line,#d9d4c9)] bg-[var(--ac-panel,#fff)] p-5">
         <div className="flex items-center gap-3">
-          <Laptop className="size-5 text-[#a66b1f]" />
+          <Laptop className="size-5 text-[var(--ac-accent,#a66b1f)]" />
           <h3 className="font-semibold">Sessions d’appareils</h3>
         </div>
         <div className="mt-4 space-y-2">
@@ -219,13 +219,13 @@ export function TeamAccessList({
               return (
                 <div
                   key={device.id}
-                  className="flex items-center gap-3 rounded-2xl bg-[#f5f3ed] p-3"
+                  className="flex items-center gap-3 rounded-2xl bg-[var(--ac-input,#f5f3ed)] p-3"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">
                       {device.ownerEmail}
                     </p>
-                    <p className="truncate text-xs text-[#667168]">
+                    <p className="truncate text-xs text-[var(--ac-muted,#667168)]">
                       Poste …{device.installationId.slice(-8)} · vu le{' '}
                       {ACCOUNT_DATE.format(new Date(device.lastSeenAt))}
                     </p>
@@ -239,7 +239,7 @@ export function TeamAccessList({
                       }}
                       disabled={Boolean(busyId)}
                       title="Couper l’accès serveur de cet appareil"
-                      className="grid size-12 shrink-0 place-items-center rounded-xl bg-white text-[#8b3f2e] disabled:opacity-50"
+                      className="grid size-12 shrink-0 place-items-center rounded-xl bg-[var(--ac-panel,#fff)] text-[var(--ac-danger,#8b3f2e)] disabled:opacity-50"
                     >
                       {busyId === device.id ? (
                         <LoaderCircle className="size-4 animate-spin" />
@@ -252,16 +252,16 @@ export function TeamAccessList({
               );
             })
           ) : (
-            <p className="rounded-2xl bg-[#f5f3ed] p-4 text-sm text-[#667168]">
+            <p className="rounded-2xl bg-[var(--ac-input,#f5f3ed)] p-4 text-sm text-[var(--ac-muted,#667168)]">
               Aucun appareil actif.
             </p>
           )}
         </div>
       </section>}
       {canManage && visibleSection !== 'devices' ? (
-        <section className="rounded-3xl border border-[#d9d4c9] bg-white p-5 lg:col-span-2">
+        <section className="rounded-3xl border border-[var(--ac-line,#d9d4c9)] bg-[var(--ac-panel,#fff)] p-5 lg:col-span-2">
           <div className="flex items-center gap-3">
-            <Link2 className="size-5 text-[#a66b1f]" />
+            <Link2 className="size-5 text-[var(--ac-accent,#a66b1f)]" />
             <h3 className="font-semibold">Invitations en attente</h3>
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -269,13 +269,13 @@ export function TeamAccessList({
               invitations.map((invitation) => (
                 <div
                   key={invitation.id}
-                  className="flex items-center gap-3 rounded-2xl bg-[#f5f3ed] p-3"
+                  className="flex items-center gap-3 rounded-2xl bg-[var(--ac-input,#f5f3ed)] p-3"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">
                       {invitation.email || 'Lien sans e-mail réservé'}
                     </p>
-                    <p className="truncate text-xs text-[#667168]">
+                    <p className="truncate text-xs text-[var(--ac-muted,#667168)]">
                       {ROLE_LABEL[invitation.role] || invitation.role} · expire
                       le {ACCOUNT_DATE.format(new Date(invitation.expiresAt))}
                     </p>
@@ -288,7 +288,7 @@ export function TeamAccessList({
                     }}
                     disabled={Boolean(busyId)}
                     title="Invalider cette invitation"
-                    className="grid size-12 shrink-0 place-items-center rounded-xl bg-white text-[#8b3f2e] disabled:opacity-50"
+                    className="grid size-12 shrink-0 place-items-center rounded-xl bg-[var(--ac-panel,#fff)] text-[var(--ac-danger,#8b3f2e)] disabled:opacity-50"
                   >
                     {busyId === invitation.id ? (
                       <LoaderCircle className="size-4 animate-spin" />
@@ -299,7 +299,7 @@ export function TeamAccessList({
                 </div>
               ))
             ) : (
-              <p className="rounded-2xl bg-[#f5f3ed] p-4 text-sm text-[#667168] sm:col-span-2">
+              <p className="rounded-2xl bg-[var(--ac-input,#f5f3ed)] p-4 text-sm text-[var(--ac-muted,#667168)] sm:col-span-2">
                 Aucun lien d’invitation actif.
               </p>
             )}
@@ -339,7 +339,7 @@ export function TeamAccessList({
       />
       {error && !confirmation ? (
         <p
-          className="rounded-2xl bg-[#fff1ed] p-4 text-sm text-[#8b3f2e] lg:col-span-2"
+          className="rounded-2xl bg-[var(--ac-panel,#fff1ed)] p-4 text-sm text-[var(--ac-danger,#8b3f2e)] lg:col-span-2"
           role="alert"
         >
           {error}

@@ -32,9 +32,25 @@ Reconstruction des 56 migrations D1 : 85 tables, 80 clés étrangères, 9 décle
 5. Suppression et réinitialisation : inventaire nominatif, sauvegarde privée vérifiée et répétition sur copie avant mutation distante. Auth, D1, Supabase, R2 et sessions locales doivent être rapprochés. Aucun effacement exécuté à ce stade.
 6. Tests des parcours, accès croisés, rôles, concurrence et webhooks ; vérifications visuelles desktop et iPhone. Distinguer tests simulés, tests des services distants et tests physiques iOS.
 
-## Décision externe attendue
+## Réinitialisation exécutée le 21 septembre 2026
 
-Le choix entre environnement séparé et nettoyage des comptes de test du site public a été demandé. Sans périmètre certain, aucun compte, abonnement Stripe ou document distant n'est supprimé. Les paramètres globaux, secrets, migrations et modèles sont exclus du nettoyage.
+L’utilisateur a confirmé explicitement tous les comptes du site public, puis confirmé l’effacement définitif après présentation du résultat de simulation. Quatre comptes Supabase et quatre entreprises D1 ont été supprimés, avec leurs membres, invitations, licences, sessions, offres, données Support/Automation et sauvegardes actives.
+
+- Sauvegarde administrative locale chiffrée AES-256-GCM, clé protégée DPAPI : 113 fichiers vérifiés. Elle reste hors des imports de l’application.
+- Restauration D1 en mémoire : 88 tables, 274 lignes, 9 déclencheurs ; aucune violation de clé étrangère. Nettoyage répété sur cette copie : 40 instructions, protections restaurées dans la même transaction.
+- Copie Supabase dans un schéma privé sans accès anon/authenticated : 51 tables, 812 lignes. Restauration temporaire vérifiée ligne par ligne, puis annulée. Migrations et paramètres conservés.
+- Nettoyage réel : zéro utilisateur, identité, session, profil et espace collaboratif vérifié ; 9 objets R2 et 11 objets Supabase privés supprimés après contrôle SHA-256.
+- 546 objets de distribution préservés. Configurations globales comparées à la sauvegarde ; 9 déclencheurs D1 inchangés.
+- Réutilisation des quatre anciennes adresses testée via Supabase Auth, sans envoi d’e-mail : nouvelle identité, refus avant confirmation, connexion après confirmation, révocation après suppression. Comptes temporaires supprimés ; retour à zéro.
+- Maintenance levée et `/api/auth/session` vérifié HTTP 200, `authenticated:false`. Anciens liens d’activation personnelle retirés. Route administrative temporaire retirée du code après l’opération.
+
+La copie de récupération est réservée à l’administration. Les anciennes sauvegardes utilisateur ne sont plus prises en charge dans la version 1.77 : extension `.zentra` et manifeste version 2 obligatoires. Un simple renommage ne suffit pas.
+
+## Validation et limites de cette livraison
+
+Tests site avant finition : 92 fichiers, 1196 assertions réussies, 63 cas ignorés. Contrôles complémentaires des nouvelles mutations, du reset transactionnel et des confirmations PKCE ajoutés ensuite. Tests natifs de sauvegarde, de compte et de synchronisation exécutés dans CircleCI ; preuves de compilation et de démarrage conservées avec les artefacts de livraison.
+
+Le parcours de courrier de confirmation n’a pas été validé avec une réception réelle lors du test de réutilisation. Les essais visuels iPhone utilisent un navigateur à dimensions mobiles ; ils ne constituent pas une installation sur un téléphone physique. La suppression autonome d’un propriétaire avec obligations de conservation et l’administration complète des notifications restent à traiter. Aucun planning de collecte permanente de mails n’a été activé.
 
 ## Références
 

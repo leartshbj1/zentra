@@ -26,13 +26,13 @@ export async function GET(request: Request) {
 
   const verifier = await readSupabasePkceCookie();
   const returnTo = safeAuthReturnPath(await readSupabaseAuthReturnCookie());
-  await clearSupabasePkceCookie();
   if (!verifier) {
     return confirmationFailure('navigateur_different');
   }
   if (!isValidSupabaseAuthCode(authCode)) {
     return confirmationFailure('code_invalide');
   }
+  await clearSupabasePkceCookie();
 
   try {
     const session = await supabaseAuthClient().exchangePkceCode(

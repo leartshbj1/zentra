@@ -853,3 +853,26 @@ export const invoiceArchives = sqliteTable(
     index('invoice_archives_retention_idx').on(table.retentionUntil),
   ],
 );
+
+export const accountPreferences = sqliteTable('account_preferences', {
+  userId: text('user_id').primaryKey().notNull(),
+  theme: text('theme').notNull().default('system'),
+  companyDraft: text('company_draft').notNull().default(''),
+  onboardingCompletedAt: integer('onboarding_completed_at'),
+  revision: integer('revision').notNull().default(1),
+  updatedAt: integer('updated_at').notNull(),
+});
+export const accountTrials = sqliteTable('account_trials', {
+  userId: text('user_id').primaryKey().notNull(),
+  emailHash: text('email_hash').notNull().unique(),
+  organizationId: text('organization_id').notNull().unique(),
+  subscriptionId: text('subscription_id').notNull().unique(),
+  startedAt: integer('started_at').notNull(),
+  endsAt: integer('ends_at').notNull(),
+  convertedSubscriptionId: text('converted_subscription_id'),
+});
+export const accountSessionPolicy = sqliteTable('account_session_policy', {
+  userId: text('user_id').primaryKey().notNull(),
+  revokedBefore: integer('revoked_before').notNull().default(0),
+  deletedAt: integer('deleted_at'),
+});

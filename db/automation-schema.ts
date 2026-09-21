@@ -56,6 +56,7 @@ export const automationPlatform = sqliteTable('automation_platform', {
   updatedAt: integer('updated_at').notNull(),
 });
 export const automationSettings = sqliteTable('automation_settings', {
+  revision: integer('revision').notNull().default(1),
   organizationId: text('organization_id')
     .primaryKey()
     .references(() => organizations.organizationId),
