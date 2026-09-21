@@ -1,7 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
-import { listMail, mailRequest, readMail, verifyMailbox } from './infomaniak';
+import { listMail, mailRequest, normalizeMailToken, readMail, verifyMailbox } from './infomaniak';
 
 describe('API Infomaniak', () => {
+  it('accepte une clé copiée avec des espaces autour ou son préfixe Bearer', async () => {
+    expect(normalizeMailToken('  Bearer abc.def-123  \n')).toBe('abc.def-123');
+    const fetcher = vi.fn(async () => Response.json({ result: 'success', data: [] }));
+    await mailRequest(' Bearer abc.def-123 ', '/mailbox', fetcher);
+    expect(fetcher).toHaveBeenCalledWith('https://mail.infomaniak.com/api/mailbox', expect.objectContaining({
+      headers: { Authorization: 'Bearer abc.def-123', Accept: 'application/json' },
+      redirect: 'manual',
+    }));
+  });
+  it.each(['', 'Bearer ', 'private token', 'token\nInjected: value', 'x'.repeat(8193)])(
+    'refuse une clé mal copiée avant toute requête', async (value) => {
+      const fetcher = vi.fn();
+      await expect(mailRequest(value, '/mailbox', fetcher)).rejects.toMatchObject({ status: 422 });
+      expect(fetcher).not.toHaveBeenCalled();
+    },
+  );
+  it.each([[401, 'expirée'], [403, 'workspace:mail']] as const)(
+    'explique comment corriger le refus %i', async (status, message) => {
+      await expect(mailRequest('secret', '/mailbox', async () => new Response('secret', { status })))
+        .rejects.toMatchObject({ status: 422, message: expect.stringContaining(message) });
+    },
+  );
   it.each([301, 302, 307, 308, 401, 403, 429, 500])(
     'refuse une réponse %i sans divulguer sa réponse ni suivre une redirection',
     async (status) => {

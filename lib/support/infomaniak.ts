@@ -26,17 +26,27 @@ function segment(value: unknown): string {
     throw new SupportError('Identifiant Infomaniak invalide.', 502);
   return encodeURIComponent(id);
 }
+export function normalizeMailToken(value: string): string {
+  const token = value.trim().replace(/^Bearer(?:\s+|$)/i, '');
+  if (!token || token.length > 8192 || /[\s\x00-\x1f\x7f]/.test(token))
+    throw new SupportError(
+      'Collez la clé API Infomaniak complète, sans texte supplémentaire. Le mot de passe de votre boîte mail ne convient pas.',
+      422,
+    );
+  return token;
+}
 export async function mailRequest(
   token: string,
   path: string,
   fetcher: typeof fetch = fetch,
 ) {
+  const key = normalizeMailToken(token);
   let response: Response;
   try {
     response = await fetcher(`${ORIGIN}${path}`, {
       method: 'GET',
       redirect: 'manual',
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
       signal: AbortSignal.timeout(10000),
     });
   } catch {
@@ -45,10 +55,15 @@ export async function mailRequest(
       503,
     );
   }
-  if (response.status === 401 || response.status === 403)
+  if (response.status === 401)
     throw new SupportError(
-      'Infomaniak refuse la clé. Reconnectez la boîte avec une clé autorisée pour workspace:mail.',
-      503,
+      'Cette clé API est refusée par Infomaniak. Elle peut être expirée ou révoquée. Créez une nouvelle clé API et collez-la ici, à la place du mot de passe de la boîte mail.',
+      422,
+    );
+  if (response.status === 403)
+    throw new SupportError(
+      'Cette clé ne permet pas de lire les e-mails. Dans Infomaniak, autorisez workspace:mail et vérifiez que le compte qui crée la clé a accès à cette boîte.',
+      422,
     );
   if (!response.ok || response.status >= 300)
     throw new SupportError(
@@ -104,8 +119,7 @@ export async function verifyMailbox(
 ) {
   if (
     !/^[^\s:@]+@[^\s:]+\.[^\s:]+$/.test(email) ||
-    !token ||
-    /[\r\n]/.test(token)
+    !token
   )
     throw new SupportError(
       'Renseignez votre adresse mail et votre clé Infomaniak.',
@@ -125,7 +139,8 @@ export async function verifyMailbox(
     .find((b) => text(b.email, 254).toLowerCase() === email.toLowerCase());
   if (!box)
     throw new SupportError(
-      'Cette adresse ne figure pas parmi les boîtes accessibles avec cette clé. Vérifiez le compte Infomaniak.',
+      'Cette adresse ne figure pas dans les boîtes de ce compte Infomaniak. Utilisez l’adresse principale de la boîte et créez la clé depuis le compte qui peut ouvrir ses e-mails.',
+      422,
     );
   const folders = await mailRequest(
     token,

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, Check, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +35,7 @@ export function ConnectionWizard({
     [provider, setProvider] = useState('infomaniak'),
     [domain, setDomain] = useState(''),
     [key, setKey] = useState('');
+  const submitting = useRef(false);
   const waiting =
     provider === 'gorgias' ||
     (provider === 'zendesk' && !data.zendesk?.ready && !data.platformOwner);
@@ -42,7 +43,10 @@ export function ConnectionWizard({
     <Dialog
       open={open}
       onOpenChange={(value) => {
-        if (!busy) onOpenChange(value);
+        if (!busy && !submitting.current) {
+          if (!value) setKey('');
+          onOpenChange(value);
+        }
       }}
     >
       <DialogContent className="support-dialog support-connect-wizard">
@@ -112,7 +116,9 @@ export function ConnectionWizard({
           <form
             onSubmit={async (e) => {
               e.preventDefault();
-              if (waiting || demo) return;
+              if (waiting || demo || busy || submitting.current) return;
+              submitting.current = true;
+              try {
               const result = await mutate(
                 provider === 'infomaniak'
                   ? { action: 'connectMailbox', email: domain, apiKey: key }
@@ -135,6 +141,9 @@ export function ConnectionWizard({
               setKey('');
               onConnected(result);
               onOpenChange(false);
+              } finally {
+                submitting.current = false;
+              }
             }}
           >
             <Button
@@ -190,7 +199,7 @@ export function ConnectionWizard({
                     <div className="support-guided-help">
                       <strong>Autoriser Zentra à lire vos mails</strong>
                       <ol>
-                        <li>Ouvrez les clés API de votre compte Infomaniak.</li>
+                        <li>Connectez-vous au compte Infomaniak qui peut ouvrir cette boîte mail.</li>
                         <li>
                           Créez une clé dédiée à Zentra Support avec le droit{' '}
                           <code>workspace:mail</code>.
@@ -209,7 +218,7 @@ export function ConnectionWizard({
                       </a>
                     </div>
                     <Field
-                      label="Clé de connexion Infomaniak"
+                      label="Clé API Infomaniak"
                       type="password"
                       autoComplete="new-password"
                       value={key}
@@ -218,6 +227,11 @@ export function ConnectionWizard({
                       maxLength={8192}
                     />
                     <p className="support-small">
+                      Utilisez la clé créée ci-dessus, pas le mot de passe de votre boîte mail.
+                    </p>
+                    <details className="support-guided-help">
+                      <summary>Quels e-mails seront récupérés ?</summary>
+                      <p className="support-small">
                       La clé est chiffrée côté serveur. Seuls les mails reçus à
                       partir de la connexion sont récupérés.{' '}
                       {data.mailSync?.background
@@ -227,6 +241,7 @@ export function ConnectionWizard({
                       pièces jointes ne sont importées que si vous reliez ensuite votre entreprise Gestion. Aucun mail n’est
                       envoyé, déplacé ou supprimé.
                     </p>
+                    </details>
                   </>
                 )}
                 {provider === 'freshdesk' && (

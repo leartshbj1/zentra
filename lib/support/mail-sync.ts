@@ -2,6 +2,7 @@ import { database, runtimeValue } from '@/lib/runtime';
 import { encryptSecret, decryptSecret, digest, equalHash } from './crypto';
 import {
   verifyMailbox,
+  normalizeMailToken,
   listMail,
   readMail,
   mailExternalId,
@@ -41,6 +42,7 @@ export async function connectMailbox(
 ) {
   const db = database();
   const address = email.trim().toLowerCase();
+  token = normalizeMailToken(token);
   const verified = await verifyMailbox(address, token);
   const existing = await db
     .prepare('SELECT * FROM support_mailboxes WHERE workspace_id=? AND email=?')
