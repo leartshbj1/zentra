@@ -2,6 +2,7 @@ import { getZentraUser, type ZentraUser } from '@/app/zentra-auth';
 import { database, runtimeValue } from '@/lib/runtime';
 import { enforceAccountRateLimit, normalizedEmail } from '@/lib/account';
 import { AccountPublicError } from '@/lib/account-security';
+import { captureAppointment } from '@/lib/appointments/service';
 import {
   readJsonObjectWithinLimit,
   RequestBodyError,
@@ -1193,6 +1194,7 @@ export async function processTicket(
         state = 'routed';
       }
     }
+    if(decision.category==='appointment' && source.mail) await captureAppointment(currentWorkspace,source);
     const corrected =
       manual && ticket.routed_at !== null ? 1 : ticket.corrected;
     await db

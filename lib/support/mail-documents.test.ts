@@ -22,6 +22,12 @@ it('includes readable PDF content for Jev and reuses the same bytes/text for Ges
   expect(result.documents.get('1:0')).toEqual({bytes:pdf,media:'application/pdf',text});
   expect(read).toHaveBeenCalledTimes(1);
 });
+it('preserves an attached calendar for appointment extraction without treating it as an invoice',async()=>{
+ const mail=source();mail.mail!.attachments=[{id:'1:0',name:'rendez-vous.ics',size:120}];
+ const calendar='BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Visite\r\nEND:VEVENT\r\nEND:VCALENDAR';
+ const result=await prepareMailDocuments(mail,async()=>new TextEncoder().encode(calendar));
+ expect(result.source.mail?.calendarText).toBe(calendar);expect(result.source.incomplete).toBe(false);expect(mailAnalysisBody(result.source)).toContain('SUMMARY:Visite');expect(result.documents.size).toBe(0);expect(invoiceText).not.toHaveBeenCalled();
+});
 it('keeps scans, failed reads and unsupported attachments for human review', async () => {
   vi.mocked(invoiceText).mockResolvedValue('');
   expect((await prepareMailDocuments(source(),async()=>pdf)).source.incomplete).toBe(true);

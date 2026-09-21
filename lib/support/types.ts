@@ -2,6 +2,7 @@ export const CATEGORIES = {
   bug: 'Bug',
   billing: 'Facturation',
   supplier_invoice: 'Factures fournisseurs',
+  appointment: 'Rendez-vous',
   quote: 'Devis et offres',
   credit_note: 'Avoirs',
   payment_reminder: 'Rappels de paiement',
@@ -63,6 +64,7 @@ export type Decision = {
 export type SourceTicket = {
   mail?: {
     sender: string;
+    calendarText?: string;
     uid?: string;
     attachments: { id: string; name: string; size: number }[];
     attachmentCount?: number;

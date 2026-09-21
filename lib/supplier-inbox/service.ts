@@ -1,4 +1,5 @@
 import { database, fileArchive } from '@/lib/runtime';
+import {supplierHabits,rememberSupplier,normalizeSupplier} from './habits';
 import {
   membershipsForUser,
   requireBrowserMembership,
@@ -209,6 +210,8 @@ export async function inboxState(
     linked: !!link?.enabled,
     autoPost,
     automationActive: active,
+    prepareEnabled:active&&settings.enabled&&settings.consent&&settings.mode==='suggest'&&settings.flags.includes('supplier_routing')&&flags.includes('supplier_routing'),
+    habits:active?await supplierHabits(actor.organizationId):[],
     items: await Promise.all(
       rows.results.map((row) => publicInboxRow(row, installation)),
     ),
@@ -297,6 +300,7 @@ export async function claimInvoice(
     );
   return {
     item: await publicInboxRow(row, session.installationId),
+    habit:(await supplierHabits(actor.organizationId)).find(h=>h.sender===row.sender.trim().toLowerCase()&&h.supplierName===normalizeSupplier(JSON.parse(row.extraction).supplierName||''))||null,
     claimToken: row.claim_token,
     automaticAllowed: automatic && (await automaticAllowed(actor, row)),
   };
@@ -336,6 +340,7 @@ export async function finishInvoice(
       row.claim_token,
     )
     .run();
+  if(raw.habit && raw.automatic!==true && await automationEntitlement({...session,founder:false,device:true}))await rememberSupplier({...session,founder:false,device:true},row.sender,JSON.parse(row.extraction).supplierName||'',raw.habit);
   return { saved: true };
 }
 export async function releaseInvoice(
@@ -422,6 +427,16 @@ export async function documentDigest(bytes: Uint8Array) {
   )
     .map((v) => v.toString(16).padStart(2, '0'))
     .join('');
+}
+/** Called after a received draft is explicitly validated in Gestion. */
+export async function rememberInvoice(session:DeviceSessionContext,raw:Record<string,unknown>){
+ const actor={...session,founder:false,device:true};
+ if(session.role==='read_only'||!await automationEntitlement(actor))throw new AccountPublicError('Activez Automation pour retenir ce classement.',403);
+ const row=await inboxItem(session.organizationId,raw.id);
+ if(row.state!=='imported')throw new AccountPublicError('Enregistrez cette facture avant de retenir son classement.',409);
+ const extraction=JSON.parse(row.extraction) as InvoiceExtraction;
+ await rememberSupplier(actor,row.sender,extraction.supplierName||'',raw.habit);
+ return{saved:true};
 }
 export const mailReceiptId = (
   org: string,

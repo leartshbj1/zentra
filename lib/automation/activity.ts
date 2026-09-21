@@ -4,6 +4,7 @@ import { automationEntitlement } from './service';
 import { globalFlags, settingsFor } from './config';
 import { FEATURES, type Feature } from './types';
 import { inboxDaily } from '@/lib/supplier-inbox/service';
+import { appointmentDaily } from '@/lib/appointments/service';
 
 const zone = 'Europe/Zurich';
 const dateFormat = new Intl.DateTimeFormat('en-CA', {
@@ -109,6 +110,7 @@ async function companyActivity(actor: AutomationActor, now: Date) {
     totals,
     features,
     supplierInbox: await inboxDaily(actor.organizationId,day.from,day.until),
+    appointments: await appointmentDaily(actor.organizationId,day.from,day.until),
   };
 }
 

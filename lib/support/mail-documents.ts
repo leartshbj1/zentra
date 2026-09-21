@@ -12,10 +12,15 @@ export async function prepareMailDocuments(
   const total = source.mail.attachmentCount ?? attachments.length;
   if (!total) return { source, documents };
   const excerpts: string[] = [];
+  let calendarText = '';
   let complete = total === attachments.length && total <= 3 && source.mail.bodyIncomplete === false;
   for (const attachment of attachments.slice(0, 3)) {
     try {
       const bytes = await read(attachment.id);
+      if (/\.ics$/i.test(attachment.name) && bytes.length <= 32000) {
+        const calendar = new TextDecoder().decode(bytes);
+        if (calendar.includes('BEGIN:VCALENDAR') && !calendarText) {calendarText=calendar;excerpts.push(`Calendrier joint : ${attachment.name}\n${calendar}`);continue;}
+      }
       const media = invoiceMedia(bytes);
       const text = media ? await invoiceText(bytes, media) : '';
       documents.set(attachment.id, { bytes, media, text });
@@ -30,7 +35,7 @@ export async function prepareMailDocuments(
     documents,
     source: {
       ...source,
-      mail: { ...source.mail, analysisText: analysisText.slice(0, available) },
+      mail: { ...source.mail, calendarText:calendarText||source.mail.calendarText, analysisText: analysisText.slice(0, available) },
       incomplete: !complete,
       incompleteReason: complete ? undefined : source.mail.bodyIncomplete
         ? 'Le message est trop long pour être analysé intégralement. Vérifiez-le avant de confirmer.'

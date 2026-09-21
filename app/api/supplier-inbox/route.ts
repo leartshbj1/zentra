@@ -12,8 +12,10 @@ import {
   ignoreInvoice,
   inboxState,
   inboxDocument,
+  rememberInvoice,
 } from '@/lib/supplier-inbox/service';
 import { AccountPublicError } from '@/lib/account-security';
+import {forgetSupplier} from '@/lib/supplier-inbox/habits';
 export const dynamic = 'force-dynamic';
 const json = (value: unknown) =>
   Response.json(value, { headers: accountNoStoreHeaders() });
@@ -52,6 +54,7 @@ export async function POST(request: Request) {
       actor = await automationActor(request, body.organizationId);
     if (body.action === 'ignore')
       return json(await ignoreInvoice(actor, body.id));
+    if(body.action==='forgetHabit')return json(await forgetSupplier(actor,body.id));
     if (!actor.device)
       throw new AccountPublicError(
         'Ouvrez Gestion pour enregistrer la facture.',
@@ -63,6 +66,7 @@ export async function POST(request: Request) {
       'member',
     ]);
     if (body.action === 'claim') return json(await claimInvoice(session, body));
+    if (body.action === 'remember') return json(await rememberInvoice(session,body));
     if (body.action === 'finish')
       return json(await finishInvoice(session, body));
     if (body.action === 'release')

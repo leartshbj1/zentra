@@ -40,9 +40,11 @@ import {
   automaticAllowed,
   inboxState,
   inboxDaily,
+  rememberInvoice,
   type InboxRow,
 } from './service';
 import type { DeviceSessionContext } from '@/lib/account';
+import {supplierHabits} from './habits';
 let sql: DatabaseSync;
 const id = '11111111-1111-4111-8111-111111111111';
 const session: DeviceSessionContext = {
@@ -215,4 +217,13 @@ it('enforces document duplicate protection in the database', () => {
       `INSERT INTO supplier_inbox SELECT '22222222-2222-4222-8222-222222222222',organization_id,workspace_id,connection_id,message_id,source_sha256,file_name,media_type,object_key,size_bytes,sender,subject,extraction,state,claimed_installation,claim_token,invoice_id,automatic,created_at,imported_at FROM supplier_inbox`,
     ),
   ).toThrow(/UNIQUE/);
+});
+
+it('learns a received draft only after its import, for the correct company and an active member',async()=>{
+ const habit={supplierId:id,category:'Logiciels',accountId:null};
+ await expect(rememberInvoice(session,{id,habit})).rejects.toThrow('Enregistrez');
+ sql.prepare("UPDATE supplier_inbox SET state='imported' WHERE id=?").run(id);
+ await rememberInvoice(session,{id,habit});expect((await supplierHabits(session.organizationId))[0]).toMatchObject(habit);
+ await expect(rememberInvoice({...session,organizationId:'other'},{id,habit})).rejects.toThrow();
+ await expect(rememberInvoice({...session,role:'read_only'},{id,habit})).rejects.toThrow();
 });

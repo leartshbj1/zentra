@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { supportWorkspaces } from './support-schema';
 export * from './support-schema';
 export * from './automation-schema';
 export * from './supplier-inbox-schema';
@@ -876,3 +877,17 @@ export const accountSessionPolicy = sqliteTable('account_session_policy', {
   revokedBefore: integer('revoked_before').notNull().default(0),
   deletedAt: integer('deleted_at'),
 });
+
+export const automationAppointments = sqliteTable('automation_appointments', {
+ id:text('id').primaryKey(), organizationId:text('organization_id').notNull().references(()=>organizations.organizationId),
+ workspaceId:text('workspace_id').notNull().references(()=>supportWorkspaces.id),
+ sourceKey:text('source_key').notNull(), sourceHash:text('source_hash').notNull(),
+ subject:text('subject').notNull(), sender:text('sender').notNull(), extraction:text('extraction').notNull(),
+ state:text('state').notNull().default('review'), claimedInstallation:text('claimed_installation'), claimToken:text('claim_token'),
+ automatic:integer('automatic').notNull().default(0),createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),importedAt:integer('imported_at'),
+},t=>[uniqueIndex('automation_appointments_source').on(t.organizationId,t.sourceKey),index('automation_appointments_pending').on(t.organizationId,t.state,t.updatedAt)]);
+export const automationSupplierHabits = sqliteTable('automation_supplier_habits',{
+ id:text('id').primaryKey(),organizationId:text('organization_id').notNull().references(()=>organizations.organizationId),
+ sender:text('sender').notNull(),supplierName:text('supplier_name').notNull(),supplierId:text('supplier_id').notNull(),
+ category:text('category').notNull(),accountId:text('account_id'),updatedAt:integer('updated_at').notNull(),updatedBy:text('updated_by').notNull(),
+},t=>[uniqueIndex('automation_supplier_habits_source').on(t.organizationId,t.sender,t.supplierName)]);

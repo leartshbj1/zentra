@@ -10,7 +10,7 @@ import {
 
 import { jevRequest, readJevResponse } from '../automation/transport';
 export { JEV_ENDPOINT } from '../automation/transport';
-export const TRIAGE_POLICY_VERSION = 'support-2026-09-21-documents-v3';
+export const TRIAGE_POLICY_VERSION = 'support-2026-09-21-appointments-v4';
 export function triageQuestions(
   subject: string,
   body: string,
@@ -43,6 +43,7 @@ export function triageQuestions(
             'A supplier or creditor sends a payment reminder, past-due notice, rappel, Mahnung or sollecito for an already issued unpaid invoice. Not a new invoice and not a customer asking for their payment status.',
           receipt:
             'An actual payment receipt, paid confirmation, quittance, Zahlungsbestätigung or ricevuta confirming money has already been received or paid. No new payment demand. Not a customer asking whether a payment was received.',
+          appointment: 'A meeting or appointment confirmation, invitation, rescheduling or cancellation: rendez-vous, Termin, appuntamento. Classify scheduling itself here. An invoice for an appointment remains supplier_invoice; a payment receipt remains receipt. Never confuse a confirmed appointment with a completed payment.',
           product:
             'How a product works, features, compatibility, or presales question.',
           refund:
