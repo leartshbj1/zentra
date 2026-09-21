@@ -2278,7 +2278,17 @@ function WorkspaceContent({
           ) : null}
           {view === 'expenses' ? (
             <Suspense fallback={<ViewLoading label={t("Ouverture des achats…")} />}>
-              <SupplierInbox inbox={supplierInbox} workspace={workspace} readOnly={readOnly} onNewSupplier={()=>setModal({type:'supplier'})} onOpen={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('La facture arrive avec la synchronisation de l’entreprise.')});}}/>
+              <SupplierInbox inbox={supplierInbox} workspace={workspace} readOnly={readOnly} onCreateSupplier={async(name,email)=>{
+                const existing=workspaceRef.current.suppliers.filter(s=>!s.archivedAt&&s.name.trim().toLowerCase()===name.toLowerCase()&&s.email.trim().toLowerCase()===email.toLowerCase());
+                if(existing.length===1)return existing[0].id;
+                const previous=new Set(workspaceRef.current.suppliers.map(s=>s.id));
+                let failure:unknown;
+                const saved=await act(()=>desktopApi.createEntity('suppliers',{name,email,currency:'CHF',paymentTermsDays:30}),t('Le fournisseur a été ajouté.'),false,reason=>{failure=reason;});
+                if(!saved)throw new Error(errorMessage(failure,t('Le fournisseur n’a pas pu être ajouté. Votre facture reste ouverte.')));
+                const created=workspaceRef.current.suppliers.filter(s=>!previous.has(s.id)&&s.name===name&&s.email.toLowerCase()===email.toLowerCase());
+                if(created.length!==1)throw new Error(t('Sélectionnez le fournisseur ajouté dans la liste.'));
+                return created[0].id;
+              }} onOpen={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('La facture arrive avec la synchronisation de l’entreprise.')});}}/>
               <PurchaseOrdersScreen
                 onOpenBank={()=>{setView('bank');setSearch('');}}
                 onReadWorkspace={async () => {

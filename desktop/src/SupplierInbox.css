@@ -7,6 +7,7 @@
 .supplier-inbox-review__intro { margin:0 0 24px; font-size:14px; line-height:1.6; color:var(--muted); max-width:75ch; }
 .supplier-inbox-review__fields > summary { min-height:44px; padding:12px 0; cursor:pointer; color:var(--ink); font-weight:600; font-size:14px; }
 .supplier-inbox-review__fields > div { display:grid; gap:14px; padding-top:12px; }
+.supplier-inbox-review__new-supplier { display:grid; gap:12px; padding:16px; border:1px solid var(--line-soft); border-radius:14px; background:var(--surface-soft); }
 .supplier-inbox-review footer > div { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; }
 .supplier-inbox-review footer .button { white-space:normal; min-height:44px; }
 .supplier-inbox-review .button:focus-visible,.supplier-inbox-review summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }

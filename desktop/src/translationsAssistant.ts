@@ -1,4 +1,12 @@
 export const assistantTranslations: Record<string, readonly [string,string,string]> = {
+  "Le fournisseur a été ajouté.": ["Der Lieferant wurde hinzugefügt.", "Il fornitore è stato aggiunto.", "The supplier has been added."],
+  "Indiquez le nom qui figure sur la facture du fournisseur.": ["Geben Sie den Namen auf der Lieferantenrechnung ein.", "Indica il nome riportato sulla fattura del fornitore.", "Enter the name shown on the supplier invoice."],
+  "Nom du fournisseur": ["Name des Lieferanten", "Nome del fornitore", "Supplier name"],
+  "E-mail du fournisseur": ["E-Mail des Lieferanten", "E-mail del fornitore", "Supplier email"],
+  "Ajouter et sélectionner": ["Hinzufügen und auswählen", "Aggiungi e seleziona", "Add and select"],
+  "Vérifiez l’adresse e-mail du fournisseur, ou laissez ce champ vide.": ["Prüfen Sie die E-Mail-Adresse des Lieferanten oder lassen Sie das Feld leer.", "Verifica l’indirizzo e-mail del fornitore oppure lascia vuoto il campo.", "Check the supplier’s email address, or leave this field empty."],
+  "Le fournisseur n’a pas pu être ajouté. Votre facture reste ouverte.": ["Der Lieferant konnte nicht hinzugefügt werden. Ihre Rechnung bleibt geöffnet.", "Impossibile aggiungere il fornitore. La fattura rimane aperta.", "The supplier could not be added. Your invoice remains open."],
+  "Sélectionnez le fournisseur ajouté dans la liste.": ["Wählen Sie den hinzugefügten Lieferanten aus der Liste.", "Seleziona il fornitore aggiunto nell’elenco.", "Select the added supplier from the list."],
   "À votre attention": [
     "Für Sie zu prüfen",
     "Da verificare",
@@ -95,4 +103,3 @@ export const assistantTranslations: Record<string, readonly [string,string,strin
     "Complete the missing information below."
   ]
 };
-
