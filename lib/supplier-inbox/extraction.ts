@@ -132,6 +132,17 @@ export function invoiceCandidates(source: string) {
 }
 export function extractionInput(source: string, companyName: string) {
   const candidates = invoiceCandidates(source);
+  const fields: Record<string, string> = {
+    supplierName: 'Raison sociale de l’émetteur qui vend et facture, jamais celle du destinataire.',
+    reference: 'Numéro unique de la facture émis par le fournisseur (Facture N°, Invoice number, Rechnungsnummer, Fattura n.). Le titre et le numéro peuvent être sur deux lignes. Exclure numéro de commande/client, IBAN, référence de paiement QR et numéro TVA.',
+    invoiceDate: 'Date d’émission de la facture, pas l’échéance ni la période de prestation. Les options sont au format ISO AAAA-MM-JJ.',
+    dueDate: 'Date limite de paiement explicitement imprimée (échéance, due date, fällig, scadenza). Ne pas la calculer à partir d’un délai.',
+    currency: 'Devise des montants de cette facture.',
+    netCents: 'Total hors taxe de toute la facture (net, HT, netto, imponibile). Les options sont exprimées en centimes : 100000 centimes représentent 1000.00. Exclure prix unitaires et sous-totaux partiels.',
+    vatCents: 'Montant total de TVA imprimé, pas le pourcentage. Les options sont exprimées en centimes : 8100 centimes représentent 81.00.',
+    totalCents: 'Total TTC final à payer de cette facture (total, brutto, gross). Les options sont exprimées en centimes : 108100 centimes représentent 1081.00.',
+    vatBp: 'Taux de TVA imprimé en pourcentage. Les options utilisent les points de base : 810 signifie 8.1 %, 260 signifie 2.6 %, 0 signifie 0 %. Ne pas choisir un montant de TVA.',
+  };
   const questions: DecisionInput['questions'] = {
     kind: {
       instructions: `${instructions} Déterminer si ceci est une facture adressée à l’entreprise cliente (${companyName}), à payer à un fournisseur. Un rappel, devis, reçu, avoir ou facture émise PAR cette entreprise n’est pas une facture fournisseur à comptabiliser.`,
@@ -142,13 +153,13 @@ export function extractionInput(source: string, companyName: string) {
       },
     },
     category: {
-      instructions: `${instructions} Nature principale de l’achat.`,
+      instructions: `${instructions} Nature principale de l’achat d’après les lignes facturées, et non le nom de l’émetteur. Choisir la catégorie spécifique avant les prestations génériques : logiciels et licences = software ; téléphonie et accès Internet = telecom ; transport, livraison et expédition de colis = transport ; location de locaux = rent ; marchandises et équipements = materials. Conseil, nettoyage et travaux d’impression sous-traités = services. Plusieurs natures incompatibles ou aucune nature claire = other.`,
       options: categories,
     },
   };
   for (const [key, values] of Object.entries(candidates))
     questions[key.toLowerCase()] = {
-      instructions: `${instructions} Champ recherché : ${key}.${key === 'reference' ? ' Numéro unique de la facture émis par le fournisseur (Facture N°, Invoice number, Rechnungsnummer, Fattura n.). Le titre et le numéro peuvent être sur deux lignes. Exclure numéro de commande/client, IBAN, référence de paiement QR et numéro TVA.' : ''}`,
+      instructions: `${instructions} Champ recherché : ${key}. ${fields[key]}`,
       options: {
         absent: 'Absent, ambigu ou non applicable',
         ...Object.fromEntries(
