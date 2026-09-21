@@ -137,11 +137,10 @@ export default function DownloadPage() {
           <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 max-w-2xl">
               <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Votre entreprise. Toute votre équipe.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Zentra 1.74 réunit Automation dans un espace dédié sur Windows, Mac et mobile : activité de l’équipe, outils et réglages directement dans l’application. Son accès apparaît dans le menu dès que l’entreprise dispose de l’option. Chaque collaborateur conserve les droits de son rôle.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Le correctif Windows 1.74.1 explique les problèmes de compte ou de lien avec l’entreprise dans Automation et permet d’ouvrir directement les réglages concernés. Mac, iPhone et Android restent en version 1.74.0.</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Votre compte, plus simple.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Retrouvez votre profil, la sécurité, l’abonnement et les appareils depuis les paramètres de Zentra. Le nouvel espace compte vous accompagne jusqu’à la création de votre entreprise, avec 14 jours d’essai sans engagement et sans carte bancaire.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Les nouvelles sauvegardes manuelles utilisent le format .zentra. À partir de la version 1.77, les anciennes sauvegardes ne peuvent plus être importées, même renommées.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Téléchargements disponibles : Windows {ZENTRA_WINDOWS_VERSION}, Mac {ZENTRA_MAC_VERSION}, iPhone {ZENTRA_IPHONE_VERSION} et Android {ZENTRA_ANDROID_VERSION}. Les conditions d’installation sont précisées ci-dessous pour chaque plateforme.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Connectez vos appareils à la même entreprise. La réception attend la fermeture d’une saisie en cours ; le délai de transfert dépend du réseau et des documents. Les faux conflits dus aux contrôles automatiques sont corrigés. De vraies modifications concurrentes nécessitent encore de choisir une copie, après sauvegarde locale.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Les traductions sont encore en préparation : certains écrans, contrôles natifs et PDF restent en français.</p>
               <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Sur Mac, installez cette version depuis le bouton ci-dessous pour recevoir les prochaines mises à jour dans Zentra. Les versions iPhone s’installent manuellement après signature avec votre compte Apple.</p>
             </div>
@@ -548,8 +547,8 @@ export default function DownloadPage() {
                 ],
                 [
                   '03',
-                  'Activez la licence',
-                  'Connectez-vous avec le compte de votre abonnement, puis autorisez cet appareil. La licence est récupérée automatiquement.',
+                  'Connectez votre compte',
+                  'Créez votre entreprise et commencez vos 14 jours d’essai sur le site, ou retrouvez votre abonnement. Autorisez ensuite cet appareil : la licence est récupérée automatiquement.',
                   LockKeyhole,
                 ],
                 [

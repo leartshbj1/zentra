@@ -52,6 +52,14 @@ Tests site avant finition : 92 fichiers, 1196 assertions réussies, 63 cas ignor
 
 Le parcours de courrier de confirmation n’a pas été validé avec une réception réelle lors du test de réutilisation. Les essais visuels iPhone utilisent un navigateur à dimensions mobiles ; ils ne constituent pas une installation sur un téléphone physique. La suppression autonome d’un propriétaire avec obligations de conservation et l’administration complète des notifications restent à traiter. Aucun planning de collecte permanente de mails n’a été activé.
 
+### Publication des applications 1.77
+
+Source native : `9e7c1b9559280f09395cec31ea74540aae72816c`. Compilations CircleCI Windows 13 et Apple 14 réussies. Recettes des programmes installés Windows 16 et Mac 15 réussies : premier lancement, réouverture, schéma SQLite 60, intégrité et clés étrangères dans des profils isolés. Elles ne couvrent pas un parcours interactif complet.
+
+Les fichiers et manifestes immuables ont été relus depuis le stockage public et comparés par SHA-256. Les canaux de mise à jour Windows et Mac ont été promus à 1.77.0 après vérification des signatures. IPA iPhone ARM64 publié non signé, Mac universel non notarié, Windows sans certificat Authenticode. Android reste à 1.74.0. Release GitHub v1.77.0 publiée avec les 13 fichiers vérifiés ; hébergement principal Supabase.
+
+Les sauvegardes natives passent 19 tests ; la recette HTTPS nécessitant deux connexions navigateur reste ignorée. Contrôles complémentaires site : 67 tests réussis (compte, authentification, équipe, facturation Automation, liens de téléchargement). Le contrôle public confirme HTTP 404 pour l’ancienne route temporaire de reset et HTTP 200, non connecté, pour la session. Les données SQLite déjà présentes sur les appareils ne sont pas supprimées par le nettoyage du site.
+
 ## Références
 
 - Apple Layout : https://developer.apple.com/design/human-interface-guidelines/layout
