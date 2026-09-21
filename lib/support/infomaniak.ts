@@ -12,6 +12,9 @@ import { digest } from './crypto';
 // API used by Infomaniak's official mail client:
 // https://github.com/Infomaniak/mcp-server-mail/blob/main/src/mail-client.ts
 const ORIGIN = 'https://mail.infomaniak.com/api';
+class MailProviderError extends SupportError {
+  constructor(message: string, public providerStatus: number) { super(message, 503); }
+}
 export const MAIL_PAGE_SIZE = 20;
 export const MAIL_DIRECTORY: Directory = {
   teams: Object.entries(CATEGORIES).map(([id, name]) => ({ id, name })),
@@ -46,7 +49,7 @@ export async function mailRequest(
     response = await fetcher(`${ORIGIN}${path}`, {
       method: 'GET',
       redirect: 'manual',
-      headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
+      headers: { Authorization: `Bearer ${key}`, Accept: 'application/json', 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(10000),
     });
   } catch {
@@ -70,11 +73,11 @@ export async function mailRequest(
       422,
     );
   if (!response.ok || response.status >= 300)
-    throw new SupportError(
+    throw new MailProviderError(
       response.status === 429
         ? 'Infomaniak limite les demandes. La synchronisation reprendra plus tard.'
         : 'Impossible de lire cette boîte Infomaniak. Réessayez plus tard.',
-      503,
+      response.status,
     );
   const reader = response.body?.getReader();
   if (!reader) throw new SupportError('Réponse Infomaniak vide.', 502);
@@ -146,11 +149,16 @@ export async function verifyMailbox(
       'Cette adresse ne figure pas dans les boîtes de ce compte Infomaniak. Utilisez l’adresse principale de la boîte et créez la clé depuis le compte qui peut ouvrir ses e-mails.',
       422,
     );
-  const folders = await mailRequest(
-    token,
-    `/mail/${segment(box.uuid)}/folder?with=ik-static`,
-    fetcher,
-  );
+  const folderPath = `/mail/${segment(box.uuid)}/folder`;
+  let folders: unknown;
+  try {
+    folders = await mailRequest(token, `${folderPath}?with=ik-static`, fetcher);
+  } catch (error) {
+    // The optional virtual-folder expansion can fail independently of IMAP folders.
+    // Retry only provider 5xx errors, at the same authorized mailbox and endpoint.
+    if (!(error instanceof MailProviderError) || error.providerStatus < 500) throw error;
+    folders = await mailRequest(token, folderPath, fetcher);
+  }
   const flatten = (items: unknown, depth = 0): Record<string, unknown>[] =>
     Array.isArray(items) && depth < 10
       ? items.flatMap((v) => {

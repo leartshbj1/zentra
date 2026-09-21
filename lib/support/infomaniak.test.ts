@@ -2,12 +2,27 @@ import { describe, expect, it, vi } from 'vitest';
 import { listMail, mailRequest, normalizeMailToken, readMail, verifyMailbox } from './infomaniak';
 
 describe('API Infomaniak', () => {
+  it('reprend les dossiers standards si les dossiers virtuels échouent', async () => {
+    const fetcher = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes('/mailbox?')) return Response.json({result:'success',data:[{uuid:'my-box',email:'info@example.test'}]});
+      if (String(url).includes('?with=ik-static')) return new Response('private upstream failure',{status:500});
+      expect(String(url)).toBe('https://mail.infomaniak.com/api/mail/my-box/folder');
+      return Response.json({result:'success',data:[{id:'real-inbox',role:'INBOX'}]});
+    });
+    await expect(verifyMailbox('info@example.test','token',fetcher)).resolves.toEqual({mailboxId:'my-box',folderId:'real-inbox'});
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+  it.each([401,403,429,302])('ne retente pas un refus %i pour les dossiers', async status => {
+    const fetcher=vi.fn(async(url:string|URL|Request)=>String(url).includes('/mailbox?')?Response.json({result:'success',data:[{uuid:'box',email:'info@example.test'}]}):new Response('',{status}));
+    await expect(verifyMailbox('info@example.test','token',fetcher)).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it('accepte une clé copiée avec des espaces autour ou son préfixe Bearer', async () => {
     expect(normalizeMailToken('  Bearer abc.def-123  \n')).toBe('abc.def-123');
     const fetcher = vi.fn(async () => Response.json({ result: 'success', data: [] }));
     await mailRequest(' Bearer abc.def-123 ', '/mailbox', fetcher);
     expect(fetcher).toHaveBeenCalledWith('https://mail.infomaniak.com/api/mailbox', expect.objectContaining({
-      headers: { Authorization: 'Bearer abc.def-123', Accept: 'application/json' },
+      headers: { Authorization: 'Bearer abc.def-123', Accept: 'application/json', 'Content-Type': 'application/json' },
       redirect: 'manual',
     }));
   });
