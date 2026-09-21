@@ -1,4 +1,5 @@
 import { mobileTeamTranslations } from './translationsMobileTeam';
+import { assistantTranslations } from './translationsAssistant';
 import { automationTranslations } from './translationsAutomation';
 import { supplierInboxTranslations } from './translationsSupplierInbox';
 import { mobileAirTranslations } from './translationsMobileAir';
@@ -20,6 +21,7 @@ import { supplierPaymentTranslations } from './translationsSupplierPayments';
 import { supplierDetailTranslations } from './translationsSupplierDetail';
 import { supplierReviewTranslations } from './translationsSupplierReview';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...assistantTranslations,
   ...supplierInboxTranslations,
   ...automationTranslations,
   ...mobileAirTranslations,

@@ -36,15 +36,16 @@ export function useSupplierInbox(org:string|null,readOnly:boolean,blocked:()=>bo
     window.addEventListener('online',resume);window.addEventListener('focus',resume);document.addEventListener('visibilitychange',resume);
     return()=>{clearInterval(timer);window.removeEventListener('online',resume);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);};
   },[refresh]);
-  const importInvoice=async(item:MailInvoice,invoice:InboxDraft)=>{
+  const importInvoice=async(item:MailInvoice,invoice:InboxDraft,confirm=false)=>{
     if(readOnly||running.current)throw Error('Attendez la fin de la réception en cours.');
     running.current=true;setBusy(true);
     try{
-      const result=await inboxRequest<{saved?:boolean;id:string;alreadyImported?:boolean}>({action:'import',id:item.id,invoice,automatic:false});
+      const result=await inboxRequest<{saved?:boolean;id:string;alreadyImported?:boolean}>({action:'import',id:item.id,invoice,automatic:false,confirm});
       if(current.current.org!==org)throw Error('L’entreprise a changé.');
       const workspace=await desktopApi.loadWorkspace();if(current.current.org!==org)throw Error('L’entreprise a changé.');
       current.current.onWorkspace(workspace);window.dispatchEvent(new Event('zentra-automation-updated'));
-      return {id:result.id,workspace};
+      const posted=workspace.supplierInvoices.find(row=>row.id===result.id)?.documentStatus==='validated';
+      return {id:result.id,workspace,posted};
     }finally{running.current=false;setBusy(false);void refresh();}
   };
   return {state,error,busy,refresh,importInvoice};

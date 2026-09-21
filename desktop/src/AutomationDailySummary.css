@@ -32,4 +32,24 @@
   .automation-daily__stats dd { font-size:28px; }
   .automation-daily__stats dt { font-size:14px; }
 }
-.automation-daily__mail{display:flex;align-items:center;gap:26px;flex-wrap:wrap;margin-top:24px;padding:20px;border:1px solid var(--line-soft);border-radius:18px;background:var(--surface-soft)}.automation-daily__mail>div{display:flex;align-items:center;gap:10px;min-width:0;flex:1}.automation-daily__mail strong{font-size:28px;line-height:1.1}.automation-daily__mail span{font-size:13px;color:var(--muted);max-width:19ch}.automation-daily__mail svg{flex:none}.automation-daily__mail>.button{margin-left:auto}@media(max-width:600px){.automation-daily__mail{padding:16px;gap:18px}.automation-daily__mail>div{flex-basis:100%}.automation-daily__mail>.button{width:100%;white-space:normal}}
+.automation-daily__mail { display:grid; gap:12px; margin-top:24px; }
+.automation-daily__mail > div { display:flex; align-items:center; gap:12px; min-width:0; }
+.automation-daily__mail strong { font-size:15px; color:var(--ink); font-variant-numeric:tabular-nums; }
+.automation-daily__mail span { color:var(--muted); font-size:14px; line-height:1.5; }
+.automation-daily__mail svg { flex:none; color:var(--muted); }
+.automation-daily__next { display:flex; align-items:center; gap:16px; margin-top:24px; padding:20px; border:1px solid var(--line-soft); border-radius:18px; background:var(--surface-soft); }
+.automation-daily__next-icon { display:grid; place-items:center; flex:none; width:44px; height:44px; border-radius:14px; background:var(--surface-raised); color:var(--ink); }
+.automation-daily__next > div { display:grid; gap:5px; min-width:0; flex:1; }
+.automation-daily__next strong { font-size:17px; line-height:1.4; }
+.automation-daily__eyebrow { font-size:12px; color:var(--muted); }
+.automation-daily__open { margin-top:20px; }
+@media(max-width:540px) {
+  .automation-daily__period { font-size:12px; }
+  .automation-daily__next { flex-wrap:wrap; gap:12px; padding:16px; }
+  .automation-daily__next > .button { width:100%; white-space:normal; }
+  .automation-daily__stats { grid-template-columns:1fr; gap:0; margin:24px 0 0; }
+  .automation-daily__stats > div { display:flex; align-items:center; flex-direction:row-reverse; justify-content:space-between; gap:16px; padding:12px 0; border-bottom:1px solid var(--line-soft); }
+  .automation-daily__stats dd { font-size:22px; margin:0; }
+  .automation-daily__stats dt { text-align:left; }
+  .automation-daily__open { width:100%; white-space:normal; }
+}

@@ -43,7 +43,7 @@ fn existing_import(store: &LocalStore, item: &Value) -> AppResult<Option<Value>>
         }
         let automatic:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM audit_log WHERE entity_type='supplier_mailbox_invoice' AND entity_id=? AND json_extract(payload_json,'$.automatic')=1)",params![id],|r|r.get(0))?;
         Ok(Some(
-            json!({"id":id,"automatic":automatic&&status=="validated","idempotent":true}),
+            json!({"id":id,"automatic":automatic&&status=="validated","posted":status=="validated","idempotent":true}),
         ))
     } else {
         Ok(None)
@@ -159,8 +159,19 @@ pub(crate) fn import_document(
     store: &LocalStore,
     item: &Value,
     bytes: &[u8],
+    input: SaveSupplierInvoiceDraftInput,
+    automatic: bool,
+) -> AppResult<Value> {
+    import_reviewed_document(store, item, bytes, input, automatic, automatic)
+}
+
+fn import_reviewed_document(
+    store: &LocalStore,
+    item: &Value,
+    bytes: &[u8],
     mut input: SaveSupplierInvoiceDraftInput,
     automatic: bool,
+    post: bool,
 ) -> AppResult<Value> {
     let id = text(item, "id")?;
     Uuid::parse_str(id).map_err(|_| invalid("La référence de réception est invalide."))?;
@@ -179,7 +190,8 @@ pub(crate) fn import_document(
                 "La facture enregistrée correspond à un autre justificatif.",
             ));
         }
-        return Ok(json!({"id":id,"automatic":status=="validated","idempotent":true}));
+        let automatic:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM audit_log WHERE entity_type='supplier_mailbox_invoice' AND entity_id=? AND json_extract(payload_json,'$.automatic')=1)",params![id],|r|r.get(0))?;
+        return Ok(json!({"id":id,"automatic":automatic&&status=="validated","posted":status=="validated","idempotent":true}));
     }
     let occupied: bool = tx.query_row(
         "SELECT EXISTS(SELECT 1 FROM supplier_invoices WHERE id=?)",
@@ -214,7 +226,7 @@ pub(crate) fn import_document(
     let attachment_id = text(&inserted.record, "id")?;
     // One provenance per attachment, allowing several invoices in one message.
     tx.execute("INSERT INTO supplier_email_invoice_imports(supplier_invoice_id,source_sha256,source_message_id,source_file_name,attachment_sha256,attachment_id,created_at) VALUES(?,?,?,?,?,?,?)",params![id,sha,format!("support:{id}"),text(item,"fileName")?,sha,attachment_id,now_iso()])?;
-    if automatic {
+    if post {
         crate::supplier_invoices::validate_supplier_invoice_in_transaction(&tx, id)?;
     }
     append_audit(
@@ -222,13 +234,13 @@ pub(crate) fn import_document(
         "import",
         "supplier_mailbox_invoice",
         id,
-        &json!({"source_sha256":sha,"automatic":automatic,"attachment_id":attachment_id}),
+        &json!({"source_sha256":sha,"automatic":automatic,"confirmed":post&&!automatic,"posted":post,"attachment_id":attachment_id}),
     )?;
     tx.commit()?;
     if inserted.created {
         attachment.retain();
     }
-    Ok(json!({"id":id,"automatic":automatic,"idempotent":false}))
+    Ok(json!({"id":id,"automatic":automatic,"posted":post,"idempotent":false}))
 }
 
 #[tauri::command]
@@ -330,7 +342,13 @@ pub async fn supplier_inbox_request(
                     serde_json::from_value(data["invoice"].clone())
                         .map_err(|_| invalid("Complétez les informations de la facture."))
                 };
-                prepared.and_then(|input| import_document(&store, item, &bytes, input, automatic))
+                prepared.and_then(|input| {
+                    if !automatic && data["confirm"] == true {
+                        import_reviewed_document(&store, item, &bytes, input, false, true)
+                    } else {
+                        import_document(&store, item, &bytes, input, automatic)
+                    }
+                })
             }
         }
     };
@@ -350,7 +368,7 @@ pub async fn supplier_inbox_request(
                 .await
                 .is_ok();
             Ok(
-                json!({"id":id,"automatic":result["automatic"],"acknowledged":acknowledged,"saved":true}),
+                json!({"id":id,"automatic":result["automatic"],"posted":result["posted"],"acknowledged":acknowledged,"saved":true}),
             )
         }
         Err(error) => {
@@ -430,6 +448,34 @@ mod tests {
             }],
         };
         (dir, store, item, bytes, input)
+    }
+    #[test]
+    fn final_confirmation_posts_once_without_claiming_automatic_approval() {
+        let (_dir, store, item, bytes, input) = fixture();
+        store.install_swiss_accounting_starter().unwrap();
+        let first = import_reviewed_document(&store, &item, &bytes, input.clone(), false, true).unwrap();
+        assert_eq!(first["posted"], true);
+        assert_eq!(first["automatic"], false);
+        let retried = import_reviewed_document(&store, &item, &bytes, input, false, true).unwrap();
+        assert_eq!(retried["idempotent"], true);
+        assert_eq!(retried["automatic"], false);
+        let proof = existing_import(&store, &item).unwrap().unwrap();
+        assert_eq!(proof["posted"], true);
+        assert_eq!(proof["automatic"], false);
+        let db = store.connect().unwrap();
+        let id = item["id"].as_str().unwrap();
+        let amounts:(i64,i64,i64)=db.query_row("SELECT SUM(l.debit_cents),SUM(l.credit_cents),COUNT(DISTINCT j.id) FROM journal_lines l JOIN journal_entries j ON j.id=l.journal_entry_id WHERE j.source_type='supplier_invoice' AND j.source_id=?",params![id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap();
+        assert_eq!(amounts,(10000,10000,1));
+    }
+    #[test]
+    fn rejected_final_confirmation_leaves_no_partial_document() {
+        let (_dir, store, item, bytes, input) = fixture();
+        assert!(import_reviewed_document(&store, &item, &bytes, input, false, true).is_err());
+        let db = store.connect().unwrap();
+        for table in ["supplier_invoices", "attachments", "supplier_email_invoice_imports", "journal_entries"] {
+            assert_eq!(db.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r|r.get::<_,i64>(0)).unwrap(),0);
+        }
+        assert!(std::fs::read_dir(&store.attachments_dir).unwrap().next().is_none());
     }
     #[test]
     fn original_and_draft_commit_together_and_retries_preserve_edits() {
