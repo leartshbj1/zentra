@@ -9,6 +9,7 @@ import { automationReadiness, openAutomationHub, readinessLabels, recommendedAut
 import { t, useAppLanguage } from './language';
 import { Button } from './ui';
 import './AutomationSettings.css';
+import {SupplierHabits} from './SupplierHabits';
 import { AutomationConnectionNotice } from './AutomationConnectionNotice';
 
 export function AutomationSettings({ showHubLink = false }: { showHubLink?: boolean }) {
@@ -75,6 +76,8 @@ function CompanySettings({ state }: { state: AutomationState }) {
     </>}
     {message && <p role="status">{t(message)}</p>}
     <div className="automation-settings__quickstart"><strong>{t('De la boîte mail à la comptabilité')}</strong><p>{t('Reliez Support pour recevoir les factures fournisseurs dans Gestion. L’enregistrement automatique s’active séparément pour cette entreprise.')}</p><Button variant="secondary" onClick={()=>void invoke('open_supplier_inbox_settings').catch(()=>setMessage('Ouvrez zentraapp.ch/support/espace dans votre navigateur.'))}>{t('Régler la réception des factures')}</Button></div>
+    <SupplierHabits key={state.organizationId} org={state.organizationId} manage={canManage}/>
+    <p className="automation-settings__appointment-note">Les confirmations de rendez-vous rejoignent l’agenda lorsque « E-mails importés » est activé en mode suggestions. Les informations incomplètes restent à vérifier.</p>
     <Button variant="ghost" onClick={() => void openAutomationSettings().catch(() => setMessage('Ouvrez zentraapp.ch/compte/automation dans votre navigateur.'))}>{t('Confidentialité et abonnement')}</Button>
   </section>;
 }

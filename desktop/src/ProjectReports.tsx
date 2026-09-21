@@ -1,37 +1,262 @@
-import { BarChart3, ClipboardCheck } from 'lucide-react';
+import { t, useAppLanguage } from './language';
+import { useState } from 'react';
+import { BarChart3, Download, ChevronRight, FileText } from 'lucide-react';
 import type { Workspace } from './types';
-import { projectTerminology } from './terminology';
-import { formatMinutes, formatMoney, projectFinancials } from './utils';
+import { formatMoney, projectFinancials, errorMessage } from './utils';
 import { Button, EmptyState, StatusBadge } from './ui';
-
-export function ReportsScreen({ workspace, onOpenAccounting }: { workspace: Workspace; onOpenAccounting: () => void }) {
-  const terminology = projectTerminology(workspace.settings!.business.nogaSection);
-  const rows = workspace.projects.map((project) => ({
-    project,
-    stats: projectFinancials(project, workspace.invoices, workspace.payments, workspace.timeEntries, workspace.expenses, workspace.supplierInvoices, workspace.supplierCreditNotes),
-  })).filter(({ stats }) => stats.hasActivity);
-  if (!workspace.projects.length) return <EmptyState icon={<BarChart3 />} title="Aucun rapport disponible" text={`Les rapports apparaissent après la création d’un ${terminology.singular}. Aucun graphique fictif n’est affiché.`} />;
-  return <div className="stack-layout project-reports">
-    <div className="report-callout"><BarChart3 size={24} /><div><strong>La marge de chaque projet</strong><p>Facturé net − main-d’œuvre − achats après avoirs. La TVA non déductible reste dans les coûts.</p><small>Dépenses à payer incluses · Brouillons fournisseurs exclus</small></div></div>
-    {rows.length ? <div className="report-grid">{rows.map(({ project, stats }) => <article className="report-card" key={project.id}>
-      <header><div><h3>{project.name}</h3><p>{formatMinutes(stats.minutes)} saisis</p></div><StatusBadge status={project.status} /></header>
-      <div className="report-card__figures">
-        <div><span>Facturé net</span><strong>{stats.invoicedNetLabel}</strong></div>
-        <div><span>Main-d’œuvre</span><strong>{formatMoney(stats.laborCost)}</strong></div>
-        <div><span>Coût des achats{stats.purchaseCostReviewCount ? ' · à contrôler' : ''}</span><strong>{formatMoney(stats.expenseNet)}</strong></div>
+import { desktopApi } from './bridge';
+import { PdfExportReceipt } from './PdfExportReceipt';
+import type { PdfExportReceipt as Receipt } from './pdfExportDelivery';
+import {
+  buildProjectReport,
+  reportSections,
+  type ReportSectionKey,
+} from './projectReport';
+import './ProjectReports.css';
+export function ReportsScreen({
+  workspace,
+  onOpenAccounting,
+}: {
+  workspace: Workspace;
+  onOpenAccounting: () => void;
+}) {
+  useAppLanguage();
+  const [chosen, setChosen] = useState(''),
+    [sections, setSections] = useState<ReportSectionKey[]>(
+      Object.keys(reportSections) as ReportSectionKey[],
+    ),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(''),
+    [receipt, setReceipt] = useState<Receipt | null>(null),
+    [query, setQuery] = useState('');
+  const project = workspace.projects.find((p) => p.id === chosen),
+    report = project ? buildProjectReport(workspace, project, sections) : null;
+  if (!workspace.projects.length)
+    return (
+      <EmptyState
+        icon={<BarChart3 />}
+        title={t('Vos rapports de projet')}
+        text={t(
+          'Créez un projet pour réunir son activité et ses documents dans un rapport.',
+        )}
+      />
+    );
+  async function exportPdf() {
+    if (!report || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await desktopApi.exportProjectReportPdf(report);
+      if (result) setReceipt(result);
+    } catch (e) {
+      setError(errorMessage(e, 'Export du rapport impossible.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div
+      className={`project-reports${chosen ? ' project-reports--selected' : ''}`}
+    >
+      <header className="project-reports__heading">
+        <div>
+          <span className="project-reports__eyebrow">{t('RAPPORTS')}</span>
+          <h2>{t('Une vue claire de vos projets.')}</h2>
+          <p>
+            {t(
+              'Choisissez un projet. Gardez l’essentiel ou exportez son dossier complet.',
+            )}
+          </p>
+        </div>
+        <FileText size={32} />
+      </header>
+      <div className="project-reports__layout">
+        <aside className="project-reports__picker">
+          <select
+            className="project-reports__mobile-picker"
+            aria-label={t('Choisir un projet')}
+            value={chosen}
+            disabled={busy}
+            onChange={(e) => {
+              setChosen(e.target.value);
+              setReceipt(null);
+              setError('');
+            }}
+          >
+            <option value="">{t('Choisir un projet')}</option>
+            {workspace.projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <label>
+            {t('Rechercher un projet')}
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('Nom du projet')}
+            />
+          </label>
+          <div>
+            {workspace.projects
+              .filter((p) =>
+                p.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+              )
+              .map((p) => (
+                <button
+                  type="button"
+                  disabled={busy}
+                  key={p.id}
+                  aria-pressed={p.id === chosen}
+                  onClick={() => {
+                    setChosen(p.id);
+                    setReceipt(null);
+                    setError('');
+                  }}
+                >
+                  <span>
+                    {p.name}
+                    <small>
+                      {workspace.clients.find((c) => c.id === p.clientId)?.name}
+                    </small>
+                  </span>
+                  <ChevronRight size={17} />
+                </button>
+              ))}
+          </div>
+        </aside>
+        <section className="project-reports__detail">
+          {project && report ? (
+            <>
+              <div className="project-reports__title">
+                <div>
+                  <h2>{project.name}</h2>
+                  <StatusBadge status={project.status} />
+                </div>
+                <Button
+                  disabled={busy || !sections.length}
+                  onClick={() => void exportPdf()}
+                >
+                  <Download size={17} />
+                  {t(busy ? 'Création du PDF…' : 'Exporter le PDF')}
+                </Button>
+              </div>
+              {(() => {
+                const s = projectFinancials(
+                  project,
+                  workspace.invoices,
+                  workspace.payments,
+                  workspace.timeEntries,
+                  workspace.expenses,
+                  workspace.supplierInvoices,
+                  workspace.supplierCreditNotes,
+                );
+                return (
+                  <>
+                    <dl className="project-reports__figures">
+                      <div>
+                        <dt>{t('Facturé hors TVA')}</dt>
+                        <dd>{s.invoicedNetLabel}</dd>
+                      </div>
+                      <div>
+                        <dt>{t('Coûts enregistrés')}</dt>
+                        <dd>{formatMoney(s.laborCost + s.expenseNet)}</dd>
+                      </div>
+                      <div>
+                        <dt>{t('Marge de gestion')}</dt>
+                        <dd>
+                          {s.marginUnavailableReason || formatMoney(s.margin)}
+                        </dd>
+                      </div>
+                    </dl>
+                    {s.purchaseCostReviewCount > 0 && (
+                      <Button variant="secondary" onClick={onOpenAccounting}>
+                        {t('Contrôler les achats')}
+                      </Button>
+                    )}
+                  </>
+                );
+              })()}
+              <fieldset className="project-reports__sections">
+                <legend>{t('Dans votre rapport')}</legend>
+                {Object.entries(reportSections).map(([key, label]) => (
+                  <label key={key}>
+                    <input
+                      type="checkbox"
+                      checked={sections.includes(key as ReportSectionKey)}
+                      onChange={(e) =>
+                        setSections((current) =>
+                          e.target.checked
+                            ? [...current, key as ReportSectionKey]
+                            : current.filter((k) => k !== key),
+                        )
+                      }
+                    />
+                    {t(label)}
+                  </label>
+                ))}
+              </fieldset>
+              {error && <p role="alert">{error}</p>}
+              {receipt && (
+                <PdfExportReceipt
+                  result={receipt}
+                  disabled={busy}
+                  onBusyChange={setBusy}
+                />
+              )}
+              <div className="project-reports__preview">
+                {report.sections.map((s, index) => (
+                  <details key={`${index}-${s.title}`} open={index === 0}>
+                    <summary>
+                      {s.title}
+                      <span>{s.rows.length}</span>
+                    </summary>
+                    <div className="project-reports__table">
+                      <table>
+                        <thead>
+                          <tr>
+                            {s.headers.map((h) => (
+                              <th key={h}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {!s.rows.length && (
+                            <tr>
+                              <td colSpan={s.headers.length}>
+                                {t('Aucune donnée enregistrée')}
+                              </td>
+                            </tr>
+                          )}
+                          {s.rows.map((r, i) => (
+                            <tr key={i}>
+                              {r.map((cell, j) => (
+                                <td key={j}>{cell}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="project-reports__empty">
+              <BarChart3 size={36} />
+              <h3>{t('Quel projet souhaitez-vous examiner ?')}</h3>
+              <p>
+                {t(
+                  'Son rapport réunira les informations déjà enregistrées par votre équipe.',
+                )}
+              </p>
+            </div>
+          )}
+        </section>
       </div>
-      <details className="project-purchase-details">
-        <summary>Détail des achats</summary>
-        <dl>
-          <div><dt>Achats avant avoirs</dt><dd>{formatMoney(stats.purchaseGrossCost)}</dd></div>
-          <div><dt>Avoirs fournisseurs déduits</dt><dd>− {formatMoney(stats.purchaseCreditCost)}</dd></div>
-          {stats.expenseRefundCost ? <div><dt>Remboursements de dépenses</dt><dd>− {formatMoney(stats.expenseRefundCost)}</dd></div> : null}
-          <div><dt>Dont TVA non déductible</dt><dd>{formatMoney(stats.nonDeductibleVatCost)}</dd></div>
-        </dl>
-        <p>Un avoir validé réduit le coût une seule fois. Sa compensation avec une facture n’ajoute pas une deuxième réduction.</p>
-      </details>
-      {stats.purchaseCostReviewCount ? <div className="project-cost-review" role="status"><ClipboardCheck size={18} /><div><strong>{stats.purchaseCostReviewCount} achat{stats.purchaseCostReviewCount > 1 ? 's' : ''} à contrôler</strong><p>Vérifiez la classification TVA et les écritures de ces achats dans Comptabilité. La marge sera affichée après leur contrôle.</p><Button variant="secondary" size="small" onClick={onOpenAccounting}>Contrôler les achats</Button></div></div> : null}
-      <footer><span>Marge de gestion</span><strong className={stats.margin !== null && stats.margin < 0 ? 'is-negative' : ''}>{stats.marginUnavailableReason || formatMoney(stats.margin)}</strong></footer>
-    </article>)}</div> : <EmptyState title="Pas encore assez de données" text="Ajoutez une facture émise, des heures avec coût ou un achat pour calculer la rentabilité. Aucun pourcentage n’est inventé." />}
-  </div>;
+    </div>
+  );
 }

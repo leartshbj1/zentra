@@ -39,6 +39,8 @@ mod customer_credit_tests;
 mod error;
 mod fiduciary_closing;
 mod financial_pdf;
+mod project_report;
+mod appointment_inbox;
 mod input_vat_accounting;
 mod expense_journal;
 mod expense_refunds;
@@ -312,6 +314,8 @@ pub fn run() {
             get_trial_balance,
             get_balance_sheet,
             export_annual_accounts_pdf,
+            project_report::export_project_report_pdf,
+            appointment_inbox::appointment_inbox_request,
             get_income_statement,
             get_reminder_settings,
             update_reminder_settings,

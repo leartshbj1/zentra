@@ -203,3 +203,4 @@
 @media screen and (max-width: 860px) and (prefers-reduced-motion: reduce) {
   .mobile-details > summary > svg { transition: none; }
 }
+.turnover-period{display:block;font-size:12px;color:var(--muted);margin-top:4px}.mobile-home__time strong{overflow-wrap:anywhere;max-width:48%}

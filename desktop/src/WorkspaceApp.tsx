@@ -28,6 +28,7 @@ import { SupplierInbox } from './SupplierInboxPanel';
 import { useSupplierInbox } from './supplierInbox';
 import { AutomationCompanyProvider, useCompanyAutomation } from './AutomationCompany';
 import { AutomationHub } from './AutomationHub';
+import { AppointmentInbox,useAppointmentInbox } from './AppointmentInbox';
 import { type AutomationPage } from './automationExperience';
 import { AutomationSettings } from './AutomationSettings';
 import { AutomationTools } from './AutomationTools';
@@ -134,7 +135,7 @@ import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark } from './BrandMark';
 import { documentOrders, newestDocumentsFirst, readDocumentOrder, saveDocumentOrder, sortDocuments, type DocumentOrder } from './documentOrder';
 import { matchesSalesDocumentSearch, matchesSalesDocumentStatus, documentCreators, documentCreatorLabel, matchesDocumentCreator } from './salesDocumentList';
-import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
+import { salesTotalsByCurrency, formatSalesTotals, turnoverLabel } from './salesFinancials';
 import { MobileDetails, MobileDocumentActions, useCompactLayout } from './MobileDetails';
 import { MobileDashboard } from './MobileDashboard';
 import type { AgendaEventDraft } from './AgendaScreen';
@@ -596,6 +597,8 @@ function WorkspaceContent({
   const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
   const supplierInbox=useSupplierInbox(cloudAccount?.status==='connected'?cloudAccount.organizationId??null:null,readOnly,()=>actionInFlight.current||busy||!!modal||!!document.querySelector('[role="dialog"]'),next=>{workspaceRef.current=next;setWorkspace(next);});
+  const appointmentInbox=useAppointmentInbox(cloudAccount?.status==='connected'?cloudAccount.organizationId??null:null,readOnly,()=>actionInFlight.current||busy||!!modal||!!document.querySelector('[role="dialog"]'),next=>{workspaceRef.current=next;setWorkspace(next);});
+  const automationPendingCount=(supplierInbox.state?.items.filter(row=>!['imported','ignored'].includes(row.state)).length||0)+(appointmentInbox.state?.items.filter(row=>!['imported','ignored'].includes(row.state)).length||0);
   const renderSupplierInbox = (embedded: boolean) => <SupplierInbox embedded={embedded} inbox={supplierInbox} workspace={workspace} readOnly={readOnly} onCreateSupplier={async(name,email)=>{
                 const existing=workspaceRef.current.suppliers.filter(s=>!s.archivedAt&&s.name.trim().toLowerCase()===name.toLowerCase()&&s.email.trim().toLowerCase()===email.toLowerCase());
                 if(existing.length===1)return existing[0].id;
@@ -1707,7 +1710,7 @@ function WorkspaceContent({
                 >
                   <Icon size={17} />
                   <span>{t(label)}</span>
-                  {item.id === 'automation' && (supplierInbox.state?.items.filter(row => !['imported', 'ignored'].includes(row.state)).length ?? 0) > 0 ? <em>{supplierInbox.state!.items.filter(row => !['imported', 'ignored'].includes(row.state)).length}</em> : null}
+                  {item.id === 'automation' && automationPendingCount > 0 ? <em>{automationPendingCount}</em> : null}
                   {(item.id === 'quotes' || item.id === 'reminders') &&
                   overdue.length ? (
                     <em>{overdue.length}</em>
@@ -1907,7 +1910,7 @@ function WorkspaceContent({
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && <AutomationTools key={view} screen={view} workspace={workspace} />}
-          {view === 'automation' && <AutomationHub inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
+          {view === 'automation' && <AutomationHub appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -2596,10 +2599,6 @@ function Dashboard({
     (invoice) => invoice.status !== 'draft' && invoice.status !== 'cancelled',
   );
   const financialTotals = salesTotalsByCurrency(workspace.invoices, workspace.payments);
-  const minutes = workspace.timeEntries.reduce(
-    (total, entry) => total + entry.minutes,
-    0,
-  );
   const activeProjects = workspace.projects.filter((project) =>
     ['in_progress', 'paused'].includes(project.status),
   );
@@ -2694,14 +2693,10 @@ function Dashboard({
           tone="blue"
         />
         <MetricCard
-          label="Temps saisi"
-          value={workspace.timeEntries.length ? formatMinutes(minutes) : '—'}
-          note={
-            workspace.timeEntries.length
-              ? `${workspace.timeEntries.length} saisie${workspace.timeEntries.length > 1 ? 's' : ''}`
-              : 'Aucune heure saisie'
-          }
-          icon={<Clock3 />}
+          label="Chiffre d’affaires"
+          value={turnoverLabel(workspace.invoices)}
+          note={`Facturé hors TVA · ${new Date().getFullYear()} · avoirs déduits`}
+          icon={<TrendingUp />}
           tone="violet"
         />
       </div>

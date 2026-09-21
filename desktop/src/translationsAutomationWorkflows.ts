@@ -1,0 +1,217 @@
+// German (Switzerland), Italian, English.
+export const automationWorkflowTranslations: Record<
+  string,
+  readonly [string, string, string]
+> = {
+  'Vos rapports de projet': [
+    'Ihre Projektberichte',
+    'I tuoi rapporti di progetto',
+    'Your project reports',
+  ],
+  'Créez un projet pour réunir son activité et ses documents dans un rapport.':
+    [
+      'Erstellen Sie ein Projekt, um seine Aktivitäten und Dokumente in einem Bericht zusammenzufassen.',
+      'Crea un progetto per riunire attività e documenti in un rapporto.',
+      'Create a project to bring its activity and documents together in a report.',
+    ],
+  RAPPORTS: ['BERICHTE', 'RAPPORTI', 'REPORTS'],
+  'Une vue claire de vos projets.': [
+    'Ihre Projekte im Überblick.',
+    'Una visione chiara dei tuoi progetti.',
+    'A clear view of your projects.',
+  ],
+  'Choisissez un projet. Gardez l’essentiel ou exportez son dossier complet.': [
+    'Wählen Sie ein Projekt. Exportieren Sie die wichtigsten Angaben oder den vollständigen Bericht.',
+    'Scegli un progetto. Esporta le informazioni essenziali o il rapporto completo.',
+    'Choose a project. Export the essentials or its complete report.',
+  ],
+  'Choisir un projet': [
+    'Projekt wählen',
+    'Scegli un progetto',
+    'Choose a project',
+  ],
+  'Rechercher un projet': [
+    'Projekt suchen',
+    'Cerca un progetto',
+    'Search projects',
+  ],
+  'Nom du projet': ['Projektname', 'Nome del progetto', 'Project name'],
+  'Création du PDF…': [
+    'PDF wird erstellt…',
+    'Creazione del PDF…',
+    'Creating PDF…',
+  ],
+  'Exporter le PDF': ['PDF exportieren', 'Esporta PDF', 'Export PDF'],
+  'Facturé hors TVA': [
+    'Fakturiert ohne MWST',
+    'Fatturato senza IVA',
+    'Invoiced excluding VAT',
+  ],
+  'Coûts enregistrés': [
+    'Erfasste Kosten',
+    'Costi registrati',
+    'Recorded costs',
+  ],
+  'Marge de gestion': [
+    'Projektmarge',
+    'Margine di gestione',
+    'Management margin',
+  ],
+  'Contrôler les achats': [
+    'Einkäufe prüfen',
+    'Verifica gli acquisti',
+    'Review purchases',
+  ],
+  'Dans votre rapport': [
+    'In Ihrem Bericht',
+    'Nel tuo rapporto',
+    'Include in your report',
+  ],
+  'Aucune donnée enregistrée': [
+    'Keine Daten erfasst',
+    'Nessun dato registrato',
+    'No data recorded',
+  ],
+  'Quel projet souhaitez-vous examiner ?': [
+    'Welches Projekt möchten Sie prüfen?',
+    'Quale progetto vuoi esaminare?',
+    'Which project would you like to review?',
+  ],
+  'Son rapport réunira les informations déjà enregistrées par votre équipe.': [
+    'Der Bericht fasst die bereits von Ihrem Team erfassten Informationen zusammen.',
+    'Il rapporto riunisce le informazioni già registrate dal tuo team.',
+    'Its report brings together information already recorded by your team.',
+  ],
+  'Rendez-vous': ['Termine', 'Appuntamenti', 'Appointments'],
+  '·': ['·', '·', '·'],
+  'Les confirmations complètes reçues par Support sont ajoutées ici et dans l’agenda.':
+    [
+      'Vollständige Terminbestätigungen aus Support werden hier und im Kalender hinzugefügt.',
+      'Le conferme complete ricevute da Support vengono aggiunte qui e nell’agenda.',
+      'Complete confirmations received by Support are added here and to the calendar.',
+    ],
+  'Derniers rendez-vous ajoutés': [
+    'Zuletzt hinzugefügte Termine',
+    'Ultimi appuntamenti aggiunti',
+    'Recently added appointments',
+  ],
+  'Vérifier le rendez-vous': [
+    'Termin prüfen',
+    'Verifica l’appuntamento',
+    'Review appointment',
+  ],
+  'Heures de Suisse · Europe/Zurich': [
+    'Schweizer Zeit · Europe/Zurich',
+    'Ora svizzera · Europe/Zurich',
+    'Swiss time · Europe/Zurich',
+  ],
+  Objet: ['Betreff', 'Oggetto', 'Subject'],
+  Début: ['Beginn', 'Inizio', 'Start'],
+  Fin: ['Ende', 'Fine', 'End'],
+  'Toute la journée': ['Ganztägig', 'Tutto il giorno', 'All day'],
+  'Heure de début': ['Startzeit', 'Ora di inizio', 'Start time'],
+  'Heure de fin': ['Endzeit', 'Ora di fine', 'End time'],
+  'Lieu ou lien de réunion': [
+    'Ort oder Besprechungslink',
+    'Luogo o link della riunione',
+    'Location or meeting link',
+  ],
+  'Sans projet': ['Ohne Projekt', 'Senza progetto', 'No project'],
+  Confirmé: ['Bestätigt', 'Confermato', 'Confirmed'],
+  Annulé: ['Abgesagt', 'Annullato', 'Cancelled'],
+  'Message et points à vérifier': [
+    'Nachricht und Prüfpunkte',
+    'Messaggio e punti da verificare',
+    'Message and review points',
+  ],
+  Écarter: ['Verwerfen', 'Scarta', 'Dismiss'],
+  'Mettre à jour le rendez-vous': [
+    'Termin aktualisieren',
+    'Aggiorna l’appuntamento',
+    'Update appointment',
+  ],
+  'Ajouter à l’agenda': [
+    'Zum Kalender hinzufügen',
+    'Aggiungi all’agenda',
+    'Add to calendar',
+  ],
+  'Ce qu’Automation a retenu': [
+    'Was Automation gespeichert hat',
+    'Cosa ha memorizzato Automation',
+    'What Automation remembers',
+  ],
+  'Vos classements confirmés servent aux prochaines factures du même fournisseur. Les montants et la TVA restent ceux du justificatif.':
+    [
+      'Bestätigte Zuordnungen werden für weitere Rechnungen desselben Lieferanten verwendet. Beträge und MWST stammen weiterhin aus dem Beleg.',
+      'Le classificazioni confermate servono per le prossime fatture dello stesso fornitore. Importi e IVA restano quelli del documento.',
+      'Your confirmed classifications are reused for later invoices from the same supplier. Amounts and VAT still come from the document.',
+    ],
+  Oublier: ['Vergessen', 'Dimentica', 'Forget'],
+  'Les habitudes apparaîtront après la confirmation de vos factures.': [
+    'Gespeicherte Zuordnungen erscheinen nach der Rechnungsbestätigung.',
+    'Le preferenze appariranno dopo la conferma delle fatture.',
+    'Preferences will appear after you confirm invoices.',
+  ],
+  'Factures reçues': [
+    'Eingegangene Rechnungen',
+    'Fatture ricevute',
+    'Received invoices',
+  ],
+  'Les montants et les fournisseurs sont vérifiés ensemble.': [
+    'Beträge und Lieferanten werden gemeinsam geprüft.',
+    'Importi e fornitori vengono verificati insieme.',
+    'Amounts and suppliers are checked together.',
+  ],
+  'Vérifier toutes les factures': [
+    'Alle Rechnungen prüfen',
+    'Verifica tutte le fatture',
+    'Review all invoices',
+  ],
+  'Détail des analyses': [
+    'Analysedetails',
+    'Dettaglio delle analisi',
+    'Analysis details',
+  ],
+  '{count} rendez-vous à vérifier': [
+    '{count} Termine zu prüfen',
+    '{count} appuntamenti da verificare',
+    '{count} appointments to review',
+  ],
+  'rendez-vous ajoutés à l’agenda aujourd’hui': [
+    'Termine heute im Kalender hinzugefügt',
+    'appuntamenti aggiunti oggi all’agenda',
+    'appointments added to the calendar today',
+  ],
+  '{count} à vérifier': [
+    '{count} zu prüfen',
+    '{count} da verificare',
+    '{count} to review',
+  ],
+  'Votre agenda reste à jour.': [
+    'Ihr Kalender bleibt aktuell.',
+    'La tua agenda resta aggiornata.',
+    'Your calendar stays up to date.',
+  ],
+  'Date à préciser': ['Datum ergänzen', 'Data da precisare', 'Date needed'],
+  'Devis et factures': [
+    'Offerten und Rechnungen',
+    'Preventivi e fatture',
+    'Quotes and invoices',
+  ],
+  'Achats et dépenses': [
+    'Einkäufe und Ausgaben',
+    'Acquisti e spese',
+    'Purchases and expenses',
+  ],
+  'Heures et équipe': ['Arbeitszeit und Team', 'Ore e team', 'Time and team'],
+  'Planning et rendez-vous': [
+    'Planung und Termine',
+    'Pianificazione e appuntamenti',
+    'Planning and appointments',
+  ],
+  'Documents et notes': [
+    'Dokumente und Notizen',
+    'Documenti e note',
+    'Documents and notes',
+  ],
+};

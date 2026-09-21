@@ -1,6 +1,7 @@
 import { mobileTeamTranslations } from './translationsMobileTeam';
 import { assistantTranslations } from './translationsAssistant';
 import { automationTranslations } from './translationsAutomation';
+import { automationWorkflowTranslations } from './translationsAutomationWorkflows';
 import { supplierInboxTranslations } from './translationsSupplierInbox';
 import { mobileAirTranslations } from './translationsMobileAir';
 import { resetTeamTranslations } from './translationsResetTeam';
@@ -24,6 +25,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   ...assistantTranslations,
   ...supplierInboxTranslations,
   ...automationTranslations,
+  ...automationWorkflowTranslations,
   ...mobileAirTranslations,
   ...companyTranslations,
   ...mobileTeamTranslations,

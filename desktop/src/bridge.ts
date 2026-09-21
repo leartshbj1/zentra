@@ -5457,7 +5457,10 @@ export const desktopApi = {
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async validateSupplierInvoice(id: string) {
-    return runSupplierInvoiceValidation(id, () => invoke('validate_supplier_invoice', { id }), loadWorkspace);
+    const workspace = await runSupplierInvoiceValidation(id, () => invoke('validate_supplier_invoice', { id }), loadWorkspace);
+    // Learning must never turn a successfully posted invoice into an apparent failure.
+    void invoke('supplier_inbox_request', {data:{action:'remember',id}}).then(()=>window.dispatchEvent(new Event('zentra-automation-updated'))).catch(()=>{});
+    return workspace;
   },
   async recordSupplierPayment(input: {
     requestId: string;
@@ -6431,6 +6434,12 @@ export const desktopApi = {
       closingCreditBalanceCents: numberValue(raw.closing_credit_balance_cents),
       balanced: boolValue(raw.balanced),
     };
+  },
+  async exportProjectReportPdf(report: import('./projectReport').ProjectReport) {
+    const selected = await chooseSaveFile({title:'Exporter le rapport de projet',defaultPath:`Zentra-rapport-${report.title.replace(/[^\p{L}\p{N}-]/gu,'-').slice(0,80)}.pdf`,filters:[{name:'Rapport PDF',extensions:['pdf']}]});
+    if(!selected)return null;
+    const raw=await invoke<RawRecord>('export_project_report_pdf',{report,destinationPath:pdfDestinationPath(selected)});
+    return deliverPdfExport({path:stringValue(raw.path),pages:numberValue(raw.pages)});
   },
   async exportAnnualAccountsPdf(filter: PeriodFilter) {
     const selected = await chooseSaveFile({ title: 'Exporter le bilan et le résultat', defaultPath: `Zentra-bilan-${filter.dateTo || new Date().toISOString().slice(0, 10)}.pdf`, filters: [{ name: 'Bilan et compte de résultat PDF', extensions: ['pdf'] }] });

@@ -1,6 +1,7 @@
+import type { Workspace } from '../src/types';
 import type { AutomationState } from '../src/automation';
 /** Synthetic bridge used only by the local, non-shipping UI harness. */
-export function installAutomationCompanyFixture() {
+export function installAutomationCompanyFixture(workspace?:Workspace) {
   const params = new URLSearchParams(location.search);
   const unconfigured = params.get('automation') === 'setup';
   const invoices = [
@@ -12,17 +13,22 @@ export function installAutomationCompanyFixture() {
     organizationId: 'automation-qa', active: params.get('automation') !== 'inactive', canManage: !params.has('member'),
     available: ['transaction_classification', 'document_routing', 'supplier_routing', 'agent_routing', 'anomaly_detection', 'priority', 'email_classification', 'import_mapping'],
     settings: { enabled: !unconfigured, consent: !unconfigured, mode: 'suggest', flags: unconfigured ? [] : ['transaction_classification', 'document_routing', 'supplier_routing', 'agent_routing', 'anomaly_detection', 'priority', 'email_classification', 'import_mapping'], thresholds: { medium: .75, high: .95 } },
-    activity: { date: '2026-09-21', timeZone: 'Europe/Zurich', updatedAt: Date.now() / 1000, displayName: 'Camille', totals: { analyzed: 0, suggestions: 0, confirmed: 0, needsReview: 0, observed: 0 }, features: [], supplierInbox: {received:3,imported:1,automatic:0,needsReview:2,recent:[]} },
+    activity: { appointments:{imported:2,pending:1}, date: '2026-09-21', timeZone: 'Europe/Zurich', updatedAt: Date.now() / 1000, displayName: 'Camille', totals: { analyzed: 0, suggestions: 0, confirmed: 0, needsReview: 0, observed: 0 }, features: [], supplierInbox: {received:3,imported:1,automatic:0,needsReview:2,recent:[]} },
   };
   Object.assign(window, { __TAURI_INTERNALS__: {
     invoke: async (command: string, args: { data?: Record<string, unknown> }) => {
       if (command === 'supplier_inbox_request') {
-        if (!args?.data) return {organizationId:'automation-qa',linked:true,autoPost:false,automationActive:true,items:structuredClone(invoices)};
+        if (!args?.data) return {organizationId:'automation-qa',linked:true,autoPost:false,automationActive:true,prepareEnabled:true,habits:[],items:structuredClone(invoices)};
         if (args.data.action === 'document') {
           const bytes = new Uint8Array(await (await fetch('/tests/fixtures/automation-test-invoice.pdf')).arrayBuffer());
           return {base64:btoa(String.fromCharCode(...bytes))};
         }
         throw Error('Fixture: no accounting writes');
+      }
+      if (command === 'appointment_inbox_request') {
+        if (!args?.data) return {organizationId:'automation-qa',active:true,automatic:false,items:[{id:'11111111-1111-4111-8111-111111111111',organizationId:'automation-qa',sender:'client@example.test',subject:'Visite des bureaux',state:'review',otherDevice:false,importedAt:null,extraction:{title:'Visite des nouveaux bureaux de la société du Léman',startDate:'2026-09-24',endDate:'2026-09-24',startTime:'09:00',endTime:'',allDay:false,location:'Avenue du Léman 12, Lausanne',notes:'Accueil au deuxième étage. Apporter les plans.',status:'scheduled',issues:['Précisez l’heure de fin.']}}]};
+        if (args.data.action==='import' && workspace) {const v=args.data.event as Record<string,unknown>; workspace.agendaEvents.push({id:String(args.data.id),title:String(v.title),startDate:String(v.start_date),endDate:String(v.end_date),startTime:String(v.start_time),endTime:String(v.end_time),allDay:!!v.all_day,kind:'appointment',status:'scheduled',location:String(v.location),notes:String(v.notes),projectId:null,employeeId:null,updatedAt:new Date().toISOString(),createdAt:new Date().toISOString()} as Workspace['agendaEvents'][number]);return{saved:true};}
+        return {saved:true};
       }
       if (command !== 'automation_request') throw Error('Not available in this fixture');
       if (!args.data) return structuredClone(state);

@@ -1102,6 +1102,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | "/api/sync/numbers"
             | crate::company_collaboration::PATH
             | crate::supplier_inbox::PATH
+            | crate::appointment_inbox::PATH
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }

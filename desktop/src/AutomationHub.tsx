@@ -13,9 +13,9 @@ import type { ReactNode } from 'react';
 
 const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
 
-export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel }: {
+export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel, appointmentPanel }: {
   workspace: Workspace; page: AutomationPage; onPage: (page: AutomationPage) => void; onNavigate: (view: AutomationDestination) => void;
-  inboxPanel?: ReactNode;
+  inboxPanel?: ReactNode; appointmentPanel?: ReactNode;
 }) {
   useAppLanguage();
   const { state, status, refresh, readOnly } = useCompanyAutomation();
@@ -45,7 +45,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel 
         <Button onClick={() => onPage('settings')}>{t(canManage ? 'Configurer mon équipe' : 'Voir les réglages')}<ArrowRight size={17} aria-hidden="true" /></Button>
       </div>}
       <div className="automation-hub__workday">
-        {inboxPanel}
+        <div className="automation-hub__inboxes">{appointmentPanel}{inboxPanel}</div>
         {(ready || Boolean(state.activity && (state.activity.totals.analyzed || state.activity.totals.confirmed))) && <AutomationDailySummary />}
       </div>
     </section>

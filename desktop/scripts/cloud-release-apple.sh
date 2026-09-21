@@ -14,7 +14,7 @@ prepare)
   ;;
 test)
   mkdir -p desktop/artifacts/validation
-  pnpm --dir desktop exec vitest run src/companyAccount.test.ts src/companyRealtime.test.ts src/projectSyncScheduler.test.ts src/automationCompanySession.test.ts src/appReleaseNotes.test.ts src/automationDailySummary.test.tsx src/automationHub.test.tsx src/supplierInboxReview.test.ts src/languageCatalogCoverage.test.ts \
+  pnpm --dir desktop exec vitest run src/companyAccount.test.ts src/companyRealtime.test.ts src/projectSyncScheduler.test.ts src/automationCompanySession.test.ts src/appReleaseNotes.test.ts src/automationDailySummary.test.tsx src/automationHub.test.tsx src/supplierInboxReview.test.ts src/languageCatalogCoverage.test.ts src/projectReport.test.ts \
     2>&1 | tee desktop/artifacts/validation/ui-tests.log
   pnpm --dir desktop build:web
   cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib company_ -- --nocapture --test-threads=1 \
@@ -26,6 +26,8 @@ test)
   bash desktop/scripts/test-mobile-webkit.sh
   cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib supplier_inbox::tests -- --test-threads=1 \
     2>&1 | tee desktop/artifacts/validation/supplier-inbox-tests-macos.log
+  cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib appointment_inbox::tests -- --test-threads=1 2>&1 | tee desktop/artifacts/validation/appointment-inbox-tests-macos.log
+  cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib project_report::tests -- --test-threads=1 2>&1 | tee desktop/artifacts/validation/project-report-tests-macos.log
   ;;
 iphone)
   bash desktop/scripts/codemagic-apple.sh iphone

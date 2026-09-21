@@ -31,6 +31,52 @@ fn text<'a>(value: &'a Value, key: &str) -> AppResult<&'a str> {
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| invalid("Complétez les informations de la facture avant de continuer."))
 }
+fn prepare_supplier(store: &LocalStore, item: &Value) -> AppResult<Value> {
+    let e = &item["extraction"];
+    let name = text(e, "supplierName")?.trim();
+    if name.len() > 200
+        || e["confidence"].as_f64().unwrap_or(0.) < 0.95
+        || normalized(name).is_empty()
+    {
+        return Err(invalid("Vérifiez le nom du fournisseur."));
+    }
+    let mut db = store.connect()?;
+    store.require_onboarding(&db)?;
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let suppliers =
+        crate::database::query_all(&tx, "SELECT id,name,email,archived_at FROM suppliers", [])?;
+    let matches: Vec<_> = suppliers
+        .iter()
+        .filter(|s| normalized(s["name"].as_str().unwrap_or("")) == normalized(name))
+        .collect();
+    if matches.len() == 1 && matches[0]["archived_at"].is_null() {
+        return Ok(json!({"supplierId":matches[0]["id"],"created":false}));
+    }
+    if !matches.is_empty() {
+        return Err(invalid(
+            "Plusieurs fiches ou une fiche archivée correspondent. Choisissez le fournisseur.",
+        ));
+    }
+    // Stable across devices handling different invoices from the same previously unknown supplier.
+    let hash = Sha256::digest(format!("zentra-mail-supplier-v1:{}", normalized(name)).as_bytes());
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&hash[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x50;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    let id = Uuid::from_bytes(bytes).to_string();
+    let now = now_iso();
+    // A mailbox sender may be a billing intermediary. Never invent supplier contact/bank details.
+    tx.execute("INSERT INTO suppliers(id,name,currency,payment_terms_days,created_at,updated_at) VALUES(?,?,'CHF',30,?,?)",params![id,name,now,now])?;
+    append_audit(
+        &tx,
+        "create",
+        "suppliers",
+        &id,
+        &json!({"name":name,"source":"automation_invoice"}),
+    )?;
+    tx.commit()?;
+    Ok(json!({"supplierId":id,"created":true}))
+}
 fn existing_import(store: &LocalStore, item: &Value) -> AppResult<Option<Value>> {
     let id = text(item, "id")?;
     let db = store.connect()?;
@@ -94,17 +140,24 @@ pub(crate) fn automatic_draft(
     let matched: Vec<&Value> = suppliers
         .iter()
         .filter(|s| {
-            s["email"]
+            item["habit"]["supplierId"]
                 .as_str()
-                .is_some_and(|v| v.trim().eq_ignore_ascii_case(&sender))
-                && s["name"].as_str().is_some_and(|v| normalized(v) == name)
+                .is_some_and(|id| s["id"] == id)
+                || s["email"]
+                    .as_str()
+                    .is_some_and(|v| v.trim().eq_ignore_ascii_case(&sender))
+                    && s["name"].as_str().is_some_and(|v| normalized(v) == name)
         })
         .collect();
     if matched.len() != 1 {
         return Err(invalid("Choisissez le fournisseur. Le nom imprimé et l’adresse de l’expéditeur doivent correspondre à un fournisseur connu pour un import automatique."));
     }
     let supplier = text(matched[0], "id")?;
-    let history=crate::database::query_all(&db,"SELECT DISTINCT l.category,l.posted_expense_account_id AS account_id FROM supplier_invoice_items l JOIN supplier_invoices i ON i.id=l.supplier_invoice_id WHERE i.supplier_id=? AND i.status='validated' AND l.posted_expense_account_id IS NOT NULL LIMIT 2",params![supplier])?;
+    let mut history=crate::database::query_all(&db,"SELECT DISTINCT l.category,l.posted_expense_account_id AS account_id FROM supplier_invoice_items l JOIN supplier_invoices i ON i.id=l.supplier_invoice_id WHERE i.supplier_id=? AND i.status='validated' AND l.posted_expense_account_id IS NOT NULL LIMIT 2",params![supplier])?;
+    let habit = &item["habit"];
+    if habit["supplierId"]==supplier && habit["accountId"].as_str().is_some_and(|id| db.query_row("SELECT EXISTS(SELECT 1 FROM accounts WHERE id=? AND active=1 AND account_type='expense')",params![id],|r|r.get::<_,bool>(0)).unwrap_or(false)) {
+        history=vec![json!({"category":habit["category"],"account_id":habit["accountId"]})];
+    }
     if history.len() != 1 {
         return Err(invalid("Validez une première facture de ce fournisseur et son compte de charges. Les prochaines pourront reprendre ce classement."));
     }
@@ -191,7 +244,9 @@ fn import_reviewed_document(
             ));
         }
         let automatic:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM audit_log WHERE entity_type='supplier_mailbox_invoice' AND entity_id=? AND json_extract(payload_json,'$.automatic')=1)",params![id],|r|r.get(0))?;
-        return Ok(json!({"id":id,"automatic":automatic&&status=="validated","posted":status=="validated","idempotent":true}));
+        return Ok(
+            json!({"id":id,"automatic":automatic&&status=="validated","posted":status=="validated","idempotent":true}),
+        );
     }
     let occupied: bool = tx.query_row(
         "SELECT EXISTS(SELECT 1 FROM supplier_invoices WHERE id=?)",
@@ -236,11 +291,21 @@ fn import_reviewed_document(
         id,
         &json!({"source_sha256":sha,"automatic":automatic,"confirmed":post&&!automatic,"posted":post,"attachment_id":attachment_id}),
     )?;
+    let habit = if post && !automatic {
+        let rows=crate::database::query_all(&tx,"SELECT i.supplier_id AS supplierId,l.category,l.posted_expense_account_id AS accountId FROM supplier_invoices i JOIN supplier_invoice_items l ON l.supplier_invoice_id=i.id WHERE i.id=? GROUP BY i.supplier_id,l.category,l.posted_expense_account_id",params![id])?;
+        if rows.len() == 1 {
+            rows[0].clone()
+        } else {
+            Value::Null
+        }
+    } else {
+        Value::Null
+    };
     tx.commit()?;
     if inserted.created {
         attachment.retain();
     }
-    Ok(json!({"id":id,"automatic":automatic,"posted":post,"idempotent":false}))
+    Ok(json!({"id":id,"automatic":automatic,"posted":post,"idempotent":false,"habit":habit}))
 }
 
 #[tauri::command]
@@ -267,10 +332,71 @@ pub async fn supplier_inbox_request(
     if session.role == "read_only" && action != "document" {
         return Err("Votre rôle permet la consultation uniquement.".into());
     }
+    if action == "forgetHabit" {
+        let (_, bytes) = session
+            .request(
+                Method::POST,
+                PATH,
+                &[],
+                &[("Content-Type", "application/json".into())],
+                Some(serde_json::to_vec(&data).unwrap()),
+                false,
+            )
+            .await
+            .map_err(command_error)?;
+        return serde_json::from_slice(&bytes).map_err(|_| "Réponse invalide.".into());
+    }
     let id = data["id"]
         .as_str()
         .filter(|v| Uuid::parse_str(v).is_ok())
         .ok_or("Choisissez une facture reçue.")?;
+    if action == "remember" {
+        let habit = {
+            let _guard = store.lock().map_err(command_error)?;
+            crate::automation::bound(&store, &session.organization_id).map_err(command_error)?;
+            let db = store.connect().map_err(command_error)?;
+            let rows=crate::database::query_all(&db,"SELECT i.supplier_id AS supplierId,l.category,l.posted_expense_account_id AS accountId FROM supplier_invoices i JOIN supplier_invoice_items l ON l.supplier_invoice_id=i.id JOIN supplier_email_invoice_imports p ON p.supplier_invoice_id=i.id WHERE i.id=? AND i.status='validated' GROUP BY i.supplier_id,l.category,l.posted_expense_account_id",params![id]).map_err(command_error)?;
+            if rows.len() != 1 {
+                return Ok(json!({"saved":false}));
+            }
+            rows[0].clone()
+        };
+        let (_, bytes) = session
+            .request(
+                Method::POST,
+                PATH,
+                &[],
+                &[("Content-Type", "application/json".into())],
+                Some(
+                    serde_json::to_vec(&json!({"action":"remember","id":id,"habit":habit}))
+                        .unwrap(),
+                ),
+                false,
+            )
+            .await
+            .map_err(command_error)?;
+        return serde_json::from_slice(&bytes)
+            .map_err(|_| "Le classement n’a pas pu être retenu.".into());
+    }
+    if action == "prepareSupplier" {
+        let (_, bytes) = session
+            .request(Method::GET, PATH, &[], &[], None, false)
+            .await
+            .map_err(command_error)?;
+        let inbox: Value =
+            serde_json::from_slice(&bytes).map_err(|_| "La réception est indisponible.")?;
+        if inbox["organizationId"] != session.organization_id || inbox["prepareEnabled"] != true {
+            return Err("Activez Automation pour préparer le fournisseur.".into());
+        }
+        let item = inbox["items"]
+            .as_array()
+            .and_then(|items| items.iter().find(|i| i["id"] == id))
+            .ok_or("Facture introuvable.")?;
+        let _guard = store.lock().map_err(command_error)?;
+        store.require_write_access().map_err(command_error)?;
+        crate::automation::bound(&store, &session.organization_id).map_err(command_error)?;
+        return prepare_supplier(&store, item).map_err(command_error);
+    }
     if action == "ignore" {
         let (_, bytes) = session
             .request(
@@ -316,7 +442,9 @@ pub async fn supplier_inbox_request(
     if claim["alreadyImported"] == true {
         return Ok(json!({"id":id,"alreadyImported":true}));
     }
-    let item = &claim["item"];
+    let mut with_habit = claim["item"].clone();
+    with_habit["habit"] = claim["habit"].clone();
+    let item = &with_habit;
     if item["organizationId"] != session.organization_id || item["id"] != id {
         return Err("Ce justificatif appartient à une autre réception.".into());
     }
@@ -354,7 +482,7 @@ pub async fn supplier_inbox_request(
     };
     match local_result {
         Ok(result) => {
-            let finish = json!({"action":"finish","id":id,"invoiceId":id,"claimToken":claim["claimToken"],"automatic":result["automatic"]});
+            let finish = json!({"action":"finish","id":id,"invoiceId":id,"claimToken":claim["claimToken"],"automatic":result["automatic"],"habit":if data["remember"]==false{Value::Null}else{result["habit"].clone()}});
             // A lost acknowledgement is retried on this device with the same invoice ID.
             let acknowledged = session
                 .request(
@@ -410,6 +538,35 @@ pub async fn supplier_inbox_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn prepares_same_supplier_once_on_two_devices_and_refuses_ambiguous_names() {
+        let (_a, one, mut item, _, _) = fixture();
+        let (_b, two, _, _, _) = fixture();
+        item["extraction"]["supplierName"] = json!("Nouveau Étoile SA");
+        let a = prepare_supplier(&one, &item).unwrap();
+        let b = prepare_supplier(&two, &item).unwrap();
+        assert_eq!(a["supplierId"], b["supplierId"]);
+        assert_eq!(prepare_supplier(&one, &item).unwrap()["created"], false);
+        let db = one.connect().unwrap();
+        let now = now_iso();
+        db.execute("INSERT INTO suppliers(id,name,created_at,updated_at) VALUES('duplicate','Nouveau Etoile SA',?,?)",params![now,now]).unwrap();
+        assert!(prepare_supplier(&one, &item).is_err());
+    }
+    #[test]
+    fn never_creates_a_supplier_from_uncertain_extraction() {
+        let (_d, store, mut item, _, _) = fixture();
+        item["extraction"]["supplierName"] = json!("Nouveau");
+        item["extraction"]["confidence"] = json!(0.6);
+        assert!(prepare_supplier(&store, &item).is_err());
+        assert_eq!(
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM suppliers", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+    }
     fn fixture() -> (
         tempfile::TempDir,
         LocalStore,
@@ -453,7 +610,8 @@ mod tests {
     fn final_confirmation_posts_once_without_claiming_automatic_approval() {
         let (_dir, store, item, bytes, input) = fixture();
         store.install_swiss_accounting_starter().unwrap();
-        let first = import_reviewed_document(&store, &item, &bytes, input.clone(), false, true).unwrap();
+        let first =
+            import_reviewed_document(&store, &item, &bytes, input.clone(), false, true).unwrap();
         assert_eq!(first["posted"], true);
         assert_eq!(first["automatic"], false);
         let retried = import_reviewed_document(&store, &item, &bytes, input, false, true).unwrap();
@@ -465,17 +623,30 @@ mod tests {
         let db = store.connect().unwrap();
         let id = item["id"].as_str().unwrap();
         let amounts:(i64,i64,i64)=db.query_row("SELECT SUM(l.debit_cents),SUM(l.credit_cents),COUNT(DISTINCT j.id) FROM journal_lines l JOIN journal_entries j ON j.id=l.journal_entry_id WHERE j.source_type='supplier_invoice' AND j.source_id=?",params![id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap();
-        assert_eq!(amounts,(10000,10000,1));
+        assert_eq!(amounts, (10000, 10000, 1));
     }
     #[test]
     fn rejected_final_confirmation_leaves_no_partial_document() {
         let (_dir, store, item, bytes, input) = fixture();
         assert!(import_reviewed_document(&store, &item, &bytes, input, false, true).is_err());
         let db = store.connect().unwrap();
-        for table in ["supplier_invoices", "attachments", "supplier_email_invoice_imports", "journal_entries"] {
-            assert_eq!(db.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r|r.get::<_,i64>(0)).unwrap(),0);
+        for table in [
+            "supplier_invoices",
+            "attachments",
+            "supplier_email_invoice_imports",
+            "journal_entries",
+        ] {
+            assert_eq!(
+                db.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r
+                    .get::<_, i64>(0))
+                    .unwrap(),
+                0
+            );
         }
-        assert!(std::fs::read_dir(&store.attachments_dir).unwrap().next().is_none());
+        assert!(std::fs::read_dir(&store.attachments_dir)
+            .unwrap()
+            .next()
+            .is_none());
     }
     #[test]
     fn original_and_draft_commit_together_and_retries_preserve_edits() {

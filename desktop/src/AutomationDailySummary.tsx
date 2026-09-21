@@ -26,7 +26,7 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
   const activity = state.activity;
   const { analyzed, suggestions, confirmed, needsReview, observed } = activity.totals;
   const inbox=activity.supplierInbox;
-  const hasActivity = analyzed > 0 || confirmed > 0 || !!inbox?.received || !!inbox?.imported;
+  const hasActivity = analyzed > 0 || confirmed > 0 || !!inbox?.received || !!inbox?.imported || !!activity.appointments?.imported;
   const pendingInvoices = inbox?.needsReview ?? 0;
   const paused = !state.settings.enabled || !state.settings.consent || !state.available.some(f => state.settings.flags.includes(f));
   return (
@@ -42,6 +42,8 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
         <div><span className="automation-daily__eyebrow">{t('À votre attention')}</span><strong>{t('{count} factures à vérifier', { count: pendingInvoices })}</strong></div>
         <Button onClick={()=>openAutomationHub('overview')}>{t('Vérifier les factures')}<ArrowRight size={16} aria-hidden="true" /></Button>
       </div>}
+      {!!activity.appointments?.pending&&<Button variant="secondary" onClick={()=>openAutomationHub('overview')}>{t('{count} rendez-vous à vérifier',{count:activity.appointments.pending})}</Button>}
+      {!!activity.appointments?.imported&&<div className="automation-daily__mail"><div><CheckCircle2 size={18}/><span><strong>{activity.appointments.imported}</strong> {t('rendez-vous ajoutés à l’agenda aujourd’hui')}</span></div></div>}
       {hasActivity && <details className="automation-daily__report"><summary>{t('Voir le bilan de la journée')}</summary>
       {inbox && (inbox.received > 0 || inbox.imported > 0) && <div className="automation-daily__mail" aria-label={t('Activité de la boîte mail')}>
         {inbox.received > 0 && <div><Inbox size={18} aria-hidden="true" /><span><strong>{inbox.received}</strong> {t('Justificatifs reçus aujourd’hui')}</span></div>}
@@ -55,7 +57,7 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
           <div><dd>{confirmed}</dd><dt>{t('Choix validés par l’équipe')}</dt></div>
         </dl>
         <details className="automation-daily__details">
-          <summary>{t('Voir le bilan de la journée')}</summary>
+          <summary>{t('Détail des analyses')}</summary>
           <ul>{activity.features.filter(row => row.analyzed || row.confirmed).map(row => <li key={row.feature}>
             <strong>{t(labels[row.feature] ?? 'Autres analyses')}</strong>
             <span>{t('{count} analyses · {confirmed} choix validés', { count: row.analyzed, confirmed: row.confirmed })}</span>

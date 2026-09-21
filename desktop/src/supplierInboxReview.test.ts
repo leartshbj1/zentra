@@ -16,6 +16,13 @@ describe('Préparation de la confirmation finale',()=>{
   it('ne reprend pas un compte historique quand la nature de l’achat change',()=>{
     expect(mailboxInvoiceDefaults({...invoice,extraction:{...invoice.extraction,category:'rent'}},workspace).accountId).toBe('');
   });
+  it('réutilise le choix confirmé de cette entreprise même si le nom enregistré diffère',()=>{
+    const habit={id:'h',sender:invoice.sender,supplierName:'atelieretoilesa',supplierId:'s',category:'Prestations de services',accountId:'6000',updatedAt:1};
+    expect(mailboxInvoiceDefaults(invoice,{...workspace,suppliers:[{...workspace.suppliers[0],name:'Mon prestataire'}]},[habit])).toEqual({supplierId:'s',category:'Prestations de services',accountId:'6000'});
+    expect(mailboxInvoiceDefaults(invoice,workspace,[{...habit,sender:'other@test.ch'}]).category).toBe('Logiciels');
+    expect(mailboxInvoiceDefaults(invoice,{...workspace,suppliers:[]},[habit]).supplierId).toBe('');
+    expect(mailboxInvoiceDefaults(invoice,{...workspace,accounts:[]},[habit]).accountId).toBe('');
+  });
   it('écarte les comptes inactifs et les brouillons',()=>{
     expect(mailboxInvoiceDefaults(invoice,{...workspace,accounts:[]}).accountId).toBe('');
     expect(mailboxInvoiceDefaults(invoice,{...workspace,supplierInvoices:[{...workspace.supplierInvoices[0],documentStatus:'draft'}]}).accountId).toBe('');

@@ -240,7 +240,7 @@ if (new URLSearchParams(location.search).has('supplierRefundGuided')) installSup
 if (new URLSearchParams(location.search).has('paymentGuided')) installPaymentGuidedFixture(data);
 if (new URLSearchParams(location.search).has('customerSettlementGuided')) installCustomerSettlementGuidedFixture(data);
 if (new URLSearchParams(location.search).has('companyRealtime')) installCompanyRealtimeFixture(data, productionCompanySynchronize);
-if (new URLSearchParams(location.search).has('automation')) installAutomationCompanyFixture();
+if (new URLSearchParams(location.search).has('automation')) installAutomationCompanyFixture(data);
 function Harness() {
   // Tests use this exact mocked instance, including after Vite hot reloads.
   Object.assign(window, { __qaDesktopApi: desktopApi });

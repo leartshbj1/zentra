@@ -45,12 +45,14 @@ Invoke-Checked rustup @('toolchain', 'install', $env:RUSTUP_TOOLCHAIN, '--profil
 Invoke-Checked pnpm.cmd @('install', '--frozen-lockfile')
 Start-Transcript -Path (Join-Path $artifacts 'validation.log') | Out-Null
 try {
-    Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/companyAccount.test.ts', 'src/companyRealtime.test.ts', 'src/projectSyncScheduler.test.ts', 'src/automationCompanySession.test.ts', 'src/appReleaseNotes.test.ts', 'src/automationDailySummary.test.tsx', 'src/automationHub.test.tsx', 'src/supplierInboxReview.test.ts', 'src/languageCatalogCoverage.test.ts')
+    Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/companyAccount.test.ts', 'src/companyRealtime.test.ts', 'src/projectSyncScheduler.test.ts', 'src/automationCompanySession.test.ts', 'src/appReleaseNotes.test.ts', 'src/automationDailySummary.test.tsx', 'src/automationHub.test.tsx', 'src/supplierInboxReview.test.ts', 'src/languageCatalogCoverage.test.ts', 'src/projectReport.test.ts')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'company_', '--', '--nocapture', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'account_cloud::tests', '--', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'backup::tests', '--', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'supplier_inbox::tests', '--', '--test-threads=1')
+    Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'appointment_inbox::tests', '--', '--test-threads=1')
+    Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'project_report::tests', '--', '--test-threads=1')
     if ($env:ZENTRA_VERIFY_ONLY -eq 'true') { return }
     $config = Get-Content desktop/src-tauri/tauri.updater.conf.json -Raw | ConvertFrom-Json
     $config.bundle.createUpdaterArtifacts = $false
