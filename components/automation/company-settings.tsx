@@ -216,6 +216,7 @@ export function AutomationCompanySettings({
     );
   return (
     <section className="automation-panel">
+      {state?.active&&<p><a href={`/compte/automation/reception?entreprise=${encodeURIComponent(org)}`}>Voir les factures reçues dans Gestion →</a></p>}
       <label htmlFor="automation-company">Entreprise</label>
       <select
         id="automation-company"
