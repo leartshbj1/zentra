@@ -53,3 +53,17 @@
   .automation-daily__stats dt { text-align:left; }
   .automation-daily__open { width:100%; white-space:normal; }
 }
+
+.automation-daily{border-radius:16px}
+.automation-daily--compact{padding:24px 28px}
+.automation-daily--compact h2{font-size:24px}
+.automation-daily--compact .automation-daily__heading{margin-bottom:14px}
+.automation-daily__next{padding:20px 0 0;border:0;border-top:1px solid var(--line-soft);border-radius:0;background:none}
+.automation-daily__next-icon{width:32px;height:32px;background:none}
+.automation-daily__report{margin-top:16px}
+.automation-daily__report>summary{cursor:pointer;min-height:44px;padding:12px 0;font-size:14px;color:var(--muted)}
+.automation-daily__report>summary:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.automation-daily__stats dd{font-size:26px;font-weight:600}
+@media(max-width:540px){.automation-daily--compact{padding:20px}.automation-daily__next{padding-top:16px}.automation-daily__next-icon{display:none}.automation-daily__stats{gap:16px}}
+
+.automation-hub .automation-daily{padding:22px 26px}.automation-hub .automation-daily h2{font-size:24px}.automation-hub .automation-daily__heading{margin-bottom:12px}@media(max-width:540px){.automation-hub .automation-daily{padding:18px}}

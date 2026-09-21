@@ -9,11 +9,13 @@ import type { Workspace } from './types';
 import { Button } from './ui';
 import './AutomationHub.css';
 import { AutomationConnectionNotice } from './AutomationConnectionNotice';
+import type { ReactNode } from 'react';
 
 const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
 
-export function AutomationHub({ workspace, page, onPage, onNavigate }: {
+export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel }: {
   workspace: Workspace; page: AutomationPage; onPage: (page: AutomationPage) => void; onNavigate: (view: AutomationDestination) => void;
+  inboxPanel?: ReactNode;
 }) {
   useAppLanguage();
   const { state, status, refresh, readOnly } = useCompanyAutomation();
@@ -42,23 +44,24 @@ export function AutomationHub({ workspace, page, onPage, onNavigate }: {
         <div><h2>{t(readiness === 'consent' ? 'Votre accès est actif. Commençons.' : 'Retrouvez vos suggestions')}</h2><p>{t(canManage ? 'Choisissez les fonctions de votre équipe dans les réglages. Tout se passe ici, dans Zentra.' : 'Votre accès est inclus. Le titulaire ou un administrateur peut terminer les réglages pour toute l’équipe.')}</p></div>
         <Button onClick={() => onPage('settings')}>{t(canManage ? 'Configurer mon équipe' : 'Voir les réglages')}<ArrowRight size={17} aria-hidden="true" /></Button>
       </div>}
-      {(ready || Boolean(state.activity && (state.activity.totals.analyzed || state.activity.totals.confirmed))) && <AutomationDailySummary />}
-      <div className="automation-hub__section-title"><h2>{t('Automation dans votre quotidien')}</h2>{ready && <Button variant="ghost" onClick={() => onPage('tools')}>{t('Tous les outils')}<ArrowRight size={16} aria-hidden="true" /></Button>}</div>
+      <div className="automation-hub__workday">
+        {inboxPanel}
+        {(ready || Boolean(state.activity && (state.activity.totals.analyzed || state.activity.totals.confirmed))) && <AutomationDailySummary />}
+      </div>
+    </section>
+    <section hidden={page !== 'tools'} aria-label={t('Outils')}>
+      <div className="automation-hub__section-title"><div><h2>{t('Que souhaitez-vous avancer ?')}</h2><p>{t('Retrouvez chaque aide dans son écran de gestion.')}</p></div></div>
       <div className="automation-hub__workflows">{automationWorkflows.map(flow => {
         const enabled = workflowReady(state, flow.features);
         const available = flow.features.some(feature => state.available.includes(feature));
         const Icon = icons[flow.destination];
         return <article key={flow.destination}>
           <Icon size={23} aria-hidden="true" />
-          <h3>{t(flow.title)}</h3><p>{t(flow.description)}</p>
-          <div><span className="automation-hub__feature-state">{t(enabled ? (state.settings.mode === 'shadow' ? 'Observation' : 'Suggestions actives') : available ? 'À configurer' : 'Indisponible pour le moment')}</span>
-          <Button size="small" variant="secondary" onClick={() => enabled ? onNavigate(flow.destination) : onPage('settings')}>{t(enabled ? 'Ouvrir' : 'Voir les réglages')}<ArrowRight size={15} aria-hidden="true" /></Button></div>
+          <div className="automation-hub__workflow-copy"><h3>{t(flow.title)}</h3><p>{t(flow.description)}</p><span className="automation-hub__feature-state">{t(enabled ? (state.settings.mode === 'shadow' ? 'Observation' : 'Suggestions actives') : available ? 'À configurer' : 'Indisponible pour le moment')}</span></div>
+          <Button size="small" variant="secondary" aria-label={`${t(enabled ? 'Ouvrir' : 'Voir les réglages')} · ${t(flow.title)}`} onClick={() => enabled ? onNavigate(flow.destination) : onPage('settings')}>{t(enabled ? 'Ouvrir' : 'Voir les réglages')}<ArrowRight size={15} aria-hidden="true" /></Button>
         </article>;
       })}</div>
-    </section>
-    <section hidden={page !== 'tools'} aria-label={t('Outils')}>
       {ready ? <AutomationTools screen="automation" workspace={workspace} expanded /> : <div className="automation-hub__welcome"><p>{t('Terminez les réglages pour retrouver les outils de votre équipe.')}</p><Button onClick={() => onPage('settings')}>{t('Voir les réglages')}</Button></div>}
-      {ready && <div className="automation-hub__destinations"><h2>{t('Dans vos écrans de gestion')}</h2>{automationWorkflows.filter(flow => workflowReady(state, flow.features)).map(flow => <Button key={flow.destination} variant="secondary" onClick={() => onNavigate(flow.destination)}>{t(flow.title)}<ArrowRight size={16} aria-hidden="true" /></Button>)}</div>}
     </section>
     <section hidden={page !== 'settings'} aria-label={t('Réglages')} className="automation-hub__settings"><AutomationSettings /></section>
     <footer className="automation-hub__footer"><Users size={16} aria-hidden="true" /><span>{t('Un espace partagé. Chacun conserve les droits de son rôle.')}</span></footer>

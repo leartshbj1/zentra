@@ -25,7 +25,7 @@ it('shows the same company totals to a collaborator and a manager without claimi
   expect(member).not.toContain('15 CHF');
 });
 it('shows actual mailbox counts separately from model suggestions',()=>{
-  const html=renderToStaticMarkup(<AutomationDailySummaryView state={{...state,activity:{...state.activity!,supplierInbox:{received:8,imported:6,automatic:5,needsReview:2,recent:[]}}}}/>);
+  const html=renderToStaticMarkup(<AutomationDailySummaryView link state={{...state,activity:{...state.activity!,supplierInbox:{received:8,imported:6,automatic:5,needsReview:2,recent:[]}}}}/>);
   expect(html).toContain('Factures comptabilisées automatiquement');expect(html).toContain('2 factures à vérifier');expect(html).toContain('<strong>5</strong>');expect(html).not.toContain('heures économisées');
 });
 it('keeps an honest empty state instead of displaying invented savings or completed tasks', () => {

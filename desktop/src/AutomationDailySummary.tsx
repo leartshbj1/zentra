@@ -30,18 +30,19 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
   const pendingInvoices = inbox?.needsReview ?? 0;
   const paused = !state.settings.enabled || !state.settings.consent || !state.available.some(f => state.settings.flags.includes(f));
   return (
-    <section className="automation-daily" aria-label={t('Votre journée avec Zentra Automation')}>
+    <section className={`automation-daily${link ? ' automation-daily--compact' : ''}`} aria-label={t('Votre journée avec Zentra Automation')}>
       <div className="automation-daily__heading">
         <span className="automation-daily__brand"><Workflow size={18} aria-hidden="true" /> Zentra Automation</span>
         <span className="automation-daily__period">{t('Aujourd’hui')} · {t('Toute l’équipe')}</span>
       </div>
       <h2>{activity.displayName ? t('Bonjour, {name}', { name: activity.displayName }) : t('Bonjour')}</h2>
       <p>{pendingInvoices ? t('Vos factures reçues sont réunies. Vérifiez les informations préparées et confirmez leur enregistrement.') : hasActivity ? t('Voici ce que Zentra a fait pour votre entreprise aujourd’hui.') : paused ? t('Automation est en pause pour cette entreprise.') : t('Votre équipe est prête. Les prochaines analyses apparaîtront ici.')}</p>
-      {pendingInvoices > 0 && <div className="automation-daily__next">
+      {pendingInvoices > 0 && link && <div className="automation-daily__next">
         <span className="automation-daily__next-icon"><Inbox size={22} aria-hidden="true" /></span>
         <div><span className="automation-daily__eyebrow">{t('À votre attention')}</span><strong>{t('{count} factures à vérifier', { count: pendingInvoices })}</strong></div>
-        <Button onClick={()=>window.dispatchEvent(new CustomEvent('zentra-automation-navigate',{detail:'purchases'}))}>{t('Vérifier les factures')}<ArrowRight size={16} aria-hidden="true" /></Button>
+        <Button onClick={()=>openAutomationHub('overview')}>{t('Vérifier les factures')}<ArrowRight size={16} aria-hidden="true" /></Button>
       </div>}
+      {hasActivity && <details className="automation-daily__report"><summary>{t('Voir le bilan de la journée')}</summary>
       {inbox && (inbox.received > 0 || inbox.imported > 0) && <div className="automation-daily__mail" aria-label={t('Activité de la boîte mail')}>
         {inbox.received > 0 && <div><Inbox size={18} aria-hidden="true" /><span><strong>{inbox.received}</strong> {t('Justificatifs reçus aujourd’hui')}</span></div>}
         {inbox.imported > 0 && <div><CircleCheck size={18} aria-hidden="true" /><span><strong>{inbox.imported}</strong> {t('Factures enregistrées dans Gestion')}</span></div>}
@@ -69,7 +70,8 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
         <summary>{t('Derniers documents enregistrés')}</summary>
         <ul>{inbox.recent.slice(0,3).map(item=><li key={item.id}><strong>{item.subject || t('Facture fournisseur')}</strong><span>{t(item.automatic ? 'Comptabilisée par Automation' : 'Enregistrée dans Gestion')}</span></li>)}</ul>
       </details>}
-      {link && <Button className="automation-daily__open" variant="secondary" onClick={() => openAutomationHub(paused ? 'settings' : 'overview')}>{t(paused ? 'Voir les réglages Automation' : 'Ouvrir l’espace Automation')}</Button>}
+      </details>}
+      {link && pendingInvoices === 0 && <Button className="automation-daily__open" variant="secondary" onClick={() => openAutomationHub(paused ? 'settings' : 'overview')}>{t(paused ? 'Voir les réglages Automation' : 'Ouvrir l’espace Automation')}</Button>}
     </section>
   );
 }

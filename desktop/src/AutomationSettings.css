@@ -19,3 +19,9 @@
 .automation-settings__thresholds label { display:grid; gap:8px; font-size:14px; }
 .automation-settings > .button { justify-self:start; max-width:100%; white-space:normal; }
 @media(max-width:720px) { .automation-settings__features,.automation-settings__thresholds { grid-template-columns:1fr; } .automation-settings > .button { width:100%; } }
+
+.automation-settings__features{grid-template-columns:1fr;gap:0;border-top:1px solid var(--line-soft)}
+.automation-settings__features .automation-settings__toggle{padding:20px 4px;border:0;border-bottom:1px solid var(--line-soft);border-radius:0;background:none}
+.automation-settings__toggle small{max-width:60ch}
+.automation-settings input[type=checkbox]{accent-color:var(--accent);min-width:22px;cursor:pointer}
+.automation-settings__features .automation-settings__toggle:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:3px}

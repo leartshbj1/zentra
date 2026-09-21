@@ -1,4 +1,13 @@
 export const automationHubTranslations: Record<string, readonly [string, string, string]> = {
+  'Que souhaitez-vous avancer ?': ['Was möchten Sie erledigen?', 'Di cosa vuoi occuparti?', 'What would you like to work on?'],
+  'Retrouvez chaque aide dans son écran de gestion.': ['Jede Hilfe ist direkt im jeweiligen Verwaltungsbereich verfügbar.', 'Ogni aiuto è disponibile nella relativa schermata di gestione.', 'Find each tool in the relevant management screen.'],
+  'Afficher les factures': ['Rechnungen anzeigen', 'Mostra fatture', 'Show invoices'],
+  'Enregistrées': ['Erfasst', 'Registrate', 'Recorded'],
+  'Rechercher un fournisseur ou une référence': ['Lieferant oder Referenz suchen', 'Cerca un fornitore o un riferimento', 'Search supplier or reference'],
+  'Fournisseur ou référence': ['Lieferant oder Referenz', 'Fornitore o riferimento', 'Supplier or reference'],
+  'Aucune facture ne correspond à cette recherche.': ['Keine Rechnung entspricht dieser Suche.', 'Nessuna fattura corrisponde alla ricerca.', 'No invoices match this search.'],
+  'Tout est à jour.': ['Alles ist auf dem neuesten Stand.', 'Tutto è aggiornato.', 'You’re all caught up.'],
+  'Aucune facture enregistrée pour le moment.': ['Noch keine Rechnungen erfasst.', 'Nessuna fattura ancora registrata.', 'No invoices recorded yet.'],
   'Reliez cette entreprise': ['Verknüpfen Sie dieses Unternehmen', 'Collega questa azienda', 'Link this company'],
   'Connexion Internet interrompue': ['Internetverbindung unterbrochen', 'Connessione Internet interrotta', 'Internet connection interrupted'],
   'Automation reprendra dès le retour du réseau. Vos données restent disponibles.': ['Automation wird fortgesetzt, sobald die Verbindung wieder verfügbar ist. Ihre Daten bleiben verfügbar.', 'Automation riprenderà quando la rete sarà disponibile. I tuoi dati restano disponibili.', 'Automation will resume when the network returns. Your data remains available.'],

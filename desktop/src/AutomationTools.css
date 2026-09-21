@@ -14,3 +14,7 @@
 .automation-tools__form > .button { justify-self:start; }
 .automation-tools__form p { color:var(--muted); font-size:14px; line-height:1.6; margin:0; }
 @media(max-width:540px) { .automation-tools__hint { display:none; } .automation-tools__tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .automation-tools__tabs .button { width:100%; } .automation-tools__form > .button { width:100%; } }
+
+.automation-tools{border-radius:10px;background:transparent;border-color:var(--line-soft)}
+.automation-tools>summary{font-weight:500}
+.automation-tools[open]{background:var(--surface-raised)}

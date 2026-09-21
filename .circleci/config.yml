@@ -11,7 +11,7 @@ parameters:
     default: false
   platform:
     type: enum
-    enum: [all, windows, apple]
+    enum: [all, windows, apple, android]
     default: all
   smoke-windows-job:
     type: integer
@@ -27,6 +27,30 @@ parameters:
     default: ""
 
 jobs:
+  android:
+    docker:
+      - image: cimg/android:2026.08-node
+    resource_class: large
+    environment:
+      CARGO_BUILD_JOBS: "2"
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - checkout
+      - run:
+          name: Prepare Android build tools without production credentials
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/zentra-rustup.sh
+            sh /tmp/zentra-rustup.sh -y --profile minimal --default-toolchain stable
+            export PATH="$HOME/.cargo/bin:$HOME/.zentra-ci-tools/bin:$PATH"
+            npm install --global --prefix "$HOME/.zentra-ci-tools" pnpm@11.19.0
+            pnpm install --frozen-lockfile
+      - run:
+          name: Build physical Android package and verify alignment
+          command: bash desktop/scripts/codemagic-android.sh
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/android-build
+          destination: android
   windows-package-smoke:
     resource_class: windows.medium
     machine:
@@ -105,6 +129,15 @@ jobs:
           destination: apple
 
 workflows:
+  android-release-candidate:
+    when:
+      and:
+        - << pipeline.parameters.release >>
+        - or:
+            - equal: [all, << pipeline.parameters.platform >>]
+            - equal: [android, << pipeline.parameters.platform >>]
+    jobs:
+      - android
   verify-windows-package:
     when:
       not:

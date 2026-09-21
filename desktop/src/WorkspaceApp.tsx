@@ -596,6 +596,17 @@ function WorkspaceContent({
   const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
   const supplierInbox=useSupplierInbox(cloudAccount?.status==='connected'?cloudAccount.organizationId??null:null,readOnly,()=>actionInFlight.current||busy||!!modal||!!document.querySelector('[role="dialog"]'),next=>{workspaceRef.current=next;setWorkspace(next);});
+  const renderSupplierInbox = (embedded: boolean) => <SupplierInbox embedded={embedded} inbox={supplierInbox} workspace={workspace} readOnly={readOnly} onCreateSupplier={async(name,email)=>{
+                const existing=workspaceRef.current.suppliers.filter(s=>!s.archivedAt&&s.name.trim().toLowerCase()===name.toLowerCase()&&s.email.trim().toLowerCase()===email.toLowerCase());
+                if(existing.length===1)return existing[0].id;
+                const previous=new Set(workspaceRef.current.suppliers.map(s=>s.id));
+                let failure:unknown;
+                const saved=await act(()=>desktopApi.createEntity('suppliers',{name,email,currency:'CHF',paymentTermsDays:30}),t('Le fournisseur a été ajouté.'),false,reason=>{failure=reason;});
+                if(!saved)throw new Error(errorMessage(failure,t('Le fournisseur n’a pas pu être ajouté. Votre facture reste ouverte.')));
+                const created=workspaceRef.current.suppliers.filter(s=>!previous.has(s.id)&&s.name===name&&s.email.toLowerCase()===email.toLowerCase());
+                if(created.length!==1)throw new Error(t('Sélectionnez le fournisseur ajouté dans la liste.'));
+                return created[0].id;
+              }} onOpen={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('La facture arrive avec la synchronisation de l’entreprise.')});}}/>;
   const workspaceMounted = useRef(true);
   const projectWorkspaceReceiver = useRef(setWorkspace);
   useLayoutEffect(() => { projectWorkspaceReceiver.current = setWorkspace; }, [setWorkspace]);
@@ -1696,6 +1707,7 @@ function WorkspaceContent({
                 >
                   <Icon size={17} />
                   <span>{t(label)}</span>
+                  {item.id === 'automation' && (supplierInbox.state?.items.filter(row => !['imported', 'ignored'].includes(row.state)).length ?? 0) > 0 ? <em>{supplierInbox.state!.items.filter(row => !['imported', 'ignored'].includes(row.state)).length}</em> : null}
                   {(item.id === 'quotes' || item.id === 'reminders') &&
                   overdue.length ? (
                     <em>{overdue.length}</em>
@@ -1895,7 +1907,7 @@ function WorkspaceContent({
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && <AutomationTools key={view} screen={view} workspace={workspace} />}
-          {view === 'automation' && <AutomationHub key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
+          {view === 'automation' && <AutomationHub inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -2278,17 +2290,7 @@ function WorkspaceContent({
           ) : null}
           {view === 'expenses' ? (
             <Suspense fallback={<ViewLoading label={t("Ouverture des achats…")} />}>
-              <SupplierInbox inbox={supplierInbox} workspace={workspace} readOnly={readOnly} onCreateSupplier={async(name,email)=>{
-                const existing=workspaceRef.current.suppliers.filter(s=>!s.archivedAt&&s.name.trim().toLowerCase()===name.toLowerCase()&&s.email.trim().toLowerCase()===email.toLowerCase());
-                if(existing.length===1)return existing[0].id;
-                const previous=new Set(workspaceRef.current.suppliers.map(s=>s.id));
-                let failure:unknown;
-                const saved=await act(()=>desktopApi.createEntity('suppliers',{name,email,currency:'CHF',paymentTermsDays:30}),t('Le fournisseur a été ajouté.'),false,reason=>{failure=reason;});
-                if(!saved)throw new Error(errorMessage(failure,t('Le fournisseur n’a pas pu être ajouté. Votre facture reste ouverte.')));
-                const created=workspaceRef.current.suppliers.filter(s=>!previous.has(s.id)&&s.name===name&&s.email.toLowerCase()===email.toLowerCase());
-                if(created.length!==1)throw new Error(t('Sélectionnez le fournisseur ajouté dans la liste.'));
-                return created[0].id;
-              }} onOpen={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('La facture arrive avec la synchronisation de l’entreprise.')});}}/>
+              {renderSupplierInbox(false)}
               <PurchaseOrdersScreen
                 onOpenBank={()=>{setView('bank');setSearch('');}}
                 onReadWorkspace={async () => {
