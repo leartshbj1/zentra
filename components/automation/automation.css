@@ -162,3 +162,28 @@
   font-weight: 400;
   letter-spacing: 0;
 }
+
+/* Receipt details use the selected account palette in both themes. */
+.account-content .supplier-receipts .supplier-receipts__list details {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--ac-line);
+  border-radius: 0;
+  box-shadow: none;
+}
+.account-content .supplier-receipts__list summary small,
+.account-content .supplier-receipts__list dt {
+  color: var(--ac-muted);
+}
+.account-content .supplier-receipts__list dl {
+  background: var(--ac-input);
+  color: var(--ac-ink);
+}
+.account-content .supplier-receipts__search input:not([type='checkbox']) {
+  background: var(--ac-input);
+  color: var(--ac-ink);
+  border-color: var(--ac-line);
+}
+.account-content .supplier-receipts__list summary:focus-visible {
+  outline-color: var(--ac-accent);
+}
