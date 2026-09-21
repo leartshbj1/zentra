@@ -14,6 +14,7 @@ export type InvoiceExtraction = {
   vatBp: number | null;
   category: string | null;
   confidence: number;
+  fieldConfidence?: Record<string, number>;
   evidence: Record<string, string>;
   issues: string[];
 };
@@ -253,17 +254,18 @@ export async function extractInvoice(
     result.answers.kind?.probabilities[result.answers.kind?.choice] ?? 0,
   );
   const confidence: number[] = [out.kindConfidence];
+  out.fieldConfidence = { kind: out.kindConfidence };
   for (const [field, values] of Object.entries(candidates)) {
     const answer = result.answers[field.toLowerCase()],
       index = /^v(\d+)$/.exec(answer?.choice || '');
     const chosen = index ? values[Number(index[1])] : null;
     (out as unknown as Record<string, unknown>)[field] = chosen?.value ?? null;
     if (chosen) out.evidence[field] = chosen.evidence;
-    confidence.push(
-      chosen
+    const fieldConfidence = chosen
         ? Math.min(answer.confidence, answer.probabilities[answer.choice] ?? 0)
-        : 0,
-    );
+        : 0;
+    confidence.push(fieldConfidence);
+    out.fieldConfidence[field] = fieldConfidence;
   }
   const category = result.answers.category;
   out.category = Object.hasOwn(categories, category?.choice || '')

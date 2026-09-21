@@ -10,7 +10,7 @@ import {
 
 import { jevRequest, readJevResponse } from '../automation/transport';
 export { JEV_ENDPOINT } from '../automation/transport';
-export const TRIAGE_POLICY_VERSION = 'support-2026-09-21-documents-v2';
+export const TRIAGE_POLICY_VERSION = 'support-2026-09-21-documents-v3';
 export function triageQuestions(
   subject: string,
   body: string,
@@ -32,9 +32,9 @@ export function triageQuestions(
         criteria: {
           bug: 'A concrete software malfunction, error code, outage, broken integration or feature that should work but fails. Includes a technical login error, excludes a merely forgotten password.',
           billing:
-            'A customer asks about an invoice you issued, requests a copy, asks about payment status, an incorrect charge or subscription billing. Also a copy of your own outgoing customer invoice. Not the delivery of a supplier invoice, quote, credit note, reminder or payment receipt; no explicit refund request.',
+            'A CUSTOMER REQUEST about their bill: asks you for a copy of their invoice, asks why you charged them, disputes a charge, or asks about their subscription or payment status. Not an original business document sent for processing. No explicit refund request.',
           supplier_invoice:
-            'A supplier sends an original invoice for goods or services supplied TO the receiving company, including an explicitly labelled test invoice. The receiving company is the buyer, the sender or named issuer is the vendor. Excludes customer requests for their invoice, quotes, credit notes, reminders and payment receipts. Classifying a test invoice never authorizes accounting or payment.',
+            'An original INVOICE delivered for accounts payable or document processing: Facture, Rechnung/Rechnungsnummer, Fattura or Invoice, with an issuer/vendor, a bill-to customer, an invoice number and charges for goods or services. The vendor bills the recipient, rather than asking a question about their own bill. Includes explicitly labelled test invoices for classification only. Excludes customer requests for copies of their bill, quotes, credit notes, reminders, paid receipts, and documents explicitly identified as the receiving company’s own outgoing invoice.',
           quote:
             'An actual quote, estimate, proposal, offer, devis, offre, Offerte, Angebot or preventivo for future work or goods, possibly awaiting acceptance. No original invoice is being issued. Not a question about how the quoting feature works.',
           credit_note:
