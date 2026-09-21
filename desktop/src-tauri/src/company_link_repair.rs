@@ -64,7 +64,7 @@ pub(crate) async fn run(store: &LocalStore, email: &str, previous_org: &str) -> 
     }
     // From here on, an interrupted request keeps a resumable pending snapshot for
     // the verified account. Never restore the old link after an uncertain commit.
-    if !send(store, &session, true).await? {
+    if !send(store, &session, true, head["contentTransfer"] == 1).await? {
         return Err(invalid("La destination a changé. Comparez les versions avant de continuer."));
     }
     crate::shared_numbering::replenish_active_series(store, &session).await?;

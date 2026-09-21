@@ -24,6 +24,8 @@ use std::{
 use tauri::{Emitter, State};
 
 pub(crate) const PATH: &str = "/api/account/collaboration";
+#[path = "company_account.rs"]
+pub(crate) mod account;
 const STATE: &str = "company-collaboration.json";
 #[cfg(any(test, feature = "maintenance"))]
 #[path = "company_link_repair.rs"]

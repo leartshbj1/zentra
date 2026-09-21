@@ -29,4 +29,5 @@ cp .qa/company-access/results-webkit.json desktop/artifacts/macos/company-access
 node desktop/tests/touch-team-journey.mjs
 cp .qa/mobile-team-webkit/report.json desktop/artifacts/macos/mobile-webkit-report.json
 node desktop/tests/appearance-journey.mjs
+node desktop/tests/company-account-journey.mjs
 cp .qa/appearance165-webkit/report.json desktop/artifacts/macos/appearance-webkit-report.json

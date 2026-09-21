@@ -373,6 +373,7 @@ pub fn run() {
             app_reset::restore_reset_recovery,
             cloud_backup::publish_company_copy,
             company_collaboration::get_company_sync_state,
+            company_collaboration::account::resolve_connected_company,
             company_collaboration::watch_company_workspace,
             company_collaboration::enable_company_sync,
             company_collaboration::sync_company_workspace,

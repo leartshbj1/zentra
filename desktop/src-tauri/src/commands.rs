@@ -110,24 +110,30 @@ pub fn validate_onboarding(
 }
 
 #[tauri::command]
-pub fn complete_onboarding(
+pub async fn complete_onboarding(
     state: State<'_, LocalStore>,
     app: AppHandle,
     input: OnboardingInput,
     scope: Option<String>,
 ) -> Result<CompleteOnboardingResult, String> {
+    let _account = state.account_protected_cache.operation_lock.lock().await;
     let _guard = state.lock().map_err(command_error)?;
     let scope = onboarding_validation_scope(scope.as_deref())?;
     state
         .require_onboarding_write_access()
         .map_err(command_error)?;
-    match scope {
+    let was_empty = crate::cloud_backup::require_empty_company(&state).is_ok();
+    let result = match scope {
         OnboardingValidationScope::Essential => {
             state.complete_onboarding_scoped(input, &app_version(&app), scope)
         }
         OnboardingValidationScope::Complete => state.complete_onboarding(input, &app_version(&app)),
     }
-    .map_err(command_error)
+    .map_err(command_error)?;
+    if was_empty {
+        crate::account_cloud::bind_new_company_to_account(&state).map_err(command_error)?;
+    }
+    Ok(result)
 }
 
 fn onboarding_validation_scope(value: Option<&str>) -> Result<OnboardingValidationScope, String> {

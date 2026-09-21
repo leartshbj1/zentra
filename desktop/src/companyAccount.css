@@ -1,0 +1,8 @@
+.company-account-opening{min-height:100dvh;display:grid;place-items:center;padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));background:var(--surface-app,#f5f5f7);color:var(--ink,#1d1d1f)}
+.company-account-opening>section{width:min(100%,480px);display:flex;flex-direction:column;align-items:flex-start;gap:20px;min-width:0}
+.company-account-opening h1{font-size:clamp(26px,5vw,36px);line-height:1.16;letter-spacing:-.035em;margin:0;overflow-wrap:anywhere}
+.company-account-opening p{margin:0;line-height:1.6;max-width:100%;overflow-wrap:anywhere}
+.company-account-opening p[role=status],.company-account-opening__identity{display:flex;align-items:center;gap:10px}
+.company-account-opening__identity{font-size:14px;opacity:.75;max-width:100%;overflow-wrap:anywhere}
+.company-account-opening__identity svg{flex-shrink:0}
+.company-account-opening .btn{max-width:100%;white-space:normal;min-height:44px}

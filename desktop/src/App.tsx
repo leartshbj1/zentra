@@ -34,6 +34,7 @@ import { Button, ErrorPanel, Modal } from './ui';
 import { errorMessage, normalizeLicenseToken } from './utils';
 import { useMobileLayout } from './useMobileLayout';
 import { CloudAccountAccess } from './CloudAccountAccess';
+import { CompanyAccountGate } from './CompanyAccountGate';
 
 export function App() {
   useAppLanguage();
@@ -45,6 +46,7 @@ export function App() {
   );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [createdFor, setCreatedFor] = useState<string | null>(null);
   const openingAttempt = useRef(0);
   const automaticRefreshStarted = useRef(false);
   const cloudAccessRevalidator = useRef<
@@ -183,9 +185,12 @@ export function App() {
         onJoined={next=>{setWorkspace(next);void revalidateCloudAccess();}}
         cloudAccount={cloudAccount}
         onCloudAccountChange={handleCloudAccountChange}
-        onComplete={async (settings: AppSettings, scope) =>
-          setWorkspace(await desktopApi.completeOnboarding(settings, scope))
-        }
+        onComplete={async (settings: AppSettings, scope) => {
+          const organization = cloudAccount?.status === 'connected' ? cloudAccount.organizationId ?? null : null;
+          const next = await desktopApi.completeOnboarding(settings, scope);
+          setCreatedFor(organization);
+          setWorkspace(next);
+        }}
         onRestore={async (path: string) =>
           setWorkspace(await desktopApi.restoreBackup(path))
         }
@@ -208,7 +213,7 @@ export function App() {
 
   return (
     <>
-      {content}
+      <CompanyAccountGate account={cloudAccount} workspace={workspace} createdFor={createdFor} onWorkspace={setWorkspace} onAccountChange={handleCloudAccountChange}>{content}</CompanyAccountGate>
       {!workspaceReady ? <StandaloneUpdaterAccess /> : null}
       {license && licenseNeedsAttention ? (
         <LicenseActivation

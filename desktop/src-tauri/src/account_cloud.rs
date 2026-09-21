@@ -56,6 +56,15 @@ pub(crate) async fn project_sync_session(store: &LocalStore) -> AppResult<Option
     Ok(Some(ProjectSyncSession { organization_id: session.organization_id, role: session.role, token: session.session_token }))
 }
 
+pub(crate) fn bind_new_company_to_account(store: &LocalStore) -> AppResult<()> {
+    if let Some(session) = read_session_secret(store)? {
+        if CloudAccountState::from_session(&session)?.status == "connected" && ["owner", "admin"].contains(&session.role.as_str()) {
+            crate::company_collaboration::account::bind_new_company(store, &session.organization_id)?;
+        }
+    }
+    Ok(())
+}
+
 fn project_transport() -> AppResult<reqwest::Client> {
     static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
     if let Some(client)=CLIENT.get(){return Ok(client.clone());}
