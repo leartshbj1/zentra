@@ -38,6 +38,30 @@ export function normalizeMailToken(value: string): string {
     );
   return token;
 }
+// Diagnostic metadata only: never retain an upstream message, URL or response body.
+async function providerFailureCode(response: Response): Promise<string | number | null> {
+  const reader = response.body?.getReader();
+  if (!reader) return null;
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      size += chunk.value.length;
+      if (size > 8192) { await reader.cancel(); return null; }
+      chunks.push(chunk.value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    const payload = record(JSON.parse(new TextDecoder().decode(bytes)));
+    const code = record(payload.error).code ?? payload.error_code ?? payload.code;
+    return typeof code === 'number' && Number.isSafeInteger(code) ? code
+      : typeof code === 'string' && /^[A-Za-z]{2,20}(?:_[A-Za-z]{2,20}){1,4}$/.test(code) ? code : null;
+  } catch { return null; }
+  finally { reader.releaseLock(); }
+}
 export async function mailRequest(
   token: string,
   path: string,
@@ -60,7 +84,8 @@ export async function mailRequest(
   }
   if (!response.ok) console.error('support_mail_connection_failed', {
     providerStatus: response.status,
-    operation: path.startsWith('/mailbox?') ? 'mailboxes' : path.includes('/folder?') ? 'folders' : 'messages',
+    providerCode: await providerFailureCode(response),
+    operation: path.startsWith('/mailbox?') ? 'mailboxes' : /\/folder(?:\?|$)/.test(path) ? 'folders' : 'messages',
   });
   if (response.status === 401)
     throw new SupportError(
