@@ -255,6 +255,18 @@ function mail(time = '090000'): SourceTicket {
     },
   };
 }
+it('rechecks a previously incomplete invitation once its identical calendar can be read',async()=>{
+  const incomplete={...mail(),incomplete:true};
+  await captureAppointment(workspace,incomplete);
+  const first=(await appointmentState(actor)).items.find(i=>i.subject==='Confirmation de rendez-vous')!;
+  expect(first.state).toBe('review');
+  await captureAppointment(workspace,{...incomplete,incomplete:false});
+  const updated=(await appointmentState(actor)).items.filter(i=>i.subject==='Confirmation de rendez-vous');
+  expect(updated).toHaveLength(1);
+  expect(updated[0]).toMatchObject({id:first.id,state:'ready',extraction:{issues:[]}});
+  await captureAppointment(workspace,{...incomplete,incomplete:false});
+  expect(mock.reserved).toBe(2);
+});
 it('captures a confirmed mail once and holds later modifications for review', async () => {
   await captureAppointment(workspace, mail());
   await captureAppointment(workspace, mail());
