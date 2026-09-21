@@ -24,6 +24,12 @@ describe('API Infomaniak', () => {
     await expect(verifyMailbox('info@example.test','token',fetcher)).rejects.toThrow();
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+  it('conserve les pièces jointes calendrier de l’API mail',async()=>{
+    const fetcher=vi.fn(async()=>Response.json({result:'success',data:{body:'Votre rendez-vous est confirmé.',subject:'Rendez-vous',from:[{email:'client@example.test'}],has_attachments:true,attachments:[{name:'confirmation.ics',part_id:'2',size:300,is_inline:true}]}}));
+    const source=await readMail('token','box','inbox',{uid:'42',date:null},fetcher);
+    expect(source.mail?.attachments).toEqual([{id:'2',name:'confirmation.ics',size:300}]);
+    expect(source.mail?.attachmentCount).toBe(1);
+  });
   it('accepte une clé copiée avec des espaces autour ou son préfixe Bearer', async () => {
     expect(normalizeMailToken('  Bearer abc.def-123  \n')).toBe('abc.def-123');
     const fetcher = vi.fn(async () => Response.json({ result: 'success', data: [] }));

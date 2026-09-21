@@ -340,9 +340,9 @@ export async function readMail(
   return {
     externalId: await mailExternalId(mailboxId, folderId, ref.uid),
     mail: { sender: Array.isArray(m.from) ? text(record(m.from[0]).email,254).toLowerCase() : '', uid: ref.uid,
-      attachmentCount: Array.isArray(m.attachments) ? m.attachments.map(record).filter(a => !a.is_inline).length || Number(!!m.has_attachments) : Number(!!m.has_attachments),
+      attachmentCount: Array.isArray(m.attachments) ? m.attachments.map(record).filter(a => !a.is_inline || /\.ics$/i.test(text(a.name))).length || Number(!!m.has_attachments) : Number(!!m.has_attachments),
       bodyIncomplete: body.length > 23000,
-      attachments: (Array.isArray(m.attachments)?m.attachments:[]).map(record).filter(a=>!a.is_inline&&/\.(pdf|png|jpe?g)$/i.test(text(a.name))).map(a=>({id:String(a.resource?String(a.resource).split('/').pop():a.part_id??''),name:text(a.name,180),size:Number(a.size||0)})).filter(a=>a.id) },
+      attachments: (Array.isArray(m.attachments)?m.attachments:[]).map(record).filter(a=>(!a.is_inline||/\.ics$/i.test(text(a.name)))&&/\.(pdf|png|jpe?g|ics)$/i.test(text(a.name))).map(a=>({id:String(a.resource?String(a.resource).split('/').pop():a.part_id??''),name:text(a.name,180),size:Number(a.size||0)})).filter(a=>a.id) },
     subject,
     body: `${from ? `De : ${from}\n\n` : ''}${body || subject}`.slice(0, 24000),
     version: String(m.date ?? ref.date ?? ''),

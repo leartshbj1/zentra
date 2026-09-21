@@ -1,3 +1,5 @@
+import { prepareMailDocuments } from './mail-documents';
+import { calendarAppointment } from '@/lib/appointments/extraction';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { openImapMailbox, encodeImapCredentials, decodeImapCredentials } from './infomaniak-imap';
 import { mailExternalId } from './infomaniak';
@@ -82,6 +84,20 @@ describe('Connexion Infomaniak IMAP', () => {
     expect(JSON.stringify(source)).not.toContain('%PDF');
     expect(mock.fetchOne.mock.calls[1]).toEqual(['104', {source:{start:0,maxLength:12*1024*1024+1},internalDate:true}, {uid:true}]);
     mail.close(); await expect(mail.attachment('104:0')).rejects.toThrow('indisponible');
+  });
+  it.each(['attachment; filename="confirmation.ics"', 'inline'])('transmet le calendrier MIME %s jusqu’à l’extraction agenda',async disposition=>{
+    const ics=['BEGIN:VCALENDAR','VERSION:2.0','BEGIN:VEVENT','UID:qa-calendar-1','DTSTART;TZID=Europe/Zurich:20260922T103000','DTEND;TZID=Europe/Zurich:20260922T110000','SUMMARY:Visite confirmee','LOCATION:Visioconference','STATUS:CONFIRMED','END:VEVENT','END:VCALENDAR'].join('\r\n');
+    const raw=Buffer.from(['From: client <client@example.test>','Subject: Confirmation de rendez-vous','MIME-Version: 1.0','Content-Type: multipart/mixed; boundary="calendar"','','--calendar','Content-Type: text/plain; charset=utf-8','','Rendez-vous confirme le 22 septembre a 10h30.','--calendar','Content-Type: text/calendar; charset=utf-8',`Content-Disposition: ${disposition}`,'Content-Transfer-Encoding: base64','',Buffer.from(ics).toString('base64'),'--calendar--',''].join('\r\n'));
+    mock.fetchOne.mockResolvedValueOnce({size:raw.length}).mockResolvedValueOnce({source:raw});
+    const mail=await openImapMailbox('a@example.test','password');
+    const source=await mail.read({uid:'104',date:null});
+    expect(source.mail?.attachmentCount).toBe(1);
+    expect(source.mail?.attachments).toHaveLength(1);
+    const prepared=await prepareMailDocuments(source,mail.attachment);
+    expect(prepared.source.incomplete).toBe(false);
+    const event=calendarAppointment(prepared.source.mail!.calendarText!,'Confirmation');
+    expect(event).toMatchObject({startDate:'2026-09-22',startTime:'10:30',endTime:'11:00',location:'Visioconference',issues:[]});
+    mail.close();
   });
   it('borne les messages avant téléchargement', async () => {
     mock.fetchOne.mockResolvedValue({size: 13 * 1024 * 1024});

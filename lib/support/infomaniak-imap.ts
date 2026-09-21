@@ -85,17 +85,18 @@ export async function openImapMailbox(email: string, password: string, expectedF
           const body = (parsed.text?.trim() || plainMail(parsed.html)).slice(0, 24001);
           const attachments: NonNullable<SourceTicket['mail']>['attachments'] = [];
           for (const [index, file] of parsed.attachments.entries()) {
-            if (file.disposition === 'inline' || file.related || !/\.(pdf|png|jpe?g)$/i.test(file.filename || '')) continue;
+            const calendar = file.mimeType?.toLowerCase() === 'text/calendar' || /\.ics$/i.test(file.filename || '');
+            if (!calendar && (file.disposition === 'inline' || file.related || !/\.(pdf|png|jpe?g)$/i.test(file.filename || ''))) continue;
             const bytes = new Uint8Array(file.content as ArrayBuffer);
             const id = `${ref.uid}:${index}`;
-            attachments.push({ id, name: (file.filename || 'Document').slice(0, 180), size: bytes.length });
+            attachments.push({ id, name: (calendar ? (/\.ics$/i.test(file.filename || '') ? file.filename! : 'rendez-vous.ics') : file.filename || 'Document').slice(0, 180), size: bytes.length });
             attachmentCache.set(id, bytes);
           }
           const sender = (parsed.from?.address || '').slice(0, 254).toLowerCase();
           const subject = (parsed.subject || 'Mail sans objet').slice(0, 300);
           return {
             externalId: await mailExternalId(mailboxId, folderId, ref.uid),
-            mail: { sender, uid: ref.uid, attachments, attachmentCount: parsed.attachments.filter(file => file.disposition !== 'inline' && !file.related).length, bodyIncomplete: body.length > 23000 }, subject,
+            mail: { sender, uid: ref.uid, attachments, attachmentCount: parsed.attachments.filter(file => file.mimeType?.toLowerCase() === 'text/calendar' || /\.ics$/i.test(file.filename || '') || file.disposition !== 'inline' && !file.related).length, bodyIncomplete: body.length > 23000 }, subject,
             body: `${sender ? `De : ${sender}\n\n` : ''}${body || subject}`.slice(0, 24000),
             version: String(ref.date ?? ''), groupId: null, agentId: null, closed: false,
             incomplete: !body || body.length > 23000 || parsed.attachments.length > 0,
