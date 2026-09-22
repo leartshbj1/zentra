@@ -14,6 +14,7 @@ import type { SubmitEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { LEGAL_VERSION } from '@/lib/legal';
 import { notifyAuthChanged } from '@/lib/auth-browser-events';
+import { loadAuthFormSession } from '@/lib/auth-form-session';
 import {
   MAX_AUTH_PASSWORD_LENGTH,
   MIN_AUTH_PASSWORD_LENGTH,
@@ -41,25 +42,14 @@ export function ZentraAuthForm({
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(switchAccount ? '/api/auth/deconnexion' : '/api/auth/session', {
-      method: switchAccount ? 'POST' : 'GET',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error('La session n’a pas pu être vérifiée. Réessayez.');
-        const payload = (await response.json()) as {
-          authenticated?: boolean;
-          user?: { email: string };
-        };
-        if (switchAccount)
-          setNotice(
-            'Vous êtes déconnecté. Connectez le compte de votre choix.',
-          );
-        else if (payload.authenticated)
-          setCurrentEmail(payload.user?.email ?? '');
+    // A stale ?autre=1 tab is reloaded by cross-tab auth notifications.
+    // It must only read the new session, never replay a logout on mount.
+    void loadAuthFormSession(controller.signal)
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        setCurrentEmail(payload.authenticated ? payload.user?.email ?? '' : '');
+        if (switchAccount && !payload.authenticated)
+          setNotice('Connectez le compte de votre choix.');
       })
       .catch((reason) => {
         if (!controller.signal.aborted)
@@ -74,6 +64,28 @@ export function ZentraAuthForm({
       });
     return () => controller.abort();
   }, [returnTo, switchAccount]);
+
+  async function changeAccount() {
+    if (busy || submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch('/api/auth/deconnexion', {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) throw new Error('La déconnexion n’a pas abouti. Réessayez.');
+      setCurrentEmail('');
+      setNotice('Vous êtes déconnecté. Saisissez votre autre compte.');
+      notifyAuthChanged();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Réessayez.');
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+    }
+  }
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -201,12 +213,14 @@ export function ZentraAuthForm({
               >
                 Continuer avec ce compte
               </a>
-              <a
+              <button
+                type="button"
+                disabled={busy}
                 className="inline-flex min-h-11 items-center font-semibold underline"
-                href={`/connexion?autre=1&retour=${encodeURIComponent(returnTo)}`}
+                onClick={() => void changeAccount()}
               >
                 Changer de compte
-              </a>
+              </button>
             </div>
           </div>
         ) : null}

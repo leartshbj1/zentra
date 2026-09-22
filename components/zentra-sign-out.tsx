@@ -29,7 +29,7 @@ export function ZentraSignOut({
         throw new Error('La déconnexion n’a pas abouti. Réessayez.');
       notifyAuthChanged();
       window.location.replace(
-        `/connexion?autre=1&deconnecte=1&retour=${encodeURIComponent(safeReturnTo)}`,
+        `/connexion?deconnecte=1&retour=${encodeURIComponent(safeReturnTo)}`,
       );
     } catch (reason) {
       setError(
