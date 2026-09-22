@@ -475,6 +475,7 @@ export function paidAutomationPeriod(
 async function reconcile(
   subscription: Stripe.Subscription,
   invoice: Stripe.Invoice | null,
+  source: 'verified_webhook' | 'account_refresh',
 ) {
   const config = await automationBillingConfig();
   if (!config) return false;
@@ -553,6 +554,10 @@ async function reconcile(
     invoice && paid
       ? await fullyRefundedAutomationInvoice(automationStripe(), invoice.id)
       : false;
+  // A refresh can verify/revoke an existing subscription, but only the
+  // signature-verified webhook route may grant a new paid access period.
+  // This also prevents the checkout return from enabling workers early.
+  const granted = source === 'verified_webhook' ? paid : null;
   await database()
     .prepare(
       `INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,last_paid_invoice_id,cancel_at_period_end,livemode,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(organization_id) DO UPDATE SET subscription_id=excluded.subscription_id,customer_id=excluded.customer_id,status=excluded.status,paid_from=CASE WHEN excluded.subscription_id<>automation_subscriptions.subscription_id OR excluded.paid_until>automation_subscriptions.paid_until THEN excluded.paid_from ELSE automation_subscriptions.paid_from END,paid_until=CASE WHEN excluded.subscription_id<>automation_subscriptions.subscription_id THEN excluded.paid_until ELSE MAX(excluded.paid_until,automation_subscriptions.paid_until) END,last_paid_invoice_id=CASE WHEN excluded.subscription_id<>automation_subscriptions.subscription_id OR excluded.paid_until>automation_subscriptions.paid_until THEN excluded.last_paid_invoice_id ELSE automation_subscriptions.last_paid_invoice_id END,cancel_at_period_end=excluded.cancel_at_period_end,livemode=excluded.livemode,updated_at=excluded.updated_at`,
@@ -562,9 +567,9 @@ async function reconcile(
       subscription.id,
       ref(subscription.customer),
       subscription.status,
-      paid?.start ?? 0,
-      paid?.end ?? 0,
-      paid?.invoiceId ?? null,
+      granted?.start ?? 0,
+      granted?.end ?? 0,
+      granted?.invoiceId ?? null,
       subscription.cancel_at_period_end ? 1 : 0,
       config.livemode ? 1 : 0,
       now(),
@@ -577,7 +582,7 @@ async function reconcile(
       config.livemode,
     );
   // Initialise only once. Reactivation keeps the company's saved preferences.
-  if (paid && !refunded)
+  if (granted && !refunded)
     await database()
       .prepare(
         `INSERT INTO automation_settings(organization_id,enabled,mode,flags,updated_at) VALUES(?,0,'shadow','[]',?) ON CONFLICT(organization_id) DO NOTHING`,
@@ -709,7 +714,7 @@ export async function persistAutomationStripeEvent(event: Stripe.Event) {
     event.type === 'invoice.paid'
       ? await stripe.invoices.retrieve((event.data.object as Stripe.Invoice).id)
       : null;
-  return reconcile(subscription, invoice);
+  return reconcile(subscription, invoice, 'verified_webhook');
 }
 export async function refreshAutomationPayment(
   organizationId: string,
@@ -735,7 +740,7 @@ export async function refreshAutomationPayment(
         ref(session.subscription),
       ),
       invoice = await stripe.invoices.retrieve(ref(session.invoice));
-    await reconcile(subscription, invoice);
+    await reconcile(subscription, invoice, 'account_refresh');
   }
   return automationBillingState(organizationId);
 }

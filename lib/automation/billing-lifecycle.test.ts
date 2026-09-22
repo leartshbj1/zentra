@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   payments: vi.fn(),
   charge: vi.fn(),
   intent: vi.fn(),
+  checkout: vi.fn(),
 }));
 vi.mock('@/lib/runtime', () => ({
   database: () => mocks.db,
@@ -31,12 +32,15 @@ vi.mock('stripe', () => ({
     invoicePayments = { list: mocks.payments };
     charges = { retrieve: mocks.charge };
     paymentIntents = { retrieve: mocks.intent };
+    checkout = { sessions: { retrieve: mocks.checkout } };
   },
 }));
 import {
   persistAutomationStripeEvent,
   automationBillingState,
+  refreshAutomationPayment,
 } from './billing';
+import type { ZentraUser } from '@/app/zentra-auth';
 import { automationEntitlement } from './entitlement';
 import { digest } from '@/lib/support/crypto';
 let db: DatabaseSync;
@@ -124,6 +128,14 @@ function event(type: string, id = 'in_current') {
   } as Stripe.Event;
 }
 const apply = () => persistAutomationStripeEvent(event('invoice.paid'));
+const owner = { userId: 'owner', email: 'owner@example.test', emailConfirmed: true, provider: 'supabase' } as ZentraUser;
+function prepareReturn(invoiceId = 'in_current') {
+  db.prepare("INSERT OR REPLACE INTO automation_checkouts(organization_id,attempt_id,user_id,session_id,expires_at,created_at) VALUES('org_a','attempt','owner','cs_auto',?,1)").run(now() + 3600);
+  mocks.checkout.mockResolvedValue({
+    status: 'complete', payment_status: 'paid', subscription: subscription.id, invoice: invoiceId,
+    metadata: { organization_id: 'org_a', owner_id: 'owner' },
+  });
+}
 beforeEach(async () => {
   vi.clearAllMocks();
   db = new DatabaseSync(':memory:');
@@ -212,6 +224,34 @@ beforeEach(async () => {
   }));
 });
 afterEach(() => db.close());
+it('does not activate from an account refresh before the signed payment notification arrives', async () => {
+  prepareReturn();
+  await refreshAutomationPayment('org_a', owner);
+  expect(await automationEntitlement(actor)).toBe(false);
+  expect(db.prepare('SELECT COUNT(*) AS n FROM automation_settings').get()?.n).toBe(0);
+  await apply();
+  expect(await automationEntitlement(actor)).toBe(true);
+});
+it('does not extend the paid period from an account refresh while the renewal notification is pending', async () => {
+  invoices.set('in_current', invoice('in_current', now() - 30 * 86400, now() - 1));
+  await apply();
+  const previous = db.prepare('SELECT paid_until,last_paid_invoice_id FROM automation_subscriptions').get();
+  invoices.set('in_renewal', invoice('in_renewal'));
+  prepareReturn('in_renewal');
+  await refreshAutomationPayment('org_a', owner);
+  expect(await automationEntitlement(actor)).toBe(false);
+  expect(db.prepare('SELECT paid_until,last_paid_invoice_id FROM automation_subscriptions').get()).toEqual(previous);
+  await persistAutomationStripeEvent(event('invoice.paid', 'in_renewal'));
+  expect(await automationEntitlement(actor)).toBe(true);
+});
+it.each(['cancellation', 'refund'])('an account refresh still removes access after a verified %s', async (change) => {
+  await apply();
+  prepareReturn();
+  if (change === 'cancellation') subscription.status = 'canceled';
+  else refunds.add('in_current');
+  await refreshAutomationPayment('org_a', owner);
+  expect(await automationEntitlement(actor)).toBe(false);
+});
 it('activates only after verified payment for its space and initialises settings without enabling workers', async () => {
   await persistAutomationStripeEvent(event('customer.subscription.updated'));
   expect(await automationEntitlement(actor)).toBe(false);
