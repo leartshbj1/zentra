@@ -86,6 +86,8 @@ export async function gestionLinkState(
   return {
     linked: !!link?.enabled,
     organizationId: membership ? link!.organization_id : null,
+    organizationName: membership?.organizationName ?? null,
+    role: membership?.role ?? null,
     autoPost: !!link?.auto_post,
     choices,
   };

@@ -463,3 +463,12 @@
 .automation-centre .ac-draft small {
   display: block;
 }
+
+.automation-centre.automation-centre--embedded{border:0;border-radius:0;padding:0;background:transparent;margin:0}.ac-item__details summary{cursor:pointer;padding:12px 0;min-height:44px;font-weight:600}.ac-item__details[open]{padding-bottom:12px}
+.automation-page .automation-workspace .automation-centre button{background:var(--ac-accent);color:#fff;border-radius:9px;min-height:44px;padding:.65rem 1rem}
+.automation-page .automation-workspace .automation-centre button.ac-quiet{background:var(--ac-soft);color:var(--ac-ink)}
+.automation-page .automation-workspace .automation-centre__tabs button{background:transparent;color:var(--ac-muted);padding:.6rem .8rem}
+.automation-page .automation-workspace .automation-centre__tabs button[aria-current]{background:var(--ac-soft);color:var(--ac-ink)}
+.automation-page .automation-workspace .automation-centre button.ac-template{background:var(--ac-soft);color:var(--ac-ink);text-align:left}
+.account-content .automation-centre details.ac-item__details{background:transparent;border:0;border-radius:0;padding:0;margin:0}
+.account-content .automation-centre .ac-item__details summary{margin:0;min-height:44px;padding:12px 0}

@@ -1,4 +1,5 @@
 import { supportAutomationState, requireSupportAutomation, supportAutomationFetch } from '@/lib/automation/execution';
+import { selectSupportWorkspace } from './workspace-selection';
 import { getZentraUser, type ZentraUser } from '@/app/zentra-auth';
 import { database, runtimeValue } from '@/lib/runtime';
 import { enforceAccountRateLimit, normalizedEmail } from '@/lib/account';
@@ -322,9 +323,10 @@ export async function getWorkspaceState(request: Request) {
   const user = await signedIn(),
     list = await workspaces(user),
     params = new URL(request.url).searchParams;
-  const workspace = params.get('workspace')
-    ? list.find((w) => w.id === params.get('workspace'))
-    : list[0];
+  const org=params.get('organizationId');
+  const links=org ? (await database().prepare('SELECT workspace_id FROM support_gestion_links WHERE organization_id=? AND enabled=1').bind(org).all<{workspace_id:string}>()).results : [];
+  const workspace = selectSupportWorkspace(list,params.get('workspace'),org,links);
+  if(org&&!workspace)throw new SupportError('Aucun espace Support accessible n’est relié à cette entreprise. Ouvrez Support depuis votre compte pour choisir ou relier un espace.',404);
   if (params.get('workspace') && !workspace)
     throw new SupportError('Cet espace support n’est pas accessible.', 404);
   const basic = {

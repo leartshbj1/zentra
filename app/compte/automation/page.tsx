@@ -26,7 +26,7 @@ export default async function Page({
       <div className="automation-wrap">
         <a href="/compte">← Mon compte</a>
         <h1>Zentra Automation</h1>
-        <p>Moins de classement manuel. Vous gardez le dernier mot.</p>
+
         {!user ? (
           <section className="automation-panel">
             <h2>Connectez-vous à Zentra</h2>
@@ -46,8 +46,8 @@ export default async function Page({
               }
               paymentReturned={query.paiement === 'retour'}
             />
-            <ReferralPanel organizations={organizations} />
-            {isAutomationFounder(user) && <AutomationFounderSettings />}
+            <details className="automation-account-extra"><summary>Parrainage</summary><ReferralPanel organizations={organizations} /></details>
+            {isAutomationFounder(user) && <details className="automation-account-extra"><summary>Administration Zentra</summary><AutomationFounderSettings /></details>}
           </>
         )}
       </div>

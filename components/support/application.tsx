@@ -14,7 +14,7 @@ import {
   X,
   Plus,
   AlertCircle,
-  CreditCard,
+  CreditCard, Workflow,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -49,8 +49,12 @@ import {
   type Mutate,
 } from './model';
 
+import { AutomationCompanySettings } from '@/components/automation/company-settings';
+import '@/components/automation/automation.css';
+
 const sections = [
   { id: 'inbox', label: 'Tickets', icon: Inbox },
+  { id: 'automation', label: 'Automation', icon: Workflow },
   { id: 'routing', label: 'Routage', icon: Settings2 },
   { id: 'connections', label: 'Connexions', icon: Link2 },
   { id: 'insights', label: 'Résultats', icon: BarChart3 },
@@ -115,6 +119,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         params = new URLSearchParams(),
         id = options.workspace ?? workspaceRef.current;
       if (id) params.set('workspace', id);
+      else { const org=new URLSearchParams(window.location.search).get('organizationId');if(org)params.set('organizationId',org); }
       if (query) params.set('search', query);
       if (filter) params.set('state', filter);
       const last = dataRef.current.tickets.at(-1);
@@ -517,7 +522,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               aria-label="Sections de Zentra Support"
               className="support-nav"
             >
-              {sections.map((s) => (
+              {sections.filter(s=>s.id!=='automation'||(!demo&&data.automation?.active&&data.gestion?.linked&&data.gestion.organizationId)).map((s) => (
                 <TabsTrigger value={s.id} key={s.id}>
                   <s.icon size={19} />
                   {s.label}
@@ -560,6 +565,9 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                   </Button>
                 </div>
               )}
+            <TabsContent value="automation">
+              {data.automation?.active && data.gestion?.linked && data.gestion.organizationId ? <div className="automation-page support-automation-workspace"><h1>Automation</h1><AutomationCompanySettings key={data.gestion.organizationId} initialOrganization={data.gestion.organizationId} organizations={[{organizationId:data.gestion.organizationId,organizationName:data.gestion.organizationName||'Votre entreprise',role:data.gestion.role||'read_only'}]}/></div> : <p>Reliez une entreprise avec Automation dans Connexions.</p>}
+            </TabsContent>
             <TabsContent value="inbox">
               {!demo && data.billing && !data.billing.active ? (
                 <BillingPanel
@@ -572,13 +580,10 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                 <>
                   <div className="support-page-heading">
                     <div>
-                      <p className="support-eyebrow">
-                        LE BON TICKET. LA BONNE ÉQUIPE.
-                      </p>
-                      <h1>Votre support, bien orienté.</h1>
+                      <h1>Votre boîte de réception</h1>
                       <p>
                         {!demo && !data.automation?.enabled ? 'Le classement manuel est disponible.' : data.workspace.mode === 'automatic'
-                          ? 'Le tri s’occupe de l’ordre. Votre équipe s’occupe des clients.'
+                          ? 'Tri automatique · les cas incertains restent à vérifier.'
                           : 'Vérifiez vos premières décisions, puis activez le tri automatique.'}
                       </p>
                     </div>

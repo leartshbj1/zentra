@@ -130,15 +130,18 @@ const date = (n: number) =>
 
 export function AutomationControlCentre({
   organizationId,
-  request,
+  request, initialTab = 'review', embedded = false, hideNavigation = false, hideRules = false,
 }: {
   organizationId: string;
   request: Requester;
+  initialTab?: 'review' | 'work' | 'history' | 'rules';
+  embedded?: boolean; hideNavigation?: boolean; hideRules?: boolean;
 }) {
   const [data, setData] = useState<AutomationCentreState | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
-    [tab, setTab] = useState<'review' | 'work' | 'history' | 'rules'>('review');
+    [tab, setTab] = useState<'review' | 'work' | 'history' | 'rules'>(initialTab);
+  useEffect(() => { setTab(initialTab); setEditing(null); }, [initialTab]);
   const [editing, setEditing] = useState<Rule | null>(null),
     [notice, setNotice] = useState('');
   const api = useRef(request),
@@ -208,8 +211,8 @@ export function AutomationControlCentre({
       [],
     work = data?.items.filter((i) => i.state === 'open') || [];
   return (
-    <section className="automation-centre" aria-label="Centre Automation">
-      <header className="automation-centre__heading">
+    <section className={`automation-centre${embedded ? " automation-centre--embedded" : ""}`} aria-label="Centre Automation">
+      {!embedded && <header className="automation-centre__heading">
         <div>
           <h2>Votre centre Automation</h2>
           <p>Les actions de votre équipe, au même endroit.</p>
@@ -223,8 +226,8 @@ export function AutomationControlCentre({
         >
           <RotateCcw size={18} />
         </button>
-      </header>
-      <nav
+      </header>}
+      {!hideNavigation && <nav
         className="automation-centre__tabs"
         aria-label="Vue du centre Automation"
       >
@@ -235,7 +238,7 @@ export function AutomationControlCentre({
             ['history', 'Historique', 0],
             ['rules', 'Règles', 0],
           ] as const
-        ).map(([id, label, count]) => (
+        ).filter(([id]) => !hideRules || id !== 'rules').map(([id, label, count]) => (
           <button
             key={id}
             type="button"
@@ -249,7 +252,7 @@ export function AutomationControlCentre({
             {count > 0 && <span>{count}</span>}
           </button>
         ))}
-      </nav>
+      </nav>}
       {error && (
         <p className="ac-message" role="alert">
           {error}
@@ -313,6 +316,7 @@ export function AutomationControlCentre({
                         ?.name || 'un collaborateur'}
                     </p>
                   )}
+                  <details className="ac-item__details"><summary>{item.kind === 'reply_draft' ? 'Relire la réponse' : 'Voir le détail'}</summary>
                   {item.kind === 'reply_draft' ? (
                     <ReplyDraft
                       item={item}
@@ -321,7 +325,7 @@ export function AutomationControlCentre({
                     />
                   ) : (
                     <p className="ac-preserve">{item.body}</p>
-                  )}
+                  )}</details>
                 </div>
                 <div className="ac-actions">
                   <button

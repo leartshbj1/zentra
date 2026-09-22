@@ -7,6 +7,8 @@ import {
 } from '@/lib/automation/types';
 import { FEATURE_LABELS } from './labels';
 import { AutomationControlCentre } from './control-centre';
+import { AutomationBrief, type BriefActivity, type BriefDestination } from './AutomationBrief';
+import { AppointmentReceipts } from './appointment-receipts';
 async function api(path: string, org: string, body?: Record<string, unknown>) {
   const res = await fetch(
     body ? path : `${path}?organizationId=${encodeURIComponent(org)}`,
@@ -37,7 +39,7 @@ type Settings = {
   consent: boolean;
 };
 type State = {
-  activity?: {date:string;totals:{analyzed:number;suggestions:number;confirmed:number;needsReview:number};features:{feature:Feature;analyzed:number;confirmed:number}[]} | null;
+  activity?: BriefActivity | null;
   settings: Settings;
   available: Feature[];
   active: boolean;
@@ -70,6 +72,8 @@ export function AutomationCompanySettings({
   }[];
 }) {
   const pending=useRef(false);
+  const [view,setView]=useState<'today'|'followup'|'settings'|'rules'|'appointments'|'tools'>('today');
+  const [followup,setFollowup]=useState<'review'|'work'|'history'>('review');
   const [org, setOrg] = useState(
       organizations.some((o) => o.organizationId === initialOrganization)
         ? initialOrganization
@@ -115,7 +119,7 @@ export function AutomationCompanySettings({
   }
   useEffect(() => {
     let live = true;
-    setState(null);setBilling(null);setConsent(false);setTerms(false);setMessage('');
+    setState(null);setBilling(null);setConsent(false);setTerms(false);setMessage('');setView('today');
     if (!org) return;
     // Team access never depends on loading the owner's billing controls.
     api('/api/automation', org)
@@ -155,6 +159,25 @@ export function AutomationCompanySettings({
       live = false;
     };
   }, [org, initialOrganization, paymentReturned]);
+  useEffect(() => {
+    if(!org)return;
+    let live=true, running=false;
+    const refresh=async()=>{
+      if(document.visibilityState==='hidden'||running||pending.current)return;
+      running=true;
+      try { const next=await api('/api/automation',org) as State; if(live)setState(next); } catch { /* Keep the last brief; never replace a settings draft during refresh. */ }
+      finally {running=false;}
+    };
+    const timer=setInterval(()=>void refresh(),30000);
+    document.addEventListener('visibilitychange',refresh);
+    return ()=>{live=false;clearInterval(timer);document.removeEventListener('visibilitychange',refresh);};
+  },[org]);
+  const open=(destination:BriefDestination)=>{
+    if(destination==='invoices'){window.location.assign('/compte/automation/reception?entreprise='+encodeURIComponent(org));return;}
+    if(destination==='support'){window.location.assign('/support/espace?organizationId='+encodeURIComponent(org));return;}
+    if(destination==='review'||destination==='work'||destination==='history'){setFollowup(destination);setView('followup');return;}
+    setView(destination);
+  };
   async function action(which: 'save' | 'checkout' | 'portal' | 'refresh') {
     if(pending.current)return;
     pending.current=true;
@@ -168,6 +191,7 @@ export function AutomationCompanySettings({
           ...(consent ? { consentVersion } : {}),
         });
         setSettings(data as unknown as Settings);
+        setState(await load());
         setMessage('Réglages enregistrés.');
       } else {
         const data = await post('/api/automation/billing', {
@@ -218,8 +242,7 @@ export function AutomationCompanySettings({
       </section>
     );
   return (
-    <section className="automation-panel">
-      {state?.active&&<p><a href={`/compte/automation/reception?entreprise=${encodeURIComponent(org)}`}>Voir les factures reçues dans Gestion →</a></p>}
+    <section className="automation-panel automation-workspace">
       <label htmlFor="automation-company">Entreprise</label>
       <select
         id="automation-company"
@@ -238,7 +261,15 @@ export function AutomationCompanySettings({
           </option>
         ))}
       </select>
-      {!state && !message && <p role="status">Chargement des réglages…</p>}
+      {!state && !message && <p role="status">Chargement de votre entreprise…</p>}
+      {state?.active && <nav className="automation-workspace__nav" aria-label="Espace Automation">{(['today','followup','settings'] as const).map(id=><button type="button" key={id} aria-current={(id==='today'?['today','appointments','tools'].includes(view):id==='settings'?['settings','rules'].includes(view):view===id)?'page':undefined} onClick={()=>setView(id)}>{id==='today'?'Aujourd’hui':id==='followup'?'Suivi':'Réglages'}</button>)}</nav>}
+      {state?.active && view==='today' && <AutomationBrief activity={state.activity} paused={!state.settings.enabled||!state.settings.consent} observation={state.settings.mode==='shadow'} onOpen={open}/>}
+      {state?.active && view==='followup' && <AutomationControlCentre key={org} organizationId={org} initialTab={followup} embedded hideRules request={body=>api('/api/automation',org,body)}/>}
+      {state?.active && view==='appointments' && <AppointmentReceipts key={org} organizationId={org}/>}
+      {state?.active && view==='tools' && <div className="automation-workspace__local"><h2>Vos classements dans Gestion</h2><p>Retrouvez les suggestions auprès des opérations bancaires, documents et achats concernés dans l’application Gestion.</p><button type="button" onClick={()=>setView('today')}>Revenir à aujourd’hui</button></div>}
+      {state?.active && view==='rules' && <><button type="button" className="automation-workspace__back" onClick={()=>setView('settings')}>← Réglages</button><AutomationControlCentre key={org} organizationId={org} initialTab="rules" embedded hideNavigation request={body=>api('/api/automation',org,body)}/></>}
+      {state && (!state.active || view==='settings') && <div className="automation-workspace__settings">
+      {state.active && <button type="button" className="automation-workspace__back" onClick={()=>setView('rules')}>Règles de l’équipe →</button>}
       <h2>
         {state?.active
           ? 'Votre option est active'
@@ -246,15 +277,6 @@ export function AutomationCompanySettings({
       </h2>
       {state && !state.active && <p>Automatisez vos tâches répétitives pour +15 CHF/mois.</p>}
       {billing?.refunded && <p role="status">La dernière période a été remboursée. Automation est arrêté ; vos réglages et vos données sont conservés.</p>}
-      {state?.active && (
-        <p>
-          <strong>Disponible pour toute votre équipe.</strong> Chaque
-          collaborateur connecté à cette entreprise retrouve Automation dans
-          Zentra Gestion, avec ses droits habituels. Aucune activation
-          individuelle.
-        </p>
-      )}
-      {state?.active && <AutomationControlCentre key={org} organizationId={org} request={body=>api('/api/automation',org,body)} />}
       {billing?.offeredAccess &&
       billing.offeredUntil &&
       !billing.hasSubscription ? (
@@ -269,8 +291,7 @@ export function AutomationCompanySettings({
         </div>
       ) : null}
       <p>
-        En complément de Zentra Gestion. Les écritures, paiements et
-        suppressions restent soumis à votre validation.
+        Les droits de votre équipe s’appliquent aussi à Automation.
       </p>
       {state &&
         !state.active &&
@@ -387,7 +408,6 @@ export function AutomationCompanySettings({
           administrateur peut les modifier.
         </p>
       )}
-      {state?.active && state.activity && <section className="account-card automation-daily" aria-label="Activité du jour"><h2>Aujourd’hui, dans votre entreprise</h2><dl className="automation-metrics"><div><dt>Analyses</dt><dd>{state.activity.totals.analyzed}</dd></div><div><dt>À vérifier</dt><dd>{state.activity.totals.needsReview}</dd></div><div><dt>Validées par l’équipe</dt><dd>{state.activity.totals.confirmed}</dd></div></dl>{!state.activity.totals.analyzed && <p>Les analyses apparaîtront ici dès que vous utiliserez Automation dans Zentra Gestion.</p>}<p className="account-caption">Bilan du jour, heure suisse. Une suggestion n’est comptée comme validée qu’après confirmation par un utilisateur.</p></section>}
       {state?.active && state.canManage && (
         <fieldset disabled={busy || !state.canManage}>
           <legend>Comment souhaitez-vous utiliser Automation ?</legend>
@@ -499,6 +519,7 @@ export function AutomationCompanySettings({
           </button>
         </fieldset>
       )}
+      </div>}
       <output aria-live="polite">{message}</output>
     </section>
   );

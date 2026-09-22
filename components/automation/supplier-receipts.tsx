@@ -85,7 +85,7 @@ export function SupplierReceipts({
             comptabiliser les factures.
           </p>
         </div>
-        <a href="/support/espace">Ouvrir Support →</a>
+        <a href={`/support/espace?organizationId=${encodeURIComponent(organizationId)}`}>Ouvrir Support →</a>
       </div>
       {error && <p role="status">{error}</p>}
       {!state.linked ? (
