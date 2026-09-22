@@ -463,3 +463,5 @@
 .automation-centre .ac-draft small {
   display: block;
 }
+
+.automation-centre.automation-centre--embedded{border:0;border-radius:0;padding:0;background:transparent;margin:0}.ac-item__details summary{cursor:pointer;padding:12px 0;min-height:44px;font-weight:600}.ac-item__details[open]{padding-bottom:12px}

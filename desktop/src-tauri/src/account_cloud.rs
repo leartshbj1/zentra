@@ -382,8 +382,13 @@ pub async fn open_automation_settings() -> Result<String,String> {
     tauri::async_runtime::spawn_blocking(move||{launch_external_url(&uri).map_err(command_error)?;Ok(uri)}).await.map_err(|error|error.to_string())?
 }
 #[tauri::command]
-pub async fn open_supplier_inbox_settings() -> Result<String,String> {
-    let uri="https://zentraapp.ch/support/espace?section=connections".to_string();
+pub async fn open_supplier_inbox_settings(state: State<'_, LocalStore>, section: Option<String>) -> Result<String,String> {
+    let store=state.inner().clone();
+    let session=read_session_secret(&store).map_err(command_error)?.ok_or_else(||"Connectez votre entreprise à Zentra.".to_string())?;
+    crate::automation::bound(&store,&session.organization_id).map_err(command_error)?;
+    let mut url=Url::parse("https://zentraapp.ch/support/espace").map_err(|_|"Adresse indisponible.".to_string())?;
+    url.query_pairs_mut().append_pair("organizationId",&session.organization_id).append_pair("section",if section.as_deref()==Some("inbox"){"inbox"}else{"connections"});
+    let uri=url.to_string();
     tauri::async_runtime::spawn_blocking(move||{launch_external_url(&uri).map_err(command_error)?;Ok(uri)}).await.map_err(|error|error.to_string())?
 }
 

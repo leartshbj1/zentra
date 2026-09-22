@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AutomationControlCentre, type AutomationCentreState } from '../src/AutomationControlCentre';
+import { AutomationBrief } from '../src/AutomationBrief';
 import type { WorkflowDefinition } from '../src/automationWorkflowTypes';
 import { setAppearance, type Appearance } from '../src/appearance';
 import '../src/styles.css';
@@ -20,5 +21,5 @@ async function request(body:Record<string,unknown>){
  if(body.action==='work_item_update'){const item=data.items.find(i=>i.id===body.id);if(!item||item.revision!==body.revision)throw Error('Le brouillon a changé.');if(typeof body.body==='string')item.body=body.body;if(typeof body.state==='string')item.state=body.state;item.revision++;return {saved:true};}
  const run=data.runs.find(r=>r.id===body.id);if(run){run.state=body.action==='workflow_cancel'?'cancelled':'completed';run.revision++;}return {saved:true};
 }
-function Fixture(){const [theme,setTheme]=useState<Appearance>('light');return <main style={{maxWidth:1000,margin:'0 auto',padding:'16px 12px'}}><p>Données fictives · Recette du centre Automation</p><label>Apparence<select value={theme} onChange={e=>{setTheme(e.target.value as Appearance);setAppearance(e.target.value as Appearance);}}><option value="light">Claire</option><option value="dark">Sombre</option></select></label><AutomationControlCentre organizationId="ui-fixture" request={request}/></main>;}
+function Fixture(){const [theme,setTheme]=useState<Appearance>('light'),[view,setView]=useState('today');return <main style={{maxWidth:880,margin:'0 auto',padding:'16px 20px'}}><p>Données fictives · Recette Automation</p><label>Apparence<select value={theme} onChange={e=>{setTheme(e.target.value as Appearance);setAppearance(e.target.value as Appearance);}}><option value="light">Claire</option><option value="dark">Sombre</option></select></label><button onClick={()=>setView('today')}>Aujourd’hui</button>{view==='today'?<AutomationBrief activity={{displayName:'Camille',totals:{analyzed:12,confirmed:3,needsReview:0,observed:0},supplierInbox:{received:12,imported:10,automatic:8,needsReview:2},appointments:{imported:3,pending:1},workflows:{tasks:2,drafts:1,summaries:1,open:1,review:1,observed:0}}} onOpen={destination=>setView(destination)}/>:<AutomationControlCentre organizationId="ui-fixture" initialTab={view==='work'?'work':view==='history'?'history':view==='settings'?'rules':'review'} embedded request={request}/>}</main>;}
 createRoot(document.getElementById('root')!).render(<Fixture/>);

@@ -20,16 +20,16 @@ it('shows the same company totals to a collaborator and a manager without claimi
   const owner = renderToStaticMarkup(<AutomationDailySummaryView state={{ ...state, canManage: true }} />);
   expect(member).toBe(owner);
   expect(member).toContain('Bonjour, Camille');
-  expect(member).toContain('Choix validés par l’équipe');
-  expect(member).toContain('factures comptabilisées automatiquement sont indiquées séparément');
+  expect(member).toContain('Choix confirmés par l’équipe');
+  expect(member).not.toContain('comptabilisées automatiquement');
   expect(member).not.toContain('15 CHF');
 });
 it('shows actual mailbox counts separately from model suggestions',()=>{
   const html=renderToStaticMarkup(<AutomationDailySummaryView link state={{...state,activity:{...state.activity!,supplierInbox:{received:8,imported:6,automatic:5,needsReview:2,recent:[]}}}}/>);
-  expect(html).toContain('Factures comptabilisées automatiquement');expect(html).toContain('2 factures à vérifier');expect(html).toContain('<strong>5</strong>');expect(html).not.toContain('heures économisées');
+  expect(html).toContain('5 dont comptabilisées automatiquement');expect(html).toContain('Factures à vérifier');expect(html).toContain('<strong>2</strong>');expect(html).not.toContain('heures économisées');
 });
 it('keeps an honest empty state instead of displaying invented savings or completed tasks', () => {
   const html = renderToStaticMarkup(<AutomationDailySummaryView state={{ ...state, activity: { ...state.activity!, totals: { analyzed: 0, suggestions: 0, confirmed: 0, needsReview: 0, observed: 0 }, features: [] } }} />);
-  expect(html).toContain('Les prochaines analyses apparaîtront ici');
+  expect(html).toContain('Les prochains résultats apparaîtront ici');
   expect(html).not.toContain('<dd>');
 });

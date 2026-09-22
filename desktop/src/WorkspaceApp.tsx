@@ -29,7 +29,7 @@ import { useSupplierInbox } from './supplierInbox';
 import { AutomationCompanyProvider, useCompanyAutomation } from './AutomationCompany';
 import { AutomationHub } from './AutomationHub';
 import { AppointmentInbox,useAppointmentInbox } from './AppointmentInbox';
-import { type AutomationPage } from './automationExperience';
+import { automationPageFromEvent, type AutomationPage } from './automationExperience';
 import { AutomationSettings } from './AutomationSettings';
 import { AutomationTools } from './AutomationTools';
 import type { ComponentProps } from 'react';
@@ -580,7 +580,7 @@ function WorkspaceContent({
     const openHub = (event: Event) => {
       if (document.querySelector('[role="dialog"]')) return;
       const page = (event as CustomEvent<unknown>).detail;
-      setAutomationPage(page === 'settings' || page === 'tools' ? page : 'overview');
+      setAutomationPage(automationPageFromEvent(page));
       setView('automation'); setSearch(''); setMenuOpen(false);
     };
     const openAccount = () => { setView('settings'); setSettingsFocusTarget('automation-account-target'); setSearch(''); setMenuOpen(false); };

@@ -3,6 +3,8 @@ export const automationWorkflowTranslations: Record<
   string,
   readonly [string, string, string]
 > = {
+'Suivi':['Übersicht','Attività','Follow-up'],
+'Règles de l’équipe':['Teamregeln','Regole del team','Team rules'],
 "Centre Automation":["Automation-Zentrale","Centro Automation","Automation centre"],
 "{count} actions à vérifier":["{count} Aktionen zu prüfen","{count} azioni da verificare","{count} actions to review"],
 "{count} éléments pour votre équipe":["{count} Elemente für Ihr Team","{count} elementi per il team","{count} items for your team"],

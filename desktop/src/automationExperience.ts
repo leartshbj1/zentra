@@ -1,6 +1,10 @@
 import { featureReady, type AutomationFeature, type AutomationState } from './automation';
 
-export type AutomationPage = 'overview' | 'tools' | 'centre' | 'settings';
+export const automationPages = ['overview', 'tools', 'centre', 'settings', 'invoices', 'appointments', 'work', 'history', 'rules'] as const;
+export type AutomationPage = typeof automationPages[number];
+export function automationPageFromEvent(value: unknown): AutomationPage {
+  return automationPages.includes(value as AutomationPage) ? value as AutomationPage : 'overview';
+}
 export type AutomationDestination = 'bank' | 'projects' | 'expenses' | 'catalog' | 'invoices' | 'settings';
 export function automationReadiness(state: AutomationState) {
   if (!state.active) return 'inactive';
