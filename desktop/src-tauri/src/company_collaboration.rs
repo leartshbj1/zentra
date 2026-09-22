@@ -6,7 +6,7 @@ use crate::{
     error::{command_error, AppError, AppResult},
 };
 use reqwest::Method;
-use rusqlite::{functions::FunctionFlags, params, Connection};
+use rusqlite::{functions::FunctionFlags, params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
