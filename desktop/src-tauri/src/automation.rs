@@ -47,7 +47,11 @@ pub(crate) fn prepare_request(
     role: &str,
     mut value: Value,
 ) -> AppResult<Value> {
-    if serde_json::to_vec(&value)?.len() > 12000 {
+    let payload_limit = match value.get("action").and_then(Value::as_str) {
+        Some("workflow_save" | "workflow_preview" | "work_item_update") => 100000,
+        _ => 12000,
+    };
+    if serde_json::to_vec(&value)?.len() > payload_limit {
         return Err(invalid("Sélectionnez un extrait plus court."));
     }
     let object = value
@@ -60,7 +64,7 @@ pub(crate) fn prepare_request(
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
-    if !["decide", "feedback", "settings"].contains(&action.as_str()) {
+    if !["decide", "feedback", "settings", "centre", "workflow_save", "workflow_preview", "workflow_confirm", "workflow_cancel", "workflow_retry", "workflow_undo", "work_item_update"].contains(&action.as_str()) {
         return Err(invalid("Cette action n’est pas disponible."));
     }
     if action == "settings" && !["owner", "admin"].contains(&role) {
@@ -70,6 +74,12 @@ pub(crate) fn prepare_request(
     }
     if action == "feedback" && role == "read_only" {
         return Err(invalid("Votre rôle permet la consultation uniquement."));
+    }
+    if (action.starts_with("workflow_") || action == "work_item_update") && role == "read_only" {
+        return Err(invalid("Votre rôle permet la consultation uniquement."));
+    }
+    if action.starts_with("workflow_") && !["owner", "admin"].contains(&role) {
+        return Err(invalid("Un administrateur peut configurer et valider les règles de votre entreprise."));
     }
     if action == "decide" || action == "feedback" {
         bound(store, org)?;
@@ -173,6 +183,11 @@ mod tests {
             prepare_request(&store, "org_a", "read_only", json!({"action":"feedback"})).is_err()
         );
         assert!(prepare_request(&store, "org_a", "member", json!({"action":"settings"})).is_err());
+        assert!(prepare_request(&store, "org_a", "read_only", json!({"action":"work_item_update"})).is_err());
+        assert!(prepare_request(&store, "org_a", "member", json!({"action":"workflow_confirm"})).is_err());
+        assert!(prepare_request(&store, "org_a", "member", json!({"action":"centre"})).is_ok());
+        assert!(prepare_request(&store, "org_a", "owner", json!({"action":"workflow_save","body":"é".repeat(12000)})).is_ok());
+        assert!(prepare_request(&store, "org_a", "owner", json!({"action":"workflow_save","body":"x".repeat(100001)})).is_err());
     }
     #[test]
     fn rejects_ids_removed_since_the_request() {

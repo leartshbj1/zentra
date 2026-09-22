@@ -26,7 +26,8 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
   const activity = state.activity;
   const { analyzed, suggestions, confirmed, needsReview, observed } = activity.totals;
   const inbox=activity.supplierInbox;
-  const hasActivity = analyzed > 0 || confirmed > 0 || !!inbox?.received || !!inbox?.imported || !!activity.appointments?.imported;
+  const workflows=activity.workflows;
+  const hasActivity = analyzed > 0 || confirmed > 0 || !!inbox?.received || !!inbox?.imported || !!activity.appointments?.imported || !!(workflows&&(workflows.tasks||workflows.drafts||workflows.summaries||workflows.observed));
   const pendingInvoices = inbox?.needsReview ?? 0;
   const paused = !state.settings.enabled || !state.settings.consent || !state.available.some(f => state.settings.flags.includes(f));
   return (
@@ -43,8 +44,16 @@ export function AutomationDailySummaryView({ state, link = false }: { state: Aut
         <Button onClick={()=>openAutomationHub('overview')}>{t('Vérifier les factures')}<ArrowRight size={16} aria-hidden="true" /></Button>
       </div>}
       {!!activity.appointments?.pending&&<Button variant="secondary" onClick={()=>openAutomationHub('overview')}>{t('{count} rendez-vous à vérifier',{count:activity.appointments.pending})}</Button>}
+      {!!workflows?.review&&<Button variant="secondary" onClick={()=>openAutomationHub('centre')}>{t('{count} actions à vérifier',{count:workflows.review})}</Button>}
+      {!!workflows?.open&&<Button variant="secondary" onClick={()=>openAutomationHub('centre')}>{t('{count} éléments pour votre équipe',{count:workflows.open})}</Button>}
       {!!activity.appointments?.imported&&<div className="automation-daily__mail"><div><CheckCircle2 size={18}/><span><strong>{activity.appointments.imported}</strong> {t('rendez-vous ajoutés à l’agenda aujourd’hui')}</span></div></div>}
       {hasActivity && <details className="automation-daily__report"><summary>{t('Voir le bilan de la journée')}</summary>
+      {workflows&&<div className="automation-daily__mail">
+        {workflows.tasks>0&&<div><CheckCircle2 size={18}/><span>{t('{count} tâches préparées',{count:workflows.tasks})}</span></div>}
+        {workflows.drafts>0&&<div><CheckCircle2 size={18}/><span>{t('{count} brouillons de réponses préparés',{count:workflows.drafts})}</span></div>}
+        {workflows.summaries>0&&<div><CheckCircle2 size={18}/><span>{t('{count} résumés de messages préparés',{count:workflows.summaries})}</span></div>}
+        {workflows.observed>0&&<div><CheckCircle2 size={18}/><span>{t('{count} règles observées sans modification',{count:workflows.observed})}</span></div>}
+      </div>}
       {inbox && (inbox.received > 0 || inbox.imported > 0) && <div className="automation-daily__mail" aria-label={t('Activité de la boîte mail')}>
         {inbox.received > 0 && <div><Inbox size={18} aria-hidden="true" /><span><strong>{inbox.received}</strong> {t('Justificatifs reçus aujourd’hui')}</span></div>}
         {inbox.imported > 0 && <div><CircleCheck size={18} aria-hidden="true" /><span><strong>{inbox.imported}</strong> {t('Factures enregistrées dans Gestion')}</span></div>}

@@ -56,6 +56,7 @@ try {
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'supplier_inbox::tests', '--', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'appointment_inbox::tests', '--', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'project_report::tests', '--', '--test-threads=1')
+    Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'automation::tests', '--', '--test-threads=1')
     if ($env:ZENTRA_VERIFY_ONLY -eq 'true') { return }
     $config = Get-Content desktop/src-tauri/tauri.updater.conf.json -Raw | ConvertFrom-Json
     $config.bundle.createUpdaterArtifacts = $false

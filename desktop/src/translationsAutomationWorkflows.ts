@@ -3,6 +3,13 @@ export const automationWorkflowTranslations: Record<
   string,
   readonly [string, string, string]
 > = {
+"Centre Automation":["Automation-Zentrale","Centro Automation","Automation centre"],
+"{count} actions à vérifier":["{count} Aktionen zu prüfen","{count} azioni da verificare","{count} actions to review"],
+"{count} éléments pour votre équipe":["{count} Elemente für Ihr Team","{count} elementi per il team","{count} items for your team"],
+"{count} tâches préparées":["{count} Aufgaben vorbereitet","{count} attività preparate","{count} tasks prepared"],
+"{count} brouillons de réponses préparés":["{count} Antwortentwürfe vorbereitet","{count} bozze di risposta preparate","{count} reply drafts prepared"],
+"{count} résumés de messages préparés":["{count} Nachrichtenzusammenfassungen erstellt","{count} riepiloghi di messaggi preparati","{count} message summaries prepared"],
+"{count} règles observées sans modification":["{count} Regeln ohne Änderungen beobachtet","{count} regole osservate senza modifiche","{count} rules observed without changes"],
   'Les montants ou la TVA doivent être vérifiés.': ['Die Beträge oder die MWST müssen geprüft werden.', 'Gli importi o l’IVA devono essere verificati.', 'The amounts or VAT need to be reviewed.'],
   'Automation recherche le fournisseur…': ['Automation sucht den Lieferanten…', 'Automation cerca il fornitore…', 'Automation is finding the supplier…'],
   'Fournisseur créé par Automation': ['Lieferant von Automation erstellt', 'Fornitore creato da Automation', 'Supplier created by Automation'],

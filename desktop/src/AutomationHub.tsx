@@ -10,6 +10,8 @@ import { Button } from './ui';
 import './AutomationHub.css';
 import { AutomationConnectionNotice } from './AutomationConnectionNotice';
 import type { ReactNode } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { AutomationControlCentre } from './AutomationControlCentre';
 
 const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
 
@@ -37,7 +39,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
       <span className="automation-hub__status" data-ready={ready}>{t(readinessLabels[readiness])}</span>
     </header>
     <nav className="automation-hub__navigation" aria-label={t('Espace Automation')}>
-      {(['overview', 'tools', 'settings'] as const).map(tab => <button key={tab} type="button" aria-current={page === tab ? 'page' : undefined} onClick={() => onPage(tab)}>{t(tab === 'overview' ? 'Vue d’ensemble' : tab === 'tools' ? 'Outils' : 'Réglages')}</button>)}
+      {(['overview', 'tools', 'centre', 'settings'] as const).filter(tab=>tab!=='centre'||!readOnly).map(tab => <button key={tab} type="button" aria-current={page === tab ? 'page' : undefined} onClick={() => onPage(tab)}>{t(tab === 'overview' ? 'Vue d’ensemble' : tab === 'tools' ? 'Outils' : tab === 'centre' ? 'Centre Automation' : 'Réglages')}</button>)}
     </nav>
     <section hidden={page !== 'overview'} aria-label={t('Vue d’ensemble')}>
       {!ready && <div className="automation-hub__welcome">
@@ -63,6 +65,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
       })}</div>
       {ready ? <AutomationTools screen="automation" workspace={workspace} expanded /> : <div className="automation-hub__welcome"><p>{t('Terminez les réglages pour retrouver les outils de votre équipe.')}</p><Button onClick={() => onPage('settings')}>{t('Voir les réglages')}</Button></div>}
     </section>
+    {page === 'centre' && !readOnly && <AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} request={data=>invoke('automation_request',{data})} />}
     <section hidden={page !== 'settings'} aria-label={t('Réglages')} className="automation-hub__settings"><AutomationSettings /></section>
     <footer className="automation-hub__footer"><Users size={16} aria-hidden="true" /><span>{t('Un espace partagé. Chacun conserve les droits de son rôle.')}</span></footer>
   </div>;

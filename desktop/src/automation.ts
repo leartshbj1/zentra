@@ -32,6 +32,7 @@ export type AutomationCounts = {
   observed: number;
 };
 export type AutomationActivity = {
+  workflows?:{tasks:number;drafts:number;summaries:number;open:number;review:number;observed:number};
   appointments?:{imported:number;pending:number};
   supplierInbox?:{received:number;imported:number;automatic:number;needsReview:number;recent:{id:string;subject:string;state:string;automatic:number;imported_at:number}[]};
   date: string;

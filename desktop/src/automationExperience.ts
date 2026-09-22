@@ -1,6 +1,6 @@
 import { featureReady, type AutomationFeature, type AutomationState } from './automation';
 
-export type AutomationPage = 'overview' | 'tools' | 'settings';
+export type AutomationPage = 'overview' | 'tools' | 'centre' | 'settings';
 export type AutomationDestination = 'bank' | 'projects' | 'expenses' | 'catalog' | 'invoices' | 'settings';
 export function automationReadiness(state: AutomationState) {
   if (!state.active) return 'inactive';
