@@ -1,6 +1,6 @@
 import { database } from '@/lib/runtime';
 import type { AutomationActor } from './access';
-import { automationEntitlement } from './service';
+import { automationEntitlement } from './entitlement';
 import { globalFlags, settingsFor } from './config';
 import { FEATURES, type Feature } from './types';
 import { inboxDaily } from '@/lib/supplier-inbox/service';
@@ -91,7 +91,7 @@ async function companyActivity(actor: AutomationActor, now: Date) {
       .prepare(
         'SELECT display_name FROM organization_members WHERE user_id=? AND organization_id=? AND revoked_at IS NULL',
       )
-      .bind(actor.userId,actor.organizationId)
+      .bind(actor.userId, actor.organizationId)
       .first<{ display_name: string }>(),
   ]);
   const features = rows.results.filter((row) => FEATURES.includes(row.feature));
@@ -109,8 +109,13 @@ async function companyActivity(actor: AutomationActor, now: Date) {
     displayName: name && !name.includes('@') ? name.slice(0, 80) : null,
     totals,
     features,
-    supplierInbox: await inboxDaily(actor.organizationId,day.from,day.until),
-    appointments: await appointmentDaily(actor.organizationId,day.from,day.until),
+    supplierInbox: await inboxDaily(actor.organizationId, day.from, day.until),
+    appointments: await appointmentDaily(
+      actor.organizationId,
+      day.from,
+      day.until,
+    ),
+    workflows: await workflowDaily(actor, day.from, day.until),
   };
 }
 
@@ -132,3 +137,5 @@ export async function automationCompanyState(
     activity: active ? await companyActivity(actor, now) : null,
   };
 }
+
+import { workflowDaily } from './workflow-activity';

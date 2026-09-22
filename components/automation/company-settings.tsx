@@ -6,6 +6,7 @@ import {
   type Mode,
 } from '@/lib/automation/types';
 import { FEATURE_LABELS } from './labels';
+import { AutomationControlCentre } from './control-centre';
 async function api(path: string, org: string, body?: Record<string, unknown>) {
   const res = await fetch(
     body ? path : `${path}?organizationId=${encodeURIComponent(org)}`,
@@ -253,6 +254,7 @@ export function AutomationCompanySettings({
           individuelle.
         </p>
       )}
+      {state?.active && <AutomationControlCentre key={org} organizationId={org} request={body=>api('/api/automation',org,body)} />}
       {billing?.offeredAccess &&
       billing.offeredUntil &&
       !billing.hasSubscription ? (

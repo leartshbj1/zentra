@@ -4,6 +4,7 @@ import { database, runtimeValue } from '@/lib/runtime';
 import { enforceAccountRateLimit, normalizedEmail } from '@/lib/account';
 import { AccountPublicError } from '@/lib/account-security';
 import { captureAppointment } from '@/lib/appointments/service';
+import { dispatchMailWorkflows } from '@/lib/automation/workflows';
 import {
   readJsonObjectWithinLimit,
   RequestBodyError,
@@ -1234,6 +1235,8 @@ export async function processTicket(
           : decision.reason,
       manual ? actor : 'Zentra Support',
     );
+    // A failed optional workflow must not undo the successfully received/routed ticket.
+    await dispatchMailWorkflows(workspace.id,id).catch(()=>{});
   } catch (error) {
     await finishAnalysis(reservation, false);
     const message =

@@ -7,6 +7,7 @@ import { automationCompanyState } from '@/lib/automation/activity';
 import { recordFeedback, requestDecision } from '@/lib/automation/service';
 import { DecisionFailure } from '@/lib/automation/types';
 import { AccountPublicError } from '@/lib/account-security';
+import { workflowCentre, saveWorkflow, previewWorkflow, workflowAction } from '@/lib/automation/workflows';
 export const dynamic = 'force-dynamic';
 const json = (v: unknown) =>
   Response.json(v, { headers: accountNoStoreHeaders() });
@@ -37,6 +38,11 @@ export async function POST(request: Request) {
     }
     if (body.action === 'feedback')
       return json(await recordFeedback(actor, body));
+    if (body.action === 'centre') return json(await workflowCentre(actor));
+    if (body.action === 'workflow_save') return json(await saveWorkflow(actor, body));
+    if (body.action === 'workflow_preview') return json(await previewWorkflow(actor, body));
+    if (['workflow_confirm','workflow_cancel','workflow_retry','workflow_undo','work_item_update'].includes(String(body.action)))
+      return json(await workflowAction(actor,body));
     throw new AccountPublicError('Cette action n’est pas disponible.');
   } catch (error) {
     return accountJsonError(

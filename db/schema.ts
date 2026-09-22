@@ -891,3 +891,26 @@ export const automationSupplierHabits = sqliteTable('automation_supplier_habits'
  sender:text('sender').notNull(),supplierName:text('supplier_name').notNull(),supplierId:text('supplier_id').notNull(),
  category:text('category').notNull(),accountId:text('account_id'),updatedAt:integer('updated_at').notNull(),updatedBy:text('updated_by').notNull(),
 },t=>[uniqueIndex('automation_supplier_habits_source').on(t.organizationId,t.sender,t.supplierName)]);
+
+export const automationWorkflows = sqliteTable('automation_workflows', {
+ id:text('id').primaryKey(), organizationId:text('organization_id').notNull().references(()=>organizations.organizationId),
+ name:text('name').notNull(), definition:text('definition').notNull(), enabled:integer('enabled').notNull().default(0),
+ revision:integer('revision').notNull().default(1), createdBy:text('created_by').notNull(),
+ createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),
+},t=>[index('automation_workflows_company').on(t.organizationId,t.enabled)]);
+export const automationWorkflowRuns = sqliteTable('automation_workflow_runs', {
+ id:text('id').primaryKey(),organizationId:text('organization_id').notNull().references(()=>organizations.organizationId),
+ workflowId:text('workflow_id').notNull().references(()=>automationWorkflows.id),workflowRevision:integer('workflow_revision').notNull(),
+ sourceId:text('source_id').notNull(),sourceVersion:text('source_version').notNull(),title:text('title').notNull(),
+ definition:text('definition').notNull(),state:text('state').notNull(),result:text('result').notNull().default('{}'),
+ attempts:integer('attempts').notNull().default(0),revision:integer('revision').notNull().default(1),
+ lease:text('lease'),leaseUntil:integer('lease_until').notNull().default(0),dueAt:integer('due_at').notNull().default(0),
+ createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),finishedAt:integer('finished_at'),
+},t=>[uniqueIndex('automation_workflow_run_source').on(t.workflowId,t.workflowRevision,t.sourceId,t.sourceVersion),index('automation_workflow_runs_company').on(t.organizationId,t.updatedAt),index('automation_workflow_runs_due').on(t.state,t.dueAt)]);
+export const automationWorkItems = sqliteTable('automation_work_items', {
+ id:text('id').primaryKey(),organizationId:text('organization_id').notNull().references(()=>organizations.organizationId),
+ runId:text('run_id').notNull().references(()=>automationWorkflowRuns.id),kind:text('kind').notNull(),
+ title:text('title').notNull(),body:text('body').notNull(),state:text('state').notNull().default('open'),
+ assignedTo:text('assigned_to'),dueAt:integer('due_at'),revision:integer('revision').notNull().default(1),
+ createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),updatedBy:text('updated_by').notNull(),
+},t=>[index('automation_work_items_company').on(t.organizationId,t.state,t.createdAt)]);
