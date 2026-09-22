@@ -10,8 +10,11 @@ export function InvitationAccept({ token }: { token: string }) {
     role: string;
   } | null>(null);
   const [error, setError] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
 
   async function accept() {
+    if (busy) return;
     setBusy(true);
     setError('');
     try {
@@ -19,7 +22,7 @@ export function InvitationAccept({ token }: { token: string }) {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token, firstName, lastName }),
       });
       const body = (await response.json()) as {
         organization?: { name?: string; role?: string };
@@ -50,7 +53,7 @@ export function InvitationAccept({ token }: { token: string }) {
         <h2 className="mt-4 text-2xl font-semibold">Bienvenue dans l’équipe</h2>
         <p className="mt-2 leading-7 text-[#52645a]">
           Votre accès à <strong>{organization.name}</strong> est actif. Vous pouvez
-          maintenant ouvrir Zentra, choisir « Rejoindre une entreprise » et vous connecter avec la même adresse e-mail. Si le titulaire a partagé la copie complète, elle sera récupérée automatiquement : clients, devis, factures, projets et documents.
+          maintenant ouvrir Zentra et sélectionner cette entreprise avec la même adresse e-mail. Les données partagées seront récupérées automatiquement.
         </p>
         <a
           href="/compte"
@@ -64,17 +67,24 @@ export function InvitationAccept({ token }: { token: string }) {
   }
 
   return (
-    <div className="rounded-3xl border border-[#d9d4c9] bg-white p-6 shadow-[0_20px_60px_rgba(29,45,35,.08)]">
+    <form onSubmit={event => { event.preventDefault(); void accept(); }} className="rounded-2xl border border-[#d9d4c9] bg-white p-6">
       <UsersRound className="size-9 text-[#a66b1f]" />
       <h2 className="mt-4 text-xl font-semibold">Rejoindre cette entreprise</h2>
       <p className="mt-2 text-sm leading-6 text-[#5f6962]">
-        L’accès sera lié au compte personnel avec lequel vous êtes connecté. Vos
-        droits dépendront du rôle choisi par l’administrateur.
+        Votre nom apparaîtra comme interlocuteur sur les devis que vous créez.
       </p>
+      <fieldset disabled={busy} className="mt-6 grid min-w-0 gap-4 border-0 p-0 sm:grid-cols-2">
+        <legend className="sr-only">Votre identité dans l’entreprise</legend>
+        <label className="grid min-w-0 gap-2 text-sm font-medium">Prénom
+          <input name="firstName" autoComplete="given-name" required maxLength={70} value={firstName} onChange={event => setFirstName(event.target.value)} className="min-h-12 min-w-0 w-full rounded-xl border border-[#cbc7bd] px-3 text-base" />
+        </label>
+        <label className="grid min-w-0 gap-2 text-sm font-medium">Nom
+          <input name="lastName" autoComplete="family-name" required maxLength={70} value={lastName} onChange={event => setLastName(event.target.value)} className="min-h-12 min-w-0 w-full rounded-xl border border-[#cbc7bd] px-3 text-base" />
+        </label>
+      </fieldset>
       <button
-        type="button"
-        onClick={() => void accept()}
-        disabled={busy || !token}
+        type="submit"
+        disabled={busy || !token || !firstName.trim() || !lastName.trim()}
         className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white disabled:opacity-60"
       >
         {busy ? <LoaderCircle className="size-4 animate-spin" /> : null}
@@ -85,6 +95,6 @@ export function InvitationAccept({ token }: { token: string }) {
           {error}
         </p>
       ) : null}
-    </div>
+    </form>
   );
 }

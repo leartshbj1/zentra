@@ -1,3 +1,4 @@
+import { supportAutomationState, requireSupportAutomation, supportAutomationFetch } from '@/lib/automation/execution';
 import { database } from '@/lib/runtime';
 import { AccountPublicError, sha256Hex } from '@/lib/account-security';
 import { workspaceLink, gestionActive } from '@/lib/supplier-inbox/service';
@@ -47,7 +48,7 @@ export async function captureAppointment(
   workspace: Workspace,
   source: SourceTicket,
 ) {
-  if (!source.mail) return;
+  if (!source.mail || !(await supportAutomationState(workspace.id)).enabled) return;
   const link = await workspaceLink(workspace.id);
   if (
     !link?.enabled ||
@@ -84,11 +85,12 @@ export async function captureAppointment(
   try {
     const key = await decisionApiKey(),
       extraction = await extractAppointment(
-        new JevDecisionProvider(key),
+        new JevDecisionProvider(key,supportAutomationFetch(workspace.id,'email_classification')),
         source.subject,
         source.body,
         source.mail.calendarText,
       );
+    await requireSupportAutomation(workspace.id);
     if (source.incomplete)
       extraction.issues.push(
         'Le message est incomplet. Vérifiez le rendez-vous.',

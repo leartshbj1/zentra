@@ -22,7 +22,7 @@ import { AUTOMATION_PRODUCT, AUTOMATION_PRICE_CENTS } from './types';
 import { AUTOMATION_CONSENT_VERSION } from './config';
 import { automationGrant } from './founder-access';
 
-export const AUTOMATION_TERMS_VERSION = 'automation-2026-09-20';
+export const AUTOMATION_TERMS_VERSION = 'automation-2026-09-22';
 type Config = {
   productId: string;
   priceId: string;
@@ -74,6 +74,54 @@ export function validAutomationPrice(
     price.metadata.service === AUTOMATION_PRODUCT
   );
 }
+/** Called only by the authenticated founder's billing setup action. */
+export async function configureAutomationWebhook(stripe: Stripe) {
+  const live = stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'));
+  const endpointId = runtimeValue('STRIPE_WEBHOOK_ENDPOINT_ID');
+  const expectedUrl = runtimeValue('PUBLIC_SITE_URL') + '/api/stripe/webhook';
+  const hook = await stripe.webhookEndpoints.retrieve(
+    runtimeValue('STRIPE_WEBHOOK_ENDPOINT_ID'),
+  );
+  if (
+    live === null ||
+    hook.id !== endpointId ||
+    hook.status !== 'enabled' ||
+    hook.livemode !== live ||
+    hook.api_version !== STRIPE_API_VERSION ||
+    hook.url !== expectedUrl
+  )
+    throw new AccountPublicError(
+      'La réception des paiements doit être configurée avant l’ouverture.',
+      503,
+    );
+  if (
+    !hook.enabled_events.includes('*') &&
+    !REQUIRED_STRIPE_WEBHOOK_EVENTS.every((e) =>
+      hook.enabled_events.includes(e),
+    )
+  ) {
+    const updated = await stripe.webhookEndpoints.update(endpointId, {
+      enabled_events: [
+        ...new Set([...hook.enabled_events, ...REQUIRED_STRIPE_WEBHOOK_EVENTS]),
+      ] as Stripe.WebhookEndpointUpdateParams.EnabledEvent[],
+    });
+    if (
+      updated.id !== endpointId ||
+      updated.url !== expectedUrl ||
+      updated.status !== 'enabled' ||
+      updated.livemode !== live ||
+      updated.api_version !== STRIPE_API_VERSION ||
+      !REQUIRED_STRIPE_WEBHOOK_EVENTS.every((e) =>
+        updated.enabled_events.includes(e),
+      )
+    )
+      throw new AccountPublicError(
+        'Les notifications de paiement doivent être vérifiées.',
+        503,
+      );
+  }
+}
+
 export async function provisionAutomationBilling(actor: string) {
   const stripe = automationStripe(),
     live = stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'))!;
@@ -83,23 +131,7 @@ export async function provisionAutomationBilling(actor: string) {
       'Terminez l’activation du compte vendeur Stripe.',
       503,
     );
-  const hook = await stripe.webhookEndpoints.retrieve(
-    runtimeValue('STRIPE_WEBHOOK_ENDPOINT_ID'),
-  );
-  if (
-    hook.status !== 'enabled' ||
-    hook.livemode !== live ||
-    hook.api_version !== STRIPE_API_VERSION ||
-    hook.url !== runtimeValue('PUBLIC_SITE_URL') + '/api/stripe/webhook' ||
-    !REQUIRED_STRIPE_WEBHOOK_EVENTS.every(
-      (e) =>
-        hook.enabled_events.includes('*') || hook.enabled_events.includes(e),
-    )
-  )
-    throw new AccountPublicError(
-      'La réception des paiements doit être configurée avant l’ouverture.',
-      503,
-    );
+  await configureAutomationWebhook(stripe);
   const productId = 'zentra_automation_15chf_20260920';
   const product = await stripe.products
     .create(
@@ -189,13 +221,14 @@ export async function automationBillingState(organizationId: string) {
     automationGrant(organizationId),
     database()
       .prepare(
-        'SELECT status,paid_until,cancel_at_period_end FROM automation_subscriptions WHERE organization_id=?',
+        `SELECT status,paid_until,cancel_at_period_end,EXISTS(SELECT 1 FROM automation_refunds r WHERE r.invoice_id=a.last_paid_invoice_id AND r.customer_id=a.customer_id AND r.livemode=a.livemode) AS refunded FROM automation_subscriptions a WHERE organization_id=?`,
       )
       .bind(organizationId)
       .first<{
         status: string;
         paid_until: number;
         cancel_at_period_end: number;
+        refunded: number;
       }>(),
   ]);
   return {
@@ -206,6 +239,7 @@ export async function automationBillingState(organizationId: string) {
     status: row?.status ?? 'none',
     periodEnd: row?.paid_until ?? null,
     cancelAtPeriodEnd: !!row?.cancel_at_period_end,
+    refunded: !!row?.refunded,
     hasSubscription:
       !!row && !['canceled', 'incomplete_expired'].includes(row.status),
   };
@@ -474,8 +508,7 @@ async function reconcile(
   if (
     previous &&
     previous.subscription_id !== subscription.id &&
-    (previous.paid_until > now() ||
-      !['canceled', 'incomplete_expired'].includes(previous.status))
+    !['canceled', 'incomplete_expired'].includes(previous.status)
   )
     throw new AccountPublicError('Un autre abonnement est déjà actif.', 409);
   const paid = invoice
@@ -486,9 +519,13 @@ async function reconcile(
       'La facture Automation doit être vérifiée.',
       503,
     );
+  const refunded =
+    invoice && paid
+      ? await fullyRefundedAutomationInvoice(automationStripe(), invoice.id)
+      : false;
   await database()
     .prepare(
-      `INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,last_paid_invoice_id,cancel_at_period_end,livemode,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(organization_id) DO UPDATE SET subscription_id=excluded.subscription_id,customer_id=excluded.customer_id,status=excluded.status,paid_from=CASE WHEN excluded.paid_until>automation_subscriptions.paid_until THEN excluded.paid_from ELSE automation_subscriptions.paid_from END,paid_until=MAX(excluded.paid_until,automation_subscriptions.paid_until),last_paid_invoice_id=CASE WHEN excluded.paid_until>automation_subscriptions.paid_until THEN excluded.last_paid_invoice_id ELSE automation_subscriptions.last_paid_invoice_id END,cancel_at_period_end=excluded.cancel_at_period_end,livemode=excluded.livemode,updated_at=excluded.updated_at`,
+      `INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,last_paid_invoice_id,cancel_at_period_end,livemode,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(organization_id) DO UPDATE SET subscription_id=excluded.subscription_id,customer_id=excluded.customer_id,status=excluded.status,paid_from=CASE WHEN excluded.subscription_id<>automation_subscriptions.subscription_id OR excluded.paid_until>automation_subscriptions.paid_until THEN excluded.paid_from ELSE automation_subscriptions.paid_from END,paid_until=CASE WHEN excluded.subscription_id<>automation_subscriptions.subscription_id THEN excluded.paid_until ELSE MAX(excluded.paid_until,automation_subscriptions.paid_until) END,last_paid_invoice_id=CASE WHEN excluded.subscription_id<>automation_subscriptions.subscription_id OR excluded.paid_until>automation_subscriptions.paid_until THEN excluded.last_paid_invoice_id ELSE automation_subscriptions.last_paid_invoice_id END,cancel_at_period_end=excluded.cancel_at_period_end,livemode=excluded.livemode,updated_at=excluded.updated_at`,
     )
     .bind(
       org.organization_id,
@@ -503,9 +540,120 @@ async function reconcile(
       now(),
     )
     .run();
+  if (refunded && invoice)
+    await revokeRefundedInvoice(
+      invoice.id,
+      ref(subscription.customer),
+      config.livemode,
+    );
+  // Initialise only once. Reactivation keeps the company's saved preferences.
+  if (paid && !refunded)
+    await database()
+      .prepare(
+        `INSERT INTO automation_settings(organization_id,enabled,mode,flags,updated_at) VALUES(?,0,'shadow','[]',?) ON CONFLICT(organization_id) DO NOTHING`,
+      )
+      .bind(org.organization_id, now())
+      .run();
   return true;
 }
+
+export async function fullyRefundedAutomationInvoice(
+  stripe: Stripe,
+  invoiceId: string,
+) {
+  const payments = await stripe.invoicePayments.list({
+    invoice: invoiceId,
+    status: 'paid',
+    limit: 100,
+  });
+  if (payments.has_more)
+    throw new AccountPublicError(
+      'Les paiements de cette facture doivent être vérifiés.',
+      503,
+    );
+  const paid = payments.data.filter((p) => (p.amount_paid ?? 0) > 0);
+  if (!paid.length) return false;
+  for (const payment of paid) {
+    let chargeId = '';
+    if (payment.payment.type === 'charge')
+      chargeId = ref(payment.payment.charge);
+    else if (payment.payment.type === 'payment_intent') {
+      const intent = await stripe.paymentIntents.retrieve(
+        ref(payment.payment.payment_intent),
+      );
+      chargeId = ref(intent.latest_charge);
+    }
+    if (!chargeId) return false;
+    const charge = await stripe.charges.retrieve(chargeId);
+    if (
+      !charge.refunded ||
+      charge.amount_captured <= 0 ||
+      charge.amount_refunded < charge.amount_captured
+    )
+      return false;
+  }
+  return true;
+}
+async function revokeRefundedInvoice(
+  invoiceId: string,
+  customerId: string,
+  livemode: boolean,
+) {
+  await database()
+    .prepare(
+      'INSERT INTO automation_refunds(invoice_id,customer_id,livemode,verified_at) VALUES(?,?,?,?) ON CONFLICT(invoice_id) DO UPDATE SET verified_at=excluded.verified_at',
+    )
+    .bind(invoiceId, customerId, Number(livemode), now())
+    .run();
+}
+async function reconcileAutomationRefund(event: Stripe.Event) {
+  const config = await automationBillingConfig();
+  if (!config || event.livemode !== config.livemode) return false;
+  const stripe = automationStripe(),
+    charge = await stripe.charges.retrieve(
+      (event.data.object as Stripe.Charge).id,
+    );
+  if (!charge.refunded) return false;
+  const paymentIntent = ref(charge.payment_intent);
+  if (!paymentIntent) return false; // All Zentra Automation checkouts use PaymentIntents.
+  const payments = await stripe.invoicePayments.list({
+    payment: { type: 'payment_intent', payment_intent: paymentIntent },
+    limit: 100,
+  });
+  if (payments.has_more)
+    throw new AccountPublicError('Le remboursement doit être vérifié.', 503);
+  let handled = false;
+  for (const invoiceId of new Set(payments.data.map((p) => ref(p.invoice)))) {
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+    const subscriptionId = ref(
+      invoice.parent?.subscription_details?.subscription,
+    );
+    if (
+      !subscriptionId ||
+      invoice.livemode !== config.livemode ||
+      ref(invoice.customer) !== ref(charge.customer)
+    )
+      continue;
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    if (
+      subscription.metadata.service !== AUTOMATION_PRODUCT ||
+      subscription.livemode !== config.livemode ||
+      ref(subscription.customer) !== ref(charge.customer)
+    )
+      continue;
+    if (await fullyRefundedAutomationInvoice(stripe, invoiceId)) {
+      await revokeRefundedInvoice(
+        invoiceId,
+        ref(charge.customer),
+        config.livemode,
+      );
+      handled = true;
+    }
+  }
+  return handled;
+}
 export async function persistAutomationStripeEvent(event: Stripe.Event) {
+  if (event.type === 'charge.refunded') return reconcileAutomationRefund(event);
   const id = subscriptionIdFromStripeEvent(event);
   if (!id) return false;
   const object = event.data.object as unknown as {

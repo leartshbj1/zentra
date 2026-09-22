@@ -14,6 +14,21 @@
 .support-app * {
   box-sizing: border-box;
 }
+.support-automation-access {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 0;
+  margin-bottom: 24px;
+  border-block: 1px solid var(--s-line);
+}
+.support-automation-access > div { min-width: 0; }
+.support-automation-access p { margin: 6px 0 0; color: var(--s-muted); }
+.support-automation-access a { min-height: 44px; flex-shrink: 0; font-weight: 600; color: var(--s-accent); }
+@media (max-width: 600px) {
+  .support-automation-access { align-items: flex-start; flex-direction: column; gap: 8px; }
+}
 .support-app a {
   display: inline-flex;
   align-items: center;

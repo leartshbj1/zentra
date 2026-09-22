@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import {
   parseDecision,
@@ -562,15 +562,7 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     state.signedOut = false;
     sql = new DatabaseSync(':memory:');
     sql.exec('PRAGMA foreign_keys=ON');
-    sql.exec(
-      readFileSync(
-        new URL(
-          '../../drizzle/0041_mysterious_brother_voodoo.sql',
-          import.meta.url,
-        ).pathname.replace(/^\/([A-Z]:)/, '$1'),
-        'utf8',
-      ),
-    );
+    for(const file of readdirSync(new URL('../../drizzle/',import.meta.url)).filter(n=>n.endsWith('.sql')).sort())sql.exec(readFileSync(new URL('../../drizzle/'+file,import.meta.url),'utf8'));
     state.db = {
       async batch(statements: { run: () => Promise<unknown> }[]) {
         sql.exec('BEGIN');
@@ -606,29 +598,6 @@ describe('Parcours complet dans une vraie base SQLite', () => {
         return api;
       },
     };
-    sql.exec(
-      readFileSync(
-        new URL(
-          '../../drizzle/0042_support_triage_context.sql',
-          import.meta.url,
-        ).pathname.replace(/^\/([A-Z]:)/, '$1'),
-        'utf8',
-      ),
-    );
-    for (const name of [
-      '0043_support_billing',
-      '0044_support_onboarding',
-      '0045_support_oauth_rotation',
-      '0046_founder_support_access',
-      '0052_support_mailboxes',
-      '0055_supplier_inbox',
-    ])
-      sql.exec(
-        readFileSync(
-          new URL('../../drizzle/' + name + '.sql', import.meta.url),
-          'utf8',
-        ),
-      );
     state.user = {
       userId: 'owner-1',
       email: 'owner@example.test',
@@ -654,6 +623,8 @@ describe('Parcours complet dans une vraie base SQLite', () => {
         "INSERT INTO support_subscriptions(workspace_id,subscription_id,customer_id,plan_id,status,paid_from,paid_until,paid_plan_id,livemode,updated_at) VALUES(?,'sub_fixture','cus_fixture','team','active',?,?,'team',0,?)",
       )
       .run(workspace, time - 60, time + 86400, time);
+    sql.exec("INSERT INTO subscriptions(subscription_id,customer_id,price_id,status,current_period_end,entitlement_valid_until,livemode,updated_at) VALUES('base','cus','price','active',2000000000,2000000000,0,1);INSERT INTO organizations VALUES('org','Company','base','owner-1',1,1);INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES('mem','org','owner-1','owner@example.test','owner',1);INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,livemode,updated_at) VALUES('org','addon','cus','active',1,2000000000,0,1);INSERT INTO automation_platform VALUES('features','[\"email_classification\",\"supplier_routing\"]','admin',1);INSERT INTO automation_settings(organization_id,enabled,mode,flags,consent_version,updated_at) VALUES('org',1,'suggest','[\"email_classification\",\"supplier_routing\"]','automation-2026-09-20',1)");
+    sql.prepare("INSERT INTO support_gestion_links VALUES(?,'org',1,0,'owner-1',1)").run(workspace);
     const created = await json(
       await post({ action: 'connect', provider: 'api', label: 'QA API' }),
     );
@@ -671,6 +642,28 @@ describe('Parcours complet dans une vraie base SQLite', () => {
   afterEach(() => {
     sql.close();
     vi.unstubAllGlobals();
+  });
+  it('reçoit les tickets sans Automation et permet leur classement manuel sans appel Jev', async () => {
+    sql.exec("UPDATE automation_subscriptions SET status='canceled'");
+    vi.mocked(fetch).mockClear();
+    const response=await json(await hook({ticketId:'manual-only',subject:'Question',body:'Comment utiliser mon produit ?'}));
+    expect(response).toMatchObject({automationRequired:true,retry:false,ticket:{state:'pending'}});
+    expect(fetch).not.toHaveBeenCalled();
+    const ticket=response.ticket;
+    await post({action:'approve',ticketId:ticket.id,revision:ticket.revision,category:'product',priority:'normal',destination:{teamId:'support'}});
+    expect(fetch).not.toHaveBeenCalled();
+    const saved=sql.prepare('SELECT * FROM support_tickets WHERE id=?').get(ticket.id)!;
+    expect(saved).toMatchObject({state:'ready',automatic:0});
+    await expect(post({action:'retry',ticketId:ticket.id,revision:saved.revision})).rejects.toMatchObject({status:402});
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('ne publie pas une décision automatique si Automation expire pendant l’appel Jev', async () => {
+    await post({action:'settings',name:'Support',mode:'automatic',threshold:85,baselineSeconds:60});
+    vi.mocked(fetch).mockImplementationOnce(async()=>{sql.exec("UPDATE automation_subscriptions SET status='unpaid'");return Response.json(answer());});
+    await expect(hook({ticketId:'expired-during-call',subject:'Erreur',body:'Le produit ne fonctionne pas'})).rejects.toMatchObject({status:402});
+    const saved=sql.prepare("SELECT * FROM support_tickets WHERE external_id='expired-during-call'").get()!;
+    expect(saved).toMatchObject({state:'error',automatic:0,routed_at:null});
+    expect(sql.prepare("SELECT COUNT(*) AS n FROM support_analysis_usage WHERE state='reserved'").get()?.n).toBe(0);
   });
   it('connecte IMAP, chiffre le mot de passe, importe une seule fois et conserve le curseur après reconnexion', async () => {
     const mail = {
@@ -718,6 +711,8 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     } finally { open.mockRestore(); }
   });
   it('analyse le PDF avec Jev, classe une facture fournisseur automatiquement et permet sa relecture sans doublon', async () => {
+    // This test exercises Support classification. Invoice extraction has its own suite.
+    sql.exec("UPDATE automation_settings SET flags='[\"email_classification\"]'");
     const uid='201', mailboxId='imap:inbox@example.test', folderId='imap:INBOX:100';
     const mail = {
       mailboxId,folderId,nextUid:200,close:vi.fn(),list:vi.fn().mockResolvedValue({messages:[{uid,date:Math.floor(Date.now()/1000)}],count:1}),

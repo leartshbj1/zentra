@@ -50,8 +50,8 @@ export default function AutomationPage() {
               <span>15 CHF / mois par entreprise</span>
             </div>
             <p className="automation-fine">
-              En complément de Zentra Gestion. Activation volontaire,
-              résiliation à la prochaine échéance.
+              Option payante, distincte de Gestion et Support, pour l’entreprise
+              choisie et ses collaborateurs autorisés. Résiliation à la prochaine échéance.
             </p>
             <a className="automation-how-link" href="#utilisation">
               Voir comment l’activer dans l’application
@@ -116,8 +116,9 @@ export default function AutomationPage() {
               ))}
             </div>
             <p className="automation-control-note">
-              Vous gardez la validation des paiements, des factures et des
-              écritures comptables. Une suggestion ne déclenche pas ces actions.
+              Les suggestions restent à vérifier. Les traitements automatiques
+              suivent les fonctions, les seuils et les autorisations que vous
+              activez. Aucun paiement bancaire n’est exécuté par Automation.
             </p>
           </section>
           <section className="automation-benefits">
@@ -193,8 +194,8 @@ export default function AutomationPage() {
                 'Non. Vous pouvez choisir l’option lors de la configuration ou plus tard dans votre compte. Refuser l’option ne bloque pas les fonctions habituelles de Zentra Gestion.',
               ],
               [
-                'Une suggestion peut-elle modifier ma comptabilité ?',
-                'Une catégorie ou un parcours vous est proposé. Les paiements, validations comptables et autres opérations sensibles conservent leurs contrôles et votre confirmation.',
+                'Que peut faire Automation sans mon intervention ?',
+                'Les suggestions seules ne modifient pas vos données. Vous pouvez aussi autoriser des traitements précis, comme le routage des tickets ou le traitement des factures reçues, selon vos réglages et leurs contrôles. Les cas incertains restent à vérifier. Automation n’exécute aucun paiement bancaire.',
               ],
               [
                 'Que se passe-t-il si la connexion est coupée ?',
@@ -202,7 +203,7 @@ export default function AutomationPage() {
               ],
               [
                 'Est-ce le même produit que Zentra Support ?',
-                'Non. Automation accompagne la gestion de votre entreprise. Zentra Support est un produit indépendant pour le tri et le routage des tickets de votre service client.',
+                'Non. Support rassemble les demandes de votre service client. Automation est une option distincte qui ajoute le classement intelligent et le routage automatique à l’espace Support relié à votre entreprise Gestion. Une activation concerne seulement cette entreprise.',
               ],
             ].map(([title, body]) => (
               <details key={title}>

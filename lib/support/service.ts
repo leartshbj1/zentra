@@ -1,3 +1,4 @@
+import { supportAutomationState, requireSupportAutomation, supportAutomationFetch } from '@/lib/automation/execution';
 import { getZentraUser, type ZentraUser } from '@/app/zentra-auth';
 import { database, runtimeValue } from '@/lib/runtime';
 import { enforceAccountRateLimit, normalizedEmail } from '@/lib/account';
@@ -400,6 +401,7 @@ export async function getWorkspaceState(request: Request) {
     connections: connections.results.map(publicConnection),
     mailboxes: await mailboxStates(workspace.id),
     gestion: await gestionLinkState(workspace.id,user.userId,manage),
+    automation: (({active,enabled})=>({active,enabled}))(await supportAutomationState(workspace.id)),
     mailSync: {
       background: runtimeValue('SUPPORT_MAIL_BACKGROUND_ENABLED') === '1',
     },
@@ -924,6 +926,7 @@ export async function mutateWorkspace(request: Request) {
       );
     const c = await connectionFor(workspace.id, ticket.connection_id);
     if (action === 'retry') {
+      await requireSupportAutomation(workspace.id);
       if (c.provider !== 'api') {
         const fresh = c.provider === 'infomaniak' ? await refreshMailboxTicket(workspace, c, JSON.parse(ticket.source_json) as SourceTicket) : await readProviderTicket(
           c,
@@ -1048,6 +1051,7 @@ export async function processTicket(
   expectedRevision?: number,
 ) {
   if (workspace.mode === 'paused' && !manual) return;
+  if (!manual && !(await supportAutomationState(workspace.id)).enabled) return;
   await requireSupportSubscription(workspace);
   const db = database(),
     lease = crypto.randomUUID(),
@@ -1119,8 +1123,10 @@ export async function processTicket(
         );
       source = fresh;
     }
-    if (!manual)
+    if (!manual) {
+      await requireSupportAutomation(currentWorkspace.id);
       reservation = await reserveAnalysis(currentWorkspace, id, lease);
+    }
     let decision =
       manual ??
       (await evaluateTicket(
@@ -1129,7 +1135,7 @@ export async function processTicket(
         mailAnalysisBody(source),
         JSON.parse(active.routes_json) as Rules,
         currentWorkspace.threshold,
-        undefined,
+        supportAutomationFetch(currentWorkspace.id,'email_classification'),
         currentWorkspace.triage_context || '',
       ));
     await finishAnalysis(reservation, true);
@@ -1172,6 +1178,7 @@ export async function processTicket(
         JSON.parse(active.directory_json) as Directory,
         active.provider,
       );
+    if (!manual) await requireSupportAutomation(currentWorkspace.id);
     const shouldRoute = !!manual || auto;
     await db
       .prepare(
@@ -1230,7 +1237,7 @@ export async function processTicket(
   } catch (error) {
     await finishAnalysis(reservation, false);
     const message =
-      error instanceof SupportError
+      error instanceof SupportError || error instanceof AccountPublicError
         ? error.message
         : 'Le traitement a été interrompu. Le ticket est conservé ; réessayez.';
     await db
@@ -1277,7 +1284,8 @@ export async function receiveHook(request: Request, connectionId: string) {
       )
       .bind(c.id, workspace.id)
       .all<Ticket>();
-    return supportJson({ decisions: rows.results.map(publicTicket) });
+    const automation = await supportAutomationState(workspace.id);
+    return supportJson({ decisions: rows.results.filter(row => !row.automatic || automation.enabled).map(publicTicket) });
   }
   const body = await readJsonObjectWithinLimit(request, 48000);
   if (body.action === 'acknowledge' && c.provider === 'api') {
@@ -1375,8 +1383,9 @@ export async function receiveHook(request: Request, connectionId: string) {
     .prepare('SELECT * FROM support_tickets WHERE workspace_id=? AND id=?')
     .bind(workspace.id, ticket.id)
     .first<Ticket>();
+  const automation = await supportAutomationState(workspace.id);
   return supportJson(
-    { ticket: publicTicket(updated!), retry: updated?.state === 'pending' },
+    { ticket: publicTicket(updated!), retry: automation.enabled && updated?.state === 'pending', automationRequired: !automation.active },
     updated?.state === 'pending' ? 202 : 200,
   );
 }

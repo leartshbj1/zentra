@@ -7,7 +7,7 @@ export default function Page() {
   return (
     <LegalPage
       title="Conditions de Zentra Automation"
-      versionDate="20 septembre 2026"
+      versionDate="22 septembre 2026"
       intro="Option mensuelle destinée aux entreprises utilisant Zentra Gestion."
       sections={[
         {
@@ -42,7 +42,7 @@ export default function Page() {
               <p>
                 15 CHF par mois et par entreprise, en complément d’un abonnement
                 Zentra Gestion actif. Les personnes autorisées suivent les
-                limites de cette formule. Zentra Support est un autre produit.
+                limites de cette formule. L’option est propre à l’entreprise choisie et partagée selon les droits de ses membres, sans frais Automation par collaborateur. Elle n’est incluse ni dans Gestion ni dans Support. Pour automatiser Support, son espace doit être relié à cette entreprise et disposer de son propre abonnement Support.
                 L’éditeur n’est pas assujetti à la TVA suisse.
               </p>
               <p>
@@ -69,6 +69,7 @@ export default function Page() {
                 abonnement » pour résilier. La résiliation prend effet à la fin
                 de la période payée.
               </p>
+              <p>Une échéance échouée ne prolonge pas la période déjà payée. Un impayé confirmé, une expiration ou le remboursement intégral de la période en cours arrête les traitements automatiques. Les réglages et les données sont conservés. Un paiement ultérieur confirmé rétablit l’accès au même espace ; les fonctions manuelles des produits restent soumises à leurs abonnements respectifs.</p>
             </>
           ),
         },

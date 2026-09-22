@@ -1,3 +1,4 @@
+import { supportAutomationState, requireSupportAutomation, supportAutomationFetch } from '@/lib/automation/execution';
 import { database, fileArchive } from '@/lib/runtime';
 import { decisionApiKey } from '@/lib/automation/config';
 import { JevDecisionProvider } from '@/lib/automation/provider';
@@ -19,7 +20,7 @@ export async function mailboxCaptureNeeded(
   message: string,
 ) {
   const link = await workspaceLink(workspace);
-  if (!link?.enabled) return false;
+  if (!link?.enabled || !(await supportAutomationState(workspace,'supplier_routing')).enabled) return false;
   return !(await database()
     .prepare('SELECT id FROM supplier_mail_receipts WHERE id=?')
     .bind(await mailReceiptId(link.organization_id, connection, message))
@@ -37,6 +38,7 @@ export async function captureMailboxInvoices(input: {
   documents?: Map<string, PreparedMailDocument>;
 }) {
   const workspaceId = input.workspace.id;
+  if (!(await supportAutomationState(workspaceId,'supplier_routing')).enabled) return;
   const link = await workspaceLink(workspaceId);
   if (
     !link?.enabled ||
@@ -65,6 +67,7 @@ export async function captureMailboxInvoices(input: {
   // Do not silently mark an oversized mail as complete: the mailbox surfaces the reason and will retry.
   if (attachments.length > 12) throw new Error('too_many_invoice_attachments');
   for (const attachment of attachments) {
+    await requireSupportAutomation(workspaceId,'supplier_routing');
     const prepared = input.documents?.get(attachment.id);
     const bytes = prepared?.bytes ?? (input.readAttachment ? await input.readAttachment(attachment.id) : await readMailAttachment(
         input.token,
@@ -106,7 +109,7 @@ export async function captureMailboxInvoices(input: {
         extraction = await extractInvoice(
           text,
           company?.name || '',
-          new JevDecisionProvider(await decisionApiKey()),
+          new JevDecisionProvider(await decisionApiKey(),supportAutomationFetch(workspaceId,'supplier_routing')),
         );
       if (
         extraction.kind === 'other' &&
@@ -115,6 +118,7 @@ export async function captureMailboxInvoices(input: {
         await finishAnalysis(reservation, true);
         continue;
       }
+      await requireSupportAutomation(workspaceId,'supplier_routing');
       const id = crypto.randomUUID(),
         key = `supplier-inbox/${link.organization_id}/${sha}`;
       await fileArchive().put(key, bytes, {

@@ -111,6 +111,7 @@ beforeEach(async () => {
   sql.exec(
     "UPDATE subscriptions SET entitlement_valid_until=2000000000 WHERE subscription_id='sub_a'; INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,livemode,updated_at) VALUES('org_a','sub_automation_a','cus_a','active',1,2000000000,1,1)",
   );
+  sql.exec("INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES('member-owner-a','org_a','owner_a','owner@example.ch','owner',1)");
   mocks.db = { prepare };
   await setGlobalFlags(
     ['transaction_classification', 'supplier_routing'],
@@ -226,7 +227,7 @@ it('rejects cross-tenant feedback and fabricated categories', async () => {
         choices: { category: 'material' },
       },
     ),
-  ).rejects.toMatchObject({ status: 404 });
+  ).rejects.toMatchObject({ status: 403 });
   await expect(
     recordFeedback(actor, {
       id: 'id' in r ? r.id : '',
@@ -368,12 +369,12 @@ it.each(['owner', 'admin', 'accountant', 'member', 'read_only'])(
       founder: false,
       device: true,
     };
+    sql.prepare('INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES(?,?,?,?,?,1)').run(colleague.userId,'org_a',colleague.userId,colleague.userId+'@example.test',role);
     const state = await automationCompanyState(colleague);
     expect(state.active).toBe(true);
     expect(state.canManage).toBe(['owner', 'admin'].includes(role));
-    expect((await decideForActor(colleague, payload, provider())).status).toBe(
-      'suggestion',
-    );
+    if (role === 'read_only') await expect(decideForActor(colleague,payload,provider())).rejects.toMatchObject({status:403});
+    else expect((await decideForActor(colleague, payload, provider())).status).toBe('suggestion');
     expect(
       sql.prepare('SELECT COUNT(*) AS n FROM automation_subscriptions').get()
         ?.n,
@@ -386,6 +387,7 @@ it.each(['owner', 'admin', 'accountant', 'member', 'read_only'])(
 );
 
 it('aggregates the whole team but distinguishes suggestions, confirmations, observation and failed analyses', async () => {
+  sql.exec("INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES('colleague-a','org_a','colleague_a','colleague@example.test','member',1)");
   const now = new Date('2026-09-20T14:00:00Z');
   const stamp = now.getTime() / 1000;
   const add = (id: string, user = 'owner_a', confidence = 0.95) =>

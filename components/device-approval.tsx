@@ -32,6 +32,7 @@ export function DeviceApproval({
   const [error, setError] = useState('');
 
   async function approve() {
+    if (busy || !organizationId) return;
     setBusy(true);
     setError('');
     try {
@@ -88,36 +89,22 @@ export function DeviceApproval({
         spellCheck={false}
         className="mt-2 h-14 w-full rounded-2xl border border-[#cbc7bd] bg-[#fffdf9] px-4 text-center font-mono text-2xl tracking-[.15em] outline-none focus:ring-2 focus:ring-[#d69a40]"
       />
-      {memberships.length > 1 ? (
-        <>
-          <label
-            className="mt-5 block text-sm font-semibold"
-            htmlFor="organization"
-          >
-            Entreprise à ouvrir
-          </label>
-          <select
-            id="organization"
-            value={organizationId}
-            onChange={(event) => setOrganizationId(event.target.value)}
-            className="mt-2 h-12 w-full rounded-2xl border border-[#cbc7bd] bg-white px-4"
-          >
-            <option value="">Choisir une entreprise</option>
-            {memberships.map((membership) => (
-              <option
-                key={membership.organizationId}
-                value={membership.organizationId}
-              >
-                {membership.organizationName}
-              </option>
-            ))}
-          </select>
-        </>
+      {memberships.length > 0 ? (
+        <fieldset disabled={busy} className="mt-6 min-w-0 border-0 p-0">
+          <legend className="mb-3 text-base font-semibold">Quel espace ouvrir sur cet appareil ?</legend>
+          <div className="divide-y divide-[#e4e5e7] border-y border-[#e4e5e7]">
+            {memberships.map(membership => <label key={membership.organizationId} className="flex min-h-16 cursor-pointer items-center gap-3 py-4 text-base">
+              <input type="radio" name="organization" value={membership.organizationId} checked={organizationId === membership.organizationId} onChange={() => setOrganizationId(membership.organizationId)} className="size-5 shrink-0 accent-[#173d2c]" />
+              <span className="min-w-0 break-words font-medium">{membership.organizationName}</span>
+            </label>)}
+          </div>
+          <p className="mt-3 text-sm leading-6 text-[#5f6962]">Les documents, l’équipe et Automation restent liés à l’espace choisi.</p>
+        </fieldset>
       ) : null}
       <button
         type="button"
         onClick={() => void approve()}
-        disabled={busy || !userCode.trim() || memberships.length === 0}
+        disabled={busy || !userCode.trim() || !organizationId}
         className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white disabled:opacity-50"
       >
         {busy ? <LoaderCircle className="size-4 animate-spin" /> : null}

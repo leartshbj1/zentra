@@ -89,9 +89,9 @@ async function companyActivity(actor: AutomationActor, now: Date) {
       .all<ActivityRow>(),
     database()
       .prepare(
-        'SELECT display_name FROM founder_account_identities WHERE user_id=? ORDER BY last_seen_at DESC LIMIT 1',
+        'SELECT display_name FROM organization_members WHERE user_id=? AND organization_id=? AND revoked_at IS NULL',
       )
-      .bind(actor.userId)
+      .bind(actor.userId,actor.organizationId)
       .first<{ display_name: string }>(),
   ]);
   const features = rows.results.filter((row) => FEATURES.includes(row.feature));

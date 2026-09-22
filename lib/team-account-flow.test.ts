@@ -99,6 +99,32 @@ async function invitePerson(id: string, role = 'member') {
   return new URL(body.invitation.url).searchParams.get('token')!;
 }
 describe('Team account routes on the migrated database', () => {
+  it('requires the invited person’s names without consuming an incomplete invitation', async () => {
+    const token = await invitePerson('invited'); actor('invited');
+    const missing = await accept(request('/api/account/invitations/accept', { token }));
+    expect(missing.status).toBe(400);
+    expect(((await missing.json()) as {error:string}).error).toContain('prénom');
+    expect(db.prepare("SELECT accepted_at FROM organization_invitations").get()?.accepted_at).toBeNull();
+    const accepted = await accept(request('/api/account/invitations/accept', { token, firstName:' Élise ', lastName:' Du Pont ' }));
+    expect(accepted.status).toBe(200);
+    expect(db.prepare("SELECT display_name FROM organization_members WHERE user_id='invited'").get()?.display_name).toBe('Élise Du Pont');
+  });
+  it('requires a space choice for multiple memberships and binds both devices to the selected space', async () => {
+    db.exec(`INSERT INTO subscriptions(subscription_id,customer_id,price_id,status,current_period_end,livemode,updated_at,entitlement_valid_until,entitlement_plan_id,seat_limit) VALUES('sub_other','cus_other','price_start','active',2000000000,0,1,2000000000,'zentra-start-monthly-59-chf',3);
+      INSERT INTO organizations VALUES('org_other','Autre entreprise','sub_other','owner',1,1);
+      INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES('mem_other','org_other','owner','owner@example.test','owner',1);`);
+    for (const device of ['Windows','Mac']) {
+      const start = await startDevice(request('/api/account/device/start', { installationId:crypto.randomUUID(), deviceName:device }));
+      const {userCode} = await start.json() as {userCode:string};
+      expect((await approveDevice(request('/api/account/device/approve', {userCode}))).status).toBe(403);
+      const approved = await approveDevice(request('/api/account/device/approve', {userCode, organizationId:'org_test'}));
+      expect(approved.status).toBe(200);
+      expect(((await approved.json()) as {organization:{id:string}}).organization.id).toBe('org_test');
+    }
+    const bindings = db.prepare('SELECT organization_id FROM device_authorizations').all();
+    expect(bindings).toHaveLength(2);
+    expect(bindings.every(row => row.organization_id === 'org_test')).toBe(true);
+  });
   it.each(ZENTRA_PLANS)(
     'fills exactly $seats personal accesses for $name, owner included',
     async (plan) => {
@@ -112,7 +138,7 @@ describe('Team account routes on the migrated database', () => {
         );
         actor(`person${i}`);
         const response = await accept(
-          request('/api/account/invitations/accept', { token }),
+          request('/api/account/invitations/accept', { token, firstName: 'Alice', lastName: 'Martin' }),
         );
         expect(response.status).toBe(200);
         await expect(
@@ -142,16 +168,16 @@ describe('Team account routes on the migrated database', () => {
     const token = await invitePerson('invited');
     actor('outsider');
     expect(
-      (await accept(request('/api/account/invitations/accept', { token })))
+      (await accept(request('/api/account/invitations/accept', { token, firstName: 'Alice', lastName: 'Martin' })))
         .status,
     ).toBe(403);
     actor('invited');
     expect(
-      (await accept(request('/api/account/invitations/accept', { token })))
+      (await accept(request('/api/account/invitations/accept', { token, firstName: 'Alice', lastName: 'Martin' })))
         .status,
     ).toBe(200);
     expect(
-      (await accept(request('/api/account/invitations/accept', { token })))
+      (await accept(request('/api/account/invitations/accept', { token, firstName: 'Alice', lastName: 'Martin' })))
         .status,
     ).toBe(410);
     expect(
@@ -169,7 +195,7 @@ describe('Team account routes on the migrated database', () => {
   it('frees a revoked personal access and prevents a previously approved user from reconnecting', async () => {
     const token = await invitePerson('invited');
     actor('invited');
-    await accept(request('/api/account/invitations/accept', { token }));
+    await accept(request('/api/account/invitations/accept', { token, firstName: 'Alice', lastName: 'Martin' }));
     const started = await startDevice(
       request('/api/account/device/start', {
         installationId: crypto.randomUUID(),

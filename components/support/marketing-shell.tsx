@@ -34,6 +34,11 @@ export function SupportPageIntro({
       <p className="sp-kicker">ZENTRA SUPPORT / {eyebrow}</p>
       <h1>{title}</h1>
       <p className="sp-lead">{description}</p>
+      <p className="sp-caption">
+        Le classement intelligent et le routage automatique nécessitent
+        l’option <a href="/automation">Zentra Automation</a> : +15 CHF/mois
+        pour l’entreprise reliée à Zentra Gestion.
+      </p>
     </section>
   );
 }
@@ -56,7 +61,8 @@ export function SupportCallToAction() {
         </a>
       </div>
       <p className="sp-caption">
-        Démo sans compte. Compte gratuit ; analyse et routage avec abonnement.
+        Démo sans compte. Support sur abonnement ; analyse et routage automatique
+        avec l’option Automation à +15 CHF/mois par entreprise.
       </p>
     </section>
   );

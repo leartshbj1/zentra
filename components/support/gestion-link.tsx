@@ -31,10 +31,9 @@ export function GestionLink({
         </span>
         <div>
           <p className="support-eyebrow">SUPPORT → GESTION</p>
-          <h3>Vos factures arrivent au bon endroit.</h3>
+          <h3>Relier votre entreprise</h3>
           <p>
-            Recevez les justificatifs de votre boîte Infomaniak dans Achats →
-            Boîte de réception, pour toute votre équipe.
+            Avec Automation actif dans cet espace, les justificatifs arrivent dans Achats → Boîte de réception pour toute votre équipe.
           </p>
         </div>
       </div>
@@ -65,7 +64,8 @@ export function GestionLink({
           <label className="support-gestion-link__check">
             <input
               type="checkbox"
-              checked={automatic ?? link?.autoPost ?? false}
+              checked={!!data.automation?.active && (automatic ?? link?.autoPost ?? false)}
+              disabled={busy || !data.automation?.active}
               onChange={(e) => setAutomatic(e.target.checked)}
             />
             <span>
@@ -76,7 +76,7 @@ export function GestionLink({
               </small>
             </span>
           </label>
-          <p className="support-small">En reliant l’entreprise, vous autorisez la conservation privée des justificatifs et l’analyse en ligne de leurs extraits pour le préremplissage. Chaque document analysé compte dans le volume Support. <a href="/confidentialite#support-ia">Données et confidentialité</a></p>
+          <p className="support-small">Le préremplissage et le transfert automatiques nécessitent Automation. Sans cette option, vous pouvez importer vos documents manuellement dans Gestion. Chaque document analysé compte dans le volume Support. <a href="/confidentialite#support-ia">Données et confidentialité</a></p>
           <div className="support-actions">
             <Button
               disabled={busy || !org}
@@ -85,7 +85,7 @@ export function GestionLink({
                   action: 'linkGestion',
                   organizationId: org,
                   enabled: true,
-                  autoPost: automatic ?? link?.autoPost ?? false,
+                  autoPost: !!data.automation?.active && (automatic ?? link?.autoPost ?? false),
                 })
               }
             >

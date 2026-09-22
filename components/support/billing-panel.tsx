@@ -30,19 +30,20 @@ export function SupportPrices({
           </h3>
           <p>{plan.description}</p>
           <strong>
-            {plan.analyses.toLocaleString('fr-CH')} analyses / mois
+            Jusqu’à {plan.analyses.toLocaleString('fr-CH')} analyses / mois avec Automation
           </strong>
           <ul>
             <li>
-              <Check size={16} /> Tri et routage automatiques
+              <Check size={16} /> Réception et traitement manuel des tickets
             </li>
             <li>
               <Check size={16} /> Équipe incluse, sans prix par personne
             </li>
             <li>
-              <Check size={16} /> Cas incertains à valider
+              <Check size={16} /> Connexions et historique partagés
             </li>
           </ul>
+          <p className="support-small">Automation en option : +15 CHF/mois par espace pour le tri et le routage automatiques.</p>
           {onChoose ? (
             <Button
               className="support-primary"

@@ -534,7 +534,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               <ShieldCheck size={20} />
               <strong>Vous gardez la main.</strong>
               <p>
-                {data.workspace.mode === 'automatic'
+                {!demo && !data.automation?.enabled ? 'Le classement manuel est disponible.' : data.workspace.mode === 'automatic'
                   ? 'Le tri est automatique. Les cas ambigus vous sont confiés.'
                   : data.workspace.mode === 'paused'
                     ? 'Le tri est en pause.'
@@ -553,8 +553,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               tab !== 'billing' && (
                 <div className="support-notice">
                   <span>
-                    Préparez votre connexion, puis choisissez une formule pour
-                    activer le tri.
+                    Préparez votre connexion, puis choisissez une formule Support.
                   </span>
                   <Button variant="outline" onClick={() => setTab('billing')}>
                     Voir les formules
@@ -578,7 +577,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                       </p>
                       <h1>Votre support, bien orienté.</h1>
                       <p>
-                        {data.workspace.mode === 'automatic'
+                        {!demo && !data.automation?.enabled ? 'Le classement manuel est disponible.' : data.workspace.mode === 'automatic'
                           ? 'Le tri s’occupe de l’ordre. Votre équipe s’occupe des clients.'
                           : 'Vérifiez vos premières décisions, puis activez le tri automatique.'}
                       </p>
@@ -603,7 +602,8 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                         : 'Connecter un outil'}
                     </Button>
                   </div>
-                  {!data.workspace.aiReady && (
+                  {!demo && data.billing?.active && !data.automation?.enabled && <div className="support-automation-access"><div><strong>{data.automation?.active ? 'Automation est en pause' : 'Disponible avec Zentra Automation'}</strong><p>{data.automation?.active ? 'Vos mails restent accessibles. Activez les fonctions souhaitées dans les réglages de cet espace.' : 'Automatisez vos tâches répétitives pour +15 CHF/mois.'}</p></div><a href={'/compte/automation'+(data.gestion?.organizationId?'?entreprise='+encodeURIComponent(data.gestion.organizationId):'')}>{data.automation?.active?'Régler Automation':'Ajouter Automation'}</a></div>}
+                  {(demo || data.automation?.enabled) && !data.workspace.aiReady && (
                     <div className="support-setup">
                       <CircleHelp size={20} />
                       <span>
@@ -869,7 +869,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                                   <Button
                                     variant="ghost"
                                     disabled={
-                                      busy || !data.workspace.aiReady || demo
+                                      busy || !data.workspace.aiReady || demo || !data.automation?.enabled || readOnly
                                     }
                                     onClick={() =>
                                       mutate({
@@ -935,7 +935,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
           <DialogHeader>
             <DialogTitle>Importer un ticket existant</DialogTitle>
             <DialogDescription>
-              Le ticket sera analysé selon vos règles. En mode automatique, une
+              Avec Automation actif, le ticket est analysé selon vos règles. En mode automatique, une
               décision suffisamment fiable sera appliquée dans votre outil.
             </DialogDescription>
           </DialogHeader>

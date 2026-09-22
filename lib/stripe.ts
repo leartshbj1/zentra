@@ -42,6 +42,7 @@ export const REQUIRED_STRIPE_WEBHOOK_EVENTS = [
   'invoice.finalization_failed',
   'invoice.marked_uncollectible',
   'invoice.voided',
+  'charge.refunded',
   'customer.subscription.updated',
   'customer.subscription.deleted',
 ] as const;

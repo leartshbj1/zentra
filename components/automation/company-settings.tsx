@@ -50,9 +50,11 @@ type Billing = {
   hasSubscription: boolean;
   periodEnd: number | null;
   cancelAtPeriodEnd: boolean;
+  refunded?: boolean;
 };
 // Keep client constants free from server/secret imports.
 const consentVersion = 'automation-2026-09-20';
+const legalVersion = 'automation-2026-09-22';
 export function AutomationCompanySettings({
   organizations,
   initialOrganization = '',
@@ -170,7 +172,7 @@ export function AutomationCompanySettings({
         const data = await post('/api/automation/billing', {
           action: which,
           acceptTerms: terms,
-          legalVersion: consentVersion,
+          legalVersion,
           consentVersion: consent ? consentVersion : undefined,
         });
         if (typeof data.url === 'string') {
@@ -239,8 +241,10 @@ export function AutomationCompanySettings({
       <h2>
         {state?.active
           ? 'Votre option est active'
-          : 'Simplifiez les tâches répétitives'}
+          : 'Disponible avec Zentra Automation'}
       </h2>
+      {state && !state.active && <p>Automatisez vos tâches répétitives pour +15 CHF/mois.</p>}
+      {billing?.refunded && <p role="status">La dernière période a été remboursée. Automation est arrêté ; vos réglages et vos données sont conservés.</p>}
       {state?.active && (
         <p>
           <strong>Disponible pour toute votre équipe.</strong> Chaque
@@ -322,7 +326,7 @@ export function AutomationCompanySettings({
               }
               onClick={() => void action('checkout')}
             >
-              Activer · 15 CHF/mois
+              Ajouter Automation · 15 CHF/mois
             </button>
             {!billing?.ready && (
               <p>

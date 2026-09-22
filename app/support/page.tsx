@@ -11,7 +11,7 @@ import { supportMetadata } from '@/lib/support/marketing';
 
 export const metadata = supportMetadata(
   'Classement et routage des tickets clients',
-  'Zentra Support classe les tickets, évalue leur priorité et les oriente vers votre équipe. Un produit indépendant pour les équipes de service client.',
+  'Centralisez les demandes avec Zentra Support. Ajoutez Zentra Automation pour leur classement, leur priorité et leur routage automatique.',
   '/support',
 );
 
@@ -58,9 +58,9 @@ export default async function SupportPresentation({
             <em>La bonne équipe.</em>
           </h1>
           <p className="sp-lead">
-            Moins de tri. Plus de temps pour vos clients. Vos demandes sont
-            classées, priorisées et orientées automatiquement vers les bonnes
-            personnes.
+            Vos demandes et votre équipe, au même endroit. Avec l’option
+            Zentra Automation, les tickets sont classés, priorisés et orientés
+            vers les bonnes personnes.
           </p>
           <div className="sp-actions">
             <a href="/support/demo" className="sp-button sp-button-dark">
@@ -71,7 +71,7 @@ export default async function SupportPresentation({
             </a>
           </div>
           <p className="sp-hero-note">
-            Un produit à part entière. Dans votre navigateur.
+            Support dès 29 CHF/mois. Automation en option : +15 CHF/mois par entreprise.
           </p>
         </div>
         <RoutingExample />
@@ -83,7 +83,7 @@ export default async function SupportPresentation({
         <span>VOTRE SERVICE CLIENT, MIEUX ORGANISÉ</span>
         <p>
           Votre logiciel de support reste au cœur du travail.{' '}
-          <strong>Zentra Support s’occupe de l’orientation.</strong>
+          <strong>Zentra Support rassemble les demandes de votre équipe.</strong>
         </p>
         <a href="/support/connexions" className="sp-text-link">
           Voir les connexions disponibles <ArrowRight size={16} />
@@ -92,7 +92,7 @@ export default async function SupportPresentation({
       <section className="sp-section sp-soft" id="fonctionnement">
         <div className="sp-wrap">
           <div className="sp-section-title">
-            <p className="sp-kicker">DU MESSAGE À LA BONNE PERSONNE</p>
+            <p className="sp-kicker">AVEC L’OPTION ZENTRA AUTOMATION</p>
             <h2>
               Le tri avance.
               <br />

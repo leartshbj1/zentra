@@ -736,6 +736,7 @@ function WorkspaceSettings({
       }}
     >
       <h3>Votre niveau d’autonomie</h3>
+      {!data.automation?.enabled && <p className="support-small">Le classement manuel reste disponible. Ces réglages s’appliqueront lorsque Automation sera actif pour cet espace.</p>}
       <div className="support-form-grid">
         <Field
           label="Nom de l’espace"

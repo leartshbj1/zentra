@@ -20,8 +20,8 @@ export default function SupportTerms() {
         </div>
       }
       title="Conditions de Zentra Support"
-      versionDate="20 septembre 2026"
-      intro="Offre pour les entreprises et indépendants — version du 20 septembre 2026."
+      versionDate="22 septembre 2026"
+      intro="Offre pour les entreprises et indépendants — version du 22 septembre 2026."
       sections={[
         {
           id: 'service',
@@ -31,7 +31,7 @@ export default function SupportTerms() {
               <OperatorContact />
               <p>
                 Zentra Support est un abonnement distinct du logiciel de gestion
-                Zentra. Il analyse le texte des tickets transmis par un logiciel
+                Zentra. Il permet de recevoir et de traiter manuellement les demandes en équipe. Avec l’option Automation active pour cet espace, il analyse le texte des tickets transmis par un logiciel
                 de support connecté ou une boîte Infomaniak, propose une
                 catégorie et une priorité et applique les affectations prévues
                 lorsque les conditions configurées sont remplies. Les cas
@@ -43,7 +43,7 @@ export default function SupportTerms() {
                 sont récupérés périodiquement depuis la date de connexion. Le
                 classement se fait dans Zentra Support ; les messages ne sont ni
                 déplacés, ni supprimés, ni marqués comme lus chez Infomaniak.
-                Si vous reliez une entreprise Gestion, les justificatifs PDF, PNG et JPEG admissibles sont conservés dans sa boîte fournisseurs et les PDF lisibles sont analysés pour le préremplissage. Une analyse de document compte dans le volume de votre formule. La comptabilisation automatique nécessite Automation, son activation explicite et les contrôles de Gestion ; elle ne déclenche aucun paiement. Sans cela, une validation humaine reste nécessaire. La réception
+                Avec Automation active et une entreprise Gestion reliée, les justificatifs PDF, PNG et JPEG admissibles sont conservés dans sa boîte fournisseurs et les PDF lisibles sont analysés pour le préremplissage. Une analyse de document compte dans le volume de votre formule. La comptabilisation automatique nécessite son activation explicite et les contrôles de Gestion ; elle ne déclenche aucun paiement. Sans Automation, la réception et le traitement manuel des messages restent disponibles, sans extraction ni transfert automatique vers Gestion. La réception
                 automatique vise un intervalle de cinq minutes, sans garantie de
                 traitement instantané ; une récupération manuelle est
                 disponible.
@@ -60,7 +60,7 @@ export default function SupportTerms() {
                 {SUPPORT_PLANS.map((p) => (
                   <li key={p.id}>
                     {p.name} : {p.priceChfCents / 100} CHF par mois pour{' '}
-                    {p.analyses.toLocaleString('fr-CH')} analyses.
+                    un plafond de {p.analyses.toLocaleString('fr-CH')} analyses avec l’option Automation.
                   </li>
                 ))}
               </ul>
@@ -69,8 +69,7 @@ export default function SupportTerms() {
                 frais par collaborateur. L’éditeur n’est pas assujetti à la TVA
                 suisse. Le logiciel de support connecté et ses frais restent à
                 la charge du client. Le compte et la préparation des connexions
-                sont gratuits ; l’analyse et le routage nécessitent une période
-                payée. Aucun essai payant automatique n’est inclus.
+                sont gratuits. La réception et le traitement manuel nécessitent une période Support payée. Les analyses, extractions et routages automatiques nécessitent en plus Automation, facturée 15 CHF par mois et par espace, partagée par les membres autorisés. Aucun essai payant automatique n’est inclus.
               </p>
               <p>
                 Le titulaire habilité choisit une formule, accepte ces
@@ -145,8 +144,7 @@ export default function SupportTerms() {
           content: (
             <>
               <p>
-                Les tickets transmis sont traités côté serveur et leur texte est
-                confié à un prestataire d’analyse IA. Le client informe les
+                Les tickets transmis sont traités côté serveur. Lorsque Automation est active, les extraits nécessaires sont confiés à un prestataire d’analyse IA. Le client informe les
                 personnes concernées et transmet uniquement les données
                 nécessaires. La{' '}
                 <a href="/confidentialite">politique de confidentialité</a> et

@@ -9,7 +9,7 @@ const mock = vi.hoisted(() => ({
   reserved: 0,
   finished: [] as boolean[],
 }));
-vi.mock('@/lib/runtime', () => ({ database: () => mock.db }));
+vi.mock('@/lib/runtime', () => ({ database: () => mock.db, runtimeValue:(key:string)=>key==='STRIPE_SECRET_KEY'?'sk_live_fixture':'' }));
 vi.mock('@/lib/automation/service', () => ({
   automationEntitlement: async () => mock.active,
 }));
@@ -109,6 +109,7 @@ beforeEach(() => {
     1,
     1,
   );
+  db.exec("UPDATE subscriptions SET entitlement_valid_until=2000000000;INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES('mem','org','owner','owner@example.test','owner',1);INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,livemode,updated_at) VALUES('org','addon','cus','active',1,2000000000,1,1);INSERT INTO support_gestion_links VALUES('ws','org',1,0,'owner',1)");
   mock.db = {
     prepare: (q: string) => {
       let args: SQLInputValue[] = [];

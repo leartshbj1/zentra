@@ -84,6 +84,14 @@ export const automationSubscriptions = sqliteTable('automation_subscriptions', {
   livemode: integer('livemode').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
+// Keep refund evidence separate from the paid-period watermark. A delayed
+// invoice.paid event must never restore access to a refunded period.
+export const automationRefunds = sqliteTable('automation_refunds', {
+  invoiceId: text('invoice_id').primaryKey(),
+  customerId: text('customer_id').notNull(),
+  livemode: integer('livemode').notNull(),
+  verifiedAt: integer('verified_at').notNull(),
+});
 export const automationCheckouts = sqliteTable('automation_checkouts', {
   organizationId: text('organization_id')
     .primaryKey()

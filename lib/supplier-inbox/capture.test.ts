@@ -14,10 +14,13 @@ const m = vi.hoisted(() => ({
 }));
 vi.mock('@/lib/runtime', () => ({
   database: () => m.db,
+  runtimeValue: (key:string)=>key==='STRIPE_SECRET_KEY'?'sk_live_fixture':'',
   fileArchive: () => ({ put: m.put }),
 }));
 vi.mock('@/lib/automation/config', () => ({
   decisionApiKey: async () => 'synthetic-key',
+  settingsFor: async()=>({enabled:true,consent:true,flags:['supplier_routing']}),
+  globalFlags:async()=>['supplier_routing'],
 }));
 vi.mock('@/lib/automation/provider', () => ({ JevDecisionProvider: class {} }));
 vi.mock('@/lib/support/billing', () => ({
@@ -89,6 +92,7 @@ beforeEach(() => {
   sql.exec(
     "INSERT INTO subscriptions(subscription_id,customer_id,price_id,status,current_period_end,livemode,updated_at) VALUES('sub','cus','price','active',2000000000,1,1);INSERT INTO organizations VALUES('org','Test','sub','owner',1,1);INSERT INTO support_workspaces(id,owner_id,name,created_at,updated_at) VALUES('ws','owner','Test',1,1)",
   );
+  sql.exec("UPDATE subscriptions SET entitlement_valid_until=2000000000;INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES('mem','org','owner','owner@example.test','owner',1);INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,livemode,updated_at) VALUES('org','addon','cus','active',1,2000000000,1,1);INSERT INTO support_gestion_links VALUES('ws','org',1,0,'owner',1)");
   m.db = {
     prepare: (query: string) => {
       let args: SQLInputValue[] = [];

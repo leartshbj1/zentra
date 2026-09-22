@@ -1,3 +1,4 @@
+import { supportAutomationState } from '@/lib/automation/execution';
 import { database, runtimeValue } from '@/lib/runtime';
 import { encryptSecret, decryptSecret, digest, equalHash } from './crypto';
 import {
@@ -277,12 +278,13 @@ export async function syncMailbox(
         lease,
       )
       .run();
-    const pending = await db
+    const canAnalyze = (await supportAutomationState(workspace.id)).enabled;
+    const pending = canAnalyze ? await db
       .prepare(
         "SELECT id FROM support_tickets WHERE connection_id=? AND (state='pending' OR (state='processing' AND lease_until<=?) OR (state='error' AND attempts<3 AND updated_at<?)) ORDER BY created_at,id LIMIT 5",
       )
       .bind(connection.id, now(), now() - 300)
-      .all<Pick<Ticket, 'id'>>();
+      .all<Pick<Ticket, 'id'>>() : {results:[]};
     for (const ticket of pending.results) {
       await processTicket(
         ticket.id,

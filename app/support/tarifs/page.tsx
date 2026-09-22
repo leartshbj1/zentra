@@ -25,14 +25,15 @@ export default function SupportPricing() {
             <em>L’équipe entière incluse.</em>
           </>
         }
-        description="Un abonnement propre à Zentra Support. Choisissez votre volume d’analyses, sans ajouter de frais pour chaque collaborateur."
+        description="Un abonnement pour recevoir et traiter les demandes avec toute votre équipe. Ajoutez Automation pour automatiser leur classement."
       />
       <section className="sp-wrap sp-section sp-section-first">
         <div className="sp-pricing-notice">
           <p>
             <strong>Commencez par vérifier votre connexion.</strong> Le compte
-            et la préparation sont gratuits. L’analyse et le routage démarrent
-            avec un abonnement payé.
+            et la préparation sont gratuits. Le traitement manuel nécessite
+            un abonnement Support. Le classement et le routage automatiques
+            nécessitent aussi l’option Automation à +15 CHF/mois pour cet espace.
           </p>
           <a href="/support/connexions" className="sp-text-link">
             Vérifier mon logiciel <ArrowRight size={16} />
@@ -78,7 +79,7 @@ export default function SupportPricing() {
               ],
               [
                 'Puis-je découvrir le produit sans payer ?',
-                'La démo est accessible sans compte. Vous pouvez aussi créer votre espace et préparer une connexion gratuitement. L’analyse de vos tickets et leur routage nécessitent un abonnement actif.',
+                'La démo est accessible sans compte. Vous pouvez préparer une connexion gratuitement. Un abonnement Support donne accès au traitement manuel ; les analyses et le routage automatiques nécessitent également Automation pour cet espace.',
               ],
             ].map(([title, text]) => (
               <details key={title}>

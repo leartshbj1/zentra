@@ -1,4 +1,4 @@
-export const SUPPORT_LEGAL_VERSION = 'support-2026-09-19';
+export const SUPPORT_LEGAL_VERSION = 'support-2026-09-22';
 export const SUPPORT_PRODUCT = 'zentra-support';
 export const SUPPORT_PLANS = [
   {

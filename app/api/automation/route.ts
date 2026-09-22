@@ -1,3 +1,4 @@
+import { requireAutomationEntitlement } from '@/lib/automation/entitlement';
 import { accountJsonError, accountNoStoreHeaders } from '@/lib/account';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { automationActor } from '@/lib/automation/access';
@@ -30,8 +31,10 @@ export async function POST(request: Request) {
       body.organizationId,
       body.action === 'settings',
     );
-    if (body.action === 'settings')
+    if (body.action === 'settings') {
+      if (body.enabled === true) await requireAutomationEntitlement(actor);
       return json(await saveSettings(actor.organizationId, actor.userId, body));
+    }
     if (body.action === 'feedback')
       return json(await recordFeedback(actor, body));
     throw new AccountPublicError('Cette action n’est pas disponible.');

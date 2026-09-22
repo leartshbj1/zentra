@@ -122,7 +122,7 @@ export function AutomationFounderSettings() {
         </p>
         <button type="button" onClick={() => void save('billing')}>
           {state?.billingReady
-            ? 'Vérifier le tarif Stripe'
+            ? 'Vérifier le tarif et les notifications Stripe'
             : 'Préparer le tarif de 15 CHF/mois'}
         </button>
       </fieldset>

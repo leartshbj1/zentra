@@ -27,6 +27,7 @@ export type SupportConnection = {
   hookUrl: string;
 };
 export type SupportState = {
+  automation?: {active:boolean;enabled:boolean};
   gestion?: { linked:boolean;organizationId:string|null;autoPost:boolean;choices:{id:string;name:string}[] };
   mailSync?: { background: boolean };
   billing?: SupportBillingState;

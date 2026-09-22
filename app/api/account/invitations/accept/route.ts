@@ -14,6 +14,7 @@ import {
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { database } from '@/lib/runtime';
 import { teamSeats } from '@/lib/team-seats';
+import { memberFullName } from '@/lib/member-name';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
         403,
       );
     }
+    const displayName = memberFullName(body.firstName, body.lastName);
     const existing = await db
       .prepare(
         `SELECT membership_id,revoked_at FROM organization_members
@@ -111,7 +113,7 @@ export async function POST(request: Request) {
             )
             .bind(
               email,
-              user.displayName.slice(0, 160),
+              displayName,
               invitation.role,
               now,
               membershipId,
@@ -137,7 +139,7 @@ export async function POST(request: Request) {
               invitation.organization_id,
               user.userId,
               email,
-              user.displayName.slice(0, 160),
+              displayName,
               invitation.role,
               now,
               invitation.invitation_id,

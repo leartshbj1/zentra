@@ -40,7 +40,7 @@ const user = {
 } as ZentraUser;
 const terms = {
   acceptTerms: true,
-  legalVersion: 'automation-2026-09-20',
+  legalVersion: 'automation-2026-09-22',
   consentVersion: 'automation-2026-09-20',
 };
 const checkout = () =>

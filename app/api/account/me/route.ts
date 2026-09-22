@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const session = await requireDeviceSession(request);
-    const member = await database().prepare('SELECT email FROM organization_members WHERE organization_id=? AND user_id=? AND revoked_at IS NULL').bind(session.organizationId,session.userId).first<{email:string}>();
+    const member = await database().prepare('SELECT email,display_name FROM organization_members WHERE organization_id=? AND user_id=? AND revoked_at IS NULL').bind(session.organizationId,session.userId).first<{email:string;display_name:string|null}>();
     return Response.json(
       {
         organization: {
@@ -20,6 +20,7 @@ export async function GET(request: Request) {
         },
         userId: session.userId,
         email: member?.email ?? '',
+        displayName: member?.display_name ?? '',
         installationId: session.installationId,
         entitlementValidUntil: new Date(
           session.entitlementValidUntil * 1000,

@@ -1,12 +1,13 @@
-import { database, runtimeValue } from '@/lib/runtime';
-import { stripeSecretKeyLivemode } from '@/lib/stripe-event';
+import { database } from '@/lib/runtime';
 import { AccountPublicError, sha256Hex } from '@/lib/account-security';
 import { automationActor, type AutomationActor } from './access';
 import { decisionApiKey, globalFlags, settingsFor } from './config';
 import { buildPolicy, safeWorkflow } from './policies';
 import { authorizedResources, nativeResources } from './resources';
 import { JevDecisionProvider } from './provider';
-import { automationGrant } from './founder-access';
+import { automationEntitlement, requireAutomationEntitlement } from './entitlement';
+export { automationEntitlement } from './entitlement';
+import { automationFetch, requireAutomationExecution } from './execution';
 import {
   POLICY_VERSION,
   DecisionFailure,
@@ -29,34 +30,6 @@ type AuditRow = {
   final_choices?: string | null;
   created_at: number;
 };
-export async function automationEntitlement(actor: AutomationActor) {
-  // Founder administration is separate from a company's paid option. Browser
-  // and device sessions must see the same organization entitlement.
-  const row = await database()
-    .prepare(
-      `SELECT a.paid_from,a.paid_until,a.status,a.livemode FROM automation_subscriptions a
-       JOIN organizations o ON o.organization_id=a.organization_id
-       JOIN subscriptions s ON s.subscription_id=o.subscription_id
-       WHERE a.organization_id=? AND s.entitlement_valid_until>unixepoch() AND s.livemode=a.livemode`,
-    )
-    .bind(actor.organizationId)
-    .first<{
-      paid_from: number;
-      paid_until: number;
-      status: string;
-      livemode: number;
-    }>();
-  const now = Math.floor(Date.now() / 1000);
-  const live = stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'));
-  const paid =
-    !!row &&
-    live !== null &&
-    row.livemode === Number(live) &&
-    row.paid_from <= now &&
-    row.paid_until > now &&
-    ['active', 'past_due'].includes(row.status);
-  return paid || !!(await automationGrant(actor.organizationId));
-}
 export function publicDecision(row: AuditRow) {
   if (row.state === 'processing')
     return {
@@ -95,6 +68,7 @@ export async function decideForActor(
   raw: Record<string, unknown>,
   injected?: DecisionProvider,
 ) {
+  actor = await requireAutomationEntitlement(actor);
   const kind = feature(raw.feature);
   if (
     typeof raw.requestId !== 'string' ||
@@ -203,8 +177,10 @@ export async function decideForActor(
   const started = Date.now();
   try {
     const provider =
-      injected ?? new JevDecisionProvider(await decisionApiKey());
+      injected ?? new JevDecisionProvider(await decisionApiKey(), automationFetch(actor,kind));
+    await requireAutomationExecution(actor,kind);
     const result = await provider.decide(policy.input);
+    await requireAutomationExecution(actor,kind);
     const confidence = Math.min(
       ...Object.values(result.answers).map((v) => v.confidence),
     );
@@ -290,6 +266,7 @@ export async function recordFeedback(
   actor: AutomationActor,
   body: Record<string, unknown>,
 ) {
+  actor = await requireAutomationEntitlement(actor);
   if (actor.role === 'read_only')
     throw new AccountPublicError(
       'Votre rôle permet la consultation uniquement.',
