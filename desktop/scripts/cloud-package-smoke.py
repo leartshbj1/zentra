@@ -1,5 +1,6 @@
 """Launch an exact CI artifact in a disposable profile, without customer data."""
 import argparse
+from contextlib import closing
 import hashlib
 import json
 import os
@@ -121,15 +122,21 @@ def main():
                     if proc.poll() is not None:
                         raise RuntimeError('Packaged application exited before initialization')
                     try:
-                        db_path = profile / 'helvichantier.sqlite3'
-                        with sqlite3.connect(db_path.as_uri() + '?mode=ro', uri=True) as db:
+                        db_path = (profile / 'helvichantier.sqlite3').resolve()
+                        # WAL readers may need to create the shared-memory
+                        # sidecar, even though every query is read-only.
+                        # mode=rw cannot create a missing database, so only the
+                        # packaged app can satisfy the initialization check.
+                        # https://www.sqlite.org/wal.html#read_only_databases
+                        with closing(sqlite3.connect(db_path.as_uri() + '?mode=rw', uri=True)) as db:
+                            db.execute('PRAGMA query_only=ON')
                             assert db.execute('PRAGMA user_version').fetchone()[0] == schema
                             assert db.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
                             assert db.execute('PRAGMA foreign_key_check').fetchall() == []
                         break
-                    except (sqlite3.Error, AssertionError):
+                    except (sqlite3.Error, AssertionError) as db_error:
                         if time.monotonic() >= deadline:
-                            raise RuntimeError('Packaged application did not initialize its database')
+                            raise RuntimeError(f'Packaged database validation failed: {db_error}') from db_error
                         time.sleep(1)
                 time.sleep(5)
                 assert proc.poll() is None
@@ -138,7 +145,7 @@ def main():
                 # logging is available. Never inspect a customer profile.
                 stream.flush()
                 evidence = dict(error=str(error), attempt=attempt + 1,
-                                processExit=proc.poll(), profile=str(profile),
+                                processExit=proc.poll(), profile=str(profile), sqliteVersion=sqlite3.sqlite_version,
                                 profileFiles=[str(p.relative_to(profile)) for p in profile.rglob('*')],
                                 startupLog=log.read_text(errors='replace')[-8000:])
                 (out / f'{args.system}-failure.json').write_text(json.dumps(evidence, indent=2))
@@ -157,6 +164,7 @@ def main():
     result = dict(version=version, source=args.source, system=args.system, buildJob=args.job,
                   verifierSource=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip(),
                   schema=schema, integrity='ok', isolatedProfile=True, startupAndRelaunchPassed=True,
+                  sqliteVersion=sqlite3.sqlite_version, databaseAccess='existing-file-only, query_only=ON',
                   scope='Packaged binary startup and SQLite integrity, without interactive UI or customer data')
     if args.system == 'windows':
         result.update(installedExecutableSha256=expected_payload,
