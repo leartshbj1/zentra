@@ -29,7 +29,7 @@ export function AutomationFounderSettings() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const data = (await response.json()) as State & { error?: string };
+    const data = (await response.json()) as State & { error?: string; checks?: { plan: string; ready: boolean; message: string }[] };
     if (!response.ok)
       throw new Error(data.error || 'Réessayez dans un instant.');
     return data;
@@ -50,13 +50,17 @@ export function AutomationFounderSettings() {
       live = false;
     };
   }, []);
-  async function save(action: 'key' | 'flags' | 'billing' | 'test') {
+  async function save(action: 'key' | 'flags' | 'billing' | 'test' | 'billing_check') {
     setBusy(true);
     setMessage('');
     try {
-      await send(
+      const response = await send(
         action === 'key' ? { action, apiKey: key } : { action, flags },
       );
+      if (action === 'billing_check') {
+        setMessage(response.checks?.map(check => `${check.plan} : ${check.message}`).join(' · ') || 'Le contrôle n’a pas abouti.');
+        return;
+      }
       if (action === 'key') setKey('');
       const data = await send({ action: 'state' });
       setState(data);
@@ -124,6 +128,9 @@ export function AutomationFounderSettings() {
           {state?.billingReady
             ? 'Vérifier le tarif et les notifications Stripe'
             : 'Préparer le tarif de 15 CHF/mois'}
+        </button>
+        <button type="button" onClick={() => void save('billing_check')}>
+          Contrôler les paiements Gestion
         </button>
       </fieldset>
       <fieldset disabled={busy || !state}>
