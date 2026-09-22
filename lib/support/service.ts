@@ -342,13 +342,16 @@ export async function getWorkspaceState(request: Request) {
     .bind(workspace.id)
     .all<Connection>();
   const search = text(params.get('search'), 160),
-    state = text(params.get('state'), 25);
+    state = text(params.get('state'), 25),
+    category = text(params.get('category'), 40);
+  if (category && !Object.hasOwn(CATEGORIES, category))
+    throw new SupportError('Ce dossier n’existe pas. Choisissez une catégorie.');
   const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`,
     before = Number(params.get('before') || 0),
     beforeId = text(params.get('beforeId'), 50);
   if (!Number.isSafeInteger(before) || before < 0)
     throw new SupportError('La pagination a expiré. Rechargez les tickets.');
-  const query = `SELECT * FROM support_tickets WHERE workspace_id=? AND (?='' OR subject LIKE ? ESCAPE '\\' OR external_id LIKE ? ESCAPE '\\') AND (?='' OR state=?) AND (?=0 OR updated_at<? OR (updated_at=? AND id<?)) ORDER BY updated_at DESC,id DESC LIMIT 61`;
+  const query = `SELECT * FROM support_tickets WHERE workspace_id=? AND (?='' OR subject LIKE ? ESCAPE '\\' OR external_id LIKE ? ESCAPE '\\') AND (?='' OR state=?) AND (?='' OR json_extract(decision_json,'$.category')=?) AND (?=0 OR updated_at<? OR (updated_at=? AND id<?)) ORDER BY updated_at DESC,id DESC LIMIT 61`;
   const tickets = await database()
     .prepare(query)
     .bind(
@@ -358,6 +361,8 @@ export async function getWorkspaceState(request: Request) {
       pattern,
       state,
       state,
+      category,
+      category,
       before,
       before,
       before,

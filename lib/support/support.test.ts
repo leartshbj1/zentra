@@ -665,6 +665,32 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     expect(saved).toMatchObject({state:'error',automatic:0,routed_at:null});
     expect(sql.prepare("SELECT COUNT(*) AS n FROM support_analysis_usage WHERE state='reserved'").get()?.n).toBe(0);
   });
+  it('filtre les dossiers avant pagination, avec recherche et état combinés', async () => {
+    const time = Math.floor(Date.now() / 1000);
+    const insert = sql.prepare(
+      'INSERT INTO support_tickets(id,workspace_id,connection_id,external_id,subject,body,source_json,fingerprint,state,decision_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+    );
+    for (let i = 0; i < 135; i++) {
+      const id = 'folder-' + String(i).padStart(3, '0');
+      insert.run(id, workspace, connection, id, 'Facture recherche', 'Message de test', '{}', id, i < 130 ? 'review' : 'routed', JSON.stringify({category: i < 65 || i >= 130 ? 'billing' : 'bug', confidence: .9}), time, time);
+    }
+    insert.run('pending-null', workspace, connection, 'pending-null', 'Sans décision', 'En attente', '{}', 'pending-null', 'pending', null, time, time);
+    const read = async (params: string) => json(await getWorkspaceState(new Request('https://zentraapp.ch/api/support?' + params)));
+    const first = await read('category=billing&state=review&search=recherche');
+    expect(first.tickets).toHaveLength(60);
+    expect(first.hasMore).toBe(true);
+    expect(first.tickets.every((t: any) => t.decision.category === 'billing' && t.state === 'review')).toBe(true);
+    const last = first.tickets.at(-1);
+    const next = await read('category=billing&state=review&search=recherche&before=' + last.updatedAt + '&beforeId=' + last.id);
+    expect(next.tickets).toHaveLength(5);
+    expect(next.hasMore).toBe(false);
+    expect(new Set([...first.tickets, ...next.tickets].map((t: any) => t.id)).size).toBe(65);
+    expect((await read('category=billing&state=routed')).tickets).toHaveLength(5);
+    expect((await read('category=refund')).tickets).toHaveLength(0);
+    expect((await read('category=billing&search=inexistant')).tickets).toHaveLength(0);
+    expect((await read('state=pending')).tickets[0].id).toBe('pending-null');
+    await expect(read('category=inconnu')).rejects.toThrow('dossier');
+  });
   it('connecte IMAP, chiffre le mot de passe, importe une seule fois et conserve le curseur après reconnexion', async () => {
     const mail = {
       mailboxId:'imap:inbox@example.test', folderId:'imap:INBOX:100', nextUid:200,

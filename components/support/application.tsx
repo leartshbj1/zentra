@@ -14,7 +14,11 @@ import {
   X,
   Plus,
   AlertCircle,
-  CreditCard, Workflow,
+  CreditCard,
+  Folder,
+  CheckCheck,
+  ChevronDown,
+  Workflow,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -73,6 +77,9 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
   const [search, setSearch] = useState(''),
     [query, setQuery] = useState(''),
     [filter, setFilter] = useState(''),
+    [category, setCategory] = useState(''),
+    [fetching, setFetching] = useState(false),
+    [foldersOpen, setFoldersOpen] = useState(false),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false);
@@ -80,6 +87,8 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     [importOpen, setImportOpen] = useState(false),
     [connectionId, setConnection] = useState(''),
     [externalId, setExternalId] = useState('');
+  const detailHeading = useRef<HTMLHeadingElement>(null);
+  const ticketButtons = useRef(new Map<string, HTMLButtonElement>());
   const sequence = useRef(0),
     busyRef = useRef(false),
     dataRef = useRef(data),
@@ -87,6 +96,8 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
   dataRef.current = data;
   workspaceRef.current = workspaceId;
   useEffect(() => {
+    if (demo && window.matchMedia('(max-width: 1100px)').matches)
+      setSelected(null);
     if (!demo) {
       setWorkspace(
         new URLSearchParams(window.location.search).get('workspace') || '',
@@ -112,7 +123,12 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
   }, [search]);
   const load = useCallback(
     async (
-      options: { append?: boolean; workspace?: string; quiet?: boolean } = {},
+      options: {
+        append?: boolean;
+        workspace?: string;
+        quiet?: boolean;
+        unfiltered?: boolean;
+      } = {},
     ) => {
       if (demo) return;
       const request = ++sequence.current,
@@ -120,8 +136,10 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         id = options.workspace ?? workspaceRef.current;
       if (id) params.set('workspace', id);
       else { const org=new URLSearchParams(window.location.search).get('organizationId');if(org)params.set('organizationId',org); }
-      if (query) params.set('search', query);
-      if (filter) params.set('state', filter);
+      if (query && !options.unfiltered) params.set('search', query);
+      if (filter && !options.unfiltered) params.set('state', filter);
+      if (category && !options.unfiltered) params.set('category', category);
+      if (!options.quiet) setFetching(true);
       const last = dataRef.current.tickets.at(-1);
       if (options.append && last) {
         params.set('before', String(last.updatedAt));
@@ -180,10 +198,13 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               : 'Connexion interrompue. Nous réessaierons automatiquement.',
           );
       } finally {
-        if (request === sequence.current) setLoading(false);
+        if (request === sequence.current) {
+          setLoading(false);
+          setFetching(false);
+        }
       }
     },
-    [demo, query, filter],
+    [demo, query, filter, category],
   );
   useEffect(() => {
     void load();
@@ -317,16 +338,19 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         if (response.status === 401) setSignedOut(true);
         throw new Error(result.error || 'L’action n’a pas abouti. Réessayez.');
       }
-      if (result.workspaceId) {
+      if (result.ticketId) {
+        setTab('inbox');
+        setFilter('');
+        setCategory('');
+        setSearch('');
+        setQuery('');
+        setFoldersOpen(false);
+        await load({ unfiltered: true });
+        setSelected(result.ticketId);
+      } else if (result.workspaceId) {
         setWorkspace(result.workspaceId);
         await load({ workspace: result.workspaceId });
       } else await load();
-      if (result.ticketId) {
-        setSelected(result.ticketId);
-        setTab('inbox');
-        setFilter('');
-        setSearch('');
-      }
       setNotice(
         body.action === 'approve'
           ? 'Décision enregistrée.'
@@ -351,18 +375,43 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
       setBusy(false);
     }
   };
-  const tickets = demo
-    ? data.tickets.filter(
-        (t) =>
-          (!filter || t.state === filter) &&
-          `${t.subject} ${t.externalId}`
-            .toLowerCase()
-            .includes(query.toLowerCase()),
-      )
-    : data.tickets;
-  const ticket = data.tickets.find((t) => t.id === selected),
+  const tickets = data.tickets.filter(
+    (t) =>
+      (!filter || t.state === filter) &&
+      (!category || t.decision?.category === category) &&
+      `${t.subject} ${t.externalId}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
+  );
+  const ticket = tickets.find((t) => t.id === selected),
     connection = data.connections.find((c) => c.id === ticket?.connectionId),
     readOnly = data.workspace?.role === 'read_only';
+  const folderName = category
+    ? CATEGORIES[category as keyof typeof CATEGORIES]
+    : filter
+      ? STATES[filter]
+      : 'Tous les tickets';
+  const chooseFolder = (state: string, categoryValue = '') => {
+    setFilter(state);
+    setCategory(categoryValue);
+    setSelected(null);
+    setSearch('');
+    setQuery('');
+    setTab('inbox');
+    setFoldersOpen(false);
+  };
+  const folderButton = (value: string, label: string) => (
+    <button
+      key={value}
+      type="button"
+      className="support-folder"
+      aria-pressed={tab === 'inbox' && category === value}
+      onClick={() => chooseFolder('', value)}
+    >
+      <Folder size={17} aria-hidden="true" />
+      <span>{label}</span>
+    </button>
+  );
   const externalUrl =
     ticket && connection && connection.provider !== 'api'
       ? connection.provider === 'infomaniak'
@@ -515,9 +564,83 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                   setSelected(null);
                   setSearch('');
                   setFilter('');
+                  setCategory('');
+                  setQuery('');
                 }}
               />
             </div>
+            <button
+              type="button"
+              className="support-folder-toggle"
+              aria-expanded={foldersOpen}
+              aria-controls="support-folders"
+              onClick={() => setFoldersOpen(!foldersOpen)}
+            >
+              <Folder size={18} />
+              Dossiers
+              <ChevronDown size={16} />
+            </button>
+            <nav
+              id="support-folders"
+              className="support-folders"
+              data-open={foldersOpen}
+              aria-label="Dossiers des tickets"
+            >
+              <p className="support-nav-label">Boîte de réception</p>
+              {[
+                { value: '', label: 'Tous les tickets', icon: Inbox },
+                { value: 'review', label: 'À vérifier', icon: CircleHelp },
+                { value: 'error', label: 'À reprendre', icon: AlertCircle },
+                { value: 'routed', label: 'Affectés', icon: CheckCheck },
+              ].map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className="support-folder"
+                  aria-pressed={
+                    tab === 'inbox' && filter === value && !category
+                  }
+                  onClick={() => chooseFolder(value)}
+                >
+                  <Icon size={17} aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
+              ))}
+              <div className="support-category-folders">
+                <p className="support-nav-label">Dossiers par catégorie</p>
+                {Object.entries(CATEGORIES)
+                  .filter(([key]) =>
+                    [
+                      'billing',
+                      'supplier_invoice',
+                      'appointment',
+                      'quote',
+                      'refund',
+                    ].includes(key),
+                  )
+                  .map(([value, label]) => folderButton(value, label))}
+                <details className="support-more-folders">
+                  <summary>
+                    Autres dossiers <ChevronDown size={14} aria-hidden="true" />
+                  </summary>
+                  {Object.entries(CATEGORIES)
+                    .filter(
+                      ([key]) =>
+                        ![
+                          'billing',
+                          'supplier_invoice',
+                          'appointment',
+                          'quote',
+                          'refund',
+                        ].includes(key),
+                    )
+                    .map(([value, label]) => folderButton(value, label))}
+                </details>
+              </div>
+            </nav>
+            <p className="support-nav-label support-settings-label">
+              Votre espace
+            </p>
             <TabsList
               aria-label="Sections de Zentra Support"
               className="support-nav"
@@ -550,7 +673,10 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               </a>
             </div>
           </aside>
-          <main className="support-main">
+          <main
+            className="support-main"
+            data-reading={tab === 'inbox' && !!ticket}
+          >
             {noticeView}
             {!demo &&
               data.billing &&
@@ -580,11 +706,15 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                 <>
                   <div className="support-page-heading">
                     <div>
-                      <h1>Votre boîte de réception</h1>
+                      <h1>{folderName}</h1>
                       <p>
-                        {!demo && !data.automation?.enabled ? 'Le classement manuel est disponible.' : data.workspace.mode === 'automatic'
-                          ? 'Tri automatique · les cas incertains restent à vérifier.'
-                          : 'Vérifiez vos premières décisions, puis activez le tri automatique.'}
+                        {!demo && !data.automation?.enabled ? 'Le classement manuel est disponible.' : category
+                          ? 'Les demandes de cette catégorie, réunies au même endroit.'
+                          : filter === 'review'
+                            ? 'Vérifiez la proposition de Zentra avant de la valider.'
+                            : filter === 'error'
+                              ? 'Retrouvez les demandes qui nécessitent une nouvelle tentative.'
+                              : 'Vos demandes organisées, une décision à la fois.'}
                       </p>
                     </div>
                     <Button
@@ -620,57 +750,85 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                       )}
                     </div>
                   )}
-                  <div
-                    className="support-filters"
-                    aria-label="Filtrer les tickets"
-                  >
-                    {[
-                      ['', 'Tous'],
-                      ['review', 'À vérifier'],
-                      ['error', 'À reprendre'],
-                      ['ready', 'À appliquer'],
-                      ['routed', 'Affectés'],
-                      ['pending', 'En attente'],
-                    ].map(([value, label]) => (
-                      <Button
-                        key={value}
-                        variant="ghost"
-                        aria-pressed={filter === value}
-                        onClick={() => {
-                          setFilter(value);
+                  <div className="support-inbox-toolbar">
+                    <label className="support-search">
+                      <Search size={18} aria-hidden="true" />
+                      <input
+                        value={search}
+                        onChange={(e) => {
+                          setSearch(e.target.value);
+                          setSelected(null);
+                        }}
+                        placeholder="Rechercher un sujet ou un numéro…"
+                        aria-label="Rechercher un ticket"
+                        type="search"
+                      />
+                    </label>
+                    <label className="support-state-filter">
+                      <span>État</span>
+                      <select
+                        aria-label="Filtrer par état"
+                        value={filter}
+                        onChange={(e) => {
+                          setFilter(e.target.value);
                           setSelected(null);
                         }}
                       >
-                        {label}
+                        <option value="">Tous les états</option>
+                        {Object.entries(STATES).map(([value, label]) => (
+                          <option value={value} key={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {(search || filter || category) && (
+                      <Button variant="ghost" onClick={() => chooseFolder('')}>
+                        Tout afficher
                       </Button>
-                    ))}
+                    )}
                   </div>
                   <div className="support-inbox-layout" data-detail={!!ticket}>
-                    <section className="support-ticket-list">
+                    <section
+                      className="support-ticket-list"
+                      aria-label="Liste des tickets"
+                      aria-busy={fetching}
+                    >
                       <div className="support-list-heading">
-                        <h2>Boîte de réception</h2>
+                        <h2 aria-live="polite">
+                          {fetching ? 'Chargement…' : 'Demandes'}
+                        </h2>
                         <span>
                           {tickets.length}
                           {data.hasMore ? '+' : ''}
                         </span>
                       </div>
-                      <label className="support-search">
-                        <Search size={18} />
-                        <input
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          placeholder="Rechercher un ticket"
-                          aria-label="Rechercher un ticket"
-                        />
-                      </label>
                       {tickets.map((t) => (
                         <button
                           key={t.id}
                           className={`support-ticket-row ${selected === t.id ? 'selected' : ''}`}
-                          onClick={() => setSelected(t.id)}
+                          aria-pressed={selected === t.id}
+                          disabled={fetching}
+                          ref={(node) => {
+                            if (node) ticketButtons.current.set(t.id, node);
+                            else ticketButtons.current.delete(t.id);
+                          }}
+                          onClick={() => {
+                            setSelected(t.id);
+                            requestAnimationFrame(() =>
+                              detailHeading.current?.focus({
+                                preventScroll: true,
+                              }),
+                            );
+                          }}
                         >
                           <div>
-                            <span>#{t.externalId}</span>
+                            <span
+                              className="support-ticket-reference"
+                              title={t.externalId}
+                            >
+                              #{t.externalId}
+                            </span>
                             {t.decision && (
                               <span
                                 className={`support-priority ${t.decision.priority === 'urgent' ? 'urgent' : ''}`}
@@ -695,26 +853,26 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                         <Button
                           variant="ghost"
                           className="support-load-more"
-                          disabled={busy}
+                          disabled={busy || fetching}
                           onClick={() => void load({ append: true })}
                         >
                           Voir les tickets précédents
                         </Button>
                       )}
-                      {!tickets.length && (
+                      {!tickets.length && !fetching && (
                         <div className="support-empty">
                           <Inbox size={32} />
                           <h3>
-                            {search || filter
+                            {search || filter || category
                               ? 'Aucun ticket dans cette vue.'
                               : 'Votre boîte de réception est prête.'}
                           </h3>
                           <p>
-                            {search || filter
+                            {search || filter || category
                               ? 'Essayez un autre filtre ou un autre mot.'
                               : 'Les tickets apparaîtront automatiquement dès que votre outil sera connecté.'}
                           </p>
-                          {!search && !filter && (
+                          {!search && !filter && !category && (
                             <Button
                               variant="link"
                               onClick={() => setTab('connections')}
@@ -726,15 +884,27 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                         </div>
                       )}
                     </section>
-                    <section className="support-detail">
+                    <section
+                      className="support-detail"
+                      aria-label="Détail du ticket"
+                    >
                       {ticket ? (
                         <>
                           <Button
                             className="support-mobile-back"
                             variant="ghost"
-                            onClick={() => setSelected(null)}
+                            onClick={() => {
+                              const id = selected;
+                              setSelected(null);
+                              requestAnimationFrame(() => {
+                                if (id)
+                                  ticketButtons.current
+                                    .get(id)
+                                    ?.focus({ preventScroll: true });
+                              });
+                            }}
                           >
-                            <ArrowLeft size={18} /> Tous les tickets
+                            <ArrowLeft size={18} /> Retour à la liste
                           </Button>
                           <div className="support-detail-heading">
                             <span>Ticket #{ticket.externalId}</span>
@@ -742,7 +912,9 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                               {STATES[ticket.state]}
                             </span>
                           </div>
-                          <h2>{ticket.subject}</h2>
+                          <h2 ref={detailHeading} tabIndex={-1}>
+                            {ticket.subject}
+                          </h2>
                           <p className="support-sender">
                             {connection?.label || 'Connexion archivée'} ·{' '}
                             {formatDate(ticket.updatedAt)}
@@ -859,7 +1031,17 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                           {connection &&
                             ticket.state !== 'processing' &&
                             !readOnly && (
-                              <>
+                              <details
+                                className="support-review-disclosure"
+                                key={ticket.id}
+                                open={ticket.state !== 'routed'}
+                              >
+                                <summary>
+                                  {ticket.state === 'routed'
+                                    ? 'Modifier le classement'
+                                    : 'Vérifier et valider'}
+                                  <ChevronDown size={16} aria-hidden="true" />
+                                </summary>
                                 <ReviewForm
                                   key={ticket.id}
                                   ticket={ticket}
@@ -868,9 +1050,12 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                                   busy={busy}
                                   readOnly={!!readOnly}
                                 />
-                                {['pending', 'error', 'review', 'routed'].includes(
-                                  ticket.state,
-                                ) && (
+                                {[
+                                  'pending',
+                                  'error',
+                                  'review',
+                                  'routed',
+                                ].includes(ticket.state) && (
                                   <Button
                                     variant="ghost"
                                     disabled={
@@ -887,13 +1072,13 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                                     Relancer l’analyse
                                   </Button>
                                 )}
-                              </>
+                              </details>
                             )}
                         </>
                       ) : (
                         <div className="support-empty support-detail-empty">
                           <CircleHelp size={35} />
-                          <h3>Une décision, en un coup d’œil.</h3>
+                          <h3>Sélectionnez une demande</h3>
                           <p>
                             Sélectionnez un ticket pour voir son contenu, sa
                             priorité et son affectation.
