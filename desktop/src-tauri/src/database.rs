@@ -7529,6 +7529,9 @@ fn build_document_snapshot(
         }
     }
     let settings = build_issuer_snapshot(transaction)?;
+    if table == "quotes" {
+        document.insert("contact_name".into(), json!(crate::company_collaboration::quote_contact(transaction, id)?));
+    }
     let client = if let Some(client_id) = document.get("client_id").and_then(Value::as_str) {
         query_optional_tx(
             transaction,

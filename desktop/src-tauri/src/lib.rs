@@ -2523,6 +2523,23 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
     }
 
     #[test]
+    fn quote_interlocutor_remains_its_author_when_another_member_issues_it() {
+        let (_temporary, store) = initialized_store();
+        crate::company_collaboration::set_identity(&store, "org-contact", "alice", "Alice Martin", "member").unwrap();
+        let client = store.create_record("clients", test_client("Client partagé")).unwrap();
+        let quote = store.create_record("quotes", json!({"client_id":value_id(&client),"title":"Offre commune"})).unwrap();
+        let id = value_id(&quote);
+        store.create_record("quote_items", json!({"quote_id":id,"description":"Prestation","quantity":1,"unit":"forfait","unit_price_cents":10000,"vat_bp":0})).unwrap();
+        crate::company_collaboration::set_identity(&store, "org-contact", "bob", "Bob Dupont", "admin").unwrap();
+        let issued = store.issue_quote(&id, Some("2026-09-22".into()), Some("2026-10-22".into())).unwrap();
+        let snapshot: serde_json::Value = serde_json::from_str(issued["snapshot_json"].as_str().unwrap()).unwrap();
+        assert_eq!(snapshot["document"]["contact_name"], "Alice Martin");
+        crate::company_collaboration::set_identity(&store, "org-contact", "alice", "Alice Nouveau", "member").unwrap();
+        let reopened = store.issue_quote(&id, Some("2026-09-23".into()), None).unwrap();
+        assert_eq!(reopened["snapshot_json"], issued["snapshot_json"]);
+    }
+
+    #[test]
     fn document_totals_and_numbers_are_computed_locally() {
         let (_temporary, store) = initialized_store();
         let client = store

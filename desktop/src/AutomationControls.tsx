@@ -74,10 +74,10 @@ export function AutomationSetup({
     <section className="automation-setup">
       <Workflow size={28} />
       <p className="automation-eyebrow">Zentra Automation</p>
-      <h3>{t(state?.active ? 'Automation pour toute votre équipe' : 'Moins de tri, plus de temps pour vous.')}</h3>
+      <h3>{t(state?.active ? 'Automation pour toute votre équipe' : 'Disponible avec Zentra Automation')}</h3>
       <p>
         {t(
-          'Des suggestions pour classer vos opérations et documents. Vous validez les actions importantes.',
+          state?.active ? 'Des suggestions pour classer vos opérations et documents. Vous validez les actions importantes.' : 'Automatisez vos tâches répétitives pour +15 CHF/mois.',
         )}
       </p>
       {!state?.active && <div className="automation-price">
@@ -105,7 +105,7 @@ export function AutomationSetup({
         >
           <ArrowUpRight size={16} />
           {t(
-            state?.active ? (state.canManage ? 'Gérer Zentra Automation' : 'Voir les réglages de l’entreprise') : 'Découvrir et activer',
+            state?.active ? (state.canManage ? 'Gérer Zentra Automation' : 'Voir les réglages de l’entreprise') : 'Ajouter Automation',
           )}
         </Button>
         {onSkip && (

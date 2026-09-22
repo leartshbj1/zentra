@@ -6,3 +6,9 @@
 .company-account-opening__identity{font-size:14px;opacity:.75;max-width:100%;overflow-wrap:anywhere}
 .company-account-opening__identity svg{flex-shrink:0}
 .company-account-opening .btn{max-width:100%;white-space:normal;min-height:44px}
+.company-account-choices{display:grid;width:100%;gap:0;border-block:1px solid var(--line-soft)}
+.company-account-choices>div{display:grid;gap:7px;padding:20px 0;min-width:0}
+.company-account-choices>div+div{border-top:1px solid var(--line-soft)}
+.company-account-choices span,.company-account-choices small{font-size:14px;color:var(--muted);line-height:1.5}
+.company-account-choices strong{font-size:19px;line-height:1.35;overflow-wrap:anywhere}
+.company-account-choices p{font-size:15px}

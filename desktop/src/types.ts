@@ -405,6 +405,7 @@ export type FrozenCustomer = {
 };
 
 export type FrozenDocumentRecord = {
+  contactName?: string;
   id: Identifier;
   number: string;
   clientId: Identifier;

@@ -71,16 +71,19 @@ export function CompanyAccountGate({ account, workspace, createdFor, onWorkspace
     <section>
       <BrandMark size={42} />
       <div className="company-account-opening__identity"><Building2 size={20}/><span>{account?.organizationName}</span></div>
-      <h1>{t(remote ? 'Retrouvez votre entreprise' : local ? 'Retrouvez cet espace sur tous vos appareils' : waiting ? 'Votre entreprise attend son premier envoi' : 'Ouverture de votre entreprise…')}</h1>
-      {remote && <p>{t('Cet appareil contient déjà une autre entreprise. Ouvrez celle de votre compte ; une sauvegarde de l’espace actuel sera conservée sur cet appareil.')}</p>}
-      {local && <p>{t('Reliez cet espace à votre compte pour retrouver vos documents, votre logo et vos montants sur vos autres appareils.')}</p>}
+      <h1>{t(remote ? 'Quel espace souhaitez-vous ouvrir ?' : local ? 'Retrouvez cet espace sur tous vos appareils' : waiting ? 'Votre entreprise attend son premier envoi' : 'Ouverture de votre entreprise…')}</h1>
+      {remote && <div className="company-account-choices">
+        <div><span>{t('Sur cet appareil')}</span><strong>{workspace.settings?.organization.legalName || t('Mon entreprise')}</strong><p>{t('{quotes} devis · {invoices} factures', { quotes: workspace.quotes.length, invoices: workspace.invoices.length })}</p><small>{t('Une sauvegarde est conservée avant le changement.')}</small></div>
+        <div><span>{t('Dans votre compte')}</span><strong>{account?.organizationName}</strong><p>{t('Documents, équipe et réglages Automation de cet espace.')}</p></div>
+      </div>}
+      {local && <p>{t('Retrouvez les mêmes documents et montants sur vos autres appareils.')}</p>}
       {waiting && <p>{t('Ouvrez Zentra sur l’appareil où vous avez créé votre entreprise et connectez le même compte. Cet écran se mettra à jour automatiquement.')}</p>}
       {error && <ErrorPanel message={error} onRetry={() => setRetry(value => value + 1)} />}
       {busy ? <p role="status"><LoaderCircle size={20} className="spin"/>{t('Récupération sécurisée…')}</p> : <>
-        {remote && <Button onClick={() => void run('open')}>{t('Sauvegarder puis ouvrir mon entreprise')}</Button>}
+        {remote && <Button onClick={() => void run('open')}>{t('Ouvrir l’espace du compte')}</Button>}
         {local && <Button onClick={() => void run('publish')}>{t('Relier cette entreprise à mon compte')}</Button>}
         {waiting && <Button variant="secondary" onClick={() => setRetry(value => value + 1)}>{t('Réessayer')}</Button>}
-        <CloudAccountAccess account={account} onAccountChange={onAccountChange}/>
+        <CloudAccountAccess account={account} onAccountChange={onAccountChange} label={remote || local || waiting ? t('Choisir un autre espace') : undefined}/>
       </>}
     </section>
   </main>;

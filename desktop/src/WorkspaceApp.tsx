@@ -40,6 +40,7 @@ import { createProjectFileSessions, type ProjectFileSessions } from './projectFi
 import { ProjectFileActivity } from './ProjectFileActivity';
 import { employeeFormIssue, employeeNativeFieldIssue, type EmployeeFieldIssue } from './employeeFormValidation';
 import { CompanyLogo } from './CompanyLogo';
+import { quoteInterlocutor } from './quoteInterlocutor';
 import { useProjectSyncBackground } from './projectSync';
 import { CompanyReceivingGuard } from './companySync';
 import { useCloudBackupBackground } from './cloudBackup';
@@ -1622,7 +1623,6 @@ function WorkspaceContent({
     'invoices',
     'time',
     'team',
-    'expenses',
   ].includes(view);
   const prerequisites: WorkspacePrerequisites = {
     clients: workspace.clients.filter((client) => !client.archivedAt).length,
@@ -4672,7 +4672,7 @@ function TeamScreen({
       <section className="panel payroll-panel">
         <SectionHeading
           title={t("Fiches de salaire")}
-          description={t("Choisissez une personne et le mois, indiquez le salaire brut, puis vérifiez le montant à verser. Les réglages sont réutilisés les mois suivants.")}
+          description={t('Choisissez une personne et un mois pour commencer.')}
           action={
             payrollEnabled ? (
               <div className="payroll-heading-actions">
@@ -8276,6 +8276,7 @@ function PrintSheet({
   const totals = documentTotals(document.lines);
   const isQuote = true;
   const due = document.validUntil;
+  const interlocutor = quoteInterlocutor(source, settings.organization.contactName);
   return (
     <DocumentPreviewFrame title="Devis" number={document.number} customer={client?.company || client?.name || ''} total={formatMoney(totals.totalCents, document.currency)} finalDocument={source.status !== 'draft'} onClose={onClose} actions={
         <SalesPdfExportControl
@@ -8295,6 +8296,7 @@ function PrintSheet({
           number={document.number}
         />
         <div className="print-meta">
+          {interlocutor && <div><span>{t('Interlocuteur')}</span><strong>{interlocutor}</strong></div>}
           <div>
             <span>Émis le</span>
             <strong>{formatDate(document.issueDate)}</strong>

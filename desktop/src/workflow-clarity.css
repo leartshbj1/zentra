@@ -1,0 +1,39 @@
+.workflow-options{min-width:0;border:0;border-top:1px solid var(--line-soft);color:var(--ink)}
+.workflow-options>summary{min-height:48px;padding:14px 0;cursor:pointer;font-size:15px;line-height:1.5;font-weight:550;overflow-wrap:anywhere}
+.workflow-options>summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+.workflow-options>summary>span{font-variant-numeric:tabular-nums;color:var(--muted);margin-inline-start:8px;font-size:14px}
+.workflow-options[open]>summary{margin-bottom:8px}
+.workflow-options>div,.workflow-options>fieldset{min-width:0}
+.cloud-account-panel .settings-cloud-account.is-connected{background:var(--surface-raised);border:1px solid var(--line-soft);box-shadow:none;color:var(--ink);gap:16px;flex-wrap:wrap}
+.cloud-account-panel .settings-cloud-account>div{flex:1;min-width:160px;overflow-wrap:anywhere}
+.cloud-account-panel .settings-cloud-account__icon{background:none;color:var(--muted)}
+.cloud-account-panel .settings-cloud-account p{color:var(--muted)}
+.cloud-account-panel .settings-cloud-link{display:grid;gap:16px;min-width:0}
+.cloud-account-panel .settings-cloud-link p{max-width:60ch;line-height:1.55}
+.cloud-account-panel .settings-cloud-link .settings-actions{gap:8px}
+.cloud-account-panel .settings-cloud-link .btn,.cloud-account-panel .settings-cloud-account .btn{min-height:44px;white-space:normal;max-width:100%}
+.cloud-account-panel .cloud-account-shortcuts{margin-top:24px}
+.cloud-account-panel .cloud-team{margin-top:28px}
+.cloud-team__people strong{font-size:15px;font-weight:550;overflow-wrap:anywhere}
+.automation-settings .automation-settings__current-mode{font-size:14px;margin-top:12px}
+.automation-settings .automation-settings__quickstart{display:grid;gap:12px;padding-block:8px 20px}
+.automation-settings .automation-settings__toggle{background:none;border:0;border-bottom:1px solid var(--line-soft);border-radius:0;padding:16px 0}
+.automation-settings .automation-settings__quickstart>.btn{justify-self:start}
+.automation-settings .workflow-options>fieldset>legend{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.payroll-preparation .payroll-preparation__next{box-shadow:none;background:var(--surface-raised)}
+.payroll-preparation .payroll-preparation__next>h4{margin-top:0}
+.payroll-preparation .payroll-preparation__next>p{max-width:62ch}
+.payroll-preparation .payroll-save-later{border:0;border-top:1px solid var(--line-soft);border-radius:0;background:none;padding:20px 0 0}
+.purchases-screen .purchase-panel>.section-heading{margin-bottom:24px}
+.purchases-screen .purchase-toolbar{row-gap:16px}
+.purchases-screen .purchase-table .row-actions{gap:8px}
+.print-sheet .print-meta>div{min-width:0}
+.print-sheet .print-meta strong{overflow-wrap:anywhere}
+@media(max-width:720px){
+  .cloud-account-panel .settings-cloud-account{align-items:flex-start;padding:16px}
+  .cloud-account-panel .settings-cloud-account>.btn{width:100%}
+  .automation-settings{gap:20px}
+  .purchases-screen .purchase-panel .section-heading .btn{white-space:normal;min-height:44px}
+  .purchases-screen .tab-strip{display:flex;flex-wrap:wrap;gap:4px;overflow:visible}
+  .purchases-screen .tab-strip>button{min-height:44px;white-space:normal;flex:1 1 auto}
+}

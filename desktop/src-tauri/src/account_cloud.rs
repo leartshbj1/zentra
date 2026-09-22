@@ -179,6 +179,8 @@ struct MeResponse {
     user_id: String,
     #[serde(default)]
     email: String,
+    #[serde(default)]
+    display_name: String,
     organization: PollOrganization,
     installation_id: String,
     entitlement_valid_until: String,
@@ -533,7 +535,8 @@ async fn cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState>
                 )?;
             }
             if !me.user_id.is_empty() && !me.email.is_empty() {
-                crate::company_collaboration::set_identity(store,&session.organization_id,&me.user_id,&me.email,&session.role)?;
+                let name = if me.display_name.trim().is_empty() { &me.email } else { me.display_name.trim() };
+                crate::company_collaboration::set_identity(store,&session.organization_id,&me.user_id,name,&session.role)?;
             }
             return CloudAccountState::from_session(&session);
         }
@@ -594,7 +597,8 @@ async fn start_link(store: &LocalStore) -> AppResult<CloudAccountState> {
 
 async fn poll_link(store: &LocalStore) -> AppResult<CloudAccountState> {
     if let Some(exchange) = read_exchange_secret(store)? {
-        return finalize_exchange(store, exchange);
+        finalize_exchange(store, exchange)?;
+        return cloud_account_state(store).await;
     }
     let pending = read_pending_secret(store)?.ok_or_else(|| {
         AppError::Validation("Relancez la connexion au compte depuis les paramètres.".into())
@@ -665,7 +669,8 @@ async fn poll_link(store: &LocalStore) -> AppResult<CloudAccountState> {
         &exchange,
         &store.account_protected_cache.exchange,
     )?;
-    finalize_exchange(store, exchange)
+    finalize_exchange(store, exchange)?;
+    cloud_account_state(store).await
 }
 
 fn finalize_exchange(

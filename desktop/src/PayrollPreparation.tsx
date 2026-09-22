@@ -2,10 +2,10 @@ import { t, useAppLanguage } from './language';
 import { useEffect, useRef } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, FileText } from 'lucide-react';
 import { Button } from './ui';
-import { MobileDetails } from './MobileDetails';
 import type { PayrollHelpTarget } from './payrollHelp';
 import type { PayrollPreparationTask } from './payrollPreparationTasks';
 import './payroll-preparation.css';
+import './workflow-clarity.css';
 
 export function PayrollPreparation({
   employeeName,
@@ -101,16 +101,15 @@ export function PayrollPreparation({
       )}
       {!busy && !unavailable && (next ? (
         <article className="payroll-preparation__next" key={next.id}>
-          <span>{t("La prochaine action")}</span>
           <h4>{t(next.title)}</h4>
           <p>{t(next.explanation)}</p>
-          <MobileDetails title="Document nécessaire"><div className="payroll-preparation__document">
+          <details className="workflow-options"><summary>{t('Document nécessaire')}</summary><div className="payroll-preparation__document">
             <FileText size={20} />
             <div>
               <strong>{t("À avoir sous les yeux")}</strong>
               <p>{t(next.document)}</p>
             </div>
-          </div></MobileDetails>
+          </div></details>
           <Button
             type="button"
             disabled={busy || unavailable}
@@ -176,7 +175,7 @@ export function PayrollPreparation({
         <aside className="payroll-save-later" aria-label={t("Continuer plus tard")}>
           <div>
             <strong>{t("Il vous manque un document ?")}</strong>
-            <p>{t("Enregistrez votre salaire en brouillon et reprenez cette même fiche quand vous aurez les informations. Les cotisations resteront à calculer.")}</p>
+            <p>{t('Enregistrez un brouillon et complétez-le plus tard.')}</p>
           </div>
           <Button
             type="button"
@@ -186,7 +185,6 @@ export function PayrollPreparation({
           >{t("Enregistrer le salaire en brouillon")}</Button>
         </aside>
       )}
-      <p className="payroll-preparation__footnote">{t("Les réglages du contrat et des assurances serviront aussi aux prochaines fiches.")}</p>
     </section>
   );
 }

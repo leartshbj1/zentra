@@ -21,7 +21,9 @@ import { purchaseTranslations } from './translationsPurchases';
 import { supplierPaymentTranslations } from './translationsSupplierPayments';
 import { supplierDetailTranslations } from './translationsSupplierDetail';
 import { supplierReviewTranslations } from './translationsSupplierReview';
+import { workflowClarityTranslations } from './translationsWorkflowClarity';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...workflowClarityTranslations,
   ...assistantTranslations,
   ...supplierInboxTranslations,
   ...automationTranslations,

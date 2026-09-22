@@ -33,6 +33,8 @@ import { installExpenseRefundFixture } from './expense-refund-fixture';
 import { installReadOnlyFixture } from './read-only-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
 import { useState } from 'react';
+import { setAppearance } from '../src/appearance';
+import { setAppLanguage } from '../src/language';
 import { createRoot } from 'react-dom/client';
 import { WorkspaceApp } from '../src/WorkspaceApp';
 import { desktopApi } from '../src/bridge';
@@ -72,6 +74,9 @@ import '../src/refined.css';
 import '../src/assistant.css';
 
 const collectionNames = ['clients','catalogItems','stockMovements','suppliers','projects','projectMilestones','projectTasks','agendaEvents','quotes','salesOrders','recurrenceSchedules','recurrenceOccurrences','deliveryNotes','stockReservationEvents','stockAvailability','salesOrderInvoiceBatches','salesOrderInvoiceAllocations','invoices','invoiceCorrectionWorkflows','payments','employees','timeEntries','timeBillingBatches','timeBillingEntries','expenses','supplierOrders','supplierOrderCancellationLines','supplierReceipts','supplierInvoices','supplierInvoicePayments','supplierInvoiceMatches','supplierCreditNotes','supplierExpenseReclassifications','payslips','payrollImports','employeePayrollTemplates','accounts','attachments'];
+const previewQuery = new URLSearchParams(location.search);
+if (previewQuery.get('theme') === 'light' || previewQuery.get('theme') === 'dark') setAppearance(previewQuery.get('theme') as 'light'|'dark');
+if (['fr','de','it','en'].includes(previewQuery.get('language')||'')) setAppLanguage(previewQuery.get('language') as 'fr'|'de'|'it'|'en');
 let data = {
   ...Object.fromEntries(collectionNames.map((name) => [name, []])), schemaVersion: 43,
   onboardingCompleted: true, activityProfileRequired: false, activeTimer: null, accountingSettings: null,

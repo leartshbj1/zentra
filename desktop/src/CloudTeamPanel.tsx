@@ -8,7 +8,7 @@ import { errorMessage } from './utils';
 import './cloudTeam.css';
 import { CompanySyncPanel, publishCompanySync } from './companySync';
 
-export type CloudTeam = {continuous?:boolean;organizationId:string;organizationName:string;role:string;canManage:boolean;profile:Record<string,unknown>|null;companyCopy?:{backupId:string;publishedAt:string;sizeBytes:number}|null;seats:{planName:string;limit:number|null;used:number;reserved:number;available:number|null;subscriptionActive:boolean};members:{id:string;email:string;role:string}[];invitations:{id:string;email:string;role:string;expiresAt:number}[]};
+export type CloudTeam = {continuous?:boolean;organizationId:string;organizationName:string;role:string;canManage:boolean;profile:Record<string,unknown>|null;companyCopy?:{backupId:string;publishedAt:string;sizeBytes:number}|null;seats:{planName:string;limit:number|null;used:number;reserved:number;available:number|null;subscriptionActive:boolean};members:{id:string;email:string;displayName?:string;role:string}[];invitations:{id:string;email:string;role:string;expiresAt:number}[]};
 const roles = [ ['member','Collaborateur','Travaille dans l’application, sans gérer les accès.'], ['admin','Administrateur','Travaille dans l’application et gère les accès.'], ['accountant','Comptable / fiduciaire','Consulte et travaille sur les données, sans gérer les accès.'], ['read_only','Lecture seule','Consulte et exporte, sans modifier les données.'] ];
 export function CloudTeamPanel({settings}: {settings?:AppSettings|null}) {
   const [team,setTeam]=useState<CloudTeam|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[email,setEmail]=useState(''),[role,setRole]=useState('member'),[link,setLink]=useState(''),[notice,setNotice]=useState('');
@@ -32,7 +32,7 @@ export function CloudTeamPanel({settings}: {settings?:AppSettings|null}) {
     <header><Users size={22}/><div><h3>{t('Équipe et invitations')}</h3><p>{team ? `${team.seats.planName} · ${team.seats.used}${team.seats.limit===null?'':` / ${team.seats.limit}`} ${t('personnes, titulaire compris')}` : t('Chargement des accès…')}</p></div><Button size="icon" variant="ghost" disabled={busy} aria-label={t('Actualiser les accès')} onClick={()=>void run(reload,false)}><RefreshCw size={18}/></Button></header>
     {error && <ErrorPanel message={error}/>}
     {notice && <p role="status">{t(notice)}</p>}
-    <CompanySyncPanel/>
+    <details className="workflow-options"><summary>{t('État de la synchronisation')}</summary><CompanySyncPanel/></details>
     {team?.canManage && <>
       <div className="cloud-team__invite-heading"><p>{t('Documents, comptabilité et salaires partagés avec votre équipe.')}</p><Button variant="secondary" disabled={busy} onClick={()=>setInviting(value=>!value)}>{inviting?<X size={17}/>:<Plus size={17}/>} {t(inviting?'Fermer':'Inviter une personne')}</Button></div>
       {settings && !team.continuous && <Button variant="secondary" disabled={busy} onClick={()=>void run(async()=>{await shareCompany();setNotice('Partage activé.');}).finally(()=>setStage(''))}>{t('Activer le partage')}</Button>}
@@ -46,7 +46,7 @@ export function CloudTeamPanel({settings}: {settings?:AppSettings|null}) {
       </form>}
       {busy && stage && <p role="status">{t(stage)}</p>}
       {link && <div className="cloud-team__link"><label>{t('Lien réservé à l’adresse invitée')}<input readOnly value={link} onFocus={event=>event.currentTarget.select()}/></label><Button variant="secondary" onClick={()=>void navigator.clipboard.writeText(link).then(()=>setNotice('Lien copié.')).catch(()=>setError(t('Sélectionnez le lien pour le copier manuellement.')))}><Copy size={17}/>{t('Copier le lien')}</Button></div>}
-      <ul className="cloud-team__people">{team.members.map(person=><li key={person.id}><Check size={16}/><span>{person.email}<small>{t(person.role==='owner'?'Propriétaire':roles.find(([value])=>value===person.role)?.[1]||person.role)}</small></span></li>)}{team.invitations.map(invitation=><li key={invitation.id}><span>{invitation.email}<small>{t('Invitation en attente')} · {t(roles.find(([value])=>value===invitation.role)?.[1]||invitation.role)}</small></span><Button variant="ghost" disabled={busy} onClick={()=>void run(()=>desktopApi.revokeCloudInvitation(invitation.id))}>{t('Annuler l’invitation')}</Button></li>)}</ul>
+      <ul className="cloud-team__people">{team.members.map(person=><li key={person.id}><Check size={16}/><span><strong>{person.displayName || person.email}</strong>{person.displayName && <small>{person.email}</small>}<small>{t(person.role==='owner'?'Propriétaire':roles.find(([value])=>value===person.role)?.[1]||person.role)}</small></span></li>)}{team.invitations.map(invitation=><li key={invitation.id}><span>{invitation.email}<small>{t('Invitation en attente')} · {t(roles.find(([value])=>value===invitation.role)?.[1]||invitation.role)}</small></span><Button variant="ghost" disabled={busy} onClick={()=>void run(()=>desktopApi.revokeCloudInvitation(invitation.id))}>{t('Annuler l’invitation')}</Button></li>)}</ul>
     </>}
     {team && !team.canManage && <p>{t('Les invitations sont gérées par un administrateur.')}</p>}
   </section>;

@@ -2101,6 +2101,7 @@ function documentSnapshotFromRaw(
     issuer: frozenIssuerFromRaw(recordValue(root.issuer), dataDir),
     customer: frozenCustomerFromRaw(recordValue(root.customer)),
     document: {
+      contactName: stringValue(document.contact_name),
       id: stringValue(document.id),
       number: stringValue(document.number),
       clientId: stringValue(document.client_id),

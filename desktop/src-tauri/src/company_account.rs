@@ -41,7 +41,7 @@ fn decide(
         return Decision::Ready;
     }
     if remote {
-        return if empty || choice == "open" {
+        return if (!configured && empty) || choice == "open" {
             Decision::Receive
         } else {
             Decision::Choose
@@ -156,7 +156,7 @@ async fn resolve(store: &LocalStore, organization: &str, choice: &str) -> AppRes
             let owned = store.clone();
             let org = organization.to_owned();
             tauri::async_runtime::spawn_blocking(move || {
-                if empty {
+                if empty && !configured {
                     apply(&owned, &path, &org, revision, expected, true, false)
                 } else {
                     open_saved_company(&owned, &path, &org, revision, expected)
@@ -285,6 +285,8 @@ mod tests {
     }
     #[test]
     fn same_account_opens_a_new_device_but_never_merges_an_old_company() {
+        assert_eq!(decide(None, "a", true, true, true, 0, "auto", true), Decision::Choose);
+        assert_eq!(decide(None, "a", true, true, true, 0, "open", true), Decision::Receive);
         assert_eq!(
             decide(None, "a", false, true, true, 0, "auto", true),
             Decision::Receive

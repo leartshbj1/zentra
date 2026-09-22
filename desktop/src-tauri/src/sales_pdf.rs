@@ -93,6 +93,7 @@ struct SalesPdfQr {
 
 #[derive(Debug, Clone)]
 struct SalesPdfData {
+    contact_name: String,
     style: DocumentStyle,
     kind: SalesDocumentKind,
     number: String,
@@ -395,6 +396,10 @@ fn load_sales_pdf_data(
     };
 
     Ok(SalesPdfData {
+        contact_name: if kind == SalesDocumentKind::Quote {
+            if final_document { string_at(&document, "contact_name") }
+            else { crate::company_collaboration::quote_contact(connection, document_id)? }
+        } else { String::new() },
         style: DocumentStyle::from_issuer(&issuer, entity)?,
         kind,
         number: string_at(&document, "number"),
@@ -1155,6 +1160,9 @@ fn render_composed_sales(
         design.body_size,
         false,
     )?;
+    if !data.contact_name.is_empty() {
+        page.paragraph(&format!("Interlocuteur : {}", data.contact_name), design.body_size, false)?;
+    }
     if data.kind == SalesDocumentKind::Invoice && !is_credit_note(&data.document_type) {
         page.paragraph(
             &format!(
@@ -1312,6 +1320,7 @@ fn load_document_logo(raw_path: &str, branding_dir: Option<&Path>) -> Option<Pdf
 
 fn validate_visible_texts(data: &SalesPdfData) -> AppResult<()> {
     let mut fields: Vec<(&str, &str)> = vec![
+        ("interlocuteur", &data.contact_name),
         ("nom de l'entreprise", &data.issuer.company_name),
         ("forme juridique", &data.issuer.legal_form),
         ("IDE", &data.issuer.uid_number),
@@ -1601,6 +1610,14 @@ fn table_top(first: bool) -> f32 {
     }
 }
 
+fn contact_lines(data: &SalesPdfData) -> Vec<String> {
+    if data.contact_name.is_empty() { return vec![]; }
+    wrap_text_width(&format!("Interlocuteur : {}", data.contact_name), PAGE_WIDTH - 2.0 * MARGIN, 7.2, false)
+}
+fn table_top_with_contact(first: bool, data: &SalesPdfData) -> f32 {
+    table_top(first) - if first && !data.contact_name.is_empty() { 18.0 + contact_lines(data).len() as f32 * 9.0 } else { 0.0 }
+}
+
 fn line_height(line: &SalesPdfLine) -> f32 {
     let description_lines = wrap_text_width(&line.description, DESCRIPTION_TEXT_WIDTH, 7.2, true)
         .len()
@@ -1642,13 +1659,13 @@ fn paginate_sales_lines(data: &SalesPdfData, reserve_totals: bool) -> Vec<Vec<Sa
         } else {
             55.0
         };
-        let final_budget = table_top(first) - 22.0 - final_floor;
+        let final_budget = table_top_with_contact(first, data) - 22.0 - final_floor;
         if final_budget >= 0.0 && lines_height(remaining) <= final_budget {
             chunks.push(remaining.to_vec());
             break;
         }
         let non_final_floor = 55.0;
-        let non_final_budget = (table_top(first) - 22.0 - non_final_floor).max(30.0);
+        let non_final_budget = (table_top_with_contact(first, data) - 22.0 - non_final_floor).max(30.0);
         let count = largest_fitting_prefix(remaining, non_final_budget);
         if count == 0 && first {
             // La première page réserve davantage de place à l'identité et au
@@ -1788,7 +1805,7 @@ fn render_page(
         MUTED,
         &format!("Page {page_number}/{total_pages}"),
     );
-    let mut y = table_top(first);
+    let mut y = table_top_with_contact(first, data);
     render_table_header(&mut ops, y, &data.style);
     y -= 22.0;
     for line in lines {
@@ -1963,6 +1980,9 @@ fn render_first_header(ops: &mut Vec<Operation>, data: &SalesPdfData, logo: Opti
         );
     }
     text(ops, MARGIN, 579.0, 12.0, "F2", INK, &data.title);
+    for (index, value) in contact_lines(data).iter().enumerate() {
+        text(ops, MARGIN, 561.0 - index as f32 * 9.0, 7.2, "F1", MUTED, value);
+    }
 }
 
 fn render_continuation_header(ops: &mut Vec<Operation>, data: &SalesPdfData) {
@@ -3355,6 +3375,7 @@ pub(crate) fn design_example(issuer: &Value, kind: &str, branding_dir: &Path) ->
     }).collect::<Vec<_>>();
     let vat = lines.iter().map(|l| l.vat_cents).sum::<i64>();
     let data = SalesPdfData {
+        contact_name: if kind == "quotes" { string_at(issuer, "owner_name") } else { String::new() },
         style: DocumentStyle::from_issuer(issuer, kind)?, kind: if kind == "quotes" { SalesDocumentKind::Quote } else { SalesDocumentKind::Invoice },
         number: "EXEMPLE - SANS VALEUR".into(), title: "Votre prochain projet".into(), document_type: "standard".into(), deposit_percentage_bp: None,
         issue_date: "2026-09-01".into(), deadline_date: "2026-09-30".into(), service_date_from: "2026-09-01".into(), service_date_to: "2026-09-01".into(),
@@ -3507,6 +3528,7 @@ mod tests {
             })
             .collect();
         SalesPdfData {
+            contact_name: String::new(),
             style: DocumentStyle::default(),
             kind: SalesDocumentKind::Invoice,
             number: "F-2026-0001".into(),
@@ -4146,6 +4168,21 @@ mod tests {
             render_sales_pdf(&folder.join("devis-plusieurs-pages.pdf"),&many,None).unwrap();
             render_sales_pdf(&folder.join("facture-qr.pdf"),&sample_data(1,true),None).unwrap();
         }
+    }
+
+    #[test]
+    fn quote_contact_is_printed_without_overlapping_the_line_items() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut data = sample_data(2, false);
+        data.kind = SalesDocumentKind::Quote;
+        data.contact_name = "Alice Martin".into();
+        let path = directory.path().join("devis-interlocuteur.pdf");
+        assert_eq!(render_sales_pdf(&path, &data, None).unwrap(), 1);
+        let pdf = Document::load(&path).unwrap();
+        let text = pdf.extract_text(&[1]).unwrap();
+        assert!(text.contains("Alice Martin"));
+        assert!(text.contains("TOTAL TTC"));
+        assert!(table_top_with_contact(true, &data) < table_top(true));
     }
 
     #[test]

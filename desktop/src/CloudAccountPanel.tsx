@@ -15,6 +15,7 @@ import {
 import { desktopApi, type CloudAccountState } from './bridge';
 import { errorMessage } from './utils';
 import { Button, SectionHeading } from './ui';
+import './workflow-clarity.css';
 
 const ROLE_LABEL: Record<NonNullable<CloudAccountState['role']>, string> = {
   owner: 'Propriétaire',
@@ -42,6 +43,7 @@ export function CloudAccountPanel({
   const pollInFlight = useRef(false);
   const operation = useRef(0);
   const starting = useRef(false);
+  const previousAccount = useRef<CloudAccountState | null>(null);
   const changeCallback = useRef(onAccountChange); changeCallback.current = onAccountChange;
 
   useEffect(() => {
@@ -79,6 +81,7 @@ export function CloudAccountPanel({
   async function begin() {
     if (starting.current) return;
     starting.current = true;
+    if (account?.status === 'connected') previousAccount.current = account;
     const revision = ++operation.current;
     setBusy(true);
     setError('');
@@ -87,7 +90,8 @@ export function CloudAccountPanel({
       if (revision !== operation.current) return;
       setAccount(pending);
       setCopied(false);
-      changeCallback.current?.(pending);
+      // Keep the current space active until the other one is approved.
+      if (!previousAccount.current) changeCallback.current?.(pending);
       await openPage();
     } catch (reason) {
       if (revision !== operation.current) return;
@@ -109,7 +113,8 @@ export function CloudAccountPanel({
       const next = await desktopApi.pollCloudAccountLink();
       if (revision !== operation.current) return;
       setAccount(next);
-      changeCallback.current?.(next);
+      if (!previousAccount.current || next.status === 'connected') changeCallback.current?.(next);
+      if (next.status === 'connected') previousAccount.current = null;
       if (showError || next.status === 'connected') setError('');
     } catch (reason) {
       if (showError && revision === operation.current) {
@@ -163,48 +168,31 @@ export function CloudAccountPanel({
     }
   }
 
+  async function cancelSwitch() {
+    ++operation.current;
+    setBusy(true); setError('');
+    try {
+      // The native account lock waits for a poll already in progress. Never
+      // pretend the old session is still active if approval just completed.
+      const current = await desktopApi.getCloudAccountState();
+      setAccount(current); changeCallback.current?.(current);
+      previousAccount.current = null;
+    } catch (reason) { setError(errorMessage(reason, 'Le compte n’a pas pu être vérifié. Réessayez.')); }
+    finally { setBusy(false); }
+  }
+
   const connected = account?.status === 'connected';
   const expired = account?.status === 'expired';
   const inactive = account?.status === 'inactive';
   const pending = account?.status === 'pending';
   const codeExpired = pending && !!account.authorizationExpiresAt && Date.parse(account.authorizationExpiresAt) <= now;
-  const currentStep = connected ? 3 : pending ? 2 : 1;
 
   return (
     <section className="panel settings-card settings-card--wide cloud-account-panel">
       <SectionHeading
-        eyebrow="Zentra"
-        title={t(connected ? "Votre compte" : "Connecter votre entreprise")}
+        title={t(connected ? "Votre espace" : "Connecter votre entreprise")}
         description={connected ? undefined : t("Utilisez votre compte personnel ou l’adresse e-mail de votre invitation.")}
       />
-
-      {!connected && <ol
-        className="settings-cloud-steps"
-        aria-label={t("Étapes de connexion au compte")}
-      >
-        {[
-          ['Se connecter', 'Ouvrez votre compte dans le navigateur.'],
-          ['Confirmer le code', 'Comparez le même code dans le navigateur.'],
-          ['Gérer les accès', 'Invitez votre équipe dans les places de votre formule.'],
-        ].map(([title, description], index) => {
-          const step = index + 1;
-          const done =
-            step < currentStep || (connected && step === currentStep);
-          return (
-            <li
-              key={title}
-              className={`${done ? 'is-done' : ''} ${step === currentStep ? 'is-current' : ''}`}
-              aria-current={step === currentStep ? 'step' : undefined}
-            >
-              <span>{done ? <Check size={15} /> : step}</span>
-              <div>
-                <strong>{t(title)}</strong>
-                <small>{t(description)}</small>
-              </div>
-            </li>
-          );
-        })}
-      </ol>}
 
       {!account ? (
         <div className="settings-cloud-status">
@@ -222,6 +210,7 @@ export function CloudAccountPanel({
               {account.role ? t(ROLE_LABEL[account.role]) : t("Membre")}
             </p>
           </div>
+          <Button variant="secondary" disabled={busy} onClick={() => void begin()}>{t('Changer d’espace')}</Button>
         </div>
       ) : pending ? (
         <div className="settings-cloud-link">
@@ -230,10 +219,9 @@ export function CloudAccountPanel({
             <span>{t("Code à vérifier")}</span>
             <strong>{account.userCode}</strong>
           </div>
-          <p>{t("Le navigateur doit confirmer ce même code. Zentra vérifie ensuite automatiquement l’autorisation, sans recevoir votre mot de passe.")}</p>
+          <p>{t('Choisissez votre espace dans le navigateur et confirmez ce code. La connexion se termine automatiquement.')}</p>
           <div className="settings-actions">
             <Button
-              variant="secondary"
               disabled={busy}
               onClick={() => void openPage()}
             >
@@ -242,10 +230,12 @@ export function CloudAccountPanel({
               {copied ? <Check size={16} /> : <Copy size={16} />}
               {copied ? t("Code copié") : t("Copier le code")}
             </Button>
-            <Button disabled={busy} onClick={() => void poll(true)}>
-              {busy ? <LoaderCircle className="spin" size={16} /> : null}{t("Vérifier maintenant")}</Button>
-            <Button variant="secondary" disabled={busy} onClick={() => void begin()}>{t('Demander un nouveau code')}</Button>
           </div>
+          <details className="workflow-options"><summary>{t('La connexion ne se termine pas ?')}</summary><div className="settings-actions">
+            <Button variant="secondary" disabled={busy || codeExpired} onClick={() => void poll(true)}>{t('Vérifier maintenant')}</Button>
+            <Button variant="ghost" disabled={busy} onClick={() => void begin()}>{t('Demander un nouveau code')}</Button>
+          </div></details>
+          {previousAccount.current && <Button variant="ghost" disabled={busy} onClick={() => void cancelSwitch()}>{t('Rester dans mon espace actuel')}</Button>}
         </div>
       ) : (
         <div className="settings-cloud-intro">

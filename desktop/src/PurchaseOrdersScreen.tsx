@@ -865,24 +865,20 @@ export function PurchaseOrdersScreen({
         <div className="report-callout is-warning">
           <ShieldCheck size={20} />
           <div>
-            <strong>Comptabilité fournisseurs à terminer</strong>
+            <strong>Comptabilité à configurer</strong>
             <p>
-              Les brouillons restent accessibles, mais la validation, les avoirs
-              et les corrections d’imputation exigent les comptes de charges, de
-              TVA préalable et de dettes fournisseurs.
+              Complétez les comptes pour valider vos factures. Vos brouillons sont conservés.
             </p>
           </div>
           <Button variant="secondary" onClick={()=>onOpenAccounting()}>
-            Ouvrir Plan & liaisons
+            Configurer
           </Button>
         </div>
       ) : null}
 
       <section className="panel purchase-workflow__panel">
         <SectionHeading
-          eyebrow="Vos achats"
-          title="Achats & fournisseurs"
-          description="Enregistrez vos factures reçues, suivez ce qui reste à payer et retrouvez vos fournisseurs."
+          title="Suivi des achats"
           action={primaryAction}
         />
         <div className="purchase-workflow__toolbar">

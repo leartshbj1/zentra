@@ -9,6 +9,7 @@ import { automationReadiness, openAutomationHub, readinessLabels, recommendedAut
 import { t, useAppLanguage } from './language';
 import { Button } from './ui';
 import './AutomationSettings.css';
+import './workflow-clarity.css';
 import {SupplierHabits} from './SupplierHabits';
 import { AutomationConnectionNotice } from './AutomationConnectionNotice';
 
@@ -35,7 +36,7 @@ function CompanySettings({ state }: { state: AutomationState }) {
     if (!dirty && !busy) { setDraft(state.settings); setBaseline(current); setConsent(state.settings.consent); }
   }, [current]);
   return <section className="automation-settings">
-    <header><Workflow size={26} /><div><h3>{t('Automation pour toute votre équipe')}</h3><p>{t('Un seul réglage pour tous les collaborateurs de cette entreprise.')}</p></div></header>
+    <header><Workflow size={26} /><div><h3>{t('Automation de cet espace')}</h3><p>{t('Ces réglages s’appliquent à toute son équipe.')}</p></div></header>
     <span className="automation-settings__status">{t(readinessLabels[automationReadiness(state)])}</span>
     {!canManage && <p className="automation-settings__notice">{t('Vous bénéficiez des fonctions activées. Le titulaire ou un administrateur gère les réglages.')}</p>}
     {canManage && (!state.settings.consent || !state.settings.flags.length) && <div className="automation-settings__quickstart">
@@ -45,20 +46,20 @@ function CompanySettings({ state }: { state: AutomationState }) {
     <fieldset disabled={!canManage || busy}>
       <legend>{t('Fonctionnement')}</legend>
       <label className="automation-settings__toggle"><span><strong>{t('Activer les suggestions')}</strong><small>{t('Vous gardez la validation des actions importantes.')}</small></span><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /></label>
-      <label className="automation-settings__mode"><span>{t('Mode')}</span><select value={draft.mode} onChange={e => setDraft({ ...draft, mode: e.target.value as 'suggest' | 'shadow' })}><option value="suggest">{t('Suggestions · vérifier puis confirmer')}</option><option value="shadow">{t('Observation · sans modifier vos choix')}</option></select></label>
+      <p className="automation-settings__current-mode">{t(draft.mode === 'shadow' ? 'Observation · sans modifier vos choix' : 'Suggestions · vérifier puis confirmer')}</p>
     </fieldset>
-    <fieldset disabled={!canManage || busy}>
+    <details className="workflow-options"><summary>{t('Fonctions activées')} <span>{draft.flags.filter(feature => state.available.includes(feature)).length} / {state.available.length}</span></summary><fieldset disabled={!canManage || busy}>
       <legend>{t('Les fonctions de votre équipe')}</legend>
       <div className="automation-settings__features">{Object.entries(automationFeatures).map(([key, item]) => {
         const feature = key as keyof typeof automationFeatures;
         const available = state.available.includes(feature);
         return <label className="automation-settings__toggle" key={key}><span><strong>{t(item.title)}</strong><small>{t(available ? item.description : 'Cette fonction n’est pas encore disponible.')}</small></span><input type="checkbox" checked={available && draft.flags.includes(feature)} disabled={!available} onChange={e => setDraft({ ...draft, flags: e.target.checked ? [...draft.flags, feature] : draft.flags.filter(f => f !== feature) })} /></label>;
       })}</div>
-    </fieldset>
+    </fieldset></details>
     {canManage && <>
       {!state.settings.consent && <label className="automation-settings__consent"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={busy} /><span>{t('J’autorise l’analyse en ligne des extraits nécessaires pour cette entreprise.')}</span></label>}
       {draft.enabled && !consent && <p>{t('Cochez votre accord ci-dessus pour enregistrer l’activation.')}</p>}
-      <details><summary>{t('Réglages avancés')}</summary><div className="automation-settings__thresholds">
+      <details className="workflow-options"><summary>{t('Réglages avancés')}</summary><label className="automation-settings__mode"><span>{t('Mode')}</span><select disabled={busy} value={draft.mode} onChange={e => setDraft({ ...draft, mode: e.target.value as 'suggest' | 'shadow' })}><option value="suggest">{t('Suggestions · vérifier puis confirmer')}</option><option value="shadow">{t('Observation · sans modifier vos choix')}</option></select></label><div className="automation-settings__thresholds">
         <label>{t('Suggestion à partir de (%)')}<input type="number" min="50" max="99" step="1" disabled={busy} value={Math.round(draft.thresholds.medium * 100)} onChange={e => setDraft({ ...draft, thresholds: { ...draft.thresholds, medium: Number(e.target.value) / 100 } })} /></label>
         <label>{t('Confiance élevée à partir de (%)')}<input type="number" min="51" max="100" step="1" disabled={busy} value={Math.round(draft.thresholds.high * 100)} onChange={e => setDraft({ ...draft, thresholds: { ...draft.thresholds, high: Number(e.target.value) / 100 } })} /></label>
       </div></details>
@@ -75,9 +76,8 @@ function CompanySettings({ state }: { state: AutomationState }) {
       }}><Check size={17} />{t(busy ? 'Enregistrement…' : 'Enregistrer pour toute l’équipe')}</Button>
     </>}
     {message && <p role="status">{t(message)}</p>}
-    <div className="automation-settings__quickstart"><strong>{t('De la boîte mail à la comptabilité')}</strong><p>{t('Reliez Support pour recevoir les factures fournisseurs dans Gestion. L’enregistrement automatique s’active séparément pour cette entreprise.')}</p><Button variant="secondary" onClick={()=>void invoke('open_supplier_inbox_settings').catch(()=>setMessage('Ouvrez zentraapp.ch/support/espace dans votre navigateur.'))}>{t('Régler la réception des factures')}</Button></div>
-    <SupplierHabits key={state.organizationId} org={state.organizationId} manage={canManage}/>
-    <p className="automation-settings__appointment-note">Les confirmations de rendez-vous rejoignent l’agenda lorsque « E-mails importés » est activé en mode suggestions. Les informations incomplètes restent à vérifier.</p>
+    <details className="workflow-options"><summary>{t('Factures et rendez-vous reçus par e-mail')}</summary><div className="automation-settings__quickstart"><p>{t('Reliez Support pour recevoir les factures fournisseurs dans Gestion. L’enregistrement automatique s’active séparément pour cette entreprise.')}</p><Button variant="secondary" onClick={()=>void invoke('open_supplier_inbox_settings').catch(()=>setMessage('Ouvrez zentraapp.ch/support/espace dans votre navigateur.'))}>{t('Régler la réception des factures')}</Button></div><p>{t('Les rendez-vous rejoignent l’agenda avec les suggestions « E-mails importés ». Les informations incomplètes restent à vérifier.')}</p></details>
+    <details className="workflow-options"><summary>{t('Habitudes de classement')}</summary><SupplierHabits key={state.organizationId} org={state.organizationId} manage={canManage}/></details>
     <Button variant="ghost" onClick={() => void openAutomationSettings().catch(() => setMessage('Ouvrez zentraapp.ch/compte/automation dans votre navigateur.'))}>{t('Confidentialité et abonnement')}</Button>
   </section>;
 }

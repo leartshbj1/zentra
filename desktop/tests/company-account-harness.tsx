@@ -13,7 +13,7 @@ setAppearance(query.get('theme') === 'dark' ? 'dark' : 'light');
 if (query.get('language') === 'de') setAppLanguage('de');
 const scenario = query.get('scenario') || 'empty';
 const account: CloudAccountState = { status: 'connected', organizationId: 'windows', organizationName: 'Atelier Windows', role: 'owner' };
-const received = { onboardingCompleted: true, settings: initialOnboardingSettings, clients: [{ id: 'client-windows', name: 'Client Windows' }], invoices: [{ id: 'invoice-windows', number: 'F-2026-0012' }] } as unknown as Workspace;
+const received = { onboardingCompleted: true, settings: initialOnboardingSettings, quotes: [], clients: [{ id: 'client-windows', name: 'Client Windows' }], invoices: [{ id: 'invoice-windows', number: 'F-2026-0012' }] } as unknown as Workspace;
 let calls = 0, loaded = false;
 desktopApi.getCloudAccountState = async () => account;
 desktopApi.resolveConnectedCompany = async (org, choice) => {

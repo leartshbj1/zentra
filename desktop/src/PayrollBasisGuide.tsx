@@ -29,7 +29,7 @@ export function PayrollBasisGuide({ questions, grossCents, busy, onConfirm, onBa
     <Button type="button" variant="ghost" disabled={busy} onClick={onBack}><ArrowLeft size={16} />{t(" Revenir à mon salaire")}</Button>
     <header>
       <h3 ref={heading} tabIndex={-1}>{finished ? t("Vos montants sont renseignés.") : reviewing ? t("Le salaire a changé. Vérifions les montants.") : t("Quel montant sert au calcul ?")}</h3>
-      <p>{t("Une assurance à la fois. Vous confirmez le montant du salaire auquel son taux s’applique. Zentra calcule ensuite la retenue.")}</p>
+      <p>{t('Confirmez le salaire soumis à cette assurance. Zentra calcule la retenue.')}</p>
     </header>
     {finished ? <>
       <p role="status">{remaining.length ? t("Il reste un montant à vérifier.") : t("Les montants confirmés sont conservés dans cette fiche. Revenez au salaire pour vérifier le net.")}</p>
@@ -70,7 +70,7 @@ function BasisQuestion({ question, grossCents, busy, index, count, onConfirm, on
     <p>{annual
       ? t("Additionnez les montants déjà soumis à cette assurance avant ce mois, pour cette année. Ne comptez pas le salaire de ce mois.")
       : t("Recopiez le salaire soumis à cette assurance, avant de déduire les cotisations. Cette information figure dans votre décompte de paie ou peut être confirmée par votre fiduciaire.")}</p>
-    {!annual && <div className="payroll-basis-example"><strong>{t("Exemple pour comprendre")}</strong><p>{t("Si le montant soumis est 5’000 CHF et le taux de 1 %, la retenue est 50 CHF. Vous saisissez 5’000, pas 50. Cet exemple ne fixe pas votre taux.")}</p></div>}
+    {!annual && <details className="workflow-options"><summary>{t("Exemple pour comprendre")}</summary><p>{t("Si le montant soumis est 5’000 CHF et le taux de 1 %, la retenue est 50 CHF. Vous saisissez 5’000, pas 50. Cet exemple ne fixe pas votre taux.")}</p></details>}
     <Field label={annual ? t("Montant déjà soumis avant ce mois (CHF)") : t("Salaire soumis à cette assurance (CHF)")} error={t(error)}
       hint={annual ? t("Saisissez 0 uniquement si aucun montant n’a déjà été soumis cette année.") : t("Votre brut du mois est {v0}. Les allocations, indemnités et frais peuvent avoir un traitement différent.", { v0: formatMoney(grossCents) })}>
       <input ref={field} aria-label={annual ? t("Montant déjà soumis avant ce mois (CHF)") : t("Salaire soumis à cette assurance (CHF)")}

@@ -459,6 +459,19 @@ pub(crate) fn set_identity(
     store.connect()?.execute("INSERT INTO company_local_identity VALUES(1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET organization_id=excluded.organization_id,user_id=excluded.user_id,display_name=excluded.display_name,role=excluded.role",params![organization,user_id,name,role])?;
     Ok(())
 }
+
+/// The quote contact is its author, never the person currently opening it.
+pub(crate) fn quote_contact(connection: &Connection, id: &str) -> AppResult<String> {
+    let author: Option<(Option<String>, String)> = connection.query_row(
+        "SELECT user_id,display_name FROM document_creators WHERE entity='quotes' AND document_id=?",
+        [id], |row| Ok((row.get(0)?, row.get(1)?)),
+    ).optional()?;
+    if let Some((Some(_), name)) = author {
+        return Ok(if name.contains('@') { String::new() } else { name.trim().to_owned() });
+    }
+    // Standalone companies have no account author; use their declared contact.
+    Ok(connection.query_row("SELECT COALESCE(owner_name,'') FROM settings WHERE id=1", [], |row| row.get::<_, String>(0)).optional()?.unwrap_or_default())
+}
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct Preferences {
@@ -2213,10 +2226,12 @@ mod tests {
         let source = LocalStore::initialize(source_dir.path().into()).unwrap();
         let target = LocalStore::initialize(target_dir.path().into()).unwrap();
         person(&source, "alice");
+        set_identity(&source, "org-test", "alice", "Alice Martin", "member").unwrap();
         person(&target, "bob");
         seed(&source, "client-a");
         source.connect().unwrap().execute("INSERT INTO quotes(id,title,client_id,created_at,updated_at) VALUES('quote-a','Devis Alice','client-a',?,?)",params![now_iso(),now_iso()]).unwrap();
         person(&source, "charlie");
+        assert_eq!(quote_contact(&source.connect().unwrap(), "quote-a").unwrap(), "Alice Martin");
         source
             .connect()
             .unwrap()
@@ -2253,6 +2268,7 @@ mod tests {
                 .unwrap(),
             "alice"
         );
+        assert_eq!(quote_contact(&target.connect().unwrap(), "quote-a").unwrap(), "Alice Martin");
         assert_eq!(
             target
                 .connect()
