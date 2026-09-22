@@ -7,7 +7,7 @@ import {
 import { supportMetadata } from '@/lib/support/marketing';
 
 export const metadata = supportMetadata(
-  'Vos données et vos décisions',
+  'Sécurité et traitement des données',
   'Comprenez le traitement des tickets, les accès aux connexions et les contrôles humains dans Zentra Support.',
   '/support/securite',
 );

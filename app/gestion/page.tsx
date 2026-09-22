@@ -22,7 +22,7 @@ import { ZENTRA_WINDOWS_VERSION } from '@/lib/downloads';
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
-  title: { absolute: 'Zentra Gestion — Votre entreprise, simplement' },
+  title: { absolute: 'Zentra Gestion — Facturation et ERP pour PME suisses' },
   description:
     'Toute votre PME dans un seul logiciel : facturation suisse, comptabilité, salaires, achats, projets et banque, dès 49 CHF par mois.',
   alternates: { canonical: '/gestion' },

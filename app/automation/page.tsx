@@ -8,12 +8,14 @@ import {
   TableProperties,
   SlidersHorizontal,
 } from 'lucide-react';
+import { StructuredData } from '@/components/structured-data';
+import { productData, breadcrumbData } from '@/lib/seo';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import '@/components/automation/automation.css';
 import './presentation.css';
 export const metadata = {
-  title: { absolute: 'Zentra Automation — Moins de tri. Plus de temps.' },
+  title: { absolute: 'Zentra Automation — Classement assisté pour votre gestion' },
   description:
     'Classez vos opérations et orientez vos documents avec les suggestions de Zentra Automation. Une option de Zentra Gestion à 15 CHF par mois par entreprise.',
   alternates: { canonical: '/automation' },
@@ -21,6 +23,8 @@ export const metadata = {
 export default function AutomationPage() {
   return (
     <>
+      <StructuredData data={productData('automation')} />
+      <StructuredData data={breadcrumbData('/automation', 'Zentra Automation')} />
       <SiteHeader />
       <main className="automation-page automation-marketing" id="contenu">
         <div className="automation-wrap">

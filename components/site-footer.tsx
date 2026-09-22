@@ -9,6 +9,7 @@ const groups = [
       ['/pricing', 'Tarifs Gestion'],
       ['/download', 'Télécharger'],
       ['/demo-facture', 'Voir la démo'],
+      ['/#questions', 'Questions fréquentes'],
     ],
   },
   {

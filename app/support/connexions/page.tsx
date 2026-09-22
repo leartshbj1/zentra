@@ -9,7 +9,7 @@ import { supportMetadata } from '@/lib/support/marketing';
 import { zendeskAvailability } from '@/lib/support/zendesk-oauth';
 
 export const metadata = supportMetadata(
-  'Vos outils, connectés',
+  'Connexions — Infomaniak, Freshdesk et API',
   'Découvrez les connexions de Zentra Support, leur disponibilité et les étapes pour recevoir et orienter vos tickets.',
   '/support/connexions',
 );

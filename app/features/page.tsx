@@ -31,7 +31,7 @@ import { VatClosingDemo } from '@/components/vat-closing-demo';
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
-  title: 'Fonctionnalités Zentra — ERP et gestion pour PME suisses',
+  title: 'Fonctionnalités — Facturation, comptabilité et projets',
   description:
     'Découvrez les fonctions Zentra pour la facturation suisse, les achats, la comptabilité, la TVA, les salaires, les projets, les heures et l’import bancaire CAMT.',
   alternates: { canonical: '/features' },

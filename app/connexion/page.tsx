@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Connexion sécurisée — Zentra',
+  robots: { index: false, follow: false },
   description: 'Accédez au compte de votre entreprise Zentra.',
 };
 

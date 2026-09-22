@@ -11,7 +11,7 @@ import {
 import { supportMetadata } from '@/lib/support/marketing';
 
 export const metadata = supportMetadata(
-  'Du ticket à son équipe',
+  'Fonctionnalités — Tri et priorité des tickets',
   'Découvrez la classification, la priorité, les règles de routage et la validation humaine de Zentra Support.',
   '/support/fonctionnalites',
 );

@@ -434,3 +434,8 @@
     to { opacity: 1; transform: translateY(0); }
   }
 }
+
+.product-answer + .product-answer { margin-top: 2rem; }
+.product-answer h3 { font-size: 1.125rem; line-height: 1.5; font-weight: 600; margin-bottom: .5rem; }
+.product-answer p { max-width: 70ch; }
+.product-answer a { display: inline-flex; min-height: 44px; align-items: center; text-decoration: underline; text-underline-offset: .2em; }

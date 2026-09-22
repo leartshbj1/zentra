@@ -7,7 +7,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ['/gestion', 0.95, 'weekly'],
     ['/features', 0.9, 'weekly'],
     ['/support', 0.9, 'weekly'],
-    ['/produits', 0.9, 'monthly'],
     ['/automation', 0.85, 'monthly'],
     ['/automation/conditions', 0.5, 'monthly'],
     ['/parrainage/conditions', 0.5, 'monthly'],
@@ -22,6 +21,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ['/download', 0.9, 'weekly'],
     ['/demo-facture', 0.75, 'monthly'],
     ['/confidentialite', 0.5, 'monthly'],
+    ['/conditions', 0.5, 'monthly'],
+    ['/mentions-legales', 0.5, 'monthly'],
+    ['/sous-traitance', 0.5, 'monthly'],
+    ['/cookies', 0.3, 'monthly'],
   ] as const;
 
   return pages.map(([path, priority, changeFrequency]) => ({

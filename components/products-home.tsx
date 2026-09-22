@@ -1,4 +1,6 @@
 import { ArrowRight } from 'lucide-react';
+import { StructuredData } from './structured-data';
+import { homeQuestions, faqData } from '@/lib/seo';
 import { SiteHeader } from './site-header';
 import { SiteFooter } from './site-footer';
 import { ProductRange } from './product-range';
@@ -10,6 +12,7 @@ export function ProductsHome() {
       <a className="site-skip-link" href="#contenu">
         Aller au contenu
       </a>
+      <StructuredData data={faqData()} />
       <SiteHeader />
       <main id="contenu" tabIndex={-1}>
         <section className="products-intro">
@@ -20,7 +23,7 @@ export function ProductsHome() {
             <span>Simplement.</span>
           </h1>
           <p>
-            Votre gestion. Votre service client. Vos tâches répétitives.
+            Des logiciels de gestion et de service client pour les PME suisses.
             <br />
             Le bon outil pour chaque partie de votre quotidien.
           </p>
@@ -84,6 +87,21 @@ export function ProductsHome() {
               Besoin d’un conseil ? Écrivez-nous{' '}
               <ArrowRight size={16} aria-hidden="true" />
             </a>
+          </div>
+        </section>
+        <section className="products-relationship" id="questions" aria-labelledby="questions-title">
+          <div>
+            <p className="products-kicker">AVANT DE CHOISIR</p>
+            <h2 id="questions-title">Vos questions sur Zentra</h2>
+          </div>
+          <div className="products-relationship-copy">
+            {homeQuestions.map(({ question, answer, href, label }) => (
+              <div key={question} className="product-answer">
+                <h3>{question}</h3>
+                <p>{answer}</p>
+                <a href={href}>{label}</a>
+              </div>
+            ))}
           </div>
         </section>
       </main>

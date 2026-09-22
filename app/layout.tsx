@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { StructuredData } from '@/components/structured-data';
+import { identityData } from '@/lib/seo';
 import { AuthSessionGuard } from '@/components/auth-session-guard';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ScrollExperience } from '@/components/scroll-experience';
@@ -31,6 +33,11 @@ export const metadata: Metadata = {
   description:
     'Facturation suisse, comptabilité, achats, salaires, projets et banque réunis dans un logiciel de gestion local-first pour PME.',
   applicationName: 'Zentra',
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+    other: process.env.BING_SITE_VERIFICATION ? { 'msvalidate.01': process.env.BING_SITE_VERIFICATION } : undefined,
+  },
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 } },
   icons: { icon: '/favicon.svg' },
   openGraph: {
     type: 'website',
@@ -58,6 +65,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <StructuredData data={identityData()} />
         <ScrollExperience />
         <AuthSessionGuard />
         {children}

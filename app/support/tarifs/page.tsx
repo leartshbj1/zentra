@@ -8,7 +8,7 @@ import {
 import { supportMetadata } from '@/lib/support/marketing';
 
 export const metadata = supportMetadata(
-  'Une formule pour toute votre équipe',
+  'Tarifs — dès 29 CHF par mois',
   'Les abonnements Zentra Support : Starter 29 CHF, Équipe 49 CHF et Business 99 CHF par mois, sans frais par collaborateur.',
   '/support/tarifs',
 );

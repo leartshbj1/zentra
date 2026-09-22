@@ -1,4 +1,6 @@
 import { redirect } from 'next/navigation';
+import { StructuredData } from '@/components/structured-data';
+import { productData, breadcrumbData } from '@/lib/seo';
 import { ArrowRight, Route, ScanText, UsersRound } from 'lucide-react';
 import { RoutingExample } from '@/components/support/presentation';
 import {
@@ -8,7 +10,7 @@ import {
 import { supportMetadata } from '@/lib/support/marketing';
 
 export const metadata = supportMetadata(
-  'Le bon ticket. La bonne équipe.',
+  'Classement et routage des tickets clients',
   'Zentra Support classe les tickets, évalue leur priorité et les oriente vers votre équipe. Un produit indépendant pour les équipes de service client.',
   '/support',
 );
@@ -43,6 +45,8 @@ export default async function SupportPresentation({
     );
   return (
     <SupportMarketingShell>
+      <StructuredData data={productData('support')} />
+      <StructuredData data={breadcrumbData('/support', 'Zentra Support')} />
       <section className="sp-hero sp-wrap">
         <div className="sp-hero-copy">
           <p className="sp-kicker">

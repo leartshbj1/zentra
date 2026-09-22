@@ -7,7 +7,7 @@ import {
 import { supportMetadata } from '@/lib/support/marketing';
 
 export const metadata = supportMetadata(
-  'Pour les équipes qui répondent aux clients',
+  'Cas d’usage — Service client et gestion des tickets',
   'E-commerce, SaaS et agences : découvrez comment organiser le tri et le routage de vos tickets avec Zentra Support.',
   '/support/solutions',
 );
