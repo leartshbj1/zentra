@@ -11,6 +11,7 @@ import { database, runtimeValue } from '@/lib/runtime';
 import { AccountPublicError } from '@/lib/account-security';
 import { SupportError } from '@/lib/support/types';
 import { assertStripeCheckoutReady } from '@/lib/stripe-readiness';
+import { retryStripeDeliveryCheck } from '@/lib/stripe-delivery-check';
 import { PublicError } from '@/lib/stripe';
 import { ZENTRA_PLANS } from '@/lib/plans';
 import { JevDecisionProvider } from '@/lib/automation/provider';
@@ -18,21 +19,36 @@ import { buildPolicy } from '@/lib/automation/policies';
 import {
   provisionAutomationBilling,
   automationBillingConfig,
+  automationStripe,
 } from '@/lib/automation/billing';
 export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const user = await requireAutomationFounder(request),
       body = await readJsonObjectWithinLimit(request, 12000);
+    if (body.action === 'billing_delivery') {
+      return Response.json(await retryStripeDeliveryCheck(automationStripe()), {
+        headers: accountNoStoreHeaders(),
+      });
+    }
     if (body.action === 'billing_check') {
-      const checks = await Promise.all(ZENTRA_PLANS.map(async plan => {
-        try {
-          await assertStripeCheckoutReady(plan.id);
-          return { plan: plan.name, ready: true, message: 'Prêt' };
-        } catch (error) {
-          return { plan: plan.name, ready: false, message: error instanceof PublicError ? error.message : 'La configuration serveur du paiement doit être vérifiée.' };
-        }
-      }));
+      const checks = await Promise.all(
+        ZENTRA_PLANS.map(async (plan) => {
+          try {
+            await assertStripeCheckoutReady(plan.id);
+            return { plan: plan.name, ready: true, message: 'Prêt' };
+          } catch (error) {
+            return {
+              plan: plan.name,
+              ready: false,
+              message:
+                error instanceof PublicError
+                  ? error.message
+                  : 'La configuration serveur du paiement doit être vérifiée.',
+            };
+          }
+        }),
+      );
       return Response.json({ checks }, { headers: accountNoStoreHeaders() });
     }
     if (body.action === 'test') {
