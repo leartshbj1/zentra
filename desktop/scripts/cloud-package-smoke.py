@@ -133,11 +133,29 @@ def main():
                         time.sleep(1)
                 time.sleep(5)
                 assert proc.poll() is None
+            except Exception as error:
+                # Preserve actionable evidence even when startup stops before
+                # logging is available. Never inspect a customer profile.
+                stream.flush()
+                evidence = dict(error=str(error), attempt=attempt + 1,
+                                processExit=proc.poll(), profile=str(profile),
+                                profileFiles=[str(p.relative_to(profile)) for p in profile.rglob('*')],
+                                startupLog=log.read_text(errors='replace')[-8000:])
+                (out / f'{args.system}-failure.json').write_text(json.dumps(evidence, indent=2))
+                print(json.dumps(evidence), flush=True)
+                if args.system == 'macos' and proc.poll() is None:
+                    sample = out / 'macos-startup-sample.txt'
+                    subprocess.run(['/usr/bin/sample', str(proc.pid), '3', '1', '-file', str(sample)],
+                                   timeout=20, check=False)
+                    if sample.exists():
+                        print(sample.read_text(errors='replace')[:16000], flush=True)
+                raise
             finally:
                 if proc.poll() is None:
                     proc.terminate()
                     proc.wait(timeout=20)
     result = dict(version=version, source=args.source, system=args.system, buildJob=args.job,
+                  verifierSource=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip(),
                   schema=schema, integrity='ok', isolatedProfile=True, startupAndRelaunchPassed=True,
                   scope='Packaged binary startup and SQLite integrity, without interactive UI or customer data')
     if args.system == 'windows':
