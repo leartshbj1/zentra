@@ -461,6 +461,18 @@ it('records an exact factual summary and a completion notification without a mod
   );
   expect(mocks.decide).not.toHaveBeenCalled();
 });
+it('advances only the authenticated company queue and recovers only its expired leases', async () => {
+  for (let i = 0; i < 5; i++) await add();
+  await dispatchMailWorkflows('support', 'ticket');
+  expect((await centre()).items).toHaveLength(2);
+  db.exec("UPDATE automation_workflow_runs SET state='running',lease='expired',lease_until=1 WHERE id=(SELECT id FROM automation_workflow_runs WHERE state='queued' LIMIT 1)");
+  await runDueWorkflows('b');
+  expect((await centre()).items).toHaveLength(2);
+  expect((await centre()).runs.some(r => r.state === 'running')).toBe(true);
+  await runDueWorkflows('a');
+  expect((await centre()).items).toHaveLength(4);
+  expect((await centre()).runs.some(r => r.state === 'failed')).toBe(true);
+});
 it('rechecks the human approver before a deferred action and honours the global observation mode', async () => {
   const d = base();
   d.actions[0].delayHours = 1;

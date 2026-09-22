@@ -650,23 +650,28 @@ export async function dispatchMailWorkflows(
     if (run && immediate++ < 2) await processRun(run.id, org).catch(() => {});
   }
 }
-export async function runDueWorkflows() {
+export async function runDueWorkflows(organizationId?: string) {
+  // The authenticated centre may advance its own queue while open. Only the
+  // authenticated scheduler invokes this without a company scope.
+  const scope = organizationId ? ' AND organization_id=?' : '';
+  const scopeArgs = organizationId ? [organizationId] : [];
   // A crashed worker cannot retain a run forever. Completed steps have stable item IDs.
   await database()
     .prepare(
-      "UPDATE automation_workflow_runs SET state='failed',lease=NULL,lease_until=0,revision=revision+1,updated_at=?,result=json_set(result,'$.message',?) WHERE state='running' AND lease_until<=?",
+      "UPDATE automation_workflow_runs SET state='failed',lease=NULL,lease_until=0,revision=revision+1,updated_at=?,result=json_set(result,'$.message',?) WHERE state='running' AND lease_until<=?" + scope,
     )
     .bind(
       now(),
       'Le traitement a été interrompu. Vous pouvez reprendre sans créer de doublon.',
       now(),
+      ...scopeArgs,
     )
     .run();
   const rows = await database()
     .prepare(
-      "SELECT id,organization_id FROM automation_workflow_runs WHERE state IN ('queued','waiting') AND due_at<=? AND lease_until<=? ORDER BY due_at,updated_at,id LIMIT 20",
+      "SELECT id,organization_id FROM automation_workflow_runs WHERE state IN ('queued','waiting') AND due_at<=? AND lease_until<=?" + scope + " ORDER BY due_at,updated_at,id LIMIT ?",
     )
-    .bind(now(), now())
+    .bind(now(), now(), ...scopeArgs, organizationId ? 3 : 20)
     .all<{ id: string; organization_id: string }>();
   const started = Date.now();
   let checked = 0;

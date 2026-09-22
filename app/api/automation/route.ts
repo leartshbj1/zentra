@@ -1,4 +1,5 @@
 import { requireAutomationEntitlement } from '@/lib/automation/entitlement';
+import { waitUntil } from 'cloudflare:workers';
 import { accountJsonError, accountNoStoreHeaders } from '@/lib/account';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { automationActor } from '@/lib/automation/access';
@@ -7,7 +8,7 @@ import { automationCompanyState } from '@/lib/automation/activity';
 import { recordFeedback, requestDecision } from '@/lib/automation/service';
 import { DecisionFailure } from '@/lib/automation/types';
 import { AccountPublicError } from '@/lib/account-security';
-import { workflowCentre, saveWorkflow, previewWorkflow, workflowAction } from '@/lib/automation/workflows';
+import { workflowCentre, saveWorkflow, previewWorkflow, workflowAction, runDueWorkflows } from '@/lib/automation/workflows';
 export const dynamic = 'force-dynamic';
 const json = (v: unknown) =>
   Response.json(v, { headers: accountNoStoreHeaders() });
@@ -38,7 +39,13 @@ export async function POST(request: Request) {
     }
     if (body.action === 'feedback')
       return json(await recordFeedback(actor, body));
-    if (body.action === 'centre') return json(await workflowCentre(actor));
+    if (body.action === 'centre') {
+      const centre = await workflowCentre(actor); // Verifies the current entitlement first.
+      // Keep the response immediate. This advances only already-authorized rules
+      // of this company; a remote scheduler is still needed when nobody is online.
+      waitUntil(runDueWorkflows(actor.organizationId).catch(() => {}));
+      return json(centre);
+    }
     if (body.action === 'workflow_save') return json(await saveWorkflow(actor, body));
     if (body.action === 'workflow_preview') return json(await previewWorkflow(actor, body));
     if (['workflow_confirm','workflow_cancel','workflow_retry','workflow_undo','work_item_update'].includes(String(body.action)))
