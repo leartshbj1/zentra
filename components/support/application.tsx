@@ -917,7 +917,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                           </h2>
                           <p className="support-sender">
                             {connection?.label || 'Connexion archivée'} ·{' '}
-                            {formatDate(ticket.updatedAt)}
+                            <time dateTime={new Date(ticket.updatedAt * 1000).toISOString()} suppressHydrationWarning>{formatDate(ticket.updatedAt)}</time>
                           </p>
                           {externalUrl && !demo && (
                             <a
