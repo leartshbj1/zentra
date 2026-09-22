@@ -226,6 +226,47 @@ it('activates only after verified payment for its space and initialises settings
       .get(),
   ).toMatchObject({ enabled: 0, mode: 'shadow', consent_version: null });
 });
+it.each(['price', 'quantity', 'company', 'customer', 'service'])(
+  'stops an already paid option when its Stripe %s changes, without moving it to another space',
+  async (change) => {
+    await apply();
+    db.exec(
+      "UPDATE automation_settings SET enabled=1,mode='suggest',flags='[\"supplier_routing\"]'",
+    );
+    const original = structuredClone(subscription);
+    if (change === 'price')
+      subscription.items.data[0] = {
+        ...subscription.items.data[0],
+        price: { ...subscription.items.data[0].price, id: 'price_other' },
+      };
+    if (change === 'quantity')
+      subscription.items.data[0] = {
+        ...subscription.items.data[0],
+        quantity: 2,
+      };
+    if (change === 'company') subscription.metadata.organization_id = 'org_b';
+    if (change === 'customer') subscription.customer = 'cus_other';
+    if (change === 'service') subscription.metadata.service = 'other';
+    const update = persistAutomationStripeEvent(
+      event('customer.subscription.updated'),
+    );
+    if (change === 'service') await expect(update).resolves.toBe(true);
+    else await expect(update).rejects.toMatchObject({ status: 409 });
+    expect(await automationEntitlement(actor)).toBe(false);
+    expect(
+      await automationEntitlement({ ...actor, organizationId: 'org_b' }),
+    ).toBe(false);
+    expect(
+      db.prepare('SELECT COUNT(*) AS n FROM automation_subscriptions').get()?.n,
+    ).toBe(1);
+    expect(
+      db.prepare('SELECT enabled,flags FROM automation_settings').get(),
+    ).toMatchObject({ enabled: 1, flags: '["supplier_routing"]' });
+    subscription = original;
+    await persistAutomationStripeEvent(event('customer.subscription.updated'));
+    expect(await automationEntitlement(actor)).toBe(true);
+  },
+);
 it('duplicate and older paid invoices cannot move the paid-period watermark backwards', async () => {
   await apply();
   const end = db

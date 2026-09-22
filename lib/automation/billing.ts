@@ -477,8 +477,31 @@ async function reconcile(
   invoice: Stripe.Invoice | null,
 ) {
   const config = await automationBillingConfig();
-  if (!config || subscription.metadata.service !== AUTOMATION_PRODUCT)
-    return false;
+  if (!config) return false;
+  if (subscription.livemode !== config.livemode)
+    throw new AccountPublicError(
+      'Ce paiement ne correspond pas à cette entreprise.',
+      409,
+    );
+  const bound = await database()
+    .prepare(
+      'SELECT organization_id,customer_id FROM automation_subscriptions WHERE subscription_id=? AND livemode=?',
+    )
+    .bind(subscription.id, Number(config.livemode))
+    .first<{ organization_id: string; customer_id: string }>();
+  const suspendInvalidBinding = async () => {
+    if (bound)
+      await database()
+        .prepare(
+          "UPDATE automation_subscriptions SET status='configuration_required',updated_at=? WHERE subscription_id=? AND livemode=?",
+        )
+        .bind(now(), subscription.id, Number(config.livemode))
+        .run();
+  };
+  if (subscription.metadata.service !== AUTOMATION_PRODUCT) {
+    await suspendInvalidBinding();
+    return Boolean(bound);
+  }
   const org = await database()
     .prepare(
       'SELECT organization_id,created_by_user_id FROM organizations WHERE organization_id=?',
@@ -488,17 +511,24 @@ async function reconcile(
   const item = subscription.items.data[0];
   if (
     !org ||
+    (bound &&
+      (bound.organization_id !== org.organization_id ||
+        bound.customer_id !== ref(subscription.customer))) ||
     org.created_by_user_id !== subscription.metadata.owner_id ||
     subscription.livemode !== config.livemode ||
     subscription.items.data.length !== 1 ||
     item.quantity !== 1 ||
     item.price.id !== config.priceId ||
     !validAutomationPrice(item.price, config)
-  )
+  ) {
+    // A changed Stripe product or company must stop the old entitlement too.
+    // Preserve paid evidence/settings so a corrected subscription can recover.
+    await suspendInvalidBinding();
     throw new AccountPublicError(
       'Ce paiement ne correspond pas à cette entreprise.',
       409,
     );
+  }
   const previous = await database()
     .prepare(
       'SELECT subscription_id,status,paid_until FROM automation_subscriptions WHERE organization_id=?',
