@@ -719,15 +719,15 @@ export function DocumentEditor({
           <section className="line-editor">
             <datalist id={unitsId}>{['h', 'jour', 'pièce', 'forfait', 'm', 'm²', 'm³', 'kg'].map(unit => <option key={unit} value={unit} />)}</datalist>
             <header>
-              <div>
-                <strong>{invoiceType === 'deposit' ? t("Base de calcul de l’acompte") : t("Lignes du document")}</strong>
+              <details className="line-editor__guidance">
+                <summary>{invoiceType === 'deposit' ? t("Base de calcul de l’acompte") : t("Lignes du document")}</summary>
                 <small className={currency !== 'CHF' ? 'document-currency-hint' : undefined}>
                   {currency === 'CHF' ? (catalogItems.length ? t("Retrouvez une prestation du catalogue ou ajoutez une ligne libre.") : t("Décrivez vos prestations, leur quantité et leur prix.")) : t('Saisissez les prix en {currency}. Les prix du catalogue sont en CHF et ne sont pas convertis automatiquement.', {currency})}
                 </small>
                 <small>{settings.organization.vatRegistered ? t("Prix hors TVA. ") : ''}{t("Virgule ou point acceptés. Saisissez 0 pour une prestation offerte.")}</small>
-              </div>
+              </details>
               <div className="line-editor__actions">
-                {catalogItems.length > 0 && <div className="catalog-line-picker">
+                {catalogItems.length > 0 && <details className="line-editor__catalog"><summary>{t("Ajouter depuis le catalogue")}</summary><div className="catalog-line-picker">
                   <Package size={15} />
                   <input
                     type="search"
@@ -772,7 +772,7 @@ export function DocumentEditor({
                       {t('Recherchez pour parcourir les {count} références.', {count: catalogItems.length})}
                     </small>
                   ) : null}
-                </div>}
+                </div></details>}
                 <Button
                   type="button"
                   variant="secondary"

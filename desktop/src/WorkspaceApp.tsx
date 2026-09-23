@@ -1922,7 +1922,6 @@ function WorkspaceContent({
           ) : null}
           {view === 'dashboard' ? (
             <>
-            <AutomationDailySummary link />
             <Dashboard
               workspace={workspace}
               readOnly={readOnly}
@@ -2643,17 +2642,18 @@ function Dashboard({
     onNavigate(action.view);
   }
 
-  if (compact && hasActivity) return <MobileDashboard workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
+  if (compact && hasActivity) return <MobileDashboard workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} automation={<AutomationDailySummary link />} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
   if (!hasActivity)
     return (
-      <GettingStartedChecklist
+      <><AutomationDailySummary link /><GettingStartedChecklist
         workspace={workspace}
         readOnly={readOnly}
         onAction={runGettingStartedAction}
-      />
+      /></>
     );
   return (
     <div className="dashboard-grid">
+      <section className="workspace-finances">
       <div className="dashboard-overview-heading">
         <h2>Votre activité en un regard</h2>
         <span>Toutes périodes · devises séparées</span>
@@ -2701,6 +2701,8 @@ function Dashboard({
         />
       </div>
       <details className="dashboard-finance-guide"><summary>Comment lire ces chiffres ?</summary><p>Les factures émises indiquent les ventes avec les taxes. Les paiements reçus sont ceux enregistrés dans Zentra. Le reste à recevoir correspond aux montants encore dus. Chaque devise est présentée séparément.</p><p>Pour connaître le bénéfice après les charges, consultez <button type="button" onClick={()=>onNavigate('accounting')}>votre comptabilité</button>. Ces chiffres ne sont pas le solde de votre compte bancaire.</p></details>
+      </section>
+      <AutomationDailySummary link />
       {!gettingStarted.complete ? (
         <GettingStartedChecklist
           compact

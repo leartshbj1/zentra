@@ -1,26 +1,26 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-23T20:20:36.958Z",
+  "generatedAt": "2026-09-23T22:59:21.090569+00:00",
   "title": "Design System: Zentra Gestion",
   "extensions": {
     "colorMeta": {
-      "zen-canvas": {
+      "work-canvas": {
         "role": "neutral",
-        "displayName": "Cool canvas",
+        "displayName": "Canvas",
         "tonalRamp": [
-          "oklch(15.00% 0.0026 286.35)",
-          "oklch(26.43% 0.0026 286.35)",
-          "oklch(37.86% 0.0026 286.35)",
-          "oklch(49.29% 0.0026 286.35)",
-          "oklch(60.71% 0.0026 286.35)",
-          "oklch(72.14% 0.0026 286.35)",
-          "oklch(83.57% 0.0026 286.35)",
-          "oklch(95.00% 0.0026 286.35)"
+          "oklch(15.00% 0.0013 286.38)",
+          "oklch(26.43% 0.0013 286.38)",
+          "oklch(37.86% 0.0013 286.38)",
+          "oklch(49.29% 0.0013 286.38)",
+          "oklch(60.71% 0.0013 286.38)",
+          "oklch(72.14% 0.0013 286.38)",
+          "oklch(83.57% 0.0013 286.38)",
+          "oklch(95.00% 0.0013 286.38)"
         ]
       },
-      "zen-panel": {
+      "work-paper": {
         "role": "neutral",
-        "displayName": "Paper panel",
+        "displayName": "Paper",
         "tonalRamp": [
           "oklch(15.00% 0.0000 89.88)",
           "oklch(26.43% 0.0000 89.88)",
@@ -32,79 +32,79 @@
           "oklch(95.00% 0.0000 89.88)"
         ]
       },
-      "zen-soft": {
+      "work-rail": {
         "role": "neutral",
-        "displayName": "Soft layer",
+        "displayName": "Rail",
         "tonalRamp": [
-          "oklch(15.00% 0.0040 286.32)",
-          "oklch(26.43% 0.0040 286.32)",
-          "oklch(37.86% 0.0040 286.32)",
-          "oklch(49.29% 0.0040 286.32)",
-          "oklch(60.71% 0.0040 286.32)",
-          "oklch(72.14% 0.0040 286.32)",
-          "oklch(83.57% 0.0040 286.32)",
-          "oklch(95.00% 0.0040 286.32)"
+          "oklch(15.00% 0.0034 247.86)",
+          "oklch(26.43% 0.0034 247.86)",
+          "oklch(37.86% 0.0034 247.86)",
+          "oklch(49.29% 0.0034 247.86)",
+          "oklch(60.71% 0.0034 247.86)",
+          "oklch(72.14% 0.0034 247.86)",
+          "oklch(83.57% 0.0034 247.86)",
+          "oklch(95.00% 0.0034 247.86)"
         ]
       },
-      "zen-rail": {
+      "work-soft": {
         "role": "neutral",
-        "displayName": "Quiet rail",
+        "displayName": "Soft",
         "tonalRamp": [
-          "oklch(15.00% 0.0040 286.32)",
-          "oklch(26.43% 0.0040 286.32)",
-          "oklch(37.86% 0.0040 286.32)",
-          "oklch(49.29% 0.0040 286.32)",
-          "oklch(60.71% 0.0040 286.32)",
-          "oklch(72.14% 0.0040 286.32)",
-          "oklch(83.57% 0.0040 286.32)",
-          "oklch(95.00% 0.0040 286.32)"
+          "oklch(15.00% 0.0029 264.54)",
+          "oklch(26.43% 0.0029 264.54)",
+          "oklch(37.86% 0.0029 264.54)",
+          "oklch(49.29% 0.0029 264.54)",
+          "oklch(60.71% 0.0029 264.54)",
+          "oklch(72.14% 0.0029 264.54)",
+          "oklch(83.57% 0.0029 264.54)",
+          "oklch(95.00% 0.0029 264.54)"
         ]
       },
-      "zen-ink": {
+      "work-line": {
         "role": "neutral",
-        "displayName": "Graphite ink",
+        "displayName": "Line",
         "tonalRamp": [
-          "oklch(15.00% 0.0075 285.86)",
-          "oklch(26.43% 0.0075 285.86)",
-          "oklch(37.86% 0.0075 285.86)",
-          "oklch(49.29% 0.0075 285.86)",
-          "oklch(60.71% 0.0075 285.86)",
-          "oklch(72.14% 0.0075 285.86)",
-          "oklch(83.57% 0.0075 285.86)",
-          "oklch(95.00% 0.0075 285.86)"
+          "oklch(15.00% 0.0055 274.96)",
+          "oklch(26.43% 0.0055 274.96)",
+          "oklch(37.86% 0.0055 274.96)",
+          "oklch(49.29% 0.0055 274.96)",
+          "oklch(60.71% 0.0055 274.96)",
+          "oklch(72.14% 0.0055 274.96)",
+          "oklch(83.57% 0.0055 274.96)",
+          "oklch(95.00% 0.0055 274.96)"
         ]
       },
-      "zen-muted": {
+      "work-ink": {
         "role": "neutral",
-        "displayName": "Muted ink",
+        "displayName": "Ink",
         "tonalRamp": [
-          "oklch(15.00% 0.0125 285.95)",
-          "oklch(26.43% 0.0125 285.95)",
-          "oklch(37.86% 0.0125 285.95)",
-          "oklch(49.29% 0.0125 285.95)",
-          "oklch(60.71% 0.0125 285.95)",
-          "oklch(72.14% 0.0125 285.95)",
-          "oklch(83.57% 0.0125 285.95)",
-          "oklch(95.00% 0.0125 285.95)"
+          "oklch(15.00% 0.0077 274.64)",
+          "oklch(26.43% 0.0077 274.64)",
+          "oklch(37.86% 0.0077 274.64)",
+          "oklch(49.29% 0.0077 274.64)",
+          "oklch(60.71% 0.0077 274.64)",
+          "oklch(72.14% 0.0077 274.64)",
+          "oklch(83.57% 0.0077 274.64)",
+          "oklch(95.00% 0.0077 274.64)"
         ]
       },
-      "zen-line": {
+      "work-muted": {
         "role": "neutral",
-        "displayName": "Fine line",
+        "displayName": "Muted",
         "tonalRamp": [
-          "oklch(15.00% 0.0067 286.27)",
-          "oklch(26.43% 0.0067 286.27)",
-          "oklch(37.86% 0.0067 286.27)",
-          "oklch(49.29% 0.0067 286.27)",
-          "oklch(60.71% 0.0067 286.27)",
-          "oklch(72.14% 0.0067 286.27)",
-          "oklch(83.57% 0.0067 286.27)",
-          "oklch(95.00% 0.0067 286.27)"
+          "oklch(15.00% 0.0132 269.42)",
+          "oklch(26.43% 0.0132 269.42)",
+          "oklch(37.86% 0.0132 269.42)",
+          "oklch(49.29% 0.0132 269.42)",
+          "oklch(60.71% 0.0132 269.42)",
+          "oklch(72.14% 0.0132 269.42)",
+          "oklch(83.57% 0.0132 269.42)",
+          "oklch(95.00% 0.0132 269.42)"
         ]
       },
-      "zen-accent": {
+      "work-accent": {
         "role": "primary",
-        "displayName": "Zentra green",
+        "displayName": "Accent",
         "tonalRamp": [
           "oklch(15.00% 0.0727 161.95)",
           "oklch(26.43% 0.0727 161.95)",
@@ -116,23 +116,9 @@
           "oklch(95.00% 0.0727 161.95)"
         ]
       },
-      "zen-attention": {
-        "role": "semantic",
-        "displayName": "Attention amber",
-        "tonalRamp": [
-          "oklch(15.00% 0.0966 68.08)",
-          "oklch(26.43% 0.0966 68.08)",
-          "oklch(37.86% 0.0966 68.08)",
-          "oklch(49.29% 0.0966 68.08)",
-          "oklch(60.71% 0.0966 68.08)",
-          "oklch(72.14% 0.0966 68.08)",
-          "oklch(83.57% 0.0966 68.08)",
-          "oklch(95.00% 0.0966 68.08)"
-        ]
-      },
-      "zen-selection": {
-        "role": "neutral",
-        "displayName": "Menu selection",
+      "work-on-accent": {
+        "role": "primary",
+        "displayName": "On accent",
         "tonalRamp": [
           "oklch(15.00% 0.0000 89.88)",
           "oklch(26.43% 0.0000 89.88)",
@@ -144,121 +130,177 @@
           "oklch(95.00% 0.0000 89.88)"
         ]
       },
-      "zen-canvas-dark": {
+      "work-selection": {
         "role": "neutral",
-        "displayName": "Cool canvas — dark",
+        "displayName": "Selection",
         "tonalRamp": [
-          "oklch(15.00% 0.0058 285.90)",
-          "oklch(26.43% 0.0058 285.90)",
-          "oklch(37.86% 0.0058 285.90)",
-          "oklch(49.29% 0.0058 285.90)",
-          "oklch(60.71% 0.0058 285.90)",
-          "oklch(72.14% 0.0058 285.90)",
-          "oklch(83.57% 0.0058 285.90)",
-          "oklch(95.00% 0.0058 285.90)"
+          "oklch(15.00% 0.0142 162.45)",
+          "oklch(26.43% 0.0142 162.45)",
+          "oklch(37.86% 0.0142 162.45)",
+          "oklch(49.29% 0.0142 162.45)",
+          "oklch(60.71% 0.0142 162.45)",
+          "oklch(72.14% 0.0142 162.45)",
+          "oklch(83.57% 0.0142 162.45)",
+          "oklch(95.00% 0.0142 162.45)"
         ]
       },
-      "zen-panel-dark": {
+      "work-canvas-dark": {
         "role": "neutral",
-        "displayName": "Paper panel — dark",
+        "displayName": "Canvas dark",
         "tonalRamp": [
-          "oklch(15.00% 0.0056 285.99)",
-          "oklch(26.43% 0.0056 285.99)",
-          "oklch(37.86% 0.0056 285.99)",
-          "oklch(49.29% 0.0056 285.99)",
-          "oklch(60.71% 0.0056 285.99)",
-          "oklch(72.14% 0.0056 285.99)",
-          "oklch(83.57% 0.0056 285.99)",
-          "oklch(95.00% 0.0056 285.99)"
+          "oklch(15.00% 0.0077 274.64)",
+          "oklch(26.43% 0.0077 274.64)",
+          "oklch(37.86% 0.0077 274.64)",
+          "oklch(49.29% 0.0077 274.64)",
+          "oklch(60.71% 0.0077 274.64)",
+          "oklch(72.14% 0.0077 274.64)",
+          "oklch(83.57% 0.0077 274.64)",
+          "oklch(95.00% 0.0077 274.64)"
         ]
       },
-      "zen-soft-dark": {
+      "work-paper-dark": {
         "role": "neutral",
-        "displayName": "Soft layer — dark",
+        "displayName": "Paper dark",
         "tonalRamp": [
-          "oklch(15.00% 0.0089 285.87)",
-          "oklch(26.43% 0.0089 285.87)",
-          "oklch(37.86% 0.0089 285.87)",
-          "oklch(49.29% 0.0089 285.87)",
-          "oklch(60.71% 0.0089 285.87)",
-          "oklch(72.14% 0.0089 285.87)",
-          "oklch(83.57% 0.0089 285.87)",
-          "oklch(95.00% 0.0089 285.87)"
+          "oklch(15.00% 0.0092 276.79)",
+          "oklch(26.43% 0.0092 276.79)",
+          "oklch(37.86% 0.0092 276.79)",
+          "oklch(49.29% 0.0092 276.79)",
+          "oklch(60.71% 0.0092 276.79)",
+          "oklch(72.14% 0.0092 276.79)",
+          "oklch(83.57% 0.0092 276.79)",
+          "oklch(95.00% 0.0092 276.79)"
         ]
       },
-      "zen-rail-dark": {
+      "work-rail-dark": {
         "role": "neutral",
-        "displayName": "Quiet rail — dark",
+        "displayName": "Rail dark",
         "tonalRamp": [
-          "oklch(15.00% 0.0056 285.98)",
-          "oklch(26.43% 0.0056 285.98)",
-          "oklch(37.86% 0.0056 285.98)",
-          "oklch(49.29% 0.0056 285.98)",
-          "oklch(60.71% 0.0056 285.98)",
-          "oklch(72.14% 0.0056 285.98)",
-          "oklch(83.57% 0.0056 285.98)",
-          "oklch(95.00% 0.0056 285.98)"
+          "oklch(15.00% 0.0079 274.56)",
+          "oklch(26.43% 0.0079 274.56)",
+          "oklch(37.86% 0.0079 274.56)",
+          "oklch(49.29% 0.0079 274.56)",
+          "oklch(60.71% 0.0079 274.56)",
+          "oklch(72.14% 0.0079 274.56)",
+          "oklch(83.57% 0.0079 274.56)",
+          "oklch(95.00% 0.0079 274.56)"
         ]
       },
-      "zen-ink-dark": {
+      "work-soft-dark": {
         "role": "neutral",
-        "displayName": "Graphite ink — dark",
+        "displayName": "Soft dark",
         "tonalRamp": [
-          "oklch(15.00% 0.0040 286.32)",
-          "oklch(26.43% 0.0040 286.32)",
-          "oklch(37.86% 0.0040 286.32)",
-          "oklch(49.29% 0.0040 286.32)",
-          "oklch(60.71% 0.0040 286.32)",
-          "oklch(72.14% 0.0040 286.32)",
-          "oklch(83.57% 0.0040 286.32)",
-          "oklch(95.00% 0.0040 286.32)"
+          "oklch(15.00% 0.0110 271.05)",
+          "oklch(26.43% 0.0110 271.05)",
+          "oklch(37.86% 0.0110 271.05)",
+          "oklch(49.29% 0.0110 271.05)",
+          "oklch(60.71% 0.0110 271.05)",
+          "oklch(72.14% 0.0110 271.05)",
+          "oklch(83.57% 0.0110 271.05)",
+          "oklch(95.00% 0.0110 271.05)"
         ]
       },
-      "zen-muted-dark": {
+      "work-line-dark": {
         "role": "neutral",
-        "displayName": "Muted ink — dark",
+        "displayName": "Line dark",
         "tonalRamp": [
-          "oklch(15.00% 0.0142 286.05)",
-          "oklch(26.43% 0.0142 286.05)",
-          "oklch(37.86% 0.0142 286.05)",
-          "oklch(49.29% 0.0142 286.05)",
-          "oklch(60.71% 0.0142 286.05)",
-          "oklch(72.14% 0.0142 286.05)",
-          "oklch(83.57% 0.0142 286.05)",
-          "oklch(95.00% 0.0142 286.05)"
+          "oklch(15.00% 0.0121 273.09)",
+          "oklch(26.43% 0.0121 273.09)",
+          "oklch(37.86% 0.0121 273.09)",
+          "oklch(49.29% 0.0121 273.09)",
+          "oklch(60.71% 0.0121 273.09)",
+          "oklch(72.14% 0.0121 273.09)",
+          "oklch(83.57% 0.0121 273.09)",
+          "oklch(95.00% 0.0121 273.09)"
         ]
       },
-      "zen-line-dark": {
+      "work-ink-dark": {
         "role": "neutral",
-        "displayName": "Fine line — dark",
+        "displayName": "Ink dark",
         "tonalRamp": [
-          "oklch(15.00% 0.0104 285.84)",
-          "oklch(26.43% 0.0104 285.84)",
-          "oklch(37.86% 0.0104 285.84)",
-          "oklch(49.29% 0.0104 285.84)",
-          "oklch(60.71% 0.0104 285.84)",
-          "oklch(72.14% 0.0104 285.84)",
-          "oklch(83.57% 0.0104 285.84)",
-          "oklch(95.00% 0.0104 285.84)"
+          "oklch(15.00% 0.0027 286.35)",
+          "oklch(26.43% 0.0027 286.35)",
+          "oklch(37.86% 0.0027 286.35)",
+          "oklch(49.29% 0.0027 286.35)",
+          "oklch(60.71% 0.0027 286.35)",
+          "oklch(72.14% 0.0027 286.35)",
+          "oklch(83.57% 0.0027 286.35)",
+          "oklch(95.00% 0.0027 286.35)"
         ]
       },
-      "zen-accent-dark": {
+      "work-muted-dark": {
+        "role": "neutral",
+        "displayName": "Muted dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0118 269.52)",
+          "oklch(26.43% 0.0118 269.52)",
+          "oklch(37.86% 0.0118 269.52)",
+          "oklch(49.29% 0.0118 269.52)",
+          "oklch(60.71% 0.0118 269.52)",
+          "oklch(72.14% 0.0118 269.52)",
+          "oklch(83.57% 0.0118 269.52)",
+          "oklch(95.00% 0.0118 269.52)"
+        ]
+      },
+      "work-accent-dark": {
         "role": "primary",
-        "displayName": "Zentra green — dark",
+        "displayName": "Accent dark",
         "tonalRamp": [
-          "oklch(15.00% 0.0573 160.95)",
-          "oklch(26.43% 0.0573 160.95)",
-          "oklch(37.86% 0.0573 160.95)",
-          "oklch(49.29% 0.0573 160.95)",
-          "oklch(60.71% 0.0573 160.95)",
-          "oklch(72.14% 0.0573 160.95)",
-          "oklch(83.57% 0.0573 160.95)",
-          "oklch(95.00% 0.0573 160.95)"
+          "oklch(15.00% 0.0644 159.55)",
+          "oklch(26.43% 0.0644 159.55)",
+          "oklch(37.86% 0.0644 159.55)",
+          "oklch(49.29% 0.0644 159.55)",
+          "oklch(60.71% 0.0644 159.55)",
+          "oklch(72.14% 0.0644 159.55)",
+          "oklch(83.57% 0.0644 159.55)",
+          "oklch(95.00% 0.0644 159.55)"
+        ]
+      },
+      "work-on-accent-dark": {
+        "role": "primary",
+        "displayName": "On accent dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0453 157.02)",
+          "oklch(26.43% 0.0453 157.02)",
+          "oklch(37.86% 0.0453 157.02)",
+          "oklch(49.29% 0.0453 157.02)",
+          "oklch(60.71% 0.0453 157.02)",
+          "oklch(72.14% 0.0453 157.02)",
+          "oklch(83.57% 0.0453 157.02)",
+          "oklch(95.00% 0.0453 157.02)"
+        ]
+      },
+      "work-selection-dark": {
+        "role": "neutral",
+        "displayName": "Selection dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0331 162.67)",
+          "oklch(26.43% 0.0331 162.67)",
+          "oklch(37.86% 0.0331 162.67)",
+          "oklch(49.29% 0.0331 162.67)",
+          "oklch(60.71% 0.0331 162.67)",
+          "oklch(72.14% 0.0331 162.67)",
+          "oklch(83.57% 0.0331 162.67)",
+          "oklch(95.00% 0.0331 162.67)"
+        ]
+      },
+      "zen-attention": {
+        "role": "primary",
+        "displayName": "Attention",
+        "tonalRamp": [
+          "oklch(15.00% 0.0966 68.08)",
+          "oklch(26.43% 0.0966 68.08)",
+          "oklch(37.86% 0.0966 68.08)",
+          "oklch(49.29% 0.0966 68.08)",
+          "oklch(60.71% 0.0966 68.08)",
+          "oklch(72.14% 0.0966 68.08)",
+          "oklch(83.57% 0.0966 68.08)",
+          "oklch(95.00% 0.0966 68.08)"
         ]
       },
       "zen-attention-dark": {
-        "role": "semantic",
-        "displayName": "Attention amber — dark",
+        "role": "primary",
+        "displayName": "Attention dark",
         "tonalRamp": [
           "oklch(15.00% 0.1053 80.88)",
           "oklch(26.43% 0.1053 80.88)",
@@ -269,145 +311,201 @@
           "oklch(83.57% 0.1053 80.88)",
           "oklch(95.00% 0.1053 80.88)"
         ]
-      },
-      "zen-selection-dark": {
-        "role": "neutral",
-        "displayName": "Menu selection — dark",
-        "tonalRamp": [
-          "oklch(15.00% 0.0087 285.91)",
-          "oklch(26.43% 0.0087 285.91)",
-          "oklch(37.86% 0.0087 285.91)",
-          "oklch(49.29% 0.0087 285.91)",
-          "oklch(60.71% 0.0087 285.91)",
-          "oklch(72.14% 0.0087 285.91)",
-          "oklch(83.57% 0.0087 285.91)",
-          "oklch(95.00% 0.0087 285.91)"
-        ]
-      },
-      "action-ink-dark": {
-        "role": "neutral",
-        "displayName": "Dark action ink",
-        "tonalRamp": [
-          "oklch(15.00% 0.0331 162.57)",
-          "oklch(26.43% 0.0331 162.57)",
-          "oklch(37.86% 0.0331 162.57)",
-          "oklch(49.29% 0.0331 162.57)",
-          "oklch(60.71% 0.0331 162.57)",
-          "oklch(72.14% 0.0331 162.57)",
-          "oklch(83.57% 0.0331 162.57)",
-          "oklch(95.00% 0.0331 162.57)"
-        ]
       }
     },
     "typographyMeta": {
       "headline": {
-        "displayName": "Page headline",
-        "purpose": "Application page title; 24px at the mobile breakpoint."
+        "displayName": "Headline",
+        "purpose": "Implemented headline role; see DESIGN.md hierarchy and source scope."
       },
-      "title": {
-        "displayName": "Introductory title",
-        "purpose": "Introductory heading; 22px on mobile."
+      "headline-mobile": {
+        "displayName": "Headline mobile",
+        "purpose": "Implemented headline mobile role; see DESIGN.md hierarchy and source scope."
+      },
+      "dialog-title": {
+        "displayName": "Dialog title",
+        "purpose": "Implemented dialog title role; see DESIGN.md hierarchy and source scope."
+      },
+      "preference-title": {
+        "displayName": "Preference title",
+        "purpose": "Implemented preference title role; see DESIGN.md hierarchy and source scope."
+      },
+      "briefing-title": {
+        "displayName": "Briefing title",
+        "purpose": "Implemented briefing title role; see DESIGN.md hierarchy and source scope."
       },
       "section": {
-        "displayName": "Section title",
-        "purpose": "Journal heading."
+        "displayName": "Section",
+        "purpose": "Implemented section role; see DESIGN.md hierarchy and source scope."
+      },
+      "subsection": {
+        "displayName": "Subsection",
+        "purpose": "Implemented subsection role; see DESIGN.md hierarchy and source scope."
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Settings and detailed interface text; paragraph rhythm varies by context."
+        "purpose": "Implemented body role; see DESIGN.md hierarchy and source scope."
       },
-      "row-title": {
-        "displayName": "Row title",
-        "purpose": "Wrapping medium-weight list title."
+      "content": {
+        "displayName": "Content",
+        "purpose": "Implemented content role; see DESIGN.md hierarchy and source scope."
       },
-      "label": {
-        "displayName": "Label",
-        "purpose": "Compact controls and group labels."
+      "control": {
+        "displayName": "Control",
+        "purpose": "Implemented control role; see DESIGN.md hierarchy and source scope."
+      },
+      "navigation": {
+        "displayName": "Navigation",
+        "purpose": "Implemented navigation role; see DESIGN.md hierarchy and source scope."
+      },
+      "navigation-mobile": {
+        "displayName": "Navigation mobile",
+        "purpose": "Implemented navigation mobile role; see DESIGN.md hierarchy and source scope."
       },
       "metadata": {
         "displayName": "Metadata",
-        "purpose": "Time and supporting detail."
+        "purpose": "Implemented metadata role; see DESIGN.md hierarchy and source scope."
+      },
+      "compact-label": {
+        "displayName": "Compact label",
+        "purpose": "Implemented compact label role; see DESIGN.md hierarchy and source scope."
+      },
+      "keyboard-hint": {
+        "displayName": "Keyboard hint",
+        "purpose": "Implemented keyboard hint role; see DESIGN.md hierarchy and source scope."
+      },
+      "metric": {
+        "displayName": "Metric",
+        "purpose": "Implemented metric role; see DESIGN.md hierarchy and source scope."
+      },
+      "metric-multiple": {
+        "displayName": "Metric multiple",
+        "purpose": "Implemented metric multiple role; see DESIGN.md hierarchy and source scope."
+      },
+      "balance-mobile": {
+        "displayName": "Balance mobile",
+        "purpose": "Implemented balance mobile role; see DESIGN.md hierarchy and source scope."
       }
     },
     "shadows": [
       {
-        "name": "selected-segment",
-        "value": "0 2px 5px #00000009",
-        "purpose": "Small lift inside destination navigation."
+        "name": "dialog-ambient",
+        "value": "0 8px 28px rgb(20 24 30 / 8%)",
+        "purpose": "Light opaque dialog."
+      },
+      {
+        "name": "dialog-ambient-dark",
+        "value": "0 8px 28px rgb(0 0 0 / 20%)",
+        "purpose": "Dark opaque dialog."
       },
       {
         "name": "switch-thumb",
         "value": "0 1px 3px #00000026",
-        "purpose": "Separation of the movable switch thumb."
+        "purpose": "Inherited Automation switch thumb."
       }
     ],
     "motion": [
       {
-        "name": "control-feedback",
-        "value": "background-color 160ms ease-out, color 160ms ease-out",
-        "purpose": "Button and summary state feedback only under prefers-reduced-motion: no-preference."
+        "name": "page-arrival",
+        "value": "240ms cubic-bezier(.16,1,.3,1)",
+        "purpose": "8px settle only when reduced motion is not requested."
       },
       {
-        "name": "switch-movement",
-        "value": "transform 160ms ease-out",
-        "purpose": "Thumb translation only under prefers-reduced-motion: no-preference."
+        "name": "control-feedback",
+        "value": "140ms ease-out",
+        "purpose": "Shared application button and sidebar background/color transitions."
+      },
+      {
+        "name": "automation-feedback",
+        "value": "160ms ease-out",
+        "purpose": "Inherited Automation feedback."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "none",
+        "purpose": "Shell disables descendant animation and transition; final layer disables page arrival."
       }
     ],
     "breakpoints": [
       {
-        "name": "automation-stack",
-        "value": "1100px"
+        "name": "compact-desktop-max",
+        "value": "1150px"
       },
       {
-        "name": "automation-mobile",
+        "name": "desktop-min",
+        "value": "861px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "860px"
+      },
+      {
+        "name": "inherited-automation-detail",
         "value": "760px"
       },
       {
-        "name": "automation-narrow",
+        "name": "inherited-tight-filters",
         "value": "380px"
+      },
+      {
+        "name": "document-min-width",
+        "value": "320px"
       }
-    ]
+    ],
+    "preservation": {
+      "printedDocuments": "Final stylesheet is screen-only. Printed document colors, layout and identity remain separate.",
+      "portals": "Opaque shared forms; outer document scroll locks while a modal is mounted and restores on close; document form is the internal scroller.",
+      "businessBehavior": "No data, calculations, entitlements or approval rules are changed by this visual specification."
+    }
   },
   "components": [
     {
-      "name": "Workflow action",
+      "name": "Primary action",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Action button inside the Automation control centre; light and dark foreground pairing follows the implemented states.",
-      "html": "<button class=\"ds-action\" type=\"button\">Confirmer les actions</button>",
-      "css": ".ds-action{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:44px;font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:13px;font-weight:550;border:0;border-radius:9px;cursor:pointer;padding:.65rem 1rem;white-space:normal;max-width:100%;background:var(--zen-accent,#286047);color:#fff}.ds-action:hover:not(:disabled){filter:brightness(.94)}.ds-action:disabled{opacity:.5;cursor:default}.ds-action:focus-visible{outline:2px solid var(--zen-accent,#286047);outline-offset:3px}:host-context([data-app-theme='dark']) .ds-action{color:#182d23}@media(prefers-reduced-motion:no-preference){.ds-action{transition:background-color 160ms ease-out,color 160ms ease-out}}"
+      "description": "Shared application action; portal normal buttons retain base padding 0 17px.",
+      "html": "<button class=\"ds-primary\" type=\"button\">Enregistrer</button>",
+      "css": ".ds-primary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;border:1px solid transparent;border-radius:8px;background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;cursor:pointer;white-space:normal}.ds-primary:disabled{opacity:.55;filter:none}.ds-primary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-primary{transition:background-color 140ms ease-out,color 140ms ease-out}}@media(hover:hover){.ds-primary:hover:not(:disabled){filter:brightness(.94);transform:none}}@media(max-width:860px){.ds-primary{min-height:44px}}"
     },
     {
-      "name": "Quiet workflow action",
+      "name": "Secondary action",
       "kind": "button",
-      "refersTo": "button-quiet",
-      "description": "Secondary workflow action in the same control centre.",
-      "html": "<button class=\"ds-quiet\" type=\"button\">Annuler la suite</button>",
-      "css": ".ds-quiet{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:44px;font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:13px;font-weight:550;border:0;border-radius:9px;cursor:pointer;padding:.65rem 1rem;white-space:normal;max-width:100%;background:var(--zen-soft,#ededf0);color:var(--zen-ink,#222226)}.ds-quiet:hover:not(:disabled){filter:brightness(.94)}.ds-quiet:disabled{opacity:.5;cursor:default}.ds-quiet:focus-visible{outline:2px solid var(--zen-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-quiet{transition:background-color 160ms ease-out,color 160ms ease-out}}"
+      "refersTo": "button-secondary",
+      "description": "Shared application action; portal normal buttons retain base padding 0 17px.",
+      "html": "<button class=\"ds-secondary\" type=\"button\">Annuler</button>",
+      "css": ".ds-secondary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;border:1px solid var(--work-line,#dedfe3);border-radius:8px;background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none;cursor:pointer;white-space:normal}.ds-secondary:disabled{opacity:.55;filter:none}.ds-secondary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-secondary{transition:background-color 140ms ease-out,color 140ms ease-out}}@media(hover:hover){.ds-secondary:hover:not(:disabled){filter:brightness(.94);transform:none}}@media(max-width:860px){.ds-secondary{min-height:44px}}"
     },
     {
-      "name": "Destination button",
+      "name": "Ghost action",
       "kind": "button",
-      "refersTo": "button-destination",
-      "description": "Restrained outlined access to a related view.",
-      "html": "<button class=\"ds-destination\" type=\"button\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z\"/><path d=\"M14 2v6h6M8 13h8M8 17h6\"/></svg>Factures reçues</button>",
-      "css": ".ds-destination{display:inline-flex;align-items:center;gap:8px;min-height:44px;border:1px solid var(--zen-line,#e3e3e8);border-radius:9px;background:transparent;padding:8px 12px;font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:13px;color:var(--zen-ink,#222226);cursor:pointer}.ds-destination:hover{background:var(--zen-panel,#fff)}.ds-destination:focus-visible{outline:2px solid currentColor;outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-destination{transition:background-color 160ms ease-out,color 160ms ease-out}}"
+      "refersTo": "button-ghost",
+      "description": "Shared application action; portal normal buttons retain base padding 0 17px.",
+      "html": "<button class=\"ds-ghost\" type=\"button\">Voir les détails</button>",
+      "css": ".ds-ghost{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--work-accent,#286047);box-shadow:none;cursor:pointer;white-space:normal}.ds-ghost:disabled{opacity:.55;filter:none}.ds-ghost:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-ghost{transition:background-color 140ms ease-out,color 140ms ease-out}}@media(hover:hover){.ds-ghost:hover:not(:disabled){filter:brightness(.94);transform:none}}@media(max-width:860px){.ds-ghost{min-height:44px}}"
     },
     {
-      "name": "Journal search",
+      "name": "Field",
       "kind": "input",
-      "refersTo": "search",
-      "description": "Inset search field with the focus outline around the complete field.",
-      "html": "<label class=\"ds-search\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-search-input\" type=\"search\" placeholder=\"Rechercher dans l’activité\" aria-label=\"Rechercher dans l’activité\"></label>",
-      "css": ".ds-search{display:flex;align-items:center;gap:8px;width:100%;min-width:0;color:var(--zen-muted,#67676f);background:var(--zen-canvas,#f6f6f8);border-radius:8px;padding:0 10px}.ds-search svg{flex:none}.ds-search-input{font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;background:transparent;border:0;border-radius:0;font-size:14px;min-height:44px;padding:9px 0;width:100%;min-width:0;box-shadow:none;color:var(--zen-ink,#222226);caret-color:var(--zen-accent,#286047)}.ds-search:focus-within{outline:2px solid var(--zen-accent,#286047);outline-offset:2px}.ds-search-input:focus-visible{outline:none}@media(max-width:760px){.ds-search-input{font-size:16px}}"
+      "refersTo": "field",
+      "description": "Opaque fields also apply to body-mounted portal forms.",
+      "html": "<label class=\"ds-field\"><span>Nom du projet</span><input class=\"ds-input\" placeholder=\"Nom du projet\"></label>",
+      "css": ".ds-field{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:grid;gap:8px;color:var(--work-ink,#202125);font-size:14px;font-weight:550}.ds-input{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;width:100%;min-width:0;min-height:44px;font-size:16px;padding:10px 12px;background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);border:1px solid var(--work-line,#dedfe3);border-radius:8px;box-shadow:none;caret-color:var(--work-accent,#286047)}.ds-input::placeholder{color:var(--work-muted,#62656d);opacity:1}.ds-input:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}"
     },
     {
-      "name": "Destination segments",
+      "name": "Sidebar destinations",
       "kind": "nav",
-      "refersTo": "navigation-item",
-      "description": "Soft navigation group with one selected panel segment; names are specimen content from the Automation surface.",
-      "html": "<nav class=\"ds-navigation\" aria-label=\"Espace Automation\"><button class=\"ds-navigation-item\" type=\"button\" aria-current=\"page\">Activité</button><button class=\"ds-navigation-item\" type=\"button\">À suivre</button><button class=\"ds-navigation-item\" type=\"button\">Réglages</button></nav>",
-      "css": ".ds-navigation{display:flex;gap:4px;padding:4px;border:0;border-radius:12px;width:fit-content;max-width:100%;background:var(--zen-soft,#ededf0)}.ds-navigation-item{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;min-width:0;padding:10px 22px;border:0;border-radius:9px;color:var(--zen-muted,#67676f);background:transparent;font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:14px;font-weight:550;cursor:pointer}.ds-navigation-item[aria-current]{color:var(--zen-ink,#222226);background:var(--zen-panel,#fff);box-shadow:0 2px 5px #00000009}.ds-navigation-item:focus-visible{outline:2px solid currentColor;outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-navigation-item{transition:background-color 160ms ease-out,color 160ms ease-out}}@media(max-width:760px){.ds-navigation{width:100%;display:grid;grid-template-columns:.9fr .9fr 1.2fr}.ds-navigation-item{padding:10px 4px;font-size:12px;gap:4px;white-space:nowrap}}"
+      "refersTo": "sidebar-item-selected",
+      "description": "Compact rail rows expand for phone touch navigation.",
+      "html": "<nav class=\"ds-rail\" aria-label=\"Navigation\"><button class=\"ds-nav\" aria-current=\"page\">Projets</button><button class=\"ds-nav\">Clients</button></nav>",
+      "css": ".ds-rail{padding:14px 12px 12px;background:var(--work-rail,#eceef0)}.ds-nav{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:block;width:100%;min-height:38px;padding:8px 10px;margin:1px 0;text-align:left;font-size:13px;font-weight:450;line-height:1.4;border:0;border-radius:8px;background:transparent;color:var(--work-muted,#62656d);cursor:pointer}.ds-nav:hover{background:var(--work-soft,#f0f1f3)}.ds-nav[aria-current]{background:var(--work-selection,#dde8e2);color:var(--work-ink,#202125);font-weight:600}.ds-nav:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-nav{transition:background-color 140ms ease-out,color 140ms ease-out}}@media(max-width:860px){.ds-nav{min-height:48px;padding:12px;font-size:15px}}"
+    },
+    {
+      "name": "Destination tabs",
+      "kind": "nav",
+      "refersTo": "destination-selected",
+      "description": "Quiet baseline with a soft current destination and wrapping phone labels.",
+      "html": "<nav class=\"ds-tabs\"><button class=\"ds-tab\" aria-current=\"page\">Activité</button><button class=\"ds-tab\">À suivre</button><button class=\"ds-tab\">Réglages</button></nav>",
+      "css": ".ds-tabs{display:flex;gap:6px;padding:0 0 12px;border-bottom:1px solid var(--work-line,#dedfe3)}.ds-tab{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;min-height:44px;min-width:0;padding:10px 18px;border:0;border-radius:8px;background:transparent;color:var(--work-muted,#62656d);font-size:14px;font-weight:550;cursor:pointer}.ds-tab[aria-current],.ds-tab:hover{background:var(--work-soft,#f0f1f3);color:var(--work-ink,#202125)}.ds-tab:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(max-width:860px){.ds-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.ds-tab{min-height:46px;padding:10px 3px;font-size:13px;white-space:normal;overflow-wrap:anywhere}}"
     },
     {
       "name": "Filter chips",
@@ -415,63 +513,59 @@
       "refersTo": "filter-selected",
       "description": "A pressed filter uses a soft fill while unpressed filters remain quiet.",
       "html": "<div class=\"ds-filters\" aria-label=\"Filtrer\"><button class=\"ds-filter\" type=\"button\" aria-pressed=\"true\">Tout</button><button class=\"ds-filter\" type=\"button\" aria-pressed=\"false\">Factures</button><button class=\"ds-filter\" type=\"button\" aria-pressed=\"false\">Règles</button></div>",
-      "css": ".ds-filters{display:flex;flex-wrap:wrap;gap:4px;min-width:0}.ds-filter{font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:13px;font-weight:550;padding:8px 12px;min-height:44px;border:0;border-radius:8px;background:transparent;color:var(--zen-muted,#67676f);cursor:pointer}.ds-filter[aria-pressed='true']{background:var(--zen-soft,#ededf0);color:var(--zen-ink,#222226)}.ds-filter:hover:not(:disabled){filter:brightness(.94)}.ds-filter:focus-visible{outline:2px solid var(--zen-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-filter{transition:background-color 160ms ease-out,color 160ms ease-out}}@media(max-width:380px){.ds-filter{padding-inline:8px;font-size:12px}}"
+      "css": ".ds-filters{display:flex;flex-wrap:wrap;gap:4px;min-width:0}.ds-filter{font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:13px;font-weight:550;padding:8px 12px;min-height:44px;border:0;border-radius:8px;background:transparent;color:var(--work-muted,#62656d);cursor:pointer}.ds-filter[aria-pressed='true']{background:var(--work-soft,#f0f1f3);color:var(--work-ink,#202125)}.ds-filter:hover:not(:disabled){filter:brightness(.94)}.ds-filter:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-filter{transition:background-color 160ms ease-out,color 160ms ease-out}}@media(max-width:380px){.ds-filter{padding-inline:8px;font-size:12px}}"
     },
     {
-      "name": "Content panel",
+      "name": "Grouped panel",
       "kind": "card",
       "refersTo": "content-panel",
-      "description": "Flat panel for a coherent group of work; quiet empty content shown here.",
-      "html": "<section class=\"ds-panel\"><h3 class=\"ds-panel-title\">À votre attention</h3><p class=\"ds-panel-empty\">Aucune action en attente ici</p></section>",
-      "css": ".ds-panel{font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;background:var(--zen-panel,#fff);color:var(--zen-ink,#222226);border-radius:16px;padding:24px;box-shadow:none}.ds-panel-title{font-size:18px;letter-spacing:-.02em;margin:0 0 16px}.ds-panel-empty{font-size:14px;padding:8px 0;margin:0;line-height:1.6;color:var(--zen-muted,#67676f)}@media(max-width:760px){.ds-panel{padding:20px 18px}}"
-    },
-    {
-      "name": "Grouped settings switch",
-      "kind": "input",
-      "refersTo": "settings-group",
-      "description": "The visible track sits inside its full-width label; keyboard focus surrounds the group.",
-      "html": "<label class=\"ds-setting\"><span class=\"ds-setting-copy\"><strong class=\"ds-setting-title\">Automation</strong><small class=\"ds-setting-help\">Pour votre entreprise et votre équipe</small></span><input class=\"ds-switch\" type=\"checkbox\" checked aria-label=\"Automation\"></label>",
-      "css": ".ds-setting{display:flex;align-items:center;justify-content:space-between;font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;background:var(--zen-panel,#fff);color:var(--zen-ink,#222226);border:0;border-radius:12px;padding:20px;gap:24px;cursor:pointer}.ds-setting-copy{display:grid;gap:4px;min-width:0}.ds-setting-title{font-size:14px;font-weight:550}.ds-setting-help{font-size:13px;line-height:1.5;color:var(--zen-muted,#67676f)}.ds-switch{appearance:none;width:42px;min-width:42px;height:26px;min-height:26px;margin:0;border:1px solid var(--zen-line,#e3e3e8);border-radius:20px;background:var(--zen-soft,#ededf0);position:relative;box-shadow:none;cursor:pointer}.ds-switch::before{content:'';position:absolute;width:20px;height:20px;top:2px;left:2px;background:var(--zen-panel,#fff);border-radius:50%;box-shadow:0 1px 3px #00000026}.ds-switch:checked{background:var(--zen-accent,#286047);border-color:var(--zen-accent,#286047)}.ds-switch:checked::before{transform:translateX(16px);background:#fff}.ds-setting:has(input:disabled){cursor:default;opacity:.64}.ds-setting:has(input:focus-visible){outline:2px solid var(--zen-accent,#286047);outline-offset:3px}.ds-switch:focus-visible{outline:none}@media(prefers-reduced-motion:no-preference){.ds-switch::before{transition:transform 160ms ease-out}}@media(max-width:760px){.ds-setting{padding:18px 16px;gap:16px}}"
+      "description": "Flat, bordered group; nested records share its surface.",
+      "html": "<section class=\"ds-panel\"><h2 class=\"ds-title\">Projets</h2><p class=\"ds-copy\">Les informations de votre entreprise.</p></section>",
+      "css": ".ds-panel{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;padding:24px;border:1px solid var(--work-line,#dedfe3);border-radius:12px;background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none}.ds-title{margin:0 0 12px;font-size:19px;font-weight:600;letter-spacing:-.02em}.ds-copy{margin:0;font-size:14px;line-height:1.6;color:var(--work-muted,#62656d)}@media(max-width:860px){.ds-panel{padding:20px 16px}}"
     }
   ],
   "narrative": {
-    "northStar": "The Quiet Workspace",
-    "overview": "A quiet, contemporary application workspace: cool neutral surfaces, familiar system text, fine separators and restrained green. The existing Zentra identity stays visible while controls and factual content carry the visual emphasis.\n\nThis records the implemented Automation interface and the shared menu and page-title treatments. It is not a claim that every legacy screen or printed document already uses this system. The activity-first composition and destination order belong to the [Automation surface contract](.impeccable/surfaces/automation.md); durable product constraints remain in [PRODUCT.md](PRODUCT.md).",
+    "northStar": "One Working Window",
+    "overview": "A restrained Apple-inspired working window: pearl-gray navigation, a continuous near-white canvas, graphite text and fine separators. Green identifies action and meaningful selection; the established Zentra wordmark remains the identity. Dark appearance preserves the same structure with distinct graphite surfaces.\n\nThis records the implemented shared screen layer across the application and its portal forms. It replaces the earlier Automation-only visual specification. The [workspace surface contract](.impeccable/surfaces/workspace.md) owns dashboard composition and module-specific arrangements; [PRODUCT.md](PRODUCT.md) owns product behavior. Printed sales documents retain their own layout, identity and colors.",
     "keyCharacteristics": [
-      "Cool neutral layers with green reserved for meaningful state and action.",
-      "Compact text hierarchy, familiar controls and progressive detail.",
-      "Light and dark themes with the same semantic roles.",
-      "Readable touch layouts and quiet, optional interaction motion."
+      "One continuous working canvas with a separate navigation rail.",
+      "System typography, aligned numbers and readable records.",
+      "Flat grouped content, small control corners and depth reserved for dialogs.",
+      "Compact desktop controls and safe-area-aware touch layouts.",
+      "Matching light and dark roles, visible focus and optional motion."
     ],
     "rules": [
       {
         "name": "The Functional Color Rule",
-        "body": "Use green for action, selected icons and completed work; use amber for attention. Keep a written state label alongside color.",
+        "body": "Use green for action and meaningful selection, and preserve written status alongside every semantic color.",
         "section": "colors"
       },
       {
         "name": "The Familiar Type Rule",
-        "body": "Use the platform text family for interface headings and content. This application has no separate display-face role.",
+        "body": "Use the platform text family for the interface; financial values and time use tabular numerals.",
         "section": "typography"
       },
       {
         "name": "The Tonal Depth Rule",
-        "body": "Separate resting surfaces through tone and fine lines. Small shadows explain a selected segment or movable switch thumb, rather than lifting every container.",
+        "body": "Separate resting content through surface tone and fine lines. Reserve the shared ambient shadow for dialogs.",
         "section": "elevation"
       }
     ],
     "dos": [
-      "Do switch all semantic color roles together when appearance changes.",
-      "Do keep text labels, focus feedback and the meaning of status visible.",
-      "Do use the shared system text family and tabular numerals for time and counts.",
-      "Do let translated titles wrap and reflow status beneath the title on narrow screens.",
-      "Do preserve the existing safe-area-aware mobile shell and reduced-motion preference."
+      "Do switch all shared color roles together in light and dark appearance.",
+      "Do use platform text and tabular numerals for values, time and counts.",
+      "Do keep focus outlines, text labels and real state evidence visible.",
+      "Do let translated titles and step labels wrap on narrow screens.",
+      "Do retain safe-area insets, touch targets and reduced-motion behavior.",
+      "Do apply the same field and action treatment inside portal forms.",
+      "Do preserve printed document colors, identity and layout."
     ],
     "donts": [
-      "Don't use decorative gradients or invented live indicators.",
+      "Don't add decorative gradients, glass panels or fabricated activity indicators to the shared working canvas.",
       "Don't replace status text with color alone.",
-      "Don't turn every list row into a floating card.",
-      "Don't promote the Automation page composition into a rule for every product surface."
+      "Don't turn each record or paragraph into a floating card.",
+      "Don't use compact desktop navigation dimensions for touch navigation.",
+      "Don't apply screen color aliases globally to printed document templates."
     ]
   }
 }

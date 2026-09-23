@@ -1,4 +1,4 @@
-import { ArrowUpRight, CalendarDays, Check, ChevronRight, FileText, Inbox, ListChecks, Settings2 } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Check, ChevronDown, ChevronRight, FileText, Inbox, ListChecks, Settings2 } from 'lucide-react';
 import './AutomationBrief.css';
 
 export type BriefDestination = 'invoices' | 'appointments' | 'review' | 'work' | 'history' | 'settings' | 'support' | 'tools';
@@ -61,18 +61,22 @@ export function AutomationBrief({ activity, paused = false, observation = false,
     { key: 'summary', count: activity?.workflows?.summaries ?? 0, target: 'work' as const },
     { key: 'confirmed', count: activity?.totals.confirmed ?? 0, target: 'tools' as const },
   ].filter(row => row.count > 0);
+  const attention = pending.length ? <div className="automation-brief__list">{pending.map(({id,count,icon:Icon}) => <button type="button" key={id} onClick={() => onOpen(id)}>
+    <Icon size={20}/><span>{label(id)}</span><strong>{count}</strong><ChevronRight size={17}/>
+  </button>)}</div> : <p className="automation-brief__empty"><Check size={20}/>{label('clear')}</p>;
   return <section className={`automation-brief${compact ? ' automation-brief--compact' : ''}${activityFirst ? ' automation-brief--activity' : ''}${attentionOnly ? ' automation-brief--attention' : ''}`} aria-label="Zentra Automation">
     {!attentionOnly && <header className="automation-brief__intro">
       <div><h2>{compact ? 'Zentra Automation' : `${label('hello')}${activity?.displayName ? ', ' + activity.displayName : ''}.`}</h2>
       <p>{paused ? label('pause') : observation ? label('observe') : label('live')}</p></div>
       <button className="automation-brief__icon" type="button" onClick={() => onOpen('settings')} aria-label={label('settings')}><Settings2 size={19}/></button>
     </header>}
-    {!hideAttention && <div className="automation-brief__work">
+    {!hideAttention && (compact ? <details className="automation-brief__attention-disclosure">
+      <summary data-pending={pending.length > 0}><span>{pending.length ? label('attention') : label('clear')}</span><ChevronDown size={17}/></summary>
+      {attention}
+    </details> : <div className="automation-brief__work">
       <h3>{label('attention')}</h3>
-      {pending.length ? <div className="automation-brief__list">{pending.map(({id,count,icon:Icon}) => <button type="button" key={id} onClick={() => onOpen(id)}>
-        <Icon size={20}/><span>{label(id)}</span><strong>{count}</strong><ChevronRight size={17}/>
-      </button>)}</div> : <p className="automation-brief__empty"><Check size={20}/>{label('clear')}</p>}
-    </div>}
+      {attention}
+    </div>)}
     {!attentionOnly && <div className="automation-brief__day"><h3>{label('today')}</h3>
       {done.length ? <ul>{done.slice(0, compact ? 2 : 6).map(row => <li key={row.key}><Check size={16}/><span><strong>{row.count}</strong> {label(row.key)}{row.key === 'imported' && !!activity?.supplierInbox?.automatic && <small>{activity.supplierInbox.automatic} {label('automatic')}</small>}</span></li>)}</ul> : <p>{label('empty')}</p>}
       {!activityFirst && <button type="button" className="automation-brief__text" onClick={() => onOpen('history')}>{label('history')}<ChevronRight size={16}/></button>}

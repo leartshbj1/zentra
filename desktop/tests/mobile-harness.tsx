@@ -289,3 +289,4 @@ import '../src/dark.generated.css';
 import '../src/dark.css';
 import '../src/mobile-air.css';
 import '../src/automation-design.css';
+import '../src/workspace-atelier.css';
