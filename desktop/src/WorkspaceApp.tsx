@@ -599,7 +599,7 @@ function WorkspaceContent({
   const actionInFlight = useRef(false);
   const supplierInbox=useSupplierInbox(cloudAccount?.status==='connected'?cloudAccount.organizationId??null:null,readOnly,()=>actionInFlight.current||busy||!!modal||!!document.querySelector('[role="dialog"]'),next=>{workspaceRef.current=next;setWorkspace(next);});
   const appointmentInbox=useAppointmentInbox(cloudAccount?.status==='connected'?cloudAccount.organizationId??null:null,readOnly,()=>actionInFlight.current||busy||!!modal||!!document.querySelector('[role="dialog"]'),next=>{workspaceRef.current=next;setWorkspace(next);});
-  const automationPendingCount=(supplierInbox.state?.items.filter(row=>!['imported','ignored'].includes(row.state)).length||0)+(appointmentInbox.state?.items.filter(row=>!['imported','ignored'].includes(row.state)).length||0);
+  const automationPendingCount=(supplierInbox.state?.items.filter(row=>!['imported','ignored'].includes(row.state)).length||0)+(appointmentInbox.state?.items.filter(row=>!['imported','ignored'].includes(row.state)).length||0)+(companyAutomation.state?.activity?.workflows?.review||0)+(companyAutomation.state?.activity?.workflows?.open||0)+(companyAutomation.state?.activity?.totals.needsReview||0);
   const renderSupplierInbox = (embedded: boolean) => <SupplierInbox embedded={embedded} inbox={supplierInbox} workspace={workspace} readOnly={readOnly} onCreateSupplier={async(name,email)=>{
                 const existing=workspaceRef.current.suppliers.filter(s=>!s.archivedAt&&s.name.trim().toLowerCase()===name.toLowerCase()&&s.email.trim().toLowerCase()===email.toLowerCase());
                 if(existing.length===1)return existing[0].id;

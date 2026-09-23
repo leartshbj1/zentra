@@ -11,6 +11,11 @@ import {
 } from 'lucide-react';
 import type { WorkflowDefinition } from './automationWorkflowTypes';
 import './AutomationControlCentre.css';
+import { AutomationJournal } from './AutomationJournal';
+import type { AutomationActivity } from './automation';
+import type { BriefDestination } from './AutomationBrief';
+import { useAppLanguage } from './language';
+import { automationRunStatus } from './automationPresentation';
 
 type Rule = {
   id: string;
@@ -110,18 +115,6 @@ const categories = {
   account: 'Compte et accès',
   other: 'Autre',
 };
-const statuses: Record<string, string> = {
-  queued: 'En attente',
-  running: 'En cours',
-  waiting: 'Planifié',
-  review: 'À vérifier',
-  completed: 'Terminé',
-  observed: 'Observé sans agir',
-  skipped: 'Conditions non remplies',
-  failed: 'À reprendre',
-  cancelled: 'Annulé',
-  undone: 'Annulation effectuée',
-};
 const date = (n: number) =>
   new Intl.DateTimeFormat('fr-CH', {
     dateStyle: 'short',
@@ -131,11 +124,13 @@ const date = (n: number) =>
 export function AutomationControlCentre({
   organizationId,
   request, initialTab = 'review', embedded = false, hideNavigation = false, hideRules = false,
+  activity, onOpen,
 }: {
   organizationId: string;
   request: Requester;
   initialTab?: 'review' | 'work' | 'history' | 'rules';
   embedded?: boolean; hideNavigation?: boolean; hideRules?: boolean;
+  activity?: AutomationActivity | null; onOpen?: (destination: BriefDestination) => void;
 }) {
   const [data, setData] = useState<AutomationCentreState | null>(null),
     [error, setError] = useState(''),
@@ -365,7 +360,8 @@ export function AutomationControlCentre({
           )}
         </div>
       )}
-      {data && tab === 'history' && (
+      {data && tab === 'history' && embedded && <AutomationJournal runs={data.runs} activity={activity} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <RunRow run={run} canManage={data.canManage} busy={busy} act={action}/>}/>}
+      {data && tab === 'history' && !embedded && (
         <div className="ac-list">
           {!data.runs.length ? (
             <div className="ac-empty">
@@ -608,15 +604,16 @@ function RunRow({
   act: (v: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [choice, setChoice] = useState('');
+  const language = useAppLanguage();
   return (
     <details className="ac-run">
       <summary>
         <span>
           <strong>{run.title}</strong>
-          <small>{date(run.createdAt)}</small>
+          <small>{new Intl.DateTimeFormat(`${language}-CH`,{dateStyle:'short',timeStyle:'short',timeZone:'Europe/Zurich'}).format((run.updatedAt || run.createdAt)*1000)}</small>
         </span>
         <span className="ac-status" data-state={run.state}>
-          {statuses[run.state] || 'À vérifier'}
+          {automationRunStatus(run.state, language)}
         </span>
         <ChevronDown size={16} />
       </summary>

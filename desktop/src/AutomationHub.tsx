@@ -12,6 +12,8 @@ import { AutomationConnectionNotice } from './AutomationConnectionNotice';
 import type { ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { AutomationControlCentre } from './AutomationControlCentre';
+import { automationLabel } from './automationPresentation';
+import './automation-design.css';
 
 const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
 
@@ -32,20 +34,26 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   const readiness = automationReadiness(state);
   const ready = readiness === 'ready' || readiness === 'observation';
   const canManage = state.canManage && !readOnly;
-  const followup = ['centre','work','history'].includes(page);
+  const followup = ['centre','work'].includes(page);
+  const activityPage = page === 'overview' || page === 'history';
+  const label = (key: Parameters<typeof automationLabel>[0]) => automationLabel(key, language);
+  const pending = (state.activity?.supplierInbox?.needsReview ?? 0) + (state.activity?.appointments?.pending ?? 0) + (state.activity?.workflows?.review ?? 0) + (state.activity?.workflows?.open ?? 0) + (state.activity?.totals.needsReview ?? 0);
   const open = (destination: BriefDestination) => {
     if (destination === 'support') { void invoke('open_supplier_inbox_settings',{section:'inbox'}).catch(()=>onPage('settings')); return; }
     onPage(destination === 'review' ? 'centre' : destination);
   };
   return <div className="automation-hub">
     <nav className="automation-hub__navigation" aria-label={t('Espace Automation')}>
-      {(['overview', 'centre', 'settings'] as const).map(tab => <button key={tab} type="button" aria-current={(tab==='centre'?followup:tab==='settings'?page==='settings'||page==='rules':!followup&&page!=='settings'&&page!=='rules') ? 'page' : undefined} onClick={() => onPage(tab)}>{t(tab === 'overview' ? 'Aujourd’hui' : tab === 'centre' ? 'Suivi' : 'Réglages')}</button>)}
+      {(['overview', 'centre', 'settings'] as const).map(tab => <button key={tab} type="button" aria-current={(tab==='centre'?followup:tab==='settings'?page==='settings'||page==='rules':!followup&&page!=='settings'&&page!=='rules') ? 'page' : undefined} onClick={() => onPage(tab)}>{label(tab === 'overview' ? 'activity' : tab === 'centre' ? 'followup' : 'settings')}{tab === 'centre' && pending > 0 && <span className="automation-hub__count">{pending}</span>}</button>)}
     </nav>
     {!ready && <div className="automation-hub__welcome">
         <div><h2>{t(readiness === 'consent' ? 'Votre accès est actif. Commençons.' : 'Retrouvez vos suggestions')}</h2><p>{t(canManage ? 'Choisissez les fonctions de votre équipe dans les réglages. Tout se passe ici, dans Zentra.' : 'Votre accès est inclus. Le titulaire ou un administrateur peut terminer les réglages pour toute l’équipe.')}</p></div>
         <Button onClick={() => onPage('settings')}>{t(canManage ? 'Configurer mon équipe' : 'Voir les réglages')}<ArrowRight size={17} aria-hidden="true" /></Button>
       </div>}
-    {page === 'overview' && <><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open}/><div className="automation-hub__more"><Button variant="ghost" onClick={()=>onPage('tools')}>{t('Les outils de cet écran')}<ArrowRight size={16}/></Button></div></>}
+    {activityPage && <div className="automation-hub__activity">
+      <div className="automation-hub__journal"><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab="history" activity={state.activity} onOpen={open} embedded hideNavigation hideRules request={data=>invoke('automation_request',{data})}/></div>
+      <aside className="automation-hub__day"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} activityFirst hideAttention/><div className="automation-hub__more"><Button variant="ghost" onClick={()=>onPage('tools')}>{t('Les outils de cet écran')}<ArrowRight size={16}/></Button></div></aside>
+    </div>}
     {(page === 'invoices' || page === 'appointments') && <section className="automation-hub__focused"><Button variant="ghost" onClick={()=>onPage('overview')}><ArrowLeft size={16}/>{t('Aujourd’hui')}</Button>{page==='invoices'?inboxPanel:appointmentPanel}</section>}
     {page === 'tools' && <section aria-label={t('Outils')}>
       <Button variant="ghost" onClick={()=>onPage('overview')}><ArrowLeft size={16}/>{t('Aujourd’hui')}</Button>
@@ -62,7 +70,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
       })}</div>
       {ready ? <AutomationTools screen="automation" workspace={workspace} expanded /> : <div className="automation-hub__welcome"><p>{t('Terminez les réglages pour retrouver les outils de votre équipe.')}</p><Button onClick={() => onPage('settings')}>{t('Voir les réglages')}</Button></div>}
     </section>}
-    {followup && <AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab={page==='history'?'history':page==='work'?'work':'review'} embedded hideRules request={data=>invoke('automation_request',{data})} />}
+    {followup && <div className="automation-hub__followup"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} attentionOnly/><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab={page==='work'?'work':'review'} embedded hideRules request={data=>invoke('automation_request',{data})} /></div>}
     {page === 'settings' && <section aria-label={t('Réglages')} className="automation-hub__settings"><Button variant="secondary" onClick={()=>onPage('rules')}>{t('Règles de l’équipe')}<ArrowRight size={16}/></Button><AutomationSettings /></section>}
     {page === 'rules' && <><Button variant="ghost" onClick={()=>onPage('settings')}><ArrowLeft size={16}/>{t('Réglages')}</Button><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab="rules" embedded hideNavigation request={data=>invoke('automation_request',{data})}/></>}
   </div>;

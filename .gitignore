@@ -60,3 +60,4 @@ next-env.d.ts
 
 # local workspace inventory
 /structure.txt
+/desktop/.impeccable/review/

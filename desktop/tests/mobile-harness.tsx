@@ -32,7 +32,8 @@ import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
 import { installReadOnlyFixture } from './read-only-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { openAutomationHub } from '../src/automationExperience';
 import { setAppearance } from '../src/appearance';
 import { setAppLanguage } from '../src/language';
 import { createRoot } from 'react-dom/client';
@@ -247,6 +248,7 @@ if (new URLSearchParams(location.search).has('customerSettlementGuided')) instal
 if (new URLSearchParams(location.search).has('companyRealtime')) installCompanyRealtimeFixture(data, productionCompanySynchronize);
 if (new URLSearchParams(location.search).has('automation')) installAutomationCompanyFixture(data);
 function Harness() {
+  useEffect(() => { if (previewQuery.has('automationDesign')) openAutomationHub(); }, []);
   // Tests use this exact mocked instance, including after Vite hot reloads.
   Object.assign(window, { __qaDesktopApi: desktopApi });
   useMobileLayout();
@@ -286,3 +288,4 @@ import '../src/appearance';
 import '../src/dark.generated.css';
 import '../src/dark.css';
 import '../src/mobile-air.css';
+import '../src/automation-design.css';

@@ -1,0 +1,214 @@
+/* Zentra workspace: quiet navigation, factual activity and progressive detail. */
+@media screen {
+  :root {
+    --zen-canvas: #f6f6f8;
+    --zen-panel: #ffffff;
+    --zen-soft: #ededf0;
+    --zen-rail: #f0f0f3;
+    --zen-ink: #222226;
+    --zen-muted: #67676f;
+    --zen-line: #e3e3e8;
+    --zen-accent: #286047;
+    --zen-attention: #805112;
+    --zen-selection: #ffffff;
+  }
+  html[data-app-theme='dark'] {
+    --zen-canvas: #19191c;
+    --zen-panel: #222225;
+    --zen-soft: #303035;
+    --zen-rail: #202023;
+    --zen-ink: #f2f2f5;
+    --zen-muted: #aaaab4;
+    --zen-line: #38383e;
+    --zen-accent: #a2ceb6;
+    --zen-attention: #e3b96e;
+    --zen-selection: #35353a;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar {
+    background: var(--zen-rail); border-right: 1px solid var(--zen-line); box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button {
+    min-height: 44px; border-radius: 9px; padding: 10px 12px; gap: 11px;
+    color: var(--zen-muted); background: transparent; border: 0; font-size: 14px; font-weight: 450;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button > svg {
+    color: var(--zen-muted); width: 19px; height: 19px; padding: 0; border-radius: 0; background: none; stroke-width: 1.65;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button:is(.is-active,.is-active:hover,.is-active:focus) {
+    color: var(--zen-ink); background: var(--zen-selection); font-weight: 600; box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button.is-active > svg {color: var(--zen-accent); background: none; stroke-width: 1.9;}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__selection {display: none;}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button:hover:not(.is-active) {background: var(--zen-soft); color: var(--zen-ink);}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button em {background: var(--zen-soft); color: var(--zen-ink); border-radius: 6px; min-width: 21px; font-size: 11px; font-weight: 550;}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav > div > p {color: var(--zen-muted); border: 0; margin: 23px 12px 6px; padding: 0; font-size: 12px; letter-spacing: 0;}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__company strong {color: var(--zen-ink);}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__company > svg {background: none; color: var(--zen-muted); box-shadow: none; border: 1px solid var(--zen-line); border-radius: 10px;}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__search {background: var(--zen-panel); border: 0; border-radius: 9px; color: var(--zen-muted); box-shadow: none;}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__guide {background: transparent; border: 0; border-top: 1px solid var(--zen-line); border-radius: 0; color: var(--zen-muted);}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__guide strong {color: var(--zen-ink);}
+  html[data-app-theme] .desktop-app[data-experience] .page-header h1 {font-size: 28px; letter-spacing: -.03em; font-weight: 650;}
+  html[data-app-theme] .desktop-app[data-experience][data-view='automation'] .app-main {background: var(--zen-canvas); border-radius: 0; border: 0; box-shadow: none;}
+  html[data-app-theme] .desktop-app[data-experience][data-view='automation'] .page-header {padding-block: 28px 20px;}
+  html[data-app-theme] .desktop-app[data-experience][data-view='automation'] .page-header p {display: none;}
+
+  .automation-hub {
+    --ink: var(--zen-ink); --muted: var(--zen-muted); --surface-raised: var(--zen-panel); --surface-soft: var(--zen-soft);
+    --line-soft: var(--zen-line); --line: var(--zen-line); --accent: var(--zen-accent);
+    max-width: 1120px; color: var(--zen-ink); text-underline-offset: .2em; font-variant-numeric: tabular-nums;
+  }
+  .automation-hub ::selection {background: var(--zen-soft); color: var(--zen-ink);}
+  .automation-hub :is(input,textarea) {caret-color: var(--zen-accent);}
+  .automation-hub .automation-hub__navigation {
+    display: flex; gap: 4px; padding: 4px; border: 0; border-radius: 12px;
+    width: fit-content; max-width: 100%; background: var(--zen-soft); margin-bottom: 28px;
+  }
+  .automation-hub .automation-hub__navigation button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px;
+    padding: 10px 22px; border-radius: 9px; color: var(--zen-muted); font-size: 14px; font-weight: 550;
+  }
+  .automation-hub .automation-hub__navigation button[aria-current] {color: var(--zen-ink); background: var(--zen-panel); box-shadow: 0 2px 5px #00000009;}
+  .automation-hub .automation-hub__navigation button::after {display: none;}
+  .automation-hub__count {font-size: 11px; font-weight: 650; background: var(--zen-panel); border-radius: 5px; padding: 1px 5px; color: var(--zen-ink);}
+  .automation-hub__navigation button[aria-current] .automation-hub__count {background: var(--zen-soft);}
+  .automation-hub__activity {display: grid; gap: 24px; align-items: start; grid-template-columns: minmax(0,1fr) 248px;}
+  .automation-hub__day {min-width: 0; padding: 8px 0;}
+  .automation-hub__day .automation-brief__intro h2 {font-size: 19px;}
+  .automation-hub__day .automation-brief__intro p {font-size: 13px;}
+  .automation-hub__day .automation-brief__intro .automation-brief__icon {display: none;}
+  .automation-hub .automation-brief {max-width: none; margin: 0;}
+  .automation-hub .automation-brief__intro {padding: 0 0 22px; align-items: center;}
+  .automation-hub .automation-brief__intro h2 {font-size: 24px; font-weight: 600; letter-spacing: -.025em; margin-bottom: 6px;}
+  .automation-hub .automation-brief__intro p {font-size: 14px;}
+  .automation-hub .automation-brief--activity .automation-brief__day {padding: 0;}
+  .automation-hub .automation-brief--activity .automation-brief__day h3 {font-size: 13px; font-weight: 550; color: var(--zen-muted); margin-bottom: 12px;}
+  .automation-hub .automation-brief--activity .automation-brief__day ul {display: grid; grid-template-columns: minmax(0,1fr); gap: 18px;}
+  .automation-hub .automation-brief--activity .automation-brief__day li {font-size: 14px; align-items: baseline; gap: 9px;}
+  .automation-hub .automation-brief--activity .automation-brief__day li > svg {width: 14px; color: var(--zen-accent); align-self: start;}
+  .automation-hub .automation-brief--activity .automation-brief__day small {font-size: 12px; margin-top: 2px;}
+  .automation-hub .automation-brief__destinations {border: 0; gap: 8px 12px; padding: 0; margin-top: 22px; display: grid;}
+  .automation-hub .automation-brief__destinations button {border: 1px solid var(--zen-line); border-radius: 9px; background: transparent; padding: 8px 12px; font-size: 13px; color: var(--zen-ink);}
+  .automation-hub .automation-brief__destinations button:hover {background: var(--zen-panel);}
+  .automation-hub__journal {background: var(--zen-panel); border-radius: 16px; padding: 26px 28px 12px; min-width: 0;}
+  .automation-hub .automation-centre {--ac-ink:var(--zen-ink);--ac-muted:var(--zen-muted);--ac-line:var(--zen-line);--ac-soft:var(--zen-soft);--ac-surface:var(--zen-panel);--ac-accent:var(--zen-accent);}
+  .automation-hub .automation-centre__tabs {border: 0; gap: 8px; margin-bottom: 20px;}
+  .automation-hub .automation-centre__tabs button {font-size: 13px; min-height: 44px; border-radius: 8px; flex: none;}
+  .automation-hub .automation-centre__tabs button[aria-current] {background: var(--zen-panel);}
+  .automation-hub__followup {display: grid; gap: 30px;}
+  .automation-hub .automation-brief__work {background: var(--zen-panel); border-radius: 16px; padding: 24px;}
+  .automation-hub .automation-brief__work h3 {font-size: 18px; letter-spacing: -.02em; margin: 0 0 16px;}
+  .automation-hub .automation-brief__list {border-top: 0; border-bottom: 0;}
+  .automation-hub .automation-brief__list button {font-size: 14px; padding-block: 16px;}
+  .automation-hub .automation-brief__empty {font-size: 14px; padding: 8px 0;}
+  .automation-hub .automation-journal__heading h2 {font-size: 19px; font-weight: 600; letter-spacing: -.025em; margin: 0 0 4px;}
+  .automation-hub .automation-journal__heading p {font-size: 13px; margin: 0;}
+  .automation-journal__toolbar {display: flex; align-items: stretch; justify-content: space-between; flex-direction: column; gap: 10px; margin: 18px 0 24px;}
+  .automation-journal__filters {display: flex; flex-wrap: wrap; gap: 4px; min-width: 0;}
+  .automation-hub .automation-journal__filters button {font-size: 13px; padding: 8px 12px; min-height: 44px; border-radius: 8px; background: transparent; color: var(--zen-muted);}
+  .automation-hub .automation-journal__filters button[aria-pressed='true'] {background: var(--zen-soft); color: var(--zen-ink);}
+  .automation-journal__search {display: flex; align-items: center; gap: 8px; color: var(--zen-muted); width: 100%; box-sizing: border-box; max-width: 100%; min-width: 0; background: var(--zen-canvas); border-radius: 8px; padding: 0 10px;}
+  .automation-hub .automation-journal__search input {background: transparent; border: 0; border-radius: 0; font-size: 14px; min-height: 44px; padding: 9px 0; width: 100%; box-shadow: none; color: var(--zen-ink);}
+  .automation-journal__search:focus-within {outline: 2px solid var(--zen-accent); outline-offset: 2px;}
+  .automation-hub .automation-journal__search input:focus-visible {outline: none;}
+  .automation-hub .automation-journal__search button {background: none; color: var(--zen-muted); padding: 0; min-width: 32px;}
+  .automation-journal__group h3 {font-size: 12px; font-weight: 550; color: var(--zen-muted); margin: 26px 0 6px;}
+  .automation-journal__group ol {list-style: none; padding: 0; margin: 0;}
+  .automation-journal__entry {display: grid; grid-template-columns: 22px minmax(0,1fr); column-gap: 14px; padding: 0; border-bottom: 1px solid var(--zen-line);}
+  .automation-journal__entry:last-child {border-bottom: 0;}
+  .automation-journal__symbol {padding-top: 22px; color: var(--zen-muted);}
+  .automation-journal__entry .ac-run {border: 0; min-width: 0;}
+  .automation-hub .ac-run > summary, .automation-hub button.automation-journal__invoice {display: grid; grid-template-columns: minmax(0,1fr) auto 16px; gap: 18px; align-items: center; padding: 19px 0; border-radius: 0; background: none; color: var(--zen-ink); width: 100%; text-align: left;}
+  .automation-hub .ac-run > summary:hover, .automation-hub button.automation-journal__invoice:hover {filter: none; background: var(--zen-canvas);}
+  .automation-hub .ac-run > summary strong, .automation-journal__invoice strong {font-size: 14px; font-weight: 550; line-height: 1.5; display: block; overflow-wrap: anywhere;}
+  .automation-hub .ac-run > summary small, .automation-journal__invoice small {font-size: 12px; color: var(--zen-muted); margin-top: 4px; display: block; font-weight: 400;}
+  .automation-hub .ac-status {font-size: 12px; max-width: 190px; text-align: right; color: var(--zen-muted); font-weight: 450;}
+  .automation-hub .ac-status[data-state='completed'] {color: var(--zen-accent);}
+  .automation-hub .ac-status:is([data-state='review'],[data-state='failed']) {color: var(--zen-attention);}
+  .automation-hub .ac-run[open] > summary > svg {transform: rotate(180deg);}
+  .automation-hub .ac-run__detail {font-size: 14px; padding: 4px 0 24px;}
+  .automation-hub .ac-run__detail p {font-size: 14px; margin-bottom: 12px;}
+  .automation-hub .ac-run__detail .ac-source {background: var(--zen-canvas); border-radius: 9px; padding: 10px 16px; margin: 10px 0;}
+  .automation-hub .ac-source blockquote {border-left-width: 1px; font-size: 14px; margin-left: 0;}
+  .automation-hub .automation-centre .ac-actions button {font-size: 13px; min-height: 44px;}
+  .automation-journal__empty {display: grid; justify-items: center; text-align: center; padding: 40px 12px; gap: 14px; color: var(--zen-muted);}
+  .automation-hub .automation-journal__empty p {font-size: 14px;}
+  .automation-hub .automation-hub__more {border: 0; margin: 16px 0 0; padding: 0;}
+  .automation-hub__settings {max-width: 760px; margin: 0;}
+  .automation-hub .automation-settings {gap: 22px;}
+  .automation-hub .automation-settings header {align-items: center; gap: 14px;}
+  .automation-hub .automation-settings header > svg {display: none;}
+  .automation-hub .automation-settings h3 {font-size: 23px; font-weight: 600; margin: 0 0 6px;}
+  .automation-hub .automation-settings p {font-size: 14px; line-height: 1.5;}
+  .automation-hub .automation-settings__status {font-size: 13px; color: var(--zen-muted); margin-top: -10px;}
+  .automation-hub .automation-settings__toggle {background: var(--zen-panel); border: 0; border-radius: 12px; padding: 20px; gap: 24px;}
+  .automation-hub .automation-settings__toggle small {font-size: 13px; line-height: 1.5;}
+  .automation-hub .automation-settings__toggle strong {font-size: 14px; font-weight: 550;}
+  .automation-hub .automation-settings__current-mode {padding: 10px 4px 0; font-size: 12px;}
+  .automation-hub .automation-settings legend {font-size: 14px; font-weight: 550; margin-bottom: 10px;}
+  .automation-hub .automation-settings .workflow-options {background: var(--zen-panel); border: 0; border-radius: 12px; padding: 0 20px; margin: 0;}
+  .automation-hub .automation-settings .workflow-options > summary {padding: 19px 0; font-size: 14px; font-weight: 550; color: var(--zen-ink); min-height: 56px;}
+  .automation-hub .automation-settings .workflow-options[open] {padding-bottom: 18px;}
+  .automation-hub .automation-settings__features {border-top: 1px solid var(--zen-line);}
+  .automation-hub .automation-settings__features .automation-settings__toggle {padding: 18px 0; border-radius: 0; background: none; border-bottom: 1px solid var(--zen-line);}
+  .automation-hub .automation-settings__features .automation-settings__toggle:last-child {border-bottom: 0;}
+  .automation-hub .automation-settings__toggle input[type='checkbox'] {appearance: none; width: 42px; min-width: 42px; height: 26px; min-height: 26px; margin: 0; border: 1px solid var(--zen-line); border-radius: 20px; background: var(--zen-soft); position: relative; box-shadow: none; cursor: pointer;}
+  .automation-hub .automation-settings__toggle input[type='checkbox']::before {content: ''; position: absolute; width: 20px; height: 20px; top: 2px; left: 2px; background: var(--zen-panel); border-radius: 50%; box-shadow: 0 1px 3px #00000026;}
+  .automation-hub .automation-settings__toggle input[type='checkbox']:checked {background: var(--zen-accent); border-color: var(--zen-accent);}
+  .automation-hub .automation-settings__toggle input[type='checkbox']:checked::before {transform: translateX(16px); background: #fff;}
+  .automation-hub .automation-settings__toggle:has(input:disabled) {cursor: default; opacity: .64;}
+  .automation-hub .automation-settings__toggle:has(input:focus-visible) {outline: 2px solid var(--zen-accent); outline-offset: 3px;}
+  .automation-hub .automation-settings__quickstart {background: var(--zen-panel); border: 0; border-radius: 12px;}
+  .automation-hub .automation-settings .workflow-options .automation-settings__quickstart {padding: 0; background: none; border-radius: 0;}
+  .automation-hub .automation-hub__workflows {border-top: 0; background: var(--zen-panel); border-radius: 16px; padding: 0 24px;}
+  .automation-hub .automation-hub__workflows article {padding-block: 22px; gap: 18px;}
+  .automation-hub .automation-hub__workflows article:last-child {border-bottom: 0;}
+  .automation-hub .automation-hub__workflows h3 {font-size: 16px;}
+  .automation-hub .automation-hub__workflows p {font-size: 13px;}
+  .automation-hub .automation-hub__workflows .button {border-radius: 9px;}
+  .automation-hub .button {border-radius: 9px; font-size: 14px;}
+  .automation-hub .button--secondary {background: var(--zen-panel); border-color: var(--zen-line); color: var(--zen-ink);}
+  .automation-hub .button--ghost {background: transparent; color: var(--zen-muted);}
+  .automation-hub .automation-appointments, .automation-hub .supplier-inbox {background: var(--zen-panel); border: 0; border-radius: 16px; padding: 24px;}
+  .automation-hub .automation-appointments h2, .automation-hub .supplier-inbox h2 {font-size: 20px;}
+  .automation-hub .automation-appointments p, .automation-hub .supplier-inbox p {font-size: 14px;}
+  .automation-brief--compact {display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); column-gap: 36px;}
+  .automation-brief--compact .automation-brief__intro {grid-column: 1/-1;}
+  .automation-brief--compact .automation-brief__day {padding-top: 0;}
+  @media (max-width: 1100px) {
+    .automation-hub__activity {grid-template-columns: minmax(0,1fr);}
+    .automation-hub__day {padding: 16px 0;}
+    .automation-hub .automation-brief__destinations {display: flex;}
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .automation-hub button, .automation-hub summary {transition: background-color 160ms ease-out, color 160ms ease-out;}
+    .automation-hub .automation-settings__toggle input::before {transition: transform 160ms ease-out;}
+  }
+  @media (max-width: 760px) {
+    .automation-hub .automation-hub__navigation {width: 100%; margin-bottom: 24px; display: grid; grid-template-columns: .9fr .9fr 1.2fr;}
+    .automation-hub .automation-hub__navigation button {padding: 10px 4px; font-size: 12px; gap: 4px; overflow-wrap: normal; white-space: nowrap;}
+    .automation-journal__toolbar {align-items: stretch; flex-direction: column; gap: 10px;}
+    .automation-journal__search {width: 100%; box-sizing: border-box;}
+    .automation-hub .automation-journal__search input {font-size: 16px;}
+    .automation-hub__journal {padding: 20px 18px 8px;}
+    .automation-hub .ac-run > summary, .automation-hub button.automation-journal__invoice {grid-template-columns: minmax(0,1fr) 16px; gap: 6px 10px;}
+    .automation-hub .ac-status {grid-column: 1; grid-row: 2; text-align: left; max-width: none;}
+    .automation-hub .ac-run > summary > svg, .automation-hub .automation-journal__invoice > svg {grid-column: 2; grid-row: 1 / 3;}
+    .automation-hub .automation-brief--activity .automation-brief__day ul {grid-template-columns: 1fr; gap: 10px;}
+    .automation-hub .automation-brief__intro h2 {font-size: 22px;}
+    .automation-hub .automation-brief__destinations {gap: 8px;}
+    .automation-hub .automation-brief__destinations button {flex: 1 1 auto; justify-content: center; font-size: 12px; padding: 8px 10px;}
+    .automation-hub .automation-brief__work {padding: 20px 18px;}
+    .automation-hub .automation-settings .workflow-options {padding-inline: 16px;}
+    .automation-hub .automation-settings__toggle {padding: 18px 16px; gap: 16px;}
+    .automation-hub .automation-centre__tabs {gap: 4px; flex-wrap: wrap;}
+    .automation-hub .automation-centre__tabs button {flex: 1 1 auto; padding-inline: 9px;}
+    .automation-brief--compact {grid-template-columns: minmax(0,1fr);}
+    .automation-brief--compact .automation-brief__day {padding-top: 20px;}
+    html[data-app-theme] .desktop-app[data-experience] .page-header h1 {font-size: 24px;}
+  }
+  @media (max-width: 380px) {
+    .automation-hub__journal {padding-inline: 14px;}
+    .automation-journal__entry {column-gap: 9px; grid-template-columns: 19px minmax(0,1fr);}
+    .automation-hub .automation-journal__filters button {padding-inline: 8px; font-size: 12px;}
+  }
+}

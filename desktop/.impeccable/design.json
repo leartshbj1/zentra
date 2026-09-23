@@ -1,0 +1,477 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-23T20:20:36.958Z",
+  "title": "Design System: Zentra Gestion",
+  "extensions": {
+    "colorMeta": {
+      "zen-canvas": {
+        "role": "neutral",
+        "displayName": "Cool canvas",
+        "tonalRamp": [
+          "oklch(15.00% 0.0026 286.35)",
+          "oklch(26.43% 0.0026 286.35)",
+          "oklch(37.86% 0.0026 286.35)",
+          "oklch(49.29% 0.0026 286.35)",
+          "oklch(60.71% 0.0026 286.35)",
+          "oklch(72.14% 0.0026 286.35)",
+          "oklch(83.57% 0.0026 286.35)",
+          "oklch(95.00% 0.0026 286.35)"
+        ]
+      },
+      "zen-panel": {
+        "role": "neutral",
+        "displayName": "Paper panel",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 89.88)",
+          "oklch(26.43% 0.0000 89.88)",
+          "oklch(37.86% 0.0000 89.88)",
+          "oklch(49.29% 0.0000 89.88)",
+          "oklch(60.71% 0.0000 89.88)",
+          "oklch(72.14% 0.0000 89.88)",
+          "oklch(83.57% 0.0000 89.88)",
+          "oklch(95.00% 0.0000 89.88)"
+        ]
+      },
+      "zen-soft": {
+        "role": "neutral",
+        "displayName": "Soft layer",
+        "tonalRamp": [
+          "oklch(15.00% 0.0040 286.32)",
+          "oklch(26.43% 0.0040 286.32)",
+          "oklch(37.86% 0.0040 286.32)",
+          "oklch(49.29% 0.0040 286.32)",
+          "oklch(60.71% 0.0040 286.32)",
+          "oklch(72.14% 0.0040 286.32)",
+          "oklch(83.57% 0.0040 286.32)",
+          "oklch(95.00% 0.0040 286.32)"
+        ]
+      },
+      "zen-rail": {
+        "role": "neutral",
+        "displayName": "Quiet rail",
+        "tonalRamp": [
+          "oklch(15.00% 0.0040 286.32)",
+          "oklch(26.43% 0.0040 286.32)",
+          "oklch(37.86% 0.0040 286.32)",
+          "oklch(49.29% 0.0040 286.32)",
+          "oklch(60.71% 0.0040 286.32)",
+          "oklch(72.14% 0.0040 286.32)",
+          "oklch(83.57% 0.0040 286.32)",
+          "oklch(95.00% 0.0040 286.32)"
+        ]
+      },
+      "zen-ink": {
+        "role": "neutral",
+        "displayName": "Graphite ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.0075 285.86)",
+          "oklch(26.43% 0.0075 285.86)",
+          "oklch(37.86% 0.0075 285.86)",
+          "oklch(49.29% 0.0075 285.86)",
+          "oklch(60.71% 0.0075 285.86)",
+          "oklch(72.14% 0.0075 285.86)",
+          "oklch(83.57% 0.0075 285.86)",
+          "oklch(95.00% 0.0075 285.86)"
+        ]
+      },
+      "zen-muted": {
+        "role": "neutral",
+        "displayName": "Muted ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.0125 285.95)",
+          "oklch(26.43% 0.0125 285.95)",
+          "oklch(37.86% 0.0125 285.95)",
+          "oklch(49.29% 0.0125 285.95)",
+          "oklch(60.71% 0.0125 285.95)",
+          "oklch(72.14% 0.0125 285.95)",
+          "oklch(83.57% 0.0125 285.95)",
+          "oklch(95.00% 0.0125 285.95)"
+        ]
+      },
+      "zen-line": {
+        "role": "neutral",
+        "displayName": "Fine line",
+        "tonalRamp": [
+          "oklch(15.00% 0.0067 286.27)",
+          "oklch(26.43% 0.0067 286.27)",
+          "oklch(37.86% 0.0067 286.27)",
+          "oklch(49.29% 0.0067 286.27)",
+          "oklch(60.71% 0.0067 286.27)",
+          "oklch(72.14% 0.0067 286.27)",
+          "oklch(83.57% 0.0067 286.27)",
+          "oklch(95.00% 0.0067 286.27)"
+        ]
+      },
+      "zen-accent": {
+        "role": "primary",
+        "displayName": "Zentra green",
+        "tonalRamp": [
+          "oklch(15.00% 0.0727 161.95)",
+          "oklch(26.43% 0.0727 161.95)",
+          "oklch(37.86% 0.0727 161.95)",
+          "oklch(49.29% 0.0727 161.95)",
+          "oklch(60.71% 0.0727 161.95)",
+          "oklch(72.14% 0.0727 161.95)",
+          "oklch(83.57% 0.0727 161.95)",
+          "oklch(95.00% 0.0727 161.95)"
+        ]
+      },
+      "zen-attention": {
+        "role": "semantic",
+        "displayName": "Attention amber",
+        "tonalRamp": [
+          "oklch(15.00% 0.0966 68.08)",
+          "oklch(26.43% 0.0966 68.08)",
+          "oklch(37.86% 0.0966 68.08)",
+          "oklch(49.29% 0.0966 68.08)",
+          "oklch(60.71% 0.0966 68.08)",
+          "oklch(72.14% 0.0966 68.08)",
+          "oklch(83.57% 0.0966 68.08)",
+          "oklch(95.00% 0.0966 68.08)"
+        ]
+      },
+      "zen-selection": {
+        "role": "neutral",
+        "displayName": "Menu selection",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 89.88)",
+          "oklch(26.43% 0.0000 89.88)",
+          "oklch(37.86% 0.0000 89.88)",
+          "oklch(49.29% 0.0000 89.88)",
+          "oklch(60.71% 0.0000 89.88)",
+          "oklch(72.14% 0.0000 89.88)",
+          "oklch(83.57% 0.0000 89.88)",
+          "oklch(95.00% 0.0000 89.88)"
+        ]
+      },
+      "zen-canvas-dark": {
+        "role": "neutral",
+        "displayName": "Cool canvas — dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0058 285.90)",
+          "oklch(26.43% 0.0058 285.90)",
+          "oklch(37.86% 0.0058 285.90)",
+          "oklch(49.29% 0.0058 285.90)",
+          "oklch(60.71% 0.0058 285.90)",
+          "oklch(72.14% 0.0058 285.90)",
+          "oklch(83.57% 0.0058 285.90)",
+          "oklch(95.00% 0.0058 285.90)"
+        ]
+      },
+      "zen-panel-dark": {
+        "role": "neutral",
+        "displayName": "Paper panel — dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0056 285.99)",
+          "oklch(26.43% 0.0056 285.99)",
+          "oklch(37.86% 0.0056 285.99)",
+          "oklch(49.29% 0.0056 285.99)",
+          "oklch(60.71% 0.0056 285.99)",
+          "oklch(72.14% 0.0056 285.99)",
+          "oklch(83.57% 0.0056 285.99)",
+          "oklch(95.00% 0.0056 285.99)"
+        ]
+      },
+      "zen-soft-dark": {
+        "role": "neutral",
+        "displayName": "Soft layer — dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0089 285.87)",
+          "oklch(26.43% 0.0089 285.87)",
+          "oklch(37.86% 0.0089 285.87)",
+          "oklch(49.29% 0.0089 285.87)",
+          "oklch(60.71% 0.0089 285.87)",
+          "oklch(72.14% 0.0089 285.87)",
+          "oklch(83.57% 0.0089 285.87)",
+          "oklch(95.00% 0.0089 285.87)"
+        ]
+      },
+      "zen-rail-dark": {
+        "role": "neutral",
+        "displayName": "Quiet rail — dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0056 285.98)",
+          "oklch(26.43% 0.0056 285.98)",
+          "oklch(37.86% 0.0056 285.98)",
+          "oklch(49.29% 0.0056 285.98)",
+          "oklch(60.71% 0.0056 285.98)",
+          "oklch(72.14% 0.0056 285.98)",
+          "oklch(83.57% 0.0056 285.98)",
+          "oklch(95.00% 0.0056 285.98)"
+        ]
+      },
+      "zen-ink-dark": {
+        "role": "neutral",
+        "displayName": "Graphite ink — dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0040 286.32)",
+          "oklch(26.43% 0.0040 286.32)",
+          "oklch(37.86% 0.0040 286.32)",
+          "oklch(49.29% 0.0040 286.32)",
+          "oklch(60.71% 0.0040 286.32)",
+          "oklch(72.14% 0.0040 286.32)",
+          "oklch(83.57% 0.0040 286.32)",
+          "oklch(95.00% 0.0040 286.32)"
+        ]
+      },
+      "zen-muted-dark": {
+        "role": "neutral",
+        "displayName": "Muted ink — dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0142 286.05)",
+          "oklch(26.43% 0.0142 286.05)",
+          "oklch(37.86% 0.0142 286.05)",
+          "oklch(49.29% 0.0142 286.05)",
+          "oklch(60.71% 0.0142 286.05)",
+          "oklch(72.14% 0.0142 286.05)",
+          "oklch(83.57% 0.0142 286.05)",
+          "oklch(95.00% 0.0142 286.05)"
+        ]
+      },
+      "zen-line-dark": {
+        "role": "neutral",
+        "displayName": "Fine line — dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0104 285.84)",
+          "oklch(26.43% 0.0104 285.84)",
+          "oklch(37.86% 0.0104 285.84)",
+          "oklch(49.29% 0.0104 285.84)",
+          "oklch(60.71% 0.0104 285.84)",
+          "oklch(72.14% 0.0104 285.84)",
+          "oklch(83.57% 0.0104 285.84)",
+          "oklch(95.00% 0.0104 285.84)"
+        ]
+      },
+      "zen-accent-dark": {
+        "role": "primary",
+        "displayName": "Zentra green — dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0573 160.95)",
+          "oklch(26.43% 0.0573 160.95)",
+          "oklch(37.86% 0.0573 160.95)",
+          "oklch(49.29% 0.0573 160.95)",
+          "oklch(60.71% 0.0573 160.95)",
+          "oklch(72.14% 0.0573 160.95)",
+          "oklch(83.57% 0.0573 160.95)",
+          "oklch(95.00% 0.0573 160.95)"
+        ]
+      },
+      "zen-attention-dark": {
+        "role": "semantic",
+        "displayName": "Attention amber — dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.1053 80.88)",
+          "oklch(26.43% 0.1053 80.88)",
+          "oklch(37.86% 0.1053 80.88)",
+          "oklch(49.29% 0.1053 80.88)",
+          "oklch(60.71% 0.1053 80.88)",
+          "oklch(72.14% 0.1053 80.88)",
+          "oklch(83.57% 0.1053 80.88)",
+          "oklch(95.00% 0.1053 80.88)"
+        ]
+      },
+      "zen-selection-dark": {
+        "role": "neutral",
+        "displayName": "Menu selection — dark",
+        "tonalRamp": [
+          "oklch(15.00% 0.0087 285.91)",
+          "oklch(26.43% 0.0087 285.91)",
+          "oklch(37.86% 0.0087 285.91)",
+          "oklch(49.29% 0.0087 285.91)",
+          "oklch(60.71% 0.0087 285.91)",
+          "oklch(72.14% 0.0087 285.91)",
+          "oklch(83.57% 0.0087 285.91)",
+          "oklch(95.00% 0.0087 285.91)"
+        ]
+      },
+      "action-ink-dark": {
+        "role": "neutral",
+        "displayName": "Dark action ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.0331 162.57)",
+          "oklch(26.43% 0.0331 162.57)",
+          "oklch(37.86% 0.0331 162.57)",
+          "oklch(49.29% 0.0331 162.57)",
+          "oklch(60.71% 0.0331 162.57)",
+          "oklch(72.14% 0.0331 162.57)",
+          "oklch(83.57% 0.0331 162.57)",
+          "oklch(95.00% 0.0331 162.57)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Page headline",
+        "purpose": "Application page title; 24px at the mobile breakpoint."
+      },
+      "title": {
+        "displayName": "Introductory title",
+        "purpose": "Introductory heading; 22px on mobile."
+      },
+      "section": {
+        "displayName": "Section title",
+        "purpose": "Journal heading."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Settings and detailed interface text; paragraph rhythm varies by context."
+      },
+      "row-title": {
+        "displayName": "Row title",
+        "purpose": "Wrapping medium-weight list title."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Compact controls and group labels."
+      },
+      "metadata": {
+        "displayName": "Metadata",
+        "purpose": "Time and supporting detail."
+      }
+    },
+    "shadows": [
+      {
+        "name": "selected-segment",
+        "value": "0 2px 5px #00000009",
+        "purpose": "Small lift inside destination navigation."
+      },
+      {
+        "name": "switch-thumb",
+        "value": "0 1px 3px #00000026",
+        "purpose": "Separation of the movable switch thumb."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-feedback",
+        "value": "background-color 160ms ease-out, color 160ms ease-out",
+        "purpose": "Button and summary state feedback only under prefers-reduced-motion: no-preference."
+      },
+      {
+        "name": "switch-movement",
+        "value": "transform 160ms ease-out",
+        "purpose": "Thumb translation only under prefers-reduced-motion: no-preference."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "automation-stack",
+        "value": "1100px"
+      },
+      {
+        "name": "automation-mobile",
+        "value": "760px"
+      },
+      {
+        "name": "automation-narrow",
+        "value": "380px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Workflow action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Action button inside the Automation control centre; light and dark foreground pairing follows the implemented states.",
+      "html": "<button class=\"ds-action\" type=\"button\">Confirmer les actions</button>",
+      "css": ".ds-action{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:44px;font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:13px;font-weight:550;border:0;border-radius:9px;cursor:pointer;padding:.65rem 1rem;white-space:normal;max-width:100%;background:var(--zen-accent,#286047);color:#fff}.ds-action:hover:not(:disabled){filter:brightness(.94)}.ds-action:disabled{opacity:.5;cursor:default}.ds-action:focus-visible{outline:2px solid var(--zen-accent,#286047);outline-offset:3px}:host-context([data-app-theme='dark']) .ds-action{color:#182d23}@media(prefers-reduced-motion:no-preference){.ds-action{transition:background-color 160ms ease-out,color 160ms ease-out}}"
+    },
+    {
+      "name": "Quiet workflow action",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Secondary workflow action in the same control centre.",
+      "html": "<button class=\"ds-quiet\" type=\"button\">Annuler la suite</button>",
+      "css": ".ds-quiet{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:44px;font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:13px;font-weight:550;border:0;border-radius:9px;cursor:pointer;padding:.65rem 1rem;white-space:normal;max-width:100%;background:var(--zen-soft,#ededf0);color:var(--zen-ink,#222226)}.ds-quiet:hover:not(:disabled){filter:brightness(.94)}.ds-quiet:disabled{opacity:.5;cursor:default}.ds-quiet:focus-visible{outline:2px solid var(--zen-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-quiet{transition:background-color 160ms ease-out,color 160ms ease-out}}"
+    },
+    {
+      "name": "Destination button",
+      "kind": "button",
+      "refersTo": "button-destination",
+      "description": "Restrained outlined access to a related view.",
+      "html": "<button class=\"ds-destination\" type=\"button\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z\"/><path d=\"M14 2v6h6M8 13h8M8 17h6\"/></svg>Factures reçues</button>",
+      "css": ".ds-destination{display:inline-flex;align-items:center;gap:8px;min-height:44px;border:1px solid var(--zen-line,#e3e3e8);border-radius:9px;background:transparent;padding:8px 12px;font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:13px;color:var(--zen-ink,#222226);cursor:pointer}.ds-destination:hover{background:var(--zen-panel,#fff)}.ds-destination:focus-visible{outline:2px solid currentColor;outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-destination{transition:background-color 160ms ease-out,color 160ms ease-out}}"
+    },
+    {
+      "name": "Journal search",
+      "kind": "input",
+      "refersTo": "search",
+      "description": "Inset search field with the focus outline around the complete field.",
+      "html": "<label class=\"ds-search\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-search-input\" type=\"search\" placeholder=\"Rechercher dans l’activité\" aria-label=\"Rechercher dans l’activité\"></label>",
+      "css": ".ds-search{display:flex;align-items:center;gap:8px;width:100%;min-width:0;color:var(--zen-muted,#67676f);background:var(--zen-canvas,#f6f6f8);border-radius:8px;padding:0 10px}.ds-search svg{flex:none}.ds-search-input{font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;background:transparent;border:0;border-radius:0;font-size:14px;min-height:44px;padding:9px 0;width:100%;min-width:0;box-shadow:none;color:var(--zen-ink,#222226);caret-color:var(--zen-accent,#286047)}.ds-search:focus-within{outline:2px solid var(--zen-accent,#286047);outline-offset:2px}.ds-search-input:focus-visible{outline:none}@media(max-width:760px){.ds-search-input{font-size:16px}}"
+    },
+    {
+      "name": "Destination segments",
+      "kind": "nav",
+      "refersTo": "navigation-item",
+      "description": "Soft navigation group with one selected panel segment; names are specimen content from the Automation surface.",
+      "html": "<nav class=\"ds-navigation\" aria-label=\"Espace Automation\"><button class=\"ds-navigation-item\" type=\"button\" aria-current=\"page\">Activité</button><button class=\"ds-navigation-item\" type=\"button\">À suivre</button><button class=\"ds-navigation-item\" type=\"button\">Réglages</button></nav>",
+      "css": ".ds-navigation{display:flex;gap:4px;padding:4px;border:0;border-radius:12px;width:fit-content;max-width:100%;background:var(--zen-soft,#ededf0)}.ds-navigation-item{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;min-width:0;padding:10px 22px;border:0;border-radius:9px;color:var(--zen-muted,#67676f);background:transparent;font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:14px;font-weight:550;cursor:pointer}.ds-navigation-item[aria-current]{color:var(--zen-ink,#222226);background:var(--zen-panel,#fff);box-shadow:0 2px 5px #00000009}.ds-navigation-item:focus-visible{outline:2px solid currentColor;outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-navigation-item{transition:background-color 160ms ease-out,color 160ms ease-out}}@media(max-width:760px){.ds-navigation{width:100%;display:grid;grid-template-columns:.9fr .9fr 1.2fr}.ds-navigation-item{padding:10px 4px;font-size:12px;gap:4px;white-space:nowrap}}"
+    },
+    {
+      "name": "Filter chips",
+      "kind": "chip",
+      "refersTo": "filter-selected",
+      "description": "A pressed filter uses a soft fill while unpressed filters remain quiet.",
+      "html": "<div class=\"ds-filters\" aria-label=\"Filtrer\"><button class=\"ds-filter\" type=\"button\" aria-pressed=\"true\">Tout</button><button class=\"ds-filter\" type=\"button\" aria-pressed=\"false\">Factures</button><button class=\"ds-filter\" type=\"button\" aria-pressed=\"false\">Règles</button></div>",
+      "css": ".ds-filters{display:flex;flex-wrap:wrap;gap:4px;min-width:0}.ds-filter{font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:13px;font-weight:550;padding:8px 12px;min-height:44px;border:0;border-radius:8px;background:transparent;color:var(--zen-muted,#67676f);cursor:pointer}.ds-filter[aria-pressed='true']{background:var(--zen-soft,#ededf0);color:var(--zen-ink,#222226)}.ds-filter:hover:not(:disabled){filter:brightness(.94)}.ds-filter:focus-visible{outline:2px solid var(--zen-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-filter{transition:background-color 160ms ease-out,color 160ms ease-out}}@media(max-width:380px){.ds-filter{padding-inline:8px;font-size:12px}}"
+    },
+    {
+      "name": "Content panel",
+      "kind": "card",
+      "refersTo": "content-panel",
+      "description": "Flat panel for a coherent group of work; quiet empty content shown here.",
+      "html": "<section class=\"ds-panel\"><h3 class=\"ds-panel-title\">À votre attention</h3><p class=\"ds-panel-empty\">Aucune action en attente ici</p></section>",
+      "css": ".ds-panel{font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;background:var(--zen-panel,#fff);color:var(--zen-ink,#222226);border-radius:16px;padding:24px;box-shadow:none}.ds-panel-title{font-size:18px;letter-spacing:-.02em;margin:0 0 16px}.ds-panel-empty{font-size:14px;padding:8px 0;margin:0;line-height:1.6;color:var(--zen-muted,#67676f)}@media(max-width:760px){.ds-panel{padding:20px 18px}}"
+    },
+    {
+      "name": "Grouped settings switch",
+      "kind": "input",
+      "refersTo": "settings-group",
+      "description": "The visible track sits inside its full-width label; keyboard focus surrounds the group.",
+      "html": "<label class=\"ds-setting\"><span class=\"ds-setting-copy\"><strong class=\"ds-setting-title\">Automation</strong><small class=\"ds-setting-help\">Pour votre entreprise et votre équipe</small></span><input class=\"ds-switch\" type=\"checkbox\" checked aria-label=\"Automation\"></label>",
+      "css": ".ds-setting{display:flex;align-items:center;justify-content:space-between;font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;background:var(--zen-panel,#fff);color:var(--zen-ink,#222226);border:0;border-radius:12px;padding:20px;gap:24px;cursor:pointer}.ds-setting-copy{display:grid;gap:4px;min-width:0}.ds-setting-title{font-size:14px;font-weight:550}.ds-setting-help{font-size:13px;line-height:1.5;color:var(--zen-muted,#67676f)}.ds-switch{appearance:none;width:42px;min-width:42px;height:26px;min-height:26px;margin:0;border:1px solid var(--zen-line,#e3e3e8);border-radius:20px;background:var(--zen-soft,#ededf0);position:relative;box-shadow:none;cursor:pointer}.ds-switch::before{content:'';position:absolute;width:20px;height:20px;top:2px;left:2px;background:var(--zen-panel,#fff);border-radius:50%;box-shadow:0 1px 3px #00000026}.ds-switch:checked{background:var(--zen-accent,#286047);border-color:var(--zen-accent,#286047)}.ds-switch:checked::before{transform:translateX(16px);background:#fff}.ds-setting:has(input:disabled){cursor:default;opacity:.64}.ds-setting:has(input:focus-visible){outline:2px solid var(--zen-accent,#286047);outline-offset:3px}.ds-switch:focus-visible{outline:none}@media(prefers-reduced-motion:no-preference){.ds-switch::before{transition:transform 160ms ease-out}}@media(max-width:760px){.ds-setting{padding:18px 16px;gap:16px}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Workspace",
+    "overview": "A quiet, contemporary application workspace: cool neutral surfaces, familiar system text, fine separators and restrained green. The existing Zentra identity stays visible while controls and factual content carry the visual emphasis.\n\nThis records the implemented Automation interface and the shared menu and page-title treatments. It is not a claim that every legacy screen or printed document already uses this system. The activity-first composition and destination order belong to the [Automation surface contract](.impeccable/surfaces/automation.md); durable product constraints remain in [PRODUCT.md](PRODUCT.md).",
+    "keyCharacteristics": [
+      "Cool neutral layers with green reserved for meaningful state and action.",
+      "Compact text hierarchy, familiar controls and progressive detail.",
+      "Light and dark themes with the same semantic roles.",
+      "Readable touch layouts and quiet, optional interaction motion."
+    ],
+    "rules": [
+      {
+        "name": "The Functional Color Rule",
+        "body": "Use green for action, selected icons and completed work; use amber for attention. Keep a written state label alongside color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Familiar Type Rule",
+        "body": "Use the platform text family for interface headings and content. This application has no separate display-face role.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal Depth Rule",
+        "body": "Separate resting surfaces through tone and fine lines. Small shadows explain a selected segment or movable switch thumb, rather than lifting every container.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do switch all semantic color roles together when appearance changes.",
+      "Do keep text labels, focus feedback and the meaning of status visible.",
+      "Do use the shared system text family and tabular numerals for time and counts.",
+      "Do let translated titles wrap and reflow status beneath the title on narrow screens.",
+      "Do preserve the existing safe-area-aware mobile shell and reduced-motion preference."
+    ],
+    "donts": [
+      "Don't use decorative gradients or invented live indicators.",
+      "Don't replace status text with color alone.",
+      "Don't turn every list row into a floating card.",
+      "Don't promote the Automation page composition into a rule for every product surface."
+    ]
+  }
+}
