@@ -139,15 +139,16 @@ export default function CompletePage() {
           <div>
             <h2>Vous utilisez déjà Zentra ?</h2>
             <p>
-              Nous préparons le passage au pack avec vos abonnements existants,
-              pour conserver votre espace et éviter une double facturation.
+              Changez de formule depuis votre compte. Votre entreprise est
+              conservée et le pack prend le relais après les périodes déjà
+              payées, sans double renouvellement.
             </p>
           </div>
           <a
             className="zentra-text-link"
-            href="mailto:info@zentraapp.ch?subject=Passer%20%C3%A0%20Zentra%20Complet"
+            href="/compte/abonnement"
           >
-            Demander le passage au pack{' '}
+            Changer ma formule{' '}
             <ArrowRight size={18} aria-hidden="true" />
           </a>
         </section>
@@ -156,6 +157,16 @@ export default function CompletePage() {
           id="questions"
         >
           <h2>Simple, jusqu’aux détails.</h2>
+          <details>
+            <summary>Puis-je essayer les trois produits ?</summary>
+            <p>
+              Oui, pendant 14 jours, sans carte bancaire ni paiement automatique.
+              L’essai comprend une entreprise, 3 personnes titulaire compris et
+              250 analyses Support partagées. Vous connectez vos outils et
+              choisissez les automatismes à activer.{' '}
+              <a href="/compte">Commencer mon essai</a>.
+            </p>
+          </details>
           <details>
             <summary>Que comprend le prix ?</summary>
             <p>

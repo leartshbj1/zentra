@@ -4,7 +4,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { notifyAuthChanged } from '@/lib/auth-browser-events';
 import type { AccountPreferences } from '@/lib/account-preferences';
-import { LEGAL_VERSION } from '@/lib/legal';
+import { COMPLETE_TERMS_VERSION } from '@/lib/complete/plans';
 
 export function AccountForm({ endpoint, values, success, children, label = 'Enregistrer', method = 'PUT' }: {
   endpoint: string; values: Record<string, unknown>; success: string; children: ReactNode; label?: string; method?: 'PUT'|'POST';
@@ -60,5 +60,5 @@ export function BillingPortalButton({organizationId}:{organizationId:string}) {
   return <AccountForm endpoint="/api/stripe/portal" method="POST" values={{organizationId}} success="Ouverture de la facturation." label="Gérer mon abonnement">{null}</AccountForm>;
 }
 export function CompanyDraftForm({preferences}:{preferences:AccountPreferences}) {
-  return <AccountForm endpoint="/api/complete/trial" method="POST" values={{legalVersion:LEGAL_VERSION}} success="Votre entreprise est prête. Votre essai de 14 jours a commencé." label="Commencer mes 14 jours"><label>Nom de votre entreprise<input name="companyName" defaultValue={preferences.companyDraft} autoComplete="organization" required maxLength={120}/></label><p className="account-caption">14 jours de Gestion, Support et Automation : 3 personnes, titulaire compris, et 250 analyses partagées. Sans engagement et sans carte bancaire. Aucun paiement automatique à la fin de l’essai.</p><label className="account-consent"><input name="acceptTerms" type="checkbox" required/><span>J’accepte les <a href="/conditions" target="_blank" rel="noopener noreferrer">conditions d’utilisation</a>.</span></label></AccountForm>;
+  return <AccountForm endpoint="/api/complete/trial" method="POST" values={{legalVersion:COMPLETE_TERMS_VERSION}} success="Votre entreprise est prête. Votre essai de 14 jours a commencé." label="Commencer mes 14 jours"><label>Nom de votre entreprise<input name="companyName" defaultValue={preferences.companyDraft} autoComplete="organization" required maxLength={120}/></label><p className="account-caption">14 jours de Gestion, Support et Automation : 3 personnes, titulaire compris, et 250 analyses partagées. Sans engagement et sans carte bancaire. Aucun paiement automatique à la fin de l’essai.</p><label className="account-consent"><input name="acceptTerms" type="checkbox" required/><span>J’accepte les <a href="/complet/conditions" target="_blank" rel="noopener noreferrer">conditions du pack</a>.</span></label></AccountForm>;
 }
