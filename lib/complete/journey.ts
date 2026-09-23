@@ -30,7 +30,7 @@ export async function subscriptionJourney(actor:AutomationActor){
   ]);
   const support=workspace?await billingState(workspace):null,pack=completePlan(bundle?.paid_plan_id??bundle?.plan_id);
   const connections=workspace?await db.prepare('SELECT COUNT(*) AS n FROM support_connections WHERE workspace_id=? AND active=1').bind(workspace.id).first<{n:number}>():null;
-  const addon=await db.prepare('SELECT paid_until,cancel_at_period_end FROM automation_subscriptions WHERE organization_id=?').bind(actor.organizationId).first<{paid_until:number;cancel_at_period_end:number}>();
+  const addon=await db.prepare('SELECT subscription_id,status,paid_until,cancel_at_period_end FROM automation_subscriptions WHERE organization_id=?').bind(actor.organizationId).first<{subscription_id:string;status:string;paid_until:number;cancel_at_period_end:number}>();
   const skipped=skip?JSON.parse(skip.skipped_json) as string[]:[];
   const query=`?organizationId=${encodeURIComponent(actor.organizationId)}`;
   const steps=[
@@ -53,7 +53,7 @@ export async function subscriptionJourney(actor:AutomationActor){
     trial:trial?{active:trialActive,endsAt:trial.ends_at,analyses:trial.analyses}:null,seats,products,
     support:support?{active:support.active,used:support.used,limit:support.limit,remaining:Math.max(0,support.limit-support.used),periodEnd:support.periodEnd,alert:quotaAlert(support.used,support.limit)}:null,
     change:change&&change.state!=='completed'?{plan:change.target_plan,name:`Complet ${completePlan(change.target_plan)?.name??''}`,effectiveAt:change.effective_at,state:change.state}:null,
-    canChange:actor.role==='owner'&&(org.subscription_id.startsWith('sub_')||!!support?.hasSubscription),
+    canChange:actor.role==='owner'&&(org.subscription_id.startsWith('sub_')||!!support?.hasSubscription||!!(addon?.subscription_id.startsWith('sub_')&&!['canceled','incomplete_expired'].includes(addon.status))),
     portalAvailable:actor.role==='owner'&&!!sub?.customer_id.startsWith('cus_'),steps,
     onboardingComplete:steps.every(s=>s.done||s.skipped)};
 }

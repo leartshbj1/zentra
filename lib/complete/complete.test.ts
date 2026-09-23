@@ -781,6 +781,13 @@ describe('Complete trial and shared subscription journey',()=>{
     expect(quotaAlert(199,250)).toBeNull();expect(quotaAlert(200,250)).toMatchObject({level:'near',remaining:50});
     expect(quotaAlert(250,250)).toMatchObject({level:'reached',remaining:0});expect(quotaAlert(400,250)?.remaining).toBe(0);
   });
+  it('offers a pack change when Automation is the only paid product',async()=>{
+    const trial=await startAccountTrial(user,'PME Automation');
+    db.prepare(`INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,last_paid_invoice_id,cancel_at_period_end,livemode,updated_at) VALUES(?,?,?,'active',?,?,?,0,1,?)`).run(trial.organization_id,'sub_automation_only','cus_automation_only',now()-10,now()+86400,'in_automation_only',now());
+    const actor={organizationId:trial.organization_id,userId:user.userId,role:'owner',founder:false};
+    expect((await subscriptionJourney(actor)).canChange).toBe(true);
+    expect((await subscriptionJourney({...actor,role:'member'})).canChange).toBe(false);
+  });
 });
 async function changingFixture(){
   const current=invoices.get('in_current')!;sub.items.data[0].current_period_end=current.lines.data[0].period.end;
