@@ -8,6 +8,7 @@ import { financeWords, financeSources } from './financeClarity';
 it('provides all three translations for every explicit interface key currently wired to the app', () => {
   const files=['App.tsx','Onboarding.tsx','SettingsCategory.tsx','NavigationPalette.tsx','BusinessProfileEditor.tsx','ScreenHelp.tsx','ZentraAssistant.tsx','LocalAssistantSetup.tsx','CloudAccountAccess.tsx','CloudAccountPanel.tsx','PayrollOrganisationField.tsx','LanguageSetting.tsx','assistantContext.tsx','ui.tsx','WorkspaceApp.tsx','setupLanguage.ts','GuidedTour.tsx','GettingStartedChecklist.tsx','SupplierInboxBatchResult.tsx'];
   const missing:string[]=[];
+  files.push('DocumentEditor.tsx', 'MobileDashboard.tsx', 'documentNumberEntry.ts', 'documentUi.ts');
   for(const file of files){
     const ast=ts.createSourceFile(file,readFileSync(new URL(file,import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
     function visit(node:ts.Node){

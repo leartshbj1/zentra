@@ -1,3 +1,4 @@
+import { getAppLocale, t, useAppLanguage } from './language';
 import { DocumentNumberInput } from './DocumentNumberInput';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
@@ -62,7 +63,7 @@ export function DocumentEditor({
   readOnly = false,
   close,
   act,
-  onReadWorkspace = async()=>{throw Error("Fermez et rouvrez ce document pour actualiser les règlements.");},
+  onReadWorkspace = async()=>{throw Error(t("Fermez et rouvrez ce document pour actualiser les règlements."));},
   onOpenSettlementHelp = ()=>{},
 }: {
   entity: 'quotes' | 'invoices';
@@ -79,6 +80,7 @@ export function DocumentEditor({
   onReadWorkspace?:()=>Promise<Workspace>;
   onOpenSettlementHelp?:(destination:'accounts'|'periods'|'bank')=>void;
 }) {
+  useAppLanguage();
   const settings = workspace.settings!;
   const unitsId = useId();
   const terminology = projectTerminology(settings.business.nogaSection);
@@ -205,17 +207,17 @@ export function DocumentEditor({
   );
   const documentLabel =
     entity === 'quotes'
-      ? 'devis'
+      ? t('devis')
       : invoiceType === 'credit_note'
-        ? 'avoir'
+        ? t('avoir')
         : invoiceType === 'deposit'
-          ? 'facture d’acompte'
-          : 'facture';
+          ? t('facture d’acompte')
+          : t('facture');
 
-  const steps = ['Client', 'Prestations', 'Conditions', 'Vérification'];
-  const stepDescriptions = ['Destinataire et projet', 'Lignes et montants', 'Dates et message', 'Relecture du document'];
-  const stepTitles = ['Pour qui préparez-vous ce document ?', 'Qu’allez-vous réaliser ?', 'Les derniers détails.', 'Tout est prêt ?'];
-  const stepHints = ['Choisissez votre client et retrouvez tous ses documents dans le même projet.', 'Ajoutez vos prestations ou retrouvez-les dans votre catalogue.', 'Précisez les dates et le message qui accompagnera votre document.', 'Relisez votre document. Vous pourrez encore le modifier avant de l’émettre.'];
+  const steps = [t("Client"), t("Prestations"), t("Conditions"), t("Vérification")];
+  const stepDescriptions = [t("Destinataire et projet"), t("Lignes et montants"), t("Dates et message"), t("Relecture du document")];
+  const stepTitles = [t("Pour qui préparez-vous ce document ?"), t("Qu’allez-vous réaliser ?"), t("Les derniers détails."), t("Tout est prêt ?")];
+  const stepHints = [t("Choisissez votre client et retrouvez tous ses documents dans le même projet."), t("Ajoutez vos prestations ou retrouvez-les dans votre catalogue."), t("Précisez les dates et le message qui accompagnera votre document."), t("Relisez votre document. Vous pourrez encore le modifier avant de l’émettre.")];
 
   useEffect(() => {
     const changed = previousStep.current !== step;
@@ -246,24 +248,24 @@ export function DocumentEditor({
     const invalid = [...(fields || [])].find((field) => !field.checkValidity());
     if (invalid) {
       const row = invalid.closest<HTMLElement>('[data-line-number]');
-      const label = invalid.getAttribute('aria-label') || invalid.labels?.[0]?.querySelector('.field__label')?.textContent?.trim() || invalid.labels?.[0]?.textContent?.trim().split('\n')[0] || 'ce champ';
-      const message = invalid.validity.customError ? invalid.validationMessage : invalid.validity.valueMissing ? `Complétez « ${label.replace(/\s*\*$/, '')} » pour continuer.` : `Vérifiez « ${label} » : la valeur saisie n’est pas valide.`;
-      return showStepError(index, `${row ? `Ligne ${row.dataset.lineNumber} : ` : ''}${message}`, invalid);
+      const label = invalid.getAttribute('aria-label') || invalid.labels?.[0]?.querySelector('.field__label')?.firstChild?.textContent?.trim() || invalid.labels?.[0]?.textContent?.trim().split('\n')[0] || t("ce champ");
+      const message = invalid.validity.customError ? invalid.validationMessage : invalid.validity.valueMissing ? t('Complétez « {field} » pour continuer.', {field: label.replace(/\s*\*$/, '')}) : t('Vérifiez « {field} » : la valeur saisie n’est pas valide.', {field: label});
+      return showStepError(index, row ? t('Ligne {number} : {message}', {number: row.dataset.lineNumber || '', message}) : message, invalid);
     }
-    if (index === 0 && quickClientOpen) return showStepError(0, 'Ajoutez le nouveau contact ou fermez sa fiche pour continuer.');
-    if (index === 0 && !documentTitle.trim()) return showStepError(0, 'Donnez un titre à votre document.', formRef.current?.querySelector<HTMLInputElement>('[name="title"]') || undefined);
+    if (index === 0 && quickClientOpen) return showStepError(0, t("Ajoutez le nouveau contact ou fermez sa fiche pour continuer."));
+    if (index === 0 && !documentTitle.trim()) return showStepError(0, t("Donnez un titre à votre document."), formRef.current?.querySelector<HTMLInputElement>('[name="title"]') || undefined);
     if (index === 1) {
       const issue = documentLineIssue(lines);
-      if (issue) return showStepError(1, issue.message, formRef.current?.querySelector<HTMLElement>(`[data-line-number="${issue.index + 1}"] [aria-label="${issue.field}"]`) || undefined);
+      if (issue) return showStepError(1, issue.message, formRef.current?.querySelector<HTMLElement>(`[data-line-number="${issue.index + 1}"] [aria-label="${t(issue.field)}"]`) || undefined);
       const invalidVat = settings.organization.vatRegistered ? lines.findIndex(line => !documentVatRates.includes(line.vatRateBp)) : -1;
       if (invalidVat >= 0) return showStepError(1, `Ligne ${invalidVat + 1} : choisissez un taux de TVA disponible pour ce document.`, formRef.current?.querySelector<HTMLElement>(`[data-line-number="${invalidVat + 1}"] [aria-label="Taux TVA"]`) || undefined);
     }
     if (index === 2) {
       const error = entity === 'quotes' || invoiceType !== 'credit_note' ? salesDocumentDateError(entity, issueDate, dueDate) : '';
-      if (error) return showStepError(2, error);
-      if (entity === 'invoices' && (!serviceDateFrom || !serviceDateTo || serviceDateFrom > serviceDateTo)) return showStepError(2, 'Choisissez une période de prestation valide.');
-      if (creditOriginal?.issueDate && issueDate < creditOriginal.issueDate) return showStepError(2, 'La date de l’avoir ne peut pas précéder celle de la facture originale.');
-      if (invoiceType === 'deposit' && !validDepositPercentageBp(depositPercentageBp)) return showStepError(2, 'Saisissez un acompte compris entre 0,01 et 100 %.');
+      if (error) return showStepError(2, t(error));
+      if (entity === 'invoices' && (!serviceDateFrom || !serviceDateTo || serviceDateFrom > serviceDateTo)) return showStepError(2, t("Choisissez une période de prestation valide."));
+      if (creditOriginal?.issueDate && issueDate < creditOriginal.issueDate) return showStepError(2, t("La date de l’avoir ne peut pas précéder celle de la facture originale."));
+      if (invoiceType === 'deposit' && !validDepositPercentageBp(depositPercentageBp)) return showStepError(2, t("Saisissez un acompte compris entre 0,01 et 100 %."));
     }
     return true;
   }
@@ -316,13 +318,13 @@ export function DocumentEditor({
       setLocalError(
         reason instanceof Error
           ? reason.message
-          : 'Le nouveau client n’a pas pu être préparé.',
+          : t("Le nouveau client n’a pas pu être préparé."),
       );
       return;
     }
     const saved = await act(
       () => desktopApi.createEntity('clients', client),
-      `Le client ${client.company || client.contactPerson} a été ajouté et sélectionné.`,
+      t('Le client {client} a été ajouté et sélectionné.', {client: client.company || client.contactPerson}),
       false,
     );
     if (!saved) return;
@@ -349,7 +351,7 @@ export function DocumentEditor({
     const text = footerText.trim();
     if (!name || !text) {
       setLocalError(
-        'Saisissez un nom de modèle et un texte de bas de page avant de l’enregistrer.',
+        t("Saisissez un nom de modèle et un texte de bas de page avant de l’enregistrer."),
       );
       return;
     }
@@ -366,7 +368,7 @@ export function DocumentEditor({
       setLocalError(
         reason instanceof Error
           ? reason.message
-          : 'Le modèle de bas de page n’a pas pu être préparé.',
+          : t("Le modèle de bas de page n’a pas pu être préparé."),
       );
       return;
     }
@@ -380,8 +382,8 @@ export function DocumentEditor({
           billing: { ...settings.billing, footerTemplates: update.templates },
         }),
       existing
-        ? `Le modèle « ${update.name} » a été mis à jour.`
-        : `Le modèle « ${update.name} » a été enregistré.`,
+        ? t('Le modèle « {name} » a été mis à jour.', {name: update.name})
+        : t('Le modèle « {name} » a été enregistré.', {name: update.name}),
       false,
     );
     if (saved) {
@@ -407,7 +409,7 @@ export function DocumentEditor({
             ),
           },
         }),
-      `Le modèle « ${template.name} » a été supprimé.`,
+      t('Le modèle « {name} » a été supprimé.', {name: template.name}),
       false,
     );
     if (saved) {
@@ -418,13 +420,17 @@ export function DocumentEditor({
 
   return (
     <Modal
-      title={`${item ? (isLocked ? 'Consulter' : 'Modifier') : entity === 'quotes' ? 'Nouveau' : 'Nouvelle'} ${documentLabel}`}
+      title={entity === 'quotes'
+        ? item ? isLocked ? t('Consulter le devis') : t('Modifier le devis') : t('Nouveau devis')
+        : invoiceType === 'credit_note'
+          ? item ? isLocked ? t('Consulter l’avoir') : t('Modifier l’avoir') : t('Nouvel avoir')
+          : item ? isLocked ? t('Consulter la facture') : t('Modifier la facture') : t('Nouvelle facture')}
       description={
         readOnlyReason
           ? readOnlyReason
           : isLocked
-          ? 'Le document émis est verrouillé et ne peut pas être supprimé.'
-          : 'Un document clair, en quatre étapes.'
+          ? t("Le document émis est verrouillé et ne peut pas être supprimé.")
+          : t("Un document clair, en quatre étapes.")
       }
       onClose={close}
       dismissible={!busy}
@@ -457,7 +463,7 @@ export function DocumentEditor({
               serviceDateFrom > serviceDateTo)
           ) {
             setLocalError(
-              'Choisissez le type et une période de prestation valide avant l’enregistrement.',
+              t("Choisissez le type et une période de prestation valide avant l’enregistrement."),
             );
             return;
           }
@@ -471,12 +477,12 @@ export function DocumentEditor({
           }
           if (invoiceType === 'credit_note' && !originalInvoiceId) {
             setLocalError(
-              'Un avoir doit référencer explicitement la facture originale.',
+              t("Un avoir doit référencer explicitement la facture originale."),
             );
             return;
           }
           if (creditOriginal?.issueDate && issueDate < creditOriginal.issueDate) {
-            setLocalError('La date de l’avoir ne peut pas précéder celle de la facture originale.');
+            setLocalError(t("La date de l’avoir ne peut pas précéder celle de la facture originale."));
             return;
           }
           if (
@@ -485,7 +491,7 @@ export function DocumentEditor({
             !validDepositPercentageBp(depositPercentageBp)
           ) {
             setLocalError(
-              'Saisissez un acompte compris entre 0,01 et 100 % avant l’enregistrement.',
+              t("Saisissez un acompte compris entre 0,01 et 100 % avant l’enregistrement."),
             );
             return;
           }
@@ -523,35 +529,35 @@ export function DocumentEditor({
           await act(
             () => desktopApi.saveDocument(entity, data, depositLines, item),
             item
-              ? 'Le brouillon a été mis à jour.'
-              : `${entity === 'quotes' ? 'Le devis' : invoiceType === 'credit_note' ? 'L’avoir' : 'La facture'} a été enregistré en brouillon.`,
+              ? t("Le brouillon a été mis à jour.")
+              : entity === 'quotes' ? t('Le devis a été enregistré en brouillon.') : invoiceType === 'credit_note' ? t('L’avoir a été enregistré en brouillon.') : t('La facture a été enregistrée en brouillon.'),
             true,
-            reason => setLocalError(errorMessage(reason, 'Le document n’a pas pu être enregistré. Votre saisie est conservée.')),
+            reason => setLocalError(errorMessage(reason, t("Le document n’a pas pu être enregistré. Votre saisie est conservée."))),
           );
         })}
       >
-        {!isLocked && <nav className="document-stepper" aria-label="Étapes de création">
-          <div className="document-stepper__intro"><span>Votre document</span><strong>{documentTitle.trim() || (entity === 'quotes' ? 'Nouveau devis' : invoiceType === 'credit_note' ? 'Nouvel avoir' : 'Nouvelle facture')}</strong></div>
+        {!isLocked && <nav className="document-stepper" aria-label={t("Étapes de création")}>
+          <div className="document-stepper__intro"><span>{t("Votre document")}</span><strong>{documentTitle.trim() || (entity === 'quotes' ? t("Nouveau devis") : invoiceType === 'credit_note' ? t("Nouvel avoir") : t("Nouvelle facture"))}</strong></div>
           <ol>{steps.map((label, index) => <li key={label}><button type="button" aria-label={`${index + 1}. ${label}`} aria-current={step === index ? 'step' : undefined} disabled={busy} onClick={() => goToStep(index)}><span className="document-stepper__number" aria-hidden="true">{index < step ? <Check size={14} /> : index + 1}</span><span className="document-stepper__label"><strong>{label}</strong><small>{stepDescriptions[index]}</small></span></button></li>)}</ol>
           <div className="document-stepper__track"><span style={{ transform: `scaleX(${(step + 1) / 4})` }} /></div>
-          <p className="document-stepper__note">Vous pourrez modifier le brouillon avant de l’émettre.</p>
+          <p className="document-stepper__note">{t("Vous pourrez modifier le brouillon avant de l’émettre.")}</p>
         </nav>}
-        {localError ? <ErrorPanel key={saveAttempt} title="Encore un détail" message={localError} reveal /> : null}
+        {localError ? <ErrorPanel key={saveAttempt} title={t("Encore un détail")} message={localError} reveal /> : null}
         <fieldset disabled={busy || isLocked} className="document-form">
           <section className="document-step" data-document-step="0" hidden={!isLocked && step !== 0}>
             {stepHeading(0)}
           <div className="form-grid">
-            <Field label="Titre du document" required wide>
+            <Field label={t("Titre du document")} required wide>
               <input
                 name="title"
-                placeholder="Ex. Aménagement du séjour"
+                placeholder={t("Ex. Aménagement du séjour")}
                 value={documentTitle}
                 onChange={(event) => setDocumentTitle(event.target.value)}
                 required
                 autoFocus
               />
             </Field>
-            <Field label="Client" required>
+            <Field label={t("Client")} required>
               <div className="document-client-picker">
                 <select
                   name="clientId"
@@ -563,7 +569,7 @@ export function DocumentEditor({
                   }}
                   required
                 >
-                  <option value="">Choisir un client</option>
+                  <option value="">{t("Choisir un client")}</option>
                   {workspace.clients
                     .filter(
                       (client) =>
@@ -575,7 +581,7 @@ export function DocumentEditor({
                     .map((client) => (
                       <option value={client.id} key={client.id}>
                         {client.company || client.name}
-                        {client.archivedAt ? ' · archivé' : ''}
+                        {client.archivedAt ? t(" · archivé") : ''}
                       </option>
                     ))}
                 </select>
@@ -588,18 +594,18 @@ export function DocumentEditor({
                   aria-expanded={quickClientOpen}
                 >
                   {quickClientOpen ? <X size={14} /> : <UserPlus size={14} />}
-                  {quickClientOpen ? 'Fermer' : 'Nouveau contact'}
+                  {quickClientOpen ? t("Fermer") : t("Nouveau contact")}
                 </Button>
               </div>
             </Field>
-            <Field label={terminology.singularTitle}>
+            <Field label={t(terminology.singularTitle)}>
               <select
                 name="projectId"
                 value={selectedProjectId}
                 disabled={Boolean(creditOriginal)}
                 onChange={(event) => setSelectedProjectId(event.target.value)}
               >
-                <option value="">Aucun {terminology.singular} lié</option>
+                <option value="">{t('Aucun projet lié')}</option>
                 {workspace.projects.filter((project) => project.clientId === selectedClientId).map((project) => (
                   <option value={project.id} key={project.id}>
                     {project.name}
@@ -608,7 +614,7 @@ export function DocumentEditor({
               </select>
             </Field>
             {entity === 'invoices' ? (
-              <Field label="Type de document" required>
+              <Field label={t("Type de document")} required>
                 <select
                   value={invoiceType}
                   onChange={(event) => {
@@ -618,18 +624,18 @@ export function DocumentEditor({
                   }}
                   required
                 >
-                  <option value="">Choisir le type</option>
-                  <option value="standard">Facture standard</option>
-                  <option value="deposit">Facture d’acompte</option>
-                  <option value="progress">Facture de situation</option>
-                  <option value="final">Facture finale</option>
-                  <option value="credit_note">Avoir</option>
+                  <option value="">{t("Choisir le type")}</option>
+                  <option value="standard">{t("Facture standard")}</option>
+                  <option value="deposit">{t("Facture d’acompte")}</option>
+                  <option value="progress">{t("Facture de situation")}</option>
+                  <option value="final">{t("Facture finale")}</option>
+                  <option value="credit_note">{t("Avoir")}</option>
                 </select>
               </Field>
             ) : null}
-            <Field label="Devise"><input value={currency} readOnly /></Field>
+            <Field label={t("Devise")}><input value={currency} readOnly /></Field>
             {invoiceType === 'credit_note' ? (
-              <Field label="Facture originale" required wide>
+              <Field label={t("Facture originale")} required wide>
                 <select
                   value={originalInvoiceId}
                   onChange={(event) => {
@@ -643,7 +649,7 @@ export function DocumentEditor({
                   }}
                   required
                 >
-                  <option value="">Choisir la facture à corriger</option>
+                  <option value="">{t("Choisir la facture à corriger")}</option>
                   {originalInvoices.map((invoice) => (
                     <option key={invoice.id} value={invoice.id}>
                       {invoice.number} · {invoice.title}
@@ -654,28 +660,25 @@ export function DocumentEditor({
             ) : null}
           </div>
           {quickClientOpen ? (
-            <section className="document-inline-card" aria-label="Ajouter un nouveau client">
+            <section className="document-inline-card" aria-label={t("Ajouter un nouveau client")}>
               <header>
                 <div>
-                  <strong>Nouveau client</strong>
-                  <small>
-                    Renseignez l’entreprise ou le nom du contact. Il sera
-                    enregistré puis sélectionné sans fermer le document.
-                  </small>
+                  <strong>{t("Nouveau client")}</strong>
+                  <small>{t("Renseignez l’entreprise ou le nom du contact. Il sera enregistré puis sélectionné sans fermer le document.")}</small>
                 </div>
               </header>
               <div className="form-grid">
                 {([
-                  ['contactPerson', 'Nom du contact', false],
-                  ['company', 'Entreprise', false],
-                  ['email', 'E-mail', false],
-                  ['phone', 'Téléphone', false],
-                  ['street', 'Rue / case postale', true],
-                  ['buildingNumber', 'Numéro', false],
-                  ['postalCode', 'NPA', true],
-                  ['city', 'Localité', true],
-                  ['canton', 'Canton', false],
-                  ['country', 'Pays (ISO)', true],
+                  ['contactPerson', t("Nom du contact"), false],
+                  ['company', t("Entreprise"), false],
+                  ['email', t("E-mail"), false],
+                  ['phone', t("Téléphone"), false],
+                  ['street', t("Rue / case postale"), true],
+                  ['buildingNumber', t("Numéro"), false],
+                  ['postalCode', t("NPA"), true],
+                  ['city', t("Localité"), true],
+                  ['canton', t("Canton"), false],
+                  ['country', t("Pays (ISO)"), true],
                 ] as const).map(([key, label, required]) => (
                   <Field key={String(key)} label={String(label)} required={Boolean(required)}>
                     <input
@@ -700,20 +703,14 @@ export function DocumentEditor({
                   disabled={busy}
                   onClick={() => void createQuickClient()}
                 >
-                  <Check size={15} /> Ajouter et sélectionner
-                </Button>
+                  <Check size={15} />{t("Ajouter et sélectionner")}</Button>
               </div>
             </section>
           ) : null}
           {invoiceType === 'credit_note' ? (
             <div className="info-strip">
               <Receipt size={17} />
-              <span>
-                L’avoir est lié à la facture originale, numéroté sur sa propre
-                séquence et comptabilisé en montants négatifs à l’émission.
-                Reprenez ses taux de TVA et ses montants encore créditables.
-                Aucun encaissement n’est possible.
-              </span>
+              <span>{t("L’avoir est lié à la facture originale, numéroté sur sa propre séquence et comptabilisé en montants négatifs à l’émission. Reprenez ses taux de TVA et ses montants encore créditables. Aucun encaissement n’est possible.")}</span>
             </div>
           ) : null}
           </section>
@@ -723,11 +720,11 @@ export function DocumentEditor({
             <datalist id={unitsId}>{['h', 'jour', 'pièce', 'forfait', 'm', 'm²', 'm³', 'kg'].map(unit => <option key={unit} value={unit} />)}</datalist>
             <header>
               <div>
-                <strong>{invoiceType === 'deposit' ? 'Base de calcul de l’acompte' : 'Lignes du document'}</strong>
+                <strong>{invoiceType === 'deposit' ? t("Base de calcul de l’acompte") : t("Lignes du document")}</strong>
                 <small className={currency !== 'CHF' ? 'document-currency-hint' : undefined}>
-                  {currency === 'CHF' ? (catalogItems.length ? 'Retrouvez une prestation du catalogue ou ajoutez une ligne libre.' : 'Décrivez vos prestations, leur quantité et leur prix.') : `Saisissez les prix en ${currency}. Les prix du catalogue sont en CHF et ne sont pas convertis automatiquement.`}
+                  {currency === 'CHF' ? (catalogItems.length ? t("Retrouvez une prestation du catalogue ou ajoutez une ligne libre.") : t("Décrivez vos prestations, leur quantité et leur prix.")) : t('Saisissez les prix en {currency}. Les prix du catalogue sont en CHF et ne sont pas convertis automatiquement.', {currency})}
                 </small>
-                <small>{settings.organization.vatRegistered ? 'Prix hors TVA. ' : ''}Virgule ou point acceptés. Saisissez 0 pour une prestation offerte.</small>
+                <small>{settings.organization.vatRegistered ? t("Prix hors TVA. ") : ''}{t("Virgule ou point acceptés. Saisissez 0 pour une prestation offerte.")}</small>
               </div>
               <div className="line-editor__actions">
                 {catalogItems.length > 0 && <div className="catalog-line-picker">
@@ -739,22 +736,22 @@ export function DocumentEditor({
                       setCatalogQuery(event.target.value);
                       setCatalogItemId('');
                     }}
-                    placeholder="Référence ou désignation"
-                    aria-label="Rechercher une référence du catalogue"
+                    placeholder={t("Référence ou désignation")}
+                    aria-label={t("Rechercher une référence du catalogue")}
                     disabled={!catalogItems.length || currency !== 'CHF'}
                   />
                   <select
                     value={catalogItemId}
                     onChange={(event) => setCatalogItemId(event.target.value)}
-                    aria-label="Référence du catalogue à ajouter"
+                    aria-label={t("Référence du catalogue à ajouter")}
                     disabled={!catalogItems.length || currency !== 'CHF'}
                   >
                     <option value="">
                       {!catalogItems.length
-                        ? 'Catalogue vide'
+                        ? t("Catalogue vide")
                         : visibleCatalogItems.length
-                          ? 'Choisir une référence'
-                          : 'Aucune référence trouvée'}
+                          ? t("Choisir une référence")
+                          : t("Aucune référence trouvée")}
                     </option>
                     {visibleCatalogItems.map((catalogItem) => (
                       <option key={catalogItem.id} value={catalogItem.id}>
@@ -769,12 +766,10 @@ export function DocumentEditor({
                     size="small"
                     disabled={!catalogItemId || currency !== 'CHF'}
                     onClick={addCatalogItem}
-                  >
-                    Ajouter depuis le catalogue
-                  </Button>
+                  >{t("Ajouter depuis le catalogue")}</Button>
                   {catalogItems.length > DOCUMENT_CATALOG_RESULT_LIMIT && !catalogQuery.trim() ? (
                     <small className="catalog-line-picker__hint">
-                      Recherchez pour parcourir les {catalogItems.length} références.
+                      {t('Recherchez pour parcourir les {count} références.', {count: catalogItems.length})}
                     </small>
                   ) : null}
                 </div>}
@@ -798,56 +793,55 @@ export function DocumentEditor({
                     ])
                   }
                 >
-                  <Plus size={15} /> Ligne libre
-                </Button>
+                  <Plus size={15} />{t("Ligne libre")}</Button>
               </div>
             </header>
             <div className="line-editor__head">
-              <span>Description</span>
-              <span>Quantité</span>
-              <span>Unité</span>
-              <span>Prix unitaire</span>
-              <span>Remise</span>
-              <span>TVA</span>
+              <span>{t("Description")}</span>
+              <span>{t("Quantité")}</span>
+              <span>{t("Unité")}</span>
+              <span>{t("Prix unitaire")}</span>
+              <span>{t("Remise")}</span>
+              <span>{t("TVA")}</span>
               <span />
             </div>
             {lines.map((line, index) => (
-              <div className="line-editor__row" key={line.id} role="group" aria-label={`Prestation ${index + 1}`} data-line-number={index + 1}>
-                <label className="document-line-field" data-label="Description">
+              <div className="line-editor__row" key={line.id} role="group" aria-label={t('Prestation {number}', {number: index + 1})} data-line-number={index + 1}>
+                <label className="document-line-field" data-label={t("Description")}>
                 <input
                   value={line.description}
                   onChange={(event) =>
                     updateLine(line.id, { description: event.target.value })
                   }
-                  aria-label="Description"
+                  aria-label={t("Description")}
                   required
                 />
                 </label>
-                <label className="document-line-field" data-label="Quantité">
-                  <DocumentNumberInput id={`${line.id}-quantity`} kind="quantity" label="Quantité" value={line.quantity} startEmpty={line.quantity === 0 && !savedLineIds.has(line.id)} onChange={quantity => updateLine(line.id, { quantity })} onValidityChange={numberValidity} />
+                <label className="document-line-field" data-label={t("Quantité")}>
+                  <DocumentNumberInput id={`${line.id}-quantity`} kind="quantity" label={t("Quantité")} value={line.quantity} startEmpty={line.quantity === 0 && !savedLineIds.has(line.id)} onChange={quantity => updateLine(line.id, { quantity })} onValidityChange={numberValidity} />
                 </label>
-                <label className="document-line-field" data-label="Unité">
+                <label className="document-line-field" data-label={t("Unité")}>
                 <input
                   value={line.unit}
                   list={unitsId}
-                  placeholder="h, pièce, forfait…"
+                  placeholder={t("h, pièce, forfait…")}
                   onChange={(event) =>
                     updateLine(line.id, { unit: event.target.value })
                   }
-                  aria-label="Unité"
+                  aria-label={t("Unité")}
                   required
                 />
                 </label>
-                <label className="money-input" data-label="Prix unitaire">
-                  <DocumentNumberInput id={`${line.id}-price`} kind="price" label="Prix unitaire" value={line.unitPriceCents} startEmpty={!line.catalogItemId && !savedLineIds.has(line.id)} onChange={unitPriceCents => updateLine(line.id, { unitPriceCents })} onValidityChange={numberValidity} />
+                <label className="money-input" data-label={t("Prix unitaire")}>
+                  <DocumentNumberInput id={`${line.id}-price`} kind="price" label={t("Prix unitaire")} value={line.unitPriceCents} startEmpty={!line.catalogItemId && !savedLineIds.has(line.id)} onChange={unitPriceCents => updateLine(line.id, { unitPriceCents })} onValidityChange={numberValidity} />
                   <span>{currency}</span>
                 </label>
-                <label className="percent-input" data-label="Remise">
-                  <DocumentNumberInput id={`${line.id}-discount`} kind="discount" label="Remise en pour cent" value={line.discountBp ?? 0} onChange={discountBp => updateLine(line.id, { discountBp })} onValidityChange={numberValidity} />
+                <label className="percent-input" data-label={t("Remise")}>
+                  <DocumentNumberInput id={`${line.id}-discount`} kind="discount" label={t("Remise en pour cent")} value={line.discountBp ?? 0} onChange={discountBp => updateLine(line.id, { discountBp })} onValidityChange={numberValidity} />
                   <span>%</span>
                 </label>
                 {settings.organization.vatRegistered ? (
-                  <label className="document-line-field" data-label="TVA">
+                  <label className="document-line-field" data-label={t("TVA")}>
                   <select
                     value={line.vatRateBp < 0 ? '' : line.vatRateBp}
                     onChange={(event) =>
@@ -855,25 +849,24 @@ export function DocumentEditor({
                         vatRateBp: documentVatRateFromInput(event.target.value),
                       })
                     }
-                    aria-label="Taux TVA"
+                    aria-label={t("Taux TVA")}
                     required
                   >
-                    <option value="">Choisir</option>
+                    <option value="">{t("Choisir")}</option>
                     {line.vatRateBp >= 0 && !documentVatRates.includes(line.vatRateBp) ? (
                       <option value={line.vatRateBp} disabled>
-                        {(line.vatRateBp / 100).toLocaleString('fr-CH')} % · Taux à corriger
-                      </option>
+                        {(line.vatRateBp / 100).toLocaleString(getAppLocale())} {t("% · Taux à corriger")}</option>
                     ) : null}
                     {documentVatRates
                       .map((rate) => (
                         <option value={rate} key={rate}>
-                          {rate === 0 ? '0 % · Hors TVA / taux 0' : `${(rate / 100).toLocaleString('fr-CH')} %`}
+                          {rate === 0 ? t('0 % · Hors TVA / taux 0') : `${(rate / 100).toLocaleString(getAppLocale())} %`}
                         </option>
                       ))}
                   </select>
                   </label>
                 ) : (
-                  <span className="no-vat">Sans TVA</span>
+                  <span className="no-vat">{t("Sans TVA")}</span>
                 )}
                 <Button
                   type="button"
@@ -887,7 +880,7 @@ export function DocumentEditor({
                     )
                   }
                   disabled={lines.length === 1}
-                  aria-label="Supprimer la ligne"
+                  aria-label={t("Supprimer la ligne")}
                 >
                   <Archive size={15} />
                 </Button>
@@ -898,7 +891,7 @@ export function DocumentEditor({
           <section className="document-step" data-document-step="2" hidden={!isLocked && step !== 2}>
             {stepHeading(2)}
           <div className="form-grid">
-            <Field label="Date d’émission" required>
+            <Field label={t("Date d’émission")} required>
               <input
                 type="date"
                 value={issueDate}
@@ -920,7 +913,7 @@ export function DocumentEditor({
             </Field>
             {entity === 'quotes' || invoiceType !== 'credit_note' ? (
               <Field
-                label={entity === 'quotes' ? 'Valable jusqu’au' : 'Échéance'}
+                label={entity === 'quotes' ? t("Valable jusqu’au") : t("Échéance")}
                 required
               >
                 <input
@@ -934,7 +927,7 @@ export function DocumentEditor({
             ) : null}
             {entity === 'invoices' ? (
               <>
-                <Field label="Début de la prestation" required hint="Pour une journée, la même date est proposée en fin. Modifiez-la si la prestation dure plus longtemps.">
+                <Field label={t("Début de la prestation")} required hint={t("Pour une journée, la même date est proposée en fin. Modifiez-la si la prestation dure plus longtemps.")}>
                   <input
                     type="date"
                     value={serviceDateFrom}
@@ -942,7 +935,7 @@ export function DocumentEditor({
                     required
                   />
                 </Field>
-                <Field label="Fin de la prestation" required>
+                <Field label={t("Fin de la prestation")} required>
                   <input
                     type="date"
                     min={serviceDateFrom}
@@ -955,29 +948,26 @@ export function DocumentEditor({
             ) : null}
           </div>
           {invoiceType === 'deposit' ? (
-            <section className="deposit-builder" aria-label="Calcul de l’acompte">
+            <section className="deposit-builder" aria-label={t("Calcul de l’acompte")}>
               <div className="deposit-builder__copy">
-                <strong>Calculer l’acompte sur vos prestations</strong>
-                <small>
-                  Saisissez la base complète. Zentra facture uniquement le pourcentage indiqué,
-                  par taux de TVA, sans déclencher de sortie de stock.
-                </small>
+                <strong>{t("Calculer l’acompte sur vos prestations")}</strong>
+                <small>{t("Saisissez la base complète. Zentra facture uniquement le pourcentage indiqué, par taux de TVA, sans déclencher de sortie de stock.")}</small>
               </div>
-              <Field label="Pourcentage de l’acompte" required>
+              <Field label={t("Pourcentage de l’acompte")} required>
                 <label className="percent-input">
-                  <DocumentNumberInput id="deposit-percentage" kind="deposit" label="Pourcentage de l’acompte" value={depositPercentageBp} onChange={value => setDepositPercentage(String(value / 100))} onValidityChange={numberValidity} />
+                  <DocumentNumberInput id="deposit-percentage" kind="deposit" label={t("Pourcentage de l’acompte")} value={depositPercentageBp} onChange={value => setDepositPercentage(String(value / 100))} onValidityChange={numberValidity} />
                   <span>%</span>
                 </label>
               </Field>
               <div className="deposit-builder__summary" aria-live="polite">
-                <span>Base TTC <strong>{formatMoney(baseTotals.totalCents, currency)}</strong></span>
-                <span>Acompte TTC <strong>{totalsReady ? formatMoney(totals.totalCents, currency) : 'À compléter'}</strong></span>
+                <span>{t("Base TTC")} <strong>{formatMoney(baseTotals.totalCents, currency)}</strong></span>
+                <span>{t("Acompte TTC")} <strong>{totalsReady ? formatMoney(totals.totalCents, currency) : t("À compléter")}</strong></span>
               </div>
             </section>
           ) : null}
           <div className="document-bottom">
             <div className="document-copy-fields">
-              <Field label="Notes / texte complémentaire" hint="Entrée ajoute une nouvelle ligne. Les paragraphes sont conservés dans l’aperçu et le PDF.">
+              <Field label={t("Notes / texte complémentaire")} hint={t("Entrée ajoute une nouvelle ligne. Les paragraphes sont conservés dans l’aperçu et le PDF.")}>
                 <textarea
                   name="notes"
                   rows={4}
@@ -986,8 +976,8 @@ export function DocumentEditor({
                 />
               </Field>
               <Field
-                label="Texte personnalisé en bas de page"
-                hint="Ce texte appartient à ce document et reste modifiable sur les devis existants."
+                label={t("Texte personnalisé en bas de page")}
+                hint={t("Ce texte appartient à ce document et reste modifiable sur les devis existants.")}
               >
                 <textarea
                   name="terms"
@@ -997,10 +987,10 @@ export function DocumentEditor({
                 />
               </Field>
               <details className="document-templates-details">
-                <summary>Réutiliser un texte de bas de page</summary>
+                <summary>{t("Réutiliser un texte de bas de page")}</summary>
               <div className="document-footer-templates">
                 <label>
-                  <span>Appliquer un modèle</span>
+                  <span>{t("Appliquer un modèle")}</span>
                   <select
                     value={footerTemplateId}
                     onChange={(event) => {
@@ -1013,7 +1003,7 @@ export function DocumentEditor({
                       if (template) setFooterText(template.text);
                     }}
                   >
-                    <option value="">Choisir un modèle</option>
+                    <option value="">{t("Choisir un modèle")}</option>
                     {settings.billing.footerTemplates.map((template) => (
                       <option key={template.id} value={template.id}>
                         {template.name}
@@ -1022,11 +1012,11 @@ export function DocumentEditor({
                   </select>
                 </label>
                 <label>
-                  <span>Nom du nouveau modèle</span>
+                  <span>{t("Nom du nouveau modèle")}</span>
                   <input
                     value={footerTemplateName}
                     onChange={(event) => setFooterTemplateName(event.target.value)}
-                    placeholder="Ex. Conditions devis standard"
+                    placeholder={t("Ex. Conditions devis standard")}
                   />
                 </label>
                 <Button
@@ -1036,8 +1026,7 @@ export function DocumentEditor({
                   disabled={busy || !footerTemplateName.trim() || !footerText.trim()}
                   onClick={() => void saveFooterTemplate()}
                 >
-                  <Save size={14} /> Enregistrer le modèle
-                </Button>
+                  <Save size={14} />{t("Enregistrer le modèle")}</Button>
                 {footerTemplateId ? (
                   <Button
                     type="button"
@@ -1046,36 +1035,35 @@ export function DocumentEditor({
                     disabled={busy}
                     onClick={() => void deleteFooterTemplate()}
                   >
-                    <Archive size={14} /> Supprimer le modèle
-                  </Button>
+                    <Archive size={14} />{t("Supprimer le modèle")}</Button>
                 ) : null}
               </div>
               </details>
             </div>
             <div className="document-totals">
               <div>
-                <span>Sous-total avant remise</span>
+                <span>{t("Sous-total avant remise")}</span>
                 <strong>{formatMoney(totals.subtotalCents, currency)}</strong>
               </div>
               {totals.discountCents ? (
                 <div>
-                  <span>Remises</span>
+                  <span>{t("Remises")}</span>
                   <strong>− {formatMoney(totals.discountCents, currency)}</strong>
                 </div>
               ) : null}
               <div>
-                <span>Total net</span>
+                <span>{t("Total net")}</span>
                 <strong>{formatMoney(totals.netCents, currency)}</strong>
               </div>
               <div>
-                <span>TVA</span>
+                <span>{t("TVA")}</span>
                 <strong>{formatMoney(totals.vatCents, currency)}</strong>
               </div>
               <div>
                 <span>
                   {invoiceType === 'credit_note'
-                    ? 'Montant de l’avoir'
-                    : 'Total TTC'}
+                    ? t("Montant de l’avoir")
+                    : t("Total TTC")}
                 </span>
                 <strong>{formatMoney(totals.totalCents, currency)}</strong>
               </div>
@@ -1084,23 +1072,23 @@ export function DocumentEditor({
           </section>
           {!isLocked && <section className="document-step" data-document-step="3" hidden={step !== 3}>
             {stepHeading(3)}
-            <article className="document-review" aria-label="Récapitulatif du brouillon">
-              <header className="document-review__header"><span>{settings.organization.legalName}</span><span className="document-review__draft">Brouillon</span></header>
+            <article className="document-review" aria-label={t("Récapitulatif du brouillon")}>
+              <header className="document-review__header"><span>{settings.organization.legalName}</span><span className="document-review__draft">{t("Brouillon")}</span></header>
               <p className="document-review__kind">{documentLabel}</p>
               <h4>{documentTitle}</h4>
               <div className="document-review__parties">
-                <div><span>Préparé pour</span><strong>{workspace.clients.find(client => client.id === selectedClientId)?.company || workspace.clients.find(client => client.id === selectedClientId)?.name}</strong><p>{workspace.projects.find(project => project.id === selectedProjectId)?.name || 'Sans projet associé'}</p></div>
-                <div><span>Date du document</span><strong>{formatDate(issueDate)}</strong>{invoiceType !== 'credit_note' && <p>{entity === 'quotes' ? 'Valable jusqu’au' : 'À régler avant le'} {formatDate(dueDate)}</p>}</div>
+                <div><span>{t("Préparé pour")}</span><strong>{workspace.clients.find(client => client.id === selectedClientId)?.company || workspace.clients.find(client => client.id === selectedClientId)?.name}</strong><p>{workspace.projects.find(project => project.id === selectedProjectId)?.name || t("Sans projet associé")}</p></div>
+                <div><span>{t("Date du document")}</span><strong>{formatDate(issueDate)}</strong>{invoiceType !== 'credit_note' && <p>{entity === 'quotes' ? t("Valable jusqu’au") : t("À régler avant le")} {formatDate(dueDate)}</p>}</div>
               </div>
-              {entity === 'invoices' && <p className="document-review__period">Prestation du {formatDate(serviceDateFrom)} au {formatDate(serviceDateTo)}{creditOriginal ? ` · Avoir lié à ${creditOriginal.number}` : ''}</p>}
-              {invoiceType === 'deposit' && <p className="document-review__period">Acompte de {depositPercentage} % sur une base TTC de {formatMoney(baseTotals.totalCents, currency)}</p>}
+              {entity === 'invoices' && <p className="document-review__period">{t('Prestation du {from} au {to}', {from: formatDate(serviceDateFrom), to: formatDate(serviceDateTo)})}{creditOriginal ? ` · ${t('Avoir lié à {number}', {number: creditOriginal.number})}` : ''}</p>}
+              {invoiceType === 'deposit' && <p className="document-review__period">{t('Acompte de {percentage} % sur une base TTC de {amount}', {percentage: depositPercentage, amount: formatMoney(baseTotals.totalCents, currency)})}</p>}
               <div className="document-review__lines">
-                {depositLines.map(line => <div key={line.id}><div><strong>{line.description}</strong><small>{line.quantity.toLocaleString('fr-CH')} {line.unit} × {formatMoney(line.unitPriceCents, currency)}{line.discountBp ? ` · Remise ${(line.discountBp / 100).toLocaleString('fr-CH')} %` : ''} · TVA {(line.vatRateBp / 100).toLocaleString('fr-CH')} %</small></div><span>{formatMoney(documentTotals([line]).netCents, currency)}</span></div>)}
+                {depositLines.map(line => <div key={line.id}><div><strong>{line.description}</strong><small>{line.quantity.toLocaleString(getAppLocale())} {line.unit} × {formatMoney(line.unitPriceCents, currency)}{line.discountBp ? ` · ${t('Remise')} ${(line.discountBp / 100).toLocaleString(getAppLocale())} %` : ''} · {t('TVA')} {(line.vatRateBp / 100).toLocaleString(getAppLocale())} %</small></div><span>{formatMoney(documentTotals([line]).netCents, currency)}</span></div>)}
               </div>
-              <dl className="document-review__totals"><div><dt>Total net</dt><dd>{formatMoney(totals.netCents, currency)}</dd></div><div><dt>TVA</dt><dd>{formatMoney(totals.vatCents, currency)}</dd></div><div><dt>{invoiceType === 'credit_note' ? 'Montant de l’avoir' : 'Total TTC'}</dt><dd>{formatMoney(totals.totalCents, currency)}</dd></div></dl>
+              <dl className="document-review__totals"><div><dt>{t("Total net")}</dt><dd>{formatMoney(totals.netCents, currency)}</dd></div><div><dt>{t("TVA")}</dt><dd>{formatMoney(totals.vatCents, currency)}</dd></div><div><dt>{invoiceType === 'credit_note' ? t("Montant de l’avoir") : t("Total TTC")}</dt><dd>{formatMoney(totals.totalCents, currency)}</dd></div></dl>
               {(documentNotes || footerText) && <footer>{documentNotes && <p>{documentNotes}</p>}{footerText && <p>{footerText}</p>}</footer>}
             </article>
-            <p className="document-review__hint">Enregistrez le brouillon pour ouvrir son aperçu et exporter un PDF. Le numéro définitif sera attribué à l’émission.</p>
+            <p className="document-review__hint">{t("Enregistrez le brouillon pour ouvrir son aperçu et exporter un PDF. Le numéro définitif sera attribué à l’émission.")}</p>
           </section>}
         </fieldset>
         {isLocked ? (
@@ -1109,24 +1097,24 @@ export function DocumentEditor({
             <div>
               <strong>
                 {readOnlyReason
-                  ? 'Brouillon piloté depuis la commande'
-                  : 'Document verrouillé'}
+                  ? t("Brouillon piloté depuis la commande")
+                  : t("Document verrouillé")}
               </strong>
               <p>
                 {readOnlyReason ||
-                  'Utilisez un avoir lié à la facture d’origine pour toute correction.'}
+                  t("Utilisez un avoir lié à la facture d’origine pour toute correction.")}
               </p>
             </div>
           </div>
         ) : (
           <div className="document-wizard-footer">
-            <div className="document-wizard-footer__total"><span>{invoiceType === 'credit_note' ? 'Montant de l’avoir' : 'Total TTC'}</span><strong>{totalsReady ? formatMoney(totals.totalCents, currency) : 'À compléter'}</strong></div>
+            <div className="document-wizard-footer__total"><span>{invoiceType === 'credit_note' ? t("Montant de l’avoir") : t("Total TTC")}</span><strong>{totalsReady ? formatMoney(totals.totalCents, currency) : t("À compléter")}</strong></div>
             <FormActions
               onCancel={step ? () => goToStep(step - 1) : close}
-              cancelLabel={step ? 'Retour' : 'Annuler'}
+              cancelLabel={step ? t("Retour") : t("Annuler")}
               busy={busy}
               disabled={readOnly}
-              submitLabel={step === 3 ? 'Enregistrer le brouillon' : 'Continuer'}
+              submitLabel={step === 3 ? t("Enregistrer le brouillon") : t("Continuer")}
             />
           </div>
         )}
@@ -1137,5 +1125,5 @@ export function DocumentEditor({
 }
 
 function CreditDocumentDetails({collapse,children}: {collapse:boolean;children:ReactNode}) {
-  return collapse ? <details className="customer-credit-document-details"><summary>Détails du document émis</summary>{children}</details> : children;
+  return collapse ? <details className="customer-credit-document-details"><summary>{t("Détails du document émis")}</summary>{children}</details> : children;
 }

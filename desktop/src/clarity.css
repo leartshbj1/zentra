@@ -456,7 +456,7 @@
     margin: 0;
     font-size: 0.875rem;
     line-height: 1.7;
-    color: #6d7e71;
+    color: var(--muted);
   }
   .finance-overview__next > button {
     flex-shrink: 0;

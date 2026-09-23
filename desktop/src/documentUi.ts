@@ -1,4 +1,5 @@
 import { activeCatalogItems } from './catalog';
+import { t } from './language';
 import type {
   CatalogItem,
   DocumentLine,
@@ -19,9 +20,9 @@ export function documentLinesValidationError(lines: DocumentLine[]): string {
 }
 
 export function documentLineIssue(lines: DocumentLine[]): { index: number; field: string; message: string } | null {
-  if (!lines.length) return { index: 0, field: 'Description', message: 'Ajoutez au moins une prestation.' };
+  if (!lines.length) return { index: 0, field: 'Description', message: t('Ajoutez au moins une prestation.') };
   for (const [index, line] of lines.entries()) {
-    const issue = (field: string, message: string) => ({ index, field, message: `Ligne ${index + 1} : ${message}` });
+    const issue = (field: string, message: string) => ({ index, field, message: t('Ligne {number} : {message}', {number: index + 1, message: t(message)}) });
     if (!line.description.trim()) return issue('Description', 'décrivez la prestation ou l’article.');
     if (!Number.isFinite(line.quantity) || line.quantity <= 0) return issue('Quantité', 'indiquez une quantité supérieure à zéro.');
     if (!line.unit.trim()) return issue('Unité', 'indiquez une unité, par exemple h, pièce ou forfait.');

@@ -104,10 +104,10 @@
     background: var(--surface-selected); color: var(--ink); box-shadow: inset 0 0 0 1px #45464d;
   }
   html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation [data-settings-link] .settings-browser__icon {
-    color: #d4d6dc; background: #303136; box-shadow: none;
+    color: currentColor; background: transparent; box-shadow: none;
   }
   html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser__navigation [aria-current] .settings-browser__icon {
-    color: var(--navigation-accent); background: #24262a;
+    color: var(--navigation-accent); background: transparent;
   }
   html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser .settings-category,
   html[data-app-theme="dark"] .desktop-app[data-experience] .settings-browser .settings-category > summary,
