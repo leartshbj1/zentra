@@ -92,6 +92,9 @@ export async function effectiveAccountUntil(
   paidUntil: number,
 ) {
   if (paidUntil >= nowSeconds()) return paidUntil;
+  const {transitionLicense}=await import('@/lib/complete/bridge');
+  const transition=await transitionLicense(subscriptionId,userId);
+  if(transition)return transition.entitlement_valid_until;
   return Math.max(
     paidUntil,
     (await grantForAccount(subscriptionId, userId))?.valid_until ?? 0,

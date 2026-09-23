@@ -13,6 +13,7 @@ export function CompleteOffer() {
   const plan = completePlan(selected)!;
   return (
     <div className="complete-offer" id="formules">
+      <p>Découvrez les trois produits pendant 14 jours : 3 personnes et 250 analyses partagées. <a href="/compte">Commencer sans carte bancaire</a>.</p>
       <fieldset className="complete-plan-options">
         <legend>Choisissez la taille de votre équipe.</legend>
         {COMPLETE_PLANS.map((item) => {

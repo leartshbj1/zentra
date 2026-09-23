@@ -80,6 +80,10 @@ export async function provisionCompleteCompany(
 ) {
   const bundle = await completeAccess(organizationId);
   if (!bundle || bundle.subscription_id !== subscriptionId) return;
+  await linkCompleteProducts(organizationId,ownerId);
+  await database().prepare('DELETE FROM complete_checkouts WHERE user_id=? AND session_id=(SELECT checkout_session_id FROM subscriptions WHERE subscription_id=?)').bind(ownerId,subscriptionId).run();
+}
+export async function linkCompleteProducts(organizationId:string,ownerId:string) {
   const db = database(),
     now = Math.floor(Date.now() / 1000);
   await db
@@ -103,13 +107,7 @@ export async function provisionCompleteCompany(
     .first();
   if (!linked)
     throw new AccountPublicError(
-      'Votre pack est payé, mais Support est relié à une autre entreprise. Contactez info@zentraapp.ch pour terminer la liaison sans déplacer vos données.',
+      'Support est déjà relié à une autre entreprise. Contactez info@zentraapp.ch pour terminer la liaison sans déplacer vos données.',
       409,
     );
-  await db
-    .prepare(
-      'DELETE FROM complete_checkouts WHERE user_id=? AND session_id=(SELECT checkout_session_id FROM subscriptions WHERE subscription_id=?)',
-    )
-    .bind(ownerId, subscriptionId)
-    .run();
 }

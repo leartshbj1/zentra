@@ -45,6 +45,7 @@ import {
 } from './panels';
 import { Choice, Field, formatDate } from './controls';
 import { BillingPanel } from './billing-panel';
+import { SupportQuotaNotice } from './quota-notice';
 import {
   emptyState,
   demoState,
@@ -678,6 +679,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
             data-reading={tab === 'inbox' && !!ticket}
           >
             {noticeView}
+            {!demo&&<SupportQuotaNotice billing={data.billing} href={data.gestion?.organizationId?`/compte/abonnement?organizationId=${encodeURIComponent(data.gestion.organizationId)}`:'/support/espace?section=billing'}/>}
             {!demo &&
               data.billing &&
               !data.billing.active &&

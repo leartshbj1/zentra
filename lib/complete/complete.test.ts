@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   portalCreate: vi.fn(),
   portalSession: vi.fn(),
   signingKey: '',
+  updateSubscription: vi.fn(), scheduleCreate: vi.fn(), scheduleRetrieve: vi.fn(), scheduleUpdate: vi.fn(),
 }));
 vi.mock('@/lib/runtime', () => ({
   database: () => state.db,
@@ -43,7 +44,8 @@ vi.mock('stripe', () => ({
     static createFetchHttpClient() {
       return {};
     }
-    subscriptions = { retrieve: state.subscription };
+    subscriptions = { retrieve: state.subscription,update:state.updateSubscription };
+    subscriptionSchedules={create:state.scheduleCreate,retrieve:state.scheduleRetrieve,update:state.scheduleUpdate};
     invoices = { retrieve: state.invoice };
     invoicePayments = { list: state.payments };
     charges = { retrieve: state.charge };
@@ -104,6 +106,11 @@ import {
 import { automationBillingState } from '@/lib/automation/billing';
 import type { ZentraUser } from '@/app/zentra-auth';
 import type { Workspace } from '@/lib/support/types';
+import { startAccountTrial,trialLicenseEntitlement } from '@/lib/account-trial';
+import { completeTrial } from './trial';
+import { quotePlanChange,changePlan,pendingPlanChange } from './change';
+import { transitionAccess,transitionLicense } from './bridge';
+import { subscriptionJourney,quotaAlert,skipJourneyStep } from './journey';
 let db: DatabaseSync,
   sub: Stripe.Subscription,
   invoices: Map<string, Stripe.Invoice>,
@@ -732,4 +739,150 @@ describe('Zentra Complet: one verified payment, three company-scoped products', 
         ?.organization_id,
     ).toBe('org_other');
   });
+});
+
+
+describe('Complete trial and shared subscription journey',()=>{
+  it('gives one company 14 days, three seats and 250 analyses without creating Stripe objects',async()=>{
+    const trial=await startAccountTrial(user,'PME essai',true);
+    expect(await completeTrial(trial.organization_id)).toMatchObject({active:1,analyses:250});
+    expect(await trialLicenseEntitlement(trial.subscription_id,user.userId)).toMatchObject({seat_limit:3});
+    expect(await automationEntitlement({organizationId:trial.organization_id,userId:user.userId,role:'owner',founder:false})).toBe(true);
+    expect((await billingState(workspace()))).toMatchObject({active:true,limit:250,status:'trialing'});
+    const again=await startAccountTrial(user,'Autre nom',true);expect(again.ends_at).toBe(trial.ends_at);
+    expect(state.create).not.toHaveBeenCalled();expect(state.scheduleCreate).not.toHaveBeenCalled();
+    const view=await subscriptionJourney({organizationId:trial.organization_id,userId:user.userId,role:'owner',founder:false});
+    expect(view.products.every(p=>p.active)).toBe(true);expect(view.monthlyChfCents).toBe(0);expect(view.steps.find(s=>s.id==='automation')?.done).toBe(false);
+  });
+  it('reserves the last trial analysis once under concurrency, releases failures, and stops exactly at expiry',async()=>{
+    const trial=await startAccountTrial(user,'PME',true);const w=workspace();
+    for(let i=0;i<249;i++){const r=await reserveAnalysis(w,'ticket-'+i,'trial-'+i);await finishAnalysis(r,true)}
+    const results=await Promise.allSettled([0,1,2].map(i=>reserveAnalysis(w,'last-'+i,'last-'+i)));
+    expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+    const r=results.find(r=>r.status==='fulfilled') as PromiseFulfilledResult<string>;
+    await finishAnalysis(r.value,false);const next=await reserveAnalysis(w,'retry','retry');await finishAnalysis(next,true);
+    expect((await billingState(w))).toMatchObject({used:250,limit:250});
+    await expect(reserveAnalysis(w,'extra','extra')).rejects.toMatchObject({status:402});
+    db.prepare('UPDATE account_trials SET started_at=?,ends_at=? WHERE user_id=?').run(now()-86401,now()-1,user.userId);
+    expect(await trialLicenseEntitlement(trial.subscription_id,user.userId)).toBeNull();
+    expect((await billingState(w)).active).toBe(false);
+    expect(await automationEntitlement({organizationId:trial.organization_id,userId:user.userId,role:'owner',founder:false})).toBe(false);
+    expect((await startAccountTrial(user,'Again',true)).ends_at).toBeLessThan(now());
+  });
+  it('keeps onboarding choices company scoped and does not enable automation when skipping',async()=>{
+    const trial=await startAccountTrial(user,'PME',true);const actor={organizationId:trial.organization_id,userId:user.userId,role:'owner',founder:false};
+    await Promise.all([skipJourneyStep(actor,'team',true),skipJourneyStep(actor,'connection',true)]);
+    const view=await subscriptionJourney(actor);expect(view.steps.filter(s=>s.skipped).map(s=>s.id).sort()).toEqual(['connection','team']);
+    expect(view.steps.find(s=>s.id==='automation')?.done).toBe(false);
+    await expect(skipJourneyStep({...actor,role:'member'},'automation',true)).rejects.toMatchObject({status:403});
+    await skipJourneyStep(actor,'team',false);expect((await subscriptionJourney(actor)).steps.find(s=>s.id==='team')?.skipped).toBe(false);
+  });
+  it('warns at 80 percent and at the limit without billing overages',()=>{
+    expect(quotaAlert(199,250)).toBeNull();expect(quotaAlert(200,250)).toMatchObject({level:'near',remaining:50});
+    expect(quotaAlert(250,250)).toMatchObject({level:'reached',remaining:0});expect(quotaAlert(400,250)?.remaining).toBe(0);
+  });
+});
+async function changingFixture(){
+  const current=invoices.get('in_current')!;sub.items.data[0].current_period_end=current.lines.data[0].period.end;
+  sub.items.data[0].current_period_start=current.lines.data[0].period.start;
+  await bindCheckout();await pay();
+  const target=completePlan('pro')!;
+  const targetPrice={...price,id:'price_pro_bundle',product:target.productId,lookup_key:target.lookupKey,unit_amount:target.priceChfCents,metadata:{service:'zentra-complet',bundle_plan:'pro'}};
+  state.prices.mockResolvedValue({data:[targetPrice]});state.product.mockResolvedValue({id:target.productId,active:true,tax_code:'txcd_fixture'});
+  let schedule:{id:string;created:number;subscription:string;metadata:Record<string,string>;status:string;phases:Stripe.SubscriptionScheduleUpdateParams.Phase[]}|null=null;
+  state.scheduleCreate.mockImplementation(async(params)=>{expect(Object.keys(params)).toEqual(['from_subscription']);schedule={id:'sub_sched_change',created:now(),subscription:sub.id,metadata:{},status:'active',phases:[]};sub.schedule=schedule.id;return schedule});
+  state.scheduleRetrieve.mockImplementation(async()=>schedule);
+  state.scheduleUpdate.mockImplementation(async(_id,params)=>{schedule={...schedule,...params};if(params.phases[0].trial_end)sub.status='trialing';return schedule});
+  return {target,targetPrice};
+}
+describe('self-service changes preserve company and paid periods',()=>{
+  it('quotes without mutation, schedules one existing subscription and keeps old rights until settlement',async()=>{
+    const {target,targetPrice}=await changingFixture();const company=org()!;
+    const quote=await quotePlanChange(user.userId,company,'pro');expect(quote.effectiveAt).toBe(sub.items.data[0].current_period_end);
+    expect(state.scheduleCreate).not.toHaveBeenCalled();
+    await changePlan(user.userId,company,'pro',quote.fingerprint);
+    await changePlan(user.userId,company,'pro',quote.fingerprint);
+    expect(state.scheduleCreate).toHaveBeenCalledTimes(1);expect(state.scheduleUpdate).toHaveBeenCalledTimes(1);
+    expect(state.create).not.toHaveBeenCalled();expect((await teamSeats(company)).limit).toBe(3);
+    expect(org()).toBe(company);expect((await pendingPlanChange(company))?.state).toBe('scheduled');
+    // At the boundary a Stripe status update alone must not unlock ten seats.
+    sub.metadata={...sub.metadata,bundle_plan:'pro',plan:target.licensePlan};sub.items.data[0].price=targetPrice as Stripe.Price;
+    await upsertSubscription(sub);expect((await teamSeats(company)).limit).toBe(3);
+    // Advance the stored boundary to now; future-dated settlement alone cannot finish a change.
+    db.prepare('UPDATE complete_plan_changes SET effective_at=? WHERE organization_id=?').run(now()-1,company);
+    invoices.set('in_new',makeInvoice('in_new',now()-1,quote.effectiveAt+30*86400));
+    await pay('in_new');expect((await teamSeats(company)).limit).toBe(10);expect(org()).toBe(company);
+    expect((await pendingPlanChange(company))?.state).toBe('completed');
+  });
+  it('rejects another owner and a changed quotation before any billing mutation',async()=>{
+    await changingFixture();await expect(quotePlanChange('outsider',org()!,'pro')).rejects.toMatchObject({status:403});
+    await expect(changePlan(user.userId,org()!,'pro','stale')).rejects.toMatchObject({status:409});expect(state.scheduleCreate).not.toHaveBeenCalled();
+  });
+  it('does not reprogram an external schedule',async()=>{
+    await changingFixture();sub.schedule='sub_sched_external';await expect(quotePlanChange(user.userId,org()!,'pro')).rejects.toMatchObject({status:409});expect(state.scheduleUpdate).not.toHaveBeenCalled();
+  });
+  it('resumes after a lost schedule response without creating a second subscription',async()=>{
+    await changingFixture();const company=org()!,quote=await quotePlanChange(user.userId,company,'pro');
+    const update=state.scheduleUpdate.getMockImplementation()!;
+    state.scheduleUpdate.mockImplementationOnce(async(...args:unknown[])=>{await update(...args);throw new Error('response lost')});
+    await expect(changePlan(user.userId,company,'pro',quote.fingerprint)).rejects.toThrow('response lost');
+    expect((await pendingPlanChange(company))?.state).toBe('preparing');
+    await changePlan(user.userId,company,'pro',quote.fingerprint);
+    expect(state.scheduleCreate).toHaveBeenCalledTimes(1);expect(state.create).not.toHaveBeenCalled();
+    expect((await pendingPlanChange(company))?.state).toBe('scheduled');
+  });
+  it('stops separate add-on renewals before scheduling and gifts only the gap to the final paid date',async()=>{
+    await changingFixture();const company=org()!,until=sub.items.data[0].current_period_end+86400;
+    // Reproduce three separately paid products, with different renewal dates.
+    db.prepare('DELETE FROM complete_subscriptions WHERE subscription_id=?').run(sub.id);
+    db.prepare(`INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,last_paid_invoice_id,cancel_at_period_end,livemode,updated_at) VALUES(?,?,?,'active',?,?,?,0,1,?)`).run(company,'sub_addon','cus_addon',now()-5,until,'in_addon',now());
+    const addon={...sub,id:'sub_addon',customer:'cus_addon',metadata:{service:'zentra-automation'},items:{data:[{...sub.items.data[0],price:{...price,id:'price_addon'},current_period_end:until}]}} as unknown as Stripe.Subscription;
+    state.subscription.mockImplementation(async(id)=>id==='sub_addon'?addon:sub);
+    state.updateSubscription.mockImplementation(async(id,params)=>{expect(id).toBe('sub_addon');Object.assign(addon,params);return addon});
+    const quote=await quotePlanChange(user.userId,company,'pro');expect(quote.effectiveAt).toBe(until);
+    await changePlan(user.userId,company,'pro',quote.fingerprint);
+    expect(state.updateSubscription.mock.invocationCallOrder[0]).toBeLessThan(state.scheduleUpdate.mock.invocationCallOrder[0]);
+    expect(state.scheduleUpdate.mock.calls[0][1].phases[0].trial_end).toBe(until);
+    expect((await transitionAccess(company))?.until).toBe(until);
+    expect((await transitionLicense(sub.id,user.userId))?.seat_limit).toBe(3);
+    expect(await transitionLicense(sub.id,'outsider')).toBeNull();
+    db.prepare('UPDATE subscriptions SET entitlement_valid_until=0 WHERE subscription_id=?').run(sub.id);
+    expect(await transitionAccess(company)).toBeNull();
+  });
+});
+
+ it('upgrades an existing free Gestion trial in place without extending its end date',async()=>{
+   const old=await startAccountTrial(user,'PME',false);
+   const upgraded=await startAccountTrial(user,'PME',true);
+   expect(upgraded.organization_id).toBe(old.organization_id);expect(upgraded.ends_at).toBe(old.ends_at);
+   expect((await trialLicenseEntitlement(old.subscription_id,user.userId))?.seat_limit).toBe(3);
+   expect((await billingState(workspace())).limit).toBe(250);
+ });
+ it('reserves future pack seats atomically when an invitation races with scheduling',async()=>{
+   await changingFixture();const company=org()!;
+   const insert=(email:string)=>db.prepare(`INSERT INTO organization_invitations(invitation_id,organization_id,invited_email,role,token_hash,created_by_user_id,created_at,expires_at) VALUES(?,?,?,'member',?,'owner',?,?)`).run(crypto.randomUUID(),company,email,crypto.randomUUID(),now(),now()+3600);
+   // A downgrade is scheduled with just the owner, then two competing invitations arrive.
+   db.prepare(`INSERT INTO complete_plan_changes(organization_id,operation_id,user_id,subscription_id,target_plan,effective_at,state,source_json,created_at,updated_at) VALUES(?,'seat-race','owner',?,'solo',?,'preparing','{}',?,?)`).run(company,sub.id,now()+86400,now(),now());
+   expect(()=>insert('late@example.test')).toThrow('zentra seat limit reached');
+   db.prepare('DELETE FROM complete_plan_changes').run();insert('member@example.test');
+   expect(()=>db.prepare(`INSERT INTO complete_plan_changes(organization_id,operation_id,user_id,subscription_id,target_plan,effective_at,state,source_json,created_at,updated_at) VALUES(?,'race-2','owner',?,'solo',?,'preparing','{}',?,?)`).run(company,sub.id,now()+86400,now(),now())).toThrow('zentra seat limit reached');
+ });
+
+it('keeps the company and device activation when the paid source was Support',async()=>{
+ const {target,targetPrice}=await changingFixture();const company=org()!,w=workspace(),until=sub.items.data[0].current_period_end;
+ db.prepare('DELETE FROM complete_subscriptions WHERE subscription_id=?').run(sub.id);
+ db.prepare(`INSERT INTO subscriptions(subscription_id,customer_id,customer_name,price_id,plan_id,entitlement_plan_id,seat_limit,status,current_period_end,entitlement_valid_until,livemode,updated_at) VALUES('trial_existing','trial_existing','PME','free_trial','zentra-start-monthly-59-chf','zentra-start-monthly-59-chf',3,'trialing',?,?,0,?)`).run(until,until,now());
+ // Use the exact current Gestion claim from the existing company fixture.
+ db.prepare('UPDATE subscriptions SET plan_id=?,entitlement_plan_id=? WHERE subscription_id=?').run(plan.licensePlan,plan.licensePlan,'trial_existing');
+ db.prepare('UPDATE organizations SET subscription_id=? WHERE organization_id=?').run('trial_existing',company);
+ db.prepare(`INSERT INTO license_activations(license_id,subscription_id,installation_id,activated_at,last_issued_at) VALUES('lic_existing','trial_existing','55af29dd-fdaa-4993-ae78-17f9ca220e51',?,?)`).run(now(),now());
+ db.prepare(`INSERT INTO support_subscriptions(workspace_id,subscription_id,customer_id,plan_id,paid_plan_id,status,paid_from,paid_until,last_paid_invoice_id,cancel_at_period_end,livemode,updated_at) VALUES(?,?,?,'team','team','active',?,?,?,0,1,?)`).run(w.id,sub.id,'cus_bundle',now()-60,until,'in_current',now());
+ sub.metadata={service:'zentra-support',workspace_id:w.id,plan:'team'};
+ const quote=await quotePlanChange(user.userId,company,'pro');expect(quote.snapshot.primary).toBe(sub.id);expect(quote.snapshot.oldSubscription).toBe('trial_existing');
+ await changePlan(user.userId,company,'pro',quote.fingerprint);
+ db.prepare('UPDATE complete_plan_changes SET effective_at=? WHERE organization_id=?').run(now()-1,company);
+ sub.metadata={...sub.metadata,service:'zentra-complet',bundle_plan:'pro',plan:target.licensePlan,organization_id:company,account_user_id:user.userId};sub.items.data[0].price=targetPrice as Stripe.Price;
+ invoices.set('in_support_to_pack',makeInvoice('in_support_to_pack',now()-1,until+30*86400));await pay('in_support_to_pack');
+ expect(org()).toBe(company);expect(db.prepare('SELECT subscription_id FROM license_activations WHERE license_id=?').get('lic_existing')?.subscription_id).toBe(sub.id);
+ expect((await pendingPlanChange(company))?.state).toBe('completed');expect((await teamSeats(company)).limit).toBe(10);expect((await billingState(workspace())).limit).toBe(15000);
 });

@@ -1,23 +1,40 @@
 import { database } from '@/lib/runtime';
 import { AccountPublicError, sha256Hex } from '@/lib/account-security';
 import { planById } from '@/lib/plans';
+import { COMPLETE_TRIAL_ANALYSES } from '@/lib/complete/trial';
+import { linkCompleteProducts } from '@/lib/complete/access';
 export const TRIAL_DAYS = 14;
 type Trial = {user_id:string;organization_id:string;subscription_id:string;started_at:number;ends_at:number;converted_subscription_id:string|null};
 export async function trialForUser(userId:string){return database().prepare('SELECT * FROM account_trials WHERE user_id=?').bind(userId).first<Trial>();}
-export async function startAccountTrial(user:{userId:string;email:string;displayName:string},name:string){
+export async function startAccountTrial(user:{userId:string;email:string;displayName:string},name:string,complete=false){
   const previous = await trialForUser(user.userId);
-  if(previous) return previous; // Retries never restart or extend a trial.
+  if(previous) {
+    if(complete) {
+      const existing=await database().prepare('SELECT 1 FROM complete_trials WHERE user_id=?').bind(user.userId).first();
+      if(!existing) {
+        const time=Math.floor(Date.now()/1000),plan=planById('start')!;
+        if(previous.converted_subscription_id||previous.ends_at<=time)throw new AccountPublicError('Votre essai est terminé. Choisissez une formule pour continuer.',409);
+        await database().batch([
+          database().prepare('INSERT INTO complete_trials(user_id,organization_id,analyses) SELECT user_id,organization_id,? FROM account_trials WHERE user_id=? AND converted_subscription_id IS NULL AND ends_at>? ON CONFLICT DO NOTHING').bind(COMPLETE_TRIAL_ANALYSES,user.userId,time),
+          database().prepare('UPDATE subscriptions SET plan_id=?,entitlement_plan_id=?,seat_limit=?,updated_at=? WHERE subscription_id=? AND EXISTS(SELECT 1 FROM account_trials WHERE user_id=? AND converted_subscription_id IS NULL AND ends_at>?)').bind(plan.licensePlan,plan.licensePlan,plan.seats,time,previous.subscription_id,user.userId,time),
+        ]);
+      }
+      await linkCompleteProducts(previous.organization_id,user.userId);
+    }
+    return previous; // Retries never restart or extend a trial.
+  }
   if(!name.trim()||name.trim().length>120) throw new AccountPublicError('Indiquez le nom de votre entreprise (120 caractères maximum).');
   const db=database();
   const owned = await db.prepare("SELECT organization_id FROM organizations WHERE created_by_user_id=? LIMIT 1").bind(user.userId).first();
   if(owned) throw new AccountPublicError('Votre compte possède déjà une entreprise. Retrouvez-la dans vos paramètres.',409);
   const now=Math.floor(Date.now()/1000),until=now+TRIAL_DAYS*86400;
   const fingerprint=await sha256Hex(user.userId),emailHash=await sha256Hex(user.email.trim().toLowerCase());
-  const sub=`trial_${fingerprint.slice(0,32)}`,org=`org_trial_${fingerprint.slice(0,32)}`,plan=planById('solo')!;
+  const sub=`trial_${fingerprint.slice(0,32)}`,org=`org_trial_${fingerprint.slice(0,32)}`,plan=planById(complete?'start':'solo')!;
   await db.batch([
     db.prepare('INSERT INTO account_trials(user_id,email_hash,organization_id,subscription_id,started_at,ends_at) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING').bind(user.userId,emailHash,org,sub,now,until),
+    ...(complete ? [db.prepare('INSERT INTO complete_trials(user_id,organization_id,analyses) SELECT user_id,organization_id,? FROM account_trials WHERE user_id=? AND subscription_id=? ON CONFLICT DO NOTHING').bind(COMPLETE_TRIAL_ANALYSES,user.userId,sub)] : []),
     db.prepare(`INSERT INTO subscriptions(subscription_id,customer_id,customer_name,customer_email,price_id,plan_id,entitlement_plan_id,seat_limit,status,current_period_end,entitlement_valid_until,livemode,updated_at)
-      SELECT ?,?,?,?,'free_trial',?,?,1,'trialing',ends_at,ends_at,0,? FROM account_trials WHERE user_id=? AND subscription_id=? ON CONFLICT(subscription_id) DO NOTHING`).bind(sub,sub,name.trim(),user.email,plan.licensePlan,plan.licensePlan,now,user.userId,sub),
+      SELECT ?,?,?,?,'free_trial',?,?,?,'trialing',ends_at,ends_at,0,? FROM account_trials WHERE user_id=? AND subscription_id=? ON CONFLICT(subscription_id) DO NOTHING`).bind(sub,sub,name.trim(),user.email,plan.licensePlan,plan.licensePlan,plan.seats,now,user.userId,sub),
     db.prepare(`INSERT INTO organizations(organization_id,name,subscription_id,created_by_user_id,created_at,updated_at)
       SELECT ?,?,?,?, ?,? FROM account_trials WHERE user_id=? AND subscription_id=? ON CONFLICT(subscription_id) DO NOTHING`).bind(org,name.trim(),sub,user.userId,now,now,user.userId,sub),
     db.prepare(`INSERT INTO organization_members(membership_id,organization_id,user_id,email,display_name,role,joined_at)
@@ -27,6 +44,9 @@ export async function startAccountTrial(user:{userId:string;email:string;display
   ]);
   const created=await trialForUser(user.userId);
   if(!created) throw new AccountPublicError('Un essai a déjà été utilisé avec cette adresse. Choisissez une formule pour continuer.',409);
+  if(complete) {
+    await linkCompleteProducts(created.organization_id,user.userId);
+  }
   return created;
 }
 export async function trialLicenseEntitlement(subscriptionId:string,userId:string|null|undefined){

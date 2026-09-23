@@ -1,4 +1,27 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+export const completeTrials = sqliteTable('complete_trials', {
+  userId: text('user_id').primaryKey(),
+  organizationId: text('organization_id').notNull().unique(),
+  analyses: integer('analyses').notNull().default(250),
+});
+export const completePlanChanges = sqliteTable('complete_plan_changes', {
+  organizationId:text('organization_id').primaryKey(),
+  operationId:text('operation_id').notNull().unique(),
+  userId:text('user_id').notNull(),
+  subscriptionId:text('subscription_id').notNull(),
+  targetPlan:text('target_plan').notNull(),
+  effectiveAt:integer('effective_at').notNull(),
+  state:text('state').notNull(),
+  sourceJson:text('source_json').notNull(),
+  scheduleId:text('schedule_id'),
+  createdAt:integer('created_at').notNull(),
+  updatedAt:integer('updated_at').notNull(),
+});
+export const completeOnboarding = sqliteTable('complete_onboarding', {
+  organizationId:text('organization_id').primaryKey(),
+  skippedJson:text('skipped_json').notNull().default('[]'),
+  updatedAt:integer('updated_at').notNull(),
+});
 
 export const completeSubscriptions = sqliteTable('complete_subscriptions', {
   subscriptionId: text('subscription_id').primaryKey(),

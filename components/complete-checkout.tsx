@@ -135,7 +135,7 @@ export function CompleteCheckout({
           {conflict && (
             <>
               <p>
-                <a href="/compte">Ouvrir mon compte</a> ·{' '}
+                <a href="/compte/abonnement">Changer ma formule</a> ·{' '}
                 <a href="mailto:info@zentraapp.ch?subject=Passage%20au%20pack%20Zentra%20Complet">
                   Contacter Zentra
                 </a>

@@ -114,7 +114,8 @@ export function BillingPanel({
     // Verify once on the Stripe return. Subsequent status refreshes are explicit.
   }, [owner, demo, mutate]);
   const disabled = busy || working || demo;
-  if (billing?.bundlePlan) return <div className="support-panels"><div className="support-section-heading"><div><h2>Inclus dans Zentra Complet {billing.bundlePlan}</h2><p>Gestion, Support et Automation suivent le même abonnement.</p></div></div><p>{billing.used.toLocaleString('fr-CH')} / {billing.limit.toLocaleString('fr-CH')} analyses utilisées pendant cette période.</p>{!billing.active && <p>La période payée est terminée ou votre abonnement doit être vérifié.</p>}{owner && <Button disabled={disabled} onClick={() => void action({ action: 'billingPortal' })}>Gérer le pack</Button>}</div>;
+  if (billing?.bundlePlan) return <div className="support-panels"><div className="support-section-heading"><div><h2>{billing.status==='trialing'||billing.status==='trial_expired'?'Essai Zentra Complet':`Inclus dans Zentra Complet ${billing.bundlePlan}`}</h2><p>Gestion, Support et Automation dans votre entreprise.</p></div></div><p>{billing.used.toLocaleString('fr-CH')} / {billing.limit.toLocaleString('fr-CH')} analyses utilisées.</p>{!billing.active&&<p>Votre période d’accès est terminée. Vos données sont conservées.</p>}<a href="/compte/abonnement">Voir mon abonnement et les prochaines étapes</a></div>;
+
   return (
     <div className="support-panels">
       <div className="support-section-heading">

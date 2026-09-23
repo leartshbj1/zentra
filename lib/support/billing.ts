@@ -1,6 +1,8 @@
 import Stripe from 'stripe';
 import { completeSupportSubscription } from '@/lib/complete/access';
 import { completePlan } from '@/lib/complete/plans';
+import { supportCompleteTrial } from '@/lib/complete/trial';
+import { transitionAccess } from '@/lib/complete/bridge';
 import { completePortal } from '@/lib/complete/stripe';
 import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
 import {
@@ -110,6 +112,9 @@ export async function isSupportOwner(workspace: Pick<Workspace, 'owner_id'>) {
   return row?.configuration === (await digest(email));
 }
 async function subscriptionRow(workspaceId: string) {
+  const link=await database().prepare('SELECT organization_id FROM support_gestion_links WHERE workspace_id=?').bind(workspaceId).first<{organization_id:string}>();
+  const transition=link?await transitionAccess(link.organization_id):null;
+  if(transition?.supportPlan) return {workspace_id:workspaceId,subscription_id:transition.primary,customer_id:transition.sources[0].customer,plan_id:transition.supportPlan,paid_plan_id:transition.supportPlan,status:'active',paid_from:transition.supportFrom,paid_until:transition.until,last_paid_invoice_id:null,cancel_at_period_end:0,livemode:Number(transition.live),updated_at:0};
   const bundle = await completeSupportSubscription(workspaceId);
   if (bundle) return { workspace_id: workspaceId, subscription_id: bundle.subscription_id, customer_id: bundle.customer_id, plan_id: completePlan(bundle.plan_id)!.support, paid_plan_id: completePlan(bundle.paid_plan_id)?.support ?? null, status: bundle.status, paid_from: bundle.paid_from, paid_until: bundle.refunded ? 0 : Math.min(bundle.paid_until, bundle.entitlement_valid_until), last_paid_invoice_id: bundle.last_paid_invoice_id, cancel_at_period_end: bundle.cancel_at_period_end, livemode: bundle.livemode, updated_at: 0, bundlePlan: completePlan(bundle.paid_plan_id ?? bundle.plan_id)?.name };
   return database()
@@ -159,6 +164,11 @@ export async function billingState(
           .bind(workspace.id, row.paid_from)
           .first<{ used: number }>()
       : null;
+  const trial = !ownerAccess && !paid && !offered ? await supportCompleteTrial(workspace.id) : null;
+  if(trial) {
+    const used=await database().prepare("SELECT COUNT(*) AS used FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND state='charged'").bind(workspace.id,trial.started_at).first<{used:number}>();
+    return {active:!!trial.active,bundlePlan:'Essai Complet',ownerAccess:false,ready:!!config,testMode:config?.livemode===false,plan:'team',status:trial.active?'trialing':'trial_expired',used:used?.used??0,limit:trial.analyses,periodEnd:trial.ends_at,cancelAtPeriodEnd:false,hasSubscription:false};
+  }
   return {
     active: ownerAccess || paid || !!offered,
     bundlePlan: row && 'bundlePlan' in row ? row.bundlePlan : undefined,
@@ -187,7 +197,8 @@ export async function requireSupportSubscription(
       row,
       stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
     ) &&
-    !(await supportGrant(workspace))
+    !(await supportGrant(workspace)) &&
+    !(await supportCompleteTrial(workspace.id))?.active
   )
     throw new SupportError(
       'Activez un abonnement dans Abonnement pour utiliser le tri et le routage. Vos tickets restent dans votre logiciel de support.',
@@ -201,6 +212,17 @@ export async function reserveAnalysis(
 ) {
   if (await isSupportOwner(workspace)) return null;
   await requireSupportSubscription(workspace);
+  const paidRow=await subscriptionRow(workspace.id);
+  const trial=!paidAccess(paidRow,stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'))) && !(await supportGrant(workspace)) ? await supportCompleteTrial(workspace.id) : null;
+  if(trial?.active) {
+    const time=now();
+    const result=await database().prepare(`INSERT INTO support_analysis_usage(id,workspace_id,period_start,ticket_id,state,expires_at,created_at)
+      SELECT ?,?,?,?,'reserved',?,? WHERE EXISTS(SELECT 1 FROM account_trials t JOIN complete_trials c ON c.user_id=t.user_id JOIN organizations o ON o.organization_id=c.organization_id AND o.subscription_id=t.subscription_id WHERE c.organization_id=? AND t.ends_at>? AND t.converted_subscription_id IS NULL)
+      AND (SELECT COUNT(*) FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?)))<?`)
+      .bind(lease,workspace.id,trial.started_at,ticketId,time+180,time,trial.organization_id,time,workspace.id,trial.started_at,time,trial.analyses).run();
+    if(!result.meta.changes)throw new SupportError('Les 250 analyses de votre essai sont utilisées ou votre essai est terminé. Choisissez un pack pour continuer. Aucun montant ne sera prélevé automatiquement.',402);
+    return lease;
+  }
   const row = await subscriptionRow(workspace.id),
     offered = !paidAccess(
       row,
@@ -664,7 +686,7 @@ export async function createSupportCheckout(
       'Acceptez les conditions de Zentra Support avant de continuer.',
     );
   const state = await billingState(workspace);
-  if (await database().prepare('SELECT 1 FROM complete_checkouts WHERE user_id=?').bind(user.userId).first()) throw new SupportError('Un pack Zentra Complet est déjà choisi. Retrouvez ou annulez ce paiement sur la page du pack.', 409);
+  if (await database().prepare("SELECT 1 FROM complete_checkouts WHERE user_id=? UNION ALL SELECT 1 FROM complete_plan_changes WHERE user_id=? AND state IN ('preparing','scheduled')").bind(user.userId,user.userId).first()) throw new SupportError('Un pack Zentra Complet est déjà choisi. Retrouvez ce changement dans Compte → Abonnement.', 409);
   if (state.hasSubscription || (!state.ownerAccess && state.active))
     throw new SupportError(
       'Un abonnement existe déjà. Ouvrez Gérer mon abonnement.',

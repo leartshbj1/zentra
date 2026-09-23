@@ -4,6 +4,7 @@ import { planByLicense } from '@/lib/plans';
 import { completePlan } from '@/lib/complete/plans';
 import { offerForOrganization, grantForAccount } from '@/lib/founder-access';
 import { SOLO_PLAN } from '@/lib/founder-access-policy';
+import { transitionAccess } from '@/lib/complete/bridge';
 
 export type TeamSeats = {
   plan: string;
@@ -49,8 +50,11 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
     row.seat_limit = 1;
     row.entitlement_valid_until = offer.valid_until;
   }
+  if(row && row.entitlement_valid_until<now){const transition=await transitionAccess(organizationId);if(transition)row.entitlement_valid_until=transition.until;}
   const plan = planByLicense(row?.entitlement_plan_id);
   const bundle = completePlan(row?.complete_plan);
+  const pending=await database().prepare("SELECT target_plan FROM complete_plan_changes WHERE organization_id=? AND state IN ('preparing','scheduled')").bind(organizationId).first<{target_plan:string}>();
+  const futureLimit=completePlan(pending?.target_plan)?.seats;
   if (!row || !plan || row.seat_limit !== plan.seats) {
     throw new AccountPublicError(
       'La formule de cette entreprise doit être vérifiée.',
@@ -60,7 +64,7 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
   return {
     plan: plan.id,
     planName:
-      row.subscription_id.startsWith('trial_') ? 'Essai Solo · 14 jours' : offer || row.subscription_id.startsWith('manual_')
+      row.subscription_id.startsWith('trial_') ? (plan.id==='start'?'Essai Complet · 14 jours':'Essai Solo · 14 jours') : offer || row.subscription_id.startsWith('manual_')
         ? 'Accès offert'
         : bundle ? `Complet ${bundle.name}` : plan.name,
     priceChfCents:
@@ -78,7 +82,7 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
     available:
       row.seat_limit === null
         ? null
-        : Math.max(0, row.seat_limit - row.used - row.reserved),
+        : Math.max(0, Math.min(row.seat_limit,futureLimit??row.seat_limit) - row.used - row.reserved),
     subscriptionActive: row.entitlement_valid_until >= now,
   };
 }

@@ -11,6 +11,7 @@
 
 # testing
 /coverage
+/.impeccable/review/
 __pycache__/
 /.qa/
 /desktop/.qa/

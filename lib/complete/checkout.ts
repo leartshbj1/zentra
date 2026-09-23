@@ -32,7 +32,7 @@ export async function assertCompleteEligible(userId: string) {
     .first();
   if (existing)
     throw new PublicError(
-      'Vous avez déjà un abonnement Zentra. Contactez info@zentraapp.ch pour passer au pack en conservant votre espace, sans double facturation.',
+      'Vous avez déjà un abonnement Zentra. Dans Compte → Abonnement, choisissez « Changer de formule » pour conserver votre entreprise.',
       409,
     );
   const link = await db
@@ -74,6 +74,7 @@ export async function assertCompleteEligible(userId: string) {
   }
 }
 export async function assertNoCompleteCheckout(userId: string) {
+  if(await database().prepare("SELECT 1 FROM complete_plan_changes WHERE user_id=? AND state IN ('preparing','scheduled')").bind(userId).first())throw new PublicError('Un changement vers Zentra Complet est déjà prévu. Retrouvez-le dans Compte → Abonnement.',409);
   const paid = await database()
     .prepare(
       `SELECT 1 FROM complete_subscriptions c JOIN subscriptions s ON s.subscription_id=c.subscription_id JOIN organizations o ON o.subscription_id=s.subscription_id WHERE o.created_by_user_id=? AND (s.entitlement_valid_until>? OR s.status NOT IN ('canceled','incomplete_expired')) LIMIT 1`,

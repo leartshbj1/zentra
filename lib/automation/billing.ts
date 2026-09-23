@@ -262,7 +262,7 @@ export async function createAutomationCheckout(
   );
   if (!stripeTestAccessAllowed(stripeConfiguration(), user))
     throw new AccountPublicError('Le paiement est encore en test privé.', 403);
-  if (await database().prepare('SELECT 1 FROM complete_checkouts WHERE user_id=?').bind(user.userId).first()) throw new AccountPublicError('Un pack Zentra Complet est déjà choisi. Retrouvez ou annulez ce paiement sur la page du pack.', 409);
+  if (await database().prepare("SELECT 1 FROM complete_checkouts WHERE user_id=? UNION ALL SELECT 1 FROM complete_plan_changes WHERE user_id=? AND state IN ('preparing','scheduled')").bind(user.userId,user.userId).first()) throw new AccountPublicError('Un pack Zentra Complet est déjà choisi. Retrouvez ce changement dans Compte → Abonnement.', 409);
   if (
     body.acceptTerms !== true ||
     body.legalVersion !== AUTOMATION_TERMS_VERSION ||

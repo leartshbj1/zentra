@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { subscriptionCompletePlan, completePortal } from '@/lib/complete/stripe';
 import { UPSERT_COMPLETE_SQL } from '@/lib/complete/access';
+import { finishPlanChange } from '@/lib/complete/change';
 import { automationStripe, fullyRefundedAutomationInvoice } from '@/lib/automation/billing';
 import { linkPaidCheckoutAccount } from './subscription-account';
 import { trustedSiteRequestOrigin } from '@/lib/site-origins';
@@ -731,6 +732,7 @@ export async function upsertSubscription(
     statements.push(db.prepare(`UPDATE subscriptions SET entitlement_valid_until=0 WHERE subscription_id=? AND EXISTS(SELECT 1 FROM complete_refunds r WHERE r.invoice_id=subscriptions.last_paid_invoice_id AND r.customer_id=subscriptions.customer_id AND r.livemode=subscriptions.livemode)`).bind(subscription.id));
   }
   await db.batch(statements);
+  if(paid)await finishPlanChange(subscription.id);
   await linkPaidCheckoutAccount(subscription.id);
 }
 

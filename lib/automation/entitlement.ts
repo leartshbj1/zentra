@@ -4,6 +4,8 @@ import { AccountPublicError } from '@/lib/account-security';
 import { automationGrant } from './founder-access';
 import type { AutomationActor } from './access';
 import { completeAccess } from '@/lib/complete/access';
+import { completeTrial } from '@/lib/complete/trial';
+import { transitionAccess } from '@/lib/complete/bridge';
 import { requireMemberSeat } from '@/lib/team-seats';
 
 export const AUTOMATION_REQUIRED =
@@ -12,6 +14,8 @@ export const AUTOMATION_REQUIRED =
 /** Commercial access for one company. No account-wide or founder bypass. */
 export async function automationEntitlement(actor: AutomationActor) {
   if (await completeAccess(actor.organizationId)) return true;
+  if ((await completeTrial(actor.organizationId))?.active) return true;
+  if((await transitionAccess(actor.organizationId))?.automation)return true;
   const row = await database()
     .prepare(`SELECT a.paid_from,a.paid_until,a.status,a.livemode FROM automation_subscriptions a
     JOIN organizations o ON o.organization_id=a.organization_id

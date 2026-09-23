@@ -4,6 +4,7 @@ import { planByLicense, validLicensePrice } from '@/lib/plans';
 import { requireMemberSeat } from '@/lib/team-seats';
 import { offeredLicenseEntitlement } from '@/lib/founder-access';
 import { trialLicenseEntitlement } from '@/lib/account-trial';
+import { transitionLicense } from '@/lib/complete/bridge';
 import {
   LICENSE_KEY_ID,
   LICENSE_PLAN,
@@ -136,7 +137,7 @@ export async function issueLicense(input: {
       400,
     );
   }
-  const offered = await trialLicenseEntitlement(input.subscriptionId, accountUserId) ?? await offeredLicenseEntitlement(
+  const offered = await transitionLicense(input.subscriptionId,accountUserId) ?? await trialLicenseEntitlement(input.subscriptionId, accountUserId) ?? await offeredLicenseEntitlement(
     input.subscriptionId,
     accountUserId,
   );
@@ -371,7 +372,7 @@ export async function refreshLicense(token: string) {
       403,
     );
   }
-  const offered = await trialLicenseEntitlement(activation.subscription_id, payload.account_user_id) ?? await offeredLicenseEntitlement(
+  const offered = await transitionLicense(activation.subscription_id,payload.account_user_id) ?? await trialLicenseEntitlement(activation.subscription_id, payload.account_user_id) ?? await offeredLicenseEntitlement(
     activation.subscription_id,
     payload.account_user_id,
   );
