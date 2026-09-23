@@ -4,6 +4,7 @@ import { AccountPublicError } from '@/lib/account-security';
 import { automationGrant } from './founder-access';
 import type { AutomationActor } from './access';
 import { completeAccess } from '@/lib/complete/access';
+import { requireMemberSeat } from '@/lib/team-seats';
 
 export const AUTOMATION_REQUIRED =
   'Disponible avec Zentra Automation. Automatisez vos tâches répétitives pour +15 CHF/mois.';
@@ -56,5 +57,6 @@ export async function requireAutomationEntitlement(actor: AutomationActor) {
     );
   if (!(await automationEntitlement(actor)))
     throw new AccountPublicError(AUTOMATION_REQUIRED, 402);
+  await requireMemberSeat(actor.organizationId, actor.userId);
   return { ...actor, role: member.role };
 }

@@ -418,7 +418,7 @@ export async function validatePaidZentraInvoice(
 
 function paidPeriodStart(invoice: Stripe.Invoice | null | undefined, subscription: Stripe.Subscription, paidThrough: number | undefined) {
   const priceId = subscription.items.data[0]?.price.id;
-  return invoice?.lines.data.find(line => line.pricing?.price_details?.price === priceId && line.period.end === paidThrough)?.period.start ?? 0;
+  return invoice?.lines.data.find(line => referenceId(line.pricing?.price_details?.price ?? null) === priceId && line.period.end === paidThrough)?.period.start ?? 0;
 }
 
 export function requestOrigin(request: Request) {

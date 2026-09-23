@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import { beforeAll, beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 import type Stripe from 'stripe';
@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   basePrice: vi.fn(),
   createProduct: vi.fn(),
   createPrice: vi.fn(),
+  signingKey: '',
 }));
 vi.mock('@/lib/runtime', () => ({
   database: () => state.db,
@@ -26,6 +27,7 @@ vi.mock('@/lib/runtime', () => ({
   stripeConfiguration: () => ({
     secretKey: 'sk_live_fixture',
     testMode: '',
+    signingKey: state.signingKey,
     priceIds: { solo: 'price_solo', start: 'price_start', pro: 'price_pro' },
   }),
 }));
@@ -76,6 +78,8 @@ import {
   assertNoCompleteCheckout,
 } from './checkout';
 import { SUPPORT_WORKSPACES_SQL } from '@/lib/support/workspace-access';
+import { teamSeats, requireMemberSeat } from '@/lib/team-seats';
+import { issueLicense } from '@/lib/license-token';
 import {
   persistStripeEvent,
   upsertSubscription,
@@ -99,6 +103,11 @@ let db: DatabaseSync,
   invoices: Map<string, Stripe.Invoice>,
   refunded: Set<string>;
 const now = () => Math.floor(Date.now() / 1000);
+let signingKeys: CryptoKeyPair;
+beforeAll(async () => {
+  signingKeys = await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']) as CryptoKeyPair;
+  state.signingKey = Buffer.from(await crypto.subtle.exportKey('pkcs8',signingKeys.privateKey)).toString('base64url');
+});
 const user = {
   userId: 'owner',
   email: 'owner@example.test',
@@ -125,13 +134,15 @@ function makeInvoice(
   start = now() - 60,
   end = now() + 30 * 86400,
 ) {
+  const actualPrice = sub.items.data[0].price;
+  const amount = actualPrice.unit_amount!;
   return {
     id,
     status: 'paid',
     livemode: true,
     currency: 'chf',
-    total: 9900,
-    amount_paid: 9900,
+    total: amount,
+    amount_paid: amount,
     customer: 'cus_bundle',
     automatic_tax: { enabled: true, status: 'complete' },
     billing_reason: 'subscription_cycle',
@@ -146,7 +157,7 @@ function makeInvoice(
         {
           currency: 'chf',
           quantity: 1,
-          subtotal: 9900,
+          subtotal: amount,
           parent: {
             type: 'subscription_item_details',
             subscription_item_details: {
@@ -155,8 +166,8 @@ function makeInvoice(
             },
           },
           pricing: {
-            unit_amount_decimal: '9900',
-            price_details: { price: price.id },
+            unit_amount_decimal: String(amount),
+            price_details: { price: actualPrice.id },
           },
           period: { start, end },
         },
@@ -260,7 +271,7 @@ beforeEach(() => {
       has_more: false,
       data: [
         {
-          amount_paid: 9900,
+          amount_paid: invoices.get(id)!.amount_paid,
           invoice: id,
           payment: { type: 'payment_intent', payment_intent: 'pi_' + id },
         },
@@ -276,8 +287,8 @@ beforeEach(() => {
     livemode: true,
     payment_intent: 'pi_' + id.slice(3),
     refunded: refunded.has(id.slice(3)),
-    amount_captured: 9900,
-    amount_refunded: refunded.has(id.slice(3)) ? 9900 : 0,
+    amount_captured: invoices.get(id.slice(3))!.amount_paid,
+    amount_refunded: refunded.has(id.slice(3)) ? invoices.get(id.slice(3))!.amount_paid : 0,
   }));
   state.prices.mockResolvedValue({ data: [price] });
   state.product.mockResolvedValue({
@@ -328,6 +339,53 @@ async function bindCheckout() {
   } as Stripe.Checkout.Session);
 }
 describe('Zentra Complet: one verified payment, three company-scoped products', () => {
+  it.each(COMPLETE_PLANS)('activates $name with its precise company seats, Support quota and signed app licenses', async ({id}) => {
+    const p = completePlan(id)!;
+    sub.metadata = {...sub.metadata,bundle_plan:p.id,plan:p.licensePlan};
+    sub.items.data[0].price = {...price,product:p.productId,lookup_key:p.lookupKey,unit_amount:p.priceChfCents,metadata:{service:'zentra-complet',bundle_plan:p.id}};
+    invoices.set('in_current',makeInvoice());
+    await bindCheckout(); await pay();
+    expect(await teamSeats(org()!)).toMatchObject({planName:`Complet ${p.name}`,priceChfCents:p.priceChfCents,limit:p.seats,used:1});
+    expect(await billingState(workspace())).toMatchObject({active:true,plan:p.support,limit:p.analyses,bundlePlan:p.name});
+    expect(await automationBillingState(org()!)).toMatchObject({hasSubscription:true,bundlePlan:p.name});
+    expect(await automationEntitlement({organizationId:org()!,userId:user.userId,role:'owner',founder:false})).toBe(true);
+    for(let i=1;i<p.seats;i++) db.prepare('INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES(?,?,?,?,?,?)').run(`mem_${i}`,org()!,`member_${i}`,`member${i}@example.test`,'member',i+1);
+    expect(()=>db.prepare('INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES(?,?,?,?,?,?)').run('over',org()!,'over','over@example.test','member',99)).toThrow('zentra seat limit reached');
+    await requireMemberSeat(org()!,user.userId);
+    for(const platform of ['Windows','macOS','iOS','Android']) {
+      const installed=crypto.randomUUID(),session='dss_'+crypto.randomUUID();
+      const license=await issueLicense({subscriptionId:sub.id,installationId:installed,customerName:'Test '+platform,periodEnd:invoices.get('in_current')!.lines.data[0].period.end,channel:'account',accessRole:'owner',accountUserId:user.userId,accountSessionId:session});
+      expect(license.payload).toMatchObject({plan:p.licensePlan,installation_id:installed,account_user_id:user.userId,account_session_id:session});
+      const rust=readFileSync(new URL('../../desktop/src-tauri/src/license.rs',import.meta.url),'utf8');
+      expect(rust).toContain(`("${p.licensePlan}", ${license.payload.price_chf_cents.toLocaleString('en-US').replaceAll(',','_')})`);
+      const [encoded,sig]=license.token.split('.');
+      expect(await crypto.subtle.verify('Ed25519',signingKeys.publicKey,Buffer.from(sig,'base64url'),new TextEncoder().encode(encoded))).toBe(true);
+    }
+    expect((await teamSeats(org()!)).used).toBe(p.seats);
+  });
+  it('keeps paid Support and company members accessible when automatic transfer is paused', async () => {
+    await bindCheckout(); await pay();
+    db.prepare('INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES(?,?,?,?,?,1)').run('mem_pause',org()!,'colleague','colleague@example.test','member');
+    db.exec('UPDATE support_gestion_links SET enabled=0');
+    expect(await billingState(workspace())).toMatchObject({active:true,limit:5000});
+    expect(db.prepare(SUPPORT_WORKSPACES_SQL).all('colleague','colleague@example.test','colleague','colleague')).toMatchObject([{id:workspace().id}]);
+    expect((await completeSupportSubscription(workspace().id))?.organization_id).toBe(org());
+    await provisionCompleteCompany(sub.id,org()!,user.userId);
+    expect(db.prepare('SELECT enabled FROM support_gestion_links').get()?.enabled).toBe(0);
+  });
+  it('denies a collaborator removed by a plan reduction in both Support and Automation', async () => {
+    await bindCheckout(); await pay();
+    db.prepare('INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at) VALUES(?,?,?,?,?,1)').run('mem_drop',org()!,'colleague','colleague@example.test','admin');
+    db.exec("UPDATE subscriptions SET seat_limit=1,entitlement_plan_id='zentra-solo-monthly-49-chf'");
+    expect(db.prepare(SUPPORT_WORKSPACES_SQL).all('colleague','colleague@example.test','colleague','colleague')).toEqual([]);
+    await expect(requireAutomationEntitlement({organizationId:org()!,userId:'colleague',role:'admin',founder:false})).rejects.toMatchObject({status:403});
+  });
+  it('accepts the verified invoice period when Stripe expands its line price', async () => {
+    const invoice=invoices.get('in_current')!;
+    invoice.lines.data[0].pricing!.price_details!.price=price;
+    await bindCheckout(); await pay();
+    expect((await completeAccess(org()!))?.paid_from).toBe(invoice.lines.data[0].period.start);
+  });
   it('publishes the exact approved prices, seats, quotas and savings', () => {
     expect(
       COMPLETE_PLANS.map((p) => {

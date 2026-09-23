@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   cookie: vi.fn(),
   ready: vi.fn(),
+  completeGuard: vi.fn(),
   failBatch: false,
 }));
 vi.mock('next/headers', () => ({
@@ -21,6 +22,9 @@ vi.mock('@/lib/runtime', () => ({
 }));
 vi.mock('@/lib/stripe-readiness', () => ({
   assertStripeCheckoutReady: mocks.ready,
+}));
+vi.mock('@/lib/complete/checkout', () => ({
+  assertNoCompleteCheckout: mocks.completeGuard,
 }));
 vi.mock('@/lib/stripe-test-access', () => ({
   stripeTestAccessAllowed: () => true,
@@ -144,6 +148,7 @@ describe('authenticated checkout acceptance persistence', () => {
       }),
     );
     expect(response.status).toBe(200);
+    expect(mocks.completeGuard).toHaveBeenCalledWith('verified-user');
     const row = db.prepare('SELECT * FROM legal_acceptances').get();
     expect(row).toMatchObject({
       user_id: 'verified-user',

@@ -1,6 +1,7 @@
 import { database } from '@/lib/runtime';
 import { AccountPublicError } from '@/lib/account-security';
 import { planByLicense } from '@/lib/plans';
+import { completePlan } from '@/lib/complete/plans';
 import { offerForOrganization, grantForAccount } from '@/lib/founder-access';
 import { SOLO_PLAN } from '@/lib/founder-access-policy';
 
@@ -22,15 +23,17 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
   const now = Math.floor(Date.now() / 1000);
   const row = await database()
     .prepare(`
-    SELECT s.entitlement_plan_id,s.seat_limit,s.entitlement_valid_until,s.subscription_id,
+    SELECT s.entitlement_plan_id,s.seat_limit,s.entitlement_valid_until,s.subscription_id,c.paid_plan_id AS complete_plan,
       (SELECT COUNT(*) FROM organization_members m WHERE m.organization_id=o.organization_id AND m.revoked_at IS NULL) AS used,
       (SELECT COUNT(*) FROM organization_invitations i WHERE i.organization_id=o.organization_id AND i.revoked_at IS NULL AND i.accepted_at IS NULL AND i.expires_at>=?) AS reserved
     FROM organizations o JOIN subscriptions s ON s.subscription_id=o.subscription_id
+    LEFT JOIN complete_subscriptions c ON c.subscription_id=s.subscription_id
     WHERE o.organization_id=? LIMIT 1
   `)
     .bind(now, organizationId)
     .first<{
       entitlement_plan_id: string;
+      complete_plan: string | null;
       subscription_id: string;
       seat_limit: number | null;
       entitlement_valid_until: number;
@@ -47,6 +50,7 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
     row.entitlement_valid_until = offer.valid_until;
   }
   const plan = planByLicense(row?.entitlement_plan_id);
+  const bundle = completePlan(row?.complete_plan);
   if (!row || !plan || row.seat_limit !== plan.seats) {
     throw new AccountPublicError(
       'La formule de cette entreprise doit être vérifiée.',
@@ -58,11 +62,11 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
     planName:
       row.subscription_id.startsWith('trial_') ? 'Essai Solo · 14 jours' : offer || row.subscription_id.startsWith('manual_')
         ? 'Accès offert'
-        : plan.name,
+        : bundle ? `Complet ${bundle.name}` : plan.name,
     priceChfCents:
       offer || /^(manual_|trial_)/.test(row.subscription_id)
         ? 0
-        : plan.priceChfCents,
+        : bundle?.priceChfCents ?? plan.priceChfCents,
     ...(row.subscription_id.startsWith('manual_')
       ? { manualAccess: true }
       : {}),

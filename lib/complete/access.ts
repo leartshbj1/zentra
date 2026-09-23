@@ -57,7 +57,7 @@ export async function completeAccess(organizationId: string) {
 export async function completeSupportSubscription(workspaceId: string) {
   const link = await database()
     .prepare(
-      'SELECT organization_id FROM support_gestion_links WHERE workspace_id=? AND enabled=1',
+      'SELECT organization_id FROM support_gestion_links WHERE workspace_id=?',
     )
     .bind(workspaceId)
     .first<{ organization_id: string }>();
