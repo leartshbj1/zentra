@@ -42,7 +42,7 @@ export async function subscriptionJourney(actor:AutomationActor){
   const trialActive=!!trial?.active;
   const products=[
     {id:'gestion',name:'Gestion',active:seats.subscriptionActive,detail:`${seats.used} / ${seats.limit??'∞'} personnes`,until:seats.trialUntil??seats.offeredUntil??sub?.current_period_end??null},
-    {id:'support',name:'Support',active:!!support?.active,detail:support?.active?`${support.used.toLocaleString('fr-CH')} / ${support.limit.toLocaleString('fr-CH')} analyses`:'À activer',until:support?.periodEnd??null},
+    {id:'support',name:'Support',active:!!support?.active,detail:support?.ownerAccess?'Accès administrateur':support?.active?`${support.used.toLocaleString('fr-CH')} / ${support.limit.toLocaleString('fr-CH')} analyses`:'À activer',until:support?.periodEnd??null},
     {id:'automation',name:'Automation',active:automation,detail:automation?(settings.enabled?'Automatismes configurés':'Prête à configurer'):'À activer',until:trialActive?trial.ends_at:pack?bundle?.paid_until??null:addon?.paid_until??null},
   ];
   const monthly=trialActive?0:pack?pack.priceChfCents:(seats.priceChfCents+(support?.hasSubscription?(supportPlan(support.plan)?.priceChfCents??0):0)+(addon&&automation?1500:0));

@@ -73,10 +73,23 @@ export default function Page() {
                 l’envoi de données à un service tiers.
               </p>
               <p>
-                Le parcours d’achat est destiné aux comptes sans abonnement
-                payant existant. Si vous êtes déjà abonné, contactez
-                info@zentraapp.ch pour préparer le passage au pack. Aucun
-                abonnement existant n’est annulé ou remplacé automatiquement.
+                Si vous êtes déjà abonné, la rubrique Abonnement propose le
+                passage au pack ou le changement de pack pour la même entreprise.
+                Le récapitulatif indique le prix, les limites et la date avant
+                votre confirmation. Le changement commence après la dernière
+                période déjà payée des produits réunis ; aucun nouveau paiement
+                n’est demandé immédiatement. Le renouvellement des abonnements
+                séparés concernés est arrêté pour éviter une double facturation.
+                Les connexions, documents et collaborateurs sont conservés, dans
+                la limite des personnes permises par la formule choisie.
+              </p>
+              <p>
+                L’essai Zentra Complet dure 14 jours et inclut les trois produits
+                pour une entreprise, 3 personnes titulaire compris et 250 analyses
+                Support partagées sur toute la durée de l’essai. Aucune carte
+                bancaire n’est demandée et aucun paiement ne démarre automatiquement.
+                Un essai Gestion encore actif peut être complété sans repousser
+                sa date de fin. Un nouvel essai n’est pas ouvert après expiration.
               </p>
             </>
           ),
