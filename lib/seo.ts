@@ -8,7 +8,7 @@ export const homeQuestions = [
   },
   {
     question: 'Quelle différence entre Gestion, Support et Automation ?',
-    answer: 'Zentra Gestion organise les opérations de votre entreprise. Zentra Support classe et oriente les tickets de service client dans les outils connectés. Ces deux produits ont des abonnements distincts. Zentra Automation est une option de Gestion qui propose des classements et des suggestions à vérifier avant validation.',
+    answer: 'Gestion rassemble les opérations de votre entreprise. Support organise ses messages et tickets. Automation est une option de Gestion qui prépare des classements et applique les traitements autorisés. En reliant Support à la même entreprise, vous pouvez aussi traiter les factures reçues et les confirmations de rendez-vous. Gestion et Support ont des abonnements distincts ; Automation coûte 15 CHF par mois par entreprise.',
     href: '/automation', label: 'Comprendre l’option Automation',
   },
   {
@@ -52,8 +52,8 @@ export function faqData() {
 
 const products = {
   gestion: { name: 'Zentra Gestion', path: '/gestion', operatingSystem: 'Windows, macOS', description: 'Logiciel de gestion pour PME suisses : devis, QR-factures, achats, comptabilité, salaires, projets et import bancaire CAMT.' },
-  support: { name: 'Zentra Support', path: '/support', operatingSystem: 'Web', description: 'Classement, priorisation et orientation des tickets de service client dans les outils connectés. Abonnement indépendant de Zentra Gestion.' },
-  automation: { name: 'Zentra Automation', path: '/automation', operatingSystem: 'Windows, macOS', description: 'Option de Zentra Gestion pour suggérer le classement des opérations bancaires et aider au traitement des documents, avec validation humaine.' },
+  support: { name: 'Zentra Support', path: '/support', operatingSystem: 'Web', description: 'Espace de réception et de traitement des demandes clients. Classement et routage automatique avec Automation pour une entreprise Gestion reliée.' },
+  automation: { name: 'Zentra Automation', path: '/automation', operatingSystem: 'Windows, macOS, iOS, Android, Web', description: 'Option de Gestion pour préparer les factures fournisseurs, les rendez-vous, les classements et les tâches selon vos règles. Avec Support relié, les messages alimentent les parcours de Gestion ; les cas incertains restent à vérifier.' },
 };
 
 export function productData(product: keyof typeof products) {

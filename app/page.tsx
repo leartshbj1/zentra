@@ -4,7 +4,7 @@ import { ProductsHome } from '@/components/products-home';
 export const metadata: Metadata = {
   title: { absolute: 'Zentra — Logiciels de gestion et support pour PME suisses' },
   description:
-    'Découvrez Zentra Gestion pour votre PME, Zentra Support pour vos tickets clients et l’option Automation pour alléger les tâches de classement.',
+    'Découvrez comment Zentra Gestion, Support et Automation relient les messages, factures, rendez-vous et tâches de votre PME. Parcours interactifs, fonctions et tarifs.',
   alternates: { canonical: '/' },
   openGraph: {
     title: 'Zentra — Logiciels de gestion et support pour PME suisses',

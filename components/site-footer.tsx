@@ -26,7 +26,10 @@ const groups = [
     title: 'Zentra Automation',
     links: [
       ['/automation', 'Découvrir l’option'],
+      ['/automation#parcours', 'Voir Automation en action'],
+      ['/automation#fonctions', 'Toutes les fonctions'],
       ['/automation#utilisation', 'Comment l’activer'],
+      ['/automation#tarif', 'Tarif Automation'],
       ['/compte/automation', 'Mes réglages'],
       ['/parrainage/conditions', 'Parrainage'],
     ],

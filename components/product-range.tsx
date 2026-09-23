@@ -1,163 +1,105 @@
-import {
-  ArrowRight,
-  FileText,
-  MessagesSquare,
-  Workflow,
-  Check,
-} from 'lucide-react';
-import '@/app/produits/products.css';
+import { ArrowRight } from 'lucide-react';
+import './zentra-presentation.css';
 
-const range = [
+const products = [
   {
     name: 'Gestion',
-    kind: 'LE LOGICIEL POUR VOTRE PME',
-    icon: FileText,
-    className: 'management',
-    title: 'Tout votre quotidien.\nAu même endroit.',
-    description:
-      'Devis, factures, comptabilité, projets et salaires pour les PME suisses.',
+    description: 'Votre activité, du premier devis au bilan.',
     price: 'Dès 49 CHF',
-    period: '/ mois',
-    detail: 'Application pour ordinateur et mobile',
-    features: [
-      'Devis et QR-factures reliés',
-      'Projets, comptabilité et salaires',
-      'Travail local et collaboration',
-    ],
-    example: [
-      ['Devis', 'Accepté'],
-      ['Facture', 'Émise'],
-      ['Paiement', 'Encaissé'],
-    ],
+    note: '1, 3 ou 10 personnes, selon la formule.',
     href: '/gestion',
-    secondary: '/pricing',
-    secondaryLabel: 'Comparer les formules',
-    cta: 'Découvrir Gestion',
+    demo: '/demo-facture',
+    tariff: '/pricing',
+    features: [
+      ['Devis & factures', '/features#ventes'],
+      ['Projets & documents', '/features#projets'],
+      ['Achats & comptabilité', '/features#achats'],
+      ['Équipe & salaires', '/features#salaires'],
+    ],
   },
   {
     name: 'Support',
-    kind: 'LE SERVICE POUR VOTRE ÉQUIPE',
-    icon: MessagesSquare,
-    className: 'support',
-    title: 'Le bon ticket.\nLa bonne équipe.',
-    description:
-      'Classez et orientez les demandes de vos clients depuis votre logiciel de support.',
+    description: 'Vos demandes clients, dans un espace dédié.',
     price: 'Dès 29 CHF',
-    period: '/ mois',
-    detail: 'Service en ligne · abonnement indépendant',
-    features: [
-      'Catégorie et priorité proposées',
-      'Routage selon vos règles',
-      'Cas incertains confiés à votre équipe',
-    ],
-    example: [
-      ['Demande reçue', 'Double prélèvement'],
-      ['Catégorie', 'Facturation'],
-      ['Destination', 'Équipe facturation'],
-    ],
+    note: 'Abonnement distinct de Gestion.',
     href: '/support',
-    secondary: '/support/tarifs',
-    secondaryLabel: 'Comparer les formules',
-    cta: 'Découvrir Support',
+    demo: '/support/demo',
+    tariff: '/support/tarifs',
+    features: [
+      ['Boîte de réception & tickets', '/support/fonctionnalites'],
+      ['Connexions disponibles', '/support/connexions'],
+      ['Équipes & affectations', '/support/fonctionnalites'],
+      ['Tri et routage avec Automation', '/automation#fonctions'],
+    ],
   },
   {
     name: 'Automation',
-    kind: 'L’OPTION DE ZENTRA GESTION',
-    icon: Workflow,
-    className: 'automation',
-    title: 'Moins de tri.\nPlus de temps.',
-    description:
-      'Des suggestions pour classer vos opérations, traiter vos documents et préparer vos achats.',
+    description: 'Les tâches se suivent. Vous gardez le contrôle.',
     price: '15 CHF',
-    period: '/ mois',
-    detail: 'Par entreprise · abonnement Gestion requis',
-    features: [
-      'Classement des opérations bancaires',
-      'Orientation de vos documents',
-      'Vous validez les actions importantes',
-    ],
-    example: [
-      ['Opération', 'Achat de fournitures'],
-      ['Suggestion', 'Matériel'],
-      ['Votre choix', 'À confirmer'],
-    ],
+    note: 'Option par entreprise, avec Gestion.',
     href: '/automation',
-    secondary: '/automation#utilisation',
-    secondaryLabel: 'Comment l’activer',
-    cta: 'Découvrir Automation',
+    demo: '/automation#parcours',
+    tariff: '/automation#tarif',
+    features: [
+      ['Factures & fournisseurs', '/automation#fonctions'],
+      ['Rendez-vous & agenda', '/automation#fonctions'],
+      ['Tâches & réponses préparées', '/automation#fonctions'],
+      ['Activité & décisions à vérifier', '/automation#quotidien'],
+    ],
   },
 ] as const;
-
 export function ProductRange({ compact = false }: { compact?: boolean }) {
   return (
-    <section
-      className={
-        'products-showcase' + (compact ? ' products-showcase-compact' : '')
-      }
-      aria-label="Découvrez les produits Zentra"
-    >
+    <div className={`zentra-range${compact ? ' zentra-range--compact' : ''}`}>
       {compact && (
-        <div className="products-section-heading">
-          <p>LA GAMME ZENTRA</p>
-          <h2>À chaque besoin, sa solution.</h2>
-          <a href="/produits">
-            Voir toute la gamme <ArrowRight size={16} aria-hidden="true" />
+        <div className="zentra-section-heading">
+          <h2>Les produits Zentra.</h2>
+          <a className="zentra-text-link" href="/#produits">
+            Voir la gamme
+            <ArrowRight size={16} aria-hidden="true" />
           </a>
         </div>
       )}
-      <div className="products-grid">
-        {range.map((product) => (
+      <div className="zentra-range-grid">
+        {products.map((p) => (
           <article
-            className={'product-card product-' + product.className}
-            key={product.name}
+            className={`zentra-product zentra-product--${p.name.toLowerCase()}`}
+            key={p.name}
           >
-            <div className="product-label">
-              <product.icon size={22} aria-hidden="true" />
-              <span>{product.kind}</span>
-            </div>
-            <p className="product-name">Zentra {product.name}</p>
-            <h2>
-              {product.title.split('\n').map((line, index) => (
-                <span key={line}>
-                  {index > 0 && <br />}
-                  {line}
-                </span>
-              ))}
-            </h2>
-            <p className="product-description">{product.description}</p>
-            <p className="product-price">
-              <strong>{product.price}</strong>
-              <span>{product.period}</span>
+            <h3>
+              <span>Zentra</span> {p.name}
+            </h3>
+            <p className="zentra-product-description">{p.description}</p>
+            <p className="zentra-product-price">
+              {p.price}
+              <small>/ mois</small>
             </p>
-            <p className="product-detail">{product.detail}</p>
-            <div className="product-card-actions">
-              <a className="product-discover" href={product.href}>
-                {product.cta} <ArrowRight size={16} aria-hidden="true" />
-              </a>
-              <a className="product-secondary" href={product.secondary}>
-                {product.secondaryLabel}
-              </a>
-            </div>
-            <div className="product-visual">
-              <span className="product-example-label">EXEMPLE DE PARCOURS</span>
-              {product.example.map(([label, value]) => (
-                <div key={label}>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
-                </div>
-              ))}
-            </div>
+            <p className="zentra-product-note">{p.note}</p>
+            <a className="zentra-product-discover" href={p.href}>
+              Découvrir {p.name}
+              <ArrowRight size={17} aria-hidden="true" />
+            </a>
             <ul>
-              {product.features.map((feature) => (
-                <li key={feature}>
-                  <Check size={16} aria-hidden="true" />
-                  {feature}
+              {p.features.map(([label, href]) => (
+                <li key={label}>
+                  <a href={href}>
+                    {label}
+                    <ArrowRight size={14} aria-hidden="true" />
+                  </a>
                 </li>
               ))}
             </ul>
+            <div className="zentra-product-links">
+              <a href={p.demo}>
+                {p.name === 'Automation'
+                  ? 'Voir le parcours'
+                  : 'Essayer la démo'}
+              </a>
+              <a href={p.tariff}>Voir les tarifs</a>
+            </div>
           </article>
         ))}
       </div>
-    </section>
+    </div>
   );
 }

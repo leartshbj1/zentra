@@ -3,6 +3,7 @@ import { StructuredData } from '@/components/structured-data';
 import { productData, breadcrumbData } from '@/lib/seo';
 import { ArrowRight, Route, ScanText, UsersRound } from 'lucide-react';
 import { RoutingExample } from '@/components/support/presentation';
+import { AutomationBridge } from '@/components/product-story';
 import {
   SupportCallToAction,
   SupportMarketingShell,
@@ -71,7 +72,7 @@ export default async function SupportPresentation({
             </a>
           </div>
           <p className="sp-hero-note">
-            Support dès 29 CHF/mois. Automation en option : +15 CHF/mois par entreprise.
+            Support dès 29 CHF/mois. Tri automatique avec Automation (+15 CHF/mois) et une entreprise Gestion active.
           </p>
         </div>
         <RoutingExample />
@@ -190,6 +191,7 @@ export default async function SupportPresentation({
           </div>
         </div>
       </section>
+      <AutomationBridge from="support" />
       <SupportCallToAction />
     </SupportMarketingShell>
   );

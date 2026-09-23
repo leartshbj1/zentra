@@ -44,9 +44,11 @@ const productMenus = {
     action: ['Configurer', '/compte/automation'],
     links: [
       ['Présentation', '/automation'],
-      ['Utilisation', '/automation#utilisation'],
+      ['En action', '/automation#parcours'],
+      ['Fonctions', '/automation#fonctions'],
+      ['Au quotidien', '/automation#quotidien'],
+      ['Activer', '/automation#utilisation'],
       ['Tarif', '/automation#tarif'],
-      ['Mes réglages', '/compte/automation'],
     ],
   },
 } as const;

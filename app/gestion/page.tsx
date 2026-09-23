@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { HeroDashboard } from '@/components/hero-dashboard';
+import { AutomationBridge } from '@/components/product-story';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { buttonVariants } from '@/components/ui/button';
@@ -345,6 +346,7 @@ export default function Home() {
           </div>
         </section>
 
+        <AutomationBridge from="gestion" />
         <section
           id="automatisation"
           className="relative overflow-hidden bg-[#153b2a] px-5 py-16 text-white sm:py-24 lg:px-8"
