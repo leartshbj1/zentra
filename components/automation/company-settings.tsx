@@ -46,6 +46,7 @@ type State = {
   canManage: boolean;
 };
 type Billing = {
+  bundlePlan?: string;
   offeredAccess?: boolean;
   offeredUntil?: number | null;
   ready: boolean;
@@ -275,7 +276,7 @@ export function AutomationCompanySettings({
           ? 'Votre option est active'
           : 'Disponible avec Zentra Automation'}
       </h2>
-      {state && !state.active && <p>Automatisez vos tâches répétitives pour +15 CHF/mois.</p>}
+      {billing?.bundlePlan ? <p>Automation fait partie de votre pack Zentra Complet {billing.bundlePlan}. Les trois produits suivent le même abonnement.</p> : state && !state.active && <p>Automatisez vos tâches répétitives pour +15 CHF/mois.</p>}
       {billing?.refunded && <p role="status">La dernière période a été remboursée. Automation est arrêté ; vos réglages et vos données sont conservés.</p>}
       {billing?.offeredAccess &&
       billing.offeredUntil &&
@@ -285,7 +286,7 @@ export function AutomationCompanySettings({
           {new Date(billing.offeredUntil * 1000).toLocaleDateString('fr-CH')}.
           Aucun paiement demandé.
         </output>
-      ) : state && !state.active ? (
+      ) : state && !state.active && !billing?.bundlePlan ? (
         <div className="automation-price">
           15 CHF <small>/ mois par entreprise</small>
         </div>

@@ -18,7 +18,7 @@ Gestion réunit les opérations de l’entreprise. Support dispose d’un espace
 
 Le parcours e-mail nécessite Support relié à la même entreprise Gestion et une connexion compatible. Les factures peuvent rejoindre les achats et les rendez-vous l’agenda. Les cas incertains restent à vérifier. Les réponses suivent des modèles personnalisables, les résumés reprennent les données reçues. Aucun envoi automatique de réponse ni paiement bancaire. Le planificateur toutes-applications-fermées n’est pas activé à la date de cette présentation.
 
-Gestion dès 49 CHF/mois ; Support dès 29 CHF/mois ; Automation 15 CHF/mois par entreprise. Ne pas modifier les prix ni masquer leurs dépendances dans une intervention de présentation. Ne pas inventer de gain chiffré, de client ou de témoignage.
+Gestion dès 49 CHF/mois ; Support dès 29 CHF/mois ; Automation 15 CHF/mois par entreprise. Le pack Zentra Complet, autorisé le 23 septembre 2026, réunit les trois : Solo 79 CHF (1 personne, 2 000 analyses Support), Équipe 99 CHF (3 personnes, 5 000 analyses), Pro 169 CHF (10 personnes, 15 000 analyses). Titulaire compris. Abonnement mensuel commun, mêmes fonctions, sans dépassement facturé. Les abonnements séparés restent disponibles. Les clients déjà abonnés demandent le passage au pack sans migration automatique. Ne pas modifier les prix ni masquer leurs dépendances sans instruction. Ne pas inventer de gain chiffré, de client ou de témoignage.
 
 ## Brand Commitments
 

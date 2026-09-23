@@ -9,6 +9,7 @@ import { LEGAL_VERSION, hasCurrentLegalAcceptance } from '@/lib/legal';
 import { prepareReferral,rememberReferralCheckout,referralCheckoutIdentity } from '@/lib/referrals';
 import { retrieveCheckoutSession } from '@/lib/stripe';
 import { AccountPublicError } from '@/lib/account-security';
+import { assertNoCompleteCheckout } from '@/lib/complete/checkout';
 import {
   activationCookieName,
   createCheckoutSession,
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
       throw new PublicError('Lisez et acceptez les conditions d’abonnement Zentra. Si la page est ancienne, rechargez-la.');
     }
     await assertStripeCheckoutReady(plan.id);
+    await assertNoCompleteCheckout(identity.userId);
     await enforceCheckoutRateLimit(request);
     const referral=await prepareReferral(body.referralCode,identity);
     if(referral?.existingSessionId){const existing=await retrieveCheckoutSession(referral.existingSessionId);if(existing.url)return Response.json({url:existing.url},{headers:noStoreHeaders()});}

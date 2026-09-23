@@ -1,5 +1,6 @@
 import { database } from './runtime';
 import { AccountPublicError } from './account-security';
+import { provisionCompleteCompany } from '@/lib/complete/access';
 
 type Owner = { userId: string; email: string; displayName: string };
 type Company = { organization_id: string; name: string; created_by_user_id: string };
@@ -17,7 +18,7 @@ export async function linkPaidCompany(subscriptionId: string, owner: Owner) {
     .bind(subscriptionId).first<Company>();
   const existing=await find();
   if(existing && existing.created_by_user_id!==owner.userId)throw new AccountPublicError('Cet abonnement appartient déjà à un autre compte Zentra.',409);
-  if(existing)return {id:existing.organization_id,name:existing.name};
+  if(existing){await provisionCompleteCompany(subscriptionId,existing.organization_id,owner.userId);return {id:existing.organization_id,name:existing.name};}
   // A verified purchase upgrades the existing trial workspace, preserving its documents.
   const trial=await db.prepare(`SELECT t.organization_id,t.subscription_id FROM account_trials t
     JOIN organizations o ON o.organization_id=t.organization_id AND o.subscription_id=t.subscription_id
@@ -34,6 +35,7 @@ export async function linkPaidCompany(subscriptionId: string, owner: Owner) {
     ]);
     const upgraded=await find();
     if(!upgraded||upgraded.created_by_user_id!==owner.userId)throw new AccountPublicError('Une autre activation est en cours. Rechargez votre compte.',409);
+    await provisionCompleteCompany(subscriptionId,upgraded.organization_id,owner.userId);
     return {id:upgraded.organization_id,name:upgraded.name};
   }
   const name=(paid.customer_name || owner.displayName || 'Mon entreprise').trim().slice(0,160);
@@ -50,6 +52,7 @@ export async function linkPaidCompany(subscriptionId: string, owner: Owner) {
   ]);
   const company=await find();
   if(!company || company.created_by_user_id!==owner.userId)throw new AccountPublicError('Cet abonnement appartient déjà à un autre compte Zentra.',409);
+  await provisionCompleteCompany(subscriptionId,company.organization_id,owner.userId);
   return {id:company.organization_id,name:company.name};
 }
 

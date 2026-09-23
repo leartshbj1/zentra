@@ -5,6 +5,7 @@ import { SiteHeader } from './site-header';
 import { SiteFooter } from './site-footer';
 import { ProductRange } from './product-range';
 import { ProductStory } from './product-story';
+import { CompleteBanner } from './complete-banner';
 import './zentra-presentation.css';
 
 export function ProductsHome() {
@@ -62,6 +63,7 @@ export function ProductsHome() {
           </div>
           <ProductRange />
         </section>
+        <CompleteBanner />
         <section
           className="zentra-automation-feature"
           aria-labelledby="automation-feature-title"

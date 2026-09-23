@@ -10,8 +10,10 @@ const products = [
   { name: 'Gestion', href: '/gestion', key: 'gestion' },
   { name: 'Support', href: '/support', key: 'support' },
   { name: 'Automation', href: '/automation', key: 'automation' },
+  { name: 'Complet', href: '/complet', key: 'complet' },
 ] as const;
 const productMenus = {
+  complet: { name: 'Zentra Complet', href: '/complet', action: ['Choisir mon pack', '/complet#formules'], links: [['Les packs', '/complet#formules'], ['Tout ce qui est inclus', '/complet#inclus'], ['Questions', '/complet#questions']] },
   gestion: {
     name: 'Zentra Gestion',
     href: '/gestion',
@@ -55,7 +57,7 @@ const productMenus = {
 
 export function SiteHeader() {
   const pathname = usePathname() ?? '/';
-  const product = pathname.startsWith('/support')
+  const product = pathname.startsWith('/complet') ? 'complet' : pathname.startsWith('/support')
     ? 'support'
     : pathname.includes('/automation')
       ? 'automation'

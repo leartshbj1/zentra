@@ -1,4 +1,7 @@
 import Stripe from 'stripe';
+import { completeSupportSubscription } from '@/lib/complete/access';
+import { completePlan } from '@/lib/complete/plans';
+import { completePortal } from '@/lib/complete/stripe';
 import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
 import {
   STRIPE_API_VERSION,
@@ -107,6 +110,8 @@ export async function isSupportOwner(workspace: Pick<Workspace, 'owner_id'>) {
   return row?.configuration === (await digest(email));
 }
 async function subscriptionRow(workspaceId: string) {
+  const bundle = await completeSupportSubscription(workspaceId);
+  if (bundle) return { workspace_id: workspaceId, subscription_id: bundle.subscription_id, customer_id: bundle.customer_id, plan_id: completePlan(bundle.plan_id)!.support, paid_plan_id: completePlan(bundle.paid_plan_id)?.support ?? null, status: bundle.status, paid_from: bundle.paid_from, paid_until: bundle.refunded ? 0 : Math.min(bundle.paid_until, bundle.entitlement_valid_until), last_paid_invoice_id: bundle.last_paid_invoice_id, cancel_at_period_end: bundle.cancel_at_period_end, livemode: bundle.livemode, updated_at: 0, bundlePlan: completePlan(bundle.paid_plan_id ?? bundle.plan_id)?.name };
   return database()
     .prepare('SELECT * FROM support_subscriptions WHERE workspace_id=?')
     .bind(workspaceId)
@@ -156,6 +161,7 @@ export async function billingState(
       : null;
   return {
     active: ownerAccess || paid || !!offered,
+    bundlePlan: row && 'bundlePlan' in row ? row.bundlePlan : undefined,
     ownerAccess,
     offeredAccess: !!offered,
     offeredUntil: offered?.expiresAt ?? null,
@@ -658,6 +664,7 @@ export async function createSupportCheckout(
       'Acceptez les conditions de Zentra Support avant de continuer.',
     );
   const state = await billingState(workspace);
+  if (await database().prepare('SELECT 1 FROM complete_checkouts WHERE user_id=?').bind(user.userId).first()) throw new SupportError('Un pack Zentra Complet est déjà choisi. Retrouvez ou annulez ce paiement sur la page du pack.', 409);
   if (state.hasSubscription || (!state.ownerAccess && state.active))
     throw new SupportError(
       'Un abonnement existe déjà. Ouvrez Gérer mon abonnement.',
@@ -840,6 +847,7 @@ export async function refreshSupportPayment(
       'Seul le titulaire peut actualiser le paiement.',
       403,
     );
+  if (await completeSupportSubscription(workspace.id)) return { updated: false };
   const stripe = client(),
     config = await configuration();
   if (!config)
@@ -888,11 +896,12 @@ export async function createSupportPortal(
     throw new SupportError('Le titulaire de l’espace gère l’abonnement.', 403);
   const row = await subscriptionRow(workspace.id),
     config = await configuration();
+  if (row && 'bundlePlan' in row) return completePortal(row.customer_id, `${runtimeValue('PUBLIC_SITE_URL')}/support/espace?section=billing`);
   if (!row || !config || row.livemode !== (config.livemode ? 1 : 0))
     throw new SupportError('Aucun abonnement à gérer pour cet espace.', 404);
   const session = await client().billingPortal.sessions.create({
     customer: row.customer_id,
-    configuration: config.portalId,
+    ...('bundlePlan' in row ? {} : { configuration: config.portalId }),
     return_url: `${runtimeValue('PUBLIC_SITE_URL')}/support/espace?workspace=${workspace.id}&section=billing`,
   });
   return { url: session.url };

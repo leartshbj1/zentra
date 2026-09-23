@@ -2,6 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
 const runtime=vi.hoisted(()=>({database:vi.fn()}));
 vi.mock('./runtime',()=>({database:runtime.database}));
+// Product provisioning has its own full-schema integration tests in complete/complete.test.ts.
+vi.mock('@/lib/complete/access',()=>({provisionCompleteCompany:vi.fn()}));
 import { linkPaidCheckoutAccount,linkPaidCompany } from './subscription-account';
 let db:DatabaseSync;
 const owner={userId:'verified-owner-id',email:'client@example.ch',displayName:'Client Zentra'};

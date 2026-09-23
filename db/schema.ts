@@ -3,6 +3,7 @@ import { supportWorkspaces } from './support-schema';
 export * from './support-schema';
 export * from './automation-schema';
 export * from './supplier-inbox-schema';
+export * from './complete-schema';
 import {
   index,
   integer,

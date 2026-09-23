@@ -1,3 +1,4 @@
+import { SUPPORT_WORKSPACES_SQL } from './workspace-access';
 import { supportAutomationState, requireSupportAutomation, supportAutomationFetch } from '@/lib/automation/execution';
 import { selectSupportWorkspace } from './workspace-selection';
 import { getZentraUser, type ZentraUser } from '@/app/zentra-auth';
@@ -135,9 +136,9 @@ async function workspaces(user: ZentraUser) {
   return (
     await database()
       .prepare(
-        `SELECT w.*,CASE WHEN w.owner_id=? THEN 'owner' ELSE m.role END AS role FROM support_workspaces w LEFT JOIN support_members m ON m.workspace_id=w.id AND m.email=? WHERE w.owner_id=? OR m.id IS NOT NULL ORDER BY w.created_at,w.id`,
+        SUPPORT_WORKSPACES_SQL,
       )
-      .bind(user.userId, user.email.toLowerCase(), user.userId)
+      .bind(user.userId, user.email.toLowerCase(), user.userId, user.userId)
       .all<Workspace & { role: string }>()
   ).results;
 }

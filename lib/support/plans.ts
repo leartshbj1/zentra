@@ -28,6 +28,7 @@ export function supportPlan(value: unknown) {
   return SUPPORT_PLANS.find((p) => p.id === value);
 }
 export type SupportBillingState = {
+  bundlePlan?: string;
   active: boolean;
   ownerAccess: boolean;
   offeredAccess?: boolean;

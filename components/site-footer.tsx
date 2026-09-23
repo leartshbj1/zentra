@@ -47,7 +47,7 @@ export function SiteFooter() {
           <p>Des outils pour alléger le quotidien de votre entreprise.</p>
           <a href="mailto:info@zentraapp.ch">info@zentraapp.ch</a>
           <p>
-            <a href="/produits">Voir tous les produits</a>
+              <a href="/complet">Zentra Complet · dès 79 CHF/mois</a>
           </p>
         </div>
         {groups.map((group) => (
@@ -69,6 +69,7 @@ export function SiteFooter() {
         <a href="/conditions">Conditions Gestion</a>
         <a href="/support/conditions">Conditions Support</a>
         <a href="/automation/conditions">Conditions Automation</a>
+        <a href="/complet/conditions">Conditions du pack</a>
         <a href="/mentions-legales">Mentions légales</a>
         <a href="/sous-traitance">Traitement des données</a>
         <a href="/cookies">Cookies</a>
@@ -76,8 +77,7 @@ export function SiteFooter() {
       <div className="catalog-footer-bottom">
         <span>© 2026 Zentra</span>
         <span>
-          Gestion et Support : deux abonnements distincts. Automation : une
-          option de Gestion.
+          Gestion, Support et Automation : séparément ou réunis avec Zentra Complet.
         </span>
       </div>
     </footer>

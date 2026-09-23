@@ -1,4 +1,7 @@
 import Stripe from 'stripe';
+import { completeSubscription } from '@/lib/complete/access';
+import { completePlan } from '@/lib/complete/plans';
+import { completePortal } from '@/lib/complete/stripe';
 import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
 import {
   STRIPE_API_VERSION,
@@ -216,6 +219,8 @@ export async function provisionAutomationBilling(actor: string) {
   return { ready: true, priceChfCents: AUTOMATION_PRICE_CENTS, livemode: live };
 }
 export async function automationBillingState(organizationId: string) {
+  const bundle = await completeSubscription(organizationId);
+  if (bundle) return { ready: true, offeredAccess: false, offeredUntil: null, priceChfCents: 0, status: bundle.status, periodEnd: bundle.paid_until || null, cancelAtPeriodEnd: !!bundle.cancel_at_period_end, refunded: !!bundle.refunded, hasSubscription: !['canceled', 'incomplete_expired'].includes(bundle.status), bundlePlan: completePlan(bundle.paid_plan_id ?? bundle.plan_id)?.name };
   const [config, offered, row] = await Promise.all([
     automationBillingConfig(),
     automationGrant(organizationId),
@@ -257,6 +262,7 @@ export async function createAutomationCheckout(
   );
   if (!stripeTestAccessAllowed(stripeConfiguration(), user))
     throw new AccountPublicError('Le paiement est encore en test privé.', 403);
+  if (await database().prepare('SELECT 1 FROM complete_checkouts WHERE user_id=?').bind(user.userId).first()) throw new AccountPublicError('Un pack Zentra Complet est déjà choisi. Retrouvez ou annulez ce paiement sur la page du pack.', 409);
   if (
     body.acceptTerms !== true ||
     body.legalVersion !== AUTOMATION_TERMS_VERSION ||
@@ -428,6 +434,10 @@ export async function automationPortal(
   origin: string,
 ) {
   await requireBrowserMembership(user.userId, organizationId, ['owner']);
+  const bundle = await completeSubscription(organizationId);
+  if (bundle) {
+    return completePortal(bundle.customer_id, origin + '/compte/automation');
+  }
   const [config, row] = await Promise.all([
     automationBillingConfig(),
     database()

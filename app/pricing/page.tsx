@@ -3,6 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import { PricingPlans } from '@/components/pricing-plans';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
+import { CompleteBanner } from '@/components/complete-banner';
 
 export const metadata: Metadata = {
   title: 'Tarifs — Solo, Start et Pro dès 49 CHF par mois',
@@ -71,6 +72,7 @@ export default function PricingPage() {
           </div>
         </section>
 
+        <CompleteBanner />
         <section
           className="border-y border-[#ded9ce] bg-[#ffffff] px-5 py-16 sm:py-24 lg:px-8"
           data-reveal

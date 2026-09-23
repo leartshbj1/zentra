@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import type Stripe from 'stripe';
 import { digest } from './crypto';
 import type { Workspace } from './types';
@@ -157,14 +157,7 @@ function seedPaid(overrides: Partial<SubscriptionRow> = {}) {
 beforeEach(async () => {
   sql = new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys=ON');
-  for (const file of [
-    '0041_mysterious_brother_voodoo',
-    '0042_support_triage_context',
-    '0043_support_billing',
-    '0044_support_onboarding',
-    '0045_support_oauth_rotation',
-    '0046_founder_support_access',
-  ])
+  for (const file of readdirSync(new URL('../../drizzle/', import.meta.url)).filter(f=>f.endsWith('.sql')).sort().map(f=>f.slice(0,-4)))
     sql.exec(
       readFileSync(
         new URL('../../drizzle/' + file + '.sql', import.meta.url),

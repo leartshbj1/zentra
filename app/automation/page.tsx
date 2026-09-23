@@ -10,6 +10,7 @@ import { productData, breadcrumbData } from '@/lib/seo';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { ProductStory } from '@/components/product-story';
+import { CompleteBanner } from '@/components/complete-banner';
 import '@/components/zentra-presentation.css';
 import './presentation.css';
 
@@ -453,6 +454,7 @@ export default function AutomationPage() {
             mensualité après son premier paiement, selon les conditions.
           </p>
         </div>
+        <CompleteBanner />
       </main>
       <SiteFooter />
     </div>

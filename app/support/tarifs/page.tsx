@@ -1,4 +1,5 @@
 import { ArrowRight } from 'lucide-react';
+import { CompleteBanner } from '@/components/complete-banner';
 import { SupportPrices } from '@/components/support/billing-panel';
 import {
   SupportCallToAction,
@@ -49,6 +50,7 @@ export default function SupportPricing() {
           Lire les conditions de Zentra Support <ArrowRight size={16} />
         </a>
       </section>
+      <CompleteBanner />
       <section className="sp-section sp-soft">
         <div className="sp-wrap sp-faq">
           <div>
