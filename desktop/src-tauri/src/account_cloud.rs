@@ -377,6 +377,27 @@ pub async fn automation_request(state: State<'_, LocalStore>, data: Option<serde
 }
 
 #[tauri::command]
+pub async fn subscription_overview_request(state: State<'_, LocalStore>) -> Result<serde_json::Value,String> {
+    let store=state.inner().clone();
+    let session={
+        let _guard=store.account_protected_cache.operation_lock.lock().await;
+        let session=read_session_secret(&store).map_err(command_error)?.ok_or("Connectez votre compte Zentra.")?;
+        validate_session_for_installation(&session,&store.installation_id).map_err(command_error)?;
+        if parse_future_or_past_date(&session.session_expires_at,"session").map_err(command_error)?<=Utc::now(){return Err("Reconnectez votre compte pour consulter l’abonnement.".into());}
+        session
+    };
+    crate::automation::bound(&store,&session.organization_id).map_err(command_error)?;
+    let (status,bytes)=account_request(Method::GET,"/api/account/subscription",None,Some(&session.session_token)).await.map_err(command_error)?;
+    if !status.is_success(){return Err(command_error(server_response_error(status,&bytes)));}
+    let value:serde_json::Value=parse_json(&bytes,"abonnement").map_err(command_error)?;
+    let _guard=store.account_protected_cache.operation_lock.lock().await;
+    let current=read_session_secret(&store).map_err(command_error)?.ok_or("La connexion a changé.")?;
+    if current.organization_id!=session.organization_id || current.session_token!=session.session_token || value.get("organizationId").and_then(|v|v.as_str())!=Some(session.organization_id.as_str()){return Err("La connexion a changé. Rouvrez votre abonnement.".into());}
+    crate::automation::bound(&store,&session.organization_id).map_err(command_error)?;
+    Ok(value)
+}
+
+#[tauri::command]
 pub async fn open_automation_settings() -> Result<String,String> {
     let uri="https://zentraapp.ch/compte/automation".to_string();
     tauri::async_runtime::spawn_blocking(move||{launch_external_url(&uri).map_err(command_error)?;Ok(uri)}).await.map_err(|error|error.to_string())?
@@ -1109,7 +1130,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
         START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH | TEAM_PATH | AUTOMATION_PATH
             | "/api/projects/sync" | "/api/projects/sync/file"
             | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
-            | "/api/sync/numbers"
+            | "/api/sync/numbers" | "/api/account/subscription"
             | crate::company_collaboration::PATH
             | crate::supplier_inbox::PATH
             | crate::appointment_inbox::PATH
@@ -1461,11 +1482,11 @@ mod tests {
 
     #[test]
     fn project_and_backup_transfer_routes_use_the_fixed_authenticated_origin() {
-        for path in ["/api/projects/sync", "/api/projects/sync/file", "/api/backups", "/api/backups/item", "/api/backups/chunk", "/api/sync/numbers"] {
+        for path in ["/api/account/subscription", "/api/projects/sync", "/api/projects/sync/file", "/api/backups", "/api/backups/item", "/api/backups/chunk", "/api/sync/numbers"] {
             let url = endpoint(path).unwrap();
             assert_eq!(url.as_str(), format!("{ACCOUNT_API_ORIGIN}{path}"));
         }
-        for path in ["https://example.com/api/projects/sync", "//example.com", "/api/projects/sync/../stripe", "/api/projects/sync?token=x"] {
+        for path in ["/api/account/subscription?organizationId=other", "/api/account/subscription/../stripe", "https://example.com/api/projects/sync", "//example.com", "/api/projects/sync/../stripe", "/api/projects/sync?token=x"] {
             assert!(endpoint(path).is_err());
         }
     }

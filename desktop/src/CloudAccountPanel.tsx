@@ -1,5 +1,6 @@
 import { t, useAppLanguage } from './language';
 import { CloudTeamPanel } from './CloudTeamPanel';
+import { NativeSubscription } from './NativeSubscription';
 import type { AppSettings } from './types';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -37,6 +38,7 @@ export function CloudAccountPanel({
   useAppLanguage();
   const [account, setAccount] = useState<CloudAccountState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [subscriptionOpen,setSubscriptionOpen]=useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [now, setNow] = useState(Date.now());
@@ -187,6 +189,8 @@ export function CloudAccountPanel({
   const pending = account?.status === 'pending';
   const codeExpired = pending && !!account.authorizationExpiresAt && Date.parse(account.authorizationExpiresAt) <= now;
 
+  if(subscriptionOpen&&connected&&account.organizationId)return <section className="cloud-account-panel"><Button variant="ghost" onClick={()=>setSubscriptionOpen(false)}>{t('Retour au compte')}</Button><NativeSubscription key={account.organizationId} organizationId={account.organizationId}/></section>;
+
   return (
     <section className="panel settings-card settings-card--wide cloud-account-panel">
       <SectionHeading
@@ -277,7 +281,7 @@ export function CloudAccountPanel({
           ['profil','Profil',UserRound],['securite','Sécurité',ShieldCheck],
           ['abonnement','Abonnement',CreditCard],['connexions','Appareils connectés',Link2],
           ['donnees','Données et confidentialité',Database],
-        ] as const).map(([section,label,Icon])=><button key={section} type="button" disabled={busy} onClick={()=>void desktopApi.openCloudAccountPortal(section).catch(reason=>setError(errorMessage(reason,'La page du compte ne s’est pas ouverte. Réessayez.')))}><Icon size={19}/><span>{t(label)}</span><ChevronRight size={17}/></button>)}
+        ] as const).map(([section,label,Icon])=><button key={section} type="button" disabled={busy} onClick={()=>section==='abonnement'?setSubscriptionOpen(true):void desktopApi.openCloudAccountPortal(section).catch(reason=>setError(errorMessage(reason,'La page du compte ne s’est pas ouverte. Réessayez.')))}><Icon size={19}/><span>{t(label)}</span><ChevronRight size={17}/></button>)}
       </nav>}
       {connected ? (
         <div className="settings-actions cloud-account-panel__actions">

@@ -23,6 +23,7 @@ import { supplierDetailTranslations } from './translationsSupplierDetail';
 import { supplierReviewTranslations } from './translationsSupplierReview';
 import { workflowClarityTranslations } from './translationsWorkflowClarity';
 export const translations: Record<string, readonly [string, string, string]> = {
+  'Retour au compte': ['Zurück zum Konto', 'Torna al conto', 'Back to account'],
   ...workflowClarityTranslations,
   ...assistantTranslations,
   ...supplierInboxTranslations,
