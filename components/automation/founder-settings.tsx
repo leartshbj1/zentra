@@ -60,6 +60,7 @@ export function AutomationFounderSettings() {
       | 'billing'
       | 'test'
       | 'billing_check'
+      | 'complete_catalog'
       | 'billing_delivery',
   ) {
     setBusy(true);
@@ -74,7 +75,7 @@ export function AutomationFounderSettings() {
         );
         return;
       }
-      if (action === 'billing_check') {
+      if (action === 'billing_check' || action === 'complete_catalog') {
         setMessage(
           response.checks
             ?.map((check) => `${check.plan} : ${check.message}`)
@@ -152,6 +153,9 @@ export function AutomationFounderSettings() {
         </button>
         <button type="button" onClick={() => void save('billing_check')}>
           Contrôler les paiements Gestion
+        </button>
+        <button type="button" onClick={() => void save('complete_catalog')}>
+          Préparer et contrôler les trois packs Complet
         </button>
         <button type="button" onClick={() => void save('billing_delivery')}>
           Vérifier la réception des notifications

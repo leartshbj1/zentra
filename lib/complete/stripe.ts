@@ -124,7 +124,7 @@ export async function ensureCompletePrice(plan: CompletePlan) {
     throw new PublicError('Le tarif du pack doit être vérifié.', 503);
   return price;
 }
-export async function completePortal(customerId: string, returnUrl: string) {
+export async function ensureCompletePortalConfiguration() {
   const stripe = automationStripe(),
     live = stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'));
   const configurations = await stripe.billingPortal.configurations.list({
@@ -159,7 +159,11 @@ export async function completePortal(customerId: string, returnUrl: string) {
     !config.features.payment_method_update.enabled
   )
     throw new PublicError('Le portail du pack doit être vérifié.', 503);
-  const session = await stripe.billingPortal.sessions.create({
+  return config;
+}
+export async function completePortal(customerId: string, returnUrl: string) {
+  const config = await ensureCompletePortalConfiguration();
+  const session = await automationStripe().billingPortal.sessions.create({
     customer: customerId,
     configuration: config.id,
     return_url: returnUrl,

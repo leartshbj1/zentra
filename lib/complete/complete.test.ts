@@ -18,6 +18,9 @@ const state = vi.hoisted(() => ({
   basePrice: vi.fn(),
   createProduct: vi.fn(),
   createPrice: vi.fn(),
+  portalList: vi.fn(),
+  portalCreate: vi.fn(),
+  portalSession: vi.fn(),
   signingKey: '',
 }));
 vi.mock('@/lib/runtime', () => ({
@@ -59,6 +62,7 @@ vi.mock('stripe', () => ({
       create: state.createPrice,
     };
     products = { retrieve: state.product, create: state.createProduct };
+    billingPortal = { configurations: {list:state.portalList,create:state.portalCreate},sessions:{create:state.portalSession} };
   },
 }));
 import { completePlan, COMPLETE_PLANS } from './plans';
@@ -71,6 +75,8 @@ import {
   subscriptionCompletePlan,
   persistCompleteRefund,
   ensureCompletePrice,
+  ensureCompletePortalConfiguration,
+  completePortal,
 } from './stripe';
 import {
   completeCheckout,
@@ -339,6 +345,27 @@ async function bindCheckout() {
   } as Stripe.Checkout.Session);
 }
 describe('Zentra Complet: one verified payment, three company-scoped products', () => {
+  it('prepares a dedicated portal without creating a customer, checkout or subscription', async () => {
+    state.portalList.mockResolvedValue({data:[],has_more:false});
+    state.portalCreate.mockImplementation(async config => ({...config,id:'bpc_complete',livemode:true}));
+    const config=await ensureCompletePortalConfiguration();
+    expect(config.features).toMatchObject({invoice_history:{enabled:true},payment_method_update:{enabled:true},subscription_cancel:{enabled:true,mode:'at_period_end'},subscription_update:{enabled:false}});
+    expect(state.portalCreate).toHaveBeenCalledWith(expect.objectContaining({metadata:{service:'zentra-complet'}}),{idempotencyKey:'zentra_complete_portal_v1'});
+    expect(state.portalSession).not.toHaveBeenCalled();
+    expect(state.create).not.toHaveBeenCalled();
+  });
+  it('reuses the correct portal and refuses unsafe or wrong-mode configurations', async () => {
+    const config={id:'bpc_complete',livemode:true,metadata:{service:'zentra-complet'},features:{invoice_history:{enabled:true},payment_method_update:{enabled:true},subscription_cancel:{enabled:true,mode:'at_period_end'},subscription_update:{enabled:false}}};
+    state.portalList.mockResolvedValue({data:[config],has_more:false});
+    state.portalSession.mockResolvedValue({url:'https://billing.stripe.com/test-only'});
+    expect(await completePortal('cus_owner','https://zentraapp.ch/compte/abonnement')).toEqual({url:'https://billing.stripe.com/test-only'});
+    expect(state.portalSession).toHaveBeenCalledWith({customer:'cus_owner',configuration:'bpc_complete',return_url:'https://zentraapp.ch/compte/abonnement'});
+    expect(state.portalCreate).not.toHaveBeenCalled();
+    config.features.subscription_update.enabled=true;
+    await expect(ensureCompletePortalConfiguration()).rejects.toMatchObject({status:503});
+    state.portalList.mockResolvedValue({data:[],has_more:true});
+    await expect(ensureCompletePortalConfiguration()).rejects.toMatchObject({status:503});
+  });
   it.each(COMPLETE_PLANS)('activates $name with its precise company seats, Support quota and signed app licenses', async ({id}) => {
     const p = completePlan(id)!;
     sub.metadata = {...sub.metadata,bundle_plan:p.id,plan:p.licensePlan};

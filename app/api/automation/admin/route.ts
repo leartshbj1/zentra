@@ -1,4 +1,4 @@
-import { accountJsonError, accountNoStoreHeaders } from '@/lib/account';
+import { accountJsonError, accountNoStoreHeaders, enforceAccountRateLimit } from '@/lib/account';
 import { requireAutomationFounder } from '@/lib/automation/access';
 import {
   globalFlags,
@@ -14,6 +14,7 @@ import { assertStripeCheckoutReady } from '@/lib/stripe-readiness';
 import { retryStripeDeliveryCheck } from '@/lib/stripe-delivery-check';
 import { PublicError } from '@/lib/stripe';
 import { ZENTRA_PLANS } from '@/lib/plans';
+import { prepareCompleteCatalog } from '@/lib/complete/catalog-admin';
 import { JevDecisionProvider } from '@/lib/automation/provider';
 import { buildPolicy } from '@/lib/automation/policies';
 import {
@@ -26,6 +27,10 @@ export async function POST(request: Request) {
   try {
     const user = await requireAutomationFounder(request),
       body = await readJsonObjectWithinLimit(request, 12000);
+    if (body.action === 'complete_catalog') {
+      await enforceAccountRateLimit(request, 'complete-catalog', user.userId, 5);
+      return Response.json(await prepareCompleteCatalog(), { headers: accountNoStoreHeaders() });
+    }
     if (body.action === 'billing_delivery') {
       return Response.json(await retryStripeDeliveryCheck(automationStripe()), {
         headers: accountNoStoreHeaders(),
@@ -111,7 +116,7 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     return accountJsonError(
-      error instanceof SupportError
+      error instanceof SupportError || error instanceof PublicError
         ? new AccountPublicError(error.message, error.status)
         : error,
     );
