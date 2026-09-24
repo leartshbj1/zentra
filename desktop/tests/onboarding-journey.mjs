@@ -3,13 +3,14 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 const {chromium,webkit}=createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE||'playwright');
 const origin=process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5331';
-const out='.qa/onboarding-redesign';await mkdir(out,{recursive:true});const results=[];
+const out=process.env.ZENTRA_QA_OUTPUT||'.qa/onboarding-arrival';await mkdir(out,{recursive:true});const results=[];
 const stageNames=['welcome','account','identity','address','activity','tax','bank','documents','work','payroll','insurance','contributions','backup','assistants','review'];
 let seed;
 async function field(page,name,value){await page.locator(`[data-field="${name}"]`).fill(value);}
-async function forward(page){await page.locator('.first-run__actions .button--primary').click();}
+async function forward(page){const intro=page.locator('.zentra-arrival__start');if(await intro.isVisible()){await intro.click();return;}const skip=page.locator('.zentra-arrival__skip');if(await skip.isVisible()){await skip.click();await page.locator('.zentra-arrival__start').click();return;}await page.locator('.first-run__actions .button--primary').click();}
 async function stage(page,id){await page.locator(`.first-run__stage--${id}`).waitFor();}
 async function noOverflow(page,label){
+  const progress=page.locator('.first-run__progress progress');if(await progress.isVisible()){const count=(await page.locator('.first-run__progress>span').nth(1).textContent()).split('/').map(Number);assert.equal(Number(await progress.getAttribute('value')),count[0]);assert.equal(Number(await progress.getAttribute('max')),count[1]);}
   const findings=await page.evaluate(()=>({page:document.documentElement.scrollWidth>innerWidth+1,labels:[...document.querySelectorAll('.first-run .field__label,.first-run .button,.first-run h1')].filter(el=>el.getClientRects().length&&el.scrollWidth>el.clientWidth+2).map(el=>el.textContent)}));
   assert.equal(findings.page,false,`${label}: page overflow`);assert.deepEqual(findings.labels,[],`${label}: clipped label`);
 }
@@ -19,7 +20,7 @@ try{
   const page=await browser.newPage({viewport:{width:1293,height:911},reducedMotion:'reduce'}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto(`${origin}/tests/onboarding-preview.html`);await stage(page,'welcome');await capture(page,'welcome-desktop');await forward(page);
-  await stage(page,'account');await page.getByRole('button',{name:'Se connecter dans le navigateur',exact:true}).click();
+  await stage(page,'account');await page.getByRole('button',{name:'Se connecter',exact:true}).click();
   await page.getByText('TEST-1234',{exact:true}).waitFor();assert.deepEqual(await page.evaluate(()=>window.onboardingFixture.calls.slice(0,2)),['start-link','open-link']);await capture(page,'account-desktop');await forward(page);
   await stage(page,'identity');await forward(page);await page.waitForFunction(()=>document.activeElement?.getAttribute('data-field')==='organization.legalName');
   assert.equal(await page.locator('.first-run__stage--identity .field--error').count(),3);
@@ -80,7 +81,7 @@ try{
     }
     results.push({test:'Layout',language,width,pages:30,passed:true});await page.close();
   }
-  const remote=await browser.newPage({viewport:{width:390,height:844}});await remote.goto(`${origin}/tests/onboarding-preview.html?remote=1`);await forward(remote);await remote.getByRole('button',{name:'Se connecter dans le navigateur',exact:true}).click();
+  const remote=await browser.newPage({viewport:{width:390,height:844}});await remote.goto(`${origin}/tests/onboarding-preview.html?remote=1`);await forward(remote);await remote.getByRole('button',{name:'Se connecter',exact:true}).click();
   await remote.evaluate(()=>{window.onboardingFixture.account={status:'connected',organizationId:'fixture-company',organizationName:'Entreprise déjà partagée',role:'owner'};});
   await remote.getByRole('heading',{name:'Entreprise déjà partagée',exact:true}).waitFor();assert.equal(await remote.evaluate(()=>window.onboardingFixture.completed.length),0);results.push({test:'Existing account opens remote company without creating another',passed:true});await remote.close();
 }catch(error){results.push({failed:String(error.stack||error)});process.exitCode=1;}

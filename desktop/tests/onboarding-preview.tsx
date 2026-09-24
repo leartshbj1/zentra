@@ -29,6 +29,10 @@ import '../src/workspace-atelier.css';
 import '../src/onboarding-journey.css';
 
 const query = new URLSearchParams(location.search);
+// This reset is confined to the synthetic preview; production never reads this query.
+if (query.get('intro') === '1') {
+  for (const key of ['zentra.onboarding.intro.v1', 'zentra.onboarding.draft.v2', 'elyko.onboarding.draft.v1']) localStorage.removeItem(key);
+}
 if (query.has('language')) setAppLanguage(query.get('language') as 'fr'|'de'|'it'|'en');
 if (query.has('theme')) setAppearance(query.get('theme') as 'light'|'dark');
 const catalog: NogaCatalog = {version:'2025',source:'https://www.kubb-tool.bfs.admin.ch/fr/noga/2025',sections:[{code:'M',label:'Activités immobilières',divisions:[{code:'68',label:'Activités immobilières'}]},{code:'F',label:'Construction',divisions:[{code:'43',label:'Travaux de construction spécialisés'}]}]};

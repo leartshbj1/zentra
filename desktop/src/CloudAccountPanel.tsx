@@ -272,14 +272,16 @@ export function CloudAccountPanel({
                   : t("Reliez ce poste à l’entreprise pour utiliser les accès partagés et l’archive distante.")}
             </p>
           </div>}
-          <Button disabled={busy} onClick={() => void begin()}>
+          <Button className={setup ? "first-run-connect" : undefined} disabled={busy} onClick={() => void begin()}>
             {busy ? (
               <LoaderCircle className="spin" size={16} />
             ) : (
-              <Users size={16} />
+              setup ? <UserRound size={19} /> : <Users size={16} />
             )}
-            {busy ? t("Préparation…") : t("Se connecter dans le navigateur")}
+            {busy ? t("Préparation…") : t(setup ? "Se connecter" : "Se connecter dans le navigateur")}
+            {setup && !busy && <ChevronRight size={19}/>}
           </Button>
+          {setup && <p className="first-run-connect-note">{t("Une page sécurisée s’ouvre dans votre navigateur.")}</p>}
         </div>
       )}
 

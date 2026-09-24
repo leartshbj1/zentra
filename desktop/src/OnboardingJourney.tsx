@@ -4,7 +4,8 @@ import { desktopApi, type CloudAccountState } from './bridge';
 import type { AppSettings, NogaCatalog, PayrollRate, Workspace } from './types';
 import { t, useAppLanguage, appLanguages, languageNames, setAppLanguage, type AppLanguage } from './language';
 import { setAppearance, useAppearance, type Appearance } from './appearance';
-import { BrandMark, BrandWordmark } from './BrandMark';
+import { BrandWordmark } from './BrandMark';
+import { OnboardingIntro } from './OnboardingIntro';
 import { CompanyLogo } from './CompanyLogo';
 import { CloudAccountPanel } from './CloudAccountPanel';
 import { CloudBackupPanel } from './CloudBackupPanel';
@@ -117,7 +118,7 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
     const frame = requestAnimationFrame(() => {
       if (pendingFocus.current) { focusField(pendingFocus.current); pendingFocus.current = null; }
       else {
-        stageRef.current?.querySelector<HTMLElement>('h1')?.focus({preventScroll:true});
+        if (step !== 0) stageRef.current?.querySelector<HTMLElement>('h1')?.focus({preventScroll:true});
         document.querySelector('.first-run__main')?.scrollTo({top:0});
         window.scrollTo({top:0});
       }
@@ -190,10 +191,30 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
   const joined = (workspace:Workspace) => { completed.current = true; clearDraft(); onJoined?.(workspace); setJoining(false); };
   const chapterPages = pages.filter(index => setupPages[index].chapter === page.chapter);
 
-  return <div className={`first-run${step === 0 ? ' first-run--welcome' : ''}`}>
+  const preferences = <header className="first-run__preferences">
+        <label><span className="sr-only">{t('Langue de l’application')}</span><select value={language} onChange={event=>setAppLanguage(event.target.value as AppLanguage)}>{appLanguages.map(value=><option key={value} value={value}>{languageNames[value]}</option>)}</select></label>
+        <label><span className="sr-only">{t('Apparence')}</span><select value={appearance} onChange={event=>setAppearance(event.target.value as Appearance)}><option value="system">{t('Automatique')}</option><option value="light">{t('Clair')}</option><option value="dark">{t('Sombre')}</option></select></label>
+      </header>;
+  if (step === 0) return <div className="first-run first-run--welcome">
+    {preferences}
+    <section className="first-run__stage first-run__stage--welcome" ref={stageRef}>
+      <OnboardingIntro onStart={next}/>
+    </section>
+  </div>;
+  const guideCopy = [
+    ['Un espace à vous.', 'Retrouvez votre entreprise. Ou préparez son premier jour.'],
+    ['Faisons connaissance.', 'Votre identité, pour des documents qui vous ressemblent.'],
+    ['Prêt à facturer.', 'Des documents clairs. Des paiements bien organisés.'],
+    ['Votre façon de travailler.', 'Quelques réglages pour suivre votre quotidien.'],
+    ['Prenons soin de votre équipe.', 'Vos assurances et vos cotisations, réunies au même endroit.'],
+    ['Tout reste entre de bonnes mains.', 'Choisissez comment protéger votre travail.'],
+    ['Bientôt chez vous.', 'Un dernier regard, et votre espace est prêt.'],
+  ][page.chapter];
+  return <div className={`first-run${step === 1 ? ' first-run--account' : ''}`}>
     <aside className={`first-run__guide${menuOpen ? ' is-open' : ''}`}>
-      <div className="first-run__brand"><BrandWordmark/><span>{t('Votre nouvel espace')}</span><AssistantHelpButton compact/></div>
+      <div className="first-run__brand"><BrandWordmark/>{step!==1 && <AssistantHelpButton compact/>}</div>
       <button className="first-run__mobile-index" type="button" aria-expanded={menuOpen} aria-controls="first-run-index" onClick={()=>setMenuOpen(value=>!value)}><span>{t(setupChapters[page.chapter])}</span><span>{page.chapter+1} / {setupChapters.length}<ChevronDown size={16}/></span></button>
+      <div className="first-run__guidance"><p>{t(guideCopy[0])}</p><span>{t(guideCopy[1])}</span></div>
       <nav id="first-run-index" className="first-run__index" aria-label={t('Étapes de configuration')}>
         {setupChapters.map((label,chapter) => {
           const members = pages.filter(index=>setupPages[index].chapter === chapter), start = members[0];
@@ -208,17 +229,13 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
       </div>
     </aside>
     <main className="first-run__main">
-      <header className="first-run__preferences">
-        <label><span className="sr-only">{t('Langue de l’application')}</span><select value={language} onChange={event=>setAppLanguage(event.target.value as AppLanguage)}>{appLanguages.map(value=><option key={value} value={value}>{languageNames[value]}</option>)}</select></label>
-        <label><span className="sr-only">{t('Apparence')}</span><select value={appearance} onChange={event=>setAppearance(event.target.value as Appearance)}><option value="system">{t('Automatique')}</option><option value="light">{t('Clair')}</option><option value="dark">{t('Sombre')}</option></select></label>
-      </header>
+      {preferences}
       <div className="first-run__paper">
-        {step>0 && <div className="first-run__progress"><span>{t(page.label)}</span><span>{chapterPages.indexOf(step)+1} / {chapterPages.length}</span><progress max={pages.length-1} value={position} aria-label={t('Progression de la configuration')}/></div>}
+        {step>0 && <div className="first-run__progress"><span>{t(page.label)}</span><span>{chapterPages.indexOf(step)+1} / {chapterPages.length}</span><progress max={chapterPages.length} value={chapterPages.indexOf(step)+1} aria-label={`${t('Progression de la configuration')} · ${t(setupChapters[page.chapter])}`}/></div>}
         <section ref={stageRef} className={`first-run__stage first-run__stage--${page.id}`} key={step} data-direction={direction.current} aria-busy={busy}>
           <fieldset className="first-run__fields" disabled={busy}>
-            {page.id==='welcome' && <div className="first-run__hello"><div className="first-run__welcome-mark"><BrandMark size={92}/></div><h1 tabIndex={-1}>{t('Votre entreprise.')}<br/><span>{t('Votre espace.')}</span></h1><p>{t('Installons Zentra à votre image, une étape à la fois.')}</p><p className="first-run__welcome-note">{t('Préparons vos coordonnées, vos documents et les réglages de votre entreprise.')}</p></div>}
             {page.id==='account' && <>
-              <StepHeader title={t('Votre compte vous suit partout.')} text={t('Connectez-vous pour retrouver votre entreprise ou préparer un nouvel espace partagé.')}/>
+              <StepHeader title={t('Tout commence avec vous.')} text={t('Retrouvez votre entreprise sur tous vos appareils avec votre compte Zentra.')}/>
               <CloudAccountPanel onAccountChange={onCloudAccountChange} joining setup/>
               {accountNotice && <details className="first-run__license"><summary>{t('Compte et licence')}</summary>{accountNotice}</details>}
               <div className="first-run__recovery"><button type="button" onClick={()=>setJoining(true)}><Users size={18}/>{t('J’ai une invitation')}<ArrowRight size={17}/></button>
@@ -242,9 +259,10 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
         </section>
         <footer className="first-run__actions">
           {step>0 && <Button variant="ghost" onClick={()=>goTo(pages[Math.max(0,position-1)])} disabled={busy}><ArrowLeft size={17}/>{t('Retour')}</Button>}
-          <Button size="large" disabled={busy} onClick={()=>page.id==='review'?void finish():next()}>{busy?<LoaderCircle size={18} className="spin"/>:null}{t(busy?'Enregistrement…':page.id==='welcome'?'Commencer':page.id==='review'?'Créer mon espace':page.id==='account'?'Configurer mon entreprise':'Continuer')}{!busy && <ArrowRight size={18}/>}</Button>
+          <Button size="large" disabled={busy} onClick={()=>page.id==='review'?void finish():next()}>{busy?<LoaderCircle size={18} className="spin"/>:null}{t(busy?'Enregistrement…':page.id==='review'?'Créer mon espace':page.id==='account'?'Créer une entreprise':'Continuer')}{!busy && <ArrowRight size={18}/>}</Button>
         </footer>
-        {page.id==='account' && cloudAccount?.status!=='connected' && <p className="first-run__footnote">{t('Vous pouvez aussi configurer cet appareil maintenant et relier votre compte ensuite.')}</p>}
+        {page.id==='account' && cloudAccount?.status!=='connected' && <p className="first-run__footnote">{t('Vous débutez ? Configurez votre entreprise, puis reliez votre compte.')}</p>}
+        {page.id==='account' && <div className="first-run__account-help"><AssistantHelpButton/></div>}
         {draftStatus==='failed' && <p className="first-run__draft-message" role="alert">{t('Brouillon non enregistré. Gardez l’app ouverte.')}</p>}
       </div>
     </main>
