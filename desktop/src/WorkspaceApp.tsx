@@ -1663,6 +1663,7 @@ function WorkspaceContent({
         <div className="sidebar__brand">
           <div className="sidebar__wordmark">
             <BrandWordmark />
+            <span className="sidebar__product">{t('Gestion')}</span>
           </div>
           <Button
             variant="ghost"
@@ -4334,7 +4335,6 @@ function TimeScreen({
           <TimerReset size={28} />
         </div>
         <div>
-          <p className="eyebrow">Chronomètre local</p>
           <h2>
             {workspace.activeTimer
               ? 'Un pointage est déjà en cours'

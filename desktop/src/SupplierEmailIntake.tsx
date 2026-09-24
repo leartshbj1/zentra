@@ -205,13 +205,13 @@ export function SupplierEmailIntake({
       <div className="supplier-email-intake__icon">
         <MailCheck size={22} />
       </div>
-      <div className="supplier-email-intake__copy">
-        <strong>Facture reçue par e-mail ?</strong>
+      <details className="supplier-email-intake__copy workspace-disclosure">
+        <summary>Facture reçue par e-mail ?</summary>
         <p>
           Importez le message au format <code>.eml</code> pour préparer le fournisseur,
           la référence et les montants. Vous vérifiez les informations avant de créer la facture.
         </p>
-      </div>
+      </details>
       <Button
         variant="secondary"
         disabled={busy || localBusy || readOnly}

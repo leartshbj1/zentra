@@ -90,11 +90,12 @@ export function FinanceOverview({
       <header className="finance-overview__intro">
         <div>
           <p className="finance-overview__eyebrow">{periodLabel}</p>
-          <h2>Vos finances, en clair.</h2>
+          <details className="workspace-disclosure"><summary>Vos finances, en clair.</summary>
           <p>
             Comprenez votre résultat, préparez la TVA et avancez une étape à la
             fois.
           </p>
+          </details>
         </div>
         <Button
           variant="secondary"

@@ -342,7 +342,6 @@ export function RemindersScreen({
             <MessageSquareWarning size={22} />
           </span>
           <div>
-            <p className="eyebrow">Recouvrement supervisé</p>
             <h2>Chaque relance est préparée. Vous décidez de l’envoi.</h2>
             <p>
               Zentra recalcule le solde localement, bloque les factures soldées

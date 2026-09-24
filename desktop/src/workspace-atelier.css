@@ -1,25 +1,25 @@
-/* Shared screen presentation. Printed documents retain their own design. */
+/* Zentra Studio — one quiet instrument for daily work. Print has its own system. */
 @media screen {
   :root {
-    --work-canvas: #fbfbfc;
+    --work-canvas: #f5f6f7;
     --work-paper: #ffffff;
-    --work-rail: #eceef0;
+    --work-rail: #ffffff;
     --work-soft: #f0f1f3;
-    --work-line: #dedfe3;
+    --work-line: #e0e4e1;
     --work-ink: #202125;
     --work-muted: #62656d;
     --work-accent: #286047;
     --work-on-accent: #ffffff;
     --work-selection: #dde8e2;
     --work-shadow: 0 8px 28px rgb(20 24 30 / 8%);
-    --work-radius: 12px;
-    --work-control: 8px;
-    --work-space: clamp(24px, 3vw, 48px);
+    --work-radius: 14px;
+    --work-control: 9px;
+    --work-space: clamp(24px, 3.6vw, 60px);
   }
   html[data-app-theme='dark'] {
-    --work-canvas: #202125;
+    --work-canvas: #191a1e;
     --work-paper: #28292e;
-    --work-rail: #191a1e;
+    --work-rail: #202125;
     --work-soft: #303238;
     --work-line: #41434a;
     --work-ink: #f3f3f5;
@@ -30,7 +30,7 @@
     --work-shadow: 0 8px 28px rgb(0 0 0 / 20%);
   }
   html[data-app-theme] .desktop-app[data-experience] {
-    --shell-sidebar: 220px;
+    --shell-sidebar: 244px;
     --shell-gutter: var(--work-space);
     --paper: var(--work-paper);
     --cream: var(--work-canvas);
@@ -79,15 +79,15 @@
   html[data-app-theme] .desktop-app[data-experience] .sidebar__nav > div > p { margin: 18px 10px 6px; font-size: 11px; font-weight: 600; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__guide { padding: 12px 8px 4px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__local { padding: 10px 8px 0; }
-  html[data-app-theme] .desktop-app[data-experience] .app-main { margin: 8px 8px 0 var(--shell-sidebar); min-height: calc(100dvh - 8px); background: var(--work-canvas); border: 0; border-radius: 18px 18px 0 0; box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience] .app-main { margin: 0 0 0 var(--shell-sidebar); min-height: 100dvh; background: var(--work-canvas); border: 0; border-radius: 0; box-shadow: none; }
   html[data-app-theme] .desktop-app[data-experience] .topbar { min-height: 56px; padding: 6px var(--work-space); background: var(--work-canvas); border-bottom: 1px solid var(--work-line); backdrop-filter: none; -webkit-backdrop-filter: none; gap: 12px; }
   html[data-app-theme] .desktop-app[data-experience] .topbar__company { font-size: 13px; font-weight: 500; color: var(--work-muted); }
   html[data-app-theme] .desktop-app[data-experience] .topbar__tools { gap: 4px; }
   html[data-app-theme] .desktop-app[data-experience] .topbar__tools > .button { color: var(--work-muted); }
   html[data-app-theme] .desktop-app[data-experience] .global-search { background: var(--work-soft); border: 0; border-radius: var(--work-control); }
   html[data-app-theme] .desktop-app[data-experience] .global-search input { color: var(--work-ink); }
-  html[data-app-theme] .desktop-app[data-experience] .page-header { padding: 32px var(--work-space) 26px; align-items: center; gap: 18px; }
-  html[data-app-theme] .desktop-app[data-experience] .page-header h1 { font-size: clamp(30px, 2.8vw, 40px); line-height: 1.16; letter-spacing: -.035em; font-weight: 650; color: var(--work-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .page-header { padding: 38px var(--work-space) 30px; align-items: center; gap: 18px; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header h1 { font-size: clamp(30px, 2.8vw, 38px); line-height: 1.16; letter-spacing: -.03em; font-weight: 560; color: var(--work-ink); }
   html[data-app-theme] .desktop-app[data-experience] .page-header p { color: var(--work-muted); margin-top: 8px; font-size: 14px; }
   html[data-app-theme] .desktop-app[data-experience] .page-content { padding: 0 var(--work-space) 48px; }
   html[data-app-theme] .desktop-app[data-experience] .screen-help-launcher { color: var(--work-muted); background: transparent; border: 0; }
@@ -314,6 +314,273 @@
   }
   @media (prefers-reduced-motion: reduce) {
     html[data-app-theme] .desktop-app[data-experience] .page-content { animation: none; transform: none; }
+  }
+  /* Setup shares the working palette; navigation stays visible as a quiet index. */
+  html[data-app-theme] .onboarding { background:var(--work-canvas); color:var(--work-ink); grid-template-columns:280px minmax(0,1fr); }
+  html[data-app-theme] .onboarding__rail { background:var(--work-rail); color:var(--work-ink); border-right:1px solid var(--work-line); padding:36px 28px; }
+  html[data-app-theme] .onboarding__wordmark { color:var(--work-accent); }
+  html[data-app-theme] .onboarding__wordmark small { color:var(--work-muted); font-size:12px; }
+  html[data-app-theme] .onboarding__promise { background:transparent; border:0; padding:24px 0; color:var(--work-muted); }
+  html[data-app-theme] .onboarding__promise strong { color:var(--work-ink); }
+  html[data-app-theme] .onboarding__main { padding:48px clamp(24px,5vw,80px); }
+  html[data-app-theme] .onboarding__content { max-width:800px; }
+  html[data-app-theme] .onboarding .setup-header h1 { font-weight:550; letter-spacing:-.03em; font-size:clamp(30px,3.5vw,42px); }
+  html[data-app-theme] .onboarding .setup-header p { color:var(--work-muted); line-height:1.7; }
+  html[data-app-theme] .onboarding .setup-header .eyebrow { display:none; }
+  html[data-app-theme] .onboarding .setup-steps button { background:transparent; border:0; border-radius:9px; color:var(--work-muted); min-height:48px; }
+  html[data-app-theme] .onboarding .setup-steps button.is-current { color:var(--work-accent); background:var(--work-selection); }
+  html[data-app-theme] .onboarding .setup-choice-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:0; background:var(--work-paper); border-radius:14px; padding:8px 24px; overflow:hidden; }
+  html[data-app-theme] .onboarding .setup-choice { display:flex; align-items:center; gap:18px; min-height:110px; padding:22px 0; border:0; border-bottom:1px solid var(--work-line); border-radius:0; background:transparent; color:var(--work-ink); box-shadow:none; text-align:left; }
+  html[data-app-theme] .onboarding .setup-choice:last-child { border-bottom:0; }
+  html[data-app-theme] .onboarding .setup-choice > span { width:42px; height:42px; flex:none; border-radius:10px; background:var(--work-selection); color:var(--work-accent); }
+  html[data-app-theme] .onboarding .setup-choice > div { flex:1; min-width:0; }
+  html[data-app-theme] .onboarding .setup-choice strong { font-size:19px; font-weight:550; }
+  html[data-app-theme] .onboarding .setup-choice p { color:var(--work-muted); font-size:14px; line-height:1.6; margin-top:6px; }
+  html[data-app-theme] .onboarding .local-facts { margin-top:28px; gap:24px; }
+  html[data-app-theme] .onboarding .local-facts > div { border:0; border-radius:0; background:transparent; padding:12px 0; }
+  html[data-app-theme] .onboarding .local-facts strong { color:var(--work-ink); font-size:13px; }
+  html[data-app-theme] .onboarding .local-facts span { color:var(--work-muted); font-size:12px; }
+  html[data-app-theme] .onboarding :is(.field input,.field select,.field textarea) { min-height:46px; border:1px solid var(--work-line); border-radius:9px; background:var(--work-paper); color:var(--work-ink); }
+  html[data-app-theme] .onboarding .button { border-radius:9px; min-height:46px; box-shadow:none; }
+  html[data-app-theme] .onboarding .button--primary { color:var(--work-on-accent); background:var(--work-accent); }
+  html[data-app-theme] .onboarding__actions { background:transparent; border-top:1px solid var(--work-line); padding-top:24px; }
+  /* Studio composition: the rail is a quiet index; the page is a working sheet. */
+  html[data-app-theme] .desktop-app[data-experience] .sidebar { padding:24px 16px 14px; border-right:1px solid var(--work-line); background:var(--work-rail); }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__brand { min-height:52px; padding:0 12px 20px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__wordmark { display:flex; align-items:center; gap:13px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__wordmark svg { width:82px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__product { font-size:13px; color:var(--work-muted); font-weight:500; border-left:1px solid var(--work-line); padding-left:13px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__company { padding:16px 12px; border-block:1px solid var(--work-line); margin-bottom:10px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__company > svg { background:var(--work-selection); color:var(--work-accent); border-radius:8px; width:32px; height:32px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__company strong { font-size:14px; font-weight:550; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__search { border:0; background:var(--work-soft); margin:6px 0 14px; min-height:40px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__search kbd { font-size:11px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button { min-height:43px; font-size:14px; padding:10px 12px; gap:12px; margin:2px 0; font-weight:450; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button:is(.is-active,.is-active:hover,.is-active:focus) { background:var(--work-accent); color:var(--work-on-accent); box-shadow:none; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button.is-active > svg { color:inherit; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button.is-active em { color:inherit; background:color-mix(in srgb,currentColor 14%,transparent); }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav > div > p { font-size:12px; margin:22px 12px 8px; color:var(--work-muted); }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__guide { padding:12px 10px; min-height:46px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__guide > svg:first-child { width:18px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__guide strong { font-size:13px; font-weight:500; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__local { padding:12px 10px 0; border-top:1px solid var(--work-line); }
+  html[data-app-theme] .desktop-app[data-experience] .topbar { min-height:72px; padding:12px var(--work-space); border-bottom:1px solid var(--work-line); background:var(--work-paper); }
+  html[data-app-theme] .desktop-app[data-experience] .topbar__company { font-size:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header p { font-size:15px; margin-top:9px; max-width:65ch; line-height:1.6; }
+  html[data-app-theme] .desktop-app[data-experience] .page-content { padding-bottom:56px; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.panel,.table-panel,.settings-card,.project-card,.employee-card,.stat-card) { border:0; border-radius:var(--work-radius); background:var(--work-paper); box-shadow:none; }
+  html[data-app-theme] .desktop-app[data-experience] .panel { padding:28px; }
+  html[data-app-theme] .desktop-app[data-experience] .panel :is(.panel,.settings-card,.stat-card) { padding-inline:0; border-radius:0; border-top:1px solid var(--work-line); }
+  html[data-app-theme] .desktop-app[data-experience] :is(.section-heading h2,.settings-card h2) { font-size:21px; font-weight:550; letter-spacing:-.02em; }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel { overflow:hidden; }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel thead th { background:var(--work-paper); font-size:13px; padding-block:17px; border-bottom:1px solid var(--work-line); }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody td { padding-block:22px; font-size:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .document-list-tools__compact { background:transparent; border:0; padding:8px 0 22px; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs,.team-navigation,.accounting-tabs) { padding:4px; border:0; border-radius:11px; background:var(--work-soft); width:fit-content; max-width:100%; margin-bottom:24px; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs,.team-navigation,.accounting-tabs) :is([aria-current],[aria-pressed=true],.is-active) { color:var(--work-accent); background:var(--work-paper); border-radius:7px; box-shadow:0 2px 6px rgb(15 30 23 / 5%); }
+
+  /* A wide financial strip makes room for actual work below it. */
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid { grid-template-columns:minmax(0,1.5fr) minmax(260px,1fr); gap:30px; }
+  html[data-app-theme] .desktop-app[data-experience] .workspace-finances { grid-column:1/-1; grid-row:1; padding:0 0 8px; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-overview-heading { margin-bottom:20px; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-overview-heading h2 { font-size:16px; font-weight:500; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-overview-heading > span { font-size:12px; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary { grid-template-columns:repeat(4,minmax(0,1fr)); border:0; border-radius:14px; padding:24px 0; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary > .metric-card { padding:0 22px; border:0; border-left:1px solid var(--work-line); }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary > .metric-card:first-child { border-left:0; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary > .metric-card:nth-child(n+3) { border-top:0; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary .metric-card strong { font-size:clamp(20px,1.85vw,29px); line-height:1.5; font-weight:550; margin-top:12px; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary .metric-card strong.metric-card__multiple { font-size:clamp(18px,1.7vw,27px); }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary .metric-card small { margin-top:10px; }
+  html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts { grid-column:2; grid-row:2; background:transparent; padding:0; }
+  html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__items > button { min-height:80px; padding:16px 0; }
+  html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__items strong { font-size:24px; font-weight:500; }
+  html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__icon { background:var(--work-paper); color:var(--work-accent); width:40px; height:40px; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief { grid-column:1; grid-row:2; display:block; padding:28px; background:var(--work-selection); border:0; border-radius:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__intro { padding-bottom:18px; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__intro h2 { font-size:23px; font-weight:550; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__day ul { display:grid; gap:16px; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__day { padding-top:0; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__attention-disclosure { margin-top:14px; border-color:color-mix(in srgb,var(--work-accent) 20%,transparent); }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .panel { padding:28px; background:var(--work-paper); border-radius:14px; }
+
+  /* Preferences are a readable list and a single detail sheet, not a tile wall. */
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser { gap:28px; grid-template-columns:232px minmax(0,1fr); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button { padding:12px 10px; min-height:52px; gap:12px; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button[aria-current] { background:var(--work-paper); color:var(--work-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation small { display:none; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__icon { background:var(--work-paper); width:32px; height:32px; border-radius:8px; color:var(--work-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail { background:var(--work-paper); border-radius:14px; padding:28px; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-layout > .settings-card { border:0; border-radius:0; padding:12px 0 28px; border-bottom:1px solid var(--work-line); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-layout > .settings-card:last-child { border-bottom:0; }
+
+  /* Activity remains the first destination. The summary lives alongside it. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation { width:fit-content; max-width:100%; padding:4px; margin:0 0 28px; border:0; border-radius:11px; background:var(--work-soft); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation button { min-height:44px; border-radius:7px; padding:10px 24px; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation button[aria-current] { background:var(--work-paper); color:var(--work-accent); box-shadow:0 2px 6px rgb(15 30 23 / 5%); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__activity { gap:30px; grid-template-columns:minmax(0,1fr) 238px; align-items:start; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__journal { background:var(--work-paper); padding:28px; border-radius:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__day { border:0; padding:8px 0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__heading h2 { font-size:25px; font-weight:550; letter-spacing:-.025em; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__heading p { font-size:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__toolbar { flex-direction:column; align-items:stretch; gap:14px; margin-block:24px; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__filters { gap:18px; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__filters button { border-radius:0; padding:10px 0; min-height:44px; border-bottom:2px solid transparent; background:transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__filters button[aria-pressed=true] { color:var(--work-accent); border-bottom-color:var(--work-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__search { min-height:44px; border-radius:8px; border:0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__group h3 { margin-top:28px; padding:0 0 13px; font-size:14px; font-weight:550; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__entry { grid-template-columns:34px minmax(0,1fr); gap:14px; align-items:start; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__entry :is(.ac-run > summary strong,.automation-journal__invoice strong) { font-size:14px; font-weight:550; line-height:1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__symbol { display:grid; place-items:center; align-self:start; padding:0; margin-top:20px; background:var(--work-selection); width:34px; height:34px; border-radius:9px; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run { background:transparent; border:0; border-radius:0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run > summary,
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub button.automation-journal__invoice { padding-block:20px; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__day .automation-brief__intro h2 { font-size:21px; font-weight:550; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__day .automation-brief__day { border-top:1px solid var(--work-line); padding-top:22px; }
+
+  @media(min-width:861px) and (max-width:1200px) {
+    html[data-app-theme] .desktop-app[data-experience] { --shell-sidebar:216px; --work-space:28px; }
+    html[data-app-theme] .desktop-app[data-experience] .dashboard-summary { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px 0; }
+    html[data-app-theme] .desktop-app[data-experience] .dashboard-summary > .metric-card:nth-child(3) { border-left:0; }
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub__activity { grid-template-columns:minmax(0,1fr); }
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub__day { border-top:1px solid var(--work-line); padding-top:24px; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser { grid-template-columns:minmax(0,1fr); }
+  }
+  @media(max-width:860px) {
+    html[data-app-theme] .onboarding { display:block; }
+    html[data-app-theme] .onboarding__rail { padding:calc(20px + env(safe-area-inset-top)) 20px 18px; border:0; border-bottom:1px solid var(--work-line); }
+    html[data-app-theme] .onboarding__main { padding:28px max(20px,env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left)); }
+    html[data-app-theme] .onboarding .setup-choice-grid { padding:4px 18px; }
+    html[data-app-theme] .onboarding .setup-choice { gap:14px; min-height:118px; }
+    html[data-app-theme] .onboarding .setup-choice strong { font-size:18px; }
+    html[data-app-theme] .onboarding .local-facts { grid-template-columns:minmax(0,1fr); gap:0; }
+    html[data-app-theme] .desktop-app[data-experience] { --shell-sidebar:0px; --work-space:20px; }
+    html[data-app-theme] .desktop-app[data-experience] .sidebar { padding:calc(18px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom)); }
+    html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button { min-height:48px; font-size:16px; }
+    html[data-app-theme] .desktop-app[data-experience] .app-main { margin:0; border-radius:0; }
+    html[data-app-theme] .desktop-app[data-experience] .topbar { min-height:64px; padding:calc(10px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left)); }
+    html[data-app-theme] .desktop-app[data-experience] .page-header { padding:28px var(--work-space) 24px; align-items:flex-start; }
+    html[data-app-theme] .desktop-app[data-experience] .page-header h1 { font-size:32px; line-height:1.16; }
+    html[data-app-theme] .desktop-app[data-experience] .page-header p { font-size:14px; line-height:1.5; }
+    html[data-app-theme] .desktop-app[data-experience] .page-content { padding:0 max(20px,env(safe-area-inset-right)) calc(112px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left)); }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-home { gap:28px; }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-home__balance { background:var(--work-paper); border:0; border-radius:14px; padding:24px; }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-home__amount { font-weight:550; font-size:clamp(28px,8vw,36px); letter-spacing:-.03em; }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-home > .automation-brief { background:var(--work-selection); border:0; padding:24px; border-radius:14px; }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-home__list { border:0; border-radius:14px; padding-inline:20px; background:var(--work-paper); }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-home__list button { min-height:68px; background:transparent; padding:16px 0; border-radius:0; }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-home__list button > svg:first-child { color:var(--work-accent); }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-home__section h2 { font-size:20px; font-weight:550; margin-bottom:16px; }
+    html[data-app-theme] .desktop-app[data-experience] .panel { padding:22px 18px; }
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation { width:100%; margin-bottom:24px; }
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation button { padding:10px 5px; min-height:46px; font-size:14px; }
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub__activity { grid-template-columns:minmax(0,1fr); gap:28px; }
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub__journal { padding:24px 18px; }
+    html[data-app-theme] .desktop-app[data-experience] .automation-journal__filters { gap:14px; flex-wrap:wrap; }
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub__day { padding:0; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser { display:block; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation { border:0; padding:0 18px; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button { padding:17px 0; min-height:64px; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail { padding:22px 18px; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation small { display:block; font-size:12px; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser__icon { background:var(--work-selection); }
+    html[data-app-theme] .desktop-app[data-experience] .table-panel tbody td { font-size:15px; }
+    html[data-app-theme] .modal-backdrop .modal__header h2 { font-size:22px; }
+  }
+  /* Shared records and secondary modules use the same working-sheet grammar. */
+  html[data-app-theme] .desktop-app[data-experience] :is(h2,h3,h4) { font-family:inherit; }
+  html[data-app-theme='light'] .onboarding__wordmark img { filter:none; }
+  html[data-app-theme='dark'] .onboarding__wordmark img { filter:brightness(0) invert(1); }
+  html[data-app-theme] .onboarding :is(.onboarding__promise p,.onboarding__draft span) { color:var(--work-muted); }
+  html[data-app-theme] .onboarding .onboarding__draft strong { color:var(--work-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .workspace-disclosure { min-width:0; }
+  html[data-app-theme] .desktop-app[data-experience] .workspace-disclosure > summary { min-height:44px; display:list-item; align-content:center; cursor:pointer; font-size:16px; font-weight:550; color:var(--work-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .workspace-disclosure > p { font-size:14px; line-height:1.65; margin:8px 0 12px; max-width:65ch; color:var(--work-muted); }
+  html[data-app-theme] .desktop-app[data-experience] .workspace-summary { border-block:1px solid var(--work-line); }
+  html[data-app-theme] .desktop-app[data-experience] .workspace-summary > summary { cursor:pointer; padding:18px 0; font-size:15px; color:var(--work-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .workspace-summary > summary span { margin-left:18px; font-size:14px; color:var(--work-muted); }
+  html[data-app-theme] .desktop-app[data-experience] :is(.bank-hero,.time-hero,.supplier-email-intake) { border:0; border-radius:0; box-shadow:none; padding:16px 0; background:transparent; gap:20px; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-hero { grid-template-columns:32px minmax(0,1fr) auto; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.bank-hero__icon,.time-hero__icon,.supplier-email-intake__icon) { width:32px; height:32px; padding:0; background:none; color:var(--work-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-summary { padding-bottom:18px; gap:0; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-summary article { border:0; border-radius:0; background:transparent; box-shadow:none; padding:10px 18px; border-inline-end:1px solid var(--work-line); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-summary article:last-child { border:0; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-summary article > svg { display:none; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox:not(.supplier-inbox--embedded) { padding:18px 0; border:0; border-block:1px solid var(--work-line); border-radius:0; background:transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox > header { gap:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox > header h2 { font-size:18px; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox > header p { font-size:13px; margin-top:6px; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__icon { background:none; padding:0; width:28px; height:28px; }
+  html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__summary { background:transparent; border:0; border-radius:0; box-shadow:none; gap:0; }
+  html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__summary > * { padding:14px 20px; background:transparent; border:0; border-inline-end:1px solid var(--work-line); }
+  html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__summary > :last-child { border:0; }
+  html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__summary :is(span,small) { text-transform:none; letter-spacing:0; font-size:13px; }
+  html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__toolbar { padding:0 0 14px; border:0; border-radius:0; background:transparent; border-bottom:1px solid var(--work-line); }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview { display:flex; flex-direction:column; gap:22px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__intro { order:0; margin:0; padding:0; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__eyebrow { font-size:14px; text-transform:none; letter-spacing:0; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__next { order:1; padding:22px 0; border:0; border-block:1px solid var(--work-line); border-radius:0; background:transparent; gap:24px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__notice { order:2; margin:0; padding:14px 18px; border:0; border-radius:9px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures { order:3; gap:0; padding:22px; background:var(--work-paper); border-radius:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures article { padding:0 22px; border:0; border-inline-end:1px solid var(--work-line); border-radius:0; box-shadow:none; background:transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures article:last-child { border:0; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures strong { font-size:28px; margin-block:12px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures p { font-size:13px; line-height:1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths { order:4; display:flex; flex-direction:column; gap:0; padding:0 22px; background:var(--work-paper); border-radius:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths > button { display:grid; grid-template-columns:26px minmax(0,1fr) 20px; gap:16px; align-items:center; padding:20px 0; background:transparent; border:0; border-bottom:1px solid var(--work-line); border-radius:0; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths > button:last-child { border:0; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths > button > svg:first-child { grid-column:1; grid-row:1; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths > button > span { grid-column:2; grid-row:1; min-width:0; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths > button > svg:last-child { grid-column:3; grid-row:1; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview__paths small { font-size:14px; line-height:1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-overview > :is(aside,.mobile-details) { order:5; }
+  html[data-app-theme] .desktop-app[data-experience] .quick-actions { display:flex; flex-direction:column; gap:0; }
+  html[data-app-theme] .desktop-app[data-experience] .quick-actions > button { display:flex; flex-direction:row; align-items:center; justify-content:flex-start; gap:16px; min-height:60px; padding:14px 0; border:0; border-bottom:1px solid var(--work-line); border-radius:0; background:transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .quick-actions > button:last-child { border:0; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-item { padding:22px 0; gap:18px; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-list { border:0; background:transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-item__identity strong { font-size:16px; line-height:1.4; white-space:normal; overflow:visible; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-item__identity p { font-size:14px; line-height:1.55; white-space:normal; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-item__identity small,.catalog-item__identity code,.catalog-item__price span,.catalog-item__price small,.catalog-item__stock span,.catalog-item__stock small,.catalog-item__state small,.catalog-filters p) { font-size:13px; line-height:1.5; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-item__price strong,.catalog-item__stock strong) { font-size:16px; line-height:1.4; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-filters :is(input,select) { min-height:44px; font-size:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-filters label > span { font-size:13px; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row { border-left:0; padding:18px 16px; gap:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row__content strong { font-size:15px; line-height:1.5; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.agenda-row__time,.agenda-row__content small,.agenda-row__content p,.agenda-toolbar small,.agenda-toolbar label > span,.agenda-month-controls > div > span) { font-size:13px; line-height:1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar :is(button,input,select) { font-size:14px; min-height:44px; }
+  @media(max-width:860px) {
+    html[data-app-theme] .desktop-app[data-experience] .table-panel tbody td { padding:5px 0; font-size:15px; }
+    html[data-app-theme] .desktop-app[data-experience] .table-panel table[data-mobile-cards] > tbody > tr { margin:0; padding:20px 0; border:0; border-bottom:1px solid var(--work-line); border-radius:0; background:transparent; gap:8px; box-shadow:none; }
+    html[data-app-theme] .desktop-app[data-experience] .table-panel table[data-mobile-cards] > tbody > tr:last-child { border:0; }
+    html[data-app-theme] .desktop-app[data-experience] :is(.bank-hero,.time-hero,.supplier-email-intake) { grid-template-columns:minmax(0,1fr); gap:12px; padding:0; }
+    html[data-app-theme] .desktop-app[data-experience] :is(.bank-hero__icon,.time-hero__icon,.supplier-email-intake__icon) { display:none; }
+    html[data-app-theme] .desktop-app[data-experience] .bank-hero > .button { width:100%; }
+    html[data-app-theme] .desktop-app[data-experience] .workspace-summary > summary span { display:block; margin:8px 0 0; }
+    html[data-app-theme] .desktop-app[data-experience] .bank-summary article { padding:14px 10px; }
+    html[data-app-theme] .desktop-app[data-experience] .supplier-inbox:not(.supplier-inbox--embedded) { padding:16px 0; }
+    html[data-app-theme] .desktop-app[data-experience] .supplier-inbox > header { display:grid; grid-template-columns:28px minmax(0,1fr); align-items:start; }
+    html[data-app-theme] .desktop-app[data-experience] .supplier-inbox > header > div { grid-column:2; min-width:0; }
+    html[data-app-theme] .desktop-app[data-experience] .supplier-inbox > header > button { grid-column:2; width:fit-content; }
+    html[data-app-theme] .desktop-app[data-experience] .document-actions--compact { grid-template-columns:max-content minmax(0,1fr); width:100%; min-width:0; }
+    html[data-app-theme] .desktop-app[data-experience] .document-actions--compact > .document-preview-action { white-space:nowrap; padding-inline:12px; }
+    html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__summary > * { padding:12px 8px; border:0; }
+    html[data-app-theme] .desktop-app[data-experience] .finance-overview__next { flex-direction:column; align-items:stretch; gap:16px; }
+    html[data-app-theme] .desktop-app[data-experience] .finance-overview__next > div { gap:12px; }
+    html[data-app-theme] .desktop-app[data-experience] .finance-overview__step { background:none; width:24px; height:24px; }
+    html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures { display:flex; flex-direction:column; padding:8px 18px; }
+    html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures article { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 14px; padding:18px 0; border:0; border-bottom:1px solid var(--work-line); }
+    html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures strong { font-size:25px; margin:0; }
+    html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures p { grid-column:1/-1; margin:0; }
+    html[data-app-theme] .desktop-app[data-experience] .finance-overview__figures button { grid-column:1/-1; min-height:44px; }
+    html[data-app-theme] .desktop-app[data-experience] .catalog-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding:0; }
+    html[data-app-theme] .desktop-app[data-experience] .catalog-summary > div { padding:12px 8px; min-width:0; border:0; }
+    html[data-app-theme] .desktop-app[data-experience] .catalog-summary span { font-size:12px; line-height:1.5; white-space:normal; }
+    html[data-app-theme] .desktop-app[data-experience] .catalog-item { grid-template-columns:32px minmax(0,1fr); }
+    html[data-app-theme] .desktop-app[data-experience] .catalog-item > :is(.catalog-item__price,.catalog-item__stock,.catalog-item__state,.catalog-item__actions) { grid-column:2; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-row { grid-template-columns:minmax(0,1fr) auto; padding:16px 0; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-row__time { grid-column:1/-1; }
   }
   /* Tauri's native macOS navigation still owns the window edges. */
   html[data-app-theme] .desktop-app[data-native-desktop='true'] .app-main { margin: 0; border-radius: 0; }

@@ -1378,6 +1378,7 @@ function PurchaseInbox({
       <EmptyState
         icon={<CheckCircle2 />}
         title="Tout est traité"
+        actionVariant="secondary"
         text="Aucune commande, facture ou avoir ne requiert d’action pour le moment."
         actionLabel="Créer une commande"
         onAction={onCreateOrder}

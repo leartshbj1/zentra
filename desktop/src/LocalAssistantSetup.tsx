@@ -11,7 +11,7 @@ export function LocalAssistantSetup({ onboarding = false }: { onboarding?: boole
   useEffect(()=>{ void localModelInstallation.inspect(); },[]);
   const busy = ['checking','installing','removing'].includes(model.phase);
   return <section className="local-assistant-setup" aria-label={t("Installation de l’assistant local")}>
-    <div className="local-assistant-setup__heading"><span><MessageCircle size={23}/></span><div><p className="eyebrow">{t("Une aide à vos côtés")}</p><h3>{onboarding ? t("Voulez-vous installer votre assistant local ?") : t("Assistant local · Qwen")}</h3></div></div>
+    <div className="local-assistant-setup__heading"><span><MessageCircle size={23}/></span><div><h3>{onboarding ? t("Voulez-vous installer votre assistant local ?") : t("Assistant local · Qwen")}</h3></div></div>
     <p>{t("Posez vos questions sur Zentra, comprenez une fiche de salaire ou faites-vous guider dans les réglages.")}</p>
     <p className="local-assistant-setup__privacy">{t("Qwen · environ 429 Mo à télécharger une fois. Vos questions et le contexte restent sur cet appareil. Après installation, les réponses fonctionnent sans Internet. La rapidité dépend de votre appareil.")}</p>
     {model.phase === 'installed' ? <p className="local-assistant-setup__ready" role="status"><Check size={17}/>{t(" Installé sur cet appareil")}</p> : null}

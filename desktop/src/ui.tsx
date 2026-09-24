@@ -76,6 +76,7 @@ export function EmptyState({
   title,
   text,
   actionLabel,
+  actionVariant = 'primary',
   onAction,
   disabled,
 }: {
@@ -83,6 +84,7 @@ export function EmptyState({
   title: string;
   text: string;
   actionLabel?: string;
+  actionVariant?: 'primary' | 'secondary';
   onAction?: () => void;
   disabled?: boolean;
 }) {
@@ -92,7 +94,7 @@ export function EmptyState({
       <h3>{title}</h3>
       <p>{text}</p>
       {actionLabel && onAction ? (
-        <Button onClick={onAction} disabled={disabled}>
+        <Button variant={actionVariant} onClick={onAction} disabled={disabled}>
           {actionLabel} <ChevronRight size={16} />
         </Button>
       ) : null}

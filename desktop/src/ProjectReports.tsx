@@ -60,7 +60,6 @@ export function ReportsScreen({
     >
       <header className="project-reports__heading">
         <div>
-          <span className="project-reports__eyebrow">{t('RAPPORTS')}</span>
           <h2>{t('Une vue claire de vos projets.')}</h2>
           <p>
             {t(

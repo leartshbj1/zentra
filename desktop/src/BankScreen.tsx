@@ -582,7 +582,7 @@ export function BankScreen({
     {newExpenseMovement ? <BankExpenseForm movement={newExpenseMovement} workspace={workspace} busy={writesDisabled} onClose={() => setNewExpenseMovement(null)} onSave={createExpense} /> : null}
     <section className="bank-hero">
       <div className="bank-hero__icon"><Landmark size={25} /></div>
-      <div><p className="eyebrow">Relevés bancaires</p><h2>Retrouvez les factures payées.</h2><p>Importez le relevé XML CAMT exporté depuis votre banque. Zentra retrouve les factures clients grâce à leur référence de paiement et conserve les autres mouvements à contrôler.</p></div>
+      <details className="workspace-disclosure"><summary>Retrouvez les factures payées.</summary><p>Importez le relevé XML CAMT exporté depuis votre banque. Zentra retrouve les factures clients grâce à leur référence de paiement et conserve les autres mouvements à contrôler.</p></details>
       <Button disabled={writesDisabled} onClick={() => setImportOpen(true)} title={readOnly ? 'Licence en lecture seule' : 'Choisir un fichier XML sur cet appareil'}>{busy ? <LoaderCircle className="spin" size={16} /> : <FileUp size={16} />} Importer un relevé XML</Button>
     </section>
 
@@ -595,13 +595,13 @@ export function BankScreen({
 
     {!accountingReady ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité requise pour rapprocher</strong><p>Les relevés restent consultables, mais un encaissement ou règlement n’est confirmé que si le paiement et son écriture bancaire peuvent être créés ensemble.</p></div><Button variant="secondary" size="small" onClick={() => onOpenAccounting('accounts')}>Ouvrir Plan & liaisons</Button></div> : null}
 
-    <div className="bank-summary" aria-label="Résumé bancaire local">
+    <details className="workspace-summary"><summary>Résumé bancaire local <span>{bank.summary.importCount} imports · {bank.summary.unreconciledCount + bank.summary.unreconciledSupplierCount} à rapprocher</span></summary><div className="bank-summary" aria-label="Résumé bancaire local">
       <article><FileCode2 /><span>Imports</span><strong>{bank.summary.importCount}</strong><small>fichiers locaux</small></article>
       <article><ArrowDownLeft /><span>Entrées</span><strong>{bank.summary.bookedCreditCount}</strong><small>inscrites au relevé</small></article>
       <article><ArrowUpRight /><span>Sorties</span><strong>{bank.summary.bookedDebitCount}</strong><small>inscrites au relevé</small></article>
       <article className={bank.summary.unreconciledCount + bank.summary.unreconciledSupplierCount ? 'is-attention' : ''}><Link2 /><span>À rapprocher</span><strong>{bank.summary.unreconciledCount + bank.summary.unreconciledSupplierCount}</strong><small>confirmation requise</small></article>
       <article><Clock3 /><span>En attente</span><strong>{bank.summary.pendingCount}</strong><small>aucune écriture possible</small></article>
-    </div>
+    </div></details>
 
     {bank.accounts.length ? <section ref={accountsRef} tabIndex={-1} className="bank-accounts" aria-label="Comptes détectés dans les relevés">
       {bank.accounts.map((account) => <article className={account.linked ? 'is-linked' : 'is-unlinked'} key={`${account.accountId}-${account.currency}`}>
@@ -689,6 +689,7 @@ export function BankScreen({
           </article>;
         })}
       </div> : <EmptyState
+        actionVariant="secondary"
         icon={filter === 'reconciled' ? <CheckCircle2 /> : filter === 'pending' ? <Clock3 /> : <Link2 />}
         title={query.trim() ? 'Aucun résultat' : `Aucun mouvement « ${filterLabels[filter].toLowerCase()} »`}
         text={query.trim() ? 'Aucun mouvement ne correspond à cette recherche dans le filtre choisi.' : bank.imports.length ? 'Changez de filtre ou importez un relevé plus récent.' : 'Importez votre premier relevé XML CAMT fourni par votre banque.'}
