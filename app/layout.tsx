@@ -9,6 +9,7 @@ import './globals.css';
 import './refined.css';
 import './product-navigation.css';
 import './studio.css';
+import './intuitive-site.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
