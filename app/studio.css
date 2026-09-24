@@ -1,0 +1,343 @@
+/* Zentra Studio: a quiet, continuous product world. Route-specific behavior stays local. */
+:root {
+  --studio-ink: #19251f;
+  --studio-muted: #626b66;
+  --studio-green: #225b40;
+  --studio-tint: #e9f0ec;
+  --studio-paper: #fff;
+  --studio-canvas: #f5f6f7;
+  --studio-rule: #dce1de;
+  --studio-ease: cubic-bezier(.16,1,.3,1);
+}
+html { scrollbar-color: #a9b6ae var(--studio-canvas); caret-color: var(--studio-green); }
+body .catalog-footer h2 { font-size:14px; font-weight:600; line-height:1.5; letter-spacing:normal; overflow-wrap:normal; }
+.studio-feature-list { display:flex; flex-direction:column; margin-top:40px; border-top:1px solid var(--studio-rule); }
+.studio-feature-link { display:grid; grid-template-columns:52px minmax(180px,.75fr) minmax(0,1.25fr) 24px; align-items:center; gap:28px; padding:30px 0; border-bottom:1px solid var(--studio-rule); }
+.studio-feature-link > div { display:contents; }
+body .studio-feature-link > div > span { grid-column:1; grid-row:1; width:44px; height:44px; background:transparent; color:var(--studio-green); }
+.studio-feature-link > div > svg { grid-column:4; grid-row:1; }
+body .studio-feature-link h3 { grid-column:2; grid-row:1; margin:0; font-size:24px; font-weight:550; letter-spacing:-.025em; }
+body .studio-feature-link p { grid-column:3; grid-row:1; margin:0; font-size:16px; line-height:1.65; }
+.studio-feature-group { display:grid; grid-template-columns:minmax(220px,.7fr) minmax(0,1.3fr); gap:64px; border-top:1px solid var(--studio-rule); padding:40px 0; }
+.studio-feature-group > h3 { font-size:28px; font-weight:550; letter-spacing:-.025em; }
+.studio-feature-group article { display:grid; grid-template-columns:28px minmax(0,1fr); gap:12px 18px; padding:22px 0; border-bottom:1px solid var(--studio-rule); }
+.studio-feature-group article:first-child { padding-top:0; }
+.studio-feature-group article:last-child { border:0; padding-bottom:0; }
+.studio-feature-group article > svg { color:var(--studio-green); width:22px; height:22px; grid-row:1/3; }
+.studio-feature-group h4 { font-size:19px; font-weight:550; }
+.studio-feature-group p { grid-column:2; color:var(--studio-muted); font-size:16px; line-height:1.65; }
+.studio-download-notes { max-width:1280px; margin:0 auto 64px; padding:0 32px; }
+.studio-download-notes details { border-block:1px solid var(--studio-rule); }
+.studio-download-notes summary { min-height:64px; padding:20px 0; cursor:pointer; font-size:17px; font-weight:550; }
+.studio-download-notes details > div { border:0; border-radius:0; padding:24px 0; }
+.studio-installer-caption { display:flex; align-items:center; gap:8px; padding:20px 0; font-size:13px; color:var(--studio-muted); }
+body .studio-download-hero .installer-window { border-radius:14px; box-shadow:none; border:1px solid var(--studio-rule); }
+.studio-release-meta { color:var(--studio-muted); font-size:14px; line-height:1.5; margin-top:20px; }
+@media(max-width:760px) {
+ .studio-feature-link { grid-template-columns:32px minmax(0,1fr) 20px; gap:12px; padding:24px 0; }
+ body .studio-feature-link > div > span { width:28px; height:32px; }
+ .studio-feature-link > div > svg { grid-column:3; }
+ body .studio-feature-link h3 { font-size:23px; }
+ body .studio-feature-link p { grid-column:2/4; grid-row:2; font-size:16px; }
+ .studio-feature-group { grid-template-columns:1fr; gap:28px; padding-block:32px; }
+ .studio-feature-group > h3 { font-size:25px; }
+ .studio-download-notes { padding-inline:20px; margin-bottom:40px; }
+}
+body { font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:var(--studio-paper); }
+::selection { color:var(--studio-ink); background:#d5e8dc; }
+a { text-underline-offset: .22em; }
+:where(a,button,input,select,textarea,summary):focus-visible { outline:2px solid var(--studio-green); outline-offset:4px; }
+body .catalog-header { background:var(--studio-paper); border:0; }
+body .catalog-global { max-width:1360px; min-height:76px; padding:12px 40px; border-bottom:1px solid var(--studio-rule); }
+body .catalog-brand { width:98px; }
+body .catalog-products { gap:40px; }
+body .catalog-products a { font-size:14px; min-height:44px; display:flex; align-items:center; position:relative; }
+body .catalog-products a[aria-current] { color:var(--studio-green); }
+body .catalog-products a[aria-current]::after { content:''; position:absolute; bottom:3px; height:2px; background:currentColor; inset-inline:0; }
+body .catalog-account { min-height:44px; font-size:14px; }
+body .zentra-presentation { background:var(--studio-paper); color:var(--studio-ink); }
+body .zentra-intro.zentra-home-intro { display:grid; grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr); gap:72px; align-items:center; max-width:1360px; padding:72px 40px 88px; margin:auto; text-align:left; }
+body .zentra-home-copy h1 { font-size:clamp(46px,5vw,70px); font-weight:540; line-height:1.05; letter-spacing:-.04em; text-wrap:balance; }
+body .zentra-home-copy h1 span { color:var(--studio-green); }
+body .zentra-home-copy > p { max-width:38ch; font-size:19px; line-height:1.6; margin:28px 0 0; color:var(--studio-muted); }
+body .zentra-home-copy .zentra-desktop-break { display:none; }
+body .zentra-home-copy .zentra-actions { justify-content:flex-start; align-items:flex-start; flex-direction:column; gap:12px; margin-top:30px; }
+body :is(.zentra-primary,.catalog-action) { border-radius:10px; background:var(--studio-green); color:#fff; box-shadow:none; min-height:48px; padding:12px 21px; font-size:15px; }
+body .zentra-text-link { min-height:44px; font-size:15px; }
+body .zentra-home-stage { min-width:0; margin:0; width:100%; }
+body .zentra-home-stage .story-selector { justify-content:stretch; padding:5px; margin:0 0 14px; background:var(--studio-canvas); border-radius:11px; gap:4px; }
+body .zentra-home-stage .story-selector button { flex:1; padding:10px 8px; min-width:0; min-height:44px; border:0; border-radius:7px; background:none; color:var(--studio-muted); font-size:13px; }
+body .zentra-home-stage .story-selector button[aria-pressed=true] { background:var(--studio-paper); color:var(--studio-green); box-shadow:0 2px 7px #1836290d; }
+body .zentra-home-stage .story-selector button svg { display:none; }
+body .zentra-home-stage .story-canvas { border-radius:16px; padding:28px; background:var(--studio-tint); border:0; }
+body .zentra-home-stage .story-caption { font-size:12px; gap:8px; margin-bottom:22px; color:#506459; }
+body .zentra-home-stage .story-caption > span:last-child { display:none; }
+body .zentra-home-stage .story-composition { display:flex; flex-direction:column; gap:22px; }
+body .zentra-home-stage .story-narrative { display:contents; }
+body .zentra-home-stage .story-narrative h2 { order:0; font-size:28px; line-height:1.2; letter-spacing:-.025em; font-weight:550; margin:0; }
+body .zentra-home-stage .story-narrative > p { display:none; }
+body .zentra-home-stage .story-window { order:1; width:100%; min-height:320px; border-radius:12px; border:0; box-shadow:0 16px 36px -20px #173c2940; }
+body .zentra-home-stage .story-window-bar { min-height:48px; padding:14px 22px; background:#fff; }
+body .zentra-home-stage .story-frame { min-height:275px; padding:24px; }
+body .zentra-home-stage .story-frame h3 { font-size:21px; line-height:1.3; }
+body .zentra-home-stage .story-main-icon { display:none; }
+body .zentra-home-stage .story-message { font-size:14px; line-height:1.7; margin-block:20px; }
+body .zentra-home-stage .story-steps { order:2; display:flex; margin:0; gap:10px; }
+body .zentra-home-stage .story-steps li { flex:1; }
+body .zentra-home-stage .story-steps button { display:flex; flex-direction:column; align-items:flex-start; gap:9px; padding:4px 0; min-height:64px; font-size:12px; line-height:1.5; text-align:left; }
+body .zentra-home-stage .story-steps button > svg { display:none; }
+body .zentra-home-stage .story-step-number { width:25px; height:25px; }
+body .zentra-home-stage .story-play { order:3; margin:0; align-self:flex-start; font-size:13px; min-height:36px; }
+body .zentra-home-stage .story-condition { padding-top:16px; margin-top:16px; border-top:1px solid #c8d8ce; font-size:12px; line-height:1.6; color:#4d6256; }
+/* Product presentations share the same reading rhythm, including older routes. */
+body main#contenu { background:var(--studio-paper); }
+body main#contenu h1 { font-weight:540; line-height:1.1; letter-spacing:-.035em; }
+body main#contenu :is(.interactive-card,.download-card) { border-radius:12px; box-shadow:none; }
+body main#contenu article.interactive-card { border:0; border-top:1px solid var(--studio-rule); border-radius:0; padding:28px 0; background:transparent; }
+body main#contenu article.interactive-card > :is(h2,h3) { font-weight:540; }
+body main#contenu article.interactive-card > span:first-child { background:transparent; border:0; border-radius:0; justify-items:start; }
+body main#contenu article.interactive-card:hover { transform:none; box-shadow:none; }
+body main#contenu section > div:has(> article.interactive-card) { gap:36px; }
+body main#contenu a.rounded-full { border-radius:10px; }
+body :is(.zentra-width,.sp-wrap) { max-width:1280px; }
+body :is(.zentra-section,.sp-section) { padding-block:96px; }
+body :is(.zentra-section-heading,.sp-section-title) { margin-bottom:44px; }
+body :is(.zentra-section h2,.zentra-split h2,.sp-section-title h2,.site-section-title) { font-size:clamp(32px,3.7vw,52px); font-weight:540; line-height:1.13; letter-spacing:-.035em; text-wrap:balance; }
+body :is(.zentra-intro,.sp-hero,.home-hero) h1 { letter-spacing:-.04em; font-weight:540; line-height:1.06; }
+body .zentra-intro:not(.zentra-home-intro) { padding-block:76px 62px; }
+body .zentra-intro:not(.zentra-home-intro) h1 { font-size:clamp(44px,6.5vw,80px); }
+body :is(.zentra-intro,.sp-hero,.home-hero) p { color:var(--studio-muted); }
+body :is(.home-hero__eyebrow,.sp-kicker,.site-eyebrow) { display:none; }
+body .home-hero { padding-top:70px; padding-bottom:80px; }
+body .home-hero__intro { display:grid; grid-template-columns:1.15fr 1fr; column-gap:64px; margin:0 0 54px; max-width:none; text-align:left; }
+body .home-hero__intro h1 { grid-column:1; grid-row:1/4; font-size:clamp(48px,5.8vw,78px); }
+body .home-hero__description { margin-top:4px; font-size:21px; line-height:1.6; }
+body .home-hero__actions { margin-top:24px; gap:20px; }
+body .home-hero__price { margin-top:20px; }
+body .home-hero__primary { border-radius:10px; min-height:48px; padding-inline:22px; background:var(--studio-green); box-shadow:none; }
+body .hero-product-window { border:0; border-radius:14px; box-shadow:0 24px 60px -28px #173a2a33; }
+body .hero-motion-stage { padding:36px; background:var(--studio-tint); border-radius:16px; }
+body .home-hero > .hero-motion-stage { max-width:none; }
+body .zentra-range-grid { display:block; }
+body .zentra-product { display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.15fr) minmax(0,1fr); grid-template-areas:'name description features' 'price description features' 'note discover links'; gap:12px 48px; padding:44px 0; background:transparent; border:0; border-top:1px solid var(--studio-rule); border-radius:0; box-shadow:none; }
+body .zentra-product:last-child { border-bottom:1px solid var(--studio-rule); }
+body .zentra-product h3 { grid-area:name; font-size:34px; font-weight:550; letter-spacing:-.025em; margin:0; }
+body .zentra-product h3 > span { display:none; }
+body .zentra-product-description { grid-area:description; font-size:24px; font-weight:450; line-height:1.4; color:var(--studio-ink); max-width:20ch; margin:0; }
+body .zentra-product-price { grid-area:price; font-size:20px; margin:4px 0 0; color:var(--studio-green); font-weight:500; }
+body .zentra-product-price small { font-size:14px; }
+body .zentra-product-note { grid-area:note; font-size:13px; margin:0; max-width:26ch; color:var(--studio-muted); }
+body .zentra-product-discover { grid-area:discover; align-self:end; justify-self:start; display:flex; align-items:center; gap:12px; min-height:44px; margin:0; border:0; background:transparent; color:var(--studio-green); border-radius:0; padding:0; font-size:15px; }
+body .zentra-product ul { grid-area:features; margin:0; padding:0; border:0; }
+body .zentra-product ul a { padding:7px 0; min-height:34px; font-size:14px; }
+body .zentra-product-links { grid-area:links; display:flex; flex-wrap:wrap; gap:8px 20px; margin:8px 0 0; padding:0; border:0; font-size:13px; }
+body .zentra-product-links a { min-height:36px; display:flex; align-items:center; text-decoration:underline; text-decoration-color:#a5b6ad; }
+body .complete-banner { display:flex; align-items:center; justify-content:space-between; gap:36px; max-width:1280px; margin:0 auto 72px; border-radius:14px; padding:44px 48px; background:var(--studio-green); color:#fff; border:0; }
+body .complete-banner h2 { color:#fff; font-size:clamp(26px,3vw,38px); font-weight:500; line-height:1.15; letter-spacing:-.025em; }
+body .complete-banner p { color:#d6e6dc; font-size:16px; margin-top:14px; }
+body .complete-banner > a { display:flex; align-items:center; gap:12px; padding:13px 20px; min-height:48px; border:1px solid #709981; border-radius:9px; color:#fff; background:none; flex-shrink:0; font-size:14px; }
+body :is(.zentra-automation-feature,.automation-daily-section) { padding:96px 0; background:var(--studio-canvas); }
+body .zentra-split { gap:100px; }
+body :is(.zentra-day-preview,.automation-daily-artifact) { padding:36px; background:#fff; border:0; border-radius:14px; box-shadow:0 16px 50px -32px #18362940; }
+body .zentra-day-preview h3 { font-size:30px; font-weight:540; letter-spacing:-.02em; }
+body .zentra-choice { gap:80px; }
+body .zentra-choice a { min-height:108px; padding:24px 0; }
+body .zentra-choice a strong { font-size:20px; font-weight:500; }
+body .zentra-choice a small { margin-top:10px; font-size:14px; }
+body .zentra-faq details { padding:23px 0; }
+body .zentra-faq summary { font-size:18px; font-weight:500; }
+body .zentra-faq details p { font-size:16px; max-width:65ch; }
+body .catalog-local { background:#f7f8f8; border-bottom:1px solid var(--studio-rule); }
+body .catalog-local-row { min-height:62px; max-width:1280px; }
+body .catalog-product-title { font-size:17px; font-weight:550; }
+body .catalog-desktop-links { gap:21px; }
+body .catalog-local-actions .catalog-action { min-height:36px; padding:8px 14px; font-size:13px; }
+body .catalog-footer { background:var(--studio-canvas); border:0; padding-block:60px 30px; }
+body .catalog-footer-inner { max-width:1280px; }
+body .catalog-footer a { min-height:32px; font-size:14px; }
+body .support-presentation { background:var(--studio-paper); --sp-green:var(--studio-green); --sp-muted:var(--studio-muted); --sp-line:var(--studio-rule); }
+body .sp-hero { gap:70px; padding-block:72px 88px; }
+body .sp-hero h1 { font-size:clamp(44px,5.2vw,70px); }
+body .sp-lead { font-size:20px; max-width:40ch; line-height:1.65; }
+body .sp-button { border-radius:10px; min-height:48px; box-shadow:none; }
+body .sp-button-dark { background:var(--studio-green); }
+body .sp-soft { background:var(--studio-canvas); }
+body .sp-dark { background:var(--studio-green); }
+body .sp-steps { gap:40px; }
+body .sp-steps article { border:0; background:transparent; padding:0; box-shadow:none; }
+body .sp-usecase-grid { gap:0; }
+body .sp-usecase-grid a { padding:28px; border:0; border-top:1px solid var(--studio-rule); border-radius:0; box-shadow:none; }
+body .automation-function-list details { border-radius:0; border-inline:0; background:transparent; padding:28px 0; }
+body .automation-function-list h3 { font-size:23px; font-weight:500; }
+body .automation-bridge { border:0; background:var(--studio-tint); border-radius:14px; padding:44px; }
+body .automation-bridge h2 { font-weight:540; font-size:clamp(28px,3.2vw,42px); }
+/* Entry and reference pages have the same calm typography without marketing clutter. */
+body .studio-auth { background:var(--studio-paper); }
+body .studio-auth > div { max-width:1080px; gap:90px; }
+body .studio-auth > div > section:first-child { padding:20px 0; }
+body .studio-auth > div > section:first-child > p:first-of-type { display:none; }
+body .studio-auth h2 { font-size:48px; letter-spacing:-.035em; line-height:1.14; font-weight:520; margin-top:48px; }
+body .studio-auth > div > section:first-child > p { max-width:40ch; font-size:17px; line-height:1.7; }
+body .studio-auth-assurances { margin-top:28px; }
+body .studio-auth-assurances > summary { cursor:pointer; min-height:44px; padding:12px 0; font-size:14px; color:var(--studio-green); }
+body .studio-auth-assurances > div { margin-top:10px; }
+body .studio-auth-assurances > div > div { border:0; border-radius:0; padding:16px 0; background:transparent; backdrop-filter:none; border-top:1px solid var(--studio-rule); }
+body .studio-auth > div > .auth-surface { padding:0; border:0; box-shadow:none; }
+body .studio-auth .auth-surface > div { border:0; border-radius:14px; background:var(--studio-canvas); padding:36px; box-shadow:none; }
+body .studio-auth h1 { font-size:30px; font-weight:550; line-height:1.2; letter-spacing:-.025em; }
+body .studio-auth [role=tablist] { border-radius:10px; background:#e5e9e6; }
+body .studio-auth [role=tab] { border-radius:7px; font-weight:500; }
+body .studio-auth [role=tab][aria-selected=true] { color:var(--studio-green); background:#fff; box-shadow:0 2px 5px #173a2a0d; }
+body .studio-auth [role=tablist] + div > p:first-child { display:none; }
+body .studio-auth form label > span:has(input) { border-radius:9px; background:#fff; border-color:#cbd4ce; }
+body .studio-auth form input::placeholder { color:#66736c; }
+body .studio-auth form button[type=submit] { border-radius:9px; background:var(--studio-green); font-size:15px; font-weight:500; transform:none; }
+body .studio-recovery { background:var(--studio-canvas); }
+body .studio-recovery section { border:0; border-radius:14px; padding:36px; box-shadow:none; }
+body .studio-recovery h1 { font-weight:550; font-size:30px; letter-spacing:-.025em; }
+body .studio-recovery :is(input,button[type=submit]) { border-radius:9px; }
+body .legal-page { background:var(--studio-paper); padding-top:64px; }
+body .legal-page > div { max-width:1120px; }
+body .legal-page h1 { font-size:clamp(38px,5vw,64px); line-height:1.1; font-weight:530; letter-spacing:-.035em; }
+body .legal-page .legal-toc { padding:8px 24px 8px 0; border:0; border-radius:0; background:transparent; }
+body .legal-page section { padding:32px 0; border:0; border-top:1px solid var(--studio-rule); border-radius:0; background:none; }
+body .legal-page h2 { font-size:24px; font-weight:550; letter-spacing:-.02em; }
+body .legal-page .legal-copy { font-size:16px; line-height:1.8; max-width:72ch; }
+/* Shared account chrome. Authentication and subscription behavior is unchanged. */
+body .account-workspace { max-width:1320px; gap:60px; grid-template-columns:248px minmax(0,1fr); padding-inline:40px; }
+body .account-content h1 { font-weight:550; font-size:36px; letter-spacing:-.03em; }
+body .account-card { border:0; border-radius:14px; padding:30px; }
+body .account-sidebar nav a { border-radius:9px; font-size:15px; }
+body .account-sidebar nav a[aria-current] { background:var(--ac-accent); color:var(--ac-panel); }
+body .account-button { border-radius:9px; }
+body .account-content details { border-radius:12px; }
+/* The Support workspace: three quiet reading columns, one selected message. */
+body .support-app { --s-ink:var(--studio-ink); --s-muted:var(--studio-muted); --s-line:var(--studio-rule); --s-bg:var(--studio-canvas); --s-accent:var(--studio-green); --s-soft:var(--studio-tint); background:var(--s-bg); }
+body .support-app .support-topbar { height:auto; min-height:72px; padding:14px 28px; border-bottom:1px solid var(--s-line); background:#fff; }
+body .support-app .support-demo-note { padding:10px 24px; font-size:12px; background:#edf2ef; color:#465d50; }
+body .support-app .support-workspace { grid-template-columns:244px minmax(0,1fr); }
+body .support-app .support-sidebar { background:#fff; padding:24px 16px; border-right:1px solid var(--s-line); }
+body .support-app .support-workspace-picker { margin:0 4px 24px; }
+body .support-app .support-nav-label { font-size:12px; font-weight:500; margin:24px 12px 8px; color:var(--s-muted); letter-spacing:0; text-transform:none; }
+body .support-app .support-folder { border-radius:8px; min-height:43px; padding:10px 12px; font-size:14px; }
+body .support-app .support-folder[aria-pressed=true] { color:#fff; background:var(--s-accent); }
+body .support-app .support-nav [role=tab] { min-height:44px; border-radius:8px; padding:10px 12px; font-size:14px; }
+body .support-app .support-nav [role=tab][data-selected] { background:var(--s-soft); color:var(--s-accent); }
+body .support-app .support-sidebar-bottom { background:none; padding:24px 12px 8px; margin-top:24px; border-radius:0; border-top:1px solid var(--s-line); }
+body .support-app .support-main { background:var(--s-bg); padding:36px; }
+body .support-app .support-page-heading { margin-bottom:28px; gap:24px; }
+body .support-app .support-page-heading h1 { font-size:34px; line-height:1.15; font-weight:550; letter-spacing:-.03em; }
+body .support-app .support-page-heading p { font-size:14px; margin-top:10px; }
+body .support-app .support-inbox-toolbar { margin-bottom:24px; gap:16px; }
+body .support-app .support-search { background:#fff; border:0; border-radius:9px; min-height:46px; }
+body .support-app .support-search input { font-size:15px; }
+body .support-app .support-inbox-layout { display:grid; grid-template-columns:minmax(280px,.9fr) minmax(0,1.3fr); gap:24px; border:0; border-radius:0; background:transparent; overflow:visible; }
+body .support-app .support-ticket-list { border:0; border-radius:12px; background:#fff; overflow:hidden; }
+body .support-app .support-list-heading { padding:20px; background:#fff; border-bottom:1px solid var(--s-line); font-size:14px; }
+body .support-app .support-ticket-row { padding:22px 20px; border-bottom:1px solid var(--s-line); background:transparent; border-radius:0; }
+body .support-app .support-ticket-row.selected { background:var(--s-soft); }
+body .support-app .support-ticket-row > strong { font-size:15px; line-height:1.45; font-weight:550; }
+body .support-app .support-ticket-row > p { font-size:14px; line-height:1.6; margin-block:8px 14px; }
+body .support-app .support-ticket-reference { font-size:12px; }
+body .support-app .support-detail { background:#fff; border:0; border-radius:12px; padding:30px; align-self:start; min-height:610px; }
+body .support-app .support-detail > h2 { font-size:27px; font-weight:550; line-height:1.25; letter-spacing:-.025em; margin:22px 0 12px; }
+body .support-app .support-message { font-size:16px; line-height:1.8; padding-block:22px 28px; margin:0; white-space:pre-wrap; }
+body .support-app .support-decision { background:transparent; border-radius:0; border-block:1px solid var(--s-line); padding:22px 0; margin-block:0 24px; }
+body .support-app .support-decision > strong { font-size:16px; }
+body .support-app .support-decision dl { gap:12px; }
+body .support-app .support-decision p { font-size:13px; line-height:1.6; }
+body .support-app .support-review-disclosure { border:0; }
+body .support-app .support-review-disclosure > summary { min-height:44px; }
+body .support-app :is(.support-panel,.support-stat) { border-radius:12px; border:0; background:#fff; }
+body .support-app :is(input,select,textarea) { border-radius:8px; min-height:44px; }
+@media(min-width:761px) and (max-width:1100px) {
+ body .support-app .support-workspace { grid-template-columns:212px minmax(0,1fr); }
+ body .support-app .support-main { padding:28px; }
+ body .support-app .support-inbox-layout { display:block; }
+ body .support-app .support-detail { display:none; }
+ body .support-app .support-inbox-layout[data-detail=true] .support-ticket-list { display:none; }
+ body .support-app .support-inbox-layout[data-detail=true] .support-detail { display:block; }
+}
+@media(max-width:1100px) {
+ body .zentra-intro.zentra-home-intro { gap:32px; padding-inline:28px; }
+ body .zentra-home-copy h1 { font-size:52px; }
+ body .zentra-home-stage .story-canvas { padding:22px; }
+}
+@media(max-width:760px) {
+ body .studio-auth { padding:28px 20px; }
+ body .studio-auth > div { gap:24px; }
+ body .studio-auth > div > section:first-child { padding:0; }
+ body .studio-auth-assurances { margin:10px 0 0; }
+ body .studio-auth .auth-surface > div { padding:26px 20px; }
+ body .studio-auth h1 { font-size:27px; }
+ body .studio-recovery section { padding:28px 22px; }
+ body .legal-page { padding-top:36px; }
+ body .legal-page .legal-toc { border-block:1px solid var(--studio-rule); padding:18px 0; }
+ body :is(.zentra-section,.sp-section) { padding-block:56px; }
+ body :is(.zentra-width,.sp-wrap) { width:100%; padding-inline:20px; }
+ body :is(.zentra-section-heading,.sp-section-title) { margin-bottom:28px; }
+ body .home-hero__intro { display:block; margin-bottom:34px; }
+ body .home-hero { padding:42px 20px 52px; }
+ body .home-hero__intro h1 { font-size:46px; }
+ body .home-hero__description { font-size:18px; margin-top:24px; }
+ body .hero-motion-stage { padding:14px; border-radius:12px; }
+ body .zentra-product { grid-template-columns:1fr; grid-template-areas:'name' 'description' 'price' 'note' 'discover' 'features' 'links'; padding:32px 0; gap:14px; }
+ body .zentra-product h3 { font-size:32px; }
+ body .zentra-product-description { font-size:23px; max-width:25ch; }
+ body .zentra-product ul { margin-top:4px; }
+ body .zentra-product ul a { min-height:44px; }
+ body .zentra-product-links a { min-height:44px; }
+ body .complete-banner { flex-direction:column; align-items:flex-start; padding:30px 24px; margin:0 20px 48px; gap:24px; }
+ body .complete-banner > a { flex-shrink:1; font-size:14px; }
+ body :is(.zentra-automation-feature,.automation-daily-section) { padding-block:56px; }
+ body .zentra-split { gap:36px; }
+ body :is(.zentra-day-preview,.automation-daily-artifact) { padding:24px; }
+ body .zentra-choice { gap:24px; }
+ body .zentra-choice a { min-height:96px; }
+ body .zentra-choice a strong { font-size:18px; }
+ body .zentra-faq summary { font-size:17px; }
+ body .catalog-local-row { padding-inline:20px; }
+ body .sp-hero { padding:40px 20px 52px; gap:32px; }
+ body .sp-hero h1 { font-size:44px; }
+ body .sp-steps { gap:28px; }
+ body .automation-bridge { padding:28px 24px; }
+ body .account-workspace { display:block; padding-inline:20px; }
+ body .account-card { padding:24px 20px; }
+ body .account-content h1 { font-size:32px; }
+ body .support-app .support-topbar { min-height:64px; padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left)); }
+ body .support-app .support-workspace { display:block; }
+ body .support-app .support-sidebar { padding:18px 20px; border:0; border-bottom:1px solid var(--s-line); }
+ body .support-app .support-workspace-picker { margin:0; }
+ body .support-app .support-nav { gap:4px; }
+ body .support-app .support-nav [role=tab] { min-height:44px; padding:10px 12px; }
+ body .support-app .support-main { padding:26px max(20px,env(safe-area-inset-right)) calc(30px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left)); }
+ body .support-app .support-page-heading h1 { font-size:30px; }
+ body .support-app .support-inbox-layout { display:block; }
+ body .support-app .support-ticket-row { padding:22px 18px; }
+ body .support-app .support-detail { display:none; padding:24px 20px; min-height:0; }
+ body .support-app .support-inbox-layout[data-detail=true] .support-detail { display:block; }
+ body .support-app .support-detail > h2 { font-size:25px; }
+ body .support-app .support-message { font-size:16px; }
+ body .support-app .support-search input { font-size:16px; }
+ body .support-app .support-sidebar-bottom { display:none; }
+ body .catalog-global { padding:10px 20px; min-height:64px; gap:12px; flex-wrap:wrap; }
+ body .catalog-products { order:3; width:100%; justify-content:space-between; gap:8px; }
+ body .catalog-products a { min-height:44px; font-size:14px; }
+ body .catalog-account { margin-left:auto; }
+ body .zentra-intro.zentra-home-intro { display:block; padding:42px 20px 48px; }
+ body .zentra-home-copy h1 { font-size:clamp(40px,10vw,58px); max-width:11ch; }
+ body .zentra-home-copy > p { font-size:17px; margin-top:22px; }
+ body .zentra-home-copy .zentra-actions { margin-top:24px; gap:8px; }
+ body .zentra-home-stage { margin-top:42px; }
+ body .zentra-home-stage .story-canvas { padding:22px 16px; border-radius:12px; }
+ body .zentra-home-stage .story-selector button { font-size:12px; padding-inline:5px; white-space:normal; }
+ body .zentra-home-stage .story-frame { padding:20px; min-height:285px; }
+ body .zentra-home-stage .story-narrative h2 { font-size:26px; }
+ body .zentra-home-stage .story-steps { gap:8px; }
+}
+@media(prefers-reduced-motion:no-preference) {
+ body .zentra-home-stage .story-frame { animation:studio-document .38s var(--studio-ease); }
+ @keyframes studio-document { from { transform:translateY(8px); clip-path:inset(0 0 5% 0); } to { transform:none; clip-path:inset(0); } }
+ body :is(.catalog-products a,.zentra-primary) { transition:color .18s, background-color .18s, box-shadow .18s; }
+ body .zentra-primary:hover { background:#173e2d; }
+}

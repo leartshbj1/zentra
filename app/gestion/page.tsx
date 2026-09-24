@@ -213,7 +213,7 @@ export default function Home() {
               </h2>
             </div>
             <div className="mt-10 grid gap-4 lg:grid-cols-3">
-              {values.map(({ icon: Icon, eyebrow, title, text }) => (
+              {values.map(({ icon: Icon, title, text }) => (
                 <article
                   key={title}
                   className="interactive-card rounded-[1.6rem] border border-[#ddd9cf] bg-white p-6 sm:p-7"
@@ -221,9 +221,6 @@ export default function Home() {
                   <span className="grid size-11 place-items-center rounded-2xl bg-[#e7f0e9] text-[#315f47]">
                     <Icon className="size-5" />
                   </span>
-                  <p className="mt-6 text-[11px] font-bold uppercase tracking-[.13em] text-[#a16620]">
-                    {eyebrow}
-                  </p>
                   <h3 className="mt-2 text-xl font-semibold tracking-[-.025em]">
                     {title}
                   </h3>
@@ -321,12 +318,12 @@ export default function Home() {
               </a>
             </div>
 
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="studio-feature-list">
               {modules.map(({ icon: Icon, title, text, href }) => (
                 <a
                   key={title}
                   href={href}
-                  className="interactive-card group rounded-[1.5rem] border border-[#d2dcd4] bg-white/88 p-6 shadow-[0_14px_40px_rgba(41,78,55,.05)]"
+                  className="studio-feature-link"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <span className="grid size-11 place-items-center rounded-2xl bg-[#173d2c] text-white">
@@ -357,9 +354,6 @@ export default function Home() {
           <div className="relative mx-auto max-w-7xl">
             <div className="grid gap-7 lg:grid-cols-[.8fr_1.2fr] lg:items-end">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[.14em] text-[#efb157]">
-                  Automatiser sans masquer
-                </p>
                 <h2
                   id="automation-title"
                   className="mt-4 text-4xl font-semibold leading-tight tracking-[-.05em] sm:text-5xl"
@@ -458,10 +452,7 @@ export default function Home() {
                 <span className="grid size-12 place-items-center rounded-2xl bg-[#173d2c] text-white">
                   <HardDrive className="size-5" />
                 </span>
-                <p className="mt-6 text-[11px] font-bold uppercase tracking-[.13em] text-[#477159]">
-                  Sur votre ordinateur
-                </p>
-                <h3 className="mt-2 text-xl font-semibold">Données métier</h3>
+                <h3 className="mt-2 text-xl font-semibold">Données métier sur votre ordinateur</h3>
                 <p className="mt-3 text-sm leading-7 text-[#5f6d64]">
                   Clients, fournisseurs, employés, salaires, projets, heures,
                   banque, documents de travail, écritures et réglages.
@@ -471,10 +462,7 @@ export default function Home() {
                 <span className="grid size-12 place-items-center rounded-2xl bg-[#e7a33a] text-[#173d2c]">
                   <ShieldCheck className="size-5" />
                 </span>
-                <p className="mt-6 text-[11px] font-bold uppercase tracking-[.13em] text-[#9a651f]">
-                  Services en ligne
-                </p>
-                <h3 className="mt-2 text-xl font-semibold">Accès et partage</h3>
+                <h3 className="mt-2 text-xl font-semibold">Accès et partage en ligne</h3>
                 <p className="mt-3 text-sm leading-7 text-[#675f54]">
                   Compte, licence et données complètes de l’entreprise partagée,
                   y compris les salaires et pièces jointes. Archives PDF et
@@ -518,9 +506,6 @@ export default function Home() {
         <section className="px-5 py-16 sm:py-24 lg:px-8" data-reveal>
           <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-[#e7a33a] px-6 py-12 text-[#173d2c] sm:px-12 sm:py-14 lg:flex lg:items-center lg:justify-between lg:gap-10">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[.14em]">
-                Commencer simplement
-              </p>
               <h2 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
                 Votre entreprise est déjà assez compliquée. Votre logiciel de
                 gestion ne devrait pas l’être.

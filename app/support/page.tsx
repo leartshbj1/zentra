@@ -81,7 +81,6 @@ export default async function SupportPresentation({
         className="sp-product-statement sp-wrap"
         aria-label="Un produit indépendant"
       >
-        <span>VOTRE SERVICE CLIENT, MIEUX ORGANISÉ</span>
         <p>
           Votre logiciel de support reste au cœur du travail.{' '}
           <strong>Zentra Support rassemble les demandes de votre équipe.</strong>
@@ -93,7 +92,6 @@ export default async function SupportPresentation({
       <section className="sp-section sp-soft" id="fonctionnement">
         <div className="sp-wrap">
           <div className="sp-section-title">
-            <p className="sp-kicker">AVEC L’OPTION ZENTRA AUTOMATION</p>
             <h2>
               Le tri avance.
               <br />
@@ -122,7 +120,6 @@ export default async function SupportPresentation({
       </section>
       <section className="sp-section sp-wrap">
         <div className="sp-section-title">
-          <p className="sp-kicker">PENSÉ POUR VOTRE QUOTIDIEN</p>
           <h2>
             Des demandes différentes.
             <br />
@@ -131,31 +128,34 @@ export default async function SupportPresentation({
         </div>
         <div className="sp-usecase-grid">
           <a href="/support/solutions#ecommerce">
-            <span>01 / E-COMMERCE</span>
+
             <h3>
               Les commandes d’un côté.
               <br />
               Les remboursements de l’autre.
             </h3>
+            <span className="studio-usecase-category">E-commerce</span>
             <p>Orientez chaque demande vers le bon service.</p>
             <ArrowRight size={20} />
           </a>
           <a href="/support/solutions#saas">
-            <span>02 / SAAS</span>
+
             <h3>
               Le produit et la facturation
               <br />
               retrouvent leur place.
             </h3>
+            <span className="studio-usecase-category">SaaS</span>
             <p>Séparez les incidents des questions d’utilisation.</p>
             <ArrowRight size={20} />
           </a>
           <a href="/support/solutions#agences">
-            <span>03 / AGENCES</span>
+
             <h3>
               Chaque demande
               <br />a son interlocuteur.
             </h3>
+            <span className="studio-usecase-category">Agences</span>
             <p>Organisez la réception entre vos équipes.</p>
             <ArrowRight size={20} />
           </a>
@@ -164,7 +164,6 @@ export default async function SupportPresentation({
       <section className="sp-section sp-dark">
         <div className="sp-wrap sp-product-split">
           <div>
-            <p className="sp-kicker">UN PRODUIT. SON PROPRE ESPACE.</p>
             <h2>
               Votre support a<br />
               son adresse.

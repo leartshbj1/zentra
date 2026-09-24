@@ -12,7 +12,7 @@ export function MobileDownloadDock({ anchorId }: { anchorId: string }) {
       return;
     }
     const observer = new IntersectionObserver(
-      ([entry]) => setVisible(!entry.isIntersecting),
+      ([entry]) => setVisible(!entry.isIntersecting && entry.boundingClientRect.bottom <= 0),
       { threshold: 0.2 },
     );
     observer.observe(anchor);

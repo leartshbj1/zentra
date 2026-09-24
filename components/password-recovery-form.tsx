@@ -119,7 +119,7 @@ export function PasswordRecoveryForm({ reset = false }: { reset?: boolean }) {
   const field =
     'mt-2 h-12 w-full min-w-0 rounded-xl border border-[#d5d8d2] bg-[#f5f5f7] px-4 text-base font-normal outline-none focus:border-[#5a856d] focus:ring-2 focus:ring-[#bcd4c3]';
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f5f5f7] px-5 py-10 text-[#173d2c]">
+    <main className="studio-recovery grid min-h-screen place-items-center bg-[#f5f5f7] px-5 py-10 text-[#173d2c]">
       <div className="w-full min-w-0 max-w-md">
         <a
           href="/"

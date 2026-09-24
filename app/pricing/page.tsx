@@ -111,9 +111,6 @@ export default function PricingPage() {
         <section className="px-5 py-16 sm:py-24 lg:px-8" data-reveal>
           <div className="mx-auto flex max-w-6xl flex-col gap-7 rounded-[2rem] bg-[#e7a33a] p-7 text-[#173d2c] sm:p-10 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[.13em]">
-                Voir avant de choisir
-              </p>
               <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-[-.045em]">
                 Essayez une facture dans votre navigateur, sans compte.
               </h2>

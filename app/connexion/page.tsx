@@ -33,7 +33,7 @@ export default async function ConnexionPage({
   const confirmationError = confirmationErrorMessage(parameters.erreur);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#f5f5f7] px-5 py-8 text-[#173d2c] sm:grid sm:place-items-center sm:py-14">
+    <main className="studio-auth relative min-h-screen overflow-hidden bg-[#f5f5f7] px-5 py-8 text-[#173d2c] sm:grid sm:place-items-center sm:py-14">
       <div className="relative mx-auto grid w-full min-w-0 max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-center lg:gap-16">
         <section className="pt-3 lg:pt-0">
           <a
@@ -54,7 +54,9 @@ export default async function ConnexionPage({
             l’abonnement, aux accès de l’équipe et au coffre documentaire choisi
             par l’entreprise.
           </p>
-          <div className="mt-8 hidden gap-3 lg:grid lg:grid-cols-1">
+          <details className="studio-auth-assurances">
+          <summary>À propos de votre compte</summary>
+          <div className="mt-8 gap-3 lg:grid lg:grid-cols-1">
             {[
               [
                 ShieldCheck,
@@ -91,6 +93,7 @@ export default async function ConnexionPage({
               );
             })}
           </div>
+          </details>
         </section>
 
         <ZentraAuthForm

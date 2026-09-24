@@ -133,32 +133,10 @@ export default function DownloadPage() {
         tabIndex={-1}
         className="min-h-screen overflow-x-clip bg-[#f5f3ee] pb-24 text-[#17231d] md:pb-0"
       >
-        <section aria-labelledby="windows-preview-title" className="mx-auto max-w-7xl px-5 pt-8 lg:px-8">
-          <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0 max-w-2xl">
-              <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Votre entreprise, sur chaque appareil.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Connectez le même compte sur Windows, Mac ou mobile pour retrouver votre entreprise. Sur un appareil vide, la récupération démarre automatiquement. Si une ancienne entreprise est déjà présente, Zentra vous propose d’ouvrir celle du compte en conservant une sauvegarde locale.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Votre entreprise a été créée avec une ancienne version et n’a jamais été partagée ? Mettez d’abord à jour l’appareil qui contient vos données, puis choisissez « Relier cette entreprise à mon compte ». Connectez ensuite vos autres appareils.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Les nouvelles sauvegardes manuelles utilisent le format .zentra. À partir de la version 1.77, les anciennes sauvegardes ne peuvent plus être importées, même renommées.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Téléchargements disponibles : Windows {ZENTRA_WINDOWS_VERSION}, Mac {ZENTRA_MAC_VERSION}, iPhone {ZENTRA_IPHONE_VERSION} et Android {ZENTRA_ANDROID_VERSION}. Les conditions d’installation sont précisées ci-dessous pour chaque plateforme.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Les traductions sont encore en préparation : certains écrans, contrôles natifs et PDF restent en français.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Sur Mac, installez cette version depuis le bouton ci-dessous pour recevoir les prochaines mises à jour dans Zentra. Les versions iPhone s’installent manuellement après signature avec votre compte Apple.</p>
-            </div>
-            <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
-              <a href={ZENTRA_WINDOWS_PREVIEW_PATH} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#315f47] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#173d2c]">
-                <Download className="size-4 shrink-0" aria-hidden="true" /> Télécharger la préversion Windows
-              </a>
-              <a href={`${ZENTRA_WINDOWS_PREVIEW_PATH}.sha256.txt`} className="inline-flex min-h-11 items-center justify-center text-sm text-[#496054] underline underline-offset-4" title={`SHA-256 : ${ZENTRA_WINDOWS_PREVIEW_SHA256}`}>Vérifier le fichier</a>
-            </div>
-          </div>
-        </section>
-        <section className="mx-auto grid max-w-7xl gap-12 px-5 pb-16 pt-10 sm:pb-20 sm:pt-14 lg:grid-cols-[.84fr_1.16fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-20">
+
+        <section className="studio-download-hero mx-auto grid max-w-7xl gap-12 px-5 pb-16 pt-10 sm:pb-20 sm:pt-14 lg:grid-cols-[.84fr_1.16fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-20">
           <div data-reveal="left">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#d5dad5] bg-white/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-[#496054]">
-              <span className="local-pulse size-1.5 rounded-full bg-[#4e9d68]" />
-              Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION}
-            </div>
+
             <h1 className="mt-6 max-w-xl text-balance text-[2.6rem] font-semibold leading-[.99] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-[4.35rem]">
               Toute votre entreprise,
               <br />
@@ -166,6 +144,7 @@ export default function DownloadPage() {
                 dans une seule application.
               </span>
             </h1>
+            <p className="studio-release-meta">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
             <p className="mt-6 max-w-xl text-lg leading-8 text-[#667169]">
               Catalogue, devis, commandes, BL, factures QR uniques ou
               récurrentes supervisées, fournisseurs, import CAMT, projets,
@@ -222,7 +201,6 @@ export default function DownloadPage() {
             data-reveal="right"
             aria-hidden="true"
           >
-            <div className="absolute -inset-12 -z-10 rounded-full bg-[#d8bd83]/35 blur-3xl" />
             <div className="installer-window overflow-hidden rounded-[26px] border border-[#cfd6d0] bg-white shadow-[0_38px_100px_rgba(20,52,36,.2)]">
               <div className="flex h-11 items-center justify-between border-b border-[#dfe4df] bg-[#fbfcfb] px-4">
                 <div className="flex items-center gap-2 text-[11px] font-semibold text-[#354a3e]">
@@ -240,9 +218,6 @@ export default function DownloadPage() {
                   <div className="absolute -right-16 -top-16 size-52 rounded-full border border-white/8" />
                   <div className="absolute -right-6 -top-6 size-36 rounded-full border border-white/8" />
                   <BrandMark className="size-12 shadow-lg" />
-                  <p className="mt-8 text-xs font-semibold uppercase tracking-[.11em] text-[#efb157]">
-                    Votre espace de gestion
-                  </p>
                   <h2 className="mt-3 text-2xl font-semibold tracking-[-.04em]">
                     Zentra
                   </h2>
@@ -263,9 +238,6 @@ export default function DownloadPage() {
                   </div>
                 </div>
                 <div className="flex min-h-[390px] flex-col p-6 sm:min-h-0 sm:p-8">
-                  <p className="text-xs font-semibold uppercase tracking-[.11em] text-[#76531f]">
-                    Prêt à installer
-                  </p>
                   <h2 className="mt-3 text-2xl font-semibold tracking-[-.035em] text-[#22382a]">
                     Zentra sur cet ordinateur
                   </h2>
@@ -304,12 +276,33 @@ export default function DownloadPage() {
                 </div>
               </div>
             </div>
-            <div className="installer-chip absolute -bottom-4 left-3 flex max-w-[calc(100%_-_1.5rem)] flex-wrap items-center gap-2 rounded-full border border-[#cad6cc] bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-[#355141] shadow-lg sm:left-auto sm:right-6">
+            <div className="studio-installer-caption">
               <ShieldCheck className="size-3.5 text-[#3b7752]" /> Local d’abord
               · sauvegarde distante en option
             </div>
           </div>
         </section>
+
+        <section aria-labelledby="windows-preview-title" className="studio-download-notes"><details><summary>Installation, mises à jour et sauvegardes</summary>
+          <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0 max-w-2xl">
+              <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
+              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Votre entreprise, sur chaque appareil.</h2>
+              <p className="mt-3 text-base leading-7 text-[#667169]">Connectez le même compte sur Windows, Mac ou mobile pour retrouver votre entreprise. Sur un appareil vide, la récupération démarre automatiquement. Si une ancienne entreprise est déjà présente, Zentra vous propose d’ouvrir celle du compte en conservant une sauvegarde locale.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Votre entreprise a été créée avec une ancienne version et n’a jamais été partagée ? Mettez d’abord à jour l’appareil qui contient vos données, puis choisissez « Relier cette entreprise à mon compte ». Connectez ensuite vos autres appareils.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Les nouvelles sauvegardes manuelles utilisent le format .zentra. À partir de la version 1.77, les anciennes sauvegardes ne peuvent plus être importées, même renommées.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Téléchargements disponibles : Windows {ZENTRA_WINDOWS_VERSION}, Mac {ZENTRA_MAC_VERSION}, iPhone {ZENTRA_IPHONE_VERSION} et Android {ZENTRA_ANDROID_VERSION}. Les conditions d’installation sont précisées ci-dessous pour chaque plateforme.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Les traductions sont encore en préparation : certains écrans, contrôles natifs et PDF restent en français.</p>
+              <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Sur Mac, installez cette version depuis le bouton ci-dessous pour recevoir les prochaines mises à jour dans Zentra. Les versions iPhone s’installent manuellement après signature avec votre compte Apple.</p>
+            </div>
+            <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
+              <a href={ZENTRA_WINDOWS_PREVIEW_PATH} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#315f47] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#173d2c]">
+                <Download className="size-4 shrink-0" aria-hidden="true" /> Télécharger la préversion Windows
+              </a>
+              <a href={`${ZENTRA_WINDOWS_PREVIEW_PATH}.sha256.txt`} className="inline-flex min-h-11 items-center justify-center text-sm text-[#496054] underline underline-offset-4" title={`SHA-256 : ${ZENTRA_WINDOWS_PREVIEW_SHA256}`}>Vérifier le fichier</a>
+            </div>
+          </div>
+        </details></section>
 
         <section
           className="border-y border-[#ded9ce] bg-[#ffffff] px-5 py-12 sm:py-16 lg:px-8"
@@ -318,9 +311,6 @@ export default function DownloadPage() {
         >
           <div className="mx-auto max-w-7xl">
             <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-                Ce que vous installez
-              </p>
               <h2
                 id="application-desktop-title"
                 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl"
@@ -478,9 +468,6 @@ export default function DownloadPage() {
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-6 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-                  Dans Zentra
-                </p>
                 <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
                   Votre gestion quotidienne, réunie.
                 </h2>
@@ -491,22 +478,18 @@ export default function DownloadPage() {
                 des données.
               </p>
             </div>
-            <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:mt-14 lg:grid-cols-3">
-              {capabilities.map(({ icon: Icon, title, text }, index) => (
-                <div
-                  key={title}
-                  className="interactive-card rounded-2xl border border-[#d7dfd8] bg-white p-6"
-                  style={{ animationDelay: `${index * 60}ms` }}
-                >
-                  <span className="grid size-11 place-items-center rounded-2xl bg-[#e7f0e8] text-[#326249]">
-                    <Icon className="size-5" />
-                  </span>
-                  <h3 className="mt-5 font-semibold text-[#263a2e]">{title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-[#647068]">
-                    {text}
-                  </p>
-                </div>
-              ))}
+            <div className="studio-capabilities">
+              {[
+                { title: 'Vendre et encaisser', indexes: [0, 1, 2, 8] },
+                { title: 'Organiser le travail', indexes: [3, 4, 5] },
+                { title: 'Suivre les achats et les comptes', indexes: [6, 7, 9] },
+              ].map(group => <section className="studio-feature-group" key={group.title}>
+                <h3>{group.title}</h3>
+                <div>{group.indexes.map(index => {
+                  const {icon: Icon, title, text} = capabilities[index];
+                  return <article key={title}><Icon aria-hidden="true"/><h4>{title}</h4><p>{text}</p></article>;
+                })}</div>
+              </section>)}
             </div>
             <a
               href="/features"
@@ -520,9 +503,6 @@ export default function DownloadPage() {
         <section className="px-5 py-16 sm:py-24 lg:px-8" data-reveal>
           <div className="mx-auto max-w-7xl">
             <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
-                Démarrage guidé
-              </p>
               <h2 className="mt-4 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">
                 De l’installation à votre premier document.
               </h2>
@@ -589,9 +569,6 @@ export default function DownloadPage() {
         >
           <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1fr_.8fr] lg:items-center">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#efb157]">
-                Licence Zentra
-              </p>
               <h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
                 Zentra Gestion, dès 49 CHF par mois.
               </h2>
@@ -656,7 +633,7 @@ export default function DownloadPage() {
         >
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.9fr_1.1fr]">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#95621f]">
+              <p className="studio-release-meta">
                 Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
@@ -783,9 +760,6 @@ export default function DownloadPage() {
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.8fr_1.2fr] lg:items-start">
             <div>
               <HardDrive className="size-7 text-[#efb157]" />
-              <p className="mt-5 text-xs font-semibold uppercase tracking-[.13em] text-[#efb157]">
-                Sauvegarde complète
-              </p>
               <h2
                 id="sauvegarde-title"
                 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl"

@@ -8,6 +8,7 @@ import { publicSiteUrl } from '@/lib/site-url';
 import './globals.css';
 import './refined.css';
 import './product-navigation.css';
+import './studio.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

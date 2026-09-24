@@ -17,7 +17,8 @@ export function ProductsHome() {
       <StructuredData data={faqData()} />
       <SiteHeader />
       <main id="contenu" tabIndex={-1}>
-        <section className="zentra-intro">
+        <section className="zentra-intro zentra-home-intro">
+          <div className="zentra-home-copy">
           <h1>
             Votre entreprise.
             <br />
@@ -37,13 +38,14 @@ export function ProductsHome() {
               Découvrir les produits <ArrowRight size={17} aria-hidden="true" />
             </a>
           </div>
-        </section>
-        <section
-          className="zentra-width zentra-journey"
+          </div>
+          <div
+          className="zentra-journey zentra-home-stage"
           id="parcours"
           aria-label="Comment Gestion, Support et Automation travaillent ensemble"
         >
           <ProductStory compact />
+          </div>
         </section>
         <section
           className="zentra-section zentra-width"
