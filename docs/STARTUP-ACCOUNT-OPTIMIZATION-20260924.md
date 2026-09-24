@@ -1,6 +1,6 @@
 # Connexion au compte et disponibilité d’Automation
 
-Optimisations ajoutées après la version 1.85.1. Code vérifié localement ; ce document ne constitue pas une preuve de publication ou d’installation.
+Optimisations ajoutées après la version 1.85.1. Correctifs serveur publiés dans la version Sites 252 le 24 septembre 2026 ; correctifs de l’application vérifiés localement, sans nouvel installateur publié à ce stade.
 
 ## Parcours examiné
 
@@ -22,8 +22,9 @@ La fréquence et le contenu des échanges de synchronisation métier ne changent
 - 62 tests frontend ciblés et 125 tests serveur ciblés : connexion locale, panne réseau, autorisation, rôle réduit, révocation, changement d’entreprise, licences, facturation Automation, offres, factures reçues et workflows. Les six tests du bridge utilisent le vrai bridge avec un transport natif simulé et couvrent le regroupement des lectures, sa durée de vie et les changements de compte.
 - Test du chargement serveur avec horloge simulée : droits à 25 ms, réglages/fonctions à 100 ms, activité en 100 ms. La réponse complète arrive à 125 ms au lieu des 200 ms nécessaires avec les anciennes dépendances. Aucun accès aux données d’activité avant 25 ms, ni en cas de refus ou d’échec du contrôle. Il s’agit d’une mesure des dépendances de chargement, pas de la latence du serveur public.
 - Vérification TypeScript des deux projets et compilation du frontend réussies.
+- Suite frontend complète après intégration : 1 646 tests réussis dans 202 fichiers. Ce résultat ne remplace pas les essais des paquets natifs.
 - Parcours Playwright du vrai composant App et du bridge de compte, données fictives, `/me` retardé volontairement de 10 secondes : bureau 1 440 px, espace à 446 ms, Automation à 467 ms, panneau Compte à 35 ms ; mobile 390 px, respectivement 428 ms, 445 ms et 39 ms. Aucune erreur JavaScript ni nouvel écran bloquant après revalidation. Ces délais mesurent l’affichage dans le banc d’essai, pas une authentification complète sur le serveur public.
 - Une seule lecture réseau pendant ce parcours pour l’ouverture de l’app et du panneau Compte, contre deux avant le regroupement ; aucun contrôle supplémentaire déclenché par le retour du panneau.
 - Graphe de production : 141 fichiers locaux vérifiés. Paie détaillée, éditeur de documents, achats, catalogue, personnalisation, planification et certificats restent différés. Ces mesures ne sont pas un essai de démarrage à froid sur iPhone ou Mac physique.
 
-Preuves locales : `outputs/startup-account-optimization.json`, `outputs/startup-optimization-build.log`. Le code applicatif et le correctif serveur doivent être inclus dans leurs prochaines publications respectives pour bénéficier aux installations clientes.
+Preuves locales : `outputs/startup-account-optimization.json`, `outputs/startup-optimization-build.log`, `outputs/redesign186/frontend-final-tests.log`. Publication serveur vérifiée : source `cdb1bb456ea0e9abee0eca654f7a366d59a832ae`, version 252, déploiement `appgdep_6ab52d47535881919c88ad1650630d5a`, état `succeeded`, domaine `https://www.zentraapp.ch`. Les changements du client doivent encore être livrés dans un nouvel installateur pour bénéficier aux installations existantes.
