@@ -1,110 +1,12 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-23T22:59:21.090569+00:00",
+  "generatedAt": "2026-09-24T14:19:10.890Z",
   "title": "Design System: Zentra Gestion",
   "extensions": {
     "colorMeta": {
-      "work-canvas": {
-        "role": "neutral",
-        "displayName": "Canvas",
-        "tonalRamp": [
-          "oklch(15.00% 0.0013 286.38)",
-          "oklch(26.43% 0.0013 286.38)",
-          "oklch(37.86% 0.0013 286.38)",
-          "oklch(49.29% 0.0013 286.38)",
-          "oklch(60.71% 0.0013 286.38)",
-          "oklch(72.14% 0.0013 286.38)",
-          "oklch(83.57% 0.0013 286.38)",
-          "oklch(95.00% 0.0013 286.38)"
-        ]
-      },
-      "work-paper": {
-        "role": "neutral",
-        "displayName": "Paper",
-        "tonalRamp": [
-          "oklch(15.00% 0.0000 89.88)",
-          "oklch(26.43% 0.0000 89.88)",
-          "oklch(37.86% 0.0000 89.88)",
-          "oklch(49.29% 0.0000 89.88)",
-          "oklch(60.71% 0.0000 89.88)",
-          "oklch(72.14% 0.0000 89.88)",
-          "oklch(83.57% 0.0000 89.88)",
-          "oklch(95.00% 0.0000 89.88)"
-        ]
-      },
-      "work-rail": {
-        "role": "neutral",
-        "displayName": "Rail",
-        "tonalRamp": [
-          "oklch(15.00% 0.0034 247.86)",
-          "oklch(26.43% 0.0034 247.86)",
-          "oklch(37.86% 0.0034 247.86)",
-          "oklch(49.29% 0.0034 247.86)",
-          "oklch(60.71% 0.0034 247.86)",
-          "oklch(72.14% 0.0034 247.86)",
-          "oklch(83.57% 0.0034 247.86)",
-          "oklch(95.00% 0.0034 247.86)"
-        ]
-      },
-      "work-soft": {
-        "role": "neutral",
-        "displayName": "Soft",
-        "tonalRamp": [
-          "oklch(15.00% 0.0029 264.54)",
-          "oklch(26.43% 0.0029 264.54)",
-          "oklch(37.86% 0.0029 264.54)",
-          "oklch(49.29% 0.0029 264.54)",
-          "oklch(60.71% 0.0029 264.54)",
-          "oklch(72.14% 0.0029 264.54)",
-          "oklch(83.57% 0.0029 264.54)",
-          "oklch(95.00% 0.0029 264.54)"
-        ]
-      },
-      "work-line": {
-        "role": "neutral",
-        "displayName": "Line",
-        "tonalRamp": [
-          "oklch(15.00% 0.0055 274.96)",
-          "oklch(26.43% 0.0055 274.96)",
-          "oklch(37.86% 0.0055 274.96)",
-          "oklch(49.29% 0.0055 274.96)",
-          "oklch(60.71% 0.0055 274.96)",
-          "oklch(72.14% 0.0055 274.96)",
-          "oklch(83.57% 0.0055 274.96)",
-          "oklch(95.00% 0.0055 274.96)"
-        ]
-      },
-      "work-ink": {
-        "role": "neutral",
-        "displayName": "Ink",
-        "tonalRamp": [
-          "oklch(15.00% 0.0077 274.64)",
-          "oklch(26.43% 0.0077 274.64)",
-          "oklch(37.86% 0.0077 274.64)",
-          "oklch(49.29% 0.0077 274.64)",
-          "oklch(60.71% 0.0077 274.64)",
-          "oklch(72.14% 0.0077 274.64)",
-          "oklch(83.57% 0.0077 274.64)",
-          "oklch(95.00% 0.0077 274.64)"
-        ]
-      },
-      "work-muted": {
-        "role": "neutral",
-        "displayName": "Muted",
-        "tonalRamp": [
-          "oklch(15.00% 0.0132 269.42)",
-          "oklch(26.43% 0.0132 269.42)",
-          "oklch(37.86% 0.0132 269.42)",
-          "oklch(49.29% 0.0132 269.42)",
-          "oklch(60.71% 0.0132 269.42)",
-          "oklch(72.14% 0.0132 269.42)",
-          "oklch(83.57% 0.0132 269.42)",
-          "oklch(95.00% 0.0132 269.42)"
-        ]
-      },
       "work-accent": {
         "role": "primary",
-        "displayName": "Accent",
+        "displayName": "Vert Zentra",
         "tonalRamp": [
           "oklch(15.00% 0.0727 161.95)",
           "oklch(26.43% 0.0727 161.95)",
@@ -118,21 +20,21 @@
       },
       "work-on-accent": {
         "role": "primary",
-        "displayName": "On accent",
+        "displayName": "Texte sur vert",
         "tonalRamp": [
-          "oklch(15.00% 0.0000 89.88)",
-          "oklch(26.43% 0.0000 89.88)",
-          "oklch(37.86% 0.0000 89.88)",
-          "oklch(49.29% 0.0000 89.88)",
-          "oklch(60.71% 0.0000 89.88)",
-          "oklch(72.14% 0.0000 89.88)",
-          "oklch(83.57% 0.0000 89.88)",
-          "oklch(95.00% 0.0000 89.88)"
+          "oklch(15.00% 0.0000 0.00)",
+          "oklch(26.43% 0.0000 0.00)",
+          "oklch(37.86% 0.0000 0.00)",
+          "oklch(49.29% 0.0000 0.00)",
+          "oklch(60.71% 0.0000 0.00)",
+          "oklch(72.14% 0.0000 0.00)",
+          "oklch(83.57% 0.0000 0.00)",
+          "oklch(95.00% 0.0000 0.00)"
         ]
       },
       "work-selection": {
-        "role": "neutral",
-        "displayName": "Selection",
+        "role": "primary",
+        "displayName": "Vert de sélection doux",
         "tonalRamp": [
           "oklch(15.00% 0.0142 162.45)",
           "oklch(26.43% 0.0142 162.45)",
@@ -144,107 +46,9 @@
           "oklch(95.00% 0.0142 162.45)"
         ]
       },
-      "work-canvas-dark": {
-        "role": "neutral",
-        "displayName": "Canvas dark",
-        "tonalRamp": [
-          "oklch(15.00% 0.0077 274.64)",
-          "oklch(26.43% 0.0077 274.64)",
-          "oklch(37.86% 0.0077 274.64)",
-          "oklch(49.29% 0.0077 274.64)",
-          "oklch(60.71% 0.0077 274.64)",
-          "oklch(72.14% 0.0077 274.64)",
-          "oklch(83.57% 0.0077 274.64)",
-          "oklch(95.00% 0.0077 274.64)"
-        ]
-      },
-      "work-paper-dark": {
-        "role": "neutral",
-        "displayName": "Paper dark",
-        "tonalRamp": [
-          "oklch(15.00% 0.0092 276.79)",
-          "oklch(26.43% 0.0092 276.79)",
-          "oklch(37.86% 0.0092 276.79)",
-          "oklch(49.29% 0.0092 276.79)",
-          "oklch(60.71% 0.0092 276.79)",
-          "oklch(72.14% 0.0092 276.79)",
-          "oklch(83.57% 0.0092 276.79)",
-          "oklch(95.00% 0.0092 276.79)"
-        ]
-      },
-      "work-rail-dark": {
-        "role": "neutral",
-        "displayName": "Rail dark",
-        "tonalRamp": [
-          "oklch(15.00% 0.0079 274.56)",
-          "oklch(26.43% 0.0079 274.56)",
-          "oklch(37.86% 0.0079 274.56)",
-          "oklch(49.29% 0.0079 274.56)",
-          "oklch(60.71% 0.0079 274.56)",
-          "oklch(72.14% 0.0079 274.56)",
-          "oklch(83.57% 0.0079 274.56)",
-          "oklch(95.00% 0.0079 274.56)"
-        ]
-      },
-      "work-soft-dark": {
-        "role": "neutral",
-        "displayName": "Soft dark",
-        "tonalRamp": [
-          "oklch(15.00% 0.0110 271.05)",
-          "oklch(26.43% 0.0110 271.05)",
-          "oklch(37.86% 0.0110 271.05)",
-          "oklch(49.29% 0.0110 271.05)",
-          "oklch(60.71% 0.0110 271.05)",
-          "oklch(72.14% 0.0110 271.05)",
-          "oklch(83.57% 0.0110 271.05)",
-          "oklch(95.00% 0.0110 271.05)"
-        ]
-      },
-      "work-line-dark": {
-        "role": "neutral",
-        "displayName": "Line dark",
-        "tonalRamp": [
-          "oklch(15.00% 0.0121 273.09)",
-          "oklch(26.43% 0.0121 273.09)",
-          "oklch(37.86% 0.0121 273.09)",
-          "oklch(49.29% 0.0121 273.09)",
-          "oklch(60.71% 0.0121 273.09)",
-          "oklch(72.14% 0.0121 273.09)",
-          "oklch(83.57% 0.0121 273.09)",
-          "oklch(95.00% 0.0121 273.09)"
-        ]
-      },
-      "work-ink-dark": {
-        "role": "neutral",
-        "displayName": "Ink dark",
-        "tonalRamp": [
-          "oklch(15.00% 0.0027 286.35)",
-          "oklch(26.43% 0.0027 286.35)",
-          "oklch(37.86% 0.0027 286.35)",
-          "oklch(49.29% 0.0027 286.35)",
-          "oklch(60.71% 0.0027 286.35)",
-          "oklch(72.14% 0.0027 286.35)",
-          "oklch(83.57% 0.0027 286.35)",
-          "oklch(95.00% 0.0027 286.35)"
-        ]
-      },
-      "work-muted-dark": {
-        "role": "neutral",
-        "displayName": "Muted dark",
-        "tonalRamp": [
-          "oklch(15.00% 0.0118 269.52)",
-          "oklch(26.43% 0.0118 269.52)",
-          "oklch(37.86% 0.0118 269.52)",
-          "oklch(49.29% 0.0118 269.52)",
-          "oklch(60.71% 0.0118 269.52)",
-          "oklch(72.14% 0.0118 269.52)",
-          "oklch(83.57% 0.0118 269.52)",
-          "oklch(95.00% 0.0118 269.52)"
-        ]
-      },
       "work-accent-dark": {
         "role": "primary",
-        "displayName": "Accent dark",
+        "displayName": "Accent vert pâle",
         "tonalRamp": [
           "oklch(15.00% 0.0644 159.55)",
           "oklch(26.43% 0.0644 159.55)",
@@ -258,7 +62,7 @@
       },
       "work-on-accent-dark": {
         "role": "primary",
-        "displayName": "On accent dark",
+        "displayName": "Encre sur accent pâle",
         "tonalRamp": [
           "oklch(15.00% 0.0453 157.02)",
           "oklch(26.43% 0.0453 157.02)",
@@ -271,8 +75,8 @@
         ]
       },
       "work-selection-dark": {
-        "role": "neutral",
-        "displayName": "Selection dark",
+        "role": "primary",
+        "displayName": "Sélection graphite verte",
         "tonalRamp": [
           "oklch(15.00% 0.0331 162.67)",
           "oklch(26.43% 0.0331 162.67)",
@@ -286,7 +90,7 @@
       },
       "zen-attention": {
         "role": "primary",
-        "displayName": "Attention",
+        "displayName": "Ambre d’attention hérité",
         "tonalRamp": [
           "oklch(15.00% 0.0966 68.08)",
           "oklch(26.43% 0.0966 68.08)",
@@ -300,7 +104,7 @@
       },
       "zen-attention-dark": {
         "role": "primary",
-        "displayName": "Attention dark",
+        "displayName": "Ambre d’attention sombre hérité",
         "tonalRamp": [
           "oklch(15.00% 0.1053 80.88)",
           "oklch(26.43% 0.1053 80.88)",
@@ -311,132 +115,358 @@
           "oklch(83.57% 0.1053 80.88)",
           "oklch(95.00% 0.1053 80.88)"
         ]
+      },
+      "work-canvas": {
+        "role": "neutral",
+        "displayName": "Fond perle",
+        "tonalRamp": [
+          "oklch(15.00% 0.0017 247.84)",
+          "oklch(26.43% 0.0017 247.84)",
+          "oklch(37.86% 0.0017 247.84)",
+          "oklch(49.29% 0.0017 247.84)",
+          "oklch(60.71% 0.0017 247.84)",
+          "oklch(72.14% 0.0017 247.84)",
+          "oklch(83.57% 0.0017 247.84)",
+          "oklch(95.00% 0.0017 247.84)"
+        ]
+      },
+      "work-paper": {
+        "role": "neutral",
+        "displayName": "Papier opaque",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 0.00)",
+          "oklch(26.43% 0.0000 0.00)",
+          "oklch(37.86% 0.0000 0.00)",
+          "oklch(49.29% 0.0000 0.00)",
+          "oklch(60.71% 0.0000 0.00)",
+          "oklch(72.14% 0.0000 0.00)",
+          "oklch(83.57% 0.0000 0.00)",
+          "oklch(95.00% 0.0000 0.00)"
+        ]
+      },
+      "work-rail": {
+        "role": "neutral",
+        "displayName": "Index blanc",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 0.00)",
+          "oklch(26.43% 0.0000 0.00)",
+          "oklch(37.86% 0.0000 0.00)",
+          "oklch(49.29% 0.0000 0.00)",
+          "oklch(60.71% 0.0000 0.00)",
+          "oklch(72.14% 0.0000 0.00)",
+          "oklch(83.57% 0.0000 0.00)",
+          "oklch(95.00% 0.0000 0.00)"
+        ]
+      },
+      "work-soft": {
+        "role": "neutral",
+        "displayName": "Fond adouci",
+        "tonalRamp": [
+          "oklch(15.00% 0.0029 264.54)",
+          "oklch(26.43% 0.0029 264.54)",
+          "oklch(37.86% 0.0029 264.54)",
+          "oklch(49.29% 0.0029 264.54)",
+          "oklch(60.71% 0.0029 264.54)",
+          "oklch(72.14% 0.0029 264.54)",
+          "oklch(83.57% 0.0029 264.54)",
+          "oklch(95.00% 0.0029 264.54)"
+        ]
+      },
+      "work-line": {
+        "role": "neutral",
+        "displayName": "Trait fin",
+        "tonalRamp": [
+          "oklch(15.00% 0.0059 153.77)",
+          "oklch(26.43% 0.0059 153.77)",
+          "oklch(37.86% 0.0059 153.77)",
+          "oklch(49.29% 0.0059 153.77)",
+          "oklch(60.71% 0.0059 153.77)",
+          "oklch(72.14% 0.0059 153.77)",
+          "oklch(83.57% 0.0059 153.77)",
+          "oklch(95.00% 0.0059 153.77)"
+        ]
+      },
+      "work-ink": {
+        "role": "neutral",
+        "displayName": "Encre graphite",
+        "tonalRamp": [
+          "oklch(15.00% 0.0077 274.64)",
+          "oklch(26.43% 0.0077 274.64)",
+          "oklch(37.86% 0.0077 274.64)",
+          "oklch(49.29% 0.0077 274.64)",
+          "oklch(60.71% 0.0077 274.64)",
+          "oklch(72.14% 0.0077 274.64)",
+          "oklch(83.57% 0.0077 274.64)",
+          "oklch(95.00% 0.0077 274.64)"
+        ]
+      },
+      "work-muted": {
+        "role": "neutral",
+        "displayName": "Encre secondaire",
+        "tonalRamp": [
+          "oklch(15.00% 0.0132 269.42)",
+          "oklch(26.43% 0.0132 269.42)",
+          "oklch(37.86% 0.0132 269.42)",
+          "oklch(49.29% 0.0132 269.42)",
+          "oklch(60.71% 0.0132 269.42)",
+          "oklch(72.14% 0.0132 269.42)",
+          "oklch(83.57% 0.0132 269.42)",
+          "oklch(95.00% 0.0132 269.42)"
+        ]
+      },
+      "work-canvas-dark": {
+        "role": "neutral",
+        "displayName": "Fond graphite",
+        "tonalRamp": [
+          "oklch(15.00% 0.0079 274.56)",
+          "oklch(26.43% 0.0079 274.56)",
+          "oklch(37.86% 0.0079 274.56)",
+          "oklch(49.29% 0.0079 274.56)",
+          "oklch(60.71% 0.0079 274.56)",
+          "oklch(72.14% 0.0079 274.56)",
+          "oklch(83.57% 0.0079 274.56)",
+          "oklch(95.00% 0.0079 274.56)"
+        ]
+      },
+      "work-paper-dark": {
+        "role": "neutral",
+        "displayName": "Feuille graphite relevée",
+        "tonalRamp": [
+          "oklch(15.00% 0.0092 276.79)",
+          "oklch(26.43% 0.0092 276.79)",
+          "oklch(37.86% 0.0092 276.79)",
+          "oklch(49.29% 0.0092 276.79)",
+          "oklch(60.71% 0.0092 276.79)",
+          "oklch(72.14% 0.0092 276.79)",
+          "oklch(83.57% 0.0092 276.79)",
+          "oklch(95.00% 0.0092 276.79)"
+        ]
+      },
+      "work-rail-dark": {
+        "role": "neutral",
+        "displayName": "Index graphite",
+        "tonalRamp": [
+          "oklch(15.00% 0.0077 274.64)",
+          "oklch(26.43% 0.0077 274.64)",
+          "oklch(37.86% 0.0077 274.64)",
+          "oklch(49.29% 0.0077 274.64)",
+          "oklch(60.71% 0.0077 274.64)",
+          "oklch(72.14% 0.0077 274.64)",
+          "oklch(83.57% 0.0077 274.64)",
+          "oklch(95.00% 0.0077 274.64)"
+        ]
+      },
+      "work-soft-dark": {
+        "role": "neutral",
+        "displayName": "Fond sombre adouci",
+        "tonalRamp": [
+          "oklch(15.00% 0.0110 271.05)",
+          "oklch(26.43% 0.0110 271.05)",
+          "oklch(37.86% 0.0110 271.05)",
+          "oklch(49.29% 0.0110 271.05)",
+          "oklch(60.71% 0.0110 271.05)",
+          "oklch(72.14% 0.0110 271.05)",
+          "oklch(83.57% 0.0110 271.05)",
+          "oklch(95.00% 0.0110 271.05)"
+        ]
+      },
+      "work-line-dark": {
+        "role": "neutral",
+        "displayName": "Trait sombre",
+        "tonalRamp": [
+          "oklch(15.00% 0.0121 273.09)",
+          "oklch(26.43% 0.0121 273.09)",
+          "oklch(37.86% 0.0121 273.09)",
+          "oklch(49.29% 0.0121 273.09)",
+          "oklch(60.71% 0.0121 273.09)",
+          "oklch(72.14% 0.0121 273.09)",
+          "oklch(83.57% 0.0121 273.09)",
+          "oklch(95.00% 0.0121 273.09)"
+        ]
+      },
+      "work-ink-dark": {
+        "role": "neutral",
+        "displayName": "Encre claire",
+        "tonalRamp": [
+          "oklch(15.00% 0.0027 286.35)",
+          "oklch(26.43% 0.0027 286.35)",
+          "oklch(37.86% 0.0027 286.35)",
+          "oklch(49.29% 0.0027 286.35)",
+          "oklch(60.71% 0.0027 286.35)",
+          "oklch(72.14% 0.0027 286.35)",
+          "oklch(83.57% 0.0027 286.35)",
+          "oklch(95.00% 0.0027 286.35)"
+        ]
+      },
+      "work-muted-dark": {
+        "role": "neutral",
+        "displayName": "Encre secondaire claire",
+        "tonalRamp": [
+          "oklch(15.00% 0.0118 269.52)",
+          "oklch(26.43% 0.0118 269.52)",
+          "oklch(37.86% 0.0118 269.52)",
+          "oklch(49.29% 0.0118 269.52)",
+          "oklch(60.71% 0.0118 269.52)",
+          "oklch(72.14% 0.0118 269.52)",
+          "oklch(83.57% 0.0118 269.52)",
+          "oklch(95.00% 0.0118 269.52)"
+        ]
+      },
+      "field-line-dark": {
+        "role": "neutral",
+        "displayName": "Trait de champ sombre hérité",
+        "tonalRamp": [
+          "oklch(15.00% 0.0132 274.66)",
+          "oklch(26.43% 0.0132 274.66)",
+          "oklch(37.86% 0.0132 274.66)",
+          "oklch(49.29% 0.0132 274.66)",
+          "oklch(60.71% 0.0132 274.66)",
+          "oklch(72.14% 0.0132 274.66)",
+          "oklch(83.57% 0.0132 274.66)",
+          "oklch(95.00% 0.0132 274.66)"
+        ]
+      },
+      "field-focus-dark": {
+        "role": "neutral",
+        "displayName": "Focus de champ sombre hérité",
+        "tonalRamp": [
+          "oklch(15.00% 0.0675 157.40)",
+          "oklch(26.43% 0.0675 157.40)",
+          "oklch(37.86% 0.0675 157.40)",
+          "oklch(49.29% 0.0675 157.40)",
+          "oklch(60.71% 0.0675 157.40)",
+          "oklch(72.14% 0.0675 157.40)",
+          "oklch(83.57% 0.0675 157.40)",
+          "oklch(95.00% 0.0675 157.40)"
+        ]
       }
     },
     "typographyMeta": {
       "headline": {
-        "displayName": "Headline",
-        "purpose": "Implemented headline role; see DESIGN.md hierarchy and source scope."
+        "displayName": "headline",
+        "purpose": "Titre principal desktop."
       },
       "headline-mobile": {
-        "displayName": "Headline mobile",
-        "purpose": "Implemented headline mobile role; see DESIGN.md hierarchy and source scope."
+        "displayName": "headline-mobile",
+        "purpose": "Titre principal téléphone."
+      },
+      "journal-title": {
+        "displayName": "journal-title",
+        "purpose": "Journal Automation."
       },
       "dialog-title": {
-        "displayName": "Dialog title",
-        "purpose": "Implemented dialog title role; see DESIGN.md hierarchy and source scope."
+        "displayName": "dialog-title",
+        "purpose": "Titre du dialogue desktop."
       },
-      "preference-title": {
-        "displayName": "Preference title",
-        "purpose": "Implemented preference title role; see DESIGN.md hierarchy and source scope."
-      },
-      "briefing-title": {
-        "displayName": "Briefing title",
-        "purpose": "Implemented briefing title role; see DESIGN.md hierarchy and source scope."
-      },
-      "section": {
-        "displayName": "Section",
-        "purpose": "Implemented section role; see DESIGN.md hierarchy and source scope."
-      },
-      "subsection": {
-        "displayName": "Subsection",
-        "purpose": "Implemented subsection role; see DESIGN.md hierarchy and source scope."
+      "section-title": {
+        "displayName": "section-title",
+        "purpose": "Section de feuille de travail."
       },
       "body": {
-        "displayName": "Body",
-        "purpose": "Implemented body role; see DESIGN.md hierarchy and source scope."
+        "displayName": "body",
+        "purpose": "Famille système héritée et saisie."
       },
       "content": {
-        "displayName": "Content",
-        "purpose": "Implemented content role; see DESIGN.md hierarchy and source scope."
+        "displayName": "content",
+        "purpose": "Contenu courant et explications."
       },
       "control": {
-        "displayName": "Control",
-        "purpose": "Implemented control role; see DESIGN.md hierarchy and source scope."
+        "displayName": "control",
+        "purpose": "Actions de la fenêtre de travail."
       },
       "navigation": {
-        "displayName": "Navigation",
-        "purpose": "Implemented navigation role; see DESIGN.md hierarchy and source scope."
+        "displayName": "navigation",
+        "purpose": "Index desktop inactif."
       },
       "navigation-mobile": {
-        "displayName": "Navigation mobile",
-        "purpose": "Implemented navigation mobile role; see DESIGN.md hierarchy and source scope."
+        "displayName": "navigation-mobile",
+        "purpose": "Index tactile inactif."
       },
       "metadata": {
-        "displayName": "Metadata",
-        "purpose": "Implemented metadata role; see DESIGN.md hierarchy and source scope."
+        "displayName": "metadata",
+        "purpose": "Métadonnées opérationnelles Agenda et Catalogue."
       },
       "compact-label": {
-        "displayName": "Compact label",
-        "purpose": "Implemented compact label role; see DESIGN.md hierarchy and source scope."
+        "displayName": "compact-label",
+        "purpose": "Libellés secondaires hérités."
       },
-      "keyboard-hint": {
-        "displayName": "Keyboard hint",
-        "purpose": "Implemented keyboard hint role; see DESIGN.md hierarchy and source scope."
+      "dock-label": {
+        "displayName": "dock-label",
+        "purpose": "Navigation basse téléphone."
       },
       "metric": {
-        "displayName": "Metric",
-        "purpose": "Implemented metric role; see DESIGN.md hierarchy and source scope."
+        "displayName": "metric",
+        "purpose": "Montants de la bande financière."
       },
       "metric-multiple": {
-        "displayName": "Metric multiple",
-        "purpose": "Implemented metric multiple role; see DESIGN.md hierarchy and source scope."
+        "displayName": "metric-multiple",
+        "purpose": "Montants multiples de la bande financière."
       },
       "balance-mobile": {
-        "displayName": "Balance mobile",
-        "purpose": "Implemented balance mobile role; see DESIGN.md hierarchy and source scope."
+        "displayName": "balance-mobile",
+        "purpose": "Solde principal téléphone."
       }
     },
     "shadows": [
       {
+        "name": "selected-segment",
+        "value": "0 2px 6px rgb(15 30 23 / 5%)",
+        "purpose": "Sélection interne Ventes, Équipe, Comptabilité et Automation."
+      },
+      {
         "name": "dialog-ambient",
         "value": "0 8px 28px rgb(20 24 30 / 8%)",
-        "purpose": "Light opaque dialog."
+        "purpose": "Dialogue opaque clair."
       },
       {
         "name": "dialog-ambient-dark",
         "value": "0 8px 28px rgb(0 0 0 / 20%)",
-        "purpose": "Dark opaque dialog."
+        "purpose": "Dialogue opaque sombre."
       },
       {
-        "name": "switch-thumb",
+        "name": "switch-thumb-inherited",
         "value": "0 1px 3px #00000026",
-        "purpose": "Inherited Automation switch thumb."
+        "purpose": "Pouce d’interrupteur Automation hérité."
       }
     ],
     "motion": [
       {
         "name": "page-arrival",
         "value": "240ms cubic-bezier(.16,1,.3,1)",
-        "purpose": "8px settle only when reduced motion is not requested."
+        "purpose": "Déplacement vertical de 8px sans mouvement réduit."
       },
       {
         "name": "control-feedback",
         "value": "140ms ease-out",
-        "purpose": "Shared application button and sidebar background/color transitions."
+        "purpose": "Fond et couleur des actions partagées et de l’index."
       },
       {
-        "name": "automation-feedback",
+        "name": "automation-feedback-inherited",
         "value": "160ms ease-out",
-        "purpose": "Inherited Automation feedback."
+        "purpose": "Contrôles et résumés Automation hérités."
+      },
+      {
+        "name": "button-press-inherited",
+        "value": "scale(.98)",
+        "purpose": "Pression héritée dans la fenêtre de travail, sans mouvement réduit."
       },
       {
         "name": "reduced-motion",
         "value": "none",
-        "purpose": "Shell disables descendant animation and transition; final layer disables page arrival."
+        "purpose": "Animations et transitions descendantes désactivées dans la fenêtre ; les portails gardent leurs règles propres."
       }
     ],
     "breakpoints": [
       {
         "name": "compact-desktop-max",
-        "value": "1150px"
+        "value": "1200px"
       },
       {
         "name": "desktop-min",
         "value": "861px"
       },
       {
-        "name": "mobile-max",
+        "name": "phone-max",
         "value": "860px"
       },
       {
@@ -444,128 +474,134 @@
         "value": "760px"
       },
       {
-        "name": "inherited-tight-filters",
+        "name": "inherited-filter-type",
         "value": "380px"
       },
       {
-        "name": "document-min-width",
+        "name": "base-document-min-width",
         "value": "320px"
       }
-    ],
-    "preservation": {
-      "printedDocuments": "Final stylesheet is screen-only. Printed document colors, layout and identity remain separate.",
-      "portals": "Opaque shared forms; outer document scroll locks while a modal is mounted and restores on close; document form is the internal scroller.",
-      "businessBehavior": "No data, calculations, entitlements or approval rules are changed by this visual specification."
-    }
+    ]
   },
   "components": [
     {
-      "name": "Primary action",
+      "name": "Action principale",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Shared application action; portal normal buttons retain base padding 0 17px.",
+      "description": "Action de la fenêtre de travail. Le portail normal conserve son padding 0 17px.",
       "html": "<button class=\"ds-primary\" type=\"button\">Enregistrer</button>",
-      "css": ".ds-primary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;border:1px solid transparent;border-radius:8px;background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;cursor:pointer;white-space:normal}.ds-primary:disabled{opacity:.55;filter:none}.ds-primary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-primary{transition:background-color 140ms ease-out,color 140ms ease-out}}@media(hover:hover){.ds-primary:hover:not(:disabled){filter:brightness(.94);transform:none}}@media(max-width:860px){.ds-primary{min-height:44px}}"
+      "css": ".ds-primary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid transparent;border-radius:var(--work-control,9px);background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;cursor:pointer;white-space:normal}.ds-primary:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-primary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(hover:hover){.ds-primary:hover:not(:disabled){filter:brightness(.94);background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-primary{transition:background-color 140ms ease-out,color 140ms ease-out}.ds-primary:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-primary{min-height:44px}}"
     },
     {
-      "name": "Secondary action",
+      "name": "Action secondaire",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "Shared application action; portal normal buttons retain base padding 0 17px.",
+      "description": "Action de la fenêtre de travail. Le portail normal conserve son padding 0 17px.",
       "html": "<button class=\"ds-secondary\" type=\"button\">Annuler</button>",
-      "css": ".ds-secondary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;border:1px solid var(--work-line,#dedfe3);border-radius:8px;background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none;cursor:pointer;white-space:normal}.ds-secondary:disabled{opacity:.55;filter:none}.ds-secondary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-secondary{transition:background-color 140ms ease-out,color 140ms ease-out}}@media(hover:hover){.ds-secondary:hover:not(:disabled){filter:brightness(.94);transform:none}}@media(max-width:860px){.ds-secondary{min-height:44px}}"
+      "css": ".ds-secondary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid var(--work-line,#e0e4e1);border-radius:var(--work-control,9px);background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none;cursor:pointer;white-space:normal}.ds-secondary:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-secondary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(hover:hover){.ds-secondary:hover:not(:disabled){background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-secondary{transition:background-color 140ms ease-out,color 140ms ease-out}.ds-secondary:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-secondary{min-height:44px}}"
     },
     {
-      "name": "Ghost action",
+      "name": "Action discrète",
       "kind": "button",
       "refersTo": "button-ghost",
-      "description": "Shared application action; portal normal buttons retain base padding 0 17px.",
+      "description": "Action de la fenêtre de travail. Le portail normal conserve son padding 0 17px.",
       "html": "<button class=\"ds-ghost\" type=\"button\">Voir les détails</button>",
-      "css": ".ds-ghost{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--work-accent,#286047);box-shadow:none;cursor:pointer;white-space:normal}.ds-ghost:disabled{opacity:.55;filter:none}.ds-ghost:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-ghost{transition:background-color 140ms ease-out,color 140ms ease-out}}@media(hover:hover){.ds-ghost:hover:not(:disabled){filter:brightness(.94);transform:none}}@media(max-width:860px){.ds-ghost{min-height:44px}}"
+      "css": ".ds-ghost{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid transparent;border-radius:var(--work-control,9px);background:transparent;color:var(--work-accent,#286047);box-shadow:none;cursor:pointer;white-space:normal}.ds-ghost:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-ghost:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(hover:hover){.ds-ghost:hover:not(:disabled){background:transparent;color:var(--work-accent,#286047);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-ghost{transition:background-color 140ms ease-out,color 140ms ease-out}.ds-ghost:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-ghost{min-height:44px}}"
     },
     {
-      "name": "Field",
+      "name": "Champ de formulaire",
       "kind": "input",
       "refersTo": "field",
-      "description": "Opaque fields also apply to body-mounted portal forms.",
-      "html": "<label class=\"ds-field\"><span>Nom du projet</span><input class=\"ds-input\" placeholder=\"Nom du projet\"></label>",
-      "css": ".ds-field{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:grid;gap:8px;color:var(--work-ink,#202125);font-size:14px;font-weight:550}.ds-input{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;width:100%;min-width:0;min-height:44px;font-size:16px;padding:10px 12px;background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);border:1px solid var(--work-line,#dedfe3);border-radius:8px;box-shadow:none;caret-color:var(--work-accent,#286047)}.ds-input::placeholder{color:var(--work-muted,#62656d);opacity:1}.ds-input:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}"
+      "description": "Variante claire de la fenêtre de travail. Champs sombres spécialisés et portails sont décrits séparément dans DESIGN.md.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Nom du projet</span><input class=\"ds-input\" placeholder=\"Nom du projet\"><small class=\"ds-hint\">Nom affiché dans vos projets.</small></label>",
+      "css": ".ds-field{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:grid;gap:8px;color:var(--work-ink,#202125)}.ds-field-label{font-size:14px;font-weight:550;line-height:1.5}.ds-input{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;min-width:0;min-height:44px;padding:11px 13px;font-size:16px;font-weight:400;background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);border:1px solid var(--work-line,#e0e4e1);border-radius:var(--work-control,9px);box-shadow:none;caret-color:var(--work-accent,#286047)}.ds-input::placeholder{color:var(--work-muted,#62656d);opacity:1}.ds-input:hover,.ds-input:focus{background:var(--work-paper,#ffffff);border-color:var(--work-line,#e0e4e1);box-shadow:none}.ds-input:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}.ds-hint{font-size:13px;line-height:1.5;color:var(--work-muted,#62656d)}"
     },
     {
-      "name": "Sidebar destinations",
+      "name": "Index de destinations",
       "kind": "nav",
       "refersTo": "sidebar-item-selected",
-      "description": "Compact rail rows expand for phone touch navigation.",
-      "html": "<nav class=\"ds-rail\" aria-label=\"Navigation\"><button class=\"ds-nav\" aria-current=\"page\">Projets</button><button class=\"ds-nav\">Clients</button></nav>",
-      "css": ".ds-rail{padding:14px 12px 12px;background:var(--work-rail,#eceef0)}.ds-nav{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:block;width:100%;min-height:38px;padding:8px 10px;margin:1px 0;text-align:left;font-size:13px;font-weight:450;line-height:1.4;border:0;border-radius:8px;background:transparent;color:var(--work-muted,#62656d);cursor:pointer}.ds-nav:hover{background:var(--work-soft,#f0f1f3)}.ds-nav[aria-current]{background:var(--work-selection,#dde8e2);color:var(--work-ink,#202125);font-weight:600}.ds-nav:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-nav{transition:background-color 140ms ease-out,color 140ms ease-out}}@media(max-width:860px){.ds-nav{min-height:48px;padding:12px;font-size:15px}}"
+      "description": "Destination choisie en vert franc. Les variables CSS suivent le thème courant.",
+      "html": "<nav class=\"ds-rail\" aria-label=\"Modules\"><button type=\"button\" class=\"ds-nav\" aria-current=\"page\"><svg class=\"ds-nav-icon\" aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2Z\"/></svg>Projets</button><button type=\"button\" class=\"ds-nav\">Clients</button></nav>",
+      "css": ".ds-rail{padding:24px 16px 14px;background:var(--work-rail,#ffffff);border-right:1px solid var(--work-line,#e0e4e1)}.ds-nav{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:flex;align-items:center;gap:12px;width:100%;min-height:43px;padding:10px 12px;margin:2px 0;text-align:left;font-size:14px;font-weight:450;line-height:1.4;border:0;border-radius:var(--work-control,9px);background:transparent;color:var(--work-muted,#62656d);cursor:pointer;white-space:normal;overflow-wrap:anywhere}.ds-nav:hover:not([aria-current]){background:var(--work-soft,#f0f1f3);color:var(--work-ink,#202125)}.ds-nav[aria-current]{background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);font-weight:600}.ds-nav-icon{flex:none}.ds-nav:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-nav{transition:background-color 140ms ease-out,color 140ms ease-out}}@media(max-width:860px){.ds-nav{min-height:48px;font-size:16px;padding:12px}}"
     },
     {
-      "name": "Destination tabs",
+      "name": "Destinations Automation",
       "kind": "nav",
       "refersTo": "destination-selected",
-      "description": "Quiet baseline with a soft current destination and wrapping phone labels.",
-      "html": "<nav class=\"ds-tabs\"><button class=\"ds-tab\" aria-current=\"page\">Activité</button><button class=\"ds-tab\">À suivre</button><button class=\"ds-tab\">Réglages</button></nav>",
-      "css": ".ds-tabs{display:flex;gap:6px;padding:0 0 12px;border-bottom:1px solid var(--work-line,#dedfe3)}.ds-tab{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;min-height:44px;min-width:0;padding:10px 18px;border:0;border-radius:8px;background:transparent;color:var(--work-muted,#62656d);font-size:14px;font-weight:550;cursor:pointer}.ds-tab[aria-current],.ds-tab:hover{background:var(--work-soft,#f0f1f3);color:var(--work-ink,#202125)}.ds-tab:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(max-width:860px){.ds-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.ds-tab{min-height:46px;padding:10px 3px;font-size:13px;white-space:normal;overflow-wrap:anywhere}}"
+      "description": "Activité, À suivre, Réglages. Segment courant papier sur support adouci.",
+      "html": "<nav class=\"ds-tabs\" aria-label=\"Espace Automation\"><button type=\"button\" class=\"ds-tab\" aria-current=\"page\">Activité</button><button type=\"button\" class=\"ds-tab\">À suivre</button><button type=\"button\" class=\"ds-tab\">Réglages</button></nav>",
+      "css": ".ds-tabs{display:flex;gap:6px;width:fit-content;max-width:100%;padding:4px;border:0;border-radius:11px;background:var(--work-soft,#f0f1f3)}.ds-tab{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:0;min-height:44px;padding:10px 24px;border:0;border-radius:7px;background:transparent;color:var(--work-muted,#62656d);font-size:14px;font-weight:550;cursor:pointer}.ds-tab:hover:not([aria-current]){background:transparent}.ds-tab[aria-current]{background:var(--work-paper,#ffffff);color:var(--work-accent,#286047);box-shadow:0 2px 6px rgb(15 30 23 / 5%)}.ds-tab:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-tab{transition:background-color 160ms ease-out,color 160ms ease-out}}@media(max-width:860px){.ds-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:4px}.ds-tab{min-height:46px;padding:10px 5px;white-space:normal;overflow-wrap:anywhere}}"
     },
     {
-      "name": "Filter chips",
+      "name": "Filtres du journal",
       "kind": "chip",
       "refersTo": "filter-selected",
-      "description": "A pressed filter uses a soft fill while unpressed filters remain quiet.",
-      "html": "<div class=\"ds-filters\" aria-label=\"Filtrer\"><button class=\"ds-filter\" type=\"button\" aria-pressed=\"true\">Tout</button><button class=\"ds-filter\" type=\"button\" aria-pressed=\"false\">Factures</button><button class=\"ds-filter\" type=\"button\" aria-pressed=\"false\">Règles</button></div>",
-      "css": ".ds-filters{display:flex;flex-wrap:wrap;gap:4px;min-width:0}.ds-filter{font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", sans-serif;font-size:13px;font-weight:550;padding:8px 12px;min-height:44px;border:0;border-radius:8px;background:transparent;color:var(--work-muted,#62656d);cursor:pointer}.ds-filter[aria-pressed='true']{background:var(--work-soft,#f0f1f3);color:var(--work-ink,#202125)}.ds-filter:hover:not(:disabled){filter:brightness(.94)}.ds-filter:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-filter{transition:background-color 160ms ease-out,color 160ms ease-out}}@media(max-width:380px){.ds-filter{padding-inline:8px;font-size:12px}}"
+      "description": "Commandes textuelles soulignées quand actives, sans fond de pastille.",
+      "html": "<div class=\"ds-filters\" role=\"group\" aria-label=\"Filtrer le journal\"><button class=\"ds-filter\" type=\"button\" aria-pressed=\"true\">Tout</button><button class=\"ds-filter\" type=\"button\" aria-pressed=\"false\">Factures</button><button class=\"ds-filter\" type=\"button\" aria-pressed=\"false\">Règles</button></div>",
+      "css": ".ds-filters{display:flex;flex-wrap:wrap;gap:18px;min-width:0}.ds-filter{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;font-size:13px;font-weight:550;padding:10px 0;min-height:44px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:var(--work-muted,#62656d);cursor:pointer}.ds-filter:hover{background:transparent}.ds-filter[aria-pressed=true]{color:var(--work-accent,#286047);border-bottom-color:var(--work-accent,#286047)}.ds-filter:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-filter{transition:background-color 160ms ease-out,color 160ms ease-out}}@media(max-width:860px){.ds-filters{gap:14px}}@media(max-width:380px){.ds-filter{font-size:12px}}"
     },
     {
-      "name": "Grouped panel",
+      "name": "Feuille de contenu",
       "kind": "card",
       "refersTo": "content-panel",
-      "description": "Flat, bordered group; nested records share its surface.",
+      "description": "Panneau générique opaque, sans bordure extérieure ni ombre. Les feuilles spécialisées gardent leur composition propre.",
       "html": "<section class=\"ds-panel\"><h2 class=\"ds-title\">Projets</h2><p class=\"ds-copy\">Les informations de votre entreprise.</p></section>",
-      "css": ".ds-panel{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;padding:24px;border:1px solid var(--work-line,#dedfe3);border-radius:12px;background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none}.ds-title{margin:0 0 12px;font-size:19px;font-weight:600;letter-spacing:-.02em}.ds-copy{margin:0;font-size:14px;line-height:1.6;color:var(--work-muted,#62656d)}@media(max-width:860px){.ds-panel{padding:20px 16px}}"
+      "css": ".ds-panel{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;padding:28px;border:0;border-radius:var(--work-radius,14px);background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none}.ds-title{margin:0 0 12px;font-size:21px;font-weight:550;letter-spacing:-.02em}.ds-copy{margin:0;font-size:14px;line-height:1.6;color:var(--work-muted,#62656d)}@media(max-width:860px){.ds-panel{padding:22px 18px;border-radius:12px}}"
     }
   ],
   "narrative": {
-    "northStar": "One Working Window",
-    "overview": "A restrained Apple-inspired working window: pearl-gray navigation, a continuous near-white canvas, graphite text and fine separators. Green identifies action and meaningful selection; the established Zentra wordmark remains the identity. Dark appearance preserves the same structure with distinct graphite surfaces.\n\nThis records the implemented shared screen layer across the application and its portal forms. It replaces the earlier Automation-only visual specification. The [workspace surface contract](.impeccable/surfaces/workspace.md) owns dashboard composition and module-specific arrangements; [PRODUCT.md](PRODUCT.md) owns product behavior. Printed sales documents retain their own layout, identity and colors.",
+    "northStar": "Précision calme",
+    "overview": "Un instrument de travail précis et calme, selon la philosophie Apple explicitement choisie pour Gestion : un index stable, une feuille de travail, des actions reconnaissables. Le blanc et les gris organisent la lecture ; le vert Zentra conserve son rôle d’identité et d’action. La typographie système est une décision du brief, pas un choix provisoire de police.\n\nLes surfaces sont opaques. La hiérarchie repose sur la taille du texte, l’espacement, les séparateurs et la sélection, avec une profondeur limitée aux éléments qui en ont besoin. Les thèmes clair et sombre conservent les mêmes rôles ; les compositions téléphone utilisent des lignes et des contrôles tactiles. Le logo existant reste inchangé.\n\nCette documentation remplace le précédent état visuel et décrit le code partagé actuel. La composition des écrans appartient au [contrat de surface](.impeccable/surfaces/workspace.md) ; les contraintes produit appartiennent à [PRODUCT.md](PRODUCT.md). Ce relevé de code ne constitue ni une nouvelle revue visuelle, ni une validation native, ni une preuve de publication.",
     "keyCharacteristics": [
-      "One continuous working canvas with a separate navigation rail.",
-      "System typography, aligned numbers and readable records.",
-      "Flat grouped content, small control corners and depth reserved for dialogs.",
-      "Compact desktop controls and safe-area-aware touch layouts.",
-      "Matching light and dark roles, visible focus and optional motion."
+      "Index distinct, fond perle et feuilles de travail opaques.",
+      "Typographie système, titres mesurés et chiffres tabulaires.",
+      "Sélection verte dans l’index ; segments et filtres plus discrets dans la feuille.",
+      "Groupes de données cohérents, sans multiplication de cartes imbriquées.",
+      "Téléphone, thèmes et mouvement réduit traités dans la même couche partagée."
     ],
     "rules": [
       {
-        "name": "The Functional Color Rule",
-        "body": "Use green for action and meaningful selection, and preserve written status alongside every semantic color.",
+        "name": "Functional Color",
+        "body": "Le vert signale une action ou une sélection. Tout statut conserve un libellé ; la couleur ne porte jamais seule son sens.",
         "section": "colors"
       },
       {
-        "name": "The Familiar Type Rule",
-        "body": "Use the platform text family for the interface; financial values and time use tabular numerals.",
+        "name": "Familiar Type",
+        "body": "Conserver la famille système de Gestion et les chiffres tabulaires pour les montants, les dates et les compteurs. La police du site public ne remplace pas celle de l’application.",
         "section": "typography"
       },
       {
-        "name": "The Tonal Depth Rule",
-        "body": "Separate resting content through surface tone and fine lines. Reserve the shared ambient shadow for dialogs.",
+        "name": "Intrinsic Control",
+        "body": "Les libellés traduits peuvent réorganiser leurs groupes. Une action reste lisible et accessible ; compresser son texte n’est pas une règle de composition.",
+        "section": "layout"
+      },
+      {
+        "name": "Tonal Depth",
+        "body": "Les feuilles au repos se distinguent par leur ton et leurs séparateurs. La légère ombre des segments marque la sélection ; l’ombre ambiante appartient aux dialogues.",
         "section": "elevation"
+      },
+      {
+        "name": "Shared Sheet",
+        "body": "Regrouper les informations liées dans une feuille, puis utiliser des lignes et des séparateurs à l’intérieur. Ne pas recréer une carte flottante autour de chaque détail.",
+        "section": "components"
       }
     ],
     "dos": [
-      "Do switch all shared color roles together in light and dark appearance.",
-      "Do use platform text and tabular numerals for values, time and counts.",
-      "Do keep focus outlines, text labels and real state evidence visible.",
-      "Do let translated titles and step labels wrap on narrow screens.",
-      "Do retain safe-area insets, touch targets and reduced-motion behavior.",
-      "Do apply the same field and action treatment inside portal forms.",
-      "Do preserve printed document colors, identity and layout."
+      "**Do** employer ensemble les rôles clair/sombre du système partagé.",
+      "**Do** conserver la typographie système voulue pour Gestion et les chiffres tabulaires.",
+      "**Do** maintenir les libellés, les états réels et le focus clavier visibles.",
+      "**Do** laisser les groupes se réorganiser selon leur contenu et conserver les cibles tactiles.",
+      "**Do** préserver les safe areas, le défilement des dialogues et la réduction du mouvement.",
+      "**Do** garder les documents imprimés, leur identité et leurs couleurs indépendants de la couche écran.",
+      "**Do** distinguer les exceptions héritées des primitives à réutiliser."
     ],
     "donts": [
-      "Don't add decorative gradients, glass panels or fabricated activity indicators to the shared working canvas.",
-      "Don't replace status text with color alone.",
-      "Don't turn each record or paragraph into a floating card.",
-      "Don't use compact desktop navigation dimensions for touch navigation.",
-      "Don't apply screen color aliases globally to printed document templates."
+      "**Don't** réintroduire des panneaux de verre, des dégradés décoratifs ou des indicateurs d’activité inventés dans la feuille de travail.",
+      "**Don't** convertir chaque ligne, paragraphe ou réglage en carte indépendante.",
+      "**Don't** reprendre la petite taille de navigation desktop pour les contrôles tactiles.",
+      "**Don't** remplacer un statut écrit par une couleur ou une icône seule.",
+      "**Don't** transformer la coupure actuelle de deux boutons Agenda en comportement normal ou la corriger en réduisant les métadonnées.",
+      "**Don't** présenter cette documentation ou un aperçu navigateur comme une livraison native ou une publication vérifiée."
     ]
   }
 }

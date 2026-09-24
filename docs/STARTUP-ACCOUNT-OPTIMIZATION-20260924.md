@@ -1,6 +1,6 @@
 # Connexion au compte et disponibilité d’Automation
 
-Optimisations ajoutées après la version 1.85.1. Correctifs serveur publiés dans la version Sites 252 le 24 septembre 2026 ; correctifs de l’application vérifiés localement, sans nouvel installateur publié à ce stade.
+Optimisations ajoutées après la version 1.85.1. Correctifs serveur publiés dans la version Sites 252 le 24 septembre 2026 ; correctifs de l’application compilés dans le candidat Windows 1.86.0 et vérifiés localement, sans nouvel installateur publié à ce stade.
 
 ## Parcours examiné
 
@@ -26,5 +26,6 @@ La fréquence et le contenu des échanges de synchronisation métier ne changent
 - Parcours Playwright du vrai composant App et du bridge de compte, données fictives, `/me` retardé volontairement de 10 secondes : bureau 1 440 px, espace à 446 ms, Automation à 467 ms, panneau Compte à 35 ms ; mobile 390 px, respectivement 428 ms, 445 ms et 39 ms. Aucune erreur JavaScript ni nouvel écran bloquant après revalidation. Ces délais mesurent l’affichage dans le banc d’essai, pas une authentification complète sur le serveur public.
 - Une seule lecture réseau pendant ce parcours pour l’ouverture de l’app et du panneau Compte, contre deux avant le regroupement ; aucun contrôle supplémentaire déclenché par le retour du panneau.
 - Graphe de production : 141 fichiers locaux vérifiés. Paie détaillée, éditeur de documents, achats, catalogue, personnalisation, planification et certificats restent différés. Ces mesures ne sont pas un essai de démarrage à froid sur iPhone ou Mac physique.
+- Candidat Windows 1.86.0 compilé depuis `e5768bf07c5b9a93f533559319f12e291904a5a6` : installateur NSIS et signature de mise à jour générés. L’exécutable a été lancé puis relancé dans un profil fictif distinct ; base locale au schéma 60, intégrité et clés étrangères valides. Cette vérification ne constitue ni un essai de connexion au compte réel, ni un test de l’installateur, ni une publication. Preuves : `outputs/release186/windows-candidate/candidate-manifest.json` et `outputs/release186/local-smoke/verification.json`.
 
 Preuves locales : `outputs/startup-account-optimization.json`, `outputs/startup-optimization-build.log`, `outputs/redesign186/frontend-final-tests.log`. Publication serveur vérifiée : source `cdb1bb456ea0e9abee0eca654f7a366d59a832ae`, version 252, déploiement `appgdep_6ab52d47535881919c88ad1650630d5a`, état `succeeded`, domaine `https://www.zentraapp.ch`. Les changements du client doivent encore être livrés dans un nouvel installateur pour bénéficier aux installations existantes.
