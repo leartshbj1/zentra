@@ -1,32 +1,32 @@
 /* Zentra Studio — one quiet instrument for daily work. Print has its own system. */
 @media screen {
   :root {
-    --work-canvas: #f5f6f7;
+    --work-canvas: #f6f7f8;
     --work-paper: #ffffff;
-    --work-rail: #ffffff;
+    --work-rail: #fafbfc;
     --work-soft: #f0f1f3;
     --work-line: #e0e4e1;
     --work-ink: #202125;
     --work-muted: #62656d;
     --work-accent: #286047;
     --work-on-accent: #ffffff;
-    --work-selection: #dde8e2;
+    --work-selection: #e5eee8;
     --work-shadow: 0 8px 28px rgb(20 24 30 / 8%);
     --work-radius: 14px;
-    --work-control: 9px;
+    --work-control: 11px;
     --work-space: clamp(24px, 3.6vw, 60px);
   }
   html[data-app-theme='dark'] {
-    --work-canvas: #191a1e;
-    --work-paper: #28292e;
-    --work-rail: #202125;
-    --work-soft: #303238;
+    --work-canvas: #151619;
+    --work-paper: #24262b;
+    --work-rail: #1b1d20;
+    --work-soft: #303339;
     --work-line: #41434a;
     --work-ink: #f3f3f5;
     --work-muted: #b6b9c1;
     --work-accent: #a3d4b8;
     --work-on-accent: #173323;
-    --work-selection: #354b40;
+    --work-selection: #2c4035;
     --work-shadow: 0 8px 28px rgb(0 0 0 / 20%);
   }
   html[data-app-theme] .desktop-app[data-experience] {
@@ -233,9 +233,8 @@
     html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button--primary:hover:not(:disabled) { filter: brightness(.94); transform: none; }
   }
   @media (prefers-reduced-motion: no-preference) {
-    html[data-app-theme] .desktop-app[data-experience] .page-content { animation: workspace-arrive 240ms cubic-bezier(.16,1,.3,1); }
+    html[data-app-theme] .desktop-app[data-experience] .page-content { animation: none; }
     html[data-app-theme] .desktop-app[data-experience] :is(.button,.sidebar__nav button) { transition: background-color 140ms ease-out, color 140ms ease-out; }
-    @keyframes workspace-arrive { from { transform: translateY(8px); } to { transform: translateY(0); } }
   }
   @media (min-width: 861px) and (max-width: 1150px) {
     html[data-app-theme] .desktop-app[data-experience] { --shell-sidebar: 202px; --work-space: 26px; }
@@ -351,21 +350,21 @@
   html[data-app-theme] .desktop-app[data-experience] .sidebar__wordmark { display:flex; align-items:center; gap:13px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__wordmark svg { width:82px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__product { font-size:13px; color:var(--work-muted); font-weight:500; border-left:1px solid var(--work-line); padding-left:13px; }
-  html[data-app-theme] .desktop-app[data-experience] .sidebar__company { padding:16px 12px; border-block:1px solid var(--work-line); margin-bottom:10px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__company { padding:14px 12px; border:0; border-radius:12px; background:var(--work-paper); margin-bottom:14px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__company > svg { background:var(--work-selection); color:var(--work-accent); border-radius:8px; width:32px; height:32px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__company strong { font-size:14px; font-weight:550; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__search { border:0; background:var(--work-soft); margin:6px 0 14px; min-height:40px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__search kbd { font-size:11px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button { min-height:43px; font-size:14px; padding:10px 12px; gap:12px; margin:2px 0; font-weight:450; }
-  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button:is(.is-active,.is-active:hover,.is-active:focus) { background:var(--work-accent); color:var(--work-on-accent); box-shadow:none; }
-  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button.is-active > svg { color:inherit; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button:is(.is-active,.is-active:hover,.is-active:focus) { background:var(--work-selection); color:var(--work-ink); box-shadow:none; font-weight:600; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button.is-active > svg { color:var(--work-accent); }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button.is-active em { color:inherit; background:color-mix(in srgb,currentColor 14%,transparent); }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__nav > div > p { font-size:12px; margin:22px 12px 8px; color:var(--work-muted); }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__guide { padding:12px 10px; min-height:46px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__guide > svg:first-child { width:18px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__guide strong { font-size:13px; font-weight:500; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__local { padding:12px 10px 0; border-top:1px solid var(--work-line); }
-  html[data-app-theme] .desktop-app[data-experience] .topbar { min-height:72px; padding:12px var(--work-space); border-bottom:1px solid var(--work-line); background:var(--work-paper); }
+  html[data-app-theme] .desktop-app[data-experience] .topbar { min-height:64px; padding:10px var(--work-space); border-bottom:1px solid var(--work-line); background:var(--work-paper); }
   html[data-app-theme] .desktop-app[data-experience] .topbar__company { font-size:14px; }
   html[data-app-theme] .desktop-app[data-experience] .page-header p { font-size:15px; margin-top:9px; max-width:65ch; line-height:1.6; }
   html[data-app-theme] .desktop-app[data-experience] .page-content { padding-bottom:56px; }
@@ -397,7 +396,7 @@
   html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__items > button { min-height:80px; padding:16px 0; }
   html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__items strong { font-size:24px; font-weight:500; }
   html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__icon { background:var(--work-paper); color:var(--work-accent); width:40px; height:40px; }
-  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief { grid-column:1; grid-row:2; display:block; padding:28px; background:var(--work-selection); border:0; border-radius:14px; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief { grid-column:1; grid-row:2; display:block; padding:28px; background:var(--work-paper); border:0; border-radius:14px; }
   html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__intro { padding-bottom:18px; }
   html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__intro h2 { font-size:23px; font-weight:550; }
   html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__day ul { display:grid; gap:16px; }
@@ -408,9 +407,9 @@
   /* Preferences are a readable list and a single detail sheet, not a tile wall. */
   html[data-app-theme] .desktop-app[data-experience] .settings-browser { gap:28px; grid-template-columns:232px minmax(0,1fr); }
   html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button { padding:12px 10px; min-height:52px; gap:12px; }
-  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button[aria-current] { background:var(--work-paper); color:var(--work-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button[aria-current] { background:var(--work-selection); color:var(--work-ink); }
   html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation small { display:none; }
-  html[data-app-theme] .desktop-app[data-experience] .settings-browser__icon { background:var(--work-paper); width:32px; height:32px; border-radius:8px; color:var(--work-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__icon { background:transparent; width:32px; height:32px; border-radius:8px; color:var(--work-accent); }
   html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail { background:var(--work-paper); border-radius:14px; padding:28px; }
   html[data-app-theme] .desktop-app[data-experience] .settings-layout > .settings-card { border:0; border-radius:0; padding:12px 0 28px; border-bottom:1px solid var(--work-line); }
   html[data-app-theme] .desktop-app[data-experience] .settings-layout > .settings-card:last-child { border-bottom:0; }
@@ -467,7 +466,7 @@
     html[data-app-theme] .desktop-app[data-experience] .mobile-home { gap:28px; }
     html[data-app-theme] .desktop-app[data-experience] .mobile-home__balance { background:var(--work-paper); border:0; border-radius:14px; padding:24px; }
     html[data-app-theme] .desktop-app[data-experience] .mobile-home__amount { font-weight:550; font-size:clamp(28px,8vw,36px); letter-spacing:-.03em; }
-    html[data-app-theme] .desktop-app[data-experience] .mobile-home > .automation-brief { background:var(--work-selection); border:0; padding:24px; border-radius:14px; }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-home > .automation-brief { background:var(--work-paper); border:0; padding:24px; border-radius:14px; }
     html[data-app-theme] .desktop-app[data-experience] .mobile-home__list { border:0; border-radius:14px; padding-inline:20px; background:var(--work-paper); }
     html[data-app-theme] .desktop-app[data-experience] .mobile-home__list button { min-height:68px; background:transparent; padding:16px 0; border-radius:0; }
     html[data-app-theme] .desktop-app[data-experience] .mobile-home__list button > svg:first-child { color:var(--work-accent); }
@@ -484,7 +483,7 @@
     html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button { padding:17px 0; min-height:64px; }
     html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail { padding:22px 18px; }
     html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation small { display:block; font-size:12px; }
-    html[data-app-theme] .desktop-app[data-experience] .settings-browser__icon { background:var(--work-selection); }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser__icon { background:transparent; }
     html[data-app-theme] .desktop-app[data-experience] .table-panel tbody td { font-size:15px; }
     html[data-app-theme] .modal-backdrop .modal__header h2 { font-size:22px; }
   }
@@ -588,4 +587,48 @@
   }
   /* Tauri's native macOS navigation still owns the window edges. */
   html[data-app-theme] .desktop-app[data-native-desktop='true'] .app-main { margin: 0; border-radius: 0; }
+}
+
+/* Consistent reading rhythm and immediate feedback across every working screen. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .page-header h1 {animation:none;text-wrap:balance;}
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions {gap:10px;flex-wrap:wrap;min-width:0;}
+  html[data-app-theme] .desktop-app[data-experience] :is(.section-heading,.section-heading__action,.field,.settings-card,.panel) {min-width:0;}
+  html[data-app-theme] .desktop-app[data-experience] .section-heading {gap:18px;margin-bottom:24px;}
+  html[data-app-theme] .desktop-app[data-experience] .section-heading__action {max-width:100%;}
+  html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs,.team-navigation,.accounting-tabs,.automation-hub__navigation) button {transition:background 160ms ease,color 160ms ease;line-height:1.4;}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button {transition:background 160ms ease,color 160ms ease;}
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button em {font-variant-numeric:tabular-nums;}
+  html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button {transition:background 160ms ease,color 160ms ease,transform 120ms ease;border-width:1px;}
+  html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button:active:not(:disabled) {transform:scale(.98);}
+  html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .field :is(input,select,textarea) {padding:12px 14px;transition:border-color 160ms ease,background 160ms ease;}
+  html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .field :is(input:not([type='checkbox']):not([type='radio']):not([type='color']),select,textarea):focus {border-color:var(--work-accent);}
+  html[data-app-theme] .desktop-app[data-experience] .empty-state {padding:44px 24px;gap:12px;}
+  html[data-app-theme] .desktop-app[data-experience] .empty-state h3 {font-size:21px;font-weight:550;letter-spacing:-.02em;line-height:1.3;}
+  html[data-app-theme] .desktop-app[data-experience] .empty-state p {font-size:14px;line-height:1.65;}
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody td {line-height:1.6;}
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button {border-radius:10px;transition:background 160ms ease;}
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation strong {line-height:1.4;font-weight:550;}
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__welcome .automation-settings__status {margin:0;}
+  @media(hover:hover) {
+    html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button--primary:hover:not(:disabled) {background:color-mix(in srgb,var(--work-accent) 90%,var(--work-ink));filter:none;}
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button:hover:not([aria-current]) {background:var(--work-soft);}
+  }
+  @media(max-width:860px) {
+    html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .field :is(input,select,textarea) {font-size:16px;min-height:48px;}
+    html[data-app-theme] .desktop-app[data-experience] .section-heading {gap:12px;margin-bottom:20px;}
+    html[data-app-theme] .desktop-app[data-experience] .empty-state {padding:36px 16px;}
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button {border-radius:0;min-height:72px;}
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation small {margin-top:4px;line-height:1.5;}
+    html[data-app-theme] .desktop-app[data-experience] .automation-settings__welcome {align-items:flex-start;gap:8px;}
+    html[data-app-theme] .desktop-app[data-experience] .page-header__actions > .button {min-height:46px;}
+  }
+  @media(hover:none) {
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation > button:hover:not([aria-current]),
+    html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__items > button:hover {background:transparent;}
+  }
+  @media(prefers-reduced-motion:reduce) {
+    html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) :is(.button,.sidebar__nav button,.settings-browser__navigation > button) {transition:none;}
+    html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button:active:not(:disabled) {transform:none;}
+  }
 }

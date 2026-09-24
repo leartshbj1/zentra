@@ -140,9 +140,9 @@
   .automation-hub .automation-settings h3 {font-size: 23px; font-weight: 600; margin: 0 0 6px;}
   .automation-hub .automation-settings p {font-size: 14px; line-height: 1.5;}
   .automation-hub .automation-settings__status {font-size: 13px; color: var(--zen-muted); margin-top: -10px;}
-  .automation-hub .automation-settings__toggle {background: var(--zen-panel); border: 0; border-radius: 12px; padding: 20px; gap: 24px;}
-  .automation-hub .automation-settings__toggle small {font-size: 13px; line-height: 1.5;}
-  .automation-hub .automation-settings__toggle strong {font-size: 14px; font-weight: 550;}
+  .automation-settings__toggle {background: var(--zen-panel); border: 0; border-radius: 12px; padding: 20px; gap: 24px;}
+  .automation-settings__toggle small {font-size: 13px; line-height: 1.5;}
+  .automation-settings__toggle strong {font-size: 14px; font-weight: 550;}
   .automation-hub .automation-settings__current-mode {padding: 10px 4px 0; font-size: 12px;}
   .automation-hub .automation-settings legend {font-size: 14px; font-weight: 550; margin-bottom: 10px;}
   .automation-hub .automation-settings .workflow-options {background: var(--zen-panel); border: 0; border-radius: 12px; padding: 0 20px; margin: 0;}
@@ -151,12 +151,12 @@
   .automation-hub .automation-settings__features {border-top: 1px solid var(--zen-line);}
   .automation-hub .automation-settings__features .automation-settings__toggle {padding: 18px 0; border-radius: 0; background: none; border-bottom: 1px solid var(--zen-line);}
   .automation-hub .automation-settings__features .automation-settings__toggle:last-child {border-bottom: 0;}
-  .automation-hub .automation-settings__toggle input[type='checkbox'] {appearance: none; width: 42px; min-width: 42px; height: 26px; min-height: 26px; margin: 0; border: 1px solid var(--zen-line); border-radius: 20px; background: var(--zen-soft); position: relative; box-shadow: none; cursor: pointer;}
-  .automation-hub .automation-settings__toggle input[type='checkbox']::before {content: ''; position: absolute; width: 20px; height: 20px; top: 2px; left: 2px; background: var(--zen-panel); border-radius: 50%; box-shadow: 0 1px 3px #00000026;}
-  .automation-hub .automation-settings__toggle input[type='checkbox']:checked {background: var(--zen-accent); border-color: var(--zen-accent);}
-  .automation-hub .automation-settings__toggle input[type='checkbox']:checked::before {transform: translateX(16px); background: #fff;}
-  .automation-hub .automation-settings__toggle:has(input:disabled) {cursor: default; opacity: .64;}
-  .automation-hub .automation-settings__toggle:has(input:focus-visible) {outline: 2px solid var(--zen-accent); outline-offset: 3px;}
+  .automation-settings__toggle input[type='checkbox'] {appearance: none; width: 42px; min-width: 42px; height: 26px; min-height: 26px; margin: 0; border: 1px solid var(--zen-line); border-radius: 20px; background: var(--zen-soft); position: relative; box-shadow: none; cursor: pointer;}
+  .automation-settings__toggle input[type='checkbox']::before {content: ''; position: absolute; width: 20px; height: 20px; top: 2px; left: 2px; background: var(--zen-panel); border-radius: 50%; box-shadow: 0 1px 3px #00000026;}
+  .automation-settings__toggle input[type='checkbox']:checked {background: var(--zen-accent); border-color: var(--zen-accent);}
+  .automation-settings__toggle input[type='checkbox']:checked::before {transform: translateX(16px); background: #fff;}
+  .automation-settings__toggle:has(input:disabled) {cursor: default; opacity: .64;}
+  .automation-settings__toggle:has(input:focus-visible) {outline: 2px solid var(--zen-accent); outline-offset: 3px;}
   .automation-hub .automation-settings__quickstart {background: var(--zen-panel); border: 0; border-radius: 12px;}
   .automation-hub .automation-settings .workflow-options .automation-settings__quickstart {padding: 0; background: none; border-radius: 0;}
   .automation-hub .automation-hub__workflows {border-top: 0; background: var(--zen-panel); border-radius: 16px; padding: 0 24px;}
@@ -181,7 +181,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .automation-hub button, .automation-hub summary {transition: background-color 160ms ease-out, color 160ms ease-out;}
-    .automation-hub .automation-settings__toggle input::before {transition: transform 160ms ease-out;}
+    .automation-settings__toggle input::before {transition: transform 160ms ease-out;}
   }
   @media (max-width: 760px) {
     .automation-hub .automation-hub__navigation {width: 100%; margin-bottom: 24px; display: grid; grid-template-columns: .9fr .9fr 1.2fr;}
@@ -199,7 +199,7 @@
     .automation-hub .automation-brief__destinations button {flex: 1 1 auto; justify-content: center; font-size: 12px; padding: 8px 10px;}
     .automation-hub .automation-brief__work {padding: 20px 18px;}
     .automation-hub .automation-settings .workflow-options {padding-inline: 16px;}
-    .automation-hub .automation-settings__toggle {padding: 18px 16px; gap: 16px;}
+    .automation-settings__toggle {padding: 18px 16px; gap: 16px;}
     .automation-hub .automation-centre__tabs {gap: 4px; flex-wrap: wrap;}
     .automation-hub .automation-centre__tabs button {flex: 1 1 auto; padding-inline: 9px;}
     .automation-brief--compact {grid-template-columns: minmax(0,1fr);}

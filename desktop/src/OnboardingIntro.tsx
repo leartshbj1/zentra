@@ -9,18 +9,25 @@ const duration = 7800;
 const quoteEnd = 3200;
 const logoStart = 5700;
 const smooth = (value: number) => { const x = Math.max(0, Math.min(1, value)); return x * x * (3 - 2 * x); };
-function hasSeenIntro() { try { return localStorage.getItem(seenKey) === 'seen'; } catch { return false; } }
-function rememberIntro() { try { localStorage.setItem(seenKey, 'seen'); } catch { /* The journey also works without browser storage. */ } }
+function hasSeenIntro(key: string) { try { return localStorage.getItem(key) === 'seen'; } catch { return false; } }
+function rememberIntro(key: string) { try { localStorage.setItem(key, 'seen'); } catch { /* The journey also works without browser storage. */ } }
 
 /** One finite, interruptible light sequence. No remote assets, sound or animation dependency. */
 export function OnboardingIntro({ onStart }: { onStart: () => void }) {
+  return <ZentraArrival onStart={onStart} />;
+}
+
+/** Shared brand choreography; product access is checked by the caller, never by this presentation. */
+export function ZentraArrival({ onStart, product = 'gestion', storageKey = seenKey, forceReplay = false, startLabel = 'Commencer', subtitle }: {
+  onStart: () => void; product?: 'gestion' | 'automation'; storageKey?: string; forceReplay?: boolean; startLabel?: string; subtitle?: string;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const quoteRef = useRef<HTMLQuoteElement>(null);
   const skipRef = useRef<HTMLButtonElement>(null);
   const startRef = useRef<HTMLButtonElement>(null);
   const [reduced, setReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const [phase, setPhase] = useState<'quote'|'light'|'logo'|'ready'>(() => reduced || hasSeenIntro() ? 'ready' : 'quote');
+  const [phase, setPhase] = useState<'quote'|'light'|'logo'|'ready'>(() => reduced || (!forceReplay && hasSeenIntro(storageKey)) ? 'ready' : 'quote');
   const [run, setRun] = useState(0);
   const playing = phase !== 'ready';
   // Own focus across the sequence; never take it back from the language/theme controls.
@@ -102,29 +109,29 @@ export function OnboardingIntro({ onStart }: { onStart: () => void }) {
       }
       ctx.globalCompositeOperation='source-over';
       setPhase(elapsed>=duration?'ready':elapsed>=logoStart?'logo':elapsed>=quoteEnd?'light':'quote');
-      if(elapsed>=duration) { rememberIntro(); ctx.clearRect(0,0,width,height); return; }
+      if(elapsed>=duration) { rememberIntro(storageKey); ctx.clearRect(0,0,width,height); return; }
       frame=requestAnimationFrame(draw);
     };
     const visibility = () => { cancelAnimationFrame(frame); previous=0; if(!document.hidden)frame=requestAnimationFrame(draw); };
     document.addEventListener('visibilitychange',visibility);
     if(!document.hidden)frame=requestAnimationFrame(draw);
     return () => { cancelled=true;cancelAnimationFrame(frame);observer.disconnect();document.removeEventListener('visibilitychange',visibility);mark.onload=null;ctx.clearRect(0,0,width,height); };
-  }, [run, playing, reduced]);
-  function start() { rememberIntro(); onStart(); }
-  function skip() { rememberIntro();setPhase('ready'); }
-  return <div ref={rootRef} className="zentra-arrival" data-phase={phase}>
+  }, [run, playing, reduced, storageKey]);
+  function start() { rememberIntro(storageKey); onStart(); }
+  function skip() { rememberIntro(storageKey);setPhase('ready'); }
+  return <div ref={rootRef} className="zentra-arrival" data-phase={phase} data-product={product}>
     <canvas ref={canvasRef} className="zentra-arrival__light" aria-hidden="true"/>
     <figure className="zentra-arrival__quote" aria-hidden={phase!=='quote' && phase!=='ready'}>
-      <blockquote ref={quoteRef} tabIndex={-1}>{t('Faites grandir vos idées.')}</blockquote>
+      <blockquote ref={quoteRef} tabIndex={-1}>{t(product === 'automation' ? 'Place à ce qui compte.' : 'Faites grandir vos idées.')}</blockquote>
       <figcaption>Zentra</figcaption>
     </figure>
     <div className="zentra-arrival__identity" aria-hidden={playing && phase!=='logo'}>
       <BrandWordmark/>
-      <h1 aria-hidden={phase!=='ready'}>{t('Votre entreprise.')} <span>{t('Votre espace.')}</span></h1>
+      {product === 'automation' ? <><h1 aria-hidden={phase!=='ready'}>Automation</h1><p className="zentra-arrival__subtitle" aria-hidden={phase!=='ready'}>{t(subtitle || 'Votre accès Automation est actif pour cet espace.')}</p></> : <h1 aria-hidden={phase!=='ready'}>{t('Votre entreprise.')} <span>{t('Votre espace.')}</span></h1>}
     </div>
     <div className="zentra-arrival__controls">
       {playing ? <button ref={skipRef} type="button" className="zentra-arrival__skip" onClick={skip}>{t('Passer l’introduction')}<ArrowRight size={17}/></button> : <>
-        <button ref={startRef} type="button" className="zentra-arrival__start" onClick={start}>{t('Commencer')}<ArrowRight size={19}/></button>
+        <button ref={startRef} type="button" className="zentra-arrival__start" onClick={start}>{t(startLabel)}<ArrowRight size={19}/></button>
         {!reduced && <button type="button" className="zentra-arrival__replay" onClick={()=>{setPhase('quote');setRun(value=>value+1);}}><RotateCcw size={14}/>{t('Revoir l’introduction')}</button>}
       </>}
     </div>

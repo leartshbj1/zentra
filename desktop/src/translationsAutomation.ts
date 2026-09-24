@@ -6,6 +6,12 @@ export const automationTranslations: Record<
 > = {
   ...automationSettingsTranslations,
   ...automationHubTranslations,
+  'Place à ce qui compte.': ['Raum für das, was zählt.', 'Spazio a ciò che conta.', 'Make room for what matters.'],
+  'Bienvenue dans Zentra Automation': ['Willkommen bei Zentra Automation', 'Benvenuto in Zentra Automation', 'Welcome to Zentra Automation'],
+  'Votre accès Automation est actif pour cet espace.': ['Ihr Automation-Zugang ist für diesen Arbeitsbereich aktiv.', 'Il tuo accesso ad Automation è attivo per questo spazio.', 'Your Automation access is active for this workspace.'],
+  'Choisissez ce qu’Automation fera pour votre équipe.': ['Wählen Sie, was Automation für Ihr Team erledigen soll.', 'Scegli cosa farà Automation per il tuo team.', 'Choose what Automation will do for your team.'],
+  'Configurer Automation': ['Automation einrichten', 'Configura Automation', 'Set up Automation'],
+  'Découvrir Automation': ['Automation entdecken', 'Scopri Automation', 'Explore Automation'],
   'Votre journée avec Zentra Automation': ['Ihr Tag mit Zentra Automation', 'La giornata con Zentra Automation', 'Your day with Zentra Automation'],
   'Toute l’équipe': ['Das ganze Team', 'Tutto il team', 'The whole team'],
   'Bonjour, {name}': ['Hallo, {name}', 'Buongiorno, {name}', 'Hello, {name}'],

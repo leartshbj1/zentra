@@ -4,28 +4,27 @@ description: "Système partagé : index stable, feuilles opaques, texte système
 colors:
   work-accent: "#286047"
   work-on-accent: "#ffffff"
-  work-selection: "#dde8e2"
+  work-selection: "#e5eee8"
   work-accent-dark: "#a3d4b8"
   work-on-accent-dark: "#173323"
-  work-selection-dark: "#354b40"
+  work-selection-dark: "#2c4035"
   zen-attention: "#805112"
   zen-attention-dark: "#e3b96e"
-  work-canvas: "#f5f6f7"
+  work-canvas: "#f6f7f8"
   work-paper: "#ffffff"
-  work-rail: "#ffffff"
+  work-rail: "#fafbfc"
   work-soft: "#f0f1f3"
   work-line: "#e0e4e1"
   work-ink: "#202125"
   work-muted: "#62656d"
-  work-canvas-dark: "#191a1e"
-  work-paper-dark: "#28292e"
-  work-rail-dark: "#202125"
-  work-soft-dark: "#303238"
+  work-canvas-dark: "#151619"
+  work-paper-dark: "#24262b"
+  work-rail-dark: "#1b1d20"
+  work-soft-dark: "#303339"
   work-line-dark: "#41434a"
   work-ink-dark: "#f3f3f5"
   work-muted-dark: "#b6b9c1"
   field-line-dark: "#53555d"
-  field-focus-dark: "#a8dabb"
 typography:
   headline:
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", sans-serif'
@@ -99,7 +98,7 @@ rounded:
   step: "6px"
   segment: "7px"
   inset: "8px"
-  work-control: "9px"
+  work-control: "11px"
   mobile-action: "10px"
   segment-group: "11px"
   panel-mobile: "12px"
@@ -147,17 +146,17 @@ components:
     backgroundColor: "{colors.work-paper}"
     textColor: "{colors.work-ink}"
     rounded: "{rounded.work-control}"
-    padding: "11px 13px"
+    padding: "12px 14px"
   field-dark:
     backgroundColor: "{colors.work-soft-dark}"
     textColor: "{colors.work-ink-dark}"
     rounded: "{rounded.work-control}"
-    padding: "11px 13px"
+    padding: "12px 14px"
   field-portal:
     backgroundColor: "{colors.work-paper}"
     textColor: "{colors.work-ink}"
     rounded: "{rounded.work-control}"
-    padding: "10px 12px"
+    padding: "12px 14px"
   sidebar-item:
     backgroundColor: "transparent"
     textColor: "{colors.work-muted}"
@@ -165,8 +164,8 @@ components:
     rounded: "{rounded.work-control}"
     padding: "10px 12px"
   sidebar-item-selected:
-    backgroundColor: "{colors.work-accent}"
-    textColor: "{colors.work-on-accent}"
+    backgroundColor: "{colors.work-selection}"
+    textColor: "{colors.work-ink}"
     rounded: "{rounded.work-control}"
     padding: "10px 12px"
   destination-selected:
@@ -179,6 +178,11 @@ components:
     textColor: "{colors.work-accent}"
     rounded: "{rounded.flat}"
     padding: "10px 0"
+  automation-toggle:
+    backgroundColor: "{colors.work-paper}"
+    textColor: "{colors.work-ink}"
+    rounded: "{rounded.panel-mobile}"
+    padding: "20px"
   content-panel:
     backgroundColor: "{colors.work-paper}"
     textColor: "{colors.work-ink}"
@@ -217,13 +221,13 @@ Un instrument de travail précis et calme, selon la philosophie Apple explicitem
 
 Les surfaces sont opaques. La hiérarchie repose sur la taille du texte, l’espacement, les séparateurs et la sélection, avec une profondeur limitée aux éléments qui en ont besoin. Les thèmes clair et sombre conservent les mêmes rôles ; les compositions téléphone utilisent des lignes et des contrôles tactiles. Le logo existant reste inchangé.
 
-Cette documentation remplace le précédent état visuel et décrit le code partagé actuel. La composition des écrans appartient au [contrat de surface](.impeccable/surfaces/workspace.md) ; les contraintes produit appartiennent à [PRODUCT.md](PRODUCT.md). Ce relevé de code ne constitue ni une nouvelle revue visuelle, ni une validation native, ni une preuve de publication.
+Cette documentation décrit le code partagé actuel, avec les raffinements du 25 septembre 2026 intégrés au système existant. La composition des écrans appartient au [contrat de surface](.impeccable/surfaces/workspace.md) et le moment d’accueil Automation à son [contrat d’arrivée](.impeccable/surfaces/automation-arrival.md) ; les contraintes produit appartiennent à [PRODUCT.md](PRODUCT.md). Ce relevé de code ne constitue ni une nouvelle revue visuelle, ni une validation native, ni une preuve de publication.
 
 **Key Characteristics:**
 
 - Index distinct, fond perle et feuilles de travail opaques.
 - Typographie système, titres mesurés et chiffres tabulaires.
-- Sélection verte dans l’index ; segments et filtres plus discrets dans la feuille.
+- Sélection tonale douce dans l’index, texte encre et icône verte ; segments et filtres discrets dans la feuille.
 - Groupes de données cohérents, sans multiplication de cartes imbriquées.
 - Téléphone, thèmes et mouvement réduit traités dans la même couche partagée.
 
@@ -233,17 +237,17 @@ La palette associe un vert forestier, un fond perle, du papier opaque et des niv
 
 ### Primary
 
-- **Vert Zentra** (work-accent) : actions principales, destination active de l’index, texte des segments sélectionnés et focus. Le premier plan associé (work-on-accent) suit le thème.
-- **Vert de sélection doux** (work-selection) : briefing Automation, icônes de contexte et destination mobile active. Il ne remplace pas le remplissage franc de la destination desktop.
+- **Vert Zentra** (work-accent) : actions principales, icône de la destination active de l’index, texte des segments sélectionnés et focus. Le premier plan associé (work-on-accent) suit le thème.
+- **Vert de sélection doux** (work-selection) : destination active de l’index, rubrique sélectionnée des Réglages, icônes de contexte et destination mobile active. Le briefing Automation de l’accueil utilise désormais le papier, comme les autres feuilles.
 - **Ambre d’attention hérité** (zen-attention) : cas Automation demandant une revue ou en échec. Ce rôle sémantique existant n’est pas une seconde couleur décorative.
 
 ### Neutral
 
 - **Fond perle / graphite de travail** (work-canvas) : espace autour des feuilles.
-- **Papier / graphite relevé** (work-paper) : feuilles, tableaux et dialogues. **Index** (work-rail) : blanc en clair, niveau graphite distinct en sombre.
+- **Papier / graphite relevé** (work-paper) : feuilles, tableaux et dialogues. **Index** (work-rail) : blanc légèrement teinté en clair, niveau graphite distinct en sombre.
 - **Fond adouci** (work-soft) : recherche et support des segments. **Trait fin** (work-line) : limites et séparateurs.
 - **Encre / encre secondaire** (work-ink, work-muted) : lecture principale et contexte.
-- **Trait de champ sombre / focus de champ sombre** (field-line-dark, field-focus-dark) : valeurs héritées des champs de la zone de travail, distinctes du trait générique.
+- **Trait de champ sombre** (field-line-dark) : bordure de repos héritée des champs de la zone de travail, distincte du trait générique. Le focus suit désormais l’accent du thème.
 
 Les anciens rôles de surfaces et les neutres Automation sont raccordés aux propriétés work-* dans la fenêtre. Les portails de formulaires reçoivent leurs propres alias. Les couleurs de danger/succès et les variantes de boutons danger/dark restent celles des composants métier existants ; elles ne sont pas redéfinies comme nouvelles couleurs de marque. Les rampes du sidecar sont des aperçus de palette synthétisés, pas des tokens supplémentaires.
 
@@ -268,11 +272,13 @@ La hiérarchie est extraite des sélecteurs réellement appliqués, sans échell
 
 ## Layout
 
-Le bureau utilise un index de 244px, une barre supérieure de 72px minimum et un contenu sans marge extérieure de fenêtre. La gouttière suit work-space. Le titre a des insets verticaux de 38px puis 30px ; le contenu réserve page-bottom. Les feuilles ordinaires utilisent panel pour leur padding.
+Le bureau utilise un index de 244px, une barre supérieure de 64px minimum et un contenu sans marge extérieure de fenêtre. La gouttière suit work-space. Le titre a des insets verticaux de 38px puis 30px ; le contenu réserve page-bottom. Les feuilles ordinaires utilisent panel pour leur padding. Le bloc d’entreprise de l’index repose sur papier, avec 14px 12px de padding et des angles de 12px.
 
-Entre 861 et 1200px, l’index passe à 216px et la gouttière à 28px. À 860px et moins, la feuille occupe la largeur disponible ; le menu devient un tiroir de min(320px, 88vw). La barre supérieure descend à 64px minimum et ajoute l’inset sûr supérieur. Le contenu garde au moins 20px de chaque côté, augmentés par les safe areas, et réserve 112px plus l’inset sûr inférieur. Les titres utilisent alors des insets de 28px puis 24px. La couche de viewport mobile conserve ses adaptations de largeur et de clavier. Les marges sûres de l’installation initiale, du menu, de la barre supérieure, de l’en-tête et du contenu donnent priorité aux variables natives : var(--safe-top, env(safe-area-inset-top)), var(--safe-right, env(safe-area-inset-right)), var(--safe-bottom, env(safe-area-inset-bottom)) et var(--safe-left, env(safe-area-inset-left)). Les valeurs env() restent le repli navigateur ; une règle responsive ne doit pas écraser les insets fournis par le runtime natif.
+Entre 861 et 1200px, l’index passe à 216px et la gouttière à 28px. À 860px et moins, la feuille occupe la largeur disponible ; le menu devient un tiroir de min(320px, 88vw). La barre supérieure conserve 64px minimum et ajoute l’inset sûr supérieur. Le contenu garde au moins 20px de chaque côté, augmentés par les safe areas, et réserve 112px plus l’inset sûr inférieur. Les titres utilisent alors des insets de 28px puis 24px. La couche de viewport mobile conserve ses adaptations de largeur et de clavier. Les marges sûres de l’installation initiale, du menu, de la barre supérieure, de l’en-tête et du contenu donnent priorité aux variables natives : var(--safe-top, env(safe-area-inset-top)), var(--safe-right, env(safe-area-inset-right)), var(--safe-bottom, env(safe-area-inset-bottom)) et var(--safe-left, env(safe-area-inset-left)). Les valeurs env() restent le repli navigateur ; une règle responsive ne doit pas écraser les insets fournis par le runtime natif.
 
-La navigation basse reste à au moins 10px du bas et 14px des côtés, augmentés par les safe areas. Ses destinations ont 54px minimum. Les actions partagées utilisent un minimum de 42px sur bureau et 44px sur téléphone ; les actions de création et l’index tactile utilisent 48px. La navigation de bureau fait 43px minimum ; la recherche d’index 40px. Il s’agit de minimums : padding et contenu peuvent agrandir le contrôle. Les champs usuels ont 44px minimum ; l’installation initiale conserve 46px.
+La navigation basse reste à au moins 10px du bas et 14px des côtés, augmentés par les safe areas. Ses destinations ont 54px minimum. Les actions partagées utilisent un minimum de 42px sur bureau et 44px sur téléphone ; les actions de création et l’index tactile utilisent 48px. Les actions d’en-tête téléphone ont un minimum de 46px. La navigation de bureau fait 43px minimum ; la recherche d’index 40px. Il s’agit de minimums : padding et contenu peuvent agrandir le contrôle. Les champs usuels ont 44px minimum sur bureau et 48px sur téléphone ; l’installation initiale conserve 46px.
+
+Les actions d’en-tête reviennent à la ligne avec un écart de 10px. Les titres de section, champs, panneaux et actions peuvent se réduire avec min-width: 0, sans comprimer les libellés. Les sections laissent 24px sous leur en-tête et 20px sur téléphone. Les rubriques de Réglages prennent la forme de lignes tactiles de 72px minimum sur téléphone.
 
 Les tableaux deviennent des enregistrements lisibles sur téléphone. Les données gardent leurs regroupements et toutes leurs actions ; les informations complémentaires se dévoilent sur demande. Les raccourcis Comptabilité sont des lignes icône–texte–flèche ; l’en-tête de réception fournisseurs place son action sous le texte sur téléphone. Ces compositions appartiennent aux écrans concernés, pas à une grille globale imposée.
 
@@ -293,9 +299,11 @@ Les feuilles, la barre supérieure et l’index reposent sans ombre. Leur diffé
 
 **The Tonal Depth Rule.** Les feuilles au repos se distinguent par leur ton et leurs séparateurs. La légère ombre des segments marque la sélection ; l’ombre ambiante appartient aux dialogues.
 
-La feuille arrive par un déplacement vertical de 8px pendant 240ms, avec cubic-bezier(.16,1,.3,1). Les actions partagées et la sélection d’index répondent par des transitions de fond/couleur de 140ms ease-out. Ces traitements ne sont activés qu’en l’absence de préférence de mouvement réduit. Le système désactive les animations/transitions descendantes dans la fenêtre quand cette préférence est active.
+Les changements de destination utilisent useScreenArrival : déplacement vertical de 4px et opacité de .72 à 1 pendant 220ms, avec cubic-bezier(.16,1,.3,1), sans remonter les éditeurs ni déplacer le focus. L’ancienne arrivée CSS initiale a été retirée pour garder un seul propriétaire de ce mouvement. Les titres de page n’ajoutent plus leur propre animation.
 
-Des traitements plus anciens subsistent pour les tiroirs, les titres, certains formulaires et Automation : notamment 160ms pour les contrôles Automation et une pression à scale(.98) sur les actions de la fenêtre. Ils sont des héritages contextualisés, pas une nouvelle durée universelle. La couche partagée ne remplace pas toutes les animations des portails.
+Actions, index et segments répondent par des transitions de fond/couleur de 160ms ease. Les champs utilisent la même durée pour leur bordure et leur fond. La pression des boutons prend 120ms et conserve scale(.98), dans la fenêtre et les portails. La préférence de mouvement réduit désactive l’arrivée, les animations/transitions descendantes de la fenêtre et la pression des boutons ; l’accueil de marque possède aussi son traitement réduit explicite.
+
+Des traitements plus anciens subsistent pour les tiroirs, certains formulaires et Automation, notamment 160ms ease-out pour les filtres du journal. Ils restent contextualisés. La couche partagée ne remplace pas toutes les animations des portails. La séquence de marque commune à l’ouverture initiale et à l’accueil Automation est finie, interruptible et distincte des transitions de travail ; sa composition appartient aux contrats de surface.
 
 ## Shapes
 
@@ -309,7 +317,7 @@ Les groupes de segments utilisent segment-group, leur segment actif segment. Le 
 
 Des actions explicites, compactes et opaques. Le primaire utilise accent/on-accent ; le secondaire papier/encre avec un trait fin ; le ghost garde un fond transparent et le texte vert. Les tokens indiquent le padding de la fenêtre ; les boutons normaux dans les portails gardent le padding hérité 0 17px. Les tailles et actions métier spécialisées restent contextuelles.
 
-Le primaire s’assombrit au survol compatible pointeur par brightness(.94), sans translation. Tout état de survol, y compris celui qui persiste après un toucher, conserve explicitement les couleurs jumelées work-accent/work-on-accent du thème courant ; aucun ancien remplissage ne doit remplacer seulement l’une des deux. Le focus partagé utilise un contour d’accent de 2px, décalé de 3px. Un contrôle désactivé a une opacité de 0.55. Les boutons secondaire/ghost n’acquièrent pas automatiquement le filtre du primaire. La pression conserve le traitement hérité décrit dans Elevation & Depth.
+Le primaire répond au survol compatible pointeur par color-mix(in srgb, var(--work-accent) 90%, var(--work-ink)), sans filtre ni translation. Le premier plan reste work-on-accent ; le survol persistant après toucher conserve les couleurs jumelées du thème courant. Le focus partagé utilise un contour d’accent de 2px, décalé de 3px. Un contrôle désactivé a une opacité de 0.55. Les boutons secondaire/ghost n’acquièrent pas automatiquement le traitement du primaire. La pression suit le traitement décrit dans Elevation & Depth.
 
 Les états vides peuvent exposer une action secondaire lorsque l’action de création principale existe déjà dans la feuille ; le composant supporte ce choix sans supprimer l’opération.
 
@@ -319,21 +327,23 @@ Les filtres du journal Automation sont des commandes textuelles, à fond transpa
 
 ### Cards / Containers
 
-Les panneaux ordinaires ont un fond papier sans bordure extérieure ni ombre. Padding et angles suivent les tokens desktop/téléphone. Les panneaux imbriqués deviennent des sections carrées avec un séparateur supérieur et sans padding horizontal supplémentaire. Les listes et tableaux partagent leur surface ; les en-têtes de tableau restent papier avec un trait inférieur et le texte secondaire.
+Les panneaux ordinaires ont un fond papier sans bordure extérieure ni ombre. Padding et angles suivent les tokens desktop/téléphone. Les panneaux imbriqués deviennent des sections carrées avec un séparateur supérieur et sans padding horizontal supplémentaire. Les listes et tableaux partagent leur surface ; les en-têtes de tableau restent papier avec un trait inférieur et le texte secondaire. Les cellules ont une interligne de 1.6. Les états vides gardent leurs actions réelles, avec 44px 24px de padding sur bureau et 36px 16px sur téléphone, un titre de 21px et une explication de 14px à interligne 1.65.
 
 **The Shared Sheet Rule.** Regrouper les informations liées dans une feuille, puis utiliser des lignes et des séparateurs à l’intérieur. Ne pas recréer une carte flottante autour de chaque détail.
 
 ### Inputs / Fields
 
-Les champs clairs et les portails utilisent le papier opaque ; texte et placeholders suivent les encres de travail, avec une caret verte. Dans la fenêtre, le padding hérité est celui de field. Le portail ordinaire conserve field-portal.
+Les champs clairs et les portails utilisent le papier opaque ; texte et placeholders suivent les encres de travail, avec une caret verte. Fenêtre et portails partagent le padding de field. La nouvelle règle de focus demande une bordure d’accent ; le contour clavier partagé reste visible. Sur téléphone, les champs gardent 16px de texte et 48px minimum.
 
-Les sélecteurs sombres spécialisés hérités restent plus spécifiques : les champs texte de la fenêtre utilisent work-soft-dark, field-line-dark, puis field-focus-dark au focus. Ils ne doivent pas être documentés comme identiques au papier des portails. Le focus clavier partagé reste visible. La validation de Field expose son erreur écrite avec role=alert ; désactivation et lecture seule restent contrôlées par les composants existants.
+Les champs sombres de la fenêtre conservent work-soft-dark et field-line-dark au repos. Le sélecteur de focus partagé reprend les exclusions de types des champs texte afin de dépasser la spécificité sombre héritée : sa bordure suit work-accent. Les champs sombres ne sont pas identiques au papier des portails. La validation de Field expose son erreur écrite avec role=alert ; désactivation et lecture seule restent contrôlées par les composants existants.
 
 La recherche de journal est intégrée dans une surface adoucie, avec focus de groupe ; sa saisie monte à 16px sur téléphone. Ce n’est pas un champ autonome bordé.
 
+Les interrupteurs Automation partagent désormais le même traitement dans le hub et dans les Réglages généraux : piste de 42×26px, pouce de 20px, état actif d’accent et focus visible autour du libellé. Leur animation de 160ms ease-out respecte le mouvement réduit ; un contrôle désactivé conserve son état réel et une opacité de .64. La ligne principale utilise automation-toggle, puis 18px 16px de padding sous 761px. Les listes de fonctions conservent leurs lignes à séparateurs selon leur contexte.
+
 ### Navigation
 
-L’index présente des icônes SVG de ligne de 18px et des libellés. La destination active combine remplissage accent, premier plan on-accent et poids renforcé. La destination inactive répond au survol par le fond adouci et l’encre principale. L’ancienne couche mobile de sélection animée est masquée ; le dock utilise une sélection tonale douce.
+L’index présente des icônes SVG de ligne de 18px et des libellés. La destination active combine fond de sélection doux, texte encre, icône d’accent et poids 600. La destination inactive répond au survol par le fond adouci et l’encre principale. L’ancienne couche mobile de sélection animée est masquée ; le dock utilise une sélection tonale douce. Les rubriques choisies des Réglages suivent cette sélection douce, avec des icônes sans pastille de fond ; le survol de leurs lignes inactives n’est ajouté qu’avec un pointeur compatible.
 
 Ventes, Équipe, Comptabilité et Automation emploient des groupes de segments sur fond adouci ; le segment choisi est papier, texte vert, petite ombre. Les destinations Automation se répartissent en trois colonnes égales sur téléphone, avec des labels réorganisables.
 
@@ -348,6 +358,10 @@ L’éditeur documentaire laisse son corps extérieur sans padding afin que l’
 Le code ouvre Automation sur **Activité**, puis propose **À suivre** et **Réglages**. Le journal complet est le premier contenu de la destination d’activité, avec les événements disponibles pour l’entreprise choisie ; règles et réglages restent séparés. Le briefing latéral complète le journal. Les états de chargement, connexion absente et accès inactif restent explicites. Cette organisation est une décision de cette surface, pas une règle imposée à toutes les pages de Gestion.
 
 Les lignes associent un repère iconographique tonal, du texte factuel et un détail ouvrable. Les réglages utilisent un index et une feuille, avec des sections internes. Ne pas ajouter d’événements, de gains ou de compteurs pour remplir l’espace.
+
+### Finite brand arrival
+
+ZentraArrival réutilise la même chorégraphie de lumière pour l’ouverture initiale et l’accueil Automation, avec le wordmark existant de src/assets/zentra-wordmark.png. Le dessin canvas est écrit dans le code, sans nouveau média ni dépendance. Le mouvement cesse au repos, se suspend quand le document est caché et devient une composition statique avec mouvement réduit. Son fond vert profond, sa lumière et ses actions en pilule sont une exception finie reprise de l’introduction approuvée ; ces valeurs locales ne deviennent pas les tokens des écrans de travail. La variante Automation et ses règles d’apparition appartiennent au [contrat d’arrivée](.impeccable/surfaces/automation-arrival.md) ; cet accueil ne se rejoue pas lors des changements de menus ordinaires.
 
 ## Do's and Don'ts
 
@@ -372,4 +386,4 @@ Les lignes associent un repère iconographique tonal, du texte factuel et un dé
 
 Source de vérité : [src/workspace-atelier.css](src/workspace-atelier.css), importé en dernier par [src/main.tsx](src/main.tsx), avec les sélecteurs plus spécifiques et propriétés héritées de [src/dark.css](src/dark.css), [src/refined.css](src/refined.css), [src/workspace-shell.css](src/workspace-shell.css), [src/automation-design.css](src/automation-design.css), [src/mobile-air.css](src/mobile-air.css) et [src/mobileViewport.css](src/mobileViewport.css). Les API et l’ordre de navigation sont lus dans [src/ui.tsx](src/ui.tsx), [src/WorkspaceApp.tsx](src/WorkspaceApp.tsx) et [src/AutomationHub.tsx](src/AutomationHub.tsx). Les anciennes valeurs dépassées dans la cascade ne sont pas des alternatives de design. La couche finale est limitée à l’écran ; l’impression garde ses propres règles.
 
-État de référence : le [verdict du lot 3](../outputs/redesign186/native-fix3-verdict.md) rend la disposition ship et clôt le point Agenda ; les autres points résolus restent fermés. La barre et ses groupes peuvent revenir à la ligne, les groupes acceptent min-width: 0, et les boutons conservent flex-shrink: 0 et white-space: nowrap. Les libellés « Aujourd’hui » et « Ajouter » restent entiers sans réduire les métadonnées. Ce verdict concerne la revue de l’interface partagée ; il ne constitue pas une validation native ni une preuve de publication. Cette mise à jour documentaire n’a ajouté aucune capture, QA d’interface, compilation ou modification UI.
+Référence antérieure : le [verdict du lot 3](../outputs/redesign186/native-fix3-verdict.md) clôt le point Agenda de ce lot. Ses contraintes de libellés entiers et de groupes réorganisables restent applicables. Il ne valide pas les raffinements du 25 septembre décrits ici. Pour ce lot, la compilation TypeScript/Vite, 33 tests unitaires ciblés, les parcours d’accueil Edge/WebKit et 224 visites de navigation/rendu ont réussi. La [relecture indépendante](.impeccable/review/automation-activation/review.md) conclut **ship** dans le périmètre frontend examiné, sans nouveau défaut matériel ni correction demandée. Les visites et captures utilisent des données fictives ; elles ne certifient pas tous les parcours métier, la totalité des zones défilées ou une traduction complète. Des textes métier non traduits et la coupure héritée d’« Einstellungen » à 320px subsistent. Aucune livraison native ni publication n’est déduite de cette mise à jour documentaire. Le [relevé du changement](../docs/APP-AUTOMATION-ARRIVAL-20260925.md) précise les preuves et leur périmètre.

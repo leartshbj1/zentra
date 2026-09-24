@@ -109,6 +109,7 @@ desktopApi.getAccountingContinuity = async () => ({ enabled: false, mappingReady
 const currency = { baseCurrency: 'CHF', currencies: ['CHF'], singleCurrency: true, exchangeRatesApplied: false };
 const scope = { dateFrom: '2026-01-01', dateTo: '2026-12-31', previousDateFrom: '2025-01-01', previousDateTo: '2025-12-31', comparisonLabel: 'Exercice précédent', comparisonSource: 'same_dates_previous_year' as const, previousHasActivity: false };
 desktopApi.getJournal = async () => ({ entries: [], lines: [], currency });
+desktopApi.getLedger = async accountId => ({ account: (await desktopApi.listAccounts()).find(account => account.id === accountId)!, lines: [], currency, openingDebitCents: 0, openingCreditCents: 0, openingDebitBalanceCents: 0, openingCreditBalanceCents: 0, openingNetDebitCents: 0, debitCents: 0, creditCents: 0, movementNetDebitCents: 0, netDebitCents: 0, closingDebitBalanceCents: 0, closingCreditBalanceCents: 0, closingNetDebitCents: 0 });
 desktopApi.getTrialBalance = async () => ({ rows: [], currency, openingDebitBalanceCents: 0, openingCreditBalanceCents: 0, debitCents: 0, creditCents: 0, closingDebitBalanceCents: 0, closingCreditBalanceCents: 0, balanced: true });
 desktopApi.getBalanceSheet = async () => ({ asOf: scope.dateTo, exerciseFrom: scope.dateFrom, scope, currency, rows: [], sections: {}, previousSections: {}, assetsCents: 0, liabilitiesCents: 0, equityCents: 0, currentResultCents: 0, unallocatedPriorResultsCents: 0, balanced: true, previousAssetsCents: 0, previousLiabilitiesCents: 0, previousEquityCents: 0, previousCurrentResultCents: 0, previousUnallocatedPriorResultsCents: 0, previousBalanced: true });
 desktopApi.getIncomeStatement = async () => ({ scope, currency, rows: [], sections: {}, previousSections: {}, revenueCents: 0, expenseCents: 0, profitCents: 0, previousRevenueCents: 0, previousExpenseCents: 0, previousProfitCents: 0 });
@@ -261,6 +262,7 @@ function Harness() {
     __qaReloadPurchases: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; return next; },
   });
   const [projectAccount, setProjectAccount] = useState(new URLSearchParams(location.search).has('automation') ? 'automation-qa' : '');
+  if (previewQuery.has('automationWelcome')) Object.assign(window, { __qaSetWelcomeAccount: setProjectAccount });
   if(new URLSearchParams(location.search).has('supplierRefundGuided')||new URLSearchParams(location.search).has('paymentGuided')||new URLSearchParams(location.search).has('customerSettlementGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaSupplierRefundRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if(new URLSearchParams(location.search).has('creditAllocation'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaCreditAllocationRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if(new URLSearchParams(location.search).has('receiptGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaReceiptRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});

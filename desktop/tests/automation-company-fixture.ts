@@ -1,9 +1,17 @@
 import type { Workspace } from '../src/types';
 import type { AutomationState } from '../src/automation';
 import { automationDesignFixture } from './automation-design-fixture';
+import { automationWelcomeKey } from '../src/automationWelcomeState';
 /** Synthetic bridge used only by the local, non-shipping UI harness. */
 export function installAutomationCompanyFixture(workspace?:Workspace) {
   const params = new URLSearchParams(location.search);
+  if (params.get('automationWelcome') === 'preview') {
+    localStorage.removeItem(automationWelcomeKey('automation-qa'));
+    localStorage.setItem('elyko-guided-tour-v3', 'completed');
+  }
+  // Existing journey fixtures start after the welcome. Its dedicated tests exercise the real gate.
+  if (!params.has('automationWelcome')) localStorage.setItem(automationWelcomeKey('automation-qa'), 'seen');
+  let unavailable = false;
   const unconfigured = params.get('automation') === 'setup';
   const invoices = [
     { id: 'mail-demo-1', name: 'Papeterie du Léman', reference: 'LEMAN-2026-091', net: 25000, state: 'needs_review' },
@@ -17,10 +25,15 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
     activity: { appointments:{imported:2,pending:1}, date: '2026-09-21', timeZone: 'Europe/Zurich', updatedAt: Date.now() / 1000, displayName: 'Camille', totals: { analyzed: 0, suggestions: 0, confirmed: 0, needsReview: 0, observed: 0 }, features: [], supplierInbox: {received:3,imported:1,automatic:0,needsReview:2,recent:[]} },
   };
   const centre = automationDesignFixture(state);
+  if (params.has('automationWelcome')) Object.assign(window, { __automationWelcomeQa: {
+    state, setUnavailable: (value: boolean) => { unavailable = value; },
+    refresh: () => window.dispatchEvent(new Event('zentra-automation-updated')),
+  } });
   Object.assign(window, { __TAURI_INTERNALS__: {
     invoke: async (command: string, args: { data?: Record<string, unknown> }) => {
       if (command === 'supplier_inbox_request') {
-        if (!args?.data) return {organizationId:'automation-qa',linked:true,autoPost:false,automationActive:true,prepareEnabled:true,habits:[],items:structuredClone(invoices)};
+        // This visual fixture has no accounting writes; preparation is tested in its own journey.
+        if (!args?.data) return {organizationId:'automation-qa',linked:true,autoPost:false,automationActive:true,prepareEnabled:false,habits:[],items:structuredClone(invoices)};
         if (args.data.action === 'document') {
           const bytes = new Uint8Array(await (await fetch('/tests/fixtures/automation-test-invoice.pdf')).arrayBuffer());
           return {base64:btoa(String.fromCharCode(...bytes))};
@@ -33,7 +46,7 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
         return {saved:true};
       }
       if (command !== 'automation_request') throw Error('Not available in this fixture');
-      if (!args.data) return structuredClone(state);
+      if (!args.data) { if (unavailable) throw Error('Offline fixture'); return structuredClone(state); }
       if (args.data.action === 'centre') return structuredClone(centre);
       if (args.data.action === 'workflow_preview') return {matched:true,message:'Simulation fictive : aucun message envoyé, aucune donnée réelle modifiée.',actions:[{title:'Réponse · Demande de test',body:'Bonjour, nous avons bien reçu votre demande.'}]};
       if (args.data.action === 'workflow_save') {const rule={id:String(args.data.id||'ui-new'),name:String(args.data.name),enabled:Boolean(args.data.enabled),revision:Number(args.data.revision||0)+1,definition:args.data.definition as typeof centre.rules[number]['definition']};centre.rules=centre.rules.filter(r=>r.id!==rule.id).concat(rule);return {saved:true};}

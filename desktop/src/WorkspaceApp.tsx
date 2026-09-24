@@ -28,6 +28,7 @@ import { SupplierInbox } from './SupplierInboxPanel';
 import { useSupplierInbox } from './supplierInbox';
 import { AutomationCompanyProvider, useCompanyAutomation } from './AutomationCompany';
 import { AutomationHub } from './AutomationHub';
+import { AutomationWelcome } from './AutomationWelcomeDialog';
 import { AppointmentInbox,useAppointmentInbox } from './AppointmentInbox';
 import { automationPageFromEvent, type AutomationPage } from './automationExperience';
 import { AutomationSettings } from './AutomationSettings';
@@ -1647,6 +1648,7 @@ function WorkspaceContent({
   return (
     <div className="desktop-app" data-experience="clarity" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
       <CompanyReceivingGuard/>
+      <AutomationWelcome key={companyAutomation.organizationId || 'local'} view={view} />
       {updaterOpen ? <Modal title={t("Mise à jour de Zentra")} wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
         <div className="standalone-updater-content"><AppUpdater onInstallingChange={setUpdateInstalling} /></div>
       </Modal> : null}

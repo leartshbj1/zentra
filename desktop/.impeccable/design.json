@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-24T15:04:51.230Z",
+  "generatedAt": "2026-09-24T23:29:56.801Z",
   "title": "Design System: Zentra Gestion",
   "extensions": {
     "colorMeta": {
@@ -36,14 +36,14 @@
         "role": "primary",
         "displayName": "Vert de sélection doux",
         "tonalRamp": [
-          "oklch(15.00% 0.0142 162.45)",
-          "oklch(26.43% 0.0142 162.45)",
-          "oklch(37.86% 0.0142 162.45)",
-          "oklch(49.29% 0.0142 162.45)",
-          "oklch(60.71% 0.0142 162.45)",
-          "oklch(72.14% 0.0142 162.45)",
-          "oklch(83.57% 0.0142 162.45)",
-          "oklch(95.00% 0.0142 162.45)"
+          "oklch(15.00% 0.0125 156.99)",
+          "oklch(26.43% 0.0125 156.99)",
+          "oklch(37.86% 0.0125 156.99)",
+          "oklch(49.29% 0.0125 156.99)",
+          "oklch(60.71% 0.0125 156.99)",
+          "oklch(72.14% 0.0125 156.99)",
+          "oklch(83.57% 0.0125 156.99)",
+          "oklch(95.00% 0.0125 156.99)"
         ]
       },
       "work-accent-dark": {
@@ -78,14 +78,14 @@
         "role": "primary",
         "displayName": "Sélection graphite verte",
         "tonalRamp": [
-          "oklch(15.00% 0.0331 162.67)",
-          "oklch(26.43% 0.0331 162.67)",
-          "oklch(37.86% 0.0331 162.67)",
-          "oklch(49.29% 0.0331 162.67)",
-          "oklch(60.71% 0.0331 162.67)",
-          "oklch(72.14% 0.0331 162.67)",
-          "oklch(83.57% 0.0331 162.67)",
-          "oklch(95.00% 0.0331 162.67)"
+          "oklch(15.00% 0.0319 160.12)",
+          "oklch(26.43% 0.0319 160.12)",
+          "oklch(37.86% 0.0319 160.12)",
+          "oklch(49.29% 0.0319 160.12)",
+          "oklch(60.71% 0.0319 160.12)",
+          "oklch(72.14% 0.0319 160.12)",
+          "oklch(83.57% 0.0319 160.12)",
+          "oklch(95.00% 0.0319 160.12)"
         ]
       },
       "zen-attention": {
@@ -146,16 +146,16 @@
       },
       "work-rail": {
         "role": "neutral",
-        "displayName": "Index blanc",
+        "displayName": "Index blanc teinté",
         "tonalRamp": [
-          "oklch(15.00% 0.0000 0.00)",
-          "oklch(26.43% 0.0000 0.00)",
-          "oklch(37.86% 0.0000 0.00)",
-          "oklch(49.29% 0.0000 0.00)",
-          "oklch(60.71% 0.0000 0.00)",
-          "oklch(72.14% 0.0000 0.00)",
-          "oklch(83.57% 0.0000 0.00)",
-          "oklch(95.00% 0.0000 0.00)"
+          "oklch(15.00% 0.0017 247.84)",
+          "oklch(26.43% 0.0017 247.84)",
+          "oklch(37.86% 0.0017 247.84)",
+          "oklch(49.29% 0.0017 247.84)",
+          "oklch(60.71% 0.0017 247.84)",
+          "oklch(72.14% 0.0017 247.84)",
+          "oklch(83.57% 0.0017 247.84)",
+          "oklch(95.00% 0.0017 247.84)"
         ]
       },
       "work-soft": {
@@ -218,56 +218,56 @@
         "role": "neutral",
         "displayName": "Fond graphite",
         "tonalRamp": [
-          "oklch(15.00% 0.0079 274.56)",
-          "oklch(26.43% 0.0079 274.56)",
-          "oklch(37.86% 0.0079 274.56)",
-          "oklch(49.29% 0.0079 274.56)",
-          "oklch(60.71% 0.0079 274.56)",
-          "oklch(72.14% 0.0079 274.56)",
-          "oklch(83.57% 0.0079 274.56)",
-          "oklch(95.00% 0.0079 274.56)"
+          "oklch(15.00% 0.0062 271.10)",
+          "oklch(26.43% 0.0062 271.10)",
+          "oklch(37.86% 0.0062 271.10)",
+          "oklch(49.29% 0.0062 271.10)",
+          "oklch(60.71% 0.0062 271.10)",
+          "oklch(72.14% 0.0062 271.10)",
+          "oklch(83.57% 0.0062 271.10)",
+          "oklch(95.00% 0.0062 271.10)"
         ]
       },
       "work-paper-dark": {
         "role": "neutral",
         "displayName": "Feuille graphite relevée",
         "tonalRamp": [
-          "oklch(15.00% 0.0092 276.79)",
-          "oklch(26.43% 0.0092 276.79)",
-          "oklch(37.86% 0.0092 276.79)",
-          "oklch(49.29% 0.0092 276.79)",
-          "oklch(60.71% 0.0092 276.79)",
-          "oklch(72.14% 0.0092 276.79)",
-          "oklch(83.57% 0.0092 276.79)",
-          "oklch(95.00% 0.0092 276.79)"
+          "oklch(15.00% 0.0097 268.31)",
+          "oklch(26.43% 0.0097 268.31)",
+          "oklch(37.86% 0.0097 268.31)",
+          "oklch(49.29% 0.0097 268.31)",
+          "oklch(60.71% 0.0097 268.31)",
+          "oklch(72.14% 0.0097 268.31)",
+          "oklch(83.57% 0.0097 268.31)",
+          "oklch(95.00% 0.0097 268.31)"
         ]
       },
       "work-rail-dark": {
         "role": "neutral",
         "displayName": "Index graphite",
         "tonalRamp": [
-          "oklch(15.00% 0.0077 274.64)",
-          "oklch(26.43% 0.0077 274.64)",
-          "oklch(37.86% 0.0077 274.64)",
-          "oklch(49.29% 0.0077 274.64)",
-          "oklch(60.71% 0.0077 274.64)",
-          "oklch(72.14% 0.0077 274.64)",
-          "oklch(83.57% 0.0077 274.64)",
-          "oklch(95.00% 0.0077 274.64)"
+          "oklch(15.00% 0.0065 258.36)",
+          "oklch(26.43% 0.0065 258.36)",
+          "oklch(37.86% 0.0065 258.36)",
+          "oklch(49.29% 0.0065 258.36)",
+          "oklch(60.71% 0.0065 258.36)",
+          "oklch(72.14% 0.0065 258.36)",
+          "oklch(83.57% 0.0065 258.36)",
+          "oklch(95.00% 0.0065 258.36)"
         ]
       },
       "work-soft-dark": {
         "role": "neutral",
         "displayName": "Fond sombre adouci",
         "tonalRamp": [
-          "oklch(15.00% 0.0110 271.05)",
-          "oklch(26.43% 0.0110 271.05)",
-          "oklch(37.86% 0.0110 271.05)",
-          "oklch(49.29% 0.0110 271.05)",
-          "oklch(60.71% 0.0110 271.05)",
-          "oklch(72.14% 0.0110 271.05)",
-          "oklch(83.57% 0.0110 271.05)",
-          "oklch(95.00% 0.0110 271.05)"
+          "oklch(15.00% 0.0115 264.40)",
+          "oklch(26.43% 0.0115 264.40)",
+          "oklch(37.86% 0.0115 264.40)",
+          "oklch(49.29% 0.0115 264.40)",
+          "oklch(60.71% 0.0115 264.40)",
+          "oklch(72.14% 0.0115 264.40)",
+          "oklch(83.57% 0.0115 264.40)",
+          "oklch(95.00% 0.0115 264.40)"
         ]
       },
       "work-line-dark": {
@@ -324,20 +324,6 @@
           "oklch(72.14% 0.0132 274.66)",
           "oklch(83.57% 0.0132 274.66)",
           "oklch(95.00% 0.0132 274.66)"
-        ]
-      },
-      "field-focus-dark": {
-        "role": "neutral",
-        "displayName": "Focus de champ sombre hérité",
-        "tonalRamp": [
-          "oklch(15.00% 0.0675 157.40)",
-          "oklch(26.43% 0.0675 157.40)",
-          "oklch(37.86% 0.0675 157.40)",
-          "oklch(49.29% 0.0675 157.40)",
-          "oklch(60.71% 0.0675 157.40)",
-          "oklch(72.14% 0.0675 157.40)",
-          "oklch(83.57% 0.0675 157.40)",
-          "oklch(95.00% 0.0675 157.40)"
         ]
       }
     },
@@ -426,34 +412,39 @@
       {
         "name": "switch-thumb-inherited",
         "value": "0 1px 3px #00000026",
-        "purpose": "Pouce d’interrupteur Automation hérité."
+        "purpose": "Pouce d’interrupteur Automation, commun au hub et aux Réglages généraux."
       }
     ],
     "motion": [
       {
         "name": "page-arrival",
-        "value": "240ms cubic-bezier(.16,1,.3,1)",
-        "purpose": "Déplacement vertical de 8px sans mouvement réduit."
+        "value": "220ms cubic-bezier(.16,1,.3,1)",
+        "purpose": "Navigation entre destinations : 4px et opacité .72 à 1, sans remonter les éditeurs ni déplacer le focus. Une seule animation possède cette arrivée."
       },
       {
         "name": "control-feedback",
-        "value": "140ms ease-out",
-        "purpose": "Fond et couleur des actions partagées et de l’index."
+        "value": "160ms ease",
+        "purpose": "Fond et couleur des boutons, index et segments ; bordure et fond des champs."
       },
       {
         "name": "automation-feedback-inherited",
         "value": "160ms ease-out",
-        "purpose": "Contrôles et résumés Automation hérités."
+        "purpose": "Filtres et contrôles Automation hérités hors segments partagés ; déplacement du pouce d’interrupteur dans le hub et les Réglages généraux."
       },
       {
-        "name": "button-press-inherited",
-        "value": "scale(.98)",
-        "purpose": "Pression héritée dans la fenêtre de travail, sans mouvement réduit."
+        "name": "button-press",
+        "value": "120ms ease; scale(.98)",
+        "purpose": "Pression dans la fenêtre et les portails, désactivée avec mouvement réduit."
+      },
+      {
+        "name": "finite-brand-arrival",
+        "value": "7800ms",
+        "purpose": "Chorégraphie partagée de première ouverture et accueil Automation, interruptible. Exception finie approuvée, jamais une transition de menu. Le canvas se suspend quand le document est caché et cesse au repos."
       },
       {
         "name": "reduced-motion",
         "value": "none",
-        "purpose": "Animations et transitions descendantes désactivées dans la fenêtre ; les portails gardent leurs règles propres."
+        "purpose": "Pas d’arrivée ni de pression animée ; animations et transitions descendantes désactivées dans la fenêtre. L’accueil de marque affiche directement son état final ; les autres portails gardent leurs règles propres."
       }
     ],
     "breakpoints": [
@@ -490,7 +481,7 @@
       "refersTo": "button-primary",
       "description": "Action de la fenêtre de travail. Le survol persistant après toucher conserve les couleurs jumelées du thème. Le portail normal conserve son padding 0 17px.",
       "html": "<button class=\"ds-primary\" type=\"button\">Enregistrer</button>",
-      "css": ".ds-primary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid transparent;border-radius:var(--work-control,9px);background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;cursor:pointer;white-space:normal}.ds-primary:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-primary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}.ds-primary:hover:not(:disabled){background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff)}@media(hover:hover){.ds-primary:hover:not(:disabled){filter:brightness(.94);background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-primary{transition:background-color 140ms ease-out,color 140ms ease-out}.ds-primary:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-primary{min-height:44px}}"
+      "css": ".ds-primary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid transparent;border-radius:var(--work-control,11px);background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;cursor:pointer;white-space:normal}.ds-primary:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-primary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}.ds-primary:hover:not(:disabled){background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff)}@media(hover:hover){.ds-primary:hover:not(:disabled){filter:none;background:color-mix(in srgb,var(--work-accent,#286047) 90%,var(--work-ink,#202125));color:var(--work-on-accent,#ffffff);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-primary{transition:background 160ms ease,color 160ms ease,transform 120ms ease}.ds-primary:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-primary{min-height:44px}}"
     },
     {
       "name": "Action secondaire",
@@ -498,7 +489,7 @@
       "refersTo": "button-secondary",
       "description": "Action de la fenêtre de travail. Le portail normal conserve son padding 0 17px.",
       "html": "<button class=\"ds-secondary\" type=\"button\">Annuler</button>",
-      "css": ".ds-secondary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid var(--work-line,#e0e4e1);border-radius:var(--work-control,9px);background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none;cursor:pointer;white-space:normal}.ds-secondary:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-secondary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(hover:hover){.ds-secondary:hover:not(:disabled){background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-secondary{transition:background-color 140ms ease-out,color 140ms ease-out}.ds-secondary:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-secondary{min-height:44px}}"
+      "css": ".ds-secondary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid var(--work-line,#e0e4e1);border-radius:var(--work-control,11px);background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none;cursor:pointer;white-space:normal}.ds-secondary:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-secondary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(hover:hover){.ds-secondary:hover:not(:disabled){background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-secondary{transition:background 160ms ease,color 160ms ease,transform 120ms ease}.ds-secondary:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-secondary{min-height:44px}}"
     },
     {
       "name": "Action discrète",
@@ -506,23 +497,23 @@
       "refersTo": "button-ghost",
       "description": "Action de la fenêtre de travail. Le portail normal conserve son padding 0 17px.",
       "html": "<button class=\"ds-ghost\" type=\"button\">Voir les détails</button>",
-      "css": ".ds-ghost{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid transparent;border-radius:var(--work-control,9px);background:transparent;color:var(--work-accent,#286047);box-shadow:none;cursor:pointer;white-space:normal}.ds-ghost:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-ghost:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(hover:hover){.ds-ghost:hover:not(:disabled){background:transparent;color:var(--work-accent,#286047);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-ghost{transition:background-color 140ms ease-out,color 140ms ease-out}.ds-ghost:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-ghost{min-height:44px}}"
+      "css": ".ds-ghost{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid transparent;border-radius:var(--work-control,11px);background:transparent;color:var(--work-accent,#286047);box-shadow:none;cursor:pointer;white-space:normal}.ds-ghost:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-ghost:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(hover:hover){.ds-ghost:hover:not(:disabled){background:transparent;color:var(--work-accent,#286047);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-ghost{transition:background 160ms ease,color 160ms ease,transform 120ms ease}.ds-ghost:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-ghost{min-height:44px}}"
     },
     {
       "name": "Champ de formulaire",
       "kind": "input",
       "refersTo": "field",
-      "description": "Variante claire de la fenêtre de travail. Champs sombres spécialisés et portails sont décrits séparément dans DESIGN.md.",
+      "description": "Champ clair partagé avec les portails : padding 12px 14px, bordure d’accent au focus et 48px minimum sur téléphone. Le fond sombre spécialisé reste décrit dans DESIGN.md.",
       "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Nom du projet</span><input class=\"ds-input\" placeholder=\"Nom du projet\"><small class=\"ds-hint\">Nom affiché dans vos projets.</small></label>",
-      "css": ".ds-field{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:grid;gap:8px;color:var(--work-ink,#202125)}.ds-field-label{font-size:14px;font-weight:550;line-height:1.5}.ds-input{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;min-width:0;min-height:44px;padding:11px 13px;font-size:16px;font-weight:400;background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);border:1px solid var(--work-line,#e0e4e1);border-radius:var(--work-control,9px);box-shadow:none;caret-color:var(--work-accent,#286047)}.ds-input::placeholder{color:var(--work-muted,#62656d);opacity:1}.ds-input:hover,.ds-input:focus{background:var(--work-paper,#ffffff);border-color:var(--work-line,#e0e4e1);box-shadow:none}.ds-input:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}.ds-hint{font-size:13px;line-height:1.5;color:var(--work-muted,#62656d)}"
+      "css": ".ds-field{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:grid;gap:8px;color:var(--work-ink,#202125)}.ds-field-label{font-size:14px;font-weight:550;line-height:1.5}.ds-input{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;min-width:0;min-height:44px;padding:12px 14px;font-size:16px;font-weight:400;background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);border:1px solid var(--work-line,#e0e4e1);border-radius:var(--work-control,11px);box-shadow:none;caret-color:var(--work-accent,#286047)}.ds-input::placeholder{color:var(--work-muted,#62656d);opacity:1}.ds-input:hover{background:var(--work-paper,#ffffff);border-color:var(--work-line,#e0e4e1);box-shadow:none}.ds-input:focus{background:var(--work-paper,#ffffff);border-color:var(--work-accent,#286047);box-shadow:none}.ds-input:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}.ds-hint{font-size:13px;line-height:1.5;color:var(--work-muted,#62656d)}@media(prefers-reduced-motion:no-preference){.ds-input{transition:border-color 160ms ease,background 160ms ease}}@media(max-width:860px){.ds-input{font-size:16px;min-height:48px}}"
     },
     {
       "name": "Index de destinations",
       "kind": "nav",
       "refersTo": "sidebar-item-selected",
-      "description": "Destination choisie en vert franc. Les variables CSS suivent le thème courant.",
+      "description": "Destination choisie sur fond tonal doux, texte encre, icône verte et poids 600. Les variables CSS suivent le thème courant.",
       "html": "<nav class=\"ds-rail\" aria-label=\"Modules\"><button type=\"button\" class=\"ds-nav\" aria-current=\"page\"><svg class=\"ds-nav-icon\" aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2Z\"/></svg>Projets</button><button type=\"button\" class=\"ds-nav\">Clients</button></nav>",
-      "css": ".ds-rail{padding:24px 16px 14px;background:var(--work-rail,#ffffff);border-right:1px solid var(--work-line,#e0e4e1)}.ds-nav{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:flex;align-items:center;gap:12px;width:100%;min-height:43px;padding:10px 12px;margin:2px 0;text-align:left;font-size:14px;font-weight:450;line-height:1.4;border:0;border-radius:var(--work-control,9px);background:transparent;color:var(--work-muted,#62656d);cursor:pointer;white-space:normal;overflow-wrap:anywhere}.ds-nav:hover:not([aria-current]){background:var(--work-soft,#f0f1f3);color:var(--work-ink,#202125)}.ds-nav[aria-current]{background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);font-weight:600}.ds-nav-icon{flex:none}.ds-nav:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-nav{transition:background-color 140ms ease-out,color 140ms ease-out}}@media(max-width:860px){.ds-nav{min-height:48px;font-size:16px;padding:12px}}"
+      "css": ".ds-rail{padding:24px 16px 14px;background:var(--work-rail,#fafbfc);border-right:1px solid var(--work-line,#e0e4e1)}.ds-nav{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:flex;align-items:center;gap:12px;width:100%;min-height:43px;padding:10px 12px;margin:2px 0;text-align:left;font-size:14px;font-weight:450;line-height:1.4;border:0;border-radius:var(--work-control,11px);background:transparent;color:var(--work-muted,#62656d);cursor:pointer;white-space:normal;overflow-wrap:anywhere}.ds-nav:hover:not([aria-current]){background:var(--work-soft,#f0f1f3);color:var(--work-ink,#202125)}.ds-nav[aria-current]{background:var(--work-selection,#e5eee8);color:var(--work-ink,#202125);font-weight:600}.ds-nav[aria-current] .ds-nav-icon{color:var(--work-accent,#286047)}.ds-nav-icon{flex:none}.ds-nav:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-nav{transition:background 160ms ease,color 160ms ease}}@media(max-width:860px){.ds-nav{min-height:48px;font-size:16px;padding:12px}}"
     },
     {
       "name": "Destinations Automation",
@@ -530,7 +521,7 @@
       "refersTo": "destination-selected",
       "description": "Activité, À suivre, Réglages. Segment courant papier sur support adouci.",
       "html": "<nav class=\"ds-tabs\" aria-label=\"Espace Automation\"><button type=\"button\" class=\"ds-tab\" aria-current=\"page\">Activité</button><button type=\"button\" class=\"ds-tab\">À suivre</button><button type=\"button\" class=\"ds-tab\">Réglages</button></nav>",
-      "css": ".ds-tabs{display:flex;gap:6px;width:fit-content;max-width:100%;padding:4px;border:0;border-radius:11px;background:var(--work-soft,#f0f1f3)}.ds-tab{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:0;min-height:44px;padding:10px 24px;border:0;border-radius:7px;background:transparent;color:var(--work-muted,#62656d);font-size:14px;font-weight:550;cursor:pointer}.ds-tab:hover:not([aria-current]){background:transparent}.ds-tab[aria-current]{background:var(--work-paper,#ffffff);color:var(--work-accent,#286047);box-shadow:0 2px 6px rgb(15 30 23 / 5%)}.ds-tab:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-tab{transition:background-color 160ms ease-out,color 160ms ease-out}}@media(max-width:860px){.ds-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:4px}.ds-tab{min-height:46px;padding:10px 5px;white-space:normal;overflow-wrap:anywhere}}"
+      "css": ".ds-tabs{display:flex;gap:6px;width:fit-content;max-width:100%;padding:4px;border:0;border-radius:11px;background:var(--work-soft,#f0f1f3)}.ds-tab{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:0;min-height:44px;padding:10px 24px;border:0;border-radius:7px;background:transparent;color:var(--work-muted,#62656d);font-size:14px;font-weight:550;line-height:1.4;cursor:pointer}.ds-tab:hover:not([aria-current]){background:transparent}.ds-tab[aria-current]{background:var(--work-paper,#ffffff);color:var(--work-accent,#286047);box-shadow:0 2px 6px rgb(15 30 23 / 5%)}.ds-tab:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-tab{transition:background 160ms ease,color 160ms ease}}@media(max-width:860px){.ds-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:4px}.ds-tab{min-height:46px;padding:10px 5px;white-space:normal;overflow-wrap:anywhere}}"
     },
     {
       "name": "Filtres du journal",
@@ -547,15 +538,23 @@
       "description": "Panneau générique opaque, sans bordure extérieure ni ombre. Les feuilles spécialisées gardent leur composition propre.",
       "html": "<section class=\"ds-panel\"><h2 class=\"ds-title\">Projets</h2><p class=\"ds-copy\">Les informations de votre entreprise.</p></section>",
       "css": ".ds-panel{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;padding:28px;border:0;border-radius:var(--work-radius,14px);background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);box-shadow:none}.ds-title{margin:0 0 12px;font-size:21px;font-weight:550;letter-spacing:-.02em}.ds-copy{margin:0;font-size:14px;line-height:1.6;color:var(--work-muted,#62656d)}@media(max-width:860px){.ds-panel{padding:22px 18px;border-radius:12px}}"
+    },
+    {
+      "name": "Interrupteur Automation",
+      "kind": "input",
+      "refersTo": "automation-toggle",
+      "description": "Ligne principale avec interrupteur partagé entre le hub Automation et les Réglages généraux. Les listes de fonctions conservent leurs séparateurs contextuels ; le libellé reste la cible de clic.",
+      "html": "<label class=\"ds-toggle\"><span><strong>Activer Automation</strong><small>Selon les fonctions choisies pour cet espace.</small></span><input type=\"checkbox\" checked></label>",
+      "css": ".ds-toggle{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:flex;align-items:center;justify-content:space-between;min-width:0;gap:24px;padding:20px;background:var(--work-paper,#ffffff);color:var(--work-ink,#202125);border:0;border-radius:12px;cursor:pointer}.ds-toggle>span{display:grid;gap:6px;min-width:0}.ds-toggle strong{font-size:14px;font-weight:550;line-height:1.4}.ds-toggle small{max-width:60ch;font-size:13px;line-height:1.5;color:var(--work-muted,#62656d)}.ds-toggle input{appearance:none;width:42px;min-width:42px;height:26px;min-height:26px;margin:0;border:1px solid var(--work-line,#e0e4e1);border-radius:20px;background:var(--work-soft,#f0f1f3);position:relative;box-shadow:none;cursor:pointer}.ds-toggle input::before{content:\"\";position:absolute;width:20px;height:20px;top:2px;left:2px;background:var(--work-paper,#ffffff);border-radius:50%;box-shadow:0 1px 3px #00000026}.ds-toggle input:checked{background:var(--work-accent,#286047);border-color:var(--work-accent,#286047)}.ds-toggle input:checked::before{transform:translateX(16px);background:#fff}.ds-toggle:has(input:disabled){cursor:default;opacity:.64}.ds-toggle:has(input:focus-visible){outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(prefers-reduced-motion:no-preference){.ds-toggle input::before{transition:transform 160ms ease-out}}@media(max-width:760px){.ds-toggle{padding:18px 16px;gap:16px}}"
     }
   ],
   "narrative": {
     "northStar": "Précision calme",
-    "overview": "Un instrument de travail précis et calme, selon la philosophie Apple explicitement choisie pour Gestion : un index stable, une feuille de travail, des actions reconnaissables. Le blanc et les gris organisent la lecture ; le vert Zentra conserve son rôle d’identité et d’action. La typographie système est une décision du brief, pas un choix provisoire de police.\n\nLes surfaces sont opaques. La hiérarchie repose sur la taille du texte, l’espacement, les séparateurs et la sélection, avec une profondeur limitée aux éléments qui en ont besoin. Les thèmes clair et sombre conservent les mêmes rôles ; les compositions téléphone utilisent des lignes et des contrôles tactiles. Le logo existant reste inchangé.\n\nCette documentation remplace le précédent état visuel et décrit le code partagé actuel. La composition des écrans appartient au [contrat de surface](.impeccable/surfaces/workspace.md) ; les contraintes produit appartiennent à [PRODUCT.md](PRODUCT.md). Ce relevé de code ne constitue ni une nouvelle revue visuelle, ni une validation native, ni une preuve de publication.",
+    "overview": "Un instrument de travail précis et calme, selon la philosophie Apple explicitement choisie pour Gestion : un index stable, une feuille de travail, des actions reconnaissables. Le blanc et les gris organisent la lecture ; le vert Zentra conserve son rôle d’identité et d’action. La typographie système est une décision du brief, pas un choix provisoire de police.\n\nLes surfaces sont opaques. La hiérarchie repose sur la taille du texte, l’espacement, les séparateurs et la sélection, avec une profondeur limitée aux éléments qui en ont besoin. Les thèmes clair et sombre conservent les mêmes rôles ; les compositions téléphone utilisent des lignes et des contrôles tactiles. Le logo existant reste inchangé.\n\nCette documentation décrit le code partagé actuel, avec les raffinements du 25 septembre 2026 intégrés au système existant. La composition des écrans appartient au [contrat de surface](.impeccable/surfaces/workspace.md) et le moment d’accueil Automation à son [contrat d’arrivée](.impeccable/surfaces/automation-arrival.md) ; les contraintes produit appartiennent à [PRODUCT.md](PRODUCT.md). Ce relevé de code ne constitue ni une nouvelle revue visuelle, ni une validation native, ni une preuve de publication.",
     "keyCharacteristics": [
       "Index distinct, fond perle et feuilles de travail opaques.",
       "Typographie système, titres mesurés et chiffres tabulaires.",
-      "Sélection verte dans l’index ; segments et filtres plus discrets dans la feuille.",
+      "Sélection tonale douce dans l’index, texte encre et icône verte ; segments et filtres discrets dans la feuille.",
       "Groupes de données cohérents, sans multiplication de cartes imbriquées.",
       "Téléphone, thèmes et mouvement réduit traités dans la même couche partagée."
     ],

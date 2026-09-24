@@ -12,6 +12,7 @@ import './AutomationSettings.css';
 import './workflow-clarity.css';
 import {SupplierHabits} from './SupplierHabits';
 import { AutomationConnectionNotice } from './AutomationConnectionNotice';
+import { replayAutomationWelcome } from './automationWelcomeState';
 
 export function AutomationSettings({ showHubLink = false }: { showHubLink?: boolean }) {
   useAppLanguage();
@@ -37,7 +38,7 @@ function CompanySettings({ state }: { state: AutomationState }) {
   }, [current]);
   return <section className="automation-settings">
     <header><Workflow size={26} /><div><h3>{t('Automation de cet espace')}</h3><p>{t('Ces réglages s’appliquent à toute son équipe.')}</p></div></header>
-    <span className="automation-settings__status">{t(readinessLabels[automationReadiness(state)])}</span>
+    <div className="automation-settings__welcome"><span className="automation-settings__status">{t(readinessLabels[automationReadiness(state)])}</span><Button variant="ghost" onClick={() => replayAutomationWelcome(state.organizationId)}>{t('Revoir l’introduction')}</Button></div>
     {!canManage && <p className="automation-settings__notice">{t('Vous bénéficiez des fonctions activées. Le titulaire ou un administrateur gère les réglages.')}</p>}
     {canManage && (!state.settings.consent || !state.settings.flags.length) && <div className="automation-settings__quickstart">
       <strong>{t('Un démarrage simple')}</strong><p>{t('Préparez les fonctions disponibles en mode suggestion. Vous relisez les résultats avant toute action.')}</p>

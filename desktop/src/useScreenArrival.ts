@@ -8,8 +8,8 @@ export function useScreenArrival(screen: string) {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (!surface?.animate || reduced.matches) return;
     const animation = surface.animate(
-      [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
-      { duration: 320, easing: 'cubic-bezier(.22, 1, .36, 1)' },
+      [{ opacity: .72, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 220, easing: 'cubic-bezier(.16, 1, .3, 1)' },
     );
     const stop = () => { if (reduced.matches) animation.cancel(); };
     reduced.addEventListener('change', stop);
