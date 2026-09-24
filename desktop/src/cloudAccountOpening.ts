@@ -1,5 +1,26 @@
 import type { CloudAccountState } from './bridge';
 
+/** Share only an in-flight native check, never a completed authorization.
+ * Account mutations invalidate both before and after their native operation. */
+export function createCloudAccountReader(load: () => Promise<CloudAccountState>) {
+  let pending: Promise<CloudAccountState> | null = null;
+  const read = () => {
+    if (pending) return pending;
+    const request = Promise.resolve().then(load).finally(() => {
+      if (pending === request) pending = null;
+    });
+    pending = request;
+    return request;
+  };
+  const invalidate = () => { pending = null; };
+  const mutate = async <T>(operation: () => Promise<T>): Promise<T> => {
+    invalidate();
+    try { return await operation(); }
+    finally { invalidate(); }
+  };
+  return { read, invalidate, mutate };
+}
+
 /** Show the protected local identity first; only a native verification is
  * propagated to the application as an account transition. */
 export async function loadCloudAccountPanel(

@@ -9,6 +9,7 @@ Amorçage Tauri → session protégée et licence signée → résolution de l�
 ## Corrections supplémentaires
 
 - Le panneau Compte affiche la session protégée locale, puis vérifie le serveur en arrière-plan. Une réponse révoquée remplace cette identité ; le cache d’affichage n’accorde aucun droit supplémentaire.
+- L’app et le panneau Compte partagent une même vérification native lorsqu’elle est déjà en cours. Aucun résultat terminé n’est conservé comme autorisation. Une demande de connexion, une approbation, une déconnexion ou une remise à zéro invalide ce regroupement ; une ancienne réponse ne peut pas supprimer la nouvelle demande en cours.
 - Une autorisation ou une vérification native déjà terminée relit directement la licence signée. Elle ne redemande plus `/api/account/me` avant de prendre en compte la licence. Un changement de rôle déclenche toujours son renouvellement.
 - Les demandes d’état Automation en cours sont regroupées par entreprise. Un changement d’espace n’attend plus la réponse de l’ancien espace avant de lancer sa propre demande. Les réponses ne sont pas mises en cache après leur résolution ; la vérification native de session et d’entreprise reste obligatoire.
 - Le serveur lit d’abord l’offre Automation déjà liée. Dans le scénario d’offre manuelle testé, cette vérification utilise trois lectures fraîches, au lieu de six. La découverte d’identité est réservée aux offres valides qui restent à relier. Les contrôles d’expiration, de révocation et d’accès Gestion restent exécutés.
@@ -17,10 +18,10 @@ La fréquence et le contenu des échanges de synchronisation métier ne changent
 
 ## Vérifications du 24 septembre 2026
 
-- 56 tests natifs/frontend ciblés et 101 tests serveur ciblés : connexion locale, panne réseau, autorisation, rôle réduit, révocation, changement d’entreprise, licences, facturation Automation, offres et workflows.
+- 62 tests frontend ciblés et 101 tests serveur ciblés : connexion locale, panne réseau, autorisation, rôle réduit, révocation, changement d’entreprise, licences, facturation Automation, offres et workflows. Les six nouveaux tests utilisent le vrai bridge avec un transport natif simulé et couvrent le regroupement des lectures, sa durée de vie et les changements de compte.
 - Vérification TypeScript des deux projets et compilation du frontend réussies.
-- Parcours Playwright du vrai composant App, données fictives, `/me` retardé volontairement de 10 secondes : bureau 1 440 px, espace à 452 ms, Automation à 477 ms, panneau Compte à 38 ms ; mobile 390 px, respectivement 439 ms, 457 ms et 40 ms. Aucune erreur JavaScript ni nouvel écran bloquant après revalidation.
-- Deux lectures réseau pendant ce parcours : une à l’ouverture de l’app, une à l’ouverture explicite du panneau Compte ; aucune troisième lecture déclenchée par son retour.
+- Parcours Playwright du vrai composant App et du bridge de compte, données fictives, `/me` retardé volontairement de 10 secondes : bureau 1 440 px, espace à 446 ms, Automation à 467 ms, panneau Compte à 35 ms ; mobile 390 px, respectivement 428 ms, 445 ms et 39 ms. Aucune erreur JavaScript ni nouvel écran bloquant après revalidation. Ces délais mesurent l’affichage dans le banc d’essai, pas une authentification complète sur le serveur public.
+- Une seule lecture réseau pendant ce parcours pour l’ouverture de l’app et du panneau Compte, contre deux avant le regroupement ; aucun contrôle supplémentaire déclenché par le retour du panneau.
 - Graphe de production : 141 fichiers locaux vérifiés. Paie détaillée, éditeur de documents, achats, catalogue, personnalisation, planification et certificats restent différés. Ces mesures ne sont pas un essai de démarrage à froid sur iPhone ou Mac physique.
 
 Preuves locales : `outputs/startup-account-optimization.json`, `outputs/startup-optimization-build.log`. Le code applicatif et le correctif serveur doivent être inclus dans leurs prochaines publications respectives pour bénéficier aux installations clientes.

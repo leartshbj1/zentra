@@ -1,4 +1,5 @@
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
+import { createCloudAccountReader } from './cloudAccountOpening';
 import { errorMessage } from './utils';
 import { runSupplierInvoiceValidation } from './supplierInvoiceValidation';
 import {runCustomerSettlementMutation,requireCustomerSettlementReverseContext,type CustomerSettlementInput} from './customerSettlementWorkflow';
@@ -4745,6 +4746,10 @@ function supplierInvoiceDraftInvokeArgs(input: SupplierInvoiceDraftSaveInput) {
   };
 }
 
+const cloudAccountReader = createCloudAccountReader(async () =>
+  cloudAccountStateFromRaw(await invoke<RawRecord>('get_cloud_account_state')),
+);
+
 export const desktopApi = {
   loadWorkspace,
   async getNogaCatalog(): Promise<NogaCatalog> {
@@ -4777,11 +4782,7 @@ export const desktopApi = {
       await invoke<RawRecord>('refresh_license', { automatic }),
     );
   },
-  async getCloudAccountState(): Promise<CloudAccountState> {
-    return cloudAccountStateFromRaw(
-      await invoke<RawRecord>('get_cloud_account_state'),
-    );
-  },
+  getCloudAccountState: cloudAccountReader.read,
   getProjectSyncStatus: () => invoke<ProjectSyncStatus>('get_project_sync_status'),
   async syncProjectDocuments():Promise<ProjectSyncStatus> {
     const local=await invoke<import('./companySync').CompanySyncState>('get_company_sync_state');
@@ -4810,15 +4811,18 @@ export const desktopApi = {
   cancelCloudBackup: () => invoke<void>('cancel_cloud_backup'),
   async restoreCloudBackup(backupId: string) { await invoke<void>('restore_cloud_backup', { backupId }); return loadWorkspace(); },
   async startCloudAccountLink(): Promise<CloudAccountState> {
-    return cloudAccountStateFromRaw(
+    return cloudAccountReader.mutate(async () => cloudAccountStateFromRaw(
       await invoke<RawRecord>('start_cloud_account_link'),
-    );
+    ));
   },
   async pollCloudAccountLink(): Promise<CloudAccountState> {
     const account = cloudAccountStateFromRaw(
       await invoke<RawRecord>('poll_cloud_account_link'),
     );
-    if(account.status==='connected') window.dispatchEvent(new Event('zentra-project-documents-changed'));
+    if(account.status==='connected') {
+      cloudAccountReader.invalidate();
+      window.dispatchEvent(new Event('zentra-project-documents-changed'));
+    }
     return account;
   },
   openCloudAccountLink: () => invoke<string>('open_cloud_account_link'),
@@ -4833,8 +4837,8 @@ export const desktopApi = {
   async joinCloudCompany() { await invoke('join_cloud_company'); const workspace = await loadWorkspace(); window.dispatchEvent(new Event('zentra-project-documents-changed')); return workspace; },
   resolveConnectedCompany: (organizationId: string, choice: import('./companyAccount').CompanyAccountChoice = 'auto') => invoke<import('./companyAccount').CompanyAccountResolution>('resolve_connected_company', {organizationId, choice}),
   openCloudAccountPortal: (section?: 'profil'|'entreprise'|'equipe'|'securite'|'connexions'|'apparence'|'abonnement'|'automation'|'donnees') => invoke<string>('open_cloud_account_portal', {section:section ?? null}),
-  disconnectCloudAccount: () => invoke<void>('disconnect_cloud_account'),
-  resetLocalApp: (confirmation: string) => invoke<{reset:boolean}>('reset_local_app', {confirmation}),
+  disconnectCloudAccount: () => cloudAccountReader.mutate(() => invoke<void>('disconnect_cloud_account')),
+  resetLocalApp: (confirmation: string) => cloudAccountReader.mutate(() => invoke<{reset:boolean}>('reset_local_app', {confirmation})),
   publishCompanyCopy: () => invoke('enable_company_sync', {confirmFullAccess:true}),
   getResetRecovery: () => invoke<{available:boolean;createdAt?:string}>('get_reset_recovery'),
   async restoreResetRecovery() { await invoke('restore_reset_recovery'); return loadWorkspace(); },

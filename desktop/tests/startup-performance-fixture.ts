@@ -1,5 +1,6 @@
 import { desktopApi, type CloudAccountState } from '../src/bridge';
 import type { LicenseState } from '../src/types';
+const nativeAccountRead = desktopApi.getCloudAccountState;
 
 /** Development only: the real App opens while /me deliberately takes ten seconds. */
 export function installStartupPerformanceFixture() {
@@ -9,7 +10,12 @@ export function installStartupPerformanceFixture() {
   const license = {enforcementConfigured:true,status:'valid',readOnly:false,canRefresh:false,accessRole:'owner',installationId:'55af29dd-fdaa-4993-ae78-17f9ca220e51',reason:''} as LicenseState;
   desktopApi.getCachedCloudAccountState = async () => { await delay(20); return account; };
   desktopApi.getLicenseState = async () => license;
-  desktopApi.getCloudAccountState = async () => {
+  const native = (window as unknown as { __TAURI_INTERNALS__: { invoke: (command: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__;
+  const previousInvoke = native.invoke;
+  // Exercise the production bridge (including concurrent request sharing).
+  desktopApi.getCloudAccountState = nativeAccountRead;
+  native.invoke = async (command, args) => {
+    if (command !== 'get_cloud_account_state') return previousInvoke(command, args);
     document.body.dataset.accountNetworkCalls = String(Number(document.body.dataset.accountNetworkCalls || 0) + 1);
     document.body.dataset.accountNetwork = 'pending';
     await delay(10_000);
