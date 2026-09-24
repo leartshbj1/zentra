@@ -3,6 +3,7 @@ const mock = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mock.invoke }));
 import {
   automationRequest,
+  loadAutomationState,
   automationFeedback,
   bankContext,
   anomalyContext,
@@ -32,6 +33,19 @@ const state: AutomationState = {
 };
 beforeEach(() => {
   mock.invoke.mockReset();
+});
+it('does not wait for the old company when switching and still coalesces reads within one company', async () => {
+  let finishOld!: (value: AutomationState) => void;
+  mock.invoke.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }))
+    .mockResolvedValueOnce({...state,organizationId:'new-company'});
+  const old = loadAutomationState('old-company');
+  expect(loadAutomationState('old-company')).toBe(old);
+  await expect(loadAutomationState('new-company')).resolves.toMatchObject({organizationId:'new-company'});
+  expect(mock.invoke).toHaveBeenCalledTimes(2);
+  finishOld({...state,organizationId:'old-company'});
+  await old;
+  mock.invoke.mockResolvedValueOnce({...state,active:false});
+  await expect(loadAutomationState('old-company')).resolves.toMatchObject({active:false});
 });
 it.each([
   null,

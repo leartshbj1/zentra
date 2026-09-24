@@ -3,10 +3,11 @@ import { APP_OPEN_TIMEOUT_MS } from './appOpening';
 import type { CloudAccountState } from './bridge';
 import {
   CLOUD_ACCESS_REVALIDATION_INTERVAL_MS,
-  cloudAccountChangeNeedsFullRevalidation,
+  cloudAccountChangeNeedsLicenseRefresh,
   createSingleFlightCloudAccessRevalidator,
   readRevalidatedCloudAccess,
   readLocalCloudAccess,
+  readCloudAccessForAccount,
 } from './cloudAccessRevalidation';
 import type { LicenseState } from './types';
 
@@ -40,6 +41,20 @@ const ownerLicense: LicenseState = {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('revalidation périodique du compte cloud', () => {
+  it('uses a completed native account approval immediately without another network verification', async () => {
+    const api = {
+      getCloudAccountState: vi.fn(() => new Promise<CloudAccountState>(() => {})),
+      getLicenseState: vi.fn().mockResolvedValue(ownerLicense),
+      refreshLicense: vi.fn(),
+    };
+    await expect(readCloudAccessForAccount(api, connectedAccount)).resolves.toEqual({account: connectedAccount, license: ownerLicense});
+    expect(api.getCloudAccountState).not.toHaveBeenCalled();
+    expect(api.refreshLicense).not.toHaveBeenCalled();
+    api.getLicenseState.mockResolvedValue({...ownerLicense, status:'invalid', readOnly:true});
+    api.refreshLicense.mockResolvedValue({...ownerLicense, accessRole:'read_only', readOnly:true});
+    await expect(readCloudAccessForAccount(api, {...connectedAccount,role:'read_only'})).resolves.toMatchObject({license:{accessRole:'read_only',readOnly:true}});
+    expect(api.refreshLicense).toHaveBeenCalledTimes(1);
+  });
   it('opens locally even while the online account check remains pending', async () => {
     const api = {
       getCachedCloudAccountState: vi.fn().mockResolvedValue(connectedAccount),
@@ -79,10 +94,10 @@ describe('revalidation périodique du compte cloud', () => {
     const pendingPolls = Array.from({ length: 40 }, () => pending);
     const changes = [...pendingPolls, connectedAccount];
 
-    expect(pendingPolls.some(cloudAccountChangeNeedsFullRevalidation)).toBe(
+    expect(pendingPolls.some(cloudAccountChangeNeedsLicenseRefresh)).toBe(
       false,
     );
-    expect(changes.filter(cloudAccountChangeNeedsFullRevalidation)).toEqual([
+    expect(changes.filter(cloudAccountChangeNeedsLicenseRefresh)).toEqual([
       connectedAccount,
     ]);
   });

@@ -14,6 +14,7 @@ import {
   UserRound, ShieldCheck, CreditCard, Link2, Database, ChevronRight,
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
+import { loadCloudAccountPanel } from './cloudAccountOpening';
 import { errorMessage } from './utils';
 import { Button, SectionHeading } from './ui';
 import './workflow-clarity.css';
@@ -51,20 +52,25 @@ export function CloudAccountPanel({
   useEffect(() => {
     let active = true;
     const revision = operation.current;
-    desktopApi
-      .getCloudAccountState()
-      .then((value) => {
+    void loadCloudAccountPanel(desktopApi, {
+      local: value => {
+        if (active && revision === operation.current) setAccount(value);
+      },
+      verified: value => {
         if (active && revision === operation.current) {
           setAccount(value);
           changeCallback.current?.(value);
         }
-      })
-      .catch(() => {
+      },
+      failed: (_reason, hasLocal) => {
         if (active && revision === operation.current) {
-          setAccount({ status: 'disconnected' });
-          setError('La connexion enregistrée n’a pas pu être lue. Vous pouvez vous reconnecter.');
+          if (!hasLocal) {
+            setAccount({ status: 'disconnected' });
+            setError('La connexion enregistrée n’a pas pu être lue. Vous pouvez vous reconnecter.');
+          }
         }
-      });
+      },
+    });
     return () => {
       active = false;
       ++operation.current;

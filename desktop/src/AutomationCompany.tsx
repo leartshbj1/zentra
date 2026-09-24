@@ -8,7 +8,7 @@ export const useCompanyAutomation = () => useContext(Context);
 
 /** One background refresh for the opened company; no persisted business activity. */
 export function AutomationCompanyProvider({ organizationId, readOnly = false, children }: { organizationId: string | null; readOnly?: boolean; children: ReactNode }) {
-  const session = useMemo(() => createAutomationCompanySession(organizationId, loadAutomationState, () => navigator.onLine), [organizationId]);
+  const session = useMemo(() => createAutomationCompanySession(organizationId, () => loadAutomationState(organizationId ?? ''), () => navigator.onLine), [organizationId]);
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   useEffect(() => {
     session.start();

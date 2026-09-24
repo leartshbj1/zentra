@@ -109,18 +109,22 @@ export const workflowScreens: Record<string, string> = {
   accounting: 'accounting',
   planning: 'planning',
 };
-let stateRequest: Promise<AutomationState | null> | null = null;
+const stateRequests = new Map<string, Promise<AutomationState | null>>();
 export function automationState(): Promise<AutomationState | null> {
   return loadAutomationState().catch(() => null);
 }
 /** Settings retain the real failure; optional suggestions may fall back to manual entry. */
-export function loadAutomationState(): Promise<AutomationState | null> {
-  if (!stateRequest)
-    stateRequest = invoke<AutomationState>('automation_request', { data: null })
-      .finally(() => {
-        stateRequest = null;
-      });
-  return stateRequest;
+export function loadAutomationState(organizationId = ''): Promise<AutomationState | null> {
+  const pending = stateRequests.get(organizationId);
+  if (pending) return pending;
+  // Never make a newly selected company wait for the previous company's
+  // request. Native session/binding checks still authorize every response.
+  const request = invoke<AutomationState>('automation_request', { data: null })
+    .finally(() => {
+      if (stateRequests.get(organizationId) === request) stateRequests.delete(organizationId);
+    });
+  stateRequests.set(organizationId, request);
+  return request;
 }
 export function featureReady(
   state: AutomationState | null,

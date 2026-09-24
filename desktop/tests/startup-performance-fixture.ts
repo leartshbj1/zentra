@@ -10,11 +10,14 @@ export function installStartupPerformanceFixture() {
   desktopApi.getCachedCloudAccountState = async () => { await delay(20); return account; };
   desktopApi.getLicenseState = async () => license;
   desktopApi.getCloudAccountState = async () => {
+    document.body.dataset.accountNetworkCalls = String(Number(document.body.dataset.accountNetworkCalls || 0) + 1);
     document.body.dataset.accountNetwork = 'pending';
     await delay(10_000);
     document.body.dataset.accountNetwork = 'complete';
     return account;
   };
+  // Opening the account panel must not trigger real team/network mutations.
+  desktopApi.getCloudTeam = async () => ({organizationId:'automation-qa',organizationName:'Atelier de test',canManage:false,profile:null,members:[],invitations:[],seats:{planName:'Test',limit:3,used:1,reserved:0,available:2,subscriptionActive:true},role:'owner'});
   desktopApi.resolveConnectedCompany = async organizationId => { await delay(20); return {status:'ready',organizationId,changed:false}; };
   Object.assign(window, {__ZENTRA_NATIVE_READY__:true});
   const observer = new MutationObserver(() => {

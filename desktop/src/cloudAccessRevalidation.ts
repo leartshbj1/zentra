@@ -9,7 +9,7 @@ export type CloudAccessSnapshot = {
   license: LicenseState;
 };
 
-export function cloudAccountChangeNeedsFullRevalidation(
+export function cloudAccountChangeNeedsLicenseRefresh(
   account: CloudAccountState,
 ): boolean {
   // Le panneau publie le même état pending à chaque poll court. Le backend
@@ -39,6 +39,15 @@ export async function readRevalidatedCloudAccess(
   api: CloudAccessApi,
 ): Promise<CloudAccessSnapshot> {
   const account = await api.getCloudAccountState();
+  return readCloudAccessForAccount(api, account);
+}
+
+/** The native account panel has already checked or approved this session.
+ * Read its signed licence without repeating /me after the completed request. */
+export async function readCloudAccessForAccount(
+  api: Pick<CloudAccessApi, 'getLicenseState' | 'refreshLicense'>,
+  account: CloudAccountState,
+): Promise<CloudAccessSnapshot> {
   let license = await api.getLicenseState();
 
   if (

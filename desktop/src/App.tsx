@@ -24,9 +24,10 @@ import { BusinessProfileGate } from './BusinessProfileEditor';
 import { DevelopmentNotice } from './DevelopmentNotice';
 import {
   CLOUD_ACCESS_REVALIDATION_INTERVAL_MS,
-  cloudAccountChangeNeedsFullRevalidation,
+  cloudAccountChangeNeedsLicenseRefresh,
   createSingleFlightCloudAccessRevalidator,
   readLocalCloudAccess,
+  readCloudAccessForAccount,
 } from './cloudAccessRevalidation';
 import { Onboarding } from './Onboarding';
 const loadWorkspaceModule = () => import('./WorkspaceApp').then((module) => ({ default: module.WorkspaceApp }));
@@ -138,14 +139,18 @@ export function App() {
 
   const handleCloudAccountChange = useCallback(
     (next: CloudAccountState) => {
-      accountEpoch.current += 1;
+      const epoch = ++accountEpoch.current;
       cloudAccessRevalidator.current!.invalidate();
       setCloudAccount(next);
-      if (cloudAccountChangeNeedsFullRevalidation(next)) {
-        void revalidateCloudAccess();
+      if (cloudAccountChangeNeedsLicenseRefresh(next)) {
+        // Native approval/account reads already checked the session. Repeating
+        // /me here delays the new licence and competes with Automation startup.
+        void readCloudAccessForAccount(desktopApi, next)
+          .then(access => { if (epoch === accountEpoch.current) setLicense(access.license); })
+          .catch(() => {});
       }
     },
-    [revalidateCloudAccess],
+    [],
   );
 
   if (loading) {
