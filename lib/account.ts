@@ -149,7 +149,7 @@ export async function requireDeviceSession(
   const row = await database()
     .prepare(
       `SELECT session.session_id,session.organization_id,session.user_id,
-              session.installation_id,organization.name AS organization_name,
+              session.installation_id,session.last_seen_at,organization.name AS organization_name,
               organization.subscription_id,
               member.role,subscription.entitlement_valid_until
          FROM device_sessions session
@@ -176,6 +176,7 @@ export async function requireDeviceSession(
       organization_id: string;
       user_id: string;
       installation_id: string;
+      last_seen_at: number;
       organization_name: string;
       subscription_id: string;
       role: string;
@@ -205,12 +206,17 @@ export async function requireDeviceSession(
       403,
     );
   }
-  await database()
-    .prepare(
-      'UPDATE device_sessions SET last_seen_at=? WHERE session_id=? AND last_seen_at<?',
-    )
-    .bind(now, row.session_id, now - 300)
-    .run();
+  // The timestamp came from this request's fresh authorization query. Avoid a
+  // database round trip for an UPDATE that would not change a recent session.
+  // Keep the conditional write to safely coalesce concurrent older requests.
+  if (!Number.isFinite(row.last_seen_at) || row.last_seen_at < now - 300) {
+    await database()
+      .prepare(
+        'UPDATE device_sessions SET last_seen_at=? WHERE session_id=? AND last_seen_at<?',
+      )
+      .bind(now, row.session_id, now - 300)
+      .run();
+  }
   return {
     sessionId: row.session_id,
     organizationId: row.organization_id,

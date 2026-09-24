@@ -64,7 +64,7 @@ const emptyCounts = (): Counts => ({
 /** Shared, company-scoped totals only. No document contents, predictions, or colleague identities. */
 async function companyActivity(actor: AutomationActor, now: Date) {
   const day = automationDay(now);
-  const [rows, identity] = await Promise.all([
+  const [rows, identity, supplierInbox, appointments, workflows] = await Promise.all([
     database()
       .prepare(`SELECT feature,SUM(analyzed) AS analyzed,SUM(suggestions) AS suggestions,
       SUM(confirmed) AS confirmed,SUM(needsReview) AS needsReview,SUM(observed) AS observed FROM (
@@ -93,6 +93,9 @@ async function companyActivity(actor: AutomationActor, now: Date) {
       )
       .bind(actor.userId, actor.organizationId)
       .first<{ display_name: string }>(),
+    inboxDaily(actor.organizationId, day.from, day.until),
+    appointmentDaily(actor.organizationId, day.from, day.until),
+    workflowDaily(actor, day.from, day.until),
   ]);
   const features = rows.results.filter((row) => FEATURES.includes(row.feature));
   const totals = features.reduce((sum, row) => {
@@ -109,13 +112,9 @@ async function companyActivity(actor: AutomationActor, now: Date) {
     displayName: name && !name.includes('@') ? name.slice(0, 80) : null,
     totals,
     features,
-    supplierInbox: await inboxDaily(actor.organizationId, day.from, day.until),
-    appointments: await appointmentDaily(
-      actor.organizationId,
-      day.from,
-      day.until,
-    ),
-    workflows: await workflowDaily(actor, day.from, day.until),
+    supplierInbox,
+    appointments,
+    workflows,
   };
 }
 
