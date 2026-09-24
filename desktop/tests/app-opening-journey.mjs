@@ -41,15 +41,16 @@ try {
           },
         };
       }, { blocked });
-      await page.goto('http://127.0.0.1:5186/', { waitUntil: 'networkidle' });
-      await page.getByRole('status').filter({ hasText: 'Ouverture de votre espace' }).waitFor();
+      await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5186'}/`, { waitUntil: 'networkidle' });
       if (['native_signal_missing', 'native_probe_lost', 'native_probe_rejected'].includes(blocked)) {
+        // Readiness may already have recovered before the first painted frame.
+        await page.waitForFunction(() => window.qaOpening.calls.length > 0);
         await page.clock.runFor(5_001);
-        await page.getByText('Restaurer une sauvegarde', { exact: true }).waitFor();
+        await page.getByRole('heading', { name: 'Votre entreprise. Votre espace.' }).waitFor();
         assert.equal(await page.evaluate(() => window.__ZENTRA_NATIVE_READY__), true);
         await page.evaluate(() => { window.qaOpening.release.forEach(({ resolve }) => resolve(false)); });
         await page.clock.fastForward(1000);
-        assert.equal(await page.getByText('Restaurer une sauvegarde', { exact: true }).isVisible(), true);
+        assert.equal(await page.getByRole('heading', { name: 'Votre entreprise. Votre espace.' }).isVisible(), true);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         assert.deepEqual(errors, []);
         reports.push({ width, blocked, readinessProbeRecovered: true, lateResponseIgnored: true, errors });
@@ -58,6 +59,7 @@ try {
         await page.close();
         continue;
       }
+      await page.getByRole('status').filter({ hasText: 'Ouverture de votre espace' }).waitFor();
       assert.ok(await page.evaluate(() => window.qaOpening.blocked === 'native_ready'
         ? window.qaOpening.calls.every(command => command === 'is_native_ready') : window.qaOpening.release.length > 0));
       await page.clock.fastForward(75_001);
@@ -70,11 +72,11 @@ try {
       await page.screenshot({ path: `${out}/${width}-${blocked}.png`, fullPage: true });
       await page.evaluate(() => { window.qaOpening.retry = true; window.__ZENTRA_NATIVE_READY__ = true; });
       await retry.click();
-      await page.getByText('Restaurer une sauvegarde', { exact: true }).waitFor();
+      await page.getByRole('heading', { name: 'Votre entreprise. Votre espace.' }).waitFor();
       // A late failure from the expired native call must not replace the recovered UI.
       await page.evaluate(() => { window.qaOpening.release.forEach(({ reject }) => reject(new Error('Ancienne erreur native'))); });
       await page.clock.fastForward(1000);
-      assert.equal(await page.getByText('Restaurer une sauvegarde', { exact: true }).isVisible(), true);
+      assert.equal(await page.getByRole('heading', { name: 'Votre entreprise. Votre espace.' }).isVisible(), true);
       assert.equal(await page.getByText('Ancienne erreur native', { exact: true }).count(), 0);
       assert.deepEqual(errors, []);
       reports.push({ width, blocked, timeoutVisible: true, retryRecovered: true, lateFailureIgnored: true, errors });

@@ -199,6 +199,11 @@ export function App() {
   const content =
     !workspace.onboardingCompleted || !workspace.settings ? (
       <Onboarding
+        accountNotice={license && license.status !== 'valid' ? <LicenseActivation
+          license={license} account={cloudAccount} onAccountChange={handleCloudAccountChange} hasNavigation={false}
+          onInstall={async token => { setLicense(await desktopApi.installLicenseToken(token)); setWorkspace(await desktopApi.loadWorkspace()); }}
+          onRefresh={async () => setLicense(await desktopApi.refreshLicense(false))}
+        /> : null}
         onJoined={next=>{setWorkspace(next);void revalidateCloudAccess();}}
         cloudAccount={cloudAccount}
         onCloudAccountChange={handleCloudAccountChange}
@@ -232,7 +237,7 @@ export function App() {
     <>
       <CompanyAccountGate account={cloudAccount} workspace={workspace} createdFor={createdFor} onWorkspace={setWorkspace} onAccountChange={handleCloudAccountChange}>{content}</CompanyAccountGate>
       {!workspaceReady ? <StandaloneUpdaterAccess /> : null}
-      {license && licenseNeedsAttention ? (
+      {license && licenseNeedsAttention && workspace.onboardingCompleted && workspace.settings ? (
         <LicenseActivation
           license={license}
           account={cloudAccount}

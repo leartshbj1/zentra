@@ -31,10 +31,12 @@ export function CloudAccountPanel({
   onAccountChange,
   settings,
   joining = false,
+  setup = false,
 }: {
   onAccountChange?: (account: CloudAccountState) => void;
   settings?: AppSettings | null;
   joining?: boolean;
+  setup?: boolean;
 }) {
   useAppLanguage();
   const [account, setAccount] = useState<CloudAccountState | null>(null);
@@ -199,10 +201,10 @@ export function CloudAccountPanel({
 
   return (
     <section className="panel settings-card settings-card--wide cloud-account-panel">
-      <SectionHeading
+      {!setup && <SectionHeading
         title={t(connected ? "Votre espace" : "Connecter votre entreprise")}
         description={connected ? undefined : t("Utilisez votre compte personnel ou l’adresse e-mail de votre invitation.")}
-      />
+      />}
 
       {!account ? (
         <div className="settings-cloud-status">
@@ -249,7 +251,7 @@ export function CloudAccountPanel({
         </div>
       ) : (
         <div className="settings-cloud-intro">
-          <div>
+          {(!setup || expired || inactive) && <div>
             {expired || inactive ? (
               <LockKeyhole size={24} />
             ) : (
@@ -269,7 +271,7 @@ export function CloudAccountPanel({
                   ? t("Reconnectez ce poste pour reprendre les fonctions d’équipe et l’archivage.")
                   : t("Reliez ce poste à l’entreprise pour utiliser les accès partagés et l’archive distante.")}
             </p>
-          </div>
+          </div>}
           <Button disabled={busy} onClick={() => void begin()}>
             {busy ? (
               <LoaderCircle className="spin" size={16} />
@@ -282,7 +284,7 @@ export function CloudAccountPanel({
       )}
 
       {connected && !joining ? <CloudTeamPanel key={account.organizationId} settings={settings}/> : null}
-      {connected && <nav className="cloud-account-shortcuts" aria-label={t('Paramètres du compte')}>
+      {connected && !setup && <nav className="cloud-account-shortcuts" aria-label={t('Paramètres du compte')}>
         {([
           ['profil','Profil',UserRound],['securite','Sécurité',ShieldCheck],
           ['abonnement','Abonnement',CreditCard],['connexions','Appareils connectés',Link2],
