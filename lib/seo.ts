@@ -24,7 +24,7 @@ export const homeQuestions = [
   {
     question: 'Zentra permet-il de créer des factures suisses avec QR ?',
     answer: 'Oui. Zentra Gestion permet de préparer des devis et des factures avec QR suisse, puis de suivre leurs paiements. Les relevés CAMT.053 et CAMT.054 peuvent être importés pour proposer des rapprochements à contrôler avant validation.',
-    href: '/demo-facture', label: 'Voir la démonstration de facturation',
+    href: '/demo-facture#factures', label: 'Voir l’écran des factures',
   },
   {
     question: 'Le module de salaires est-il certifié Swissdec ?',

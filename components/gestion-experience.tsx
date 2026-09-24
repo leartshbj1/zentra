@@ -74,8 +74,8 @@ export function GestionExperience() {
           <h3>{stage.title}</h3>
           <p>{stage.text}</p>
         </div>
-        <a className="page-text-link" href="/demo-facture">
-          Essayer avec une facture <ArrowRight size={17} aria-hidden="true" />
+        <a className="page-text-link" href="/demo-facture#factures">
+          Voir les factures dans l’app <ArrowRight size={17} aria-hidden="true" />
         </a>
       </div>
       <div className="gestion-document-stage">

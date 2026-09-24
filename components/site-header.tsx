@@ -232,7 +232,7 @@ export function SiteHeader() {
               Comparer les packs
             </a>
             <a href="/demo-facture" onClick={() => setExploreOpen(false)}>
-              Essayer Gestion
+              Visiter Gestion
             </a>
             <a href="/support/demo" onClick={() => setExploreOpen(false)}>
               Essayer Support

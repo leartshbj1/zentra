@@ -1,71 +1,59 @@
 import type { Metadata } from 'next';
-import { ArrowLeft } from 'lucide-react';
-import { BrandMark } from '@/components/brand-mark';
-import { InvoiceDemo } from './invoice-demo';
+import { ArrowRight } from 'lucide-react';
+import { SiteHeader } from '@/components/site-header';
+import { SiteFooter } from '@/components/site-footer';
+import { AppTour } from '@/components/app-tour';
 
 export const metadata: Metadata = {
-  title: 'Créer une facture suisse — démonstration Zentra',
+  title: 'Visitez Zentra Gestion — les vrais écrans de l’application',
   description:
-    'Saisissez vos propres informations, calculez la TVA et imprimez une facture avec aperçu QR sans envoyer vos données.',
+    'Découvrez Zentra Gestion en images : devis, factures, projets, équipe, comptabilité et Automation. Une entreprise fictive, tous les menus principaux, rien à remplir.',
   alternates: { canonical: '/demo-facture' },
   openGraph: {
-    title: 'Créer une facture suisse — démonstration Zentra',
+    title: 'Entrez dans Zentra.',
     description:
-      'Un aperçu interactif local, vide au départ, avec calcul de TVA et bande QR structurée.',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
-  },
-  twitter: {
-    title: 'Créer une facture suisse — démonstration Zentra',
-    description:
-      'Un aperçu interactif local, vide au départ, avec calcul de TVA et bande QR structurée.',
-    images: ['/og.png'],
+      'Les vrais écrans de l’application, avec une entreprise de démonstration. Sans compte, sans formulaire.',
+    url: '/demo-facture',
+    images: [
+      {
+        url: '/tour/gestion/accueil-desktop.webp',
+        width: 1440,
+        height: 960,
+        alt: 'Tableau de bord Zentra, entreprise fictive Atelier du Léman',
+      },
+    ],
   },
 };
-
-export default function InvoiceDemoPage() {
+export default function AppTourPage() {
   return (
-    <main className="invoice-demo-page min-h-screen bg-[#f4f2ed] text-[#17231d]">
-      <header className="print-hidden sticky top-0 z-40 border-b border-[#dedee3]/75 bg-[#f4f2ed]/92 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 lg:px-8">
-          <a href="/" className="flex min-h-11 items-center gap-2.5">
-            <span className="grid size-9 place-items-center rounded-xl bg-[#173d2c] text-[#efaa3c]">
-              <BrandMark className="size-9" />
-            </span>
-            <span className="font-semibold tracking-[-.03em]">Zentra</span>
-          </a>
-          <a
-            href="/"
-            className="flex min-h-11 items-center gap-2 text-sm font-medium text-[#526159]"
-          >
-            <ArrowLeft className="size-4" />{' '}
-            <span className="hidden min-[360px]:inline">Retour au site</span>
-            <span className="min-[360px]:hidden">Retour</span>
-          </a>
-        </div>
-      </header>
-
-      <section
-        className="print-hidden mx-auto max-w-7xl px-5 pb-10 pt-10 lg:px-8 lg:pt-16"
-        data-reveal
-      >
-        <h1 className="mt-4 max-w-4xl text-4xl font-semibold leading-tight tracking-[-.05em] sm:text-6xl">
-          Votre première facture.
-        </h1>
-        <p className="mt-5 max-w-3xl text-lg leading-8 text-[#67716a]">
-          Complétez les champs et voyez le résultat. Tout reste dans ce
-          navigateur.
-        </p>
-        <details className="invoice-demo-note">
-          <summary>À propos de cette démonstration</summary>
+    <>
+      <SiteHeader />
+      <main className="tour-page">
+        <header className="tour-intro">
+          <h1>
+            Entrez dans <span>Zentra.</span>
+          </h1>
           <p>
-            Rien n’est enregistré ni transmis. Le bouton d’impression permet
-            d’enregistrer un PDF. Cet exemple ne remplace pas une validation
-            fiscale ou SIX.
+            Une entreprise de démonstration. Les vrais écrans de l’app.
+            <br className="tour-desktop-break" /> Choisissez un menu. Rien à
+            remplir.
           </p>
-        </details>
-      </section>
-
-      <InvoiceDemo />
-    </main>
+        </header>
+        <AppTour />
+        <section className="tour-finish">
+          <h2>Vous avez trouvé vos repères.</h2>
+          <p>Retrouvez cet espace dans votre entreprise.</p>
+          <div>
+            <a className="page-primary" href="/download">
+              Télécharger Zentra <ArrowRight size={17} />
+            </a>
+            <a className="page-text-link" href="/pricing">
+              Voir les formules <ArrowRight size={17} />
+            </a>
+          </div>
+        </section>
+      </main>
+      <SiteFooter />
+    </>
   );
 }

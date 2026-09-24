@@ -109,7 +109,7 @@ export default function PricingPage() {
           <div className="mx-auto flex max-w-6xl flex-col gap-7 rounded-[2rem] bg-[#e9f0ec] p-7 text-[#173d2c] sm:p-10 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-[-.045em]">
-                Essayez une facture dans votre navigateur, sans compte.
+                Découvrez Zentra avant de choisir.
               </h2>
             </div>
             <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
@@ -117,7 +117,7 @@ export default function PricingPage() {
                 href="/demo-facture"
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 text-sm font-semibold text-white"
               >
-                Essayer Zentra <ArrowRight className="size-4" />
+                Visiter l’app <ArrowRight className="size-4" />
               </a>
               <a
                 href="/download"

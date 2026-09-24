@@ -706,7 +706,7 @@ export default function FeaturesPage() {
         </section>
         <section className="page-finish page-width">
           <h2>Essayez, tout simplement.</h2>
-          <p>Créez une facture d’exemple dans votre navigateur.</p>
+          <p>Découvrez les vrais écrans de Zentra, avec une entreprise de démonstration.</p>
           <div className="page-actions">
             <a className="page-primary" href="/demo-facture">
               Ouvrir la démo <ArrowRight size={17} />

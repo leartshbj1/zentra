@@ -1,0 +1,290 @@
+[
+  {
+    "file": "public/tour/gestion/accueil-desktop.webp",
+    "size": 88832,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "1ab1cfe5410aef9f11c3336120802c8defb4f71c54c3ffbf16a6ef775931e088",
+    "sha256": "b1f63ab16d2889faa13956dc35083b512ebcc7f728cfedf13f2d731c8ca31f69"
+  },
+  {
+    "file": "public/tour/gestion/accueil-mobile.webp",
+    "size": 32808,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "a9c8cd1127af03fb059b757d1eb8607acc74e0e56fbebacc843cbbc71eccfa63",
+    "sha256": "e79c6f419f0c6f701e3b3c907272fd3b9a03b11f802bdc13dc3a8be459237e34"
+  },
+  {
+    "file": "public/tour/gestion/achats-desktop.webp",
+    "size": 83856,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "506421e9bd133d94b47b9eeaf0730a0bf84caa2fcd5b17e7ba7a7e88adaace00",
+    "sha256": "bc2d8a50e5cdc2eb59cef2141c164df8008791412fdb0088fce937fc1d2059b5"
+  },
+  {
+    "file": "public/tour/gestion/achats-mobile.webp",
+    "size": 32088,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "d56cc23f8b35dae335d948cbfa032d43daa13e361f44ff734b3ea1515fa82e97",
+    "sha256": "032a23fa156972db70d760bd08632531458482d124095f178cd840e7ce81599b"
+  },
+  {
+    "file": "public/tour/gestion/agenda-desktop.webp",
+    "size": 76450,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "693b775d2e9ad0fd03e8f94967c41ebcad0211742510743bbd622181088ad0f9",
+    "sha256": "f185285a01400ec36fd0a7750df8134400cd253c01c92f2e0936113529ad7db8"
+  },
+  {
+    "file": "public/tour/gestion/agenda-mobile.webp",
+    "size": 22216,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "bebb7c82f84312fb4bbe5faa6a1cc780b3c04b17e561be11f4c4baf9eaebc2d6",
+    "sha256": "3055e078a446a26a86df2a35a214b0adb82bd996a96a3b07ebd4e7ccface6519"
+  },
+  {
+    "file": "public/tour/gestion/automation-desktop.webp",
+    "size": 92342,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "a63cb9f57c6b5b536d2865e3c61c44b87f0c9d92064b2e5a103e16cd06a2f41b",
+    "sha256": "f713acefe4926238db2e1899c1005a583f462b3e40b855b0a75a766f12f3d855"
+  },
+  {
+    "file": "public/tour/gestion/automation-mobile.webp",
+    "size": 32024,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "c9a5d40d130cf2c5b03fe8ca32a64ad3d29565fba335350ea68f16d50fe532fc",
+    "sha256": "07d8217e9f62e81eeea68e40698d0d477cd1910088de3733adf9b4fee557451e"
+  },
+  {
+    "file": "public/tour/gestion/banque-desktop.webp",
+    "size": 76038,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "5b11158f96d652fd54aefb30b16235aff0577d3f7e7a4ab3428552567c03ddf5",
+    "sha256": "ddbddd26550fde269bab2b78553e0dac04c6b79b9b1fe552b0ad176c2991aea4"
+  },
+  {
+    "file": "public/tour/gestion/banque-mobile.webp",
+    "size": 28562,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "1ff27024fa7275a2829c24634148feabcff0abeaeb453b57da1054e1d7f9dbf9",
+    "sha256": "81c636ea9e71973241e59f530024f8abd4d553df9b51a07de053a75eb0cd6109"
+  },
+  {
+    "file": "public/tour/gestion/catalogue-desktop.webp",
+    "size": 82940,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "c9f2917f2f35f079f2c64bf6b17293834eb170cc14ae672444b2b3297d74b441",
+    "sha256": "3bddfff4e668097ff96a756e85c4122b4b98626029ce4d628be7b4fd7a31ffda"
+  },
+  {
+    "file": "public/tour/gestion/catalogue-mobile.webp",
+    "size": 28092,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "36c2909edaada98b351e889568ba349c62bb0d45fee4fa0f75ad0caa087353db",
+    "sha256": "b709872c1831c5909aab3f62eb4cfee6ca609def99aa624d3013bc958638a29d"
+  },
+  {
+    "file": "public/tour/gestion/clients-desktop.webp",
+    "size": 63608,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "dfae9b9c905e0994ff874c1b8c1b352124b29c30ddcb700188c6b1b7e05a0370",
+    "sha256": "73bace87b7287e1fbda28923cb37ecbde7d2b7efe310f74e3062f193f63a4a66"
+  },
+  {
+    "file": "public/tour/gestion/clients-mobile.webp",
+    "size": 26294,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "f89ce532961bec384ebc45ae8e086bb9c4a9aa2e57cac703ee0d41eca00a583e",
+    "sha256": "c686faaba15b4bb48d76d2804e8dda2edeb4cfa1b630c1da22c566ac35444438"
+  },
+  {
+    "file": "public/tour/gestion/commandes-desktop.webp",
+    "size": 66074,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "1a9dcb510d3d3d1f581525d541c2b2f991e0afddb295440468c070f648bef92d",
+    "sha256": "e93a415cfdb23f6e7a4a76aec0bdd40001701ed4513eb6af48d9b71b1d2a5963"
+  },
+  {
+    "file": "public/tour/gestion/commandes-mobile.webp",
+    "size": 20340,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "82e20bf0cb70dd19120f88d7fe73ff869bb2dd8d741b0883b6875110da0e95b7",
+    "sha256": "f16876cecf39b02ecea87d67733b11d153a6589d1f932c8d534f1ead1a56181a"
+  },
+  {
+    "file": "public/tour/gestion/comptabilite-desktop.webp",
+    "size": 85476,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "7644a140f17c487ef99d2eb59295d523970af69e998d5a0bcb69509f49b63a43",
+    "sha256": "82d71e3c1872de38f0360fe3bff916cf1d479d1f98b62927e69df004b2bfd6b3"
+  },
+  {
+    "file": "public/tour/gestion/comptabilite-mobile.webp",
+    "size": 34862,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "8d20c78ba8275fcd475c6aef0e9ac8f0e18bb4623b100dc309464c4e2832da3c",
+    "sha256": "a34ac9caf979f18e9b02f1b9cfdb80745f427a17a8e2f9e34ff52a8878f677f7"
+  },
+  {
+    "file": "public/tour/gestion/devis-desktop.webp",
+    "size": 84068,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "866bfda18677987ceb64265281fc2c99d2a88a7a335e54cc18350701b59cf9d4",
+    "sha256": "d6749ccc4933f3b9bf0896555f77342767d9c7c98468d96b24d8110bfb0adf14"
+  },
+  {
+    "file": "public/tour/gestion/devis-mobile.webp",
+    "size": 24622,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "b44b5b0da51f53fd7206019b6eb449d7a7fc3a6a0b2a2ea9bba4172fc755641c",
+    "sha256": "290af31550a677dbf56ad95e72b747ff9777dc1c0ac9572398c2bfaa55db5f26"
+  },
+  {
+    "file": "public/tour/gestion/equipe-desktop.webp",
+    "size": 67682,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "3da7d5bf8e918f9b263be22449ad3ff486c52b9d74783927ccb4799fdf863d24",
+    "sha256": "8d3e10a3d0c559a8c617ba6d76262518ffcdf0b6c784437ae73b48e6917871da"
+  },
+  {
+    "file": "public/tour/gestion/equipe-mobile.webp",
+    "size": 26862,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "00e8e9a05b9bc757f9a9975905a829b6c9b087a9107ca12197d1f8d5c77412dd",
+    "sha256": "83f69bb087e1da72b75b774cce5de0e6c6b9063de38db19d159b2ffa1a9927b5"
+  },
+  {
+    "file": "public/tour/gestion/factures-desktop.webp",
+    "size": 78168,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "a70f95d3498eb16258abbaafaf0a0611a3c08f00ad7389c3146aa2064c8ab080",
+    "sha256": "ac1aadb0eee8aea94b7c06e1fe3c694f2f7c163237845fc8b7dc277522c835be"
+  },
+  {
+    "file": "public/tour/gestion/factures-mobile.webp",
+    "size": 26970,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "527176304bf0b10f2a74dc9ae1abc271cebe8b474b9c5f5085230b49a916bf52",
+    "sha256": "0250481a1e31321fc470f9082eed75eddb510d0003817807b011897d2008f096"
+  },
+  {
+    "file": "public/tour/gestion/parametres-desktop.webp",
+    "size": 78866,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "55ba22b975d0791f446a6a9ac07cdbccca444418040ba27757167d43412ab524",
+    "sha256": "2eef85ceb6f320a5c04c12449163a8bc636500ae70a847c192ed9e5a3fb8ce04"
+  },
+  {
+    "file": "public/tour/gestion/parametres-mobile.webp",
+    "size": 35842,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "ddc900edb15c15544b325c369817e53ce4d6db794d73f316ff67be95d6c4e1a5",
+    "sha256": "20cc66076956e0212e947f15c297b3322a24bcd1934bf3446f028f0b71438027"
+  },
+  {
+    "file": "public/tour/gestion/projets-desktop.webp",
+    "size": 83258,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "786530636bd88c35648c8bccf9b653212a6ec72ba42a4314ad3f6a9b00f6f432",
+    "sha256": "9f8f3847d723ba64e8677e0ed8f5641f336b35c907956ce50e9c380df090ba46"
+  },
+  {
+    "file": "public/tour/gestion/projets-mobile.webp",
+    "size": 26494,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "2fba1829e3172cf88b54c7ceb2e099709bf4a7409ba05f01a894ce31a2476d24",
+    "sha256": "f2e7fc751f3df04006568d81296e625f074ba6288064677f595507b427284422"
+  },
+  {
+    "file": "public/tour/gestion/rapports-desktop.webp",
+    "size": 83320,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "5fa4e06f9287d892546c704c4792812a3059623c0bd2e67efbdd63dd3547998b",
+    "sha256": "57bb2b6252dfa2ad77546200c7f6d3df27580098e7523418d8757ddae5bb5165"
+  },
+  {
+    "file": "public/tour/gestion/rapports-mobile.webp",
+    "size": 31366,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "c1431744745a2c252471143ee393f225a404d1750c7ce64eff10d5cad1374ed6",
+    "sha256": "52e91472c70874c69cfbf57320b75258471de594b7ddb25824fdf73b9ba23443"
+  },
+  {
+    "file": "public/tour/gestion/relances-desktop.webp",
+    "size": 95820,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "e894a423530a28f7eaca3388d7ef152272e2e7987d059ee9a65d79bc038a6c9c",
+    "sha256": "4bec7a42cb42b51fc2b4deffc9d6147a610ba5fa0951251703550bc5ebfdb77b"
+  },
+  {
+    "file": "public/tour/gestion/relances-mobile.webp",
+    "size": 31636,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "52f9224d2bf7624e728cc1a76c15bb1c926b8181f223282f56d30ab982203b16",
+    "sha256": "1b5134d239b1104e83288a83244cd5864c3a76353217cdb97020a85d099f3445"
+  },
+  {
+    "file": "public/tour/gestion/salaires-desktop.webp",
+    "size": 72900,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "00e539685c184ad799aaee2d1bb2d1301b96260f1964ebf8391bd4201b9df2a6",
+    "sha256": "fa5a310b041e866f3adcd3227932a603292de7061454a47071ffcc4dfe4510ae"
+  },
+  {
+    "file": "public/tour/gestion/salaires-mobile.webp",
+    "size": 21078,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "87335235ee9a21308838d99127359a561a3ab5cb0029f4cde01f79188512c799",
+    "sha256": "77cf07f46cf37029a3abbed0ccc61ab605992bf548cb5d19a5f5448275897e70"
+  },
+  {
+    "file": "public/tour/gestion/temps-desktop.webp",
+    "size": 83634,
+    "width": 1440,
+    "height": 960,
+    "sourceSha256": "5f45fa14d6f31b261be1f0b0e43899d89a7667b82f0f469f943f20da08742885",
+    "sha256": "1b26b7d2dbfd9dd53009a22aca8c479921f3e06a898e8c4dfce4c478d671278c"
+  },
+  {
+    "file": "public/tour/gestion/temps-mobile.webp",
+    "size": 30042,
+    "width": 390,
+    "height": 844,
+    "sourceSha256": "51952c1357645da65417df72cca0a3e62894bce278a062886ab3b95e3e97a847",
+    "sha256": "4f40ee704a7ebb9df78dc2b28ae1623d882b2eaa4b70b77ebb85f7f02018d538"
+  }
+]

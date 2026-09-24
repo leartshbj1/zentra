@@ -362,7 +362,7 @@ const choices = [
     note: 'Choisissez une formule pour 1, 3 ou 10 personnes.',
     href: '/gestion',
     demo: '/demo-facture',
-    action: 'Essayer la démo',
+    action: 'Visiter l’app',
   },
   {
     label: 'Organiser mes demandes clients',
