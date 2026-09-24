@@ -87,8 +87,8 @@ export default function GestionPage() {
             Tout se retrouve, tout devient plus simple.
           </p>
           <div className="page-actions">
-            <a className="page-primary" href="/demo-facture">
-              Visiter l’app <ArrowRight size={17} aria-hidden="true" />
+            <a className="page-primary" href="#fonctionnalites">
+              Découvrir les fonctionnalités <ArrowRight size={17} aria-hidden="true" />
             </a>
             <a className="page-text-link" href="/pricing">
               Dès 49 CHF / mois <ArrowRight size={17} aria-hidden="true" />
@@ -238,13 +238,13 @@ export default function GestionPage() {
         </section>
         <section className="page-finish page-width" id="tarif">
           <h2>Faites votre premier pas.</h2>
-          <p>Découvrez les vrais écrans de l’app, sans compte.</p>
+          <p>Téléchargez Zentra pour votre entreprise.</p>
           <div className="page-actions">
-            <a className="page-primary" href="/demo-facture">
-              Visiter Zentra <ArrowRight size={17} aria-hidden="true" />
-            </a>
-            <a className="page-text-link" href="/download">
+            <a className="page-primary" href="/download">
               Télécharger l’app <ArrowRight size={17} aria-hidden="true" />
+            </a>
+            <a className="page-text-link" href="/demo-facture">
+              Voir la démo <ArrowRight size={17} aria-hidden="true" />
             </a>
           </div>
         </section>

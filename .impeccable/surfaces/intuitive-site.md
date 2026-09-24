@@ -2,6 +2,14 @@
 
 Mode: Persuade. Ordinary extension of the existing Zentra Studio world.
 
+## Product priority — user correction, 24 September 2026
+
+The annotated homepage feedback explicitly demotes the demo. In the four-choice product finder, the filled primary action now opens the selected product presentation; the demo, activation guidance or plan comparison remains a plain secondary link. Gestion and Support name that secondary route “Voir la démo”. On the linked Gestion presentation, the hero leads to its feature section, the contextual menu highlights Download and lists the app visit as an ordinary navigation link, and the final action highlights Download with the demo secondary. The image tour remains available. This changes only discovery hierarchy and matching CTA labels, preserving prices, routes, account and purchase behavior, Studio styling, accessibility and mobile wrapping.
+
+Documentation complete: this user correction locally overrides the earlier demo-first CTA hierarchy in the finder and Gestion journey. It reuses Studio's existing filled primary actions and plain secondary links; it introduces no new visual tokens or system-wide rule. `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json`, CSS and the app tour remain unchanged by this correction.
+
+Evidence checked: the final three-file diff, this contract and `.impeccable/review/product-priority/finish-review.md`. The fresh review contains all five required sections, disposition `ship`, eight valid supplied captures and no material fixes. It records 20 passing browser checks with no errors; changed-file lint and an empty detector result are supplied build evidence. The Gestion final action was reviewed from source and the behavior report, not a dedicated capture. This documentation pass ran no browser or new audit; the outcome covers this CTA correction only and is not publication evidence.
+
 ## Direction contract
 
 THESIS: Make the connection between the three products tangible in one short, controllable example, then make choosing a product effortless. This extends the user-approved Studio world and Apple simplicity.

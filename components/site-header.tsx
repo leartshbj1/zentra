@@ -46,13 +46,13 @@ const productMenus = {
   gestion: {
     name: 'Zentra Gestion',
     href: '/gestion',
-    action: ['Voir la démo', '/demo-facture'],
+    action: ['Télécharger', '/download'],
     links: [
       ['Présentation', '/gestion'],
       ['Fonctionnalités', '/features'],
       ['Tarifs', '/pricing'],
       ['Sécurité', '/security'],
-      ['Télécharger', '/download'],
+      ['Visite de l’app', '/demo-facture'],
     ],
   },
   support: {

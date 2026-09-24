@@ -361,8 +361,9 @@ const choices = [
     price: 'Dès 49 CHF / mois',
     note: 'Choisissez une formule pour 1, 3 ou 10 personnes.',
     href: '/gestion',
+    discover: 'Découvrir Gestion',
     demo: '/demo-facture',
-    action: 'Visiter l’app',
+    action: 'Voir la démo',
   },
   {
     label: 'Organiser mes demandes clients',
@@ -372,8 +373,9 @@ const choices = [
     price: 'Dès 29 CHF / mois',
     note: 'Disponible séparément de Gestion.',
     href: '/support',
+    discover: 'Découvrir Support',
     demo: '/support/demo',
-    action: 'Essayer la démo',
+    action: 'Voir la démo',
   },
   {
     label: 'Automatiser mon quotidien',
@@ -383,6 +385,7 @@ const choices = [
     price: '15 CHF / mois par entreprise',
     note: 'Option de Gestion. Les parcours e-mail nécessitent aussi Support.',
     href: '/automation',
+    discover: 'Découvrir Automation',
     demo: '/automation#utilisation',
     action: 'Voir comment l’activer',
   },
@@ -394,6 +397,7 @@ const choices = [
     price: 'Dès 79 CHF / mois',
     note: 'Essai de 14 jours : 3 personnes et 250 analyses, sans carte bancaire.',
     href: '/complet',
+    discover: 'Découvrir le pack',
     demo: '/complet#formules',
     action: 'Découvrir les formules',
   },
@@ -448,12 +452,12 @@ export function ProductFinder() {
             <p>{choice.text}</p>
             <p className="finder-price">{choice.price}</p>
             <div className="finder-actions">
-              <a className="zentra-primary" href={choice.demo}>
-                {choice.action}
+              <a className="zentra-primary" href={choice.href}>
+                {choice.discover}
                 <ArrowRight size={16} aria-hidden="true" />
               </a>
-              <a className="zentra-text-link" href={choice.href}>
-                En savoir plus
+              <a className="zentra-text-link" href={choice.demo}>
+                {choice.action}
               </a>
             </div>
             <p className="finder-note">{choice.note}</p>
