@@ -449,20 +449,34 @@ export async function changeAutomationAccess(action: FounderAction) {
   return { ...(await lookupAutomationAccess(email)), replayed: false };
 }
 export async function automationGrant(organizationId: string) {
-  // Device sessions may already be open when the founder grants an email.
-  const owner = await database()
-    .prepare(
-      'SELECT i.email FROM organizations o JOIN founder_account_identities i ON i.user_id=o.created_by_user_id WHERE o.organization_id=?',
-    )
-    .bind(organizationId)
-    .first<{ email: string }>();
-  if (owner) await attachKnown(owner.email);
-  const time = now();
-  const grant = await database()
-    .prepare(
-      `SELECT g.* FROM founder_automation_grants g JOIN organizations o ON o.organization_id=g.organization_id AND o.created_by_user_id=g.user_id JOIN organization_members m ON m.organization_id=o.organization_id AND m.user_id=g.user_id AND m.role='owner' AND m.revoked_at IS NULL WHERE g.organization_id=? AND g.revoked_at IS NULL AND g.valid_from<=? AND g.valid_until>?`,
-    )
-    .bind(organizationId, time, time)
-    .first<Grant>();
+  const readBoundGrant = () => {
+    const time = now();
+    return database()
+      .prepare(
+        `SELECT g.* FROM founder_automation_grants g JOIN organizations o ON o.organization_id=g.organization_id AND o.created_by_user_id=g.user_id JOIN organization_members m ON m.organization_id=o.organization_id AND m.user_id=g.user_id AND m.role='owner' AND m.revoked_at IS NULL WHERE g.organization_id=? AND g.revoked_at IS NULL AND g.valid_from<=? AND g.valid_until>?`,
+      )
+      .bind(organizationId, time, time)
+      .first<Grant>();
+  };
+  // The usual case is already linked. Check it freshly, without repeating
+  // identity discovery and linking on every account/Automation refresh.
+  let grant = await readBoundGrant();
+  if (!grant) {
+    // Devices can be open when an offer is first created. Only run linking
+    // for a still-valid unbound offer, retaining ambiguous-company checks.
+    const owner = await database()
+      .prepare(`SELECT i.email FROM organizations o
+        JOIN founder_account_identities i ON i.user_id=o.created_by_user_id
+        JOIN founder_automation_grants g ON g.email=i.email
+        WHERE o.organization_id=? AND g.organization_id IS NULL
+          AND g.revoked_at IS NULL AND g.valid_until>?
+          AND (g.user_id IS NULL OR g.user_id=i.user_id)`)
+      .bind(organizationId, now())
+      .first<{ email: string }>();
+    if (owner) {
+      await attachKnown(owner.email);
+      grant = await readBoundGrant();
+    }
+  }
   return grant && (await automationBaseActive(organizationId)) ? grant : null;
 }

@@ -74,8 +74,10 @@ const person = {
   emailConfirmed: true,
 };
 let db: DatabaseSync;
+const queries: string[] = [];
 type Value = string | number | null;
 function prepared(sql: string) {
+  queries.push(sql);
   const statement = db.prepare(sql);
   let args: Value[] = [];
   const p = {
@@ -200,6 +202,30 @@ describe('Founder offers for Zentra Automation', () => {
     userId: person.userId,
     role: 'owner',
     founder: false,
+  });
+  it('reads a linked offer in three fresh queries without rediscovering identities, and honors revocation immediately', async () => {
+    const org = await gestion();
+    await command(offer());
+    queries.length = 0;
+    expect(await automationGrant(org)).toMatchObject({organization_id:org});
+    // Grant + base subscription + manual base offer. No identity search/write.
+    expect(queries).toHaveLength(3);
+    expect(queries.every(q => q.trimStart().startsWith('SELECT'))).toBe(true);
+    expect(queries.some(q => q.includes('founder_account_identities'))).toBe(false);
+    db.exec('UPDATE founder_automation_grants SET revoked_at=1');
+    expect(await automationGrant(org)).toBeNull();
+  });
+  it('does not rediscover account identities for an organization with no Automation offer', async () => {
+    const org = await gestion();
+    queries.length = 0;
+    expect(await automationGrant(org)).toBeNull();
+    expect(queries).toHaveLength(2);
+  });
+  it('still attaches a newly granted unbound offer for an already connected company', async () => {
+    await command(offer());
+    const org = await gestion();
+    expect(db.prepare('SELECT organization_id FROM founder_automation_grants').get()?.organization_id).toBeNull();
+    await expect(automationGrant(org)).resolves.toMatchObject({organization_id:org,user_id:person.userId});
   });
   it('explicitly targets a legacy device company without merging same-email login identities', async () => {
     const currentOrg = await gestion();
