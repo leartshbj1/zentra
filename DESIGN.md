@@ -166,7 +166,7 @@ Les rampes du sidecar sont des bandes de visualisation synthétisées en OKLCH �
 
 **The Forest Action Rule.** Le vert forêt identifie les actions principales et les sélections ; les fonds blancs et gris perle gardent la priorité de lecture.
 
-Les couleurs locales d’erreur ou d’urgence conservent leur sens fonctionnel. Les anciennes teintes ambre du téléchargement et les petites variations de verts héritées ne constituent pas une palette secondaire Studio ; elles ne sont pas généralisées ici.
+Les couleurs locales d’erreur ou d’urgence conservent leur sens fonctionnel. Le composant partagé de téléchargement conserve une base ambre héritée ; sur `/download`, les règles locales la remplacent par le vert Studio, y compris au survol, sans ombre ajoutée. Cette base ambre et les petites variations de verts héritées ne constituent pas une palette secondaire Studio ; elles ne sont pas généralisées ici.
 
 ## Typography
 
@@ -293,4 +293,4 @@ Les mentions de fiction et conditions métier font partie de l’artefact. La d�
 - **Don't** utiliser une ombre dure, un halo décoratif ou une image fictive pour remplacer la démonstration du produit.
 - **Don't** présenter une maquette interactive ou un verdict visuel comme preuve de publication, d’authentification, de paiement ou de traitement réel des données.
 
-Écarts non canonisés : des accents ambre subsistent dans la page de téléchargement ; des surtitres Support existent encore dans des branches de bienvenue ou de réglages ; les titres Support héritent d’une police système explicite. Ils restent documentés comme héritages locaux, sans réparation dans cette passe et sans promotion en règle du nouveau monde. Le verdict final est borné aux corrections et états fournis ; il ne certifie pas leur absence sur toutes les routes.
+Écarts non canonisés : la base ambre du composant partagé de téléchargement subsiste hors des règles locales vertes de `/download` ; des surtitres Support existent encore dans des branches de bienvenue ou de réglages ; les titres Support héritent d’une police système explicite. Ils restent documentés comme héritages locaux, sans réparation globale dans cette passe et sans promotion en règle du nouveau monde. Le verdict final est borné aux corrections et états fournis ; il ne certifie pas leur absence sur toutes les routes.

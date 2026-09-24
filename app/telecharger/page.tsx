@@ -1,125 +1,26 @@
-import {
-  ArrowRight,
-  BellRing,
-  Building2,
-  Check,
-  Clock3,
-  Database,
-  Download,
-  FileCheck2,
-  FolderKanban,
-  HardDrive,
-  Laptop,
-  Landmark,
-  LockKeyhole,
-  Package,
-  QrCode,
-  RefreshCcw,
-  ShieldAlert,
-  ShieldCheck,
-  Sparkles,
-  Users,
-  WifiOff,
-} from 'lucide-react';
-import { BrandMark } from '@/components/brand-mark';
+import { ArrowDownToLine, ChevronDown, Laptop, Monitor } from 'lucide-react';
 import {
   DownloadButton,
   MacDownloadButton,
 } from '@/components/download-button';
-import { MobileDownloadDock } from '@/components/mobile-download-dock';
-import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import {
   ZENTRA_ANDROID_PREVIEW_PATH,
   ZENTRA_ANDROID_VERSION,
   ZENTRA_GITHUB_RELEASE_PATH,
-  ZENTRA_IOS_PREVIEW_PATH,
   ZENTRA_IPHONE_IPA_PATH,
   ZENTRA_IPHONE_VERSION,
-  ZENTRA_INSTALLER_CHECKSUM_PATH,
-  ZENTRA_INSTALLER_NAME,
-  ZENTRA_INSTALLER_SHA256,
-  ZENTRA_INSTALLER_SIZE_MIB,
-  ZENTRA_MAC_DMG_CHECKSUM_PATH,
-  ZENTRA_MAC_DMG_NAME,
-  ZENTRA_MAC_DMG_SHA256,
-  ZENTRA_MAC_DMG_SIZE_MIB,
-  ZENTRA_VERSION,
-  ZENTRA_WINDOWS_VERSION,
   ZENTRA_MAC_VERSION,
-  ZENTRA_WINDOWS_PREVIEW_VERSION,
-  ZENTRA_WINDOWS_PREVIEW_PATH,
-  ZENTRA_WINDOWS_PREVIEW_SHA256,
+  ZENTRA_WINDOWS_VERSION,
 } from '@/lib/downloads';
+import './download.css';
 
 export const metadata = {
-  title: `Télécharger Zentra — Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_MAC_VERSION}`,
-  description: `Découvrez Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} en accès anticipé et macOS ${ZENTRA_MAC_VERSION}, universel Intel et Apple Silicon. La version macOS est proposée avant notarisation Apple.`,
+  title: 'Télécharger Zentra pour Windows et Mac',
+  description:
+    'Téléchargez Zentra pour Windows ou Mac. Retrouvez un guide court pour l’installation et les fichiers pour iPhone et Android.',
   alternates: { canonical: '/download' },
-  openGraph: {
-    title: 'Télécharger Zentra',
-    description: `Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_MAC_VERSION} sont disponibles en accès anticipé.`,
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Zentra' }],
-  },
-  twitter: {
-    title: 'Télécharger Zentra',
-    description: `Zentra Windows ${ZENTRA_WINDOWS_PREVIEW_VERSION} et macOS ${ZENTRA_MAC_VERSION} sont disponibles en accès anticipé.`,
-    images: ['/og.png'],
-  },
 };
-
-const capabilities = [
-  {
-    icon: FileCheck2,
-    title: 'Devis, commandes et BL',
-    text: 'Les devis avec produits deviennent des commandes livrables; les prestations simples peuvent rester en facture directe.',
-  },
-  {
-    icon: QrCode,
-    title: 'Factures QR et récurrentes',
-    text: 'Créez une facture unique ou planifiez des brouillons mensuels, trimestriels ou annuels ; l’émission et le QR restent à valider.',
-  },
-  {
-    icon: BellRing,
-    title: 'Relances supervisées',
-    text: 'Zentra prépare trois niveaux modifiables, recalcule le solde et bloque une facture soldée ; vous décidez toujours de l’action.',
-  },
-  {
-    icon: FolderKanban,
-    title: 'Projets et documents',
-    text: 'Regroupez devis, factures, photos et justificatifs de remboursements dans chaque projet. Suivez les coûts après avoirs et TVA non récupérable.',
-  },
-  {
-    icon: Users,
-    title: 'Équipe et salaires',
-    text: 'Importez des fiches, contrôlez les champs proposés localement et générez des PDF détaillés.',
-  },
-  {
-    icon: Clock3,
-    title: 'Temps de travail',
-    text: 'Enregistrez les heures par collaborateur et préparez une facture depuis les heures approuvées.',
-  },
-  {
-    icon: Database,
-    title: 'Comptabilité liée',
-    text: 'Retrouvez journal, grand livre, balance, bilan et résultat.',
-  },
-  {
-    icon: Building2,
-    title: 'Fournisseurs et achats',
-    text: 'Conservez les justificatifs des achats et des remboursements. Suivez les échéances, les paiements et la TVA déductible.',
-  },
-  {
-    icon: Landmark,
-    title: 'Import CAMT local',
-    text: 'Rapprochez les règlements clients par référence exacte ou après contrôle. Créez les dépenses et les remboursements reçus depuis le relevé, avec leurs justificatifs.',
-  },
-  {
-    icon: Package,
-    title: 'Stock traçable',
-    text: 'Suivez entrées, sorties, corrections, seuils et déductions des factures standard émises.',
-  },
-];
 
 export default function DownloadPage() {
   return (
@@ -128,701 +29,187 @@ export default function DownloadPage() {
         Aller au contenu
       </a>
       <SiteHeader />
-      <main
-        id="contenu"
-        tabIndex={-1}
-        className="min-h-screen overflow-x-clip bg-[#f5f3ee] pb-24 text-[#17231d] md:pb-0"
-      >
-
-        <section className="studio-download-hero mx-auto grid max-w-7xl gap-12 px-5 pb-16 pt-10 sm:pb-20 sm:pt-14 lg:grid-cols-[.84fr_1.16fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-20">
-          <div data-reveal="left">
-
-            <h1 className="mt-6 max-w-xl text-balance text-[2.6rem] font-semibold leading-[.99] tracking-[-.055em] min-[380px]:text-5xl sm:text-6xl lg:text-[4.35rem]">
-              Toute votre entreprise,
-              <br />
-              <span className="text-[#b66b18]">
-                dans une seule application.
-              </span>
-            </h1>
-            <p className="studio-release-meta">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-[#667169]">
-              Catalogue, devis, commandes, BL, factures QR uniques ou
-              récurrentes supervisées, fournisseurs, import CAMT, projets,
-              heures, salaires et comptabilité&nbsp;: installez Zentra sur votre
-              ordinateur et travaillez avec vos propres données dans une
-              interface pensée pour votre activité. Les versions Windows et
-              macOS universelle Intel/Apple Silicon sont disponibles ci-dessous.
-            </p>
-
-            <div
-              id="hero-download-actions"
-              className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-start"
-            >
-              <DownloadButton />
-              <MacDownloadButton />
-            </div>
-            <a
-              href="/features"
-              className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#315f47] underline decoration-[#c98a34] underline-offset-4"
-            >
-              Voir Zentra en action <ArrowRight className="size-4" />
-            </a>
-
-            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#5d6b63]">
-              <span className="inline-flex items-center gap-1.5">
-                <Laptop className="size-3.5" /> Windows 10/11 · macOS 12+
-              </span>
-              <span>Intel et Apple Silicon</span>
-              <span>
-                {ZENTRA_INSTALLER_SIZE_MIB} Mio / {ZENTRA_MAC_DMG_SIZE_MIB} Mio
-              </span>
-              <span>Dès 49 CHF / mois</span>
-              <span>Fonctions de gestion incluses</span>
-            </div>
-            <p className="mt-3 max-w-xl text-xs leading-5 text-[#7a857e]">
-              Le téléchargement ne déclenche aucun paiement. Une licence active
-              est requise pour utiliser l’application complète.
-            </p>
-            <p className="mt-4 max-w-xl rounded-xl border border-[#d5dad5] bg-white/70 p-4 text-sm leading-6 text-[#496054]">
-              Les versions iOS et Android sont en préparation. Les applications
-              mobiles seront distribuées et mises à jour depuis l’App Store et
-              Google Play après leur validation.{' '}
-              <a
-                href="#mobile-previews"
-                className="inline-flex min-h-11 items-center font-semibold text-[#315f47] underline underline-offset-4"
-              >
-                Voir les préversions de test
-              </a>
-            </p>
-          </div>
-
-          <div
-            className="installer-stage relative mx-auto w-full max-w-2xl lg:max-w-none"
-            data-reveal="right"
-            aria-hidden="true"
+      <main id="contenu" tabIndex={-1} className="simple-download">
+        <header className="download-intro">
+          <h1>Télécharger Zentra.</h1>
+          <p>Votre entreprise vous attend.</p>
+        </header>
+        <section
+          className="download-desktop"
+          aria-label="Applications pour ordinateur"
+        >
+          <article
+            className="download-platform"
+            aria-labelledby="windows-title"
           >
-            <div className="installer-window overflow-hidden rounded-[26px] border border-[#cfd6d0] bg-white shadow-[0_38px_100px_rgba(20,52,36,.2)]">
-              <div className="flex h-11 items-center justify-between border-b border-[#dfe4df] bg-[#fbfcfb] px-4">
-                <div className="flex items-center gap-2 text-[11px] font-semibold text-[#354a3e]">
-                  <BrandMark className="size-5" /> Installateur Windows
-                  actuellement disponible
-                </div>
-                <div className="flex h-full items-center text-[13px] text-[#647169]">
-                  <span className="grid h-full w-9 place-items-center">—</span>
-                  <span className="grid h-full w-9 place-items-center">□</span>
-                  <span className="grid h-full w-9 place-items-center">×</span>
-                </div>
-              </div>
-              <div className="grid sm:min-h-[440px] sm:grid-cols-[.82fr_1.18fr]">
-                <div className="relative hidden overflow-hidden bg-[#173d2c] p-6 text-white sm:block sm:p-8">
-                  <div className="absolute -right-16 -top-16 size-52 rounded-full border border-white/8" />
-                  <div className="absolute -right-6 -top-6 size-36 rounded-full border border-white/8" />
-                  <BrandMark className="size-12 shadow-lg" />
-                  <h2 className="mt-3 text-2xl font-semibold tracking-[-.04em]">
-                    Zentra
-                  </h2>
-                  <p className="mt-4 text-sm leading-6 text-white/76">
-                    Une installation guidée, puis un questionnaire adapté à
-                    votre entreprise.
-                  </p>
-                  <div className="mt-8 space-y-3 text-[11px] text-white/78">
-                    {[
-                      'Application de bureau Windows',
-                      'Base de données locale',
-                      'Sauvegardes exportables',
-                    ].map((item) => (
-                      <div key={item} className="flex items-center gap-2">
-                        <Check className="size-3.5 text-[#7dd197]" /> {item}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex min-h-[390px] flex-col p-6 sm:min-h-0 sm:p-8">
-                  <h2 className="mt-3 text-2xl font-semibold tracking-[-.035em] text-[#22382a]">
-                    Zentra sur cet ordinateur
-                  </h2>
-                  <p className="mt-3 text-xs leading-5 text-[#758078]">
-                    L’assistant installe Zentra et l’ajoute aux applications de
-                    votre ordinateur.
-                  </p>
-                  <div className="mt-7 space-y-4 text-[11px]">
-                    {[
-                      ['Version', ZENTRA_WINDOWS_VERSION],
-                      ['Architecture', 'Windows x64'],
-                      ['Emplacement', 'Applications de l’utilisateur'],
-                      ['Données métier', 'Stockage local'],
-                    ].map(([label, value]) => (
-                      <div
-                        key={label}
-                        className="flex justify-between gap-4 border-b border-[#e8ece9] pb-3"
-                      >
-                        <span className="text-[#66736b]">{label}</span>
-                        <strong className="text-right text-[#405247]">
-                          {value}
-                        </strong>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-auto pt-7">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-[#e8ece9]">
-                      <span className="installer-progress block h-full w-[82%] rounded-full bg-gradient-to-r from-[#2d6749] to-[#77a781]" />
-                    </div>
-                    <div className="mt-4 flex justify-end">
-                      <span className="inline-flex min-h-10 items-center rounded-lg bg-[#173d2c] px-5 text-[11px] font-semibold text-white">
-                        Installer Zentra
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="studio-installer-caption">
-              <ShieldCheck className="size-3.5 text-[#3b7752]" /> Local d’abord
-              · sauvegarde distante en option
-            </div>
-          </div>
-        </section>
-
-        <section aria-labelledby="windows-preview-title" className="studio-download-notes"><details><summary>Installation, mises à jour et sauvegardes</summary>
-          <div className="flex flex-col gap-5 rounded-3xl border border-[#d5dad5] bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0 max-w-2xl">
-              <p className="text-sm font-medium text-[#496054]">Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION} · Accès anticipé</p>
-              <h2 id="windows-preview-title" className="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">Votre entreprise, sur chaque appareil.</h2>
-              <p className="mt-3 text-base leading-7 text-[#667169]">Connectez le même compte sur Windows, Mac ou mobile pour retrouver votre entreprise. Sur un appareil vide, la récupération démarre automatiquement. Si une ancienne entreprise est déjà présente, Zentra vous propose d’ouvrir celle du compte en conservant une sauvegarde locale.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Votre entreprise a été créée avec une ancienne version et n’a jamais été partagée ? Mettez d’abord à jour l’appareil qui contient vos données, puis choisissez « Relier cette entreprise à mon compte ». Connectez ensuite vos autres appareils.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Les nouvelles sauvegardes manuelles utilisent le format .zentra. À partir de la version 1.77, les anciennes sauvegardes ne peuvent plus être importées, même renommées.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Téléchargements disponibles : Windows {ZENTRA_WINDOWS_VERSION}, Mac {ZENTRA_MAC_VERSION}, iPhone {ZENTRA_IPHONE_VERSION} et Android {ZENTRA_ANDROID_VERSION}. Les conditions d’installation sont précisées ci-dessous pour chaque plateforme.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Les traductions sont encore en préparation : certains écrans, contrôles natifs et PDF restent en français.</p>
-              <p className="mt-3 text-sm leading-6 text-[#667169]">Depuis Windows 1.50, utilisez le bouton Mise à jour dans l’app. Sur Mac, installez cette version depuis le bouton ci-dessous pour recevoir les prochaines mises à jour dans Zentra. Les versions iPhone s’installent manuellement après signature avec votre compte Apple.</p>
-            </div>
-            <div className="flex min-w-0 flex-col gap-2 lg:max-w-xs">
-              <a href={ZENTRA_WINDOWS_PREVIEW_PATH} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#315f47] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#173d2c]">
-                <Download className="size-4 shrink-0" aria-hidden="true" /> Télécharger la préversion Windows
-              </a>
-              <a href={`${ZENTRA_WINDOWS_PREVIEW_PATH}.sha256.txt`} className="inline-flex min-h-11 items-center justify-center text-sm text-[#496054] underline underline-offset-4" title={`SHA-256 : ${ZENTRA_WINDOWS_PREVIEW_SHA256}`}>Vérifier le fichier</a>
-            </div>
-          </div>
-        </details></section>
-
-        <section
-          className="border-y border-[#ded9ce] bg-[#ffffff] px-5 py-12 sm:py-16 lg:px-8"
-          data-reveal
-          aria-labelledby="application-desktop-title"
-        >
-          <div className="mx-auto max-w-7xl">
-            <div className="max-w-3xl">
-              <h2
-                id="application-desktop-title"
-                className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl"
-              >
-                Une vraie application de bureau, pas un site emballé.
-              </h2>
-            </div>
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
-              {[
-                [
-                  Laptop,
-                  'Installateurs de bureau',
-                  'Choisissez le programme Windows x64 (.exe) ou le disque macOS universel (.dmg), puis utilisez Zentra dans sa propre fenêtre.',
-                ],
-                [
-                  Database,
-                  'Données métier locales',
-                  'Votre base de travail reste sur l’appareil. Avec la version 1.67, vous pouvez activer son partage complet via Supabase, y compris les documents et le logo, avec les membres autorisés.',
-                ],
-                [
-                  WifiOff,
-                  'Connexion limitée',
-                  'Activation, compte, partage, coffre et mises à jour utilisent Internet. La gestion reste disponible hors ligne ; les changements attendent le retour du réseau.',
-                ],
-              ].map(([Icon, title, text]) => (
-                <article
-                  key={title as string}
-                  className="interactive-card rounded-2xl border border-[#ddd9cf] bg-white p-6"
-                >
-                  <Icon className="size-5 text-[#3f7553]" />
-                  <h3 className="mt-5 font-semibold text-[#263a2e]">
-                    {title as string}
-                  </h3>
-                  <p className="mt-3 text-sm leading-6 text-[#647068]">
-                    {text as string}
-                  </p>
-                </article>
-              ))}
-            </div>
-            <div className="mt-6 grid min-w-0 gap-4 rounded-[24px] border border-[#cbd8ce] bg-[#edf4ee] p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:p-7">
-              <Laptop className="size-7 text-[#397150]" aria-hidden="true" />
-              <div>
-                <h3 className="font-semibold text-[#254333]">
-                  Zentra pour macOS — accès anticipé
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-[#607068]">
-                  Version universelle pour Mac Intel et Apple Silicon. La
-                  signature Developer ID et la notarisation Apple restent en
-                  préparation. Au premier lancement, macOS peut demander une
-                  autorisation dans Réglages système &gt; Confidentialité et
-                  sécurité.
+            <Monitor size={42} strokeWidth={1.3} aria-hidden="true" />
+            <h2 id="windows-title">Windows</h2>
+            <p className="download-requirements">Windows 10 / 11 · 64 bits</p>
+            <DownloadButton compact className="download-primary" />
+            <p className="download-instruction">
+              Ouvrez le fichier, puis suivez l’installation.
+            </p>
+            <p className="download-version">
+              Version {ZENTRA_WINDOWS_VERSION} · Accès anticipé
+            </p>
+            <details className="download-help">
+              <summary>
+                Installation bloquée ?{' '}
+                <ChevronDown size={17} aria-hidden="true" />
+              </summary>
+              <div className="download-help-content">
+                <h3>Windows affiche un avertissement</h3>
+                <p>Pour le fichier Zentra téléchargé depuis cette page :</p>
+                <ol>
+                  <li>
+                    Ouvrez le fichier dans votre dossier{' '}
+                    <strong>Téléchargements</strong>.
+                  </li>
+                  <li>
+                    Si SmartScreen affiche « Windows a protégé votre ordinateur
+                    », choisissez <strong>Informations complémentaires</strong>,
+                    puis <strong>Exécuter quand même</strong>.
+                  </li>
+                  <li>
+                    Suivez l’assistant, puis ouvrez Zentra depuis le menu
+                    Démarrer.
+                  </li>
+                </ol>
+                <p>
+                  Si cette option n’existe pas, contactez votre administrateur
+                  ou{' '}
+                  <a href="mailto:info@zentraapp.ch?subject=Installation%20Windows">
+                    notre assistance
+                  </a>
+                  . Gardez vos protections activées.
                 </p>
-                <p className="mt-2 text-sm leading-6 text-[#607068]">
-                  Après une mise à jour, le Trousseau peut demander à Zentra
-                  l’accès à son identité d’installation. Autorisez cet accès
-                  dans la fenêtre macOS pour terminer le démarrage. Cette
-                  demande peut revenir avec les versions en accès anticipé.
-                </p>
-                <p className="mt-2 break-all text-xs leading-5 text-[#718079]">
-                  {ZENTRA_MAC_DMG_NAME} · {ZENTRA_MAC_DMG_SIZE_MIB} Mio ·
-                  SHA-256 {ZENTRA_MAC_DMG_SHA256}
-                </p>
-                <p className="mt-2 text-xs leading-5 text-[#718079]">
-                  Cette installation manuelle active aussi le canal de mise à
-                  jour signé. Les versions suivantes pourront être proposées
-                  directement dans Zentra.
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <MacDownloadButton compact />
                 <a
-                  href={ZENTRA_MAC_DMG_CHECKSUM_PATH}
-                  className="text-center text-xs font-semibold text-[#315f47] underline underline-offset-4"
+                  className="download-guide-source"
+                  href="https://learn.microsoft.com/fr-fr/windows/apps/package-and-deploy/smartscreen-reputation"
+                  target="_blank"
+                  rel="noreferrer"
                 >
-                  Vérifier l’empreinte
+                  Aide Microsoft
                 </a>
               </div>
-            </div>
-            <div id="mobile-previews" className="mt-8 scroll-mt-24">
-              <h3 className="text-xl font-semibold text-[#254333]">
-                Préversions mobiles
-              </h3>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-[#607068]">
-                Une interface aérée, avec les détails accessibles au toucher.
-                Les documents et les données de l’entreprise partagée se mettent
-                à jour automatiquement lorsque l’application est ouverte et
-                connectée. Les versions App Store et Google Play restent en
-                préparation ; ces préversions s’installent manuellement.
-              </p>
-              <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-2">
-                <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">
-                  <h4 className="font-semibold text-[#263a2e]">
-                    Android {ZENTRA_ANDROID_VERSION} — APK de test
-                  </h4>
-                  <p className="mt-3 text-sm leading-6 text-[#607068]">
-                    Installation manuelle sur Android ARM64. La signature de
-                    test est conservée depuis 1.32.0 pour permettre le
-                    remplacement des préversions compatibles.
-                  </p>
-                  <p className="mt-3 text-sm leading-6 text-[#607068]">
-                    Depuis 1.31.0 ou une version antérieure, une sauvegarde
-                    complète vérifiée est nécessaire avant la migration :
-                    l’ancienne signature diffère et désinstaller efface les
-                    données locales.
-                  </p>
-                  <a
-                    href={ZENTRA_ANDROID_PREVIEW_PATH}
-                    className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#183d2d] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#24523e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315f47]"
-                  >
-                    Télécharger l’APK Android de test
-                  </a>
-                </article>
-                <article className="flex min-w-0 flex-col rounded-2xl border border-[#d7dfd8] bg-white p-5 sm:p-6">
-                  <h4 className="font-semibold text-[#263a2e]">
-                    iPhone {ZENTRA_IPHONE_VERSION} — IPA à signer
-                  </h4>
-                  <p className="mt-3 text-sm leading-6 text-[#607068]">
-                    Signez cet IPA avec votre compte Apple dans Sideloadly ou
-                    AltStore pour l’installer sur votre iPhone. Ouvrir le
-                    fichier dans Safari ne suffit pas. Le renouvellement de la
-                    signature dépend de votre compte Apple.
-                  </p>
-                  <a
-                    href={ZENTRA_IPHONE_IPA_PATH}
-                    className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#183d2d] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#24523e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315f47]"
-                  >
-                    Télécharger l’IPA pour iPhone
-                  </a>
-                  <p className="mt-4 text-sm leading-6 text-[#607068]">
-                    Pour les essais sur Mac Apple Silicon, le ZIP du simulateur
-                    ne s’installe pas directement sur iPhone.
-                  </p>
-                  <a
-                    href={ZENTRA_IOS_PREVIEW_PATH}
-                    className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4"
-                  >
-                    Simulateur iOS — version {ZENTRA_VERSION}
-                  </a>
-                </article>
+            </details>
+          </article>
+          <article className="download-platform" aria-labelledby="mac-title">
+            <Laptop size={42} strokeWidth={1.3} aria-hidden="true" />
+            <h2 id="mac-title">Mac</h2>
+            <p className="download-requirements">
+              macOS 12+ · Intel et Apple Silicon
+            </p>
+            <MacDownloadButton compact className="download-primary" />
+            <p className="download-instruction">
+              Ouvrez le fichier et glissez Zentra dans Applications.
+            </p>
+            <p className="download-version">
+              Version {ZENTRA_MAC_VERSION} · Accès anticipé
+            </p>
+            <details className="download-help">
+              <summary>
+                Installation bloquée ?{' '}
+                <ChevronDown size={17} aria-hidden="true" />
+              </summary>
+              <div className="download-help-content">
+                <h3>Mac empêche la première ouverture</h3>
+                <p>
+                  Cette version n’est pas encore notarisée par Apple. Pour
+                  Zentra téléchargé depuis cette page :
+                </p>
+                <ol>
+                  <li>
+                    Glissez Zentra dans <strong>Applications</strong>, puis
+                    essayez de l’ouvrir.
+                  </li>
+                  <li>
+                    Ouvrez{' '}
+                    <strong>
+                      Réglages Système → Confidentialité et sécurité
+                    </strong>
+                    .
+                  </li>
+                  <li>
+                    Dans la section Sécurité, choisissez{' '}
+                    <strong>Ouvrir quand même</strong> pour Zentra, puis
+                    confirmez.
+                  </li>
+                </ol>
+                <p>
+                  Si le Mac signale un fichier endommagé ou dangereux,{' '}
+                  <a href="mailto:info@zentraapp.ch?subject=Installation%20Mac">
+                    contactez-nous
+                  </a>{' '}
+                  avant de continuer.
+                </p>
+                <a
+                  className="download-guide-source"
+                  href="https://support.apple.com/fr-fr/102445"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Guide Apple illustré
+                </a>
               </div>
-              <a
-                href={ZENTRA_GITHUB_RELEASE_PATH}
-                className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[#315f47] underline underline-offset-4"
-              >
-                Fichiers et notes de la version
-              </a>
-            </div>
-          </div>
+            </details>
+          </article>
         </section>
-
+        <p className="download-account" id="licence">
+          Une fois l’app ouverte, connectez votre compte Zentra.{' '}
+          <a href="/connexion">Créer un compte ou se connecter</a>
+        </p>
         <section
-          className="border-y border-[#dce1dc] bg-[#edf2ee] px-5 py-16 sm:py-24 lg:px-8"
-          data-reveal
+          className="download-mobile"
+          id="mobile-previews"
+          aria-labelledby="mobile-title"
         >
-          <div className="mx-auto max-w-7xl">
-            <div className="grid gap-6 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
-              <div>
-                <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
-                  Votre gestion quotidienne, réunie.
-                </h2>
-              </div>
-              <p className="max-w-2xl text-lg leading-8 text-[#68756d] lg:justify-self-end">
-                L’application relie les documents, le travail réalisé et les
-                chiffres. Une action alimente la suivante sans masquer l’origine
-                des données.
-              </p>
-            </div>
-            <div className="studio-capabilities">
-              {[
-                { title: 'Vendre et encaisser', indexes: [0, 1, 2, 8] },
-                { title: 'Organiser le travail', indexes: [3, 4, 5] },
-                { title: 'Suivre les achats et les comptes', indexes: [6, 7, 9] },
-              ].map(group => <section className="studio-feature-group" key={group.title}>
-                <h3>{group.title}</h3>
-                <div>{group.indexes.map(index => {
-                  const {icon: Icon, title, text} = capabilities[index];
-                  return <article key={title}><Icon aria-hidden="true"/><h4>{title}</h4><p>{text}</p></article>;
-                })}</div>
-              </section>)}
+          <h2 id="mobile-title">Les fichiers mobiles.</h2>
+          <div className="download-mobile-row">
+            <div>
+              <h3>iPhone</h3>
+              <p>Fichier IPA à signer · {ZENTRA_IPHONE_VERSION}</p>
             </div>
             <a
-              href="/features"
-              className="mt-7 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#315f47] underline decoration-[#c88b37] underline-offset-4"
+              href={ZENTRA_IPHONE_IPA_PATH}
+              download
+              aria-label="Télécharger le fichier IPA pour iPhone"
             >
-              Explorer les écrans interactifs <ArrowRight className="size-4" />
+              <span>Télécharger l’IPA</span>
+              <ArrowDownToLine size={18} aria-hidden="true" />
             </a>
           </div>
-        </section>
-
-        <section className="px-5 py-16 sm:py-24 lg:px-8" data-reveal>
-          <div className="mx-auto max-w-7xl">
-            <div className="max-w-3xl">
-              <h2 className="mt-4 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">
-                De l’installation à votre premier document.
-              </h2>
-              <p className="mt-5 text-lg leading-8 text-[#68746c]">
-                Le parcours suit un ordre clair. Vous installez Zentra, activez
-                votre licence, puis configurez l’entreprise avec vos
-                informations réelles.
-              </p>
-            </div>
-            <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {[
-                [
-                  '01',
-                  'Téléchargez Zentra',
-                  'Récupérez la dernière version depuis le site officiel Zentra.',
-                  Laptop,
-                ],
-                [
-                  '02',
-                  'Ouvrez l’application',
-                  'Lancez l’installation, puis ouvrez Zentra depuis Applications sur macOS ou le menu Démarrer sur Windows.',
-                  Sparkles,
-                ],
-                [
-                  '03',
-                  'Connectez votre compte',
-                  'Créez votre entreprise et commencez vos 14 jours d’essai sur le site, ou retrouvez votre abonnement. Autorisez ensuite cet appareil : la licence est récupérée automatiquement.',
-                  LockKeyhole,
-                ],
-                [
-                  '04',
-                  'Configurez l’entreprise',
-                  'Choisissez votre activité et complétez le questionnaire avec vos propres données.',
-                  Check,
-                ],
-              ].map(([number, title, text, Icon], index) => (
-                <div
-                  key={number as string}
-                  className="relative rounded-2xl border border-[#ddd9cf] bg-white/70 p-6"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#9c6825]">
-                      {number as string}
-                    </span>
-                    <Icon className="size-4 text-[#49765c]" />
-                  </div>
-                  <h3 className="mt-7 font-semibold">{title as string}</h3>
-                  <p className="mt-3 text-sm leading-6 text-[#667169]">
-                    {text as string}
-                  </p>
-                  {index < 3 && (
-                    <ArrowRight className="absolute -right-3 top-1/2 z-10 hidden size-5 rounded-full bg-[#f5f3ee] text-[#9b7b50] lg:block" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section
-          id="licence"
-          className="bg-[#173d2c] px-5 py-16 text-white sm:py-24 lg:px-8"
-          data-reveal
-        >
-          <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1fr_.8fr] lg:items-center">
+          <div className="download-mobile-row">
             <div>
-              <h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">
-                Zentra Gestion, dès 49 CHF par mois.
-              </h2>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-white/78">
-                Le paiement est traité par Stripe. L’abonnement peut être
-                rattaché à votre compte d’entreprise&nbsp;: vous autorisez
-                ensuite appareils, collaborateurs et comptables par un code
-                court. La liaison locale est protégée par le mécanisme sécurisé
-                du système et le serveur conserve uniquement les éléments
-                nécessaires à l’activation.
-              </p>
-              <div className="mt-7 grid gap-3 text-sm text-white/72 sm:grid-cols-2">
-                {[
-                  'Fonctions de gestion incluses',
-                  'Nouvelles versions incluses',
-                  'Paiement sécurisé par Stripe',
-                  'Résiliation depuis le portail client',
-                  'Solo : 1 · Start : 3 · Pro : 10 personnes',
-                  'Automation : option à 15 CHF/mois',
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-2">
-                    <Check className="size-4 text-[#77cf92]" /> {item}
-                  </div>
-                ))}
-              </div>
+              <h3>Android</h3>
+              <p>Fichier APK de test · {ZENTRA_ANDROID_VERSION}</p>
             </div>
-            <div className="rounded-[24px] border border-white/12 bg-white/7 p-6 sm:p-8">
-              <div className="flex items-end gap-2">
-                <strong className="text-5xl tracking-[-.05em]">
-                  Dès 49 CHF
-                </strong>
-                <span className="pb-1 text-sm text-white/76">/ mois</span>
-              </div>
-              <p className="mt-3 text-xs leading-5 text-white/74">
-                Solo 49 CHF, Start 59 CHF ou Pro 89 CHF par mois, pour 1, 3 ou
-                10 personnes, titulaire compris. Les fonctions de gestion sont
-                incluses. Zentra Automation est une option facultative à
-                15 CHF/mois par entreprise. Taxe incluse lorsqu’elle s’applique ;
-                résiliation pour la fin de la période en cours.
-              </p>
-              <div className="mt-7">
-                <a
-                  href="/pricing"
-                  className="flex min-h-12 items-center justify-center rounded-full bg-[#efaa3c] px-5 text-sm font-semibold text-[#173d2c]"
-                >
-                  Choisir ma formule
-                </a>
-              </div>
-              <a
-                href="mailto:info@zentraapp.ch?subject=Zentra%20-%20activation"
-                className="mt-3 flex min-h-12 items-center justify-center rounded-full border border-white/15 px-5 text-center text-sm font-semibold text-white"
-              >
-                Besoin d’aide pour l’activation
-              </a>
-            </div>
+            <a
+              href={ZENTRA_ANDROID_PREVIEW_PATH}
+              download
+              aria-label="Télécharger le fichier APK pour Android"
+            >
+              <span>Télécharger l’APK</span>
+              <ArrowDownToLine size={18} aria-hidden="true" />
+            </a>
           </div>
+          <a
+            className="download-release-link"
+            href={ZENTRA_GITHUB_RELEASE_PATH}
+          >
+            Notes de version et autres fichiers
+          </a>
         </section>
-
-        <section
-          className="border-b border-[#ddd9cf] bg-white/55 px-5 py-16 sm:py-24 lg:px-8"
-          data-reveal
-        >
-          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.9fr_1.1fr]">
-            <div>
-              <p className="studio-release-meta">
-                Windows {ZENTRA_WINDOWS_VERSION} · macOS {ZENTRA_MAC_VERSION}
-              </p>
-              <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-                Retrouvez votre entreprise sur un nouvel appareil.
-              </h2>
-              <div className="mt-7 space-y-3">
-                {[
-                  'Sauvegardez ensemble la base de votre entreprise et ses pièces jointes dans le coffre distant',
-                  'Activez une copie quotidienne lorsque l’application est ouverte et connectée',
-                  'Un envoi interrompu reprend à la prochaine connexion, sans recommencer les fragments déjà reçus',
-                  'Le titulaire et les administrateurs retrouvent les sauvegardes dans leur compte, y compris après résiliation',
-                  'Restaurez sur une nouvelle installation avec vérification des fichiers et copie locale de sécurité',
-                  'Retrouvez les plans, justificatifs et fiches de salaire importées après restauration',
-                ].map((item) => (
-                  <div
-                    key={item}
-                    className="flex items-start gap-3 text-sm leading-6 text-[#59675f]"
-                  >
-                    <Check className="mt-1 size-4 shrink-0 text-[#3e7854]" />
-                    {item}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-5 text-sm leading-6 text-[#647068]">
-                La sauvegarde permet de récupérer la base sur un autre appareil.
-                Le partage complet de la version 1.67 transmet aussi les nouvelles
-                révisions aux membres autorisés. Des modifications concurrentes
-                nécessitent un choix explicite, avec une sauvegarde locale et la
-                reprise manuelle des changements non envoyés. Sur mobile, les
-                transferts reprennent à la réouverture de l’application.
-              </p>
-            </div>
-            <div className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  [
-                    HardDrive,
-                    'Données sur votre appareil',
-                    'Votre appareil conserve une copie locale. Dans une entreprise partagée, les données et documents se mettent à jour automatiquement entre les appareils autorisés.',
-                  ],
-                  [
-                    WifiOff,
-                    'Gestion hors ligne',
-                    'Après activation, les fonctions métier ne dépendent pas d’une connexion permanente.',
-                  ],
-                ].map(([Icon, title, text]) => (
-                  <div
-                    key={title as string}
-                    className="rounded-2xl border border-[#ddd9cf] bg-white p-5"
-                  >
-                    <Icon className="size-5 text-[#3f7553]" />
-                    <h3 className="mt-4 font-semibold">{title as string}</h3>
-                    <p className="mt-2 text-sm leading-6 text-[#647068]">
-                      {text as string}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <details className="group rounded-2xl border border-[#ddd9cf] bg-white">
-                <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-semibold">
-                  <span className="flex items-center gap-2">
-                    <ShieldCheck className="size-5 text-[#48775a]" />
-                    Informations techniques et sécurité
-                  </span>
-                  <span className="text-xl font-light transition-transform group-open:rotate-45">
-                    +
-                  </span>
-                </summary>
-                <div className="space-y-4 border-t border-[#e5e1d8] px-5 py-5 text-xs leading-6 text-[#5f6c64]">
-                  <p>
-                    <strong>Fichier :</strong> {ZENTRA_INSTALLER_NAME} ·{' '}
-                    {ZENTRA_INSTALLER_SIZE_MIB} Mio · Windows x64
-                  </p>
-                  <p>
-                    <strong>SHA-256 :</strong>{' '}
-                    <code className="file-fingerprint">{ZENTRA_INSTALLER_SHA256}</code>{' '}
-                    ·{' '}
-                    <a
-                      className="font-semibold underline underline-offset-3"
-                      href={ZENTRA_INSTALLER_CHECKSUM_PATH}
-                    >
-                      télécharger l’empreinte
-                    </a>
-                  </p>
-                  <div className="flex items-start gap-3 rounded-xl bg-[#edf4ee] p-4 text-[#315e48]">
-                    <RefreshCcw className="mt-0.5 size-4 shrink-0" />
-                    <p>
-                      <strong>Mises à jour intégrées et signées.</strong> La
-                      version {ZENTRA_WINDOWS_VERSION} embarque la clé publique Zentra
-                      et vérifie la signature de chaque futur installateur avant
-                      de proposer son installation. Si une ancienne version ne
-                      propose pas la mise à jour intégrée, installez{' '}
-                      {ZENTRA_WINDOWS_VERSION} manuellement depuis cette page.
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3 rounded-xl bg-[#fff5e6] p-4 text-[#75501f]">
-                    <ShieldAlert className="mt-0.5 size-4 shrink-0" />
-                    <p>
-                      <strong>Information Windows.</strong> Cette version n’est
-                      pas encore signée avec un certificat Authenticode. Windows
-                      peut afficher « Éditeur inconnu ». Utilisez uniquement le
-                      fichier provenant du site officiel Zentra et contrôlez son
-                      empreinte. L’installation de WebView2 peut demander une
-                      connexion Internet si ce composant manque sur le PC.
-                    </p>
-                  </div>
-                  <p>
-                    <strong>Protection de licence :</strong> activation en
-                    ligne, jeton signé et liaison locale protégée par Windows
-                    DPAPI ou le Trousseau macOS. Sur Mac, une mise à jour peut
-                    nécessiter une nouvelle autorisation du Trousseau.
-                  </p>
-                </div>
-              </details>
-            </div>
-          </div>
-        </section>
-
-        <section
-          className="bg-[#173d2c] px-5 py-14 text-white sm:py-20 lg:px-8"
-          data-reveal
-          aria-labelledby="sauvegarde-title"
-        >
-          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.8fr_1.2fr] lg:items-start">
-            <div>
-              <HardDrive className="size-7 text-[#efb157]" />
-              <h2
-                id="sauvegarde-title"
-                className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl"
-              >
-                Gardez une copie complète, à l’endroit de votre choix.
-              </h2>
-              <p className="mt-5 text-sm leading-6 text-white/72">
-                Conservez une copie de votre entreprise sur un support externe
-                et, si vous le souhaitez, dans votre coffre distant. Vous
-                retrouvez la base et ses documents depuis une autre installation.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                [
-                  'Après la configuration',
-                  'Créez une première sauvegarde dès que vos coordonnées et réglages sont validés.',
-                ],
-                [
-                  'Avant chaque mise à jour',
-                  'Exportez une sauvegarde complète avant d’installer une nouvelle version.',
-                ],
-                [
-                  'Une copie hors de l’appareil',
-                  'Activez la sauvegarde distante quotidienne ou conservez votre fichier sur un support externe.',
-                ],
-                [
-                  'Test de restauration',
-                  'Vérifiez périodiquement la restauration sur un environnement sûr, sans écraser votre base active.',
-                ],
-              ].map(([title, text]) => (
-                <article
-                  key={title}
-                  className="rounded-2xl border border-white/12 bg-white/[.07] p-5"
-                >
-                  <Check className="size-4 text-[#79d094]" />
-                  <h3 className="mt-4 text-sm font-semibold">{title}</h3>
-                  <p className="mt-2 text-xs leading-5 text-white/66">{text}</p>
-                </article>
-              ))}
-              <a
-                href="/compte/sauvegardes"
-                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/25 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:col-span-2"
-              >
-                Retrouver mes sauvegardes
-              </a>
-              <div className="sm:col-span-2 rounded-2xl border border-[#efb157]/30 bg-[#efb157]/10 p-5 text-xs leading-6 text-white/72">
-                <strong className="text-white">Portée réglementaire :</strong>{' '}
-                la paie est assistée localement mais non certifiée Swissdec/ELM.
-                Zentra génère un XML eCH-0217 v2.0.0 pour import manuel, sans
-                transmission ni acceptation AFC garantie. Le dossier fiduciaire
-                soutient un processus orienté CO/Olico, mais n’est pas certifié
-                Olico et ne remplace pas la validation du bouclement.
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <MobileDownloadDock anchorId="hero-download-actions" />
       </main>
-      <div className="pb-24 md:pb-0">
-        <SiteFooter />
-      </div>
+      <footer className="download-footer">
+        <span>Zentra</span>
+        <nav aria-label="Liens utiles">
+          <a href="mailto:info@zentraapp.ch">Besoin d’aide ?</a>
+          <a href="/mentions-legales">Mentions légales</a>
+          <a href="/confidentialite">Confidentialité</a>
+          <a href="/conditions">Conditions</a>
+        </nav>
+      </footer>
     </>
   );
 }
