@@ -26,9 +26,11 @@ import {
   CLOUD_ACCESS_REVALIDATION_INTERVAL_MS,
   cloudAccountChangeNeedsFullRevalidation,
   createSingleFlightCloudAccessRevalidator,
+  readLocalCloudAccess,
 } from './cloudAccessRevalidation';
 import { Onboarding } from './Onboarding';
-const WorkspaceApp = lazy(() => import('./WorkspaceApp').then((module) => ({ default: module.WorkspaceApp })));
+const loadWorkspaceModule = () => import('./WorkspaceApp').then((module) => ({ default: module.WorkspaceApp }));
+const WorkspaceApp = lazy(loadWorkspaceModule);
 import type { AppSettings, LicenseState, Workspace } from './types';
 import { Button, ErrorPanel, Modal } from './ui';
 import { errorMessage, normalizeLicenseToken } from './utils';
@@ -49,6 +51,7 @@ export function App() {
   const [createdFor, setCreatedFor] = useState<string | null>(null);
   const openingAttempt = useRef(0);
   const automaticRefreshStarted = useRef(false);
+  const accountEpoch = useRef(0);
   const cloudAccessRevalidator = useRef<
     ReturnType<typeof createSingleFlightCloudAccessRevalidator> | undefined
   >(undefined);
@@ -58,8 +61,10 @@ export function App() {
   }
 
   const revalidateCloudAccess = useCallback(async () => {
+    const epoch = accountEpoch.current;
     try {
       const next = await cloudAccessRevalidator.current!();
+      if (epoch !== accountEpoch.current) return;
       setCloudAccount(next.account);
       setLicense(next.license);
     } catch {
@@ -75,21 +80,25 @@ export function App() {
     try {
       await waitForNativeStartup();
       if (attempt !== openingAttempt.current) return;
+      // Load the work window while local data is read, instead of afterwards.
+      void loadWorkspaceModule().catch(() => {});
       const [nextWorkspace, nextAccess] = await Promise.all([
         withinAppOpeningDeadline(desktopApi.loadWorkspace()),
-        cloudAccessRevalidator.current!(),
+        withinAppOpeningDeadline(readLocalCloudAccess(desktopApi)),
       ]);
       if (attempt !== openingAttempt.current) return;
       setWorkspace(nextWorkspace);
       setLicense(nextAccess.license);
       setCloudAccount(nextAccess.account);
+      // Recheck revocation, role and subscription immediately, off the opening path.
+      void revalidateCloudAccess();
     } catch (reason) {
       if (attempt !== openingAttempt.current) return;
       setError(errorMessage(reason, 'L’espace local n’a pas pu être ouvert.'));
     } finally {
       if (attempt === openingAttempt.current) setLoading(false);
     }
-  }, []);
+  }, [revalidateCloudAccess]);
 
   useEffect(() => {
     void load();
@@ -104,9 +113,10 @@ export function App() {
     )
       return;
     automaticRefreshStarted.current = true;
+    const epoch = accountEpoch.current;
     void desktopApi
       .refreshLicense(true)
-      .then(setLicense)
+      .then(next => { if (epoch === accountEpoch.current) setLicense(next); })
       .catch(() => {
         // Un échec réseau ne remplace jamais le bail local déjà validé. Le
         // renouvellement manuel affichera, lui, une erreur explicite.
@@ -128,6 +138,8 @@ export function App() {
 
   const handleCloudAccountChange = useCallback(
     (next: CloudAccountState) => {
+      accountEpoch.current += 1;
+      cloudAccessRevalidator.current!.invalidate();
       setCloudAccount(next);
       if (cloudAccountChangeNeedsFullRevalidation(next)) {
         void revalidateCloudAccess();

@@ -17,9 +17,9 @@ export function createAutomationCompanySession(organizationId: string | null, lo
   let requested = false;
   const listeners = new Set<() => void>();
   const publish = (next: AutomationCompanySnapshot) => { snapshot = next; listeners.forEach(fn => fn()); };
-  const refresh = (): Promise<void> => {
+  const refresh = (invalidate = true): Promise<void> => {
     if (!live || !organizationId) return Promise.resolve();
-    if (pending) { requested = true; return pending; }
+    if (pending) { requested ||= invalidate; return pending; }
     const epoch = generation;
     pending = (async () => {
       do {

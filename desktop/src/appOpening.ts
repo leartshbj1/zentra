@@ -1,5 +1,5 @@
-// A connected account can require two native network requests, each bounded
-// at 30 seconds. Leave room for local storage without waiting indefinitely.
+// Leave room for native initialization and local storage recovery without
+// waiting indefinitely. Ordinary opening no longer waits for the network.
 export const APP_OPEN_TIMEOUT_MS = 75_000;
 export const NATIVE_READY_EVENT = 'zentra:native-ready';
 const READINESS_PROBE_DELAY_MS = 1_000;
@@ -68,7 +68,7 @@ export function waitForNativeStartup(
     };
     const timer = setTimeout(() => { cleanup(); reject(openingTimeout()); }, APP_OPEN_TIMEOUT_MS);
     target.addEventListener(NATIVE_READY_EVENT, ready);
-    scheduleProbe();
+    checkReadiness();
   });
 }
 

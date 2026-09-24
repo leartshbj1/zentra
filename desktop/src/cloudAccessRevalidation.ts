@@ -24,6 +24,17 @@ type CloudAccessApi = {
   refreshLicense: (automatic?: boolean) => Promise<LicenseState>;
 };
 
+/** Open using the protected local session and signed licence, without any network wait. */
+export async function readLocalCloudAccess(
+  api: Pick<CloudAccessApi, 'getLicenseState'> & {
+    getCachedCloudAccountState: () => Promise<CloudAccountState>;
+  },
+): Promise<CloudAccessSnapshot> {
+  // Reading the account first invalidates an expired session's local licence.
+  const account = await api.getCachedCloudAccountState();
+  return { account, license: await api.getLicenseState() };
+}
+
 export async function readRevalidatedCloudAccess(
   api: CloudAccessApi,
 ): Promise<CloudAccessSnapshot> {
@@ -49,10 +60,10 @@ export async function readRevalidatedCloudAccess(
 
 export function createSingleFlightCloudAccessRevalidator(
   api: CloudAccessApi,
-): () => Promise<CloudAccessSnapshot> {
+) {
   let pending: Promise<CloudAccessSnapshot> | null = null;
 
-  return () => {
+  const revalidate = () => {
     if (pending) return pending;
 
     const request = withinAppOpeningDeadline(
@@ -69,4 +80,6 @@ export function createSingleFlightCloudAccessRevalidator(
     );
     return request;
   };
+  // A newly approved account must never reuse a previous account's in-flight result.
+  return Object.assign(revalidate, { invalidate: () => { pending = null; } });
 }

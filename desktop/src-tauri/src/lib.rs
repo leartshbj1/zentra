@@ -366,6 +366,7 @@ pub fn run() {
             install_license_token,
             refresh_license,
             account_cloud::get_cloud_account_state,
+            account_cloud::get_cached_cloud_account_state,
             account_cloud::cloud_team_request,
             account_cloud::automation_request,
             account_cloud::subscription_overview_request,

@@ -36,6 +36,16 @@ it('rechecks changes that arrive during a pending refresh without overlapping re
   expect(load).toHaveBeenCalledTimes(1); finish(active); await Promise.all([pending, second]);
   expect(load).toHaveBeenCalledTimes(2); expect(session.getSnapshot().state?.settings.enabled).toBe(false);
 });
+it('coalesces focus, visibility and polling without queuing identical network reads', async () => {
+  let finish!: (v: AutomationState) => void;
+  const load = vi.fn(() => new Promise<AutomationState>(resolve => { finish = resolve; }));
+  const session = createAutomationCompanySession('a', load); session.start();
+  const pending = session.refresh(false);
+  for (let i = 0; i < 10; i++) expect(session.refresh(false)).toBe(pending);
+  finish(active); await pending;
+  expect(load).toHaveBeenCalledTimes(1);
+  expect(session.getSnapshot().status).toBe('ready');
+});
 it('handles strict-mode restart without an older response replacing newer settings', async () => {
   let finish!: (v: AutomationState) => void;
   const load = vi.fn().mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValue({ ...active, active: false });

@@ -316,8 +316,30 @@ pub async fn get_cloud_account_state(
     state: State<'_, LocalStore>,
 ) -> Result<CloudAccountState, String> {
     let store = state.inner().clone();
-    let _guard = store.account_protected_cache.operation_lock.lock().await;
     cloud_account_state(&store).await.map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn get_cached_cloud_account_state(
+    state: State<'_, LocalStore>,
+) -> Result<CloudAccountState, String> {
+    let store = state.inner().clone();
+    let _guard = store.account_protected_cache.operation_lock.lock().await;
+    cached_cloud_account_state(&store).map_err(command_error)
+}
+
+fn cached_cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState> {
+    if let Some(session) = read_session_secret(store)? {
+        let state = CloudAccountState::from_session(&session)?;
+        if state.status == "expired" {
+            store.mark_current_license_unrecognized_locally()?;
+        }
+        return Ok(state);
+    }
+    if let Some(pending) = read_pending_secret(store)? {
+        return CloudAccountState::from_pending(&pending);
+    }
+    Ok(CloudAccountState::disconnected())
 }
 
 pub(crate) async fn team_response(store: &LocalStore, data: Option<serde_json::Value>) -> AppResult<serde_json::Value> {
@@ -515,7 +537,23 @@ pub async fn archive_invoice_to_cloud(
 }
 
 async fn cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState> {
-    if let Some(mut session) = read_session_secret(store)? {
+    cloud_account_state_with(store, |token| async move {
+        account_request(Method::GET, ME_PATH, None, Some(&token)).await
+    }).await
+}
+
+async fn cloud_account_state_with<F, Fut>(store: &LocalStore, request: F) -> AppResult<CloudAccountState>
+where
+    F: FnOnce(String) -> Fut,
+    Fut: std::future::Future<Output = AppResult<(StatusCode, Vec<u8>)>>,
+{
+    let original = {
+        let _guard = store.account_protected_cache.operation_lock.lock().await;
+        let cached = cached_cloud_account_state(store)?;
+        if cached.status != "connected" { return Ok(cached); }
+        read_session_secret(store)?
+    };
+    if let Some(mut session) = original {
         let cached = CloudAccountState::from_session(&session)?;
         if cached.status != "connected" {
             if cached.status == "expired" {
@@ -523,8 +561,16 @@ async fn cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState>
             }
             return Ok(cached);
         }
-        let response =
-            account_request(Method::GET, ME_PATH, None, Some(&session.session_token)).await;
+        let response = request(session.session_token.clone()).await;
+        // Network latency must not hold the shared account lock: the already
+        // bound company and Automation can open while this check is in flight.
+        let _guard = store.account_protected_cache.operation_lock.lock().await;
+        let current = read_session_secret(store)?;
+        if !same_account_session(current.as_ref(), &session) {
+            return cached_cloud_account_state(store);
+        }
+        let cached = cached_cloud_account_state(store)?;
+        if cached.status != "connected" { return Ok(cached); }
         let (status, bytes) = match response {
             Ok(value) => value,
             // Le travail local reste disponible pendant une panne réseau. Le
@@ -586,6 +632,15 @@ async fn cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState>
     Ok(CloudAccountState::disconnected())
 }
 
+fn same_account_session(current: Option<&CloudSession>, expected: &CloudSession) -> bool {
+    current.is_some_and(|current| {
+        current.session_token == expected.session_token
+            && current.organization_id == expected.organization_id
+            && current.role == expected.role
+            && current.session_expires_at == expected.session_expires_at
+    })
+}
+
 async fn start_link(store: &LocalStore) -> AppResult<CloudAccountState> {
     let body = serde_json::to_vec(&json!({ "installationId": store.installation_id }))?;
     let (status, bytes) = account_request(Method::POST, START_PATH, Some(body), None).await?;
@@ -623,8 +678,7 @@ async fn start_link(store: &LocalStore) -> AppResult<CloudAccountState> {
 
 async fn poll_link(store: &LocalStore) -> AppResult<CloudAccountState> {
     if let Some(exchange) = read_exchange_secret(store)? {
-        finalize_exchange(store, exchange)?;
-        return cloud_account_state(store).await;
+        return finalize_exchange(store, exchange);
     }
     let pending = read_pending_secret(store)?.ok_or_else(|| {
         AppError::Validation("Relancez la connexion au compte depuis les paramètres.".into())
@@ -695,8 +749,9 @@ async fn poll_link(store: &LocalStore) -> AppResult<CloudAccountState> {
         &exchange,
         &store.account_protected_cache.exchange,
     )?;
-    finalize_exchange(store, exchange)?;
-    cloud_account_state(store).await
+    // The approval response already authenticated this session and licence.
+    // The normal background revalidation will fetch the latest profile.
+    finalize_exchange(store, exchange)
 }
 
 fn finalize_exchange(
@@ -1164,17 +1219,10 @@ async fn account_request_url(
     bearer: Option<&str>,
     timeout: Duration,
 ) -> AppResult<(StatusCode, Vec<u8>)> {
-    crate::app_updater::ensure_rustls_crypto_provider().map_err(AppError::Validation)?;
-    let client = reqwest::Client::builder()
-        .https_only(true)
-        .redirect(Policy::none())
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(timeout)
-        .user_agent(format!("Zentra-Account/{}", env!("CARGO_PKG_VERSION")))
-        .build()
-        .map_err(|_| AppError::Validation("Le client HTTPS Zentra est indisponible.".into()))?;
+    let client = account_transport()?;
     let mut request = client
         .request(method, url)
+        .timeout(timeout)
         .header(ACCEPT, "application/json");
     if let Some(body) = body {
         request = request.header(CONTENT_TYPE, "application/json").body(body);
@@ -1199,6 +1247,24 @@ async fn account_request_url(
         ));
     }
     Ok((status, bytes))
+}
+
+fn account_transport() -> AppResult<reqwest::Client> {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    if let Some(client) = CLIENT.get() { return Ok(client.clone()); }
+    crate::app_updater::ensure_rustls_crypto_provider().map_err(AppError::Validation)?;
+    let client = reqwest::Client::builder()
+        .https_only(true)
+        .redirect(Policy::none())
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(TOTAL_TIMEOUT)
+        .pool_max_idle_per_host(8)
+        .user_agent(format!("Zentra-Account/{}", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|_| AppError::Validation("Le client HTTPS Zentra est indisponible.".into()))?;
+    // Only connections are pooled. Authorization remains per request.
+    let _ = CLIENT.set(client.clone());
+    Ok(client)
 }
 
 async fn read_bounded_response(response: reqwest::Response) -> AppResult<Vec<u8>> {
@@ -1707,6 +1773,83 @@ mod tests {
         assert!(shared.operation_lock.try_lock().is_none());
         drop(guard);
         assert!(shared.operation_lock.try_lock().is_some());
+    }
+
+    #[test]
+    fn account_network_check_leaves_local_session_and_automation_lock_available() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        let mut session = session_for(&store.installation_id);
+        session.session_expires_at = (Utc::now() + chrono::Duration::days(1)).to_rfc3339();
+        write_server_verified_secret(&session_path(&store), &session, &store.account_protected_cache.session).unwrap();
+        let state = tauri::async_runtime::block_on(cloud_account_state_with(&store, |_| async {
+            let _other_operation = store.account_protected_cache.operation_lock.try_lock()
+                .expect("A slow account request must not block Automation or company opening");
+            assert_eq!(cached_cloud_account_state(&store).unwrap().status, "connected");
+            Err(AppError::Remote("simulated network outage".into()))
+        })).unwrap();
+        assert_eq!(state.status, "connected");
+    }
+
+    #[test]
+    fn late_account_rejection_cannot_disconnect_a_new_session() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        let mut session = session_for(&store.installation_id);
+        session.session_expires_at = (Utc::now() + chrono::Duration::days(1)).to_rfc3339();
+        write_server_verified_secret(&session_path(&store), &session, &store.account_protected_cache.session).unwrap();
+        let state = tauri::async_runtime::block_on(cloud_account_state_with(&store, |_| async {
+            let _guard = store.account_protected_cache.operation_lock.try_lock().unwrap();
+            let mut newer = session.clone();
+            newer.session_token = format!("zds_{}", "C".repeat(43));
+            newer.organization_id = "org_3fc0b9a4-c393-4aaa-95ec-6673cd896482".into();
+            write_server_verified_secret(&session_path(&store), &newer, &store.account_protected_cache.session).unwrap();
+            Ok((StatusCode::UNAUTHORIZED, br#"{"error":"expired"}"#.to_vec()))
+        })).unwrap();
+        assert_eq!(state.organization_id.as_deref(), Some("org_3fc0b9a4-c393-4aaa-95ec-6673cd896482"));
+        assert_eq!(state.status, "connected");
+    }
+
+    #[test]
+    fn local_opening_does_not_reconnect_an_expired_or_removed_session() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        let mut session = session_for(&store.installation_id);
+        session.session_expires_at = (Utc::now() - chrono::Duration::seconds(1)).to_rfc3339();
+        write_server_verified_secret(&session_path(&store), &session, &store.account_protected_cache.session).unwrap();
+        assert_eq!(cached_cloud_account_state(&store).unwrap().status, "expired");
+        remove_secret(&session_path(&store), &store.account_protected_cache.session).unwrap();
+        assert_eq!(cached_cloud_account_state(&store).unwrap().status, "disconnected");
+    }
+
+    #[test]
+    fn background_verification_still_applies_current_account_revocation() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        let mut session = session_for(&store.installation_id);
+        session.session_expires_at = (Utc::now() + chrono::Duration::days(1)).to_rfc3339();
+        write_server_verified_secret(&session_path(&store), &session, &store.account_protected_cache.session).unwrap();
+        let state = tauri::async_runtime::block_on(cloud_account_state_with(&store, |_| async {
+            Ok((StatusCode::UNAUTHORIZED, br#"{"error":"revoked"}"#.to_vec()))
+        })).unwrap();
+        assert_eq!(state.status, "disconnected");
+        assert!(read_session_secret(&store).unwrap().is_none());
+    }
+
+    #[test]
+    fn successful_late_verification_cannot_restore_a_logged_out_session() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        let mut session = session_for(&store.installation_id);
+        session.session_expires_at = (Utc::now() + chrono::Duration::days(1)).to_rfc3339();
+        write_server_verified_secret(&session_path(&store), &session, &store.account_protected_cache.session).unwrap();
+        let state = tauri::async_runtime::block_on(cloud_account_state_with(&store, |_| async {
+            let _guard = store.account_protected_cache.operation_lock.try_lock().unwrap();
+            remove_secret(&session_path(&store), &store.account_protected_cache.session).unwrap();
+            Ok((StatusCode::OK, b"{}".to_vec()))
+        })).unwrap();
+        assert_eq!(state.status, "disconnected");
+        assert!(read_session_secret(&store).unwrap().is_none());
     }
 
     #[test]

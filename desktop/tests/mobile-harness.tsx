@@ -57,7 +57,8 @@ import { installPurchaseFulfillmentFixture } from './purchase-fulfillment-fixtur
 import { installDirectoryRecoveryFixture } from './directory-recovery-fixture';
 import { installRecurrenceFixture } from './recurrence-fixture';
 import { DevelopmentNotice } from '../src/DevelopmentNotice';
-import { StandaloneUpdaterAccess } from '../src/App';
+import { App, StandaloneUpdaterAccess } from '../src/App';
+import { installStartupPerformanceFixture } from './startup-performance-fixture';
 import { installUpdaterFixture } from './updater-fixture';
 import { installCreditSettlementFixture } from './credit-settlement-fixture';
 import { installContactFolderFixture } from './contact-folder-fixture';
@@ -247,6 +248,7 @@ if (new URLSearchParams(location.search).has('paymentGuided')) installPaymentGui
 if (new URLSearchParams(location.search).has('customerSettlementGuided')) installCustomerSettlementGuidedFixture(data);
 if (new URLSearchParams(location.search).has('companyRealtime')) installCompanyRealtimeFixture(data, productionCompanySynchronize);
 if (new URLSearchParams(location.search).has('automation')) installAutomationCompanyFixture(data);
+if (previewQuery.has('startupPerformance')) installStartupPerformanceFixture();
 function Harness() {
   useEffect(() => { if (previewQuery.has('automationDesign')) openAutomationHub(); }, []);
   // Tests use this exact mocked instance, including after Vite hot reloads.
@@ -282,7 +284,7 @@ function Harness() {
     {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}
   </>;
 }
-createRoot(document.getElementById('root')!).render(<ZentraAssistantProvider><Harness /></ZentraAssistantProvider>);
+createRoot(document.getElementById('root')!).render(<ZentraAssistantProvider>{previewQuery.has('startupPerformance') ? <App/> : <Harness />}</ZentraAssistantProvider>);
 
 import '../src/appearance';
 import '../src/dark.generated.css';

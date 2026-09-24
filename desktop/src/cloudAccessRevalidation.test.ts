@@ -6,6 +6,7 @@ import {
   cloudAccountChangeNeedsFullRevalidation,
   createSingleFlightCloudAccessRevalidator,
   readRevalidatedCloudAccess,
+  readLocalCloudAccess,
 } from './cloudAccessRevalidation';
 import type { LicenseState } from './types';
 
@@ -39,6 +40,27 @@ const ownerLicense: LicenseState = {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('revalidation périodique du compte cloud', () => {
+  it('opens locally even while the online account check remains pending', async () => {
+    const api = {
+      getCachedCloudAccountState: vi.fn().mockResolvedValue(connectedAccount),
+      getCloudAccountState: vi.fn(() => new Promise<CloudAccountState>(() => {})),
+      getLicenseState: vi.fn().mockResolvedValue(ownerLicense),
+      refreshLicense: vi.fn(),
+    };
+    void readRevalidatedCloudAccess(api);
+    await expect(readLocalCloudAccess(api)).resolves.toEqual({account: connectedAccount, license: ownerLicense});
+    expect(api.getCloudAccountState).toHaveBeenCalledTimes(1);
+    expect(api.refreshLicense).not.toHaveBeenCalled();
+  });
+
+  it('reads the signed licence after local expiry is processed, without refreshing over the network', async () => {
+    let checked = false;
+    const api = {
+      getCachedCloudAccountState: async () => { checked = true; return { ...connectedAccount, status: 'expired' as const }; },
+      getLicenseState: async () => { expect(checked).toBe(true); return { ...ownerLicense, status: 'invalid' as const, readOnly: true }; },
+    };
+    await expect(readLocalCloudAccess(api)).resolves.toMatchObject({account:{status:'expired'}, license:{readOnly:true}});
+  });
   it('utilise un intervalle raisonnable sans contrôle agressif', () => {
     expect(CLOUD_ACCESS_REVALIDATION_INTERVAL_MS).toBe(15 * 60 * 1_000);
   });
@@ -170,6 +192,23 @@ describe('revalidation périodique du compte cloud', () => {
     await Promise.all([first, concurrent]);
 
     await revalidate();
+    expect(api.getCloudAccountState).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not reuse a previous account request after an explicit account change', async () => {
+    let finishOld!: (value: CloudAccountState) => void;
+    const api = {
+      getCloudAccountState: vi.fn()
+        .mockReturnValueOnce(new Promise<CloudAccountState>(resolve => { finishOld = resolve; }))
+        .mockResolvedValue({...connectedAccount,organizationId:'org-2'}),
+      getLicenseState: vi.fn().mockResolvedValue(ownerLicense),
+      refreshLicense: vi.fn(),
+    };
+    const revalidate = createSingleFlightCloudAccessRevalidator(api);
+    const old = revalidate(); await Promise.resolve();
+    revalidate.invalidate();
+    await expect(revalidate()).resolves.toMatchObject({account:{organizationId:'org-2'}});
+    finishOld(connectedAccount); await old;
     expect(api.getCloudAccountState).toHaveBeenCalledTimes(2);
   });
 

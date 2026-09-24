@@ -9,7 +9,7 @@ const browser = await chromium.launch({ headless: true, ...(process.platform ===
 const reports = [];
 try {
   for (const width of [320, 390, 1440]) {
-    for (const blocked of ['native_ready', 'get_app_state', 'get_cloud_account_state', 'get_license_state', 'native_signal_missing', 'native_probe_lost', 'native_probe_rejected']) {
+    for (const blocked of ['native_ready', 'get_app_state', 'get_cached_cloud_account_state', 'get_license_state', 'native_signal_missing', 'native_probe_lost', 'native_probe_rejected']) {
       const page = await browser.newPage({ viewport: { width, height: 900 }, hasTouch: width < 500 });
       await page.emulateMedia({ reducedMotion: 'reduce' });
       const errors = [];
@@ -34,7 +34,7 @@ try {
               return new Promise((resolve, reject) => qa.release.push({ resolve, reject }));
             }
             if (command === 'get_app_state') return { onboarding_completed: false, schema_version: 49 };
-            if (command === 'get_cloud_account_state') return { status: 'disconnected' };
+            if (['get_cloud_account_state','get_cached_cloud_account_state'].includes(command)) return { status: 'disconnected' };
             if (command === 'get_license_state') return { status: 'not_configured', enforcement_configured: false, read_only: false };
             if (command === 'get_noga_catalog') return { sections: [] };
             throw new Error(`Unexpected command in isolated opening test: ${command}`);

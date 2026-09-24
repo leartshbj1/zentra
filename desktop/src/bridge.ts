@@ -6442,6 +6442,11 @@ export const desktopApi = {
     const raw=await invoke<RawRecord>('export_project_report_pdf',{report,destinationPath:pdfDestinationPath(selected)});
     return deliverPdfExport({path:stringValue(raw.path),pages:numberValue(raw.pages)});
   },
+  async getCachedCloudAccountState(): Promise<CloudAccountState> {
+    return cloudAccountStateFromRaw(
+      await invoke<RawRecord>('get_cached_cloud_account_state'),
+    );
+  },
   async exportAnnualAccountsPdf(filter: PeriodFilter) {
     const selected = await chooseSaveFile({ title: 'Exporter le bilan et le résultat', defaultPath: `Zentra-bilan-${filter.dateTo || new Date().toISOString().slice(0, 10)}.pdf`, filters: [{ name: 'Bilan et compte de résultat PDF', extensions: ['pdf'] }] });
     if (!selected) return null;

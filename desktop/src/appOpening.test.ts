@@ -4,6 +4,15 @@ import { APP_OPEN_TIMEOUT_MS, NATIVE_READY_EVENT, waitForNativeStartup, withinAp
 afterEach(() => { vi.useRealTimers(); });
 
 describe('ouverture de l’espace local', () => {
+  it('probes an already ready native engine immediately when its initial signal was missed', async () => {
+    vi.useFakeTimers();
+    const target = Object.assign(new EventTarget(), {__TAURI_INTERNALS__:{},__ZENTRA_NATIVE_READY__:false});
+    const probe = vi.fn().mockResolvedValue(true);
+    await waitForNativeStartup(target, probe);
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(target.__ZENTRA_NATIVE_READY__).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('retrouve un moteur prêt quand le signal initial est absent', async () => {
     vi.useFakeTimers();
     const target = Object.assign(new EventTarget(), { __TAURI_INTERNALS__: {}, __ZENTRA_NATIVE_READY__: false });
@@ -39,7 +48,7 @@ describe('ouverture de l’espace local', () => {
     const probe = vi.fn().mockResolvedValueOnce(false).mockRejectedValueOnce(new Error('Passerelle en cours d’ouverture')).mockResolvedValue(true);
     const finished = vi.fn();
     const pending = waitForNativeStartup(target, probe).then(finished);
-    await vi.advanceTimersByTimeAsync(2000);
+    await vi.advanceTimersByTimeAsync(1000);
     expect(finished).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1000);
     await pending;

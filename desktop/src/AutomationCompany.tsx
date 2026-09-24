@@ -12,19 +12,20 @@ export function AutomationCompanyProvider({ organizationId, readOnly = false, ch
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   useEffect(() => {
     session.start();
-    const resume = () => { if (document.visibilityState !== 'hidden') void session.refresh(); };
+    const resume = () => { if (document.visibilityState !== 'hidden') void session.refresh(false); };
+    const changed = () => { void session.refresh(); };
     resume();
     const timer = window.setInterval(resume, 15000);
     window.addEventListener('focus', resume);
     window.addEventListener('online', resume);
-    window.addEventListener('zentra-automation-updated', resume);
+    window.addEventListener('zentra-automation-updated', changed);
     document.addEventListener('visibilitychange', resume);
     return () => {
       session.stop();
       window.clearInterval(timer);
       window.removeEventListener('focus', resume);
       window.removeEventListener('online', resume);
-      window.removeEventListener('zentra-automation-updated', resume);
+      window.removeEventListener('zentra-automation-updated', changed);
       document.removeEventListener('visibilitychange', resume);
     };
   }, [session]);
