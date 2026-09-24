@@ -270,7 +270,7 @@ La hiérarchie est extraite des sélecteurs réellement appliqués, sans échell
 
 Le bureau utilise un index de 244px, une barre supérieure de 72px minimum et un contenu sans marge extérieure de fenêtre. La gouttière suit work-space. Le titre a des insets verticaux de 38px puis 30px ; le contenu réserve page-bottom. Les feuilles ordinaires utilisent panel pour leur padding.
 
-Entre 861 et 1200px, l’index passe à 216px et la gouttière à 28px. À 860px et moins, la feuille occupe la largeur disponible ; le menu devient un tiroir de min(320px, 88vw). La barre supérieure descend à 64px minimum et ajoute l’inset sûr supérieur. Le contenu garde au moins 20px de chaque côté, augmentés par les safe areas, et réserve 112px plus l’inset sûr inférieur. Les titres utilisent alors des insets de 28px puis 24px. La couche de viewport mobile conserve ses adaptations de largeur et de clavier.
+Entre 861 et 1200px, l’index passe à 216px et la gouttière à 28px. À 860px et moins, la feuille occupe la largeur disponible ; le menu devient un tiroir de min(320px, 88vw). La barre supérieure descend à 64px minimum et ajoute l’inset sûr supérieur. Le contenu garde au moins 20px de chaque côté, augmentés par les safe areas, et réserve 112px plus l’inset sûr inférieur. Les titres utilisent alors des insets de 28px puis 24px. La couche de viewport mobile conserve ses adaptations de largeur et de clavier. Les marges sûres de l’installation initiale, du menu, de la barre supérieure, de l’en-tête et du contenu donnent priorité aux variables natives : var(--safe-top, env(safe-area-inset-top)), var(--safe-right, env(safe-area-inset-right)), var(--safe-bottom, env(safe-area-inset-bottom)) et var(--safe-left, env(safe-area-inset-left)). Les valeurs env() restent le repli navigateur ; une règle responsive ne doit pas écraser les insets fournis par le runtime natif.
 
 La navigation basse reste à au moins 10px du bas et 14px des côtés, augmentés par les safe areas. Ses destinations ont 54px minimum. Les actions partagées utilisent un minimum de 42px sur bureau et 44px sur téléphone ; les actions de création et l’index tactile utilisent 48px. La navigation de bureau fait 43px minimum ; la recherche d’index 40px. Il s’agit de minimums : padding et contenu peuvent agrandir le contrôle. Les champs usuels ont 44px minimum ; l’installation initiale conserve 46px.
 
@@ -357,7 +357,7 @@ Les lignes associent un repère iconographique tonal, du texte factuel et un dé
 - **Do** conserver la typographie système voulue pour Gestion et les chiffres tabulaires.
 - **Do** maintenir les libellés, les états réels et le focus clavier visibles.
 - **Do** laisser les groupes se réorganiser selon leur contenu et conserver les cibles tactiles.
-- **Do** préserver les safe areas, le défilement des dialogues et la réduction du mouvement.
+- **Do** préserver les safe areas en donnant priorité aux variables natives --safe-* avec env() en repli, ainsi que le défilement des dialogues et la réduction du mouvement.
 - **Do** garder les documents imprimés, leur identité et leurs couleurs indépendants de la couche écran.
 - **Do** distinguer les exceptions héritées des primitives à réutiliser.
 

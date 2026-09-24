@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-24T14:34:41.902Z",
+  "generatedAt": "2026-09-24T14:54:53.928Z",
   "title": "Design System: Zentra Gestion",
   "extensions": {
     "colorMeta": {
@@ -591,7 +591,7 @@
       "**Do** conserver la typographie système voulue pour Gestion et les chiffres tabulaires.",
       "**Do** maintenir les libellés, les états réels et le focus clavier visibles.",
       "**Do** laisser les groupes se réorganiser selon leur contenu et conserver les cibles tactiles.",
-      "**Do** préserver les safe areas, le défilement des dialogues et la réduction du mouvement.",
+      "**Do** préserver les safe areas en donnant priorité aux variables natives --safe-* avec env() en repli, ainsi que le défilement des dialogues et la réduction du mouvement.",
       "**Do** garder les documents imprimés, leur identité et leurs couleurs indépendants de la couche écran.",
       "**Do** distinguer les exceptions héritées des primitives à réutiliser."
     ],
