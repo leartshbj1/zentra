@@ -62,7 +62,7 @@ THESIS: An arrival worth watching once; then a personal, approachable setup that
 
 OWN-WORLD: Existing Zentra wordmark and Apple-like system typography. The introduction owns a full-bleed forest-green stage; the configuration returns to the selected light/dark workspace. No global redesign, invented operational claims or new font dependency.
 
-STORY: A Steve Jobs quotation gives way to luminous orbital filaments. Particles gather into the actual Zentra wordmark, which resolves to its clean asset. Start opens a centred account page. Connecting, joining, restoring and configuring remain distinct, real actions. The quiet guide returns with the forms.
+STORY: Zentra's own signature, “Faites grandir vos idées.”, gives way to luminous orbital filaments. Particles gather into the actual Zentra wordmark, which resolves to its clean asset. Start opens a centred account page. Connecting, joining, restoring and configuring remain distinct, real actions. The quiet guide returns with the forms.
 
 FIRST VIEWPORT: Full-screen quotation, generous type and a finite canvas light sequence, followed by the real wordmark at centre, a short line and one start button. No permanent chapter index before the company form. Account has a full-width primary connection button; local setup is secondary. Forms use softer fields, spacious type and a calm index instead of selected navigation tiles.
 
@@ -70,7 +70,7 @@ FORM: User-pinned chronological sequence. Signature interaction: bounded orbital
 
 FINISH: Fresh full review required because the user rejected the previous ship verdict. Source integration and browser fixture evidence must not be represented as native installation or distribution. Document local exceptions; preserve global DESIGN.md and design.json.
 
-Quote origin: Steve Jobs, Stanford commencement address, 12 June 2005, https://news.stanford.edu/stories/2005/06/youve-got-find-love-jobs-says. English excerpt: “The only way to do great work is to love what you do.” French, German and Italian are our translations. Existing wordmark source: src/assets/zentra-wordmark.png. No new raster assets.
+Signature: “Faites grandir vos idées.”, written for Zentra at the user's request, with German, Italian and English adaptations. Attribution reads “Zentra”; no third-party quotation. Existing wordmark source: src/assets/zentra-wordmark.png. No new raster assets.
 
 ## Current implementation record — 2026-09-25
 
@@ -124,7 +124,7 @@ Fields use a soft opaque fill, 12px corners, a 52px minimum height and `13px 16p
 
 [BrandWordmark](../../src/BrandMark.tsx) reuses [src/assets/zentra-wordmark.png](../../src/assets/zentra-wordmark.png). The canvas samples this same raster's pixels; the final mark is the original image rendered in white by CSS, not re-created text. No new raster or replacement logo was authored. User company logos remain user-supplied content.
 
-The quotation source recorded in the contract is [Steve Jobs's Stanford commencement address, 12 June 2005](https://news.stanford.edu/stories/2005/06/youve-got-find-love-jobs-says). French, German and Italian are project translations; attribution stays visible. The light choreography is code-authored. This documentation pass does not claim external verification of source ownership or authorship beyond the supplied repository and quotation provenance.
+The opening signature is “Faites grandir vos idées.”, written for Zentra and attributed to the brand, as requested on 25 September 2026. German: “Lassen Sie Ihre Ideen wachsen.”; Italian: “Fai crescere le tue idee.”; English: “Grow your ideas.” The light choreography is code-authored. The signature has not undergone a trademark availability search.
 
 ### Current finish evidence and limits
 

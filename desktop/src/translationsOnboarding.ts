@@ -81,7 +81,7 @@ export const onboardingTranslations: Record<string, readonly [string,string,stri
   'Personnaliser la numérotation':['Nummerierung anpassen','Personalizza la numerazione','Customise numbering'],
   'Préparons vos coordonnées, vos documents et les réglages de votre entreprise.':['Richten wir Ihre Kontaktdaten, Dokumente und Unternehmenseinstellungen ein.','Prepariamo i recapiti, i documenti e le impostazioni della tua azienda.','Let’s prepare your contact details, documents and company settings.'],
   'Décrivez simplement ce que votre entreprise propose.':['Beschreiben Sie kurz, was Ihr Unternehmen anbietet.','Descrivi semplicemente ciò che offre la tua azienda.','Briefly describe what your company offers.'],
-  'La seule façon de faire du bon travail, c’est d’aimer ce que vous faites.':['Die einzige Möglichkeit, grossartige Arbeit zu leisten, ist zu lieben, was man tut.','L’unico modo di fare un ottimo lavoro è amare quello che fate.','The only way to do great work is to love what you do.'],
+  'Faites grandir vos idées.':['Lassen Sie Ihre Ideen wachsen.','Fai crescere le tue idee.','Grow your ideas.'],
   'Passer l’introduction':['Intro überspringen','Salta l’introduzione','Skip introduction'],
   'Revoir l’introduction':['Intro erneut ansehen','Rivedi l’introduzione','Replay introduction'],
   'Tout commence avec vous.':['Alles beginnt mit Ihnen.','Tutto inizia da te.','It all starts with you.'],

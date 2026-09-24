@@ -10,7 +10,7 @@ Le premier écran a été remplacé à la demande de l’utilisateur, qui jugeai
 - La connexion a désormais son propre écran, un bouton principal sur toute la largeur, puis les chemins invitation, sauvegarde et création locale. La fenêtre de connexion sécurisée et les commandes natives sont conservées.
 - La configuration retrouve son guide à partir de l’entreprise. Champs plus souples, titres plus aérés, choix du thème et de la langue, quatre traductions et sauvegarde du brouillon conservés.
 
-La citation est un court extrait du discours de Steve Jobs à Stanford du 12 juin 2005, traduit en français, allemand et italien. Source : https://news.stanford.edu/stories/2005/06/youve-got-find-love-jobs-says. Le logo provient de l’asset existant `desktop/src/assets/zentra-wordmark.png`. Aucun nouveau fichier image de marque n’a été créé.
+La signature d’ouverture est « Faites grandir vos idées. », une phrase écrite pour Zentra à la demande de l’utilisateur, avec la mention « Zentra ». Elle remplace la citation précédente et possède des adaptations allemande, italienne et anglaise. Le logo provient de l’asset existant `desktop/src/assets/zentra-wordmark.png`. Aucun nouveau fichier image de marque n’a été créé.
 
 ## Vérification
 

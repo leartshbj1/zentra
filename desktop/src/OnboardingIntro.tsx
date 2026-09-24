@@ -115,8 +115,8 @@ export function OnboardingIntro({ onStart }: { onStart: () => void }) {
   return <div ref={rootRef} className="zentra-arrival" data-phase={phase}>
     <canvas ref={canvasRef} className="zentra-arrival__light" aria-hidden="true"/>
     <figure className="zentra-arrival__quote" aria-hidden={phase!=='quote' && phase!=='ready'}>
-      <blockquote ref={quoteRef} tabIndex={-1}>{t('La seule façon de faire du bon travail, c’est d’aimer ce que vous faites.')}</blockquote>
-      <figcaption>Steve Jobs <span>· Stanford, 2005</span></figcaption>
+      <blockquote ref={quoteRef} tabIndex={-1}>{t('Faites grandir vos idées.')}</blockquote>
+      <figcaption>Zentra</figcaption>
     </figure>
     <div className="zentra-arrival__identity" aria-hidden={playing && phase!=='logo'}>
       <BrandWordmark/>
