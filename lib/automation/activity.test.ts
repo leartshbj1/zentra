@@ -43,3 +43,33 @@ it('does not query business activity for an inactive entitlement', async () => {
   await expect(automationCompanyState(actor, now)).resolves.toMatchObject({active:false,activity:null});
   for (const call of [mocks.rows,mocks.identity,mocks.inbox,mocks.appointments,mocks.workflows]) expect(call).not.toHaveBeenCalled();
 });
+
+it('starts activity after access is verified without waiting for slow settings', async () => {
+  vi.useFakeTimers();
+  const delayed = (value: unknown, ms: number) => new Promise(resolve => setTimeout(() => resolve(value), ms));
+  mocks.active.mockImplementation(() => delayed(true, 25));
+  mocks.settings.mockImplementation(() => delayed({ enabled: true }, 100));
+  mocks.flags.mockImplementation(() => delayed(['supplier_routing'], 100));
+  mocks.rows.mockImplementation(() => delayed({ results: [] }, 100));
+  mocks.identity.mockImplementation(() => delayed({ display_name: 'Camille' }, 100));
+  mocks.inbox.mockImplementation(() => delayed({ received: 2 }, 100));
+  mocks.appointments.mockImplementation(() => delayed({ imported: 1 }, 100));
+  mocks.workflows.mockImplementation(() => delayed({ tasks: 3 }, 100));
+  const loaded = vi.fn();
+  const result = automationCompanyState(actor, now).then(value => { loaded(value); return value; });
+  await vi.advanceTimersByTimeAsync(24);
+  for (const call of [mocks.rows,mocks.identity,mocks.inbox,mocks.appointments,mocks.workflows]) expect(call).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  for (const call of [mocks.rows,mocks.identity,mocks.inbox,mocks.appointments,mocks.workflows]) expect(call).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(99);
+  expect(loaded).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(loaded).toHaveBeenCalledTimes(1);
+  await expect(result).resolves.toMatchObject({ active: true, available: ['supplier_routing'], settings: { enabled: true }, activity: { supplierInbox: { received: 2 } } });
+});
+
+it('does not load activity if the access check fails', async () => {
+  mocks.active.mockRejectedValue(new Error('access unavailable'));
+  await expect(automationCompanyState(actor, now)).rejects.toThrow('access unavailable');
+  for (const call of [mocks.rows,mocks.identity,mocks.inbox,mocks.appointments,mocks.workflows]) expect(call).not.toHaveBeenCalled();
+});

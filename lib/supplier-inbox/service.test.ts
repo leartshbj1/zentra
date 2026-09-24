@@ -111,6 +111,32 @@ beforeEach(() => {
   mocks.db = { prepare };
 });
 afterEach(() => sql.close());
+it('loads recent invoices while daily totals are pending, scoped to the same company', async () => {
+  let release!: () => void;
+  const totalsReady = new Promise<void>(resolve => { release = resolve; });
+  let recentStarted = false;
+  const scopes: SQLInputValue[][] = [];
+  mocks.db = {
+    prepare(query: string) {
+      const statement = prepare(query);
+      return {
+        bind(...args: SQLInputValue[]) {
+          scopes.push(args);
+          statement.bind(...args);
+          return this;
+        },
+        async first() { await totalsReady; return statement.first(); },
+        async all() { recentStarted = true; return statement.all(); },
+      };
+    },
+  };
+  const summary = inboxDaily('org_a', 50, 150);
+  try {
+    expect(recentStarted).toBe(true);
+    expect(scopes).toEqual([[50,150,50,150,50,150,'org_a'], ['org_a',50,150]]);
+  } finally { release(); }
+  await expect(summary).resolves.toMatchObject({ received: 1, imported: 0, needsReview: 1, recent: [] });
+});
 it('keeps documents private to their company', async () => {
   await expect(inboxItem('org_b', id)).rejects.toThrow('accessible');
   expect(

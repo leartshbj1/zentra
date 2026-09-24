@@ -401,18 +401,20 @@ export async function ignoreInvoice(actor: AutomationActor, id: unknown) {
   return { saved: true };
 }
 export async function inboxDaily(org: string, from: number, until: number) {
-  const row = await database()
+  const [row, recent] = await Promise.all([
+    database()
     .prepare(
       `SELECT SUM(created_at>=? AND created_at<?) AS received,SUM(state='imported' AND imported_at>=? AND imported_at<?) AS imported,SUM(state='imported' AND automatic=1 AND imported_at>=? AND imported_at<?) AS automatic,SUM(state IN ('review','ready','processing')) AS needsReview FROM supplier_inbox WHERE organization_id=?`,
     )
     .bind(from, until, from, until, from, until, org)
-    .first<Record<string, number>>();
-  const recent = await database()
+    .first<Record<string, number>>(),
+    database()
     .prepare(
       'SELECT id,subject,state,automatic,imported_at FROM supplier_inbox WHERE organization_id=? AND imported_at>=? AND imported_at<? ORDER BY imported_at DESC,id LIMIT 5',
     )
     .bind(org, from, until)
-    .all();
+    .all(),
+  ]);
   return {
     received: Number(row?.received || 0),
     imported: Number(row?.imported || 0),

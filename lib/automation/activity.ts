@@ -122,10 +122,14 @@ export async function automationCompanyState(
   actor: AutomationActor,
   now = new Date(),
 ) {
-  const [settings, available, active] = await Promise.all([
+  const access = automationEntitlement(actor);
+  const [settings, available, active, activity] = await Promise.all([
     settingsFor(actor.organizationId),
     globalFlags(),
-    automationEntitlement(actor),
+    access,
+    // Activity needs verified access, not the independent settings/flags reads.
+    // Keep all data request-scoped: never reuse a previous company's permission.
+    access.then(active => active ? companyActivity(actor, now) : null),
   ]);
   return {
     organizationId: actor.organizationId,
@@ -133,7 +137,7 @@ export async function automationCompanyState(
     settings,
     available,
     canManage: ['owner', 'admin'].includes(actor.role),
-    activity: active ? await companyActivity(actor, now) : null,
+    activity,
   };
 }
 
