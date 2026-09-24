@@ -16,9 +16,11 @@ export default async function LinkSubscriptionPage({
   await requireZentraUser(returnTo);
 
   return (
-    <main className="min-h-screen bg-[#f6f4ee] px-5 py-16 text-[#173d2c]">
+    <main className="site-task-page min-h-screen bg-[#f6f4ee] px-5 py-16 text-[#173d2c]">
       <div className="mx-auto max-w-xl">
-        <a href="/" className="text-sm font-semibold text-[#52645a]">← Zentra</a>
+        <a href="/" className="text-sm font-semibold text-[#52645a]">
+          ← Zentra
+        </a>
         <p className="mt-10 text-xs font-semibold uppercase tracking-[.24em] text-[#a66b1f]">
           Compte sécurisé
         </p>
@@ -34,7 +36,8 @@ export default async function LinkSubscriptionPage({
             <SubscriptionClaim sessionId={sessionId} />
           ) : (
             <p className="rounded-3xl bg-[#fff1ed] p-6 text-sm text-[#8b3f2e]">
-              La référence de paiement manque. Revenez depuis la page de succès Stripe.
+              La référence de paiement manque. Revenez depuis la page de succès
+              Stripe.
             </p>
           )}
         </div>

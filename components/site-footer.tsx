@@ -1,3 +1,6 @@
+'use client';
+import { useId, useState, type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { BrandWordmark } from './brand-mark';
 
 const groups = [
@@ -47,12 +50,11 @@ export function SiteFooter() {
           <p>Des outils pour alléger le quotidien de votre entreprise.</p>
           <a href="mailto:info@zentraapp.ch">info@zentraapp.ch</a>
           <p>
-              <a href="/complet">Zentra Complet · dès 79 CHF/mois</a>
+            <a href="/complet">Zentra Complet · dès 79 CHF/mois</a>
           </p>
         </div>
         {groups.map((group) => (
-          <section key={group.title}>
-            <h2>{group.title}</h2>
+          <FooterGroup key={group.title} title={group.title}>
             <nav aria-label={group.title + ' — pied de page'}>
               {group.links.map(([href, label]) => (
                 <a key={href} href={href}>
@@ -60,26 +62,58 @@ export function SiteFooter() {
                 </a>
               ))}
             </nav>
-          </section>
+          </FooterGroup>
         ))}
       </div>
       <div className="catalog-footer-legal" aria-label="Informations légales">
-        <a href="/security">Sécurité et données</a>
-        <a href="/confidentialite">Confidentialité</a>
-        <a href="/conditions">Conditions Gestion</a>
-        <a href="/support/conditions">Conditions Support</a>
-        <a href="/automation/conditions">Conditions Automation</a>
-        <a href="/complet/conditions">Conditions du pack</a>
-        <a href="/mentions-legales">Mentions légales</a>
-        <a href="/sous-traitance">Traitement des données</a>
-        <a href="/cookies">Cookies</a>
+        <FooterGroup title="Informations légales">
+          <a href="/security">Sécurité et données</a>
+          <a href="/confidentialite">Confidentialité</a>
+          <a href="/conditions">Conditions Gestion</a>
+          <a href="/support/conditions">Conditions Support</a>
+          <a href="/automation/conditions">Conditions Automation</a>
+          <a href="/complet/conditions">Conditions du pack</a>
+          <a href="/mentions-legales">Mentions légales</a>
+          <a href="/sous-traitance">Traitement des données</a>
+          <a href="/cookies">Cookies</a>
+        </FooterGroup>
       </div>
       <div className="catalog-footer-bottom">
         <span>© 2026 Zentra</span>
         <span>
-          Gestion, Support et Automation : séparément ou réunis avec Zentra Complet.
+          Gestion, Support et Automation : séparément ou réunis avec Zentra
+          Complet.
         </span>
       </div>
     </footer>
+  );
+}
+
+function FooterGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <section className="footer-group">
+      <h2>{title}</h2>
+      <button
+        className="footer-group-button"
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen(!open)}
+      >
+        {title}
+        <ChevronDown size={17} aria-hidden="true" />
+      </button>
+      <div id={id} className={`footer-group-panel${open ? ' is-open' : ''}`}>
+        {children}
+      </div>
+    </section>
   );
 }

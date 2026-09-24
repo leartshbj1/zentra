@@ -15,7 +15,8 @@ export const metadata = supportMetadata(
 );
 
 export default async function SupportConnections() {
-  const zendesk = await zendeskAvailability();
+  // A temporarily unavailable connection must not break the public catalogue.
+  const zendesk = await zendeskAvailability().catch(() => ({ ready: false }));
   const connectors = [
     {
       name: 'Infomaniak Mail',

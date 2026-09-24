@@ -136,7 +136,12 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         params = new URLSearchParams(),
         id = options.workspace ?? workspaceRef.current;
       if (id) params.set('workspace', id);
-      else { const org=new URLSearchParams(window.location.search).get('organizationId');if(org)params.set('organizationId',org); }
+      else {
+        const org = new URLSearchParams(window.location.search).get(
+          'organizationId',
+        );
+        if (org) params.set('organizationId', org);
+      }
       if (query && !options.unfiltered) params.set('search', query);
       if (filter && !options.unfiltered) params.set('state', filter);
       if (category && !options.unfiltered) params.set('category', category);
@@ -476,15 +481,10 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         </div>
       ) : signedOut ? (
         <main className="support-welcome">
-          <p className="support-eyebrow">ZENTRA SUPPORT</p>
-          <h1>
-            Moins de tri.
-            <br />
-            Plus de temps pour vos clients.
-          </h1>
+          <h1>Votre espace Support.</h1>
           <p>
-            Connectez votre outil de support. Zentra classe vos tickets, propose
-            une priorité et les dirige vers la bonne équipe.
+            Retrouvez vos messages et les demandes de votre équipe.
+            Connectez-vous pour continuer.
           </p>
           <div className="support-actions">
             <Button
@@ -507,7 +507,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
             </Button>
           </div>
           <p className="support-small">
-            Zendesk · Freshdesk · Gorgias · Autres outils via API
+            <a href="/support/connexions">Voir les connexions disponibles</a>
           </p>
         </main>
       ) : !data.workspace ? (
@@ -646,28 +646,40 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               aria-label="Sections de Zentra Support"
               className="support-nav"
             >
-              {sections.filter(s=>s.id!=='automation'||(!demo&&data.automation?.active&&data.gestion?.linked&&data.gestion.organizationId)).map((s) => (
-                <TabsTrigger value={s.id} key={s.id}>
-                  <s.icon size={19} />
-                  {s.label}
-                  {s.id === 'inbox' &&
-                    (data.counts.review || data.counts.errors) > 0 && (
-                      <span className="support-nav-count">
-                        {(data.counts.review || 0) + (data.counts.errors || 0)}
-                      </span>
-                    )}
-                </TabsTrigger>
-              ))}
+              {sections
+                .filter(
+                  (s) =>
+                    s.id !== 'automation' ||
+                    (!demo &&
+                      data.automation?.active &&
+                      data.gestion?.linked &&
+                      data.gestion.organizationId),
+                )
+                .map((s) => (
+                  <TabsTrigger value={s.id} key={s.id}>
+                    <s.icon size={19} />
+                    {s.label}
+                    {s.id === 'inbox' &&
+                      (data.counts.review || data.counts.errors) > 0 && (
+                        <span className="support-nav-count">
+                          {(data.counts.review || 0) +
+                            (data.counts.errors || 0)}
+                        </span>
+                      )}
+                  </TabsTrigger>
+                ))}
             </TabsList>
             <div className="support-sidebar-bottom">
               <ShieldCheck size={20} />
               <strong>Vous gardez la main.</strong>
               <p>
-                {!demo && !data.automation?.enabled ? 'Le classement manuel est disponible.' : data.workspace.mode === 'automatic'
-                  ? 'Le tri est automatique. Les cas ambigus vous sont confiés.'
-                  : data.workspace.mode === 'paused'
-                    ? 'Le tri est en pause.'
-                    : 'Vous validez chaque affectation avant son application.'}
+                {!demo && !data.automation?.enabled
+                  ? 'Le classement manuel est disponible.'
+                  : data.workspace.mode === 'automatic'
+                    ? 'Le tri est automatique. Les cas ambigus vous sont confiés.'
+                    : data.workspace.mode === 'paused'
+                      ? 'Le tri est en pause.'
+                      : 'Vous validez chaque affectation avant son application.'}
               </p>
               <a href="/confidentialite">
                 Vos données <ArrowUpRight size={15} />
@@ -679,14 +691,24 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
             data-reading={tab === 'inbox' && !!ticket}
           >
             {noticeView}
-            {!demo&&<SupportQuotaNotice billing={data.billing} href={data.gestion?.organizationId?`/compte/abonnement?organizationId=${encodeURIComponent(data.gestion.organizationId)}`:'/support/espace?section=billing'}/>}
+            {!demo && (
+              <SupportQuotaNotice
+                billing={data.billing}
+                href={
+                  data.gestion?.organizationId
+                    ? `/compte/abonnement?organizationId=${encodeURIComponent(data.gestion.organizationId)}`
+                    : '/support/espace?section=billing'
+                }
+              />
+            )}
             {!demo &&
               data.billing &&
               !data.billing.active &&
               tab !== 'billing' && (
                 <div className="support-notice">
                   <span>
-                    Préparez votre connexion, puis choisissez une formule Support.
+                    Préparez votre connexion, puis choisissez une formule
+                    Support.
                   </span>
                   <Button variant="outline" onClick={() => setTab('billing')}>
                     Voir les formules
@@ -694,7 +716,27 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                 </div>
               )}
             <TabsContent value="automation">
-              {data.automation?.active && data.gestion?.linked && data.gestion.organizationId ? <div className="automation-page support-automation-workspace"><h1>Automation</h1><AutomationCompanySettings key={data.gestion.organizationId} initialOrganization={data.gestion.organizationId} organizations={[{organizationId:data.gestion.organizationId,organizationName:data.gestion.organizationName||'Votre entreprise',role:data.gestion.role||'read_only'}]}/></div> : <p>Reliez une entreprise avec Automation dans Connexions.</p>}
+              {data.automation?.active &&
+              data.gestion?.linked &&
+              data.gestion.organizationId ? (
+                <div className="automation-page support-automation-workspace">
+                  <h1>Automation</h1>
+                  <AutomationCompanySettings
+                    key={data.gestion.organizationId}
+                    initialOrganization={data.gestion.organizationId}
+                    organizations={[
+                      {
+                        organizationId: data.gestion.organizationId,
+                        organizationName:
+                          data.gestion.organizationName || 'Votre entreprise',
+                        role: data.gestion.role || 'read_only',
+                      },
+                    ]}
+                  />
+                </div>
+              ) : (
+                <p>Reliez une entreprise avec Automation dans Connexions.</p>
+              )}
             </TabsContent>
             <TabsContent value="inbox">
               {!demo && data.billing && !data.billing.active ? (
@@ -710,13 +752,15 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                     <div>
                       <h1>{folderName}</h1>
                       <p>
-                        {!demo && !data.automation?.enabled ? 'Le classement manuel est disponible.' : category
-                          ? 'Les demandes de cette catégorie, réunies au même endroit.'
-                          : filter === 'review'
-                            ? 'Vérifiez la proposition de Zentra avant de la valider.'
-                            : filter === 'error'
-                              ? 'Retrouvez les demandes qui nécessitent une nouvelle tentative.'
-                              : 'Vos demandes organisées, une décision à la fois.'}
+                        {!demo && !data.automation?.enabled
+                          ? 'Le classement manuel est disponible.'
+                          : category
+                            ? 'Les demandes de cette catégorie, réunies au même endroit.'
+                            : filter === 'review'
+                              ? 'Vérifiez la proposition de Zentra avant de la valider.'
+                              : filter === 'error'
+                                ? 'Retrouvez les demandes qui nécessitent une nouvelle tentative.'
+                                : 'Vos demandes organisées, une décision à la fois.'}
                       </p>
                     </div>
                     <Button
@@ -739,19 +783,50 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                         : 'Connecter un outil'}
                     </Button>
                   </div>
-                  {!demo && data.billing?.active && !data.automation?.enabled && <div className="support-automation-access"><div><strong>{data.automation?.active ? 'Automation est en pause' : 'Disponible avec Zentra Automation'}</strong><p>{data.automation?.active ? 'Vos mails restent accessibles. Activez les fonctions souhaitées dans les réglages de cet espace.' : 'Automatisez vos tâches répétitives pour +15 CHF/mois.'}</p></div><a href={'/compte/automation'+(data.gestion?.organizationId?'?entreprise='+encodeURIComponent(data.gestion.organizationId):'')}>{data.automation?.active?'Régler Automation':'Ajouter Automation'}</a></div>}
-                  {(demo || data.automation?.enabled) && !data.workspace.aiReady && (
-                    <div className="support-setup">
-                      <CircleHelp size={20} />
-                      <span>
-                        Le tri automatique est en cours d’activation par Zentra.
-                        Vous pouvez déjà connecter votre outil.
-                      </span>
-                      {data.platformOwner && (
-                        <a href="/support/admin">Administration</a>
-                      )}
-                    </div>
-                  )}
+                  {!demo &&
+                    data.billing?.active &&
+                    !data.automation?.enabled && (
+                      <div className="support-automation-access">
+                        <div>
+                          <strong>
+                            {data.automation?.active
+                              ? 'Automation est en pause'
+                              : 'Disponible avec Zentra Automation'}
+                          </strong>
+                          <p>
+                            {data.automation?.active
+                              ? 'Vos mails restent accessibles. Activez les fonctions souhaitées dans les réglages de cet espace.'
+                              : 'Automatisez vos tâches répétitives pour +15 CHF/mois.'}
+                          </p>
+                        </div>
+                        <a
+                          href={
+                            '/compte/automation' +
+                            (data.gestion?.organizationId
+                              ? '?entreprise=' +
+                                encodeURIComponent(data.gestion.organizationId)
+                              : '')
+                          }
+                        >
+                          {data.automation?.active
+                            ? 'Régler Automation'
+                            : 'Ajouter Automation'}
+                        </a>
+                      </div>
+                    )}
+                  {(demo || data.automation?.enabled) &&
+                    !data.workspace.aiReady && (
+                      <div className="support-setup">
+                        <CircleHelp size={20} />
+                        <span>
+                          Le tri automatique est en cours d’activation par
+                          Zentra. Vous pouvez déjà connecter votre outil.
+                        </span>
+                        {data.platformOwner && (
+                          <a href="/support/admin">Administration</a>
+                        )}
+                      </div>
+                    )}
                   <div className="support-inbox-toolbar">
                     <label className="support-search">
                       <Search size={18} aria-hidden="true" />
@@ -919,7 +994,14 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                           </h2>
                           <p className="support-sender">
                             {connection?.label || 'Connexion archivée'} ·{' '}
-                            <time dateTime={new Date(ticket.updatedAt * 1000).toISOString()} suppressHydrationWarning>{formatDate(ticket.updatedAt)}</time>
+                            <time
+                              dateTime={new Date(
+                                ticket.updatedAt * 1000,
+                              ).toISOString()}
+                              suppressHydrationWarning
+                            >
+                              {formatDate(ticket.updatedAt)}
+                            </time>
                           </p>
                           {externalUrl && !demo && (
                             <a
@@ -1061,7 +1143,11 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                                   <Button
                                     variant="ghost"
                                     disabled={
-                                      busy || !data.workspace.aiReady || demo || !data.automation?.enabled || readOnly
+                                      busy ||
+                                      !data.workspace.aiReady ||
+                                      demo ||
+                                      !data.automation?.enabled ||
+                                      readOnly
                                     }
                                     onClick={() =>
                                       mutate({
@@ -1127,8 +1213,9 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
           <DialogHeader>
             <DialogTitle>Importer un ticket existant</DialogTitle>
             <DialogDescription>
-              Avec Automation actif, le ticket est analysé selon vos règles. En mode automatique, une
-              décision suffisamment fiable sera appliquée dans votre outil.
+              Avec Automation actif, le ticket est analysé selon vos règles. En
+              mode automatique, une décision suffisamment fiable sera appliquée
+              dans votre outil.
             </DialogDescription>
           </DialogHeader>
           {error && (

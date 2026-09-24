@@ -10,6 +10,7 @@ import './refined.css';
 import './product-navigation.css';
 import './studio.css';
 import './intuitive-site.css';
+import './page-system.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -37,9 +38,21 @@ export const metadata: Metadata = {
   applicationName: 'Zentra',
   verification: {
     google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
-    other: process.env.BING_SITE_VERIFICATION ? { 'msvalidate.01': process.env.BING_SITE_VERIFICATION } : undefined,
+    other: process.env.BING_SITE_VERIFICATION
+      ? { 'msvalidate.01': process.env.BING_SITE_VERIFICATION }
+      : undefined,
   },
-  robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 } },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
   icons: { icon: '/favicon.svg' },
   openGraph: {
     type: 'website',

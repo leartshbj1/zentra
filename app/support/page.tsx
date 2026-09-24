@@ -59,20 +59,20 @@ export default async function SupportPresentation({
             <em>La bonne équipe.</em>
           </h1>
           <p className="sp-lead">
-            Vos demandes et votre équipe, au même endroit. Avec l’option
-            Zentra Automation, les tickets sont classés, priorisés et orientés
-            vers les bonnes personnes.
+            Toutes vos demandes, au même endroit. Avec Automation, chaque ticket
+            prépare sa prochaine étape.
           </p>
           <div className="sp-actions">
             <a href="/support/demo" className="sp-button sp-button-dark">
-              Voir le produit en action <ArrowRight size={17} />
+              Essayer la démo <ArrowRight size={17} />
             </a>
             <a href="/support/tarifs" className="sp-text-link">
               Découvrir les formules <ArrowRight size={16} />
             </a>
           </div>
           <p className="sp-hero-note">
-            Support dès 29 CHF/mois. Tri automatique avec Automation (+15 CHF/mois) et une entreprise Gestion active.
+            Support dès 29 CHF/mois. Tri automatique avec Automation (+15
+            CHF/mois) et une entreprise Gestion active.
           </p>
         </div>
         <RoutingExample />
@@ -83,7 +83,9 @@ export default async function SupportPresentation({
       >
         <p>
           Votre logiciel de support reste au cœur du travail.{' '}
-          <strong>Zentra Support rassemble les demandes de votre équipe.</strong>
+          <strong>
+            Zentra Support rassemble les demandes de votre équipe.
+          </strong>
         </p>
         <a href="/support/connexions" className="sp-text-link">
           Voir les connexions disponibles <ArrowRight size={16} />
@@ -128,7 +130,6 @@ export default async function SupportPresentation({
         </div>
         <div className="sp-usecase-grid">
           <a href="/support/solutions#ecommerce">
-
             <h3>
               Les commandes d’un côté.
               <br />
@@ -139,7 +140,6 @@ export default async function SupportPresentation({
             <ArrowRight size={20} />
           </a>
           <a href="/support/solutions#saas">
-
             <h3>
               Le produit et la facturation
               <br />
@@ -150,7 +150,6 @@ export default async function SupportPresentation({
             <ArrowRight size={20} />
           </a>
           <a href="/support/solutions#agences">
-
             <h3>
               Chaque demande
               <br />a son interlocuteur.

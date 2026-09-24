@@ -26,7 +26,7 @@ export function BackupRecoveryView({
     (item) => item.organizationId === organizationId,
   );
   return (
-    <main className="min-h-screen bg-[#f6f4ee] px-5 py-10 text-[#173d2c] sm:py-16">
+    <main className="site-task-page min-h-screen bg-[#f6f4ee] px-5 py-10 text-[#173d2c] sm:py-16">
       <div className="mx-auto max-w-3xl">
         <a
           href="/compte"
@@ -64,9 +64,7 @@ export function BackupRecoveryView({
             </a>
           </section>
         ) : error || !organization ? (
-          <section
-            className="mt-8 rounded-3xl border border-[#dfd3b9] bg-[#fffaf0] p-6"
-          >
+          <section className="mt-8 rounded-3xl border border-[#dfd3b9] bg-[#fffaf0] p-6">
             <h2 className="text-xl font-semibold">Sauvegardes indisponibles</h2>
             <p className="mt-3 leading-7 text-[#68624f]">
               {error ??

@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 
 export default function InvoiceDemoPage() {
   return (
-    <main className="min-h-screen bg-[#f4f2ed] text-[#17231d]">
+    <main className="invoice-demo-page min-h-screen bg-[#f4f2ed] text-[#17231d]">
       <header className="print-hidden sticky top-0 z-40 border-b border-[#dedee3]/75 bg-[#f4f2ed]/92 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 lg:px-8">
           <a href="/" className="flex min-h-11 items-center gap-2.5">
@@ -48,18 +48,21 @@ export default function InvoiceDemoPage() {
         className="print-hidden mx-auto max-w-7xl px-5 pb-10 pt-10 lg:px-8 lg:pt-16"
         data-reveal
       >
-        <p className="text-xs font-semibold uppercase tracking-[.13em] text-[#8a5a1b]">
-          Démonstration interactive locale
-        </p>
         <h1 className="mt-4 max-w-4xl text-4xl font-semibold leading-tight tracking-[-.05em] sm:text-6xl">
-          Construisez une facture avec vos propres informations.
+          Votre première facture.
         </h1>
         <p className="mt-5 max-w-3xl text-lg leading-8 text-[#67716a]">
-          Rien n’est prérempli, enregistré ou transmis. Les calculs et l’aperçu
-          sont réalisés dans votre navigateur, puis le bouton d’impression
-          permet d’enregistrer le document en PDF. Cet exemple ne remplace pas
-          une validation fiscale ou SIX.
+          Complétez les champs et voyez le résultat. Tout reste dans ce
+          navigateur.
         </p>
+        <details className="invoice-demo-note">
+          <summary>À propos de cette démonstration</summary>
+          <p>
+            Rien n’est enregistré ni transmis. Le bouton d’impression permet
+            d’enregistrer un PDF. Cet exemple ne remplace pas une validation
+            fiscale ou SIX.
+          </p>
+        </details>
       </section>
 
       <InvoiceDemo />

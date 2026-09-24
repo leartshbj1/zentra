@@ -45,25 +45,22 @@ export default function PricingPage() {
         Aller au contenu
       </a>
       <SiteHeader />
-      <main
-        id="contenu"
-        tabIndex={-1}
-        className="min-h-screen overflow-x-clip bg-[#f5f5f7] text-[#18221d]"
-      >
-        <section className="px-5 pb-14 pt-12 text-center sm:pb-20 sm:pt-20 lg:px-8">
-          <div className="mx-auto max-w-4xl">
-            <p className="site-eyebrow">Tarif Zentra</p>
-            <h1 className="mt-5 text-balance text-[2.8rem] font-semibold leading-[.98] tracking-[-.06em] sm:text-6xl lg:text-7xl">
-              Votre équipe choisit le rythme.
-              <br />
-              <span className="text-[#b86b16]">La gestion reste complète.</span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-[#657068]">
-              Solo, Start ou Pro : choisissez le nombre de personnes qui se
-              connectent. Les mêmes fonctions de gestion vous accompagnent.
-              Zentra Automation est disponible en option à 15 CHF par mois.
-            </p>
-          </div>
+      <main id="contenu" tabIndex={-1} className="pricing-page polished-page">
+        <section className="page-intro page-width">
+          <h1>
+            La même gestion.
+            <br />
+            <span>À la taille de votre équipe.</span>
+          </h1>
+          <p>
+            1, 3 ou 10 personnes, titulaire compris.
+            <br />
+            Choisissez votre formule. Toutes les fonctions de Gestion sont
+            incluses.
+          </p>
+          <p className="page-caption">
+            Automation en option à 15 CHF/mois par entreprise.
+          </p>
         </section>
 
         <section className="px-5 pb-16 sm:pb-24 lg:px-8" data-reveal>
@@ -74,7 +71,7 @@ export default function PricingPage() {
 
         <CompleteBanner />
         <section
-          className="border-y border-[#ded9ce] bg-[#ffffff] px-5 py-16 sm:py-24 lg:px-8"
+          className="border-y border-[#dce1de] bg-[#ffffff] px-5 py-16 sm:py-24 lg:px-8"
           data-reveal
         >
           <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[.75fr_1.25fr]">
@@ -90,12 +87,12 @@ export default function PricingPage() {
                 Poser une question <ArrowRight className="size-4" />
               </a>
             </div>
-            <div className="divide-y divide-[#ded9ce]">
+            <div className="divide-y divide-[#dce1de]">
               {questions.map(([question, answer]) => (
                 <details key={question} className="group py-3">
                   <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 py-2 font-semibold">
                     <span>{question}</span>
-                    <span className="text-xl font-light text-[#a66b1f] transition-transform group-open:rotate-45">
+                    <span className="text-xl font-light text-[#225b40] transition-transform group-open:rotate-45">
                       +
                     </span>
                   </summary>
@@ -109,7 +106,7 @@ export default function PricingPage() {
         </section>
 
         <section className="px-5 py-16 sm:py-24 lg:px-8" data-reveal>
-          <div className="mx-auto flex max-w-6xl flex-col gap-7 rounded-[2rem] bg-[#e7a33a] p-7 text-[#173d2c] sm:p-10 lg:flex-row lg:items-center lg:justify-between">
+          <div className="mx-auto flex max-w-6xl flex-col gap-7 rounded-[2rem] bg-[#e9f0ec] p-7 text-[#173d2c] sm:p-10 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-[-.045em]">
                 Essayez une facture dans votre navigateur, sans compte.

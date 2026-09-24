@@ -31,6 +31,15 @@ export default function CompletePage() {
             Gestion, Support et Automation.
             <br /> Un abonnement, un même espace.
           </p>
+          <div className="page-actions">
+            <a className="page-primary" href="#formules">
+              Trouver mon pack <ArrowRight size={17} aria-hidden="true" />
+            </a>
+            <a className="page-text-link" href="#inclus">
+              Découvrir ce qui est inclus{' '}
+              <ArrowRight size={17} aria-hidden="true" />
+            </a>
+          </div>
         </section>
         <div className="zentra-width">
           <CompleteOffer />
@@ -144,12 +153,8 @@ export default function CompletePage() {
               payées, sans double renouvellement.
             </p>
           </div>
-          <a
-            className="zentra-text-link"
-            href="/compte/abonnement"
-          >
-            Changer ma formule{' '}
-            <ArrowRight size={18} aria-hidden="true" />
+          <a className="zentra-text-link" href="/compte/abonnement">
+            Changer ma formule <ArrowRight size={18} aria-hidden="true" />
           </a>
         </section>
         <section
@@ -160,10 +165,10 @@ export default function CompletePage() {
           <details>
             <summary>Puis-je essayer les trois produits ?</summary>
             <p>
-              Oui, pendant 14 jours, sans carte bancaire ni paiement automatique.
-              L’essai comprend une entreprise, 3 personnes titulaire compris et
-              250 analyses Support partagées. Vous connectez vos outils et
-              choisissez les automatismes à activer.{' '}
+              Oui, pendant 14 jours, sans carte bancaire ni paiement
+              automatique. L’essai comprend une entreprise, 3 personnes
+              titulaire compris et 250 analyses Support partagées. Vous
+              connectez vos outils et choisissez les automatismes à activer.{' '}
               <a href="/compte">Commencer mon essai</a>.
             </p>
           </details>

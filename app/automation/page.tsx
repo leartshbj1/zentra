@@ -4,6 +4,7 @@ import {
   CalendarDays,
   FileText,
   ListChecks,
+  ChevronDown,
 } from 'lucide-react';
 import { StructuredData } from '@/components/structured-data';
 import { productData, breadcrumbData } from '@/lib/seo';
@@ -100,10 +101,9 @@ export default function AutomationPage() {
             <span>Vous gardez la main.</span>
           </h1>
           <p>
-            Zentra Automation relie vos messages, vos documents et votre
-            gestion.
-            <br className="zentra-desktop-break" /> Il prépare la suite. Vous
-            voyez ce qui est fait et ce qui reste à vérifier.
+            Vos messages et documents préparent la suite.
+            <br className="zentra-desktop-break" /> Retrouvez ce qui est fait,
+            et ce qui a besoin de vous.
           </p>
           <div className="zentra-actions">
             <a className="zentra-primary" href="#parcours">
@@ -147,15 +147,13 @@ export default function AutomationPage() {
             {functions.map((f) => (
               <details key={f.title}>
                 <summary>
-                  <span>
-                    <strong>{f.title}</strong>
-                    <small>{f.intro}</small>
-                  </span>
-                  <span className="automation-expand" aria-hidden="true" />
+                  <h3>{f.title}</h3>
+                  <p>{f.intro}</p>
+                  <ChevronDown size={20} aria-hidden="true" />
                 </summary>
-                <div className="automation-function-body">
+                <div className="automation-function-copy">
                   <p>{f.body}</p>
-                  <p className="zentra-fine">{f.detail}</p>
+                  <p className="automation-function-detail">{f.detail}</p>
                   <a className="zentra-text-link" href={f.link}>
                     {f.label}
                     <ArrowRight size={16} aria-hidden="true" />

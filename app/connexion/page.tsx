@@ -43,56 +43,53 @@ export default async function ConnexionPage({
           >
             <BrandWordmark className="w-28" />
           </a>
-          <p className="mt-12 hidden text-xs font-bold uppercase tracking-[.2em] text-[#a66b1f] lg:block">
-            Compte d’entreprise
-          </p>
           <h2 className="mt-4 hidden max-w-xl text-4xl font-semibold tracking-[-.05em] sm:text-5xl lg:block">
-            Votre compte. Votre entreprise. Votre équipe.
+            Votre entreprise.
+            <br />À portée de main.
           </h2>
           <p className="mt-5 hidden max-w-lg text-base leading-7 text-[#5f6d64] lg:block">
-            Le travail reste local dans l’application. Le compte sécurisé sert à
-            l’abonnement, aux accès de l’équipe et au coffre documentaire choisi
-            par l’entreprise.
+            Gestion, Support et Automation se retrouvent ici. Un compte
+            personnel, les accès de votre entreprise.
           </p>
           <details className="studio-auth-assurances">
-          <summary>À propos de votre compte</summary>
-          <div className="mt-8 gap-3 lg:grid lg:grid-cols-1">
-            {[
-              [
-                ShieldCheck,
-                'Session protégée',
-                'Votre mot de passe reste privé et votre session est protégée.',
-              ],
-              [
-                Building2,
-                'Des accès pour votre équipe',
-                'Invitez chaque personne avec sa propre connexion.',
-              ],
-              [
-                DatabaseZap,
-                'Données maîtrisées',
-                'Vos documents et votre activité restent sous votre contrôle.',
-              ],
-            ].map(([Icon, title, description]) => {
-              const ItemIcon = Icon as typeof ShieldCheck;
-              return (
-                <div
-                  key={String(title)}
-                  className="flex items-start gap-3 rounded-2xl border border-[#d9ddd6] bg-white/65 p-4 backdrop-blur-sm"
-                >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e7f0e9] text-[#2f6649]">
-                    <ItemIcon className="size-5" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold">{String(title)}</p>
-                    <p className="mt-1 text-xs leading-5 text-[#6b766f]">
-                      {String(description)}
-                    </p>
+            <summary>À propos de votre compte</summary>
+            <div className="mt-8 gap-3 lg:grid lg:grid-cols-1">
+              {[
+                [
+                  ShieldCheck,
+                  'Session protégée',
+                  'Votre mot de passe reste privé et votre session est protégée.',
+                ],
+                [
+                  Building2,
+                  'Des accès pour votre équipe',
+                  'Invitez chaque personne avec sa propre connexion.',
+                ],
+                [
+                  DatabaseZap,
+                  'Données maîtrisées',
+                  'Vos documents et votre activité restent sous votre contrôle.',
+                ],
+              ].map(([Icon, title, description]) => {
+                const ItemIcon = Icon as typeof ShieldCheck;
+                return (
+                  <div
+                    key={String(title)}
+                    className="flex items-start gap-3 rounded-2xl border border-[#d9ddd6] bg-white/65 p-4 backdrop-blur-sm"
+                  >
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e7f0e9] text-[#2f6649]">
+                      <ItemIcon className="size-5" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold">{String(title)}</p>
+                      <p className="mt-1 text-xs leading-5 text-[#6b766f]">
+                        {String(description)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
           </details>
         </section>
 

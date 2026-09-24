@@ -4,7 +4,8 @@ import { BrandMark } from '@/components/brand-mark';
 
 export const metadata = {
   title: 'Activer Zentra',
-  description: 'Votre abonnement est associé automatiquement à votre compte Zentra.',
+  description:
+    'Votre abonnement est associé automatiquement à votre compte Zentra.',
   robots: { index: false, follow: false },
 };
 
@@ -15,7 +16,7 @@ export default async function PaymentSuccessPage({
 }) {
   const sessionId = (await searchParams).session_id?.trim() ?? '';
   return (
-    <main className="min-h-screen bg-[#f4f2ed] px-5 py-10 text-[#17231d]">
+    <main className="site-task-page min-h-screen bg-[#f4f2ed] px-5 py-10 text-[#17231d]">
       <div className="mx-auto max-w-2xl">
         <a href="/" className="inline-flex min-h-11 items-center gap-2.5">
           <BrandMark className="size-9" />
@@ -29,8 +30,8 @@ export default async function PaymentSuccessPage({
             Votre abonnement Zentra
           </h1>
           <p className="mt-4 text-base leading-7 text-[#5f6962]">
-            Un seul compte pour votre abonnement et vos appareils.
-            Aucun jeton à copier : connectez-vous à Zentra pour activer votre accès.
+            Un seul compte pour votre abonnement et vos appareils. Aucun jeton à
+            copier : connectez-vous à Zentra pour activer votre accès.
           </p>
         </div>
         {sessionId ? (

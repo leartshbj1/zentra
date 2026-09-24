@@ -21,7 +21,6 @@ export function SupportMarketingShell({ children }: { children: ReactNode }) {
 }
 
 export function SupportPageIntro({
-  eyebrow,
   title,
   description,
 }: {
@@ -31,13 +30,12 @@ export function SupportPageIntro({
 }) {
   return (
     <section className="sp-page-intro sp-wrap">
-      <p className="sp-kicker">ZENTRA SUPPORT / {eyebrow}</p>
       <h1>{title}</h1>
       <p className="sp-lead">{description}</p>
       <p className="sp-caption">
-        Le classement intelligent et le routage automatique nécessitent
-        l’option <a href="/automation">Zentra Automation</a> : +15 CHF/mois
-        pour l’entreprise reliée à Zentra Gestion.
+        Le classement intelligent et le routage automatique nécessitent l’option{' '}
+        <a href="/automation">Zentra Automation</a> : +15 CHF/mois pour
+        l’entreprise reliée à Zentra Gestion.
       </p>
     </section>
   );
@@ -46,23 +44,18 @@ export function SupportPageIntro({
 export function SupportCallToAction() {
   return (
     <section className="sp-finish sp-wrap">
-      <p className="sp-kicker">PLACE AUX CLIENTS</p>
-      <h2>
-        Découvrez votre prochain
-        <br />
-        quotidien côté support.
-      </h2>
+      <h2>Voyez la différence.</h2>
       <div className="sp-actions">
         <a className="sp-button sp-button-dark" href="/support/demo">
-          Explorer la démo <ArrowRight size={17} aria-hidden="true" />
+          Essayer la démo <ArrowRight size={17} aria-hidden="true" />
         </a>
         <a className="sp-text-link" href="/support/espace">
           Créer mon espace <ArrowRight size={17} aria-hidden="true" />
         </a>
       </div>
       <p className="sp-caption">
-        Démo sans compte. Support sur abonnement ; analyse et routage automatique
-        avec l’option Automation à +15 CHF/mois par entreprise.
+        Démo sans compte. Support sur abonnement ; analyse et routage
+        automatique avec l’option Automation à +15 CHF/mois par entreprise.
       </p>
     </section>
   );

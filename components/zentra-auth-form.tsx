@@ -47,7 +47,9 @@ export function ZentraAuthForm({
     void loadAuthFormSession(controller.signal)
       .then((payload) => {
         if (controller.signal.aborted) return;
-        setCurrentEmail(payload.authenticated ? payload.user?.email ?? '' : '');
+        setCurrentEmail(
+          payload.authenticated ? (payload.user?.email ?? '') : '',
+        );
         if (switchAccount && !payload.authenticated)
           setNotice('Connectez le compte de votre choix.');
       })
@@ -72,10 +74,13 @@ export function ZentraAuthForm({
     setError('');
     try {
       const response = await fetch('/api/auth/deconnexion', {
-        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
         signal: AbortSignal.timeout(15000),
       });
-      if (!response.ok) throw new Error('La déconnexion n’a pas abouti. Réessayez.');
+      if (!response.ok)
+        throw new Error('La déconnexion n’a pas abouti. Réessayez.');
       setCurrentEmail('');
       setNotice('Vous êtes déconnecté. Saisissez votre autre compte.');
       notifyAuthChanged();
@@ -180,24 +185,19 @@ export function ZentraAuthForm({
         </div>
 
         <div className="mt-7">
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#a66b1f]">
-            {mode === 'connexion'
-              ? switchAccount
-                ? 'Changer de compte'
-                : 'Bon retour'
-              : 'Votre espace Zentra'}
-          </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.04em] text-[#173d2c]">
             {mode === 'connexion'
               ? switchAccount
                 ? 'Connectez votre autre compte'
-                : 'Accédez à votre entreprise'
-              : 'Créez votre accès sécurisé'}
+                : 'Bienvenue dans Zentra'
+              : 'Créez votre compte'}
           </h1>
           <p className="mt-3 text-sm leading-6 text-[#657168]">
             {switchAccount
               ? 'Saisissez l’adresse e-mail du compte que vous souhaitez utiliser.'
-              : 'Un compte personnel pour vous et chaque membre de votre équipe. Retrouvez votre entreprise avec les accès de votre formule.'}
+              : mode === 'connexion'
+                ? 'Connectez-vous pour retrouver votre entreprise.'
+                : 'Votre accès personnel aux produits et à l’équipe de votre entreprise.'}
           </p>
         </div>
 

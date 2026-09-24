@@ -64,7 +64,7 @@ export default async function AccountArchivesPage({
   const user = await getZentraUser();
   if (!user) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
+      <main className="site-task-page grid min-h-screen place-items-center bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
         <div className="w-full max-w-xl rounded-[2rem] border border-[#dedee3] bg-white p-8 shadow-[0_30px_90px_rgba(29,45,35,.1)] sm:p-10">
           <ShieldCheck className="size-11 text-[#a66b1f]" />
           <h1 className="mt-5 text-4xl font-semibold tracking-[-.04em]">
@@ -94,7 +94,7 @@ export default async function AccountArchivesPage({
 
   if (!organization) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
+      <main className="site-task-page grid min-h-screen place-items-center bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
         <div className="w-full max-w-xl rounded-[2rem] border border-[#e2c98e] bg-[#fff8e9] p-8">
           <Archive className="size-10 text-[#a66b1f]" />
           <h1 className="mt-5 text-3xl font-semibold">Archive inaccessible</h1>
@@ -142,7 +142,7 @@ export default async function AccountArchivesPage({
     .all<ArchiveRow>();
 
   return (
-    <main className="min-h-screen bg-[#f6f4ee] px-5 py-10 text-[#173d2c] sm:py-14">
+    <main className="site-task-page min-h-screen bg-[#f6f4ee] px-5 py-10 text-[#173d2c] sm:py-14">
       <div className="mx-auto max-w-5xl">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div>

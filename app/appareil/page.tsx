@@ -17,9 +17,11 @@ export default async function DevicePage({
   const memberships = await membershipsForUser(user.userId);
 
   return (
-    <main className="min-h-screen bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
+    <main className="site-task-page min-h-screen bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
       <div className="mx-auto max-w-xl">
-        <a href="/" className="text-sm font-semibold text-[#52645a]">← Zentra</a>
+        <a href="/" className="text-sm font-semibold text-[#52645a]">
+          ← Zentra
+        </a>
         <p className="mt-10 text-xs font-semibold uppercase tracking-[.24em] text-[#a66b1f]">
           Connexion sécurisée
         </p>
