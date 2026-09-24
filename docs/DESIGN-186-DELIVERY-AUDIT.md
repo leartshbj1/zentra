@@ -25,3 +25,9 @@ Preuves du paquet : `outputs/release186/windows-candidate/candidate-manifest.jso
 - Après le choix visuel, la source définitive devra être figée, les paquets des plateformes compilés et testés, puis les canaux publiés. Une capture du navigateur ne sera pas présentée comme un essai sur iPhone ou Mac physique.
 
 La même attente de décision et l’indisponibilité de l’accès de compilation ont persisté pendant les trois derniers tours du but. Les préparations indépendantes ont progressé jusqu’au paquet Windows et à sa vérification ; elles sont désormais terminées. La refonte complète n’est pas déclarée achevée.
+
+## Reprise autorisée — correction finale
+
+L’utilisateur a répondu « Corrige tout et publie en ligne ». Le point Agenda a été corrigé puis accepté sur les quatre captures demandées, sans nouvelle recherche de défauts : `outputs/redesign186/native-fix3-verdict.md`, disposition `ship`, score `resolved`. La documentation du design a été actualisée. Les lignes précédentes décrivent l’état avant cette réponse et le premier candidat Windows ; elles ne constituent pas une preuve de livraison du nouveau build.
+
+Pour les autres plateformes, le webhook GitHub existant vers CircleCI est actif. La branche exacte `codex/release-1.86.0` déclenche volontairement les seuls jobs Apple et Android, sans activer les autres pushes. Le build Apple vérifiera également son archive Mac par extraction et lancement dans un profil jetable avant d’enregistrer les artefacts. Les jobs, leur source et les fichiers devront être confirmés après déclenchement.

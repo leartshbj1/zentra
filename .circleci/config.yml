@@ -1,6 +1,7 @@
 version: 2.1
 
 # Opt-in only: ordinary pushes never consume the free release quota.
+# The exact 1.86 release branch is also an explicit, one-release opt-in.
 # Signing and publication remain local after artifact verification.
 parameters:
   verify-only:
@@ -124,11 +125,22 @@ jobs:
           name: Build physical iPhone IPA and verify touch controls
           command: bash desktop/scripts/cloud-release-apple.sh iphone
           no_output_timeout: 20m
+      - run:
+          name: Launch the packaged Mac app in an isolated profile
+          command: python3 desktop/scripts/local-apple-package-smoke.py
       - store_artifacts:
           path: desktop/artifacts
           destination: apple
 
 workflows:
+  mobile-release-186:
+    when:
+      and:
+        - equal: [codex/release-1.86.0, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - apple
+      - android
   android-release-candidate:
     when:
       and:

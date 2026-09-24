@@ -278,7 +278,7 @@ Les tableaux deviennent des enregistrements lisibles sur téléphone. Les donné
 
 Le [contrat de surface](.impeccable/surfaces/workspace.md) conserve les compositions Tableau de bord, Réglages et Automation. Le code place la bande financière sur quatre colonnes au grand format puis deux au format intermédiaire ; Automation et le suivi viennent ensuite. Dans Automation, le journal précède son complément de 238px, qui passe dessous dès 1200px. Les paramètres utilisent un index de 232px et une feuille de détail avant leur empilement. Le mode macOS avec navigation native conserve la maîtrise native des bords ; aucun fonctionnement installé n’est déduit de ces règles CSS.
 
-**The Intrinsic Control Rule.** Les libellés traduits peuvent réorganiser leurs groupes. Une action reste lisible et accessible ; compresser son texte n’est pas une règle de composition.
+**The Intrinsic Control Rule.** Les libellés traduits peuvent réorganiser leurs groupes. Une action reste lisible et accessible ; compresser son texte n’est pas une règle de composition. Dans Agenda, la barre et ses groupes reviennent à la ligne ; les groupes peuvent se réduire, mais les boutons gardent leur largeur intrinsèque et leur libellé entier.
 
 ## Elevation & Depth
 
@@ -367,9 +367,9 @@ Les lignes associent un repère iconographique tonal, du texte factuel et un dé
 - **Don't** convertir chaque ligne, paragraphe ou réglage en carte indépendante.
 - **Don't** reprendre la petite taille de navigation desktop pour les contrôles tactiles.
 - **Don't** remplacer un statut écrit par une couleur ou une icône seule.
-- **Don't** transformer la coupure actuelle de deux boutons Agenda en comportement normal ou la corriger en réduisant les métadonnées.
+- **Don't** comprimer les boutons Agenda ni réduire leurs métadonnées pour faire tenir une rangée ; laisser la barre et ses groupes revenir à la ligne.
 - **Don't** présenter cette documentation ou un aperçu navigateur comme une livraison native ou une publication vérifiée.
 
 Source de vérité : [src/workspace-atelier.css](src/workspace-atelier.css), importé en dernier par [src/main.tsx](src/main.tsx), avec les sélecteurs plus spécifiques et propriétés héritées de [src/dark.css](src/dark.css), [src/refined.css](src/refined.css), [src/workspace-shell.css](src/workspace-shell.css), [src/automation-design.css](src/automation-design.css), [src/mobile-air.css](src/mobile-air.css) et [src/mobileViewport.css](src/mobileViewport.css). Les API et l’ordre de navigation sont lus dans [src/ui.tsx](src/ui.tsx), [src/WorkspaceApp.tsx](src/WorkspaceApp.tsx) et [src/AutomationHub.tsx](src/AutomationHub.tsx). Les anciennes valeurs dépassées dans la cascade ne sont pas des alternatives de design. La couche finale est limitée à l’écran ; l’impression garde ses propres règles.
 
-Limite connue à la rédaction : le [verdict du lot 2](../outputs/redesign186/native-fix2-verdict.md) clôt les autres points initiaux et laisse ouverte la coupure de « Aujourd’hui » et « Ajouter » dans la barre Agenda desktop. Le choix utilisateur sur cette dernière correction est en attente. Ce défaut n’est ni un token, ni un spécimen du sidecar, ni une règle de référence. Les métadonnées Agenda restent à leur taille actuelle ; une correction devra être répercutée seulement si elle change une règle documentée. Aucune nouvelle capture, QA d’interface, compilation native ou publication n’a été réalisée pour ce relevé.
+État de référence : le [verdict du lot 3](../outputs/redesign186/native-fix3-verdict.md) rend la disposition ship et clôt le point Agenda ; les autres points résolus restent fermés. La barre et ses groupes peuvent revenir à la ligne, les groupes acceptent min-width: 0, et les boutons conservent flex-shrink: 0 et white-space: nowrap. Les libellés « Aujourd’hui » et « Ajouter » restent entiers sans réduire les métadonnées. Ce verdict concerne la revue de l’interface partagée ; il ne constitue pas une validation native ni une preuve de publication. Cette mise à jour documentaire n’a ajouté aucune capture, QA d’interface, compilation ou modification UI.

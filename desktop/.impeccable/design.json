@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-24T14:19:10.890Z",
+  "generatedAt": "2026-09-24T14:34:41.902Z",
   "title": "Design System: Zentra Gestion",
   "extensions": {
     "colorMeta": {
@@ -572,7 +572,7 @@
       },
       {
         "name": "Intrinsic Control",
-        "body": "Les libellés traduits peuvent réorganiser leurs groupes. Une action reste lisible et accessible ; compresser son texte n’est pas une règle de composition.",
+        "body": "Les libellés traduits peuvent réorganiser leurs groupes. Une action reste lisible et accessible ; compresser son texte n’est pas une règle de composition. Dans Agenda, la barre et ses groupes reviennent à la ligne ; les groupes peuvent se réduire, mais les boutons gardent leur largeur intrinsèque et leur libellé entier.",
         "section": "layout"
       },
       {
@@ -600,7 +600,7 @@
       "**Don't** convertir chaque ligne, paragraphe ou réglage en carte indépendante.",
       "**Don't** reprendre la petite taille de navigation desktop pour les contrôles tactiles.",
       "**Don't** remplacer un statut écrit par une couleur ou une icône seule.",
-      "**Don't** transformer la coupure actuelle de deux boutons Agenda en comportement normal ou la corriger en réduisant les métadonnées.",
+      "**Don't** comprimer les boutons Agenda ni réduire leurs métadonnées pour faire tenir une rangée ; laisser la barre et ses groupes revenir à la ligne.",
       "**Don't** présenter cette documentation ou un aperçu navigateur comme une livraison native ou une publication vérifiée."
     ]
   }

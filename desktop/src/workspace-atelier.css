@@ -549,6 +549,9 @@
   html[data-app-theme] .desktop-app[data-experience] .agenda-row__content strong { font-size:15px; line-height:1.5; }
   html[data-app-theme] .desktop-app[data-experience] :is(.agenda-row__time,.agenda-row__content small,.agenda-row__content p,.agenda-toolbar small,.agenda-toolbar label > span,.agenda-month-controls > div > span) { font-size:13px; line-height:1.5; }
   html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar :is(button,input,select) { font-size:14px; min-height:44px; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar { flex-wrap:wrap; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.agenda-month-controls,.agenda-filters) { min-width:0; flex-wrap:wrap; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar button { flex-shrink:0; white-space:nowrap; }
   @media(max-width:860px) {
     html[data-app-theme] .desktop-app[data-experience] .table-panel tbody td { padding:5px 0; font-size:15px; }
     html[data-app-theme] .desktop-app[data-experience] .table-panel table[data-mobile-cards] > tbody > tr { margin:0; padding:20px 0; border:0; border-bottom:1px solid var(--work-line); border-radius:0; background:transparent; gap:8px; box-shadow:none; }
