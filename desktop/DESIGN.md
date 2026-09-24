@@ -309,7 +309,7 @@ Les groupes de segments utilisent segment-group, leur segment actif segment. Le 
 
 Des actions explicites, compactes et opaques. Le primaire utilise accent/on-accent ; le secondaire papier/encre avec un trait fin ; le ghost garde un fond transparent et le texte vert. Les tokens indiquent le padding de la fenêtre ; les boutons normaux dans les portails gardent le padding hérité 0 17px. Les tailles et actions métier spécialisées restent contextuelles.
 
-Le primaire s’assombrit au survol compatible pointeur par brightness(.94), sans translation. Le focus partagé utilise un contour d’accent de 2px, décalé de 3px. Un contrôle désactivé a une opacité de 0.55. Les boutons secondaire/ghost n’acquièrent pas automatiquement le filtre du primaire. La pression conserve le traitement hérité décrit dans Elevation & Depth.
+Le primaire s’assombrit au survol compatible pointeur par brightness(.94), sans translation. Tout état de survol, y compris celui qui persiste après un toucher, conserve explicitement les couleurs jumelées work-accent/work-on-accent du thème courant ; aucun ancien remplissage ne doit remplacer seulement l’une des deux. Le focus partagé utilise un contour d’accent de 2px, décalé de 3px. Un contrôle désactivé a une opacité de 0.55. Les boutons secondaire/ghost n’acquièrent pas automatiquement le filtre du primaire. La pression conserve le traitement hérité décrit dans Elevation & Depth.
 
 Les états vides peuvent exposer une action secondaire lorsque l’action de création principale existe déjà dans la feuille ; le composant supporte ce choix sans supprimer l’opération.
 

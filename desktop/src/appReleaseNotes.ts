@@ -17,6 +17,7 @@ export const releaseHistoryCopy = {
 // to describe work that was added later. See docs/RELEASE-*.md for release evidence.
 export const releaseHistory = [
   { version: '1.86.1', title: copy('Des commandes accessibles sur téléphone', 'Erreichbare Bedienelemente auf dem Smartphone', 'Comandi accessibili sul telefono', 'Accessible controls on phones'), changes: [
+    copy('Les boutons principaux conservent un texte lisible en mode sombre après un appui sur écran tactile.', 'Die Hauptschaltflächen behalten im Dunkelmodus auch nach einer Berührung gut lesbaren Text.', 'I pulsanti principali mantengono il testo leggibile in modalità scura dopo un tocco.', 'Primary buttons keep readable text in dark mode after a touch interaction.'),
     copy('Les marges de l’écran respectent l’encoche et les bords arrondis, y compris en paysage. Les titres, menus et boutons restent accessibles.', 'Die Bildschirmabstände berücksichtigen Kameraaussparung und abgerundete Ränder, auch im Querformat. Titel, Menüs und Schaltflächen bleiben erreichbar.', 'I margini rispettano la tacca e i bordi arrotondati dello schermo, anche in orizzontale. Titoli, menu e pulsanti restano accessibili.', 'Screen spacing respects the notch and rounded edges, including in landscape. Titles, menus and buttons stay accessible.'),
   ] },
   { version: '1.86.0', title: copy('Un espace de travail repensé', 'Ein neu gestalteter Arbeitsbereich', 'Uno spazio di lavoro ripensato', 'A reimagined workspace'), changes: [

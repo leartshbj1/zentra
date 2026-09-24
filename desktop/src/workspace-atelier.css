@@ -97,7 +97,8 @@
 
   /* Controls belong to the same system on every business screen. */
   html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button { min-height: 42px; border-radius: var(--work-control); font-size: 14px; font-weight: 550; box-shadow: none; line-height: 1.4; }
-  html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button--primary { background: var(--work-accent); border-color: transparent; color: var(--work-on-accent); }
+  html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button--primary,
+  html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button--primary:hover:not(:disabled) { background: var(--work-accent); border-color: transparent; color: var(--work-on-accent); }
   html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button--secondary { background: var(--work-paper); border-color: var(--work-line); color: var(--work-ink); }
   html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button--ghost { color: var(--work-accent); background: transparent; border-color: transparent; }
   html[data-app-theme] :is(.desktop-app[data-experience],.modal-backdrop) .button--icon { border-radius: var(--work-control); }

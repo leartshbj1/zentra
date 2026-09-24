@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-24T14:54:53.928Z",
+  "generatedAt": "2026-09-24T15:04:51.230Z",
   "title": "Design System: Zentra Gestion",
   "extensions": {
     "colorMeta": {
@@ -488,9 +488,9 @@
       "name": "Action principale",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Action de la fenêtre de travail. Le portail normal conserve son padding 0 17px.",
+      "description": "Action de la fenêtre de travail. Le survol persistant après toucher conserve les couleurs jumelées du thème. Le portail normal conserve son padding 0 17px.",
       "html": "<button class=\"ds-primary\" type=\"button\">Enregistrer</button>",
-      "css": ".ds-primary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid transparent;border-radius:var(--work-control,9px);background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;cursor:pointer;white-space:normal}.ds-primary:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-primary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}@media(hover:hover){.ds-primary:hover:not(:disabled){filter:brightness(.94);background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-primary{transition:background-color 140ms ease-out,color 140ms ease-out}.ds-primary:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-primary{min-height:44px}}"
+      "css": ".ds-primary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI Variable\",\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 17px;font-size:14px;font-weight:550;line-height:1.4;letter-spacing:-.01em;border:1px solid transparent;border-radius:var(--work-control,9px);background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;cursor:pointer;white-space:normal}.ds-primary:disabled{opacity:.55;cursor:not-allowed;filter:none}.ds-primary:focus-visible{outline:2px solid var(--work-accent,#286047);outline-offset:3px}.ds-primary:hover:not(:disabled){background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff)}@media(hover:hover){.ds-primary:hover:not(:disabled){filter:brightness(.94);background:var(--work-accent,#286047);color:var(--work-on-accent,#ffffff);box-shadow:none;transform:none}}@media(prefers-reduced-motion:no-preference){.ds-primary{transition:background-color 140ms ease-out,color 140ms ease-out}.ds-primary:active:not(:disabled){transform:scale(.98)}}@media(max-width:860px){.ds-primary{min-height:44px}}"
     },
     {
       "name": "Action secondaire",
