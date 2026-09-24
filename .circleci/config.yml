@@ -109,7 +109,20 @@ jobs:
       RUSTUP_TOOLCHAIN: stable
       CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
-      - checkout
+      - run:
+          name: Checkout the verified public source over HTTPS
+          command: |
+            set -euo pipefail
+            source="$CIRCLE_SHA1"
+            # Retry CI transport only; the release application source is unchanged.
+            if [ "$CIRCLE_BRANCH" = 'codex/release-1.86.0-apple' ]; then
+              source='bd22076fa970f76458a701c6cbfbbfceee94a8fb'
+            fi
+            git init .
+            git remote add origin https://github.com/leartshbj1/zentra.git
+            git fetch --depth 1 origin "$source"
+            git checkout --detach FETCH_HEAD
+            test "$(git rev-parse HEAD)" = "$source"
       - run:
           name: Prepare Apple build tools
           command: bash desktop/scripts/cloud-release-apple.sh prepare
@@ -133,6 +146,13 @@ jobs:
           destination: apple
 
 workflows:
+  apple-retry-186:
+    when:
+      and:
+        - equal: [codex/release-1.86.0-apple, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - apple
   mobile-release-186:
     when:
       and:
