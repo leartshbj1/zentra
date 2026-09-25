@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
+import { MailDocumentButton } from './OutgoingMailEntry';
 import { desktopApi } from './bridge';
 import { Button, ErrorPanel, Modal } from './ui';
 import PdfAttachmentPreview from './PdfAttachmentPreview';
@@ -21,6 +22,6 @@ export default function StyledDocumentPreview({ kind, id, title, onClose }: { ki
   return <Modal title={title} description="Votre document avec sa présentation enregistrée. Le PDF exporté utilise ce même rendu." onClose={onClose} dismissible={!exporting} wide className="attachment-preview-dialog">
     <div className="attachment-preview"><div className="attachment-preview__content">
       {error?<ErrorPanel message={error} onRetry={()=>setAttempt(n=>n+1)} />:bytes?<PdfAttachmentPreview bytes={bytes} name={title} />:<p role="status" className="attachment-preview__status">Préparation des pages…</p>}
-    </div><footer className="attachment-preview__footer">{exportError&&<ErrorPanel message={exportError} />}{notice&&<p role="status">{notice}</p>}<div className="attachment-preview__actions"><Button disabled={!bytes||exporting} onClick={()=>void exportPdf()}><Download size={17} />{exporting?'Création du PDF…':'Exporter le PDF'}</Button><Button variant="secondary" disabled={exporting} onClick={onClose}>Fermer</Button>{exportedPath && isMobileRuntime() && <Button variant="secondary" disabled={exporting} onClick={()=>void share()}>Partager le PDF</Button>}</div></footer></div>
+    </div><footer className="attachment-preview__footer">{exportError&&<ErrorPanel message={exportError} />}{notice&&<p role="status">{notice}</p>}<div className="attachment-preview__actions"><Button disabled={!bytes||exporting} onClick={()=>void exportPdf()}><Download size={17} />{exporting?'Création du PDF…':'Exporter le PDF'}</Button><Button variant="secondary" disabled={exporting} onClick={onClose}>Fermer</Button>{kind !== 'payslips' && <MailDocumentButton target={{ entity: kind, id }} disabled={exporting} />}{exportedPath && isMobileRuntime() && <Button variant="secondary" disabled={exporting} onClick={()=>void share()}>Partager le PDF</Button>}</div></footer></div>
   </Modal>;
 }

@@ -179,6 +179,8 @@ export function Modal({
 
   function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.defaultPrevented) return;
+    // React portals bubble through their logical parent. Only trap this dialog.
+    if (!event.currentTarget.contains(event.target as Node)) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();

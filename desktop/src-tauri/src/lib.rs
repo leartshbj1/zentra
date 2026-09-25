@@ -64,6 +64,7 @@ mod project_planning;
 mod purchase_costs;
 mod recurrence;
 mod reminders;
+mod outgoing_mail;
 mod sales_fulfillment;
 mod sales_pdf;
 mod schema;
@@ -318,6 +319,12 @@ pub fn run() {
             appointment_inbox::appointment_inbox_request,
             get_income_statement,
             get_reminder_settings,
+            outgoing_mail::outgoing_mail_state,
+            outgoing_mail::connect_outgoing_mail,
+            outgoing_mail::disconnect_outgoing_mail,
+            outgoing_mail::save_outgoing_mail_templates,
+            outgoing_mail::preview_outgoing_mail,
+            outgoing_mail::send_outgoing_mail,
             update_reminder_settings,
             install_reminder_cycle,
             list_reminder_templates,

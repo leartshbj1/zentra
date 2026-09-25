@@ -1279,6 +1279,7 @@ function settingsFromRaw(
     documentAppearance: documentAppearance(extra.documentAppearance),
     documentComposition: documentCompositions(extra.documentComposition),
     documentDesignTemplates: extra.documentDesignTemplates,
+    mailTemplates: extra.mailTemplates,
     business: {
       nogaSection: (/^[A-V]$/.test(stringValue(row.noga_section))
         ? stringValue(row.noga_section)
@@ -3145,6 +3146,7 @@ async function loadWorkspace(): Promise<Workspace> {
 
 function backendExtra(settings: AppSettings): string {
   return JSON.stringify({
+    mailTemplates: settings.mailTemplates,
     documentAppearance: documentAppearance(settings.documentAppearance),
     documentComposition: documentCompositions(settings.documentComposition),
     documentDesignTemplates: settings.documentDesignTemplates,

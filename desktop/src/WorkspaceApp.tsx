@@ -1,4 +1,6 @@
 import { AppearanceSetting } from './AppearanceSetting';
+import { MailComposer, MailDocumentButton, MailSettings } from './OutgoingMailEntry';
+import type { MailTarget } from './outgoingMail';
 import { ElapsedTimer } from './ElapsedTimer';
 import { WorkspacePersonalization, shortcutMeta, quickActionMeta } from './WorkspacePersonalization';
 import { availableShortcuts, selectedShortcut, useWorkspacePreferences } from './workspacePreferences';
@@ -561,6 +563,7 @@ function WorkspaceContent({
   }
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
   const [invoiceToIssueId, setInvoiceToIssueId] = useState<string | null>(null);
+  const [mailAfterIssue, setMailAfterIssue] = useState<MailTarget | null>(null);
   const [invoiceIssueReturnId, setInvoiceIssueReturnId] = useState<string | null>(null);
   const [payslipPostingId, setPayslipPostingId] = useState<string | null>(null);
   const [payslipPostingReturnId, setPayslipPostingReturnId] = useState<string | null>(null);
@@ -1106,6 +1109,9 @@ function WorkspaceContent({
     if (!issued) throw issueReason || new Error('L’émission n’a pas été effectuée. Actualisez les données puis réessayez.');
     setInvoiceToIssueId(null);
     setInvoiceIssueReturnId(null);
+    if (workspaceRef.current.clients.find(client => client.id === item.clientId)?.email) {
+      setMailAfterIssue({ entity: 'invoices', id: item.id });
+    }
     if (issued && cloudAccount?.status === 'connected') {
       await archiveInvoiceToCloud(item, true);
     }
@@ -1632,6 +1638,7 @@ function WorkspaceContent({
   return (
     <div className="desktop-app" data-experience="clarity" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
       <CompanyReceivingGuard/>
+      {mailAfterIssue && <MailComposer target={mailAfterIssue} onClose={() => setMailAfterIssue(null)} />}
       <AutomationWelcome key={companyAutomation.organizationId || 'local'} view={view} />
       {updaterOpen ? <Modal title={t("Mise à jour de Zentra")} wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
         <div className="standalone-updater-content"><AppUpdater onInstallingChange={setUpdateInstalling} /></div>
@@ -2112,7 +2119,7 @@ function WorkspaceContent({
                     ),
                   'Le devis a été émis et numéroté.',
                   false,
-                )
+                ).then(issued => { if (issued && workspaceRef.current.clients.find(client => client.id === item.clientId)?.email) setMailAfterIssue({ entity: 'quotes', id: item.id }); })
               }
               onStatus={(item, status) => {
                 if (
@@ -3904,6 +3911,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         >
                           <Eye size={16} /> Aperçu
                         </Button>
+                        {quote.number && quote.status !== 'cancelled' && <MailDocumentButton target={{ entity: 'quotes', id: quote.id }} disabled={mutationsDisabled} />}
                     </MobileDocumentActions>
                   </td>
                 </tr>
@@ -4199,6 +4207,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       >
                         <Eye size={16} /> Aperçu
                       </Button>
+                      {item.number && item.status !== 'cancelled' && <MailDocumentButton target={{ entity, id: item.id }} disabled={mutationsDisabled} />}
                     {entity === 'invoices' &&
                     item.status !== 'draft' &&
                     item.status !== 'cancelled' ? (
@@ -5068,6 +5077,9 @@ function SettingsScreen({
       <CloudAccountPanel onAccountChange={onCloudAccountChange} settings={settings} />
       </SettingsCategory>
       <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings showHubLink /></SettingsCategory>
+      <SettingsCategory id="mail" lazy title="E-mails" description="Messagerie, devis, factures et textes personnalisés" icon={Mail}>
+        <MailSettings companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { const next = await desktopApi.loadWorkspace(); onWorkspace(next); if (next.settings) setSettings(next.settings); }} />
+      </SettingsCategory>
       <SettingsCategory id="company" title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
       <section className="panel settings-card settings-card--wide">
         <SectionHeading
@@ -8201,6 +8213,7 @@ function SalesPdfExportControl({
         )}{' '}
         {exporting ? 'Génération…' : 'Exporter le PDF'}
       </Button>
+      <MailDocumentButton target={{ entity, id: documentId }} disabled={exporting} />
     </>
   );
 }

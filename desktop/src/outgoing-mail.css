@@ -1,0 +1,11 @@
+.mail-settings,.mail-composer{color:var(--work-ink);min-width:0;width:100%;max-width:760px;margin-inline:auto}
+.mail-settings header{margin-bottom:24px}.mail-settings h2{font-size:clamp(24px,3vw,30px);letter-spacing:-.025em;margin:0 0 8px;line-height:1.2}
+.mail-settings p,.mail-composer p{line-height:1.6;overflow-wrap:anywhere}.mail-settings header p,.mail-help,.mail-from{color:var(--work-muted)}
+.mail-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--work-line)}
+.mail-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;border:0;margin:24px 0;padding:0;min-width:0}.mail-fields--single{grid-template-columns:minmax(0,1fr)}
+.mail-fields input,.mail-fields textarea,.mail-fields select{width:100%;max-width:100%;min-width:0;box-sizing:border-box;font-size:16px}.mail-fields textarea{resize:vertical;line-height:1.6;min-height:180px}
+.mail-connection-state{display:flex;align-items:center;gap:12px;margin:22px 0}.mail-connection-state div{min-width:0;display:grid;gap:4px;overflow-wrap:anywhere}.mail-connection-state span{font-size:13px;color:var(--work-muted)}
+.mail-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:24px}.mail-help{font-size:13px;max-width:70ch;margin-top:20px}.mail-variables{display:flex;gap:4px;flex-wrap:wrap}.mail-notice{display:flex;gap:8px;align-items:flex-start;color:var(--work-accent)}.mail-notice svg{flex-shrink:0;margin-top:4px}
+.mail-attachment{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 0;border-block:1px solid var(--work-line);font-size:14px}.mail-attachment span{overflow-wrap:anywhere;min-width:0}.mail-attachment small{color:var(--work-muted)}
+.mail-connect-prompt{padding:0 0 20px;border-bottom:1px solid var(--work-line)}.mail-history{font-size:13px;color:var(--work-muted);margin-block:16px}.mail-history summary{cursor:pointer;padding:8px 0}.mail-history p{border-bottom:1px solid var(--work-line);padding-bottom:8px}
+@media(max-width:600px){.mail-fields{grid-template-columns:minmax(0,1fr);gap:16px}.mail-actions>*{flex:1 1 150px}.mail-settings header{margin-bottom:20px}.mail-tabs{gap:2px}.mail-tabs button{flex:1;min-width:0}.mail-composer .mail-attachment small{flex-basis:100%;padding-left:25px}}

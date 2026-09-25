@@ -181,6 +181,7 @@ export type NogaCatalog = {
 };
 
 export type AppSettings = {
+  mailTemplates?: import('./outgoingMail').MailTemplates;
   documentDesignTemplates?: import('./documentTemplates').DocumentDesignTemplate[];
   documentAppearance?: import('./documentAppearance').DocumentAppearance;
   documentComposition?: import('./documentComposition').DocumentCompositions;

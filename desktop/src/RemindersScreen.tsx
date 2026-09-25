@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { MailDocumentButton, MailSettings } from './OutgoingMailEntry';
 import {
   compareReminderBalanceSnapshot,
   reminderHistoryActionLabel,
@@ -703,7 +704,7 @@ export function RemindersScreen({
           <div className="reminder-channel-summary" aria-label="Canaux de relance disponibles">
             <span><Mail size={17} /><strong>E-mail</strong><small>Adresse du client + texte du niveau choisi</small></span>
             <span><Smartphone size={17} /><strong>SMS</strong><small>Téléphone du client + résumé du solde actuel</small></span>
-            <p>Chaque canal ouvre un brouillon dans l’application configurée sur l’ordinateur. Le solde est revérifié juste avant; confirmez ensuite l’envoi réel pour clôturer la relance.</p>
+            <p>L’e-mail peut être envoyé directement depuis Zentra avec la facture jointe. Le SMS ouvre votre messagerie. Le solde est revérifié avant l’envoi.</p>
           </div>
           <div className="reminder-legal-note">
             <AlertTriangle size={18} />
@@ -730,6 +731,7 @@ export function RemindersScreen({
           >
             Enregistrer les réglages
           </Button>
+          <details className="mail-history"><summary>Connecter la messagerie de l’entreprise</summary><MailSettings readOnly={readOnly} /></details>
         </section>
       ) : null}
 
@@ -858,7 +860,7 @@ export function RemindersScreen({
           busy={busy}
           preview={preview}
           readOnly={readOnly}
-          onClose={() => setPreview(null)}
+          onClose={() => { setPreview(null); void perform(load); }}
           onRecord={(action, note) => recordPreviewAction(action, note)}
           onRefresh={refreshPreview}
         />
@@ -1307,13 +1309,14 @@ function ReminderDeliveryPreview({
   const [confirmation, setConfirmation] = useState<'print' | 'send' | null>(null);
   const [sendNote, setSendNote] = useState('');
   const [legacyTemplateConfirmed, setLegacyTemplateConfirmed] = useState(false);
+  const [sentByMail, setSentByMail] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeActionRef = useRef(onClose);
   const confirmationTriggerRef = useRef<HTMLElement | null>(null);
   const logoUrl = localAssetUrl(preview.sender.logoPath);
   const smsDraftUri = reminderSmsDraftUri(preview);
   const legacyTemplateReady =
-    !preview.templateReviewRequired || legacyTemplateConfirmed;
+    (!preview.templateReviewRequired || legacyTemplateConfirmed) && !sentByMail;
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -1322,6 +1325,7 @@ function ReminderDeliveryPreview({
   }, []);
 
   function handleDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.defaultPrevented || !event.currentTarget.contains(event.target as Node)) return;
     if (event.key === 'Escape' && !busy) {
       event.preventDefault();
       if (confirmation) closeConfirmation();
@@ -1429,8 +1433,9 @@ function ReminderDeliveryPreview({
                 void createMailDraft();
               }}
             >
-              <Mail size={16} /> Ouvrir l’e-mail
+              <Mail size={16} /> Messagerie externe
             </Button>
+            <MailDocumentButton target={{ entity: 'reminders', id: preview.reminderId }} disabled={busy || readOnly || !!confirmation || !legacyTemplateReady || sentByMail} onSent={() => setSentByMail(true)} />
             <Button
               variant="secondary"
               disabled={busy || !!confirmation || !smsDraftUri || !legacyTemplateReady}

@@ -28,6 +28,24 @@ parameters:
     default: ""
 
 jobs:
+  windows-mail-tests:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      ZENTRA_VERIFY_ONLY: "true"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - checkout
+      - run:
+          name: Verify company email, real PDF attachments and no duplicate SMTP submissions
+          command: ./desktop/scripts/cloud-release-windows.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: windows
   windows-package-smoke-1881:
     resource_class: windows.medium
     machine:
@@ -159,6 +177,11 @@ jobs:
           destination: apple
 
 workflows:
+  outgoing-mail-validation:
+    when:
+      equal: [codex/company-outgoing-mail, << pipeline.git.branch >>]
+    jobs:
+      - windows-mail-tests
   smoke-1881:
     when:
       equal: [codex/release-1.88.1-smoke, << pipeline.git.branch >>]

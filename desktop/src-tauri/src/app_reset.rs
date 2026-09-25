@@ -85,6 +85,7 @@ impl LocalStore {
         // Disconnect locally even offline, before replacing the workspace. Existing identity/license
         // files remain bound to this device; account secrets never enter the safety backup.
         crate::account_cloud::forget_local_account(self)?;
+        crate::outgoing_mail::clear_local_connections(self)?;
         self.restore_backup(&archive, env!("CARGO_PKG_VERSION"))?;
         for name in ["cloud-backup-state.json", "backup-status.json", "joined-company-copy.json", "company-collaboration.json", "company-sync-baseline.json", "company-sync-reference.zentra"] {
             let path = self.data_dir.join(name);
