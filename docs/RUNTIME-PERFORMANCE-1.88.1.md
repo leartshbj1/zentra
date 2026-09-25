@@ -33,3 +33,13 @@ The Edge/WebKit UI journey uses 1,500 invoices at 390 and 1,440 px. Timer-driven
 Account credentials, network requests, sync frequency, mutation handling, business rules and entitlement checks are unchanged. A successful synthetic test does not establish actual multi-device synchronization or network login latency. The changes remove measured local work; server/network latency remains dependent on the connection.
 
 Local reproducible evidence: `desktop/.qa/runtime-speed/{before,after-final,ui-before-timer,ui-after,ui-confirmed}.json`; test/build logs in `outputs/runtime-speed-{tests,build}.log`. These generated files remain outside source control.
+
+## Native release evidence
+
+Application source: `4921d40e3dae221c3db90d7c353841440e687129`. CircleCI jobs 104 (Windows), 105 (Apple) and 106 (Android) succeeded. Apple artifacts include 121 selected native tests passed (two pre-existing tests ignored) and five successful iPhone simulator navigation tests. Mac launch/relaunch and SQLite integrity were verified in a disposable profile. Android arm64 alignment and the existing preview signing identity were verified; the IPA is unsigned.
+
+Windows local launch was rejected by Code Integrity with error 4551 (policy `0283ac0f-fff1-49ae-ada1-8a933130cad6`). The isolated Windows installer check in CircleCI job 107 passed, including payload identity, launch, relaunch and SQLite integrity. Its verifier source is `129d008e7e3143f456f16fc848873fec0b763a75`; application bytes still come from job 104 and the application source above.
+
+The 14 immutable release assets are published at https://github.com/leartshbj1/zentra/releases/tag/v1.88.1. Mac's updater is promoted to 1.88.1. Windows downloads are available, but its automatic channel and this PC's installation remain at 1.88.0 because of the observed execution block. No Windows security setting was changed. The updater's Zentra signature is not an Authenticode certificate. Mac remains ad-hoc signed and non-notarized; no physical mobile device or store publication is claimed.
+
+The timer visibility journey additionally passed in Edge and WebKit: no React timer updates while hidden, correct elapsed time immediately on returning. Final UI confirmation observed timer work at approximately 0–1 ms per tick (browser clock resolution limits these measurements).
