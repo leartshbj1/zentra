@@ -25,19 +25,18 @@ export function WorkspacePersonalization({ automationActive }: { automationActiv
   const [section, setSection] = useState<'shortcuts' | 'actions'>('shortcuts');
   const [feedback, setFeedback] = useState<string | null>(null);
   const preview = useRef<HTMLDivElement>(null);
-  const positions = useRef(new Map<string, DOMRect>());
+  const positions = useRef(new Map<string, { x: number; y: number }>());
   useLayoutEffect(() => {
-    const next = new Map<string, DOMRect>();
     const animations: Animation[] = [];
+    const origin = preview.current?.getBoundingClientRect();
     preview.current?.querySelectorAll<HTMLElement>('[data-preview-id]').forEach(node => {
       const id = `${section}:${node.dataset.previewId}`, rect = node.getBoundingClientRect(), previous = positions.current.get(id);
-      next.set(id, rect);
-      if (previous && typeof node.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        const x = previous.x - rect.x, y = previous.y - rect.y;
+      if (previous && origin && typeof node.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const x = previous.x - (rect.x - origin.x), y = previous.y - (rect.y - origin.y);
         if (x || y) animations.push(node.animate([{ transform: `translate(${x}px, ${y}px)` }, { transform: 'translate(0, 0)' }], { duration: 200, easing: 'cubic-bezier(.2,.7,.2,1)' }));
       }
     });
-    positions.current = next;
+    positions.current.clear();
     return () => animations.forEach(animation => animation.cancel());
   }, [draft, section]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
@@ -45,6 +44,14 @@ export function WorkspacePersonalization({ automationActive }: { automationActiv
   const labels = section === 'shortcuts' ? shortcutMeta : quickActionMeta;
   const labelFor = (id: string) => (labels as Record<string, { label: string }>)[id].label;
   function select(index: number, id: string) {
+    // Measure immediately before changing order, relative to the preview. An
+    // accordion opening or keyboard scrolling must never become an item move.
+    const origin = preview.current?.getBoundingClientRect();
+    positions.current.clear();
+    if (origin) preview.current?.querySelectorAll<HTMLElement>('[data-preview-id]').forEach(node => {
+      const rect = node.getBoundingClientRect();
+      positions.current.set(`${section}:${node.dataset.previewId}`, { x: rect.x - origin.x, y: rect.y - origin.y });
+    });
     setDraft(current => section === 'shortcuts'
       ? { ...current, shortcuts: replaceShortcut(current.shortcuts, index, id as ShortcutId) }
       : { ...current, actions: replaceShortcut(current.actions, index, id as QuickActionId) });
