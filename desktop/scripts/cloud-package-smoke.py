@@ -21,7 +21,8 @@ def fetch(url):
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != 'https' or not (parsed.hostname == 'circleci.com' or parsed.hostname.endswith('.circle-artifacts.com')):
         raise ValueError('Unexpected CI download endpoint')
-    with urllib.request.urlopen(url, timeout=180) as response:
+    request = urllib.request.Request(url, headers={'Accept': 'application/json'} if 'circleci.com/api/' in url else {})
+    with urllib.request.urlopen(request, timeout=180) as response:
         if urllib.parse.urlparse(response.url).scheme != 'https':
             raise ValueError('Insecure artifact redirect')
         data = response.read(300 * 1024 * 1024 + 1)

@@ -28,6 +28,19 @@ parameters:
     default: ""
 
 jobs:
+  windows-package-smoke-1881:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact 1.88.1 installer in a disposable Windows profile
+          command: python desktop/scripts/cloud-package-smoke.py windows 104 4921d40e3dae221c3db90d7c353841440e687129
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
   android:
     docker:
       - image: cimg/android:2026.08-node
@@ -146,6 +159,11 @@ jobs:
           destination: apple
 
 workflows:
+  smoke-1881:
+    when:
+      equal: [codex/release-1.88.1-smoke, << pipeline.git.branch >>]
+    jobs:
+      - windows-package-smoke-1881
   release-1881:
     when:
       and:
