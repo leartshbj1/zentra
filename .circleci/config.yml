@@ -95,6 +95,11 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Use the exact verified application source
+          command: |
+            git checkout --detach 61c30a4801c0332223adee3fa077bbbc178ad352
+            if ($LASTEXITCODE -ne 0) { throw 'Verified application source missing' }
+      - run:
           name: Test and build Windows without production credentials
           command: ./desktop/scripts/cloud-release-windows.ps1
           no_output_timeout: 20m
@@ -146,6 +151,13 @@ jobs:
           destination: apple
 
 workflows:
+  windows-release-187:
+    when:
+      and:
+        - equal: [codex/release-1.87.0-windows, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows
   mobile-release-187:
     when:
       and:
