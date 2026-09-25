@@ -6,7 +6,7 @@ import WebKit
 struct AppearanceArgs: Decodable { let appearance: String; let dark: Bool }
 struct ShareArgs: Decodable { let path: String }
 struct UrlArgs: Decodable { let url: String }
-struct NavigationArgs: Decodable { let visible: Bool; let selected: String; let onNavigate: Channel? }
+struct NavigationArgs: Decodable { let visible: Bool; let selected: String; let items: [NavigationItem]?; let onNavigate: Channel? }
 
 class ZentraMobilePlugin: Plugin {
   private weak var webview: WKWebView?
@@ -27,7 +27,13 @@ class ZentraMobilePlugin: Plugin {
 
   @objc func configureNavigation(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(NavigationArgs.self)
-    guard ["dashboard", "projects", "quotes", "menu"].contains(args.selected) else { invoke.reject("Navigation inconnue"); return }
+    let allowed = ["dashboard", "agenda", "projects", "clients", "catalog", "quotes", "invoices", "reminders", "time", "team", "expenses", "bank", "reports", "accounting", "automation", "settings", "menu"]
+    guard allowed.contains(args.selected) else { invoke.reject("Navigation inconnue"); return }
+    if let items = args.items {
+      guard items.count == 5, items.last?.id == "menu", Set(items.map(\.id)).count == 5,
+        items.allSatisfy({ allowed.contains($0.id) && !$0.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.label.count <= 60 })
+      else { invoke.reject("Raccourcis invalides"); return }
+    }
     DispatchQueue.main.async {
       if #available(iOS 26.0, *), let host = self.manager.viewController?.view, let webview = self.webview {
         let dock: GlassNavigation
@@ -44,7 +50,7 @@ class ZentraMobilePlugin: Plugin {
           return
         }
         host.bringSubviewToFront(dock)
-        dock.configure(selected: args.selected, visible: args.visible)
+        dock.configure(selected: args.selected, visible: args.visible, items: args.items)
         invoke.resolve(["available": true])
       } else {
         invoke.resolve(["available": false])

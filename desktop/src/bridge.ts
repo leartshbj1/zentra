@@ -4795,7 +4795,7 @@ export const desktopApi = {
         setCompanyReceiving(true);
         try{result=await invoke('apply_company_update');if(result.changed)await refreshReceivedCompany();}finally{setCompanyReceiving(false);}
       }
-      publishCompanySync(result);
+      publishCompanySync(result, '', true);
       return {mode:'business',organizationId:result.organizationId,pending:result.pending?1:0,connected:true,syncing:false,changed:result.changed,
         lastSyncedAt:result.lastSyncedAt,documents:[],...(result.conflict?{error:result.conflictReason||'Un document a été modifié sur deux appareils. Les deux copies sont conservées. Consultez Paramètres → Compte pour le détail.'}:{})};
     }catch(reason){publishCompanySync(local,errorMessage(reason,'La synchronisation reprendra automatiquement.'));throw reason;}

@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
-import { createNativeNavigationSession, type NativeDestination } from './nativeNavigationSession';
+import { createNativeNavigationSession, type NativeDestination, type NativeNavigationItem } from './nativeNavigationSession';
 export type { NativeDestination } from './nativeNavigationSession';
 
 declare const __ZENTRA_PLATFORM__: string;
 export const isNativeMacOS = typeof __ZENTRA_PLATFORM__ !== 'undefined' && __ZENTRA_PLATFORM__ === 'macos';
 
 /** Keep the web controls until AppKit or UIKit confirms its native navigation. */
-export function useNativeNavigation(selected: NativeDestination, visible: boolean, onNavigate: (destination: NativeDestination) => void) {
+export function useNativeNavigation(selected: NativeDestination, visible: boolean, onNavigate: (destination: NativeDestination) => void, items?: NativeNavigationItem[]) {
   const [available, setAvailable] = useState(false);
-  const current = useRef({ selected, visible, onNavigate });
-  current.current = { selected, visible, onNavigate };
+  const current = useRef({ selected, visible, onNavigate, items });
+  current.current = { selected, visible, onNavigate, items };
+  const itemsKey = JSON.stringify(items);
   const synchronize = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -33,6 +34,6 @@ export function useNativeNavigation(selected: NativeDestination, visible: boolea
     return () => { observer.disconnect(); synchronize.current = null; void session.dispose(); };
   }, []);
 
-  useEffect(() => { synchronize.current?.(); }, [selected, visible]);
+  useEffect(() => { synchronize.current?.(); }, [selected, visible, itemsKey]);
   return available;
 }

@@ -1,4 +1,5 @@
 import {installCustomerSettlementGuidedFixture} from './customer-settlement-guided-fixture';
+import { publishCompanySync } from '../src/companySync';
 import { installAutomationCompanyFixture } from './automation-company-fixture';
 import {installPaymentGuidedFixture} from './payment-guided-fixture';
 import { installAgendaGuidedFixture } from './agenda-guided-fixture';
@@ -77,6 +78,7 @@ import '../src/assistant.css';
 
 const collectionNames = ['clients','catalogItems','stockMovements','suppliers','projects','projectMilestones','projectTasks','agendaEvents','quotes','salesOrders','recurrenceSchedules','recurrenceOccurrences','deliveryNotes','stockReservationEvents','stockAvailability','salesOrderInvoiceBatches','salesOrderInvoiceAllocations','invoices','invoiceCorrectionWorkflows','payments','employees','timeEntries','timeBillingBatches','timeBillingEntries','expenses','supplierOrders','supplierOrderCancellationLines','supplierReceipts','supplierInvoices','supplierInvoicePayments','supplierInvoiceMatches','supplierCreditNotes','supplierExpenseReclassifications','payslips','payrollImports','employeePayrollTemplates','accounts','attachments'];
 const previewQuery = new URLSearchParams(location.search);
+if (previewQuery.has('personalization')) Object.assign(window, { __personalizationSync: publishCompanySync });
 if (previewQuery.get('theme') === 'light' || previewQuery.get('theme') === 'dark') setAppearance(previewQuery.get('theme') as 'light'|'dark');
 if (['fr','de','it','en'].includes(previewQuery.get('language')||'')) setAppLanguage(previewQuery.get('language') as 'fr'|'de'|'it'|'en');
 let data = {
@@ -295,3 +297,4 @@ import '../src/mobile-air.css';
 import '../src/automation-design.css';
 import '../src/workspace-atelier.css';
 import '../src/onboarding-journey.css';
+import '../src/workspace-personalization.css';

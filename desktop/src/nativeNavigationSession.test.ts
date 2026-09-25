@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Channel, invoke } from '@tauri-apps/api/core';
-import { createNativeNavigationSession, type NativeDestination } from './nativeNavigationSession';
+import { createNativeNavigationSession, type NativeDestination, type NativeNavigationItem } from './nativeNavigationSession';
 
 const callbacks = new Map<number, (value: unknown) => void>();
 let counter = 0, subscription: { id: number; index: number } | undefined;
@@ -27,6 +27,19 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('native Apple navigation subscription', () => {
+  it('updates personalized items and translations without closing the channel, and rejects removed items', async () => {
+    const navigate = vi.fn();
+    const state = { selected: 'agenda' as NativeDestination, visible: true, onNavigate: navigate, items: [{id:'agenda',label:'Agenda'},{id:'clients',label:'Clients'},{id:'invoices',label:'Factures'},{id:'automation',label:'Automation'},{id:'menu',label:'Menu'}] as NativeNavigationItem[] };
+    const session = createNativeNavigationSession('plugin:zentra-mobile|configure_navigation', () => state, vi.fn());
+    await session.update(); tap('agenda'); tap('automation');
+    expect(navigate.mock.calls.map(([id])=>id)).toEqual(['agenda','automation']);
+    state.items[3] = {id:'projects',label:'Projekte'};
+    await session.update(); tap('automation'); tap('projects');
+    expect(navigate.mock.calls.map(([id])=>id)).toEqual(['agenda','automation','projects']);
+    expect(configure.mock.calls.filter(([,args])=>args.onNavigate)).toHaveLength(1);
+    expect(configure.mock.calls.at(-1)?.[1]).toHaveProperty('items',state.items);
+    await session.dispose();
+  });
   it('reproduces the old failure with the actual Tauri Channel', async () => {
     const receive = vi.fn(); const channel = new Channel(receive);
     await invoke('configure', { onNavigate: channel });

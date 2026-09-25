@@ -28,3 +28,4 @@ import './mobile-air.css';
 import './automation-design.css';
 import './workspace-atelier.css';
 import './onboarding-journey.css';
+import './workspace-personalization.css';

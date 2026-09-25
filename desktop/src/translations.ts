@@ -1,4 +1,5 @@
 import { mobileTeamTranslations } from './translationsMobileTeam';
+import { personalizationTranslations } from './translationsPersonalization';
 import { onboardingTranslations } from './translationsOnboarding';
 import { assistantTranslations } from './translationsAssistant';
 import { automationTranslations } from './translationsAutomation';
@@ -25,6 +26,7 @@ import { supplierReviewTranslations } from './translationsSupplierReview';
 import { workflowClarityTranslations } from './translationsWorkflowClarity';
 import { documentEditorTranslations } from './translationsDocumentEditor';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...personalizationTranslations,
   ...onboardingTranslations,
   ...documentEditorTranslations,
   'Retour au compte': ['Zurück zum Konto', 'Torna al conto', 'Back to account'],

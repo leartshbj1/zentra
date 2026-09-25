@@ -1,4 +1,6 @@
 import { AppearanceSetting } from './AppearanceSetting';
+import { WorkspacePersonalization, shortcutMeta, quickActionMeta } from './WorkspacePersonalization';
+import { availableShortcuts, selectedShortcut, useWorkspacePreferences } from './workspacePreferences';
 import { ResetAppPanel } from './ResetAppPanel';
 import { SupplierPaymentOutcomeUnknownError, SupplierPaymentRefreshError, type SupplierPaymentResume } from './supplierPaymentWorkflow';
 import { SupplierInvoiceValidationOutcomeUnknownError, SupplierInvoiceValidationRefreshError } from './supplierInvoiceValidation';
@@ -43,7 +45,7 @@ import { employeeFormIssue, employeeNativeFieldIssue, type EmployeeFieldIssue } 
 import { CompanyLogo } from './CompanyLogo';
 import { quoteInterlocutor } from './quoteInterlocutor';
 import { useProjectSyncBackground } from './projectSync';
-import { CompanyReceivingGuard } from './companySync';
+import { CompanyReceivingGuard, CompanySyncIndicator } from './companySync';
 import { useCloudBackupBackground } from './cloudBackup';
 import { CloudBackupPanel } from './CloudBackupPanel';
 
@@ -504,6 +506,9 @@ function WorkspaceContent({
 }) {
   const [view, setView] = useState<View>('dashboard');
   const companyAutomation = useCompanyAutomation();
+  const preferences = useWorkspacePreferences();
+  const shortcuts = availableShortcuts(preferences, companyAutomation.knownActive);
+  const selectedMobileShortcut = selectedShortcut(view, shortcuts);
   const visibleNavigation = navigation.filter(item => item.id !== 'automation' || companyAutomation.knownActive);
   const [automationPage, setAutomationPage] = useState<AutomationPage>('overview');
   useEffect(()=>{const navigate=(event:Event)=>{const requested=(event as CustomEvent<unknown>).detail;const allowed:Record<string,View>={purchases:'expenses',invoices:'invoices',quotes:'quotes',clients:'clients',bank:'bank',projects:'projects',payroll:'team',accounting:'accounting',planning:'agenda'};if(typeof requested==='string'&&allowed[requested]&&!document.querySelector('[role="dialog"]'))setView(allowed[requested]);};window.addEventListener('zentra-automation-navigate',navigate);return()=>window.removeEventListener('zentra-automation-navigate',navigate);},[]);
@@ -624,7 +629,7 @@ function WorkspaceContent({
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const quoteRevisionInFlight = useRef(new Set<string>());
   const guidedTour = useGuidedTour();
-  const navigateTour = useCallback((nextView: TourView) => {
+  const navigateTour = useCallback((nextView: View) => {
     setAccountingEntryFocus(null);
     setProjectFolderId(null);
     setView(nextView);
@@ -632,9 +637,10 @@ function WorkspaceContent({
     setMenuOpen(false);
   }, []);
   const nativeNavigation = useNativeNavigation(
-    view === 'dashboard' || view === 'projects' ? view : ['quotes', 'invoices', 'orders'].includes(view) ? 'quotes' : 'menu',
+    isNativeMacOS ? (view === 'dashboard' || view === 'projects' ? view : ['quotes', 'invoices', 'orders'].includes(view) ? 'quotes' : 'menu') : selectedMobileShortcut,
     (compactNavigation || isNativeMacOS) && !menuOpen && !navigationOpen && !modal && !printTarget && !guidedTour.open,
     (destination) => { if (destination === 'menu') setMenuOpen(true); else navigateTour(destination); },
+    isNativeMacOS ? undefined : [...shortcuts.map(id => ({ id, label: t(shortcutMeta[id].label) })), { id: 'menu', label: t('Menu') }],
   );
   const sidebarHidden = compactSidebarHidden(compactNavigation || (isNativeMacOS && nativeNavigation), menuOpen);
   useEdgeDrawer(compactNavigation && !modal && !printTarget && !navigationOpen && !guidedTour.open, menuOpen, setMenuOpen);
@@ -1725,6 +1731,7 @@ function WorkspaceContent({
           })}
         </nav>
         <button type="button" className="sidebar__guide" onClick={() => { setMenuOpen(false); guidedTour.start(); }}><CircleHelp size={22} /><span><strong>{t("Un peu d’aide ?")}</strong><small>{t("Découvrir Zentra, pas à pas")}</small></span><ArrowRight size={16} /></button>
+        <button type="button" className="personalize-shortcuts" onClick={() => { navigateTour('settings'); setSettingsFocusTarget('workspace-personalization'); }}><Settings size={18} aria-hidden="true" />{t('Personnaliser les raccourcis')}</button>
         <div className="sidebar__local">
           <ShieldCheck size={17} />
           <div>
@@ -1753,6 +1760,7 @@ function WorkspaceContent({
             <span className="topbar__company">{settings.organization.legalName || t('Mon entreprise')}</span>
           </div>
           <div className="topbar__tools">
+            <CompanySyncIndicator organizationId={cloudAccount?.status === 'connected' ? cloudAccount.organizationId : null} onOpen={() => { navigateTour('settings'); setSettingsFocusTarget('automation-account-target'); }} />
             {searchableView ? (
               <label className="global-search">
                 <Search size={16} />
@@ -1926,6 +1934,7 @@ function WorkspaceContent({
           {view === 'dashboard' ? (
             <>
             <Dashboard
+              onCustomize={() => { navigateTour('settings'); setSettingsFocusTarget('workspace-personalization'); }}
               workspace={workspace}
               readOnly={readOnly}
               onNavigate={setView}
@@ -2398,6 +2407,7 @@ function WorkspaceContent({
           ) : null}
           {view === 'settings' ? (
             <SettingsScreen
+              automationActive={companyAutomation.knownActive}
               workspace={workspace}
               busy={busy}
               readOnly={readOnly}
@@ -2419,12 +2429,10 @@ function WorkspaceContent({
         { id: 'orders' as const, label: 'Commandes & livraisons', description: viewTitles.orders[1], icon: Package },
         { id: 'invoices' as const, label: 'Factures', description: viewTitles.invoices[1], icon: Receipt },
       ]} onClose={() => setNavigationOpen(false)} onSelect={(next) => { setView(next); setProjectFolderId(null); setSearch(''); setAccountingEntryFocus(null); setMenuOpen(false); setNavigationOpen(false); }} /> : null}
-      <nav ref={mobileNavigationRef} className="mobile-navigation" aria-label={t("Navigation mobile")} hidden={nativeNavigation}>
+      <nav ref={mobileNavigationRef} className="mobile-navigation" data-personalized aria-label={t("Navigation mobile")} hidden={nativeNavigation}>
         <span className="mobile-navigation__selection" aria-hidden="true" />
-        {([
-          ['dashboard', 'Accueil', Home], ['projects', 'Projets', FolderKanban], ['quotes', 'Ventes', Receipt],
-        ] as const).map(([target, label, Icon]) => <button key={target} type="button" aria-current={view === target || (target === 'quotes' && ['orders', 'invoices'].includes(view)) ? 'page' : undefined} onClick={() => navigateTour(target)}><Icon size={21} /><span>{t(label)}</span></button>)}
-        <button type="button" aria-label={t("Tous les modules")} aria-current={!['dashboard', 'projects', 'quotes', 'orders', 'invoices'].includes(view) ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} /><span>{t("Menu")}</span></button>
+        {shortcuts.map(target => { const { label, icon: Icon } = shortcutMeta[target]; return <button key={target} type="button" title={t(label)} aria-label={t(label)} aria-current={selectedMobileShortcut === target ? 'page' : undefined} onClick={() => navigateTour(target)}><Icon size={21} aria-hidden="true" /><span>{t(label)}</span></button>; })}
+        <button type="button" aria-label={t("Tous les modules")} aria-current={selectedMobileShortcut === 'menu' ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} aria-hidden="true" /><span>{t("Menu")}</span></button>
       </nav>
 
       {modal && !invoiceToIssueId && !supplierInvoiceReviewId && !payslipPostingId ? (
@@ -2561,6 +2569,7 @@ function CreateButton({
 }
 
 function Dashboard({
+  onCustomize,
   workspace,
   readOnly,
   onNavigate,
@@ -2572,7 +2581,9 @@ function Dashboard({
   onNavigate: (view: View) => void;
   onCreate: Dispatch<SetStateAction<ModalState>>;
   onOpenProject: (project: Project) => void;
+  onCustomize: () => void;
 }) {
+  const preferences = useWorkspacePreferences();
   const compact = useCompactLayout();
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
@@ -2645,14 +2656,37 @@ function Dashboard({
     onNavigate(action.view);
   }
 
-  if (compact && hasActivity) return <MobileDashboard workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} automation={<AutomationDailySummary link />} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
+  const quickActions = (
+      <section className="panel dashboard-personal-actions">
+        <SectionHeading eyebrow={t("Accès rapide")} title={t("Nouvelle saisie")} action={<Button variant="ghost" size="small" onClick={onCustomize}><Settings size={16} aria-hidden="true" />{t('Personnaliser')}</Button>} />
+        <div className="quick-actions" data-personalized-actions>
+          {preferences.actions.map(id => {
+            const { label, icon: Icon } = quickActionMeta[id];
+            const block = id === 'project' ? projectBlock : ['quote', 'invoice'].includes(id) ? quoteBlock : id === 'purchase' ? expenseBlock : null;
+            const changesData = !['agenda', 'clients'].includes(id);
+            const run = () => {
+              if (id === 'agenda') onNavigate('agenda');
+              else if (id === 'clients') onNavigate('clients');
+              else if (readOnly) return;
+              else if (block) onNavigate(id === 'project' ? 'projects' : id === 'purchase' ? 'expenses' : id === 'invoice' ? 'invoices' : 'quotes');
+              else if (id === 'quote' || id === 'invoice') onCreate({ type: 'document', entity: id === 'quote' ? 'quotes' : 'invoices' });
+              else if (id === 'purchase') onCreate({ type: 'supplierInvoice' });
+              else onCreate({ type: id });
+            };
+            return <button type="button" key={id} disabled={readOnly && changesData} title={block ? t(block) : t(label)} onClick={run}><Icon aria-hidden="true" /><span>{t(label)}</span></button>;
+          })}
+        </div>
+      </section>
+  );
+
+  if (compact && hasActivity) return <MobileDashboard actions={quickActions} workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} automation={<AutomationDailySummary link />} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
   if (!hasActivity)
     return (
       <><AutomationDailySummary link /><GettingStartedChecklist
         workspace={workspace}
         readOnly={readOnly}
         onAction={runGettingStartedAction}
-      /></>
+      />{quickActions}</>
     );
   return (
     <div className="dashboard-grid">
@@ -2825,39 +2859,7 @@ function Dashboard({
           </div>
         )}
       </section>
-      <section className="panel">
-        <SectionHeading eyebrow="Accès rapide" title="Nouvelle saisie" />
-        <div className="quick-actions">
-          <button onClick={() => onCreate({ type: 'client' })}>
-            <UserRound />
-            <span>Client</span>
-          </button>
-          <button
-            disabled={Boolean(projectBlock)}
-            title={projectBlock || `Créer un ${terminology.singular}`}
-            onClick={() => onCreate({ type: 'project' })}
-          >
-            <ProjectIcon />
-            <span>{terminology.singularTitle}</span>
-          </button>
-          <button
-            disabled={Boolean(quoteBlock)}
-            title={quoteBlock || 'Créer un devis'}
-            onClick={() => onCreate({ type: 'document', entity: 'quotes' })}
-          >
-            <FileCheck2 />
-            <span>Devis</span>
-          </button>
-          <button
-            disabled={Boolean(expenseBlock)}
-            title={expenseBlock || t('Créer une facture fournisseur')}
-            onClick={() => onCreate({ type: 'supplierInvoice' })}
-          >
-            <WalletCards />
-            <span>{t('Facture fournisseur')}</span>
-          </button>
-        </div>
-      </section>
+      {quickActions}
     </div>
   );
 }
@@ -3195,6 +3197,7 @@ function ClientsScreen({
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
+  const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   const [visibility, setVisibility] = useState<'active' | 'archived'>('active');
   const activeCount = workspace.clients.filter(
     (client) => !client.archivedAt,
@@ -3391,6 +3394,7 @@ function ClientDetail({
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
+  const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   const projects = workspace.projects.filter(
     (project) => project.clientId === client.id,
   );
@@ -4287,6 +4291,7 @@ function TimeScreen({
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
+  const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   const entries = workspace.timeEntries.filter((entry) =>
     searchText(
       [
@@ -4843,6 +4848,7 @@ function TeamScreen({
 }
 
 function SettingsScreen({
+  automationActive,
   workspace,
   busy: operationBusy,
   readOnly,
@@ -4856,6 +4862,7 @@ function SettingsScreen({
   busy: boolean;
   readOnly: boolean;
   setBusy: (value: boolean) => void;
+  automationActive: boolean;
   onWorkspace: Dispatch<SetStateAction<Workspace | null>>;
   onNotice: (value: Notice | null) => void;
   onOpenAccounting: () => void;
@@ -5510,6 +5517,7 @@ function SettingsScreen({
 
       </SettingsCategory>
       <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Languages}><AppearanceSetting /></SettingsCategory>
+      <SettingsCategory id="personalization" title={t('Mes raccourcis')} description={t('Barre du bas et actions de l’accueil')} icon={Settings}><WorkspacePersonalization automationActive={automationActive} /></SettingsCategory>
       <SettingsCategory id="language" title={t('Langue et région')} description={t('Français, allemand, italien ou anglais')} icon={Languages}><LanguageSetting /></SettingsCategory>
       <SettingsCategory id="assistant" lazy title="Assistant local" description="Installer Qwen et obtenir de l’aide dans Zentra" icon={MessageCircle}><LocalAssistantSetup /></SettingsCategory>
       <SettingsCategory id="documents" lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
@@ -6302,6 +6310,7 @@ function ProjectForm({
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
+  const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   return (
     <Modal
       title={

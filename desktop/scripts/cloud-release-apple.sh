@@ -14,6 +14,7 @@ prepare)
   ;;
 test)
   mkdir -p desktop/artifacts/validation
+  pnpm --dir desktop exec vitest run src/workspacePreferences.test.ts src/workspacePersonalizationLanguage.test.ts src/nativeNavigationSession.test.ts src/companySyncPresentation.test.ts 2>&1 | tee desktop/artifacts/validation/personalization-tests.log
   pnpm --dir desktop exec vitest run src/companyAccount.test.ts src/companyRealtime.test.ts src/projectSyncScheduler.test.ts src/automationCompanySession.test.ts src/automationWelcome.test.ts src/onboardingFlow.test.ts src/onboardingDraft.test.ts src/appReleaseNotes.test.ts src/automationDailySummary.test.tsx src/automationHub.test.tsx src/automationJournal.test.tsx src/automationNavigation.test.tsx src/appearance.test.ts src/supplierInboxReview.test.ts src/supplierInboxBatch.test.ts src/languageCatalogCoverage.test.ts src/projectReport.test.ts \
     2>&1 | tee desktop/artifacts/validation/ui-tests.log
   pnpm --dir desktop build:web

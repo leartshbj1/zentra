@@ -1,7 +1,9 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
+import type { ShortcutId } from './workspacePreferences';
 
-export type NativeDestination = 'dashboard' | 'projects' | 'quotes' | 'menu';
-type NavigationState = { selected: NativeDestination; visible: boolean; onNavigate: (destination: NativeDestination) => void };
+export type NativeDestination = ShortcutId | 'menu';
+export type NativeNavigationItem = { id: NativeDestination; label: string };
+type NavigationState = { selected: NativeDestination; visible: boolean; items?: NativeNavigationItem[]; onNavigate: (destination: NativeDestination) => void };
 const destinations: readonly string[] = ['dashboard', 'projects', 'quotes', 'menu'];
 
 // Serialize teardown and registration too: an old React effect must never hide
@@ -28,11 +30,13 @@ export function createNativeNavigationSession(command: string, read: () => Navig
       const registering = !channel;
       if (!channel) channel = new Channel((event) => {
         const current = read();
-        if (!disposed && !failed && current.visible && event && destinations.includes(event.id)) current.onNavigate(event.id as NativeDestination);
+        const allowed = current.items ? current.items.map(item => item.id) : destinations;
+        if (!disposed && !failed && current.visible && event && allowed.includes(event.id)) current.onNavigate(event.id as NativeDestination);
       });
       try {
         const result = await invoke<{ available: boolean }>(command, {
           selected: state.selected, visible: state.visible,
+          ...(state.items ? { items: state.items } : {}),
           // A Channel is a subscription, not a configuration value. Sending it
           // twice recreates the Rust sequence counter and closes its JS callback.
           ...(registering ? { onNavigate: channel } : {}),

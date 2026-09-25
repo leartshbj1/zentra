@@ -1,0 +1,51 @@
+.workspace-personalization { width: 100%; min-width: 0; color: var(--work-ink); }
+.workspace-personalization header { margin-bottom: 24px; }
+.workspace-personalization header > svg { color: var(--work-accent); margin-bottom: 12px; }
+.workspace-personalization h2 { font-size: 24px; font-weight: 600; letter-spacing: -.03em; margin: 0 0 8px; }
+.workspace-personalization p { color: var(--work-muted); line-height: 1.5; }
+.personalization-switch { display: flex; padding: 4px; gap: 4px; background: var(--work-soft); border-radius: 12px; margin-bottom: 24px; }
+.personalization-switch button { flex: 1; min-width: 0; min-height: 44px; padding: 8px; border: 0; background: transparent; border-radius: 9px; color: var(--work-muted); font: inherit; font-size: 14px; line-height: 1.35; transition: background 180ms ease, color 180ms ease; }
+.personalization-switch button[aria-pressed=true] { background: var(--work-paper); color: var(--work-ink); font-weight: 600; }
+.personalization-preview { padding: 24px 16px; border-radius: 16px; background: var(--work-canvas); }
+.personalization-preview > span { display: block; margin-bottom: 18px; font-size: 12px; color: var(--work-muted); }
+.personalization-preview__dock { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); padding: 6px 2px; border: 1px solid var(--work-line); background: var(--work-paper); border-radius: 18px; }
+.personalization-preview__dock > div { min-width: 0; display: flex; align-items: center; flex-direction: column; gap: 6px; padding: 8px 1px; color: var(--work-muted); }
+.personalization-preview__dock > div:first-child { color: var(--work-accent); background: var(--work-selection); border-radius: 12px; }
+.personalization-preview__dock span { max-width: 100%; font-size: 11px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personalization-preview__actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.personalization-preview__actions > div { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 16px; border-radius: 12px; background: var(--work-paper); font-size: 13px; overflow-wrap: anywhere; }
+.personalization-preview__actions svg { color: var(--work-accent); }
+.personalization-hint { margin: 24px 0 12px; font-size: 14px; }
+.personalization-choices { list-style: none; padding: 0; margin: 0; }
+.personalization-choices li { display: grid; grid-template-columns: 24px minmax(0,1fr) 44px 44px; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--work-line); }
+.personalization-number { font-size: 13px; color: var(--work-muted); font-variant-numeric: tabular-nums; }
+.personalization-choices select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--work-line); border-radius: 9px; background: var(--work-paper); color: var(--work-ink); font: inherit; font-size: 16px; text-overflow: ellipsis; }
+.personalization-choices button { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 9px; background: transparent; color: var(--work-muted); }
+.personalization-choices button:hover:not(:disabled) { background: var(--work-soft); color: var(--work-ink); }
+.personalization-choices button:disabled { opacity: .3; }
+.personalization-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; margin-top: 24px; }
+.personalization-footer > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.personalization-reset { border: 0; background: transparent; color: var(--work-muted); font: inherit; font-size: 13px; min-height: 44px; text-decoration: underline; text-underline-offset: 4px; }
+.personalization-feedback { margin: 12px 0 0; font-size: 14px; }
+.workspace-personalization :focus-visible { outline: 2px solid var(--work-accent); outline-offset: 3px; }
+.personalize-shortcuts { display: flex; align-items: center; gap: 10px; padding: 12px; margin: 4px 12px; min-height: 44px; border: 0; background: transparent; color: var(--work-muted); font: inherit; font-size: 13px; text-align: left; }
+html[data-app-theme] .desktop-app[data-experience] .mobile-navigation[data-personalized] { grid-template-columns: repeat(5,minmax(0,1fr)); }
+html[data-app-theme] .desktop-app[data-experience] .mobile-navigation[data-personalized] button { min-width: 0; padding-inline: 2px; }
+html[data-app-theme] .desktop-app[data-experience] .mobile-navigation[data-personalized] button span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.automation-brief__day li > button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 0; min-height: 44px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; }
+.automation-brief__day li > button > span { flex: 1; min-width: 0; }
+.automation-brief__day li > button:hover { color: var(--work-accent); }
+@media(max-width: 390px) { .personalization-choices li { grid-template-columns: 16px minmax(0,1fr) 44px 44px; gap: 3px; } .personalization-preview { padding-inline: 8px; } }
+@media(prefers-reduced-motion: reduce) { .personalization-switch button { transition: none; } }
+@media (max-width:860px) {
+  html:has([data-settings-id="personalization"][open]) { scroll-padding-bottom:calc(164px + var(--safe-bottom,env(safe-area-inset-bottom))); }
+  .workspace-personalization { padding-bottom:calc(164px + var(--safe-bottom,env(safe-area-inset-bottom))); }
+  .personalization-footer { scroll-margin-block:90px calc(164px + var(--safe-bottom,env(safe-area-inset-bottom))); }
+  .personalization-footer button { scroll-margin-bottom:calc(164px + var(--safe-bottom,env(safe-area-inset-bottom))); }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-personal-actions { padding:0; background:transparent; border:0; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-personal-actions .quick-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-personal-actions .quick-actions > button { min-height:80px; padding:14px; border:0; border-radius:14px; background:var(--work-paper); gap:10px; align-items:center; font-size:13px; }
+  .dashboard-personal-actions .quick-actions > button span { min-width:0; overflow-wrap:anywhere; text-align:left; }
+  .dashboard-personal-actions .quick-actions > button svg { flex-shrink:0; }
+  .dashboard-personal-actions .section-heading { flex-wrap:wrap; gap:8px; }
+}

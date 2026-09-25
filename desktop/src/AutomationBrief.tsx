@@ -78,7 +78,7 @@ export function AutomationBrief({ activity, paused = false, observation = false,
       {attention}
     </div>)}
     {!attentionOnly && <div className="automation-brief__day"><h3>{label('today')}</h3>
-      {done.length ? <ul>{done.slice(0, compact ? 2 : 6).map(row => <li key={row.key}><Check size={16}/><span><strong>{row.count}</strong> {label(row.key)}{row.key === 'imported' && !!activity?.supplierInbox?.automatic && <small>{activity.supplierInbox.automatic} {label('automatic')}</small>}</span></li>)}</ul> : <p>{label('empty')}</p>}
+      {done.length ? <ul>{done.slice(0, compact ? 2 : 6).map(row => <li key={row.key}><button type="button" onClick={() => onOpen(row.target)}><Check size={16} aria-hidden="true"/><span><strong>{row.count}</strong> {label(row.key)}{row.key === 'imported' && !!activity?.supplierInbox?.automatic && <small>{activity.supplierInbox.automatic} {label('automatic')}</small>}</span><ChevronRight size={16} aria-hidden="true"/></button></li>)}</ul> : <p>{label('empty')}</p>}
       {!activityFirst && <button type="button" className="automation-brief__text" onClick={() => onOpen('history')}>{label('history')}<ChevronRight size={16}/></button>}
     </div>}
     {!compact && !attentionOnly && <nav className="automation-brief__destinations" aria-label="Gestion & Support">

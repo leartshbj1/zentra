@@ -42,7 +42,9 @@ try {
     await setup.locator('input[name=pensionFund]').fill('Fondation de recette');
     await setup.locator('input[name=contractNumber]').fill('QA-PENSION-2026');
     await setup.getByRole('button', { name: 'Enregistrer et continuer', exact: true }).click();
-    await setup.getByRole('button', { name: 'Ouvrir le contrat de pension', exact: true }).click();
+    // Incomplete pension evidence is now explained inline with direct focus,
+    // rather than requiring a second button to reopen the same contract.
+    assert.equal(await setup.locator('input[name=regulationReference]').evaluate(node => node === document.activeElement), true);
     assert.equal(await setup.locator('input[name=contractNumber]').inputValue(), 'QA-PENSION-2026');
     await setup.locator('input[name=regulationReference]').fill('Règlement QA pension 2026');
     await setup.locator('input[name=lppFrom]').fill('2026-01-01');
@@ -62,10 +64,10 @@ try {
     const overflow = await page.evaluate(() => [...document.querySelectorAll('.modal,.modal__body,.payroll-setup,.payroll-pension-guide')].filter(n => n.getClientRects().length).filter(n => n.scrollWidth > n.clientWidth + 1).map(n => n.className));
     assert.deepEqual(overflow, []);
     await pair.getByRole('button', { name: 'Enregistrer les deux montants', exact: true }).click();
-    await guide.getByRole('button', { name: 'Utiliser ces cotisations', exact: true }).click();
-    await guide.getByRole('button', { name: 'Continuer vers mon salaire', exact: true }).click();
+    // Corrected contributions are resumed automatically; the only next action
+    // calculates the salary with those saved values.
+    await guide.getByRole('button', { name: 'Calculer le net', exact: true }).click();
     assert.equal(await modal.getByRole('spinbutton', { name: 'Salaire brut du mois (CHF)', exact: true, includeHidden: true }).inputValue(), '5123.45');
-    await modal.getByRole('button', { name: 'Vérifier le salaire', exact: true }).click();
     await modal.locator('textarea[name=notes]').fill('Pension à corriger\nConserver ma saisie');
     assert.equal(await modal.locator('.payroll-issues').count(), 0);
     await page.evaluate(() => sessionStorage.setItem('qa-payroll-refuse-save', '1'));
@@ -73,7 +75,7 @@ try {
     await modal.getByRole('button', { name: 'Corriger les comptes du salaire', exact: true }).click();
     await setup.locator('select[name=wagesExpenseAccountId]').selectOption('expense-qa');
     await setup.locator('select[name=wagesPayableAccountId]').selectOption('social-qa');
-    await setup.getByRole('button', { name: 'Enregistrer et revenir au salaire', exact: true }).click();
+    await setup.getByRole('button', { name: 'Enregistrer et continuer', exact: true }).click();
     await setup.waitFor({ state: 'hidden' });
     const accountChanges = await page.evaluate(() => JSON.parse(sessionStorage.getItem('qa-payroll-accounting-settings') || '[]'));
     assert.equal(accountChanges.length, 1);

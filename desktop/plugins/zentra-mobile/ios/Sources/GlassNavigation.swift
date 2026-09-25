@@ -1,12 +1,12 @@
 import UIKit
 
+struct NavigationItem: Decodable, Equatable { let id: String; let label: String }
+
 /// Native controls above the WKWebView. Document content keeps an opaque surface.
 @available(iOS 26.0, *)
 final class GlassNavigation: UIStackView {
-  private let destinations = [
-    ("dashboard", "Accueil", "house"), ("projects", "Projets", "folder"),
-    ("quotes", "Ventes", "doc.text"), ("menu", "Menu", "line.3.horizontal")
-  ]
+  private var destinations = [NavigationItem(id: "dashboard", label: "Accueil"), NavigationItem(id: "projects", label: "Projets"), NavigationItem(id: "quotes", label: "Ventes"), NavigationItem(id: "menu", label: "Menu")]
+  private let symbols = ["dashboard": "house", "projects": "folder", "quotes": "doc.text", "menu": "line.3.horizontal", "agenda": "calendar", "clients": "person", "catalog": "shippingbox", "invoices": "doc.plaintext", "reminders": "bell", "time": "clock", "team": "person.2", "expenses": "tray", "bank": "banknote", "reports": "chart.bar", "accounting": "building.columns", "automation": "checklist", "settings": "gearshape"]
   var onSelect: ((String) -> Void)?
   private var requestedVisible = false
   private var selectedDestination: String?
@@ -33,21 +33,7 @@ final class GlassNavigation: UIStackView {
     distribution = .fillEqually
     translatesAutoresizingMaskIntoConstraints = false
     accessibilityIdentifier = "zentra.native.navigation"
-    for (id, title, symbol) in destinations {
-      let button = UIButton(configuration: .glass())
-      button.accessibilityIdentifier = "zentra.native.\(id)"
-      button.accessibilityLabel = id == "menu" ? "Tous les modules" : title
-      button.addAction(UIAction { [weak self] _ in
-        guard let self, self.requestedVisible, !self.keyboardVisible else { return }
-        self.onSelect?(id)
-      }, for: .touchUpInside)
-      var config = button.configuration!
-      config.title = title
-      config.image = UIImage(systemName: symbol)
-      button.configuration = config
-      button.titleLabel?.adjustsFontForContentSizeCategory = true
-      addArrangedSubview(button)
-    }
+    rebuildButtons()
     host.addSubview(self)
     let width = widthAnchor.constraint(equalTo: host.safeAreaLayoutGuide.widthAnchor, constant: -24)
     width.priority = .defaultHigh
@@ -71,7 +57,25 @@ final class GlassNavigation: UIStackView {
   required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   deinit { observers.forEach { NotificationCenter.default.removeObserver($0) } }
 
-  func configure(selected: String, visible: Bool) {
+  private func rebuildButtons() {
+    for view in arrangedSubviews { removeArrangedSubview(view); view.removeFromSuperview() }
+    for item in destinations {
+      let button = UIButton(configuration: .glass())
+      button.accessibilityIdentifier = "zentra.native.\(item.id)"
+      button.accessibilityLabel = item.label
+      button.addAction(UIAction { [weak self] _ in
+        guard let self, self.requestedVisible, !self.keyboardVisible else { return }
+        self.onSelect?(item.id)
+      }, for: .touchUpInside)
+      button.titleLabel?.adjustsFontForContentSizeCategory = true
+      button.titleLabel?.lineBreakMode = .byTruncatingTail
+      addArrangedSubview(button)
+    }
+    selectedDestination = nil
+  }
+
+  func configure(selected: String, visible: Bool, items: [NavigationItem]? = nil) {
+    if let items, items != destinations { destinations = items; rebuildButtons() }
     requestedVisible = visible
     // Visibility changes do not rebuild every glass configuration. UIKit keeps
     // ownership of its material, pressed-state animation and accessibility traits.
@@ -79,10 +83,12 @@ final class GlassNavigation: UIStackView {
     selectedDestination = selected
     for (index, view) in arrangedSubviews.enumerated() {
       guard let button = view as? UIButton else { continue }
-      let (id, title, symbol) = destinations[index]
+      let item = destinations[index]
+      let id = item.id, title = item.label, symbol = symbols[id] ?? "square.grid.2x2"
       let active = id == selected
       var config: UIButton.Configuration = active ? .prominentGlass() : .glass()
       config.title = title
+      config.titleLineBreakMode = .byTruncatingTail
       config.image = UIImage(systemName: symbol)
       config.imagePlacement = .top
       config.imagePadding = 4

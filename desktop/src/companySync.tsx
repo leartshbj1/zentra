@@ -1,6 +1,7 @@
 import { useEffect,useLayoutEffect,useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Cloud } from 'lucide-react';
+import { Cloud, CloudCheck, CloudOff, CloudUpload, CloudDownload, CircleAlert } from 'lucide-react';
+import { companySyncPresentation } from './companySyncPresentation';
 import { desktopApi } from './bridge';
 import { Button } from './ui';
 import { errorMessage } from './utils';
@@ -10,9 +11,9 @@ import './companySync.css';
 export type DuplicateReceipt={localId:string;remoteId:string;invoiceId:string;invoiceNumber:string;amountCents:number;currency:string;date:string;fingerprint:string};
 export type CompanySyncState={enabled:boolean;organizationId?:string;revision:number;pending:boolean;conflict:boolean;conflictReason?:string|null;duplicateReceipt?:DuplicateReceipt|null;ready?:boolean;lastSyncedAt?:string;changed?:boolean;remoteRevision?:number};
 let current:CompanySyncState={enabled:false,revision:0,pending:false,conflict:false};
-let error='';let receiving=false;
+let error='';let receiving=false;let checkedAt=0;
 const notify=()=>window.dispatchEvent(new Event('zentra-company-sync-status'));
-export function publishCompanySync(value:CompanySyncState,message=''){current=value;error=message;notify();}
+export function publishCompanySync(value:CompanySyncState,message='',verified=false){if(current.organizationId!==value.organizationId)checkedAt=0;current=value;error=message;if(verified)checkedAt=Date.now();notify();}
 export function companyReceiveAllowed(){
   const blockers=document.querySelectorAll('[role="dialog"], [aria-modal="true"], .modal-backdrop, [contenteditable="true"]:focus, input:not([type="search"]):focus, textarea:focus, select:focus, .editor-panel, .document-editor, .settings-form, .desktop-app main form:not([data-company-receive-safe="true"])');
   return !Array.from(blockers).some(node=>{
@@ -47,7 +48,14 @@ export function watchCompanyReceiveOpportunity(wake:()=>void){
   window.addEventListener('pointerup',check);
   return()=>{observer.disconnect();window.removeEventListener('zentra-company-sync-status',check);window.removeEventListener('focusout',check);window.removeEventListener('pointerup',check);};
 }
-function useStatus(){const [,render]=useState(0);useEffect(()=>{const update=()=>render(v=>v+1);window.addEventListener('zentra-company-sync-status',update);return()=>window.removeEventListener('zentra-company-sync-status',update);},[]);return {...current,error,receiving};}
+function useStatus(){const [,render]=useState(0);useEffect(()=>{const update=()=>render(v=>v+1);const events=['zentra-company-sync-status','online','offline'];events.forEach(event=>window.addEventListener(event,update));const timer=window.setInterval(update,30_000);return()=>{events.forEach(event=>window.removeEventListener(event,update));window.clearInterval(timer);};},[]);return {...current,error,receiving,checkedAt:checkedAt||undefined,online:navigator.onLine,now:Date.now()};}
+export function CompanySyncIndicator({ organizationId, onOpen }: { organizationId?: string | null; onOpen: () => void }) {
+  const status = useStatus();
+  if (!organizationId) return null;
+  const info = companySyncPresentation(status, organizationId, status.online, status.now);
+  const Icon = info.kind === 'current' ? CloudCheck : info.kind === 'offline' ? CloudOff : info.kind === 'sending' ? CloudUpload : info.kind === 'receiving' ? CloudDownload : info.kind === 'attention' ? CircleAlert : Cloud;
+  return <button type="button" className="company-sync-indicator" data-sync-state={info.kind} onClick={onOpen} title={t(info.detail)} aria-label={`${t(info.label)}. ${t(info.detail)}`}><Icon size={17} aria-hidden="true" /><span>{t(info.label)}</span></button>;
+}
 export function CompanyReceivingGuard(){
   const {receiving}=useStatus();
   useLayoutEffect(()=>{
@@ -68,6 +76,7 @@ export function CompanyReceivingGuard(){
 }
 export function CompanySyncPanel(){
   const status=useStatus();
+  const info=companySyncPresentation(status,status.organizationId||'',status.online,status.now);
   const [busy,setBusy]=useState(false);
   const duplicate=status.conflict?status.duplicateReceipt:null;
   const amount=duplicate?new Intl.NumberFormat(getAppLocale(),{style:'currency',currency:duplicate.currency}).format(duplicate.amountCents/100):'';
@@ -81,7 +90,7 @@ export function CompanySyncPanel(){
   }
   if(!status.enabled)return null;
   return <section className={`company-sync-panel${status.conflict?'':' company-sync-panel--compact'}`} aria-label={t('Entreprise partagée')}>
-    <header><Cloud size={22}/><div><h3>{t('Entreprise partagée')}</h3><p role="status">{status.conflict?t('Un document nécessite une vérification.'):status.error?t('Reconnexion en cours…'):status.pending?t('Envoi automatique…'):status.ready?t('Réception automatique…'):t('À jour avec votre équipe.')}</p></div></header>
+    <header><Cloud size={22}/><div><h3>{t('Entreprise partagée')}</h3><p role="status">{t(info.label)}</p></div></header>
     {status.lastSyncedAt&&<small>{t('Dernière synchronisation')} : {new Date(status.lastSyncedAt).toLocaleString()}</small>}
     {(status.conflict||status.error)&&<p role="alert">{t(status.conflictReason||status.error||'Les deux copies sont conservées. Contactez le support pour vérifier ce document.')}</p>}
     {duplicate&&<div className="company-sync__receipt"><strong>{duplicate.invoiceNumber} · {amount}</strong><p>{t('Ce montant a été saisi sur deux appareils. S’agit-il du même paiement ?')}</p><Button disabled={busy} onClick={()=>void resolveReceipt()}>{t(busy?'Vérification…':'Oui, un seul paiement')}</Button></div>}

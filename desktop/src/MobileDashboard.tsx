@@ -6,12 +6,13 @@ import { formatMoney } from './utils';
 import { MobileDetails } from './MobileDetails';
 import { t, useAppLanguage } from './language';
 
-export function MobileDashboard({ workspace, onNavigate, onOpenProject, setup, automation }: {
+export function MobileDashboard({ workspace, onNavigate, onOpenProject, setup, automation, actions }: {
   workspace: Workspace;
   onNavigate: (view: 'invoices' | 'quotes' | 'projects' | 'accounting' | 'time') => void;
   onOpenProject: (project: Project) => void;
   setup: ReactNode;
   automation?: ReactNode;
+  actions?: ReactNode;
 }) {
   useAppLanguage();
   const totals = salesTotalsByCurrency(workspace.invoices, workspace.payments);
@@ -37,6 +38,7 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, setup, a
       </MobileDetails>
     </section>
     {automation}
+    {actions}
     <section className="mobile-home__section" aria-label={t('À suivre')}>
       <h2>{t('À suivre')}</h2>
       <div className="mobile-home__list">{links.map(item => <button type="button" key={item.id} onClick={() => onNavigate(item.id)}><item.icon size={21} aria-hidden="true"/><span>{t(item.label)}</span><strong>{item.count}</strong><ChevronRight size={17} aria-hidden="true"/></button>)}</div>

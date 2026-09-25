@@ -5,6 +5,35 @@ import UIKit
 @available(iOS 26.0, *)
 @MainActor
 final class NavigationTests: XCTestCase {
+  func testFivePersonalShortcutsKeepTargetsAndReplaceActions() {
+    let host = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 568))
+    let scroll = UIScrollView(frame: host.bounds)
+    host.addSubview(scroll)
+    let dock = GlassNavigation(host: host, scrollView: scroll)
+    var selected: String?
+    dock.onSelect = { selected = $0 }
+    var items = [NavigationItem(id: "dashboard", label: "Startseite"), NavigationItem(id: "accounting", label: "Buchhaltung"), NavigationItem(id: "invoices", label: "Rechnungen"), NavigationItem(id: "automation", label: "Automation"), NavigationItem(id: "menu", label: "Menü")]
+    dock.configure(selected: "accounting", visible: true, items: items)
+    host.layoutIfNeeded()
+    XCTAssertEqual(dock.arrangedSubviews.count, 5)
+    for (index, view) in dock.arrangedSubviews.enumerated() {
+      let button = view as! UIButton
+      XCTAssertGreaterThanOrEqual(button.bounds.width, 44)
+      XCTAssertGreaterThanOrEqual(button.bounds.height, 44)
+      XCTAssertEqual(button.accessibilityLabel, items[index].label)
+      button.sendActions(for: .touchUpInside)
+      XCTAssertEqual(selected, items[index].id)
+    }
+    let stable = dock.arrangedSubviews[0]
+    dock.configure(selected: "invoices", visible: true, items: items)
+    XCTAssertTrue(stable === dock.arrangedSubviews[0], "Selection changes preserve the UIKit controls")
+    items[3] = NavigationItem(id: "agenda", label: "Kalender")
+    dock.configure(selected: "agenda", visible: true, items: items)
+    let agenda = dock.arrangedSubviews[3] as! UIButton
+    XCTAssertTrue(agenda.accessibilityTraits.contains(.selected))
+    agenda.sendActions(for: .touchUpInside)
+    XCTAssertEqual(selected, "agenda")
+  }
   func testVisibleButtonsReceiveTouchesAfterRepeatedConfiguration() {
     UIView.setAnimationsEnabled(false)
     defer { UIView.setAnimationsEnabled(true) }
