@@ -8,10 +8,10 @@ Mode Operate, extension de desktop/DESIGN.md. Papier clair / graphite, accent ve
 
 ## Conditions de livraison
 
-- [x] Navigation mobile et actions d’accueil personnalisables ; persistance, annulation, ordre, valeurs par défaut et quatre langues vérifiés sur Edge/WebKit, téléphone et ordinateur. Barre UIKit compilée séparément avant publication.
+- [x] Navigation mobile et actions d’accueil personnalisables ; persistance, annulation, ordre, valeurs par défaut et quatre langues vérifiés sur Edge/WebKit, téléphone et ordinateur. Barre UIKit compilée et cinq tests natifs réussis sur simulateur ; pas de recette physique iPhone.
 - [ ] Synchronisation : statut discret et exact, brouillons préservés, récupération compréhensible. Ne pas confondre essais simulés et appareils réellement connectés.
-- [ ] Automation : activité réelle, accès direct aux documents / rendez-vous / tâches concernés, incertitudes distinctes du travail terminé.
-- [ ] Paie : erreurs actionnables, retour au brouillon après correction, vérification des parcours d’assurance.
+- [x] Automation : activité issue des données et accès aux rubriques de résultats (documents / rendez-vous / tâches), incertitudes distinctes du travail terminé. Essais automatisés réussis, pas de mesure client inventée.
+- [x] Paie : erreurs actionnables, retour au brouillon après correction, vérification des parcours d’assurance dans le harnais.
 - [ ] Distribution : builds vérifiés ; signature Windows, notarisation macOS et distribution iPhone dépendent des accès de signature réels. Ne pas présenter une IPA non signée comme installable directement.
 - [ ] Pilote de cinq PME : préparer le protocole, obtenir les participants, mesurer des essais réellement effectués. Participants demandés, réponse en attente.
 - [x] Revue Impeccable indépendante et documentation après vérification visuelle bornée. Verdict limité à la correction examinée, pas à toutes les plateformes natives.
@@ -29,3 +29,15 @@ Les compilations, publications, preuves et limites seront consignées ici au fur
 - Impeccable : détecteur exécuté une fois, avertissements indicatifs de tailles/rayons ; revue indépendante puis correction du seul défaut matériel trouvé (footer sous le dock). Verdict final `ship` sur la correction évaluée. Captures et compte rendu : `outputs/daily-confidence/`; preuves fonctionnelles : `desktop/.qa/personalization/`.
 - Aucun certificat de signature de code détecté dans le magasin Windows CurrentUser/My. Disponibilité des accès Apple Developer et Windows demandée ; aucune signature commerciale ni notarisation n’est revendiquée.
 - Pilote : `docs/PILOTE-CINQ-PME.md` et tableau vide `docs/pilot-results.csv`. Aucun résultat client inventé ; cinq participants restent à identifier.
+
+## Distribution du 25 septembre 2026
+
+- Source applicative publiée : `3e9809bbe58ca16c6ede101db40d57d6f4396c80`. CircleCI 101 (Windows), 102 (Android) et 103 (Apple) ont réussi sur cette source. Les essais 98–100 portaient sur une version candidate antérieure et ne sont pas utilisés pour les paquets distribués.
+- Windows 1.88.0 installé sur le PC ; binaire compilé puis binaire réellement extrait par l’installateur testés chacun au démarrage et à la réouverture dans des profils séparés. Base SQLite version 60, intégrité et clés étrangères vérifiées.
+- Mac universel Intel/Apple Silicon : paquet lancé puis rouvert sur le Mac de compilation dans un profil isolé. IPA ARM64 vérifiée ; cinq tests UIKit passent, dont les raccourcis personnalisés, les cibles tactiles, le clavier et les apparences. Pas de test physique iPhone/Android.
+- Android : certificat persistant vérifié ; versionCode augmente de 1087000 à 1088000 et alignement 16K valide. L’APK demeure une version de test.
+- 14 fichiers publiés dans [Zentra 1.88.0](https://github.com/leartshbj1/zentra/releases/tag/v1.88.0), empreintes vérifiées ; canaux de mise à jour Windows et macOS publiés. Les signatures de mise à jour Zentra ne sont ni Authenticode Windows ni une notarisation Apple ; IPA non signée, aucune publication dans les stores.
+- Page de téléchargement publiée avec les quatre paquets 1.88.0 et leurs empreintes : Sites version 262, source `61b1ac98fc3ef1e03352ea9f477445dc58a36a6f`, déploiement `appgdep_6ab5df5dbcc881919fa2e8963f6179ae` réussi le 25 septembre 2026 à 02:41:55 UTC. Domaine confirmé : https://www.zentraapp.ch. Tests des téléchargements 4/4 et build réussis. Le workflow officiel a poussé et vérifié la source, puis son lanceur de packaging a échoué sur Windows ; l’archive a été produite à partir du même build par le helper local validant le Worker, le manifeste, les migrations et l’absence de fichiers secrets.
+- Le premier essai Windows avait échoué car le disque C: était plein (erreur SQLite explicite). Seuls des fichiers de compilation ont été déplacés vers `D:/Zentra-build-artifacts/release188`, avec vérification de leurs empreintes et jonctions conservant les chemins de travail. Environ 2,4 Go libérés ; le nouvel essai passe. Le journal initial est conservé dans `outputs/release188/local-smoke-disk-full`.
+- Preuves : `outputs/release188/delivery-audit.json`, `smoke-windows/windows-smoke.json`, `smoke-macos/macos-smoke.json`, `public/channel-*-proof.json` et `desktop/artifacts/android/build-info.json`.
+- Restant pour les six priorités : la session du compte réel sur ce PC répond 401 et demande une reconnexion ; l’essai réel entre appareils reste à faire. Accès de signature commerciale et participants du pilote attendus. Ne pas marquer l’objectif complet sur la seule base des compilations.
