@@ -1,4 +1,5 @@
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
+import { groupRows, firstRows } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
 import { errorMessage } from './utils';
 import { runSupplierInvoiceValidation } from './supplierInvoiceValidation';
@@ -2160,13 +2161,12 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const supplierOrderLines = (raw.supplier_order_lines ?? []).map(
     supplierOrderLineFromRaw,
   );
+  const supplierOrderLineById = firstRows(supplierOrderLines, line => line.id);
   const supplierReceiptLines: SupplierReceiptLine[] = (
     raw.supplier_receipt_lines ?? []
   ).map((row) => {
     const supplierOrderLineId = stringValue(row.supplier_order_line_id);
-    const orderLine = supplierOrderLines.find(
-      (line) => line.id === supplierOrderLineId,
-    );
+    const orderLine = supplierOrderLineById.get(supplierOrderLineId);
     return {
       id: stringValue(row.id),
       supplierReceiptId: stringValue(row.supplier_receipt_id),
@@ -2356,6 +2356,17 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     createdAt: stringValue(row.created_at),
     updatedAt: stringValue(row.updated_at),
   }));
+  const quoteLinesByDocument = groupRows(quoteItems, item => stringValue(item.quote_id));
+  const invoiceLinesByDocument = groupRows(invoiceItems, item => stringValue(item.invoice_id));
+  const payslipLinesByDocument = groupRows(payslipItems, item => stringValue(item.payslip_id));
+  const salesLinesByOrder = groupRows(salesOrderLines, line => line.salesOrderId);
+  const deliveryLinesByNote = groupRows(deliveryNoteLines, line => line.deliveryNoteId);
+  const supplierLinesByOrder = groupRows(supplierOrderLines, line => line.supplierOrderId);
+  const supplierLinesByReceipt = groupRows(supplierReceiptLines, line => line.supplierReceiptId);
+  const supplierLinesByInvoice = groupRows(supplierInvoiceItems, line => line.supplierInvoiceId);
+  const supplierPaymentsByInvoice = groupRows(supplierInvoicePayments, payment => payment.supplierInvoiceId);
+  const supplierLinesByCredit = groupRows(supplierCreditNoteItems, line => line.supplierCreditNoteId);
+  const qrBillsByInvoice = firstRows(invoiceQrBills, item => stringValue(item.invoice_id));
   const quotes: Quote[] = (raw.quotes ?? []).map((row) => ({
     creator: row.creator_installation ? {id:nullableString(row.creator_id),name:stringValue(row.creator_name),installationId:stringValue(row.creator_installation)} : null,
     id: stringValue(row.id),
@@ -2367,8 +2378,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     validUntil: stringValue(row.valid_until),
     currency: stringValue(row.currency) || 'CHF',
     status: quoteStatusFromRaw(row.status),
-    lines: quoteItems
-      .filter((item) => stringValue(item.quote_id) === stringValue(row.id))
+    lines: (quoteLinesByDocument.get(stringValue(row.id)) ?? []).slice()
       .sort((a, b) => numberValue(a.position) - numberValue(b.position))
       .map(lineFromRaw),
     notes: stringValue(row.notes),
@@ -2378,8 +2388,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   }));
   const salesOrders: SalesOrder[] = (raw.sales_orders ?? []).map((row) => {
     const id = stringValue(row.id);
-    const orderLines = salesOrderLines
-      .filter((line) => line.salesOrderId === id)
+    const orderLines = (salesLinesByOrder.get(id) ?? []).slice()
       .sort((left, right) => left.position - right.position);
     const subtotalCents = numberValue(row.subtotal_cents);
     const vatCents = numberValue(row.vat_cents);
@@ -2434,8 +2443,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         reversedAt: nullableString(row.reversed_at),
         createdAt: stringValue(row.created_at),
         updatedAt: stringValue(row.updated_at),
-        lines: deliveryNoteLines
-          .filter((line) => line.deliveryNoteId === id)
+        lines: (deliveryLinesByNote.get(id) ?? []).slice()
           .sort((left, right) => left.position - right.position),
         snapshot: deliveryNoteSnapshotFromRaw(
           row.snapshot_json,
@@ -2493,9 +2501,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     const qrBill =
       snapshot?.qrBill ??
       storedQrBillFromRaw(
-        invoiceQrBills.find(
-          (item) => stringValue(item.invoice_id) === stringValue(row.id),
-        ),
+        qrBillsByInvoice.get(stringValue(row.id)),
         stringValue(row.id),
       );
     return {
@@ -2538,8 +2544,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       serviceDateTo: stringValue(row.service_date_to),
       currency: stringValue(row.currency) || 'CHF',
       status: invoiceStatusFromRaw(row.status),
-      lines: invoiceItems
-        .filter((item) => stringValue(item.invoice_id) === stringValue(row.id))
+      lines: (invoiceLinesByDocument.get(stringValue(row.id)) ?? []).slice()
         .sort((a, b) => numberValue(a.position) - numberValue(b.position))
         .map(lineFromRaw),
       notes: stringValue(row.notes),
@@ -2733,8 +2738,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const supplierOrders: SupplierOrder[] = (raw.supplier_orders ?? []).map(
     (row) => {
       const id = stringValue(row.id);
-      const lines = supplierOrderLines
-        .filter((line) => line.supplierOrderId === id)
+      const lines = (supplierLinesByOrder.get(id) ?? []).slice()
         .sort((left, right) => left.position - right.position);
       const subtotalCents = numberValue(row.subtotal_cents);
       const vatCents = numberValue(row.vat_cents);
@@ -2793,8 +2797,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         reversalReason: stringValue(row.reversal_reason),
         createdAt: stringValue(row.created_at),
         updatedAt: stringValue(row.updated_at),
-        lines: supplierReceiptLines
-          .filter((line) => line.supplierReceiptId === id)
+        lines: (supplierLinesByReceipt.get(id) ?? []).slice()
           .sort((left, right) => left.position - right.position),
       };
     },
@@ -2853,8 +2856,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       note: stringValue(row.note),
       validatedAt: nullableString(row.validated_at),
       validationJournalEntryId: nullableString(row.validation_journal_entry_id),
-      items: supplierCreditNoteItems
-        .filter((item) => item.supplierCreditNoteId === id)
+      items: (supplierLinesByCredit.get(id) ?? []).slice()
         .sort((left, right) => left.position - right.position),
       allocations,
       createdAt: stringValue(row.created_at),
@@ -2935,11 +2937,9 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
         validationJournalEntryId:
           stringValue(row.validation_journal_entry_id) || null,
         note: stringValue(row.note),
-        lines: supplierInvoiceItems
-          .filter((item) => item.supplierInvoiceId === id)
+        lines: (supplierLinesByInvoice.get(id) ?? []).slice()
           .sort((left, right) => left.position - right.position),
-        payments: supplierInvoicePayments
-          .filter((payment) => payment.supplierInvoiceId === id)
+        payments: (supplierPaymentsByInvoice.get(id) ?? []).slice()
           .sort(
             (left, right) =>
               left.date.localeCompare(right.date) ||
@@ -2968,8 +2968,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
           paye: 'paid',
         } as Record<string, Payslip['status']>
       )[stringValue(row.status)] ?? 'incomplete',
-    lines: payslipItems
-      .filter((item) => stringValue(item.payslip_id) === stringValue(row.id))
+    lines: (payslipLinesByDocument.get(stringValue(row.id)) ?? []).slice()
       .sort((a, b) => numberValue(a.position) - numberValue(b.position))
       .map((item) => ({
         id: stringValue(item.id),

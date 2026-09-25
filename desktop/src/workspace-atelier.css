@@ -591,6 +591,8 @@
 
 /* Consistent reading rhythm and immediate feedback across every working screen. */
 @media screen {
+  html[data-app-theme='dark'] .desktop-app[data-experience] .timer-ribbon {color:var(--work-on-accent);}
+  html[data-app-theme='dark'] .desktop-app[data-experience] .timer-ribbon small {opacity:1;}
   html[data-app-theme] .desktop-app[data-experience] .page-header h1 {animation:none;text-wrap:balance;}
   html[data-app-theme] .desktop-app[data-experience] .page-header__actions {gap:10px;flex-wrap:wrap;min-width:0;}
   html[data-app-theme] .desktop-app[data-experience] :is(.section-heading,.section-heading__action,.field,.settings-card,.panel) {min-width:0;}

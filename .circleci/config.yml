@@ -146,6 +146,15 @@ jobs:
           destination: apple
 
 workflows:
+  release-1881:
+    when:
+      and:
+        - equal: [codex/release-1.88.1, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows
+      - apple
+      - android
   release-188:
     when:
       and:

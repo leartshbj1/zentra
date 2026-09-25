@@ -1,4 +1,5 @@
 import { AppearanceSetting } from './AppearanceSetting';
+import { ElapsedTimer } from './ElapsedTimer';
 import { WorkspacePersonalization, shortcutMeta, quickActionMeta } from './WorkspacePersonalization';
 import { availableShortcuts, selectedShortcut, useWorkspacePreferences } from './workspacePreferences';
 import { ResetAppPanel } from './ResetAppPanel';
@@ -246,7 +247,6 @@ import {
   formatDateTime,
   formatMinutes,
   formatMoney,
-  formatTimer,
   invoiceCredited,
   invoiceOpenBalance,
   invoicePaid,
@@ -559,7 +559,6 @@ function WorkspaceContent({
     if (expense) setModal({ type: 'legacyExpenseDetail', expense });
     else setNotice({ tone: 'error', text: 'Cette dépense est indisponible. Actualisez les données puis réessayez.' });
   }
-  const [timerSeconds, setTimerSeconds] = useState(0);
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
   const [invoiceToIssueId, setInvoiceToIssueId] = useState<string | null>(null);
   const [invoiceIssueReturnId, setInvoiceIssueReturnId] = useState<string | null>(null);
@@ -782,27 +781,6 @@ function WorkspaceContent({
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
     };
   }, [settingsFocusTarget, view]);
-
-  useEffect(() => {
-    if (!workspace.activeTimer) {
-      setTimerSeconds(0);
-      return;
-    }
-    const update = () =>
-      setTimerSeconds(
-        Math.max(
-          0,
-          Math.floor(
-            (Date.now() -
-              new Date(workspace.activeTimer!.startedAt).getTime()) /
-              1000,
-          ),
-        ),
-      );
-    update();
-    const interval = window.setInterval(update, 1000);
-    return () => window.clearInterval(interval);
-  }, [workspace.activeTimer]);
 
   useEffect(() => {
     workspaceMounted.current = true;
@@ -1815,7 +1793,7 @@ function WorkspaceContent({
           <div className="timer-ribbon">
             <span className="timer-ribbon__pulse" />
             <div>
-              <strong>{t("Pointage en cours · ")}{formatTimer(timerSeconds)}</strong>
+              <strong>{t("Pointage en cours · ")}<ElapsedTimer startedAt={workspace.activeTimer.startedAt} /></strong>
               <small>
                 {timerProject?.name ?? terminology.singularTitle}
                 {timerTask ? ` · ${timerTask.title}` : ''}
@@ -2611,7 +2589,7 @@ function Dashboard({
   const issued = workspace.invoices.filter(
     (invoice) => invoice.status !== 'draft' && invoice.status !== 'cancelled',
   );
-  const financialTotals = salesTotalsByCurrency(workspace.invoices, workspace.payments);
+  const financialTotals = useMemo(() => salesTotalsByCurrency(workspace.invoices, workspace.payments), [workspace.invoices, workspace.payments]);
   const activeProjects = workspace.projects.filter((project) =>
     ['in_progress', 'paused'].includes(project.status),
   );

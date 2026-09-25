@@ -15,27 +15,47 @@ export function normalizeLicenseToken(value: string): string {
   return value.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, '');
 }
 
+// Cache formatter configuration, never customer values. Bound arbitrary currency
+// inputs and include the locale so a language change takes effect immediately.
+const moneyFormatters = new Map<string, Intl.NumberFormat>();
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+function dateFormatter(withTime: boolean) {
+  const locale = getAppLocale();
+  const key = `${locale}:${withTime}`;
+  let formatter = dateFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, withTime
+      ? { dateStyle: 'medium', timeStyle: 'short' }
+      : { day: '2-digit', month: 'short', year: 'numeric' });
+    dateFormatters.set(key, formatter);
+  }
+  return formatter;
+}
+
 export function formatMoney(cents: number | null | undefined, currency = 'CHF'): string {
-  return new Intl.NumberFormat(getAppLocale(), {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format((cents ?? 0) / 100);
+  const locale = getAppLocale();
+  const key = `${locale}:${currency}`;
+  let formatter = moneyFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (moneyFormatters.size >= 32) moneyFormatters.delete(moneyFormatters.keys().next().value!);
+    moneyFormatters.set(key, formatter);
+  }
+  return formatter.format((cents ?? 0) / 100);
 }
 
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—';
   const parsed = new Date(`${value.slice(0, 10)}T12:00:00`);
   if (Number.isNaN(parsed.getTime())) return '—';
-  return parsed.toLocaleDateString(getAppLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
+  return dateFormatter(false).format(parsed);
 }
 
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '—';
-  return parsed.toLocaleString(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' });
+  return dateFormatter(true).format(parsed);
 }
 
 export function formatMinutes(minutes: number): string {

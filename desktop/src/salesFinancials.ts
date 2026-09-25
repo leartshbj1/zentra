@@ -1,19 +1,32 @@
 import type { Invoice, Payment } from './types';
-import { documentTotals, formatMoney, invoiceOpenBalance, invoicePaid } from './utils';
+import { documentTotals, formatMoney } from './utils';
 
 export type SalesCurrencyTotal = { currency: string; invoicedCents: number; paidCents: number; openCents: number };
 
 /** Never add different currencies without an explicit conversion rate. */
 export function salesTotalsByCurrency(invoices: Invoice[], payments: Payment[]): SalesCurrencyTotal[] {
+  const paidByInvoice = new Map<string, number>();
+  const legacyCredits = new Map<string, number>();
+  const firstInvoiceById = new Map<string, Invoice>();
+  const amounts = invoices.map(invoice => ['draft', 'cancelled'].includes(invoice.status) ? 0 : documentTotals(invoice.lines).totalCents);
+  for (const payment of payments) paidByInvoice.set(payment.invoiceId, (paidByInvoice.get(payment.invoiceId) ?? 0) + payment.amountCents);
+  invoices.forEach((invoice, index) => {
+    if (!firstInvoiceById.has(invoice.id)) firstInvoiceById.set(invoice.id, invoice);
+    if (invoice.type === 'credit_note' && !['draft', 'cancelled'].includes(invoice.status) && invoice.originalInvoiceId != null) {
+      legacyCredits.set(invoice.originalInvoiceId, (legacyCredits.get(invoice.originalInvoiceId) ?? 0) + Math.max(0, -amounts[index]));
+    }
+  });
   const totals = new Map<string, SalesCurrencyTotal>();
-  for (const invoice of invoices) {
+  for (const [index, invoice] of invoices.entries()) {
     if (['draft', 'cancelled'].includes(invoice.status)) continue;
     const currency = invoice.currency || 'CHF';
     const total = totals.get(currency) ?? { currency, invoicedCents: 0, paidCents: 0, openCents: 0 };
-    total.invoicedCents += documentTotals(invoice.lines).totalCents;
+    total.invoicedCents += amounts[index];
     if (invoice.type !== 'credit_note') {
-      total.paidCents += invoicePaid(invoice.id, payments);
-      total.openCents += invoiceOpenBalance(invoice, invoices, payments);
+      const paid = paidByInvoice.get(invoice.id) ?? 0;
+      const credited = firstInvoiceById.get(invoice.id)?.creditedCents ?? legacyCredits.get(invoice.id) ?? 0;
+      total.paidCents += paid;
+      total.openCents += Math.max(0, amounts[index] - paid - credited);
     }
     totals.set(currency, total);
   }

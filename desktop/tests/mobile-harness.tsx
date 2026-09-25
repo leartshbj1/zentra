@@ -33,7 +33,7 @@ import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
 import { installReadOnlyFixture } from './read-only-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
-import { useEffect, useState } from 'react';
+import { Profiler, useEffect, useState } from 'react';
 import { openAutomationHub } from '../src/automationExperience';
 import { setAppearance } from '../src/appearance';
 import { setAppLanguage } from '../src/language';
@@ -161,7 +161,8 @@ if (new URLSearchParams(location.search).has('browsing')) {
   data.payments = [{ id: 'paid-qa', invoiceId: data.invoices[2].id, amountCents: 108100, date: '2026-07-01', method: 'bank', reference: '' }] as Workspace['payments'];
 }
 if (new URLSearchParams(location.search).has('volume')) {
-  data.invoices = Array.from({ length: 80 }, (_, index) => ({ ...structuredClone(data.invoices[0]), id: `volume-${index}`, number: `F-2026-${String(index + 1).padStart(4, '0')}`, title: `Prestation ${index + 1}` }));
+  const count = Math.min(5000, Math.max(1, Number(previewQuery.get('volume')) || 80));
+  data.invoices = Array.from({ length: count }, (_, index) => ({ ...structuredClone(data.invoices[0]), id: `volume-${index}`, number: `F-2026-${String(index + 1).padStart(4, '0')}`, title: `Prestation ${index + 1}` }));
 }
 if (new URLSearchParams(location.search).has('documentOrder')) {
   for (const entity of ['quotes', 'invoices'] as const) {
@@ -288,7 +289,11 @@ function Harness() {
     {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}
   </>;
 }
-createRoot(document.getElementById('root')!).render(<ZentraAssistantProvider>{previewQuery.has('startupPerformance') ? <App/> : <Harness />}</ZentraAssistantProvider>);
+if (previewQuery.has('runtimePerformance')) data.activeTimer = { projectId: data.projects[0]?.id ?? '', taskId: null, employeeId: '', startedAt: new Date(Date.now()-60_000).toISOString(), note: '', billable: false, billingRateCents: 0, hourlyCostCents: 0 };
+const runtimeCommits: {phase:string;duration:number;time:number}[] = [];
+if (previewQuery.has('runtimePerformance')) Object.assign(window, { __runtimeCommits: runtimeCommits });
+const application = <ZentraAssistantProvider>{previewQuery.has('startupPerformance') ? <App/> : <Harness />}</ZentraAssistantProvider>;
+createRoot(document.getElementById('root')!).render(previewQuery.has('runtimePerformance') ? <Profiler id="workspace" onRender={(_,phase,duration,__,time)=>runtimeCommits.push({phase,duration,time})}>{application}</Profiler> : application);
 
 import '../src/appearance';
 import '../src/dark.generated.css';

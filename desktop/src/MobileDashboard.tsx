@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ArrowUpRight, ChevronRight, TrendingUp, FileText, FolderKanban, Receipt } from 'lucide-react';
 import type { Project, Workspace } from './types';
 import { salesTotalsByCurrency, turnoverLabel } from './salesFinancials';
@@ -15,7 +15,7 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, setup, a
   actions?: ReactNode;
 }) {
   useAppLanguage();
-  const totals = salesTotalsByCurrency(workspace.invoices, workspace.payments);
+  const totals = useMemo(() => salesTotalsByCurrency(workspace.invoices, workspace.payments), [workspace.invoices, workspace.payments]);
   const [chosen, setChosen] = useState('CHF');
   const total = totals.find(item => item.currency === chosen) ?? totals[0];
   const projects = workspace.projects.filter(item => ['in_progress', 'paused'].includes(item.status));

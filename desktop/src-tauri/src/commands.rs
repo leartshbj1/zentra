@@ -90,9 +90,15 @@ pub async fn refresh_license(
 }
 
 #[tauri::command]
-pub fn get_app_state(state: State<'_, LocalStore>, app: AppHandle) -> Result<AppStateInfo, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.app_state(&app_version(&app)).map_err(command_error)
+pub async fn get_app_state(state: State<'_, LocalStore>, app: AppHandle) -> Result<AppStateInfo, String> {
+    let store = state.inner().clone();
+    let version = app_version(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = store.lock().map_err(command_error)?;
+        store.app_state(&version).map_err(command_error)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -145,9 +151,16 @@ fn onboarding_validation_scope(value: Option<&str>) -> Result<OnboardingValidati
 }
 
 #[tauri::command]
-pub fn get_workspace(state: State<'_, LocalStore>) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.get_workspace().map_err(command_error)
+pub async fn get_workspace(state: State<'_, LocalStore>) -> Result<Value, String> {
+    // SQLite reads and JSON assembly may be large. Keep them off both the
+    // window thread and the network runtime; retain the shared company lock.
+    let store = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = store.lock().map_err(command_error)?;
+        store.get_workspace().map_err(command_error)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
