@@ -5,6 +5,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const pages = [
     ['/', 1, 'weekly'],
     ['/gestion', 0.95, 'weekly'],
+    ['/comparatif/bexio', 0.8, 'monthly'],
     ['/complet', 0.95, 'monthly'],
     ['/complet/conditions', 0.5, 'monthly'],
     ['/features', 0.9, 'weekly'],

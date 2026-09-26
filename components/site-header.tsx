@@ -51,6 +51,7 @@ const productMenus = {
       ['Présentation', '/gestion'],
       ['Fonctionnalités', '/features'],
       ['Tarifs', '/pricing'],
+      ['Comparer avec bexio', '/comparatif/bexio'],
       ['Sécurité', '/security'],
       ['Visite de l’app', '/demo-facture'],
     ],
@@ -94,6 +95,7 @@ export function SiteHeader() {
         ? 'automation'
         : [
               '/gestion',
+              '/comparatif',
               '/features',
               '/pricing',
               '/download',

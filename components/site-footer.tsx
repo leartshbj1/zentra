@@ -10,6 +10,7 @@ const groups = [
       ['/gestion', 'Découvrir Gestion'],
       ['/features', 'Fonctionnalités'],
       ['/pricing', 'Tarifs Gestion'],
+      ['/comparatif/bexio', 'Zentra ou bexio ?'],
       ['/download', 'Télécharger'],
       ['/demo-facture', 'Voir la démo'],
       ['/#questions', 'Questions fréquentes'],

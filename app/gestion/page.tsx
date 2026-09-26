@@ -237,6 +237,7 @@ export default function GestionPage() {
           </a>
         </section>
         <section className="page-finish page-width" id="tarif">
+          <p><a className="page-text-link" href="/comparatif/bexio">Vous utilisez bexio ? Comparer et préparer votre reprise<ArrowRight size={17} aria-hidden="true"/></a></p>
           <h2>Faites votre premier pas.</h2>
           <p>Téléchargez Zentra pour votre entreprise.</p>
           <div className="page-actions">
