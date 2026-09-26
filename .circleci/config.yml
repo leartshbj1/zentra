@@ -177,6 +177,11 @@ jobs:
           destination: apple
 
 workflows:
+  mail-connection-1891:
+    when:
+      equal: [codex/mail-connection-1891, << pipeline.git.branch >>]
+    jobs:
+      - windows
   fixed-assets-scan-validation:
     when:
       equal: [codex/fixed-assets-invoice-scan, << pipeline.git.branch >>]

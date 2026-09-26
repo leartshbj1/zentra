@@ -1,6 +1,8 @@
 # Envoyer les documents par e-mail
 
-Relevé du 26 septembre 2026. Fonctionnalité en préparation pour Zentra Gestion 1.89.0 ; aucune publication ni transmission à une vraie boîte mail n’est établie par ce guide.
+Relevé du 26 septembre 2026. La fonction a été publiée sur Windows en 1.89.0. Le correctif 1.89.1 répare le blocage de connexion observé dans cette version : le formulaire transmettait l’état interne `connected` à une commande qui n’accepte que les paramètres SMTP. Le formulaire et la passerelle séparent maintenant l’état de lecture des sept champs d’écriture ; le moteur conserve son contrôle strict. Aucun envoi à une vraie boîte mail n’est établi par ce guide.
+
+Les essais de connexion utilisent désormais la vraie passerelle de l’interface et une frontière native simulée qui refuse les champs inconnus, au lieu de remplacer toute la fonction de connexion. Ils couvrent la première connexion, les réglages déjà enregistrés, un refus suivi d’une nouvelle tentative et la reconnexion. Ils ne prouvent pas l’authentification auprès d’un serveur SMTP réel.
 
 Zentra prépare un e-mail depuis un devis, une facture ou une relance. Vous vérifiez le destinataire, l’objet et le message, puis déclenchez l’envoi. Le PDF du document est joint automatiquement ; pour une relance, il s’agit du PDF de la facture concernée. Aucun envoi automatique ni renvoi en arrière-plan n’est prévu.
 

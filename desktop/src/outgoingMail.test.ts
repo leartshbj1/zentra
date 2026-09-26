@@ -20,4 +20,11 @@ describe('company email templates', () => {
     await outgoingMail.connect('company-a', connection);
     expect(invoke).toHaveBeenLastCalledWith('connect_outgoing_mail', { scope: 'company-a', connection });
   });
+  it.each([false, true])('excludes read-only connection metadata from native arguments (connected=%s)', async connected => {
+    const writable = { host: 'mail.infomaniak.com', port: 465, security: 'tls' as const, username: 'example@example.com', fromEmail: 'example@example.com', fromName: 'Entreprise', password: connected ? '' : 'FAKE-TEST-PASSWORD' };
+    const draft = { ...writable, connected, hasPassword: connected, lastCheckedAt: '2026-09-26' };
+    await outgoingMail.connect('company-a', draft);
+    expect(invoke).toHaveBeenLastCalledWith('connect_outgoing_mail', { scope: 'company-a', connection: writable });
+    expect(draft.connected).toBe(connected);
+  });
 });

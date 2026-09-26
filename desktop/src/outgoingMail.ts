@@ -5,6 +5,11 @@ export type MailTemplates = { quotes: MailTemplate; invoices: MailTemplate };
 export type MailTarget = { entity: 'quotes' | 'invoices' | 'reminders'; id: string };
 export type MailConnection = { host: string; port: number; security: 'tls' | 'starttls'; username: string; fromEmail: string; fromName: string; password: string };
 export type MailState = { scope: string; connection: Partial<Omit<MailConnection, 'password'>> & { connected: boolean }; templates: MailTemplates; canConfigure: boolean };
+// Status returned by the native reader is not part of the strict write contract.
+export function mailConnectionInput(connection: MailConnection): MailConnection {
+  const { host, port, security, username, fromEmail, fromName, password } = connection;
+  return { host, port, security, username, fromEmail, fromName, password };
+}
 export type MailPreview = { scope: string; target: MailTarget; sourceRevision: string; recipient: string; subject: string; body: string; attachmentName: string; history: Array<{ recipient: string; subject: string; status: 'pending' | 'accepted' | 'rejected' | 'uncertain'; createdAt: string }> };
 export const mailVariables = [
   ['entreprise', 'Entreprise'], ['client', 'Client'], ['numero', 'N° du document'], ['montant', 'Montant total'],
@@ -21,7 +26,7 @@ export function mailTemplateError(template: MailTemplate): string {
 }
 export const outgoingMail = {
   state: () => invoke<MailState>('outgoing_mail_state'),
-  connect: (scope: string, connection: MailConnection) => invoke<MailState['connection']>('connect_outgoing_mail', { scope, connection }),
+  connect: (scope: string, connection: MailConnection) => invoke<MailState['connection']>('connect_outgoing_mail', { scope, connection: mailConnectionInput(connection) }),
   disconnect: (scope: string) => invoke<void>('disconnect_outgoing_mail', { scope }),
   saveTemplates: (scope: string, templates: MailTemplates) => invoke<void>('save_outgoing_mail_templates', { scope, templates }),
   preview: (target: MailTarget) => invoke<MailPreview>('preview_outgoing_mail', { target }),

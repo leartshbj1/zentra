@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Mail, Paperclip, Send } from 'lucide-react';
 import { Button, ErrorPanel, Field, Modal } from './ui';
 import { errorMessage } from './utils';
-import { mailTemplateError, mailVariables, outgoingMail, type MailConnection, type MailPreview, type MailState, type MailTarget } from './outgoingMail';
+import { mailConnectionInput, mailTemplateError, mailVariables, outgoingMail, type MailConnection, type MailPreview, type MailState, type MailTarget } from './outgoingMail';
 import './outgoing-mail.css';
 
 const emptyConnection: MailConnection = { host: 'mail.infomaniak.com', port: 465, security: 'tls', username: '', fromEmail: '', fromName: '', password: '' };
@@ -15,7 +15,7 @@ export function MailSettings({ companyName = '', companyEmail = '', readOnly = f
   const flight = useRef(false);
   const field = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const focused = useRef<'subject' | 'body'>('body');
-  useEffect(() => { let active = true; void outgoingMail.state().then(value => { if (!active) return; setState(value); setConnection(current => ({ ...current, ...value.connection, password: '' })); if (value.connection.connected) setProvider(value.connection.host === 'mail.infomaniak.com' ? 'infomaniak' : 'smtp'); }).catch(reason => { if (active) setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.')); }); return () => { active = false; }; }, [attempt]);
+  useEffect(() => { let active = true; void outgoingMail.state().then(value => { if (!active) return; setState(value); setConnection(current => mailConnectionInput({ ...current, ...value.connection, password: '' })); if (value.connection.connected) setProvider(value.connection.host === 'mail.infomaniak.com' ? 'infomaniak' : 'smtp'); }).catch(reason => { if (active) setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.')); }); return () => { active = false; }; }, [attempt]);
   const locked = busy || readOnly || !state?.canConfigure;
   async function perform(action: () => Promise<void>) { if (flight.current) return; flight.current = true; setBusy(true); setError(''); setNotice(''); try { await action(); } catch (reason) { setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.')); } finally { setBusy(false); flight.current = false; } }
   function patch(patch: Partial<MailConnection>) { setConnection(value => ({ ...value, ...patch })); setNotice(''); }

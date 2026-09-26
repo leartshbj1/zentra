@@ -2,6 +2,20 @@ use super::*;
 use crate::models::{InstallReminderCycleInput, RecordPaymentInput};
 use std::sync::Mutex;
 static TEST_MAIL: Mutex<()> = Mutex::new(());
+#[test]
+fn mail_connection_ipc_accepts_only_writable_connection_fields() {
+    let input=json!({"host":"mail.infomaniak.com","port":465,"security":"tls","username":"contact@example.invalid","fromEmail":"contact@example.invalid","fromName":"Entreprise","password":"FAKE-TEST-PASSWORD"});
+    let connection:MailConnection=serde_json::from_value(input.clone()).unwrap();
+    connection.validate().unwrap();
+    for connected in [false,true] {
+        let mut read_state=input.clone();
+        read_state["connected"]=json!(connected);
+        assert!(serde_json::from_value::<MailConnection>(read_state).is_err());
+    }
+    let mut saved=input;
+    saved["password"]=json!("");
+    assert!(serde_json::from_value::<MailConnection>(saved).is_ok());
+}
 fn fixture(entity: &str) -> (tempfile::TempDir, LocalStore, MailTarget) {
     let temporary = tempfile::tempdir().unwrap();
     let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();

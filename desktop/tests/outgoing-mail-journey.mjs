@@ -18,6 +18,11 @@ for (const [engine,type] of [['edge',chromium],['webkit',webkit]]) {
     await page.getByText('Connexion vérifiée et enregistrée.',{exact:false}).waitFor();
     assert.equal(await page.evaluate(()=>window.__mailQa.connections),1);
     assert.equal(await page.locator('input[type=password]').inputValue(),'');
+    await page.getByRole('button',{name:'Vérifier et enregistrer',exact:true}).click();
+    await page.getByText('Connexion vérifiée et enregistrée.',{exact:false}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__mailQa.connections),2);
+    assert.equal(await page.evaluate(()=>window.__mailQa.connectionInputs[1].password),'kept');
+    assert.deepEqual(await page.evaluate(()=>Object.keys(window.__mailQa.connectionInputs[0]).sort()),['fromEmail','fromName','host','password','port','security','username']);
     await page.screenshot({path:`${output}/settings-${engine}-${width}.png`,fullPage:true});
     await page.getByRole('button',{name:'Devis',exact:true}).click();
     await page.getByRole('textbox',{name:/^Objet/}).fill('Offre {inconnue}');
@@ -55,6 +60,31 @@ for (const [engine,type] of [['edge',chromium],['webkit',webkit]]) {
     assert.equal(await page.evaluate(()=>window.__mailQa.sends),1);
     assert.equal(await page.evaluate(()=>window.__mailQa.inputs[0].recipient),'camille@example.invalid');
     await page.getByRole('button',{name:'Terminer',exact:true}).click();
+    await page.goto(`${origin}/tests/outgoing-mail-preview.html?theme=${theme}&connected`);
+    await page.getByRole('button',{name:'Vérifier et enregistrer',exact:true}).click();
+    await page.getByText('Connexion vérifiée et enregistrée.',{exact:false}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__mailQa.connectionInputs[0].password),'kept');
+    await page.getByLabel(/^Fournisseur/).selectOption('smtp');
+    await page.getByLabel('Serveur SMTP',{exact:false}).fill('smtp.example.invalid');
+    await page.getByLabel(/^Chiffrement/).selectOption('starttls');
+    await page.getByLabel('Mot de passe de la boîte mail',{exact:false}).fill('FAKE-UI-TEST');
+    await page.evaluate(()=>window.__mailQa.failConnection=true);
+    await page.getByRole('button',{name:'Vérifier et enregistrer',exact:true}).click();
+    await page.getByText('La messagerie a refusé la connexion.',{exact:false}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'Vérifier et enregistrer',exact:true}).isEnabled(),true);
+    await page.evaluate(()=>window.__mailQa.failConnection=false);
+    await page.getByRole('button',{name:'Vérifier et enregistrer',exact:true}).click();
+    await page.getByText('Connexion vérifiée et enregistrée.',{exact:false}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__mailQa.connectionInputs.at(-1).port),587);
+    assert.equal(await page.evaluate(()=>window.__mailQa.connectionInputs.at(-1).security),'starttls');
+    await page.getByRole('button',{name:'Déconnecter',exact:true}).click();
+    await page.getByText('Messagerie déconnectée sur cet appareil.',{exact:true}).waitFor();
+    await page.getByLabel(/^Fournisseur/).selectOption('infomaniak');
+    await page.getByLabel('Mot de passe de la boîte mail',{exact:false}).fill('FAKE-UI-TEST');
+    await page.getByRole('button',{name:'Connecter ma messagerie',exact:true}).click();
+    await page.getByText('Connexion vérifiée et enregistrée.',{exact:false}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__mailQa.connectionInputs.at(-1).host),'mail.infomaniak.com');
+    assert.equal(await page.evaluate(()=>window.__mailQa.connectionInputs.at(-1).port),465);
     await page.goto(`${origin}/tests/outgoing-mail-preview.html?theme=${theme}&composer&connected&fail`);
     await page.getByRole('button',{name:'Envoyer l’e-mail',exact:true}).click();
     await page.getByText('La connexion a été interrompue.',{exact:false}).waitFor();
@@ -62,7 +92,7 @@ for (const [engine,type] of [['edge',chromium],['webkit',webkit]]) {
     assert.equal(await page.evaluate(()=>window.__mailQa.sends),1);
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);
     assert.equal(overflow,false);assert.deepEqual(errors,[]);
-    results.push({engine,width,theme,settings:true,templates:true,composer:true,keyboard:true,singleSubmission:true,uncertainNotRetried:true,cancelDoesNotSend:true,variableDoesNotSave:true,dirtyNoticeCleared:true,overflow,errors});
+    results.push({engine,width,theme,settings:true,strictNativeConnectionContract:true,savedPasswordReused:true,smtpRetry:true,reconnectInfomaniak:true,templates:true,composer:true,keyboard:true,singleSubmission:true,uncertainNotRetried:true,cancelDoesNotSend:true,variableDoesNotSave:true,dirtyNoticeCleared:true,overflow,errors});
     await page.close();
   }} finally {await browser.close();}
 }

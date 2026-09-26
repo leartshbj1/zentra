@@ -16,10 +16,20 @@ const params = new URLSearchParams(location.search);
 setAppearance(params.get('theme') === 'dark' ? 'dark' : 'light');
 const sample={subject:'Votre facture {numero} — {entreprise}',body:'Bonjour {client},\n\nVous trouverez en pièce jointe notre facture {numero}, d’un montant de {montant}, payable jusqu’au {echeance}.\n\nNous vous remercions de votre confiance.\n\nAtelier du Léman\n{email_entreprise}'};
 let state:MailState={scope:'fixture-company',connection:{connected:params.has('connected'),fromName:'Atelier du Léman',fromEmail:'contact@example.invalid',host:'mail.infomaniak.com',port:465,security:'tls',username:'contact@example.invalid'},templates:{quotes:{...sample,subject:'Votre devis {numero} — {entreprise}'},invoices:sample},canConfigure:true};
-const qa={sends:0,connections:0,templates:0,fail:params.has('fail'),inputs:[] as unknown[]};
-Object.assign(window,{__mailQa:qa});
+const qa={sends:0,connections:0,templates:0,fail:params.has('fail'),failConnection:false,inputs:[] as unknown[],connectionInputs:[] as Record<string,unknown>[]};
+// Keep the real connect bridge: its IPC payload must meet the strict native schema.
+Object.assign(window,{__mailQa:qa,__TAURI_INTERNALS__:{invoke:async(command:string,args:{scope:string;connection:Record<string,unknown>})=>{
+  if(command!=='connect_outgoing_mail')throw Error(`Unexpected native command: ${command}`);
+  const allowed=['host','port','security','username','fromEmail','fromName','password'];
+  const unexpected=Object.keys(args.connection).find(key=>!allowed.includes(key));
+  if(unexpected)throw Error(`invalid args connection for command connect_outgoing_mail: unknown field ${unexpected}`);
+  if(args.scope!==state.scope||allowed.some(key=>!(key in args.connection)))throw Error('Incomplete native connection request');
+  qa.connections++;qa.connectionInputs.push({...args.connection,password:args.connection.password?'supplied':'kept'});
+  if(qa.failConnection)throw Error('La messagerie a refusé la connexion. Vérifiez l’identifiant et le mot de passe de la boîte.');
+  const {password:_,...visible}=args.connection;
+  state={...state,connection:{...visible,connected:true}};return structuredClone(state.connection);
+}}});
 outgoingMail.state=async()=>structuredClone(state);
-outgoingMail.connect=async(_,connection)=>{qa.connections++;state={...state,connection:{...connection,connected:true}};return state.connection;};
 outgoingMail.disconnect=async()=>{state={...state,connection:{connected:false}};};
 outgoingMail.saveTemplates=async(_,templates)=>{qa.templates++;state={...state,templates};};
 outgoingMail.preview=async target=>({scope:state.scope,target,sourceRevision:'revision-1',recipient:'client@example.invalid',subject:'Votre facture F-2026-0142 — Atelier du Léman',body:'Bonjour Camille,\n\nVous trouverez en pièce jointe notre facture F-2026-0142, d’un montant de 1’250.00 CHF, payable jusqu’au 30.10.2026.\n\nNous vous remercions de votre confiance.\n\nAtelier du Léman\ncontact@example.invalid',attachmentName:'Facture-F-2026-0142.pdf',history:[]});
