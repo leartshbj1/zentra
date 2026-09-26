@@ -1,0 +1,9 @@
+.zentra-brand-identity {display:inline-flex;align-items:center;gap:10px;flex-shrink:0;vertical-align:middle;}
+body .zentra-brand-identity>.zentra-brand-identity__symbol {width:32px;height:32px;flex:0 0 32px;filter:none;}
+body .intuitive-header .catalog-brand {width:auto;}
+body .intuitive-header .catalog-brand .zentra-brand-identity__symbol {width:32px;height:32px;}
+@media(max-width:600px) {
+  .zentra-brand-identity {gap:8px;}
+  body .zentra-brand-identity>.zentra-brand-identity__symbol {width:28px;height:28px;flex-basis:28px;}
+  body .intuitive-header .catalog-brand .zentra-brand-identity__symbol {width:28px;height:28px;}
+}

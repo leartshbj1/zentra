@@ -14,6 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import './product-story.css';
+import { BrandWordmark } from './brand-mark';
 
 const stories = [
   {
@@ -203,7 +204,7 @@ export function ProductStory({ compact = false }: { compact?: boolean }) {
             aria-atomic="true"
           >
             <div className="story-window-bar">
-              <span className="story-wordmark">zentra</span>
+              <BrandWordmark className="w-20" />
               <span>
                 {step === 0
                   ? 'Support'

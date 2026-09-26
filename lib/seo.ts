@@ -37,7 +37,7 @@ export function identityData() {
   return {
     '@context': 'https://schema.org',
     '@graph': [
-      { '@type': 'Organization', '@id': absoluteSiteUrl('/#organization'), name: 'Zentra', url: absoluteSiteUrl('/'), logo: absoluteSiteUrl('/brand/zentra-wordmark.png'), email: 'info@zentraapp.ch' },
+      { '@type': 'Organization', '@id': absoluteSiteUrl('/#organization'), name: 'Zentra', url: absoluteSiteUrl('/'), logo: absoluteSiteUrl('/brand/zentra-symbol-20260926.png'), email: 'info@zentraapp.ch' },
       { '@type': 'WebSite', '@id': absoluteSiteUrl('/#website'), name: 'Zentra', url: absoluteSiteUrl('/'), inLanguage: 'fr-CH', publisher: { '@id': absoluteSiteUrl('/#organization') } },
     ],
   };

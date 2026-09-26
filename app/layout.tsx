@@ -11,6 +11,7 @@ import './product-navigation.css';
 import './studio.css';
 import './intuitive-site.css';
 import './page-system.css';
+import './brand-identity.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -53,7 +54,11 @@ export const metadata: Metadata = {
       'max-video-preview': -1,
     },
   },
-  icons: { icon: '/favicon.svg' },
+  icons: {
+    icon: [{ url: '/favicon-20260926.png', type: 'image/png', sizes: '64x64' }],
+    shortcut: '/favicon.ico?v=20260926',
+    apple: [{ url: '/apple-touch-icon-20260926.png', sizes: '180x180' }],
+  },
   openGraph: {
     type: 'website',
     locale: 'fr_CH',
