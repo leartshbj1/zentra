@@ -28,6 +28,19 @@ parameters:
     default: ""
 
 jobs:
+  windows-package-smoke-1901:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact 1.90.1 installer in a disposable Windows profile
+          command: python desktop/scripts/cloud-package-smoke.py windows 124 3a001f122894c05ccae89f3695927b39d58a2a6b
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
   windows-mail-tests:
     resource_class: windows.medium
     machine:
@@ -177,13 +190,11 @@ jobs:
           destination: apple
 
 workflows:
-  brand-icon-1901:
+  smoke-190:
     when:
-      equal: [codex/brand-icon-1901, << pipeline.git.branch >>]
+      equal: [codex/release-1.90.1-smoke, << pipeline.git.branch >>]
     jobs:
-      - windows
-      - apple
-      - android
+      - windows-package-smoke-1901
   bexio-import-190:
     when:
       equal: [codex/bexio-import-190, << pipeline.git.branch >>]
