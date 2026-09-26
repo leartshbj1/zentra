@@ -77,7 +77,9 @@ fn copy(input: &SendMailInput) -> SendMailInput {
 }
 #[test]
 fn mail_quote_uses_real_pdf_and_never_resends_same_attempt() {
-    let _serial = TEST_MAIL.lock().unwrap();
+    let _serial = TEST_MAIL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let (_temporary, store, target) = fixture("quotes");
     let draft = input(&store, target.clone());
     let replay = copy(&draft);
@@ -114,7 +116,9 @@ fn mail_quote_uses_real_pdf_and_never_resends_same_attempt() {
 }
 #[test]
 fn mail_uncertain_attempt_cannot_be_replayed_or_recorded_as_success() {
-    let _serial = TEST_MAIL.lock().unwrap();
+    let _serial = TEST_MAIL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let (_temporary, store, target) = fixture("quotes");
     let draft = input(&store, target.clone());
     let replay = copy(&draft);
@@ -142,7 +146,9 @@ fn mail_uncertain_attempt_cannot_be_replayed_or_recorded_as_success() {
 }
 #[test]
 fn mail_stale_recipient_or_company_cannot_send() {
-    let _serial = TEST_MAIL.lock().unwrap();
+    let _serial = TEST_MAIL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let (_temporary, store, target) = fixture("quotes");
     let draft = input(&store, target.clone());
     store
@@ -168,7 +174,9 @@ fn mail_stale_recipient_or_company_cannot_send() {
 }
 #[test]
 fn mail_templates_roundtrip_and_credentials_stay_out_of_business_data() {
-    let _serial = TEST_MAIL.lock().unwrap();
+    let _serial = TEST_MAIL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let (_temporary, store, target) = fixture("quotes");
     let key = scope(&store).unwrap();
     let mut templates = MailTemplates::default();
@@ -189,11 +197,29 @@ fn mail_templates_roundtrip_and_credentials_stay_out_of_business_data() {
     assert!(!String::from_utf8_lossy(&protected).contains("LOCAL-FIXTURE-NOT-A-SECRET"));
     clear_local_connections(&store).unwrap();
     assert!(!secret_path(&store, &key).exists());
+    let disconnected = store.outgoing_mail_state().unwrap();
+    let company: Value = store
+        .connect()
+        .unwrap()
+        .query_row(
+            "SELECT company_name,email FROM settings WHERE id=1",
+            [],
+            row_to_json_public,
+        )
+        .unwrap();
+    assert_eq!(disconnected["connection"]["connected"], false);
+    assert_eq!(
+        disconnected["connection"]["fromName"],
+        company["company_name"]
+    );
+    assert_eq!(disconnected["connection"]["fromEmail"], company["email"]);
 }
 #[test]
 fn mail_reminder_rechecks_payment_and_closes_only_after_smtp_acceptance() {
-    let _serial = TEST_MAIL.lock().unwrap();
-    let (_temporary, store, invoice) = fixture("invoices");
+    let _serial = TEST_MAIL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let (_temporary, store, _invoice) = fixture("invoices");
     store
         .install_reminder_cycle(InstallReminderCycleInput {
             request_id: uuid::Uuid::new_v4().to_string(),
@@ -255,7 +281,7 @@ fn mail_reminder_rechecks_payment_and_closes_only_after_smtp_acceptance() {
             request_id: uuid::Uuid::new_v4().to_string(),
             invoice_id: other_invoice.id,
             amount_cents: 12500,
-            date: None,
+            date: Some(chrono::Local::now().date_naive().to_string()),
             method: Some("bank".into()),
             reference: None,
             notes: None,

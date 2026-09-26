@@ -177,6 +177,11 @@ jobs:
           destination: apple
 
 workflows:
+  release-189-windows:
+    when:
+      equal: [codex/release-1.89.0-windows, << pipeline.git.branch >>]
+    jobs:
+      - windows
   outgoing-mail-validation:
     when:
       equal: [codex/company-outgoing-mail, << pipeline.git.branch >>]

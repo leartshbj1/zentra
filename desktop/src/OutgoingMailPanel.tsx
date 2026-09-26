@@ -15,12 +15,13 @@ export function MailSettings({ companyName = '', companyEmail = '', readOnly = f
   const flight = useRef(false);
   const field = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const focused = useRef<'subject' | 'body'>('body');
-  useEffect(() => { let active = true; void outgoingMail.state().then(value => { if (!active) return; setState(value); if (value.connection.connected) { setConnection(current => ({ ...current, ...value.connection, password: '' })); setProvider(value.connection.host === 'mail.infomaniak.com' ? 'infomaniak' : 'smtp'); } }).catch(reason => { if (active) setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.')); }); return () => { active = false; }; }, [attempt]);
+  useEffect(() => { let active = true; void outgoingMail.state().then(value => { if (!active) return; setState(value); setConnection(current => ({ ...current, ...value.connection, password: '' })); if (value.connection.connected) setProvider(value.connection.host === 'mail.infomaniak.com' ? 'infomaniak' : 'smtp'); }).catch(reason => { if (active) setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.')); }); return () => { active = false; }; }, [attempt]);
   const locked = busy || readOnly || !state?.canConfigure;
   async function perform(action: () => Promise<void>) { if (flight.current) return; flight.current = true; setBusy(true); setError(''); setNotice(''); try { await action(); } catch (reason) { setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.')); } finally { setBusy(false); flight.current = false; } }
   function patch(patch: Partial<MailConnection>) { setConnection(value => ({ ...value, ...patch })); setNotice(''); }
   function insertVariable(key: string) {
     if (!state || tab === 'connection') return;
+    setNotice('');
     const name = focused.current, current = state.templates[tab][name], element = field.current;
     const start = element?.selectionStart ?? current.length, end = element?.selectionEnd ?? start;
     const token = `{${key}}`, next = current.slice(0, start) + token + current.slice(end);
@@ -29,7 +30,7 @@ export function MailSettings({ companyName = '', companyEmail = '', readOnly = f
   }
   return <section className="mail-settings">
     <header><h2>Vos e-mails, depuis Zentra.</h2><p>Devis, factures et relances avec votre adresse professionnelle.</p></header>
-    <nav className="mail-tabs" aria-label="Réglages des e-mails">{([['connection', 'Messagerie'], ['quotes', 'Devis'], ['invoices', 'Factures']] as const).map(([id, label]) => <Button key={id} variant={tab === id ? 'primary' : 'ghost'} aria-pressed={tab === id} disabled={busy} onClick={() => { setTab(id); setError(''); setNotice(''); }}>{label}</Button>)}</nav>
+    <nav className="mail-tabs" aria-label="Réglages des e-mails">{([['connection', 'Messagerie'], ['quotes', 'Devis'], ['invoices', 'Factures']] as const).map(([id, label]) => <Button type="button" key={id} variant={tab === id ? 'primary' : 'ghost'} aria-pressed={tab === id} disabled={busy} onClick={() => { setTab(id); setError(''); setNotice(''); }}>{label}</Button>)}</nav>
     {error && <ErrorPanel message={error} onRetry={!state ? () => { setError(''); setAttempt(n => n + 1); } : undefined} />}
     {notice && <p className="mail-notice" role="status"><Check size={17} />{notice}</p>}
     {!state && !error && <p role="status">Ouverture de la messagerie…</p>}
@@ -44,13 +45,13 @@ export function MailSettings({ companyName = '', companyEmail = '', readOnly = f
         <Field label="Mot de passe de la boîte mail" required={!state.connection.connected} hint={state.connection.connected ? 'Laissez vide pour conserver le mot de passe enregistré.' : 'Selon le fournisseur, utilisez le mot de passe de la boîte ou un mot de passe d’application.'}><input type="password" value={connection.password} onChange={e => patch({ password: e.target.value })} required={!state.connection.connected} autoComplete="new-password" /></Field>
         {provider === 'smtp' && <><Field label="Serveur SMTP" required><input value={connection.host} onChange={e => patch({ host: e.target.value.trim() })} placeholder="smtp.votre-fournisseur.ch" required /></Field><Field label="Chiffrement"><select value={connection.security} onChange={e => patch({ security: e.target.value as 'tls' | 'starttls', port: e.target.value === 'tls' ? 465 : 587 })}><option value="tls">TLS · port 465</option><option value="starttls">STARTTLS · port 587</option></select></Field><Field label="Port" required><input type="number" min={1} max={65535} value={connection.port} onChange={e => patch({ port: Number(e.target.value) })} required /></Field></>}
       </fieldset>
-      <div className="mail-actions"><Button type="submit" disabled={locked}>{busy ? 'Vérification…' : state.connection.connected ? 'Vérifier et enregistrer' : 'Connecter ma messagerie'}</Button>{state.connection.connected && <Button variant="ghost" disabled={locked} onClick={() => void perform(async () => { await outgoingMail.disconnect(state.scope); setState({ ...state, connection: { connected: false } }); setConnection(value => ({ ...value, password: '' })); setNotice('Messagerie déconnectée sur cet appareil.'); })}>Déconnecter</Button>}</div>
+      <div className="mail-actions"><Button type="submit" disabled={locked}>{busy ? 'Vérification…' : state.connection.connected ? 'Vérifier et enregistrer' : 'Connecter ma messagerie'}</Button>{state.connection.connected && <Button type="button" variant="ghost" disabled={locked} onClick={() => void perform(async () => { await outgoingMail.disconnect(state.scope); setState({ ...state, connection: { connected: false } }); setConnection(value => ({ ...value, password: '' })); setNotice('Messagerie déconnectée sur cet appareil.'); })}>Déconnecter</Button>}</div>
       <p className="mail-help">À connecter une fois sur chaque appareil. Les modèles des documents suivent l’entreprise ; le mot de passe reste sur cet appareil. Les comptes nécessitant uniquement OAuth ne sont pas pris en charge par SMTP avec mot de passe.</p>
     </form>}
     {state && tab !== 'connection' && <form onSubmit={event => { event.preventDefault(); if (!locked) void perform(async () => { const issue = mailTemplateError(state.templates.quotes) || mailTemplateError(state.templates.invoices); if (issue) throw new Error(issue); await outgoingMail.saveTemplates(state.scope, state.templates); setNotice('Modèles enregistrés pour l’entreprise.'); await onSaved?.(); }); }}>
       <p>Préparé pour chaque client. Vous pourrez toujours modifier le message avant l’envoi.</p>
-      <fieldset className="mail-fields mail-fields--single" disabled={locked}><Field label="Objet" required><input value={state.templates[tab].subject} maxLength={250} onFocus={e => { focused.current = 'subject'; field.current = e.currentTarget; }} onChange={e => setState({ ...state, templates: { ...state.templates, [tab]: { ...state.templates[tab], subject: e.target.value } } })} required /></Field><Field label="Message" required><textarea value={state.templates[tab].body} rows={10} onFocus={e => { focused.current = 'body'; field.current = e.currentTarget; }} onChange={e => setState({ ...state, templates: { ...state.templates, [tab]: { ...state.templates[tab], body: e.target.value } } })} required /></Field></fieldset>
-      <div className="mail-variables" aria-label="Insérer une variable">{mailVariables.map(([key, label]) => <Button key={key} variant="ghost" size="small" disabled={locked} onClick={() => insertVariable(key)} title={`Insérer {${key}}`}>{label}</Button>)}</div>
+      <fieldset className="mail-fields mail-fields--single" disabled={locked}><Field label="Objet" required><input value={state.templates[tab].subject} maxLength={250} onFocus={e => { focused.current = 'subject'; field.current = e.currentTarget; }} onChange={e => { setNotice(''); setState({ ...state, templates: { ...state.templates, [tab]: { ...state.templates[tab], subject: e.target.value } } }); }} required /></Field><Field label="Message" required><textarea value={state.templates[tab].body} rows={10} onFocus={e => { focused.current = 'body'; field.current = e.currentTarget; }} onChange={e => { setNotice(''); setState({ ...state, templates: { ...state.templates, [tab]: { ...state.templates[tab], body: e.target.value } } }); }} required /></Field></fieldset>
+      <div className="mail-variables" aria-label="Insérer une variable">{mailVariables.map(([key, label]) => <Button type="button" key={key} variant="ghost" size="small" disabled={locked} onClick={() => insertVariable(key)} title={`Insérer {${key}}`}>{label}</Button>)}</div>
       <div className="mail-actions"><Button type="submit" disabled={locked}>{busy ? 'Enregistrement…' : 'Enregistrer les modèles'}</Button></div><p className="mail-help">Les textes des relances se règlent dans Relances → Cycle & textes.</p>
     </form>}
   </section>;
@@ -72,11 +73,11 @@ export function MailComposer({ target, onClose, onSent }: { target: MailTarget; 
   }
   return <Modal title={sent ? 'E-mail transmis' : settings ? 'Votre messagerie' : 'Envoyer par e-mail'} onClose={onClose} dismissible={!busy}>
     <div className="mail-composer">
-      {sent ? <><p className="mail-notice" role="status"><Check size={20} />Le serveur de votre messagerie a accepté l’e-mail pour {recipient}.</p><p>Le PDF est joint. La réception par le destinataire n’est pas encore confirmée.</p>{historyWarning && <p role="alert">L’historique local n’a pas pu être complété. L’e-mail a été accepté : ne le renvoyez pas pour cette raison.</p>}<Button onClick={onClose}>Terminer</Button></> : settings ? <><MailSettings /><Button variant="secondary" onClick={() => { setSettings(false); void outgoingMail.state().then(setState).catch(reason => setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.'))); }}>Revenir au message</Button></> : <>
+      {sent ? <><p className="mail-notice" role="status"><Check size={20} />Le serveur de votre messagerie a accepté l’e-mail pour {recipient}.</p><p>Le PDF est joint. La réception par le destinataire n’est pas encore confirmée.</p>{historyWarning && <p role="alert">L’historique local n’a pas pu être complété. L’e-mail a été accepté : ne le renvoyez pas pour cette raison.</p>}<Button type="button" onClick={onClose}>Terminer</Button></> : settings ? <><MailSettings /><Button type="button" variant="secondary" onClick={() => { setSettings(false); void outgoingMail.state().then(setState).catch(reason => setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.'))); }}>Revenir au message</Button></> : <>
         {error && <ErrorPanel message={error} onRetry={!preview ? () => setAttempt(n => n + 1) : undefined} />}
         {!preview && !error && <p role="status">Préparation de l’e-mail…</p>}
         {preview && <>
-          {!state?.connection.connected ? <div className="mail-connect-prompt"><p>Connectez votre messagerie pour envoyer depuis votre adresse.</p><Button onClick={() => setSettings(true)}>Connecter ma messagerie</Button></div> : <p className="mail-from">De : {state.connection.fromName} &lt;{state.connection.fromEmail}&gt;</p>}
+          {!state?.connection.connected ? <div className="mail-connect-prompt"><p>Connectez votre messagerie pour envoyer depuis votre adresse.</p><Button type="button" onClick={() => setSettings(true)}>Connecter ma messagerie</Button></div> : <p className="mail-from">De : {state.connection.fromName} &lt;{state.connection.fromEmail}&gt;</p>}
           {preview.history.length > 0 && <details className="mail-history"><summary>Derniers envois sur cet appareil</summary>{preview.history.map((item, index) => <p key={index}>{new Date(item.createdAt).toLocaleString()} · {item.recipient}<br />{item.status === 'accepted' ? 'Accepté par le serveur' : item.status === 'rejected' ? 'Refusé par le serveur' : 'Envoi non confirmé — à vérifier avant de renvoyer'}</p>)}</details>}
           <form onSubmit={event => { event.preventDefault(); void send(); }}>
             <fieldset className="mail-fields mail-fields--single" disabled={busy || attempted}>
@@ -85,16 +86,11 @@ export function MailComposer({ target, onClose, onSent }: { target: MailTarget; 
               <Field label="Message" required><textarea required rows={10} value={body} onChange={e => setBody(e.target.value)} /></Field>
             </fieldset>
             <p className="mail-attachment"><Paperclip size={17} /><span>{preview.attachmentName}</span><small>PDF joint automatiquement</small></p>
-            <div className="mail-actions"><Button type="submit" disabled={busy || attempted || !state?.connection.connected}><Send size={16} />{busy ? 'Envoi en cours…' : 'Envoyer l’e-mail'}</Button><Button variant="secondary" disabled={busy} onClick={onClose}>{attempted ? 'Fermer' : 'Annuler'}</Button></div>
+            <div className="mail-actions"><Button type="submit" disabled={busy || attempted || !state?.connection.connected}><Send size={16} />{busy ? 'Envoi en cours…' : 'Envoyer l’e-mail'}</Button><Button type="button" variant="secondary" disabled={busy} onClick={onClose}>{attempted ? 'Fermer' : 'Annuler'}</Button></div>
             {attempted && !busy && <p className="mail-help">Aucun renvoi automatique. Après vérification, fermez puis rouvrez le message si vous devez préparer un nouvel envoi.</p>}
           </form>
         </>}
       </>}
     </div>
   </Modal>;
-}
-
-export function MailDocumentButton({ target, disabled = false, onSent }: { target: MailTarget; disabled?: boolean; onSent?: () => void }) {
-  const [open, setOpen] = useState(false);
-  return <><Button variant="secondary" disabled={disabled} onClick={() => setOpen(true)}><Mail size={16} />Envoyer par e-mail</Button>{open && <MailComposer target={target} onClose={() => setOpen(false)} onSent={onSent} />}</>;
 }

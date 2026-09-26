@@ -295,7 +295,12 @@ impl LocalStore {
         let connection = if secret_path(self, &key).is_file() {
             read_connection(self, &key)?.public()
         } else {
-            json!({"connected":false})
+            let company: Value = self.connect()?.query_row(
+                "SELECT company_name,email FROM settings WHERE id=1",
+                [],
+                row_to_json_public,
+            )?;
+            json!({"connected":false,"fromName":text(&company,"company_name"),"fromEmail":text(&company,"email"),"username":text(&company,"email")})
         };
         Ok(
             json!({"scope":key,"connection":connection,"templates":templates(self)?,"canConfigure":require_admin(self).is_ok()}),
