@@ -222,7 +222,7 @@ impl LocalStore {
             &tx,
             supplier_invoice_id,
             &prepared,
-            "supplier_email_mime",
+            "supplier_document_file",
         )?;
         if inserted.created {
             prepared.install()?;

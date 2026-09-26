@@ -15,9 +15,9 @@ export function TouchImagePreview({ url, name, onError }: { url: string; name: s
   }, [natural]);
   return <div className="touch-image-reader">
     <div className="pdf-attachment-preview__toolbar"><span className="touch-reader-hint">{t('Pincez pour zoomer, glissez pour explorer.')}</span><div className="pdf-attachment-preview__zoom">
-      <Button variant="ghost" size="icon" aria-label={t('Réduire le zoom')} disabled={zoom <= 1} onClick={() => setZoom(Math.max(1, zoom - .5))}><Minus size={18}/></Button>
-      <Button variant="ghost" aria-label={t('Ajuster à la largeur')} onClick={() => { setZoom(1); area.current?.scrollTo(0, 0); }}><Scan size={18}/>{Math.round(zoom * 100)} %</Button>
-      <Button variant="ghost" size="icon" aria-label={t('Agrandir le document')} disabled={zoom >= 4} onClick={() => setZoom(Math.min(4, zoom + .5))}><Plus size={18}/></Button>
+      <Button type="button" variant="ghost" size="icon" aria-label={t('Réduire le zoom')} disabled={zoom <= 1} onClick={() => setZoom(Math.max(1, zoom - .5))}><Minus size={18}/></Button>
+      <Button type="button" variant="ghost" aria-label={t('Ajuster à la largeur')} onClick={() => { setZoom(1); area.current?.scrollTo(0, 0); }}><Scan size={18}/>{Math.round(zoom * 100)} %</Button>
+      <Button type="button" variant="ghost" size="icon" aria-label={t('Agrandir le document')} disabled={zoom >= 4} onClick={() => setZoom(Math.min(4, zoom + .5))}><Plus size={18}/></Button>
     </div></div>
     <div ref={area} data-touch-document className="touch-image-reader__viewport" role="region" aria-label={name} tabIndex={0}>
       <div className="touch-image-reader__size" style={{ width: size.width * zoom, height: size.height * zoom }}>

@@ -5,7 +5,7 @@ import { Button, ErrorPanel } from './ui';
 import { useCompanyAutomation } from './AutomationCompany';
 import { featureReady } from './automation';
 import { readInvoiceText, consistentScanAmounts, type InvoiceScan } from './invoiceScan';
-import { errorMessage, formatMoney } from './utils';
+import { errorMessage } from './utils';
 import './invoice-scan.css';
 import './projectFilePreview.css';
 import { TouchImagePreview } from './TouchImagePreview';
@@ -22,9 +22,12 @@ export function InvoiceScanPanel({disabled,onApply,onBusy}:{disabled:boolean;onA
   const company=useCompanyAutomation(), input=useRef<HTMLInputElement>(null), generation=useRef(0);
   const [busy,setBusy]=useState(false), [progress,setProgress]=useState(''), [error,setError]=useState('');
   const [result,setResult]=useState<{scan:InvoiceScan;file:File}|null>(null);
-  useEffect(()=>()=>{generation.current++;},[]);
-  if(!company.state || !featureReady(company.state,'supplier_routing')) return null;
+  const active=Boolean(company.state && featureReady(company.state,'supplier_routing'));
+  const busyCallback=useRef(onBusy);busyCallback.current=onBusy;
+  useEffect(()=>{generation.current++;setResult(null);setError('');setBusy(false);busyCallback.current(false);return()=>{generation.current++;busyCallback.current(false);};},[company.organizationId,company.readOnly,active]);
+  if(!active) return null;
   async function read(file:File){
+    if(disabled||company.readOnly)return;
     const ticket=++generation.current;
     setBusy(true);onBusy(true);setError('');setResult(null);setProgress('Ouverture du document…');
     try{
@@ -45,7 +48,7 @@ export function InvoiceScanPanel({disabled,onApply,onBusy}:{disabled:boolean;onA
     <p className="sr-only" role="status">{busy?progress:''}</p>
     {scan&&result&&<section className="invoice-scan__review" aria-label="Informations lues sur la facture">
       <div className="invoice-scan__heading"><div><h4>{scan.supplierName||'Fournisseur à vérifier'}</h4><p>{result.file.name}</p></div><Button type="button" variant="ghost" aria-label="Fermer la proposition" onClick={()=>setResult(null)}><X size={18}/></Button></div>
-      <dl>{[['Référence',scan.reference],['Date',scan.invoiceDate],['Échéance',scan.dueDate],['Total',scan.totalCents!==null?`${formatMoney(scan.totalCents)}${scan.currency!=='CHF'?` · devise lue : ${scan.currency||'inconnue'}`:''}`:null]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value||'À compléter'}</dd></div>)}</dl>
+      <dl>{[['Référence',scan.reference],['Date',scan.invoiceDate],['Échéance',scan.dueDate],['Total',scan.totalCents!==null?`${new Intl.NumberFormat('fr-CH',{minimumFractionDigits:2,maximumFractionDigits:2}).format(scan.totalCents/100)} ${scan.currency||'(devise à vérifier)'}`:null]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value||'À compléter'}</dd></div>)}</dl>
       {!consistentScanAmounts(scan)&&<p role="status">Les montants ou les taux ne concordent pas. Les lignes d’achat resteront à compléter.</p>}
       {scan.issues.length>0&&<details><summary>{scan.issues.length} points à vérifier</summary><ul>{scan.issues.map((issue,i)=><li key={i}>{issue}</li>)}</ul></details>}
       <p>Comparez avec votre original. Il sera joint au brouillon lors de l’enregistrement.</p>

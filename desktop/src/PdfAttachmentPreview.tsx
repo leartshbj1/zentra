@@ -105,14 +105,14 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
   return <div className="pdf-attachment-preview">
     {document || !error ? <div className="pdf-attachment-preview__toolbar" role="group" aria-label={t('Lecture du PDF')}>
       <div className="pdf-attachment-preview__pages">
-        <Button size="icon" variant="ghost" aria-label={t('Page précédente')} disabled={!document || page <= 1} onClick={() => changePage(page - 1)}><ChevronLeft size={20} /></Button>
+        <Button type="button" size="icon" variant="ghost" aria-label={t('Page précédente')} disabled={!document || page <= 1} onClick={() => changePage(page - 1)}><ChevronLeft size={20} /></Button>
         <span aria-live="polite">{document ? t('Page {page} sur {count}',{page,count:document.numPages}) : 'PDF'}</span>
-        <Button size="icon" variant="ghost" aria-label={t('Page suivante')} disabled={!document || page >= document.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={20} /></Button>
+        <Button type="button" size="icon" variant="ghost" aria-label={t('Page suivante')} disabled={!document || page >= document.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={20} /></Button>
       </div>
       <div className="pdf-attachment-preview__zoom">
-        <Button size="icon" variant="ghost" aria-label={t('Réduire')} disabled={!document || zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - .5))}><ZoomOut size={18} /></Button>
-        <Button variant="ghost" aria-label={t('Ajuster à la largeur')} disabled={!document} onClick={() => setZoom(1)}><Scan size={16} /><span>{Math.round(zoom * 100)} %</span></Button>
-        <Button size="icon" variant="ghost" aria-label={t('Agrandir')} disabled={!document || zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + .5))}><ZoomIn size={18} /></Button>
+        <Button type="button" size="icon" variant="ghost" aria-label={t('Réduire')} disabled={!document || zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - .5))}><ZoomOut size={18} /></Button>
+        <Button type="button" variant="ghost" aria-label={t('Ajuster à la largeur')} disabled={!document} onClick={() => setZoom(1)}><Scan size={16} /><span>{Math.round(zoom * 100)} %</span></Button>
+        <Button type="button" size="icon" variant="ghost" aria-label={t('Agrandir')} disabled={!document || zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + .5))}><ZoomIn size={18} /></Button>
       </div>
     </div> : null}
     <div ref={viewport} data-touch-document className="pdf-attachment-preview__viewport" tabIndex={0} role="region" aria-label={t('Page du PDF')} aria-busy={loading}>

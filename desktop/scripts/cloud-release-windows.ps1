@@ -87,6 +87,7 @@ try {
         identifier = 'ch.helvichantier.desktop'; builtAt = [DateTimeOffset]::UtcNow.ToString('o')
         updaterEndpoint = $env:ELYKO_UPDATER_ENDPOINT; updaterPublicKey = $env:ELYKO_UPDATER_PUBLIC_KEY
         companyTestsPassed = $true; accountTestsPassed = $true; authenticodeSigned = $false
+        outgoingMailTestsPassed = $true; fixedAssetsTestsPassed = $true; inputVatTestsPassed = $true; invoiceScanTestsPassed = $true
         files = @($exe, $setup | ForEach-Object { [ordered]@{name = (Split-Path $_ -Leaf); size = (Get-Item $_).Length; sha256 = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()} })
     }
     [IO.File]::WriteAllText((Join-Path $artifacts 'provenance.json'), ($proof | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))

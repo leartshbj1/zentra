@@ -561,8 +561,10 @@ fn roots(data: &Data, table: &str, row: &Row) -> BTreeSet<(String, String)> {
         }
     }
     if table == "journal_entries" {
-        if text(row,t,"source_type").as_deref()==Some("fixed_asset") {
-            if let Some(id)=text(row,t,"source_id") { result.insert(("fixed_asset".into(),id)); }
+        if text(row, t, "source_type").as_deref() == Some("fixed_asset") {
+            if let Some(id) = text(row, t, "source_id") {
+                result.insert(("fixed_asset".into(), id));
+            }
         }
         if let (Some(kind), Some(id)) = (text(row, t, "source_type"), text(row, t, "source_id")) {
             let target = match kind.as_str() {
@@ -636,16 +638,23 @@ fn check_documents(base: &Data, local: &Data, remote: &Data) -> AppResult<()> {
         }) {
             continue;
         }
+        if root.0 == "fixed_asset" {
+            return Err(invalid("Ce bien a été modifié sur deux appareils avant leur échange. Les deux versions sont conservées. Vérifiez ses amortissements avant de choisir la version à conserver pour éviter une double écriture."));
+        }
         let kind = match root.0.as_str() {
             "invoices" => "La facture",
             "quotes" => "Le devis",
             _ => "Le document",
         };
-        let number = remote[&root.0]
-            .rows
-            .values()
-            .find(|r| text(r, &remote[&root.0], "id").as_deref() == Some(&root.1))
-            .and_then(|r| text(r, &remote[&root.0], "number"))
+        let number = remote
+            .get(&root.0)
+            .and_then(|table| {
+                table
+                    .rows
+                    .values()
+                    .find(|r| text(r, table, "id").as_deref() == Some(&root.1))
+                    .and_then(|r| text(r, table, "number"))
+            })
             .unwrap_or_default();
         return Err(invalid(format!("{kind} {number} a été modifié sur deux appareils avant leur échange. Les deux versions sont conservées. Vérifiez les encaissements de ce document pour éviter de compter un paiement deux fois.")));
     }

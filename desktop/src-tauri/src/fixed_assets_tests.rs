@@ -140,7 +140,10 @@ fn fixed_assets_colliding_device_depreciations_do_not_double_post() {
     let merged = dir.path().join("merged.zentra");
     store.create_backup_at(&local, "1.89.0").unwrap();
     other.create_backup_at(&remote, "1.89.0").unwrap();
-    assert!(crate::company_merge::merge(&store, &base, &local, &remote, &merged).is_err());
+    let error = crate::company_merge::merge(&store, &base, &local, &remote, &merged).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("Ce bien a été modifié sur deux appareils"));
     assert_eq!(list(&store).unwrap()["items"][0]["bookValueCents"], 80000);
     assert!(!merged.exists());
 }
