@@ -28,6 +28,19 @@ parameters:
     default: ""
 
 jobs:
+  windows-package-smoke-1891:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact 1.89.1 installer in a disposable Windows profile
+          command: python desktop/scripts/cloud-package-smoke.py windows 117 2d8e8e9872dd9bef37d8970d98d994ea761c4ace
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
   windows-mail-tests:
     resource_class: windows.medium
     machine:
@@ -177,6 +190,11 @@ jobs:
           destination: apple
 
 workflows:
+  smoke-1891:
+    when:
+      equal: [codex/release-1.89.1-smoke, << pipeline.git.branch >>]
+    jobs:
+      - windows-package-smoke-1891
   mail-connection-1891:
     when:
       equal: [codex/mail-connection-1891, << pipeline.git.branch >>]
