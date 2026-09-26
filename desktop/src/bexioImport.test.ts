@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { Workbook } from 'exceljs';
 import {
   defaultContactMapping,
   previewContacts,
@@ -15,6 +16,19 @@ const source = (rows: (string | number)[][]): CatalogMappingSource => ({
   rows: rows.map((row) => row.map((value) => ({ value }))),
 });
 describe('bexio export contacts', () => {
+  it('preserves Excel zero masks for contact references and postal codes', async () => {
+    const book = new Workbook();
+    const sheet = book.addWorksheet('Contacts');
+    const headers = ['Nº du contact', 'Entreprise', 'NPA'];
+    sheet.addRow(headers);
+    sheet.addRow([42, 'Énergie Démo SA', 123]);
+    sheet.getCell('A2').numFmt = '00000';
+    sheet.getCell('C2').numFmt = '0000';
+    const bytes = new Uint8Array(await book.xlsx.writeBuffer());
+    const data = await catalogMappingSource({name:'contacts.xlsx',size:bytes.byteLength,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)} as File);
+    const row = previewContacts(data, 0, defaultContactMapping(headers), 'clients', [])[0];
+    expect(row.data).toMatchObject({name:'Énergie Démo SA',postal_code:'0123',notes:'Import bexio · contact 00042'});
+  });
   it('maps official French headers and keeps the target explicit', () => {
     const headers = [
       'Nº du contact',

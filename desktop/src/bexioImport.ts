@@ -107,6 +107,10 @@ function text(
 ): string {
   if (!cell) return '';
   if (typeof cell.value === 'string') return cell.value.trim();
+  if (typeof cell.value === 'number' && Number.isSafeInteger(cell.value) && cell.value >= 0) {
+    const mask = cell.numberFormat?.trim();
+    if (mask && /^0{1,32}$/.test(mask)) return String(cell.value).padStart(mask.length, '0');
+  }
   if (cell.displayText) return cell.displayText.trim();
   if (typeof cell.value === 'number') return String(cell.value);
   if (cell.value && typeof cell.value === 'object') {
