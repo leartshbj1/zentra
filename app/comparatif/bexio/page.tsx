@@ -2,51 +2,68 @@ import type { Metadata } from 'next';
 import { ArrowRight, Download } from 'lucide-react';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
+import { ZENTRA_PLANS } from '@/lib/plans';
+import { completePlan } from '@/lib/complete/plans';
 import './comparison.css';
 
 export const metadata: Metadata = {
-  title: 'Zentra ou bexio ? Comparatif et reprise de vos données',
+  title: 'Zentra ou bexio ? Les avantages de Zentra pour votre PME',
   description:
-    'Comparez les prix, le travail en équipe, la comptabilité et les automatisations. Préparez la reprise de vos clients, fournisseurs et articles bexio dans Zentra.',
+    'Projets, stock et fiches de salaire dès Zentra Gestion Solo. Découvrez les différences avec bexio, le pack Gestion + Support + Automation et l’import de vos données.',
   alternates: { canonical: '/comparatif/bexio' },
 };
 const features = [
   [
-    'Devis et factures QR',
-    'Inclus dans toutes les formules Gestion.',
-    'Inclus dans tous les forfaits.',
+    'Projets et suivi du temps',
+    'Inclus dès Solo',
+    'Documents, temps et suivi de vos projets dans Gestion.',
+    'Dès Optima.',
   ],
   [
-    'Comptabilité',
-    'Écritures, TVA et états comptables dans Gestion.',
-    'Comptabilité incluse dans tous les forfaits.',
+    'Gestion du stock',
+    'Inclus dès Solo',
+    'Articles, mouvements et disponibilités dans Gestion.',
+    'Dès Optima.',
   ],
   [
     'Achats et catalogue',
-    'Fournisseurs, achats et catalogue inclus.',
+    'Inclus dès Solo',
+    'Fournisseurs, factures d’achat et articles au même endroit.',
     'Produits et factures fournisseurs dès Advanced.',
   ],
   [
-    'Projets, temps et stock',
-    'Inclus dans toutes les formules Gestion.',
-    'Disponibles dès Optima.',
+    'Fiches de salaire',
+    'Inclus dès Solo',
+    'Sans option paie à ajouter. Pas de certification ni de transmission Swissdec ELM.',
+    'Indisponible en Basic, en option avec Advanced et Optima, incluse avec Ultimate. Solution certifiée Swissdec.',
   ],
   [
-    'Banque',
-    'Import de relevés CAMT et rapprochement à vérifier.',
+    'Devis, factures et comptabilité',
+    'Inclus dès Solo',
+    'Factures QR, écritures, TVA, bilan et compte de résultat.',
+    'Inclus dans tous les forfaits.',
+  ],
+  [
+    'Gestion et demandes clients',
+    'Réunis dans Zentra Complet',
+    'Support classe et oriente les messages. Automation relie les factures reçues aux achats et les rendez-vous à l’agenda de Gestion.',
+    'Fonctions de gestion complétées par des applications tierces du Marketplace, selon leurs offres et connexions.',
+  ],
+  [
+    'Sur votre ordinateur',
+    'Une application avec copie locale',
+    'Travaillez sur les données disponibles sur l’appareil. Le partage et les services connectés utilisent Internet.',
+    'Solution cloud dans le navigateur, complétée sur mobile par bexio Go.',
+  ],
+  [
+    'Rapprochement bancaire',
+    'Import des relevés CAMT',
+    'Rapprochement à vérifier dans Gestion ; pas de connexion bancaire directe équivalente.',
     'Interfaces e-banking et rapprochement dès Advanced.',
   ],
-  [
-    'Façon de travailler',
-    'Application installée, copie locale et partage de l’entreprise avec Internet.',
-    'Logiciel dans le navigateur et application mobile bexio Go.',
-  ],
-  [
-    'Automatisation des e-mails',
-    'Support reçoit les messages. Automation peut préparer les achats et les rendez-vous dans Gestion, selon les connexions et réglages activés.',
-    'Fonctions intégrées de facturation et comptabilité, complétées par des applications du Marketplace.',
-  ],
 ] as const;
+const solo = ZENTRA_PLANS[0];
+const completeSolo = completePlan('solo')!;
 const sources = [
   ['Tarifs bexio', 'https://www.bexio.com/fr-CH/packages-et-prix'],
   [
@@ -65,6 +82,7 @@ const sources = [
     'Structure des produits',
     'https://help.bexio.com/s/article/000001781?language=fr',
   ],
+  ['Applications bexio Marketplace', 'https://marketplace.bexio.com/fr-CH/home'],
 ] as const;
 export default function BexioComparison() {
   return (
@@ -78,81 +96,68 @@ export default function BexioComparison() {
         tabIndex={-1}
         className="polished-page bexio-comparison"
       >
-        <section className="page-intro page-width">
-          <h1>
-            Zentra ou bexio ?<br />
-            <span>À vous de choisir.</span>
-          </h1>
-          <p>
-            Deux façons de gérer une PME suisse.
-            <br />
-            Comparez ce qui compte pour votre entreprise.
-          </p>
-          <div className="page-actions">
-            <a className="page-primary" href="#comparaison">
-              Comparer les fonctions
-              <ArrowRight size={17} />
-            </a>
-            <a className="page-text-link" href="#importer">
-              Passer de bexio à Zentra
-              <ArrowRight size={17} />
-            </a>
+        <section className="page-width comparison-hero">
+          <div>
+            <h1>
+              Zentra ou bexio ?<br />
+              <span>Plus de fonctions.<br />Dès le départ.</span>
+            </h1>
+            <p className="comparison-lead">
+              Projets, stock, achats et fiches de salaire : avec Zentra Gestion,
+              tout cela est inclus dès Solo, à {solo.priceChfCents / 100} CHF par mois.
+            </p>
+            <div className="page-actions">
+              <a className="page-primary" href="/pricing">
+                Choisir Zentra <ArrowRight size={17} />
+              </a>
+              <a className="page-text-link" href="#comparaison">
+                Voir les différences <ArrowRight size={17} />
+              </a>
+            </div>
+          </div>
+          <div className="comparison-proof">
+            <h2>Ce que vous gagnez avec Zentra.</h2>
+            <dl>
+              <div><dt>Vos fonctions Gestion, dès Solo.</dt><dd>Chez bexio, projets et stock commencent avec Optima. Chez Zentra, ils sont déjà inclus dans la première formule.</dd></div>
+              <div><dt>Votre équipe choisit la formule.</dt><dd>1, 3 ou 10 personnes : les mêmes fonctions Gestion. Les fiches de salariés ne consomment pas d’accès.</dd></div>
+              <div><dt>Vos messages deviennent des actions.</dt><dd>Le pack Complet relie Gestion, Support et Automation dès {completeSolo.priceChfCents / 100} CHF par mois.</dd></div>
+            </dl>
+            <a className="page-text-link" href="#importer">Déjà sur bexio ? Préparer mon passage <ArrowRight size={17} /></a>
           </div>
         </section>
-        <section
-          className="page-width comparison-intentions"
-          aria-label="Les deux approches"
-        >
-          <article>
-            <h2>Zentra</h2>
-            <p className="comparison-statement">
-              Votre gestion.
-              <br />
-              Reliée à votre quotidien.
-            </p>
-            <p>
-              Les mêmes fonctions Gestion pour 1, 3 ou 10 personnes. Ajoutez
-              Support pour vos messages et Automation pour les traitements que
-              vous choisissez.
-            </p>
-            <a className="page-text-link" href="/complet">
-              Découvrir les trois produits
-              <ArrowRight size={17} />
-            </a>
-          </article>
-          <article>
-            <h2>bexio</h2>
-            <p className="comparison-statement">
-              La gestion en ligne.
-              <br />
-              Un écosystème établi.
-            </p>
-            <p>
-              Des forfaits progressifs, des interfaces bancaires selon l’offre
-              et un Marketplace d’applications. Votre fiduciaire peut travailler
-              dans votre compte.
-            </p>
-            <a
-              className="page-text-link"
-              href="https://www.bexio.com/fr-CH/produits"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Consulter le site bexio
-              <ArrowRight size={17} />
-            </a>
-          </article>
+        <section className="comparison-workflow page-band" aria-labelledby="workflow-title">
+          <div className="page-width comparison-workflow-layout">
+            <div>
+              <h2 id="workflow-title">Le vrai plus ?<br /><span>Tout se rejoint.</span></h2>
+              <p>Un message dans Support. Une information utile dans Gestion.
+                Automation fait le lien, selon les règles de votre entreprise.</p>
+              <a className="page-text-link" href="/complet">Découvrir Zentra Complet <ArrowRight size={17} /></a>
+            </div>
+            <div className="comparison-workflow-examples">
+              <article>
+                <h3>Une facture arrive par e-mail.</h3>
+                <p>Support la classe. Automation en extrait les informations et retrouve ou propose le fournisseur. L’achat est préparé dans Gestion.</p>
+                <p className="comparison-outcome">À vérifier, ou à comptabiliser selon vos règles.</p>
+              </article>
+              <article>
+                <h3>Un rendez-vous est confirmé.</h3>
+                <p>La date, l’heure et les informations reçues peuvent rejoindre l’agenda de Gestion. Votre équipe retrouve le rendez-vous dans son espace.</p>
+                <p className="comparison-outcome">Le message et votre activité restent reliés.</p>
+              </article>
+              <p className="comparison-note">Avec les trois produits actifs, une messagerie compatible et la même entreprise reliée. Les cas incertains restent à valider ; les traitements vers Gestion nécessitent l’application ouverte et connectée.</p>
+            </div>
+          </div>
         </section>
         <section className="page-section page-width" id="comparaison">
           <div className="page-section-heading">
             <h2>
-              Le détail.
+              Là où Zentra
               <br />
-              <span>Sans raccourcis.</span>
+              <span>fait la différence.</span>
             </h2>
             <p>
-              Les offres n’ont pas exactement le même périmètre. Voici les
-              différences utiles à votre choix.
+              Les fonctions Gestion sont incluses dans toutes nos formules.
+              Le pack Complet ajoute Support et Automation.
             </p>
           </div>
           <table className="comparison-table">
@@ -162,12 +167,12 @@ export default function BexioComparison() {
             <thead>
               <tr>
                 <th scope="col">Votre besoin</th>
-                <th scope="col">Zentra Gestion</th>
+                <th scope="col">Zentra</th>
                 <th scope="col">bexio</th>
               </tr>
             </thead>
             <tbody>
-              {features.map(([title, zentra, bexio]) => (
+              {features.map(([title, benefit, zentra, bexio]) => (
                 <tr key={title}>
                   <th scope="row">{title}</th>
                   <td>
@@ -177,6 +182,7 @@ export default function BexioComparison() {
                     >
                       Zentra
                     </span>
+                    <strong className="comparison-benefit">{benefit}</strong>
                     {zentra}
                   </td>
                   <td>
@@ -193,19 +199,19 @@ export default function BexioComparison() {
             </tbody>
           </table>
           <p className="comparison-note">
-            Zentra ne revendique pas de certification Swissdec ni de connexion
-            e-banking équivalente à celle de bexio. Les fonctions et quotas de
-            Support et Automation dépendent de l’abonnement et des connexions
-            activées.
+            Comparaison des fonctions intégrées, selon les{' '}
+            <a href={sources[1][1]} target="_blank" rel="noreferrer">forfaits officiels bexio</a>.
+            {' '}bexio propose également la numérisation intelligente de factures et des rappels automatiques.
+            Les quotas de Support et Automation dépendent de votre offre ; les applications tierces bexio ont leurs propres conditions.
           </p>
         </section>
         <section className="page-band" id="tarifs">
           <div className="page-width">
             <div className="page-section-heading">
               <h2>
-                Des prix.
+                Choisissez votre équipe.
                 <br />
-                <span>Avec leur contexte.</span>
+                <span>Gardez vos fonctions.</span>
               </h2>
               <p>
                 Tarifs vérifiés le 26 septembre 2026. Les utilisateurs ne sont
@@ -217,18 +223,14 @@ export default function BexioComparison() {
                 <h3>Zentra Gestion</h3>
                 <p>Abonnement mensuel · titulaire compris</p>
                 <dl>
-                  {[
-                    ['Solo', '1 personne', '49'],
-                    ['Start', '3 personnes', '59'],
-                    ['Pro', '10 personnes', '89'],
-                  ].map(([name, seats, price]) => (
+                  {ZENTRA_PLANS.map(({name, seats, priceChfCents}) => (
                     <div key={name}>
                       <dt>
                         {name}
-                        <small>{seats}</small>
+                        <small>{seats} {seats === 1 ? 'personne' : 'personnes'}</small>
                       </dt>
                       <dd>
-                        {price}
+                        {priceChfCents / 100}
                         <small>CHF / mois</small>
                       </dd>
                     </div>
@@ -246,7 +248,7 @@ export default function BexioComparison() {
               </article>
               <article>
                 <h3>bexio</h3>
-                <p>Abonnement mensuel · prix hors TVA</p>
+                <p>Tarifs mensuels habituels · hors TVA et promotion</p>
                 <dl>
                   {[
                     ['Basic', '1 utilisateur', '45'],
@@ -280,14 +282,20 @@ export default function BexioComparison() {
                   Voir les conditions bexio
                   <ArrowRight size={17} />
                 </a>
+                <p className="comparison-promotion">
+                  <strong>Promotion constatée le 26 septembre 2026 :</strong>{' '}
+                  −40 % la première année pour les nouveaux clients jusqu’au 30 septembre 2026,
+                  dès Advanced avec le code bx40. Soit 31.20, 47.40 ou 77.40 CHF HT par mois
+                  en facturation mensuelle, selon le forfait.
+                </p>
               </article>
             </div>
             <div className="comparison-pack">
               <div>
-                <h3>Et si vous réunissiez les trois ?</h3>
+                <h3>Gestion. Support. Automation. Un seul pack.</h3>
                 <p>
-                  Zentra Complet réunit Gestion, Support et Automation dès 79
-                  CHF par mois.
+                  Zentra Complet Solo : {completeSolo.priceChfCents / 100} CHF par mois,
+                  {' '}{completeSolo.seats} personne et {completeSolo.analyses.toLocaleString('fr-CH')} analyses mensuelles.
                 </p>
               </div>
               <a className="page-text-link" href="/complet">

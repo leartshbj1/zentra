@@ -5,31 +5,137 @@
 .bexio-comparison section[id] {
   scroll-margin-top: 140px;
 }
-.comparison-intentions {
+.comparison-hero {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: 64px;
-  padding-block: 24px 72px;
+  align-items: center;
+  padding-block: 80px 96px;
 }
-.comparison-intentions article {
-  padding-top: 28px;
+.bexio-comparison .comparison-hero h1 {
+  font-size: clamp(40px, 4.4vw, 64px);
+  font-weight: 540;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  text-wrap: balance;
+  margin: 0;
+}
+.comparison-hero h1 span,
+.comparison-workflow h2 span {
+  color: #225b40;
+}
+.comparison-lead {
+  max-width: 43ch;
+  font-size: 19px;
+  line-height: 1.65;
+  color: #626b66;
+  margin: 28px 0 0;
+}
+.comparison-hero .page-actions {
+  justify-content: flex-start;
+}
+.bexio-comparison .comparison-proof h2 {
+  font-size: 24px;
+  font-weight: 550;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0 0 24px;
+}
+.comparison-proof dl {
+  margin: 0 0 20px;
+}
+.comparison-proof dl > div {
+  padding: 20px 0;
   border-top: 1px solid var(--comparison-rule);
 }
-.comparison-intentions h2 {
-  font-size: 22px;
+.comparison-proof dt {
+  font-size: 17px;
   font-weight: 600;
+  line-height: 1.5;
 }
-.comparison-intentions p {
-  max-width: 46ch;
+.comparison-proof dd {
+  margin: 8px 0 0;
+  font-size: 15px;
   line-height: 1.65;
-  margin: 18px 0;
+  color: #626b66;
 }
-.comparison-intentions .comparison-statement {
-  font-size: clamp(26px, 3vw, 38px);
-  line-height: 1.2;
-  letter-spacing: -0.025em;
+.comparison-workflow-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 80px;
+}
+.comparison-workflow h2 {
+  margin: 0 0 28px;
+}
+.comparison-workflow-layout > div > p:not(.comparison-note) {
+  max-width: 43ch;
+  font-size: 19px;
+  line-height: 1.65;
+  color: #626b66;
+  margin: 0 0 24px;
+}
+.comparison-workflow-examples article + article {
+  margin-top: 36px;
+  padding-top: 36px;
+  border-top: 1px solid var(--comparison-rule);
+}
+.comparison-workflow h3 {
+  font-size: 24px;
+  font-weight: 550;
+  line-height: 1.3;
+  margin: 0 0 16px;
+  letter-spacing: -0.02em;
+}
+.comparison-workflow-examples article p {
+  line-height: 1.7;
+  font-size: 16px;
+  color: #626b66;
+  margin: 0;
+}
+.comparison-workflow-examples article .comparison-outcome {
+  color: #225b40;
+  font-weight: 550;
+  margin-top: 16px;
+}
+.bexio-comparison .page-text-link {
+  min-height: 44px;
+}
+.comparison-benefit {
+  display: block;
+  color: #225b40;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.comparison-table td:nth-child(2),
+.comparison-table thead th:nth-child(2) {
+  background: #e9f0ec;
+  padding-left: 24px;
+  color: #254434;
+}
+.comparison-table thead th:nth-child(2) {
+  border-radius: 14px 14px 0 0;
+}
+.comparison-table tbody tr:last-child td:nth-child(2) {
+  border-radius: 0 0 14px 14px;
+}
+.comparison-table td:last-child,
+.comparison-table thead th:last-child {
+  padding-left: 24px;
+}
+.comparison-note a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  color: #225b40;
+}
+.comparison-pricing .comparison-promotion {
+  padding-top: 20px;
+  border-top: 1px solid var(--comparison-rule);
+  margin-top: 20px;
+  font-size: 14px;
+}
+.comparison-promotion strong {
+  font-weight: 550;
   color: #19251f;
-  margin-block: 28px 20px;
 }
 .comparison-table {
   width: 100%;
@@ -202,13 +308,28 @@
   background: #e9f0ec;
 }
 @media (max-width: 760px) {
-  .comparison-intentions,
+  .comparison-hero,
+  .comparison-workflow-layout,
   .comparison-pricing {
     grid-template-columns: minmax(0, 1fr);
     gap: 40px;
   }
-  .comparison-intentions {
-    padding-bottom: 20px;
+  .comparison-hero {
+    padding-block: 48px 56px;
+    gap: 48px;
+  }
+  .comparison-lead {
+    font-size: 18px;
+    margin-top: 24px;
+  }
+  .comparison-hero .page-actions {
+    align-items: flex-start;
+  }
+  .comparison-workflow-layout {
+    gap: 36px;
+  }
+  .comparison-workflow-layout > div > p:not(.comparison-note) {
+    font-size: 18px;
   }
   .comparison-table thead {
     position: absolute;
@@ -243,6 +364,16 @@
   }
   .comparison-table td + td {
     margin-top: 18px;
+  }
+  .comparison-table td:nth-child(2) {
+    padding: 20px;
+    border-radius: 14px;
+  }
+  .comparison-table tbody tr:last-child td:nth-child(2) {
+    border-radius: 14px;
+  }
+  .comparison-table td:last-child {
+    padding-inline: 20px;
   }
   .comparison-mobile-label {
     display: block;
