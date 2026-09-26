@@ -18,10 +18,10 @@ function Original({file}:{file:File}){
   return <div className="invoice-scan__original">{/\.pdf$/i.test(file.name)?<Suspense fallback={<p>Ouverture du PDF…</p>}><PdfPreview bytes={source.bytes} name={file.name}/></Suspense>:<TouchImagePreview url={source.url} name={file.name} onError={()=>setFailed(true)}/>}</div>;
 }
 
-export function InvoiceScanPanel({disabled,onApply,onBusy}:{disabled:boolean;onApply:(scan:InvoiceScan,file:File)=>void;onBusy:(v:boolean)=>void}) {
+export function InvoiceScanPanel({disabled,onApply,onBusy}:{disabled:boolean;onApply:(scan:InvoiceScan,file:File,text:string)=>void;onBusy:(v:boolean)=>void}) {
   const company=useCompanyAutomation(), input=useRef<HTMLInputElement>(null), generation=useRef(0);
   const [busy,setBusy]=useState(false), [progress,setProgress]=useState(''), [error,setError]=useState('');
-  const [result,setResult]=useState<{scan:InvoiceScan;file:File}|null>(null);
+  const [result,setResult]=useState<{scan:InvoiceScan;file:File;text:string}|null>(null);
   const active=Boolean(company.state && featureReady(company.state,'supplier_routing'));
   const busyCallback=useRef(onBusy);busyCallback.current=onBusy;
   useEffect(()=>{generation.current++;setResult(null);setError('');setBusy(false);busyCallback.current(false);return()=>{generation.current++;busyCallback.current(false);};},[company.organizationId,company.readOnly,active]);
@@ -37,7 +37,7 @@ export function InvoiceScanPanel({disabled,onApply,onBusy}:{disabled:boolean;onA
       const response=await invoke<{status:string;message?:string;extraction?:InvoiceScan}>('automation_request',{data:{action:'invoice_scan',requestId:crypto.randomUUID(),text}});
       if(ticket!==generation.current)return;
       if(response.status!=='suggestion'||!response.extraction)throw Error(response.message||'La lecture est indisponible. Vous pouvez remplir la facture.');
-      setResult({scan:response.extraction,file});
+      setResult({scan:response.extraction,file,text});
     }catch(reason){if(ticket===generation.current)setError(errorMessage(reason,'La lecture n’a pas abouti.'));}
     finally{if(ticket===generation.current){setBusy(false);onBusy(false);}}
   }
@@ -53,7 +53,7 @@ export function InvoiceScanPanel({disabled,onApply,onBusy}:{disabled:boolean;onA
       {scan.issues.length>0&&<details><summary>{scan.issues.length} points à vérifier</summary><ul>{scan.issues.map((issue,i)=><li key={i}>{issue}</li>)}</ul></details>}
       <p>Comparez avec votre original. Il sera joint au brouillon lors de l’enregistrement.</p>
       <details className="invoice-scan__source"><summary>Voir le document original</summary><Original file={result.file}/></details>
-      <Button type="button" disabled={disabled||scan.kind!=='supplier_invoice'||scan.currency!=='CHF'} onClick={()=>{onApply(scan,result.file);setResult(null);}}><Check size={17}/>Utiliser ces informations</Button>
+      <Button type="button" disabled={disabled||scan.kind!=='supplier_invoice'||scan.currency!=='CHF'} onClick={()=>{onApply(scan,result.file,result.text);setResult(null);}}><Check size={17}/>Utiliser ces informations</Button>
     </section>}
     {error&&<ErrorPanel title="Lecture à reprendre" message={error}/>}
   </div>;

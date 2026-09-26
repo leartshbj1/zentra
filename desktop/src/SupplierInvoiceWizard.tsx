@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, CheckCircle2, Plus, ReceiptText, Trash2 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { AttentionSuggestion } from './AutomationControls';
+import { SupplierRouting } from './AutomationDocument';
+import { automationResourceFeedback, type AutomationDecision } from './automation';
 import { InvoiceScanPanel } from './InvoiceScanPanel';
 import { applyInvoiceScan } from './invoiceScan';
 import type { SupplierInvoice, Workspace } from './types';
@@ -34,6 +36,8 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
   const settings = workspace.settings!, terminology = projectTerminology(settings.business.nogaSection);
   const [draftId] = useState(() => item?.id ?? createId());
   const [scanFile,setScanFile]=useState<File|null>(null);
+  const [automationText,setAutomationText]=useState('');
+  const automationDecision=useRef<AutomationDecision|null>(null);
   const [initial] = useState(() => purchaseFields(workspace, item));
   const [fields, setFields] = useState(initial), [baseline, setBaseline] = useState(initial);
   const [step, setStep] = useState(initialTarget === 'attachments' && item ? 3 : 0);
@@ -130,6 +134,7 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
         items: fields.lines.map(value => { const line = purchaseLineValue(value)!; return { ...line, expenseAccountId: line.expenseAccountId || null, projectId: line.projectId || null }; }),
       }), current ? t('Le brouillon fournisseur a été mis à jour.') : t('Le brouillon fournisseur a été enregistré. Ajoutez maintenant son justificatif.'), false, report);
       if (saved) {
+        void automationResourceFeedback(automationDecision.current,{supplier:fields.supplierId||null,project:fields.projectId||null,expense_category:fields.lines[0]?.category||null});
         setBaseline(fields); setStep(3);
         if(scanFile){
           const attached=await act(()=>desktopApi.addScannedSupplierAttachment(draftId,scanFile),t('Le document original est joint à la facture.'),false,report);
@@ -152,7 +157,8 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
       <section className="supplier-preparation__page" key={step} tabIndex={-1} aria-labelledby="supplier-preparation-heading">
         <h3 id="supplier-preparation-heading" ref={heading} tabIndex={-1}>{t(titles[step])}</h3>
         {step === 0 && <fieldset disabled={locked || cannotEdit}>
-          <InvoiceScanPanel disabled={locked||cannotEdit} onBusy={setAttachmentPending} onApply={(scan,file)=>{setFields(previous=>applyInvoiceScan(scan,previous,workspace));setScanFile(file);setIssue(null);setServerError('');}}/>
+          <InvoiceScanPanel disabled={locked||cannotEdit} onBusy={setAttachmentPending} onApply={(scan,file,text)=>{setFields(previous=>applyInvoiceScan(scan,previous,workspace));setScanFile(file);setAutomationText(text);automationDecision.current=null;setIssue(null);setServerError('');}}/>
+          {automationText&&<SupplierRouting text={automationText} workspace={workspace} disabled={locked||cannotEdit} onDecision={value=>{automationDecision.current=value;}} onApply={ids=>{setFields(previous=>({...previous,...(ids.supplier?{supplierId:ids.supplier}:{}),...(ids.project?{projectId:ids.project}:{}),lines:ids.category?previous.lines.map(line=>({...line,category:ids.category!})):previous.lines}));}}/>}
           <p>{t("Gardez la facture devant vous. Recopiez son fournisseur et ses dates ; les achats viennent juste après.")}</p>
           <div className="form-grid">
             <Field label={t("Fournisseur")} required wide error={fieldError('supplierId')}><select name="supplierId" value={fields.supplierId} onChange={event => change('supplierId', event.target.value)}><option value="">{t("Choisir un fournisseur")}</option>{choices.map(value => <option key={value.id} value={value.id}>{value.name}{value.archivedAt ? t(" · archivé (historique)") : ''}</option>)}</select></Field>
