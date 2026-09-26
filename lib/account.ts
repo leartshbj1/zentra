@@ -1,4 +1,6 @@
 import { RequestBodyError } from '@/lib/request-body';
+import { reportServiceFailure, type ServiceDiagnosticContext } from './service-diagnostics';
+import { SupabaseServerError } from './supabase-server';
 import { database } from '@/lib/runtime';
 import { requireMemberSeat } from '@/lib/team-seats';
 import { effectiveAccountUntil } from '@/lib/founder-access';
@@ -33,7 +35,7 @@ export function accountNoStoreHeaders(): HeadersInit {
   };
 }
 
-export function accountJsonError(reason: unknown): Response {
+export function accountJsonError(reason: unknown, diagnostic?: ServiceDiagnosticContext): Response {
   if (
     reason instanceof Error &&
     reason.message.includes('zentra account access revoked')
@@ -56,15 +58,21 @@ export function accountJsonError(reason: unknown): Response {
     reason instanceof AccountPublicError || reason instanceof RequestBodyError
       ? reason
       : undefined;
+  const reference = diagnostic ? reportServiceFailure(reason, diagnostic) : undefined;
+  const temporary = reason instanceof SupabaseServerError && [429, 502, 503, 504].includes(reason.status);
+  const headers = new Headers(accountNoStoreHeaders());
+  if (reference) headers.set('X-Zentra-Request-Id', reference);
+  if (temporary) headers.set('Retry-After', '5');
   return Response.json(
     {
       error: publicReason
         ? publicReason.message
         : 'Le service de compte Zentra est momentanément indisponible.',
+      ...(reference ? { reference } : {}),
     },
     {
-      status: publicReason ? publicReason.status : 500,
-      headers: accountNoStoreHeaders(),
+      status: publicReason ? publicReason.status : temporary ? 503 : 500,
+      headers,
     },
   );
 }

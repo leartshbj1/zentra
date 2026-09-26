@@ -29,6 +29,7 @@ export class SupabaseServerError extends Error {
   constructor(
     public readonly status: number,
     public readonly code: string,
+    public readonly resource?: string,
   ) {
     super(
       status === 504
@@ -298,10 +299,12 @@ export class SupabaseServerClient {
     prefer: readonly string[] = [],
   ): Promise<T> {
     const controller = new AbortController();
+    const resource = path.split('?')[0];
     const timeout = setTimeout(() => controller.abort(), this.#configuration.timeoutMs);
     try {
       const response = await this.#fetch(`${this.#configuration.origin}${path}`, {
         method,
+        redirect: 'manual',
         headers: {
           Accept: 'application/json',
           apikey: this.#configuration.secretKey,
@@ -321,7 +324,7 @@ export class SupabaseServerClient {
         } catch {
           // Error bodies are deliberately not propagated to public callers.
         }
-        throw new SupabaseServerError(response.status, responseCode(payload));
+        throw new SupabaseServerError(response.status, responseCode(payload), resource);
       }
       if (response.status === 204) {
         return [] as T;
@@ -331,12 +334,12 @@ export class SupabaseServerClient {
       try {
         return JSON.parse(text) as T;
       } catch {
-        throw new SupabaseServerError(502, 'invalid_json');
+        throw new SupabaseServerError(502, 'invalid_json', resource);
       }
     } catch (error) {
       if (error instanceof SupabaseServerError) throw error;
-      if (controller.signal.aborted) throw new SupabaseServerError(504, 'timeout');
-      throw new SupabaseServerError(502, 'network_error');
+      if (controller.signal.aborted) throw new SupabaseServerError(504, 'timeout', resource);
+      throw new SupabaseServerError(502, 'network_error', resource);
     } finally {
       clearTimeout(timeout);
     }

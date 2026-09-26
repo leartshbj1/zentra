@@ -20,6 +20,7 @@ export const dynamic = 'force-dynamic';
 const json = (value: unknown) =>
   Response.json(value, { headers: accountNoStoreHeaders() });
 export async function GET(request: Request) {
+  const diagnostic={request,operation:'supplier-inbox.read',startedAt:Date.now()};
   try {
     const url = new URL(request.url),
       actor = await automationActor(
@@ -45,10 +46,11 @@ export async function GET(request: Request) {
       : null;
     return json(await inboxState(actor, session?.installationId));
   } catch (error) {
-    return accountJsonError(error);
+    return accountJsonError(error,diagnostic);
   }
 }
 export async function POST(request: Request) {
+  const diagnostic={request,operation:'supplier-inbox.action',startedAt:Date.now()};
   try {
     const body = await readJsonObjectWithinLimit(request, 4000),
       actor = await automationActor(request, body.organizationId);
@@ -73,6 +75,6 @@ export async function POST(request: Request) {
       return json(await releaseInvoice(session, body));
     throw new AccountPublicError('Cette action n’est pas disponible.');
   } catch (error) {
-    return accountJsonError(error);
+    return accountJsonError(error,diagnostic);
   }
 }

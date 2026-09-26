@@ -1,5 +1,6 @@
 import { requireAutomationEntitlement } from '@/lib/automation/entitlement';
 import { waitUntil } from 'cloudflare:workers';
+import { reportServiceFailure } from '@/lib/service-diagnostics';
 import { accountJsonError, accountNoStoreHeaders } from '@/lib/account';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { automationActor } from '@/lib/automation/access';
@@ -14,6 +15,7 @@ export const dynamic = 'force-dynamic';
 const json = (v: unknown) =>
   Response.json(v, { headers: accountNoStoreHeaders() });
 export async function GET(request: Request) {
+  const diagnostic={request,operation:'automation.read',startedAt:Date.now()};
   try {
     const actor = await automationActor(
       request,
@@ -21,10 +23,11 @@ export async function GET(request: Request) {
     );
     return json(await automationCompanyState(actor));
   } catch (error) {
-    return accountJsonError(error);
+    return accountJsonError(error,diagnostic);
   }
 }
 export async function POST(request: Request) {
+  const diagnostic={request,operation:'automation.action',startedAt:Date.now()};
   try {
     const body = await readJsonObjectWithinLimit(request, 100000);
     if (body.action === 'decide')
@@ -45,7 +48,9 @@ export async function POST(request: Request) {
       const centre = await workflowCentre(actor); // Verifies the current entitlement first.
       // Keep the response immediate. This advances only already-authorized rules
       // of this company; a remote scheduler is still needed when nobody is online.
-      waitUntil(runDueWorkflows(actor.organizationId).catch(() => {}));
+      waitUntil(runDueWorkflows(actor.organizationId).catch(error => {
+        reportServiceFailure(error,{operation:'automation.background',startedAt:diagnostic.startedAt});
+      }));
       return json(centre);
     }
     if (body.action === 'workflow_save') return json(await saveWorkflow(actor, body));
@@ -59,7 +64,7 @@ export async function POST(request: Request) {
         ? new AccountPublicError(
             'Complétez les informations nécessaires avant de demander une suggestion.',
           )
-        : error,
+        : error, diagnostic,
     );
   }
 }

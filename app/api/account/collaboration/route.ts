@@ -7,6 +7,7 @@ import { supabaseRealtimeConfiguration } from '@/lib/supabase-server-runtime';
 import { readBytesBodyWithinLimit,readJsonObjectWithinLimit } from '@/lib/request-body';
 export const dynamic='force-dynamic';
 export async function GET(request:Request) {
+  const diagnostic={request,operation:new URL(request.url).searchParams.has('watch')?'company.watch':'company.read',startedAt:Date.now()};
   try {
     const actor=await requireDeviceSession(request),query=new URL(request.url).searchParams;
     if(query.has('watch')) {
@@ -48,14 +49,11 @@ export async function GET(request:Request) {
     if(after!==null&&!/^(0|[1-9][0-9]{0,15})$/.test(after))throw new AccountPublicError('La version de référence est invalide.');
     return Response.json(await collaborationHead(actor,after===null?undefined:collaborationRevision(Number(after))),{headers:accountNoStoreHeaders()});
   }catch(error){
-    if(new URL(request.url).searchParams.has('watch'))console.error('Company watch failed',{
-      kind:error instanceof Error?error.name:'UnknownError',
-      reason:error instanceof Error?error.message.replace(/(?:sb_secret_|eyJ|zds_)[A-Za-z0-9_.-]+/g,'[redacted]').replace(/https?:\S+/g,'[endpoint]').slice(0,240):'Unavailable',
-    });
-    return accountJsonError(error);
+    return accountJsonError(error,diagnostic);
   }
 }
 export async function POST(request:Request) {
+  const diagnostic={request,operation:'company.write',startedAt:Date.now()};
   try {
     const actor=await requireDeviceSession(request);
     await enforceSyncRateLimit(request,'collaboration-write',`${actor.organizationId}:${actor.installationId}`,500);
@@ -64,14 +62,15 @@ export async function POST(request:Request) {
     if(body.action==='prepare-content')return Response.json(await prepareCompanyContent(actor,body),{headers:accountNoStoreHeaders()});
     if(body.action!=='prepare')throw new AccountPublicError('Action de synchronisation invalide.');
     return Response.json(await prepareCollaboration(actor,body),{headers:accountNoStoreHeaders()});
-  }catch(error){return accountJsonError(error);}
+  }catch(error){return accountJsonError(error,diagnostic);}
 }
 export async function PUT(request:Request) {
+  const diagnostic={request,operation:'company.upload',startedAt:Date.now()};
   try {
     const actor=await requireDeviceSession(request),query=new URL(request.url).searchParams;
     await enforceSyncRateLimit(request,query.has('blob')?'collaboration-content-write':'collaboration-files',`${actor.organizationId}:${actor.installationId}`,query.has('blob')?20000:2000);
     const bytes=await readBytesBodyWithinLimit(request,(query.has('blob')?1:8)*1024*1024);
     if(query.has('blob'))return Response.json(await receiveCompanyContent(actor,query.get('id'),query.get('blob'),bytes),{headers:accountNoStoreHeaders()});
     return Response.json(await receiveCollaborationChunk(actor,query.get('id'),query.get('index'),bytes),{headers:accountNoStoreHeaders()});
-  }catch(error){return accountJsonError(error);}
+  }catch(error){return accountJsonError(error,diagnostic);}
 }
