@@ -16,6 +16,9 @@ export const releaseHistoryCopy = {
 // Append a version with every shipped correction; never rewrite an older entry
 // to describe work that was added later. See docs/RELEASE-*.md for release evidence.
 export const releaseHistory = [
+  { version: '1.90.2', title: copy('Votre logo dans vos e-mails', 'Ihr Logo in Ihren E-Mails', 'Il tuo logo nelle e-mail', 'Your logo in your emails'), changes: [
+    copy('Ajoutez le logo de votre entreprise après le message des devis, factures et relances. Activez l’option dans Paramètres → E-mails et vérifiez l’aperçu avant l’envoi.', 'Fügen Sie Ihr Firmenlogo unter der Nachricht von Offerten, Rechnungen und Mahnungen hinzu. Aktivieren Sie die Option unter Einstellungen → E-Mails und prüfen Sie die Vorschau vor dem Senden.', 'Aggiungi il logo aziendale dopo il messaggio di preventivi, fatture e solleciti. Attiva l’opzione in Impostazioni → E-mail e controlla l’anteprima prima dell’invio.', 'Add your company logo below the message for quotes, invoices and reminders. Enable the option in Settings → Emails and check the preview before sending.'),
+  ] },
   { version: '1.90.1', title: copy('Votre nouveau logo Zentra', 'Ihr neues Zentra-Logo', 'Il nuovo logo Zentra', 'Your new Zentra logo'), changes: [
     copy('Le nouveau Z accompagne le démarrage, les menus et l’icône de l’application, avec une présentation adaptée à chaque plateforme.', 'Das neue Z begleitet den Start, die Menüs und das App-Symbol, angepasst an jede Plattform.', 'La nuova Z accompagna l’avvio, i menu e l’icona dell’app, con una presentazione adatta a ogni piattaforma.', 'The new Z appears at startup, in menus and on the app icon, adapted to each platform.'),
   ] },

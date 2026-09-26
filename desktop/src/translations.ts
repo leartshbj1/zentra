@@ -26,6 +26,12 @@ import { supplierReviewTranslations } from './translationsSupplierReview';
 import { workflowClarityTranslations } from './translationsWorkflowClarity';
 import { documentEditorTranslations } from './translationsDocumentEditor';
 export const translations: Record<string, readonly [string, string, string]> = {
+  'Ajouter le logo de l’entreprise': ['Firmenlogo hinzufügen', 'Aggiungi il logo aziendale', 'Add the company logo'],
+  'Après votre message, pour les devis, factures et relances.': ['Am Ende der E-Mails für Offerten, Rechnungen und Mahnungen.', 'Alla fine delle e-mail con preventivi, fatture e solleciti.', 'At the end of emails for quotes, invoices and reminders.'],
+  'Logo ajouté après votre message': ['Logo unter Ihrer Nachricht', 'Logo aggiunto dopo il messaggio', 'Logo added below your message'],
+  'Ajoutez votre logo dans Paramètres → Entreprise pour l’utiliser ici.': ['Fügen Sie Ihr Logo unter Einstellungen → Unternehmen hinzu, um es hier zu verwenden.', 'Aggiungi il logo in Impostazioni → Azienda per utilizzarlo qui.', 'Add your logo in Settings → Company to use it here.'],
+  'Ajoutez ou réimportez votre logo dans Paramètres → Entreprise, ou désactivez le logo dans les réglages des e-mails.': ['Fügen Sie Ihr Logo unter Einstellungen → Unternehmen hinzu oder importieren Sie es erneut. Alternativ deaktivieren Sie das Logo in den E-Mail-Einstellungen.', 'Aggiungi o importa di nuovo il logo in Impostazioni → Azienda, oppure disattivalo nelle impostazioni delle e-mail.', 'Add or reimport your logo in Settings → Company, or disable it in email settings.'],
+  'Modifier les réglages des e-mails': ['E-Mail-Einstellungen bearbeiten', 'Modifica le impostazioni delle e-mail', 'Edit email settings'],
   ...personalizationTranslations,
   ...onboardingTranslations,
   ...documentEditorTranslations,

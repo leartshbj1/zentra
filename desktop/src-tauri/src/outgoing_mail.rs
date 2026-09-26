@@ -9,6 +9,7 @@ use crate::{
     },
     models::ReminderPreviewInput,
 };
+use base64::Engine;
 use lettre::{
     message::{header::ContentType, Attachment, Mailbox, MultiPart, SinglePart},
     transport::smtp::authentication::Credentials,
@@ -62,6 +63,86 @@ pub struct MailTemplate {
 pub struct MailTemplates {
     pub quotes: MailTemplate,
     pub invoices: MailTemplate,
+}
+#[derive(Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MailSignature {
+    #[serde(default)]
+    pub include_company_logo: bool,
+}
+// Keep signature settings outside mailTemplates: older clients strictly decode that object.
+fn signature(store: &LocalStore) -> AppResult<MailSignature> {
+    let raw: String = store.connect()?.query_row(
+        "SELECT COALESCE(extra_settings_json,'{}') FROM settings WHERE id=1",
+        [],
+        |r| r.get(0),
+    )?;
+    let extra: Value = serde_json::from_str(&raw)?;
+    if extra["mailSignature"].is_null() {
+        Ok(MailSignature::default())
+    } else {
+        serde_json::from_value(extra["mailSignature"].clone()).map_err(Into::into)
+    }
+}
+const LOGO_HELP: &str = "Ajoutez ou réimportez votre logo dans Paramètres → Entreprise, ou désactivez le logo dans les réglages des e-mails.";
+struct MailLogo {
+    bytes: Vec<u8>,
+    width: u32,
+    height: u32,
+}
+impl MailLogo {
+    fn data_url(&self) -> String {
+        format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(&self.bytes)
+        )
+    }
+}
+fn company_mail_logo(store: &LocalStore) -> AppResult<Option<MailLogo>> {
+    let path: Option<String> =
+        store
+            .connect()?
+            .query_row("SELECT logo_path FROM settings WHERE id=1", [], |r| {
+                r.get(0)
+            })?;
+    let Some(path) = path.filter(|p| !p.trim().is_empty()) else {
+        return Ok(None);
+    };
+    // Only the active company's managed, hash-verified logo can be attached. No remote image requests.
+    let url = store
+        .company_logo_preview(&path)
+        .map_err(|_| invalid(LOGO_HELP))?;
+    let (_, encoded) = url.split_once(',').ok_or_else(|| invalid(LOGO_HELP))?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|_| invalid(LOGO_HELP))?;
+    let image = image::load_from_memory(&bytes)
+        .map_err(|_| invalid(LOGO_HELP))?
+        .thumbnail(360, 120);
+    let scale = (image.width() as f64 / 180.0)
+        .max(image.height() as f64 / 60.0)
+        .max(1.0);
+    let (width, height) = (
+        (image.width() as f64 / scale).round() as u32,
+        (image.height() as f64 / scale).round() as u32,
+    );
+    let mut png = std::io::Cursor::new(Vec::new());
+    image
+        .write_to(&mut png, image::ImageFormat::Png)
+        .map_err(|_| invalid(LOGO_HELP))?;
+    Ok(Some(MailLogo {
+        bytes: png.into_inner(),
+        width: width.max(1),
+        height: height.max(1),
+    }))
+}
+fn selected_mail_logo(store: &LocalStore) -> AppResult<Option<MailLogo>> {
+    if !signature(store)?.include_company_logo {
+        return Ok(None);
+    }
+    company_mail_logo(store)?
+        .map(Some)
+        .ok_or_else(|| invalid(LOGO_HELP))
 }
 impl Default for MailTemplates {
     fn default() -> Self {
@@ -317,17 +398,31 @@ impl LocalStore {
             )?;
             json!({"connected":false,"fromName":text(&company,"company_name"),"fromEmail":text(&company,"email"),"username":text(&company,"email")})
         };
+        let (logo, logo_error) = match company_mail_logo(self) {
+            Ok(logo) => (logo.map(|l| l.data_url()), None),
+            Err(_) => (None, Some(LOGO_HELP)),
+        };
         Ok(
-            json!({"scope":key,"connection":connection,"templates":templates(self)?,"canConfigure":require_admin(self).is_ok()}),
+            json!({"scope":key,"connection":connection,"templates":templates(self)?,"signature":signature(self)?,"companyLogoDataUrl":logo,"companyLogoError":logo_error,"canConfigure":require_admin(self).is_ok()}),
         )
     }
-    pub fn save_mail_templates(&self, key: &str, input: MailTemplates) -> AppResult<()> {
+    pub fn save_mail_templates(
+        &self,
+        key: &str,
+        input: MailTemplates,
+        signature: Option<MailSignature>,
+    ) -> AppResult<()> {
         check_scope(self, key)?;
         require_admin(self)?;
         for template in [&input.quotes, &input.invoices] {
             validate_message(&template.subject, &template.body)?;
             render(&template.subject, &BTreeMap::new())?;
             render(&template.body, &BTreeMap::new())?;
+        }
+        if signature.as_ref().is_some_and(|s| s.include_company_logo)
+            && company_mail_logo(self)?.is_none()
+        {
+            return Err(invalid(LOGO_HELP));
         }
         let mut db = self.connect()?;
         let tx = db.transaction()?;
@@ -338,6 +433,9 @@ impl LocalStore {
         )?;
         let mut extra: Value = serde_json::from_str(&raw)?;
         extra["mailTemplates"] = serde_json::to_value(input)?;
+        if let Some(signature) = signature {
+            extra["mailSignature"] = serde_json::to_value(signature)?;
+        }
         tx.execute(
             "UPDATE settings SET extra_settings_json=?,updated_at=? WHERE id=1",
             params![extra.to_string(), now_iso()],
@@ -476,6 +574,10 @@ pub(crate) fn preview(store: &LocalStore, target: &MailTarget) -> AppResult<Valu
         vars.insert(name.to_owned(), value);
     }
     let all = templates(store)?;
+    let (logo, logo_error) = match selected_mail_logo(store) {
+        Ok(logo) => (logo.map(|l| l.data_url()), None),
+        Err(_) => (None, Some(LOGO_HELP)),
+    };
     let template = if entity == "quotes" {
         all.quotes
     } else {
@@ -495,8 +597,20 @@ pub(crate) fn preview(store: &LocalStore, target: &MailTarget) -> AppResult<Valu
     );
     let history=crate::database::query_all(&history_db(store,&key)?,"SELECT recipient,subject,status,created_at AS createdAt FROM submissions WHERE entity=? AND document_id=? ORDER BY created_at DESC LIMIT 5",params![target.entity,target.id])?;
     Ok(
-        json!({"scope":key,"target":target,"sourceRevision":revision,"recipient":text(&customer,"email"),"subject":subject,"body":body,"attachmentName":format!("{}-{}.pdf",if entity=="quotes"{"Devis"}else{"Facture"},text(&doc,"number")),"documentEntity":entity,"documentId":id,"history":history}),
+        json!({"scope":key,"target":target,"sourceRevision":revision,"recipient":text(&customer,"email"),"subject":subject,"body":body,"signatureLogoDataUrl":logo,"signatureLogoError":logo_error,"attachmentName":format!("{}-{}.pdf",if entity=="quotes"{"Devis"}else{"Facture"},text(&doc,"number")),"documentEntity":entity,"documentId":id,"history":history}),
     )
+}
+fn signature_html(body: &str, logo: &MailLogo) -> String {
+    let escaped = body
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .replace('\n', "<br>\n");
+    format!("<!doctype html><html><body><div style=\"font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#202924\">{escaped}</div><div style=\"margin-top:20px\"><img src=\"cid:company-logo@zentra.local\" alt=\"Logo de l’entreprise\" width=\"{}\" height=\"{}\" style=\"display:block;border:0;max-width:100%;height:auto\"></div></body></html>",logo.width,logo.height)
 }
 fn build_message(
     connection: &MailConnection,
@@ -504,6 +618,7 @@ fn build_message(
     pdf: Vec<u8>,
     filename: &str,
     message_id: &str,
+    logo: Option<&MailLogo>,
 ) -> AppResult<Message> {
     validate_message(&input.subject, &input.body)?;
     if pdf.len() > 15 * 1024 * 1024 || !pdf.starts_with(b"%PDF-") {
@@ -511,6 +626,23 @@ fn build_message(
             "Le PDF est invalide ou dépasse 15 Mo. Vérifiez le document avant de l’envoyer.",
         ));
     }
+    let content = if let Some(logo) = logo {
+        let html = signature_html(&input.body, logo);
+        MultiPart::mixed().multipart(
+            MultiPart::alternative()
+                .singlepart(SinglePart::plain(input.body.clone()))
+                .multipart(
+                    MultiPart::related()
+                        .singlepart(SinglePart::html(html))
+                        .singlepart(
+                            Attachment::new_inline("company-logo@zentra.local".into())
+                                .body(logo.bytes.clone(), ContentType::parse("image/png").unwrap()),
+                        ),
+                ),
+        )
+    } else {
+        MultiPart::mixed().singlepart(SinglePart::plain(input.body.clone()))
+    };
     Message::builder()
         .from(Mailbox::new(
             Some(connection.from_name.clone()),
@@ -521,12 +653,10 @@ fn build_message(
         .subject(&input.subject)
         .message_id(Some(message_id.to_owned()))
         .multipart(
-            MultiPart::mixed()
-                .singlepart(SinglePart::plain(input.body.clone()))
-                .singlepart(
-                    Attachment::new(filename.to_owned())
-                        .body(pdf, ContentType::parse("application/pdf").unwrap()),
-                ),
+            content.singlepart(
+                Attachment::new(filename.to_owned())
+                    .body(pdf, ContentType::parse("application/pdf").unwrap()),
+            ),
         )
         .map_err(|_| invalid("Le message contient une adresse ou un en-tête invalide."))
 }
@@ -584,6 +714,7 @@ fn send_using(
             return Err(invalid("Le document ou son solde a changé. Fermez puis rouvrez l’e-mail pour utiliser les informations à jour."));
         }
         let connection = read_connection(store, &input.scope)?;
+        let logo = selected_mail_logo(store)?;
         let pdf = store.document_pdf_preview(
             &text(&current, "documentEntity"),
             &text(&current, "documentId"),
@@ -613,6 +744,7 @@ fn send_using(
             pdf,
             &text(&current, "attachmentName"),
             &message_id,
+            logo.as_ref(),
         )?;
         let transport = connection.transport()?;
         db.execute(
@@ -759,15 +891,20 @@ pub async fn disconnect_outgoing_mail(
     .map_err(command_error)
 }
 #[tauri::command]
-pub fn save_outgoing_mail_templates(
+pub async fn save_outgoing_mail_templates(
     state: State<'_, LocalStore>,
     scope: String,
     templates: MailTemplates,
+    signature: Option<MailSignature>,
 ) -> Result<(), String> {
-    let _g = state.lock().map_err(command_error)?;
-    state
-        .save_mail_templates(&scope, templates)
-        .map_err(command_error)
+    let store = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _g = store.lock()?;
+        store.save_mail_templates(&scope, templates, signature)
+    })
+    .await
+    .map_err(|_| "Enregistrement interrompu. Réessayez.".to_owned())?
+    .map_err(command_error)
 }
 #[tauri::command]
 pub async fn preview_outgoing_mail(

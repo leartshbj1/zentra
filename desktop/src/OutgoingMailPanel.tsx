@@ -6,10 +6,10 @@ import { mailConnectionInput, mailTemplateError, mailVariables, outgoingMail, ty
 import './outgoing-mail.css';
 
 const emptyConnection: MailConnection = { host: 'mail.infomaniak.com', port: 465, security: 'tls', username: '', fromEmail: '', fromName: '', password: '' };
-export function MailSettings({ companyName = '', companyEmail = '', readOnly = false, onSaved }: { companyName?: string; companyEmail?: string; readOnly?: boolean; onSaved?: () => Promise<void> }) {
+export function MailSettings({ companyName = '', companyEmail = '', readOnly = false, initialTab = 'connection', onSaved }: { companyName?: string; companyEmail?: string; readOnly?: boolean; initialTab?: 'connection' | 'quotes' | 'invoices'; onSaved?: () => Promise<void> }) {
   const [state, setState] = useState<MailState | null>(null);
   const [connection, setConnection] = useState<MailConnection>({ ...emptyConnection, fromName: companyName, username: companyEmail, fromEmail: companyEmail });
-  const [tab, setTab] = useState<'connection' | 'quotes' | 'invoices'>('connection');
+  const [tab, setTab] = useState<'connection' | 'quotes' | 'invoices'>(initialTab);
   const [provider, setProvider] = useState('infomaniak');
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [attempt, setAttempt] = useState(0);
   const flight = useRef(false);
@@ -48,13 +48,22 @@ export function MailSettings({ companyName = '', companyEmail = '', readOnly = f
       <div className="mail-actions"><Button type="submit" disabled={locked}>{busy ? 'Vérification…' : state.connection.connected ? 'Vérifier et enregistrer' : 'Connecter ma messagerie'}</Button>{state.connection.connected && <Button type="button" variant="ghost" disabled={locked} onClick={() => void perform(async () => { await outgoingMail.disconnect(state.scope); setState({ ...state, connection: { connected: false } }); setConnection(value => ({ ...value, password: '' })); setNotice('Messagerie déconnectée sur cet appareil.'); })}>Déconnecter</Button>}</div>
       <p className="mail-help">À connecter une fois sur chaque appareil. Les modèles des documents suivent l’entreprise ; le mot de passe reste sur cet appareil. Les comptes nécessitant uniquement OAuth ne sont pas pris en charge par SMTP avec mot de passe.</p>
     </form>}
-    {state && tab !== 'connection' && <form onSubmit={event => { event.preventDefault(); if (!locked) void perform(async () => { const issue = mailTemplateError(state.templates.quotes) || mailTemplateError(state.templates.invoices); if (issue) throw new Error(issue); await outgoingMail.saveTemplates(state.scope, state.templates); setNotice('Modèles enregistrés pour l’entreprise.'); await onSaved?.(); }); }}>
+    {state && tab !== 'connection' && <form onSubmit={event => { event.preventDefault(); if (!locked) void perform(async () => { const issue = mailTemplateError(state.templates.quotes) || mailTemplateError(state.templates.invoices); if (issue) throw new Error(issue); await outgoingMail.saveTemplates(state.scope, state.templates, state.signature ?? { includeCompanyLogo: false }); setNotice('Modèles enregistrés pour l’entreprise.'); await onSaved?.(); }); }}>
       <p>Préparé pour chaque client. Vous pourrez toujours modifier le message avant l’envoi.</p>
       <fieldset className="mail-fields mail-fields--single" disabled={locked}><Field label="Objet" required><input value={state.templates[tab].subject} maxLength={250} onFocus={e => { focused.current = 'subject'; field.current = e.currentTarget; }} onChange={e => { setNotice(''); setState({ ...state, templates: { ...state.templates, [tab]: { ...state.templates[tab], subject: e.target.value } } }); }} required /></Field><Field label="Message" required><textarea value={state.templates[tab].body} rows={10} onFocus={e => { focused.current = 'body'; field.current = e.currentTarget; }} onChange={e => { setNotice(''); setState({ ...state, templates: { ...state.templates, [tab]: { ...state.templates[tab], body: e.target.value } } }); }} required /></Field></fieldset>
       <div className="mail-variables" aria-label="Insérer une variable">{mailVariables.map(([key, label]) => <Button type="button" key={key} variant="ghost" size="small" disabled={locked} onClick={() => insertVariable(key)} title={`Insérer {${key}}`}>{label}</Button>)}</div>
+      <div className="mail-signature-settings">
+        <label className="mail-signature-toggle"><input type="checkbox" role="switch" checked={Boolean(state.signature?.includeCompanyLogo)} disabled={locked || (!state.companyLogoDataUrl && !state.signature?.includeCompanyLogo)} onChange={event => { setNotice(''); setState({ ...state, signature: { includeCompanyLogo: event.target.checked } }); }} /><span><strong>Ajouter le logo de l’entreprise</strong><small>Après votre message, pour les devis, factures et relances.</small></span></label>
+        {state.signature?.includeCompanyLogo && state.companyLogoDataUrl && <CompanyMailSignature logo={state.companyLogoDataUrl} />}
+        {!state.companyLogoDataUrl && <p className="mail-help">{state.companyLogoError || 'Ajoutez votre logo dans Paramètres → Entreprise pour l’utiliser ici.'}</p>}
+      </div>
       <div className="mail-actions"><Button type="submit" disabled={locked}>{busy ? 'Enregistrement…' : 'Enregistrer les modèles'}</Button></div><p className="mail-help">Les textes des relances se règlent dans Relances → Cycle & textes.</p>
     </form>}
   </section>;
+}
+
+function CompanyMailSignature({ logo }: { logo: string }) {
+  return <figure className="mail-signature-preview"><figcaption>Logo ajouté après votre message</figcaption><div className="mail-signature-paper" data-document-colors><img src={logo} alt="Logo de l’entreprise" /></div></figure>;
 }
 
 export function MailComposer({ target, onClose, onSent }: { target: MailTarget; onClose: () => void; onSent?: () => void }) {
@@ -63,9 +72,20 @@ export function MailComposer({ target, onClose, onSent }: { target: MailTarget; 
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [sent, setSent] = useState(false), [settings, setSettings] = useState(false), [attempt, setAttempt] = useState(0);
   const flight = useRef(false), requestId = useRef(crypto.randomUUID());
   const [attempted, setAttempted] = useState(false), [historyWarning, setHistoryWarning] = useState(false);
+  async function returnToMessage() {
+    setBusy(true); setError('');
+    try {
+      const [next, nextState] = await Promise.all([outgoingMail.preview(target), outgoingMail.state()]);
+      if (next.scope !== nextState.scope) throw new Error('L’entreprise a changé. Rouvrez cet e-mail.');
+      // Connecting SMTP does not discard the user's draft. Changed company/document data reloads the preview.
+      if (next.sourceRevision !== preview?.sourceRevision) { setRecipient(next.recipient); setSubject(next.subject); setBody(next.body); }
+      setPreview(next); setState(nextState);
+    } catch (reason) { setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.')); }
+    finally { setSettings(false); setBusy(false); }
+  }
   useEffect(() => { let active = true; setError(''); void Promise.all([outgoingMail.preview(target), outgoingMail.state()]).then(([p, s]) => { if (!active) return; if (p.scope !== s.scope) throw new Error('L’entreprise a changé. Rouvrez cet e-mail.'); setPreview(p); setState(s); setRecipient(p.recipient); setSubject(p.subject); setBody(p.body); }).catch(reason => { if (active) setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.')); }); return () => { active = false; }; }, [target.entity, target.id, attempt]);
   async function send() {
-    if (flight.current || !preview || !state?.connection.connected || sent) return;
+    if (flight.current || !preview || preview.signatureLogoError || !state?.connection.connected || sent) return;
     flight.current = true; setBusy(true); setError(''); setAttempted(true);
     try { const result = await outgoingMail.send({ requestId: requestId.current, scope: preview.scope, target, sourceRevision: preview.sourceRevision, recipient: recipient.trim(), subject, body }); setHistoryWarning(Boolean(result.historyWarning)); setSent(true); onSent?.(); }
     catch (reason) { setError(errorMessage(reason, 'L’envoi n’a pas pu être confirmé. Vérifiez votre messagerie avant de renvoyer.')); }
@@ -73,7 +93,7 @@ export function MailComposer({ target, onClose, onSent }: { target: MailTarget; 
   }
   return <Modal title={sent ? 'E-mail transmis' : settings ? 'Votre messagerie' : 'Envoyer par e-mail'} onClose={onClose} dismissible={!busy}>
     <div className="mail-composer">
-      {sent ? <><p className="mail-notice" role="status"><Check size={20} />Le serveur de votre messagerie a accepté l’e-mail pour {recipient}.</p><p>Le PDF est joint. La réception par le destinataire n’est pas encore confirmée.</p>{historyWarning && <p role="alert">L’historique local n’a pas pu être complété. L’e-mail a été accepté : ne le renvoyez pas pour cette raison.</p>}<Button type="button" onClick={onClose}>Terminer</Button></> : settings ? <><MailSettings /><Button type="button" variant="secondary" onClick={() => { setSettings(false); void outgoingMail.state().then(setState).catch(reason => setError(errorMessage(reason, 'La messagerie n’a pas pu être ouverte. Réessayez.'))); }}>Revenir au message</Button></> : <>
+      {sent ? <><p className="mail-notice" role="status"><Check size={20} />Le serveur de votre messagerie a accepté l’e-mail pour {recipient}.</p><p>Le PDF est joint. La réception par le destinataire n’est pas encore confirmée.</p>{historyWarning && <p role="alert">L’historique local n’a pas pu être complété. L’e-mail a été accepté : ne le renvoyez pas pour cette raison.</p>}<Button type="button" onClick={onClose}>Terminer</Button></> : settings ? <><MailSettings initialTab={state?.connection.connected ? (target.entity === 'quotes' ? 'quotes' : 'invoices') : 'connection'} /><Button type="button" variant="secondary" disabled={busy} onClick={() => void returnToMessage()}>Revenir au message</Button></> : <>
         {error && <ErrorPanel message={error} onRetry={!preview ? () => setAttempt(n => n + 1) : undefined} />}
         {!preview && !error && <p role="status">Préparation de l’e-mail…</p>}
         {preview && <>
@@ -85,8 +105,10 @@ export function MailComposer({ target, onClose, onSent }: { target: MailTarget; 
               <Field label="Objet" required><input required maxLength={250} value={subject} onChange={e => setSubject(e.target.value)} /></Field>
               <Field label="Message" required><textarea required rows={10} value={body} onChange={e => setBody(e.target.value)} /></Field>
             </fieldset>
+            {preview.signatureLogoDataUrl && <CompanyMailSignature logo={preview.signatureLogoDataUrl} />}
+            {preview.signatureLogoError && <div className="mail-signature-issue"><p role="alert">{preview.signatureLogoError}</p>{state?.canConfigure && <Button type="button" variant="secondary" disabled={busy || attempted} onClick={() => setSettings(true)}>Modifier les réglages des e-mails</Button>}</div>}
             <p className="mail-attachment"><Paperclip size={17} /><span>{preview.attachmentName}</span><small>PDF joint automatiquement</small></p>
-            <div className="mail-actions"><Button type="submit" disabled={busy || attempted || !state?.connection.connected}><Send size={16} />{busy ? 'Envoi en cours…' : 'Envoyer l’e-mail'}</Button><Button type="button" variant="secondary" disabled={busy} onClick={onClose}>{attempted ? 'Fermer' : 'Annuler'}</Button></div>
+            <div className="mail-actions"><Button type="submit" disabled={busy || attempted || !state?.connection.connected || Boolean(preview.signatureLogoError)}><Send size={16} />{busy ? 'Envoi en cours…' : 'Envoyer l’e-mail'}</Button><Button type="button" variant="secondary" disabled={busy} onClick={onClose}>{attempted ? 'Fermer' : 'Annuler'}</Button></div>
             {attempted && !busy && <p className="mail-help">Aucun renvoi automatique. Après vérification, fermez puis rouvrez le message si vous devez préparer un nouvel envoi.</p>}
           </form>
         </>}

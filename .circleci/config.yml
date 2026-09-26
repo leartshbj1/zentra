@@ -177,6 +177,13 @@ jobs:
           destination: apple
 
 workflows:
+  mail-logo-1902:
+    when:
+      equal: [codex/mail-logo-1902, << pipeline.git.branch >>]
+    jobs:
+      - windows
+      - apple
+      - android
   brand-icon-1901:
     when:
       equal: [codex/brand-icon-1901, << pipeline.git.branch >>]

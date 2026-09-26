@@ -3,6 +3,13 @@ import { mailTemplateError, outgoingMail } from './outgoingMail';
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn().mockResolvedValue({}) }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 describe('company email templates', () => {
+  it('saves company-wide signature preferences separately from strict legacy templates', async () => {
+    const templates = { quotes: { subject: 'Devis', body: 'Bonjour' }, invoices: { subject: 'Facture', body: 'Bonjour' } };
+    await outgoingMail.saveTemplates('company-a', templates, { includeCompanyLogo: true });
+    expect(invoke).toHaveBeenLastCalledWith('save_outgoing_mail_templates', { scope: 'company-a', templates, signature: { includeCompanyLogo: true } });
+    await outgoingMail.saveTemplates('company-a', templates);
+    expect(invoke).toHaveBeenLastCalledWith('save_outgoing_mail_templates', { scope: 'company-a', templates });
+  });
   it('keeps multiline professional copy and supported company variables', () => {
     expect(mailTemplateError({ subject: 'Facture {numero} — {entreprise}', body: 'Bonjour {client},\n\nTotal {montant}. Échéance : {echeance}.\n{telephone}' })).toBe('');
   });

@@ -2,18 +2,190 @@ use super::*;
 use crate::models::{InstallReminderCycleInput, RecordPaymentInput};
 use std::sync::Mutex;
 static TEST_MAIL: Mutex<()> = Mutex::new(());
+
+fn enable_logo(temporary: &tempfile::TempDir, store: &LocalStore) {
+    let source = temporary.path().join("company-logo.png");
+    image::RgbaImage::from_pixel(800, 200, image::Rgba([25, 80, 55, 255]))
+        .save(&source)
+        .unwrap();
+    let managed = store.stage_company_logo(source.to_str().unwrap()).unwrap();
+    store
+        .connect()
+        .unwrap()
+        .execute(
+            "UPDATE settings SET logo_path=? WHERE id=1",
+            params![managed],
+        )
+        .unwrap();
+    store
+        .save_mail_templates(
+            &scope(store).unwrap(),
+            MailTemplates::default(),
+            Some(MailSignature {
+                include_company_logo: true,
+            }),
+        )
+        .unwrap();
+}
+
+#[test]
+fn mail_logo_embeds_company_image_with_plain_text_html_and_pdf() {
+    let _serial = TEST_MAIL.lock().unwrap_or_else(|p| p.into_inner());
+    for entity in ["quotes", "invoices"] {
+        let (temporary, store, target) = fixture(entity);
+        let before = input(&store, target.clone());
+        enable_logo(&temporary, &store);
+        assert!(send_using(&store, before, |_, _| panic!(
+            "Changed signature needs a fresh preview"
+        ))
+        .is_err());
+        let p = preview(&store, &target).unwrap();
+        assert!(text(&p, "signatureLogoDataUrl").starts_with("data:image/png;base64,"));
+        let logo = selected_mail_logo(&store).unwrap().unwrap();
+        assert_eq!((logo.width, logo.height), (180, 45));
+        assert!(logo.bytes.len() < 200_000);
+        send_using(&store, input(&store, target), |_, message| {
+            let raw = String::from_utf8(message.formatted()).unwrap();
+            for part in [
+                "multipart/mixed",
+                "multipart/alternative",
+                "multipart/related",
+                "text/plain",
+                "text/html",
+                "image/png",
+                "application/pdf",
+                "Content-ID: <company-logo@zentra.local>",
+                "Content-Disposition: inline",
+            ] {
+                assert!(raw.contains(part), "missing {part}");
+            }
+            assert_eq!(raw.matches("Content-Disposition: attachment").count(), 1);
+            Ok(())
+        })
+        .unwrap();
+        // An older client saving text templates must neither erase nor fail on the signature.
+        store
+            .save_mail_templates(&scope(&store).unwrap(), MailTemplates::default(), None)
+            .unwrap();
+        assert!(signature(&store).unwrap().include_company_logo);
+        assert!(serde_json::from_value::<MailTemplates>(
+            serde_json::to_value(templates(&store).unwrap()).unwrap()
+        )
+        .is_ok());
+    }
+}
+
+#[test]
+fn mail_logo_html_escapes_customer_text_preserves_newlines_and_places_logo_last() {
+    let logo = MailLogo {
+        bytes: vec![],
+        width: 180,
+        height: 45,
+    };
+    let html = signature_html(
+        "Bonjour <script>alert('x')</script> & \"client\"\r\n\r\nMerci",
+        &logo,
+    );
+    assert!(
+        html.contains("&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt; &amp; &quot;client&quot;")
+    );
+    assert!(html.contains("<br>\n<br>\nMerci"));
+    assert!(!html.contains("<script>"));
+    assert!(html.find("Merci").unwrap() < html.find("<img").unwrap());
+    assert!(!html.contains("https://"));
+}
+
+#[test]
+fn mail_logo_missing_or_damaged_blocks_send_with_recovery_but_can_be_disabled() {
+    let _serial = TEST_MAIL.lock().unwrap_or_else(|p| p.into_inner());
+    let (temporary, store, target) = fixture("quotes");
+    assert!(!signature(&store).unwrap().include_company_logo);
+    assert!(store
+        .save_mail_templates(
+            &scope(&store).unwrap(),
+            MailTemplates::default(),
+            Some(MailSignature {
+                include_company_logo: true
+            })
+        )
+        .is_err());
+    enable_logo(&temporary, &store);
+    let path: String = store
+        .connect()
+        .unwrap()
+        .query_row("SELECT logo_path FROM settings WHERE id=1", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    std::fs::write(path, b"invalid logo").unwrap();
+    assert_eq!(
+        text(&preview(&store, &target).unwrap(), "signatureLogoError"),
+        LOGO_HELP
+    );
+    assert!(
+        send_using(&store, input(&store, target.clone()), |_, _| panic!(
+            "Invalid logo must not reach SMTP"
+        ))
+        .is_err()
+    );
+    store
+        .save_mail_templates(
+            &scope(&store).unwrap(),
+            MailTemplates::default(),
+            Some(MailSignature {
+                include_company_logo: false,
+            }),
+        )
+        .unwrap();
+    send_using(&store, input(&store, target), |_, message| {
+        let raw = String::from_utf8(message.formatted()).unwrap();
+        assert!(!raw.contains("image/png") && !raw.contains("multipart/related"));
+        assert!(raw.contains("application/pdf"));
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+fn mail_logo_is_added_to_reminders_and_stays_scoped_to_the_company() {
+    let _serial = TEST_MAIL.lock().unwrap_or_else(|p| p.into_inner());
+    let (temporary, store, _) = fixture("invoices");
+    enable_logo(&temporary, &store);
+    store
+        .install_reminder_cycle(InstallReminderCycleInput {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            sender_name: None,
+        })
+        .unwrap();
+    let scan = store.generate_due_reminders(None).unwrap();
+    let target = MailTarget {
+        entity: "reminders".into(),
+        id: text(&scan["created"][0], "id"),
+    };
+    assert!(preview(&store, &target).unwrap()["signatureLogoDataUrl"].is_string());
+    send_using(&store, input(&store, target), |_, message| {
+        assert!(String::from_utf8(message.formatted())
+            .unwrap()
+            .contains("Content-ID: <company-logo@zentra.local>"));
+        Ok(())
+    })
+    .unwrap();
+    let (_other, other, _) = fixture("quotes");
+    assert!(!signature(&other).unwrap().include_company_logo);
+    assert!(other.outgoing_mail_state().unwrap()["companyLogoDataUrl"].is_null());
+}
 #[test]
 fn mail_connection_ipc_accepts_only_writable_connection_fields() {
-    let input=json!({"host":"mail.infomaniak.com","port":465,"security":"tls","username":"contact@example.invalid","fromEmail":"contact@example.invalid","fromName":"Entreprise","password":"FAKE-TEST-PASSWORD"});
-    let connection:MailConnection=serde_json::from_value(input.clone()).unwrap();
+    let input = json!({"host":"mail.infomaniak.com","port":465,"security":"tls","username":"contact@example.invalid","fromEmail":"contact@example.invalid","fromName":"Entreprise","password":"FAKE-TEST-PASSWORD"});
+    let connection: MailConnection = serde_json::from_value(input.clone()).unwrap();
     connection.validate().unwrap();
-    for connected in [false,true] {
-        let mut read_state=input.clone();
-        read_state["connected"]=json!(connected);
+    for connected in [false, true] {
+        let mut read_state = input.clone();
+        read_state["connected"] = json!(connected);
         assert!(serde_json::from_value::<MailConnection>(read_state).is_err());
     }
-    let mut saved=input;
-    saved["password"]=json!("");
+    let mut saved = input;
+    saved["password"] = json!("");
     assert!(serde_json::from_value::<MailConnection>(saved).is_ok());
 }
 fn fixture(entity: &str) -> (tempfile::TempDir, LocalStore, MailTarget) {
@@ -219,7 +391,7 @@ fn mail_templates_roundtrip_and_credentials_stay_out_of_business_data() {
     let mut templates = MailTemplates::default();
     templates.quotes.subject = "{entreprise} / {numero}".into();
     templates.quotes.body = "Bonjour {client}\n\n{montant}\n{email_entreprise}".into();
-    store.save_mail_templates(&key, templates).unwrap();
+    store.save_mail_templates(&key, templates, None).unwrap();
     let p = preview(&store, &target).unwrap();
     assert!(text(&p, "subject").starts_with("Entreprise de test / "));
     assert!(text(&p, "body").contains("\n\n125.00 CHF"));
