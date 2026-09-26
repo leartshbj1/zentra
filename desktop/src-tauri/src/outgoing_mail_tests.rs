@@ -77,6 +77,28 @@ fn copy(input: &SendMailInput) -> SendMailInput {
     serde_json::from_value(serde_json::to_value(input).unwrap()).unwrap()
 }
 #[test]
+fn mail_read_only_collaborator_cannot_submit_with_a_saved_connection() {
+    let _serial = TEST_MAIL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let (_temporary, store, target) = fixture("quotes");
+    store.connect().unwrap().execute("INSERT INTO company_local_identity VALUES(1,'test-company','test-user','Test','owner')",[]).unwrap();
+    let draft = input(&store, target);
+    store
+        .connect()
+        .unwrap()
+        .execute(
+            "UPDATE company_local_identity SET role='read_only' WHERE id=1",
+            [],
+        )
+        .unwrap();
+    let error = send_using(&store, draft, |_, _| {
+        panic!("A read-only collaborator must not contact SMTP")
+    })
+    .unwrap_err();
+    assert!(error.to_string().contains("consultation uniquement"));
+}
+#[test]
 fn mail_quote_uses_real_pdf_and_never_resends_same_attempt() {
     let _serial = TEST_MAIL
         .lock()

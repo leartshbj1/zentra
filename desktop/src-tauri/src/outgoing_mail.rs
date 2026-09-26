@@ -283,6 +283,21 @@ fn require_admin(store: &LocalStore) -> AppResult<()> {
     }
     Ok(())
 }
+fn require_sender(store: &LocalStore) -> AppResult<()> {
+    store.require_write_access()?;
+    let role: Option<String> = store
+        .connect()?
+        .query_row(
+            "SELECT role FROM company_local_identity WHERE id=1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if role.is_some_and(|r| !matches!(r.as_str(), "owner" | "admin" | "accountant" | "member")) {
+        return Err(invalid("Votre rôle permet la consultation uniquement. Demandez à un collaborateur autorisé d’envoyer ce document."));
+    }
+    Ok(())
+}
 fn history_db(store: &LocalStore, key: &str) -> AppResult<Connection> {
     std::fs::create_dir_all(folder(store, key))?;
     let db = Connection::open(folder(store, key).join("submissions.sqlite3"))?;
@@ -545,7 +560,7 @@ fn send_using(
     let (transport, message) = {
         let _local = store.lock()?;
         check_scope(store, &input.scope)?;
-        store.require_write_access()?;
+        require_sender(store)?;
         let db = history_db(store, &input.scope)?;
         let previous: Option<(String, String)> = db
             .query_row(
