@@ -8,6 +8,7 @@ fn fixture(entity: &str) -> (tempfile::TempDir, LocalStore, MailTarget) {
     store
         .complete_onboarding(crate::tests::test_onboarding(), "1.0.0")
         .unwrap();
+    crate::tests::enable_accounting(&store);
     let client=store.create_record("clients",json!({"name":"Client Exemple","email":"client@example.invalid","address_line1":"Rue Exemple 1","postal_code":"1000","city":"Lausanne","country":"CH"})).unwrap();
     let mut fields = json!({"client_id":client["id"],"title":"Prestation test"});
     if entity == "invoices" {
