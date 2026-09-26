@@ -1,4 +1,5 @@
 import { AppearanceSetting } from './AppearanceSetting';
+import { BexioImportPanel } from './BexioImportPanel';
 import { MailComposer, MailDocumentButton, MailSettings } from './OutgoingMailEntry';
 import type { MailTarget } from './outgoingMail';
 import { ElapsedTimer } from './ElapsedTimer';
@@ -5712,6 +5713,9 @@ function SettingsScreen({
         <SwissPayrollRulesPanel settings={settings} refreshKey={payrollRulesRevision} />
         <PayrollContributionsPanel refreshKey={payrollDefinitionsRevision} onChanged={() => setPayrollRulesRevision(value => value + 1)} />
       </SettingsAfterOpen>
+      </SettingsCategory>
+      <SettingsCategory id="migration" lazy title="Importer depuis bexio" description="Reprendre clients, fournisseurs et articles" icon={Database}>
+        <BexioImportPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace}/>
       </SettingsCategory>
       <SettingsCategory id="storage" title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>
       <AppUpdater />

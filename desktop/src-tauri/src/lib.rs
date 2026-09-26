@@ -27,6 +27,7 @@ mod branding;
 mod document_design;
 mod document_composition;
 mod catalog_import;
+mod bexio_import;
 mod commands;
 mod customer_credit_validation;
 mod customer_credit_math;
@@ -211,6 +212,8 @@ pub fn run() {
             update_catalog_item,
             delete_record,
             import_catalog_items,
+            bexio_import_scope,
+            import_bexio_contacts,
             save_project_milestone,
             delete_project_milestone,
             save_project_task,
@@ -3837,6 +3840,30 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .unwrap()
             .execute("UPDATE audit_log SET action='tampered'", []);
         assert!(tamper.is_err());
+    }
+
+    #[test]
+    fn bexio_import_is_atomic_repeatable_and_company_scoped() {
+        use crate::bexio_import::{BexioContactImport, BexioContactRow};
+        let (_temporary,store)=initialized_store();
+        let scope=crate::bexio_import::scope(&store).unwrap();
+        let input=|entity:&str,names:Vec<&str>| BexioContactImport {scope:scope.clone(),entity:entity.into(),rows:names.iter().enumerate().map(|(i,name)|BexioContactRow {line:i+2,data:json!({"name":name,"email":"test@example.com","notes":"Import bexio"})}).collect()};
+        let first=store.import_bexio_contacts(input("clients",vec!["Alpha", "Beta"])).unwrap();
+        assert_eq!(first["created"],2);
+        let replay=store.import_bexio_contacts(input("clients",vec![" ALPHA ", "Beta"])).unwrap();
+        assert_eq!(replay["created"],0);assert_eq!(replay["skipped"],2);
+        let suppliers=store.import_bexio_contacts(input("suppliers",vec!["Alpha", "Alpha"])).unwrap();
+        assert_eq!(suppliers["created"],1);assert_eq!(suppliers["skipped"],1);
+        let mut wrong=input("clients",vec!["Gamma"]);wrong.scope="other-company".into();assert!(store.import_bexio_contacts(wrong).is_err());
+        assert!(store.import_bexio_contacts(input("invoices",vec!["Not allowed"])).is_err());
+        let mut invalid=input("clients",vec!["Gamma", "Invalid"]);invalid.rows[1].data["paid_cents"]=json!(1);assert!(store.import_bexio_contacts(invalid).is_err());
+        let db=store.connect().unwrap();
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM clients WHERE name='Gamma'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        db.execute_batch("CREATE TRIGGER bexio_test_failure BEFORE INSERT ON clients WHEN NEW.name='Rollback' BEGIN SELECT RAISE(ABORT,'test rollback'); END;").unwrap();
+        assert!(store.import_bexio_contacts(input("clients",vec!["Gamma", "Rollback"])).is_err());
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM clients WHERE name='Gamma'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        let mut empty=input("clients",vec!["\n\t"]);assert!(store.import_bexio_contacts(empty).is_err());
+        empty=input("suppliers",vec!["X"]);empty.rows[0].data["id"]=json!("existing");assert!(store.import_bexio_contacts(empty).is_err());
     }
 
     #[test]

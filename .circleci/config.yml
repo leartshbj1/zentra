@@ -177,6 +177,11 @@ jobs:
           destination: apple
 
 workflows:
+  bexio-import-190:
+    when:
+      equal: [codex/bexio-import-190, << pipeline.git.branch >>]
+    jobs:
+      - windows
   mail-connection-1891:
     when:
       equal: [codex/mail-connection-1891, << pipeline.git.branch >>]

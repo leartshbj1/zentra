@@ -12,6 +12,12 @@ import {
 const cells = (...values: unknown[]) => values.map((value) => ({ value }));
 
 describe('catalogue fournisseur', () => {
+  it('refuse une devise étrangère et ne devine pas les codes TVA ou type de bexio', () => {
+    expect(()=>previewCatalogGrid('bexio.csv','Articles',[cells('Référence','Nom','Prix de vente','Devise'),cells('X','Exemple',25,'EUR')])).toThrow('autre que CHF');
+    const row=previewCatalogGrid('bexio.csv','Articles',[cells('Référence','Nom','Prix de vente','Devise','TVA','Type'),cells('X','Exemple',25,'CHF','UN77',2)]).rows[0];
+    expect(row.errors).toContain('Taux TVA invalide');
+    expect(row.errors).toContain('Type numérique non reconnu : choisissez Produit ou Service');
+  });
   it.each(['sur devis', '12abc', '25 EUR', 'USD 17', '$12'])('ne transforme pas un prix d’achat illisible %s en zéro importable', purchase => {
     const preview = previewCatalogGrid('prix.csv', 'Catalogue', [cells('Référence', 'Nom', 'Prix achat', 'Prix de vente'), cells('A', 'Article', purchase, '30')]);
     expect(preview.rows[0].errors).toContain('Prix d’achat invalide');

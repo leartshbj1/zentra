@@ -1,0 +1,139 @@
+.bexio-import {
+  max-width: 940px;
+  padding: 24px;
+  color: var(--ink);
+}
+.bexio-import h2 {
+  margin: 0 0 12px;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+.bexio-import p {
+  max-width: 68ch;
+  line-height: 1.6;
+}
+.bexio-import-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 28px 0 20px;
+}
+.bexio-import-note {
+  color: var(--muted);
+  font-size: 14px;
+}
+.bexio-import-file {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 20px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  margin: 24px 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+.bexio-import-file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+.bexio-import-file:focus-within {
+  outline: 2px solid var(--green-700);
+  outline-offset: 3px;
+}
+.bexio-import-file span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.bexio-import small {
+  display: block;
+  line-height: 1.5;
+  font-size: 14px;
+  color: var(--muted);
+}
+.bexio-import-mapping {
+  border-bottom: 1px solid var(--line);
+  padding: 16px 0;
+}
+.bexio-import-mapping summary {
+  cursor: pointer;
+  min-height: 44px;
+}
+.bexio-import-mapping > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.bexio-import-mapping select {
+  width: 100%;
+  min-height: 44px;
+}
+.bexio-import-summary {
+  margin-top: 28px;
+}
+.bexio-import-rows {
+  margin: 16px 0 24px;
+}
+.bexio-import-rows label {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  align-items: center;
+}
+.bexio-import-rows input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--green-700);
+}
+.bexio-import-rows strong,
+.bexio-import-rows small {
+  overflow-wrap: anywhere;
+}
+.bexio-import-error {
+  display: block;
+  color: var(--danger);
+}
+.bexio-import nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 8px;
+}
+.bexio-import-help {
+  display: block;
+  color: var(--ink);
+  margin-top: 28px;
+  text-underline-offset: 4px;
+}
+.bexio-import-receipt {
+  padding: 24px 0;
+}
+@media (max-width: 600px) {
+  .bexio-import {
+    padding: 16px;
+  }
+  .bexio-import-mapping > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bexio-import-rows label {
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .bexio-import-rows label > small {
+    grid-column: 2;
+  }
+  .bexio-import-choices button {
+    flex: 1;
+  }
+  .bexio-import h2 {
+    font-size: 23px;
+  }
+}

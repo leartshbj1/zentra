@@ -63,6 +63,8 @@ const HEADER_ALIASES: Record<CatalogImportColumn, string[]> = {
     'artikel nr',
     'art nr',
     'product code',
+    'code produit',
+    'numero de produit',
   ],
   name: [
     'nom',
@@ -72,12 +74,13 @@ const HEADER_ALIASES: Record<CatalogImportColumn, string[]> = {
     'service',
     'libelle',
     'product name',
+    'nom du produit',
     'designation article',
     'bezeichnung',
     'produktname',
     'descrizione',
   ],
-  description: ['description', 'details', 'detail', 'texte', 'text'],
+  description: ['description', 'description du produit', 'description du produit texte', 'details', 'detail', 'texte', 'text'],
   unit: [
     'unite',
     'unite de vente',
@@ -125,6 +128,7 @@ const HEADER_ALIASES: Record<CatalogImportColumn, string[]> = {
     'taux tva',
     'vat',
     'vat rate',
+    'tva vente',
     'mwst',
     'mwst satz',
     'mehrwertsteuer',
@@ -245,7 +249,7 @@ function vatBasisPoints(cell: GridCell): number | null {
 
 function itemKind(value: unknown): CatalogItem['kind'] {
   const normalized = normalizedHeader(value);
-  return /service|prestation|travail|heure/.test(normalized) ? 'service' : 'product';
+  return /service|prestation|travail|heure|dienstleistung|servizio/.test(normalized) ? 'service' : 'product';
 }
 
 function mappedColumns(row: GridRow): Map<CatalogImportColumn, number> {
@@ -313,6 +317,10 @@ export function previewCatalogGrid(
   explicit?: {rowIndex:number;columns:Map<CatalogImportColumn,number>},
 ): CatalogImportPreview {
   const { rowIndex: headerIndex, columns } = explicit??findHeader(rows);
+  const currencyColumns=rows[headerIndex].map((cell,index)=>({key:normalizedHeader(cell.value),index})).filter(({key})=>/^(devise|currency|wahrung|valuta)( achat| vente| purchase| sales)?$/.test(key));
+  if(currencyColumns.some(({index})=>rows.slice(headerIndex+1).some(row=>{const currency=visibleCellText(row[index]??{value:''}).toUpperCase();return currency!==''&&currency!=='CHF';}))) {
+    throw new Error('Ce catalogue contient une devise autre que CHF. Convertissez et vérifiez les prix dans votre fichier avant l’import.');
+  }
   const warnings: string[] = [];
   if (!columns.has('purchaseCostCents')) {
     warnings.push('Aucune colonne de prix d’achat détectée : la valeur 0 sera utilisée.');
@@ -345,6 +353,7 @@ export function previewCatalogGrid(
       throw new Error(`Le catalogue dépasse la limite de ${CATALOG_IMPORT_MAX_ROWS.toLocaleString('fr-CH')} lignes.`);
     }
     const errors: string[] = [];
+    if (/^\d+$/.test(visibleCellText(rowCell(source,columns,'kind')))) errors.push('Type numérique non reconnu : choisissez Produit ou Service');
     if (!sku) errors.push('Référence manquante');
     if (!name) errors.push('Désignation manquante');
     if (sale === null || sale < 0) errors.push('Prix de vente invalide');

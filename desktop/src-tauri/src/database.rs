@@ -2671,6 +2671,74 @@ impl LocalStore {
         Ok(workspace)
     }
 
+    pub fn import_bexio_contacts(&self, input: crate::bexio_import::BexioContactImport) -> AppResult<Value> {
+        if !["clients", "suppliers"].contains(&input.entity.as_str()) || input.rows.is_empty() || input.rows.len() > 5000 {
+            return Err(AppError::Validation("Choisissez entre 1 et 5 000 clients ou fournisseurs.".into()));
+        }
+        if crate::bexio_import::scope(self)? != input.scope {
+            return Err(AppError::Validation("L’entreprise a changé. Rouvrez l’import dans le bon espace.".into()));
+        }
+        if serde_json::to_vec(&input)?.len()>20*1024*1024 {
+            return Err(AppError::Validation("L’import dépasse 20 Mo. Divisez le fichier.".into()));
+        }
+        let spec = entity_spec(&input.entity)?;
+        let mut connection = self.connect()?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let canonical = |value: &str| value.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
+        let existing = query_all(&transaction, &format!("SELECT id,name FROM {}",spec.table), [])?;
+        let mut names: HashSet<String> = existing.iter().filter_map(|row| row["name"].as_str()).map(canonical).collect();
+        let mut results = Vec::new();
+        let mut created = 0;
+        let batch = Uuid::new_v4().to_string();
+        for row in input.rows {
+            let mut object = value_object(row.data)?;
+            if object.contains_key("id") || object.contains_key("archived_at") {
+                return Err(AppError::Validation("L’import ne peut ni remplacer ni archiver une fiche.".into()));
+            }
+            validate_keys(&object, spec.fields)?;
+            for (key,value) in &object {
+                if !value.is_null() && !value.is_string() {
+                    return Err(AppError::Validation(format!("Ligne {} : le champ {key} doit être du texte.",row.line)));
+                }
+                if value.as_str().is_some_and(|s| s.len()>10000 || s.contains('\0')) {
+                    return Err(AppError::Validation(format!("Ligne {} : un champ est trop long ou illisible.",row.line)));
+                }
+            }
+            normalize_record(&input.entity,&mut object,true)?;
+            validate_required(&object,spec.required)?;
+            let name=object.get("name").and_then(Value::as_str).unwrap_or_default().trim().to_string();
+            if name.is_empty() || name.chars().count()>200 {
+                return Err(AppError::Validation(format!("Ligne {} : indiquez un nom de 1 à 200 caractères.",row.line)));
+            }
+            // A same-name record is left untouched, including archived records.
+            // The review explicitly calls this a potential duplicate, never a merge.
+            if !names.insert(canonical(&name)) {
+                results.push(json!({"line":row.line,"name":name,"status":"skipped"}));
+                continue;
+            }
+            object.insert("name".into(),json!(name));
+            let digest=Sha256::digest(format!("bexio\n{}\n{}\n{}",input.scope,input.entity,canonical(&name)));
+            let mut bytes=[0_u8;16];bytes.copy_from_slice(&digest[..16]);
+            let id=Uuid::from_bytes(bytes).to_string();
+            let now=now_iso();
+            let mut columns=vec!["id".to_string()];
+            let mut values=vec![SqlValue::Text(id.clone())];
+            for field in spec.fields {
+                if let Some(value)=object.get(*field) {columns.push((*field).to_string());values.push(json_to_sql(value)?);}
+            }
+            columns.extend(["created_at".into(),"updated_at".into()]);
+            values.extend([SqlValue::Text(now.clone()),SqlValue::Text(now)]);
+            transaction.execute(&format!("INSERT INTO {} ({}) VALUES ({})",spec.table,columns.join(","),vec!["?";columns.len()].join(",")),params_from_iter(values))?;
+            let saved=query_record_tx(&transaction,spec.table,&id)?;
+            append_audit(&transaction,"create",&input.entity,&id,&saved)?;
+            results.push(json!({"line":row.line,"name":name,"status":"created"}));
+            created+=1;
+        }
+        append_audit(&transaction,"import",&input.entity,&batch,&json!({"source":"bexio_export","created":created,"skipped":results.len()-created}))?;
+        transaction.commit()?;
+        Ok(json!({"created":created,"skipped":results.len()-created,"rows":results}))
+    }
+
     pub fn create_record(&self, entity: &str, data: Value) -> AppResult<Value> {
         if entity == "payments" {
             let input: RecordPaymentInput = serde_json::from_value(data)?;

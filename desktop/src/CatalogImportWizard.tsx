@@ -27,10 +27,12 @@ export function CatalogImportWizard({
   busy,
   close,
   onImport,
+  migration = false,
 }: {
   existingItems: CatalogItem[];
   vatRatesBp: number[];
   busy: boolean;
+  migration?: boolean;
   close: () => void;
   onImport: (
     rows: CatalogImportRow[],
@@ -49,9 +51,10 @@ export function CatalogImportWizard({
   const [editing, setEditing] = useState<CatalogImportPreviewRow | null>(null);
   const [onlyIssues, setOnlyIssues] = useState(false);
   const [page, setPage] = useState(0);
+  const [pricesConfirmed, setPricesConfirmed] = useState(false);
   const locked = busy || parsing || importing;
   const [conflictPolicy, setConflictPolicy] =
-    useState<CatalogImportConflictPolicy>('update');
+    useState<CatalogImportConflictPolicy>(migration ? 'skip' : 'update');
   const [fallbackVatBp, setFallbackVatBp] = useState(vatRatesBp[0] ?? 0);
   const existingBySku = useMemo(() => {
     const result = new Map<string, CatalogItem[]>();
@@ -82,7 +85,7 @@ export function CatalogImportWizard({
     (row) => (existingBySku.get(row.sku.toLocaleLowerCase('fr-CH'))?.length ?? 0) === 1,
   ).length;
   const creates = rows.length - updates - ambiguousRows.length;
-  const ready = Boolean(preview && rows.length && !invalidRows.length && !ambiguousRows.length);
+  const ready = Boolean(preview && rows.length && !invalidRows.length && !ambiguousRows.length && (!migration || pricesConfirmed));
   const visibleRows = importedRows.filter(row => !onlyIssues || issuesFor(row).length > 0);
   const lastPage = Math.max(0, Math.ceil(visibleRows.length / 100) - 1);
   const currentPage = Math.min(page, lastPage);
@@ -91,6 +94,7 @@ export function CatalogImportWizard({
     if (!file || locked) return;
     setError('');
     setPreview(null);
+    setPricesConfirmed(false);
     setMappingSource(null);mappingAudit.current=null;
     setParsing(true);
     try {
@@ -222,6 +226,7 @@ export function CatalogImportWizard({
               </select>
             </Field>
             <div className="catalog-import-review-tools">
+              {migration&&<label><input type="checkbox" checked={pricesConfirmed} onChange={event=>setPricesConfirmed(event.target.checked)}/> J’ai vérifié que les prix sont hors TVA, en CHF, et que chaque article ou service a le bon type.</label>}
               <label><input type="checkbox" checked={onlyIssues} onChange={event => { setOnlyIssues(event.target.checked); setPage(0); }} /> Afficher les lignes à corriger ({invalidRows.length})</label>
               <p>{invalidRows.length ? 'Ouvrez « Corriger » à côté de la ligne. Les autres lignes restent conservées.' : 'Toutes les lignes sont prêtes. Vérifiez les prix en CHF avant de confirmer.'}</p>
             </div>

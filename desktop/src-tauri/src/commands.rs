@@ -346,6 +346,20 @@ pub fn import_catalog_items(
 }
 
 #[tauri::command]
+pub fn bexio_import_scope(state: State<'_, LocalStore>) -> Result<String, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    crate::bexio_import::scope(&state).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn import_bexio_contacts(state: State<'_, LocalStore>, input: crate::bexio_import::BexioContactImport) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.import_bexio_contacts(input).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn save_project_milestone(
     state: State<'_, LocalStore>,
     input: SaveProjectMilestoneInput,
