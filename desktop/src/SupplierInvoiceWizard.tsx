@@ -213,7 +213,7 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
         {step === 3 && <div>
           <div className="purchase-entry-saved" role="status"><CheckCircle2 size={19} /><div><strong>{t("Brouillon enregistré")}</strong><p>{t("Joignez le PDF ou une photo. Vous retrouverez ensuite cette facture dans les brouillons des achats pour la vérifier et la valider.")}</p></div></div>
           {renderAttachments(current, !readOnly && !finalized && !unavailable, locked, setAttachmentPending)}
-          {scanFile&&<Button type="button" variant="secondary" disabled={locked||cannotEdit} onClick={()=>void save()}>Joindre {scanFile.name}</Button>}
+          {scanFile&&<Button type="button" variant="secondary" disabled={locked||cannotEdit} onClick={()=>void save()}>{t('Joindre {name}',{name:scanFile.name})}</Button>}
           <p className="info-strip"><ReceiptText size={17} /> {t("Aucune écriture comptable ni aucun paiement n’a été créé par cet enregistrement.")}</p>
         </div>}
       </section>

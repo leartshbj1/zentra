@@ -1,5 +1,8 @@
 // Interface copy only. Saved references, supplier names, descriptions and notes stay verbatim.
 export const purchaseTranslations: Record<string, readonly [string, string, string]> = {
+  'Joindre {name}': ['{name} anhängen', 'Allega {name}', 'Attach {name}'],
+  'Le document original est joint à la facture.': ['Das Originaldokument ist der Rechnung beigefügt.', 'Il documento originale è allegato alla fattura.', 'The original document is attached to the invoice.'],
+  'Le brouillon est enregistré, mais le justificatif reste à joindre. Réessayez ci-dessous.': ['Der Entwurf ist gespeichert, aber der Beleg muss noch angehängt werden. Versuchen Sie es unten erneut.', 'La bozza è salvata, ma il giustificativo deve ancora essere allegato. Riprova qui sotto.', 'The draft is saved, but the receipt still needs to be attached. Try again below.'],
   'Facture fournisseur': ['Eingangsrechnung', 'Fattura fornitore', 'Supplier invoice'],
   'Créer une facture fournisseur': ['Lieferantenrechnung erstellen', 'Crea una fattura fornitore', 'Create a supplier invoice'],
   'Achat {number}': ['Position {number}', 'Acquisto {number}', 'Item {number}'],
