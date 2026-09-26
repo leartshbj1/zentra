@@ -5537,6 +5537,10 @@ export const desktopApi = {
     });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
+  async addScannedSupplierAttachment(invoiceId: string, file: File) {
+    await invoke('add_scanned_supplier_attachment', { invoiceId, originalName: file.name, contentBase64: await fileBase64(file) });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
   async deleteSupplierInvoiceAttachment(id: string) {
     await invoke('delete_supplier_invoice_attachment', { id });
     return refreshWorkspaceAfterMutation(loadWorkspace);

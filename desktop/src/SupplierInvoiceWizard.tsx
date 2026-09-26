@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, CheckCircle2, Plus, ReceiptText, Trash2 } from 'lucide-react';
 import { desktopApi } from './bridge';
-import { AutomationDocumentReader,SupplierRouting } from './AutomationDocument';
-import { DocumentClassification,AttentionSuggestion } from './AutomationControls';
-import { automationResourceFeedback,type AutomationDecision } from './automation';
+import { AttentionSuggestion } from './AutomationControls';
+import { InvoiceScanPanel } from './InvoiceScanPanel';
+import { applyInvoiceScan } from './invoiceScan';
 import type { SupplierInvoice, Workspace } from './types';
 import { selectableSuppliers, supplierDueDate } from './purchases';
 import { purchaseCostCategories, purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
@@ -33,8 +33,7 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
   const language = useAppLanguage();
   const settings = workspace.settings!, terminology = projectTerminology(settings.business.nogaSection);
   const [draftId] = useState(() => item?.id ?? createId());
-  const [automationText,setAutomationText]=useState('');
-  const automationDecision=useRef<AutomationDecision|null>(null);
+  const [scanFile,setScanFile]=useState<File|null>(null);
   const [initial] = useState(() => purchaseFields(workspace, item));
   const [fields, setFields] = useState(initial), [baseline, setBaseline] = useState(initial);
   const [step, setStep] = useState(initialTarget === 'attachments' && item ? 3 : 0);
@@ -47,7 +46,7 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
   const unavailable = Boolean(item && !current), finalized = Boolean(current && current.documentStatus !== 'draft');
   const locked = busy || saving || attachmentPending;
   const cannotEdit = readOnly || matching || finalized || unavailable;
-  const dirty = JSON.stringify(fields) !== JSON.stringify(baseline);
+  const dirty = Boolean(scanFile) || JSON.stringify(fields) !== JSON.stringify(baseline);
   const choices = selectableSuppliers(workspace.suppliers, item?.supplierId);
   const supplier = choices.find(value => value.id === fields.supplierId);
   const rates = purchaseVatOptions(settings.organization.vatRegistered, settings.billing.vatRatesBp);
@@ -130,7 +129,14 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
         reference: fields.reference.trim(), note: fields.note.trim(), vatTreatment: fields.vatTreatment || undefined,
         items: fields.lines.map(value => { const line = purchaseLineValue(value)!; return { ...line, expenseAccountId: line.expenseAccountId || null, projectId: line.projectId || null }; }),
       }), current ? t('Le brouillon fournisseur a été mis à jour.') : t('Le brouillon fournisseur a été enregistré. Ajoutez maintenant son justificatif.'), false, report);
-      if (saved) { void automationResourceFeedback(automationDecision.current,{supplier:fields.supplierId||null,project:fields.projectId||null,expense_category:fields.lines[0]?.category||null});setBaseline(fields); setStep(3); }
+      if (saved) {
+        setBaseline(fields); setStep(3);
+        if(scanFile){
+          const attached=await act(()=>desktopApi.addScannedSupplierAttachment(draftId,scanFile),t('Le document original est joint à la facture.'),false,report);
+          if(attached)setScanFile(null);
+          else if(!reported)setServerError('Le brouillon est enregistré, mais le justificatif reste à joindre. Réessayez ci-dessous.');
+        }
+      }
       else if (!reported) setServerError('La sauvegarde n’est pas confirmée. Votre saisie reste présente ; vérifiez le message de reprise avant une nouvelle tentative.');
     } catch (reason) { report(reason); }
     finally { inFlight.current = false; setSaving(false); }
@@ -146,8 +152,7 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
       <section className="supplier-preparation__page" key={step} tabIndex={-1} aria-labelledby="supplier-preparation-heading">
         <h3 id="supplier-preparation-heading" ref={heading} tabIndex={-1}>{t(titles[step])}</h3>
         {step === 0 && <fieldset disabled={locked || cannotEdit}>
-          <AutomationDocumentReader disabled={locked||cannotEdit} onRead={setAutomationText}/>
-          {automationText&&<><DocumentClassification text={automationText} identity={`supplier:${draftId}`}/><SupplierRouting text={automationText} workspace={workspace} disabled={locked||cannotEdit} onDecision={value=>{automationDecision.current=value;}} onApply={ids=>{setFields(previous=>({...previous,...(ids.supplier?{supplierId:ids.supplier}:{}),...(ids.project?{projectId:ids.project}:{}),lines:ids.category?previous.lines.map(line=>({...line,category:ids.category!})):previous.lines}));}}/></>}
+          <InvoiceScanPanel disabled={locked||cannotEdit} onBusy={setAttachmentPending} onApply={(scan,file)=>{setFields(previous=>applyInvoiceScan(scan,previous,workspace));setScanFile(file);setIssue(null);setServerError('');}}/>
           <p>{t("Gardez la facture devant vous. Recopiez son fournisseur et ses dates ; les achats viennent juste après.")}</p>
           <div className="form-grid">
             <Field label={t("Fournisseur")} required wide error={fieldError('supplierId')}><select name="supplierId" value={fields.supplierId} onChange={event => change('supplierId', event.target.value)}><option value="">{t("Choisir un fournisseur")}</option>{choices.map(value => <option key={value.id} value={value.id}>{value.name}{value.archivedAt ? t(" · archivé (historique)") : ''}</option>)}</select></Field>
@@ -202,6 +207,7 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
         {step === 3 && <div>
           <div className="purchase-entry-saved" role="status"><CheckCircle2 size={19} /><div><strong>{t("Brouillon enregistré")}</strong><p>{t("Joignez le PDF ou une photo. Vous retrouverez ensuite cette facture dans les brouillons des achats pour la vérifier et la valider.")}</p></div></div>
           {renderAttachments(current, !readOnly && !finalized && !unavailable, locked, setAttachmentPending)}
+          {scanFile&&<Button type="button" variant="secondary" disabled={locked||cannotEdit} onClick={()=>void save()}>Joindre {scanFile.name}</Button>}
           <p className="info-strip"><ReceiptText size={17} /> {t("Aucune écriture comptable ni aucun paiement n’a été créé par cet enregistrement.")}</p>
         </div>}
       </section>

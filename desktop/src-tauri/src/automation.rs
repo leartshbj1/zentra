@@ -48,7 +48,7 @@ pub(crate) fn prepare_request(
     mut value: Value,
 ) -> AppResult<Value> {
     let payload_limit = match value.get("action").and_then(Value::as_str) {
-        Some("workflow_save" | "workflow_preview" | "work_item_update") => 100000,
+        Some("workflow_save" | "workflow_preview" | "work_item_update" | "invoice_scan") => 100000,
         _ => 12000,
     };
     if serde_json::to_vec(&value)?.len() > payload_limit {
@@ -64,7 +64,7 @@ pub(crate) fn prepare_request(
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
-    if !["decide", "feedback", "settings", "centre", "workflow_save", "workflow_preview", "workflow_confirm", "workflow_cancel", "workflow_retry", "workflow_undo", "work_item_update"].contains(&action.as_str()) {
+    if !["decide", "feedback", "settings", "centre", "workflow_save", "workflow_preview", "workflow_confirm", "workflow_cancel", "workflow_retry", "workflow_undo", "work_item_update", "invoice_scan"].contains(&action.as_str()) {
         return Err(invalid("Cette action n’est pas disponible."));
     }
     if action == "settings" && !["owner", "admin"].contains(&role) {
@@ -72,7 +72,7 @@ pub(crate) fn prepare_request(
             "Seul le titulaire ou un administrateur peut changer les réglages.",
         ));
     }
-    if action == "feedback" && role == "read_only" {
+    if (action == "feedback" || action == "invoice_scan") && role == "read_only" {
         return Err(invalid("Votre rôle permet la consultation uniquement."));
     }
     if (action.starts_with("workflow_") || action == "work_item_update") && role == "read_only" {
@@ -81,7 +81,7 @@ pub(crate) fn prepare_request(
     if action.starts_with("workflow_") && !["owner", "admin"].contains(&role) {
         return Err(invalid("Un administrateur peut configurer et valider les règles de votre entreprise."));
     }
-    if action == "decide" || action == "feedback" {
+    if action == "decide" || action == "feedback" || action == "invoice_scan" {
         bound(store, org)?;
         // Never accept resource candidates or arbitrary backend functions from the WebView.
         if object.get("feature").and_then(Value::as_str) == Some("supplier_routing")

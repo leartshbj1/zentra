@@ -561,6 +561,9 @@ fn roots(data: &Data, table: &str, row: &Row) -> BTreeSet<(String, String)> {
         }
     }
     if table == "journal_entries" {
+        if text(row,t,"source_type").as_deref()==Some("fixed_asset") {
+            if let Some(id)=text(row,t,"source_id") { result.insert(("fixed_asset".into(),id)); }
+        }
         if let (Some(kind), Some(id)) = (text(row, t, "source_type"), text(row, t, "source_id")) {
             let target = match kind.as_str() {
                 "invoice" => Some("invoices"),

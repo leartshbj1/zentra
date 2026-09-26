@@ -207,7 +207,6 @@ impl LocalStore {
     /// message MIME choisi explicitement par l'utilisateur. Le contenu passe
     /// par les mêmes contrôles de taille, de signature binaire, de doublon et
     /// d'immuabilité que l'import depuis un fichier local.
-    #[cfg(test)]
     pub(crate) fn add_supplier_invoice_attachment_bytes(
         &self,
         supplier_invoice_id: &str,

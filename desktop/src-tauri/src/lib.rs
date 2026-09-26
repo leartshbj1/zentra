@@ -6,6 +6,7 @@ mod app_reset;
 mod appearance;
 mod macos_navigation;
 mod accounting;
+mod fixed_assets;
 mod accounting_closure;
 mod agenda;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -417,6 +418,11 @@ pub fn run() {
             export_json,
             export_csv_archive,
             add_supplier_invoice_attachment,
+            add_scanned_supplier_attachment,
+            fixed_assets::list_fixed_assets,
+            fixed_assets::register_fixed_asset,
+            fixed_assets::depreciate_fixed_asset,
+            fixed_assets::cancel_fixed_asset,
             delete_supplier_invoice_attachment,
             open_attachment,
             open_data_folder,

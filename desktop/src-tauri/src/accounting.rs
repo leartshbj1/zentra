@@ -785,6 +785,9 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let original = one_json(&tx, "SELECT * FROM journal_entries WHERE id=?", params![id])?;
+        if original["source_type"]=="fixed_asset" {
+            return Err(AppError::Validation("Cette écriture appartient au registre des immobilisations. Annulez un bien non amorti depuis ce registre pour conserver sa valeur et son historique.".into()));
+        }
         if original["source_type"]=="invoice" && crate::customer_credit_recovery_vat::original_for(&tx,original["source_id"].as_str().unwrap_or_default())?.is_some() {
             return Err(AppError::Validation("Ce document appartient à une reprise TVA documentée. Son écriture d’origine doit rester liée aux corrections et règlements conservés.".into()));
         }

@@ -1,4 +1,5 @@
 import { AccountingPeriodsPanel } from './AccountingPeriodsPanel';
+import { FixedAssetsPanel } from './FixedAssetsPanel';
 import type { PeriodDraft } from './accountingPeriods';
 import { AccountingSetupPanel } from './AccountingSetupPanel';
 import { AccountingSetupDialog } from './AccountingSetupDialog';
@@ -32,7 +33,7 @@ import {
   type ManualJournalAttempt,
 } from './accountingManualJournal';
 
-type Tab = 'overview' | 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'accounts' | 'periods';
+type Tab = 'overview' | 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'accounts' | 'periods' | 'assets';
 type JournalDraftLine = { id: string; accountId: string; debitCents: number; creditCents: number; memo: string; projectId: string; clientId: string; employeeId: string };
 type ActiveEntryFocus = {
   target: AccountingEntryFocus;
@@ -129,7 +130,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const credit = entryLines.reduce((sum, line) => sum + line.creditCents, 0);
   const selectedPeriod = periods.find((period) => period.id === periodId);
   const reportState = selectedPeriod?.status === 'closed' ? 'Clôturé' : 'Provisoire';
-  const hasPeriodFilter = tab !== 'accounts' && tab !== 'periods';
+  const hasPeriodFilter = tab !== 'accounts' && tab !== 'periods' && tab !== 'assets';
   const periodLabel = selectedPeriod?.name || (
     filter.dateFrom && filter.dateTo ? `${formatDate(filter.dateFrom)} – ${formatDate(filter.dateTo)}`
       : filter.dateFrom ? `Depuis le ${formatDate(filter.dateFrom)}`
@@ -413,9 +414,10 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
 
   const tabs: Array<[Tab, string, React.ReactNode]> = [
     ['overview', 'Vue d’ensemble', <Landmark size={16}/>],
+    ['assets', 'Immobilisations', <Archive size={16}/>],
     ['journal', 'Journal', <BookOpen size={16} />], ['ledger', 'Grand livre', <ListChecks size={16} />], ['trial', 'Balance', <Scale size={16} />], ['balance', 'Bilan', <Landmark size={16} />], ['income', 'Résultat', <CheckCircle2 size={16} />], ['vat', 'TVA', <ReceiptText size={16} />], ['closing', 'Dossier de clôture', <FileCheck2 size={16} />], ['accounts', 'Plan & liaisons', <ShieldCheck size={16} />], ['periods', 'Exercices', <LockKeyhole size={16} />],
   ];
-  const everyday:Tab[]=['overview','income','vat','closing'];
+  const everyday:Tab[]=['overview','income','vat','assets','closing'];
   const primaryTabs=tabs.filter(([id])=>everyday.includes(id));
   const advancedTab=tabs.find(([id])=>id===tab&&!everyday.includes(id));
   if(advancedTab)primaryTabs.push(advancedTab);
@@ -464,6 +466,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
 
     {tab === 'balance' ? <FinancialStatement title="Bilan" state={reportState} rows={balance?.rows ?? []} summary={[['Actifs', balance?.assetsCents, balance?.previousAssetsCents], ['Dettes', balance?.liabilitiesCents, balance?.previousLiabilitiesCents], ['Fonds propres', balance?.equityCents, balance?.previousEquityCents], ['Résultats antérieurs non affectés', balance?.unallocatedPriorResultsCents, balance?.previousUnallocatedPriorResultsCents], ['Résultat de l’exercice', balance?.currentResultCents, balance?.previousCurrentResultCents]]} comparisonLabel={balance?.scope.comparisonLabel} previousHasActivity={balance?.scope.previousHasActivity} currency={balance?.currency.baseCurrency} balanced={balance?.balanced} /> : null}
     {tab === 'income' ? <FinancialStatement title="Compte de résultat" state={reportState} rows={income?.rows ?? []} summary={[['Produits', income?.revenueCents, income?.previousRevenueCents], ['Charges', income?.expenseCents, income?.previousExpenseCents], ['Résultat', income?.profitCents, income?.previousProfitCents]]} comparisonLabel={income?.scope.comparisonLabel} previousHasActivity={income?.scope.previousHasActivity} currency={income?.currency.baseCurrency} /> : null}
+    {tab === 'assets' ? <FixedAssetsPanel workspace={workspace} readOnly={Boolean(readOnly)} onChanged={()=>reloadAll()} onSetup={()=>setTab('accounts')}/> : null}
     {tab === 'vat' ? <VatCenter filter={filter} workspace={workspace} readOnly={readOnly} onAccountingChanged={reloadAll} onOpenJournal={(id)=>void openLinkedJournal(id)} /> : null}
     {returnToClosing && tab !== 'closing' && <div className="report-callout"><FileCheck2 size={20} /><div><strong>Reprendre le contrôle de l’exercice</strong><p>Après vos corrections, préparez un nouveau contrôle avant toute clôture.</p></div><Button disabled={busy} onClick={() => { setReturnToClosing(false); setTab('closing'); }}>Revenir au dossier de clôture</Button></div>}
     {tab === 'closing' ? <ClosingFolder readOnly={readOnly} onNavigate={target => { setReturnToClosing(target !== 'periods'); setTab(target); }} filter={filter} period={selectedPeriod} loading={busy} trial={busy ? null : trial} balance={busy ? null : balance} income={busy ? null : income} onAccountingChanged={() => reloadAll('Les états et le statut de l’exercice ont été actualisés.', true)} /> : null}

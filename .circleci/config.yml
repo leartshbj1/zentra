@@ -177,6 +177,11 @@ jobs:
           destination: apple
 
 workflows:
+  fixed-assets-scan-validation:
+    when:
+      equal: [codex/fixed-assets-invoice-scan, << pipeline.git.branch >>]
+    jobs:
+      - windows-mail-tests
   release-189-windows:
     when:
       equal: [codex/release-1.89.0-windows, << pipeline.git.branch >>]

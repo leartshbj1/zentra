@@ -1783,6 +1783,16 @@ pub fn export_csv_archive(
 }
 
 #[tauri::command]
+pub fn add_scanned_supplier_attachment(state: State<'_, LocalStore>, invoice_id: String, original_name: String, content_base64: String) -> Result<Value, String> {
+    use base64::Engine;
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    if content_base64.len() > 28_000_000 { return Err("Choisissez une facture de moins de 20 Mo.".into()); }
+    let bytes = base64::engine::general_purpose::STANDARD.decode(content_base64).map_err(|_| "Le fichier transmis est illisible.")?;
+    state.add_supplier_invoice_attachment_bytes(&invoice_id, &original_name, &bytes).map_err(command_error)
+}
+
+#[tauri::command]
 pub fn add_supplier_invoice_attachment(
     state: State<'_, LocalStore>,
     input: AddSupplierInvoiceAttachmentInput,

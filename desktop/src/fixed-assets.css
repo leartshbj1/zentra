@@ -1,0 +1,23 @@
+.fixed-assets { min-width: 0; }
+.fixed-assets__header { display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:28px; }
+.fixed-assets__header h2 { margin:0;font-size:1.5rem;letter-spacing:-.02em; }
+.fixed-assets__header p,.fixed-assets__hint,.fixed-assets__identity p { color:var(--work-muted);line-height:1.5; }
+.fixed-assets__form { border-block:1px solid var(--work-line);padding-block:24px;margin-block:20px 32px; }
+.fixed-assets__form fieldset { border:0;padding:0;min-width:0; }
+.fixed-assets__form h3 { margin:0 0 20px; }
+.fixed-assets__hint { max-width:70ch;font-size:.875rem; }
+.fixed-assets__policy { margin-block:24px; }
+.fixed-assets summary { cursor:pointer;padding-block:10px; }
+.fixed-assets__policy .form-grid { margin-top:16px; }
+.fixed-assets__confirm { display:flex;align-items:start;gap:12px;margin-block:24px;line-height:1.5; }
+.fixed-assets__confirm input { width:20px;height:20px;flex:none;margin-top:2px; }
+.fixed-assets__actions { display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:12px; }
+.fixed-assets__list article { border-top:1px solid var(--work-line);padding-block:24px; }
+.fixed-assets__identity h3 { margin:0;font-size:1.125rem;overflow-wrap:anywhere; }
+.fixed-assets__identity p { margin-block:6px 20px;overflow-wrap:anywhere; }
+.fixed-assets__list dl { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-block:16px 24px; }
+.fixed-assets dt { color:var(--work-muted);font-size:.875rem; }
+.fixed-assets dd { margin:6px 0 0;font-size:1.125rem;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere; }
+.fixed-assets__review { padding-block:16px; }
+.fixed-assets__cancelled { margin-top:24px; }
+@media(max-width:600px){.fixed-assets__header { align-items:stretch;flex-direction:column;gap:16px; }.fixed-assets__header>button { width:100%; }.fixed-assets__list dl { grid-template-columns:repeat(2,minmax(0,1fr)); }.fixed-assets__list dl>div:last-child { grid-column:1/-1; }.fixed-assets__actions>button { flex:1 1 auto; }.fixed-assets .form-grid { grid-template-columns:minmax(0,1fr); }}
