@@ -1,0 +1,10 @@
+.zentra-brand-identity {display:inline-flex;align-items:center;gap:10px;vertical-align:middle;flex-shrink:0;}
+html[data-app-theme] .zentra-brand-identity>.zentra-brand-identity__symbol {width:32px;height:32px;flex:0 0 32px;filter:none;}
+html[data-app-theme] .desktop-app[data-experience] .sidebar__wordmark .zentra-brand-identity__symbol {width:32px;height:32px;}
+html[data-app-theme] .desktop-app[data-experience] .sidebar__wordmark {min-width:0;}
+html[data-app-theme] .first-run__brand>.zentra-brand-identity {margin-left:0;}
+html[data-app-theme="dark"] .zentra-brand-identity>img {filter:brightness(0) invert(1);}
+.zentra-arrival__identity>.zentra-brand-identity {flex-direction:column;gap:24px;margin:auto;}
+html[data-app-theme] .zentra-arrival__identity .zentra-brand-identity__symbol {width:clamp(80px,14vw,112px);height:clamp(80px,14vw,112px);flex-basis:auto;}
+.zentra-arrival__identity .zentra-brand-identity>img {width:min(280px,56vw);}
+@media(max-height:600px) {.zentra-arrival__identity>.zentra-brand-identity {flex-direction:row;gap:16px;}}

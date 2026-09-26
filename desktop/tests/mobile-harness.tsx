@@ -302,4 +302,5 @@ import '../src/mobile-air.css';
 import '../src/automation-design.css';
 import '../src/workspace-atelier.css';
 import '../src/onboarding-journey.css';
+import '../src/brand-identity.css';
 import '../src/workspace-personalization.css';

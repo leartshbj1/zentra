@@ -177,6 +177,13 @@ jobs:
           destination: apple
 
 workflows:
+  brand-icon-1901:
+    when:
+      equal: [codex/brand-icon-1901, << pipeline.git.branch >>]
+    jobs:
+      - windows
+      - apple
+      - android
   bexio-import-190:
     when:
       equal: [codex/bexio-import-190, << pipeline.git.branch >>]

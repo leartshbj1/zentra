@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { cp, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 if (process.argv[2] !== 'android') throw new Error('Specify android.');
@@ -8,3 +8,5 @@ let source = await readFile(path, 'utf8');
 source = source.replace(/android:allowBackup="[^"]*"/g, 'android:allowBackup="false"');
 if (!source.includes('android:allowBackup=')) source = source.replace('<application', '<application android:allowBackup="false"');
 await writeFile(path, source);
+// Preserve the approved adaptive and themed icons after every Tauri regeneration.
+await cp(new URL('../src-tauri/icons/android/', import.meta.url), new URL('../src-tauri/gen/android/app/src/main/res/', import.meta.url), { recursive: true });
