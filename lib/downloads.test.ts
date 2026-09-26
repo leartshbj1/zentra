@@ -62,7 +62,7 @@ describe('contrat de téléchargement Zentra', () => {
       `Zentra_${ZENTRA_MAC_VERSION}_macos-universal.dmg`,
     );
     expect(ZENTRA_MAC_DMG_PATH).toBe(
-      `${ZENTRA_RELEASES_ORIGIN}/${ZENTRA_MAC_DMG_NAME}`,
+      `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_MAC_VERSION}/${ZENTRA_MAC_DMG_NAME}`,
     );
     expect(ZENTRA_MAC_DMG_CHECKSUM_PATH).toBe(
       `${ZENTRA_MAC_DMG_PATH}.sha256.txt`,
