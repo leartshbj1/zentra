@@ -55,7 +55,7 @@ jobs:
       - checkout
       - run:
           name: Verify the exact 1.89.0 installer in a disposable Windows profile
-          command: python desktop/scripts/cloud-package-smoke.py windows 114 6b673783524ffef4b11dc2e398e0c0fddfdf1319
+          command: python desktop/scripts/cloud-package-smoke.py windows 115 38c0708dc449c5f5032a4e496aea031e72244bda
       - store_artifacts:
           path: desktop/artifacts/smoke
           destination: smoke
