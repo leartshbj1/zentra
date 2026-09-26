@@ -64,7 +64,7 @@ export function invoiceCandidates(source: string) {
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean)
-    .slice(0, 500);
+    .slice(0, 1000);
   const lists: Record<string, Candidate[]> = {
     supplierName: [],
     reference: [],
@@ -86,6 +86,13 @@ export function invoiceCandidates(source: string) {
       return;
     lists[field].push({ value, evidence: line.slice(0, 110) });
   };
+  // Invoice totals often follow many item prices. Keep labelled totals in the
+  // candidate budget before individual prices, without making the final choice.
+  for (const line of lines.filter(l => /total|hors taxe|netto|brutto|imponibile|tva|mwst|iva|amount due/i.test(l))) {
+    for (const match of line.matchAll(/(?<![\w.,/])\d{1,3}(?:[’'\s,]\d{3})*[.,]\d{2}(?!\d|\s*%)|(?<![\w.,/])\d{1,9}[.,]\d{2}(?!\d|\s*%)/g)) {
+      for (const field of ['netCents','vatCents','totalCents']) add(field, amountCents(match[0]), line);
+    }
+  }
   for (const [lineIndex, line] of lines.entries()) {
     // Names remain literal source strings; sender display names never become vendor identity.
     if (line.length >= 3 && line.length <= 140 && /[\p{L}]{3}/u.test(line))
@@ -178,7 +185,7 @@ export function extractionInput(source: string, companyName: string) {
       state: {
         excerpt_1: source.slice(0, 3000),
         excerpt_2: source.slice(3000, 6000),
-        excerpt_3: source.slice(6000, 9000),
+        excerpt_3: source.length > 9000 ? source.slice(-3000) : source.slice(6000, 9000),
         recipient: companyName.slice(0, 160),
       },
       questions,

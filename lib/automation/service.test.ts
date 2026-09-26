@@ -42,6 +42,7 @@ import {
 } from './config';
 import { authorizedResources, nativeResources } from './resources';
 import { DecisionFailure } from './types';
+import { scanInvoice } from './invoice-scan';
 import { automationCompanyState, automationDay } from './activity';
 let sql: DatabaseSync;
 const actor = {
@@ -126,6 +127,33 @@ beforeEach(async () => {
   });
 });
 afterEach(() => sql.close());
+const scanPayload = { requestId: 'scan_fixture_000001', text: 'Fournisseur: Acme SA\nFacture No INV-2026-19\nDate: 20.09.2026\nÉchéance: 20.10.2026\nTotal CHF 108.10\nHT 100.00\nTVA 8.1% 8.10' };
+it('invoice scan is scoped, reviewed, idempotent and never stores source text', async () => {
+  const p = provider();
+  const a = await scanInvoice(actor, scanPayload, p);
+  expect(a).toMatchObject({status:'suggestion',requiresConfirmation:true});
+  expect(await scanInvoice(actor, scanPayload, p)).toEqual(a);
+  expect(p.decide).toHaveBeenCalledTimes(1);
+  await expect(scanInvoice(actor, {...scanPayload,text:scanPayload.text+'changed'},p)).rejects.toMatchObject({status:409});
+  expect(sql.prepare('SELECT result FROM automation_decisions').get()?.result).not.toContain('Fournisseur: Acme');
+});
+it('invoice scan refuses consultation, revoked access and oversized input before provider use', async () => {
+  const p=provider();
+  await expect(scanInvoice({...actor,role:'read_only'},scanPayload,p)).rejects.toMatchObject({status:403});
+  await expect(scanInvoice(actor,{...scanPayload,text:'x'.repeat(40001)},p)).rejects.toThrow();
+  sql.exec("UPDATE organization_members SET revoked_at=1");
+  await expect(scanInvoice(actor,scanPayload,p)).rejects.toThrow();
+  expect(p.decide).not.toHaveBeenCalled();
+});
+it('invoice scan honors observation and entitlement revoked during extraction', async () => {
+  sql.exec("UPDATE automation_settings SET mode='shadow'");
+  expect(await scanInvoice(actor,scanPayload,provider())).toMatchObject({status:'shadow'});
+  sql.exec("UPDATE automation_settings SET mode='suggest'");
+  const p=provider(); const original=p.decide.getMockImplementation()!;
+  p.decide.mockImplementation(async input => {const result=await original(input);sql.exec("UPDATE automation_settings SET enabled=0");return result;});
+  await expect(scanInvoice(actor,{...scanPayload,requestId:'scan_fixture_000002'},p)).rejects.toMatchObject({status:409});
+  expect(sql.prepare("SELECT state FROM automation_decisions WHERE request_id='scan_fixture_000002'").get()?.state).toBe('failed');
+});
 it('stores minimal audit and returns a proposal requiring confirmation', async () => {
   const result = await decideForActor(actor, payload, provider());
   expect(result).toMatchObject({

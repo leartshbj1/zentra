@@ -6,6 +6,7 @@ import { automationActor } from '@/lib/automation/access';
 import { saveSettings } from '@/lib/automation/config';
 import { automationCompanyState } from '@/lib/automation/activity';
 import { recordFeedback, requestDecision } from '@/lib/automation/service';
+import { scanInvoice } from '@/lib/automation/invoice-scan';
 import { DecisionFailure } from '@/lib/automation/types';
 import { AccountPublicError } from '@/lib/account-security';
 import { workflowCentre, saveWorkflow, previewWorkflow, workflowAction, runDueWorkflows } from '@/lib/automation/workflows';
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
       body.organizationId,
       body.action === 'settings',
     );
+    if (body.action === 'invoice_scan') return json(await scanInvoice(actor, body));
     if (body.action === 'settings') {
       if (body.enabled === true) await requireAutomationEntitlement(actor);
       return json(await saveSettings(actor.organizationId, actor.userId, body));

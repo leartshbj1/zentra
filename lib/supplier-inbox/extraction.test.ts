@@ -11,6 +11,12 @@ import {
 import type { DecisionInput } from '@/lib/automation/types';
 import { JevDecisionProvider } from '@/lib/automation/provider';
 const source = `Fournisseur: Acme SA\nFacture No INV-2026-19\nDate de facture: 20.09.2026\nÉchéance: 20.10.2026\nLogiciels CHF\nHors taxe 100.00\nTVA 8.10 % 8.10\nTotal CHF 108.10`;
+it('retains final totals after a long invoice and supplies the last page context', () => {
+  const long=Array.from({length:100},(_,i)=>`Article ${i} ${i+1}.00 ${'Description '.repeat(10)}`).join('\n')+'\nTotal CHF 12345.67';
+  const input=extractionInput(long,'Client');
+  expect(input.candidates.totalCents.some(c=>c.value===1234567)).toBe(true);
+  expect(Object.values(input.input.state).join(' ')).toContain('Total CHF 12345.67');
+});
 it('parses Swiss amounts exactly, and rejects impossible calendar dates', () => {
   expect(amountCents('1’234.50')).toBe(123450);
   expect(amountCents('1 234,50')).toBe(123450);
