@@ -1,4 +1,5 @@
 import './appearance';
+import './textSize';
 import { ZentraAssistantProvider } from './ZentraAssistant';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

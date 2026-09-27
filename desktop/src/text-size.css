@@ -1,0 +1,63 @@
+/* The root rem stays unchanged: only text grows, never the whole page. */
+body { font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); }
+:is(.print-root, .print-page, .print-sheet, .document-preview__paper, [data-document-colors], .design-studio__logo-page) {
+  --zentra-ui-text-scale: 1;
+  font-size: 1rem;
+}
+@media print { :root { --zentra-ui-text-scale: 1 !important; } }
+
+.text-size-setting { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); max-width: 650px; }
+.text-size-setting__heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.text-size-setting__heading label { font-weight: 600; }
+.text-size-setting output { font-variant-numeric: tabular-nums; color: var(--muted); }
+.text-size-setting input[type=range] { display: block; width: 100%; min-height: 44px; margin: 12px 0; padding: 0; box-shadow: none; accent-color: var(--green-700); background: transparent; border: 0; }
+.text-size-setting__reset { font: inherit; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); padding: 10px 14px; min-height: 44px; max-width: 100%; white-space: normal; cursor: pointer; }
+.mobile-navigation__shortcuts { display: contents; }
+
+/* Opt-in reflow. Default composition and document geometry remain intact. */
+html[data-app-text-size]:not([data-app-text-size="100"]) :is(.desktop-app, .modal, .onboarding-shell, .appearance-setting) :is(button, label, summary):not(:where(.print-root *, .print-page *, .print-sheet *, .document-preview__paper *, [data-document-colors] *)) {
+  height: auto; white-space: normal; overflow-wrap: anywhere; min-width: 0;
+}
+html[data-app-text-size]:not([data-app-text-size="100"]) :is(.desktop-app, .modal, .onboarding-shell) :is(input, select, textarea):not(:where(.print-root *, .print-page *, .print-sheet *, .document-preview__paper *, [data-document-colors] *)) {
+  height: auto; min-height: 44px; min-width: 0; max-width: 100%;
+}
+html[data-app-text-size]:not([data-app-text-size="100"]) :is(.desktop-app, .modal, .onboarding-shell) :is(h1,h2,h3,p,legend):not(:where(.print-root *, .print-page *, .print-sheet *, .document-preview__paper *, [data-document-colors] *)) {
+  overflow-wrap: anywhere;
+}
+html[data-app-text-size]:not([data-app-text-size="100"]) .appearance-choices { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+html[data-app-text-size]:not([data-app-text-size="100"]) .form-actions { flex-wrap: wrap; }
+html[data-app-text-size]:not([data-app-text-size="100"]) .sidebar__wordmark { flex-wrap: wrap; min-width: 0; gap: 8px; }
+html[data-app-text-size]:not([data-app-text-size="100"]) .sidebar__product { border: 0; padding: 0; margin: 0; }
+html[data-app-text-size]:not([data-app-text-size="100"]) .settings-cloud-status > span { min-width: 0; overflow-wrap: anywhere; }
+html[data-app-text-size]:not([data-app-text-size="100"]) .settings-cloud-status > svg { flex-shrink: 0; }
+html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .table-panel { overflow: auto; }
+@media screen and (max-width: 860px) {
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .accounting-screen--overview .finance-navigation { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .section-navigation__current > span:not(.section-navigation__icon) { overflow-wrap: anywhere; white-space: normal; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .mobile-navigation[data-personalized] { display: flex; border-radius: 16px; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .mobile-navigation[data-personalized] button { flex: 0 0 auto; padding: 8px 12px; border-radius: 10px; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .mobile-navigation[data-personalized] button span { overflow: visible; white-space: nowrap; text-overflow: clip; overflow-wrap: normal; line-height: 1.25; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .mobile-navigation__shortcuts { display: flex; min-width: 0; flex: 1; overflow-x: auto; overscroll-behavior-x: contain; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .mobile-navigation__selection { display: none; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .mobile-navigation [aria-current] { background: var(--surface-subtle); }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .desktop-app .app-main { padding-bottom: calc(var(--zentra-mobile-nav-height, 190px) + 28px + env(safe-area-inset-bottom)); }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .appearance-setting .appearance-choices { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .appearance-choices > button { display: flex; align-items: center; gap: 16px; text-align: start; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .appearance-sample { flex: 0 0 72px; height: 64px; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .mobile-home__amount { overflow-wrap: normal; word-break: normal; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .mobile-home__balance { padding-inline: 14px; }
+  /* Let the whole wizard scroll instead of trapping a few fields between
+     enlarged headers and a fixed footer, including in landscape. */
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog { overflow-y: auto; display: block; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .modal__body { display: block; overflow: visible; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-assistant { display: block; height: auto; overflow: visible; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-form { overflow: visible; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-stepper ol { display: flex; overflow-x: auto; flex-wrap: nowrap; gap: 12px; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-stepper li { flex: 0 0 auto; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-stepper button { white-space: nowrap; gap: 8px; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .document-stepper__number { width: auto; height: auto; min-width: 1.5em; min-height: 1.5em; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-wizard-footer { display: flex; position: static; flex-wrap: wrap; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-wizard-footer__total { flex-wrap: wrap; gap: 8px; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-wizard-footer .form-actions { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-wizard-footer .button { width: 100%; overflow-wrap: normal; }
+}

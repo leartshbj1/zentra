@@ -1,4 +1,8 @@
 export const firstClientClarityTranslations: Record<string,readonly [string,string,string]> = {
+  'Taille du texte':['Textgrösse','Dimensione del testo','Text size'],
+  'Ajustez la lecture sur cet appareil. Vos documents gardent leur mise en page.':['Passen Sie die Lesbarkeit auf diesem Gerät an. Das Layout Ihrer Dokumente bleibt erhalten.','Adatta la lettura su questo dispositivo. I documenti mantengono la loro impaginazione.','Adjust readability on this device. Your documents keep their layout.'],
+  'Revenir à 100 %':['Zurück zu 100 %','Torna al 100 %','Reset to 100 %'],
+  'La taille est appliquée pour cette session, mais n’a pas pu être enregistrée.':['Die Textgrösse gilt für diese Sitzung, konnte aber nicht gespeichert werden.','La dimensione è applicata per questa sessione, ma non è stato possibile salvarla.','The size is applied for this session, but could not be saved.'],
   'Personnel':['Personal','Personale','Staff'],
   'Bulletins':['Abrechnungen','Buste paga','Payslips'],
   'Fiches de personnel':['Personalakten','Schede del personale','Staff records'],

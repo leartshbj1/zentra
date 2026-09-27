@@ -6,6 +6,7 @@ export function useNavigationSelection(ref: RefObject<HTMLElement | null>, selec
     const navigation = ref.current;
     if (!navigation || hidden) return;
     const measure = () => {
+      if (navigation.classList.contains('mobile-navigation')) document.documentElement.style.setProperty('--zentra-mobile-nav-height', `${navigation.getBoundingClientRect().height}px`);
       const active = navigation.querySelector<HTMLElement>('[aria-current], [aria-selected="true"]');
       if (!active) {
         delete navigation.dataset.selectionReady;
@@ -27,7 +28,11 @@ export function useNavigationSelection(ref: RefObject<HTMLElement | null>, selec
     });
     observer.observe(navigation);
     // The moving indicator must not observe the dimensions it writes itself.
-    for (const child of navigation.children) if (!child.hasAttribute('aria-hidden')) observer.observe(child);
-    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+    for (const child of navigation.querySelectorAll('button')) observer.observe(child);
+    navigation.addEventListener('scroll', measure, true);
+    return () => {
+      observer.disconnect(); cancelAnimationFrame(frame); navigation.removeEventListener('scroll', measure, true);
+      if (navigation.classList.contains('mobile-navigation')) document.documentElement.style.removeProperty('--zentra-mobile-nav-height');
+    };
   }, [ref, selection, hidden]);
 }

@@ -2430,7 +2430,9 @@ function WorkspaceContent({
       ]} onClose={() => setNavigationOpen(false)} onSelect={(next) => { setView(next); setProjectFolderId(null); setSearch(''); setAccountingEntryFocus(null); setMenuOpen(false); setNavigationOpen(false); }} /> : null}
       <nav ref={mobileNavigationRef} className="mobile-navigation" data-personalized aria-label={t("Navigation mobile")} hidden={nativeNavigation}>
         <span className="mobile-navigation__selection" aria-hidden="true" />
+        <div className="mobile-navigation__shortcuts">
         {shortcuts.map(target => { const { label, icon: Icon } = shortcutMeta[target]; return <button key={target} type="button" title={t(label)} aria-label={t(label)} aria-current={selectedMobileShortcut === target ? 'page' : undefined} onClick={() => navigateTour(target)}><Icon size={21} aria-hidden="true" /><span>{t(label)}</span></button>; })}
+        </div>
         <button type="button" aria-label={t("Tous les modules")} aria-current={selectedMobileShortcut === 'menu' ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} aria-hidden="true" /><span>{t("Menu")}</span></button>
       </nav>
 

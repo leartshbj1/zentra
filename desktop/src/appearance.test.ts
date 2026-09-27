@@ -52,7 +52,7 @@ describe('appearance restoration', () => {
     await vi.waitFor(() => expect(native.invoke).toHaveBeenLastCalledWith('set_app_appearance', { appearance: 'light', dark: false }));
   });
   it.each([true, false])('uses the system at first paint when storage is blocked (dark=%s)', systemDark => {
-    const root = { dataset: {} as Record<string, string>, style: {} as Record<string, string> };
+    const root = { dataset: {} as Record<string, string>, style: {setProperty: vi.fn(),backgroundColor:''} };
     runInNewContext(readFileSync(new URL('../public/theme-init.js', import.meta.url), 'utf8'), {
       document: { documentElement: root }, matchMedia: () => ({ matches: systemDark }),
       localStorage: { getItem: () => { throw new Error('Blocked'); } },
