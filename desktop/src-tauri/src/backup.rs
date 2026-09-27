@@ -13,6 +13,12 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
 
+#[path = "backup/files.rs"]
+mod files;
+#[cfg(test)]
+#[path = "backup/recovery_tests.rs"]
+mod recovery_tests;
+
 use crate::{
     database::{now_iso, query_all, LocalStore},
     error::{AppError, AppResult},
@@ -400,7 +406,7 @@ impl LocalStore {
     ) -> AppResult<String> {
         let destination =
             self.resolve_output_path(destination, &self.backups_dir, "sauvegarde", "zentra")?;
-        self.create_backup_at(&destination, app_version)?;
+        self.create_verified_backup_at(&destination, app_version)?;
         // La preuve de préparation n'est publiée qu'une fois l'archive finale
         // synchronisée puis installée atomiquement par `create_backup_at`.
         self.persist_successful_backup(&destination)?;
@@ -569,6 +575,11 @@ impl LocalStore {
             limits,
         )?;
         validate_database(&extracted_database)?;
+        if create_safety {
+            // Manual/cloud recovery must be self-contained. Company snapshots
+            // use their separate attachment synchronization protocol.
+            files::validate_files(&extracted_database, &extracted_attachments)?;
+        }
         strip_restored_license(&extracted_database)?;
         crate::shared_numbering::strip_device_ranges(&Connection::open(&extracted_database)?)?;
 
@@ -596,6 +607,14 @@ impl LocalStore {
     }
 
     pub(crate) fn create_backup_at(&self, destination: &Path, app_version: &str) -> AppResult<()> {
+        self.write_backup_at(destination, app_version, false)
+    }
+
+    pub(crate) fn create_verified_backup_at(&self, destination: &Path, app_version: &str) -> AppResult<()> {
+        self.write_backup_at(destination, app_version, true)
+    }
+
+    fn write_backup_at(&self, destination: &Path, app_version: &str, verify_files: bool) -> AppResult<()> {
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -611,6 +630,9 @@ impl LocalStore {
             .tempdir_in(&self.data_dir)?;
         let snapshot_database = snapshot_dir.path().join(DATABASE_ENTRY);
         self.snapshot_database(&snapshot_database)?;
+        if verify_files {
+            files::validate_files(&snapshot_database, &self.attachments_dir)?;
+        }
 
         let manifest = BackupManifest {
             format: BACKUP_FORMAT.into(),
@@ -621,16 +643,13 @@ impl LocalStore {
             attachments_prefix: ATTACHMENTS_PREFIX.into(),
         };
 
-        let temporary_archive = destination.with_extension(format!(
-            "{}.tmp-{}",
-            destination
-                .extension()
-                .and_then(|value| value.to_str())
-                .unwrap_or("zentra"),
-            Uuid::new_v4()
-        ));
-        let archive_file = create_new_file(&temporary_archive)?;
-        let mut archive = ZipWriter::new(archive_file);
+        // Keep partial archives private and remove them on every error path.
+        // persist_noclobber also protects an existing backup in a race.
+        let mut temporary_archive = tempfile::Builder::new()
+            .prefix(".zentra-backup-")
+            .suffix(".tmp")
+            .tempfile_in(destination.parent().ok_or_else(|| AppError::UnsafePath(destination.into()))?)?;
+        let mut archive = ZipWriter::new(temporary_archive.as_file_mut());
         let options = SimpleFileOptions::default()
             .compression_method(CompressionMethod::Deflated)
             .unix_permissions(0o600);
@@ -657,10 +676,7 @@ impl LocalStore {
         }
         let file = archive.finish()?;
         file.sync_all()?;
-        if let Err(error) = fs::rename(&temporary_archive, destination) {
-            let _ = fs::remove_file(&temporary_archive);
-            return Err(error.into());
-        }
+        temporary_archive.persist_noclobber(destination).map_err(|error| AppError::Io(error.error))?;
         Ok(())
     }
 

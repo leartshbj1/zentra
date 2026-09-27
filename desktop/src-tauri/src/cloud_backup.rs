@@ -192,7 +192,7 @@ impl LocalStore {
         }
         let id = Uuid::new_v4().to_string();
         let path = self.cloud_backup_path(&id)?;
-        self.create_backup_at(&path, env!("CARGO_PKG_VERSION"))?;
+        self.create_verified_backup_at(&path, env!("CARGO_PKG_VERSION"))?;
         let manifest = match file_manifest(&path) {
             Ok(manifest) => manifest,
             Err(error) => {

@@ -45,6 +45,14 @@ Invoke-Checked rustup @('toolchain', 'install', $env:RUSTUP_TOOLCHAIN, '--profil
 Invoke-Checked pnpm.cmd @('install', '--frozen-lockfile')
 Start-Transcript -Path (Join-Path $artifacts 'validation.log') | Out-Null
 try {
+    if ($env:ZENTRA_VERIFY_BACKUP_ONLY -eq 'true') {
+        foreach ($suite in @('backup::', 'branding::tests', 'project_documents::tests', 'cloud_backup::tests', 'company_collaboration::tests')) {
+            Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', $suite, '--', '--test-threads=1')
+        }
+        $backupProof = [ordered]@{source = (& git rev-parse HEAD).Trim(); data = 'synthetic'; suites = @('backup', 'branding', 'project_documents', 'cloud_backup', 'company_collaboration'); completedAt = [DateTimeOffset]::UtcNow.ToString('o'); publishesInstaller = $false}
+        [IO.File]::WriteAllText((Join-Path $artifacts 'backup-recovery-proof.json'), ($backupProof | ConvertTo-Json -Depth 3), [Text.UTF8Encoding]::new($false))
+        return
+    }
     if ($env:ZENTRA_VERIFY_REPORTS_ONLY -eq 'true') {
         Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/projectReport.test.ts', 'src/salesPdfExport.test.ts', 'src/projectPlanning.test.ts')
         Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
