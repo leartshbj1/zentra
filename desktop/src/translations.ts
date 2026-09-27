@@ -1,4 +1,5 @@
 import { firstClientClarityTranslations } from './translationsFirstClientClarity';
+import { emptyScreenTranslations } from './translationsEmptyScreens';
 import { projectReportTranslations } from './translationsProjectReports';
 import { financialDetailTranslations } from './translationsFinancialDetail';
 import { settingsNavigationTranslations } from './translationsSettingsNavigation';
@@ -33,6 +34,7 @@ import { outgoingMailTranslations } from './translationsOutgoingMail';
 import { agendaTranslations } from './translationsAgenda';
 import { purchaseInboxTranslations } from './translationsPurchaseInbox';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...emptyScreenTranslations,
   ...firstClientClarityTranslations,
   ...projectReportTranslations,
   ...financialDetailTranslations,

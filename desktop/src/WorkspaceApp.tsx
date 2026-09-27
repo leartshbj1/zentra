@@ -1626,7 +1626,9 @@ function WorkspaceContent({
     'invoices',
     'time',
     'team',
-  ].includes(view);
+  ].includes(view) && (view !== 'catalog' || workspace.catalogItems.length > 0)
+    && (view !== 'clients' || workspace.clients.length > 0)
+    && (view !== 'time' || workspace.timeEntries.length > 0);
   const prerequisites: WorkspacePrerequisites = {
     clients: workspace.clients.filter((client) => !client.archivedAt).length,
     projects: workspace.projects.length,
@@ -2069,7 +2071,6 @@ function WorkspaceContent({
               query={search}
               onOpen={(client) => setModal({ type: 'clientDetail', client })}
               onEdit={(item) => setModal({ type: 'client', item })}
-              onCreate={() => setModal({ type: 'client' })}
               onArchive={(item) => void archiveClient(item)}
               onRestore={(item) => void restoreClient(item)}
             />
@@ -2265,7 +2266,6 @@ function WorkspaceContent({
               workspace={workspace}
               mutationsDisabled={busy || readOnly}
               query={search}
-              onCreate={() => setModal({ type: 'time' })}
               onEdit={(item) => setModal({ type: 'time', item })}
               onTimer={() => setModal({ type: 'timer' })}
               onBill={() => setModal({ type: 'timeBilling' })}
@@ -2561,19 +2561,20 @@ function CreateButton({
   const help = !readOnly && current ? creationHelp(view as Parameters<typeof creationHelp>[0], prerequisites) : null;
   return current ? (
     <div className="creation-action">
-    <Button
+    {!(view === 'time' && help) && <Button
+      variant={view === 'time' ? 'secondary' : 'primary'}
       disabled={Boolean(blockReason)}
       aria-describedby={help ? `creation-help-${view}` : undefined}
-      title={blockReason || t(current[0])}
+      title={blockReason ? t(blockReason) : t(current[0])}
       onClick={() => onClick(current[1])}
     >
       <Plus size={16} /> {t(current[0])}
-    </Button>
+    </Button>}
     {help && (
-      <div className="creation-action__help" aria-label="Pour continuer">
-        <p id={`creation-help-${view}`}>{blockReason}</p>
-        <Button type="button" variant="ghost" size="small" onClick={() => onResolve(help.target)}>
-          {help.label} <ArrowRight size={15} />
+      <div className="creation-action__help" aria-label={t('Pour continuer')}>
+        <p id={`creation-help-${view}`}>{t(blockReason)}</p>
+        <Button type="button" variant={view === 'time' ? 'primary' : 'ghost'} size={view === 'time' ? 'normal' : 'small'} onClick={() => onResolve(help.target)}>
+          {t(help.label)} <ArrowRight size={15} />
         </Button>
       </div>
     )}
@@ -3114,7 +3115,6 @@ function ClientsScreen({
   query,
   onOpen,
   onEdit,
-  onCreate,
   onArchive,
   onRestore,
 }: {
@@ -3123,7 +3123,6 @@ function ClientsScreen({
   query: string;
   onOpen: (item: Client) => void;
   onEdit: (item: Client) => void;
-  onCreate: () => void;
   onArchive: (item: Client) => void;
   onRestore: (item: Client) => void;
 }) {
@@ -3156,10 +3155,8 @@ function ClientsScreen({
     return (
       <EmptyState disabled={mutationsDisabled}
         icon={<UserRound />}
-        title="Aucun client"
-        text="Ajoutez votre premier client. Aucun contact d’exemple n’est créé automatiquement."
-        actionLabel="Ajouter un client"
-        onAction={onCreate}
+        title={t('Vos clients, au même endroit')}
+        text={t('Ajoutez un client pour retrouver ses coordonnées, ses projets et ses documents.')}
       />
     );
   return (
@@ -3167,33 +3164,35 @@ function ClientsScreen({
       <div
         className="client-directory-toolbar"
         role="group"
-        aria-label="État des clients"
+        aria-label={t('État des clients')}
       >
         <button
           type="button"
           className={visibility === 'active' ? 'is-active' : ''}
+          aria-pressed={visibility === 'active'}
           onClick={() => setVisibility('active')}
         >
-          Actifs <span>{activeCount}</span>
+          {t('Actifs')} <span>{activeCount}</span>
         </button>
         <button
           type="button"
           className={visibility === 'archived' ? 'is-active' : ''}
+          aria-pressed={visibility === 'archived'}
           onClick={() => setVisibility('archived')}
         >
-          Archivés <span>{archivedCount}</span>
+          {t('Archivés')} <span>{archivedCount}</span>
         </button>
-        <p>Archiver conserve tout l’historique commercial et comptable.</p>
+        <p>{t('Archiver conserve tout l’historique commercial et comptable.')}</p>
       </div>
       <div className="panel table-panel">
         <table>
           <thead>
             <tr>
-              <th>Client</th>
-              <th>Coordonnées</th>
-              <th>Adresse</th>
+              <th>{t('Client')}</th>
+              <th>{t('Coordonnées')}</th>
+              <th>{t('Adresse')}</th>
               <th>{terminology.pluralTitle}</th>
-              <th aria-label="Actions" />
+              <th aria-label={t('Actions')} />
             </tr>
           </thead>
           <tbody>
@@ -3214,7 +3213,7 @@ function ClientsScreen({
                         ) : null}
                         {client.archivedAt ? (
                           <small>
-                            Archivé le {formatDate(client.archivedAt)}
+                            {t('Archivé le {date}', {date:formatDate(client.archivedAt)})}
                           </small>
                         ) : null}
                       </div>
@@ -3247,7 +3246,7 @@ function ClientsScreen({
                         size="small"
                         onClick={() => onOpen(client)}
                       >
-                        <Eye size={14} /> Dossier
+                        <Eye size={14} /> {t('Dossier')}
                       </Button>
                       {client.archivedAt ? (
                         <Button disabled={mutationsDisabled}
@@ -3255,7 +3254,7 @@ function ClientsScreen({
                           size="small"
                           onClick={() => onRestore(client)}
                         >
-                          <RefreshCw size={14} /> Réactiver
+                          <RefreshCw size={14} /> {t('Réactiver')}
                         </Button>
                       ) : (
                         <>
@@ -3263,17 +3262,17 @@ function ClientsScreen({
                             variant="ghost"
                             size="icon"
                             onClick={() => onEdit(client)}
-                            title="Modifier le client"
-                            aria-label={`Modifier ${client.company || client.name}`}
+                            title={t('Modifier le client')}
+                            aria-label={t('Modifier {name}', {name:client.company || client.name})}
                           >
                             <Pencil size={15} />
                           </Button>
                           <Button disabled={mutationsDisabled}
                             variant="ghost"
                             size="icon"
-                            title="Archiver sans supprimer l’historique"
+                            title={t('Archiver sans supprimer l’historique')}
                             onClick={() => onArchive(client)}
-                            aria-label={`Archiver ${client.company || client.name}`}
+                            aria-label={t('Archiver {name}', {name:client.company || client.name})}
                           >
                             <Archive size={15} />
                           </Button>
@@ -3288,18 +3287,18 @@ function ClientsScreen({
         </table>
         {!clients.length ? (
           <EmptyState
-            title={
+            title={t(
               visibility === 'archived'
                 ? 'Aucun client archivé'
                 : 'Aucun client actif'
-            }
-            text={
+            )}
+            text={t(
               query
                 ? 'Aucun client ne correspond à cette recherche.'
                 : visibility === 'archived'
                   ? 'Les clients archivés apparaîtront ici sans perdre leur historique.'
                   : 'Ajoutez un client ou réactivez une fiche archivée.'
-            }
+            )}
           />
         ) : null}
       </div>
@@ -4212,7 +4211,6 @@ function TimeScreen({
   workspace,
   mutationsDisabled,
   query,
-  onCreate,
   onEdit,
   onTimer,
   onBill,
@@ -4221,7 +4219,6 @@ function TimeScreen({
   workspace: Workspace;
   mutationsDisabled: boolean;
   query: string;
-  onCreate: () => void;
   onEdit: (item: TimeEntry) => void;
   onTimer: () => void;
   onBill: () => void;
@@ -4274,6 +4271,9 @@ function TimeScreen({
     Boolean(workspace.activeTimer),
   );
   const readyToBill = readyTimeEntries(workspace).length;
+  if (!workspace.timeEntries.length && entryBlock && !workspace.activeTimer) {
+    return <EmptyState icon={<Clock3 />} title={t('Votre suivi du temps commence ici')} text={t('Une fois les prérequis complétés, vous pourrez démarrer un pointage ou saisir vos heures.')} />;
+  }
   return (
     <div className="stack-layout">
       <section className="time-hero">
@@ -4295,7 +4295,7 @@ function TimeScreen({
           </p>
         </div>
         <div className="time-hero__actions">
-          <Button
+          {workspace.timeEntries.length > 0 && <Button
             variant="secondary"
             size="large"
             onClick={onBill}
@@ -4308,7 +4308,7 @@ function TimeScreen({
           >
             <Receipt size={17} /> Facturer les heures
             {readyToBill ? <em>{readyToBill}</em> : null}
-          </Button>
+          </Button>}
           <Button
             size="large"
             onClick={onTimer}
@@ -4319,7 +4319,7 @@ function TimeScreen({
           </Button>
         </div>
       </section>
-      <div className="summary-strip">
+      {workspace.timeEntries.length > 0 && <div className="summary-strip">
         <div>
           <span>Temps affiché</span>
           <strong>{entries.length ? formatMinutes(totalMinutes) : '—'}</strong>
@@ -4332,7 +4332,7 @@ function TimeScreen({
           <span>Prêt à facturer</span>
           <strong>{readyToBill || '—'}</strong>
         </div>
-      </div>
+      </div>}
       {workspace.timeEntries.length ? (
         <div className="panel table-panel">
           <p className="time-billing-help">Pour créer une facture, ouvrez les heures à vérifier, renseignez le prix pour le client puis choisissez « Approuvées ». Le projet doit être lié à un client.</p>
@@ -4449,12 +4449,7 @@ function TimeScreen({
         <EmptyState disabled={mutationsDisabled}
           icon={<Clock3 />}
           title="Aucune heure saisie"
-          text={
-            entryBlock ||
-            'Démarrez un pointage ou saisissez une durée manuellement.'
-          }
-          actionLabel={entryBlock ? undefined : 'Saisir des heures'}
-          onAction={entryBlock ? undefined : onCreate}
+          text={t('Les heures enregistrées apparaîtront ici, prêtes à vérifier et à facturer.')}
         />
       )}
     </div>

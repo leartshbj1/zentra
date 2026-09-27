@@ -26,7 +26,7 @@ try {
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.goto(`${origin}/tests/mobile-harness.html?browsing=1&design=1&agendaGuided=1`);
     await page.getByRole('button',{name:'Découvrir plus tard',exact:true}).click();await navigate(page);
-    await page.getByRole('button',{name:'Ajouter',exact:true}).click();
+    await page.getByRole('button',{name:'Ajouter un rendez-vous',exact:true}).click();
     const form=page.getByRole('dialog',{name:'Nouveau rendez-vous',exact:true});
     await submit(form).click();await focus(page,'title');
     assert.equal((await state(page)).attempts,0);
@@ -67,7 +67,7 @@ try {
     await page.evaluate(()=>{window.agendaFixture.empty=false;window.__qaSetReadOnly(true);});
     await recovery.getByRole('button',{name:'Actualiser les données',exact:true}).click();await recovery.waitFor({state:'hidden'});await form.waitFor({state:'hidden'});
     assert.equal((await state(page)).attempts,2);assert.equal((await state(page)).events.length,1);
-    assert.equal(await page.getByRole('button',{name:'Ajouter',exact:true}).isDisabled(),true);
+    assert.equal(await page.getByRole('button',{name:'Ajouter un rendez-vous',exact:true}).isDisabled(),true);
     await page.reload();await navigate(page);
     await page.getByRole('button',{name:'Modifier « Visite de recette »',exact:true}).click();
     const edit=page.getByRole('dialog',{name:'Modifier le rendez-vous',exact:true});

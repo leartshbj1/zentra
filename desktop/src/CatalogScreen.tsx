@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { t, useAppLanguage } from './language';
 import {
   AlertTriangle,
   Archive,
@@ -83,6 +84,7 @@ export function CatalogScreen({
     onError?: (reason: unknown) => void,
   ) => Promise<boolean>;
 }) {
+  useAppLanguage();
   const [kind, setKind] = useState<CatalogKindFilter>('all');
   const [visibility, setVisibility] = useState<CatalogVisibilityFilter>('active');
   const [historyItemId, setHistoryItemId] = useState<string | null>(null);
@@ -100,11 +102,19 @@ export function CatalogScreen({
   const lowStock = active.filter((item) =>
     isCatalogItemLowOnStock(item, availability(item).availableMilli),
   );
+  const headingActions = <div className="catalog-heading-actions">
+    <Button variant="secondary" disabled={readOnly || busy} onClick={() => setImportOpen(true)}>
+      <FileSpreadsheet size={16} /> {t('Importer Excel')}
+    </Button>
+    <Button disabled={readOnly || busy} onClick={onCreate}>
+      <Plus size={16} /> {t('Nouvelle référence')}
+    </Button>
+  </div>;
 
   return (
     <>
     <div className="stack-layout catalog-screen">
-      <div className="summary-strip catalog-summary" aria-label="Résumé du catalogue">
+      {items.length > 0 && <div className="summary-strip catalog-summary" aria-label={t('Résumé du catalogue')}>
         <div>
           <span>Références actives</span>
           <strong>{active.length}</strong>
@@ -117,28 +127,10 @@ export function CatalogScreen({
           <span>Alertes de stock</span>
           <strong className={lowStock.length ? 'is-negative' : ''}>{lowStock.length}</strong>
         </div>
-      </div>
+      </div>}
 
       <section className="panel catalog-panel">
-        <SectionHeading
-          eyebrow="Catalogue et stock réel"
-          title="Produits & services"
-          description="Retrouvez vos produits et prestations, leurs prix et les quantités disponibles. Chaque entrée, sortie ou inventaire reste consultable dans l’historique."
-          action={
-            <div className="catalog-heading-actions">
-              <Button
-                variant="secondary"
-                disabled={readOnly || busy}
-                onClick={() => setImportOpen(true)}
-              >
-                <FileSpreadsheet size={16} /> Importer Excel
-              </Button>
-              <Button disabled={readOnly || busy} onClick={onCreate}>
-                <Plus size={16} /> Nouvelle référence
-              </Button>
-            </div>
-          }
-        />
+        {items.length > 0 ? <SectionHeading title={t('Produits & services')} action={headingActions} /> : headingActions}
         {lowStock.length ? (
           <div className="stock-alert" role="status">
             <AlertTriangle size={19} />
@@ -156,7 +148,7 @@ export function CatalogScreen({
             </div>
           </div>
         ) : null}
-        <div className="catalog-filters" role="group" aria-label="Filtres du catalogue">
+        {items.length > 0 && <div className="catalog-filters" role="group" aria-label={t('Filtres du catalogue')}>
           <label className="catalog-filter-search">
             <span>Recherche</span>
             <input
@@ -183,8 +175,8 @@ export function CatalogScreen({
               value={visibility}
               onChange={(event) => setVisibility(event.target.value as CatalogVisibilityFilter)}
             >
-              <option value="active">Actifs</option>
-              <option value="archived">Archivés</option>
+              <option value="active">{t('Actifs')}</option>
+              <option value="archived">{t('Archivés')}</option>
               <option value="all">Tous</option>
             </select>
           </label>
@@ -193,7 +185,7 @@ export function CatalogScreen({
               ? `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} pour « ${query.trim()} »`
               : `${filtered.length} référence${filtered.length > 1 ? 's' : ''} affichée${filtered.length > 1 ? 's' : ''}`}
           </p>
-        </div>
+        </div>}
 
         {filtered.length ? (
           <div className="catalog-list" role="list">
@@ -351,16 +343,17 @@ export function CatalogScreen({
             })}
           </div>
         ) : (
-          <EmptyState disabled={readOnly || busy}
+          <EmptyState
             icon={<Package size={26} />}
-            title={visibility === 'archived' ? 'Aucune référence archivée' : 'Catalogue vide'}
+            title={t(!items.length ? 'Vos produits et prestations' : visibility === 'archived' ? 'Aucune référence archivée' : 'Aucun résultat')}
             text={
-              query.trim()
+              t(items.length
                 ? 'Aucune référence ne correspond à la recherche et aux filtres.'
-                : 'Ajoutez vos produits et prestations une seule fois, puis réutilisez-les dans les documents.'
+                : 'Ajoutez une référence ou importez votre catalogue Excel pour réutiliser vos prix dans les devis et factures.')
             }
-            actionLabel="Créer une référence"
-            onAction={onCreate}
+            actionLabel={items.length && (query.trim() || kind !== 'all' || visibility !== 'active') ? t('Réinitialiser les filtres') : undefined}
+            onAction={() => { onQueryChange(''); setKind('all'); setVisibility('active'); }}
+            actionVariant="secondary"
           />
         )}
       </section>

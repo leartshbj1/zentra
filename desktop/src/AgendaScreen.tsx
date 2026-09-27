@@ -249,6 +249,7 @@ export function AgendaScreen({
         </div>
         </MobileDetails></div>
           <Button className="agenda-create"
+            aria-label={t('Ajouter un rendez-vous')}
             disabled={busy || readOnly}
             onClick={() => setEditor(eventDraft(undefined, selectedDate))}
           >
@@ -349,9 +350,6 @@ export function AgendaScreen({
               icon={<CalendarDays />}
               title={t('Rien de prévu ici')}
               text={t('Les échéances de vos projets, factures et salaires apparaissent automatiquement. Ajoutez seulement les rendez-vous qui vous sont propres.')}
-              actionLabel={t('Ajouter un rendez-vous')}
-              onAction={() => setEditor(eventDraft(undefined, selectedDate))}
-              disabled={busy || readOnly}
             />
           )}
         </section>

@@ -38,7 +38,7 @@ import { installReadOnlyFixture } from './read-only-fixture';
 import { Profiler, Suspense, lazy, useEffect, useState } from 'react';
 import { openAutomationHub } from '../src/automationExperience';
 import { setAppearance } from '../src/appearance';
-import { setAppLanguage } from '../src/language';
+import { setAppLanguage, t } from '../src/language';
 import { createRoot } from 'react-dom/client';
 import { WorkspaceApp } from '../src/WorkspaceApp';
 import { desktopApi } from '../src/bridge';
@@ -257,6 +257,7 @@ if (new URLSearchParams(location.search).has('customerSettlementGuided')) instal
 if (new URLSearchParams(location.search).has('companyRealtime')) installCompanyRealtimeFixture(data, productionCompanySynchronize);
 if (new URLSearchParams(location.search).has('automation')) installAutomationCompanyFixture(data);
 if (previewQuery.has('startupPerformance')) installStartupPerformanceFixture();
+if (previewQuery.has('emptyScreens')) data.clients = [];
 function Harness() {
   useEffect(() => { if (previewQuery.has('automationDesign')) openAutomationHub(); }, []);
   // Tests use this exact mocked instance, including after Vite hot reloads.
@@ -264,6 +265,11 @@ function Harness() {
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
   const [readOnly, setReadOnly] = useState(new URLSearchParams(location.search).has('readOnly'));
+  if (previewQuery.has('emptyScreens')) Object.assign(window, {
+    __emptyScreensTranslate: t,
+    __emptyScreensPatch: (patch: Partial<Workspace>) => { data = {...data, ...patch}; setWorkspace(structuredClone(data)); },
+    __qaSetReadOnly: setReadOnly,
+  });
   if (['supplierReview', 'supplierPreparation'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, {
     __qaSetReadOnly: setReadOnly,
     __qaReloadPurchases: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; return next; },
