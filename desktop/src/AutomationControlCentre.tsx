@@ -15,7 +15,7 @@ import { AutomationJournal } from './AutomationJournal';
 import type { AutomationActivity } from './automation';
 import type { BriefDestination } from './AutomationBrief';
 import { useAppLanguage } from './language';
-import { automationRunStatus } from './automationPresentation';
+import { activityDateTime, activityTimestamp, automationLabel, automationRunStatus } from './automationPresentation';
 
 type Rule = {
   id: string;
@@ -270,7 +270,7 @@ export function AutomationControlCentre({
             </div>
           ) : (
             review.map((run) => (
-              <RunRow
+              <AutomationRunRow
                 key={run.id}
                 run={run}
                 canManage={data.canManage}
@@ -361,7 +361,7 @@ export function AutomationControlCentre({
           )}
         </div>
       )}
-      {data && tab === 'history' && embedded && <AutomationJournal runs={data.runs} activity={activity} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <RunRow run={run} canManage={data.canManage} busy={busy} act={action}/>}/>}
+      {data && tab === 'history' && embedded && <AutomationJournal runs={data.runs} activity={activity} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={data.canManage} busy={busy} act={action}/>}/>}
       {data && tab === 'history' && !embedded && (
         <div className="ac-list">
           {!data.runs.length ? (
@@ -372,7 +372,7 @@ export function AutomationControlCentre({
             </div>
           ) : (
             data.runs.map((run) => (
-              <RunRow
+              <AutomationRunRow
                 key={run.id}
                 run={run}
                 canManage={data.canManage}
@@ -593,7 +593,7 @@ function ReplyDraft({
     </div>
   );
 }
-function RunRow({
+export function AutomationRunRow({
   run,
   canManage,
   busy,
@@ -606,12 +606,16 @@ function RunRow({
 }) {
   const [choice, setChoice] = useState('');
   const language = useAppLanguage();
+  const label = (key: Parameters<typeof automationLabel>[0]) => automationLabel(key, language);
+  const at = activityTimestamp(run.updatedAt) || activityTimestamp(run.createdAt);
+  const confidence = run.result.confidence;
+  const hasConfidence = typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1;
   return (
     <details className="ac-run">
       <summary>
         <span>
           <strong>{run.title}</strong>
-          <small>{new Intl.DateTimeFormat(`${language}-CH`,{dateStyle:'short',timeStyle:'short',timeZone:'Europe/Zurich'}).format((run.updatedAt || run.createdAt)*1000)}</small>
+          <small>{activityDateTime(at, language)}</small>
         </span>
         <span className="ac-status" data-state={run.state}>
           {automationRunStatus(run.state, language)}
@@ -622,51 +626,48 @@ function RunRow({
         <p>{run.result.message}</p>
         {run.result.summary && (
           <details className="ac-source">
-            <summary>Message reçu · {run.result.summary.subject}</summary>
+            <summary>{label('receivedMessage')} · {run.result.summary.subject}</summary>
             <p className="ac-meta">
-              De {run.result.summary.sender || 'l’expéditeur du ticket'}
+              {run.result.summary.sender || label('senderUnknown')}
             </p>
             {run.result.summary.excerpts.map((e, i) => (
               <blockquote key={i}>{e.text}</blockquote>
             ))}
             {run.result.summary.attachments.length > 0 && (
               <p>
-                Pièces jointes : {run.result.summary.attachments.join(', ')}
+                {label('attachments')} : {run.result.summary.attachments.join(', ')}
               </p>
             )}
             <small>
-              Extraits du texte reçu
-              {run.result.summary.truncated ? ', abrégés' : ''}. Vérifiez le
-              message complet avant une décision.
+              {label(run.result.summary.truncated ? 'sourceExcerptShort' : 'sourceExcerpt')}
             </small>
           </details>
         )}
-        {typeof run.result.confidence === 'number' && (
+        {hasConfidence && (
           <p className="ac-meta">
-            Confiance : {Math.round(run.result.confidence * 100)} % ·{' '}
-            {run.attempts} essai{run.attempts > 1 ? 's' : ''}. Ce score ne
-            garantit pas l’exactitude.
+            {label('confidence')} : {new Intl.NumberFormat(`${language}-CH`, {style:'percent', maximumFractionDigits:0}).format(confidence!)}
+            {' · '}{label('attempts')} : {run.attempts}. {label('confidenceHint')}
           </p>
         )}
-        {run.dueAt > 0 && <p>Prochaine étape : {date(run.dueAt)}</p>}
+        {activityTimestamp(run.dueAt) > 0 && <p>{label('nextStep')} : {activityDateTime(run.dueAt, language)}</p>}
         <ol>
           {run.definition.actions.map((a, index) => {
             const s = run.result.steps?.find((s) => s.index === index);
             return (
               <li key={index}>
-                <strong>{actions[a.type]}</strong> ·{' '}
+                <strong>{label(`action_${a.type}`)}</strong> ·{' '}
                 {a.title.replace(
                   /\{\{objet\}\}/g,
-                  () => run.result.summary?.subject || 'Message reçu',
+                  () => run.result.summary?.subject || label('receivedMessage'),
                 )}
                 <span>
                   {s?.state === 'completed'
-                    ? 'Créé'
+                    ? label('created')
                     : s?.state === 'skipped'
-                      ? 'Branche non retenue'
+                      ? label('branchSkipped')
                       : run.state === 'observed'
-                        ? 'Simulation uniquement'
-                        : 'En attente'}
+                        ? label('simulationOnly')
+                        : label('waiting')}
                 </span>
               </li>
             );
@@ -677,21 +678,15 @@ function RunRow({
             {run.state === 'review' &&
               run.result.choice === 'uncertain' &&
               run.definition.decision && (
-                <label>
-                  Choisir la suite
-                  <select
-                    value={choice}
-                    onChange={(e) => setChoice(e.target.value)}
-                  >
-                    <option value="">Choisir une branche</option>
-                    <option value="yes">
-                      Oui · {run.definition.decision.yes}
-                    </option>
-                    <option value="no">
-                      Non · {run.definition.decision.no}
-                    </option>
-                  </select>
-                </label>
+                <fieldset className="ac-run__choice" disabled={busy}>
+                  <legend>{label('chooseNext')}</legend>
+                  <div>
+                    {(['yes', 'no'] as const).map(value => <label key={value}>
+                      <input type="radio" name={`workflow-choice-${run.id}`} value={value} checked={choice === value} onChange={() => setChoice(value)}/>
+                      <span>{label(value)} · {run.definition.decision![value]}</span>
+                    </label>)}
+                  </div>
+                </fieldset>
               )}
             {run.state === 'review' && (
               <button
@@ -708,7 +703,7 @@ function RunRow({
                   })
                 }
               >
-                Confirmer les actions
+                {label('confirmActions')}
               </button>
             )}
             {run.state === 'failed' && (
@@ -723,7 +718,7 @@ function RunRow({
                   })
                 }
               >
-                Réessayer
+                {label('retry')}
               </button>
             )}
             {['review', 'failed', 'waiting', 'queued'].includes(run.state) && (
@@ -739,7 +734,7 @@ function RunRow({
                   })
                 }
               >
-                Annuler la suite
+                {label('cancelNext')}
               </button>
             )}
             {run.state === 'completed' && (
@@ -755,7 +750,7 @@ function RunRow({
                   })
                 }
               >
-                Annuler les éléments inutilisés
+                {label('undoUnused')}
               </button>
             )}
           </div>

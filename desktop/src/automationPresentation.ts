@@ -1,4 +1,29 @@
 const labels = {
+  receivedMessage: ['Message reçu', 'Empfangene Nachricht', 'Messaggio ricevuto', 'Received message'],
+  senderUnknown: ['Expéditeur non disponible', 'Absender nicht verfügbar', 'Mittente non disponibile', 'Sender unavailable'],
+  attachments: ['Pièces jointes', 'Anhänge', 'Allegati', 'Attachments'],
+  sourceExcerpt: ['Extraits du message reçu. Consultez le message complet avant de décider.', 'Auszüge aus der empfangenen Nachricht. Lesen Sie die vollständige Nachricht vor einer Entscheidung.', 'Estratti del messaggio ricevuto. Consulta il messaggio completo prima di decidere.', 'Excerpts from the received message. Read the complete message before deciding.'],
+  sourceExcerptShort: ['Extraits abrégés. Consultez le message complet avant de décider.', 'Gekürzte Auszüge. Lesen Sie die vollständige Nachricht vor einer Entscheidung.', 'Estratti abbreviati. Consulta il messaggio completo prima di decidere.', 'Shortened excerpts. Read the complete message before deciding.'],
+  confidence: ['Confiance', 'Konfidenz', 'Confidenza', 'Confidence'],
+  confidenceHint: ['Ce score ne garantit pas l’exactitude.', 'Dieser Wert garantiert keine Richtigkeit.', 'Questo valore non garantisce la correttezza.', 'This score does not guarantee accuracy.'],
+  attempts: ['Tentatives', 'Versuche', 'Tentativi', 'Attempts'],
+  nextStep: ['Prochaine étape', 'Nächster Schritt', 'Passaggio successivo', 'Next step'],
+  action_task: ['Créer une tâche', 'Aufgabe erstellen', 'Crea attività', 'Create task'],
+  action_notify: ['Notifier dans Automation', 'In Automation benachrichtigen', 'Notifica in Automation', 'Notify in Automation'],
+  action_reply_draft: ['Préparer une réponse', 'Antwort vorbereiten', 'Prepara risposta', 'Prepare reply'],
+  action_summary: ['Résumer le message reçu', 'Empfangene Nachricht zusammenfassen', 'Riassumi il messaggio ricevuto', 'Summarize received message'],
+  action_review: ['Demander une vérification', 'Prüfung anfordern', 'Richiedi verifica', 'Request review'],
+  created: ['Créé', 'Erstellt', 'Creato', 'Created'],
+  branchSkipped: ['Branche non retenue', 'Zweig nicht gewählt', 'Ramo non selezionato', 'Branch not selected'],
+  simulationOnly: ['Simulation uniquement', 'Nur Simulation', 'Solo simulazione', 'Simulation only'],
+  chooseNext: ['Choisir la suite', 'Nächsten Schritt wählen', 'Scegli come proseguire', 'Choose what happens next'],
+  yes: ['Oui', 'Ja', 'Sì', 'Yes'],
+  no: ['Non', 'Nein', 'No', 'No'],
+  confirmActions: ['Confirmer les actions', 'Aktionen bestätigen', 'Conferma azioni', 'Confirm actions'],
+  retry: ['Réessayer', 'Erneut versuchen', 'Riprova', 'Retry'],
+  cancelNext: ['Annuler la suite', 'Weitere Schritte abbrechen', 'Annulla i passaggi successivi', 'Cancel remaining steps'],
+  undoUnused: ['Annuler les éléments inutilisés', 'Nicht verwendete Elemente rückgängig machen', 'Annulla gli elementi non utilizzati', 'Undo unused items'],
+
   activity: ['Activité', 'Aktivität', 'Attività', 'Activity'],
   followup: ['À suivre', 'Offen', 'Da seguire', 'Follow-up'],
   settings: ['Réglages', 'Einstellungen', 'Impostazioni', 'Settings'],
@@ -73,4 +98,10 @@ export function activityInvoiceAmount(cents: number | null | undefined, currency
 
 export function invoiceActivityStatus(state: string, automatic: number) {
   return state === 'imported' ? (automatic === 1 ? 'automatic' : 'imported') : ['review','needs_review'].includes(state) ? 'review' : 'waiting';
+}
+
+/** A missing or invalid service timestamp must not render 1970 or throw during a row render. */
+export function activityDateTime(value: number | null | undefined, language: string, timeZone?: string) {
+  const at = activityTimestamp(value);
+  return at ? new Intl.DateTimeFormat(`${language}-CH`, {dateStyle:'short', timeStyle:'short', timeZone:activityTimeZone(timeZone)}).format(at * 1000) : automationLabel('unavailableDate', language);
 }
