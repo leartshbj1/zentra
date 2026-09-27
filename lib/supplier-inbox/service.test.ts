@@ -133,9 +133,37 @@ it('loads recent invoices while daily totals are pending, scoped to the same com
   const summary = inboxDaily('org_a', 50, 150);
   try {
     expect(recentStarted).toBe(true);
-    expect(scopes).toEqual([[50,150,50,150,50,150,'org_a'], ['org_a',50,150]]);
+    expect(scopes).toEqual([[50,150,50,150,50,150,'org_a'], ['org_a']]);
   } finally { release(); }
-  await expect(summary).resolves.toMatchObject({ received: 1, imported: 0, needsReview: 1, recent: [] });
+  await expect(summary).resolves.toMatchObject({ received: 1, imported: 0, needsReview: 1, recent: [{id,state:'ready',created_at:100,imported_at:null,reference:'A-1',supplierName:'Acme SA',totalCents:10810,currency:'CHF',invoiceId:null}] });
+});
+it('keeps older activity separate from daily counts and excludes ignored and foreign-company documents', async () => {
+  sql.prepare("UPDATE supplier_inbox SET state='imported',imported_at=120,invoice_id=?,automatic=1").run(id);
+  const prior = await inboxDaily('org_a',200,300);
+  expect(prior).toMatchObject({received:0,imported:0,automatic:0,needsReview:0});
+  expect(prior.recent).toHaveLength(1);
+  expect(prior.recent[0]).toMatchObject({invoiceId:id,imported_at:120,sender:'acme@example.ch',fileName:'test.pdf'});
+  expect((await inboxDaily('org_b',0,300)).recent).toEqual([]);
+  sql.exec("UPDATE supplier_inbox SET state='ignored'");
+  expect((await inboxDaily('org_a',0,300)).recent).toEqual([]);
+});
+it('returns only bounded public invoice metadata even when extraction contains malformed or private values', async () => {
+  sql.prepare('UPDATE supplier_inbox SET extraction=?').run(JSON.stringify({...extraction,reference:'x'.repeat(500),totalCents:'10810',currency:'invalid',evidence:{bank:'private'},bankAccount:'private',claim_token:'secret'}));
+  const [entry] = (await inboxDaily('org_a',50,150)).recent;
+  expect(entry.reference).toHaveLength(160);expect(entry.totalCents).toBeNull();expect(entry.currency).toBeNull();
+  expect(JSON.stringify(entry)).not.toMatch(/private|secret|claim_token|extraction|evidence|object_key/);
+  for(const malformed of ['{broken','null','[]']) {
+    sql.prepare('UPDATE supplier_inbox SET extraction=?').run(malformed);
+    expect((await inboxDaily('org_a',50,150)).recent[0]).toMatchObject({id,reference:null,totalCents:null});
+  }
+});
+it('bounds the activity response and sorts receipt and import events together deterministically', async () => {
+  for(let index=0;index<24;index++) sql.prepare(`INSERT INTO supplier_inbox
+    SELECT ?,organization_id,workspace_id,connection_id,?, ?,file_name,media_type,object_key,size_bytes,sender,subject,extraction,state,claimed_installation,claim_token,invoice_id,automatic,?,imported_at FROM supplier_inbox WHERE id=?`)
+    .run(`recent-${index}`,`message-${index}`,`sha-${index}`,200+index,id);
+  sql.prepare("UPDATE supplier_inbox SET state='imported',imported_at=999,invoice_id=? WHERE id=?").run(id,id);
+  const events=(await inboxDaily('org_a',0,2000)).recent;
+  expect(events).toHaveLength(20);expect(events[0].id).toBe(id);expect(events[1].id).toBe('recent-23');expect(events.at(-1)?.id).toBe('recent-5');
 });
 it('keeps documents private to their company', async () => {
   await expect(inboxItem('org_b', id)).rejects.toThrow('accessible');

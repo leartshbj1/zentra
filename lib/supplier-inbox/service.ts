@@ -410,17 +410,36 @@ export async function inboxDaily(org: string, from: number, until: number) {
     .first<Record<string, number>>(),
     database()
     .prepare(
-      'SELECT id,subject,state,automatic,imported_at FROM supplier_inbox WHERE organization_id=? AND imported_at>=? AND imported_at<? ORDER BY imported_at DESC,id LIMIT 5',
+      `SELECT id,subject,state,automatic,imported_at,created_at,invoice_id,sender,file_name,extraction
+       FROM supplier_inbox WHERE organization_id=? AND state IN ('ready','review','processing','imported')
+       ORDER BY COALESCE(imported_at,created_at) DESC,id LIMIT 20`,
     )
-    .bind(org, from, until)
-    .all(),
+    .bind(org)
+    .all<Pick<InboxRow, 'id'|'subject'|'state'|'automatic'|'imported_at'|'created_at'|'invoice_id'|'sender'|'file_name'|'extraction'>>(),
   ]);
   return {
     received: Number(row?.received || 0),
     imported: Number(row?.imported || 0),
     automatic: Number(row?.automatic || 0),
     needsReview: Number(row?.needsReview || 0),
-    recent: recent.results,
+    recent: recent.results.map(invoiceActivityEntry),
+  };
+}
+/** A bounded activity projection, never the document text, bank details or claim credentials. */
+function invoiceActivityEntry(row: Pick<InboxRow, 'id'|'subject'|'state'|'automatic'|'imported_at'|'created_at'|'invoice_id'|'sender'|'file_name'|'extraction'>) {
+  let fields: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(row.extraction);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) fields = parsed as Record<string, unknown>;
+  } catch { /* Historical malformed extraction must not hide the company's activity. */ }
+  const text = (value: unknown, max: number) => typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : null;
+  return {
+    id: row.id, subject: row.subject, state: row.state, automatic: row.automatic,
+    imported_at: row.imported_at, created_at: row.created_at, invoiceId: row.invoice_id,
+    sender: text(row.sender, 320), fileName: text(row.file_name, 200),
+    supplierName: text(fields.supplierName, 160), reference: text(fields.reference, 160),
+    currency: typeof fields.currency === 'string' && /^[A-Z]{3}$/.test(fields.currency) ? fields.currency : null,
+    totalCents: Number.isSafeInteger(fields.totalCents) && Number(fields.totalCents) >= 0 ? fields.totalCents as number : null,
   };
 }
 export async function documentDigest(bytes: Uint8Array) {
