@@ -1,3 +1,4 @@
+import { t, useAppLanguage } from './language';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
@@ -30,7 +31,7 @@ import type {
   ProjectTask,
   Workspace,
 } from './types';
-import { errorMessage, formatDate, searchText, todayIso } from './utils';
+import { formatDate, searchText, todayIso } from './utils';
 import {
   Button,
   EmptyState,
@@ -39,7 +40,7 @@ import {
 } from './ui';
 
 import { PlanningEditor as GuidedPlanningEditor } from './PlanningEditor';
-import { planningTaskBlock, type PlanningErrorHandler } from './planningForm';
+import { planningTaskBlock, planningSaveError, type PlanningErrorHandler } from './planningForm';
 
 export type ProjectTaskDraft = {
   id?: string;
@@ -158,6 +159,7 @@ export function ProjectPlanningPanel({
   onOpenTime?: () => void;
   onCreateProject?: () => void;
 }) {
+  useAppLanguage();
   const initialFocus = planningFocusSelection(workspace, focusItemId);
   const [editor, setEditor] = useState<PlanningEditor>(null);
   const [projectId, setProjectId] = useState(initialFocus?.projectId || '');
@@ -169,8 +171,8 @@ export function ProjectPlanningPanel({
   async function runAction(action: (onError: PlanningErrorHandler) => Promise<boolean>) {
     if (busy || readOnly || actionInFlight.current) return;
     actionInFlight.current = true; setActionError('');
-    try { await action(reason => setActionError(errorMessage(reason, 'Le planning n’a pas pu être mis à jour. Réessayez après vérification.'))); }
-    catch (reason) { setActionError(errorMessage(reason, 'Le planning n’a pas pu être mis à jour.')); }
+    try { await action(reason => setActionError(planningSaveError(reason, t("Le planning n’a pas pu être mis à jour. Réessayez après vérification.")))); }
+    catch (reason) { setActionError(planningSaveError(reason, t("Le planning n’a pas pu être mis à jour."))); }
     finally { actionInFlight.current = false; }
   }
   function revealProject(id: string) { setProjectId(id); setEmployeeId(''); setStatus('open'); setMilestoneFilter(''); onClearSearch?.(); }
@@ -293,31 +295,31 @@ export function ProjectPlanningPanel({
   const buckets = [
     {
       id: 'overdue',
-      label: 'En retard',
+      label: t("En retard"),
       tone: 'danger',
       tasks: tasks.filter((task) => taskDueBucket(task, today) === 'overdue'),
     },
     {
       id: 'today',
-      label: "Aujourd'hui",
+      label: t("Aujourd'hui"),
       tone: 'warning',
       tasks: tasks.filter((task) => taskDueBucket(task, today) === 'today'),
     },
     {
       id: 'upcoming',
-      label: 'À venir',
+      label: t("À venir"),
       tone: 'neutral',
       tasks: tasks.filter((task) => taskDueBucket(task, today) === 'upcoming'),
     },
     {
       id: 'no_date',
-      label: 'Sans échéance',
+      label: t("Sans échéance"),
       tone: 'neutral',
       tasks: tasks.filter((task) => taskDueBucket(task, today) === 'no_date'),
     },
     {
       id: 'closed',
-      label: 'Closes',
+      label: t("Closes"),
       tone: 'success',
       tasks: tasks.filter((task) => taskDueBucket(task, today) === 'closed'),
     },
@@ -351,37 +353,37 @@ export function ProjectPlanningPanel({
     return (
       <EmptyState
         icon={<ListChecks />}
-        title="Créez d’abord un projet"
-        text="Créez le dossier du projet pour y retrouver ses tâches, documents et factures."
-        actionLabel={onCreateProject ? "Créer un projet" : undefined} onAction={onCreateProject} disabled={busy || readOnly}
+        title={t("Créez d’abord un projet")}
+        text={t("Créez le dossier du projet pour y retrouver ses tâches, documents et factures.")}
+        actionLabel={onCreateProject ? t("Créer un projet") : undefined} onAction={onCreateProject} disabled={busy || readOnly}
       />
     );
 
   return (
     <div className="planning-layout">
-      {actionError && <div className="planning-form-error planning-action-message" role="alert" tabIndex={-1} ref={actionErrorRef}><strong>Le planning demande une vérification</strong><p>{actionError}</p></div>}
-      <section className="planning-overview" aria-label="Résumé des tâches">
-        <PlanningMetric label="Ouvertes" value={summary.open} icon={<Circle />} />
+      {actionError && <div className="planning-form-error planning-action-message" role="alert" tabIndex={-1} ref={actionErrorRef}><strong>{t("Le planning demande une vérification")}</strong><p>{actionError}</p></div>}
+      <section className="planning-overview" aria-label={t("Résumé des tâches")}>
+        <PlanningMetric label={t("Ouvertes")} value={summary.open} icon={<Circle />} />
         <PlanningMetric
-          label="En cours"
+          label={t("En cours")}
           value={summary.inProgress}
           icon={<Clock3 />}
         />
         <PlanningMetric
-          label="En retard"
+          label={t("En retard")}
           value={summary.overdue}
           icon={<AlertTriangle />}
           alert={summary.overdue > 0}
         />
-        <PlanningMetric label="Terminées" value={summary.done} icon={<Check />} />
+        <PlanningMetric label={t("Terminées")} value={summary.done} icon={<Check />} />
       </section>
 
       <section className="planning-toolbar panel">
         <div className="planning-filters">
           <label>
-            <span>Projet</span>
+            <span>{t("Projet")}</span>
             <select value={projectId} onChange={(event) => { setProjectId(event.target.value); setMilestoneFilter(''); }}>
-              <option value="">Tous les projets</option>
+              <option value="">{t("Tous les projets")}</option>
               {workspace.projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
@@ -390,9 +392,9 @@ export function ProjectPlanningPanel({
             </select>
           </label>
           <label>
-            <span>Responsable</span>
+            <span>{t("Personne responsable")}</span>
             <select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
-              <option value="">Toute l’équipe</option>
+              <option value="">{t("Toute l’équipe")}</option>
               {workspace.employees
                 .filter((employee) => employee.active)
                 .map((employee) => (
@@ -403,18 +405,18 @@ export function ProjectPlanningPanel({
             </select>
           </label>
           <label>
-            <span>État</span>
+            <span>{t("État")}</span>
             <select
               value={status}
               onChange={(event) =>
                 setStatus(event.target.value as ProjectTask['status'] | 'open')
               }
             >
-              <option value="open">À traiter</option>
-              <option value="todo">À faire</option>
-              <option value="in_progress">En cours</option>
-              <option value="done">Terminées</option>
-              <option value="cancelled">Annulées</option>
+              <option value="open">{t("À traiter")}</option>
+              <option value="todo">{t("À faire")}</option>
+              <option value="in_progress">{t("En cours")}</option>
+              <option value="done">{t("Terminées")}</option>
+              <option value="cancelled">{t("Annulées")}</option>
             </select>
           </label>
         </div>
@@ -426,20 +428,18 @@ export function ProjectPlanningPanel({
               setEditor({ kind: 'milestone', projectId: projectId || undefined })
             }
           >
-            <Target size={15} /> Nouveau jalon
-          </Button>
+            <Target size={15} />{t("Nouveau jalon")}</Button>
           <Button
             disabled={busy || readOnly}
             onClick={() =>
               setEditor({ kind: 'task', projectId: projectId || undefined })
             }
           >
-            <Plus size={15} /> Nouvelle tâche
-          </Button>
+            <Plus size={15} />{t("Nouvelle tâche")}</Button>
         </div>
       </section>
 
-      {milestoneFilter && <div className="planning-filter-notice"><span>Tâches de « {workspace.projectMilestones.find(row => row.id === milestoneFilter)?.title || 'Étape indisponible'} »</span><Button variant="ghost" size="small" onClick={() => setMilestoneFilter('')}>Toutes les tâches du projet</Button></div>}
+      {milestoneFilter && <div className="planning-filter-notice"><span>{t('Tâches de « {title} »', { title: workspace.projectMilestones.find(row => row.id === milestoneFilter)?.title || t('Étape indisponible') })}</span><Button variant="ghost" size="small" onClick={() => setMilestoneFilter('')}>{t("Toutes les tâches du projet")}</Button></div>}
       <div className="planning-columns">
         <section className="planning-task-groups">
           {buckets.length ? (
@@ -475,9 +475,9 @@ export function ProjectPlanningPanel({
             <div className="panel">
               <EmptyState
                 icon={<CalendarCheck2 />}
-                title="Aucune tâche dans cette vue"
-                text="Modifiez les filtres ou créez la prochaine action réelle du projet."
-                actionLabel="Créer une tâche"
+                title={t("Aucune tâche dans cette vue")}
+                text={t("Modifiez les filtres ou créez la prochaine action réelle du projet.")}
+                actionLabel={t("Créer une tâche")}
                 onAction={() =>
                   setEditor({ kind: 'task', projectId: projectId || undefined })
                 }
@@ -490,8 +490,7 @@ export function ProjectPlanningPanel({
         <aside className="planning-milestones panel">
           <header>
             <div>
-              <span>Étapes clés</span>
-              <strong>Étapes du projet</strong>
+              <strong>{t("Étapes du projet")}</strong>
             </div>
             <Target size={18} />
           </header>
@@ -534,11 +533,11 @@ export function ProjectPlanningPanel({
                       <span className={`priority-dot priority-dot--${milestone.priority}`} />
                       <div>
                         <strong>{milestone.title}</strong>
-                        <small>{project?.name || 'Projet supprimé'}</small>
+                        <small>{project?.name || t("Projet supprimé")}</small>
                       </div>
                       <StatusBadge
                         status={milestone.status}
-                        label={statusLabels[milestone.status]}
+                        label={t(statusLabels[milestone.status])}
                       />
                     </div>
                     <div className="milestone-list__progress">
@@ -546,17 +545,16 @@ export function ProjectPlanningPanel({
                         <i style={{ width: `${progress.percent}%` }} />
                       </span>
                       <small>
-                        {progress.completed}/{progress.total} tâche
-                        {progress.total > 1 ? 's' : ''}
+                        {t(progress.total === 1 ? '{completed}/{total} tâche' : '{completed}/{total} tâches', { completed: progress.completed, total: progress.total })}
                       </small>
                     </div>
-                    {!canClose && <div className="planning-task-help"><p>Terminez ou annulez les tâches ouvertes avant de terminer cette étape.</p><Button variant="secondary" size="small" onClick={() => { revealProject(milestone.projectId); setMilestoneFilter(milestone.id); }}>Voir les tâches à terminer</Button></div>}
+                    {!canClose && <div className="planning-task-help"><p>{t("Terminez ou annulez les tâches ouvertes avant de terminer cette étape.")}</p><Button variant="secondary" size="small" onClick={() => { revealProject(milestone.projectId); setMilestoneFilter(milestone.id); }}>{t("Voir les tâches à terminer")}</Button></div>}
                     <footer>
                       <span>
                         <CalendarCheck2 size={13} />{' '}
                         {milestone.dueDate
                           ? formatDate(milestone.dueDate)
-                          : 'Sans échéance'}
+                          : t("Sans échéance")}
                         {employee ? ` · ${employee.name}` : ''}
                       </span>
                       <div>
@@ -570,25 +568,25 @@ export function ProjectPlanningPanel({
                           }
                           title={
                             milestone.status === 'in_progress' && !canClose
-                              ? 'Terminez ou annulez d’abord les tâches actives'
+                              ? t("Terminez ou annulez d’abord les tâches actives")
                               : milestone.status === 'done' ||
                                   milestone.status === 'cancelled'
-                                ? 'Rouvrir le jalon'
+                                ? t("Rouvrir le jalon")
                                 : milestone.status === 'todo'
-                                  ? 'Démarrer le jalon'
-                                  : 'Terminer le jalon'
+                                  ? t("Démarrer le jalon")
+                                  : t("Terminer le jalon")
                           }
                           onClick={() =>
                             void runAction(onError => onSaveMilestone(milestoneDraftWithStatus(milestone, nextStatus), onError))
                           }
-                          aria-label={`Changer l’état du jalon ${milestone.title}`}
+                          aria-label={t("Changer l’état du jalon {title}", { title: milestone.title })}
                         >
                           {milestone.status === 'done' ? (
                             <Check size={14} />
                           ) : (
                             <Circle size={14} />
                           )}
-                          <span>{milestone.status === 'done' || milestone.status === 'cancelled' ? 'Rouvrir' : milestone.status === 'todo' ? 'Commencer' : 'Terminer'}</span>
+                          <span>{milestone.status === 'done' || milestone.status === 'cancelled' ? t("Rouvrir") : milestone.status === 'todo' ? t("Commencer") : t("Terminer")}</span>
                         </Button>
                         <Button
                           variant="ghost"
@@ -602,13 +600,13 @@ export function ProjectPlanningPanel({
                           }
                           title={
                             canClose
-                              ? 'Annuler le jalon'
-                              : 'Terminez ou annulez d’abord les tâches actives'
+                              ? t("Annuler le jalon")
+                              : t("Terminez ou annulez d’abord les tâches actives")
                           }
                           onClick={() =>
                             void runAction(onError => onSaveMilestone(milestoneDraftWithStatus(milestone, 'cancelled'), onError))
                           }
-                          aria-label={`Annuler le jalon ${milestone.title}`}
+                          aria-label={t("Annuler le jalon {title}", { title: milestone.title })}
                         >
                           <Ban size={14} />
                         </Button>
@@ -624,11 +622,11 @@ export function ProjectPlanningPanel({
                           title={
                             milestone.status === 'done' ||
                             milestone.status === 'cancelled'
-                              ? 'Rouvrez d’abord le jalon pour le modifier'
-                              : 'Modifier le jalon'
+                              ? t("Rouvrez d’abord le jalon pour le modifier")
+                              : t("Modifier le jalon")
                           }
                           onClick={() => setEditor({ kind: 'milestone', item: milestone })}
-                          aria-label={`Modifier le jalon ${milestone.title}`}
+                          aria-label={t("Modifier le jalon {title}", { title: milestone.title })}
                         >
                           <Pencil size={14} />
                         </Button>
@@ -643,13 +641,13 @@ export function ProjectPlanningPanel({
                           }
                           title={
                             milestone.status !== 'todo'
-                              ? 'Seul un jalon à faire peut être supprimé'
+                              ? t("Seul un jalon à faire peut être supprimé")
                               : hasLinkedTasks
-                              ? 'Déplacez ou supprimez d’abord les tâches liées à ce jalon'
-                              : 'Supprimer le jalon'
+                              ? t("Déplacez ou supprimez d’abord les tâches liées à ce jalon")
+                              : t("Supprimer le jalon")
                           }
                           onClick={() => void runAction(onError => onDeleteMilestone(milestone, onError))}
-                          aria-label={`Supprimer le jalon ${milestone.title}`}
+                          aria-label={t("Supprimer le jalon {title}", { title: milestone.title })}
                         >
                           <Trash2 size={14} />
                         </Button>
@@ -660,9 +658,7 @@ export function ProjectPlanningPanel({
               })}
             </div>
           ) : (
-            <p className="planning-milestones__empty">
-              Aucun jalon dans cette vue. Les tâches peuvent aussi rester sans jalon.
-            </p>
+            <p className="planning-milestones__empty">{t("Aucun jalon dans cette vue. Les tâches peuvent aussi rester sans jalon.")}</p>
           )}
         </aside>
       </div>
@@ -774,37 +770,37 @@ function TaskRow({
         onClick={() => void onAdvance()}
         aria-label={
           task.status === 'done'
-            ? `Rouvrir ${task.title}`
+            ? t("Rouvrir {title}", { title: task.title })
             : task.status === 'cancelled'
-              ? `Rouvrir ${task.title}`
+              ? t("Rouvrir {title}", { title: task.title })
             : task.status === 'in_progress'
-              ? `Terminer ${task.title}`
-              : `Commencer ${task.title}`
+              ? t("Terminer {title}", { title: task.title })
+              : t("Commencer {title}", { title: task.title })
         }
       >
         {task.status === 'done' ? <Check size={15} /> : <Circle size={15} />}
-        <span>{task.status === 'done' || task.status === 'cancelled' ? 'Rouvrir' : task.status === 'todo' ? 'Commencer' : 'Terminer'}</span>
+        <span>{task.status === 'done' || task.status === 'cancelled' ? t("Rouvrir") : task.status === 'todo' ? t("Commencer") : t("Terminer")}</span>
       </button>
       <div className="planning-task__body">
         <div>
           <strong>{task.title}</strong>
           <span className={`priority-label priority-label--${task.priority}`}>
-            <Flag size={11} /> {priorityLabels[task.priority]}
+            <Flag size={11} /> {t(priorityLabels[task.priority])}
           </span>
         </div>
         <p>
-          <span>{project?.name || 'Projet supprimé'}</span>
+          <span>{project?.name || t("Projet supprimé")}</span>
           {milestone ? <span>{milestone.title}</span> : null}
           <span>
             <CalendarCheck2 size={12} />{' '}
-            {task.dueDate ? formatDate(task.dueDate) : 'Sans échéance'}
+            {task.dueDate ? formatDate(task.dueDate) : t("Sans échéance")}
           </span>
           <span>
-            <UserRound size={12} /> {employee?.name || 'Non attribuée'}
+            <UserRound size={12} /> {employee?.name || t("Non attribuée")}
           </span>
         </p>
       </div>
-      <StatusBadge status={task.status} label={statusLabels[task.status]} />
+      <StatusBadge status={task.status} label={t(statusLabels[task.status])} />
       <div className="planning-task__actions">
         <Button
           variant="ghost"
@@ -815,9 +811,9 @@ function TaskRow({
             task.status === 'done' ||
             task.status === 'cancelled' || Boolean(cancelBlock)
           }
-          title={cancelBlock?.message || "Annuler la tâche"}
+          title={cancelBlock?.message || t("Annuler la tâche")}
           onClick={onCancel}
-          aria-label={`Annuler ${task.title}`}
+          aria-label={t("Annuler {title}", { title: task.title })}
         >
           <Ban size={14} />
         </Button>
@@ -832,11 +828,11 @@ function TaskRow({
           }
           title={
             task.status === 'done' || task.status === 'cancelled'
-              ? 'Rouvrez d’abord la tâche pour modifier son contenu'
-              : 'Modifier la tâche'
+              ? t("Rouvrez d’abord la tâche pour modifier son contenu")
+              : t("Modifier la tâche")
           }
           onClick={onEdit}
-          aria-label={`Modifier ${task.title}`}
+          aria-label={t("Modifier {title}", { title: task.title })}
         >
           <Pencil size={14} />
         </Button>
@@ -848,18 +844,18 @@ function TaskRow({
           }
           title={
             task.status !== 'todo'
-              ? 'Seule une tâche à faire peut être supprimée'
+              ? t("Seule une tâche à faire peut être supprimée")
               : hasTimeEntries
-              ? 'Cette tâche possède des heures liées et ne peut plus être supprimée'
-              : 'Supprimer la tâche'
+              ? t("Cette tâche possède des heures liées et ne peut plus être supprimée")
+              : t("Supprimer la tâche")
           }
           onClick={onDelete}
-          aria-label={`Supprimer ${task.title}`}
+          aria-label={t("Supprimer {title}", { title: task.title })}
         >
           <Trash2 size={14} />
         </Button>
       </div>
-      {taskBlock && <div className="planning-task-help"><p>{taskBlock.message}</p>{taskBlock.target === 'timer' ? onOpenTime && <Button size="small" variant="secondary" onClick={onOpenTime}>Ouvrir le chronomètre</Button> : <Button size="small" variant="secondary" onClick={onOpenMilestone}>Voir l’étape à rouvrir</Button>}</div>}
+      {taskBlock && <div className="planning-task-help"><p>{taskBlock.message}</p>{taskBlock.target === 'timer' ? onOpenTime && <Button size="small" variant="secondary" onClick={onOpenTime}>{t("Ouvrir le chronomètre")}</Button> : <Button size="small" variant="secondary" onClick={onOpenMilestone}>{t("Voir l’étape à rouvrir")}</Button>}</div>}
     </div>
   );
 }

@@ -37,8 +37,10 @@ import { workflowClarityTranslations } from './translationsWorkflowClarity';
 import { documentEditorTranslations } from './translationsDocumentEditor';
 import { outgoingMailTranslations } from './translationsOutgoingMail';
 import { agendaTranslations } from './translationsAgenda';
+import { planningTranslations } from './translationsPlanning';
 import { purchaseInboxTranslations } from './translationsPurchaseInbox';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...planningTranslations,
   ...catalogTranslations,
   ...documentSettingsTranslations,
   ...documentNavigationTranslations,

@@ -2014,8 +2014,8 @@ function WorkspaceContent({
                 act(
                   () => desktopApi.saveProjectTask(input),
                   input.id
-                    ? 'La tâche a été mise à jour.'
-                    : 'La tâche a été ajoutée au planning.',
+                    ? t('La tâche a été mise à jour.')
+                    : t('La tâche a été ajoutée au planning.'),
                   false,
                   onError,
                 )
@@ -2024,8 +2024,8 @@ function WorkspaceContent({
                 act(
                   () => desktopApi.saveProjectMilestone(input),
                   input.id
-                    ? 'Le jalon a été mis à jour.'
-                    : 'Le jalon a été ajouté au projet.',
+                    ? t('Le jalon a été mis à jour.')
+                    : t('Le jalon a été ajouté au projet.'),
                   false,
                   onError,
                 )
@@ -2034,12 +2034,12 @@ function WorkspaceContent({
                 act(
                   () => desktopApi.setProjectTaskStatus(item.id, status),
                   status === 'done'
-                    ? 'La tâche est terminée.'
+                    ? t('La tâche est terminée.')
                     : status === 'in_progress'
-                      ? 'La tâche est en cours.'
+                      ? t('La tâche est en cours.')
                       : status === 'cancelled'
-                        ? 'La tâche a été annulée.'
-                        : 'La tâche a été rouverte.',
+                        ? t('La tâche a été annulée.')
+                        : t('La tâche a été rouverte.'),
                   false,
                   onError,
                 )
@@ -2047,13 +2047,13 @@ function WorkspaceContent({
               onDeleteTask={async (item, onError) => {
                 if (
                   !window.confirm(
-                    `Supprimer définitivement la tâche « ${item.title} » ?`,
+                    t('Supprimer définitivement la tâche « {title} » ?', { title: item.title }),
                   )
                 )
                   return false;
                 return act(
                   () => desktopApi.deleteProjectTask(item.id),
-                  'La tâche a été supprimée.',
+                  t('La tâche a été supprimée.'),
                   false,
                   onError,
                 );
@@ -2061,13 +2061,13 @@ function WorkspaceContent({
               onDeleteMilestone={async (item, onError) => {
                 if (
                   !window.confirm(
-                    `Supprimer définitivement le jalon « ${item.title} » ?`,
+                    t('Supprimer définitivement le jalon « {title} » ?', { title: item.title }),
                   )
                 )
                   return false;
                 return act(
                   () => desktopApi.deleteProjectMilestone(item.id),
-                  'Le jalon a été supprimé.',
+                  t('Le jalon a été supprimé.'),
                   false,
                   onError,
                 );

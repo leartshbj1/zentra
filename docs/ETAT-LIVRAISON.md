@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 22 h 50 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
+Mis à jour le 27 septembre 2026, 23 h 25 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
 
 ## Version 1.90.6 publiée ; installation locale Windows refusée
 
@@ -36,6 +36,12 @@ Preuves : `outputs/release1906/{SOURCES.json,source-equivalence-proof.json,githu
 - Détail observé dans 1.90.5/1.90.6 : « Fonds propres » peut finir une page alors que ses lignes commencent sur la suivante. **Corrigé dans la source postérieure `4f9ca690`, non publiée** : rubriques avec leur première ligne, colonnes répétées sur les très longues lignes et contrôle du bilan avec son total. 62 tests natifs passent ; neuf exemples et 41 pages sont rendus et inspectés. [Portée et preuves](PAGINATION-BILANS-20260927.md). Le job cloud 155 réussi porte sur le premier commit `bb266a50`, pas sur les deux derniers ajustements.
 
 Preuves natives : `outputs/release1906/upgrade-smoke/{updater-check-proof.json,updater-ui-events.json,updater-install-refused-proof.json,windows-code-integrity-refusal.json,navigation-1.90.5.json,native-pdf-export-proof.json,native-pdf-checks.json}` et `outputs/release1905/upgrade-smoke/{after-updater-refused,after-pdf-export,final-closed}-snapshot.json`. Aucun envoi de document, aucune création de compte et aucune modification de données réelles lors de cette recette.
+
+## Lots postérieurs à 1.90.6
+
+Le [planning en quatre langues](PLANNING-LANGUES-20260927.md) comprend formulaires, erreurs reconnues et confirmations traduites, préservation des saisies et compteurs mobiles sans texte débordant. Vingt parcours linguistiques finaux Edge/WebKit passent, dont quatre à 200 % ; huit parcours français complets apportent une régression complémentaire avant les dernières retouches texte/CSS. Suite complète 1 818 tests avant ces retouches ; 19 tests ciblés, TypeScript et build finaux réussis. Aucune installation native ni synchronisation réelle n’en est déduite.
+
+Le [candidat Android optimisé](ANDROID-RELEASE-CANDIDATE-20260927.md) du job 156 a été refusé par le contrôle des bibliothèques natives (pages mémoire de 16 Ko). Correction `a490d797`, six tests du contrôleur réussis ; **job 157 en cours**, sans signature ni publication. Ce candidat contient la correction PDF, mais ne contient pas le nouveau lot Planning. Les téléchargements publics restent ceux de 1.90.6.
 
 ## Site, comptes et traitement autonome
 

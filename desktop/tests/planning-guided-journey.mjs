@@ -122,7 +122,8 @@ for (const [engine, type] of [['edge', chromium], ['webkit', webkit]]) {
         assert.equal(await timerTask.getByRole('button', { name: 'Terminer Intervention chronométrée', exact: true }).isDisabled(), true);
         await screenshot(page, `${engine}-${width}-planning`);
         await timerTask.getByRole('button', { name: 'Ouvrir le chronomètre', exact: true }).click();
-        await page.getByLabel('Temps', { exact: true }).getByRole('button', { name: 'Saisir des heures', exact: true }).waitFor();
+        await page.getByRole('heading', { name: 'Temps', exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Saisir des heures', exact: true }).waitFor();
         await page.goto(`${base}/tests/mobile-harness.html?browsing=1&planningGuided=1&readOnly=1`);
         await planning(page);
         assert.equal(await page.getByRole('button', { name: 'Nouvelle tâche', exact: true }).isDisabled(), true);
