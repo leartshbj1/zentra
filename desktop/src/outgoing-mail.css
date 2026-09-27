@@ -32,5 +32,6 @@ html[data-app-theme] .mail-settings .mail-variables button.button{min-height:44p
 .mail-disconnect-confirm,.mail-recovery{margin-top:20px;padding-top:16px;border-top:1px solid var(--work-line)}
 .mail-history-row{padding-block:12px;border-bottom:1px solid var(--work-line)}.mail-history-row p{margin:0;padding:0;border:0}.mail-history-row button{margin-top:8px;min-height:44px}
 .mail-from strong{color:var(--work-ink)}.mail-from span{display:block}
+.mail-recovery-ack{margin-block:16px;align-items:flex-start;font-size:14px;line-height:1.5}.mail-recovery-ack input{margin-top:2px}
 @media(max-width:600px){.mail-fields{grid-template-columns:minmax(0,1fr);gap:16px}.mail-actions>*{flex:1 1 150px}.mail-settings header{margin-bottom:20px}.mail-tabs{gap:4px}.mail-tabs button{flex:1 0 auto;min-width:max-content}.mail-composer .mail-attachment small{flex-basis:100%;padding-left:25px}}
 

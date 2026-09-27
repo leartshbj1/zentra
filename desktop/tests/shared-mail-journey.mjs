@@ -169,6 +169,15 @@ for (const [engine, type] of [
       await page
         .getByRole('button', { name: 'Préparer un e-mail', exact: true })
         .click();
+      await dialog.getByText('Un précédent envoi reste à vérifier.', { exact: true }).waitFor();
+      assert.equal(await send.isDisabled(), true);
+      const acknowledge=dialog.getByRole('checkbox', {name:'J’ai vérifié les messages envoyés. Je souhaite préparer un nouvel envoi.'});
+      await acknowledge.check();
+      assert.equal(await send.isEnabled(), true);
+      assert.equal(await page.evaluate(() => window.__mailQa.sharedSends), 1);
+      await acknowledge.uncheck();
+      assert.equal(await send.isDisabled(), true);
+      await page.screenshot({path:`${output}/reopened-${engine}-${width}.png`,fullPage:true});
       await dialog.locator('summary').click();
       await dialog
         .getByRole('button', {
@@ -184,6 +193,7 @@ for (const [engine, type] of [
         await page.getByRole('dialog', { name: 'E-mail transmis' }).count(),
         0,
       ); // recovered an older message, not this new draft
+      assert.equal(await send.isEnabled(), true);
       await open('shared&composer&connected&offline');
       await dialog
         .getByText('La messagerie partagée est indisponible.', { exact: false })
@@ -219,6 +229,8 @@ for (const [engine, type] of [
         singleSubmission: true,
         recoveryWithoutResend: true,
         reopenRecovery: true,
+        unconfirmedVisibleBeforeSend: true,
+        manualAcknowledgementDoesNotSend: true,
         pendingNotSuccess: true,
         explicitLocalFallback: true,
         readOnly: true,

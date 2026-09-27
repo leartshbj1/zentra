@@ -72,6 +72,7 @@ function MailComposerSession({
     [historyWarning, setHistoryWarning] = useState(false),
     [resultStatus, setResultStatus] = useState<MailStatus | null>(null);
   const [chosenChannel, setChannel] = useState<MailChannel | null>(null);
+  const [checkedAttempts, setCheckedAttempts] = useState<string[]>([]);
   const flight = useRef(false),
     requestId = useRef(crypto.randomUUID()),
     active = useRef(true);
@@ -131,6 +132,9 @@ function MailComposerSession({
   ]
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     .slice(0, 10);
+  const unconfirmed = history.filter(item => (item.status === 'pending' || item.status === 'uncertain') && item.requestId !== requestId.current);
+  const attemptKey = (item: (typeof history)[number]) => item.requestId ?? `${item.createdAt}:${item.recipient}:${item.subject}`;
+  const acknowledged = unconfirmed.every(item => checkedAttempts.includes(attemptKey(item)));
   async function returnToMessage() {
     setBusy(true);
     setError('');
@@ -182,6 +186,7 @@ function MailComposerSession({
       !preview ||
       preview.signatureLogoError ||
       !connected ||
+      !acknowledged ||
       sent
     )
       return;
@@ -403,7 +408,14 @@ function MailComposerSession({
                     </div>
                   )
                 )}
-                {history.length > 0 && (
+          {unconfirmed.length > 0 && <section className="mail-recovery" aria-label={t('Un précédent envoi reste à vérifier.')}>
+            <p><strong>{t('Un précédent envoi reste à vérifier.')}</strong><br />{t('Vérifiez les messages envoyés avant de recommencer.')}</p>
+            {unconfirmed.map(item => <div className="mail-history-row" key={attemptKey(item)}><p>{new Date(item.createdAt).toLocaleString(getAppLocale())} · {item.recipient}<br />{statusText(item.status)}</p>
+              {item.channel === 'company_mail' && item.requestId ? <Button type="button" variant="secondary" disabled={busy} onClick={() => void recover(item.requestId!)}>{t('Vérifier l’état de l’envoi')}</Button> : item.requestId && shared.state?.history.some(remote => remote.requestId === item.requestId) && <Button type="button" variant="secondary" disabled={busy || shared.loading} onClick={() => void shared.refresh()}>{t('Actualiser l’historique partagé')}</Button>}
+            </div>)}
+            <label className="mail-signature-toggle mail-recovery-ack"><input type="checkbox" checked={acknowledged} disabled={busy || attempted} onChange={event => setCheckedAttempts(event.target.checked ? unconfirmed.map(attemptKey) : [])} /><span>{t('J’ai vérifié les messages envoyés. Je souhaite préparer un nouvel envoi.')}</span></label>
+          </section>}
+          {history.length > 0 && (
                   <details className="mail-history">
                     <summary>{t('Historique des envois')}</summary>
                     {history.map((item, index) => (
@@ -421,7 +433,7 @@ function MailComposerSession({
                         </p>
                         {item.channel === 'company_mail' &&
                           item.requestId &&
-                          item.status !== 'accepted' && (
+                    item.status === 'rejected' && (
                             <Button
                               type="button"
                               variant="secondary"
@@ -510,7 +522,8 @@ function MailComposerSession({
                       disabled={
                         busy ||
                         attempted ||
-                        !connected ||
+                    !connected ||
+                    !acknowledged ||
                         Boolean(preview.signatureLogoError)
                       }
                     >

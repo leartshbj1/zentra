@@ -1,5 +1,9 @@
 // Interface only. Customer subjects, messages, names and variable identifiers stay verbatim.
 export const outgoingMailTranslations: Record<string, readonly [string, string, string]> = {
+  'Un précédent envoi reste à vérifier.': ['Ein früherer Versand muss noch geprüft werden.', 'Un invio precedente deve ancora essere verificato.', 'A previous send still needs checking.'],
+  'Vérifiez les messages envoyés avant de recommencer.': ['Prüfen Sie die gesendeten Nachrichten, bevor Sie erneut senden.', 'Controlla i messaggi inviati prima di ricominciare.', 'Check sent messages before trying again.'],
+  'Actualiser l’historique partagé': ['Gemeinsamen Verlauf aktualisieren', 'Aggiorna la cronologia condivisa', 'Refresh shared history'],
+  'J’ai vérifié les messages envoyés. Je souhaite préparer un nouvel envoi.': ['Ich habe die gesendeten Nachrichten geprüft und möchte einen neuen Versand vorbereiten.', 'Ho controllato i messaggi inviati e desidero preparare un nuovo invio.', 'I have checked sent messages and want to prepare a new send.'],
   'Reconnectez votre compte Zentra pour utiliser la messagerie partagée.': ['Melden Sie sich erneut bei Zentra an, um das gemeinsame E-Mail-Konto zu nutzen.', 'Accedi di nuovo a Zentra per usare la casella condivisa.', 'Sign in to Zentra again to use the shared mailbox.'],
   'La connexion a changé. Rouvrez la messagerie.': ['Die Verbindung hat sich geändert. Öffnen Sie die E-Mail-Einstellungen erneut.', 'La connessione è cambiata. Riapri la posta.', 'The connection has changed. Reopen email settings.'],
   'La messagerie ne correspond pas à cette entreprise.': ['Das E-Mail-Konto gehört nicht zu diesem Unternehmen.', 'La casella non corrisponde a questa azienda.', 'The mailbox does not match this company.'],
