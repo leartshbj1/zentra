@@ -226,11 +226,11 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     }
   }}>
     <div className="design-studio__heading"><h2>{t('Des documents à votre image')}</h2><p>{t('Choisissez votre document, puis ajustez son style.')}</p></div>
-    {!expanded && typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal === 'function' && <div className="design-studio__workspace-entry"><button type="button" className="design-studio__open-workbench" onClick={() => setExpanded(true)}><Maximize2 size={18} aria-hidden="true" /> {t('Ouvrir le grand atelier')}</button><p>{t('Plus d’espace pour les outils et votre document. Vous pouvez revenir ici à tout moment.')}</p></div>}
+    {!expanded && typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal === 'function' && <div className="design-studio__workspace-entry"><button type="button" className="design-studio__open-workbench" data-document-workbench-trigger onClick={() => setExpanded(true)}><Maximize2 size={18} aria-hidden="true" /> {t('Ouvrir le grand atelier')}</button><p>{t('Plus d’espace pour les outils et votre document. Vous pouvez revenir ici à tout moment.')}</p></div>}
     <div className="design-studio__tabs" role="group" aria-label={t('Document à personnaliser')}>{(Object.keys(labels) as DocumentDesignKind[]).map(value => <button type="button" key={value} disabled={exporting} aria-pressed={kind === value} onClick={() => { setKind(value); setNotice(''); setExportError(''); setExported(null); }}>{t(labels[value])}</button>)}</div>
     <div className="design-studio__mobile-kind">
       <label>{t('Document à personnaliser')}<select value={kind} disabled={exporting} onChange={event => { setKind(event.target.value as DocumentDesignKind); setNotice(''); setExportError(''); setExported(null); }}>{(Object.keys(labels) as DocumentDesignKind[]).map(value => <option key={value} value={value}>{t(labels[value])}</option>)}</select></label>
-      {!expanded && typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal === 'function' && <button type="button" aria-label={t('Ouvrir le grand atelier')} onClick={() => setExpanded(true)}><Maximize2 size={20} aria-hidden="true" /></button>}
+      {!expanded && typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal === 'function' && <button type="button" data-document-workbench-trigger aria-label={t('Ouvrir le grand atelier')} onClick={() => setExpanded(true)}><Maximize2 size={20} aria-hidden="true" /></button>}
     </div>
     <div className="design-studio__mobile-switch" role="group" aria-label={t('Affichage de l’atelier')}>
       <button type="button" aria-pressed={mobileView === 'preview'} onClick={showPreview}>{t('Mon document')}</button>
@@ -260,7 +260,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
     <div className="design-studio__body">
       <div ref={toolsElement} className="design-studio__tools">
         <div className="design-studio__panels" role="group" aria-label="Outils de personnalisation">{([['style','Style'],['layout','Mise en page'],['text','Textes']] as const).map(([key,label]) => <button type="button" key={key} aria-pressed={panel === key} onClick={() => { setPanel(key); if (key !== 'text') setWriting(false); }}>{label}</button>)}</div>
-        {toolHint && toolHint.panel === panel && <p className="design-studio__tool-hint" role="status"><strong>{toolHint.label}</strong>{toolHint.description}</p>}
+        {toolHint && toolHint.panel === panel && <p className="design-studio__tool-hint" role="status"><strong>{t(toolHint.label)}</strong>{t(toolHint.description)}</p>}
         <div hidden={panel !== 'style'} className="design-studio__panel">
         {!composition && <p className="design-studio__hint">Votre modèle actuel est conservé. Choisissez un point de départ ou ajustez la police pour activer la mise en page flexible.</p>}
         <fieldset disabled={busy}><legend>Un point de départ</legend><div className="design-studio__presets">{([['modern','Moderne'],['classic','Classique'],['editorial','Éditorial']] as const).map(([key,label]) => <button type="button" key={key} onClick={() => preset(key)}>{label}</button>)}</div><small>Vous gardez vos textes et votre couleur.</small></fieldset>

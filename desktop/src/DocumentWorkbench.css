@@ -44,6 +44,7 @@
 .rich-editor__more { justify-self:start; min-height:44px; max-width:100%; padding:8px 12px; border:1px solid #d5ddd3; border-radius:10px; background:#fff; color:#34483b; font:inherit; font-size:13px; line-height:1.5; text-align:left; cursor:pointer; }
 .rich-editor--compact .rich-editor__toolbar { gap:4px; }
 @media(max-width:900px) {
+  .document-workbench > div { scroll-padding-top:90px; }
   .document-workbench .design-studio__body,.document-workbench .design-studio[data-panel=text] .design-studio__body { grid-template-columns:minmax(0,1fr); }
   .document-workbench .design-studio__preview { max-height:none; }
   .document-workbench__header > div { display:none; }

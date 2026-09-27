@@ -6,6 +6,8 @@ Objectif : traiter les vingt points de l’audit, avec des preuves adaptées. Au
 
 ## Historique des travaux et validations
 
+Complément à 20 h 36 : [navigation des outils de documents](DOCUMENT-NAVIGATION-LANGUES-20260927.md) traduite et vérifiée sur 16 parcours Edge/WebKit, quatre langues, mobile et bureau. Restitution du focus corrigée, 25 outils par parcours, TypeScript/build réussis. Lot non inclus dans 1.90.5. Le [planificateur corrigé a rejoint GitHub master](PLANIFICATEUR-ETAT-20260927.md), mais l’essai de 20 h 14 a été refusé avant exécution pour facturation GitHub ; le workflow est de nouveau désactivé. Les blocages Supabase et les recettes connectées restent ouverts.
+
 Complément à 20 h 10 : [Rendez-vous dans le journal Automation](AUTOMATION-RENDEZ-VOUS-20260927.md) terminé et validé localement (1 795 tests frontend, 20 parcours navigateur, TypeScript/build). Source postérieure au gel de 1.90.5, **non publiée**. Le point 10 couvre désormais aussi la présentation et l’ouverture exacte des rendez-vous reçus, sans preuve de messagerie réelle. Supabase reste HTTP 402 au contrôle direct de 20 h 05 ; les recettes connectées restent ouvertes.
 
 État de livraison : **1.90.3 publiée sur GitHub**, avec les lots natifs antérieurs au gel et une installation Windows contrôlée sur profil isolé. Le correctif de remboursement `055ac1b7` et les lots « Taille du texte », « Choix d’entreprise et Projets », « Rapports de projet », « Détail des montants », « Paramètres », « Navigation et outils Automation » et « Écrans vides », ajoutés après gel, restent **non publiés et absents de 1.90.3**. La restriction Supabase et le P1 restent ouverts ; les canaux de mise à jour intégrée ne sont pas promus.

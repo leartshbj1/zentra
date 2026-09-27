@@ -1,4 +1,5 @@
 import type { DocumentDesignKind } from './documentAppearance';
+import { getAppLanguage, t, type AppLanguage } from './language';
 
 export type DocumentDesignTool = {
   id: string; label: string; description: string; keywords: string;
@@ -34,10 +35,15 @@ export const documentDesignTools: DocumentDesignTool[] = [
   { id: 'footer', label: 'Écrire le pied de page', description: 'Personnaliser le texte répété sur chaque page.', keywords: 'texte bas pied page signature remerciement', panel: 'text', zone: 'footerText', selector: '[role="textbox"]' },
 ];
 function searchable(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
-export function findDocumentDesignTools(query: string, kind: DocumentDesignKind): DocumentDesignTool[] {
+export function findDocumentDesignTools(query: string, kind: DocumentDesignKind, language: AppLanguage = getAppLanguage()): DocumentDesignTool[] {
   const words = searchable(query.trim()).split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   return documentDesignTools.filter(tool => !tool.exclude?.includes(kind)).map(tool => tool.id === 'closing' && kind === 'accounts'
-    ? { ...tool, label: 'Mettre en forme le commentaire', description: 'Ajouter vos explications après les comptes.', keywords: `${tool.keywords} bilan commentaire comptes` } : tool)
-    .filter(tool => words.every(word => searchable(`${tool.label} ${tool.description} ${tool.keywords}`).includes(word)));
+    ? { ...tool, label: 'Mettre en forme le commentaire', description: 'Ajouter vos explications après les comptes.' } : tool)
+    .filter(tool => {
+      const accountTerms = tool.id === 'closing' && kind === 'accounts'
+        ? `bilan commentaire comptes ${t('Bilan', undefined, language)} ${t('Commentaire', undefined, language)}` : '';
+      const content = searchable(`${tool.label} ${tool.description} ${tool.keywords} ${t(tool.label, undefined, language)} ${t(tool.description, undefined, language)} ${t(tool.keywords, undefined, language)} ${accountTerms}`);
+      return words.every(word => content.includes(word));
+    });
 }
