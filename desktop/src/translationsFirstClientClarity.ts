@@ -1,4 +1,10 @@
 export const firstClientClarityTranslations: Record<string,readonly [string,string,string]> = {
+  'Filtres':['Filter','Filtri','Filters'],
+  'Détails et actions':['Details und Aktionen','Dettagli e azioni','Details and actions'],
+  'Coordonnées et actions':['Kontaktdaten und Aktionen','Contatti e azioni','Contact details and actions'],
+  'Pages des documents':['Dokumentseiten','Pagine dei documenti','Document pages'],
+  'Page précédente':['Vorherige Seite','Pagina precedente','Previous page'],
+  'Page suivante':['Nächste Seite','Pagina successiva','Next page'],
   'Pages des clients':['Kundenseiten','Pagine dei clienti','Client pages'],
   'Pages des projets':['Projektseiten','Pagine dei progetti','Project pages'],
   'Liste des clients':['Kundenliste','Elenco dei clienti','Client list'],

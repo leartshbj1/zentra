@@ -3033,7 +3033,7 @@ function ProjectsScreen({
                   <StatusBadge status={project.status} />
                 </header>
                 {project.address ? <p className="project-card__address"><MapPin size={14} /> {project.address}</p> : null}
-                <MobileDetails title={t('Chiffres et planning')}><div className="project-stats">
+                <MobileDetails title={t('Détails et actions')}><div className="project-stats">
                   <div>
                     <span>{t('Facturé TTC')}</span>
                     <strong>
@@ -3073,7 +3073,7 @@ function ProjectsScreen({
                     <ListChecks size={14} /> {t('Tâches terminées : {done} / {total}', {done:completedTasks,total:projectTasks.length})}
                   </span>
                 </div>
-                </MobileDetails><footer>
+                <footer>
                   <Button size="small" onClick={() => onFolderChange(project.id)}>
                     <FolderOpen size={16} /> {t('Ouvrir le dossier')}
                   </Button>
@@ -3093,7 +3093,7 @@ function ProjectsScreen({
                   >
                     <Archive size={16} />
                   </Button>
-                </footer>
+                </footer></MobileDetails>
               </article>
             );
           })}
@@ -3135,6 +3135,7 @@ function ClientsScreen({
   );
   const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   const [visibility, setVisibility] = useState<'active' | 'archived'>('active');
+  const compact = useCompactLayout();
   const activeCount = workspace.clients.filter(
     (client) => !client.archivedAt,
   ).length;
@@ -3161,6 +3162,47 @@ function ClientsScreen({
       ),
   ),[workspace.clients,visibility,query]);
   const pagination=useCollectionPage(clients,JSON.stringify([visibility,query]),25);
+  const clientActions = (client: Client) => (
+    <div className="row-actions">
+      <Button
+        variant="secondary"
+        size="small"
+        onClick={() => onOpen(client)}
+      >
+        <Eye size={14} /> {t('Dossier')}
+      </Button>
+      {client.archivedAt ? (
+        <Button disabled={mutationsDisabled}
+          variant="ghost"
+          size="small"
+          onClick={() => onRestore(client)}
+        >
+          <RefreshCw size={14} /> {t('Réactiver')}
+        </Button>
+      ) : (
+        <>
+          <Button disabled={mutationsDisabled}
+            variant="ghost"
+            size="icon"
+            onClick={() => onEdit(client)}
+            title={t('Modifier le client')}
+            aria-label={t('Modifier {name}', {name:client.company || client.name})}
+          >
+            <Pencil size={15} />
+          </Button>
+          <Button disabled={mutationsDisabled}
+            variant="ghost"
+            size="icon"
+            title={t('Archiver sans supprimer l’historique')}
+            onClick={() => onArchive(client)}
+            aria-label={t('Archiver {name}', {name:client.company || client.name})}
+          >
+            <Archive size={15} />
+          </Button>
+        </>
+      )}
+    </div>
+  );
   if (!workspace.clients.length)
     return (
       <EmptyState disabled={mutationsDisabled}
@@ -3170,7 +3212,7 @@ function ClientsScreen({
       />
     );
   return (
-    <div className="stack-layout">
+    <div className="stack-layout client-directory">
       <div
         className="client-directory-toolbar"
         role="group"
@@ -3192,12 +3234,28 @@ function ClientsScreen({
         >
           {t('Archivés')} <span>{archivedCount}</span>
         </button>
-        <p>{t('Archiver conserve tout l’historique commercial et comptable.')}</p>
+        {(!compact || visibility === 'archived') && <p>{t('Archiver conserve tout l’historique commercial et comptable.')}</p>}
       </div>
       <div className="collection-page-start" ref={pagination.startRef} tabIndex={-1} role="group" aria-label={t('Liste des clients')}>
       <CollectionPagination pagination={pagination} label={t('Pages des clients')}/>
-      <div className="panel table-panel">
-        <table>
+      <div className="panel table-panel client-directory__list">
+        {compact ? <ul className="client-mobile-list">
+          {pagination.items.map(client => <li key={client.id}>
+            <button type="button" className="client-mobile-list__open" onClick={() => onOpen(client)}>
+              <span className="client-mobile-list__avatar" aria-hidden="true">{(client.company || client.name).slice(0, 2).toUpperCase()}</span>
+              <span><strong>{client.company || client.name}</strong>{client.company && client.name && <small>{client.name}</small>}{client.archivedAt && <small>{t('Archivé le {date}', {date: formatDate(client.archivedAt)})}</small>}</span>
+              <ArrowRight size={17} aria-hidden="true" />
+            </button>
+            <MobileDetails title="Coordonnées et actions">
+              <dl className="client-mobile-list__details">
+                <div><dt>{t('Coordonnées')}</dt><dd>{client.email || '—'}<br />{client.phone || '—'}</dd></div>
+                <div><dt>{t('Adresse')}</dt><dd className="address-cell">{client.address || '—'}</dd></div>
+                <div><dt>{t(terminology.pluralTitle)}</dt><dd>{projectsByClient.get(client.id) ?? 0}</dd></div>
+              </dl>
+              {clientActions(client)}
+            </MobileDetails>
+          </li>)}
+        </ul> : <table>
           <thead>
             <tr>
               <th>{t('Client')}</th>
@@ -3248,51 +3306,13 @@ function ClientsScreen({
                     </span>
                   </td>
                   <td>
-                    <div className="row-actions">
-                      <Button
-                        variant="secondary"
-                        size="small"
-                        onClick={() => onOpen(client)}
-                      >
-                        <Eye size={14} /> {t('Dossier')}
-                      </Button>
-                      {client.archivedAt ? (
-                        <Button disabled={mutationsDisabled}
-                          variant="ghost"
-                          size="small"
-                          onClick={() => onRestore(client)}
-                        >
-                          <RefreshCw size={14} /> {t('Réactiver')}
-                        </Button>
-                      ) : (
-                        <>
-                          <Button disabled={mutationsDisabled}
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onEdit(client)}
-                            title={t('Modifier le client')}
-                            aria-label={t('Modifier {name}', {name:client.company || client.name})}
-                          >
-                            <Pencil size={15} />
-                          </Button>
-                          <Button disabled={mutationsDisabled}
-                            variant="ghost"
-                            size="icon"
-                            title={t('Archiver sans supprimer l’historique')}
-                            onClick={() => onArchive(client)}
-                            aria-label={t('Archiver {name}', {name:client.company || client.name})}
-                          >
-                            <Archive size={15} />
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                    {clientActions(client)}
                   </td>
                 </tr>
               );
             })}
           </tbody>
-        </table>
+        </table>}
         {!clients.length ? (
           <EmptyState
             title={t(
@@ -3624,10 +3644,10 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
     setPagination({ key: pageKey, page: next });
     document.querySelector('.sales-list-toolbar')?.scrollIntoView({ block: 'start' });
   };
-  const pager = pageCount > 1 ? <nav className="sales-list-pagination" aria-label="Pages des documents">
-    <Button variant="secondary" disabled={page === 0} onClick={() => changePage(page - 1)} aria-label="Page précédente">Précédent</Button>
-    <span role="status">{page * 25 + 1}–{Math.min((page + 1) * 25, filtered.length)} sur {filtered.length}</span>
-    <Button variant="secondary" disabled={page === pageCount - 1} onClick={() => changePage(page + 1)} aria-label="Page suivante">Suivant</Button>
+  const pager = pageCount > 1 ? <nav className="sales-list-pagination" aria-label={t('Pages des documents')}>
+    <Button variant="secondary" disabled={page === 0} onClick={() => changePage(page - 1)} aria-label={t('Page précédente')}>{t('Précédent')}</Button>
+    <span role="status">{t('{start}–{end} sur {total}', {start: page * 25 + 1, end: Math.min((page + 1) * 25, filtered.length), total: filtered.length})}</span>
+    <Button variant="secondary" disabled={page === pageCount - 1} onClick={() => changePage(page + 1)} aria-label={t('Page suivante')}>{t('Suivant')}</Button>
   </nav> : null;
   const filterBar = <DocumentListToolbar count={t(entity === 'quotes' ? '{count} / {total} devis' : '{count} / {total} factures',{count:filtered.length,total:documents.length})} orderLabel={documentOrders[order]} filtered={status !== 'all'||creator!=='all'}
     search={{value:query,onChange:sourceProps.onQueryChange,label:entity==='quotes'?'Rechercher un devis':'Rechercher une facture'}}
@@ -3978,7 +3998,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       <small>{item.title}</small>
                       <small className="sales-document__creator">{t(documentCreatorLabel(item))}</small>
                       {invoice?.quoteId ? <Button variant="ghost" size="small" onClick={() => sourceProps.onOpenFolder(invoice.quoteId!)}>Voir le dossier du devis</Button> : null}
-                      {invoice?.qrBill?.input.reference ? <small className="invoice-payment-reference" title={t('Référence à utiliser pour le virement')}>{t('Réf. {reference}',{reference:invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()})}</small> : null}
+                      {!compact && invoice?.qrBill?.input.reference ? <small className="invoice-payment-reference" title={t('Référence à utiliser pour le virement')}>{t('Réf. {reference}',{reference:invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()})}</small> : null}
                     </div>
                   </div>
                 </td>
@@ -4033,7 +4053,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                   ) : null}
                 </td>
                 <td className="sales-document__actions">
-                  <MobileDocumentActions metadata={<div className="mobile-document-metadata"><p>{t(documentCreatorLabel(item))}</p></div>}>
+                  <MobileDocumentActions metadata={<div className="mobile-document-metadata"><p>{t(documentCreatorLabel(item))}</p>{invoice?.qrBill?.input.reference && <p>{t('Réf. {reference}', {reference: invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()})}</p>}</div>}>
                     <Button disabled={busy || (readOnly && item.status === 'draft' && !linkedOrderDraftBatch)}
                       variant="ghost"
                       size="icon"

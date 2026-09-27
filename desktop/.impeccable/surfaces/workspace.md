@@ -42,3 +42,9 @@ Distill/refinement, not a replacement world. Accounting and banking show one set
 Manual backups show the last successful copy, then create/restore actions. Folder and recovery preferences remain available in a disclosure, without the redundant local-database card. Restore confirmation names the selected file. A completed restoration followed by a failed read opens read-only recovery instead of replaying the restore. New copy has FR/DE/IT/EN entries; the older cloud panel still needs localization.
 
 Two bounded visual rounds, 16 fixture journeys across WebKit 390 FR/light and 320 DE/dark at 200% text, plus Edge 1440 FR/dark. Existing type/colors/actions retained; no new image assets or visual world. Unit and build checks pass; this is not an independent whole-app review or physical-device validation. Native recovery evidence and publication boundaries are in `docs/SAUVEGARDES-RECUPERATION-20260927.md`.
+
+## Mobile collections refinement — 27 September 2026
+
+Client names lead to their folders; contact data and management actions unfold beneath each record. Project names lead to folders, with figures and actions in one disclosure. Sales rows keep amounts, status, dates and preview visible while the bank reference moves into mobile metadata. Desktop tables, business callbacks, permissions and printed documents are preserved.
+
+Two visual rounds, 20 screen journeys and 30 focused unit tests passed, including four languages, both themes, read-only client actions and 200% text. Scoped detector and web build pass. Two sample client/project rows fit at 390 × 844; the second sales document starts in view but does not fully fit. Historical tab labels still break mid-word at 200%; this remains a separate accessibility refinement. Native services are fixture-based, with no physical-device or new-installer claim. See `docs/LISTES-MOBILES-20260927.md`.

@@ -196,6 +196,14 @@ if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFix
 if (['updater', 'updaterBadge'].some(key => new URLSearchParams(location.search).has(key))) installUpdaterFixture();
 if (new URLSearchParams(location.search).has('quotePair')) installQuotePairFixture(data);
 if (new URLSearchParams(location.search).has('design')) installDesignFixture(data);
+if (previewQuery.has('collectionTest')) {
+  data.clients.push({...data.clients[0], id:'archived-collection-qa', company:'Ancien client de recette', archivedAt:'2026-09-01'});
+  if (previewQuery.has('collectionLong')) {
+    data.clients[0].company='Société de rénovation et de développement des espaces professionnels du Léman';
+    data.clients[0].email='comptabilite-et-administration@entreprise-de-demonstration.example.invalid';
+    data.projects[0].name='Réaménagement complet des espaces professionnels, des bureaux et des espaces communs';
+  }
+}
 if (new URLSearchParams(location.search).has('reportTest')) installProjectReportFixture(data);
 if (new URLSearchParams(location.search).has('financialTest')) installFinancialDetailFixture(data);
 if (new URLSearchParams(location.search).has('companyCreators')) {
@@ -282,6 +290,7 @@ function Harness() {
   if(new URLSearchParams(location.search).has('receiptGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaReceiptRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if (new URLSearchParams(location.search).has('catalogForm')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaCatalogRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('financialStart')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaFinancialRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
+  if (previewQuery.has('collectionTest')) Object.assign(window, { __qaSetReadOnly: setReadOnly });
   if (new URLSearchParams(location.search).has('stockGuided')) Object.assign(window, {__qaSetReadOnly:setReadOnly,__qaStockRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if (new URLSearchParams(location.search).has('projectNavigation')) Object.assign(window, {
     __qaSetReadOnly: setReadOnly, __qaSetProjectAccount: setProjectAccount,
@@ -316,3 +325,5 @@ import '../src/workspace-atelier.css';
 import '../src/onboarding-journey.css';
 import '../src/brand-identity.css';
 import '../src/workspace-personalization.css';
+
+import '../src/mobile-collections.css';

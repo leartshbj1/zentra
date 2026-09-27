@@ -19,8 +19,8 @@ export function DocumentListToolbar({ children, count, orderLabel, filtered, sea
   return <div className="document-list-tools" data-expanded={expanded} onKeyDown={event=>{if(compact&&expanded&&event.key==='Escape'){event.preventDefault();event.stopPropagation();close();}}}>
     <div className="document-list-tools__compact">
       <div><output>{count}</output><small>{t(orderLabel)}</small></div>
-      <button ref={toggle} type="button" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(!expanded)}>
-        <SlidersHorizontal size={17} aria-hidden="true" /><span>{t(filtered || search?.value ? 'Filtres actifs' : search ? 'Rechercher et filtrer' : 'Filtrer et trier')}</span>
+      <button ref={toggle} type="button" aria-label={t(search ? 'Rechercher et filtrer' : 'Filtrer et trier')} aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(!expanded)}>
+        <SlidersHorizontal size={17} aria-hidden="true" /><span>{t(filtered || search?.value ? 'Filtres actifs' : 'Filtres')}</span>
       </button>
     </div>
     <div id={id} className="sales-list-toolbar">

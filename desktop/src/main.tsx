@@ -32,3 +32,5 @@ import './workspace-atelier.css';
 import './onboarding-journey.css';
 import './workspace-personalization.css';
 import './brand-identity.css';
+
+import './mobile-collections.css';
