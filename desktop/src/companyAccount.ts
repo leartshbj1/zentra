@@ -1,4 +1,12 @@
 export type CompanyAccountChoice = 'auto' | 'open' | 'publish';
+
+export const companyAccountRoleLabels: Record<string, string> = {
+  owner: 'Propriétaire',
+  admin: 'Administrateur',
+  accountant: 'Comptable / fiduciaire',
+  member: 'Collaborateur',
+  read_only: 'Lecture seule',
+};
 export type CompanyAccountResolution = {
   status: 'ready' | 'create' | 'choose_remote' | 'choose_local' | 'waiting';
   organizationId: string;

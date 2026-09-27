@@ -15,17 +15,10 @@ import {
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { loadCloudAccountPanel } from './cloudAccountOpening';
+import { companyAccountRoleLabels as ROLE_LABEL } from './companyAccount';
 import { errorMessage } from './utils';
 import { Button, SectionHeading } from './ui';
 import './workflow-clarity.css';
-
-const ROLE_LABEL: Record<NonNullable<CloudAccountState['role']>, string> = {
-  owner: 'Propriétaire',
-  admin: 'Administrateur',
-  accountant: 'Comptable / fiduciaire',
-  member: 'Collaborateur',
-  read_only: 'Lecture seule',
-};
 
 export function CloudAccountPanel({
   onAccountChange,

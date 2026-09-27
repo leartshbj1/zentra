@@ -3,12 +3,16 @@
 .company-account-opening h1{font-size:clamp(26px,5vw,36px);line-height:1.16;letter-spacing:-.035em;margin:0;overflow-wrap:anywhere}
 .company-account-opening p{margin:0;line-height:1.6;max-width:100%;overflow-wrap:anywhere}
 .company-account-opening p[role=status],.company-account-opening__identity{display:flex;align-items:center;gap:10px}
-.company-account-opening__identity{font-size:14px;opacity:.75;max-width:100%;overflow-wrap:anywhere}
+.company-account-opening__identity{font-size:14px;color:var(--work-muted,var(--ink));max-width:100%;overflow-wrap:anywhere}
+.company-account-opening__identity>div{display:grid;gap:3px;min-width:0}
+.company-account-opening__identity small{font-size:14px}
 .company-account-opening__identity svg{flex-shrink:0}
-.company-account-opening .btn{max-width:100%;white-space:normal;min-height:44px}
+.company-account-opening .button{max-width:100%;white-space:normal;min-height:44px;height:auto}
+.company-account-opening__actions{display:flex;flex-direction:column;align-items:stretch;gap:12px;width:100%}
+.company-account-opening__actions .button{justify-content:center}
 .company-account-choices{display:grid;width:100%;gap:0;border-block:1px solid var(--line-soft)}
 .company-account-choices>div{display:grid;gap:7px;padding:20px 0;min-width:0}
 .company-account-choices>div+div{border-top:1px solid var(--line-soft)}
-.company-account-choices span,.company-account-choices small{font-size:14px;color:var(--muted);line-height:1.5}
+.company-account-choices span,.company-account-choices small{font-size:14px;color:var(--work-muted,var(--ink));line-height:1.5}
 .company-account-choices strong{font-size:19px;line-height:1.35;overflow-wrap:anywhere}
 .company-account-choices p{font-size:15px}

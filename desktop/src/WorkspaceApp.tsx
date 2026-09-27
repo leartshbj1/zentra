@@ -2903,15 +2903,15 @@ function ProjectsScreen({
     return (
       <EmptyState
         icon={<ProjectIcon />}
-        title={`Aucun ${terminology.singular}`}
+        title={t('Aucun projet')}
         text={
           hasActiveClient
-            ? `Créez votre premier ${terminology.singular} à partir d’un client réel.`
-            : `Ajoutez ou réactivez d’abord un client, puis créez son ${terminology.singular}.`
+            ? t('Créez votre premier projet à partir d’un client réel.')
+            : t('Ajoutez ou réactivez d’abord un client, puis créez son projet.')
         }
         actionLabel={
           hasActiveClient
-            ? `Créer un ${terminology.singular}`
+            ? t('Créer un projet')
             : undefined
         }
         onAction={hasActiveClient ? onCreate : undefined}
@@ -2922,24 +2922,24 @@ function ProjectsScreen({
     <div className="stack-layout project-collection">
       <section
         className="project-view-switch panel"
-        aria-label="Vue des projets"
+        aria-label={t('Vue des projets')}
       >
         <div>
-          <span>{workspace.projects.length} dossier{workspace.projects.length > 1 ? 's' : ''}</span>
+          <span>{t(workspace.projects.length === 1 ? '{count} dossier' : '{count} dossiers', {count: workspace.projects.length})}</span>
           <strong>
-            {mode === 'overview'
+            {t(mode === 'overview'
               ? 'Vos projets, au même endroit'
-              : 'Prochaines actions et échéances'}
+              : 'Prochaines actions et échéances')}
           </strong>
         </div>
-        <div role="group" aria-label="Choisir la vue">
+        <div role="group" aria-label={t('Choisir la vue')}>
           <button
             type="button"
             className={mode === 'overview' ? 'is-active' : ''}
             aria-pressed={mode === 'overview'}
             onClick={() => setMode('overview')}
           >
-            <BarChart3 size={15} /> Vue d’ensemble
+            <BarChart3 size={15} /> {t('Vue d’ensemble')}
           </button>
           <button
             type="button"
@@ -2947,19 +2947,19 @@ function ProjectsScreen({
             aria-pressed={mode === 'planning'}
             onClick={() => setMode('planning')}
           >
-            <ListChecks size={15} /> Tâches & jalons
+            <ListChecks size={15} /> {t('Tâches & jalons')}
           </button>
         </div>
       </section>
 
       {mode === 'overview' ? <div className="project-filter-bar">
-        <label htmlFor="project-status-filter">État du projet</label>
+        <label htmlFor="project-status-filter">{t('État du projet')}</label>
         <select id="project-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-          <option value="all">Tous les projets ({workspace.projects.length})</option>
-          {(['planned', 'in_progress', 'paused', 'completed', 'closed'] as const).map((status) => <option key={status} value={status}>{({ planned: 'Planifiés', in_progress: 'En cours', paused: 'En pause', completed: 'Terminés', closed: 'Clôturés' })[status]} ({workspace.projects.filter((project) => project.status === status).length})</option>)}
+          <option value="all">{t('Tous les projets ({count})', {count: workspace.projects.length})}</option>
+          {(['planned', 'in_progress', 'paused', 'completed', 'closed'] as const).map((status) => <option key={status} value={status}>{t(({ planned: 'Planifiés', in_progress: 'En cours', paused: 'En pause', completed: 'Terminés', closed: 'Clôturés' })[status])} ({workspace.projects.filter((project) => project.status === status).length})</option>)}
         </select>
-        <span role="status">{projects.length} projet{projects.length > 1 ? 's' : ''}{query ? ' trouvé' : ' affiché'}{projects.length > 1 ? 's' : ''}</span>
-        {statusFilter !== 'all' ? <Button variant="ghost" size="small" onClick={() => setStatusFilter('all')}>Tous les états</Button> : null}
+        <span role="status">{t(query ? projects.length === 1 ? '{count} projet trouvé' : '{count} projets trouvés' : projects.length === 1 ? '{count} projet affiché' : '{count} projets affichés', {count: projects.length})}</span>
+        {statusFilter !== 'all' ? <Button variant="ghost" size="small" onClick={() => setStatusFilter('all')}>{t('Tous les états')}</Button> : null}
       </div> : null}
 
       {mode === 'planning' ? (
@@ -3012,15 +3012,15 @@ function ProjectsScreen({
                     <p>
                       {client?.company ||
                         client?.name ||
-                        'Client non renseigné'}
+                        t('Client non renseigné')}
                     </p>
                   </div>
                   <StatusBadge status={project.status} />
                 </header>
                 {project.address ? <p className="project-card__address"><MapPin size={14} /> {project.address}</p> : null}
-                <MobileDetails title="Chiffres et planning"><div className="project-stats">
+                <MobileDetails title={t('Chiffres et planning')}><div className="project-stats">
                   <div>
-                    <span>Facturé TTC</span>
+                    <span>{t('Facturé TTC')}</span>
                     <strong>
                       {stats.invoicedTotal || stats.requiresCurrencyConversion
                         ? stats.invoicedTotalLabel
@@ -3028,16 +3028,16 @@ function ProjectsScreen({
                     </strong>
                   </div>
                   <div>
-                    <span>Temps réel</span>
+                    <span>{t('Temps réel')}</span>
                     <strong>
                       {stats.minutes ? formatMinutes(stats.minutes) : '—'}
                     </strong>
                   </div>
                   <div>
-                    <span>Marge de gestion</span>
+                    <span>{t('Marge de gestion')}</span>
                     <strong>
                       {stats.marginUnavailableReason
-                        ? stats.marginUnavailableReason
+                        ? t(stats.marginUnavailableReason)
                         : stats.hasActivity
                           ? formatMoney(stats.margin)
                           : '—'}
@@ -3046,37 +3046,34 @@ function ProjectsScreen({
                 </div>
                 <div className="project-dates">
                   <span>
-                    <CalendarDays size={14} /> Prévu :{' '}
+                    <CalendarDays size={14} /> {t('Prévu :')}{' '}
                     {formatDate(project.plannedStart)} →{' '}
                     {formatDate(project.plannedEnd)}
                   </span>
                   <span>
-                    Réel : {formatDate(project.actualStart)} →{' '}
+                    {t('Réel :')} {formatDate(project.actualStart)} →{' '}
                     {formatDate(project.actualEnd)}
                   </span>
                   <span>
-                    <ListChecks size={14} /> Planning : {completedTasks}/
-                    {projectTasks.length} tâche
-                    {projectTasks.length > 1 ? 's' : ''} terminée
-                    {completedTasks > 1 ? 's' : ''}
+                    <ListChecks size={14} /> {t('Tâches terminées : {done} / {total}', {done:completedTasks,total:projectTasks.length})}
                   </span>
                 </div>
                 </MobileDetails><footer>
                   <Button size="small" onClick={() => onFolderChange(project.id)}>
-                    <FolderOpen size={16} /> Ouvrir le dossier
+                    <FolderOpen size={16} /> {t('Ouvrir le dossier')}
                   </Button>
                   <Button disabled={busy || readOnly}
                     variant="secondary"
                     size="small"
                     onClick={() => onEdit(project)}
                   >
-                    <Pencil size={14} /> Modifier
+                    <Pencil size={14} /> {t('Modifier')}
                   </Button>
                   <Button disabled={busy || readOnly}
                     variant="ghost"
                     size="icon"
-                    aria-label={`Supprimer le projet ${project.name}`}
-                    title="Supprimer le projet"
+                    aria-label={t('Supprimer le projet {name}', {name:project.name})}
+                    title={t('Supprimer le projet')}
                     onClick={() => onArchive(project)}
                   >
                     <Archive size={16} />
@@ -3088,8 +3085,8 @@ function ProjectsScreen({
           {!projects.length ? (
             <div className="panel panel--span">
               <EmptyState
-                title="Aucun résultat"
-                text={`Modifiez votre recherche ou l’état sélectionné pour retrouver un ${terminology.singular}.`}
+                title={t('Aucun résultat')}
+                text={t('Modifiez votre recherche ou l’état sélectionné pour retrouver un projet.')}
               />
             </div>
           ) : null}

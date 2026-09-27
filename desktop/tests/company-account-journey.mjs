@@ -12,7 +12,7 @@ try {
     for (const scenario of ['empty','created','old','local','failure','waiting','create']) {
       await page.goto(`${process.env.ZENTRA_QA_ORIGIN}/tests/company-account-harness.html?theme=${theme}&scenario=${scenario}`);
       if (scenario === 'old') {
-        await page.getByRole('heading',{name:'Quel espace souhaitez-vous ouvrir ?',exact:true}).waitFor();
+        await page.getByRole('heading',{name:'Ouvrir l’espace du compte sur cet appareil ?',exact:true}).waitFor();
         await page.getByText('Sur cet appareil',{exact:true}).waitFor();
         await page.getByText('Dans votre compte',{exact:true}).waitFor();
         await page.getByRole('button',{name:'Ouvrir l’espace du compte',exact:true}).click();
