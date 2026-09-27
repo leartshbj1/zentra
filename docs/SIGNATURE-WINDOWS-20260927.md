@@ -8,6 +8,8 @@ L'updater de Zentra 1.90.5 télécharge correctement 1.90.6 et valide sa signatu
 
 Preuves : `outputs/release1906/upgrade-smoke/windows-signing-diagnosis.json`, `windows-code-integrity-refusal.json`, `updater-install-refused-proof.json`. Ce PC reste en 1.90.5, sans perte dans le profil fictif contrôlé.
 
+Complément 23 h 31 : une explication du code 4551 est ajoutée à l’interface, avec le diagnostic original replié. Quatre parcours simulés Edge/WebKit à 320/1440 px vérifient sa lecture, le détail conservé et sa remise à zéro après nouvelle recherche ; trois régressions de badge/hors ligne passent aussi. Dix tests ciblés, TypeScript et build réussis. C’est un correctif d’information non publié, sans signature d’éditeur ni installation débloquée.
+
 ## Deux parcours légitimes
 
 1. **Distribution directe avec signature d'éditeur.** Microsoft Artifact Signing accepte les organisations suisses, sous validation de leur identité. Les particuliers restent limités aux États-Unis et au Canada : ne pas inscrire un particulier suisse comme société. Il faut confirmer le statut juridique de Zentra avant de choisir le dossier. La [procédure officielle actuelle](https://learn.microsoft.com/en-us/azure/artifact-signing/quickstart) prévaut sur les tableaux de régions plus anciens. La signature ne garantit pas une réputation SmartScreen immédiate.

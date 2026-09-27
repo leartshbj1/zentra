@@ -18,6 +18,7 @@ import {
   initialUpdaterProgress,
   reduceUpdaterProgress,
   updaterSteps,
+  updaterFailureExplanation,
 } from './appUpdaterLogic';
 import { desktopApi } from './bridge';
 import {
@@ -34,6 +35,7 @@ import type {
 import { Button, SectionHeading } from './ui';
 import { errorMessage } from './utils';
 import { ReleaseHistory } from './ReleaseHistory';
+import { t } from './language';
 
 type CheckOutcome = 'idle' | 'available' | 'current' | 'installed';
 
@@ -56,6 +58,7 @@ export function AppUpdater({
     'Lecture de la politique de mise à jour…',
   );
   const [error, setError] = useState('');
+  const [installationDetail, setInstallationDetail] = useState('');
 
   useEffect(() => {
     const resume = pauseBackgroundUpdateChecks();
@@ -108,6 +111,7 @@ export function AppUpdater({
   }, []);
 
   async function checkNow() {
+    setInstallationDetail('');
     setChecking(true);
     setConfirming(false);
     setError('');
@@ -178,18 +182,17 @@ export function AppUpdater({
     // focus on the persistent panel so the surrounding dialog retains it.
     sectionRef.current?.focus({ preventScroll: true });
     setError('');
+    setInstallationDetail('');
     setMessage('Préparation de la mise à jour…');
     try {
       await desktopApi.installSecureUpdate(receiveEvent);
     } catch (reason) {
       setProgress(initialUpdaterProgress);
       setOutcome('available');
-      setError(
-        errorMessage(
-          reason,
-          'L’installation n’a pas abouti. La mise à jour reste disponible : fermez les fenêtres qui la bloquent, puis réessayez.',
-        ),
-      );
+      const detail = errorMessage(reason, 'L’installation n’a pas abouti. La mise à jour reste disponible : réessayez après vérification.');
+      const explanation = updaterFailureExplanation(detail);
+      setError(explanation ? t(explanation) : detail);
+      setInstallationDetail(explanation ? detail : '');
     } finally {
       setInstalling(false);
       onInstallingChange?.(false);
@@ -422,6 +425,7 @@ export function AppUpdater({
       </div>
       <details className="app-updater__technical">
         <summary>Informations techniques et confidentialité</summary>
+        {installationDetail ? <p>{installationDetail}</p> : null}
         <div className="app-updater__facts">
           <div>
             <Server size={16} />

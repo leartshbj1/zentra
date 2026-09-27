@@ -1,5 +1,13 @@
 import type { SecureUpdateEvent } from './types';
 
+export function updaterFailureExplanation(detail: string): string | null {
+  // Match the OS error, not a version, byte count or arbitrary reference number.
+  if (/\(os error 4551\)/i.test(detail)) {
+    return 'Windows bloque cet installateur avec sa protection des applications. Contactez le support Zentra pour obtenir une version reconnue. Gardez les protections Windows activées ; réessayer le même fichier ne corrigera pas ce refus.';
+  }
+  return null;
+}
+
 export type UpdateProgressPhase =
   | 'idle'
   | 'preparing'

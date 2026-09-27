@@ -5,9 +5,17 @@ import {
   formatUpdateDate,
   initialUpdaterProgress,
   reduceUpdaterProgress,
+  updaterFailureExplanation,
 } from './appUpdaterLogic';
 
 describe('maintenance intégrée', () => {
+  it('explains the observed Windows policy refusal without suggesting a security bypass', () => {
+    expect(updaterFailureExplanation('Mise à jour refusée (Une stratégie bloque ce fichier. (os error 4551)).')).toContain('Gardez les protections Windows activées');
+    expect(updaterFailureExplanation('Application control blocked this file (os error 4551)')).toContain('Contactez le support Zentra');
+    for (const detail of ['Téléchargement interrompu', 'Référence 4551', 'os error 45510', '(os error 5)']) {
+      expect(updaterFailureExplanation(detail)).toBeNull();
+    }
+  });
   it('suit le téléchargement sans faire régresser les octets ni le pourcentage', () => {
     const started = reduceUpdaterProgress(initialUpdaterProgress, {
       event: 'started',

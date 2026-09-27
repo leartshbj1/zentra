@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 23 h 25 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
+Mis à jour le 27 septembre 2026, 23 h 31 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
 
 ## Version 1.90.6 publiée ; installation locale Windows refusée
 
@@ -43,11 +43,13 @@ Le [planning en quatre langues](PLANNING-LANGUES-20260927.md) comprend formulair
 
 Le [candidat Android optimisé](ANDROID-RELEASE-CANDIDATE-20260927.md) du job 156 a été refusé par le contrôle des bibliothèques natives (pages mémoire de 16 Ko). Correction `a490d797`, six tests du contrôleur réussis ; **job 157 en cours**, sans signature ni publication. Ce candidat contient la correction PDF, mais ne contient pas le nouveau lot Planning. Les téléchargements publics restent ceux de 1.90.6.
 
+Le refus Windows 4551 reçoit désormais une explication lisible dans la source : protection des applications, contact du support et maintien des protections. Le diagnostic exact reste dans les informations techniques ; les autres erreurs ne sont pas masquées. Dix tests ciblés, TypeScript/build et sept parcours navigateur passent, dont quatre avec le refus Windows simulé et trois régressions de disponibilité/badge/hors ligne. Aucun réglage Windows, certificat ou installateur changé ; **ce correctif de texte ne débloque pas l’installation**. Preuves : `desktop/.qa/updater-policy-{unit,build,journey,regression}.log`, `desktop/.qa/updater-policy-refusal/report.json` et `desktop/.qa/updater-badge/report.json`.
+
 ## Site, comptes et traitement autonome
 
 Sites **292**, source `20ecc8c536df184ac1d75f095d52d6ef4d70bc49`, environnement 37, déploiement `appgdep_6ab97a5521b88191868471bd3bba8858`, sauvegarde avec archive vérifiée. Publication réussie à 22 h 19. Quatorze tests, TypeScript, marque et build réussis. Les reprises de préparation n’ont changé ni dépendance ni contenu : Bash ajouté au PATH de la commande, puis `TAR_OPTIONS=--force-local` pour traiter le chemin Windows comme local.
 
-**Comptes toujours indisponibles au contrôle de 22 h 37** : connexion synthétique HTTP 503, `Retry-After: 60`, `no-store`, avec l'origine attendue. Aucun compte ni e-mail créé. Le contrôle direct Supabase de **20 h 05** confirmait HTTP 402, quotas de stockage et transfert dépassés ; il n’a pas été répété à 22 h 37. L’intervention d’hébergement attendue et les recettes connectées restent ouvertes. Voir `outputs/release1906/auth-readiness-latest.json` et `outputs/release1905/account-health-latest.json`. Le premier contrôle sans en-tête Origin a été refusé HTTP 403 par la protection normale : ce n'est pas la cause de l'indisponibilité.
+**Comptes toujours indisponibles au contrôle de 23 h 28** : connexion synthétique HTTP 503, `Retry-After: 60`, `no-store`, avec l'origine attendue. Aucun compte ni e-mail créé. Le contrôle direct Supabase de **20 h 05** confirmait HTTP 402, quotas de stockage et transfert dépassés ; il n’a pas été répété à 23 h 28. L’intervention d’hébergement attendue et les recettes connectées restent ouvertes. Voir `outputs/release1906/auth-readiness-latest.json` et `outputs/release1905/account-health-latest.json`. Le premier contrôle sans en-tête Origin a été refusé HTTP 403 par la protection normale : ce n'est pas la cause de l'indisponibilité.
 
 **Planificateur non rétabli** : GitHub `master` contient le correctif `59dcf5ba`, après 36 tests ciblés ; l’essai `36339873810` de 20 h 14 a été refusé avant exécution pour facturation. Workflow désactivé de nouveau, aucun drapeau d’arrière-plan ajouté. Aucun traitement réel avec apps fermées, moniteur externe ou alerte reçue encore prouvés. Voir [PLANIFICATEUR-ETAT-20260927.md](PLANIFICATEUR-ETAT-20260927.md) et [SUPERVISION-SERVICES-20260927.md](SUPERVISION-SERVICES-20260927.md).
 

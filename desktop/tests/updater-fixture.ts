@@ -7,7 +7,7 @@ export function installUpdaterFixture() {
     checks: 0,
     available: true,
     offline: false,
-    refuse: () => {},
+    refuse: (_message?: string) => {},
   };
   Object.assign(window, { __updaterQA: state });
   desktopApi.getSecureUpdatePolicy = async () => ({
@@ -27,7 +27,7 @@ export function installUpdaterFixture() {
     state.installs += 1;
     onEvent({ event: 'started', data: { contentLength: 1000 } });
     await new Promise<void>((_resolve, reject) => {
-      state.refuse = () => reject(new Error('Téléchargement de recette interrompu.'));
+      state.refuse = (message = 'Téléchargement de recette interrompu.') => reject(new Error(message));
     });
   };
 }
