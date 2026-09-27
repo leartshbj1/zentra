@@ -752,38 +752,49 @@ impl<'a> Composer<'a> {
         fractions: &[f32],
         rows: &[(Vec<String>, bool)],
     ) -> AppResult<()> {
+        self.table_with_sections(headers, fractions, rows, &[])
+    }
+
+    /// Section labels travel with their first account row. Oversized account
+    /// descriptions may still split, starting directly below their section.
+    pub fn table_with_sections(
+        &mut self,
+        headers: &[&str],
+        fractions: &[f32],
+        rows: &[(Vec<String>, bool)],
+        section_starts: &[usize],
+    ) -> AppResult<()> {
+        let header_cells = headers.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let header_height = self.table_row_height(&header_cells, fractions, true)?;
+        let heights = rows.iter().map(|(cells, bold)| self.table_row_height(cells, fractions, *bold))
+            .collect::<AppResult<Vec<_>>>()?;
+        let one_line = self.design.body_size * self.design.line_spacing + self.design.table_padding;
+        let full_page = self.page_size()[1] - self.left() - self.bottom - 70.;
+        let required_height = |index: usize| {
+            let height = heights[index];
+            if section_starts.contains(&index) {
+                let next = heights.get(index + 1).copied().unwrap_or(0.);
+                if height + next + header_height <= full_page { height + next }
+                else { height + next.min(one_line) }
+            } else { height }
+        };
+        if section_starts.contains(&0) && !rows.is_empty() {
+            self.ensure(header_height + required_height(0))?;
+        }
         self.table_row(
-            &headers.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            &header_cells,
             fractions,
             true,
             true,
             0,
         )?;
         for (index, (cells, bold)) in rows.iter().enumerate() {
-            let size = self.design.body_size;
-            let height = cells
-                .iter()
-                .zip(fractions)
-                .map(|(s, f)| {
-                    wrap(
-                        self.design,
-                        &plain(s),
-                        self.width() * f - 2. * self.design.table_padding,
-                        size,
-                    )
-                    .map(|l| l.len())
-                })
-                .collect::<AppResult<Vec<_>>>()?
-                .into_iter()
-                .max()
-                .unwrap_or(1) as f32
-                * size
-                * self.design.line_spacing
-                + self.design.table_padding;
-            if self.y - height < self.bottom && height < self.page_size()[1] - self.left() - self.bottom - 70. {
+            let height = required_height(index);
+            let follows_section = index > 0 && section_starts.contains(&(index - 1));
+            if !follows_section && self.y - height < self.bottom && height < full_page {
                 self.page(false)?;
                 self.table_row(
-                    &headers.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                    &header_cells,
                     fractions,
                     true,
                     true,
@@ -794,6 +805,19 @@ impl<'a> Composer<'a> {
         }
         self.gap(12.);
         Ok(())
+    }
+    fn table_row_height(&self, cells: &[String], fractions: &[f32], bold: bool) -> AppResult<f32> {
+        let mut count = 1;
+        for (cell, fraction) in cells.iter().zip(fractions) {
+            let mut paragraphs = plain(cell);
+            for paragraph in &mut paragraphs {
+                for run in &mut paragraph.runs { run.bold = bold; }
+            }
+            count = count.max(wrap(self.design, &paragraphs,
+                self.width() * fraction - 2. * self.design.table_padding,
+                self.design.body_size)?.len());
+        }
+        Ok(count as f32 * self.design.body_size * self.design.line_spacing + self.design.table_padding)
     }
     fn table_row(
         &mut self,

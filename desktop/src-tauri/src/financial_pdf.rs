@@ -19,6 +19,9 @@ const LEFT: f32 = 42.0;
 const RIGHT: f32 = 553.0;
 const FIRST_AMOUNT: f32 = 438.0;
 const INK: [f32; 3] = [0.09, 0.15, 0.12];
+#[cfg(test)]
+#[path = "financial_pdf_layout_tests.rs"]
+mod layout_tests;
 use crate::{document_design::DocumentStyle, branding::{load_pdf_logo, PdfLogo}, sales_pdf::add_logo_image};
 
 impl LocalStore {
@@ -513,6 +516,7 @@ fn render_composed_accounts(
         )?;
         page.gap(12.);
         let mut rows = vec![];
+        let mut section_starts = vec![];
         for (key, label) in sections {
             let entries = report["rows"]
                 .as_array()
@@ -525,6 +529,7 @@ fn render_composed_accounts(
             if index > 0 && entries.is_empty() {
                 continue;
             }
+            section_starts.push(rows.len());
             rows.push((vec![label.into(), String::new(), String::new()], true));
             for row in entries {
                 rows.push((
@@ -596,7 +601,7 @@ fn render_composed_accounts(
                 true,
             ));
         }
-        page.table(
+        page.table_with_sections(
             &[
                 "Comptes / libellés",
                 string(&report["scope"], "date_to"),
@@ -604,6 +609,7 @@ fn render_composed_accounts(
             ],
             &[0.56, 0.22, 0.22],
             &rows,
+            &section_starts,
         )?;
         if index == 0 {
             page.paragraph(

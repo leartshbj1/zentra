@@ -133,6 +133,24 @@ jobs:
       - store_artifacts:
           path: desktop/artifacts/smoke
           destination: smoke
+  windows-pdf-pagination-tests:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      ZENTRA_VERIFY_PDF_ONLY: "true"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - checkout
+      - run:
+          name: Verify native PDF section pagination and render synthetic examples
+          command: ./desktop/scripts/cloud-release-windows.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: windows
   windows-project-report-tests:
     resource_class: windows.medium
     machine:
@@ -356,6 +374,11 @@ workflows:
       - windows
       - apple
       - android
+  first-client-pdf-pagination:
+    when:
+      equal: [codex/first-client-pdf-pagination-20260927, << pipeline.git.branch >>]
+    jobs:
+      - windows-pdf-pagination-tests
   first-client-project-reports:
     when:
       equal: [codex/first-client-project-reports-20260927, << pipeline.git.branch >>]

@@ -45,6 +45,16 @@ Invoke-Checked rustup @('toolchain', 'install', $env:RUSTUP_TOOLCHAIN, '--profil
 Invoke-Checked pnpm.cmd @('install', '--frozen-lockfile')
 Start-Transcript -Path (Join-Path $artifacts 'validation.log') | Out-Null
 try {
+    if ($env:ZENTRA_VERIFY_PDF_ONLY -eq 'true') {
+        $env:ZENTRA_DESIGN_SAMPLES = Join-Path $artifacts 'pdf-samples'
+        [IO.Directory]::CreateDirectory($env:ZENTRA_DESIGN_SAMPLES) | Out-Null
+        foreach ($suite in @('document_composition::', 'financial_pdf::', 'sales_pdf::tests', 'payroll_pdf::tests', 'project_report::tests')) {
+            Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', $suite, '--', '--test-threads=1')
+        }
+        $proof = [ordered]@{source = (& git rev-parse HEAD).Trim(); data = 'synthetic'; suites = @('document_composition','financial_pdf','sales_pdf','payroll_pdf','project_report'); completedAt = [DateTimeOffset]::UtcNow.ToString('o'); publishesInstaller = $false}
+        [IO.File]::WriteAllText((Join-Path $artifacts 'pdf-pagination-proof.json'), ($proof | ConvertTo-Json -Depth 3), [Text.UTF8Encoding]::new($false))
+        return
+    }
     if ($env:ZENTRA_VERIFY_UPDATER_ONLY -eq 'true') {
         Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'app_updater::tests', '--', '--test-threads=1')
         Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/updaterReleaseContract.test.ts', 'src/updateAvailability.test.ts', 'src/appUpdaterLogic.test.ts')
