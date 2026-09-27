@@ -177,6 +177,11 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-apple-1903:
+    when:
+      equal: [codex/first-client-apple-1903, << pipeline.git.branch >>]
+    jobs:
+      - apple
   first-client-1903:
     when:
       equal: [codex/first-client-release-1903, << pipeline.git.branch >>]

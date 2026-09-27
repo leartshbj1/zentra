@@ -61,7 +61,7 @@ try{
    await page.waitForTimeout(250);await check(name,true);
    if(name==='Équipe & salaires'){
     await page.getByRole('button',{name:'Nouvelle fiche de personnel',exact:true}).click();await check('Employee-form',true);assert.equal(await page.locator('.payroll-steps').evaluate(el=>getComputedStyle(el).listStyleType),'none');await page.getByRole('dialog').getByRole('button',{name:/^Fermer /}).click();
-    for(const label of ['Fiches de salaire','Certificats annuels']){await page.locator('.team-navigation button').filter({hasText:label}).click();await check('Team-'+label,true);}
+    for(const label of ['Fiches de salaire','Certificats annuels']){await page.locator('.team-navigation').getByRole('button',{name:label,exact:true}).click();await check('Team-'+label,true);}
    }
    if(name==='Devis'||name==='Factures'){
     await page.getByRole('button',{name:name==='Devis'?'Nouveau devis':'Nouvelle facture',exact:true}).click();await check(name+'-form',true);assert.equal(await page.locator('.document-wizard-footer .button').first().evaluate(el=>{const node=[...el.childNodes].find(n=>n.nodeType===3&&n.textContent.trim());if(!node)return 1;const range=document.createRange();range.selectNodeContents(node);return range.getClientRects().length;}),1,'Cancel label fits on one line');await page.getByRole('dialog').getByRole('button',{name:/^Fermer /}).click();
