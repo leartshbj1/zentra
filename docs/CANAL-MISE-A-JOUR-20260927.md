@@ -1,6 +1,8 @@
 # Un canal de mise à jour indépendant des comptes
 
-## État courant
+**Actualisation 27 septembre, 19 h 42 :** le client 1.90.5 est publié. Sites 291 propose désormais ses paquets vérifiés ; les trois canaux ont été contrôlés anonymement à 19 h 40. Une vraie vérification HTTPS native Windows sans compte a réussi avant la promotion. Les manifestes Supabase historiques restent inchangés et la transition par téléchargement/installation updater reste à tester. Voir [ETAT-LIVRAISON.md](ETAT-LIVRAISON.md).
+
+## État initial — historique
 
 Le serveur Sites **288** est publié le 27 septembre 2026 à 17 h 37 (Europe/Zurich), source `1271b2f7fbcad8776c684d02b6a0e4b4c22bcdf3`, configuration 36. Déploiement `appgdep_6ab938382c0881919c5865425fe63eb3` réussi.
 

@@ -2,7 +2,7 @@
 
 Objectif : traiter les vingt points de l’audit, avec des preuves adaptées. Aucun statut global « prêt » n’est déduit d’un build ou de tests simulés.
 
-**État courant au 27 septembre, 17 h 03 : 1.90.4 publiée.** Le tableau de référence est [ETAT-LIVRAISON.md](ETAT-LIVRAISON.md). Les mentions de 1.90.3 et de « non publié » dans les comptes rendus antérieurs ci-dessous restent des étapes historiques ; elles ne remplacent pas ce tableau. Les corrections de sauvegarde ont passé Windows 143 et restent non distribuées. La connexion publique renvoie toujours 503 au dernier contrôle de 16 h 53.
+**État courant au 27 septembre, 19 h 42 : 1.90.5 publiée, Sites 291.** Installation Windows et récupération synthétique réelle réussies, 110 tables et trois fichiers conservés. Le tableau canonique est [ETAT-LIVRAISON.md](ETAT-LIVRAISON.md). Les mentions plus anciennes ci-dessous sont historiques. Les détails Automation `43331dab` restent postérieurs au gel. Supabase confirme encore HTTP 402 (quotas) à 19 h 41 ; le parcours client complet et l'autonomie du traitement restent ouverts.
 
 ## Historique des travaux et validations
 
