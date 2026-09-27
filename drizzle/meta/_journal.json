@@ -442,6 +442,20 @@
       "when": 1790501141994,
       "tag": "0062_scheduler_health",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "6",
+      "when": 1790508969029,
+      "tag": "0063_company_mail",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "6",
+      "when": 1790510850610,
+      "tag": "0064_company_mail_identity",
+      "breakpoints": true
     }
   ]
 }

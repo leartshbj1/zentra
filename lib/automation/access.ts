@@ -2,7 +2,19 @@ import { getZentraUser, type ZentraUser } from '@/app/zentra-auth';
 import { requireBrowserMembership, requireDeviceSession } from '@/lib/account';
 import { AccountPublicError } from '@/lib/account-security';
 import { runtimeValue } from '@/lib/runtime';
-import { requireSameOrigin } from '@/lib/stripe';
+import { PublicError, requireSameOrigin } from '@/lib/stripe';
+
+function requireAutomationOrigin(request: Request) {
+  try {
+    requireSameOrigin(request);
+  } catch (error) {
+    // Account routes use AccountPublicError. Preserve an origin refusal as 403
+    // instead of turning the payment helper's error into a misleading outage.
+    if (error instanceof PublicError)
+      throw new AccountPublicError(error.message, error.status);
+    throw error;
+  }
+}
 
 export function isAutomationFounder(user: ZentraUser | null) {
   return (
@@ -15,7 +27,7 @@ export function isAutomationFounder(user: ZentraUser | null) {
   );
 }
 export async function requireAutomationFounder(request: Request) {
-  requireSameOrigin(request);
+  requireAutomationOrigin(request);
   const user = await getZentraUser({ refreshSession: true });
   if (!isAutomationFounder(user))
     throw new AccountPublicError(
@@ -61,7 +73,7 @@ export async function automationActor(
       );
     return { ...session, founder: false, device: true };
   }
-  if (request.method !== 'GET') requireSameOrigin(request);
+  if (request.method !== 'GET') requireAutomationOrigin(request);
   const user = await getZentraUser({ refreshSession: true });
   if (!user)
     throw new AccountPublicError('Connectez-vous à votre compte Zentra.', 401);

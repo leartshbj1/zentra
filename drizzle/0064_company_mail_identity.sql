@@ -1,0 +1,1 @@
+ALTER TABLE `company_mail_connections` ADD `identity_id` text;
