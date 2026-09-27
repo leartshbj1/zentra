@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Workflow } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Workflow, X } from 'lucide-react';
 import { useCompanyAutomation } from './AutomationCompany';
 import { AutomationChoice, AttentionSuggestion, DocumentClassification, useAutomation } from './AutomationControls';
 import { AutomationDocumentReader } from './AutomationDocument';
@@ -27,11 +27,28 @@ const kinds = {
   email: { title: 'Classer un e-mail', feature: 'email_classification' },
 } as const;
 
-export function AutomationTools({ screen, workspace, expanded = false }: { screen: string; workspace: Workspace; expanded?: boolean }) {
+export function AutomationToolsLauncher({ screen, section, open, onToggle }: { screen: string; section: string; open: boolean; onToggle: () => void }) {
+  useAppLanguage();
+  const { state } = useCompanyAutomation();
+  const available = automationToolsForScreen(screen).some(key => featureReady(state, kinds[key].feature));
+  if (!state?.active || !available) return null;
+  return <Button type="button" variant="ghost" className="automation-tools-launcher" id="workspace-automation-launcher" aria-label={t('Outils Automation pour {section}',{section})} title={t('Outils Automation pour {section}',{section})} aria-expanded={open} aria-controls="workspace-automation-tools" onClick={onToggle}><Workflow size={18} aria-hidden="true" /><span>Automation</span></Button>;
+}
+
+type ToolsReveal = { open: boolean; onClose: () => void };
+export function AutomationTools({ screen, workspace, expanded = false, reveal }: { screen: string; workspace: Workspace; expanded?: boolean; reveal?: ToolsReveal }) {
   useAppLanguage();
   const { state } = useCompanyAutomation();
   const [open, setOpen] = useState(false), [selected, setSelected] = useState<keyof typeof kinds | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
   const available = automationToolsForScreen(screen).filter(key => featureReady(state, kinds[key].feature));
+  useEffect(() => {
+    if (!reveal?.open) return;
+    heading.current?.focus({preventScroll:true});
+    if (!window.matchMedia('(max-width:860px) and (max-height:500px)').matches) return;
+    const frame=requestAnimationFrame(()=>heading.current?.closest('section')?.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth'}));
+    return()=>cancelAnimationFrame(frame);
+  },[reveal?.open]);
   if (!state?.active || !available.length) return null;
   const chosen = selected && available.includes(selected) ? selected : available[0];
   const content = <div className="automation-tools__content">
@@ -39,6 +56,10 @@ export function AutomationTools({ screen, workspace, expanded = false }: { scree
       <AutomationTool key={chosen} kind={chosen} workspace={workspace} />
       {!expanded && <div className="automation-tools__manage"><Button size="small" variant="ghost" onClick={() => openAutomationHub()}>{t('Ouvrir l’espace Automation')}</Button></div>}
     </div>;
+  if (reveal) return <section id="workspace-automation-tools" className="automation-tools automation-tools--inline" hidden={!reveal.open} aria-labelledby="workspace-automation-title" onKeyDown={event=>{if(event.key==='Escape'&&!document.querySelector('[role="dialog"]')){event.preventDefault();event.stopPropagation();reveal.onClose();}}}>
+    <header><h2 id="workspace-automation-title" ref={heading} tabIndex={-1}>Zentra Automation</h2><Button type="button" variant="ghost" size="icon" aria-label={t('Fermer les outils Automation')} onClick={reveal.onClose}><X size={18} aria-hidden="true" /></Button></header>
+    {reveal.open && content}
+  </section>;
   if (expanded) return <div className="automation-tools__expanded">{content}</div>;
   return <details className="automation-tools" onToggle={e => setOpen(e.currentTarget.open)}>
     <summary><Workflow size={17} aria-hidden="true" /><span>Zentra Automation</span><span className="automation-tools__hint">{t('Les outils de cet écran')}</span></summary>

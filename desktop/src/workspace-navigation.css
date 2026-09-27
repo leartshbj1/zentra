@@ -1,0 +1,72 @@
+/* Task tools share the page heading; they no longer repeat an empty banner
+   before every list. Company status remains factual and opens its account. */
+.mobile-company-shortcut, .sidebar__updates { display:none; }
+html[data-app-theme] .desktop-app[data-experience] .page-header .automation-tools-launcher {
+  min-height:44px; gap:8px; padding:8px 12px; color:var(--work-muted); background:transparent; border:0; box-shadow:none;
+}
+html[data-app-theme] .desktop-app[data-experience] .page-header .automation-tools-launcher:hover,
+html[data-app-theme] .desktop-app[data-experience] .page-header .automation-tools-launcher[aria-expanded=true] {
+  color:var(--work-accent); background:var(--work-selection);
+}
+html[data-app-theme] .desktop-app[data-experience] .automation-tools--inline {
+  padding:16px; margin-bottom:20px; border:1px solid var(--work-line); border-radius:var(--work-control); background:var(--work-paper);
+}
+.automation-tools--inline[hidden] { display:none; }
+.automation-tools--inline > header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:12px; }
+html[data-app-theme] .desktop-app[data-experience] .automation-tools--inline h2 { margin:0; font-size:18px; line-height:1.4; font-weight:600; }
+.automation-tools--inline > header > .button { flex-shrink:0; }
+.automation-tools--inline .automation-tools__content { padding:0; }
+.automation-tools--inline h2:focus { outline:none; }
+html[data-app-theme] .desktop-app[data-experience] .automation-tools-launcher:focus-visible,
+html[data-app-theme] .desktop-app[data-experience] .mobile-company-shortcut:focus-visible,
+html[data-app-theme] .desktop-app[data-experience] .sidebar__updates:focus-visible { outline:2px solid var(--work-accent); outline-offset:3px; }
+
+@media screen and (max-width:860px) {
+  html[data-app-theme] .desktop-app[data-experience] .topbar .topbar__company,
+  html[data-app-theme] .desktop-app[data-experience] .topbar__tools > .company-sync-indicator,
+  html[data-app-theme] .desktop-app[data-experience] .topbar__tools > .account-launcher,
+  html[data-app-theme] .desktop-app[data-experience] .topbar .update-launcher:not([data-update-available=true]) { display:none; }
+  html[data-app-theme] .desktop-app[data-experience] .topbar .topbar__title { display:flex; flex:1 1 0; gap:4px; min-width:0; }
+  html[data-app-theme] .desktop-app[data-experience] .topbar .mobile-company-shortcut {
+    display:flex; flex:1 1 0; flex-direction:column; justify-content:center; align-items:flex-start;
+    min-width:0; min-height:44px; padding:4px 6px; border:0; border-radius:var(--work-control);
+    background:transparent; color:var(--work-ink); font:inherit; text-align:start;
+  }
+  .mobile-company-shortcut strong { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; line-height:1.5; font-weight:550; }
+  .mobile-company-shortcut > span { display:flex; align-items:center; gap:4px; max-width:100%; font-size:11px; line-height:1.4; color:var(--work-muted); }
+  .mobile-company-shortcut svg { flex:none; }
+  html[data-app-theme] .desktop-app[data-experience] .mobile-company-shortcut:is([data-sync-state=attention],[data-sync-state=delayed],[data-sync-state=offline]) > span { color:var(--zen-attention); }
+  html[data-app-theme] .desktop-app[data-experience] .topbar .global-search { min-height:44px; height:auto; margin-top:4px; }
+  html[data-app-theme] .desktop-app[data-experience] .topbar .global-search input { min-height:44px; height:auto; font-size:16px; }
+  html[data-app-theme] .desktop-app[data-experience] .topbar .global-search .search-clear { min-width:44px; min-height:44px; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) { grid-template-columns:minmax(0,1fr) max-content; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) > div:first-child { grid-row:1; grid-column:1 / -1; padding-inline-end:52px; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header .page-header__actions > .automation-tools-launcher { grid-row:2; grid-column:2; width:auto; min-width:44px; min-height:48px; padding:8px 10px; border-radius:var(--work-control); font-size:13px; }
+  .page-header .automation-tools-launcher > span { display:inline; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .screen-help-launcher { grid-column:2; justify-self:end; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .creation-action { grid-column:1; grid-row:2; }
+  html[data-app-theme] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher):not(:has(.creation-action)) .automation-tools-launcher { grid-column:1 / -1; justify-self:start; }
+  .automation-tools--inline { scroll-margin-block-start:16px; }
+  .automation-tools--inline .automation-tools__tabs > .button:only-child { grid-column:1 / -1; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__updates { display:flex; align-items:center; gap:10px; margin:4px 12px; padding:10px 12px; min-height:44px; border:0; border-radius:var(--work-control); color:var(--work-muted); background:transparent; font:inherit; font-size:13px; text-align:start; }
+  .sidebar__updates > svg { flex:none; }
+  .sidebar__updates > span { flex:1; }
+  .sidebar__updates > em { font-style:normal; color:var(--work-accent); }
+  /* Labels decide whether the two actions fit; German is not squeezed to a
+     fixed column just because the French label happens to be short. */
+  html[data-app-theme][data-app-text-size="100"] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) { position:relative; }
+  html[data-app-theme][data-app-text-size="100"] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .page-header__actions { display:flex; flex-wrap:wrap; grid-column:1 / -1; grid-row:2; align-items:stretch; }
+  html[data-app-theme][data-app-text-size="100"] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .creation-action { order:1; flex:1 1 max-content; width:auto; max-width:100%; min-width:0; }
+  html[data-app-theme][data-app-text-size="100"] .desktop-app[data-experience] .page-header .page-header__actions > .automation-tools-launcher { order:2; flex:0 0 auto; max-width:100%; }
+  html[data-app-theme][data-app-text-size="100"] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .screen-help-launcher { position:absolute; inset-block-start:18px; inset-inline-end:max(20px,var(--safe-right,env(safe-area-inset-right))); }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .topbar .topbar__title { flex-basis:100%; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .mobile-company-shortcut > span { overflow-wrap:normal; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) > div:first-child { padding-inline-end:0; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .page-header .page-header__actions > .automation-tools-launcher { grid-column:1; justify-self:start; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .screen-help-launcher { grid-row:2; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .creation-action { grid-row:3; grid-column:1 / -1; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .automation-tools--inline > header { flex-wrap:wrap; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .automation-tools--inline h2 { flex:1 1 100%; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .automation-tools--inline > header > .button { margin-inline-start:auto; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .automation-tools--inline .automation-tools__tabs { grid-template-columns:minmax(0,1fr); }
+}

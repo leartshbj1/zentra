@@ -113,4 +113,8 @@ export const firstClientClarityTranslations: Record<string,readonly [string,stri
   'Secteur d’activité et noms des projets':['Branche und Projektbezeichnungen','Settore di attività e nomi dei progetti','Business sector and project terminology'],
   'Choisissez votre secteur pour adapter les libellés de l’app. La classification NOGA 2025 précise votre activité.':['Wählen Sie Ihre Branche, um die Bezeichnungen anzupassen. Die Klassifikation NOGA 2025 beschreibt Ihre Tätigkeit.','Scegli il settore per adattare le diciture dell’app. La classificazione NOGA 2025 definisce la tua attività.','Choose your sector to adapt the app’s terminology. The NOGA 2025 classification describes your business activity.'],
   'Configurer la comptabilité':['Buchhaltung einrichten','Configura la contabilità','Set up accounting'],
+  'Créer un projet':['Projekt erstellen','Crea un progetto','Create a project'],
+  'Ouvrir le compte de {company}':['Konto von {company} öffnen','Apri l’account di {company}','Open the account for {company}'],
+  'Outils Automation pour {section}':['Automation-Werkzeuge für {section}','Strumenti Automation per {section}','Automation tools for {section}'],
+  'Fermer les outils Automation':['Automation-Werkzeuge schliessen','Chiudi gli strumenti Automation','Close Automation tools'],
 };

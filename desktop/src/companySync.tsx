@@ -78,6 +78,15 @@ export function CompanySyncIndicator({ organizationId, onOpen }: { organizationI
   const Icon = info.kind === 'current' ? CloudCheck : info.kind === 'offline' ? CloudOff : info.kind === 'sending' ? CloudUpload : info.kind === 'receiving' ? CloudDownload : info.kind === 'attention' || info.kind === 'delayed' ? CircleAlert : Cloud;
   return <button type="button" className="company-sync-indicator" data-sync-state={info.kind} onClick={onOpen} title={t(info.detail)} aria-label={`${t(info.label)}. ${t(info.detail)}`}><Icon size={17} aria-hidden="true" /><span>{t(info.label)}</span></button>;
 }
+export function CompanyAccountShortcut({ organizationId, companyName, onOpen }: { organizationId?: string | null; companyName: string; onOpen: () => void }) {
+  const status = useStatus();
+  const info = organizationId ? companySyncPresentation(status, organizationId, status.online, status.now) : null;
+  const Icon = info?.kind === 'offline' ? CloudOff : info?.kind === 'attention' || info?.kind === 'delayed' ? CircleAlert : info?.kind === 'current' ? CloudCheck : Cloud;
+  const label = info ? t(info.label) : t('Sur cet appareil');
+  return <button type="button" className="mobile-company-shortcut" data-sync-state={info?.kind || 'local'} onClick={onOpen} title={`${companyName} — ${label}${info ? `. ${t(info.detail)}` : ''}`} aria-label={`${t('Ouvrir le compte de {company}',{company:companyName})}. ${label}${info ? `. ${t(info.detail)}` : ''}`}>
+    <strong>{companyName}</strong><span><Icon size={12} aria-hidden="true" />{label}</span>
+  </button>;
+}
 export function CompanyReceivingGuard(){
   const {receiving}=useStatus();
   useLayoutEffect(()=>{

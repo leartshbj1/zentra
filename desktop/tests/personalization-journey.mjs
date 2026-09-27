@@ -86,7 +86,7 @@ for (const [engine,type] of [['edge',chromium],['webkit',webkit]]) {
         await page.context().setOffline(false);
         await page.evaluate(()=>window.__personalizationSync({enabled:true,organizationId:'automation-qa',revision:1,pending:true,conflict:true}));
         await page.waitForFunction(()=>document.querySelector('.company-sync-indicator')?.dataset.syncState==='attention');
-        await page.locator('.company-sync-indicator').click();
+        await page.locator('.company-sync-indicator:visible,.mobile-company-shortcut:visible').click();
         await page.locator('[data-settings-id="account"][open]').waitFor();
         await page.locator('.mobile-navigation button').first().click();
         await page.locator('.automation-brief__day li button').first().click();

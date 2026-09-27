@@ -26,7 +26,7 @@ for(const engine of ['chromium','webkit']){
    if(width<861){
     assert.equal(await page.locator('.topbar .global-search').count(),0);
     assert.ok(totalBox&&totalBox.y+totalBox.height<760,`First amount visible before dock: ${JSON.stringify(totalBox)}`);
-    assert.equal(await page.locator('.page-content > .automation-tools').count(),0);
+    assert.equal(await page.locator('.page-content > .automation-tools:visible').count(),0);
    }else assert.equal(await page.locator('.topbar .global-search').count(),1);
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'No overflow');
    await page.screenshot({path:`${output}/${engine}-${width}-${language}-${entity}.png`});
@@ -43,9 +43,10 @@ for(const engine of ['chromium','webkit']){
     await toolbar.locator('.document-list-tools__compact button').click();
     assert.equal(await search.inputValue(),target);
     await toolbar.locator('.document-search-clear').click();
-    await toolbar.locator('.automation-tools > summary').click();
-    await toolbar.locator('.automation-tools__content').waitFor();
-    await toolbar.locator('.automation-tools > summary').click();
+    await page.locator('.automation-tools-launcher').click();
+    await page.locator('#workspace-automation-tools .automation-tools__content').waitFor();
+    await page.locator('#workspace-automation-tools > header button').click();
+    assert.equal(await page.locator('.automation-tools-launcher').evaluate(node=>node===document.activeElement),true);
    }else await search.fill('');
    assert.equal(await list.locator('tbody tr').count(),count);
    const status=toolbar.locator('select').nth(0);await status.selectOption('cancelled');

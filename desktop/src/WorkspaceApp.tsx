@@ -1,4 +1,5 @@
 import './first-client-clarity.css';
+import './workspace-navigation.css';
 import { AppearanceSetting } from './AppearanceSetting';
 import { CompanySettingsSync } from './CompanySettingsSync';
 import { BexioImportPanel } from './BexioImportPanel';
@@ -40,7 +41,7 @@ import { AutomationWelcome } from './AutomationWelcomeDialog';
 import { AppointmentInbox,useAppointmentInbox } from './AppointmentInbox';
 import { automationPageFromEvent, type AutomationPage } from './automationExperience';
 import { AutomationSettings } from './AutomationSettings';
-import { AutomationTools } from './AutomationTools';
+import { AutomationTools, AutomationToolsLauncher } from './AutomationTools';
 import type { ComponentProps } from 'react';
 import { useScreenArrival } from './useScreenArrival';
 import { PayrollSettingsForm } from './PayrollSettingsForm';
@@ -51,7 +52,7 @@ import { employeeFormIssue, employeeNativeFieldIssue, type EmployeeFieldIssue } 
 import { CompanyLogo } from './CompanyLogo';
 import { quoteInterlocutor } from './quoteInterlocutor';
 import { useProjectSyncBackground } from './projectSync';
-import { CompanyReceivingGuard, CompanySyncIndicator } from './companySync';
+import { CompanyReceivingGuard, CompanySyncIndicator, CompanyAccountShortcut } from './companySync';
 import { useCloudBackupBackground } from './cloudBackup';
 import { CloudBackupPanel } from './CloudBackupPanel';
 
@@ -533,6 +534,13 @@ function WorkspaceContent({
     {label:'Ouvrir les paramètres',run:()=>setView('settings')},
   ]});
   const [search, setSearch] = useState('');
+  const [automationToolsScreen, setAutomationToolsScreen] = useState<string | null>(null);
+  const automationToolsOpen = automationToolsScreen === view;
+  const closeAutomationTools = () => {
+    setAutomationToolsScreen(null);
+    document.getElementById('workspace-automation-launcher')?.focus({preventScroll:!window.matchMedia('(max-width:860px) and (max-height:500px)').matches});
+  };
+  useEffect(() => setAutomationToolsScreen(null), [view, cloudAccount?.organizationId]);
   const [projectFolderId, setProjectFolderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1721,6 +1729,7 @@ function WorkspaceContent({
         </nav>
         <button type="button" className="sidebar__guide" onClick={() => { setMenuOpen(false); guidedTour.start(); }}><CircleHelp size={22} /><span><strong>{t("Un peu d’aide ?")}</strong><small>{t("Découvrir Zentra, pas à pas")}</small></span><ArrowRight size={16} /></button>
         <button type="button" className="personalize-shortcuts" onClick={() => { navigateTour('settings'); setSettingsFocusTarget('workspace-personalization'); }}><Settings size={18} aria-hidden="true" />{t('Personnaliser les raccourcis')}</button>
+        <button type="button" className="sidebar__updates" onClick={()=>{setMenuOpen(false);openUpdater();}}><RefreshCw size={18} aria-hidden="true" /><span>{t('Ouvrir les mises à jour de Zentra')}</span>{availableUpdate&&<em aria-label={t('Zentra {v0} est disponible',{v0:availableUpdate})}>1</em>}</button>
         <div className="sidebar__local">
           <ShieldCheck size={17} />
           <div>
@@ -1747,6 +1756,7 @@ function WorkspaceContent({
               <Menu size={20} />
             </Button>
             <span className="topbar__company">{settings.organization.legalName || t('Mon entreprise')}</span>
+            <CompanyAccountShortcut organizationId={cloudAccount?.status==='connected'?cloudAccount.organizationId:null} companyName={settings.organization.legalName||t('Mon entreprise')} onOpen={()=>{navigateTour('settings');setSettingsFocusTarget('automation-account-target');}} />
           </div>
           <div className="topbar__tools">
             <CompanySyncIndicator organizationId={cloudAccount?.status === 'connected' ? cloudAccount.organizationId : null} onOpen={() => { navigateTour('settings'); setSettingsFocusTarget('automation-account-target'); }} />
@@ -1769,6 +1779,7 @@ function WorkspaceContent({
               variant="ghost"
               size="small"
               className="update-launcher"
+              data-update-available={Boolean(availableUpdate)}
               aria-label={availableUpdate ? t("Ouvrir les mises à jour de Zentra — 1 mise à jour disponible") : t("Ouvrir les mises à jour de Zentra")}
               title={availableUpdate ? t("Zentra {v0} est disponible", { v0: availableUpdate }) : t("Vérifier les mises à jour")}
               onClick={openUpdater}
@@ -1834,6 +1845,7 @@ function WorkspaceContent({
             <p>{view === 'dashboard' ? new Date().toLocaleDateString(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }) : t(title[1])}</p>
           </div>
           <div className="page-header__actions">
+            {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && <AutomationToolsLauncher screen={view} section={t(title[0])} open={automationToolsOpen} onToggle={()=>setAutomationToolsScreen(automationToolsOpen?null:view)} />}
             <ScreenHelp key={view} view={view} title={view==='quotes'?t("Devis"):view==='invoices'?t("Factures"):title[0]}/>
             {view === 'dashboard' ? (
               <>
@@ -1910,7 +1922,7 @@ function WorkspaceContent({
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label={t("Reprendre la facture fournisseur")}><span>{t("Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.")}</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>{t("Reprendre la facture fournisseur")}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>{t("Plus tard")}</Button></div>}
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
-          {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && !compactSales && <AutomationTools key={view} screen={view} workspace={workspace} />}
+          {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
           {view === 'automation' && <AutomationHub onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
@@ -3610,7 +3622,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
   </nav> : null;
   const filterBar = <DocumentListToolbar count={t(entity === 'quotes' ? '{count} / {total} devis' : '{count} / {total} factures',{count:filtered.length,total:documents.length})} orderLabel={documentOrders[order]} filtered={status !== 'all'||creator!=='all'}
     search={{value:query,onChange:sourceProps.onQueryChange,label:entity==='quotes'?'Rechercher un devis':'Rechercher une facture'}}
-    tools={<AutomationTools screen={entity} workspace={workspace}/>}
+    tools={null}
   >
     <label><span>{t('Afficher')}</span><select aria-label={t(entity === 'quotes' ? 'État des devis' : 'État des factures')} value={status} onChange={(event) => setStatuses({ ...statuses, [entity]: event.target.value })}>
       <option value="all">{t('Tous les états')}</option>
@@ -3636,7 +3648,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
         text={`Créez ${entity === 'quotes' ? 'un devis' : 'une facture'} avec vos propres lignes et montants. Vous pourrez ajouter le client directement pendant la saisie.`}
         actionLabel={entity === 'quotes' ? 'Créer un devis' : 'Créer une facture'}
         onAction={onCreate}
-      />{compact&&<AutomationTools screen={entity} workspace={workspace}/>}</div>
+      /></div>
     );
   }
   if (entity === 'quotes') {

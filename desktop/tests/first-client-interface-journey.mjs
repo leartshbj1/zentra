@@ -96,9 +96,9 @@ for (const engine of ['chromium', 'webkit']) {
       await page.locator('[data-settings-link="appearance"]').click();
       await page.waitForTimeout(3200);
       assert.equal(await page.evaluate(() => window.companyRealtimeFixture.calls.filter(call => call.command === 'apply_company_update').length), applied);
-      const waitingDetail = await page.locator('.company-sync-indicator').getAttribute('title');
-      assert.equal(waitingDetail, 'Enregistrez vos modifications, puis quittez les paramètres pour recevoir les nouveautés de votre équipe.');
-      await page.locator('.company-sync-indicator').click();
+      const waitingDetail = 'Enregistrez vos modifications, puis quittez les paramètres pour recevoir les nouveautés de votre équipe.';
+      assert.ok((await page.locator('.company-sync-indicator:visible,.mobile-company-shortcut:visible').getAttribute('title')).includes(waitingDetail));
+      await page.locator('.company-sync-indicator:visible,.mobile-company-shortcut:visible').click();
       await page.getByText('État de la synchronisation', { exact: true }).click();
       await page.getByText(waitingDetail, { exact: true }).waitFor({state:'visible'});
       await page.getByText(waitingDetail, { exact: true }).scrollIntoViewIfNeeded();
