@@ -28,6 +28,19 @@ parameters:
     default: ""
 
 jobs:
+  windows-package-smoke-1904:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact 1.90.4 installer in a disposable Windows profile
+          command: python desktop/scripts/cloud-package-smoke.py windows 138 c07b1d4d3031659da6ba21388a70c464a6f83ec8
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
   windows-project-report-tests:
     resource_class: windows.medium
     machine:
@@ -195,6 +208,11 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-package-1904:
+    when:
+      equal: [codex/release-1.90.4-smoke, << pipeline.git.branch >>]
+    jobs:
+      - windows-package-smoke-1904
   first-client-1904:
     when:
       equal: [codex/first-client-release-1904, << pipeline.git.branch >>]
