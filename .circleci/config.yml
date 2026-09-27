@@ -28,6 +28,24 @@ parameters:
     default: ""
 
 jobs:
+  windows-updater-channel-tests:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      ZENTRA_VERIFY_UPDATER_ONLY: "true"
+    steps:
+      - checkout
+      - run:
+          name: Verify repository-scoped update downloads and redirects
+          no_output_timeout: 20m
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/cloud-release-windows.ps1
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: windows
   windows-backup-tests:
     resource_class: windows.medium
     machine:
@@ -226,6 +244,11 @@ jobs:
           destination: apple
 
 workflows:
+  updater-channel-verification:
+    when:
+      equal: [codex/updater-channel-verification-20260927, << pipeline.git.branch >>]
+    jobs:
+      - windows-updater-channel-tests
   first-client-backup-verification:
     when:
       equal: [codex/backup-verification-20260927, << pipeline.git.branch >>]

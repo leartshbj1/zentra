@@ -10,13 +10,14 @@ param(
     [string] $MacReleaseDirectory,
 
     [string] $OutputRoot,
-    [string] $DownloadBaseUrl = 'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases',
+    [string] $DownloadBaseUrl = '',
     [string] $Notes = 'Version stable Zentra pour Windows et macOS.'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$trustedDownloadBaseUrl = 'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases'
+$trustedDownloadBaseUrl = "https://github.com/leartshbj1/zentra/releases/download/v$Version"
+if ([string]::IsNullOrWhiteSpace($DownloadBaseUrl)) { $DownloadBaseUrl = $trustedDownloadBaseUrl }
 
 function Resolve-RequiredFile([string] $Path, [string] $Label) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -93,7 +94,7 @@ if (-not $baseUri.IsAbsoluteUri -or $baseUri.Scheme -ne 'https' -or [string]::Is
     throw 'DownloadBaseUrl doit être une URL HTTPS absolue sans identifiants ni fragment.'
 }
 if ($baseUri.AbsoluteUri.TrimEnd('/') -cne $trustedDownloadBaseUrl) {
-    throw "DownloadBaseUrl refusée : le canal stable doit utiliser exactement le bucket de publication Zentra en Suisse."
+    throw 'DownloadBaseUrl refusée : le canal doit utiliser la version immuable dans le dépôt GitHub Zentra.'
 }
 
 $windowsDirectory = (Resolve-Path -LiteralPath $WindowsReleaseDirectory).Path

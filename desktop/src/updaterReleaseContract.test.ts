@@ -48,7 +48,7 @@ describe('contrat de publication des mises à jour', () => {
       'utf8',
     );
     const workflowEndpoint =
-      'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/latest.json';
+      'https://zentraapp.ch/updates/latest.json';
 
     expect(workflow).toContain('desktop/src-tauri/updater-public-key.b64');
     expect(workflow).toContain(`ELYKO_UPDATER_ENDPOINT: ${workflowEndpoint}`);
@@ -58,7 +58,7 @@ describe('contrat de publication des mises à jour', () => {
     // Windows releases can advance without advertising an unbuilt macOS version.
     expect(localBuild).toContain(workflowEndpoint.replace('latest.json', 'latest-windows.json'));
     expect(staging).toContain(
-      'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases',
+      'https://github.com/leartshbj1/zentra/releases/download/v$Version',
     );
     expect(assembler).toContain('$trustedDownloadBaseUrl');
     expect(assembler).toContain('"$windowsHash  $windowsName"');
@@ -93,6 +93,14 @@ describe('contrat de publication des mises à jour', () => {
     expect(workflow).not.toContain('installation::tests');
     expect(workflow).not.toContain('license::tests');
     expect(workflow).not.toContain('account_cloud::tests');
+  });
+
+  it('prépare les builds Windows et Mac sans le stockage des comptes', () => {
+    const windows=readFileSync(new URL('../scripts/cloud-release-windows.ps1',import.meta.url),'utf8');
+    const apple=readFileSync(new URL('../scripts/codemagic-apple.sh',import.meta.url),'utf8');
+    expect(windows).toContain('https://zentraapp.ch/updates/latest-windows.json');
+    expect(apple).toContain('https://zentraapp.ch/updates/latest-macos.json');
+    for(const script of [windows,apple]) expect(script).not.toContain('supabase.co/storage/v1/object/public/zentra-releases');
   });
 
   it('documente honnêtement le canal macOS inclus dans le lot updater', () => {

@@ -13,7 +13,7 @@ param(
     [string] $BuildProvenancePath,
 
     [string] $OutputRoot,
-    [string] $DownloadBaseUrl = 'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases',
+    [string] $DownloadBaseUrl = '',
     [string] $Notes = 'Version stable Zentra.',
     [ValidateSet('latest.json', 'latest-windows.json')]
     [string] $ManifestName = 'latest-windows.json',
@@ -156,11 +156,17 @@ if ($publicKeyDocument -notmatch '(?im)^untrusted comment:\s*minisign public key
     throw 'ELYKO_UPDATER_PUBLIC_KEY ne contient pas une clé publique Minisign reconnue.'
 }
 
+if ([string]::IsNullOrWhiteSpace($DownloadBaseUrl)) {
+    $DownloadBaseUrl = "https://github.com/leartshbj1/zentra/releases/download/v$Version"
+}
 $baseUri = [Uri]$DownloadBaseUrl.TrimEnd('/')
 if (-not $baseUri.IsAbsoluteUri -or $baseUri.Scheme -ne 'https' -or [string]::IsNullOrWhiteSpace($baseUri.Host) -or -not [string]::IsNullOrEmpty($baseUri.UserInfo) -or -not [string]::IsNullOrEmpty($baseUri.Fragment)) {
     throw 'DownloadBaseUrl doit être une URL HTTPS absolue sans identifiants ni fragment.'
 }
-$expectedEndpoint = "$($baseUri.AbsoluteUri.TrimEnd('/'))/$ManifestName"
+if ($baseUri.AbsoluteUri.TrimEnd('/') -cne "https://github.com/leartshbj1/zentra/releases/download/v$Version") {
+    throw 'DownloadBaseUrl doit correspondre à la version immuable dans le dépôt GitHub Zentra.'
+}
+$expectedEndpoint = "https://zentraapp.ch/updates/$ManifestName"
 if ($endpoint.Trim() -ne $expectedEndpoint) {
     throw "Endpoint incohérent : le build doit embarquer $expectedEndpoint."
 }

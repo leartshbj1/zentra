@@ -19,7 +19,7 @@ prepare)
 macos)
   rustup target add aarch64-apple-darwin x86_64-apple-darwin
   export ELYKO_UPDATER_PUBLIC_KEY="$(cat desktop/src-tauri/updater-public-key.txt)"
-  export ELYKO_UPDATER_ENDPOINT='https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/latest-macos.json'
+  export ELYKO_UPDATER_ENDPOINT='https://zentraapp.ch/updates/latest-macos.json'
   node desktop/scripts/prepare-cloud-macos.mjs
   pnpm --dir desktop exec tauri build --config src-tauri/tauri.cloud-macos.generated.conf.json --target universal-apple-darwin --bundles app,dmg
   root=desktop/src-tauri/target/universal-apple-darwin/release/bundle

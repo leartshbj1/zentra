@@ -17,6 +17,8 @@ const MAX_REDIRECTS: usize = 5;
 const MAX_UPDATE_ARTIFACT_BYTES: u64 = 256 * 1024 * 1024;
 const SWISS_RELEASE_HOST: &str = "xvfohjdlhlirksrvkiqu.supabase.co";
 const SWISS_RELEASE_PATH_PREFIX: &str = "/storage/v1/object/public/zentra-releases/";
+const GITHUB_RELEASE_PATH: &str = "/leartshbj1/zentra/releases/download/v";
+const GITHUB_ASSET_PATH: &str = "/github-production-release-asset/1355157107/";
 
 #[derive(Clone)]
 struct SecureUpdaterConfiguration {
@@ -294,10 +296,20 @@ async fn download_update_artifact(
     manifest_endpoint: &Url,
 ) -> Result<Vec<u8>, String> {
     validate_download_source(&update.download_url, manifest_endpoint)?;
+    let original_url = update.download_url.clone();
+    let trusted_endpoint = manifest_endpoint.clone();
     let client = reqwest::Client::builder()
         .user_agent(format!("Zentra-Updater/{}", env!("CARGO_PKG_VERSION")))
         .https_only(true)
-        .redirect(Policy::limited(MAX_REDIRECTS))
+        .redirect(Policy::custom(move |attempt| {
+            if attempt.previous().len() >= MAX_REDIRECTS {
+                return attempt.error("Trop de redirections pour cette mise à jour.");
+            }
+            match validate_download_redirect(attempt.url(), &original_url, &trusted_endpoint) {
+                Ok(()) => attempt.follow(),
+                Err(message) => attempt.error(message),
+            }
+        }))
         .timeout(DOWNLOAD_TIMEOUT)
         .build()
         .map_err(|error| format!("Client HTTPS de mise à jour indisponible : {error}"))?;
@@ -313,7 +325,7 @@ async fn download_update_artifact(
             response.status()
         ));
     }
-    validate_download_source(response.url(), manifest_endpoint)?;
+    validate_download_redirect(response.url(), &update.download_url, manifest_endpoint)?;
 
     let content_length = response
         .headers()
@@ -374,10 +386,26 @@ fn validate_update_size(bytes: u64, announced: bool) -> Result<(), String> {
 }
 
 fn validate_download_source(download_url: &Url, manifest_endpoint: &Url) -> Result<(), String> {
+    validate_download_transport(download_url)?;
+
+    let download_host = download_url.host_str().unwrap_or_default();
+    let same_release_origin = download_url.origin() == manifest_endpoint.origin();
+    let swiss_release_storage = download_host == SWISS_RELEASE_HOST
+        && download_url.path().starts_with(SWISS_RELEASE_PATH_PREFIX);
+    if !same_release_origin && !swiss_release_storage && !is_github_release(download_url) {
+        return Err(format!(
+            "Mise à jour refusée : l’hôte de téléchargement {download_host} n’est pas autorisé."
+        ));
+    }
+    Ok(())
+}
+
+fn validate_download_transport(download_url: &Url) -> Result<(), String> {
     if download_url.scheme() != "https"
         || !download_url.username().is_empty()
         || download_url.password().is_some()
         || download_url.fragment().is_some()
+        || download_url.port_or_known_default() != Some(443)
     {
         return Err(
             "Mise à jour refusée : l’archive doit utiliser une URL HTTPS sans identifiants ni fragment."
@@ -385,17 +413,50 @@ fn validate_download_source(download_url: &Url, manifest_endpoint: &Url) -> Resu
         );
     }
 
-    let download_host = download_url.host_str().unwrap_or_default();
-    let manifest_host = manifest_endpoint.host_str().unwrap_or_default();
-    let same_release_host = !manifest_host.is_empty() && download_host == manifest_host;
-    let swiss_release_storage = download_host == SWISS_RELEASE_HOST
-        && download_url.path().starts_with(SWISS_RELEASE_PATH_PREFIX);
-    if !same_release_host && !swiss_release_storage {
-        return Err(format!(
-            "Mise à jour refusée : l’hôte de téléchargement {download_host} n’est pas autorisé."
-        ));
-    }
     Ok(())
+}
+
+fn is_github_release(url: &Url) -> bool {
+    if url.host_str() != Some("github.com") || url.query().is_some() {
+        return false;
+    }
+    let Some(path) = url.path().strip_prefix(GITHUB_RELEASE_PATH) else {
+        return false;
+    };
+    let Some((version, filename)) = path.split_once('/') else {
+        return false;
+    };
+    let parts: Vec<_> = version.split('.').collect();
+    if parts.len() != 3
+        || version.len() > 30
+        || parts
+            .iter()
+            .any(|part| part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit()))
+    {
+        return false;
+    }
+    filename == format!("Zentra_{version}_x64-setup.exe")
+        || filename == format!("Zentra_{version}_macos-universal.app.tar.gz")
+}
+
+fn validate_download_redirect(target: &Url, original: &Url, endpoint: &Url) -> Result<(), String> {
+    validate_download_source(original, endpoint)?;
+    validate_download_transport(target)?;
+    // GitHub's short-lived CDN links are only accepted after a repository-scoped
+    // release URL. They are never valid as the initial manifest download URL.
+    if is_github_release(original)
+        && target.host_str() == Some("release-assets.githubusercontent.com")
+    {
+        if target
+            .path()
+            .strip_prefix(GITHUB_ASSET_PATH)
+            .is_some_and(|asset| uuid::Uuid::parse_str(asset).is_ok())
+        {
+            return Ok(());
+        }
+        return Err("Mise à jour refusée : cette archive GitHub n’appartient pas à Zentra.".into());
+    }
+    validate_download_source(target, endpoint)
 }
 
 fn verify_update_signature(
@@ -637,6 +698,54 @@ mod tests {
         assert!(validate_download_source(&swiss_storage, &manifest).is_ok());
         assert!(validate_download_source(&foreign, &manifest).is_err());
         assert!(validate_download_source(&wrong_bucket, &manifest).is_err());
+    }
+
+    #[test]
+    fn github_downloads_are_limited_to_zentra_release_installers() {
+        let manifest = Url::parse("https://zentraapp.ch/updates/latest.json").unwrap();
+        for name in [
+            "Zentra_1.90.4_x64-setup.exe",
+            "Zentra_1.90.4_macos-universal.app.tar.gz",
+        ] {
+            let url = Url::parse(&format!(
+                "https://github.com/leartshbj1/zentra/releases/download/v1.90.4/{name}"
+            ))
+            .unwrap();
+            assert!(validate_download_source(&url, &manifest).is_ok());
+        }
+        for url in [
+            "https://github.com/other/zentra/releases/download/v1.90.4/Zentra_1.90.4_x64-setup.exe",
+            "https://github.com/leartshbj1/other/releases/download/v1.90.4/Zentra_1.90.4_x64-setup.exe",
+            "https://github.com/leartshbj1/zentra/releases/download/v1.90.4/Zentra_1.90.4_macos-universal.dmg",
+            "https://github.com/leartshbj1/zentra/releases/download/v1.90.4/Zentra_1.90.3_x64-setup.exe",
+            "https://github.com/leartshbj1/zentra/releases/download/v1.90.4/Zentra_1.90.4_x64-setup.exe?redirect=1",
+            "https://github.com.evil.test/leartshbj1/zentra/releases/download/v1.90.4/Zentra_1.90.4_x64-setup.exe",
+            "https://github.com:444/leartshbj1/zentra/releases/download/v1.90.4/Zentra_1.90.4_x64-setup.exe",
+            "https://user:secret@github.com/leartshbj1/zentra/releases/download/v1.90.4/Zentra_1.90.4_x64-setup.exe",
+            "http://github.com/leartshbj1/zentra/releases/download/v1.90.4/Zentra_1.90.4_x64-setup.exe",
+            "https://zentraapp.ch:444/installer.exe",
+        ] {
+            assert!(validate_download_source(&Url::parse(url).unwrap(), &manifest).is_err(), "{url}");
+        }
+    }
+
+    #[test]
+    fn github_cdn_requires_a_zentra_release_origin_and_repository_id() {
+        let manifest = Url::parse("https://zentraapp.ch/updates/latest.json").unwrap();
+        let original = Url::parse("https://github.com/leartshbj1/zentra/releases/download/v1.90.4/Zentra_1.90.4_x64-setup.exe").unwrap();
+        let cdn = Url::parse("https://release-assets.githubusercontent.com/github-production-release-asset/1355157107/6b7b8220-4b90-4e24-a2c4-e9c5d64e1f01?signature=temporary").unwrap();
+        assert!(validate_download_source(&cdn, &manifest).is_err());
+        assert!(validate_download_redirect(&cdn, &original, &manifest).is_ok());
+        assert!(validate_download_redirect(&cdn, &manifest, &manifest).is_err());
+        for url in [
+            "https://release-assets.githubusercontent.com/github-production-release-asset/1/6b7b8220-4b90-4e24-a2c4-e9c5d64e1f01",
+            "https://release-assets.githubusercontent.com/github-production-release-asset/1355157107/not-an-asset",
+            "https://release-assets.githubusercontent.com/github-production-release-asset/1355157107/6b7b8220-4b90-4e24-a2c4-e9c5d64e1f01/extra",
+            "http://release-assets.githubusercontent.com/github-production-release-asset/1355157107/6b7b8220-4b90-4e24-a2c4-e9c5d64e1f01",
+            "https://attacker.test/file.exe",
+        ] {
+            assert!(validate_download_redirect(&Url::parse(url).unwrap(), &original, &manifest).is_err(), "{url}");
+        }
     }
 
     #[test]

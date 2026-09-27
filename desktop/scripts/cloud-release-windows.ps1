@@ -45,6 +45,13 @@ Invoke-Checked rustup @('toolchain', 'install', $env:RUSTUP_TOOLCHAIN, '--profil
 Invoke-Checked pnpm.cmd @('install', '--frozen-lockfile')
 Start-Transcript -Path (Join-Path $artifacts 'validation.log') | Out-Null
 try {
+    if ($env:ZENTRA_VERIFY_UPDATER_ONLY -eq 'true') {
+        Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'app_updater::tests', '--', '--test-threads=1')
+        Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/updaterReleaseContract.test.ts', 'src/updateAvailability.test.ts', 'src/appUpdaterLogic.test.ts')
+        $updaterProof = [ordered]@{source = (& git rev-parse HEAD).Trim(); data = 'synthetic'; completedAt = [DateTimeOffset]::UtcNow.ToString('o'); publishesInstaller = $false}
+        [IO.File]::WriteAllText((Join-Path $artifacts 'updater-channel-proof.json'), ($updaterProof | ConvertTo-Json -Depth 3), [Text.UTF8Encoding]::new($false))
+        return
+    }
     if ($env:ZENTRA_VERIFY_BACKUP_ONLY -eq 'true') {
         foreach ($suite in @('backup::', 'branding::tests', 'project_documents::tests', 'cloud_backup::tests', 'company_collaboration::tests')) {
             Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', $suite, '--', '--test-threads=1')
@@ -92,7 +99,7 @@ try {
     $config = Get-Content desktop/src-tauri/tauri.updater.conf.json -Raw | ConvertFrom-Json
     $config.bundle.createUpdaterArtifacts = $false
     $env:ELYKO_UPDATER_PUBLIC_KEY = (Get-Content desktop/src-tauri/updater-public-key.txt -Raw).Trim()
-    $env:ELYKO_UPDATER_ENDPOINT = 'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases/latest-windows.json'
+    $env:ELYKO_UPDATER_ENDPOINT = 'https://zentraapp.ch/updates/latest-windows.json'
     $config.plugins.updater.pubkey = $env:ELYKO_UPDATER_PUBLIC_KEY
     $generated = Join-Path $repo 'desktop/src-tauri/tauri.updater.generated-cloud.conf.json'
     [IO.File]::WriteAllText($generated, ($config | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
