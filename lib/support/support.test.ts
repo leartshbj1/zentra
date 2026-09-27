@@ -944,14 +944,17 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     const c = await json(await post({ action:'connectMailbox', email:'inbox@example.test', apiKey:'mailbox-token' }));
     const needed=vi.spyOn(invoiceCapture,'mailboxCaptureNeeded').mockResolvedValue(true);
     const capture=vi.spyOn(invoiceCapture,'captureMailboxInvoices').mockRejectedValue(new Error('private-internal-storage-path'));
+    const log=vi.spyOn(console,'error').mockImplementation(()=>{});
     try {
-      expect(await json(await post({action:'syncMailbox',connectionId:c.connectionId}))).toMatchObject({imported:1,processed:1});
+      expect(await json(await post({action:'syncMailbox',connectionId:c.connectionId}))).toMatchObject({imported:1,processed:1,incomplete:true});
       const mailbox=sql.prepare('SELECT last_error,lease_until FROM support_mailboxes').get() as any;
       expect(mailbox.last_error).toContain('justificatifs');
       expect(mailbox.last_error).not.toContain('private-internal');
       expect(mailbox.lease_until).toBe(0);
       expect(sql.prepare('SELECT COUNT(*) AS n FROM support_tickets').get()).toMatchObject({n:1});
-    } finally {needed.mockRestore();capture.mockRestore();}
+      expect(log).toHaveBeenCalledWith('zentra_service_failure',expect.objectContaining({operation:'support.mailbox.capture'}));
+      expect(JSON.stringify(log.mock.calls)).not.toContain('private-internal');
+    } finally {needed.mockRestore();capture.mockRestore();log.mockRestore();}
   });
   it('reprend une lecture interrompue sans avancer le curseur ni exposer la clé', async () => {
     mockMailbox({ failRead: true });

@@ -140,8 +140,9 @@ export class SupportError extends Error {
   constructor(
     message: string,
     public status = 400,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
   }
 }
 export function record(value: unknown): Record<string, unknown> {

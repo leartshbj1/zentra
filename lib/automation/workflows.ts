@@ -1,5 +1,6 @@
 import { database } from '@/lib/runtime';
 import { AccountPublicError } from '@/lib/account-security';
+import { reportServiceFailure } from '@/lib/service-diagnostics';
 import type { AutomationActor } from './access';
 import { requireAutomationEntitlement } from './entitlement';
 import {
@@ -593,6 +594,7 @@ async function processRun(
         )
         .bind(now(), decisionId)
         .run();
+    reportServiceFailure(error, {operation:'automation.workflow.process'});
     await finish(
       'failed',
       error instanceof AccountPublicError
@@ -647,7 +649,7 @@ export async function dispatchMailWorkflows(
       .bind(rule.id, rule.revision, ticketId, row.fingerprint)
       .first<{ id: string }>();
     // Remaining rules stay in the durable queue so intake is not blocked by 50 model calls.
-    if (run && immediate++ < 2) await processRun(run.id, org).catch(() => {});
+    if (run && immediate++ < 2) await processRun(run.id, org).catch(error => { reportServiceFailure(error, {operation:'automation.workflow.intake'}); });
   }
 }
 export async function runDueWorkflows(organizationId?: string) {
@@ -679,6 +681,7 @@ export async function runDueWorkflows(organizationId?: string) {
     if (Date.now() - started > 20000) break;
     checked++;
     await processRun(r.id, r.organization_id).catch(async (error) => {
+      reportServiceFailure(error, {operation:'automation.workflow.retry',startedAt:started});
       await database()
         .prepare(
           "UPDATE automation_workflow_runs SET result=json_set(result,'$.message',?),updated_at=?,due_at=? WHERE id=? AND organization_id=? AND state IN ('queued','waiting') AND lease_until<=?",

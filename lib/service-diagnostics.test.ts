@@ -1,7 +1,8 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {reportServiceFailure} from './service-diagnostics';
+import {reportServiceFailure,reportSchedulerCycle} from './service-diagnostics';
 import {SupabaseServerError,createSupabaseServerClient} from './supabase-server';
 import {AccountPublicError} from './account-security';
+import {SupportError} from './support/types';
 
 afterEach(()=>vi.restoreAllMocks());
 describe('private actionable service diagnostics',()=>{
@@ -28,9 +29,19 @@ describe('private actionable service diagnostics',()=>{
   it('does not turn invalid inputs, refused access or a disconnected watch into incident noise',()=>{
     const log=vi.spyOn(console,'error').mockImplementation(()=>{});
     expect(reportServiceFailure(new AccountPublicError('refused',401),{operation:'company.read'})).toBeUndefined();
+    expect(reportServiceFailure(new SupportError('private-email subscription expired',403),{operation:'support.scheduler'})).toBeUndefined();
     const controller=new AbortController();controller.abort();
     expect(reportServiceFailure(new Error('aborted'),{operation:'company.watch',request:new Request('https://zentraapp.ch',{signal:controller.signal})})).toBeUndefined();
     expect(log).not.toHaveBeenCalled();
+  });
+  it('records bounded scheduler facts without accepting secrets, arbitrary outcomes or invalid counters',()=>{
+    const log=vi.spyOn(console,'info').mockImplementation(()=>{});
+    reportSchedulerCycle({startedAt:Date.now()-5,outcome:'partial',imported:3,processed:2,workflowsChecked:0});
+    expect(log).toHaveBeenCalledWith('zentra_scheduler_cycle',expect.objectContaining({job:'support.mail',outcome:'partial',imported:3,processed:2,workflowsChecked:0}));
+    reportSchedulerCycle({startedAt:NaN,outcome:'private-secret' as 'failed',processed:-1,imported:Infinity,reference:'email@private.test'});
+    const serialized=JSON.stringify(log.mock.calls[1]);
+    expect(serialized).not.toMatch(/private|Infinity/);
+    expect(log.mock.calls[1][1]).toMatchObject({outcome:'failed',durationMs:0});
   });
   it('strips filters from failed database requests and never follows a credential redirect',async()=>{
     const fetcher=vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>(async()=>Response.json({code:'PGRST205',message:'private@example.test'},{status:404}));

@@ -3,6 +3,7 @@ import { supportAutomationState, requireSupportAutomation, supportAutomationFetc
 import { selectSupportWorkspace } from './workspace-selection';
 import { getZentraUser, type ZentraUser } from '@/app/zentra-auth';
 import { database, runtimeValue } from '@/lib/runtime';
+import { reportServiceFailure, type ServiceDiagnosticContext } from '@/lib/service-diagnostics';
 import { enforceAccountRateLimit, normalizedEmail } from '@/lib/account';
 import { AccountPublicError } from '@/lib/account-security';
 import { captureAppointment } from '@/lib/appointments/service';
@@ -87,23 +88,23 @@ const headers = {
 export function supportJson(value: unknown, status = 200) {
   return Response.json(value, { status, headers });
 }
-export function supportError(error: unknown) {
+export function supportError(error: unknown, context: ServiceDiagnosticContext = { operation:'support.request' }) {
   const known =
     error instanceof SupportError ||
     error instanceof RequestBodyError ||
     error instanceof AccountPublicError;
-  if (!known)
-    console.error('support_request_failed', {
-      name: error instanceof Error ? error.name : 'unknown',
-    });
-  return supportJson(
+  const reference = reportServiceFailure(error, context);
+  const response = supportJson(
     {
       error: known
         ? error.message
         : 'Le service support est momentanément indisponible. Votre travail est conservé.',
+      ...(reference ? {reference} : {}),
     },
     known ? error.status : 500,
   );
+  if(reference) response.headers.set('X-Zentra-Request-Id', reference);
+  return response;
 }
 export function requireSameOrigin(request: Request) {
   const origin = request.headers.get('Origin');

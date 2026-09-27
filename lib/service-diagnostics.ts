@@ -1,6 +1,7 @@
 import { AccountPublicError } from './account-security';
 import { RequestBodyError } from './request-body';
 import { SupabaseServerError } from './supabase-server';
+import { SupportError } from './support/types';
 
 export type ServiceDiagnosticContext = {
   operation: string;
@@ -12,7 +13,7 @@ export type ServiceDiagnosticContext = {
  * request headers, URL query, database values or upstream response body. */
 export function reportServiceFailure(error: unknown, context: ServiceDiagnosticContext): string | undefined {
   if (context.request?.signal.aborted) return undefined;
-  if ((error instanceof AccountPublicError || error instanceof RequestBodyError) && error.status < 500) return undefined;
+  if ((error instanceof AccountPublicError || error instanceof RequestBodyError || error instanceof SupportError) && error.status < 500) return undefined;
   const reference = crypto.randomUUID();
   const upstream = error instanceof SupabaseServerError ? error : undefined;
   const code = upstream?.code;
@@ -30,4 +31,25 @@ export function reportServiceFailure(error: unknown, context: ServiceDiagnosticC
     ...(elapsed !== undefined && Number.isFinite(elapsed) && elapsed >= 0 ? { durationMs: Math.round(elapsed) } : {}),
   });
   return reference;
+}
+
+/** Scheduler telemetry contains only a closed outcome vocabulary and counters.
+ * A completed cycle proves execution, not delivery or completion of every item. */
+export function reportSchedulerCycle(input: {
+  startedAt: number;
+  outcome: 'idle' | 'completed' | 'partial' | 'failed';
+  imported?: number;
+  processed?: number;
+  workflowsChecked?: number;
+  reference?: string;
+}) {
+  const count = (value: number | undefined) => Number.isSafeInteger(value) && value! >= 0 ? value : undefined;
+  const elapsed = Date.now() - input.startedAt;
+  const outcome = ['idle', 'completed', 'partial', 'failed'].includes(input.outcome) ? input.outcome : 'failed';
+  console.info('zentra_scheduler_cycle', {
+    job: 'support.mail', outcome,
+    durationMs: Number.isFinite(elapsed) && elapsed >= 0 ? Math.round(elapsed) : 0,
+    imported: count(input.imported), processed: count(input.processed), workflowsChecked: count(input.workflowsChecked),
+    ...(input.reference && /^[a-f0-9-]{36}$/.test(input.reference) ? {reference:input.reference} : {}),
+  });
 }

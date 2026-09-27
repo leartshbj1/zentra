@@ -1,5 +1,6 @@
 import { supportAutomationState } from '@/lib/automation/execution';
 import { database, runtimeValue } from '@/lib/runtime';
+import { reportServiceFailure } from '@/lib/service-diagnostics';
 import { encryptSecret, decryptSecret, digest, equalHash } from './crypto';
 import {
   verifyMailbox,
@@ -260,7 +261,7 @@ export async function syncMailbox(
       if(capture && captured<3) {
         if(source.mail?.attachments.length)captured++;
         try {await captureMailboxInvoices({workspace,connectionId:connection.id,source,token,mailboxId:mailbox.mailbox_id,folderId:mailbox.folder_id,uid:ref.uid,readAttachment,documents:prepared?.documents});}
-        catch(error){captureError=error instanceof SupportError?error.message:'Certains justificatifs n’ont pas pu être importés dans Gestion. La réception réessaiera ; les tickets Support continuent d’être traités. Pour un document de plus de 6 Mo ou un mail de plus de 12 pièces, utilisez l’import manuel de Gestion.';}
+        catch(error){reportServiceFailure(error,{operation:'support.mailbox.capture'});captureError=error instanceof SupportError?error.message:'Certains justificatifs n’ont pas pu être importés dans Gestion. La réception réessaiera ; les tickets Support continuent d’être traités. Pour un document de plus de 6 Mo ou un mail de plus de 12 pièces, utilisez l’import manuel de Gestion.';}
       }
       if(!duplicate){await ingest(connection, source);imported++;}
     }
@@ -305,7 +306,7 @@ export async function syncMailbox(
         lease,
       )
       .run();
-    return { imported, processed, more };
+    return { imported, processed, more, incomplete: Boolean(captureError || captureDeferred) };
   } catch (error) {
     const message =
       error instanceof SupportError
@@ -317,10 +318,22 @@ export async function syncMailbox(
       )
       .bind(message, now() + 300, connection.id, lease)
       .run();
-    throw new SupportError(message, 503);
+    throw new SupportError(message, 503, { cause: error });
   } finally { imap?.close(); }
 }
-export async function runMailSync(request: Request) {
+type MailSyncResult = {
+  idle: boolean;
+  failed?: boolean;
+  paused?: boolean;
+  syncing?: boolean;
+  incomplete?: boolean;
+  imported?: number;
+  processed?: number;
+  more?: boolean;
+  reference?: string;
+};
+export async function runMailSync(request: Request): Promise<MailSyncResult> {
+  const startedAt = Date.now();
   const expected = runtimeValue('SUPPORT_MAIL_SYNC_TOKEN');
   const actual =
     request.headers.get('Authorization')?.replace(/^Bearer /, '') || '';
@@ -345,7 +358,9 @@ export async function runMailSync(request: Request) {
   if (!workspace) throw new SupportError('Espace introuvable.', 404);
   try {
     return { idle: false, ...(await syncMailbox(workspace, due)) };
-  } catch {
+  } catch (error) {
+    const cause = error instanceof SupportError && error.cause ? error.cause : error;
+    const reference = reportServiceFailure(cause, {operation:'support.mailbox.sync',request,startedAt});
     // Retain fair scheduling even if subscription validation fails before a lease.
     await db
       .prepare(
@@ -353,6 +368,6 @@ export async function runMailSync(request: Request) {
       )
       .bind(now() + 300, due.id)
       .run();
-    return { idle: false, failed: true };
+    return { idle: false, failed: true, ...(reference ? {reference} : {}) };
   }
 }
