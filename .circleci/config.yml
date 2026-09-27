@@ -195,6 +195,13 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-1904:
+    when:
+      equal: [codex/first-client-release-1904, << pipeline.git.branch >>]
+    jobs:
+      - windows
+      - apple
+      - android
   first-client-project-reports:
     when:
       equal: [codex/first-client-project-reports-20260927, << pipeline.git.branch >>]
