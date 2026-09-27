@@ -1,3 +1,4 @@
+import './languageTestPacks';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { expect, it } from 'vitest';
@@ -52,10 +53,10 @@ it('keeps pension routing and dates while translating the three period errors', 
   const raw=pensionPlanIssue({...payroll,pensionFund:''})!;expect(translations[raw.message]).toHaveLength(3);
 });
 
-it('never translates saved contribution labels, references, identifiers or amounts', () => {
+it('never translates saved contribution labels, references, identifiers or amounts', async () => {
   const input={id:'qa-policy',category:'aanp' as const,side:'employee' as const,rate:'1.25',amountCents:0,employeeId:'elodie',component:null,source:'Police {name} 2026',from:'2026-01-01',to:'2026-12-31',liability:'liability-qa',expense:''};
   const original=contractContribution(input);
   const form=new FormData();Object.entries({code:'USER-CODE',label:'Police {title} — privée',side:'employee',rate:'1.25',basisKind:'ahv_salary',source:'Contrat {year}',effectiveFrom:'2026-01-01',effectiveTo:'2026-12-31',active:'yes',liabilityAccountId:'account-qa'}).forEach(([key,value])=>form.set(key,value));
   const options={id:'custom-qa',category:'aanp' as const,calculationKind:'rate' as const},saved=contributionDraftPayload(form,options);
-  try {for(const language of appLanguages){setAppLanguage(language);expect(contractContribution(input)).toEqual(original);expect(contributionDraftPayload(form,options)).toEqual(saved);expect(saved.rateBp).toBe(125);expect(saved.label).toBe('Police {title} — privée');}}finally{setAppLanguage('fr');}
+  try {for(const language of appLanguages){await setAppLanguage(language);expect(contractContribution(input)).toEqual(original);expect(contributionDraftPayload(form,options)).toEqual(saved);expect(saved.rateBp).toBe(125);expect(saved.label).toBe('Police {title} — privée');}}finally{await setAppLanguage('fr');}
 });

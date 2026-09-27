@@ -1,13 +1,14 @@
+import './languageTestPacks';
 import { afterEach, expect, it } from 'vitest';
 import { appLanguages, getAppLocale, setAppLanguage } from './language';
 import { documentTotals, formatDate, formatDateTime, formatMoney, invoiceOpenBalance, invoicePaid } from './utils';
 import { salesTotalsByCurrency, type SalesCurrencyTotal } from './salesFinancials';
 import type { Invoice, Payment } from './types';
 
-afterEach(() => setAppLanguage('fr'));
-it('retains exact formatted output through every language, currency and negative amount', () => {
+afterEach(async () => await setAppLanguage('fr'));
+it('retains exact formatted output through every language, currency and negative amount', async () => {
   for (const language of [...appLanguages, 'fr'] as const) {
-    setAppLanguage(language);
+    await setAppLanguage(language);
     for (const currency of ['CHF','EUR','USD','JPY']) for (const cents of [0,123456,-12345]) {
       expect(formatMoney(cents,currency)).toBe(new Intl.NumberFormat(getAppLocale(),{style:'currency',currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(cents/100));
     }

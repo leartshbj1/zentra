@@ -1,3 +1,4 @@
+import './languageTestPacks';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { expect, it } from 'vitest';
@@ -47,7 +48,7 @@ it('translates all canton names and explanatory notes while preserving their cod
   expect(t('Net à payer à {name}',{name:'Élodie {name} Déclaration'},'de')).toBe('Nettolohn für Élodie {name} Déclaration');
 });
 
-it('keeps persisted salary labels and the calculation fingerprint unchanged across interface languages', () => {
+it('keeps persisted salary labels and the calculation fingerprint unchanged across interface languages', async () => {
   const employee={id:'employee-qa',salaryMode:'monthly',grossSalaryCents:512345} as Employee;
   const storedLines=recurringSalary(employee);
   expect(storedLines).toMatchObject([{label:'Salaire mensuel',amountCents:512345}]);
@@ -56,11 +57,11 @@ it('keeps persisted salary labels and the calculation fingerprint unchanged acro
   const fingerprint=payrollCalculationFingerprint(input);
   try {
     for(const language of appLanguages) {
-      setAppLanguage(language);
+      await setAppLanguage(language);
       expect(recurringSalary(employee)).toEqual(storedLines);
       expect(payrollCalculationFingerprint(input)).toBe(fingerprint);
       for(const sector of ['ordinary','private_household','arts_culture'] as const)expect(translations[smallSalarySectorLabel(sector)]).toHaveLength(3);
       for(const reason of ['ordinary_minor_salary_exempt','ordinary_employee_request','ordinary_threshold_exceeded','private_household_mandatory','private_household_youth_minor_salary_exempt','private_household_youth_employee_request','private_household_youth_threshold_exceeded','arts_culture_mandatory'])expect(translations[smallSalaryReasonLabel(reason)]).toHaveLength(3);
     }
-  } finally {setAppLanguage('fr');}
+  } finally {await setAppLanguage('fr');}
 });

@@ -1,3 +1,4 @@
+import './languageTestPacks';
 import { it, expect, afterEach } from 'vitest';
 import { turnoverByCurrency } from './salesFinancials';
 import { buildProjectReport, recentReportProjects, reportPresets, reportSections } from './projectReport';
@@ -45,7 +46,7 @@ it('shows annual net invoiced revenue with deposit deductions, credits and separ
   ]);
 });
 
-afterEach(()=>setAppLanguage('fr'));
+afterEach(async ()=>await setAppLanguage('fr'));
 function reportFixture() {
   const p={id:'p',clientId:'c',name:'Rénovation Léman',status:'in_progress',budgetCents:876543,plannedMinutes:600,notes:'SECRET NOTE'} as Project;
   const w={projects:[p],clients:[{id:'c',name:'Camille',company:'Client SA'}],invoices:[invoice('F-PUBLIC',100000),invoice('F-DRAFT',50000,{status:'draft'}),invoice('F-CANCELLED',40000,{status:'cancelled'}),invoice('OTHER',999999,{projectId:'other'})],quotes:[{...invoice('D-DRAFT',99999),status:'draft'},{...invoice('D-PUBLIC',100000),status:'accepted'}],payments:[],supplierInvoices:[],supplierCreditNotes:[],expenses:[],employees:[{id:'e',name:'Employé privé'}],timeEntries:[{id:'t',projectId:'p',employeeId:'e',date:'2026-09-20',minutes:120,hourlyCostCents:12345,status:'approved',note:'SECRET HOURS'}],projectMilestones:[{id:'m',projectId:'p',title:'Réception',description:'SECRET MILESTONE',dueDate:'2026-10-01',status:'todo'}],projectTasks:[{id:'t',projectId:'p',title:'SECRET TASK',description:'À revoir',dueDate:'2026-09-30',status:'todo'}],agendaEvents:[{id:'a',projectId:'p',title:'SECRET MEETING'}],attachments:[{id:'a',projectId:'p',originalName:'SECRET FILE',mimeType:'application/pdf',createdAt:'2026-09-20'}]} as unknown as Workspace;
@@ -66,8 +67,8 @@ it('retains the full internal report and explains that missing costs are not est
   for(const value of ['SECRET NOTE','SECRET HOURS','SECRET MILESTONE','SECRET TASK','SECRET FILE','F-DRAFT','F-CANCELLED','Marge de gestion','sans estimation des coûts manquants'])expect(text).toContain(value);
   expect(text).not.toContain('OTHER');
 });
-it('translates structural text while preserving project and client content',()=>{
-  const {w,p}=reportFixture();setAppLanguage('en');
+it('translates structural text while preserving project and client content',async ()=>{
+  const {w,p}=reportFixture();await setAppLanguage('en');
   const result=buildProjectReport(w,p,['overview','documents'],{preset:'internal'});
   expect(result.title).toBe('Rénovation Léman');
   expect(result.sections[0].title).toBe('The project');
@@ -76,8 +77,8 @@ it('translates structural text while preserving project and client content',()=>
   expect(result.sections.at(-1)?.rows[0][0]).toBe('SECRET NOTE');
   expect(result.subtitle).toContain('Entire project duration');
 });
-it('uses translated empty rows so the PDF does not inject a French fallback',()=>{
-  const {w,p}=reportFixture();w.attachments=[];setAppLanguage('de');
+it('uses translated empty rows so the PDF does not inject a French fallback',async ()=>{
+  const {w,p}=reportFixture();w.attachments=[];await setAppLanguage('de');
   const result=buildProjectReport(w,p,['documents']);
   expect(result.sections[0].rows[0][0]).not.toBe('Aucune donnée enregistrée');
   expect(result.sections[0].rows[0]).toHaveLength(3);

@@ -1,12 +1,13 @@
+import './languageTestPacks';
 import { afterEach, expect, it } from 'vitest';
 import { setAppLanguage, t, type AppLanguage } from './language';
 import { documentNumberEntry } from './documentNumberEntry';
 import { documentLineIssue } from './documentUi';
 
-afterEach(() => { setAppLanguage('fr'); });
+afterEach(async () => { await setAppLanguage('fr'); });
 
-it.each<AppLanguage>(['fr', 'de', 'it', 'en'])('keeps exact amounts and validation rules when the interface is %s', language => {
-  setAppLanguage(language);
+it.each<AppLanguage>(['fr', 'de', 'it', 'en'])('keeps exact amounts and validation rules when the interface is %s', async language => {
+  await setAppLanguage(language);
   expect(documentNumberEntry("1’234,56", 'price')).toEqual({value: 123456, error: ''});
   expect(documentNumberEntry('12.345', 'price').value).toBeNull();
   expect(documentNumberEntry('0', 'quantity').error).toBe(t('La quantité doit être supérieure à zéro.'));

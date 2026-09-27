@@ -1,17 +1,18 @@
+import './languageTestPacks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mailInterfaceMessage, mailTemplateError, outgoingMail } from './outgoingMail';
 import { setAppLanguage } from './language';
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn().mockResolvedValue({}) }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 describe('company email templates', () => {
-  afterEach(() => setAppLanguage('fr'));
-  it('translates native validation messages and variable names without translating customer values', () => {
-    setAppLanguage('de');
+  afterEach(async () => await setAppLanguage('fr'));
+  it('translates native validation messages and variable names without translating customer values', async () => {
+    await setAppLanguage('de');
     expect(mailInterfaceMessage('Champ invalide : Saisissez de nouveau le mot de passe après un changement de serveur ou d’identifiant.')).toContain('Passwort');
     expect(mailInterfaceMessage('Variable inconnue : {custom_customer}. Choisissez une variable proposée.')).toBe('Unbekannte Variable: {custom_customer}. Wählen Sie eine der angebotenen Variablen.');
-    setAppLanguage('it');
+    await setAppLanguage('it');
     expect(mailInterfaceMessage('Variable inconnue : {custom_customer}. Utilisez les variables proposées.')).toContain('Variabile sconosciuta: {custom_customer}');
-    setAppLanguage('en');
+    await setAppLanguage('en');
     expect(mailInterfaceMessage('Champ invalide : Fermez chaque variable avec }, par exemple {entreprise}.')).toBe('Close each variable with }, for example {entreprise}.');
     expect(mailTemplateError({subject:'Dear {client}, from {entreprise}',body:'Guten Tag\nBuongiorno\nBonjour'})).toBe('');
   });

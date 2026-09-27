@@ -4,6 +4,7 @@ import { ZentraAssistantProvider } from './ZentraAssistant';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { LanguageBoot } from './LanguageStatus';
 import './styles.css';
 import './workspace-design.css';
 import './mobile.css';
@@ -19,7 +20,7 @@ if (!root) throw new Error('Le point de montage de l’application est introuvab
 
 createRoot(root).render(
   <StrictMode>
-    <ZentraAssistantProvider><App /></ZentraAssistantProvider>
+    <LanguageBoot><ZentraAssistantProvider><App /></ZentraAssistantProvider></LanguageBoot>
   </StrictMode>,
 );
 

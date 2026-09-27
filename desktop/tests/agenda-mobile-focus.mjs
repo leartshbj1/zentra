@@ -17,7 +17,7 @@ for(const engine of ['chromium','webkit']) {
     const guide=page.getByRole('button',{name:await tr('Fermer le guide automatique'),exact:true});
     if(await guide.isVisible()) await guide.click();
     await page.evaluate(async({language,width})=>{
-      (await import('/src/language.ts')).setAppLanguage(language);
+      await (await import('/src/language.ts')).setAppLanguage(language);
       (await import('/src/appearance.ts')).setAppearance(width===320||width===844?'dark':'light');
       const fixture=window.agendaFixture;
       fixture.stored.agendaEvents=[9,11,14].map(hour=>({id:`demo-${hour}`,title:`Rendez-vous client ${hour} — atelier de démonstration`,location:'Lausanne',notes:'Informations client conservées en français',projectId:null,employeeId:null,allDay:false,startDate:fixture.today,endDate:fixture.today,startTime:`${String(hour).padStart(2,'0')}:00`,endTime:`${String(hour+1).padStart(2,'0')}:00`,kind:'appointment',status:'scheduled',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}));

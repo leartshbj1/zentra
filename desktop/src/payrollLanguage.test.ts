@@ -1,3 +1,4 @@
+import './languageTestPacks';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { afterEach, expect, it } from 'vitest';
@@ -8,7 +9,7 @@ import { groupedPayrollHelp } from './payrollHelp';
 import { payrollPreparationTasks } from './payrollPreparationTasks';
 import { payrollBasisNames } from './payrollSalaryEntry';
 
-afterEach(() => setAppLanguage('fr'));
+afterEach(async () => await setAppLanguage('fr'));
 const field: PayrollFieldValidation = {
   type: 'text', name: '', value: '', min: '', max: '', select: false, required: true,
   typeMismatch: false, valueMissing: false, rangeUnderflow: false, rangeOverflow: false, stepMismatch: false,
@@ -44,12 +45,12 @@ it('covers every validation branch, including optional email and contractual pre
   expect(payrollFieldMessage({...field,stepMismatch:true},'en')).toContain('Do not change a contractual rate');
   expect(payrollFieldMessage({...field,type:'email',typeMismatch:true,required:false},'en')).toContain('optional field blank');
 });
-it('keeps correction destinations, raw details, grouping and IDs stable in all four languages', () => {
+it('keeps correction destinations, raw details, grouping and IDs stable in all four languages', async () => {
   const messages=['La date de décision/demande doit être une date réelle dans l’année d’évaluation.','La prime accidents professionnels AAP doit être configurée.','La couverture AANP est manquante.','Le plan LPP exige une référence.','Choisissez le compte wages_expense_account_id.'];
   const reference=payrollPreparationTasks(messages),groups=groupedPayrollHelp(messages);
   expect(reference.some(task=>task.selector==='[name=decisionDate]')).toBe(true);
   for(const language of appLanguages){
-    setAppLanguage(language);
+    await setAppLanguage(language);
     const tasks=payrollPreparationTasks(messages);
     expect(tasks).toEqual(reference);expect(groupedPayrollHelp(messages)).toEqual(groups);
     if(language!=='fr')for(const task of tasks){expect(t(task.title)).not.toBe(task.title);expect(t(task.explanation)).not.toBe(task.explanation);expect(t(task.document)).not.toBe(task.document);}

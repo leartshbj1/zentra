@@ -1,13 +1,13 @@
 import { t } from './language';
-import { translations } from './translations';
+import { interfaceKeys } from 'virtual:zentra-language-keys';
 
 /** Keep unknown native diagnostics in the details while the main message explains how to proceed. */
 export function employeeSaveMessage(message: string): string {
-  return translations[message.trim()] ? t(message) : t('L’enregistrement n’a pas abouti. Vos informations sont conservées dans ce formulaire. Réessayez ; si le problème persiste, consultez le message détaillé pour contacter le support.');
+  return interfaceKeys.has(message.trim()) ? t(message) : t('L’enregistrement n’a pas abouti. Vos informations sont conservées dans ce formulaire. Réessayez ; si le problème persiste, consultez le message détaillé pour contacter le support.');
 }
 
 export function employeeDocumentErrorMessage(message: string): string {
-  return translations[message.trim()] ? t(message) : t('Impossible de lire ce document. Les informations déjà saisies sont conservées. Essayez une image plus nette ou complétez le formulaire.');
+  return interfaceKeys.has(message.trim()) ? t(message) : t('Impossible de lire ce document. Les informations déjà saisies sont conservées. Essayez une image plus nette ou complétez le formulaire.');
 }
 
 /** Show understandable progress; worker filenames and token counters are not instructions to the user. */

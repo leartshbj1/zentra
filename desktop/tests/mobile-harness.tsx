@@ -38,7 +38,7 @@ import { installReadOnlyFixture } from './read-only-fixture';
 import { Profiler, Suspense, lazy, useEffect, useState } from 'react';
 import { openAutomationHub } from '../src/automationExperience';
 import { setAppearance } from '../src/appearance';
-import { setAppLanguage, t } from '../src/language';
+import { initializeAppLanguage, setAppLanguage, t } from '../src/language';
 import { createRoot } from 'react-dom/client';
 import { WorkspaceApp } from '../src/WorkspaceApp';
 import { desktopApi } from '../src/bridge';
@@ -82,7 +82,8 @@ const collectionNames = ['clients','catalogItems','stockMovements','suppliers','
 const previewQuery = new URLSearchParams(location.search);
 if (previewQuery.has('personalization')) Object.assign(window, { __personalizationSync: publishCompanySync });
 if (previewQuery.get('theme') === 'light' || previewQuery.get('theme') === 'dark') setAppearance(previewQuery.get('theme') as 'light'|'dark');
-if (['fr','de','it','en'].includes(previewQuery.get('language')||'')) setAppLanguage(previewQuery.get('language') as 'fr'|'de'|'it'|'en');
+if (['fr','de','it','en'].includes(previewQuery.get('language')||'')) await setAppLanguage(previewQuery.get('language') as 'fr'|'de'|'it'|'en');
+else await initializeAppLanguage();
 let data = {
   ...Object.fromEntries(collectionNames.map((name) => [name, []])), schemaVersion: 43,
   onboardingCompleted: true, activityProfileRequired: false, activeTimer: null, accountingSettings: null,

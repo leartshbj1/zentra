@@ -1,3 +1,4 @@
+import './languageTestPacks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { translations } from './translations';
 import { appLanguages, getAppLanguage, getAppLocale, languageStorageKey, parseLanguage, setAppLanguage, t } from './language';
@@ -6,23 +7,23 @@ import { initialOnboardingSettings } from './onboardingDraft';
 import { validateOnboarding } from './onboardingValidation';
 import { formatMoney } from './utils';
 
-afterEach(() => { setAppLanguage('fr'); vi.unstubAllGlobals(); });
+afterEach(async () => { await setAppLanguage('fr'); vi.unstubAllGlobals(); });
 describe('offline interface language', () => {
   it('accepts only the four supported choices', () => {
     expect(appLanguages).toEqual(['fr','de','it','en']);
     for (const value of [null, {}, 'de-DE', 'script', 'fr-CH']) expect(parseLanguage(value)).toBeNull();
   });
-  it('persists a device preference without modifying company data', () => {
+  it('persists a device preference without modifying company data', async () => {
     const setItem=vi.fn(); vi.stubGlobal('localStorage',{setItem});
-    expect(setAppLanguage('de')).toBe(true);
+    expect(await setAppLanguage('de')).toBe(true);
     expect(setItem).toHaveBeenCalledWith(languageStorageKey,'de');
     expect(getAppLanguage()).toBe('de'); expect(getAppLocale()).toBe('de-CH');
     expect(t('TVA')).toBe('MWST');
     expect(t('Atelier Leart {client}')).toBe('Atelier Leart {client}');
   });
-  it('keeps a session usable while reporting a failure to save the preference', () => {
+  it('keeps a session usable while reporting a failure to save the preference', async () => {
     vi.stubGlobal('localStorage',{setItem:()=>{throw new Error('storage full');}});
-    expect(setAppLanguage('it')).toBe(false); expect(t('Factures')).toBe('Fatture');
+    expect(await setAppLanguage('it')).toBe(false); expect(t('Factures')).toBe('Fatture');
   });
   it('preserves boundaries and substitutes values once, without treating their text as a template', () => {
     expect(t('  Continuer ',undefined,'en')).toBe('  Continue ');
@@ -36,20 +37,20 @@ describe('offline interface language', () => {
       for(const target of row){expect(target.trim().length,source).toBeGreaterThan(0);expect(keys(target),source).toEqual(keys(source));}
     }
   });
-  it('translates required-field guidance at display time without changing validation or routing', () => {
+  it('translates required-field guidance at display time without changing validation or routing', async () => {
     const issue={step:1,field:'organization.legalName',label:'La raison sociale',message:'La raison sociale est obligatoire.'};
     const original=structuredClone(issue);
-    setAppLanguage('de');expect(setupIssueText(issue)).toBe('Firmenname: Dieses Feld ist erforderlich.');
-    setAppLanguage('it');expect(setupIssueText(issue)).toBe('Ragione sociale: questo campo è obbligatorio.');
-    setAppLanguage('en');expect(setupIssueText(issue)).toBe('Legal company name: this field is required.');
+    await setAppLanguage('de');expect(setupIssueText(issue)).toBe('Firmenname: Dieses Feld ist erforderlich.');
+    await setAppLanguage('it');expect(setupIssueText(issue)).toBe('Ragione sociale: questo campo è obbligatorio.');
+    await setAppLanguage('en');expect(setupIssueText(issue)).toBe('Legal company name: this field is required.');
     expect(issue).toEqual(original);
-    setAppLanguage('fr');expect(setupIssueText(issue)).toBe(issue.message);
+    await setAppLanguage('fr');expect(setupIssueText(issue)).toBe(issue.message);
   });
-  it('covers every missing-field message in the complete initial setup', () => {
+  it('covers every missing-field message in the complete initial setup', async () => {
     const issues=validateOnboarding(initialOnboardingSettings,null,false);
-    for(const language of ['de','it','en'] as const){setAppLanguage(language);for(const issue of issues)expect(setupIssueText(issue),issue.message).not.toBe(issue.message);}
+    for(const language of ['de','it','en'] as const){await setAppLanguage(language);for(const issue of issues)expect(setupIssueText(issue),issue.message).not.toBe(issue.message);}
   });
-  it('formats the same CHF value using the selected locale', () => {
-    for(const language of appLanguages){setAppLanguage(language);expect(formatMoney(123456)).toBe(new Intl.NumberFormat(getAppLocale(),{style:'currency',currency:'CHF',minimumFractionDigits:2,maximumFractionDigits:2}).format(1234.56));}
+  it('formats the same CHF value using the selected locale', async () => {
+    for(const language of appLanguages){await setAppLanguage(language);expect(formatMoney(123456)).toBe(new Intl.NumberFormat(getAppLocale(),{style:'currency',currency:'CHF',minimumFractionDigits:2,maximumFractionDigits:2}).format(1234.56));}
   });
 });

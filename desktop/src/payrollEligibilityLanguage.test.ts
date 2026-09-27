@@ -1,3 +1,4 @@
+import './languageTestPacks';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { expect, it } from 'vitest';
@@ -46,7 +47,7 @@ it('formats money and hours for each language without interpolating user referen
   }
 });
 
-it('retains assessment results and routing diagnostics while switching display languages', () => {
+it('retains assessment results and routing diagnostics while switching display languages', async () => {
   const employee = {
     id: 'qa-employee', birthDate: '1990-01-01', employmentStart: '2026-01-01', employmentEnd: '', employmentContractKind: 'indefinite',
     contractualWeeklyMinutes: 2395, lppAssessmentYear: 2026, lppAnnualSalaryCents: 6000000, lppExceptionCode: null, lppExceptionEvidenceReference: '',
@@ -66,7 +67,7 @@ it('retains assessment results and routing diagnostics while switching display l
   const before = JSON.stringify(input);
   try {
     for (const language of appLanguages) {
-      setAppLanguage(language);
+      await setAppLanguage(language);
       expect(assessSwissPayrollEligibility(input)).toEqual(original);
       for (const message of [...view.blockers, ...view.warnings]) {
         const rendered = payrollEligibilityText(view, message);
@@ -77,6 +78,6 @@ it('retains assessment results and routing diagnostics while switching display l
       const money = view.facts.find(fact => fact.label === 'Salaire annuel LPP confirmé')!;
       expect(payrollEligibilityText(view, money.value)).toBe((60000).toLocaleString(`${language}-CH`, { style: 'currency', currency: 'CHF' }));
     }
-  } finally { setAppLanguage('fr'); }
+  } finally { await setAppLanguage('fr'); }
   expect(JSON.stringify(input)).toBe(before);
 });

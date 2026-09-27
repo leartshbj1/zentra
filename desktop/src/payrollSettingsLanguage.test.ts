@@ -1,3 +1,4 @@
+import './languageTestPacks';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { expect, it } from 'vitest';
@@ -53,15 +54,15 @@ it('guides invalid pension dates, missing provider, coverage agreements and annu
   }
 });
 
-it('preserves saved rates, references and flags in every language', () => {
+it('preserves saved rates, references and flags in every language', async () => {
   const current = structuredClone(initialOnboardingSettings.payroll), data = form();
   const expected = payrollSettingsDraft(current, data, flags);
   expect(payrollSettingsIssue(expected)).toBeNull();
   expect(expected.payrollCanton).toBe('VD');
   expect(expected.lppPlanEvidence?.regulationReference).toBe('Règlement {v0}');
   expect(expected.employeeRates).toEqual(current.employeeRates);
-  try { for (const language of appLanguages) { setAppLanguage(language); expect(payrollSettingsDraft(current, data, flags)).toEqual(expected); } }
-  finally { setAppLanguage('fr'); }
+  try { for (const language of appLanguages) { await setAppLanguage(language); expect(payrollSettingsDraft(current, data, flags)).toEqual(expected); } }
+  finally { await setAppLanguage('fr'); }
   const disabled = payrollSettingsDraft(current, new FormData(), { pension: false, smallSalary: false });
   expect(disabled.lppPlanEvidence).toBeUndefined(); expect(disabled.laaSmallSalaryException?.enabled).toBe(false);
 });

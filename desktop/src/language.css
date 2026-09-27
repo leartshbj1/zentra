@@ -15,4 +15,13 @@ html:not([lang^=fr]) :is(.button,.setup-steps button,.settings-browser__navigati
 html:not([lang^=fr]) :is(.modal__header h2,.section-heading h2,.setup-header h1,.settings-category__heading) { overflow-wrap:anywhere; hyphens:auto; }
 html:not([lang^=fr]) .sidebar__nav button { hyphens:auto; word-break:normal; }
 .field__label em { flex-shrink:0; white-space:nowrap; }
+.language-feedback { min-width:0; margin-top:12px; color:inherit; }
+.language-feedback p { margin:0; font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
+.language-feedback button, .language-boot > button { min-height:44px; margin-top:8px; padding:10px 16px; color:inherit; background:transparent; border:1px solid currentColor; border-radius:12px; font:inherit; cursor:pointer; }
+.language-feedback button:focus-visible, .language-boot > button:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+.language-setting__choices button[aria-busy=true] { cursor:progress; }
+.first-run__preferences:has(.language-feedback) { flex-wrap:wrap; }
+.first-run__preferences > .language-feedback { flex-basis:100%; max-width:56ch; margin-top:0; }
+.language-boot { min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; padding:max(32px,var(--safe-top,env(safe-area-inset-top,0px))) max(24px,var(--safe-right,env(safe-area-inset-right,0px))) max(32px,var(--safe-bottom,env(safe-area-inset-bottom,0px))) max(24px,var(--safe-left,env(safe-area-inset-left,0px))); color:var(--ink); background:var(--surface-app,var(--paper)); text-align:center; }
+.language-boot .language-feedback { max-width:40ch; }
 @media(max-width:600px) { .language-setting { padding:16px; } .language-setting__choices { grid-template-columns:repeat(2,minmax(0,1fr)); } }

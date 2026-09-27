@@ -11,7 +11,7 @@ import {initialOnboardingSettings} from '../src/onboardingDraft';
 import {Modal,Button} from '../src/ui';
 import {setAppLanguage} from '../src/language';
 import '../src/styles.css';import '../src/workspace-design.css';import '../src/mobile.css';import '../src/experience.css';import '../src/workspace-shell.css';import '../src/refined.css';import '../src/projectFilePreview.css';import '../src/touchExperience.css';
-const params=new URLSearchParams(location.search);setAppLanguage((params.get('lang')||'fr') as 'fr');
+const params=new URLSearchParams(location.search);await setAppLanguage((params.get('lang')||'fr') as 'fr');
 const test=window as unknown as {calls:string[];resolvePoll:()=>void;connect:()=>void};test.calls=[];
 let state:any={status:'disconnected'};let count=0;
 const team:any={organizationId:'org_test',organizationName:'Atelier de démonstration',role:'owner',canManage:true,profile:null,seats:{planName:'Start',limit:3,used:1,reserved:0,available:2,subscriptionActive:true},members:[{id:'owner',email:'compte.personnel@example.invalid',role:'owner'}],invitations:[]};

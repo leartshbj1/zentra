@@ -1,5 +1,5 @@
 import { getAppLanguage, t, type AppLanguage } from './language';
-import { translations } from './translations';
+import { interfaceKeys } from 'virtual:zentra-language-keys';
 import type { PurchaseIssue } from './supplierInvoicePreparation';
 
 export function purchaseIssueText(issue: PurchaseIssue, language: AppLanguage = getAppLanguage()): string {
@@ -10,7 +10,7 @@ export function purchaseIssueText(issue: PurchaseIssue, language: AppLanguage = 
 /** Translate known guidance; retain the original native response separately for troubleshooting. */
 export function purchaseNativeMessage(source: string, fallback: string, language: AppLanguage = getAppLanguage()): string {
   if (language === 'fr') return source;
-  if (Object.hasOwn(translations, source.trim())) return t(source, undefined, language);
+  if (interfaceKeys.has(source.trim())) return t(source, undefined, language);
   let guidance = fallback;
   if (/période.{0,40}(fermée|clôturée)|exercice.{0,40}(fermé|clôturé)/iu.test(source)) guidance = 'La date de cette facture appartient à une période comptable fermée. Vérifiez la date ou consultez Comptabilité → Exercices avant de réessayer.';
   else if (/fournisseur.{0,40}archivé/iu.test(source)) guidance = 'Ce fournisseur est archivé. Choisissez un fournisseur actif ou réactivez sa fiche dans les achats.';

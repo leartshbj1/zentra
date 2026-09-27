@@ -10,7 +10,7 @@ import { parseLanguage, setAppLanguage } from '../src/language';
 import '../src/styles.css';import '../src/workspace-design.css';import '../src/mobile.css';import '../src/dark.generated.css';import '../src/dark.css';
 const params = new URLSearchParams(location.search);
 setAppearance(params.get('theme') === 'dark' ? 'dark' : 'light');
-setAppLanguage(parseLanguage(params.get('lang')) || 'fr');
+await setAppLanguage(parseLanguage(params.get('lang')) || 'fr');
 const vendors = ['Atelier Étoile SA', 'Demo Delivery Services', 'Imprimerie du Léman', 'Fournitures & Équipements Romands'];
 const initial: MailInvoice[] = Array.from({length:12},(_,i)=>({ id:`invoice-${i}`, organizationId:'local-qa', sha256:'test', subject:`Facture ${i}`, invoiceId:null, automatic:false, fileName:`facture-${i}.pdf`,mediaType:'application/pdf',
   sender:'factures@exemple.test',state:'review',otherDevice:false,createdAt:i,

@@ -2,10 +2,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { localOcrAssets } from './build/localOcrAssets';
 import { scalableText } from './build/scalableText';
+import { localLanguageAssets } from './build/localLanguageAssets';
 
 export default defineConfig({
   define: { __ZENTRA_PLATFORM__: JSON.stringify(process.env.TAURI_ENV_PLATFORM || 'desktop') },
-  plugins: [react(), localOcrAssets()],
+  plugins: [react(), localOcrAssets(), localLanguageAssets()],
   css: { postcss: { plugins: [scalableText()] } },
   worker: { format: 'es' },
   optimizeDeps: { entries: ['index.html'] },

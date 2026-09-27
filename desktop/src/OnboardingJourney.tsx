@@ -3,6 +3,7 @@ import { AlertCircle, ArrowLeft, ArrowRight, Check, ChevronDown, FolderOpen, Loa
 import { desktopApi, type CloudAccountState } from './bridge';
 import type { AppSettings, NogaCatalog, PayrollRate, Workspace } from './types';
 import { t, useAppLanguage, appLanguages, languageNames, setAppLanguage, type AppLanguage } from './language';
+import { LanguageStatus } from './LanguageStatus';
 import { setAppearance, useAppearance, type Appearance } from './appearance';
 import { BrandWordmark } from './BrandMark';
 import { OnboardingIntro } from './OnboardingIntro';
@@ -192,8 +193,9 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
   const chapterPages = pages.filter(index => setupPages[index].chapter === page.chapter);
 
   const preferences = <header className="first-run__preferences">
-        <label><span className="sr-only">{t('Langue de l’application')}</span><select value={language} onChange={event=>setAppLanguage(event.target.value as AppLanguage)}>{appLanguages.map(value=><option key={value} value={value}>{languageNames[value]}</option>)}</select></label>
+        <label><span className="sr-only">{t('Langue de l’application')}</span><select value={language} onChange={event=>{ void setAppLanguage(event.target.value as AppLanguage).catch(() => {}); }}>{appLanguages.map(value=><option key={value} value={value}>{languageNames[value]}</option>)}</select></label>
         <label><span className="sr-only">{t('Apparence')}</span><select value={appearance} onChange={event=>setAppearance(event.target.value as Appearance)}><option value="system">{t('Automatique')}</option><option value="light">{t('Clair')}</option><option value="dark">{t('Sombre')}</option></select></label>
+        <LanguageStatus/>
       </header>;
   if (step === 0) return <div className="first-run first-run--welcome">
     {preferences}

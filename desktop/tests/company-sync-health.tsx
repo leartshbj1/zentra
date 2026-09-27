@@ -10,7 +10,7 @@ import '../src/dark.generated.css';
 import '../src/dark.css';
 import '../src/workspace-atelier.css';
 const query=new URLSearchParams(location.search);
-setAppLanguage(parseLanguage(query.get('language'))||'fr');
+await setAppLanguage(parseLanguage(query.get('language'))||'fr');
 setAppearance(query.get('theme')==='dark'?'dark':'light');
 Object.assign(window,{syncHealth:{publish:publishCompanySync}});
 function Harness(){

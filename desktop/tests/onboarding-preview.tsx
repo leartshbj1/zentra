@@ -10,7 +10,7 @@ import { installAssistantFixture } from './assistant-fixture';
 import { initialOnboardingSettings } from '../src/onboardingDraft';
 import { CompanyAccountGate } from '../src/CompanyAccountGate';
 import type { AppSettings, NogaCatalog, Workspace } from '../src/types';
-import { setAppLanguage } from '../src/language';
+import { initializeAppLanguage, setAppLanguage } from '../src/language';
 import { setAppearance } from '../src/appearance';
 import '../src/styles.css';
 import '../src/workspace-design.css';
@@ -34,7 +34,8 @@ const query = new URLSearchParams(location.search);
 if (query.get('intro') === '1') {
   for (const key of ['zentra.onboarding.intro.v1', 'zentra.onboarding.draft.v2', 'elyko.onboarding.draft.v1']) localStorage.removeItem(key);
 }
-if (query.has('language')) setAppLanguage(query.get('language') as 'fr'|'de'|'it'|'en');
+if (query.has('language')) await setAppLanguage(query.get('language') as 'fr'|'de'|'it'|'en');
+else await initializeAppLanguage();
 if (query.has('theme')) setAppearance(query.get('theme') as 'light'|'dark');
 const catalog: NogaCatalog = {version:'2025',source:'https://www.kubb-tool.bfs.admin.ch/fr/noga/2025',sections:[{code:'M',label:'Activités immobilières',divisions:[{code:'68',label:'Activités immobilières'}]},{code:'F',label:'Construction',divisions:[{code:'43',label:'Travaux de construction spécialisés'}]}]};
 const empty = {onboardingCompleted:false,settings:null,quotes:[],invoices:[]} as unknown as Workspace;

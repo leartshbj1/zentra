@@ -12,7 +12,7 @@ import '../src/workspace-atelier.css';
 import '../src/text-size.css';
 const query = new URLSearchParams(location.search);
 setAppearance(query.get('theme') === 'dark' ? 'dark' : 'light');
-setAppLanguage(parseLanguage(query.get('language')) || 'fr');
+await setAppLanguage(parseLanguage(query.get('language')) || 'fr');
 const scenario = query.get('scenario') || 'empty';
 let currentAccount: CloudAccountState = { status: 'connected', organizationId: 'windows', organizationName: query.has('long') ? 'Atelier Windows — Société de rénovation et de conseil pour les entreprises du Léman' : 'Atelier Windows', role: query.get('role') === 'read_only' ? 'read_only' : 'owner' };
 const received = { onboardingCompleted: true, settings: initialOnboardingSettings, quotes: [], clients: [{ id: 'client-windows', name: 'Client Windows' }], invoices: [{ id: 'invoice-windows', number: 'F-2026-0012' }] } as unknown as Workspace;
