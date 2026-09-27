@@ -720,6 +720,32 @@ impl<'a> Composer<'a> {
         Ok(())
     }
     /// Rows wrap in every column and split at line boundaries on very long entries.
+    /// Reports keep their section title, table header and first row together.
+    /// This opt-in leaves pagination of existing invoices and payroll unchanged.
+    pub fn table_section(&mut self, title: &str, headers: &[&str], fractions: &[f32], rows: &[(Vec<String>, bool)]) -> AppResult<()> {
+        let mut title_runs = plain(title);
+        for paragraph in &mut title_runs { for run in &mut paragraph.runs { run.bold = true; } }
+        let title_height = wrap(self.design, &title_runs, self.width(), 14.)?
+            .iter().map(|(line, _, _, _, after)| line_size(line, 14.) * self.design.line_spacing + after).sum::<f32>();
+        let row_height = |cells: &[String], bold: bool| -> AppResult<f32> {
+            let mut max_lines = 1;
+            for (cell, fraction) in cells.iter().zip(fractions) {
+                let mut text = plain(cell);
+                for paragraph in &mut text { for run in &mut paragraph.runs { run.bold = bold; } }
+                max_lines = max_lines.max(wrap(self.design, &text, self.width() * fraction - self.design.table_padding * 2., self.design.body_size)?.len());
+            }
+            Ok(max_lines as f32 * self.design.body_size * self.design.line_spacing + self.design.table_padding)
+        };
+        let header_height = row_height(&headers.iter().map(|v| v.to_string()).collect::<Vec<_>>(), true)?;
+        let first_height = rows.first().map(|(cells,bold)| row_height(cells,*bold)).transpose()?.unwrap_or(0.);
+        let needed = title_height + 8. * self.design.block_spacing.unwrap_or(1.) + header_height + first_height;
+        // A row taller than a whole page must still be split by table_row.
+        self.ensure(needed.min(self.page_size()[1] - self.left() - self.bottom - 70.))?;
+        self.paragraph(title, 14., true)?;
+        self.gap(8.);
+        self.table(headers, fractions, rows)
+    }
+
     pub fn table(
         &mut self,
         headers: &[&str],

@@ -1,6 +1,6 @@
 import { t, useAppLanguage } from './language';
 import { useMemo, useRef, useState } from 'react';
-import { BarChart3, Download, ChevronRight } from 'lucide-react';
+import { BarChart3, Download, ChevronRight, ChevronDown } from 'lucide-react';
 import type { Workspace } from './types';
 import { formatMoney, projectFinancials, errorMessage } from './utils';
 import { Button, EmptyState, StatusBadge } from './ui';
@@ -71,7 +71,10 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
           </div>
           <div className="project-reports__composition">
             <label>{t('Type de rapport')}
-              <select aria-label={t('Type de rapport')} value={preset} disabled={busy} onChange={e=>choosePreset(e.target.value as ReportPreset)}>{Object.entries(reportPresets).map(([key,value])=><option key={key} value={key}>{t(value.label)}</option>)}</select>
+              <span className="project-reports__preset-control">
+                <select aria-label={t('Type de rapport')} value={preset} disabled={busy} onChange={e=>choosePreset(e.target.value as ReportPreset)}>{Object.entries(reportPresets).map(([key,value])=><option key={key} value={key}>{t(value.label)}</option>)}</select>
+                <span aria-hidden="true">{t(reportPresets[preset].label)}<ChevronDown size={17}/></span>
+              </span>
             </label>
             <p>{t(reportPresets[preset].description)}</p>
           </div>

@@ -268,3 +268,8 @@
   .project-reports__sections { grid-template-columns:minmax(0,1fr); }
   .project-reports__empty { padding:20px 0; }
 }
+.project-reports__preset-control { display:grid; position:relative; min-width:0; }
+.project-reports__composition .project-reports__preset-control select { grid-area:1/1; height:100%; min-height:44px; color:transparent; appearance:none; padding:0; }
+.project-reports__preset-control select option { color:var(--work-ink); background:var(--work-paper); }
+.project-reports__preset-control > span { grid-area:1/1; padding:12px 38px 12px 14px; pointer-events:none; z-index:1; overflow-wrap:anywhere; font-size:16px; line-height:1.5; font-weight:400; }
+.project-reports__preset-control svg { position:absolute; right:14px; top:50%; transform:translateY(-50%); }

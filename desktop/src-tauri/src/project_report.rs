@@ -72,8 +72,6 @@ fn render(issuer: &Value, report: &ProjectReport) -> AppResult<(Vec<u8>, usize)>
     page.paragraph(&report.subtitle, 10., false)?;
     page.gap(16.);
     for section in &report.sections {
-        page.paragraph(&section.title, 14., true)?;
-        page.gap(8.);
         let headers = section
             .headers
             .iter()
@@ -106,7 +104,7 @@ fn render(issuer: &Value, report: &ProjectReport) -> AppResult<(Vec<u8>, usize)>
                 false,
             ));
         }
-        page.table(&headers, &fractions, &rows)?;
+        page.table_section(&section.title, &headers, &fractions, &rows)?;
         page.gap(14.);
     }
     page.finish(&format!("Zentra · {}", now_iso()))

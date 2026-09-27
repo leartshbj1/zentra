@@ -22,6 +22,13 @@ for name in ['summary','client','internal','long']:
     assert 'Toute la durée du projet' in text, name
     if name=='client':
         assert 'SECRET-DRAFT' not in text and 'NOTE INTERNE CONFIDENTIELLE' not in text and 'Marge de gestion' not in text
+    # A section label/header must not be stranded before its first body row.
+    for page in reader.pages:
+        page_text=page.extract_text() or ''
+        if 'Détail F-REPORT-0' in page_text:
+            assert 'Préparation des surfaces' in page_text,(name,'orphaned detail heading')
+        if 'Factures et avoirs' in page_text:
+            assert 'F-REPORT-0' in page_text,(name,'orphaned invoice heading')
     if name in ['internal','long']:
         assert 'NOTE INTERNE CONFIDENTIELLE' in text and 'SECRET-DRAFT' in text
     if name=='long':
