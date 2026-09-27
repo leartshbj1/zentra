@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { canonicalNavigationTarget } from './lib/canonical-navigation';
 import { runtimeValue } from './lib/runtime';
 import { isPrivateSearchPath } from './lib/seo-indexing';
+import { privatePageCspObservation } from './lib/csp-observation';
 
 export function middleware(request: Request) {
   const path=new URL(request.url).pathname;
@@ -14,7 +15,12 @@ export function middleware(request: Request) {
     return NextResponse.redirect(url, 308);
   }
   if (!target) {
-    const response = NextResponse.next();
+    const observation = privatePageCspObservation(request);
+    const response = observation ? NextResponse.next({request:{headers:observation.headers}}) : NextResponse.next();
+    if (observation) {
+      response.headers.set('Content-Security-Policy-Report-Only', observation.policy);
+      response.headers.set('Cache-Control', 'private, no-store');
+    }
     if (isPrivateSearchPath(path)) response.headers.set('X-Robots-Tag', 'noindex, nofollow');
     return response;
   }
