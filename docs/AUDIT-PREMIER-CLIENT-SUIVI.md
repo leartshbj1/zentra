@@ -2,7 +2,7 @@
 
 Objectif : traiter les vingt points de l’audit, avec des preuves adaptées. Aucun statut global « prêt » n’est déduit d’un build ou de tests simulés.
 
-**État courant au 27 septembre, 19 h 42 : 1.90.5 publiée, Sites 291.** Installation Windows et récupération synthétique réelle réussies, 110 tables et trois fichiers conservés. Le tableau canonique est [ETAT-LIVRAISON.md](ETAT-LIVRAISON.md). Les mentions plus anciennes ci-dessous sont historiques. Les détails Automation `43331dab` restent postérieurs au gel. Supabase confirme encore HTTP 402 (quotas) à 19 h 41 ; le parcours client complet et l'autonomie du traitement restent ouverts.
+**État courant au 27 septembre, 22 h 29 : 1.90.6 publiée, Sites 292.** Les douze fichiers et les canaux sont vérifiés. Le vrai updater Windows télécharge et vérifie le paquet, mais le lancement est refusé par Code Integrity (4551) : ce PC reste en 1.90.5, données fictives intactes. Huit exemples PDF sont contrôlés sur cette version ; un titre orphelin du bilan reste à corriger. Connexion toujours HTTP 503 à 21 h 43 ; planificateur et recettes connectées ouverts. Le tableau canonique est [ETAT-LIVRAISON.md](ETAT-LIVRAISON.md). Les mentions antérieures ci-dessous sont historiques : les lots locaux gelés dans 1.90.6 sont désormais publiés, sans élargir leurs preuves de validation.
 
 ## Historique des travaux et validations
 

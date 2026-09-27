@@ -1,29 +1,25 @@
-# Zentra 1.90.6
+# Zentra 1.90.6 — publiée le 27 septembre 2026
 
-**Correctif découvert avant publication, 22 h 06 :** l’IPA du build 152 est rejeté : ses deux icônes compilées sont celles de Tauri. Les bons PNG étaient dans le dépôt mais n’étaient pas copiés dans le catalogue Xcode après `tauri ios init`. Le commit **`805cc9b0c1ad6ff75581eee7296d3a842bfa6b27`** corrige cette étape et fait refuser une IPA dont les pixels compilés diffèrent des icônes Zentra. Cinq tests passent, dont les cinq filtres PNG et la conversion Apple CgBI. Le build **153 iPhone** est en cours. Les validations antérieures de taille/architecture iPhone ci-dessous ne rendent donc pas le paquet 152 publiable.
+Les douze actifs sont publics sur [GitHub](https://github.com/leartshbj1/zentra/releases/tag/v1.90.6) et proposés par Sites 292. État détaillé, preuves et limitations : [ETAT-LIVRAISON.md](ETAT-LIVRAISON.md).
 
-**Windows 150 et contrôle d’installation 154 réussis.** Installateur 24 536 107 octets, SHA-256 `d9f5d5b7cdbeb9d1bc0ed1fc2a34d2531348126cfe63b73dd64293d729ccc0cd`. Signature updater et icônes du paquet vérifiées. Aucun remplacement local ni publication encore réalisés. La source applicative `9ec8e782` reste gelée ; le correctif iPhone ne change que les scripts de fabrication, leur vérification et la documentation. La livraison devra consigner séparément la provenance de l’IPA corrigée.
-
-- Personnalisation des documents et outils de texte en français, allemand, italien et anglais. Recherche directe du réglage, valeurs et textes du client conservés.
-- Bouton de retour de l’atelier accessible pendant le défilement ; choix du format adaptés au texte agrandi sur mobile. Nom des polices Inter et Literata corrigé dans les modèles.
-- Rendez-vous reçus visibles dans le journal Automation, avec ouverture du jour exact. Dates invalides et éléments absents de l’appareil signalés.
+- Personnalisation des documents et texte riche en français, allemand, italien et anglais ; valeurs et textes du client conservés.
+- Retour de l’atelier accessible pendant le défilement, format adapté au texte agrandi sur mobile, noms des polices Inter et Literata corrigés.
+- Rendez-vous reçus dans le journal Automation avec ouverture du jour exact ; dates invalides et données absentes explicites.
 - Détails Automation et indications de correction plus lisibles et traduits.
+- Icône iPhone/iPad corrigée dans la fabrication Xcode et contrôlée sur les pixels du paquet compilé. L’IPA initiale du build 152 a été rejetée avant publication ; seule celle du build 153 est diffusée.
 
-Cette version ne rétablit pas à elle seule le service de comptes restreint par ses quotas ni le traitement automatique lorsque les applications sont fermées. Ces incidents sont suivis séparément.
+## Sources et tests
 
-Source gelée : **`9ec8e782a160e7fe2cdf3b853e19e54bbfa64a01`**, branche `codex/first-client-release-1906`. Au 27 septembre à 21 h 48 (Europe/Zurich), les exécutions **151 Android et 152 Apple réussissent** ; **150 Windows reste en cours**. Les paquets Android, Mac et iPhone sont vérifiés. Aucune publication 1.90.6 ni promotion des canaux n’a encore eu lieu.
+Source applicative gelée `9ec8e782a160e7fe2cdf3b853e19e54bbfa64a01` pour Windows 150, Mac 152 et Android 151. Source iPhone 153 `805cc9b0c1ad6ff75581eee7296d3a842bfa6b27`, cible du tag : les sept différences ne concernent que fabrication, vérification et documentation. Le code applicatif et les actifs de base sont identiques. La recette Windows 154 utilise les fichiers exacts du build 150, avec son vérificateur séparé `ab663c6f6a1a019b6953a77f3cc7ac68ea7bb008`.
 
-## Vérifications déjà obtenues
+1 814 tests frontend au dernier lot ; 14 contrats de livraison, TypeScript, build Vite et 50 actifs de marque avant gel. Apple : 21 tests de composition PDF et 61 tests frontend de l’éditeur. Windows et Mac : démarrage et relancement de l’installation dans un profil cloud isolé. Signatures updater, empreintes des douze actifs et quatre liens publics vérifiés.
 
-- **Mac universel** : build 152, démarrage et relancement réels dans un profil isolé, SQLite 60 intègre, arm64 et x86_64, clé et endpoint updater vérifiés. Signature ad hoc vérifiée sur Mac ; signature updater contrôlée après téléchargement. DMG 54 742 957 octets ; archive 53 552 349 octets, identique à celle testée. Aucune notarisation.
-- **iPhone** : build 152, IPA 26 126 952 octets, arm64 iPhoneOS 15+, version/source/empreinte vérifiées. Non signé ; aucun appareil physique.
-- **Android** : build 151, APK final 122 885 130 octets, certificat de test persistant et alignement 16 K vérifiés. La suppression des symboles préserve les segments exécutables/données et les 969 ressources. Encore débogable ; aucun appareil/émulateur.
-- **Documents sur Mac** : 21 tests du moteur de composition PDF et 61 tests frontend de l’éditeur passent. Les rapports WebKit incluent 150 contrôles d’apparence, les gestes sur trois dimensions et des scénarios de compte fictifs ; ils ne prouvent pas une connexion réelle.
-- **Mesure Windows avant mise à jour** : 42 navigations natives, 14 écrans × 3 passages, version 1.90.5, petite entreprise fictive. Médiane 45 ms, p95 345 ms, maximum 362 ms, aucune erreur JavaScript ni longue tâche détectée. Ce n’est pas une mesure de charge serveur ni une validation de 150 entreprises.
-- **Compte au contrôle de 21 h 43** : connexion avec une adresse fictive inexistante renvoyant HTTP 503 en 3 753 ms, `Retry-After: 60`, `no-store`. Aucun compte/e-mail créé. Le blocage reste ouvert.
+Le vrai bouton de mise à jour Windows trouve 1.90.6 en 2 373 ms et télécharge le fichier, mais **l’installation locale échoue** : Code Integrity 3033/3077, erreur 4551. Le PC reste en **1.90.5**, exécutable inchangé. Aucune protection modifiée. Les 110 tables, trois fichiers et montants du profil fictif sont inchangés après le refus et sa fermeture.
 
-Preuves locales : `outputs/release1906/{apple,android,android-signed,smoke-macos}/`, `upgrade-smoke/navigation-1.90.5.json`, `auth-readiness.json`. Le profil local réel de l’utilisateur reste séparé des essais.
+Huit exemples PDF, 14 pages, ont été exportés puis contrôlés depuis la version **1.90.5 encore installée**. Logos, polices embarquées, montants et formats passent ; le bilan paysage conserve un titre de section orphelin à améliorer. Les sources Rust PDF sont inchangées dans 1.90.6 ; aucune recette native locale 1.90.6 n’est revendiquée.
 
-La dernière suite frontend compte 1 814 tests réussis ; les recettes des lots figurent dans `AUTOMATION-DETAILS-20260927.md`, `AUTOMATION-RENDEZ-VOUS-20260927.md`, `DOCUMENT-NAVIGATION-LANGUES-20260927.md` et `DOCUMENT-EDITOR-LANGUES-20260927.md`. Les 14 contrats de livraison, TypeScript, build Vite et 50 actifs de marque passent avant gel. Les chaînes Windows et Apple vérifient aussi le moteur de composition PDF et les tests frontend de l’éditeur. Les preuves navigateur utilisent des données fictives et ne valent pas validation d’un appareil physique ou du service en production.
+## Limites toujours ouvertes
 
-Distribution prévue selon les configurations existantes : Windows sans Authenticode ; Mac universel signé ad hoc, sans notarisation ; IPA non signé ; APK Android arm64 de test, débogable. Les paquets de mise à jour seront signés seulement après vérification. Aucun dépôt en boutique n’est annoncé.
+Cette version ne rétablit pas les quotas du service de comptes ni le traitement quand les apps sont fermées. Connexion synthétique encore HTTP 503 à 21 h 43. La collaboration réelle, les paiements et les quotas nécessitent leur recette après rétablissement.
+
+Windows sans Authenticode ; Mac signé ad hoc, non notarisé ; IPA non signé ; APK Android arm64 de test, débogable. Pas de publication en boutique ni de test sur iPhone/Android physique. Les signatures updater ne sont pas des signatures de distribution du système. Les anciens manifestes Supabase restent inchangés.
