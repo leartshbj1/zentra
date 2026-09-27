@@ -21,6 +21,7 @@ import { errorMessage } from './utils';
 import { DocumentWorkbench } from './DocumentWorkbench';
 import { DocumentDesignNavigator } from './DocumentDesignNavigator';
 import type { DocumentDesignTool } from './documentDesignTools';
+import { t, useAppLanguage } from './language';
 
 const labels = { invoices: 'Factures', quotes: 'Devis', accounts: 'Bilan', payslips: 'Fiches de salaire' };
 const colors = ['#134d33', '#182b49', '#793c32', '#66523f', '#563d73', '#242424', '#d7b878'];
@@ -29,6 +30,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
   onSave: (settings: AppSettings) => void | boolean | Promise<void | boolean>;
   onRequestCompany?: (target: 'logo' | 'identity') => void;
 }) {
+  useAppLanguage();
   const [savePhase, setSavePhase] = useState<'idle' | 'checking' | 'saving'>('idle');
   const [problems, setProblems] = useState<DesignProblem[]>([]);
   const [saveError, setSaveError] = useState('');
@@ -44,7 +46,7 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
   const [writing, setWriting] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [toolHint, setToolHint] = useState<DocumentDesignTool | null>(null);
-  const [mobileView, setMobileView] = useState<'tools' | 'preview'>('tools');
+  const [mobileView, setMobileView] = useState<'tools' | 'preview'>('preview');
   const appearance = documentAppearance(settings.documentAppearance);
   const baseStyle = appearance[kind];
   const composition = settings.documentComposition?.[kind];
@@ -223,11 +225,22 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
       if (!busy && !(loading && !error)) void saveDesigns();
     }
   }}>
-    <div className="design-studio__heading"><p className="eyebrow">Votre signature</p><h2>Des documents à votre image</h2><p>Un atelier simple pour composer vos documents. Choisissez un style, ajustez la page, puis écrivez vos textes comme dans un traitement de texte.</p></div>
-    {!expanded && typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal === 'function' && <div className="design-studio__workspace-entry"><button type="button" className="design-studio__open-workbench" onClick={() => setExpanded(true)}><Maximize2 size={18} aria-hidden="true" /> Ouvrir le grand atelier</button><p>Plus d’espace pour les outils et votre document. Vous pouvez revenir ici à tout moment.</p></div>}
-    <div className="design-studio__tabs" role="group" aria-label="Document à personnaliser">{(Object.keys(labels) as DocumentDesignKind[]).map(value => <button type="button" key={value} disabled={exporting} aria-pressed={kind === value} onClick={() => { setKind(value); setNotice(''); setExportError(''); setExported(null); }}>{labels[value]}</button>)}</div>
-    <DocumentDesignNavigator key={kind} kind={kind} onChoose={chooseTool} />
-    <DocumentDesignMap accounts={kind === 'accounts'} onSelect={selectSection} />
+    <div className="design-studio__heading"><h2>{t('Des documents à votre image')}</h2><p>{t('Choisissez votre document, puis ajustez son style.')}</p></div>
+    {!expanded && typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal === 'function' && <div className="design-studio__workspace-entry"><button type="button" className="design-studio__open-workbench" onClick={() => setExpanded(true)}><Maximize2 size={18} aria-hidden="true" /> {t('Ouvrir le grand atelier')}</button><p>{t('Plus d’espace pour les outils et votre document. Vous pouvez revenir ici à tout moment.')}</p></div>}
+    <div className="design-studio__tabs" role="group" aria-label={t('Document à personnaliser')}>{(Object.keys(labels) as DocumentDesignKind[]).map(value => <button type="button" key={value} disabled={exporting} aria-pressed={kind === value} onClick={() => { setKind(value); setNotice(''); setExportError(''); setExported(null); }}>{t(labels[value])}</button>)}</div>
+    <div className="design-studio__mobile-kind">
+      <label>{t('Document à personnaliser')}<select value={kind} disabled={exporting} onChange={event => { setKind(event.target.value as DocumentDesignKind); setNotice(''); setExportError(''); setExported(null); }}>{(Object.keys(labels) as DocumentDesignKind[]).map(value => <option key={value} value={value}>{t(labels[value])}</option>)}</select></label>
+      {!expanded && typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal === 'function' && <button type="button" aria-label={t('Ouvrir le grand atelier')} onClick={() => setExpanded(true)}><Maximize2 size={20} aria-hidden="true" /></button>}
+    </div>
+    <div className="design-studio__mobile-switch" role="group" aria-label={t('Affichage de l’atelier')}>
+      <button type="button" aria-pressed={mobileView === 'preview'} onClick={showPreview}>{t('Mon document')}</button>
+      <button type="button" aria-pressed={mobileView === 'tools'} onClick={() => { setMobileView('tools'); setWriting(false); }}>{t('Mes réglages')}</button>
+      <button type="button" className="design-studio__mobile-save" aria-label={t('Enregistrer mes présentations')} disabled={busy || loading && !error} onClick={() => void saveDesigns()}><Check size={17} /><span>{t('Enregistrer')}</span></button>
+    </div>
+    <div className="design-studio__navigation">
+      <DocumentDesignNavigator key={kind} kind={kind} onChoose={chooseTool} />
+      <details className="design-studio__section-guide"><summary>{t('Choisir une zone du document')}</summary><DocumentDesignMap accounts={kind === 'accounts'} onSelect={selectSection} /></details>
+    </div>
     <div className="design-studio__commandbar" role="group" aria-label="Historique de la présentation">
       <button type="button" disabled={busy || !history.current.length} onClick={() => undo()}><Undo2 size={17} /> Annuler</button>
       <button type="button" disabled={busy || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /> Rétablir</button>
@@ -242,11 +255,6 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
       {problems.map((problem, index) => <article key={`${problem.kind}-${problem.zone}-${index}`}><strong>{problem.title}</strong><p>{problem.message}</p><Button variant="secondary" disabled={busy} onClick={() => correctProblem(problem)}>{problem.zone === 'company' && onRequestCompany ? 'Ouvrir Entreprise et facturation' : 'Corriger ce passage'}</Button></article>)}
       {saveError && <p>{saveError}</p>}
     </div>}
-    <div className="design-studio__mobile-switch" role="group" aria-label="Affichage de l’atelier">
-      <button type="button" aria-pressed={mobileView === 'tools'} onClick={() => revealTools('.design-studio__panels button[aria-pressed=true]')}>Mes réglages</button>
-      <button type="button" aria-pressed={mobileView === 'preview'} onClick={showPreview}>Mon document</button>
-      <button type="button" className="design-studio__mobile-save" aria-label="Enregistrer mes présentations" disabled={busy || loading && !error} onClick={() => void saveDesigns()}><Check size={17} /><span>Enregistrer</span></button>
-    </div>
     {notice && <p className="design-studio__notice" role="status">{notice}</p>}
     {error && <div className="design-studio__mobile-error design-studio__error" role="alert"><strong>L’aperçu demande une correction</strong><p>{error}</p><Button variant="secondary" disabled={busy} onClick={() => correctProblem(nativeDesignProblem(kind, error, settings))}>Corriger ce point</Button><Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Réessayer l’aperçu</Button></div>}
     <div className="design-studio__body">
@@ -300,9 +308,9 @@ export function DocumentDesignStudio({ settings, busy: externalBusy, onChange, o
         {exported?.key === requestKey && <PdfExportReceipt result={exported.result} disabled={exporting} onBusyChange={setExporting} />}
       </div>
       <div ref={previewElement} tabIndex={-1} className="design-studio__preview" aria-label={`Exemple ${labels[kind]}`} aria-busy={loading && !error}>
-        <button type="button" className="design-studio__return-tools" onClick={() => revealTools('.design-studio__panels button[aria-pressed=true]')}>Revenir aux réglages</button>
-        <div className="design-studio__preview-label"><span>Exemple fictif · A4</span>{loading && !error ? <span role="status"><LoaderCircle size={14} className="spin" /> Mise à jour…</span> : <span>Rendu PDF{preview ? ` · ${preview.pageCount} page${preview.pageCount > 1 ? 's' : ''}` : ''}</span>}<button type="button" aria-label={zoomed ? 'Ajuster l’aperçu' : 'Agrandir l’aperçu'} aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)}>{zoomed ? <ZoomOut size={18} /> : <ZoomIn size={18} />}</button></div>
-        {error ? <div className="design-studio__error" role="alert"><strong>L’aperçu demande une correction</strong><p>{error}</p><Button variant="secondary" disabled={busy} onClick={() => correctProblem(nativeDesignProblem(kind, error, settings))}>Corriger ce point</Button><Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Réessayer l’aperçu</Button></div> : preview ? <div className={`design-studio__pages${loading ? ' design-studio__pages--loading' : ''}${zoomed ? ' design-studio__pages--zoomed' : ''}`} tabIndex={zoomed ? 0 : undefined} aria-label="Pages de l’exemple">{preview.pages.map((src, index) => <img key={index} src={src} alt={`Exemple ${labels[kind]} · page ${index + 1}`} />)}{preview.pageCount > preview.pages.length && <p>Aperçu des {preview.pages.length} premières pages. Le PDF exporté contient les {preview.pageCount} pages.</p>}</div> : <div className="design-studio__placeholder">Préparation de votre exemple…</div>}
+        <button type="button" className="design-studio__return-tools" onClick={() => revealTools('.design-studio__panels button[aria-pressed=true]')}>{t('Revenir aux réglages')}</button>
+        <div className="design-studio__preview-label"><span>{t('Exemple fictif · A4')}</span>{loading && !error ? <span role="status"><LoaderCircle size={14} className="spin" /> {t('Mise à jour…')}</span> : <span>{t('Rendu PDF')}{preview ? ` · ${preview.pageCount}` : ''}</span>}<button type="button" aria-label={t(zoomed ? 'Ajuster l’aperçu' : 'Agrandir l’aperçu')} aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)}>{zoomed ? <ZoomOut size={18} /> : <ZoomIn size={18} />}</button></div>
+        {error ? <div className="design-studio__error" role="alert"><strong>L’aperçu demande une correction</strong><p>{error}</p><Button variant="secondary" disabled={busy} onClick={() => correctProblem(nativeDesignProblem(kind, error, settings))}>Corriger ce point</Button><Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Réessayer l’aperçu</Button></div> : preview ? <div className={`design-studio__pages${loading ? ' design-studio__pages--loading' : ''}${zoomed ? ' design-studio__pages--zoomed' : ''}`} tabIndex={zoomed ? 0 : undefined} aria-label="Pages de l’exemple">{preview.pages.map((src, index) => <img key={index} src={src} alt={`Exemple ${labels[kind]} · page ${index + 1}`} />)}{preview.pageCount > preview.pages.length && <p>Aperçu des {preview.pages.length} premières pages. Le PDF exporté contient les {preview.pageCount} pages.</p>}</div> : <div className="design-studio__placeholder">{t('Préparation de votre exemple…')}</div>}
       </div>
     </div>
   </section></DocumentWorkbench>;

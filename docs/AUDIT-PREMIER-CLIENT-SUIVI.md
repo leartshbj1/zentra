@@ -192,3 +192,9 @@ Complément du 27 septembre : chargement de la langue choisie dans `2174c3a4`, p
 - `desktop/.qa/runtime-speed/entry-before.json` et `entry-after.json` : graphe d’imports statiques construit depuis le HTML et les fichiers de production, imports dynamiques exclus. 184 449 octets JS bruts en moins ; aucun gain CSS annoncé.
 - 32 tests ciblés ouverture/compte/configuration ; TypeScript et Vite réussis. Revue limitée au démarrage et au fond de connexion : ship. Aucune nouvelle étape de connexion ni autorisation changée.
 - `cargo test --locked --lib backup::tests -- --test-threads=2` exécuté sur Windows : 19 réussis, zéro échec, un test cloud HTTPS réel ignoré ; 20,03 s d’exécution après compilation. Données temporaires uniquement. Le format courant revient correctement avec ses pièces et les archives invalides ne remplacent pas les données actives.
+
+## Réglages des documents et import sur mobile — 27 septembre
+
+L’aperçu est la première vue de personnalisation sur téléphone. Les titres répétés sont retirés dans Paramètres, le type de document se choisit dans un sélecteur natif, les outils restent accessibles et la carte des zones se déplie à la demande. L’import bexio conserve les mots dans ses boutons, présente l’aide détaillée à la demande et permet de relancer une vérification d’entreprise échouée. Changer de type d’import ne masque plus ce blocage.
+
+24 configurations navigateur + quatre configurations à texte 200 %, huit parcours complets d’éditeur, 30 tests ciblés, TypeScript et Vite passent. La reprise de revue juge résolus les trois points signalés (chevauchement après erreur, mots coupés, commandes non traduites), verdict **ship** strictement limité à ces corrections. L’entrée et l’import utilisent FR/DE/IT/EN ; la traduction exhaustive des outils avancés reste ouverte. [Portée et preuves](PARAMETRES-DOCUMENTS-MOBILE-20260927.md). Ce lot est postérieur aux installateurs 1.90.3, donc non livré dans ceux-ci.

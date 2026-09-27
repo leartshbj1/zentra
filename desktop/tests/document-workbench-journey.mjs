@@ -15,15 +15,17 @@ try {
     await page.route('**/native-design-fixture/*.pdf', async route => {
       const file = new URL(route.request().url()).pathname.split('/').at(-1);
       assert.match(file, /^(quotes|invoices|accounts|payslips)-(signature|minimal|helvetica|times|courier)\.pdf$/);
-      await route.fulfill({ contentType: 'application/pdf', body: await readFile(`.qa/composition-pdfs/${file}`) });
+      await route.fulfill({ contentType: 'application/pdf', body: await readFile(`${process.env.ZENTRA_DESIGN_PDF_FIXTURES || ".qa/composition-pdfs"}/${file}`) });
     });
     try {
       await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5271'}/tests/document-design-harness.html?tools=1&validation=1`);
       const ready = () => page.locator('.design-studio__preview[aria-busy=false] .design-studio__pages img').first().waitFor({ state: 'attached', timeout: 30000 });
       const draft = () => page.evaluate(() => JSON.parse(sessionStorage.getItem('design-draft')));
       const search = page.getByRole('searchbox', { name: 'Trouvez votre outil' });
-      const choose = async (query, label) => { await search.fill(query); await page.locator('.design-navigator__results').getByRole('button', { name: new RegExp('^' + label) }).click(); };
+      const choose = async (query, label) => { if (width <= 900 && !await search.isVisible()) await page.locator('.design-studio__mobile-switch').getByRole('button', { name: 'Mes réglages', exact: true }).click(); await search.fill(query); await page.locator('.design-navigator__results').getByRole('button', { name: new RegExp('^' + label) }).click(); };
+      const chooseKind = async label => width <= 900 ? page.locator('.design-studio__mobile-kind select').selectOption({ label }) : page.getByRole('button', { name: label, exact: true }).click();
       await ready();
+      if (width <= 900) await page.locator('.design-studio__mobile-switch').getByRole('button', { name: 'Mes réglages', exact: true }).click();
       await choose('police', 'Police du document');
       await page.getByLabel('Police du document', { exact:true }).selectOption('times');
       await ready();
@@ -70,11 +72,11 @@ try {
         await page.waitForFunction(selector => { const el = document.querySelector('.design-studio__tools')?.querySelector(selector); return el && !!el.getClientRects().length && document.activeElement === el; }, tool.selector);
         assert.equal(await page.locator('.design-studio__tools').locator(tool.selector).first().evaluate(el => !!el.getClientRects().length && document.activeElement === el), true, tool.id);
       }
-      await page.getByRole('button', { name: 'Bilan', exact:true }).click();
+      await chooseKind('Bilan');
       await search.fill('position totaux'); await page.getByText('Aucun outil trouvé.', { exact:false }).waitFor();
       await choose('commentaire', 'Mettre en forme le commentaire');
       await page.getByRole('textbox', { name: 'Commentaire après les comptes', exact:true }).fill('Commentaires sur les comptes annuels.');
-      await page.getByRole('button', { name: 'Factures', exact:true }).click();
+      await chooseKind('Factures');
       await choose('conditions', 'Mettre en forme les conditions');
       assert.equal(await node.evaluate(el => el.isConnected), false); // Kind change intentionally starts another text editor.
       await page.getByRole('button', { name: 'Agrandir l’espace d’écriture', exact:true }).click();
@@ -87,7 +89,7 @@ try {
       await page.screenshot({ path: `${out}/${width}-writing.png` });
       await page.getByRole('button', { name: 'Revenir aux paramètres', exact:true }).click();
       await modal.waitFor({ state:'hidden' });
-      assert.equal(await page.evaluate(() => document.activeElement?.textContent.includes('Ouvrir le grand atelier')), true);
+      assert.equal(await page.evaluate(() => (document.activeElement?.getAttribute('aria-label') || document.activeElement?.textContent || '').includes('Ouvrir le grand atelier')), true);
       // The rich editor and its changes stay mounted while switching workspaces.
       const restored = await editor.elementHandle();
       await page.getByRole('button', { name: 'Ouvrir le grand atelier', exact:true }).click();
@@ -105,9 +107,9 @@ try {
       await page.getByText('Les présentations sont enregistrées.', { exact:true }).waitFor();
       await page.getByRole('button', { name: 'Voir le rendu PDF', exact:true }).click(); await ready();
       await page.screenshot({ path: `${out}/${width}-preview.png` });
-      await page.getByRole('button', { name: 'Revenir aux réglages', exact:true }).click();
+      await page.getByRole('button', { name: width <= 900 ? 'Mes réglages' : 'Revenir aux réglages', exact:true }).click();
       for (const label of ['Factures','Devis','Bilan','Fiches de salaire']) {
-        await page.getByRole('button', { name: label, exact:true }).click(); await ready();
+        await chooseKind(label); await ready();
         await page.getByRole('button', { name: 'Exporter cet exemple', exact:true }).click();
         const output = await page.evaluate(() => JSON.parse(sessionStorage.getItem('design-export')));
         if (label === 'Factures') { assert.equal(output.style.composition.logoPosition, 'right'); assert.ok(output.style.composition.closing[0].runs[0].bold); }
