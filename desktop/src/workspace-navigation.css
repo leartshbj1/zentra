@@ -22,6 +22,9 @@ html[data-app-theme] .desktop-app[data-experience] .mobile-company-shortcut:focu
 html[data-app-theme] .desktop-app[data-experience] .sidebar__updates:focus-visible { outline:2px solid var(--work-accent); outline-offset:3px; }
 
 @media screen and (max-width:860px) {
+  html[data-app-theme] .desktop-app[data-experience] :is(.menu-button,.sidebar__close,.screen-help-launcher,.agenda-month-controls .button--icon) { min-width:44px; min-height:44px; flex-shrink:0; }
+  html[data-app-theme] .desktop-app[data-experience] .screen-help-launcher { width:44px; padding-inline:0; justify-content:center; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__filters button { min-width:44px; min-height:44px; padding-inline:8px; }
   html[data-app-theme] .desktop-app[data-experience] .topbar .topbar__company,
   html[data-app-theme] .desktop-app[data-experience] .topbar__tools > .company-sync-indicator,
   html[data-app-theme] .desktop-app[data-experience] .topbar__tools > .account-launcher,
@@ -58,7 +61,7 @@ html[data-app-theme] .desktop-app[data-experience] .sidebar__updates:focus-visib
   html[data-app-theme][data-app-text-size="100"] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .page-header__actions { display:flex; flex-wrap:wrap; grid-column:1 / -1; grid-row:2; align-items:stretch; }
   html[data-app-theme][data-app-text-size="100"] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .creation-action { order:1; flex:1 1 max-content; width:auto; max-width:100%; min-width:0; }
   html[data-app-theme][data-app-text-size="100"] .desktop-app[data-experience] .page-header .page-header__actions > .automation-tools-launcher { order:2; flex:0 0 auto; max-width:100%; }
-  html[data-app-theme][data-app-text-size="100"] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .screen-help-launcher { position:absolute; inset-block-start:18px; inset-inline-end:max(20px,var(--safe-right,env(safe-area-inset-right))); }
+  html[data-app-theme][data-app-text-size="100"] .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) .screen-help-launcher { position:absolute; inset-block-start:0; inset-inline-end:max(20px,var(--safe-right,env(safe-area-inset-right))); }
   html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .topbar .topbar__title { flex-basis:100%; }
   html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .mobile-company-shortcut > span { overflow-wrap:normal; }
   html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .page-header:has(.automation-tools-launcher) > div:first-child { padding-inline-end:0; }

@@ -24,3 +24,9 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
 ## Verification boundary
 Inspect dashboard, all modules, forms and settings on desktop1440, phone390, narrow320, both themes and long translated copy. Test real frontend paths using synthetic fixtures. Build actual platform binaries and verify releases independently of the browser preview.
+
+## Narrow touch-target correction — 27 September 2026
+
+Existing mobile navigation, screen help, calendar period arrows and Automation activity filters now provide at least 44 × 44 CSS px below 861 px. Icons and business actions are unchanged. The header help target aligns with the title and cannot overlap invoice creation. Desktop sizing is preserved.
+
+`tests/mobile-touch-targets.mjs` verifies taps three pixels from the left edge, menu opening/closing, help and Escape after focus settles, calendar navigation, activity filtering and no horizontal overflow. Twelve screen captures cover WebKit 320px DE/light and 390px FR/dark, Edge 768px IT/light and 1440px EN/dark. Scoped detector returned no findings; TypeScript and the web build passed. This is a bounded polish pass, not a new visual system or an independent whole-app review. Touch is simulated in browsers; physical devices and screen readers remain separate validation.
