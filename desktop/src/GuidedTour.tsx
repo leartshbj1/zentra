@@ -210,6 +210,7 @@ function rememberCompletion() {
 }
 
 export function useGuidedTour() {
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const [state, setState] = useState(() => ({
     open: initialOpen(),
     mode: 'automatic' as GuidedTourMode,
@@ -217,7 +218,11 @@ export function useGuidedTour() {
   return {
     open: state.open,
     mode: state.mode,
-    start: () => setState({ open: true, mode: 'complete' }),
+    returnFocus: returnFocusRef.current,
+    start: (returnFocus?: HTMLElement | null) => {
+      returnFocusRef.current = returnFocus ?? null;
+      setState({ open: true, mode: 'complete' });
+    },
     close: () => setState((current) => ({ ...current, open: false })),
   };
 }
@@ -225,24 +230,28 @@ export function useGuidedTour() {
 export function GuidedTour({
   open,
   mode,
+  returnFocus,
   onClose,
   onNavigate,
 }: {
   open: boolean;
   mode: GuidedTourMode;
+  returnFocus?: HTMLElement | null;
   onClose: () => void;
   onNavigate: (view: TourView) => void;
 }) {
   if (!open) return null;
-  return <GuidedTourDialog mode={mode} onClose={onClose} onNavigate={onNavigate} />;
+  return <GuidedTourDialog mode={mode} returnFocus={returnFocus} onClose={onClose} onNavigate={onNavigate} />;
 }
 
 function GuidedTourDialog({
   mode,
+  returnFocus,
   onClose,
   onNavigate,
 }: {
   mode: GuidedTourMode;
+  returnFocus?: HTMLElement | null;
   onClose: () => void;
   onNavigate: (view: TourView) => void;
 }) {
@@ -292,9 +301,9 @@ function GuidedTourDialog({
   }, [finish, index, steps.length]);
 
   useEffect(() => {
-    previousFocusRef.current = document.activeElement instanceof HTMLElement
+    previousFocusRef.current = returnFocus ?? (document.activeElement instanceof HTMLElement
       ? document.activeElement
-      : null;
+      : null);
     const root = dialogRef.current?.closest('.guided-tour');
     const siblings = Array.from(root?.parentElement?.children ?? []).filter((node): node is HTMLElement => node instanceof HTMLElement && node !== root);
     const states = siblings.map((node) => [node, node.inert] as const);
@@ -307,6 +316,7 @@ function GuidedTourDialog({
   }, []);
 
   useLayoutEffect(() => {
+    if (dialogRef.current) dialogRef.current.scrollTop = 0;
     onNavigate(step.view);
     let frame = 0;
     let settle = 0;
@@ -418,7 +428,6 @@ function GuidedTourDialog({
       <header>
         <span><BrandMark size={34} /></span>
         <div>
-          <p>{t(mode === 'automatic' ? 'Vos premiers pas' : lesson.chapter)}</p>
           <strong id="guided-tour-title" ref={titleRef} tabIndex={-1}>{t(step.title)}</strong>
         </div>
         <button type="button" onClick={() => finish(mode === 'automatic')} aria-label={t(mode === 'automatic' ? 'Fermer le guide automatique' : 'Fermer le guide complet')}>

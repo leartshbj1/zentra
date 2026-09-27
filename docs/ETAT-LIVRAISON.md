@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 28 septembre 2026, 00 h 07 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
+Mis à jour le 28 septembre 2026, 00 h 20 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
 
 ## Version 1.90.6 publiée ; installation locale Windows refusée
 
@@ -47,9 +47,11 @@ Le refus Windows 4551 reçoit désormais une explication lisible dans la source 
 
 L’[écran de mise à jour en quatre langues](MISES-A-JOUR-LANGUES-20260927.md) conserve les versions et diagnostics exacts, adapte les tailles/dates et réorganise les commandes à 200 %. Les instructions mobiles ne prétendent plus à une publication dans les stores. Suite de 1 822 tests, 13 tests ciblés, TypeScript et build réussis ; 26 configurations navigateur passent et deux confirmations finales ciblées valident le bandeau agrandi. IPC fictifs et captures relues ; aucune installation ni synchronisation réelle déduite. Le texte Rust mobile de ce lot n’a pas encore été compilé ; aucune nouvelle publication binaire.
 
-## Site, comptes et traitement autonome
-
 Complément natif non publié : les [rapports PDF suivent la langue sélectionnée jusque sur les pages suivantes](RAPPORTS-PDF-LANGUES-20260928.md). Huit tests frontend, 29 tests Rust, TypeScript/build passent ; quatre PDF fictifs et huit pages rendues sont contrôlés, avec 260 lignes conservées sans duplication. Compatibilité des anciennes demandes maintenue. Les autres familles de PDF ne sont pas déclarées traduites par ce lot.
+
+Le [guide de prise en main reste lisible avec le texte agrandi](GUIDE-LISIBILITE-20260928.md) et restitue le focus après fermeture. Seize tests ciblés, TypeScript et build passent. Quatorze configurations navigateur distinctes et 266 étapes sont contrôlées avec succès : douze dans la matrice complète, deux allemandes à 320 px / 200 % après correction ciblée. Pas de recette native ou tactile déduite ; non publié.
+
+## Site, comptes et traitement autonome
 
 Sites **292**, source `20ecc8c536df184ac1d75f095d52d6ef4d70bc49`, environnement 37, déploiement `appgdep_6ab97a5521b88191868471bd3bba8858`, sauvegarde avec archive vérifiée. Publication réussie à 22 h 19. Quatorze tests, TypeScript, marque et build réussis. Les reprises de préparation n’ont changé ni dépendance ni contenu : Bash ajouté au PATH de la commande, puis `TAR_OPTIONS=--force-local` pour traiter le chemin Windows comme local.
 

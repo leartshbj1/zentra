@@ -1740,7 +1740,7 @@ function WorkspaceContent({
             );
           })}
         </nav>
-        <button type="button" className="sidebar__guide" onClick={() => { setMenuOpen(false); guidedTour.start(); }}><CircleHelp size={22} /><span><strong>{t("Un peu d’aide ?")}</strong><small>{t("Découvrir Zentra, pas à pas")}</small></span><ArrowRight size={16} /></button>
+        <button type="button" className="sidebar__guide" onClick={(event) => { const target = compactNavigation ? document.querySelector<HTMLElement>('.menu-button') : event.currentTarget; setMenuOpen(false); guidedTour.start(target); }}><CircleHelp size={22} /><span><strong>{t("Un peu d’aide ?")}</strong><small>{t("Découvrir Zentra, pas à pas")}</small></span><ArrowRight size={16} /></button>
         <button type="button" className="personalize-shortcuts" onClick={() => { navigateTour('settings'); setSettingsFocusTarget('workspace-personalization'); }}><Settings size={18} aria-hidden="true" />{t('Personnaliser les raccourcis')}</button>
         <button type="button" className="sidebar__updates" onClick={()=>{setMenuOpen(false);openUpdater();}}><RefreshCw size={18} aria-hidden="true" /><span>{t('Ouvrir les mises à jour de Zentra')}</span>{availableUpdate&&<em aria-label={t('Zentra {v0} est disponible',{v0:availableUpdate})}>1</em>}</button>
         <div className="sidebar__local">
@@ -1807,7 +1807,7 @@ function WorkspaceContent({
               className="tour-launcher"
               aria-label={t("Ouvrir le guide complet")}
               title={t("Ouvrir le guide complet")}
-              onClick={guidedTour.start}
+              onClick={(event) => guidedTour.start(event.currentTarget)}
             >
               <CircleHelp size={18} />
             </Button>
@@ -2529,6 +2529,7 @@ function WorkspaceContent({
       <GuidedTour
         open={guidedTour.open}
         mode={guidedTour.mode}
+        returnFocus={guidedTour.returnFocus}
         onClose={guidedTour.close}
         onNavigate={navigateTour}
       />

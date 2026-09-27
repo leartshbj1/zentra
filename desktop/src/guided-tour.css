@@ -10,7 +10,6 @@
   .guided-tour__card > header { display: flex; gap: 12px; align-items: flex-start; padding: 0; }
   .guided-tour__card > header > div { min-width: 0; overflow-wrap: anywhere; }
   .guided-tour__card > header > span { background: #f0f5f1; border: 0; border-radius: 16px; padding: 12px; }
-  .guided-tour__card > header p { color: #69816c; font-size: 12px; text-transform: none; letter-spacing: 0; margin: 0 0 7px; }
   .guided-tour__card > header strong { display: block; font-size: 27px; line-height: 1.2; font-weight: 600; letter-spacing: -.035em; }
   .guided-tour__card > header > button { flex-shrink: 0; margin-left: auto; min-width: 40px; min-height: 40px; border-radius: 50%; background: #f2f5f0; }
   .guided-tour__contents { display: grid; gap: 7px; margin: 22px 0 18px; color: #657368; font-size: 12px; }
@@ -49,3 +48,23 @@
 @media (prefers-reduced-motion: no-preference) { .guided-tour__lesson { animation: guide-lesson-in 220ms ease-out; } .guided-tour__progress i { transition: width 260ms ease; } }
 @keyframes guide-lesson-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-transparency: reduce) { .guided-tour__veil { backdrop-filter: none; -webkit-backdrop-filter: none; } }
+
+/* Large text must never shrink the explanation to a zero-height scroll area. */
+@media screen {
+  html[data-app-text-size]:not([data-app-text-size="100"]) .guided-tour__card { display: block; overflow-y: auto; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .guided-tour__lesson { overflow: visible; overflow-wrap: anywhere; hyphens: auto; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .guided-tour__scroll-hint { display: none; }
+}
+@media screen and (max-width: 600px) {
+  html[data-app-text-size]:not([data-app-text-size="100"]) .guided-tour__card > header { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .guided-tour__card > header > button { grid-row: 1; grid-column: 2; min-width: 44px; min-height: 44px; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .guided-tour__card > header > div { grid-column: 1 / -1; grid-row: 2; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .guided-tour__card > header strong { hyphens: auto; overflow-wrap: anywhere; word-break: normal; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .guided-tour__card > footer { display: grid; grid-template-columns: minmax(0, 1fr); }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .guided-tour__card > footer .button { width: 100%; min-height: 44px; overflow-wrap: normal; word-break: normal; }
+}
+@media screen and (max-height: 500px) {
+  html .guided-tour__card { display: block; overflow-y: auto; }
+  html .guided-tour__lesson { overflow: visible; }
+  html .guided-tour__scroll-hint { display: none; }
+}
