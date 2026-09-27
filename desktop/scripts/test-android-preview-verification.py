@@ -1,0 +1,50 @@
+"""Negative cases for release identity and payload preservation (no private key)."""
+import importlib.util
+from pathlib import Path
+import tempfile
+import unittest
+import zipfile
+
+spec = importlib.util.spec_from_file_location('preview_check', Path(__file__).with_name('verify-android-preview.py'))
+check = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(check)
+PIN = 'ab' * 32
+VERIFIED = ('Verified using v2 scheme (APK Signature Scheme v2): true\n'
+            'Number of signers: 1\nSigner #1 certificate SHA-256 digest: ' + PIN + '\n')
+
+
+class PreviewVerification(unittest.TestCase):
+    def test_rejects_wrong_or_multiple_identities_and_no_v2(self):
+        check.check_signature_output(VERIFIED, PIN)
+        cases = [VERIFIED.replace(PIN, 'cd' * 32), VERIFIED.replace(': true', ': false'),
+                 VERIFIED.replace('signers: 1', 'signers: 2'),
+                 VERIFIED + 'Signer #2 certificate SHA-256 digest: ' + PIN + '\n', '']
+        for output in cases:
+            with self.subTest(output=output), self.assertRaises(ValueError):
+                check.check_signature_output(output, PIN)
+
+    def test_signature_metadata_may_be_added_but_not_application_data_changed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source, signed = [Path(folder) / name for name in ('source.apk', 'signed.apk')]
+            entries = {'classes.dex': b'code', 'AndroidManifest.xml': b'manifest',
+                       'assets/logo.png': b'brand', 'META-INF/androidx.version': b'1'}
+            with zipfile.ZipFile(source, 'w') as archive:
+                for name, data in entries.items():
+                    archive.writestr(name, data)
+            signature = {'META-INF/MANIFEST.MF': b'mf', 'META-INF/SIGNER.SF': b'sf', 'META-INF/SIGNER.RSA': b'cert'}
+            cases = [{**entries, **signature}, {**entries, 'classes.dex': b'changed'},
+                     {**entries, 'META-INF/androidx.version': b'2'}, {**entries, 'assets/new.js': b'code'},
+                     {name: value for name, value in entries.items() if name != 'assets/logo.png'}]
+            for index, contents in enumerate(cases):
+                with zipfile.ZipFile(signed, 'w') as archive:
+                    for name, data in contents.items():
+                        archive.writestr(name, data)
+                if index == 0:
+                    self.assertEqual(check.compare_payload(source, signed), len(entries))
+                else:
+                    with self.subTest(index=index), self.assertRaisesRegex(ValueError, 'payload'):
+                        check.compare_payload(source, signed)
+
+
+if __name__ == '__main__':
+    unittest.main()

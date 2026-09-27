@@ -28,6 +28,19 @@ parameters:
     default: ""
 
 jobs:
+  android-optimized-payload-smoke:
+    machine:
+      image: android:default
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Launch the exact optimized ARM payload on a disposable emulator
+          command: timeout 18m bash desktop/scripts/smoke-android-release-candidate.sh
+          no_output_timeout: 5m
+      - store_artifacts:
+          path: desktop/artifacts/android-release-smoke
+          destination: android-release-smoke
   iphone-brand-1906:
     macos:
       xcode: "26.4.1"
@@ -324,6 +337,11 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-android-payload-smoke:
+    when:
+      equal: [codex/first-client-android-smoke-20260928, << pipeline.git.branch >>]
+    jobs:
+      - android-optimized-payload-smoke
   first-client-android-release:
     when:
       equal: [codex/first-client-android-release-20260927, << pipeline.git.branch >>]
