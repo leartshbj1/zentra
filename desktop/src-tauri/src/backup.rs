@@ -1240,8 +1240,8 @@ fn copy_reader_to_new_file_limited<R: Read>(
     result
 }
 
-fn add_file_to_archive(
-    archive: &mut ZipWriter<File>,
+fn add_file_to_archive<W: Write + io::Seek>(
+    archive: &mut ZipWriter<W>,
     source: &Path,
     name: &str,
     options: SimpleFileOptions,
