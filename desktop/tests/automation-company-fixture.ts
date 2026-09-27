@@ -18,6 +18,10 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
     { id: 'mail-demo-2', name: 'Atelier électrique & installations de Suisse romande', reference: 'ELEC-2026-082', net: 108000, state: 'needs_review' },
     { id: 'mail-demo-3', name: 'Studio Romandie', reference: 'STUDIO-2026-067', net: 40000, state: 'imported' },
   ].map((row, i) => ({ id: row.id, organizationId: 'automation-qa', fileName: row.reference+'.pdf', mediaType: 'application/pdf', sha256: 'fixture', sender: 'factures@example.test', subject: row.reference, state: row.state, invoiceId: row.state==='imported'?row.id:null, automatic: false, otherDevice: false, createdAt: 1790000000-i, extraction: {supplierName:row.name,reference:row.reference,invoiceDate:'2026-09-21',dueDate:'2026-10-21',currency:'CHF',netCents:row.net,vatCents:Math.round(row.net*.081),totalCents:row.net+Math.round(row.net*.081),vatBp:810,category:'materials',confidence:.98,issues:[],evidence:{}} }));
+  let mailboxUnavailable = false;
+  if (params.has('purchaseInboxAudit')) Object.assign(window, {__purchaseInboxQa: {
+    setUnavailable(value: boolean) { mailboxUnavailable = value; window.dispatchEvent(new Event('focus')); },
+  }});
   const state: AutomationState = {
     organizationId: 'automation-qa', active: params.get('automation') !== 'inactive', canManage: !params.has('member'),
     available: ['transaction_classification', 'document_routing', 'supplier_routing', 'agent_routing', 'anomaly_detection', 'priority', 'email_classification', 'import_mapping'],
@@ -32,6 +36,7 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
   Object.assign(window, { __TAURI_INTERNALS__: {
     invoke: async (command: string, args: { data?: Record<string, unknown> }) => {
       if (command === 'supplier_inbox_request') {
+        if (mailboxUnavailable) throw Error('Réception mail indisponible — essai fictif');
         // This visual fixture has no accounting writes; preparation is tested in its own journey.
         if (!args?.data) return {organizationId:'automation-qa',linked:true,autoPost:false,automationActive:true,prepareEnabled:false,habits:[],items:structuredClone(invoices)};
         if (args.data.action === 'document') {

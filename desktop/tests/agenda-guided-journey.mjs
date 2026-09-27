@@ -61,6 +61,7 @@ try {
     await recovery.getByText('Actualisation impossible',{exact:true}).waitFor();
     await page.evaluate(()=>window.agendaFixture.empty=true);
     await recovery.getByRole('button',{name:'Actualiser les données',exact:true}).click();
+    await recovery.getByText('Voir le message détaillé',{exact:true}).click();
     await recovery.getByText('L’agenda n’a pas pu être chargé. Réessayez l’actualisation.',{exact:true}).waitFor();
     await shot(page,`${width}-recovery`);
     await page.evaluate(()=>{window.agendaFixture.empty=false;window.__qaSetReadOnly(true);});
@@ -100,6 +101,7 @@ try {
     assert.equal((await state(page)).events[0].status,'scheduled');
     await page.evaluate(()=>window.agendaFixture.reject='');
     await complete.getByRole('button',{name:'Marquer comme terminé',exact:true}).click();await complete.waitFor({state:'hidden'});
+    if(!await page.getByLabel('Afficher terminés / annulés').isVisible()) await page.locator('.agenda-options summary').click();
     await page.getByLabel('Afficher terminés / annulés').check();
     assert.equal((await state(page)).events[0].status,'completed');
     await page.getByRole('button',{name:'Supprimer « Visite actualisée »',exact:true}).click();

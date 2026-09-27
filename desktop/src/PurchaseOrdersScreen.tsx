@@ -1,5 +1,10 @@
 import { SupplierCreditAllocationModal } from './SupplierCreditAllocationModal';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { t } from './language';
+import { MobileDetails, useCompactLayout } from './MobileDetails';
+import './purchase-inbox.css';
+import type { SupplierInboxState } from './supplierInbox';
+import { purchaseInboxCount } from './purchaseInboxPresentation';
 import { SupplierReceiptForm, IssueReceiptModal, ReverseReceiptModal } from './SupplierReceiptForms';
 import {
   AlertTriangle,
@@ -564,6 +569,9 @@ export function nextMatchClearConfirmation(
 }
 
 export function PurchaseOrdersScreen({
+  mailboxPanel,
+  mailbox,
+  mailboxUnavailable = false,
   openInvoiceMatchId,
   onOpenInvoiceMatchHandled,
   openCreditId,
@@ -593,6 +601,9 @@ export function PurchaseOrdersScreen({
   onOpenBank,
   onReadWorkspace,
 }: {
+  mailboxPanel?: ReactNode;
+  mailbox?: SupplierInboxState | null;
+  mailboxUnavailable?: boolean;
   openInvoiceMatchId?: string | null;
   onOpenInvoiceMatchHandled?: () => void;
   openCreditId?:string|null;
@@ -622,6 +633,7 @@ export function PurchaseOrdersScreen({
   onReadWorkspace: () => Promise<Workspace>;
   onOpenBank: () => void;
 }) {
+  const compact = useCompactLayout();
   const [section, setSection] = useState<PurchaseSection>('inbox');
   const [creditToReveal, setCreditToReveal] = useState<string | null>(null);
   useEffect(()=>{
@@ -716,8 +728,8 @@ export function PurchaseOrdersScreen({
   const draftCredits = workspace.supplierCreditNotes.filter(
     (credit) => credit.status === 'draft',
   );
-  const inboxCount =
-    actionableOrders.length + documentActions.length + draftCredits.length;
+  const inboxCount = purchaseInboxCount(documentActions.map(item => item.id), actionableOrders.length, draftCredits.length, mailbox);
+  const pendingMail = mailbox?.items.filter(item => !['imported', 'ignored'].includes(item.state)).length || 0;
   const receiptDraftCount = workspace.supplierReceipts.filter(
     (receipt) => receipt.status === 'draft',
   ).length;
@@ -783,7 +795,7 @@ export function PurchaseOrdersScreen({
   };
 
   const sectionCount = (id: PurchaseSection) => {
-    if (id === 'inbox') return inboxCount;
+    if (id === 'inbox') return mailboxUnavailable ? '—' : inboxCount;
     if (id === 'orders') return workspace.supplierOrders.length;
     if (id === 'receipts') return workspace.supplierReceipts.length;
     if (id === 'documents')
@@ -794,7 +806,7 @@ export function PurchaseOrdersScreen({
   };
 
   const primaryAction =
-    section === 'orders' || section === 'inbox' ? (
+    section === 'orders' ? (
       <Button
         disabled={busy || readOnly || !activeSuppliers.length}
         title={
@@ -825,16 +837,15 @@ export function PurchaseOrdersScreen({
       </Button>
     ) : null;
 
-  return (
-    <div className="stack-layout purchase-workflow">
+  const summary = (
       <div
         className="purchase-workflow__summary"
         aria-label="Résumé des achats fournisseurs"
       >
         <div>
           <span>À traiter</span>
-          <strong>{inboxCount}</strong>
-          <small>prochaine action claire</small>
+          <strong>{mailboxUnavailable ? '—' : inboxCount}</strong>
+          <small>{t(mailboxUnavailable ? 'Réception mail à actualiser' : mailbox?.linked ? 'Réception mail comprise' : 'Commandes, factures et avoirs')}</small>
         </div>
         <div>
           <span>Commandes actives</span>
@@ -858,6 +869,10 @@ export function PurchaseOrdersScreen({
           <small>factures moins paiements et avoirs</small>
         </div>
       </div>
+  );
+  return (
+    <div className="stack-layout purchase-workflow">
+      {!compact && summary}
 
       {!accountingReady &&
       (workspace.supplierInvoices.length ||
@@ -877,10 +892,10 @@ export function PurchaseOrdersScreen({
       ) : null}
 
       <section className="panel purchase-workflow__panel">
-        <SectionHeading
+        {section !== 'inbox' && <SectionHeading
           title="Suivi des achats"
           action={primaryAction}
-        />
+        />}
         <div className="purchase-workflow__toolbar">
           <label className="purchase-workflow__mobile-section">
             <span>Section des achats</span>
@@ -961,6 +976,7 @@ export function PurchaseOrdersScreen({
         >
           {section === 'inbox' ? (
             <>
+              {mailboxPanel}
               <SupplierEmailIntake
                 workspace={workspace}
                 busy={busy}
@@ -968,6 +984,9 @@ export function PurchaseOrdersScreen({
                 runAction={runAction}
               />
               <PurchaseInbox
+                query={query}
+                pendingMail={pendingMail}
+                mailboxUnavailable={mailboxUnavailable}
                 workspace={workspace}
                 orders={actionableOrders.filter((order) =>
                   includesQuery(query, [
@@ -1129,6 +1148,7 @@ export function PurchaseOrdersScreen({
           ) : null}
         </div>
       </section>
+      {compact && <MobileDetails title="Résumé des achats">{summary}</MobileDetails>}
 
       {modal?.type === 'order' ? (
         <SupplierOrderForm
@@ -1347,6 +1367,9 @@ export function PurchaseOrdersScreen({
 }
 
 function PurchaseInbox({
+  query,
+  pendingMail,
+  mailboxUnavailable,
   workspace,
   orders,
   invoices,
@@ -1360,6 +1383,9 @@ function PurchaseInbox({
   onValidateCredit,
   onCreateOrder,
 }: {
+  query: string;
+  pendingMail: number;
+  mailboxUnavailable: boolean;
   workspace: Workspace;
   orders: SupplierOrder[];
   invoices: SupplierInvoice[];
@@ -1373,18 +1399,21 @@ function PurchaseInbox({
   onValidateCredit: (credit: SupplierCreditNote) => void;
   onCreateOrder: () => void;
 }) {
-  if (!orders.length && !invoices.length && !credits.length)
+  if (!orders.length && !invoices.length && !credits.length) {
+    // The mail queue above owns pending imports; never announce completion below it.
+    if (!query.trim() && (pendingMail > 0 || mailboxUnavailable)) return null;
     return (
       <EmptyState
         icon={<CheckCircle2 />}
-        title="Tout est traité"
+        title={t(query.trim() ? 'Aucun résultat' : 'Aucun achat enregistré à traiter')}
         actionVariant="secondary"
-        text="Aucune commande, facture ou avoir ne requiert d’action pour le moment."
-        actionLabel="Créer une commande"
-        onAction={onCreateOrder}
+        text={t(query.trim() ? 'Essayez un autre fournisseur ou une autre référence.' : 'Les commandes, factures et avoirs enregistrés sont à jour.')}
+        actionLabel={query.trim() ? undefined : t('Créer une commande')}
+        onAction={query.trim() ? undefined : onCreateOrder}
         disabled={busy}
       />
     );
+  }
   return (
     <div
       className="purchase-inbox"

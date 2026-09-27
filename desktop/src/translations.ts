@@ -26,7 +26,11 @@ import { supplierReviewTranslations } from './translationsSupplierReview';
 import { workflowClarityTranslations } from './translationsWorkflowClarity';
 import { documentEditorTranslations } from './translationsDocumentEditor';
 import { outgoingMailTranslations } from './translationsOutgoingMail';
+import { agendaTranslations } from './translationsAgenda';
+import { purchaseInboxTranslations } from './translationsPurchaseInbox';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...purchaseInboxTranslations,
+  ...agendaTranslations,
   'Vos sauvegardes utilisent le format .zentra. Les anciennes sauvegardes de test ne peuvent plus être restaurées.': ['Ihre Sicherungen verwenden das Format .zentra. Alte Testsicherungen können nicht mehr wiederhergestellt werden.', 'I backup usano il formato .zentra. I vecchi backup di prova non possono più essere ripristinati.', 'Your backups use the .zentra format. Old test backups can no longer be restored.'],
   ...outgoingMailTranslations,
   'Ajouter le logo de l’entreprise': ['Firmenlogo hinzufügen', 'Aggiungi il logo aziendale', 'Add the company logo'],

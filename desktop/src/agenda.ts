@@ -1,5 +1,6 @@
 import type { AgendaEvent, Workspace } from './types';
 import { formatDate } from './utils';
+import { getAppLocale, t } from './language';
 
 export type AgendaCategory = 'agenda' | 'projects' | 'deadlines' | 'payroll';
 export type AgendaRoute =
@@ -323,7 +324,7 @@ export function weekDates(date: string) {
 
 export function monthLabel(monthKey: string) {
   const date = localDate(`${monthKey}-01`);
-  const value = new Intl.DateTimeFormat('fr-CH', {
+  const value = new Intl.DateTimeFormat(getAppLocale(), {
     month: 'long',
     year: 'numeric',
   }).format(date);
@@ -443,19 +444,19 @@ export function formatAgendaItemRange(
   if (item.date === item.endDate) {
     const time = item.time
       ? `${item.time}${item.endTime ? `–${item.endTime}` : ''}`
-      : 'Toute la journée';
+      : t('Toute la journée');
     return showDate ? `${formatDate(item.date)} · ${time}` : time;
   }
   if (!item.time) {
     return showDate
-      ? `${formatDate(item.date)} – ${formatDate(item.endDate)} · Plusieurs jours`
-      : 'Plusieurs jours';
+      ? `${formatDate(item.date)} – ${formatDate(item.endDate)} · ${t('Plusieurs jours')}`
+      : t('Plusieurs jours');
   }
   if (visibleDate) {
-    if (visibleDate === item.date) return `Dès ${item.time}`;
+    if (visibleDate === item.date) return t('Dès {time}', {time:item.time});
     if (visibleDate === item.endDate)
-      return item.endTime ? `Jusqu’à ${item.endTime}` : 'Fin ce jour';
-    return 'Toute la journée';
+      return item.endTime ? t('Jusqu’à {time}', {time:item.endTime}) : t('Fin ce jour');
+    return t('Toute la journée');
   }
   const ending = item.endTime ? ` ${item.endTime}` : '';
   return `${formatDate(item.date)} ${item.time} → ${formatDate(item.endDate)}${ending}`;

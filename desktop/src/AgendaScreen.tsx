@@ -33,6 +33,9 @@ import { AgendaActionDialog } from './AgendaActionDialog';
 import { eventDraft, type AgendaEventDraft, type AgendaErrorHandler } from './agendaForm';
 export type { AgendaEventDraft } from './agendaForm';
 import { formatDate, todayIso } from './utils';
+import { MobileDetails, useCompactLayout } from './MobileDetails';
+import { getAppLocale, t, useAppLanguage } from './language';
+import './agenda-mobile.css';
 
 const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 type AgendaDisplay = 'day' | 'week' | 'month';
@@ -84,10 +87,12 @@ export function AgendaScreen({
   onDelete: (event: AgendaEvent, onError?: AgendaErrorHandler) => Promise<boolean>;
   onNavigate: (item: AgendaItem) => void;
 }) {
+  useAppLanguage();
+  const compact = useCompactLayout();
   const [today, setToday] = useState(() => todayIso());
   const [month, setMonth] = useState(monthKeyFromDate(today));
   const [selectedDate, setSelectedDate] = useState(today);
-  const [display, setDisplay] = useState<AgendaDisplay>('month');
+  const [display, setDisplay] = useState<AgendaDisplay>(() => compact ? 'day' : 'month');
   const [category, setCategory] = useState<AgendaCategory | 'all'>('all');
   const [includeClosed, setIncludeClosed] = useState(false);
   const [editor, setEditor] = useState<AgendaEventDraft | null>(null);
@@ -154,11 +159,11 @@ export function AgendaScreen({
 
   return (
     <div className="agenda-layout">
-      <section className="agenda-summary" aria-label="Résumé de l’agenda">
+      {!compact && <section className="agenda-summary" aria-label={t('Résumé de l’agenda')}>
         <AgendaMetric label="Aujourd’hui" value={todayCount} />
         <AgendaMetric label="7 prochains jours" value={nextCount} />
         <AgendaMetric label="À vérifier en retard" value={overdueCount} alert={overdueCount > 0} />
-      </section>
+      </section>}
 
       <section className="agenda-toolbar panel">
         <div className="agenda-month-controls">
@@ -166,12 +171,12 @@ export function AgendaScreen({
             variant="ghost"
             size="icon"
             onClick={() => movePeriod(-1)}
-            aria-label="Période précédente"
+            aria-label={t('Période précédente')}
           >
             <ChevronLeft size={18} />
           </Button>
           <div>
-            <span>{display === 'day' ? 'Journée' : display === 'week' ? 'Semaine' : 'Planning réel'}</span>
+            <span>{t(display === 'day' ? 'Journée' : display === 'week' ? 'Semaine' : 'Planning réel')}</span>
             <strong>
               {display === 'month'
                 ? monthLabel(month)
@@ -184,7 +189,7 @@ export function AgendaScreen({
             variant="ghost"
             size="icon"
             onClick={() => movePeriod(1)}
-            aria-label="Période suivante"
+            aria-label={t('Période suivante')}
           >
             <ChevronRight size={18} />
           </Button>
@@ -196,11 +201,12 @@ export function AgendaScreen({
               setSelectedDate(today);
             }}
           >
-            Aujourd’hui
+            {t('Aujourd’hui')}
           </Button>
         </div>
+        <div className="agenda-options"><MobileDetails title="Vue et filtres" badge={category !== 'all' || includeClosed ? t('Filtres actifs') : undefined}>
         <div className="agenda-filters">
-          <div className="agenda-display-switch" role="group" aria-label="Vue de l’agenda">
+          <div className="agenda-display-switch" role="group" aria-label={t('Vue de l’agenda')}>
             {([
               ['day', 'Jour'],
               ['week', 'Semaine'],
@@ -216,19 +222,19 @@ export function AgendaScreen({
                   setMonth(monthKeyFromDate(selectedDate));
                 }}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
           <label>
-            <span>Afficher</span>
+            <span>{t('Afficher')}</span>
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value as AgendaCategory | 'all')}
             >
-              <option value="all">Tout</option>
+              <option value="all">{t('Tout')}</option>
               {Object.entries(categoryLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
+                <option key={value} value={value}>{t(label)}</option>
               ))}
             </select>
           </label>
@@ -238,23 +244,24 @@ export function AgendaScreen({
               checked={includeClosed}
               onChange={(event) => setIncludeClosed(event.target.checked)}
             />
-            <span>Afficher terminés / annulés</span>
+            <span>{t('Afficher terminés / annulés')}</span>
           </label>
-          <Button
+        </div>
+        </MobileDetails></div>
+          <Button className="agenda-create"
             disabled={busy || readOnly}
             onClick={() => setEditor(eventDraft(undefined, selectedDate))}
           >
-            <Plus size={16} /> Ajouter
+            <Plus size={16} /> {t('Ajouter')}
           </Button>
-        </div>
       </section>
 
-      <div className="agenda-main-grid">
-        <section className={`agenda-calendar agenda-calendar--${display} panel`} aria-label={`Calendrier ${monthLabel(month)}`}>
+      <div className="agenda-main-grid" data-display={display}>
+        <section className={`agenda-calendar agenda-calendar--${display} panel`} aria-label={t('Calendrier {month}', {month:monthLabel(month)})}>
           {display === 'month' ? (
             <>
               <div className="agenda-weekdays" aria-hidden="true">
-                {weekDays.map((day) => <span key={day}>{day}</span>)}
+                {weekDays.map((day) => <span key={day}>{t(day)}</span>)}
               </div>
               <div className="agenda-days">
                 {days.map((day) => {
@@ -300,9 +307,9 @@ export function AgendaScreen({
           ) : (
             <div className="agenda-day-view">
               <CalendarDays size={25} />
-              <span>{new Intl.DateTimeFormat('fr-CH', { weekday: 'long' }).format(new Date(`${selectedDate}T12:00:00`))}</span>
+              <span>{new Intl.DateTimeFormat(getAppLocale(), { weekday: 'long' }).format(new Date(`${selectedDate}T12:00:00`))}</span>
               <strong>{formatDate(selectedDate)}</strong>
-              <small>{visibleItems.length} élément{visibleItems.length > 1 ? 's' : ''}</small>
+              <small>{t('{count} élément(s)', {count:visibleItems.length})}</small>
             </div>
           )}
         </section>
@@ -310,11 +317,11 @@ export function AgendaScreen({
         <section className="agenda-list-panel panel">
           <header>
             <div>
-              <span>{display === 'day' ? 'Journée sélectionnée' : display === 'week' ? 'Vue de la semaine' : 'Vue du mois'}</span>
+              <span>{t(display === 'day' ? 'Journée sélectionnée' : display === 'week' ? 'Vue de la semaine' : 'Vue du mois')}</span>
               <strong>{display === 'day' ? formatDate(selectedDate) : display === 'week' ? `${formatDate(displayedWeek[0])} – ${formatDate(displayedWeek[6])}` : monthLabel(month)}</strong>
             </div>
             {display !== 'month' ? (
-              <Button variant="ghost" size="small" onClick={() => setDisplay('month')}>Voir le mois</Button>
+              <Button variant="ghost" size="small" onClick={() => setDisplay('month')}>{t('Voir le mois')}</Button>
             ) : null}
           </header>
           {visibleItems.length ? (
@@ -340,9 +347,9 @@ export function AgendaScreen({
           ) : (
             <EmptyState
               icon={<CalendarDays />}
-              title="Rien de prévu ici"
-              text="Les échéances de vos projets, factures et salaires apparaissent automatiquement. Ajoutez seulement les rendez-vous qui vous sont propres."
-              actionLabel="Ajouter un rendez-vous"
+              title={t('Rien de prévu ici')}
+              text={t('Les échéances de vos projets, factures et salaires apparaissent automatiquement. Ajoutez seulement les rendez-vous qui vous sont propres.')}
+              actionLabel={t('Ajouter un rendez-vous')}
               onAction={() => setEditor(eventDraft(undefined, selectedDate))}
               disabled={busy || readOnly}
             />
@@ -350,9 +357,17 @@ export function AgendaScreen({
         </section>
       </div>
 
-      <div className="agenda-legend" aria-label="Légende">
+      {compact && <MobileDetails title="Résumé de l’agenda" badge={overdueCount > 0 ? `${overdueCount} ${t('En retard')}` : undefined}>
+        <section className="agenda-summary" aria-label={t('Résumé de l’agenda')}>
+          <AgendaMetric label={t('Aujourd’hui')} value={todayCount} />
+          <AgendaMetric label={t('7 prochains jours')} value={nextCount} />
+          <AgendaMetric label={t('À vérifier en retard')} value={overdueCount} alert={overdueCount > 0} />
+        </section>
+      </MobileDetails>}
+
+      <div className="agenda-legend" aria-label={t('Légende')}>
         {Object.entries(categoryLabels).map(([value, label]) => (
-          <span key={value}><i className={`agenda-dot agenda-dot--${value}`} /> {label}</span>
+          <span key={value}><i className={`agenda-dot agenda-dot--${value}`} /> {t(label)}</span>
         ))}
       </div>
 
@@ -376,7 +391,7 @@ export function AgendaScreen({
 function AgendaMetric({ label, value, alert = false }: { label: string; value: number; alert?: boolean }) {
   return (
     <article className={alert ? 'is-alert' : ''}>
-      <span>{label}</span>
+      <span>{t(label)}</span>
       <strong>{value}</strong>
     </article>
   );
@@ -411,10 +426,10 @@ function AgendaDayButton({
         selected ? 'is-selected' : '',
       ].filter(Boolean).join(' ')}
       aria-pressed={selected}
-      aria-label={`${formatDate(date)} · ${dayItems.length} élément${dayItems.length > 1 ? 's' : ''}`}
+      aria-label={`${formatDate(date)} · ${t('{count} élément(s)', {count:dayItems.length})}`}
       onClick={onSelect}
     >
-      {label ? <small className="agenda-day__label">{label}</small> : null}
+      {label ? <small className="agenda-day__label">{t(label)}</small> : null}
       <span>{day}</span>
       <div>
         {dayItems.slice(0, 3).map((item) => (
@@ -459,7 +474,7 @@ function AgendaRow({
       </div>
       <div className="agenda-row__content">
         <div>
-          <small>{sourceLabels[item.source]}</small>
+          <small>{t(sourceLabels[item.source])}</small>
           <strong>{item.title}</strong>
         </div>
         {item.subtitle ? (
@@ -476,8 +491,8 @@ function AgendaRow({
                 size="icon"
                 disabled={busy || readOnly}
                 onClick={() => void onComplete()}
-                title="Marquer terminé"
-                aria-label={`Marquer « ${item.title} » terminé`}
+                title={t('Marquer terminé')}
+                aria-label={t('Marquer « {title} » terminé', {title:item.title})}
               >
                 <Check size={16} />
               </Button>
@@ -487,8 +502,8 @@ function AgendaRow({
               size="icon"
               disabled={busy || readOnly}
               onClick={onEdit}
-              title="Modifier"
-              aria-label={`Modifier « ${item.title} »`}
+              title={t('Modifier')}
+              aria-label={t('Modifier « {title} »', {title:item.title})}
             >
               <Pencil size={15} />
             </Button>
@@ -497,15 +512,15 @@ function AgendaRow({
               size="icon"
               disabled={busy || readOnly}
               onClick={() => void onDelete()}
-              title="Supprimer"
-              aria-label={`Supprimer « ${item.title} »`}
+              title={t('Supprimer')}
+              aria-label={t('Supprimer « {title} »', {title:item.title})}
             >
               <Trash2 size={15} />
             </Button>
           </>
         ) : (
           <Button variant="ghost" size="small" onClick={onNavigate}>
-            Ouvrir <ExternalLink size={14} />
+            {t('Ouvrir')} <ExternalLink size={14} />
           </Button>
         )}
       </div>

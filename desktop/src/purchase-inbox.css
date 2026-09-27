@@ -1,0 +1,30 @@
+/* The mail intake belongs to the existing purchase work list, on a single surface. */
+.purchase-workflow .supplier-inbox--embedded {
+  padding: 20px 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.purchase-workflow .supplier-inbox--embedded > header .supplier-inbox__icon { display: none; }
+.purchase-workflow .supplier-inbox--embedded > header h2 { font-size: 17px; }
+.purchase-workflow .supplier-inbox--embedded > header p { display: none; }
+html[data-app-theme] .desktop-app[data-experience] .purchase-workflow .purchase-search {
+  min-height: 44px;
+  height: auto;
+}
+html[data-app-theme] .desktop-app[data-experience] .purchase-workflow .purchase-search input {
+  min-height: 44px;
+  height: auto;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  background: transparent;
+  padding-block: 8px;
+  font-size: 16px;
+}
+@media (max-width: 860px) {
+  .purchase-workflow .supplier-inbox--embedded { padding: 12px 0 20px; }
+  .purchase-workflow .supplier-inbox__toolbar { margin-top: 12px; }
+  .purchase-workflow .supplier-inbox__list article { padding-block: 16px; }
+}

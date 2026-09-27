@@ -1,0 +1,39 @@
+.agenda-options { display: contents; }
+
+@media (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .agenda-create { margin-left: auto; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row__actions { justify-self: end; }
+}
+
+@media (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px;
+    padding: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    width: 100%;
+    gap: 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls > div { min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls > div > span { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls > button:last-child { grid-column: 1 / -1; justify-self: center; }
+  .agenda-options { display: block; min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-options > .mobile-details { border: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-options summary { min-height: 44px; padding: 10px 0; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-options:has(details[open]) { grid-column: 1 / -1; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-filters { display: grid; gap: 16px; width: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-display-switch { display: flex; width: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-display-switch button { flex: 1; min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-closed-toggle { min-height: 44px; line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-main-grid[data-display="day"] > .agenda-calendar { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-main-grid[data-display="day"] .agenda-list-panel > header { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary { grid-template-columns: 1fr; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary article { min-height: 48px; box-shadow: none; }
+}
