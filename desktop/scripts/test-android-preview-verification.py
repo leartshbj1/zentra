@@ -3,6 +3,8 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+import subprocess
 import zipfile
 
 spec = importlib.util.spec_from_file_location('preview_check', Path(__file__).with_name('verify-android-preview.py'))
@@ -44,6 +46,27 @@ class PreviewVerification(unittest.TestCase):
                 else:
                     with self.subTest(index=index), self.assertRaisesRegex(ValueError, 'payload'):
                         check.compare_payload(source, signed)
+
+    def test_emulator_snapshot_never_reuses_an_old_ui_dump(self):
+        module_spec = importlib.util.spec_from_file_location('candidate_smoke', Path(__file__).with_name('smoke-android-release-candidate.py'))
+        smoke = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(smoke)
+        paths = []
+
+        def fake_adb(*args, **kwargs):
+            if args[:2] == ('shell', 'uiautomator'):
+                paths.append(args[-1])
+                return 'ERROR: could not get idle state.'
+            if args[0] == 'exec-out':
+                self.assertEqual(args[-1], paths[-1])
+                raise subprocess.CalledProcessError(1, 'cat')
+            raise AssertionError(args)
+
+        with patch.object(smoke, 'adb', side_effect=fake_adb), patch.object(smoke.time, 'monotonic_ns', side_effect=[101, 102]):
+            for _ in range(2):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    smoke.snapshot('unavailable')
+        self.assertEqual(len(set(paths)), 2)
 
 
 if __name__ == '__main__':

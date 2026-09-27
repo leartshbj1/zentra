@@ -42,7 +42,9 @@ def adb(*args, **kwargs):
 
 
 def snapshot(label):
-    remote = '/sdcard/zentra-owned-smoke.xml'
+    # uiautomator can exit successfully without producing a new dump. Never
+    # accept the preceding launch's XML as evidence that the current UI opened.
+    remote = f'/sdcard/zentra-owned-smoke-{time.monotonic_ns()}.xml'
     adb('shell', 'uiautomator', 'dump', '--compressed', remote, timeout=30)
     data = adb('exec-out', 'cat', remote)
     (OUT / (label + '.xml')).write_text(data, encoding='utf-8')
@@ -112,6 +114,7 @@ def main():
     abi = adb('shell', 'getprop', 'ro.product.cpu.abilist')
     if 'arm64-v8a' not in abi.split(','):
         raise RuntimeError('This emulator does not expose ARM64 translation')
+    print(f'Disposable emulator ready; supported ABIs: {abi}', flush=True)
     adb('root')
     adb('wait-for-device')
     if adb('shell', 'id', '-u') != '0':
@@ -150,6 +153,7 @@ def main():
         proof['unchangedPayloadEntries'] = verifier.compare_payload(apk, signed)
         proof['emulatorApkSha256'] = hashlib.sha256(signed.read_bytes()).hexdigest()
         adb('install', str(signed), timeout=120)
+        print('Verified optimized ARM payload installed on the disposable emulator', flush=True)
         # No account is used and no production endpoint is needed for this recipe.
         adb('shell', 'svc', 'wifi', 'disable')
         adb('shell', 'svc', 'data', 'disable')
@@ -159,14 +163,17 @@ def main():
         starts = {'Commencer', 'Start', 'Inizia', 'Beginnen'}
         welcome = wait_ui('01-welcome', lambda labels: bool(starts.intersection(labels)), seconds=150)
         proof['usableWelcomeMs'] = round((time.monotonic()-started)*1000)
+        print(f'Usable welcome interface verified after {proof["usableWelcomeMs"]} ms', flush=True)
         if not tap(welcome, starts):
             raise RuntimeError('Welcome start control is not usable')
         account_markers = {'Tout commence avec vous.', 'It all starts with you.', 'Alles beginnt mit Ihnen.', 'Tutto inizia da te.'}
         account = wait_ui('02-account', lambda labels: bool(account_markers.intersection(labels)))
         proof['accountScreenVisible'] = True
+        print('Account setup screen reached without connecting an account', flush=True)
         # Normal app restart, with the native identity and database preserved.
         adb('shell', 'am', 'force-stop', PACKAGE)
         before = profile_state(temp, 'before-restart')
+        print('Stopped profile is intact; restarting the application', flush=True)
         proof['restart'] = adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
         wait_ui('03-restarted', lambda labels: bool(account_markers.intersection(labels) or starts.intersection(labels)))
         adb('shell', 'am', 'force-stop', PACKAGE)
