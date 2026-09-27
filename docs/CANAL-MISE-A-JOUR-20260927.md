@@ -19,7 +19,7 @@ Les anciens liens Supabase restent autorisés pour compatibilité. Les manifeste
 
 ## Validation et limites
 
-14 tests serveur et 12 tests frontend/contrat passent, syntaxe de quatre scripts PowerShell validée, TypeScript/lint/build serveur réussis. Les assertions de types manquantes dans le nouveau test serveur ont été corrigées avant publication. **Windows 144** vérifie la source exacte ci-dessus : statut à consulter dans `outputs/updater-channel-windows-144.json` et sur CircleCI. Ce travail ne change ni la signature Authenticode, ni la notarisation Mac, ni les canaux mobiles. Aucun installateur nouveau n’est produit par ce job.
+14 tests serveur et 12 tests frontend/contrat passent, syntaxe de quatre scripts PowerShell validée, TypeScript/lint/build serveur réussis. Les assertions de types manquantes dans le nouveau test serveur ont été corrigées avant publication. **Windows 144 a échoué avant exécution**, sur deux imports manquants dans le module de tests Rust. Correction `0de81490` ; **Windows 145** vérifie cette source exacte, statut dans `outputs/updater-channel-windows-145.json`. Les journaux 144 sont conservés, pas comptés comme réussite. Ce travail ne change ni la signature Authenticode, ni la notarisation Mac, ni les canaux mobiles. Aucun installateur nouveau n’est produit par ces jobs.
 
 Il reste à figer et construire la prochaine version native, vérifier une vraie transition installation → recherche → téléchargement → installation → relancement, puis promouvoir le nouveau canal et organiser la transition des anciennes installations.
 

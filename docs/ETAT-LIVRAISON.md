@@ -34,6 +34,6 @@ Preuves locales : `outputs/release1904/SOURCES.json`, `github-published-proof.js
 | Boutons tactiles | `9974e409` | 12 captures/parcours ciblés, non inclus dans 1.90.4 |
 | Premiers pas Comptabilité, Banque, Relances | `7859c57f` | 64 tests unitaires, 27 contrôles UI et build réussis, non inclus dans 1.90.4 |
 | Restauration et contrôle des documents | Natif `a7a503d8`, interface `6b266558` ; Windows 143 | 46 tests natifs distincts réussis, 1 recette HTTPS réelle ignorée ; 163 tests frontend, 16 parcours UI et build réussis. Non inclus dans 1.90.4 ; essai par installateur physique restant |
-| Canal updater indépendant | `8f136cc4` ; Windows 144 en cours | Serveur Sites 288 publié et vérifié ; 12 tests frontend et contrats passent. Nouveau client non inclus dans 1.90.4 ; vraie transition entre installateurs restante |
+| Canal updater indépendant | `8f136cc4`, imports de tests corrigés `0de81490` ; Windows 145 en cours après l’échec de compilation de 144 | Serveur Sites 288 publié et vérifié ; 12 tests frontend et contrats passent. Nouveau client non inclus dans 1.90.4 ; vraie transition entre installateurs restante |
 
 Pour la prochaine livraison : figer une source commune après validation, conserver les empreintes de chaque paquet, tester l’installation, distinguer publication des fichiers et promotion du canal de mise à jour, puis remplacer ce tableau. Ne jamais modifier la source gelée d’une version déjà publiée.
