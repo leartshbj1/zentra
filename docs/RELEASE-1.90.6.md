@@ -7,7 +7,18 @@
 
 Cette version ne rétablit pas à elle seule le service de comptes restreint par ses quotas ni le traitement automatique lorsque les applications sont fermées. Ces incidents sont suivis séparément.
 
-Source gelée : **`9ec8e782a160e7fe2cdf3b853e19e54bbfa64a01`**, branche `codex/first-client-release-1906`. Les exécutions CircleCI **150 Windows, 151 Android et 152 Apple** sont confirmées en cours le 27 septembre à 21 h 24 (Europe/Zurich). Aucun paquet 1.90.6 n’est encore vérifié ni publié. La préparation du contrôle Windows séparé n’en modifie pas la source applicative.
+Source gelée : **`9ec8e782a160e7fe2cdf3b853e19e54bbfa64a01`**, branche `codex/first-client-release-1906`. Au 27 septembre à 21 h 48 (Europe/Zurich), les exécutions **151 Android et 152 Apple réussissent** ; **150 Windows reste en cours**. Les paquets Android, Mac et iPhone sont vérifiés. Aucune publication 1.90.6 ni promotion des canaux n’a encore eu lieu.
+
+## Vérifications déjà obtenues
+
+- **Mac universel** : build 152, démarrage et relancement réels dans un profil isolé, SQLite 60 intègre, arm64 et x86_64, clé et endpoint updater vérifiés. Signature ad hoc vérifiée sur Mac ; signature updater contrôlée après téléchargement. DMG 54 742 957 octets ; archive 53 552 349 octets, identique à celle testée. Aucune notarisation.
+- **iPhone** : build 152, IPA 26 126 952 octets, arm64 iPhoneOS 15+, version/source/empreinte vérifiées. Non signé ; aucun appareil physique.
+- **Android** : build 151, APK final 122 885 130 octets, certificat de test persistant et alignement 16 K vérifiés. La suppression des symboles préserve les segments exécutables/données et les 969 ressources. Encore débogable ; aucun appareil/émulateur.
+- **Documents sur Mac** : 21 tests du moteur de composition PDF et 61 tests frontend de l’éditeur passent. Les rapports WebKit incluent 150 contrôles d’apparence, les gestes sur trois dimensions et des scénarios de compte fictifs ; ils ne prouvent pas une connexion réelle.
+- **Mesure Windows avant mise à jour** : 42 navigations natives, 14 écrans × 3 passages, version 1.90.5, petite entreprise fictive. Médiane 45 ms, p95 345 ms, maximum 362 ms, aucune erreur JavaScript ni longue tâche détectée. Ce n’est pas une mesure de charge serveur ni une validation de 150 entreprises.
+- **Compte au contrôle de 21 h 43** : connexion avec une adresse fictive inexistante renvoyant HTTP 503 en 3 753 ms, `Retry-After: 60`, `no-store`. Aucun compte/e-mail créé. Le blocage reste ouvert.
+
+Preuves locales : `outputs/release1906/{apple,android,android-signed,smoke-macos}/`, `upgrade-smoke/navigation-1.90.5.json`, `auth-readiness.json`. Le profil local réel de l’utilisateur reste séparé des essais.
 
 La dernière suite frontend compte 1 814 tests réussis ; les recettes des lots figurent dans `AUTOMATION-DETAILS-20260927.md`, `AUTOMATION-RENDEZ-VOUS-20260927.md`, `DOCUMENT-NAVIGATION-LANGUES-20260927.md` et `DOCUMENT-EDITOR-LANGUES-20260927.md`. Les 14 contrats de livraison, TypeScript, build Vite et 50 actifs de marque passent avant gel. Les chaînes Windows et Apple vérifient aussi le moteur de composition PDF et les tests frontend de l’éditeur. Les preuves navigateur utilisent des données fictives et ne valent pas validation d’un appareil physique ou du service en production.
 
