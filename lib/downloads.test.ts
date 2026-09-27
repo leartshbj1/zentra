@@ -18,6 +18,10 @@ import {
   ZENTRA_WINDOWS_PREVIEW_VERSION,
   ZENTRA_WINDOWS_PREVIEW_PATH,
   ZENTRA_WINDOWS_PREVIEW_SHA256,
+  ZENTRA_ANDROID_PREVIEW_PATH,
+  ZENTRA_ANDROID_VERSION,
+  ZENTRA_IPHONE_IPA_PATH,
+  ZENTRA_IPHONE_VERSION,
 } from './downloads';
 
 type UpdaterManifest = {
@@ -35,7 +39,7 @@ const manifest = JSON.parse(
 describe('contrat de téléchargement Zentra', () => {
   it('publie le nouvel installateur sans modifier le manifeste partagé historique', () => {
     expect(ZENTRA_WINDOWS_PREVIEW_VERSION).not.toBe(ZENTRA_VERSION);
-    expect(ZENTRA_WINDOWS_PREVIEW_PATH).toBe(`${ZENTRA_RELEASES_ORIGIN}/Zentra_${ZENTRA_WINDOWS_PREVIEW_VERSION}_x64-setup.exe`);
+    expect(ZENTRA_WINDOWS_PREVIEW_PATH).toBe(`https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_WINDOWS_PREVIEW_VERSION}/Zentra_${ZENTRA_WINDOWS_PREVIEW_VERSION}_x64-setup.exe`);
     expect(ZENTRA_WINDOWS_PREVIEW_SHA256).toMatch(/^[A-F0-9]{64}$/);
     expect(manifest.version).toBe(ZENTRA_VERSION);
     expect(manifest.platforms['windows-x86_64'].url).not.toBe(ZENTRA_WINDOWS_PREVIEW_PATH);
@@ -52,7 +56,7 @@ describe('contrat de téléchargement Zentra', () => {
       `Zentra_${ZENTRA_WINDOWS_VERSION}_x64-setup.exe`,
     );
     expect(ZENTRA_INSTALLER_PATH).toBe(
-      `${ZENTRA_RELEASES_ORIGIN}/${ZENTRA_INSTALLER_NAME}`,
+      `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_WINDOWS_VERSION}/${ZENTRA_INSTALLER_NAME}`,
     );
     expect(ZENTRA_INSTALLER_CHECKSUM_PATH).toBe(
       `${ZENTRA_INSTALLER_PATH}.sha256.txt`,
@@ -69,6 +73,14 @@ describe('contrat de téléchargement Zentra', () => {
     );
   });
 
+  it('sert les quatre fichiers visibles sans consommer le stockage des comptes', () => {
+    for (const path of [ZENTRA_WINDOWS_PREVIEW_PATH, ZENTRA_INSTALLER_PATH, ZENTRA_MAC_DMG_PATH, ZENTRA_ANDROID_PREVIEW_PATH, ZENTRA_IPHONE_IPA_PATH]) {
+      expect(new URL(path).hostname).toBe('github.com');
+      expect(new URL(path).pathname).toMatch(/^\/leartshbj1\/zentra\/releases\/download\/v\d+\.\d+\.\d+\//);
+    }
+    expect(ZENTRA_IPHONE_IPA_PATH).toContain(`/v${ZENTRA_IPHONE_VERSION}/Zentra-${ZENTRA_IPHONE_VERSION}-iPhone-unsigned.ipa`);
+    expect(ZENTRA_ANDROID_PREVIEW_PATH).toContain(`/v${ZENTRA_ANDROID_VERSION}/Zentra-${ZENTRA_ANDROID_VERSION}-Android-arm64-test.apk`);
+  });
   it('conserve les anciennes plateformes du manifeste partagé', () => {
     expect(manifest.version).toBe(ZENTRA_VERSION);
     expect(Object.keys(manifest.platforms).sort()).toEqual([
