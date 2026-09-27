@@ -19,6 +19,8 @@ import { schedulerHealthCopy } from './scheduler-health-copy';
 const now = Date.parse('2026-09-27T12:00:00Z');
 const row = (patch: Partial<SchedulerHealthRow> = {}): SchedulerHealthRow => ({
   last_started_at: now - 2000,
+  last_started_run_id: null,
+  last_finished_run_id: null,
   last_finished_at: now - 1000,
   last_success_at: now - 1000,
   last_failure_at: null,
@@ -145,6 +147,7 @@ describe('durable SQLite heartbeat with the production migration', () => {
         'utf8',
       ),
     );
+    db.exec(readFileSync(new URL('../drizzle/0065_scheduler_run_identity.sql', import.meta.url), 'utf8'));
     runtime.db.mockImplementation(() => ({
       prepare: (sql: string) => ({
         bind: (...values: (string | number | null)[]) => ({
@@ -160,16 +163,16 @@ describe('durable SQLite heartbeat with the production migration', () => {
       state: 'unverified',
       background: false,
     });
-    await startSchedulerHeartbeat(now - 1000);
-    await finishSchedulerHeartbeat('completed');
+    const first = await startSchedulerHeartbeat(now - 1000);
+    await finishSchedulerHeartbeat(first!, 'completed');
     expect(await readSchedulerHealth()).toMatchObject({
       state: 'current',
       background: true,
       lastSuccessAt: new Date(now).toISOString(),
     });
     vi.mocked(Date.now).mockReturnValue(now + 2000);
-    await startSchedulerHeartbeat(now + 1000);
-    await finishSchedulerHeartbeat('failed', 'private@example.test');
+    const second = await startSchedulerHeartbeat(now + 1000);
+    await finishSchedulerHeartbeat(second!, 'failed', 'private@example.test');
     expect(await readSchedulerHealth()).toMatchObject({
       state: 'failed',
       background: false,
@@ -178,8 +181,8 @@ describe('durable SQLite heartbeat with the production migration', () => {
       db.prepare('SELECT last_reference FROM service_scheduler_health').get(),
     ).toMatchObject({ last_reference: null });
     vi.mocked(Date.now).mockReturnValue(now + 4000);
-    await startSchedulerHeartbeat(now + 3000);
-    await finishSchedulerHeartbeat('idle');
+    const third = await startSchedulerHeartbeat(now + 3000);
+    await finishSchedulerHeartbeat(third!, 'idle');
     expect(await readSchedulerHealth()).toMatchObject({
       state: 'current',
       background: true,
@@ -191,21 +194,21 @@ describe('durable SQLite heartbeat with the production migration', () => {
     ).toMatchObject({ total: 1 });
   });
   it('keeps later starts and outcomes when an older worker writes out of order', async () => {
-    await startSchedulerHeartbeat(now - 1000);
-    await startSchedulerHeartbeat(now - 2000);
+    const latest = await startSchedulerHeartbeat(now - 1000);
+    const lateStart = await startSchedulerHeartbeat(now - 2000);
     await finishSchedulerHeartbeat(
+      latest!,
       'failed',
       '6b7b8220-4b90-4e24-a2c4-e9c5d64e1f01',
     );
-    vi.mocked(Date.now).mockReturnValue(now - 500);
-    await finishSchedulerHeartbeat('completed');
-    vi.mocked(Date.now).mockReturnValue(now);
+    vi.mocked(Date.now).mockReturnValue(now + 500);
+    await finishSchedulerHeartbeat(lateStart!, 'completed');
     const stored = db.prepare('SELECT * FROM service_scheduler_health').get();
     expect(stored).toMatchObject({
       last_started_at: now - 1000,
       last_finished_at: now,
       last_outcome: 'failed',
-      last_success_at: now - 500,
+      last_success_at: null,
       last_failure_at: now,
       last_reference: '6b7b8220-4b90-4e24-a2c4-e9c5d64e1f01',
     });
@@ -214,9 +217,57 @@ describe('durable SQLite heartbeat with the production migration', () => {
       background: false,
     });
   });
+  it('never lets an older completion hide a newer stalled run', async () => {
+    const previous = await startSchedulerHeartbeat(now - 1000);
+    const latest = await startSchedulerHeartbeat(now);
+    vi.mocked(Date.now).mockReturnValue(now + 1000);
+    await finishSchedulerHeartbeat(previous!, 'completed');
+    expect(await readSchedulerHealth()).toMatchObject({state:'running',background:false,lastFinishedAt:null});
+    vi.mocked(Date.now).mockReturnValue(now + SCHEDULER_STALLED_MS + 1);
+    expect(await readSchedulerHealth()).toMatchObject({state:'delayed',background:false});
+    await finishSchedulerHeartbeat(latest!, 'completed');
+    expect(await readSchedulerHealth()).toMatchObject({state:'current',background:true});
+  });
+  it('separates starts in the same millisecond and ignores an older late failure', async () => {
+    const first = await startSchedulerHeartbeat(now);
+    const second = await startSchedulerHeartbeat(now);
+    expect(first).not.toBe(second);
+    await finishSchedulerHeartbeat(first!, 'idle');
+    expect(await readSchedulerHealth()).toMatchObject({state:'running',background:false});
+    await finishSchedulerHeartbeat(second!, 'idle');
+    vi.mocked(Date.now).mockReturnValue(now + 1000);
+    await finishSchedulerHeartbeat(first!, 'failed');
+    expect(await readSchedulerHealth()).toMatchObject({state:'current',background:true,lastFinishedAt:new Date(now).toISOString()});
+    expect(db.prepare('SELECT last_failure_at FROM service_scheduler_health').get()).toMatchObject({last_failure_at:null});
+  });
+  it('does not refresh freshness or change outcomes when completion is replayed', async () => {
+    const runId = await startSchedulerHeartbeat(now);
+    await finishSchedulerHeartbeat(runId!, 'failed');
+    vi.mocked(Date.now).mockReturnValue(now + 1000);
+    await finishSchedulerHeartbeat(runId!, 'completed');
+    expect(await readSchedulerHealth()).toMatchObject({state:'failed',background:false,lastSuccessAt:null});
+    vi.mocked(Date.now).mockReturnValue(now + SCHEDULER_STALE_MS + 1);
+    await finishSchedulerHeartbeat(runId!, 'completed');
+    expect(await readSchedulerHealth()).toMatchObject({state:'delayed',background:false,lastFinishedAt:new Date(now).toISOString()});
+  });
+  it('preserves existing heartbeat history through the additive migration', async () => {
+    db.close();
+    db = new DatabaseSync(':memory:');
+    db.exec(readFileSync(new URL('../drizzle/0062_scheduler_health.sql', import.meta.url), 'utf8'));
+    db.prepare(`INSERT INTO service_scheduler_health(job,last_started_at,last_finished_at,last_success_at,last_outcome)
+      VALUES ('support.mail',?,?,?,'completed')`).run(now - 2000,now - 1000,now - 1000);
+    db.exec(readFileSync(new URL('../drizzle/0065_scheduler_run_identity.sql', import.meta.url), 'utf8'));
+    expect(await readSchedulerHealth()).toMatchObject({state:'current',background:true});
+    const runId = await startSchedulerHeartbeat(now);
+    expect(await readSchedulerHealth()).toMatchObject({state:'running',background:true});
+    await finishSchedulerHeartbeat('unknown-run', 'completed');
+    expect(await readSchedulerHealth()).toMatchObject({state:'running',lastFinishedAt:new Date(now - 1000).toISOString()});
+    await finishSchedulerHeartbeat(runId!, 'completed');
+    expect(await readSchedulerHealth()).toMatchObject({state:'current',background:true});
+  });
   it('expires without another write and excludes tenant data from the public view', async () => {
-    await startSchedulerHeartbeat(now - 1000);
-    await finishSchedulerHeartbeat('partial');
+    const runId = await startSchedulerHeartbeat(now - 1000);
+    await finishSchedulerHeartbeat(runId!, 'partial');
     vi.mocked(Date.now).mockReturnValue(now + SCHEDULER_STALE_MS + 1);
     expect(await readSchedulerHealth()).toEqual({
       configured: true,
@@ -236,9 +287,9 @@ describe('durable SQLite heartbeat with the production migration', () => {
       state: 'unavailable',
       background: false,
     });
-    expect(await startSchedulerHeartbeat(now)).toBe(false);
+    expect(await startSchedulerHeartbeat(now)).toBe(null);
     await expect(
-      finishSchedulerHeartbeat('completed'),
+      finishSchedulerHeartbeat('fixture-run', 'completed'),
     ).resolves.toBeUndefined();
     expect(log).toHaveBeenCalledTimes(3);
     expect(JSON.stringify(log.mock.calls)).not.toMatch(

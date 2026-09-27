@@ -7,6 +7,8 @@ export const SCHEDULER_STALLED_MS = 10 * 60_000;
 export type SchedulerOutcome = 'idle' | 'completed' | 'partial' | 'failed';
 export type SchedulerHealthRow = {
   last_started_at: number;
+  last_started_run_id: string | null;
+  last_finished_run_id: string | null;
   last_finished_at: number | null;
   last_success_at: number | null;
   last_failure_at: number | null;
@@ -40,7 +42,11 @@ export function schedulerHealth(
   const started = time(row?.last_started_at),
     finished = time(row?.last_finished_at),
     success = time(row?.last_success_at);
-  const running = started !== null && (finished === null || started > finished);
+  // Once run identities exist, wall-clock ordering alone cannot prove completion:
+  // an older worker may finish after the latest worker started.
+  const running = started !== null && (row?.last_started_run_id
+    ? row.last_started_run_id !== row.last_finished_run_id
+    : finished === null || started > finished);
   let state: SchedulerHealth['state'];
   if (!configured) state = 'inactive';
   else if (running && now - started! > SCHEDULER_STALLED_MS) state = 'delayed';
@@ -73,7 +79,7 @@ export async function readSchedulerHealth(): Promise<SchedulerHealth> {
   try {
     const row = await database()
       .prepare(
-        'SELECT last_started_at,last_finished_at,last_success_at,last_failure_at,last_outcome,last_reference FROM service_scheduler_health WHERE job=?',
+        'SELECT last_started_at,last_started_run_id,last_finished_run_id,last_finished_at,last_success_at,last_failure_at,last_outcome,last_reference FROM service_scheduler_health WHERE job=?',
       )
       .bind(JOB)
       .first<SchedulerHealthRow>();
@@ -88,24 +94,29 @@ export async function readSchedulerHealth(): Promise<SchedulerHealth> {
 // Call only after authenticating the scheduler; anonymous traffic writes nothing.
 export async function startSchedulerHeartbeat(
   startedAt: number,
-): Promise<boolean> {
+): Promise<string | null> {
   try {
+    const runId = crypto.randomUUID();
     await database()
       .prepare(
-        'INSERT INTO service_scheduler_health(job,last_started_at) VALUES(?,?) ON CONFLICT(job) DO UPDATE SET last_started_at=MAX(last_started_at,excluded.last_started_at)',
+        `INSERT INTO service_scheduler_health(job,last_started_at,last_started_run_id) VALUES(?,?,?)
+         ON CONFLICT(job) DO UPDATE SET last_started_at=excluded.last_started_at,
+           last_started_run_id=excluded.last_started_run_id
+         WHERE excluded.last_started_at>=last_started_at`,
       )
-      .bind(JOB, startedAt)
+      .bind(JOB, startedAt, runId)
       .run();
-    return true;
+    return runId;
   } catch (error) {
     reportServiceFailure(error, {
       operation: 'support.scheduler.health.start',
     });
-    return false;
+    return null;
   }
 }
 
 export async function finishSchedulerHeartbeat(
+  runId: string,
   outcome: SchedulerOutcome,
   reference?: string,
 ) {
@@ -117,20 +128,24 @@ export async function finishSchedulerHeartbeat(
       .prepare(`UPDATE service_scheduler_health SET
       last_success_at=CASE WHEN ?<>'failed' THEN MAX(COALESCE(last_success_at,0),?) ELSE last_success_at END,
       last_failure_at=CASE WHEN ?='failed' THEN MAX(COALESCE(last_failure_at,0),?) ELSE last_failure_at END,
-      last_outcome=CASE WHEN COALESCE(last_finished_at,0)<=? THEN ? ELSE last_outcome END,
-      last_reference=CASE WHEN COALESCE(last_finished_at,0)<=? THEN ? ELSE last_reference END,
-      last_finished_at=MAX(COALESCE(last_finished_at,0),?) WHERE job=?`)
+      last_outcome=?,last_reference=?,last_finished_at=?,last_finished_run_id=?
+      WHERE job=? AND last_started_run_id=?
+        AND (last_finished_run_id IS NULL OR last_finished_run_id<>?)
+        AND last_started_at<=? AND COALESCE(last_finished_at,0)<=?`)
       .bind(
         outcome,
         finished,
         outcome,
         finished,
-        finished,
         outcome,
-        finished,
         safeReference,
         finished,
+        runId,
         JOB,
+        runId,
+        runId,
+        finished,
+        finished,
       )
       .run();
   } catch (error) {

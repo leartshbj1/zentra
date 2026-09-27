@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const startedAt=Date.now();
   let authorized=false;
-  let heartbeat=false;
+  let heartbeat: string | null=null;
   try {
     await requireMailScheduler(request);
     authorized=true;
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const failed=Boolean(result.failed || workflows.failed || workflows.interrupted);
     const idle=result.idle && workflows.checked===0 && !workflows.more && !failed;
     const outcome=failed?'failed':result.incomplete||result.paused||result.syncing||result.more||workflows.more?'partial':idle?'idle':'completed';
-    if(heartbeat)await finishSchedulerHeartbeat(outcome,result.reference);
+    if(heartbeat)await finishSchedulerHeartbeat(heartbeat,outcome,result.reference);
     reportSchedulerCycle({
       startedAt,
       outcome,
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     return supportJson({...result,idle,failed,workflows});
   } catch (error) {
     const response=supportError(error,{operation:'support.scheduler',request,startedAt});
-    if(heartbeat)await finishSchedulerHeartbeat('failed',response.headers.get('X-Zentra-Request-Id')??undefined);
+    if(heartbeat)await finishSchedulerHeartbeat(heartbeat,'failed',response.headers.get('X-Zentra-Request-Id')??undefined);
     if(authorized || response.status>=500) reportSchedulerCycle({startedAt,outcome:'failed',reference:response.headers.get('X-Zentra-Request-Id')??undefined});
     return response;
   }

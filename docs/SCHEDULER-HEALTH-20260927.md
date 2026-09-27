@@ -6,7 +6,7 @@
 
 La présence du réglage `SUPPORT_MAIL_BACKGROUND_ENABLED=1` ne suffit plus à afficher que la réception continue lorsque Support est fermé. Il faut aussi un traitement réussi récent. Les réglages de la boîte et l’administration affichent l’état, une action utile et la date du dernier passage confirmé. L’administration peut actualiser cet état sans lancer un traitement.
 
-La migration additive `0062_scheduler_health.sql` crée une seule ligne pour le worker partagé `support.mail`. Elle conserve les dernières dates de début, fin, réussite, échec et une référence technique opaque. Aucun contenu de message, secret, identifiant client ou montant n’y est enregistré. Les dates ne reculent pas lorsqu’un cycle plus ancien écrit après un cycle récent.
+La migration additive `0062_scheduler_health.sql` crée une seule ligne pour le worker partagé `support.mail`. Elle conserve les dernières dates de début, fin, réussite, échec et une référence technique opaque. La migration `0065_scheduler_run_identity.sql` ajoute l’identité du passage commencé et terminé : une fin ancienne ne peut plus masquer un nouveau passage bloqué. Aucun contenu de message, secret, identifiant client ou montant n’y est enregistré. Voir [la correction de concurrence](SCHEDULER-CONCURRENCE-20260927.md).
 
 Les cycles anonymes ne lisent ni n’écrivent ce suivi. Une erreur de stockage du suivi est journalisée sans son message potentiellement sensible et n’empêche pas le worker de traiter les files. Une absence de table ou une panne de lecture donne un état indisponible, jamais un état sain.
 
@@ -16,7 +16,7 @@ Les cycles anonymes ne lisent ni n’écrivent ce suivi. Une erreur de stockage 
 | --- | --- | --- |
 | Inactif | Réglage d’arrière-plan absent ou désactivé | Non |
 | À vérifier | Aucun cycle terminé avec succès | Non |
-| En cours | Un début plus récent que la dernière fin | Seulement si une réussite date de moins de 15 minutes |
+| En cours | Le passage commencé n’est pas encore terminé ; comparaison des dates pour les anciennes lignes | Seulement si une réussite date de moins de 15 minutes |
 | Vérifié | Cycle récent terminé sans erreur | Oui |
 | En retard | Dernière fin de plus de 15 minutes, ou début inachevé de plus de 10 minutes | Non |
 | Échec | Dernier cycle terminé en échec | Non |

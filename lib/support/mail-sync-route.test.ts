@@ -9,7 +9,7 @@ vi.mock('@/lib/automation/workflows',()=>({runDueWorkflows:mocks.workflows}));
 vi.mock('@/lib/service-diagnostics',()=>({reportSchedulerCycle:mocks.cycle,reportServiceFailure:()=>undefined}));
 import {POST,GET} from '@/app/api/support/mail-sync/route';
 const request=()=>new Request('https://zentraapp.ch/api/support/mail-sync',{method:'POST'});
-beforeEach(()=>{vi.resetAllMocks();mocks.authorize.mockResolvedValue(undefined);mocks.start.mockResolvedValue(true);mocks.workflows.mockResolvedValue({checked:0,failed:0,interrupted:0,more:false});});
+beforeEach(()=>{vi.resetAllMocks();mocks.authorize.mockResolvedValue(undefined);mocks.start.mockResolvedValue('run-fixture');mocks.workflows.mockResolvedValue({checked:0,failed:0,interrupted:0,more:false});});
 it('never processes or reports a successful heartbeat after refused scheduler authentication',async()=>{
   mocks.authorize.mockRejectedValue(new SupportError('Accès refusé.',401));
   const response=await POST(request());
@@ -24,7 +24,7 @@ it('records idle only when both mailbox and Automation have no ready work',async
   mocks.mail.mockResolvedValue({idle:true});
   expect((await POST(request())).status).toBe(200);
   expect(mocks.cycle).toHaveBeenCalledWith(expect.objectContaining({outcome:'idle',workflowsChecked:0}));
-  expect(mocks.finish).toHaveBeenCalledWith('idle',undefined);
+  expect(mocks.finish).toHaveBeenCalledWith('run-fixture','idle',undefined);
 });
 it('keeps the scheduler running without new mail until all due workflows have been checked',async()=>{
   mocks.mail.mockResolvedValue({idle:true});
@@ -62,10 +62,10 @@ it('records an interrupted workflow cycle as failed, with its error HTTP status'
   mocks.workflows.mockRejectedValue(new SupportError('Réessayez.',503));
   expect((await POST(request())).status).toBe(503);
   expect(mocks.cycle).toHaveBeenCalledWith(expect.objectContaining({outcome:'failed'}));
-  expect(mocks.finish).toHaveBeenCalledWith('failed',undefined);
+  expect(mocks.finish).toHaveBeenCalledWith('run-fixture','failed',undefined);
 });
 it('continues useful work when heartbeat storage is unavailable',async()=>{
-  mocks.start.mockResolvedValue(false);
+  mocks.start.mockResolvedValue(null);
   mocks.mail.mockResolvedValue({idle:false,imported:1});
   expect((await POST(request())).status).toBe(200);
   expect(mocks.mail).toHaveBeenCalledOnce();
