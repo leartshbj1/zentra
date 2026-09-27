@@ -36,6 +36,8 @@ fn account_section_labels_stay_with_first_account_across_page_sizes_and_fonts() 
                     let issuer = composed_issuer(family, orientation, size, intro_lines);
                     let (bytes, _) = render_accounts_pdf(&issuer, &balance, &income, false, "EXEMPLE").unwrap();
                     let pages = page_texts(&bytes);
+                    let closing_page = pages.iter().find(|page| page.contains("Contrôle : actifs = passifs")).unwrap();
+                    assert!(closing_page.contains("TOTAL PASSIFS"), "{case}: balance check orphaned on its own page");
                     for (section, first) in [
                         ("Actifs circulants", "1020"), ("Actifs immobilisés", "1500"),
                         ("Dettes à court terme", "2000"), ("Dettes à long terme", "2450"),
@@ -76,6 +78,11 @@ fn account_sections_with_long_rows_and_empty_sections_keep_all_content() {
     assert_section_with_content(&pages, "Fonds propres", "Total Fonds propres", "empty section");
     let all = pages.join("\n");
     assert!(all.contains("DEBUT-LONG") && all.contains("FIN-LONG"));
+    for page in &pages {
+        if page.contains("Description comptable") || page.contains("FIN-LONG") {
+            assert!(page.contains("Comptes / libellés"), "Continued row lost its column headings");
+        }
+    }
     for index in 0..80 { assert!(all.contains(&format!("R{index:03}"))); }
     if let Some(directory) = std::env::var_os("ZENTRA_DESIGN_SAMPLES") {
         std::fs::create_dir_all(&directory).unwrap();

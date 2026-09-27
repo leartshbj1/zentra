@@ -752,7 +752,7 @@ impl<'a> Composer<'a> {
         fractions: &[f32],
         rows: &[(Vec<String>, bool)],
     ) -> AppResult<()> {
-        self.table_with_sections(headers, fractions, rows, &[])
+        self.table_with_sections(headers, fractions, rows, &[], None)
     }
 
     /// Section labels travel with their first account row. Oversized account
@@ -763,6 +763,7 @@ impl<'a> Composer<'a> {
         fractions: &[f32],
         rows: &[(Vec<String>, bool)],
         section_starts: &[usize],
+        footer: Option<&str>,
     ) -> AppResult<()> {
         let header_cells = headers.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         let header_height = self.table_row_height(&header_cells, fractions, true)?;
@@ -770,13 +771,23 @@ impl<'a> Composer<'a> {
             .collect::<AppResult<Vec<_>>>()?;
         let one_line = self.design.body_size * self.design.line_spacing + self.design.table_padding;
         let full_page = self.page_size()[1] - self.left() - self.bottom - 70.;
+        let footer_height = if let Some(text) = footer {
+            let mut paragraphs = plain(text);
+            for paragraph in &mut paragraphs {
+                for run in &mut paragraph.runs { run.bold = true; }
+            }
+            let height = wrap(self.design, &paragraphs, self.width(), self.design.body_size)?
+                .iter().map(|(line, _, _, _, after)| line_size(line, self.design.body_size) * self.design.line_spacing + after).sum::<f32>();
+            height.max(self.design.body_size * self.design.line_spacing * 2.)
+                + 12. * self.design.block_spacing.unwrap_or(1.)
+        } else { 0. };
         let required_height = |index: usize| {
             let height = heights[index];
             if section_starts.contains(&index) {
                 let next = heights.get(index + 1).copied().unwrap_or(0.);
                 if height + next + header_height <= full_page { height + next }
                 else { height + next.min(one_line) }
-            } else { height }
+            } else { height + if index + 1 == rows.len() { footer_height } else { 0. } }
         };
         if section_starts.contains(&0) && !rows.is_empty() {
             self.ensure(header_height + required_height(0))?;
@@ -787,6 +798,7 @@ impl<'a> Composer<'a> {
             true,
             true,
             0,
+            None,
         )?;
         for (index, (cells, bold)) in rows.iter().enumerate() {
             let height = required_height(index);
@@ -799,11 +811,13 @@ impl<'a> Composer<'a> {
                     true,
                     true,
                     0,
+                    None,
                 )?;
             }
-            self.table_row(cells, fractions, *bold, false, index)?;
+            self.table_row(cells, fractions, *bold, false, index, Some(&header_cells))?;
         }
         self.gap(12.);
+        if let Some(text) = footer { self.paragraph(text, self.design.body_size, true)?; }
         Ok(())
     }
     fn table_row_height(&self, cells: &[String], fractions: &[f32], bold: bool) -> AppResult<f32> {
@@ -826,6 +840,7 @@ impl<'a> Composer<'a> {
         bold: bool,
         header: bool,
         index: usize,
+        continuation_headers: Option<&[String]>,
     ) -> AppResult<()> {
         let padding = self.design.table_padding;
         let vertical_padding = padding / 2.;
@@ -847,7 +862,12 @@ impl<'a> Composer<'a> {
         let count = wrapped.iter().map(Vec::len).max().unwrap_or(1);
         let mut start = 0;
         while start < count {
-            self.ensure(leading + 2. * vertical_padding)?;
+            if self.y - leading - 2. * vertical_padding < self.bottom {
+                self.page(false)?;
+                if let Some(headers) = continuation_headers {
+                    self.table_row(headers, fractions, true, true, 0, None)?;
+                }
+            }
             let available = ((self.y - self.bottom - 2. * vertical_padding) / leading)
                 .floor()
                 .max(1.) as usize;
@@ -903,6 +923,9 @@ impl<'a> Composer<'a> {
             start = end;
             if start < count {
                 self.page(false)?;
+                if let Some(headers) = continuation_headers {
+                    self.table_row(headers, fractions, true, true, 0, None)?;
+                }
             }
         }
         Ok(())
@@ -914,6 +937,7 @@ impl<'a> Composer<'a> {
             strong,
             strong,
             1,
+            None,
         )
     }
     /// Payment sections have separate fonts and fixed coordinates, unaffected by the template.

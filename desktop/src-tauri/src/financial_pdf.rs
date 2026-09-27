@@ -610,18 +610,12 @@ fn render_composed_accounts(
             &[0.56, 0.22, 0.22],
             &rows,
             &section_starts,
-        )?;
-        if index == 0 {
-            page.paragraph(
-                if balance["balanced"] == true {
+            if index == 0 { Some(if balance["balanced"] == true {
                     "Contrôle : actifs = passifs"
                 } else {
                     "Bilan non équilibré - écritures à contrôler"
-                },
-                design.body_size,
-                true,
-            )?;
-        }
+                }) } else { None },
+        )?;
     }
     page.begin_closing(crate::document_composition::has_text(&design.closing))?;
     page.rich(&design.closing)?;
