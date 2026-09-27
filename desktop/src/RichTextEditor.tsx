@@ -1,3 +1,4 @@
+import { t, useAppLanguage } from './language';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, ListOrdered, IndentIncrease, IndentDecrease, Undo2, Redo2, Highlighter, Baseline, RemoveFormatting, Search } from 'lucide-react';
 import { normalizeRichText, richPlainText, richColor, richFont, richFontSize, documentFontCss, documentFontChoices, type RichRun, type RichText } from './documentComposition';
@@ -97,6 +98,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
   const root = useRef<HTMLDivElement>(null), saved = useRef<Bookmark>({ start: 0, end: 0 });
   const current = useRef(value), composing = useRef(false);
   const history = useRef<RichText[]>([]), future = useRef<RichText[]>([]);
+  useAppLanguage();
   const [revision, setRevision] = useState(0), [message, setMessage] = useState('');
   const pendingMarks = useRef<{ position: number; marks: TextMarks } | null>(null);
   const [activeMarks, setActiveMarks] = useState<TextMarks>(noTextMarks);
@@ -231,7 +233,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     saved.current = { start: position, end: position };
     if (commit(next)) {
       showMarks(marksAtSelection(next, saved.current));
-      setMessage('Texte collé avec sa mise en forme. Les polices sont adaptées aux trois polices du document.');
+      setMessage('Texte collé avec sa mise en forme. Les polices sont adaptées aux polices disponibles dans le document.');
     } else saved.current = previous;
   }
   function undo(redo = false) { if (disabled) return; pendingMarks.current = null; const from = redo ? future.current : history.current, to = redo ? history.current : future.current; const next = from.pop(); if (next) { to.push(current.current); const length = richPlainText(next).length; saved.current = { start: Math.min(saved.current.start, length), end: Math.min(saved.current.end, length) }; commit(next, false); root.current?.focus(); } }
@@ -249,68 +251,68 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
     (node instanceof HTMLElement ? node : node?.parentElement)?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }
   return <div className={`rich-editor${compact ? ' rich-editor--compact' : ''}`}>
-    <div className="rich-editor__label">{label}</div>
-    {compact && <button type="button" className="rich-editor__more" aria-expanded={moreTools} onClick={() => { setMoreTools(!moreTools); if (moreTools) setSearch(null); }}>{moreTools ? 'Revenir aux outils essentiels' : 'Plus d’outils : listes, styles, recherche…'}</button>}
-    <div hidden={!extended} className="rich-format-copy" role="group" aria-label="Reproduire la mise en forme" onMouseDown={e => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
+    <div className="rich-editor__label">{t(label)}</div>
+    {compact && <button type="button" className="rich-editor__more" aria-expanded={moreTools} onClick={() => { setMoreTools(!moreTools); if (moreTools) setSearch(null); }}>{moreTools ? t('Revenir aux outils essentiels') : t('Plus d’outils : listes, styles, recherche…')}</button>}
+    <div hidden={!extended} className="rich-format-copy" role="group" aria-label={t("Reproduire la mise en forme")} onMouseDown={e => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
       <button type="button" disabled={disabled || !richPlainText(value).length} onClick={() => {
         saved.current = bookmark(root.current!) || saved.current;
         setCopiedFormat(copyRichTextFormat(current.current, saved.current));
         setMessage('Style copié. Sélectionnez un autre passage dans ce texte, puis choisissez Appliquer le style. Si la sélection mélange plusieurs styles, celui du premier caractère est repris.');
-      }}>Copier le style</button>
+      }}>{t("Copier le style")}</button>
       <button type="button" disabled={disabled || !copiedFormat} onClick={() => {
         if (!copiedFormat) return;
         applyMarks(copiedFormat);
         setMessage(saved.current.start === saved.current.end ? 'Le style copié est prêt pour la suite de votre saisie.' : 'Style appliqué. Annuler permet de retrouver la mise en forme précédente.');
-      }}>Appliquer le style</button>
+      }}>{t("Appliquer le style")}</button>
     </div>
-    <button hidden={!extended} type="button" className="rich-editor__search-toggle" aria-expanded={!!search} onClick={() => search ? setSearch(null) : openSearch()}><Search size={17} /> Rechercher et remplacer</button>
+    <button hidden={!extended} type="button" className="rich-editor__search-toggle" aria-expanded={!!search} onClick={() => search ? setSearch(null) : openSearch()}><Search size={17} /> {t("Rechercher et remplacer")}</button>
     {search && <RichTextSearchPanel key={search.id} value={value} initialQuery={search.query} disabled={disabled} maxLength={maxLength} onSelect={selectMatch} onClose={() => { setSearch(null); selectMatch(saved.current); }} onReplace={(next, selection) => {
       if (disabled) return false;
       pendingMarks.current = null; saved.current = selection;
       return commit(next);
     }} />}
-    <div hidden={!extended} className="rich-editor__styles" role="group" aria-label={`Styles de paragraphe : ${label}`} onMouseDown={event => { if ((event.target as HTMLElement).closest('button')) event.preventDefault(); }}>
-      <span>Style du paragraphe</span>
-      {([['normal', 'Texte normal'], ['heading', 'Titre de section'], ['subheading', 'Sous-titre']] as const).map(([style, title]) => <button type="button" key={style} disabled={disabled} className={`rich-editor__style--${style}`} onClick={() => paragraphStyle(style)}>{title}</button>)}
+    <div hidden={!extended} className="rich-editor__styles" role="group" aria-label={t('Styles de paragraphe : {label}', { label })} onMouseDown={event => { if ((event.target as HTMLElement).closest('button')) event.preventDefault(); }}>
+      <span>{t("Style du paragraphe")}</span>
+      {([['normal', 'Texte normal'], ['heading', 'Titre de section'], ['subheading', 'Sous-titre']] as const).map(([style, title]) => <button type="button" key={style} disabled={disabled} className={`rich-editor__style--${style}`} onClick={() => paragraphStyle(style)}>{t(String(title))}</button>)}
     </div>
-    <div className="rich-editor__typography" role="group" aria-label={`Police et taille : ${label}`}>
-      <label>Police du passage<select aria-label="Police du passage" value={typography.fontFamily} disabled={disabled} onChange={event => applyMarks({ fontFamily: richFont(event.target.value) })}><option value="">Du document</option>{typography.fontFamily === 'mixed' && <option value="mixed" disabled>Mixte</option>}{documentFontChoices.map(font => <option key={font.value} value={font.value}>{font.name}</option>)}</select></label>
-      <label>Taille du passage<select aria-label="Taille du passage" value={typography.fontSize} disabled={disabled} onChange={event => applyMarks({ fontSize: richFontSize(Number(event.target.value)) })}><option value="">Du document</option>{typography.fontSize === 'mixed' && <option value="mixed" disabled>Mixte</option>}{[8,9,10,11,12,14,16,18,20,24].map(size => <option key={size} value={size}>{size} pt</option>)}{activeMarks.fontSize && ![8,9,10,11,12,14,16,18,20,24].includes(activeMarks.fontSize) && <option value={activeMarks.fontSize}>{activeMarks.fontSize} pt</option>}</select></label>
+    <div className="rich-editor__typography" role="group" aria-label={t('Police et taille : {label}', { label })}>
+      <label>{t("Police du passage")}<select aria-label={t("Police du passage")} value={typography.fontFamily} disabled={disabled} onChange={event => applyMarks({ fontFamily: richFont(event.target.value) })}><option value="">{t("Du document")}</option>{typography.fontFamily === 'mixed' && <option value="mixed" disabled>{t("Mixte")}</option>}{documentFontChoices.map(font => <option key={font.value} value={font.value}>{font.name}</option>)}</select></label>
+      <label>{t("Taille du passage")}<select aria-label={t("Taille du passage")} value={typography.fontSize} disabled={disabled} onChange={event => applyMarks({ fontSize: richFontSize(Number(event.target.value)) })}><option value="">{t("Du document")}</option>{typography.fontSize === 'mixed' && <option value="mixed" disabled>{t("Mixte")}</option>}{[8,9,10,11,12,14,16,18,20,24].map(size => <option key={size} value={size}>{size} pt</option>)}{activeMarks.fontSize && ![8,9,10,11,12,14,16,18,20,24].includes(activeMarks.fontSize) && <option value={activeMarks.fontSize}>{activeMarks.fontSize} pt</option>}</select></label>
     </div>
-    <details hidden={!extended} className="rich-editor__paragraph-options"><summary>Espacement des paragraphes</summary>
-      <label>Espace après le paragraphe<select aria-label="Espace après le paragraphe" disabled={disabled} value={paragraphFormat.spaceAfter} onChange={event => paragraph({ spaceAfter: Number(event.target.value) })}>
-        {paragraphFormat.spaceAfter === 'mixed' && <option value="mixed" disabled>Différents espacements</option>}
-        {[[0, 'Aucun'], [3, 'Discret · 3 pt'], [6, 'Équilibré · 6 pt'], [12, 'Aéré · 12 pt'], [18, 'Très aéré · 18 pt']].map(([value, title]) => <option key={value} value={value}>{title}</option>)}
+    <details hidden={!extended} className="rich-editor__paragraph-options"><summary>{t("Espacement des paragraphes")}</summary>
+      <label>{t("Espace après le paragraphe")}<select aria-label={t("Espace après le paragraphe")} disabled={disabled} value={paragraphFormat.spaceAfter} onChange={event => paragraph({ spaceAfter: Number(event.target.value) })}>
+        {paragraphFormat.spaceAfter === 'mixed' && <option value="mixed" disabled>{t("Différents espacements")}</option>}
+        {[[0, 'Aucun'], [3, 'Discret · 3 pt'], [6, 'Équilibré · 6 pt'], [12, 'Aéré · 12 pt'], [18, 'Très aéré · 18 pt']].map(([value, title]) => <option key={value} value={value}>{t(String(title))}</option>)}
         {typeof paragraphFormat.spaceAfter === 'number' && ![0,3,6,12,18].includes(paragraphFormat.spaceAfter) && <option value={paragraphFormat.spaceAfter}>{paragraphFormat.spaceAfter} pt</option>}
-      </select></label><small>S’applique au paragraphe courant ou à ceux que vous avez sélectionnés.</small>
+      </select></label><small>{t("S’applique au paragraphe courant ou à ceux que vous avez sélectionnés.")}</small>
     </details>
-    <div className="rich-editor__toolbar" role="group" aria-label={`Mise en forme : ${label}`} onMouseDown={e => e.preventDefault()}>
-      {([['bold', Bold, 'Gras'], ['italic', Italic, 'Italique'], ['underline', Underline, 'Souligner']] as const).map(([key, Icon, title]) => <button key={key} type="button" title={title} aria-label={title} aria-pressed={activeMarks[key]} disabled={disabled} onClick={() => mark(key)}><Icon size={17} /></button>)}
-      {([['left', AlignLeft, 'Aligner à gauche'], ['center', AlignCenter, 'Centrer'], ['right', AlignRight, 'Aligner à droite']] as const).map(([align, Icon, title]) => <button key={align} type="button" title={title} aria-label={title} disabled={disabled} onClick={() => paragraph({ align })}><Icon size={17} /></button>)}
-      <button hidden={!extended} type="button" aria-label="Liste à puces" title="Liste à puces" aria-pressed={paragraphFormat.bullet} disabled={disabled} onClick={() => paragraph({ bullet: true })}><List size={17} /></button>
-      <button hidden={!extended} type="button" aria-label="Liste numérotée" title="Liste numérotée" aria-pressed={paragraphFormat.numbered} disabled={disabled} onClick={() => paragraph({ numbered: true })}><ListOrdered size={17} /></button>
-      <button hidden={!extended} type="button" aria-label="Diminuer le retrait" title="Diminuer le retrait" disabled={disabled || !paragraphFormat.canOutdent} onClick={() => paragraph('outdent')}><IndentDecrease size={17} /></button>
-      <button hidden={!extended} type="button" aria-label="Augmenter le retrait" title="Augmenter le retrait" disabled={disabled || !paragraphFormat.canIndent} onClick={() => paragraph('indent')}><IndentIncrease size={17} /></button>
-      <button type="button" aria-label="Couleur du texte" title="Couleur du texte" aria-expanded={colorTool === 'color'} disabled={disabled} onClick={() => setColorTool(colorTool === 'color' ? null : 'color')}><Baseline size={17} style={{ color: activeMarks.color }} /></button>
-      <button type="button" aria-label="Surligner le texte" title="Surligner le texte" aria-expanded={colorTool === 'highlight'} disabled={disabled} onClick={() => setColorTool(colorTool === 'highlight' ? null : 'highlight')}><Highlighter size={17} /></button>
-      <button hidden={!extended} type="button" aria-label="Effacer la mise en forme" title="Effacer la mise en forme des mots sélectionnés" disabled={disabled} onClick={() => applyMarks({ ...noTextMarks, color: undefined, highlight: undefined, fontFamily: undefined, fontSize: undefined })}><RemoveFormatting size={17} /></button>
-      <button type="button" aria-label="Annuler la modification du texte" title="Annuler" disabled={disabled || !history.current.length} onClick={() => undo()}><Undo2 size={17} /></button>
-      <button type="button" aria-label="Rétablir la modification du texte" title="Rétablir" disabled={disabled || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /></button>
+    <div className="rich-editor__toolbar" role="group" aria-label={t('Mise en forme : {label}', { label })} onMouseDown={e => e.preventDefault()}>
+      {([['bold', Bold, 'Gras'], ['italic', Italic, 'Italique'], ['underline', Underline, 'Souligner']] as const).map(([key, Icon, title]) => <button key={key} type="button" title={t(title)} aria-label={t(title)} aria-pressed={activeMarks[key]} disabled={disabled} onClick={() => mark(key)}><Icon size={17} /></button>)}
+      {([['left', AlignLeft, 'Aligner à gauche'], ['center', AlignCenter, 'Centrer'], ['right', AlignRight, 'Aligner à droite']] as const).map(([align, Icon, title]) => <button key={align} type="button" title={t(title)} aria-label={t(title)} disabled={disabled} onClick={() => paragraph({ align })}><Icon size={17} /></button>)}
+      <button hidden={!extended} type="button" aria-label={t("Liste à puces")} title={t("Liste à puces")} aria-pressed={paragraphFormat.bullet} disabled={disabled} onClick={() => paragraph({ bullet: true })}><List size={17} /></button>
+      <button hidden={!extended} type="button" aria-label={t("Liste numérotée")} title={t("Liste numérotée")} aria-pressed={paragraphFormat.numbered} disabled={disabled} onClick={() => paragraph({ numbered: true })}><ListOrdered size={17} /></button>
+      <button hidden={!extended} type="button" aria-label={t("Diminuer le retrait")} title={t("Diminuer le retrait")} disabled={disabled || !paragraphFormat.canOutdent} onClick={() => paragraph('outdent')}><IndentDecrease size={17} /></button>
+      <button hidden={!extended} type="button" aria-label={t("Augmenter le retrait")} title={t("Augmenter le retrait")} disabled={disabled || !paragraphFormat.canIndent} onClick={() => paragraph('indent')}><IndentIncrease size={17} /></button>
+      <button type="button" aria-label={t("Couleur du texte")} title={t("Couleur du texte")} aria-expanded={colorTool === 'color'} disabled={disabled} onClick={() => setColorTool(colorTool === 'color' ? null : 'color')}><Baseline size={17} style={{ color: activeMarks.color }} /></button>
+      <button type="button" aria-label={t("Surligner le texte")} title={t("Surligner le texte")} aria-expanded={colorTool === 'highlight'} disabled={disabled} onClick={() => setColorTool(colorTool === 'highlight' ? null : 'highlight')}><Highlighter size={17} /></button>
+      <button hidden={!extended} type="button" aria-label={t("Effacer la mise en forme")} title={t("Effacer la mise en forme des mots sélectionnés")} disabled={disabled} onClick={() => applyMarks({ ...noTextMarks, color: undefined, highlight: undefined, fontFamily: undefined, fontSize: undefined })}><RemoveFormatting size={17} /></button>
+      <button type="button" aria-label={t("Annuler la modification du texte")} title={t("Annuler")} disabled={disabled || !history.current.length} onClick={() => undo()}><Undo2 size={17} /></button>
+      <button type="button" aria-label={t("Rétablir la modification du texte")} title={t("Rétablir")} disabled={disabled || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /></button>
     </div>
-    {colorTool && <div className="rich-editor__colors" role="group" aria-label={colorTool === 'color' ? 'Choisir la couleur du texte' : 'Choisir le surlignage'} onMouseDown={e => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
-      <span>{colorTool === 'color' ? 'Couleur des mots sélectionnés' : 'Surlignage des mots sélectionnés'}</span>
-      <div className="rich-editor__swatches">{(colorTool === 'color' ? textColors : highlightColors).map(([color, name]) => <button type="button" key={color} aria-label={name} title={name} aria-pressed={activeMarks[colorTool] === color} disabled={disabled} style={{ backgroundColor: color }} onClick={() => applyMarks({ [colorTool]: color })} />)}</div>
-      <label>Couleur personnalisée<input type="color" aria-label={colorTool === 'color' ? 'Couleur de texte personnalisée' : 'Couleur de surlignage personnalisée'} value={activeMarks[colorTool] || (colorTool === 'color' ? '#242424' : '#fff0a6')} disabled={disabled} onChange={e => applyMarks({ [colorTool]: e.target.value })} /></label>
-      <button type="button" disabled={disabled} onClick={() => applyMarks({ [colorTool]: undefined })}>{colorTool === 'color' ? 'Couleur automatique' : 'Sans surlignage'}</button>
-      <button type="button" onClick={() => { setColorTool(null); root.current?.focus(); restore(root.current!, saved.current); }}>Fermer les couleurs</button>
+    {colorTool && <div className="rich-editor__colors" role="group" aria-label={colorTool === 'color' ? t('Choisir la couleur du texte') : t('Choisir le surlignage')} onMouseDown={e => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
+      <span>{colorTool === 'color' ? t('Couleur des mots sélectionnés') : t('Surlignage des mots sélectionnés')}</span>
+      <div className="rich-editor__swatches">{(colorTool === 'color' ? textColors : highlightColors).map(([color, name]) => <button type="button" key={color} aria-label={t(name)} title={t(name)} aria-pressed={activeMarks[colorTool] === color} disabled={disabled} style={{ backgroundColor: color }} onClick={() => applyMarks({ [colorTool]: color })} />)}</div>
+      <label>{t("Couleur personnalisée")}<input type="color" aria-label={colorTool === 'color' ? t('Couleur de texte personnalisée') : t('Couleur de surlignage personnalisée')} value={activeMarks[colorTool] || (colorTool === 'color' ? '#242424' : '#fff0a6')} disabled={disabled} onChange={e => applyMarks({ [colorTool]: e.target.value })} /></label>
+      <button type="button" disabled={disabled} onClick={() => applyMarks({ [colorTool]: undefined })}>{colorTool === 'color' ? t('Couleur automatique') : t('Sans surlignage')}</button>
+      <button type="button" onClick={() => { setColorTool(null); root.current?.focus(); restore(root.current!, saved.current); }}>{t("Fermer les couleurs")}</button>
     </div>}
-    <div ref={root} className="rich-editor__surface" style={{ fontFamily, '--rich-editor-point': `${15 / baseFontSize}px` } as CSSProperties} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label={label} aria-multiline="true" aria-disabled={disabled} spellCheck onInput={input}
+    <div ref={root} className="rich-editor__surface" style={{ fontFamily, '--rich-editor-point': `${15 / baseFontSize}px` } as CSSProperties} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label={t(label)} aria-multiline="true" aria-disabled={disabled} spellCheck onInput={input}
       onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; input(); }}
       onBeforeInput={event => { const type = (event.nativeEvent as InputEvent).inputType; if (['insertParagraph', 'insertLineBreak'].includes(type)) { event.preventDefault(); enter(); } else if (type === 'historyUndo' || type === 'historyRedo') { event.preventDefault(); undo(type === 'historyRedo'); } }}
       onPaste={event => { event.preventDefault(); paste(event.clipboardData.getData('text/html'), event.clipboardData.getData('text/plain')); }} onDrop={event => event.preventDefault()}
       onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); if (!disabled) enter(); } if (event.ctrlKey || event.metaKey) { const key = event.key.toLowerCase(); if (key === 'f') { event.preventDefault(); openSearch(); } if (['b','i','u','z','y'].includes(key)) { event.preventDefault(); if (key === 'z' || key === 'y') undo(key === 'y' || event.shiftKey); else mark(({ b:'bold', i:'italic', u:'underline' } as const)[key as 'b'|'i'|'u']); } } }} />
-    <small>Sélectionnez des mots, ou activez un style avant d’écrire. Entrée ajoute un paragraphe et continue les listes ; une deuxième Entrée termine une liste. {richPlainText(value).length}/{maxLength}</small>
-    <label hidden={!extended} className="rich-editor__paste-choice"><input type="checkbox" checked={keepPasteStyle} disabled={disabled} onChange={event => setKeepPasteStyle(event.target.checked)} /> Conserver la mise en forme du texte collé</label>
-    {message && <p role="status">{message}</p>}
+    <small>{t("Sélectionnez des mots, ou activez un style avant d’écrire. Entrée ajoute un paragraphe et continue les listes ; une deuxième Entrée termine une liste.")} {richPlainText(value).length}/{maxLength}</small>
+    <label hidden={!extended} className="rich-editor__paste-choice"><input type="checkbox" checked={keepPasteStyle} disabled={disabled} onChange={event => setKeepPasteStyle(event.target.checked)} /> {t("Conserver la mise en forme du texte collé")}</label>
+    {message && <p role="status">{t(message)}</p>}
   </div>;
 }

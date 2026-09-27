@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 20 h 36 (Europe/Zurich). L'objectif premier client reste en cours : ce relevé ne signifie pas que les vingt points sont clos.
+Mis à jour le 27 septembre 2026, 21 h 12 (Europe/Zurich). L'objectif premier client reste en cours : ce relevé ne signifie pas que les vingt points sont clos.
 
 ## Version publique 1.90.5
 
@@ -51,4 +51,6 @@ Le lot [Rendez-vous Automation](AUTOMATION-RENDEZ-VOUS-20260927.md), également 
 
 Le lot [Navigation multilingue des documents](DOCUMENT-NAVIGATION-LANGUES-20260927.md), **non publié**, traduit la recherche, ses résultats et le grand atelier ; il corrige aussi le retour du focus et le repositionnement sous la barre fixe mobile. 1 805 tests généraux avant la dernière correction, 15 tests ciblés finaux, TypeScript/build et 16 parcours Edge/WebKit réussis (400 accès aux outils). Les contrôles avancés restants ne sont pas déclarés entièrement traduits.
 
-Restent notamment : rétablissement des comptes, traitement lorsque les apps sont fermées, moniteur externe avec alerte reçue, deux installations synchronisées et reprise hors ligne, paiements/quotas/invitations réels, signatures de distribution et appareils physiques, sélecteurs natifs, traductions des outils avancés et poids du frontend. Les résultats isolés ne démontrent pas une capacité de 150 entreprises. Ne jamais modifier une source gelée déjà publiée.
+Le lot [Éditeur de documents multilingue](DOCUMENT-EDITOR-LANGUES-20260927.md), **non publié**, complète les outils avancés et le texte riche en FR/DE/IT/EN. Le nom des polices des modèles et le bouton de retour qui pouvait disparaître au défilement sont corrigés ; le format de page se réorganise sur mobile avec le texte agrandi. **1 814 tests**, TypeScript/build et **16 parcours Edge/WebKit** passent, dont 400 accès aux outils et la reprise après erreur. Les valeurs et textes du client sont préservés. Enregistrement et PDF simulés : aucun nouveau paquet ni export natif ne sont déduits de ce lot. La version de l’exécutable présent sur le PC a été relue à 1.90.5, sans processus Zentra actif.
+
+Restent notamment : rétablissement des comptes, traitement lorsque les apps sont fermées, moniteur externe avec alerte reçue, deux installations synchronisées et reprise hors ligne, paiements/quotas/invitations réels, signatures de distribution et appareils physiques, sélecteurs natifs, traduction des autres écrans et erreurs inconnues, et poids du frontend. Les résultats isolés ne démontrent pas une capacité de 150 entreprises. Ne jamais modifier une source gelée déjà publiée.

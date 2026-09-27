@@ -6,7 +6,7 @@ export type DocumentDesignTool = {
   panel: 'style' | 'layout' | 'text'; selector: string;
   zone?: 'intro' | 'closing' | 'footerText'; exclude?: DocumentDesignKind[];
 };
-const field = (label: string) => `[aria-label="${label}"]`;
+const field = (label: string) => `[data-design-control="${label}"]`;
 export const documentDesignTools: DocumentDesignTool[] = [
   { id: 'font', label: 'Police du document', description: 'Changer la police de tous les textes courants.', keywords: 'ecriture caractere typographie inter literata helvetica times courier', panel: 'style', selector: field('Police du document') },
   { id: 'body-size', label: 'Taille du texte', description: 'Rendre les textes plus grands ou plus discrets.', keywords: 'petit grand point lisible caracteres', panel: 'style', selector: field('Taille du texte') },

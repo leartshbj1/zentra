@@ -1,10 +1,12 @@
+import { t, useAppLanguage, getAppLocale } from './language';
 import { Minus, Plus } from 'lucide-react';
 import { useId } from 'react';
 import type { DocumentComposition } from './documentComposition';
 
-const format = (value: number) => new Intl.NumberFormat('fr-CH', { maximumFractionDigits: 2 }).format(value);
+const format = (value: number) => new Intl.NumberFormat(getAppLocale(), { maximumFractionDigits: 2 }).format(value);
 export function CustomMeasureOption({ value, choices, unit = 'pt' }: { value: number; choices: number[]; unit?: string }) {
-  return choices.includes(value) ? null : <option value={value} title="Valeur personnalisée">{format(value)} {unit}</option>;
+  useAppLanguage();
+  return choices.includes(value) ? null : <option value={value} title={t("Valeur personnalisée")}>{format(value)} {t(unit)}</option>;
 }
 
 type Measure = { field: 'bodySize' | 'titleSize' | 'marginMm' | 'lineSpacing' | 'logoHeight' | 'tablePadding' | 'topMarginMm' | 'logoGap' | 'blockSpacing'; label: string; min: number; max: number; step: number; unit: string; fallback?: number };
@@ -27,24 +29,25 @@ export function DocumentPrecisionControls({ section, design, disabled, onChange,
   section: 'typography' | 'layout'; design: DocumentComposition; disabled: boolean; onChange: (patch: Partial<DocumentComposition>) => void;
   onGestureStart: () => void; onGestureEnd: () => void;
 }) {
+  useAppLanguage();
   const id = useId();
   return <details className="design-studio__precision">
-    <summary>{section === 'typography' ? 'Réglage précis de la typographie' : 'Réglage précis de la page'}</summary>
-    <p>Déplacez un curseur ou utilisez − et + pour affiner. L’aperçu PDF suit vos réglages.</p>
+    <summary>{section === 'typography' ? t('Réglage précis de la typographie') : t('Réglage précis de la page')}</summary>
+    <p>{t("Déplacez un curseur ou utilisez − et + pour affiner. L’aperçu PDF suit vos réglages.")}</p>
     <fieldset disabled={disabled}>
-      <legend className="sr-only">{section === 'typography' ? 'Tailles personnalisées' : 'Mesures personnalisées'}</legend>
+      <legend className="sr-only">{section === 'typography' ? t('Tailles personnalisées') : t('Mesures personnalisées')}</legend>
       {(section === 'typography' ? typography : layout).map(measure => {
         const value = design[measure.field] ?? measure.fallback ?? design.marginMm;
         const change = (next: number) => onChange({ [measure.field]: Math.round(Math.max(measure.min, Math.min(measure.max, next)) * 100) / 100 });
         return <div className="design-measure" key={measure.field}>
-          <div className="design-measure__label"><label htmlFor={`${id}-${measure.field}`}>{measure.label}</label><output htmlFor={`${id}-${measure.field}`}>{format(value)} {measure.unit}</output></div>
+          <div className="design-measure__label"><label htmlFor={`${id}-${measure.field}`}>{t(measure.label)}</label><output htmlFor={`${id}-${measure.field}`}>{format(value)} {measure.unit}</output></div>
           <div className="design-measure__control">
-            <button type="button" aria-label={`Réduire : ${measure.label}`} disabled={disabled || value <= measure.min} onClick={() => change(value - measure.step)}><Minus size={16} /></button>
-            <input id={`${id}-${measure.field}`} type="range" aria-label={`Réglage précis : ${measure.label}`} aria-valuetext={`${format(value)} ${measure.unit}`} value={value} min={measure.min} max={measure.max} step={measure.step} onPointerDown={onGestureStart} onPointerUp={onGestureEnd} onPointerCancel={onGestureEnd} onBlur={onGestureEnd} onKeyDown={e => { if (!e.repeat && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(e.key)) onGestureStart(); }} onKeyUp={onGestureEnd} onChange={e => change(Number(e.target.value))} />
-            <button type="button" aria-label={`Augmenter : ${measure.label}`} disabled={disabled || value >= measure.max} onClick={() => change(value + measure.step)}><Plus size={16} /></button>
+            <button type="button" aria-label={t('Réduire : {label}', { label: t(measure.label) })} disabled={disabled || value <= measure.min} onClick={() => change(value - measure.step)}><Minus size={16} /></button>
+            <input id={`${id}-${measure.field}`} type="range" aria-label={t('Réglage précis : {label}', { label: t(measure.label) })} aria-valuetext={`${format(value)} ${measure.unit}`} value={value} min={measure.min} max={measure.max} step={measure.step} onPointerDown={onGestureStart} onPointerUp={onGestureEnd} onPointerCancel={onGestureEnd} onBlur={onGestureEnd} onKeyDown={e => { if (!e.repeat && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(e.key)) onGestureStart(); }} onKeyUp={onGestureEnd} onChange={e => change(Number(e.target.value))} />
+            <button type="button" aria-label={t('Augmenter : {label}', { label: t(measure.label) })} disabled={disabled || value >= measure.max} onClick={() => change(value + measure.step)}><Plus size={16} /></button>
           </div>
-          {measure.field === 'topMarginMm' && <div className="design-measure__inherit"><small>{design.topMarginMm == null ? 'Suit les marges du document.' : 'Marge du haut indépendante.'}</small>{design.topMarginMm != null && <button type="button" onClick={() => onChange({ topMarginMm: undefined })}>Suivre les marges</button>}</div>}
-          {measure.field === 'logoHeight' && <small>Le logo garde ses proportions, dans la largeur choisie plus haut.</small>}
+          {measure.field === 'topMarginMm' && <div className="design-measure__inherit"><small>{design.topMarginMm == null ? t('Suit les marges du document.') : t('Marge du haut indépendante.')}</small>{design.topMarginMm != null && <button type="button" onClick={() => onChange({ topMarginMm: undefined })}>{t("Suivre les marges")}</button>}</div>}
+          {measure.field === 'logoHeight' && <small>{t("Le logo garde ses proportions, dans la largeur choisie plus haut.")}</small>}
         </div>;
       })}
     </fieldset>

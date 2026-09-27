@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { checkDocumentEditor } from './document-editor-checks.mjs';
 const pw = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
 const origin = process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5359';
 const fixtures = process.env.ZENTRA_DESIGN_PDF_FIXTURES || '.qa/composition-pdfs';
-const output = '.qa/document-navigation-languages';
+const advanced = process.env.ZENTRA_QA_DOCUMENT_ADVANCED === '1';
+const output = advanced ? '.qa/document-editor-languages' : '.qa/document-navigation-languages';
 await mkdir(output, { recursive: true });
 const report = [];
 for (const engine of ['chromium', 'webkit']) {
@@ -32,17 +34,28 @@ for (const engine of ['chromium', 'webkit']) {
         const keys = ['Aller à un écran', 'Rechercher un écran', 'Paramètres', 'Mes réglages', 'Ouvrir le grand atelier', 'Atelier de personnalisation des documents', 'Revenir aux paramètres', 'Trouvez votre outil', 'Éléments du document', 'Effacer la recherche d’outil'];
         return Object.fromEntries(keys.map(key => [key, t(key)]));
       });
-      await page.evaluate(async () => {
+      await page.evaluate(async advanced => {
         const { desktopApi } = await import('/src/bridge.ts');
-        desktopApi.documentDesignExample = async input => [...new Uint8Array(await (await fetch(`/native-design-fixture/${input.kind}-${input.style.composition?.fontFamily || input.style.layout}.pdf`)).arrayBuffer())];
-      });
+        window.__documentEditorQa = { saved: [], inputs: [], failure: null };
+        desktopApi.documentDesignExample = async input => {
+          window.__documentEditorQa.inputs.push(input);
+          if (window.__documentEditorQa.failure && input.kind === 'invoices') throw new Error(window.__documentEditorQa.failure);
+          const font = input.style.composition?.fontFamily || input.style.layout;
+          const fixtureFont = font === 'inter' ? 'helvetica' : font === 'literata' ? 'times' : font;
+          return [...new Uint8Array(await (await fetch(`/native-design-fixture/${input.kind}-${fixtureFont}.pdf`)).arrayBuffer())];
+        };
+        if (advanced) {
+          const workspace = await desktopApi.loadWorkspace();
+          desktopApi.saveSettings = async settings => { window.__documentEditorQa.saved.push(structuredClone(settings)); return { ...workspace, settings }; };
+        }
+      }, advanced);
       await page.getByRole('button', { name: copy['Aller à un écran'], exact: true }).click();
       await page.getByRole('searchbox', { name: copy['Rechercher un écran'] }).fill(copy.Paramètres);
       await page.locator('.navigation-palette__results button').filter({ has: page.getByText(copy.Paramètres, { exact: true }) }).click();
       await page.locator('[data-settings-link="documents"]').click();
       await page.locator('.design-studio__preview[aria-busy=false] img').first().waitFor();
       if (width <= 900) await page.getByRole('button', { name: copy['Mes réglages'], exact: true }).click();
-      await page.getByLabel('Police du document', { exact: true }).selectOption('times');
+      await page.locator("[data-design-control=\"Police du document\"]").selectOption('times');
       const open = page.getByRole('button', { name: copy['Ouvrir le grand atelier'], exact: true }).filter({ visible: true });
       await open.click();
       const dialog = page.getByRole('dialog', { name: copy['Atelier de personnalisation des documents'], exact: true });
@@ -64,10 +77,10 @@ for (const engine of ['chromium', 'webkit']) {
       // Search results navigate only: previously chosen appearance remains intact.
       await search.fill(tools.find(tool => tool.id === 'font').translated);
       await page.locator('.design-navigator__results button').filter({ has: page.getByText(tools.find(tool => tool.id === 'font').translated, { exact: true }) }).click();
-      assert.equal(await page.getByLabel('Police du document', { exact: true }).inputValue(), 'times');
+      assert.equal(await page.locator("[data-design-control=\"Police du document\"]").inputValue(), 'times');
       await search.fill(tools.find(tool => tool.id === 'title-font').translated);
       await search.press('Enter');
-      await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Police du titre');
+      await page.waitForFunction(() => document.activeElement?.getAttribute("data-design-control") === 'Police du titre');
       await search.fill('logo'); await search.press('ArrowDown');
       assert.ok(await page.evaluate(() => !!document.activeElement?.closest('.design-navigator__results')));
       await search.press('Escape'); assert.equal(await search.inputValue(), ''); assert.ok(await dialog.isVisible());
@@ -77,7 +90,7 @@ for (const engine of ['chromium', 'webkit']) {
       await page.getByRole('button', { name: copy['Effacer la recherche d’outil'], exact: true }).click();
       await page.locator('.design-studio__section-guide summary').click();
       await page.getByRole('navigation', { name: copy['Éléments du document'], exact: true }).getByRole('button').nth(1).click();
-      await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Taille du titre');
+      await page.waitForFunction(() => document.activeElement?.getAttribute("data-design-control") === 'Taille du titre');
       // Check long translations and both appearance modes in the real settings shell.
       await search.fill(language === 'de' ? 'Farbe' : language === 'it' ? 'colore' : language === 'en' ? 'colour' : 'couleur');
       await page.locator('.design-navigator').evaluate(el => el.scrollIntoView({ block: 'start' }));
@@ -103,9 +116,10 @@ for (const engine of ['chromium', 'webkit']) {
       await dialog.locator('.document-workbench__header').getByRole('button', { name: copy['Revenir aux paramètres'], exact: true }).click();
       await dialog.waitFor({ state: 'hidden' });
       assert.equal(await open.evaluate(el => el === document.activeElement), true, await page.evaluate(() => JSON.stringify({ active: document.activeElement?.outerHTML.slice(0, 500) })));
-      assert.equal(await page.getByLabel('Police du document', { exact: true }).inputValue(), 'times');
+      assert.equal(await page.locator("[data-design-control=\"Police du document\"]").inputValue(), 'times');
+      const advancedResult = advanced ? await checkDocumentEditor({ page, width, language, tools, output, caseId }) : {};
       assert.deepEqual(errors, []);
-      report.push({ engine, width, language, targets: tools.length, keyboard: true, map: true, noOverflow: true, themeSwitch: true, draftPreserved: true, closeRestoresFocus: true });
+      report.push({ engine, width, language, targets: tools.length, keyboard: true, map: true, noOverflow: true, themeSwitch: true, draftPreserved: true, closeRestoresFocus: true, ...advancedResult });
     } catch (error) {
       await page.screenshot({ path: `${output}/FAILED-${caseId}.png` });
       report.push({ caseId, error: String(error.stack || error) }); throw error;

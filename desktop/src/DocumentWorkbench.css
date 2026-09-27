@@ -1,6 +1,6 @@
 .document-workbench-anchor { min-width:0; width:100%; }
 .document-workbench-anchor > div { min-width:0; }
-.document-workbench { position:fixed; inset:0; width:100%; height:100vh; height:100dvh; max-width:none; max-height:none; margin:0; padding:0; border:0; color:#253c2e; background:#f7f8f5; }
+.document-workbench { position:fixed; inset:0; width:100%; height:100vh; height:100dvh; max-width:none; max-height:none; margin:0; padding:0; border:0; overflow:hidden; overflow:clip; color:#253c2e; background:#f7f8f5; }
 .document-workbench[open] { display:flex; flex-direction:column; }
 .document-workbench::backdrop { background:#f7f8f5; }
 .document-workbench > div { min-height:0; overflow:auto; overscroll-behavior:contain; scroll-padding-top:24px; flex:1; }

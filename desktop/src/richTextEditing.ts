@@ -1,4 +1,5 @@
 import { normalizeRichText, richPlainText, type RichRun, type RichText } from './documentComposition';
+import { t } from './language';
 
 export type TextSelection = { start: number; end: number };
 export type TextMarks = Required<Pick<RichRun, 'bold' | 'italic' | 'underline'>> & Pick<RichRun, 'color' | 'highlight' | 'fontFamily' | 'fontSize'>;
@@ -79,7 +80,7 @@ export function insertedTextRange(before: string, after: string): TextSelection 
 }
 
 export function richTextLimit(value: RichText, maxLength: number): string | null {
-  if (richPlainText(value).length > maxLength) return `Ce texte peut contenir ${maxLength} caractères au maximum. Le texte précédent est conservé.`;
+  if (richPlainText(value).length > maxLength) return t('Ce texte peut contenir {max} caractères au maximum. Le texte précédent est conservé.', { max: maxLength });
   if (value.length > 60) return 'Ce texte peut contenir 60 paragraphes au maximum. Regroupez certaines lignes avant de le coller. Le texte précédent est conservé.';
   if (value.some(p => p.runs.length > 500)) return 'Ce paragraphe comporte trop de changements de mise en forme. Simplifiez quelques passages. Le texte précédent est conservé.';
   return null;

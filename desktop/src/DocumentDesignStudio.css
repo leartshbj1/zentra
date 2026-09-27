@@ -10,6 +10,9 @@
 .document-page-format__paper { display:grid; align-content:center; gap:4px; width:30px; height:42px; padding:5px; background:#fff; border:1px solid #98ad9d; border-radius:2px; }
 .document-page-format__paper[data-orientation=landscape] { width:42px; height:30px; margin-block:6px; }
 .document-page-format__paper i { height:2px; background:#b8c8bc; }
+@media(max-width:600px) {
+  html:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .document-page-format > div { grid-template-columns:minmax(0,1fr); }
+}
 .document-table-sample { overflow:hidden; border:1px solid; border-radius:8px; font-size:12px; }
 .document-table-sample > div { display:flex; justify-content:space-between; gap:12px; padding:12px; }
 .document-table-color { display:grid; gap:8px; }

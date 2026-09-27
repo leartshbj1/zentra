@@ -2,6 +2,7 @@ import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from 
 import { normalizeComposition, type DocumentComposition } from './documentComposition';
 import type { AppSettings } from './types';
 import { documentDesignTextProblems } from './documentDesignValidation';
+import { t } from './language';
 
 export type DocumentDesignTemplate = {
   version: 1;
@@ -28,7 +29,7 @@ export function captureDocumentTemplate(settings: AppSettings, kind: DocumentDes
   if (problem) throw new Error(problem);
   if (templates.length >= maxDocumentTemplates) throw new Error('Vos 20 modèles sont déjà créés. Retirez un modèle inutilisé avant d’en ajouter un.');
   const textProblem = documentDesignTextProblems(settings).find(item => item.kind === kind);
-  if (textProblem) throw new Error(`Avant de créer ce modèle, corrigez ${textProblem.title.toLowerCase()} dans Textes. ${textProblem.message}`);
+  if (textProblem) throw new Error(t('Avant de créer ce modèle, corrigez {title} dans Textes. {message}', { title: textProblem.title.toLocaleLowerCase(), message: textProblem.message }));
   return structuredClone({ version: 1, id, name: name.trim(), sourceKind: kind,
     style: { ...documentAppearance(settings.documentAppearance)[kind],
       ...(settings.documentComposition?.[kind] ? { composition: settings.documentComposition[kind] } : {}),

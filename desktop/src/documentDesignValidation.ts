@@ -2,6 +2,7 @@ import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from 
 import { normalizeComposition, richPlainText, type DocumentComposition } from './documentComposition';
 import type { AppSettings } from './types';
 import { errorMessage } from './utils';
+import { getAppLanguage, getAppLocale, t } from './language';
 
 export const designKindLabels = { invoices: 'Factures', quotes: 'Devis', accounts: 'Bilan', payslips: 'Fiches de salaire' };
 export const designKinds = Object.keys(designKindLabels) as DocumentDesignKind[];
@@ -10,6 +11,8 @@ export type DesignProblem = {
   zone: 'intro' | 'closing' | 'footerText' | 'footer' | 'company' | 'page';
   title: string;
   message: string;
+  details?: string;
+  companyTarget?: 'logo' | 'identity';
   range?: { start: number; end: number };
 };
 export type DesignExampleInput = { kind: DocumentDesignKind; style: DocumentStyle & { composition?: DocumentComposition }; issuer: Record<string, unknown> };
@@ -44,13 +47,15 @@ export function documentDesignTextProblems(settings: AppSettings): DesignProblem
       ['footer', 'Pied de page simple', documentAppearance(settings.documentAppearance)[kind].footer, 100],
     ] as const;
     for (const [zone, label, text, limit] of zones) {
-      const title = `${designKindLabels[kind]} · ${label}`;
+      const title = `${t(designKindLabels[kind])} · ${t(label)}`;
       const unsupported = unsupportedDesignCharacter(text, zone !== 'footer');
       if (unsupported) {
-        const character = unsupported.character.codePointAt(0)! < 0x20 ? 'Un caractère invisible' : `Le caractère « ${unsupported.character} »`;
-        problems.push({ kind, zone, title, range: { start: unsupported.start, end: unsupported.end }, message: `${character} ne peut pas être imprimé avec ces polices. Remplacez le passage sélectionné par du texte ou un symbole courant.` });
+        const message = unsupported.character.codePointAt(0)! < 0x20
+          ? t('Un caractère invisible ne peut pas être imprimé avec ces polices. Remplacez le passage sélectionné par du texte ou un symbole courant.')
+          : t('Le caractère « {character} » ne peut pas être imprimé avec ces polices. Remplacez le passage sélectionné par du texte ou un symbole courant.', { character: unsupported.character });
+        problems.push({ kind, zone, title, range: { start: unsupported.start, end: unsupported.end }, message });
       } else if (Array.from(text).length > limit || zone !== 'footer' && composition[zone].length > 60) {
-        problems.push({ kind, zone, title, message: `Raccourcissez cette zone : ${limit.toLocaleString('fr-CH')} caractères et 60 paragraphes maximum. Votre texte reste présent pendant la correction.` });
+        problems.push({ kind, zone, title, message: t('Raccourcissez cette zone : {limit} caractères et 60 paragraphes maximum. Votre texte reste présent pendant la correction.', { limit: limit.toLocaleString(getAppLocale()) }) });
       }
     }
   }
@@ -64,7 +69,17 @@ export function nativeDesignProblem(kind: DocumentDesignKind, reason: unknown, s
   const footer = /pied de page/i.test(message);
   const company = /logo|caractère.*police/i.test(message);
   const zone = footer ? normalizeComposition(settings.documentComposition?.[kind]).footerText.length ? 'footerText' : 'footer' : company ? 'company' : 'page';
-  return { kind, zone, title: `${designKindLabels[kind]} · ${footer ? 'Pied de page' : company ? 'Entreprise et logo' : 'Vérification du PDF'}`, message };
+  // Route using the native reason, never a translated display message.
+  const translated = t(message);
+  const unknownTranslation = getAppLanguage() !== 'fr' && translated === message;
+  const guidance = footer ? 'Vérifiez le pied de page : réduisez sa longueur ou sa taille, puis relancez l’aperçu.'
+    : company ? 'Vérifiez le logo et les coordonnées de votre entreprise, puis relancez l’aperçu.'
+    : 'Le PDF n’a pas pu être vérifié. Vos réglages restent présents. Vérifiez la mise en page puis réessayez.';
+  return { kind, zone, title: `${t(designKindLabels[kind])} · ${t(footer ? 'Pied de page' : company ? 'Entreprise et logo' : 'Vérification du PDF')}`,
+    message: unknownTranslation ? t(guidance) : translated,
+    ...(unknownTranslation ? { details: message } : {}),
+    ...(company ? { companyTarget: /logo/i.test(message) ? 'logo' as const : 'identity' as const } : {}),
+  };
 }
 
 /** Validate each category with the native renderer before saving their shared settings. */

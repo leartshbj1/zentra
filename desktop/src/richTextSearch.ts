@@ -1,4 +1,5 @@
 import { richPlainText, type RichText } from './documentComposition';
+import { t } from './language';
 import { marksAtSelection, replaceRichSelection, richTextLimit, selectedParagraphs, type TextSelection } from './richTextEditing';
 
 /** Literal Unicode search: punctuation is text, never a regular expression. */
@@ -20,7 +21,7 @@ export function replaceRichTextMatches(value: RichText, matches: TextSelection[]
   }
   // Reject expansion before allocating potentially thousands of large replacements.
   const resultLength = ordered.reduce((size, range) => size + replacement.length - (range.end - range.start), length);
-  if (resultLength > maxLength) return { value, error: `Ce texte peut contenir ${maxLength} caractères au maximum. Le texte précédent est conservé.`, count: 0 };
+  if (resultLength > maxLength) return { value, error: t('Ce texte peut contenir {max} caractères au maximum. Le texte précédent est conservé.', { max: maxLength }), count: 0 };
   for (const range of [...ordered].reverse()) {
     const paragraph = value[selectedParagraphs(value, { start: range.start, end: range.start })[0]];
     const marks = marksAtSelection(value, { start: range.start, end: range.start + 1 });

@@ -18,6 +18,6 @@ La fermeture du grand atelier restitue le focus au bouton d’ouverture après s
 
 ## Limites
 
-Les commandes internes avancées, certains contrôles et erreurs de l’éditeur restent à traduire. Le contenu des PDF et l’export natif n’ont pas été validés à nouveau dans ce lot. Pas d’iPhone physique ni d’essai à 200 % dans ces 16 parcours. Les paquets natifs publics restent 1.90.5. Le build signale toujours des fragments JavaScript de plus de 500 ko ; aucune optimisation de poids ni performance serveur n’est attribuée à ce changement.
+À la livraison de ce lot, les commandes internes avancées, certains contrôles et erreurs de l’éditeur restaient à traduire. Le [lot suivant](DOCUMENT-EDITOR-LANGUES-20260927.md) les complète et ajoute un essai à 200 %, avec ses propres limites. Le contenu des PDF et l’export natif n’ont pas été validés à nouveau dans le présent lot. Pas d’iPhone physique ni d’essai à 200 % dans ces 16 parcours de navigation initiaux. Les paquets natifs publics restent 1.90.5. Le build signale toujours des fragments JavaScript de plus de 500 ko ; aucune optimisation de poids ni performance serveur n’est attribuée à ce changement.
 
 Le langage visuel Operate existant est conservé. Revue finale manuelle du diff, des parcours, du retour clavier et des captures ; aucune nouvelle direction graphique ni règle de marque.
