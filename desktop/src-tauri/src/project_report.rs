@@ -13,9 +13,38 @@ use tauri::State;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectReport {
+    #[serde(default)]
+    language: ReportLanguage,
     title: String,
     subtitle: String,
     sections: Vec<Section>,
+}
+#[derive(Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum ReportLanguage {
+    #[default]
+    Fr,
+    De,
+    It,
+    En,
+}
+impl ReportLanguage {
+    fn continuation(self) -> &'static str {
+        match self {
+            Self::Fr => "suite",
+            Self::De => "Fortsetzung",
+            Self::It => "continua",
+            Self::En => "continued",
+        }
+    }
+    fn empty(self) -> &'static str {
+        match self {
+            Self::Fr => "Aucune donnée enregistrée",
+            Self::De => "Keine Daten erfasst",
+            Self::It => "Nessun dato registrato",
+            Self::En => "No data recorded",
+        }
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -68,6 +97,7 @@ fn render(issuer: &Value, report: &ProjectReport) -> AppResult<(Vec<u8>, usize)>
     let name = issuer["company_name"].as_str().unwrap_or("Zentra");
     let logo = load_pdf_logo(issuer["logo_path"].as_str().unwrap_or(""));
     let mut page = Composer::new(&style, logo.as_ref(), name, &report.title)?;
+    page.set_continuation_label(report.language.continuation());
     page.heading(&report.title)?;
     page.paragraph(&report.subtitle, 10., false)?;
     page.gap(16.);
@@ -95,7 +125,7 @@ fn render(issuer: &Value, report: &ProjectReport) -> AppResult<(Vec<u8>, usize)>
                     .enumerate()
                     .map(|(i, _)| {
                         if i == 0 {
-                            "Aucune donnée enregistrée".into()
+                            report.language.empty().into()
                         } else {
                             String::new()
                         }
@@ -135,6 +165,53 @@ pub fn export_project_report_pdf(
 mod tests {
     use super::*;
     #[test]
+    fn old_report_payloads_default_to_french_and_unknown_languages_are_rejected() {
+        let payload = json!({"title":"Projet", "subtitle":"", "sections":[{"title":"Documents", "headers":["Fichier"], "rows":[]}]});
+        let report: ProjectReport = serde_json::from_value(payload.clone()).unwrap();
+        assert_eq!(report.language.continuation(), "suite");
+        assert_eq!(report.language.empty(), "Aucune donnée enregistrée");
+        for invalid in [json!("es"), json!("fr-CH"), json!(null), json!(42)] {
+            let mut bad = payload.clone();
+            bad["language"] = invalid;
+            assert!(serde_json::from_value::<ProjectReport>(bad).is_err());
+        }
+    }
+    #[test]
+    fn report_language_reaches_every_continuation_page_without_translating_client_content() {
+        for (language, label, empty, title, header) in [
+            ("fr", "suite", "Aucune donnée enregistrée", "Documents", "Fichier"),
+            ("de", "Fortsetzung", "Keine Daten erfasst", "Dokumente", "Datei"),
+            ("it", "continua", "Nessun dato registrato", "Documenti", "File"),
+            ("en", "continued", "No data recorded", "Documents", "File"),
+        ] {
+            let rows: Vec<Vec<String>> = (0..65).map(|i| vec![format!("CLIENT-{i:03}"), "Client text / Kundentext / Texte client".into()]).collect();
+            let report: ProjectReport = serde_json::from_value(json!({
+                "language":language, "title":"PROJET CLIENT", "subtitle":"REFERENCE-7500-CHF",
+                "sections":[{"title":title, "headers":[header], "rows":[]},
+                    {"title":"CLIENT CONTENT", "headers":["ID", "CLIENT"], "rows":rows}]
+            })).unwrap();
+            let (bytes, count) = render(&json!({"company_name":"CLIENT SA"}), &report).unwrap();
+            assert!(count > 1);
+            let pdf = lopdf::Document::load_mem(&bytes).unwrap();
+            let pages: Vec<u32> = pdf.get_pages().keys().copied().collect();
+            let all = pdf.extract_text(&pages).unwrap();
+            assert!(all.contains(empty));
+            assert!(all.contains("REFERENCE-7500-CHF"));
+            for i in 0..65 { assert!(all.contains(&format!("CLIENT-{i:03}"))); }
+            for number in pages.iter().skip(1) {
+                let text = pdf.extract_text(&[*number]).unwrap();
+                assert!(text.contains(label), "language {language}, page {number}");
+                if language != "fr" { assert!(!text.contains("suite")); }
+            }
+            if language != "fr" { assert!(!all.contains("Aucune donnée enregistrée")); }
+            if let Ok(directory) = std::env::var("ZENTRA_PROJECT_REPORT_LANGUAGE_DIR") {
+                let directory = std::path::Path::new(&directory);
+                std::fs::create_dir_all(directory).unwrap();
+                std::fs::write(directory.join(format!("rapport-{language}.pdf")), bytes).unwrap();
+            }
+        }
+    }
+    #[test]
     fn project_report_keeps_long_rows_and_paginates() {
         let rows = (0..95)
             .map(|i| {
@@ -149,6 +226,7 @@ mod tests {
             })
             .collect();
         let report = ProjectReport {
+            language: ReportLanguage::Fr,
             title: "Rénovation - Projet de démonstration".into(),
             subtitle: "Rapport de projet · Situation au 21.09.2026".into(),
             sections: vec![Section {
@@ -169,6 +247,7 @@ mod tests {
     #[test]
     fn malformed_columns_are_rejected() {
         let report = ProjectReport {
+            language: ReportLanguage::Fr,
             title: "Projet".into(),
             subtitle: "".into(),
             sections: vec![Section {

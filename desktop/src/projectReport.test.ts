@@ -70,6 +70,7 @@ it('retains the full internal report and explains that missing costs are not est
 it('translates structural text while preserving project and client content',async ()=>{
   const {w,p}=reportFixture();await setAppLanguage('en');
   const result=buildProjectReport(w,p,['overview','documents'],{preset:'internal'});
+  expect(result.language).toBe('en');
   expect(result.title).toBe('Rénovation Léman');
   expect(result.sections[0].title).toBe('The project');
   expect(result.sections[0].headers).toEqual(['Information','Detail']);
@@ -80,8 +81,19 @@ it('translates structural text while preserving project and client content',asyn
 it('uses translated empty rows so the PDF does not inject a French fallback',async ()=>{
   const {w,p}=reportFixture();w.attachments=[];await setAppLanguage('de');
   const result=buildProjectReport(w,p,['documents']);
+  expect(result.language).toBe('de');
   expect(result.sections[0].rows[0][0]).not.toBe('Aucune donnée enregistrée');
   expect(result.sections[0].rows[0]).toHaveLength(3);
+});
+it('carries the selected language to the native exporter while retaining client content', async () => {
+  const {w,p}=reportFixture();
+  for (const language of ['fr','de','it','en'] as const) {
+    await setAppLanguage(language);
+    const result=buildProjectReport(w,p,['overview','documents']);
+    expect(result.language).toBe(language);
+    expect(result.title).toBe(p.name);
+    expect(result.sections.at(-1)?.rows[0][0]).toBe('SECRET NOTE');
+  }
 });
 it('orders projects by recorded activity, without modifying the workspace order or using future planned dates',()=>{
   const {w,p}=reportFixture();

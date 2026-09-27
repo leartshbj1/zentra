@@ -7,7 +7,7 @@ import {
   projectFinancials,
 } from './utils';
 import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
-import { getAppLocale, t } from './language';
+import { getAppLanguage, getAppLocale, t, type AppLanguage } from './language';
 export const reportSections = {
   overview: 'Vue d’ensemble',
   sales: 'Devis et factures',
@@ -40,6 +40,7 @@ export function recentReportProjects(w: Workspace): Project[] {
   return [...w.projects].sort((a,b) => (latest.get(b.id) ?? 0) - (latest.get(a.id) ?? 0) || a.name.localeCompare(b.name, getAppLocale()) || a.id.localeCompare(b.id));
 }
 export type ProjectReport = {
+  language?: AppLanguage;
   title: string;
   subtitle: string;
   sections: { title: string; headers: string[]; rows: string[][] }[];
@@ -277,6 +278,7 @@ export function buildProjectReport(
     add('Notes du projet', ['Notes'], [[p.notes || t('Aucune note')]]);
   }
   return {
+    language: getAppLanguage(),
     title: p.name,
     subtitle: `${t(reportPresets[options.preset ?? 'internal'].label)} · ${t('Toute la durée du projet')}\n${t('Situation enregistrée au {date}', {date:(options.createdAt ?? new Date()).toLocaleDateString(getAppLocale())})}${options.author?.trim() ? '\n' + t('Préparé par {name}', {name:options.author.trim()}) : ''}`,
     sections,

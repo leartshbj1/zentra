@@ -505,6 +505,7 @@ pub(crate) struct Composer<'a> {
     logo: Option<&'a PdfLogo>,
     identity: String,
     title: String,
+    continuation_label: &'static str,
     payment_pages: Vec<usize>,
     footer: Vec<RichLine>,
     bottom: f32,
@@ -558,6 +559,7 @@ impl<'a> Composer<'a> {
             },
             identity: identity.into(),
             title: title.into(),
+            continuation_label: "suite",
             payment_pages: vec![],
             footer,
             bottom,
@@ -623,7 +625,7 @@ impl<'a> Composer<'a> {
             self.company_line(&self.identity.clone(), self.design.body_size + 2., true)?;
         } else {
             self.paragraph(
-                &format!("{} · {} · suite", self.identity, self.title),
+                &format!("{} · {} · {}", self.identity, self.title, self.continuation_label),
                 9.,
                 true,
             )?;
@@ -744,6 +746,9 @@ impl<'a> Composer<'a> {
         self.paragraph(title, 14., true)?;
         self.gap(8.);
         self.table(headers, fractions, rows)
+    }
+    pub fn set_continuation_label(&mut self, label: &'static str) {
+        self.continuation_label = label;
     }
 
     pub fn table(
