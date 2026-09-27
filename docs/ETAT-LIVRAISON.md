@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 18 h 30 (Europe/Zurich). Ce document décrit la livraison courante ; les notes `RELEASE-*` conservent son historique.
+Mis à jour le 27 septembre 2026, 19 h 07 (Europe/Zurich). Ce document décrit la livraison courante ; les notes `RELEASE-*` conservent son historique.
 
 ## Fichiers proposés au public
 
@@ -16,6 +16,18 @@ La version native publiée est **1.90.4**, source commune **`c07b1d4d3031659da6b
 Les signatures de mise à jour ne remplacent ni Authenticode, ni Developer ID/notarisation, ni la signature iPhone. **Les manifestes historiques Supabase n’ont pas été promus vers 1.90.4.** La présence d’un fichier sur la page de téléchargement ne prouve donc pas sa proposition automatique dans toutes les installations existantes.
 
 Preuves locales : `outputs/release1904/SOURCES.json`, `github-published-proof.json`, `public-head-proof.json`, `smoke-windows/windows-smoke.json`, `smoke-macos/macos-smoke.json`, `installed-smoke/verification.json`. La dernière lecture des métadonnées GitHub est dans `outputs/release1904-current-public.json`.
+
+## Version 1.90.5 en préparation — non publiée
+
+Source commune gelée `3dfe7849b1ee6d4c1195f89927c7fc134e1cb72d`. Les 1 759 tests frontend dans 219 fichiers, 14 contrôles de contrat, TypeScript, ressources de marque et build passent.
+
+- **Apple 146 réussi** : Mac universel démarré et relancé dans un profil neuf, base au schéma 60 intègre ; archive 53 473 643 octets et DMG 54 658 074 octets contrôlés. Nouveau endpoint `zentraapp.ch/updates/latest-macos.json` et clé vérifiés dans les deux architectures ; signature updater vérifiée. Signature du code ad hoc, sans notarisation. IPA iPhone arm64 de 26 091 537 octets contrôlé, non signé ; pas d'essai iPhone physique.
+- **Android 148 réussi** : APK arm64 de 122 844 170 octets après suppression vérifiée des symboles, certificat de test persistant et alignement 16 K contrôlés. Ressources et code/données ELF conservés ; lanceurs vérifiés. Débogable, pas d'essai appareil/émulateur.
+- **Windows 147 en cours** au relevé de 19 h 07. Recette indépendante du paquet préparée dans `438113a0`, non déclenchée. Ne pas relancer les compilations existantes pour un simple délai d'observation.
+
+**Nouvelles preuves par l'application Windows installée 1.90.4 :** onboarding exécuté avec les vrais contrôles dans un espace synthétique, logo traité par le natif. Le sélecteur de fichier/dossier n'a pas été automatisé : les chemins fictifs étaient préremplis dans le brouillon. Puis jeu de récupération injecté hors ligne, sans licence ni compte client, et sauvegarde `.zentra` créée par le véritable IPC natif. Référence de comparaison : 110 tables métier/configuration (17 remplies), 3 fichiers, factures 1 000 CHF, encaissement 250 CHF, brut fictif 5 000 CHF, journaux équilibrés. Ceci ne valide pas le parcours métier de création de ces éléments. Montée de version, restauration sur profil neuf sans source accessible et refus d'une archive incomplète **restent à exécuter** avec 1.90.5. L'application de recette a été fermée ; aucune application utilisateur arrêtée.
+
+Preuves : `outputs/release1905/STATE.md`, `apple/download-proof.json`, `apple/smoke/macos-smoke.json`, `apple/iphone/verification.json`, `android-signed/build-info.json`, `upgrade-smoke/native-onboarding-proof.json`, `upgrade-smoke/backup-1.90.4.json` et `upgrade-smoke/before-upgrade-snapshot.json`. Aucun nouveau canal public promu à ce stade.
 
 ## Site et services
 
