@@ -1,15 +1,17 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { ArrowUpRight, ChevronRight, TrendingUp, FileText, FolderKanban, Receipt } from 'lucide-react';
-import type { Project, Workspace } from './types';
+import type { Invoice, Project, Workspace } from './types';
 import { salesTotalsByCurrency, turnoverLabel } from './salesFinancials';
 import { formatMoney } from './utils';
 import { MobileDetails } from './MobileDetails';
 import { t, useAppLanguage } from './language';
+import { DashboardFinancialDetail, financialMetricLabel, useFinancialDetailSelection } from './DashboardFinancialDetail';
 
-export function MobileDashboard({ workspace, onNavigate, onOpenProject, setup, automation, actions }: {
+export function MobileDashboard({ workspace, onNavigate, onOpenProject, onOpenInvoice, setup, automation, actions }: {
   workspace: Workspace;
   onNavigate: (view: 'invoices' | 'quotes' | 'projects' | 'accounting' | 'time') => void;
   onOpenProject: (project: Project) => void;
+  onOpenInvoice: (invoice: Invoice) => void;
   setup: ReactNode;
   automation?: ReactNode;
   actions?: ReactNode;
@@ -17,6 +19,8 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, setup, a
   useAppLanguage();
   const totals = useMemo(() => salesTotalsByCurrency(workspace.invoices, workspace.payments), [workspace.invoices, workspace.payments]);
   const [chosen, setChosen] = useState('CHF');
+  const {metric,selectMetric,closeDetail}=useFinancialDetailSelection();
+  const year=new Date().getFullYear();
   const total = totals.find(item => item.currency === chosen) ?? totals[0];
   const projects = workspace.projects.filter(item => ['in_progress', 'paused'].includes(item.status));
   const links = [
@@ -31,12 +35,14 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, setup, a
       </div>
       <strong className="mobile-home__amount">{total ? formatMoney(total.openCents, total.currency) : '—'}</strong>
       <span className="mobile-home__period">{t('Encore dû · toutes années confondues')}</span>
+      <button type="button" className="mobile-home__calculation-action" aria-expanded={metric==='openCents'} onClick={event=>selectMetric('openCents',event.currentTarget)}>{t('Voir le détail')}<ChevronRight size={17}/></button>
       <MobileDetails title="Détail des montants">
         <dl><div><dt>{t('Factures émises · TTC')}</dt><dd>{total ? formatMoney(total.invoicedCents, total.currency) : '—'}</dd></div><div><dt>{t('Paiements reçus')}</dt><dd>{total ? formatMoney(total.paidCents, total.currency) : '—'}</dd></div></dl>
         <p>{t('Montants enregistrés dans Zentra, séparés par devise. Ce résumé ne représente pas le solde bancaire.')}</p>
-        <button type="button" onClick={() => onNavigate('accounting')}>{t('Ouvrir la comptabilité')}<ArrowUpRight size={17}/></button>
+        {(['invoicedCents','paidCents'] as const).map(field=><button type="button" key={field} className="mobile-home__calculation-action" onClick={event=>selectMetric(field,event.currentTarget)}>{financialMetricLabel(field,year)}<ArrowUpRight size={17}/></button>)}
       </MobileDetails>
     </section>
+    {metric&&<DashboardFinancialDetail key={`${metric}-${total?.currency}`} workspace={workspace} metric={metric} year={year} currency={metric==='netCents'?undefined:total?.currency} onClose={()=>closeDetail()} onOpenInvoice={invoice=>{closeDetail(false);onOpenInvoice(invoice);}}/>}
     {automation}
     {actions}
     <section className="mobile-home__section" aria-label={t('À suivre')}>
@@ -46,7 +52,7 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, setup, a
     {projects.length > 0 && <section className="mobile-home__section"><div className="mobile-home__section-heading"><h2>{t('Projets actifs')}</h2><button type="button" onClick={() => onNavigate('projects')}>{t('Tout voir')}</button></div>
       <div className="mobile-home__list">{projects.slice(0, 3).map(project => <button type="button" key={project.id} onClick={() => onOpenProject(project)}><FolderKanban size={21}/><span>{project.name}</span><ChevronRight size={17}/></button>)}</div>
     </section>}
-    <button type="button" className="mobile-home__time" onClick={() => onNavigate('accounting')}><TrendingUp size={19}/><span>{t('Chiffre d’affaires')}<small className="turnover-period">{new Date().getFullYear()} · {t('Facturé hors TVA · avoirs déduits')}</small></span><strong>{workspace.invoices.some(invoice=>!['draft','cancelled'].includes(invoice.status))?turnoverLabel(workspace.invoices):'—'}</strong><ChevronRight size={17}/></button>
+    <button type="button" className="mobile-home__time" aria-expanded={metric==='netCents'} onClick={event=>selectMetric('netCents',event.currentTarget)}><TrendingUp size={19}/><span>{t('Chiffre d’affaires')}<small className="turnover-period">{year} · {t('Facturé hors TVA · avoirs déduits')}</small></span><strong>{workspace.invoices.some(invoice=>!['draft','cancelled'].includes(invoice.status))?turnoverLabel(workspace.invoices):'—'}</strong><ChevronRight size={17}/></button>
     {setup && <MobileDetails title="Pour bien démarrer">{setup}</MobileDetails>}
   </div>;
 }

@@ -2676,7 +2676,7 @@ function Dashboard({
       </section>
   );
 
-  if (compact && hasActivity) return <MobileDashboard actions={quickActions} workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} automation={<AutomationDailySummary link />} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
+  if (compact && hasActivity) return <MobileDashboard actions={quickActions} workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} onOpenInvoice={invoice=>onCreate({type:'document',entity:'invoices',item:invoice})} automation={<AutomationDailySummary link />} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
   if (!hasActivity)
     return (
       <><AutomationDailySummary link /><GettingStartedChecklist
@@ -2687,7 +2687,7 @@ function Dashboard({
     );
   return (
     <div className="dashboard-grid">
-      <DashboardFinancialSummary workspace={workspace} onAccounting={()=>onNavigate('accounting')} />
+      <DashboardFinancialSummary workspace={workspace} onAccounting={()=>onNavigate('accounting')} onOpenInvoice={invoice=>onCreate({type:'document',entity:'invoices',item:invoice})} />
       <AutomationDailySummary link />
       {!gettingStarted.complete ? (
         <GettingStartedChecklist
