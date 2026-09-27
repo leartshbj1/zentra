@@ -1959,6 +1959,8 @@
 .support-app .support-folder-toggle {
   display: none;
 }
+.support-inbox-actions {display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+.support-app .support-filter-toggle,.support-app .support-filters-done,.support-import-short {display:none;}
 .support-app .support-review-disclosure {
   margin-top: 24px;
   border-top: 1px solid var(--s-line);
@@ -1991,6 +1993,16 @@
   outline: none;
 }
 @media (max-width: 760px) {
+  body .support-app .support-main {padding-top:18px;}
+  body .support-app .support-page-heading {gap:16px; margin-bottom:16px;}
+  body .support-app .support-page-description {display:none;}
+  .support-app .support-inbox-actions {width:100%; flex-wrap:nowrap;}
+  .support-app .support-inbox-actions button {min-height:44px; font-size:14px; padding-inline:10px; white-space:normal;}
+  .support-app .support-filter-toggle {display:flex; flex:1;}
+  .support-app .support-import-full {display:none;}
+  .support-app .support-import-short {display:inline;}
+  .support-app .support-inbox-toolbar[data-open='false'] {display:none;}
+  .support-app .support-filters-done {display:flex; min-height:44px;}
   .support-app .support-folder-toggle {
     display: flex;
   }

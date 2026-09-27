@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -81,6 +81,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     [category, setCategory] = useState(''),
     [fetching, setFetching] = useState(false),
     [foldersOpen, setFoldersOpen] = useState(false),
+    [filtersOpen, setFiltersOpen] = useState(false),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false);
@@ -89,6 +90,12 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     [connectionId, setConnection] = useState(''),
     [externalId, setExternalId] = useState('');
   const detailHeading = useRef<HTMLHeadingElement>(null);
+  const filterToggle = useRef<HTMLButtonElement>(null);
+  const filtersId = useId();
+  const closeFilters = () => {
+    setFiltersOpen(false);
+    filterToggle.current?.focus();
+  };
   const ticketButtons = useRef(new Map<string, HTMLButtonElement>());
   const sequence = useRef(0),
     busyRef = useRef(false),
@@ -751,7 +758,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                   <div className="support-page-heading">
                     <div>
                       <h1>{folderName}</h1>
-                      <p>
+                      <p className="support-page-description">
                         {!demo && !data.automation?.enabled
                           ? 'Le classement manuel est disponible.'
                           : category
@@ -763,8 +770,22 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                                 : 'Vos demandes organisées, une décision à la fois.'}
                       </p>
                     </div>
+                    <div className="support-inbox-actions">
+                      <Button
+                        variant="outline"
+                        className="support-filter-toggle"
+                        ref={filterToggle}
+                        aria-expanded={filtersOpen}
+                        aria-controls={filtersId}
+                        onClick={() => setFiltersOpen(value => !value)}
+                      >
+                        <Search size={17} aria-hidden="true" />
+                        {search || filter || category ? 'Filtres actifs' : 'Recherche et filtres'}
+                      </Button>
                     <Button
+                      className="support-import-action"
                       variant="outline"
+                      aria-label={data.connections.length ? 'Importer un ticket' : 'Connecter un outil'}
                       onClick={() => {
                         if (!data.connections.length) setTab('connections');
                         else {
@@ -778,10 +799,11 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                       disabled={readOnly}
                     >
                       <Plus size={17} />{' '}
-                      {data.connections.length
+                      <span className="support-import-full">{data.connections.length
                         ? 'Importer un ticket'
-                        : 'Connecter un outil'}
+                        : 'Connecter un outil'}</span><span className="support-import-short" aria-hidden="true">{data.connections.length ? 'Importer' : 'Connecter'}</span>
                     </Button>
+                    </div>
                   </div>
                   {!demo &&
                     data.billing?.active &&
@@ -827,7 +849,18 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                         )}
                       </div>
                     )}
-                  <div className="support-inbox-toolbar">
+                  <div
+                    className="support-inbox-toolbar"
+                    id={filtersId}
+                    data-open={filtersOpen}
+                    onKeyDown={event => {
+                      if (event.key === 'Escape' && filtersOpen) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        closeFilters();
+                      }
+                    }}
+                  >
                     <label className="support-search">
                       <Search size={18} aria-hidden="true" />
                       <input
@@ -864,6 +897,9 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                         Tout afficher
                       </Button>
                     )}
+                    <Button variant="ghost" className="support-filters-done" onClick={closeFilters}>
+                      Afficher les demandes<ChevronDown size={17} aria-hidden="true" />
+                    </Button>
                   </div>
                   <div className="support-inbox-layout" data-detail={!!ticket}>
                     <section
