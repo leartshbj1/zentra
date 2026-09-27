@@ -18,6 +18,33 @@ function environment(saved = 'dark', systemDark = false) {
 }
 
 describe('appearance restoration', () => {
+  it('uses readable native bars during the dark introduction and restores the latest preference', async () => {
+    const { root } = environment('light');
+    native.invoke.mockResolvedValue(undefined);
+    const { claimPresentationTheme, setAppearance } = await import('./appearance');
+    const release = claimPresentationTheme('dark');
+    await vi.waitFor(() => expect(native.invoke).toHaveBeenLastCalledWith('set_app_appearance', { appearance: 'dark', dark: true }));
+    expect(localStorage.getItem('zentra.appearance.v1')).toBe('light');
+    expect(root.dataset.appTheme).toBe('light');
+    setAppearance('dark'); setAppearance('light');
+    await vi.waitFor(() => expect(native.invoke).toHaveBeenLastCalledWith('set_app_appearance', { appearance: 'dark', dark: true }));
+    release(); release();
+    await vi.waitFor(() => expect(native.invoke).toHaveBeenLastCalledWith('set_app_appearance', { appearance: 'light', dark: false }));
+    expect(localStorage.getItem('zentra.appearance.v1')).toBe('light');
+  });
+  it('keeps the topmost presentation and returns to the live system theme', async () => {
+    const { media } = environment('system', true);
+    native.invoke.mockResolvedValue(undefined);
+    const { claimPresentationTheme } = await import('./appearance');
+    const background = claimPresentationTheme('dark');
+    const foreground = claimPresentationTheme('light');
+    background();
+    await vi.waitFor(() => expect(native.invoke).toHaveBeenLastCalledWith('set_app_appearance', { appearance: 'light', dark: false }));
+    media.matches = false; media.dispatchEvent(new Event('change'));
+    foreground();
+    await vi.waitFor(() => expect(native.invoke).toHaveBeenLastCalledWith('set_app_appearance', { appearance: 'system', dark: false }));
+    expect(localStorage.getItem('zentra.appearance.v1')).toBe('system');
+  });
   it('restores the startup canvas and sends only the latest pending native choice', async () => {
     const { root } = environment();
     let finish!: () => void;

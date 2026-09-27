@@ -76,6 +76,7 @@ export const onboardingTranslations: Record<string, readonly [string,string,stri
   'Création de votre espace…':['Ihr Arbeitsbereich wird erstellt…','Creazione del tuo spazio…','Creating your workspace…'],
   'La vérification n’a pas abouti. Réessayez. Votre brouillon est conservé.':['Die Prüfung konnte nicht abgeschlossen werden. Versuchen Sie es erneut. Ihr Entwurf bleibt erhalten.','La verifica non è riuscita. Riprova. La bozza è conservata.','The check could not be completed. Try again. Your draft is saved.'],
   'Commencer':['Beginnen','Inizia','Start'],
+  'Créer une entreprise':['Unternehmen erstellen','Crea un’azienda','Create a company'],
   'Sauvegardes':['Sicherungskopien','Backup','Backups'],
   'Compte et licence':['Konto und Lizenz','Account e licenza','Account and licence'],
   'Personnaliser la numérotation':['Nummerierung anpassen','Personalizza la numerazione','Customise numbering'],

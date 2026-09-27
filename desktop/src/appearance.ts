@@ -7,6 +7,7 @@ const valid = (value: unknown): value is Appearance => ['system','light','dark']
 let preference: Appearance = 'system';
 try {const value=localStorage.getItem(key);if(valid(value))preference=value;} catch { /* Session preference remains available. */ }
 const listeners = new Set<()=>void>();
+const presentationThemes = new Map<symbol, 'light' | 'dark'>();
 let pendingNativeTheme: { appearance: Appearance; dark: boolean } | undefined;
 let applyingNativeTheme = false;
 async function syncNativeTheme(appearance: Appearance, dark: boolean) {
@@ -24,13 +25,26 @@ async function syncNativeTheme(appearance: Appearance, dark: boolean) {
     }
   } finally { applyingNativeTheme = false; }
 }
+function syncPresentationTheme() {
+  const presentation = [...presentationThemes.values()].at(-1);
+  const appearance = presentation ?? preference;
+  const dark = appearance === 'dark' || appearance === 'system' && media.matches;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',dark?'#141416':'#f5f5f7');
+  void syncNativeTheme(appearance, dark);
+}
+/** Temporary native bars for a full-screen scene; never writes the user's choice. */
+export function claimPresentationTheme(theme: 'light' | 'dark') {
+  const owner = Symbol('presentation-theme');
+  presentationThemes.set(owner, theme);
+  syncPresentationTheme();
+  return () => { if (presentationThemes.delete(owner)) syncPresentationTheme(); };
+}
 function apply() {
   const dark=preference==='dark'||preference==='system'&&media.matches;
   document.documentElement.dataset.appTheme=dark?'dark':'light';
   document.documentElement.style.colorScheme=dark?'dark':'light';
   document.documentElement.style.backgroundColor=dark?'#141416':'#f5f5f7';
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',dark?'#141416':'#f5f5f7');
-  void syncNativeTheme(preference,dark);
+  syncPresentationTheme();
   listeners.forEach(notify=>notify());
 }
 export function setAppearance(value:Appearance) {if(!valid(value))return false;preference=value;let saved=true;try{localStorage.setItem(key,value);}catch{saved=false;}apply();return saved;}

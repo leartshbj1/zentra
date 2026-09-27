@@ -144,7 +144,7 @@
 .first-run__draft-message {display:none;color:var(--setup-error);font-size:13px;}
 .first-run__license {margin-top:16px;}
 .first-run__license .license-banner {position:static;inset:auto;margin:0;padding:18px;border:1px solid var(--setup-line);border-radius:12px;background:var(--setup-soft);color:var(--setup-ink);box-shadow:none;max-width:100%;width:auto;}
-.first-run :is(.cloud-account-panel,.automation-setup,.local-assistant-setup) {margin:0;padding:0;border:0;background:none;box-shadow:none;border-radius:0;color:var(--setup-ink);}
+html[data-app-theme] .first-run :is(.cloud-account-panel,.automation-setup,.local-assistant-setup) {margin:0;padding:0;border:0;background:none;box-shadow:none;border-radius:0;color:var(--setup-ink);}
 .first-run .cloud-account-panel .settings-cloud-intro {padding:0;background:none;display:grid;gap:18px;}
 
 .first-run .settings-cloud-privacy {margin-top:14px;color:var(--setup-muted);font-size:12px;}
@@ -366,11 +366,11 @@ html[data-app-theme] .first-run .zentra-arrival__controls button:active {transfo
   .first-run .company-logo-setting .button {min-height:46px;}
   .first-run__actions {gap:14px;}
   .first-run .button {min-height:48px;}
-  .first-run--account .first-run__guide {top:max(14px,var(--safe-top,env(safe-area-inset-top,0px)));left:max(24px,var(--safe-left,env(safe-area-inset-left,0px)));}
+  .first-run--account .first-run__guide {position:relative;top:auto;left:auto;padding:max(24px,var(--safe-top,env(safe-area-inset-top,0px))) max(24px,var(--safe-right,env(safe-area-inset-right,0px))) 8px max(24px,var(--safe-left,env(safe-area-inset-left,0px)));}
   .first-run--account .first-run__guide .assistant-help {display:none;}
-  .first-run--account .first-run__preferences {gap:2px;margin-bottom:54px;padding-left:94px;}
-  html[data-app-theme] .first-run--account .first-run__preferences select {padding-inline:5px;font-size:12px;max-width:100%;}
-  .first-run--account .first-run__main {padding-top:max(14px,var(--safe-top,env(safe-area-inset-top,0px)));}
+  .first-run--account .first-run__preferences {gap:8px;flex-wrap:wrap;margin-bottom:32px;padding-left:0;}
+  html[data-app-theme] .first-run--account .first-run__preferences select {padding-inline:8px;font-size:16px;max-width:100%;}
+  .first-run--account .first-run__main {padding-top:0;}
   .first-run--account .first-run__paper {padding-bottom:0;}
   .first-run--account .setup-header h1 {font-size:38px;line-height:1.13;}
   .first-run--account .setup-header p {font-size:15px;max-width:30ch;}
@@ -388,7 +388,6 @@ html[data-app-theme] .first-run .zentra-arrival__controls button:active {transfo
   .zentra-arrival__controls {bottom:max(36px,calc(var(--safe-bottom,env(safe-area-inset-bottom,0px)) + 20px));gap:12px;}
 }
 @media(max-width:350px) {
-  .first-run--account .first-run__preferences {padding-left:82px;}
   .first-run--account .first-run__brand img {width:76px;}
   .first-run--account .setup-header h1 {font-size:34px;}
   .first-run .setup-header h1 {font-size:30px;}

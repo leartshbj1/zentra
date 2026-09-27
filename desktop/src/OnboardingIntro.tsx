@@ -3,6 +3,7 @@ import { ArrowRight, RotateCcw } from 'lucide-react';
 import { BrandWordmark } from './BrandMark';
 import wordmarkUrl from './assets/zentra-wordmark.png';
 import { t } from './language';
+import { claimPresentationTheme } from './appearance';
 
 const seenKey = 'zentra.onboarding.intro.v1';
 const duration = 7800;
@@ -30,6 +31,9 @@ export function ZentraArrival({ onStart, product = 'gestion', storageKey = seenK
   const [phase, setPhase] = useState<'quote'|'light'|'logo'|'ready'>(() => reduced || (!forceReplay && hasSeenIntro(storageKey)) ? 'ready' : 'quote');
   const [run, setRun] = useState(0);
   const playing = phase !== 'ready';
+  // The arrival stays dark even when the application preference is light.
+  // Restore the current preference on exit, including choices made here.
+  useEffect(() => claimPresentationTheme('dark'), []);
   // Own focus across the sequence; never take it back from the language/theme controls.
   useEffect(() => {
     const active = document.activeElement;

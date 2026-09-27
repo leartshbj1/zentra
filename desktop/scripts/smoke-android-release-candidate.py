@@ -19,9 +19,9 @@ import xml.etree.ElementTree as ET
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parents[1] / 'desktop/artifacts/android-release-smoke'
 OUT.mkdir(parents=True, exist_ok=True)
-JOB = 157
-REVISION = 'a490d797e2358dc95fc1615e48ea82eb400f86b1'
-SHA = 'aff706d3c1d42c0222cbee2a365e14ba5bfc65c0b685d7a294491df2b760168d'
+JOB = int(os.environ.get('ZENTRA_ANDROID_SMOKE_JOB', '157'))
+REVISION = os.environ.get('ZENTRA_ANDROID_SMOKE_SOURCE', 'a490d797e2358dc95fc1615e48ea82eb400f86b1')
+SHA = os.environ.get('ZENTRA_ANDROID_SMOKE_SHA256', 'aff706d3c1d42c0222cbee2a365e14ba5bfc65c0b685d7a294491df2b760168d')
 PACKAGE = 'ch.zentra.mobile'
 PROFILE = '/data/user/0/' + PACKAGE
 
@@ -41,6 +41,12 @@ def adb(*args, **kwargs):
     return run('adb', '-s', 'emulator-5554', *args, **kwargs)
 
 
+def capture_screen(label):
+    # Do not strip PNG bytes: trailing whitespace can be part of the checksum.
+    png = subprocess.check_output(['adb', '-s', 'emulator-5554', 'exec-out', 'screencap', '-p'], timeout=30)
+    (OUT / (label + '.png')).write_bytes(png)
+
+
 def snapshot(label):
     # uiautomator can exit successfully without producing a new dump. Never
     # accept the preceding launch's XML as evidence that the current UI opened.
@@ -48,9 +54,7 @@ def snapshot(label):
     adb('shell', 'uiautomator', 'dump', '--compressed', remote, timeout=30)
     data = adb('exec-out', 'cat', remote)
     (OUT / (label + '.xml')).write_text(data, encoding='utf-8')
-    # Do not strip PNG bytes: trailing whitespace can be part of the checksum.
-    png = subprocess.check_output(['adb', '-s', 'emulator-5554', 'exec-out', 'screencap', '-p'], timeout=30)
-    (OUT / (label + '.png')).write_bytes(png)
+    capture_screen(label)
     return ET.fromstring(data)
 
 
@@ -80,6 +84,7 @@ def wait_ui(label, predicate, seconds=100):
                 return root
         except (subprocess.SubprocessError, ET.ParseError) as error:
             last_error = type(error).__name__
+            capture_screen(label + '-while-inspecting')
         time.sleep(2)
     raise RuntimeError(f'Expected usable screen missing: {label}; last capture error={last_error}')
 
@@ -109,6 +114,8 @@ def profile_state(temp, label):
 
 
 def main():
+    if JOB <= 0 or not re.fullmatch(r'[0-9a-f]{40}', REVISION) or not re.fullmatch(r'[0-9a-f]{64}', SHA):
+        raise ValueError('An exact source job, revision and independently recorded hash are required')
     if adb('shell', 'getprop', 'ro.kernel.qemu') != '1':
         raise RuntimeError('Refusing to operate on a physical device')
     abi = adb('shell', 'getprop', 'ro.product.cpu.abilist')
@@ -160,10 +167,11 @@ def main():
         adb('logcat', '-c')
         started = time.monotonic()
         proof['launch'] = adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
+        capture_screen('00-first-frame')
         starts = {'Commencer', 'Start', 'Inizia', 'Beginnen'}
         welcome = wait_ui('01-welcome', lambda labels: bool(starts.intersection(labels)), seconds=150)
-        proof['usableWelcomeMs'] = round((time.monotonic()-started)*1000)
-        print(f'Usable welcome interface verified after {proof["usableWelcomeMs"]} ms', flush=True)
+        proof['accessibleWelcomeObservedMs'] = round((time.monotonic()-started)*1000)
+        print(f'Usable welcome interface observed after {proof["accessibleWelcomeObservedMs"]} ms, including accessibility inspection', flush=True)
         if not tap(welcome, starts):
             raise RuntimeError('Welcome start control is not usable')
         account_markers = {'Tout commence avec vous.', 'It all starts with you.', 'Alles beginnt mit Ihnen.', 'Tutto inizia da te.'}
