@@ -11,7 +11,11 @@
 .company-sync__receipt strong{overflow-wrap:anywhere}
 .company-sync-indicator { display:flex; align-items:center; justify-content:center; flex-shrink:0; gap:6px; min-height:44px; padding:8px; border:0; border-radius:9px; background:transparent; color:var(--work-muted); font:inherit; font-size:12px; }
 .company-sync-indicator[data-sync-state=current] { color:var(--work-accent); }
-.company-sync-indicator[data-sync-state=attention] { color:var(--work-ink); background:var(--work-soft); }
+.company-sync-indicator[data-sync-state=attention],.company-sync-indicator[data-sync-state=delayed] { color:var(--work-ink); background:var(--work-soft); }
 .company-sync-indicator:hover { background:var(--work-soft); }
 .company-sync-indicator:focus-visible { outline:2px solid var(--work-accent); outline-offset:2px; }
 @media(max-width:1100px) { .company-sync-indicator { width:44px; padding:0; } .company-sync-indicator span { display:none; } }
+.company-sync__times { display:grid; gap:8px; margin:4px 0; font-size:13px; line-height:1.5; }
+.company-sync__times>div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:2px 20px; }
+.company-sync__times dt { color:var(--muted); }
+.company-sync__times dd { margin:0; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }

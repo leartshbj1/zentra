@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {mkdir,writeFile} from 'node:fs/promises';
+const pw=createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE||'playwright');
+const origin=process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5357';
+const output='.qa/company-sync-health';await mkdir(output,{recursive:true});const proof=[];
+const base={enabled:true,organizationId:'company-a',revision:3,pending:false,conflict:false,lastSyncedAt:'2026-09-26T09:00:00Z'};
+const start=new Date('2026-09-27T10:00:00Z');
+for(const engine of ['chromium','webkit']){
+ const browser=await pw[engine].launch({headless:true,...(engine==='chromium'?{channel:'msedge'}:{})});
+ try{for(const [width,language,theme] of [[320,'de','dark'],[390,'fr','light'],[390,'it','dark'],[1440,'en','light']]){
+  const page=await browser.newPage({viewport:{width,height:900},reducedMotion:'reduce'});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.route('**/*',r=>r.request().url().startsWith(origin)||r.request().url().startsWith('data:')?r.continue():r.abort());
+  await page.clock.install({time:start});
+  await page.goto(`${origin}/tests/company-sync-health.html?language=${language}&theme=${theme}`);
+  await page.waitForFunction(()=>Boolean(window.syncHealth));
+  const publish=async(patch={},verified=false,message='')=>page.evaluate(({state,verified,message})=>window.syncHealth.publish(state,message,verified),{state:{...base,...patch},verified,message});
+  await publish();
+  const indicator=page.locator('.company-sync-indicator');
+  await indicator.click();
+  const dates=page.locator('.company-sync__times time');
+  assert.equal(await dates.count(),1,'Old exchange is not a verification made in this session');
+  await publish({},true);
+  await page.waitForFunction(()=>document.querySelector('.company-sync-indicator')?.dataset.syncState==='current');
+  assert.equal(await dates.count(),2);const oldCheck=await dates.first().getAttribute('datetime');
+  await publish({pending:true},false,'Service indisponible · Référence ZT-TEST');
+  await page.waitForFunction(()=>document.querySelector('.company-sync-indicator')?.dataset.syncState==='attention');
+  assert.equal(await dates.first().getAttribute('datetime'),oldCheck,'Failure does not update last successful check');
+  await page.context().setOffline(true);
+  await page.waitForFunction(()=>document.querySelector('.company-sync-indicator')?.dataset.syncState==='offline');
+  await page.context().setOffline(false);await publish({},true);
+  await page.waitForFunction(()=>document.querySelector('.company-sync-indicator')?.dataset.syncState==='current');
+  const resumedCheck=await dates.first().getAttribute('datetime');
+  await page.clock.fastForward(120_001);
+  await page.waitForFunction(()=>document.querySelector('.company-sync-indicator')?.dataset.syncState==='delayed');
+  assert.equal(await page.locator('.company-sync-panel').getAttribute('data-sync-state'),'delayed','Panel and toolbar must agree after a missed check');
+  assert.equal(await dates.first().getAttribute('datetime'),resumedCheck);
+  assert.equal(await page.locator('.company-sync-panel button').count(),0,'No manual sync step added');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'No horizontal overflow');
+  await page.screenshot({path:`${output}/${engine}-${width}-${language}-delayed.png`});
+  await publish({},true);
+  await page.waitForFunction(()=>document.querySelector('.company-sync-indicator')?.dataset.syncState==='current');
+  assert.notEqual(await dates.first().getAttribute('datetime'),oldCheck);
+  await publish({organizationId:'company-b',lastSyncedAt:undefined});
+  await page.waitForFunction(()=>document.querySelector('.company-sync-indicator')?.dataset.syncState==='checking');
+  assert.equal(await dates.count(),0,'Changing company clears timestamps');
+  await publish({enabled:false});await publish({lastSyncedAt:undefined});
+  assert.equal(await dates.count(),0,'Reconnecting does not claim an earlier session was checked');
+  assert.deepEqual(errors,[]);proof.push({engine,width,language,theme,lastCheckDistinct:true,errorPreservesLastSuccess:true,delayed:true,automaticRecovery:true,companyIsolation:true,errors});
+  await page.close();
+ }}finally{await browser.close();}
+}
+await writeFile(`${output}/proof.json`,JSON.stringify(proof,null,2));console.log(JSON.stringify({passed:proof.length,output}));

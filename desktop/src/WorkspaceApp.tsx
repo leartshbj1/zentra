@@ -510,6 +510,7 @@ function WorkspaceContent({
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [view, setView] = useState<View>('dashboard');
+  const compactSales = useCompactLayout() && (view === 'quotes' || view === 'invoices');
   const companyAutomation = useCompanyAutomation();
   const preferences = useWorkspacePreferences();
   const shortcuts = availableShortcuts(preferences, companyAutomation.knownActive);
@@ -1749,7 +1750,7 @@ function WorkspaceContent({
           </div>
           <div className="topbar__tools">
             <CompanySyncIndicator organizationId={cloudAccount?.status === 'connected' ? cloudAccount.organizationId : null} onOpen={() => { navigateTour('settings'); setSettingsFocusTarget('automation-account-target'); }} />
-            {searchableView ? (
+            {searchableView && !compactSales ? (
               <label className="global-search">
                 <Search size={16} />
                 <input
@@ -1909,7 +1910,7 @@ function WorkspaceContent({
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label={t("Reprendre la facture fournisseur")}><span>{t("Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.")}</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>{t("Reprendre la facture fournisseur")}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>{t("Plus tard")}</Button></div>}
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
-          {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && <AutomationTools key={view} screen={view} workspace={workspace} />}
+          {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && !compactSales && <AutomationTools key={view} screen={view} workspace={workspace} />}
           {view === 'automation' && <AutomationHub appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
@@ -2103,6 +2104,7 @@ function WorkspaceContent({
             <DocumentsScreen
               onOpenFolder={(quoteId) => setModal({ type: 'quoteInvoiceFolder', quoteId })}
               entity="quotes"
+              onQueryChange={setSearch}
               readOnly={readOnly}
               workspace={workspace}
               query={search}
@@ -2196,6 +2198,7 @@ function WorkspaceContent({
             <DocumentsScreen
               onOpenFolder={(quoteId) => setModal({ type: 'quoteInvoiceFolder', quoteId })}
               entity="invoices"
+              onQueryChange={setSearch}
               readOnly={readOnly}
               workspace={workspace}
               query={search}
@@ -3515,7 +3518,7 @@ function ClientDetail({
   );
 }
 
-type DocumentsProps = { onOpenFolder: (quoteId: string) => void; readOnly: boolean } & (
+type DocumentsProps = { onOpenFolder: (quoteId: string) => void; readOnly: boolean; onQueryChange: (query:string)=>void } & (
   | {
       entity: 'quotes';
       workspace: Workspace;
@@ -3576,6 +3579,7 @@ type LooseDocumentsProps = {
 function DocumentsScreen(sourceProps: DocumentsProps) {
   let entity: 'quotes' | 'invoices' = sourceProps.entity;
   const { workspace, query, busy, readOnly, onCreate } = sourceProps;
+  const compact=useCompactLayout();
   const mutationsDisabled = busy || readOnly;
   const [orders, setOrders] = useState(() => ({ quotes: readDocumentOrder('quotes'), invoices: readDocumentOrder('invoices') }));
   const order = orders[entity];
@@ -3604,18 +3608,21 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
     <span role="status">{page * 25 + 1}–{Math.min((page + 1) * 25, filtered.length)} sur {filtered.length}</span>
     <Button variant="secondary" disabled={page === pageCount - 1} onClick={() => changePage(page + 1)} aria-label="Page suivante">Suivant</Button>
   </nav> : null;
-  const filterBar = <DocumentListToolbar count={`${filtered.length} / ${documents.length} ${entity === 'quotes' ? 'devis' : 'factures'}`} orderLabel={documentOrders[order]} filtered={status !== 'all'||creator!=='all'}>
-    <label><span>Afficher</span><select aria-label={entity === 'quotes' ? 'État des devis' : 'État des factures'} value={status} onChange={(event) => setStatuses({ ...statuses, [entity]: event.target.value })}>
-      <option value="all">Tous les états</option>
-      {entity === 'invoices' ? <><option value="open">À encaisser</option><option value="overdue">En retard</option><option value="partially_paid">Partiellement payées</option><option value="paid">Payées</option></> : <><option value="accepted">Acceptés</option><option value="refused">Refusés</option><option value="expired">Expirés</option></>}
-      <option value="draft">Brouillons</option><option value="issued">Émis</option><option value="cancelled">Annulés</option>
+  const filterBar = <DocumentListToolbar count={t(entity === 'quotes' ? '{count} / {total} devis' : '{count} / {total} factures',{count:filtered.length,total:documents.length})} orderLabel={documentOrders[order]} filtered={status !== 'all'||creator!=='all'}
+    search={{value:query,onChange:sourceProps.onQueryChange,label:entity==='quotes'?'Rechercher un devis':'Rechercher une facture'}}
+    tools={<AutomationTools screen={entity} workspace={workspace}/>}
+  >
+    <label><span>{t('Afficher')}</span><select aria-label={t(entity === 'quotes' ? 'État des devis' : 'État des factures')} value={status} onChange={(event) => setStatuses({ ...statuses, [entity]: event.target.value })}>
+      <option value="all">{t('Tous les états')}</option>
+      {entity === 'invoices' ? <><option value="open">{t('À encaisser')}</option><option value="overdue">{t('En retard')}</option><option value="partially_paid">{t('Partiellement payées')}</option><option value="paid">{t('Payées')}</option></> : <><option value="accepted">{t('Acceptés')}</option><option value="refused">{t('Refusés')}</option><option value="expired">{t('Expirés')}</option></>}
+      <option value="draft">{t('Brouillons')}</option><option value="issued">{t('Émis')}</option><option value="cancelled">{t('Annulés')}</option>
     </select></label>
-    <label><span>Classer par</span><select aria-label={entity === 'quotes' ? 'Classement des devis' : 'Classement des factures'} value={order} onChange={(event) => {
+    <label><span>{t('Classer par')}</span><select aria-label={t(entity === 'quotes' ? 'Classement des devis' : 'Classement des factures')} value={order} onChange={(event) => {
       const next = event.target.value as DocumentOrder;
       setOrders({ ...orders, [entity]: next });
       saveDocumentOrder(entity, next);
     }}>
-      {Object.entries(documentOrders).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+      {Object.entries(documentOrders).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}
     </select></label>
     <label><span>{t('Créé par')}</span><select aria-label={t('Créateur du document')} value={creator} onChange={event=>setCreatorFilters({...creatorFilters,[entity]:event.target.value})}>
       <option value="all">{t('Toute l’équipe')}</option>{creators.map(author=><option key={author.id} value={author.id}>{t(author.name)}</option>)}
@@ -3623,13 +3630,13 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
   </DocumentListToolbar>;
   if (!documents.length) {
     return (
-      <EmptyState disabled={mutationsDisabled}
+      <div className="sales-empty"><EmptyState disabled={mutationsDisabled}
         icon={entity === 'quotes' ? <FileCheck2 /> : <Receipt />}
         title={entity === 'quotes' ? 'Aucun devis' : 'Aucune facture'}
         text={`Créez ${entity === 'quotes' ? 'un devis' : 'une facture'} avec vos propres lignes et montants. Vous pourrez ajouter le client directement pendant la saisie.`}
         actionLabel={entity === 'quotes' ? 'Créer un devis' : 'Créer une facture'}
         onAction={onCreate}
-      />
+      />{compact&&<AutomationTools screen={entity} workspace={workspace}/>}</div>
     );
   }
   if (entity === 'quotes') {
@@ -3640,11 +3647,11 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
         <table>
           <thead>
             <tr>
-              <th>Document</th>
-              <th>Client</th>
-              <th>Date</th>
-              <th>Montant TTC</th>
-              <th>Statut</th>
+              <th>{t('Document')}</th>
+              <th>{t('Client')}</th>
+              <th>{t('Date')}</th>
+              <th>{t('Montant TTC')}</th>
+              <th>{t('Statut')}</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
@@ -3673,7 +3680,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                       </span>
                       <div>
                         <strong>
-                          {quote.number || 'Devis en préparation'}
+                          {quote.number || t('Devis en préparation')}
                         </strong>
                         <small>{quote.title}</small>
                         <small className="sales-document__creator">{t(documentCreatorLabel(quote))}</small>
@@ -3687,7 +3694,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                   </td>
                   <td className="sales-document__date">
                     <span>{formatDate(quote.issueDate)}</span>
-                    <small>Valable au {formatDate(quote.validUntil)}</small>
+                    <small>{t('Valable au {date}',{date:formatDate(quote.validUntil)})}</small>
                   </td>
                   <td className="sales-document__total">
                     <strong>
@@ -3842,7 +3849,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           title="Aperçu et export PDF"
                           aria-label={`Aperçu du devis ${quote.number || quote.title}`}
                         >
-                          <Eye size={16} /> Aperçu
+                          <Eye size={16} /> {t('Aperçu')}
                         </Button>
                         {quote.number && quote.status !== 'cancelled' && <MailDocumentButton target={{ entity: 'quotes', id: quote.id }} disabled={mutationsDisabled} />}
                     </MobileDocumentActions>
@@ -3870,12 +3877,12 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
       <table>
         <thead>
           <tr>
-            <th>Document</th>
-            <th>Client</th>
-            <th>Date</th>
-            <th>Montant TTC</th>
-            {entity === 'invoices' ? <th>Encaissé</th> : null}
-            <th>Statut</th>
+            <th>{t('Document')}</th>
+            <th>{t('Client')}</th>
+            <th>{t('Date')}</th>
+            <th>{t('Montant TTC')}</th>
+            {entity === 'invoices' ? <th>{t('Encaissé')}</th> : null}
+            <th>{t('Statut')}</th>
             <th aria-label="Actions" />
           </tr>
         </thead>
@@ -3945,12 +3952,12 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                     </span>
                     <div>
                       <strong>
-                        {item.number || (entity === 'quotes' ? 'Devis en préparation' : invoice?.type === 'credit_note' ? 'Avoir en préparation' : invoice?.type === 'deposit' ? 'Acompte en préparation' : 'Facture en préparation')}
+                        {item.number || t(entity === 'quotes' ? 'Devis en préparation' : invoice?.type === 'credit_note' ? 'Avoir en préparation' : invoice?.type === 'deposit' ? 'Acompte en préparation' : 'Facture en préparation')}
                       </strong>
                       <small>{item.title}</small>
                       <small className="sales-document__creator">{t(documentCreatorLabel(item))}</small>
                       {invoice?.quoteId ? <Button variant="ghost" size="small" onClick={() => sourceProps.onOpenFolder(invoice.quoteId!)}>Voir le dossier du devis</Button> : null}
-                      {invoice?.qrBill?.input.reference ? <small className="invoice-payment-reference" title="Référence à utiliser pour le virement">Réf. {invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()}</small> : null}
+                      {invoice?.qrBill?.input.reference ? <small className="invoice-payment-reference" title={t('Référence à utiliser pour le virement')}>{t('Réf. {reference}',{reference:invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()})}</small> : null}
                     </div>
                   </div>
                 </td>
@@ -3963,14 +3970,14 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                   <span>{formatDate(item.issueDate)}</span>
                   <small>
                     {entity === 'quotes'
-                      ? `Valable au ${formatDate((item as Quote).validUntil)}`
+                      ? t('Valable au {date}',{date:formatDate((item as Quote).validUntil)})
                       : invoice?.type === 'credit_note'
-                        ? 'Avoir sans encaissement'
+                        ? t('Avoir sans encaissement')
                         : invoice?.type === 'deposit'
                           ? invoice.depositPercentageBp
-                            ? `Acompte ${(invoice.depositPercentageBp / 100).toLocaleString('fr-CH')} % · échéance ${formatDate(invoice.dueDate)}`
-                            : `Facture d’acompte · échéance ${formatDate(invoice.dueDate)}`
-                        : `Échéance ${formatDate(invoice?.dueDate ?? '')}`}
+                            ? t('Acompte {percent} % · échéance {date}',{percent:(invoice.depositPercentageBp / 100).toLocaleString(getAppLocale()),date:formatDate(invoice.dueDate)})
+                            : t('Facture d’acompte · échéance {date}',{date:formatDate(invoice.dueDate)})
+                        : t('Échéance {date}',{date:formatDate(invoice?.dueDate ?? '')})}
                   </small>
                 </td>
                 <td className="sales-document__total">
@@ -3980,7 +3987,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                   <td className="sales-document__paid">
                     <strong>
                       {invoice?.type === 'credit_note'
-                        ? 'Non applicable'
+                        ? t('Non applicable')
                         : paid
                           ? formatMoney(paid, item.currency)
                           : '—'}
@@ -4138,7 +4145,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         title="Aperçu et export PDF"
                         aria-label={`Aperçu de ${item.number || item.title}`}
                       >
-                        <Eye size={16} /> Aperçu
+                        <Eye size={16} /> {t('Aperçu')}
                       </Button>
                       {item.number && item.status !== 'cancelled' && <MailDocumentButton target={{ entity, id: item.id }} disabled={mutationsDisabled} />}
                     {entity === 'invoices' &&

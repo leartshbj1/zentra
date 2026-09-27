@@ -7,19 +7,19 @@ Audit : `C:/Users/alb/Documents/ChatGPT/chantier/outputs/audit-premier-client-20
 | # | Travail et état actuel | Preuve nécessaire pour fermer le point |
 |---|---|---|
 | 1 | HTTP 500 de synchronisation : diagnostic structurel publié (source `3125e26e`, Sites 272). Cause précise encore à isoler. Sans trafic de collaboration, l’absence de nouvelle erreur ne prouve pas une résolution. | Deux comptes/installations réels : devis, facture, encaissement, remboursement, soldes identiques, coupure et reprise sans doublons. |
-| 2 | Référence de requête, opération, version du client, statut/code/ressource amont et durée publiés ; aucun contenu métier ni secret dans ces journaux. | Cycles de traitement et échecs partiels également instrumentés (Sites 273). Compléter dernier succès/alertes visibles ; corréler un échec réel. |
+| 2 | Diagnostics serveur publiés, cycles et échecs partiels instrumentés (Sites 273), sans contenu métier ni secret. Complété localement : dernière vérification distincte du dernier échange, retard après 90 s sans succès, erreur conservant l’heure et changement d’entreprise la réinitialisant ; minuteur partagé entre barre et panneau. | 25 tests et huit parcours navigateur passés, revue `ship` sur ce lot. TypeScript/build Vite final réussis ; distribuer le binaire et corréler un échec réel. |
 | 3 | Automation autonome : GitHub précédemment bloqué par facturation ; SQL Supabase disponible mais application non démontrée. `SUPPORT_MAIL_BACKGROUND_ENABLED` absent à la révision 36. | Observer un travail planifié sans application ouverte, ses reprises, limites et idempotence. |
 | 4 | Artefacts 1.90.2 publiés précédemment ; macOS ad hoc/non notarisé, IPA non signé, APK avec certificat de test existant. Windows local encore 1.90.0 à l’audit. | Signature et distribution adaptées, installations/mises à jour réelles des quatre plateformes, données conservées. |
 | 5 | Parcours premier client complet à réaliser ; les tests isolés ne suffisent pas. | Inscription extérieure, e-mail reçu, récupération, Stripe en mode test, droits, invitation, second appareil, sauvegarde/restauration. |
 | 6 | Corrigé localement : consultation des trois formulaires de base des paramètres sans bloquer la réception. Réception recréant leurs valeurs tout en gardant la rubrique. Toute saisie, même dans une rubrique ensuite cachée, protège le brouillon jusqu’à quitter les paramètres. Statut d’attente distinct du transfert. | Parcours Chromium/WebKit passés ; binaire et vérification réelle à terminer. Les autres éditeurs restent protégés. |
-| 7 | Agenda corrigé localement : vue Jour initiale sur téléphone, filtres et résumé secondaires, rendez-vous avant les compteurs. Achats : une seule recherche et file de réception. Devis/factures et Support restent à traiter. | Contenu utile prioritaire, filtres secondaires accessibles, plusieurs langues et tailles. |
+| 7 | Agenda corrigé localement : Jour initial sur téléphone, rendez-vous avant les compteurs. Achats : recherche et réception réunies. Devis/factures à 860 px et moins : recherche, filtres et outils Automation repliables, nombre/ordre et montant prioritaires ; 48 parcours passés. | Support reste à traiter ; terminer la recette sur appareils installés. Les preuves navigateur ne clôturent pas tout le point. |
 | 8 | Corrigé localement : assistant réservé dans la barre d’outils au lieu de recouvrir le contenu ; aide des modales conservée. | Ouverture vérifiée en navigateur ; recette binaire à terminer. |
 | 9 | Corrigé localement : compteur commun dédoublonné, indisponibilité distincte de zéro, recherche partagée, brouillon distinct de comptabilisé. Résultat de lot et exceptions explicites ; aucun « tout à jour » quand des brouillons restent à valider. | Comptages reçus/à vérifier/comptabilisés cohérents et vérification de lot avec exceptions. |
 | 10 | Activité d’Automation à rendre plus concrète. | Événements avec document, montant, origine, résultat et lien ; aucune économie inventée. |
 | 11 | Démarrage et sélection des espaces à clarifier. | Même compte sur deux appareils avec des données ; choix explicite et aucun mélange d’entreprises. |
-| 12 | Amélioré localement : identité et logo avant NOGA, descriptif « Salariés et fiches de paie », boutons « Configurer la comptabilité ». La boucle de correction des assurances et la distinction complète salariés/membres restent à vérifier. | Erreur compréhensible, réglage direct et retour au brouillon ; aucun taux contractuel deviné. |
-| 13 | Corrigé localement : messagerie, variables, modèles, aperçus, erreurs connues et états en FR/DE/IT/EN ; contenu client inchangé. | Parcours quatre langues passés ; compléter messages inconnus observés et publier le binaire. |
-| 14 | Corrigé localement : onglets/variables e-mail 44 px minimum, mots non coupés ; nouvelle rubrique révélée sous la barre fixe, aussi sur ordinateur. | Poursuivre les autres écrans ; ne pas annoncer une conformité globale. |
+| 12 | Amélioré localement : identité et logo avant NOGA, descriptif « Salariés et fiches de paie », boutons « Configurer la comptabilité ». Parcours existants revérifiés sans code nouveau : 12 boucles accidents, trois corrections LPP et 104 tests Rust réussis. | Distinction complète salariés/membres et recette native avec contrats réels restent à vérifier ; aucun taux contractuel deviné, aucune certification réglementaire déduite. |
+| 13 | Corrigé localement : messagerie, variables, modèles, aperçus, erreurs connues et états en FR/DE/IT/EN ; contenu client inchangé. Libellés visibles des listes, navigation et filtres Devis/Factures vérifiés dans les quatre langues. | Traduction exhaustive des éditeurs/actions Ventes et messages inconnus non démontrée ; publier le binaire. |
+| 14 | Corrigé localement : onglets/variables e-mail 44 px minimum ; rubrique révélée sous la barre fixe. Ventes mobile : recherche et bouton de filtres ≥ 44 px en CSS, Échap conserve la saisie et rend le focus, bordures par cellule supprimées. | Poursuivre les autres écrans et la recette d’accessibilité ; aucun résultat global de conformité n’est annoncé. |
 | 15 | Taille du texte à ajouter sans zoom global ni suppression du zoom des documents. | Taille 200 %, redistribution mobile et clavier. |
 | 16 | Clarifié localement : cumul toutes années, reste dû toutes années et CA annuel hors TVA explicitement séparés ; devises conservées. Aucune facture émise : CA affiché —. États vides des autres menus encore à traiter. | Stock/flux distingués, prochaine action unique, aucun faux zéro comptable. |
 | 17 | Secret SMTP par appareil et modèles par entreprise indiqués et traduits. Acceptation SMTP distincte de la livraison. | Stratégie partagée/OAuth, droits, erreurs et recette de livraison ; aucun secret synchronisé en clair. |
@@ -39,6 +39,12 @@ Audit : `C:/Users/alb/Documents/ChatGPT/chantier/outputs/audit-premier-client-20
 
 Le contrôle navigateur échoue à l’initialisation avec `failed to write kernel assets` (chemin introuvable). Aucun accès administrateur Supabase n’a été rétabli par ce moyen. Les secrets serveur sont masqués par l’API Sites et ne sont pas reconstitués. Les corrections locales, tests simulés et diagnostics structurels restent possibles.
 
+## Fraîcheur de synchronisation — lot local
+
+- `desktop/.qa/company-sync-health/proof.json` : huit parcours Edge/WebKit, par moteur 320 px DE sombre, 390 px FR clair, 390 px IT sombre, 1440 px EN clair. Dernier contrôle distinct du dernier échange, heure conservée après échec, retard cohérent barre/panneau, reprise automatique et changement d’entreprise ; états et horloge simulés.
+- 25 tests `companySyncPresentation`, `companyRealtime`, `projectSyncScheduler`, `workspacePersonalizationLanguage` réussis. Revue `ship` limitée à ce lot ; détecteur avec trois avis préexistants inchangés. Aucun changement de DESIGN. TypeScript et build Vite final après typage numérique du minuteur réussis.
+- Résultat Rust indépendant communiqué : `cargo test --locked --lib company -- --test-threads=2` — 38 réussis, un diagnostic d’archive explicitement ignoré, 86,36 s. Deux copies SQLite locales, émissions/paiements, conflits et changement d’entreprise couverts. Ce résultat n’est ni une recette HTTPS de production ni une preuve de résolution du HTTP 500 ; aucun nouveau binaire n’est distribué.
+
 ## Agenda et factures fournisseurs — lot local suivant
 
 - Agenda : 32 combinaisons Edge/WebKit, 320/390/844/1440 px, quatre langues ; huit parcours guidés de modification, reprise après erreur et conservation du brouillon en sessionStorage. Preuves : `desktop/.qa/agenda-mobile-focus/proof.json`, `desktop/.qa/agenda-guided-chromium/report.json`, `desktop/.qa/agenda-guided-webkit/report.json`.
@@ -50,6 +56,16 @@ Le contrôle navigateur échoue à l’initialisation avec `failed to write kern
 - Sites 273 : source 47986d8b, journalisation des cycles et erreurs partielles des boîtes et workflows. Pas de preuve de déclenchement planifié sans application.
 - Sites 274 : source dc4de922, déploiement appgdep_6ab86858780c81918a82eb6c7a37a83e réussi le 27 septembre à 00:50 UTC. Contrôle en ligne /connexion, /mot-de-passe, /support/demo et /download : HTTP 200, HSTS présent, aucun incident JavaScript/CSP observé. Pages privées anonymes avec nonce ; aucun test de session réelle ou paiement.
 - Journaux d’erreurs sur les 60 minutes consultées après publication : aucun événement retourné. Sans trafic de collaboration confirmé, cela ne clôt pas le défaut HTTP 500 de l’audit.
+
+## Listes Ventes sur téléphone
+
+- `desktop/.qa/sales-mobile-focus/proof.json` : 48 cas Edge/WebKit × 320/390/1440 px × FR/DE/IT/EN × Devis/Factures. À 860 px et moins : recherche partagée, filtres et outils Automation repliables ; recherche/focus conservés après Échap, tri et filtres vérifiés. L’état sans documents conserve les outils dans le code relu, hors matrice navigateur.
+- 14 tests Ventes et 10 tests langue/copie réussis ; TypeScript et build Vite passés. `outputs/first-client-sales-mobile-detector.json` vide ; revue `ship` sur ce lot uniquement. Données fictives, aucun nouveau binaire livré.
+
+## Paie — validation fraîche sans modification de code
+
+- `desktop/.qa/payroll-accident-loop/report.json` : 12 parcours Edge/WebKit × 320/1440 px × assurance manquante/nouvelle cotisation/doublons ; une AAP retenue et aucune écriture doublonnée. `desktop/.qa/payroll-pension-corrections/report.json` : trois parcours Edge à 320/390/1440 px, correction LPP ciblée, saisie et salaire conservés, calcul et enregistrement. IPC navigateur simulé.
+- `cargo test --locked --lib payroll -- --test-threads=2` : 104 tests réussis sur de vrais magasins temporaires Rust, indépendamment des parcours navigateur. Aucune certification réglementaire, validation de contrats client ou recette native réelle déduite.
 
 ## Clarté de l’accueil et des réglages
 

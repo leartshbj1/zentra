@@ -26,4 +26,14 @@ html[data-app-theme] [data-settings-id="company"] .company-logo-setting__preview
 @media (max-width: 860px) {
   html[data-app-theme] [data-settings-id="company"] .company-logo-setting { grid-template-columns: 56px minmax(0, 1fr); gap: 12px; }
   html[data-app-theme] [data-settings-id="company"] .company-logo-setting__preview { width: 56px; height: 56px; }
+
+  /* The list leads; search and optional tools remain in its disclosure. */
+  html[data-app-theme] .desktop-app[data-experience]:is([data-view="quotes"],[data-view="invoices"]) .page-header { padding-block:16px; row-gap:12px; }
+  html[data-app-theme] .desktop-app[data-experience]:is([data-view="quotes"],[data-view="invoices"]) .sales-tabs { margin-bottom:12px; }
+  html[data-app-theme] .desktop-app[data-experience]:is([data-view="quotes"],[data-view="invoices"]) .document-list-tools__compact { padding:8px 0 12px; gap:8px; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-documents table[data-mobile-cards]>tbody>tr { padding-block:16px; row-gap:6px; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-documents table[data-mobile-cards]>tbody>tr>td { border-bottom:0; }
+  html[data-app-theme] .desktop-app[data-experience] .document-list-tools__compact button { max-width:62%; min-width:44px; min-height:44px; border-radius:var(--work-control); white-space:normal; line-height:1.4; }
+  html[data-app-theme] .desktop-app[data-experience] .document-list-search input { width:100%; min-width:0; min-height:44px; font-size:16px; }
+  html[data-app-theme] .desktop-app[data-experience] .sales-list-toolbar>.automation-tools { width:100%; margin:6px 0 0; }
 }
