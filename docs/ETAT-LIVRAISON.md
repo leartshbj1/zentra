@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 17 h 23 (Europe/Zurich). Ce document décrit la livraison courante ; les notes `RELEASE-*` conservent son historique.
+Mis à jour le 27 septembre 2026, 17 h 40 (Europe/Zurich). Ce document décrit la livraison courante ; les notes `RELEASE-*` conservent son historique.
 
 ## Fichiers proposés au public
 
@@ -19,11 +19,11 @@ Preuves locales : `outputs/release1904/SOURCES.json`, `github-published-proof.js
 
 ## Site et services
 
-**Site 287**, source `ead5b3249d1c090104a00b93e0610045f549f040`, déployé le 27 septembre à 17 h 22, configuration 36. Déploiement : `appgdep_6ab934b12e548191839eeb0c155022b9`. Il comprend le service d’e-mails partagé de Site 285, les adresses de repli de l’icône Apple de Site 286 et la correction du suivi des traitements simultanés. Les icônes avaient été contrôlées en HTTP 200 avec le même contenu officiel ; pas de nouvel essai d’icônes dans ce lot serveur.
+**Site 288**, source `1271b2f7fbcad8776c684d02b6a0e4b4c22bcdf3`, déployé le 27 septembre à 17 h 37, configuration 36. Déploiement : `appgdep_6ab938382c0881919c5865425fe63eb3`. Il conserve les lots précédents et ajoute le canal de mise à jour indépendant des comptes. Les trois manifestes `/updates/` sont vérifiés en production à 17 h 38 : HTTP 200 anonymes, contenu exact, `no-store`. Aucun nouveau paquet proposé ; ils décrivent 1.90.4. [Détail et transition](CANAL-MISE-A-JOUR-20260927.md).
 
 **Planificateur non rétabli :** GitHub `support-mail-sync.yml` reste `disabled_manually` au contrôle de 17 h 20, dernière exécution observée le 20 septembre en échec. Aucun drapeau d’arrière-plan ajouté. La migration serveur 0065 empêche une fin ancienne ou rejouée de masquer un traitement récent bloqué. 84 tests isolés, TypeScript, lint, ressources de marque et compilation réussis. Le client planifié corrigé signale aussi une file non terminée à sa limite de temps ou de lots ; il est conservé dans le dépôt Sites, mais n’a pas été installé dans la branche GitHub exécutée par le planificateur. Ni traitement réel fermé, ni réception d’une alerte, ni capacité de 150 entreprises prouvés. Voir le lot serveur `docs/SCHEDULER-CONCURRENCE-20260927.md`.
 
-**Connexion non rétablie :** le contrôle synthétique du 27 septembre à 16 h 53 a reçu HTTP 503 en 3,52 s, `Retry-After: 60`, `no-store`. Aucun compte ni e-mail créé. Les essais réels d’abonnement, de collaboration entre appareils et d’envoi partagé ne sont pas validés par les tests isolés. Le blocage fournisseur constaté précédemment doit être résolu ; ce dernier HTTP 503 ne vérifie pas à lui seul sa cause exacte.
+**Connexion non rétablie :** le contrôle synthétique du 27 septembre à 16 h 53 a reçu HTTP 503 en 3,52 s, `Retry-After: 60`, `no-store`. Le contrôle direct Supabase à **17 h 26** confirme désormais **HTTP 402**, `exceed_egress_quota` et `exceed_storage_size_quota`. Aucun compte ni e-mail créé. Une capture de l’offre et de l’usage est demandée ; aucun abonnement d’hébergement modifié. Les essais réels de collaboration, d’abonnement et d’envoi partagé restent à faire.
 
 ## Sources plus récentes, pas encore dans un installateur
 
@@ -34,5 +34,6 @@ Preuves locales : `outputs/release1904/SOURCES.json`, `github-published-proof.js
 | Boutons tactiles | `9974e409` | 12 captures/parcours ciblés, non inclus dans 1.90.4 |
 | Premiers pas Comptabilité, Banque, Relances | `7859c57f` | 64 tests unitaires, 27 contrôles UI et build réussis, non inclus dans 1.90.4 |
 | Restauration et contrôle des documents | Natif `a7a503d8`, interface `6b266558` ; Windows 143 | 46 tests natifs distincts réussis, 1 recette HTTPS réelle ignorée ; 163 tests frontend, 16 parcours UI et build réussis. Non inclus dans 1.90.4 ; essai par installateur physique restant |
+| Canal updater indépendant | `8f136cc4` ; Windows 144 en cours | Serveur Sites 288 publié et vérifié ; 12 tests frontend et contrats passent. Nouveau client non inclus dans 1.90.4 ; vraie transition entre installateurs restante |
 
 Pour la prochaine livraison : figer une source commune après validation, conserver les empreintes de chaque paquet, tester l’installation, distinguer publication des fichiers et promotion du canal de mise à jour, puis remplacer ce tableau. Ne jamais modifier la source gelée d’une version déjà publiée.
