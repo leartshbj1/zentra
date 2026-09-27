@@ -76,6 +76,13 @@ pub struct LocalStore {
     operation_lock: Arc<Mutex<()>>,
 }
 
+#[cfg(test)]
+#[path = "workspace_volume_tests.rs"]
+mod workspace_volume_tests;
+
+#[path = "workspace_read_indexes.rs"]
+mod workspace_read_indexes;
+
 type ActivityStateRow = (
     i64,
     Option<String>,
@@ -1526,6 +1533,7 @@ impl LocalStore {
         if current == SCHEMA_VERSION {
             let transaction=connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
             crate::company_collaboration::upgrade_tracking(&transaction)?;
+            workspace_read_indexes::ensure(&transaction)?;
             transaction.commit()?;
             return Ok(());
         }
@@ -1802,6 +1810,7 @@ impl LocalStore {
         if current < 60 {
             crate::company_collaboration::migrate(&transaction)?;
         }
+        workspace_read_indexes::ensure(&transaction)?;
         transaction.commit()?;
         if moves_plaintext_license {
             // Le rebuild a exécuté secure_delete; le checkpoint puis VACUUM
@@ -2576,97 +2585,98 @@ impl LocalStore {
         )?;
         let backup_status = self.backup_status();
 
-        let mut workspace = json!({
-            "settings": settings,
-            "clients": clients,
-            "catalog_items": catalog_items,
-            "suppliers": suppliers,
-            "projects": projects,
-            "quotes": quotes,
-            "quote_items": quote_items,
-            "invoices": invoices,
-            "invoice_correction_workflows": invoice_correction_workflows,
-            "invoice_items": invoice_items,
-            "invoice_qr_bills": invoice_qr_bills,
-            "employees": employees,
-            "time_entries": time_entries,
-            "expenses": expenses,
-            "supplier_invoices":supplier_invoices,
-            "supplier_email_invoice_imports":supplier_email_invoice_imports,
-            "supplier_invoice_items":supplier_invoice_items,
-            "supplier_payments":supplier_payments,
-            "payslips": payslips,
-            "payslip_items": payslip_items,
-            "payments": payments,
-            "bank_imports":bank_imports,
-            "bank_movements":bank_movements,
-            "bank_reconciliations":bank_reconciliations,
-            "bank_movement_keys":bank_movement_keys,
-            "bank_account_links":bank_account_links,
-            "attachments": attachments,
-            "active_timer": active_timer,
-            "accounts":accounts,
-            "accounting_settings":accounting_settings,
-            "accounting_periods":accounting_periods,
-            "journal_entries":journal_entries,
-            "journal_lines":journal_lines,
-            "reminder_settings":reminder_settings,
-            "reminder_templates":reminder_templates,
-            "reminders":reminders,
-            "reminder_history":reminder_history,
-            "payroll_contribution_definitions":payroll_contribution_definitions,
-            "payslip_contributions":payslip_contributions,
-            "payroll_document_imports":payroll_document_imports,
-            "employee_payroll_templates":employee_payroll_templates,
-            "quote_conversions":quote_conversions,
-            "audit_log":audit_log,
-        });
-        workspace["agenda_events"] = json!(agenda_events);
-        workspace["quote_invoice_pairs"] = json!(query_all(connection, "SELECT * FROM quote_invoice_pairs ORDER BY created_at", [])?);
+        // Move rows into the response instead of serializing/cloning every cell again.
+        let mut workspace = Value::Object(Map::from_iter([
+            ("settings".into(), settings.unwrap_or(Value::Null)),
+            ("clients".into(), Value::Array(clients)),
+            ("catalog_items".into(), Value::Array(catalog_items)),
+            ("suppliers".into(), Value::Array(suppliers)),
+            ("projects".into(), Value::Array(projects)),
+            ("quotes".into(), Value::Array(quotes)),
+            ("quote_items".into(), Value::Array(quote_items)),
+            ("invoices".into(), Value::Array(invoices)),
+            ("invoice_correction_workflows".into(), Value::Array(invoice_correction_workflows)),
+            ("invoice_items".into(), Value::Array(invoice_items)),
+            ("invoice_qr_bills".into(), Value::Array(invoice_qr_bills)),
+            ("employees".into(), Value::Array(employees)),
+            ("time_entries".into(), Value::Array(time_entries)),
+            ("expenses".into(), Value::Array(expenses)),
+            ("supplier_invoices".into(), Value::Array(supplier_invoices)),
+            ("supplier_email_invoice_imports".into(), Value::Array(supplier_email_invoice_imports)),
+            ("supplier_invoice_items".into(), Value::Array(supplier_invoice_items)),
+            ("supplier_payments".into(), Value::Array(supplier_payments)),
+            ("payslips".into(), Value::Array(payslips)),
+            ("payslip_items".into(), Value::Array(payslip_items)),
+            ("payments".into(), Value::Array(payments)),
+            ("bank_imports".into(), Value::Array(bank_imports)),
+            ("bank_movements".into(), Value::Array(bank_movements)),
+            ("bank_reconciliations".into(), Value::Array(bank_reconciliations)),
+            ("bank_movement_keys".into(), Value::Array(bank_movement_keys)),
+            ("bank_account_links".into(), Value::Array(bank_account_links)),
+            ("attachments".into(), Value::Array(attachments)),
+            ("active_timer".into(), active_timer.unwrap_or(Value::Null)),
+            ("accounts".into(), Value::Array(accounts)),
+            ("accounting_settings".into(), accounting_settings.unwrap_or(Value::Null)),
+            ("accounting_periods".into(), Value::Array(accounting_periods)),
+            ("journal_entries".into(), Value::Array(journal_entries)),
+            ("journal_lines".into(), Value::Array(journal_lines)),
+            ("reminder_settings".into(), reminder_settings.unwrap_or(Value::Null)),
+            ("reminder_templates".into(), Value::Array(reminder_templates)),
+            ("reminders".into(), Value::Array(reminders)),
+            ("reminder_history".into(), Value::Array(reminder_history)),
+            ("payroll_contribution_definitions".into(), Value::Array(payroll_contribution_definitions)),
+            ("payslip_contributions".into(), Value::Array(payslip_contributions)),
+            ("payroll_document_imports".into(), Value::Array(payroll_document_imports)),
+            ("employee_payroll_templates".into(), Value::Array(employee_payroll_templates)),
+            ("quote_conversions".into(), Value::Array(quote_conversions)),
+            ("audit_log".into(), Value::Array(audit_log)),
+        ]));
+        workspace["agenda_events"] = Value::Array(agenda_events);
+        workspace["quote_invoice_pairs"] = Value::Array(query_all(connection, "SELECT * FROM quote_invoice_pairs ORDER BY created_at", [])?);
         workspace["backup_status"] = backup_status;
-        workspace["reminder_deliveries"] = json!(reminder_deliveries);
-        workspace["time_billing_batches"] = json!(time_billing_batches);
-        workspace["time_billing_entries"] = json!(time_billing_entries);
-        workspace["bank_supplier_reconciliations"] = json!(bank_supplier_reconciliations);
-        workspace["stock_movements"] = json!(stock_movements);
-        workspace["sales_orders"] = json!(sales_orders);
-        workspace["sales_order_lines"] = json!(sales_order_lines);
-        workspace["sales_order_cancellation_lines"] = json!(sales_order_cancellation_lines);
-        workspace["delivery_notes"] = json!(delivery_notes);
-        workspace["delivery_note_lines"] = json!(delivery_note_lines);
-        workspace["stock_reservation_events"] = json!(stock_reservation_events);
-        workspace["sales_order_invoice_batches"] = json!(sales_order_invoice_batches);
-        workspace["sales_order_invoice_allocations"] = json!(sales_order_invoice_allocations);
-        workspace["recurrence_schedules"] = json!(recurrence_schedules);
-        workspace["recurrence_occurrences"] = json!(recurrence_occurrences);
-        workspace["supplier_orders"] = json!(supplier_orders);
-        workspace["supplier_order_lines"] = json!(supplier_order_lines);
-        workspace["supplier_order_cancellation_lines"] = json!(supplier_order_cancellation_lines);
-        workspace["supplier_receipts"] = json!(supplier_receipts);
-        workspace["supplier_receipt_lines"] = json!(supplier_receipt_lines);
-        workspace["supplier_invoice_matches"] = json!(supplier_invoice_matches);
-        workspace["supplier_credit_notes"] = json!(supplier_credit_notes);
-        workspace["supplier_credit_note_items"] = json!(supplier_credit_note_items);
-        workspace["expense_refunds"] = json!(query_all(connection,"SELECT r.*,m.id AS bank_match_id FROM expense_refunds r LEFT JOIN active_bank_expense_refund_matches m ON m.refund_id=r.id ORDER BY r.payment_date DESC,r.created_at DESC,r.id",[])?);
-        workspace["supplier_credit_allocations"] = json!(supplier_credit_allocations);
-        workspace["supplier_credit_refunds"] = json!(query_all(connection,"SELECT * FROM supplier_credit_refunds ORDER BY sequence",[])?);
-        workspace["customer_credit_balances"] = json!(query_all(connection,"SELECT * FROM customer_credit_balances ORDER BY credit_note_id",[])?);
+        workspace["reminder_deliveries"] = Value::Array(reminder_deliveries);
+        workspace["time_billing_batches"] = Value::Array(time_billing_batches);
+        workspace["time_billing_entries"] = Value::Array(time_billing_entries);
+        workspace["bank_supplier_reconciliations"] = Value::Array(bank_supplier_reconciliations);
+        workspace["stock_movements"] = Value::Array(stock_movements);
+        workspace["sales_orders"] = Value::Array(sales_orders);
+        workspace["sales_order_lines"] = Value::Array(sales_order_lines);
+        workspace["sales_order_cancellation_lines"] = Value::Array(sales_order_cancellation_lines);
+        workspace["delivery_notes"] = Value::Array(delivery_notes);
+        workspace["delivery_note_lines"] = Value::Array(delivery_note_lines);
+        workspace["stock_reservation_events"] = Value::Array(stock_reservation_events);
+        workspace["sales_order_invoice_batches"] = Value::Array(sales_order_invoice_batches);
+        workspace["sales_order_invoice_allocations"] = Value::Array(sales_order_invoice_allocations);
+        workspace["recurrence_schedules"] = Value::Array(recurrence_schedules);
+        workspace["recurrence_occurrences"] = Value::Array(recurrence_occurrences);
+        workspace["supplier_orders"] = Value::Array(supplier_orders);
+        workspace["supplier_order_lines"] = Value::Array(supplier_order_lines);
+        workspace["supplier_order_cancellation_lines"] = Value::Array(supplier_order_cancellation_lines);
+        workspace["supplier_receipts"] = Value::Array(supplier_receipts);
+        workspace["supplier_receipt_lines"] = Value::Array(supplier_receipt_lines);
+        workspace["supplier_invoice_matches"] = Value::Array(supplier_invoice_matches);
+        workspace["supplier_credit_notes"] = Value::Array(supplier_credit_notes);
+        workspace["supplier_credit_note_items"] = Value::Array(supplier_credit_note_items);
+        workspace["expense_refunds"] = Value::Array(query_all(connection,"SELECT r.*,m.id AS bank_match_id FROM expense_refunds r LEFT JOIN active_bank_expense_refund_matches m ON m.refund_id=r.id ORDER BY r.payment_date DESC,r.created_at DESC,r.id",[])?);
+        workspace["supplier_credit_allocations"] = Value::Array(supplier_credit_allocations);
+        workspace["supplier_credit_refunds"] = Value::Array(query_all(connection,"SELECT * FROM supplier_credit_refunds ORDER BY sequence",[])?);
+        workspace["customer_credit_balances"] = Value::Array(query_all(connection,"SELECT * FROM customer_credit_balances ORDER BY credit_note_id",[])?);
         let mut customer_settlements=query_all(connection,"SELECT e.*,p.journal_entry_id,m.id AS bank_match_id FROM customer_credit_settlements e LEFT JOIN customer_credit_settlement_postings p ON p.settlement_id=e.id LEFT JOIN active_bank_customer_credit_refund_matches m ON m.refund_id=e.id ORDER BY e.date DESC,e.sequence DESC",[])?;
         for event in &mut customer_settlements {
             let id=event["id"].as_str().unwrap_or_default();
             event["journal_valid"]=json!(crate::customer_credit_settlements::journal_proof_valid(connection,id)?);
         }
-        workspace["customer_credit_settlements"]=json!(customer_settlements);
-        workspace["customer_credit_recoveries"]=json!(query_all(connection,"SELECT id,original_invoice_id,request_json,result_json,created_at FROM customer_credit_recoveries ORDER BY created_at,id",[])?);
+        workspace["customer_credit_settlements"]=Value::Array(customer_settlements);
+        workspace["customer_credit_recoveries"]=Value::Array(query_all(connection,"SELECT id,original_invoice_id,request_json,result_json,created_at FROM customer_credit_recoveries ORDER BY created_at,id",[])?);
         for table in ["bank_supplier_credit_refund_matches","bank_supplier_credit_refund_unlinks","bank_supplier_credit_refund_requests","bank_customer_credit_refund_matches","bank_customer_credit_refund_unlinks","bank_customer_credit_refund_requests"] {
-            workspace[table] = json!(query_all(connection,&format!("SELECT * FROM {table} ORDER BY rowid"),[])?);
+            workspace[table] = Value::Array(query_all(connection,&format!("SELECT * FROM {table} ORDER BY rowid"),[])?);
         }
-        workspace["supplier_expense_reclassifications"] = json!(supplier_expense_reclassifications);
+        workspace["supplier_expense_reclassifications"] = Value::Array(supplier_expense_reclassifications);
         workspace["supplier_expense_reclassification_lines"] =
-            json!(supplier_expense_reclassification_lines);
-        workspace["stock_availability"] = json!(stock_availability);
-        workspace["project_milestones"] = json!(project_milestones);
-        workspace["project_tasks"] = json!(project_tasks);
+            Value::Array(supplier_expense_reclassification_lines);
+        workspace["stock_availability"] = Value::Array(stock_availability);
+        workspace["project_milestones"] = Value::Array(project_milestones);
+        workspace["project_tasks"] = Value::Array(project_tasks);
         workspace["schema_version"] = json!(SCHEMA_VERSION);
         Ok(workspace)
     }

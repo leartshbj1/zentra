@@ -107,6 +107,7 @@ export function FinanceOverview({
             fois.
           </p>
           </details>
+          <p className="finance-overview__period">{periodLabel}</p>
         </div>
         <Button
           variant="secondary"

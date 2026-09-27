@@ -1,6 +1,8 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 28 septembre 2026, 00 h 42 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
+Mis à jour le 28 septembre 2026, 01 h 20 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
+
+Dernier lot local : [gros historique et périodes comptables](VOLUMES-ET-PERIODES-20260928.md). Sur 5 001 factures et leurs devis, la réponse native complète passe de 14,8 à 9 s et le contrôle comptable de 5,7 à 0,9 s, en debug sur ce PC, sans différence de données. Périodes réelles affichées, 1 823 tests frontend, contrôles Rust et parcours mobile/ordinateur réussis. Source non distribuée ; instance fictive fermée normalement, installation réelle toujours 1.90.5. **Connexion serveur encore 503 à 01 h 18.**
 
 ## Version 1.90.6 publiée ; installation locale Windows refusée
 

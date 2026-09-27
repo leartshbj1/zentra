@@ -102,7 +102,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const mappingFields = accountingMappingFields(continuity.mappingRequirements, payrollFallback);
   const mappingCountLabel = String(mappingFields.filter(field => field.required).length);
   const [periods, setPeriods] = useState<AccountingPeriod[]>([]);
-  const [filter, setFilter] = useState<PeriodFilter>({});
+  const [filter, setFilter] = useState<PeriodFilter>(() => financePeriod('year', todayIso()));
   const [periodId, setPeriodId] = useState('');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const filtersId = useId();
@@ -133,10 +133,14 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const selectedPeriod = periods.find((period) => period.id === periodId);
   const reportState = selectedPeriod?.status === 'closed' ? 'Clôturé' : 'Provisoire';
   const hasPeriodFilter = tab !== 'accounts' && tab !== 'periods' && tab !== 'assets';
+  // Statements resolve their own exercise when a journal filter has open ends.
+  // Always describe the dates actually returned with the displayed amounts.
+  const statementScope = tab === 'balance' ? balance?.scope : (tab === 'overview' || tab === 'income') ? income?.scope : undefined;
+  const displayFilter = !busy && statementScope ? statementScope : filter;
   const periodLabel = selectedPeriod?.name || (
-    filter.dateFrom && filter.dateTo ? `${formatDate(filter.dateFrom)} – ${formatDate(filter.dateTo)}`
-      : filter.dateFrom ? `Depuis le ${formatDate(filter.dateFrom)}`
-        : filter.dateTo ? `Jusqu’au ${formatDate(filter.dateTo)}` : 'Toutes les dates'
+    displayFilter.dateFrom && displayFilter.dateTo ? `${formatDate(displayFilter.dateFrom)} – ${formatDate(displayFilter.dateTo)}`
+      : displayFilter.dateFrom ? `Depuis le ${formatDate(displayFilter.dateFrom)}`
+        : displayFilter.dateTo ? `Jusqu’au ${formatDate(displayFilter.dateTo)}` : 'Toutes les dates'
   );
   const focusedEntryAvailable = Boolean(
     activeEntryFocus &&
@@ -436,7 +440,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   return <div className={`stack-layout accounting-screen ${tab==='overview'?'accounting-screen--overview':''}`}>
     {hasPeriodFilter&&tab!=='overview'?<div className="finance-period-shortcuts" role="group" aria-label="Choisir une période rapidement">{([['month','Ce mois'],['quarter','Ce trimestre'],['year','Cette année'],['all','Toutes les dates']] as const).map(([key,label])=><button type="button" key={key} disabled={busy} onClick={()=>changeFreeFilter(financePeriod(key,todayIso()))}>{label}</button>)}</div>:null}
     <section className={`accounting-toolbar panel ${hasPeriodFilter ? '' : 'accounting-toolbar--global'}`}>
-      <div className="finance-navigation"><SectionTabs items={primaryTabs} value={tab} onChange={setTab} label="Section comptable" />{tab==='overview'?<label className="finance-navigation__more"><span>Période</span><select aria-label="Période de la vue d’ensemble" disabled={busy} value={(['month','quarter','year','all'] as const).find(key=>{const dates=financePeriod(key,todayIso());return dates.dateFrom===filter.dateFrom&&dates.dateTo===filter.dateTo;})||'custom'} onChange={event=>{if(event.target.value!=='custom')changeFreeFilter(financePeriod(event.target.value as 'month'|'quarter'|'year'|'all',todayIso()));}}><option value="month">Ce mois</option><option value="quarter">Ce trimestre</option><option value="year">Cette année</option><option value="all">Toutes les dates</option><option value="custom" disabled>Période personnalisée</option></select></label>:<label className="finance-navigation__more"><span>Comptabilité détaillée</span><select aria-label="Autres outils comptables" value={everyday.includes(tab)?'':tab} onChange={event=>{if(event.target.value)setTab(event.target.value as Tab);}}><option value="">Choisir un outil…</option>{tabs.filter(([id])=>!everyday.includes(id)).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>}</div>
+      <div className="finance-navigation"><SectionTabs items={primaryTabs} value={tab} onChange={setTab} label="Section comptable" />{tab==='overview'?<label className="finance-navigation__more"><span>Période</span><select aria-label="Période de la vue d’ensemble" disabled={busy} value={(['month','quarter','year'] as const).find(key=>{const dates=financePeriod(key,todayIso());return dates.dateFrom===displayFilter.dateFrom&&dates.dateTo===displayFilter.dateTo;})||'custom'} onChange={event=>{if(event.target.value!=='custom')changeFreeFilter(financePeriod(event.target.value as 'month'|'quarter'|'year'|'all',todayIso()));}}><option value="month">Ce mois</option><option value="quarter">Ce trimestre</option><option value="year">Cette année</option><option value="custom" disabled>Période personnalisée</option></select></label>:<label className="finance-navigation__more"><span>Comptabilité détaillée</span><select aria-label="Autres outils comptables" value={everyday.includes(tab)?'':tab} onChange={event=>{if(event.target.value)setTab(event.target.value as Tab);}}><option value="">Choisir un outil…</option>{tabs.filter(([id])=>!everyday.includes(id)).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>}</div>
       <div className="accounting-period-bar" hidden={tab==='overview'}>
         {hasPeriodFilter && <>
           <button type="button" className="accounting-period-toggle" aria-expanded={filtersExpanded} aria-controls={filtersId} onClick={() => setFiltersExpanded((expanded) => !expanded)}>
