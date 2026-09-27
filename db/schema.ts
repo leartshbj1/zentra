@@ -4,6 +4,7 @@ export * from './support-schema';
 export * from './automation-schema';
 export * from './supplier-inbox-schema';
 export * from './complete-schema';
+export * from './service-health-schema';
 import {
   index,
   integer,

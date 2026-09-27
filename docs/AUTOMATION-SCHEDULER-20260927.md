@@ -35,4 +35,4 @@ La publication de ce code ne rétablit pas les quotas et n’active pas le plani
 
 Après rétablissement de l’hébergement et activation d’un planificateur, fermer les interfaces Gestion et Support. Envoyer une pièce fictive autorisée, constater son arrivée et son classement, puis vérifier les informations importées et leurs identifiants dans Gestion. Conserver le résultat du cycle réellement authentifié et l’état en base. Tester ensuite une panne suivie d’une reprise sans doublon. Ne passer le drapeau d’arrière-plan à vrai qu’après cette preuve.
 
-Le suivi durable de santé du planificateur et une alerte après absence de passage restent à ajouter. Les logs de cycles ajoutés ici sont des diagnostics, pas une supervision permanente.
+Le suivi durable de santé du planificateur est ajouté dans le lot suivant, décrit dans [SCHEDULER-HEALTH-20260927.md](SCHEDULER-HEALTH-20260927.md). Le branchement d’un moniteur indépendant et l’essai d’une véritable alerte restent à réaliser. Les logs de cycles ne sont pas une supervision permanente.

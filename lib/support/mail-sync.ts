@@ -332,8 +332,7 @@ type MailSyncResult = {
   more?: boolean;
   reference?: string;
 };
-export async function runMailSync(request: Request): Promise<MailSyncResult> {
-  const startedAt = Date.now();
+export async function requireMailScheduler(request: Request): Promise<void> {
   const expected = runtimeValue('SUPPORT_MAIL_SYNC_TOKEN');
   const actual =
     request.headers.get('Authorization')?.replace(/^Bearer /, '') || '';
@@ -343,6 +342,10 @@ export async function runMailSync(request: Request): Promise<MailSyncResult> {
     !equalHash(await digest(expected), await digest(actual))
   )
     throw new SupportError('Accès refusé.', 401);
+}
+export async function runMailSync(request: Request): Promise<MailSyncResult> {
+  const startedAt = Date.now();
+  await requireMailScheduler(request);
   const db = database();
   const due = await db
     .prepare(

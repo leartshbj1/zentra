@@ -6,12 +6,15 @@ import { Button } from '@/components/ui/button';
 import { ZendeskAdmin } from './zendesk-admin';
 import { Field } from './controls';
 import type { CalibrationReport } from '@/lib/support/calibration';
+import type {SchedulerHealth} from '@/lib/scheduler-health';
+import {MailReceptionStatus} from './mail-reception-status';
 
 export function SupportAdministration() {
   const [status, setStatus] = useState<{
     ready: boolean;
     verifiedAt: number | null;
     calibration: CalibrationReport | null;
+    scheduler?: SchedulerHealth;
     billing?: { ready: boolean; livemode: boolean | null };
     zendesk?: {
       configured?: boolean;
@@ -47,6 +50,7 @@ export function SupportAdministration() {
         ready: boolean;
         verifiedAt: number | null;
         calibration: CalibrationReport | null;
+        scheduler?: SchedulerHealth;
         billing?: { ready: boolean; livemode: boolean | null };
         zendesk?: {
           configured?: boolean;
@@ -155,6 +159,13 @@ export function SupportAdministration() {
         ) : null}
         {status && (
           <>
+            <section aria-label="Réception automatique">
+              <MailReceptionStatus health={status.scheduler} />
+              <Button type="button" variant="outline" disabled={checking} onClick={async () => {
+                setChecking(true);
+                try { await load(); } finally { setChecking(false); }
+              }}>{checking ? 'Vérification…' : 'Actualiser l’état'}</Button>
+            </section>
             <p>
               Une seule clé pour Zentra Support. Vos clients connectent leur
               logiciel de support ; l’analyse est fournie par Zentra.

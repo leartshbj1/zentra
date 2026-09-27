@@ -1,5 +1,6 @@
 import type { Decision, Directory, Provider, Rules } from '@/lib/support/types';
 import type { SupportBillingState } from '@/lib/support/plans';
+import type {SchedulerHealth} from '@/lib/scheduler-health';
 export type SupportTicket = {
   id: string;
   connectionId: string;
@@ -29,7 +30,7 @@ export type SupportConnection = {
 export type SupportState = {
   automation?: {active:boolean;enabled:boolean};
   gestion?: { linked:boolean;organizationId:string|null;organizationName?:string|null;role?:string|null;autoPost:boolean;choices:{id:string;name:string}[] };
-  mailSync?: { background: boolean };
+  mailSync?: Partial<SchedulerHealth> & {background: boolean};
   billing?: SupportBillingState;
   zendesk?: { ready: boolean };
   user: { name: string; email: string };

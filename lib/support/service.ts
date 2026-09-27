@@ -1,4 +1,5 @@
 import { SUPPORT_WORKSPACES_SQL } from './workspace-access';
+import {readSchedulerHealth} from '@/lib/scheduler-health';
 import { supportAutomationState, requireSupportAutomation, supportAutomationFetch } from '@/lib/automation/execution';
 import { selectSupportWorkspace } from './workspace-selection';
 import { getZentraUser, type ZentraUser } from '@/app/zentra-auth';
@@ -265,6 +266,7 @@ export async function getPlatformState(request?: Request) {
     ready: !!key,
     verifiedAt: row?.updated_at ?? null,
     calibration,
+    scheduler: await readSchedulerHealth(),
     billing: await supportBillingAdminState(),
     zendesk: await zendeskAvailability(true),
   });
@@ -415,9 +417,7 @@ export async function getWorkspaceState(request: Request) {
     mailboxes: await mailboxStates(workspace.id),
     gestion: await gestionLinkState(workspace.id,user.userId,manage),
     automation: (({active,enabled})=>({active,enabled}))(await supportAutomationState(workspace.id)),
-    mailSync: {
-      background: runtimeValue('SUPPORT_MAIL_BACKGROUND_ENABLED') === '1',
-    },
+    mailSync: await readSchedulerHealth(),
     zendesk: await zendeskAvailability(),
     tickets: billing.active
       ? tickets.results.slice(0, 60).map(publicTicket)

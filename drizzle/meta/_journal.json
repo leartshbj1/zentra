@@ -435,6 +435,13 @@
       "when": 1790183269556,
       "tag": "0061_complete_journey",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "6",
+      "when": 1790501141994,
+      "tag": "0062_scheduler_health",
+      "breakpoints": true
     }
   ]
 }

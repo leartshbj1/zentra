@@ -1,4 +1,5 @@
 'use client';
+import {schedulerHealthCopy} from '@/lib/scheduler-health-copy';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -237,9 +238,7 @@ export function ConnectionWizard({
                       <p className="support-small">
                       Seuls les mails reçus à
                       partir de la connexion sont récupérés.{' '}
-                      {data.mailSync?.background
-                        ? 'La réception continue lorsque cette page est fermée.'
-                        : 'Gardez votre espace Support ouvert pour la réception automatique. La réception lorsque la page est fermée n’est pas encore active.'}{' '}
+                      {schedulerHealthCopy(data.mailSync).detail}{' '}
                       Le texte est analysé par le service de tri de Zentra ; les
                       pièces jointes ne sont importées que si vous reliez ensuite votre entreprise Gestion. Aucun mail n’est
                       envoyé, marqué comme lu, déplacé ou supprimé.
