@@ -201,12 +201,18 @@ jobs:
           path: desktop/artifacts/smoke
           destination: smoke
   android:
+    parameters:
+      build-mode:
+        type: enum
+        enum: [debug, release]
+        default: debug
     docker:
       - image: cimg/android:2026.08-node
     resource_class: large
     environment:
       CARGO_BUILD_JOBS: "2"
       RUSTUP_TOOLCHAIN: stable
+      ZENTRA_ANDROID_BUILD_MODE: << parameters.build-mode >>
     steps:
       - checkout
       - run:
@@ -318,6 +324,12 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-android-release:
+    when:
+      equal: [codex/first-client-android-release-20260927, << pipeline.git.branch >>]
+    jobs:
+      - android:
+          build-mode: release
   iphone-brand-1906:
     when:
       equal: [codex/release-1.90.6-iphone-icons, << pipeline.git.branch >>]
