@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { t, useAppLanguage } from './language';
+import { t, getAppLocale, useAppLanguage } from './language';
+import { CollectionPagination, useCollectionPage } from './CollectionPagination';
+import './catalog-screen.css';
 import {
   AlertTriangle,
   Archive,
@@ -13,6 +15,7 @@ import {
   Plus,
   RotateCcw,
   ShieldCheck,
+  SlidersHorizontal,
   Wrench,
 } from 'lucide-react';
 import {
@@ -43,7 +46,6 @@ import {
 import {
   Button,
   EmptyState,
-  SectionHeading,
   StatusBadge,
 } from './ui';
 
@@ -89,107 +91,126 @@ export function CatalogScreen({
   const [visibility, setVisibility] = useState<CatalogVisibilityFilter>('active');
   const [historyItemId, setHistoryItemId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const filtered = useMemo(
     () => filterCatalogItems(items, query, kind, visibility),
     [items, query, kind, visibility],
   );
-  const active = items.filter((item) => !item.archivedAt);
-  const trackedProducts = active.filter(
-    (item) => item.kind === 'product' && item.trackStock,
-  );
-  const availability = (item: CatalogItem) =>
-    availabilityForCatalogItem(item, reservationEvents, availabilityRows);
-  const lowStock = active.filter((item) =>
-    isCatalogItemLowOnStock(item, availability(item).availableMilli),
-  );
+  const availabilityById = useMemo(() => {
+    const events = new Map<string, StockReservationEvent[]>();
+    for (const event of reservationEvents) {
+      const group = events.get(event.catalogItemId) ?? [];
+      group.push(event); events.set(event.catalogItemId, group);
+    }
+    const rows = new Map<string, StockAvailability>();
+    for (const row of availabilityRows) if (!rows.has(row.catalogItemId)) rows.set(row.catalogItemId, row);
+    return new Map(items.map(item => [item.id, availabilityForCatalogItem(item, events.get(item.id) ?? [], rows.has(item.id) ? [rows.get(item.id)!] : [])]));
+  }, [items, reservationEvents, availabilityRows]);
+  const availability = (item: CatalogItem) => availabilityById.get(item.id)!;
+  const { active, trackedProducts, lowStock } = useMemo(() => {
+    const active = items.filter(item => !item.archivedAt);
+    return { active, trackedProducts: active.filter(item => item.kind === 'product' && item.trackStock),
+      lowStock: active.filter(item => isCatalogItemLowOnStock(item, availabilityById.get(item.id)!.availableMilli)) };
+  }, [items, availabilityById]);
+  const pagination = useCollectionPage(filtered, JSON.stringify([query, kind, visibility]), 20);
+  const filterCount = Number(Boolean(query.trim())) + Number(kind !== 'all') + Number(visibility !== 'active');
+  const resultLabel = query.trim()
+    ? t(filtered.length === 1 ? '{count} résultat pour « {query} »' : '{count} résultats pour « {query} »', { count: filtered.length, query: query.trim() })
+    : t(filtered.length === 1 ? '{count} référence affichée' : '{count} références affichées', { count: filtered.length });
   const headingActions = <div className="catalog-heading-actions">
-    <Button variant="secondary" disabled={readOnly || busy} onClick={() => setImportOpen(true)}>
-      <FileSpreadsheet size={16} /> {t('Importer Excel')}
-    </Button>
     <Button disabled={readOnly || busy} onClick={onCreate}>
       <Plus size={16} /> {t('Nouvelle référence')}
+    </Button>
+    <Button variant="secondary" disabled={readOnly || busy} onClick={() => setImportOpen(true)}>
+      <FileSpreadsheet size={16} /> {t('Importer Excel')}
     </Button>
   </div>;
 
   return (
     <>
     <div className="stack-layout catalog-screen">
-      {items.length > 0 && <div className="summary-strip catalog-summary" aria-label={t('Résumé du catalogue')}>
+      <section className="panel catalog-panel">
+        {headingActions}
+      {items.length > 0 && <details className="catalog-overview">
+        <summary>{t('Résumé du catalogue')} · {active.length}</summary>
+        <div className="summary-strip catalog-summary">
         <div>
-          <span>Références actives</span>
+          <span>{t('Références actives')}</span>
           <strong>{active.length}</strong>
         </div>
         <div>
-          <span>Produits suivis</span>
+          <span>{t('Produits suivis')}</span>
           <strong>{trackedProducts.length}</strong>
         </div>
         <div>
-          <span>Alertes de stock</span>
+          <span>{t('Alertes de stock')}</span>
           <strong className={lowStock.length ? 'is-negative' : ''}>{lowStock.length}</strong>
         </div>
-      </div>}
-
-      <section className="panel catalog-panel">
-        {items.length > 0 ? <SectionHeading title={t('Produits & services')} action={headingActions} /> : headingActions}
+      </div></details>}
         {lowStock.length ? (
           <div className="stock-alert" role="status">
             <AlertTriangle size={19} />
             <div>
               <strong>
-                {lowStock.length} produit{lowStock.length > 1 ? 's sont' : ' est'} au seuil ou en rupture
+                {t(lowStock.length === 1 ? '{count} produit au seuil ou en rupture' : '{count} produits au seuil ou en rupture', { count: lowStock.length })}
               </strong>
               <p>
                 {lowStock
                   .slice(0, 4)
-                  .map((item) => `${item.name} (${formatCatalogQuantity(availability(item).availableMilli)} ${item.unit} disponible)`)
+                  .map((item) => `${item.name} (${t('Disponible : {quantity} {unit}', { quantity: formatQuantity(availability(item).availableMilli), unit: item.unit })})`)
                   .join(' · ')}
                 {lowStock.length > 4 ? ` · +${lowStock.length - 4}` : ''}
               </p>
             </div>
           </div>
         ) : null}
-        {items.length > 0 && <div className="catalog-filters" role="group" aria-label={t('Filtres du catalogue')}>
+        {items.length > 0 && <>
+        <div className="catalog-list-toolbar" ref={pagination.startRef} tabIndex={-1}>
+          <p role="status" aria-atomic="true">{resultLabel}</p>
+          <Button variant="secondary" aria-expanded={filtersOpen} aria-controls="catalog-filters" onClick={() => setFiltersOpen(!filtersOpen)}>
+            <SlidersHorizontal size={16} aria-hidden="true" /> {t('Rechercher et filtrer')}{filterCount > 0 ? ` (${filterCount})` : ''}
+          </Button>
+        </div>
+        <div id="catalog-filters" className="catalog-filters" role="group" aria-label={t('Filtres du catalogue')} hidden={!filtersOpen}>
           <label className="catalog-filter-search">
-            <span>Recherche</span>
+            <span>{t('Recherche')}</span>
             <input
               type="search"
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="Nom, référence, description…"
+              placeholder={t('Nom, référence, description…')}
             />
           </label>
           <label>
-            <span>Type</span>
+            <span>{t('Type')}</span>
             <select
               value={kind}
               onChange={(event) => setKind(event.target.value as CatalogKindFilter)}
             >
-              <option value="all">Tous les types</option>
-              <option value="product">Produits</option>
-              <option value="service">Services</option>
+              <option value="all">{t('Tous les types')}</option>
+              <option value="product">{t('Produits')}</option>
+              <option value="service">{t('Services')}</option>
             </select>
           </label>
           <label>
-            <span>État</span>
+            <span>{t('État')}</span>
             <select
               value={visibility}
               onChange={(event) => setVisibility(event.target.value as CatalogVisibilityFilter)}
             >
               <option value="active">{t('Actifs')}</option>
               <option value="archived">{t('Archivés')}</option>
-              <option value="all">Tous</option>
+              <option value="all">{t('Tous')}</option>
             </select>
           </label>
-          <p>
-            {query.trim()
-              ? `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} pour « ${query.trim()} »`
-              : `${filtered.length} référence${filtered.length > 1 ? 's' : ''} affichée${filtered.length > 1 ? 's' : ''}`}
-          </p>
-        </div>}
+          {filterCount > 0 && <Button variant="ghost" onClick={() => { onQueryChange(''); setKind('all'); setVisibility('active'); }}>{t('Réinitialiser les filtres')}</Button>}
+        </div>
+        <CollectionPagination pagination={pagination} label={t('Pages du catalogue')} />
+        </>}
 
         {filtered.length ? (
           <div className="catalog-list" role="list">
-            {filtered.map((item) => {
+            {pagination.items.map((item) => {
               const tracked = item.kind === 'product' && item.trackStock;
               const stock = availability(item);
               const low = isCatalogItemLowOnStock(item, stock.availableMilli);
@@ -213,55 +234,55 @@ export function CatalogScreen({
                     <p>
                       {item.description
                         || (item.kind === 'product'
-                          ? 'Produit sans description'
-                          : 'Service sans description')}
+                          ? t('Produit sans description')
+                          : t('Service sans description'))}
                     </p>
                     <small>
-                      {item.unit} · TVA {(item.vatBp / 100).toLocaleString('fr-CH')} %
+                      {item.unit} · {t('TVA')} {(item.vatBp / 100).toLocaleString(getAppLocale())} %
                     </small>
                   </div>
                   <div className="catalog-item__price">
-                    <span>Prix de vente hors TVA</span>
+                    <span>{t('Prix de vente hors TVA')}</span>
                     <strong>{formatMoney(item.salesPriceCents)}</strong>
-                    <small>Coût {formatMoney(item.purchaseCostCents)}</small>
+                    <small>{t('Coût {amount}', { amount: formatMoney(item.purchaseCostCents) })}</small>
                   </div>
                   <div className="catalog-item__stock">
-                    <span>{tracked ? 'Quantités' : 'Suivi de stock'}</span>
+                    <span>{t(tracked ? 'Quantités' : 'Suivi de stock')}</span>
                     {tracked ? (
-                      <div className="catalog-stock-balances" aria-label={`Stock de ${item.name}`}>
-                        <small><span>Présent</span><strong>{formatCatalogQuantity(stock.onHandMilli)}</strong></small>
-                        <small><span>Réservé</span><strong>{formatCatalogQuantity(stock.reservedMilli)}</strong></small>
-                        <small><span>Disponible</span><strong>{formatCatalogQuantity(stock.availableMilli)}</strong></small>
+                      <div className="catalog-stock-balances" aria-label={t('Stock de {name}', { name: item.name })}>
+                        <small><span>{t('Présent')}</span><strong>{formatQuantity(stock.onHandMilli)}</strong></small>
+                        <small><span>{t('Réservé')}</span><strong>{formatQuantity(stock.reservedMilli)}</strong></small>
+                        <small><span>{t('Disponible')}</span><strong>{formatQuantity(stock.availableMilli)}</strong></small>
                       </div>
-                    ) : <strong>Non suivi</strong>}
+                    ) : <strong>{t('Non suivi')}</strong>}
                     {low ? (
                       <small className="is-warning">
                         <AlertTriangle size={12} />
                         {stock.availableMilli <= 0
-                          ? 'Rupture de stock'
-                          : `Seuil ${formatCatalogQuantity(item.reorderLevelMilli)}`}
+                          ? t('Rupture de stock')
+                          : t('Seuil {quantity}', { quantity: formatQuantity(item.reorderLevelMilli) })}
                       </small>
                     ) : tracked ? (
-                      <small>Seuil {formatCatalogQuantity(item.reorderLevelMilli)}</small>
+                      <small>{t('Seuil {quantity}', { quantity: formatQuantity(item.reorderLevelMilli) })}</small>
                     ) : item.kind === 'service' ? (
-                      <small>Prestation sans stock</small>
+                      <small>{t('Prestation sans stock')}</small>
                     ) : (
-                      <small>Suivi désactivé dans la fiche</small>
+                      <small>{t('Suivi désactivé dans la fiche')}</small>
                     )}
                   </div>
                   <div className="catalog-item__state">
                     <StatusBadge
                       status={item.archivedAt ? 'incomplete' : 'validated'}
-                      label={
+                      label={t(
                         item.archivedAt
                           ? 'Archivé'
                           : item.kind === 'product'
                             ? 'Produit'
                             : 'Service'
-                      }
+                      )}
                     />
                     {item.archivedAt ? (
-                      <small>depuis le {formatDate(item.archivedAt)}</small>
+                      <small>{t('depuis le {date}', { date: formatDate(item.archivedAt) })}</small>
                     ) : null}
                   </div>
                   <div className="catalog-item__actions">
@@ -269,33 +290,33 @@ export function CatalogScreen({
                       variant="ghost"
                       size="small"
                       onClick={() => onEdit(item)}
-                      aria-label={`Modifier ${item.name}`}
+                      aria-label={t('Modifier {name}', { name: item.name })}
                     >
-                      <Pencil size={14} /> Modifier
+                      <Pencil size={14} /> {t('Modifier')}
                     </Button>
                     {item.archivedAt ? (
                       <Button disabled={readOnly || busy}
                         variant="secondary"
                         size="small"
                         onClick={() => onRestore(item)}
-                        aria-label={`Réactiver ${item.name}`}
+                        aria-label={t('Réactiver {name}', { name: item.name })}
                       >
-                        <RotateCcw size={14} /> Réactiver
+                        <RotateCcw size={14} /> {t('Réactiver')}
                       </Button>
                     ) : (
                       <Button disabled={readOnly || busy}
                         variant="ghost"
                         size="small"
                         onClick={() => onArchive(item)}
-                        aria-label={`Archiver ${item.name}`}
+                        aria-label={t('Archiver {name}', { name: item.name })}
                       >
-                        <Archive size={14} /> Archiver
+                        <Archive size={14} /> {t('Archiver')}
                       </Button>
                     )}
                   </div>
                   {tracked ? (
                     <div className="catalog-item__movement-actions">
-                      <span>Mouvements</span>
+                      <span>{t('Mouvements')}</span>
                       {!item.archivedAt ? (
                         <>
                           <Button
@@ -304,7 +325,7 @@ export function CatalogScreen({
                             disabled={readOnly || busy}
                             onClick={() => onStockMovement(item, 'entry')}
                           >
-                            <ArrowDownToLine size={14} /> Entrée
+                            <ArrowDownToLine size={14} /> {t('Entrée')}
                           </Button>
                           <Button
                             variant="secondary"
@@ -312,7 +333,7 @@ export function CatalogScreen({
                             disabled={readOnly || busy || stock.availableMilli <= 0}
                             onClick={() => onStockMovement(item, 'exit')}
                           >
-                            <ArrowUpToLine size={14} /> Sortie
+                            <ArrowUpToLine size={14} /> {t('Sortie')}
                           </Button>
                           <Button
                             variant="ghost"
@@ -320,7 +341,7 @@ export function CatalogScreen({
                             disabled={readOnly || busy}
                             onClick={() => onStockMovement(item, 'correction')}
                           >
-                            <RotateCcw size={14} /> Inventaire
+                            <RotateCcw size={14} /> {t('Inventaire')}
                           </Button>
                         </>
                       ) : null}
@@ -331,7 +352,7 @@ export function CatalogScreen({
                         aria-expanded={historyOpen}
                         onClick={() => setHistoryItemId(historyOpen ? null : item.id)}
                       >
-                        <History size={14} /> Historique ({itemMovements.length})
+                        <History size={14} /> {t('Historique ({count})', { count: itemMovements.length })}
                       </Button>
                     </div>
                   ) : null}
@@ -356,6 +377,7 @@ export function CatalogScreen({
             actionVariant="secondary"
           />
         )}
+        <CollectionPagination pagination={pagination} label={t('Pages du catalogue')} announce={false} />
       </section>
     </div>
     {importOpen ? (
@@ -380,12 +402,12 @@ function StockHistory({
   movements: StockMovement[];
 }) {
   return (
-    <section className="stock-history" aria-label={`Historique de stock de ${item.name}`}>
+    <section className="stock-history" aria-label={t('Historique de stock de {name}', { name: item.name })}>
       <header>
         <span><ShieldCheck size={17} /></span>
         <div>
-          <strong>Historique du stock</strong>
-          <p>Une ligne enregistrée ne se modifie pas. Toute rectification crée une correction distincte.</p>
+          <strong>{t('Historique du stock')}</strong>
+          <p>{t('Une ligne enregistrée ne se modifie pas. Toute rectification crée une correction distincte.')}</p>
         </div>
       </header>
       {movements.length ? (
@@ -397,16 +419,16 @@ function StockHistory({
                 <small>{item.unit}</small>
               </div>
               <div className="stock-history__description">
-                <strong>{stockMovementLabel(movement)}</strong>
+                <strong>{t(stockMovementLabel(movement))}</strong>
                 <p>{movement.reason}</p>
                 <small>
                   {formatDate(movement.movementDate)}
-                  {movement.reference ? ` · Réf. ${movement.reference}` : ''}
+                  {movement.reference ? ` · ${t('Réf. {reference}', { reference: movement.reference })}` : ''}
                 </small>
               </div>
               <div className="stock-history__balance">
-                <span>Solde après</span>
-                <strong>{formatCatalogQuantity(movement.balanceAfterMilli)} {item.unit}</strong>
+                <span>{t('Solde après')}</span>
+                <strong>{formatQuantity(movement.balanceAfterMilli)} {item.unit}</strong>
               </div>
             </article>
           ))}
@@ -414,7 +436,7 @@ function StockHistory({
       ) : (
         <div className="stock-history__empty">
           <History size={18} />
-          <span>Aucun mouvement enregistré. Le produit a été créé avec un stock de 0,000 {item.unit}.</span>
+          <span>{t('Aucun mouvement enregistré.')}</span>
         </div>
       )}
     </section>
@@ -434,8 +456,10 @@ function stockMovementLabel(movement: StockMovement): string {
 }
 
 function formatSignedQuantity(quantityMilli: number): string {
-  return `${quantityMilli > 0 ? '+' : ''}${formatCatalogQuantity(quantityMilli)}`;
+  return `${quantityMilli > 0 ? '+' : ''}${formatQuantity(quantityMilli)}`;
 }
+
+function formatQuantity(milli: number): string { return formatCatalogQuantity(milli, getAppLocale()); }
 
 export { StockMovementForm } from './StockMovementForm';
 

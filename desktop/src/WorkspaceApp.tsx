@@ -1763,7 +1763,7 @@ function WorkspaceContent({
           </div>
           <div className="topbar__tools">
             <CompanySyncIndicator organizationId={cloudAccount?.status === 'connected' ? cloudAccount.organizationId : null} onOpen={() => { navigateTour('settings'); setSettingsFocusTarget('automation-account-target'); }} />
-            {searchableView && !compactSales ? (
+            {searchableView && !compactSales && view !== 'catalog' ? (
               <label className="global-search">
                 <Search size={16} />
                 <input

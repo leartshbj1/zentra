@@ -5,6 +5,7 @@ import {
   catalogQuantityFromInput,
   catalogStockData,
   filterCatalogItems,
+  formatCatalogQuantity,
   isCatalogItemLowOnStock,
   stockBalanceAfter,
   stockMovementError,
@@ -13,6 +14,17 @@ import {
 } from './catalog';
 import type { CatalogItem, DocumentLine, StockMovement } from './types';
 import { documentLineTotals, documentTotals, roundBasisPoints } from './utils';
+
+it('formats exact milli-units in the selected locale without rounding the stored quantity', () => {
+  for (const locale of ['fr-CH', 'de-CH', 'it-CH', 'en-CH']) {
+    const number = new Intl.NumberFormat(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    expect(formatCatalogQuantity(1_234_567, locale)).toBe(number.format(1234.567));
+    expect(formatCatalogQuantity(-1001, locale)).toBe(number.format(-1.001));
+    expect(formatCatalogQuantity(0, locale)).toBe(number.format(0));
+  }
+  expect(formatCatalogQuantity(9_007_199_254_740_991, 'en-CH').replace(/[’']/g, '')).toBe('9007199254740.991');
+  expect(formatCatalogQuantity(NaN, 'en-CH')).toBe('—');
+});
 
 const service: CatalogItem = {
   id: 'service-audit',

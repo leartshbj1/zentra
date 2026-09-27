@@ -69,11 +69,11 @@ export function stockQuantityFromInput(value: FormDataEntryValue | null): number
   return Number(exact);
 }
 
-export function formatCatalogQuantity(milli: number): string {
+export function formatCatalogQuantity(milli: number, locale = 'fr-CH'): string {
   if (!Number.isSafeInteger(milli)) return '—';
   const exact = BigInt(milli), absolute = exact < 0n ? -exact : exact;
-  const whole = new Intl.NumberFormat('fr-CH').format(absolute / 1_000n);
-  const separator = new Intl.NumberFormat('fr-CH').formatToParts(1.1).find(part => part.type === 'decimal')!.value;
+  const whole = new Intl.NumberFormat(locale).format(absolute / 1_000n);
+  const separator = new Intl.NumberFormat(locale).formatToParts(1.1).find(part => part.type === 'decimal')!.value;
   return `${milli < 0 ? '-' : ''}${whole}${separator}${String(absolute % 1_000n).padStart(3,'0')}`;
 }
 

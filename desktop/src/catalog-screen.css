@@ -1,0 +1,40 @@
+/* Catalogue extension of precision calme. Keep primary work above optional controls. */
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-panel { min-width:0; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-heading-actions { justify-content:flex-start; margin-bottom:12px; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-overview { margin:0 0 12px; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-overview > summary { min-height:44px; align-content:center; width:fit-content; max-width:100%; cursor:pointer; color:var(--work-muted); font-size:14px; overflow-wrap:anywhere; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-overview > summary:focus-visible { outline:2px solid var(--work-accent); outline-offset:3px; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-list-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; margin-bottom:12px; scroll-margin-block-start:16px; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-list-toolbar p { margin:0; color:var(--work-muted); font-size:14px; overflow-wrap:anywhere; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-filters[hidden] { display:none; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-filters { background:var(--work-soft); flex-wrap:wrap; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-filters label { min-width:0; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-filters :is(input,select) { min-height:44px; font-size:16px; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-filters > .button { min-height:44px; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item :is(strong,p,small,code) { overflow-wrap:anywhere; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-stock-balances { display:flex; flex-direction:column; gap:4px; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__stock .catalog-stock-balances small { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:0 8px; padding:0; background:transparent; border-radius:0; min-width:0; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-stock-balances strong { margin:0; white-space:nowrap; font-variant-numeric:tabular-nums; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-stock-balances span { overflow-wrap:normal; }
+html[data-app-theme] .desktop-app[data-experience] .catalog-screen .stock-alert { margin-block:12px; }
+@media(min-width:1100px) {
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item { grid-template-columns:38px minmax(0,1.4fr) minmax(120px,.6fr) minmax(170px,.8fr) minmax(80px,.4fr) auto; }
+}
+@media(max-width:860px) {
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-heading-actions { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-heading-actions .button { width:100%; min-width:0; min-height:44px; padding:10px; font-size:16px; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-heading-actions .button svg { flex-shrink:0; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-panel { padding:16px; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-filters { gap:12px; padding:12px; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-filters label { width:100%; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item { padding:20px 0; gap:12px; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__movement-actions .button { min-height:44px; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__actions .button { min-height:44px; }
+  html:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .catalog-screen .catalog-heading-actions { grid-template-columns:minmax(0,1fr); }
+  html:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .catalog-screen .catalog-item > :is(.catalog-item__actions,.catalog-item__movement-actions) { grid-column:1 / -1; display:flex; flex-direction:column; align-items:stretch; gap:8px; min-width:0; }
+  html:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .catalog-screen :is(.catalog-item__actions,.catalog-item__movement-actions) .button { flex:0 0 auto; width:100%; min-width:0; margin:0; overflow-wrap:normal; word-break:normal; }
+  html:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .catalog-screen :is(.catalog-item__actions,.catalog-item__movement-actions) .button svg { flex-shrink:0; }
+  html:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience][data-view="catalog"] .page-header { display:flex; flex-wrap:wrap; }
+  html:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience][data-view="catalog"] .page-header > div:first-child { flex:1 1 100%; }
+  html:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience][data-view="catalog"] .page-header h1 { hyphens:auto; }
+}

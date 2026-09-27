@@ -1,4 +1,5 @@
 import { documentSettingsTranslations } from './translationsDocumentSettings';
+import { catalogTranslations } from './translationsCatalog';
 import { firstClientClarityTranslations } from './translationsFirstClientClarity';
 import { emptyScreenTranslations } from './translationsEmptyScreens';
 import { projectReportTranslations } from './translationsProjectReports';
@@ -35,6 +36,7 @@ import { outgoingMailTranslations } from './translationsOutgoingMail';
 import { agendaTranslations } from './translationsAgenda';
 import { purchaseInboxTranslations } from './translationsPurchaseInbox';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...catalogTranslations,
   ...documentSettingsTranslations,
   ...emptyScreenTranslations,
   ...firstClientClarityTranslations,
