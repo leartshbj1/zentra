@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 16 h 54 (Europe/Zurich). Ce document décrit la livraison courante ; les notes `RELEASE-*` conservent son historique.
+Mis à jour le 27 septembre 2026, 17 h 03 (Europe/Zurich). Ce document décrit la livraison courante ; les notes `RELEASE-*` conservent son historique.
 
 ## Fichiers proposés au public
 
@@ -31,6 +31,6 @@ Preuves locales : `outputs/release1904/SOURCES.json`, `github-published-proof.js
 | Catalogue simplifié et traduit | `493c6033`, `dd06158f` | Tests frontend et build réussis, non inclus dans 1.90.4 |
 | Boutons tactiles | `9974e409` | 12 captures/parcours ciblés, non inclus dans 1.90.4 |
 | Premiers pas Comptabilité, Banque, Relances | `7859c57f` | 64 tests unitaires, 27 contrôles UI et build réussis, non inclus dans 1.90.4 |
-| Restauration et contrôle des documents | `7845c9c9`, correction de compilation `a7a503d8` | Windows 142 a échoué à la compilation ; nouvel essai distant en cours. Ne pas annoncer validé ou publié |
+| Restauration et contrôle des documents | Natif `a7a503d8`, interface `6b266558` ; Windows 143 | 46 tests natifs distincts réussis, 1 recette HTTPS réelle ignorée ; 163 tests frontend, 16 parcours UI et build réussis. Non inclus dans 1.90.4 ; essai par installateur physique restant |
 
 Pour la prochaine livraison : figer une source commune après validation, conserver les empreintes de chaque paquet, tester l’installation, distinguer publication des fichiers et promotion du canal de mise à jour, puis remplacer ce tableau. Ne jamais modifier la source gelée d’une version déjà publiée.
