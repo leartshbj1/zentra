@@ -1,6 +1,6 @@
 # Envoi partagé par entreprise — état de développement
 
-27 septembre 2026, suivi après la réussite Windows de 15 h 24 (Europe/Zurich). Serveur et intégration native codés, publication serveur préparée. La vérification Windows CircleCI n°141 a réussi sur la source native `e862214ee73e20b2b5dc546ddf21adc5b7262dab`. Le correctif frontend de réouverture `9755b446` suit cette source sans modifier le moteur Rust testé. Aucun e-mail réel envoyé dans cette recette. Ne pas annoncer cette fonction comme disponible aux clients tant que les étapes restantes ne sont pas validées.
+27 septembre 2026, suivi après la publication serveur de 15 h 46 (Europe/Zurich). Le serveur est publié dans Sites 285, source `59779ad217ed6531cfcc85673846f524d5f71ca9`, déploiement `appgdep_6ab91e01262c8191a2374f3fddc74ba8` réussi, configuration 36 inchangée. Les clients correspondants restent à publier. La vérification Windows CircleCI n°141 a réussi sur la source native `e862214ee73e20b2b5dc546ddf21adc5b7262dab`. Le correctif frontend de réouverture `9755b446` suit cette source sans modifier le moteur Rust testé. Aucun e-mail réel envoyé dans cette recette. Ne pas annoncer cette fonction comme disponible aux clients tant que les étapes restantes ne sont pas validées.
 
 ## Ce que cette source vérifie
 
@@ -15,7 +15,7 @@
 
 ## Migrations et vérifications
 
-Migrations générées, non appliquées en production : `0063_company_mail.sql` (connexion et journal) et `0064_company_mail_identity.sql` (identité d’expédition). Elles conservent les tables existantes. Les scénarios utilisent les vraies migrations, SQLite, le chiffrement AES et les vérifications de session/appartenance du projet, avec fournisseur et session navigateur simulés.
+Migrations incluses dans l’archive publiée : `0063_company_mail.sql` (connexion et journal) et `0064_company_mail_identity.sql` (identité d’expédition). Elles conservent les tables existantes. La lecture directe de leur schéma distant reste à confirmer : l’outil d’aperçu D1 ne retourne que les 50 premières tables alphabétiques, sans les tables de messagerie ; cela ne prouve pas leur absence. Les scénarios locaux utilisent les vraies migrations, SQLite, le chiffrement AES et les vérifications de session/appartenance du projet, avec fournisseur et session navigateur simulés.
 
 - 75 tests de messagerie partagée et logo réussis. La récupération d’un reçu par GET et le changement de révision de connexion sont couverts.
 - Lot élargi : 160 tests réussis, 3 ignorés, dans 9 fichiers (compte, équipe, intégrité du partage, webhook Stripe, droits Automation et planificateur inclus).
@@ -37,7 +37,7 @@ Recette navigateur à pont natif fictif : Edge et WebKit, 390 px sombre / 1440 p
 
 1. Vérifications natives et correction issue de la relecture UX terminées ; conserver leur traçabilité jusqu’au paquet client correspondant.
 2. Vérifier deux appareils réels, changement d’espace et destinataire autorisé : nom effectivement reçu, image intégrée et pièce séparément de l’accusé de l’API.
-3. Appliquer les migrations, publier serveur et clients correspondants, puis activer le parcours. Les migrations sont toujours non appliquées en production. La fonction demeure incomplète jusqu’à cette recette.
+3. Serveur et archive des migrations publiés ; confirmer la lecture distante du schéma et publier les clients correspondants, puis activer le parcours. La fonction demeure incomplète jusqu’à cette recette.
 4. La connexion au compte public renvoie encore HTTP 503 à 15 h 01 (compte inexistant synthétique, aucun compte créé ni e-mail envoyé). Cette panne empêche une recette client de bout en bout.
 
 Les fournisseurs SMTP génériques et OAuth ne sont pas rendus partagés par ce seul connecteur Infomaniak.
