@@ -28,7 +28,7 @@ describe('private read-only health access',()=>{
 describe('authentication dependency probe',()=>{
   it('reads settings once with only the public key and no redirects, no-store or login mutation',async()=>{
     const fetcher=vi.fn().mockResolvedValue(settings());expect(await readAuthenticationHealth(fetcher)).toMatchObject({state:'available',upstreamStatus:200});
-    expect(fetcher).toHaveBeenCalledExactlyOnceWith('https://project.supabase.co/auth/v1/settings',expect.objectContaining({method:'GET',redirect:'error',cache:'no-store',headers:{apikey:'sb_publishable_fixture_only',Accept:'application/json'},signal:expect.any(AbortSignal)}));
+    expect(fetcher).toHaveBeenCalledExactlyOnceWith('https://project.supabase.co/auth/v1/settings',expect.objectContaining({method:'GET',redirect:'manual',cache:'no-store',headers:{apikey:'sb_publishable_fixture_only',Accept:'application/json'},signal:expect.any(AbortSignal)}));
   });
   it.each([[402,'restricted'],[401,'misconfigured'],[403,'misconfigured'],[429,'unavailable'],[500,'unavailable'],[302,'unavailable']])('exposes status %s without the response body',async(status,state)=>{
     const result=await readAuthenticationHealth(vi.fn().mockResolvedValue(new Response('secret-email@example.invalid',{status:Number(status)})));

@@ -28,6 +28,8 @@ La migration additive 0066 ajoute l'index `support_ticket_operations`. Elle ne s
 
 69 tests sur cinq fichiers passent, dont 29 pour ce contrôle : autorisation, confidentialité, panne 402, délais, réponses invalides, vraie lecture SQLite avec les schémas de production, files actives/inactives, verrous, index et absence d'écritures. TypeScript, lint ciblé, ressources de marque et compilation de production réussissent. Le lanceur pnpm Windows du script de build a échoué avant compilation ; le même build a ensuite réussi via le CLI vinext installé, sans modifier les dépendances.
 
+La première publication (Sites 289) a correctement refusé les accès non autorisés et révélé une boîte en retard, mais son appel Supabase échouait avant la requête : Workers refuse `redirect: 'error'`. Le contrôle utilise désormais `redirect: 'manual'` et rejette lui-même toute réponse 3xx. Une recette sur le vrai moteur workerd local reproduit l'échec de l'ancien mode puis confirme un seul appel à l'origine, réponse 302, sans suivre la redirection. Les 69 tests et le build ont été rejoués après cette correction. La preuve locale est dans `.qa/operations-worker-proof.json` ; la réponse du premier déploiement est conservée séparément, sans la présenter comme une réussite du contrôle Supabase.
+
 ## Mise en service restante
 
 L'endpoint seul n'envoie **aucune alerte**. Il faut encore le relier à un moniteur externe, conserver la clé dans son coffre, puis vérifier la réception d'une alerte de panne et d'un rétablissement. Une fréquence d'une minute et deux échecs consécutifs sont un point de départ ; une réponse 401 doit signaler un défaut de configuration et non un rétablissement.

@@ -41,7 +41,9 @@ export async function readAuthenticationHealth(fetcher: typeof fetch = fetch): P
   try {
     const response = await fetcher(`${configuration.url}/auth/v1/settings`, {
       method: 'GET', headers: {apikey: configuration.publishableKey, Accept: 'application/json'},
-      redirect: 'error', cache: 'no-store', signal: controller.signal,
+      // Workers rejects redirect:'error' before the request. Manual mode keeps
+      // the key on this origin; every 3xx is rejected by the !ok branch below.
+      redirect: 'manual', cache: 'no-store', signal: controller.signal,
     });
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
