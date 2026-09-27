@@ -1,15 +1,15 @@
 {
-  "version": "1.90.5",
-  "notes": "Listes mobiles simplifiées, catalogue et premiers pas en finance plus clairs, messagerie partagée par entreprise et contrôle complet des sauvegardes. Recherche de mises à jour indépendante du compte. Windows : éditeur non certifié. macOS : version non notariée par Apple.",
-  "pub_date": "2026-09-27T17:32:08Z",
+  "version": "1.90.6",
+  "notes": "Personnalisation des documents dans les quatre langues, navigation de l'atelier corrigée, texte agrandi plus lisible sur mobile et rendez-vous reçus accessibles depuis le journal Automation. Windows : éditeur non certifié. macOS : version non notariée par Apple.",
+  "pub_date": "2026-09-27T20:10:42Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.5/Zentra_1.90.5_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlZ5clh2Yjd5WkZsYWM4cG1zblZDK09MZlArZTVybEU1Y25MTVN0dU5OM2FjOHN4WXorendQdkw0YU5CbjFJQWZka25Uc3FNM1ZZWGNBY0lDRlp0UHdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNTI5NzA2CWZpbGU6WmVudHJhXzEuOTAuNV94NjQtc2V0dXAuZXhlCm4vdExaQ2UzOFBIdnpPam9MZE90RXcra2ZqS2VLc0N0NEFFU0pkMHpxTjBmUEZCcWplVWViOTFnL2FWckYzWllQWWxydTdHMHpLT09oNjg3a1VtS0FnPT0K"
+      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.6/Zentra_1.90.6_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlN3WWRvbFlKTlBSSW1PTitXdFhMR29ZZ1ZoanBBQk9pWlJZSkNzV0xwbjl3cGNYcVpPSXZ4djJxb0YwTDhLZ1hBbXowWnVEOU9uSG1oR1RmVTZRcWcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNTM5NTAxCWZpbGU6WmVudHJhXzEuOTAuNl94NjQtc2V0dXAuZXhlCjF4OFVkVUs2emRPT000RlRQSkRQY2lVaDNPcjd2RUFSRDQwR2UwdkRkYmFwWVFjTjZhYlNZNDk1VWs4VHdjNHJTdGRsM055dFRmMWpsRFFBNTIvN0FBPT0K"
     },
     "macos-universal": {
-      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.5/Zentra_1.90.5_macos-universal.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmZiWjY4ZGVNOTdyUExNbC9VK0F2dmVISG01aHR1VGZ4RElBVmxGNVpZWktwL0wrV2ZkZzVKeC9hOENGYTRJYmNBMlJFK2lWczVaM2ZRNUh5eWo3a1FNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNTI4NTgyCWZpbGU6WmVudHJhXzEuOTAuNV9tYWNvcy11bml2ZXJzYWwuYXBwLnRhci5negpZWS9mTXcxUE1PNlNVaGoycDVmYjd4SFRPcG1xZExiYjBBRm5WZkNhUHAzYlg5M0hBd3B1TCt5akJKZUFRVHZTYnNmT2pITFZPT0ZBUkJOa0VHa1REUT09Cg=="
+      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.6/Zentra_1.90.6_macos-universal.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmFUM2tvTlJUZFNUdTdCdW1Ya1dTM0hrRE9nNWN5bDg3S1V0U21DZHpHcjJvMDV6SlUwVVVNNWdkVlI4Y1VlTkNXTm0xR1NMQU9UcyttOUdERnpmemdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNTM5Nzc3CWZpbGU6WmVudHJhXzEuOTAuNl9tYWNvcy11bml2ZXJzYWwuYXBwLnRhci5negp2QytTcTVYb29tOUJ2Qm9KQ0FFRm0zNFBZVjU5ZjhNUFdTREE2S2xkbVZURlk5UmFRa1BJaElFY3RiWTkyTlI1V1A1VERpWUd6QitSbHFlZjZGbzhBQT09Cg=="
     }
   }
 }
