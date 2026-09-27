@@ -161,7 +161,11 @@ export function authJsonError(error: unknown) {
     message = error.message;
   } else if (error instanceof SupabaseAuthError) {
     const code = error.code.toLowerCase();
-    if (code.includes('invalid_credentials') || error.status === 401) {
+    if (error.status === 402) {
+      // Provider quota/billing restriction, not rejected credentials or a
+      // customer's Zentra subscription. Keep their existing session intact.
+      status = 503;
+    } else if (code.includes('invalid_credentials') || error.status === 401) {
       status = 401;
       message = 'Adresse e-mail ou mot de passe incorrect.';
     } else if (code.includes('email_not_confirmed')) {
@@ -208,7 +212,9 @@ export function authJsonError(error: unknown) {
         ...authNoStoreHeaders(),
         ...(error instanceof AccountPublicError && error.retryAfterSeconds
           ? { 'Retry-After': String(error.retryAfterSeconds) }
-          : {}),
+          : error instanceof SupabaseAuthError && error.status === 402
+            ? { 'Retry-After': '60' }
+            : {}),
       },
     },
   );

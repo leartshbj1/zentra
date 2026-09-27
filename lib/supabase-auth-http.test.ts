@@ -117,6 +117,15 @@ describe('garde-fous HTTP Auth', () => {
     );
   });
 
+  it('signale une restriction de fournisseur sans refuser les identifiants ni demander un paiement client', async () => {
+    const error = new SupabaseAuthError('restricted quota private@example.test', 402);
+    const response = authJsonError(error);
+    expect(response.status).toBe(503);
+    expect(response.headers.get('Retry-After')).toBe('60');
+    expect(response.headers.get('Cache-Control')).toContain('no-store');
+    expect(await response.json()).toEqual({ error: 'L’authentification est temporairement indisponible.' });
+    expect(isRejectedAuthCredential(error)).toBe(false);
+  });
   it('ne transforme pas une limitation Supabase en session invalide', () => {
     expect(
       isRejectedAuthCredential(new SupabaseAuthError('rate limit', 429)),
