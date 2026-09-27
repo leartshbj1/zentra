@@ -2725,12 +2725,12 @@ function Dashboard({
           onAction={runGettingStartedAction}
         />
       ) : null}
-      <section className="activity-shortcuts" aria-label="Activité à suivre">
-        <div className="activity-shortcuts__heading"><span className="eyebrow">À suivre</span><span>{new Intl.DateTimeFormat('fr-CH', { day: 'numeric', month: 'long' }).format(new Date())}</span></div>
+      <section className="activity-shortcuts" aria-label={t('À suivre')}>
+        <div className="activity-shortcuts__heading"><span className="eyebrow">{t('À suivre')}</span><span>{new Intl.DateTimeFormat(getAppLocale(), { day: 'numeric', month: 'long' }).format(new Date())}</span></div>
         <div className="activity-shortcuts__items">
-          <button type="button" onClick={() => onNavigate('quotes')}><span className="activity-shortcuts__icon"><FileText size={19} /></span><span><strong>{workspace.quotes.filter(quote => quote.status === 'draft').length}</strong><span>Devis en préparation</span></span><ArrowRight size={17} /></button>
-          <button type="button" onClick={() => onNavigate('invoices')}><span className="activity-shortcuts__icon activity-shortcuts__icon--amber"><Receipt size={19} /></span><span><strong>{workspace.invoices.filter(invoice => invoice.type !== 'credit_note' && ['issued', 'partially_paid'].includes(invoice.status)).length}</strong><span>Factures à encaisser</span></span><ArrowRight size={17} /></button>
-          <button type="button" onClick={() => onNavigate('projects')}><span className="activity-shortcuts__icon"><ProjectIcon size={19} /></span><span><strong>{activeProjects.length}</strong><span>{terminology.pluralTitle} actifs</span></span><ArrowRight size={17} /></button>
+          <button type="button" onClick={() => onNavigate('quotes')}><span className="activity-shortcuts__icon"><FileText size={19} /></span><span><strong>{workspace.quotes.filter(quote => quote.status === 'draft').length}</strong><span>{t('Devis en préparation')}</span></span><ArrowRight size={17} /></button>
+          <button type="button" onClick={() => onNavigate('invoices')}><span className="activity-shortcuts__icon activity-shortcuts__icon--amber"><Receipt size={19} /></span><span><strong>{workspace.invoices.filter(invoice => invoice.type !== 'credit_note' && ['issued', 'partially_paid'].includes(invoice.status)).length}</strong><span>{t('Factures à encaisser')}</span></span><ArrowRight size={17} /></button>
+          <button type="button" onClick={() => onNavigate('projects')}><span className="activity-shortcuts__icon"><ProjectIcon size={19} /></span><span><strong>{activeProjects.length}</strong><span>{t('Projets actifs')}</span></span><ArrowRight size={17} /></button>
         </div>
       </section>
       <section className="panel panel--span dashboard-project-panel">

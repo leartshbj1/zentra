@@ -2,6 +2,8 @@
 
 Objectif : traiter les vingt points de l’audit, avec des preuves adaptées. Aucun statut global « prêt » n’est déduit d’un build ou de tests simulés.
 
+**État détaillé actualisé au 28 septembre : [les vingt points et leurs critères encore ouverts](AUDIT-PREMIER-CLIENT-ETAT-20260928.md).** Le tableau et les lots ci-dessous conservent leur valeur historique ; consulter ce nouvel état et `ETAT-LIVRAISON.md` pour la situation courante.
+
 **État courant au 27 septembre, 23 h 54 : 1.90.6 publiée, Sites 292.** Les douze fichiers et les canaux sont vérifiés. Le vrai updater Windows télécharge et vérifie le paquet, mais le lancement est refusé par Code Integrity (4551) : ce PC reste en 1.90.5, données fictives intactes. Le titre orphelin du bilan est corrigé dans la source `4f9ca690`, **pas dans la release** : 62 tests natifs et 41 pages contrôlées, [preuves de pagination](PAGINATION-BILANS-20260927.md). Connexion toujours HTTP 503 au contrôle de 23 h 28 ; planificateur et recettes connectées ouverts. Le tableau canonique est [ETAT-LIVRAISON.md](ETAT-LIVRAISON.md). Les mentions antérieures ci-dessous sont historiques : les lots locaux gelés dans 1.90.6 sont désormais publiés, sans élargir leurs preuves de validation.
 
 ## Complément à 23 h 54 — planning, Android et mises à jour

@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 28 septembre 2026, 00 h 20 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
+Mis à jour le 28 septembre 2026, 00 h 42 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
 
 ## Version 1.90.6 publiée ; installation locale Windows refusée
 
@@ -51,11 +51,13 @@ Complément natif non publié : les [rapports PDF suivent la langue sélectionn�
 
 Le [guide de prise en main reste lisible avec le texte agrandi](GUIDE-LISIBILITE-20260928.md) et restitue le focus après fermeture. Seize tests ciblés, TypeScript et build passent. Quatorze configurations navigateur distinctes et 266 étapes sont contrôlées avec succès : douze dans la matrice complète, deux allemandes à 320 px / 200 % après correction ciblée. Pas de recette native ou tactile déduite ; non publié.
 
+La [recette native locale `a46085d9`](RECETTE-NATIVE-ET-ACCUEIL-20260928.md) complète ces preuves : compilation debug sans installateur, 42 navigations et 16 étapes du guide, zéro erreur JS, médiane 47 ms et maximum 478 ms. Les 110 tables métier, trois fichiers et montants fictifs sont conservés après fermeture normale. L’installateur public et l’application installée ne sont pas modifiés. La revue révèle une colonne inutile sans Automation : correction CSS et traductions du suivi validées ensuite sur 20 configurations navigateur, sans nouvelle compilation native de ce dernier ajustement. Les chiffres natifs ne lui sont pas attribués.
+
 ## Site, comptes et traitement autonome
 
 Sites **292**, source `20ecc8c536df184ac1d75f095d52d6ef4d70bc49`, environnement 37, déploiement `appgdep_6ab97a5521b88191868471bd3bba8858`, sauvegarde avec archive vérifiée. Publication réussie à 22 h 19. Quatorze tests, TypeScript, marque et build réussis. Les reprises de préparation n’ont changé ni dépendance ni contenu : Bash ajouté au PATH de la commande, puis `TAR_OPTIONS=--force-local` pour traiter le chemin Windows comme local.
 
-**Comptes toujours indisponibles au contrôle de 23 h 28** : connexion synthétique HTTP 503, `Retry-After: 60`, `no-store`, avec l'origine attendue. Aucun compte ni e-mail créé. Le contrôle direct Supabase de **20 h 05** confirmait HTTP 402, quotas de stockage et transfert dépassés ; il n’a pas été répété à 23 h 28. L’intervention d’hébergement attendue et les recettes connectées restent ouvertes. Voir `outputs/release1906/auth-readiness-latest.json` et `outputs/release1905/account-health-latest.json`. Le premier contrôle sans en-tête Origin a été refusé HTTP 403 par la protection normale : ce n'est pas la cause de l'indisponibilité.
+**Comptes toujours indisponibles au contrôle du 28 septembre à 00 h 38** : connexion synthétique HTTP 503, `Retry-After: 60`, `no-store`, avec l'origine attendue. Aucun compte ni e-mail créé. Le contrôle direct Supabase du **27 septembre à 20 h 05** confirmait HTTP 402, quotas de stockage et transfert dépassés ; il n’a pas été répété à 00 h 38. L’intervention d’hébergement attendue et les recettes connectées restent ouvertes. Voir `outputs/native-source-smoke-20260928/auth-readiness.json` et `outputs/release1905/account-health-latest.json`. Le premier contrôle historique sans en-tête Origin avait été refusé HTTP 403 par la protection normale : ce n'est pas la cause de l'indisponibilité.
 
 **Planificateur non rétabli** : GitHub `master` contient le correctif `59dcf5ba`, après 36 tests ciblés ; l’essai `36339873810` de 20 h 14 a été refusé avant exécution pour facturation. Workflow désactivé de nouveau, aucun drapeau d’arrière-plan ajouté. Aucun traitement réel avec apps fermées, moniteur externe ou alerte reçue encore prouvés. Voir [PLANIFICATEUR-ETAT-20260927.md](PLANIFICATEUR-ETAT-20260927.md) et [SUPERVISION-SERVICES-20260927.md](SUPERVISION-SERVICES-20260927.md).
 

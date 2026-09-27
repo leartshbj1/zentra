@@ -347,12 +347,14 @@
   /* Studio composition: the rail is a quiet index; the page is a working sheet. */
   html[data-app-theme] .desktop-app[data-experience] .sidebar { padding:24px 16px 14px; border-right:1px solid var(--work-line); background:var(--work-rail); }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__brand { min-height:52px; padding:0 12px 20px; }
-  html[data-app-theme] .desktop-app[data-experience] .sidebar__wordmark { display:flex; align-items:center; gap:13px; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__wordmark { display:flex; flex-wrap:wrap; align-items:center; gap:13px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__wordmark svg { width:82px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__product { font-size:13px; color:var(--work-muted); font-weight:500; border-left:1px solid var(--work-line); padding-left:13px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__company { padding:14px 12px; border:0; border-radius:12px; background:var(--work-paper); margin-bottom:14px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__company > svg { background:var(--work-selection); color:var(--work-accent); border-radius:8px; width:32px; height:32px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__company strong { font-size:14px; font-weight:550; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__company > div { min-width:0; }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__company > div > span { white-space:normal; overflow-wrap:anywhere; hyphens:auto; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__search { border:0; background:var(--work-soft); margin:6px 0 14px; min-height:40px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__search kbd { font-size:11px; }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button { min-height:43px; font-size:14px; padding:10px 12px; gap:12px; margin:2px 0; font-weight:450; }
@@ -402,6 +404,17 @@
   html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__day ul { display:grid; gap:16px; }
   html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__day { padding-top:0; }
   html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .automation-brief .automation-brief__attention-disclosure { margin-top:14px; border-color:color-mix(in srgb,var(--work-accent) 20%,transparent); }
+  @media(min-width:861px) {
+    /* Reclaim the reserved Automation column when this company has no brief. */
+    html[data-app-theme] .desktop-app[data-experience] .dashboard-grid:not(:has(> .automation-brief)) > .activity-shortcuts { grid-column:1/-1; }
+    html[data-app-theme] .desktop-app[data-experience] .dashboard-grid:not(:has(> .automation-brief)) > .activity-shortcuts .activity-shortcuts__items { grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr)); gap:24px; }
+    html[data-app-theme]:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .dashboard-summary { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px 0; }
+    html[data-app-theme]:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .dashboard-summary > .metric-card:nth-child(3) { border-left:0; }
+  }
+  @media(min-width:861px) and (max-width:1200px) {
+    html[data-app-theme]:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .dashboard-summary { grid-template-columns:minmax(0,1fr); }
+    html[data-app-theme]:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .dashboard-summary > .metric-card { border-left:0; }
+  }
   html[data-app-theme] .desktop-app[data-experience] .dashboard-grid > .panel { padding:28px; background:var(--work-paper); border-radius:14px; }
 
   /* Preferences are a readable list and a single detail sheet, not a tile wall. */
@@ -594,7 +607,7 @@
   html[data-app-theme='dark'] .desktop-app[data-experience] .timer-ribbon {color:var(--work-on-accent);}
   html[data-app-theme='dark'] .desktop-app[data-experience] .timer-ribbon small {opacity:1;}
   html[data-app-theme] .desktop-app[data-experience] .page-header h1 {animation:none;text-wrap:balance;}
-  html[data-app-theme] .desktop-app[data-experience] .page-header__actions {gap:10px;flex-wrap:wrap;min-width:0;}
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions {gap:10px;flex-wrap:wrap;min-width:0;max-width:100%;flex-shrink:1;}
   html[data-app-theme] .desktop-app[data-experience] :is(.section-heading,.section-heading__action,.field,.settings-card,.panel) {min-width:0;}
   html[data-app-theme] .desktop-app[data-experience] .section-heading {gap:18px;margin-bottom:24px;}
   html[data-app-theme] .desktop-app[data-experience] .section-heading__action {max-width:100%;}
