@@ -13,6 +13,7 @@ for (const [engine,type] of [['edge',chromium],['webkit',webkit]]) {
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     const theme=width===390?'dark':'light';
     await page.goto(`${origin}/tests/outgoing-mail-preview.html?theme=${theme}`);
+    await page.getByRole('radio',{name:/Sur cet appareil/}).check();
     await page.getByLabel('Mot de passe de la boîte mail',{exact:false}).fill('FAKE-UI-TEST');
     await page.getByRole('button',{name:'Connecter ma messagerie',exact:true}).click();
     await page.getByText('Connexion vérifiée et enregistrée.',{exact:false}).waitFor();
@@ -61,6 +62,7 @@ for (const [engine,type] of [['edge',chromium],['webkit',webkit]]) {
     assert.equal(await page.evaluate(()=>window.__mailQa.inputs[0].recipient),'camille@example.invalid');
     await page.getByRole('button',{name:'Terminer',exact:true}).click();
     await page.goto(`${origin}/tests/outgoing-mail-preview.html?theme=${theme}&connected`);
+    await page.getByRole('radio',{name:/Sur cet appareil/}).check();
     await page.getByRole('button',{name:'Vérifier et enregistrer',exact:true}).click();
     await page.getByText('Connexion vérifiée et enregistrée.',{exact:false}).waitFor();
     assert.equal(await page.evaluate(()=>window.__mailQa.connectionInputs[0].password),'kept');
@@ -98,3 +100,4 @@ for (const [engine,type] of [['edge',chromium],['webkit',webkit]]) {
 }
 await writeFile(`${output}/results.json`,JSON.stringify(results,null,2));
 console.log(JSON.stringify(results));
+

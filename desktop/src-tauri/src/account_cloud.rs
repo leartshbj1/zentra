@@ -33,6 +33,7 @@ const SESSION_PATH: &str = "/api/account/session";
 const ARCHIVE_PATH: &str = "/api/archive/invoices";
 const TEAM_PATH: &str = "/api/account/team";
 const AUTOMATION_PATH: &str = "/api/automation";
+const COMPANY_MAIL_PATH: &str = "/api/company-mail";
 const ACCOUNT_SESSION_FILE: &str = "cloud-account-session.protected";
 const ACCOUNT_PENDING_FILE: &str = "cloud-account-link.protected";
 const ACCOUNT_EXCHANGE_FILE: &str = "cloud-account-exchange.protected";
@@ -317,6 +318,44 @@ pub async fn get_cloud_account_state(
 ) -> Result<CloudAccountState, String> {
     let store = state.inner().clone();
     cloud_account_state(&store).await.map_err(command_error)
+}
+
+pub(crate) struct CompanyMailSession(CloudSession);
+impl CompanyMailSession {
+    pub(crate) fn organization_id(&self) -> &str { &self.0.organization_id }
+}
+pub(crate) async fn company_mail_session(store: &LocalStore) -> AppResult<Option<CompanyMailSession>> {
+    let _guard=store.account_protected_cache.operation_lock.lock().await;
+    let Some(session)=read_session_secret(store)? else {return Ok(None)};
+    validate_session_for_installation(&session,&store.installation_id)?;
+    if parse_future_or_past_date(&session.session_expires_at,"session")?<=Utc::now(){return Err(AppError::Validation("Reconnectez votre compte Zentra pour utiliser la messagerie partagée.".into()));}
+    crate::automation::bound(store,&session.organization_id)?;
+    Ok(Some(CompanyMailSession(session)))
+}
+fn validate_mail_session(store:&LocalStore, expected:&CompanyMailSession) -> AppResult<()> {
+    let current=read_session_secret(store)?.ok_or_else(||AppError::Validation("La connexion a changé. Rouvrez la messagerie.".into()))?;
+    if current.organization_id!=expected.0.organization_id || current.session_token!=expected.0.session_token {
+        return Err(AppError::Validation("La connexion a changé. Rouvrez la messagerie.".into()));
+    }
+    crate::automation::bound(store,&current.organization_id)?;
+    Ok(())
+}
+pub(crate) async fn company_mail_request(store:&LocalStore, session:&CompanyMailSession, query:&[(&str,String)], data:Option<serde_json::Value>) -> AppResult<serde_json::Value> {
+    {let _guard=store.account_protected_cache.operation_lock.lock().await;validate_mail_session(store,session)?;}
+    let mut url=endpoint(COMPANY_MAIL_PATH)?;
+    url.query_pairs_mut().append_pair("organizationId",session.organization_id());
+    for (key,value) in query {if !matches!(*key,"entity"|"documentId"|"requestId"){return Err(AppError::Validation("Demande de messagerie invalide.".into()));}url.query_pairs_mut().append_pair(key,value);}
+    let body=data.map(|mut value|{value["organizationId"]=json!(session.organization_id());serde_json::to_vec(&value)}).transpose()?;
+    if body.as_ref().is_some_and(|b|b.len()>9*1024*1024){return Err(AppError::Validation("L’e-mail est trop volumineux. Le PDF doit peser moins de 6 Mo.".into()));}
+    let method=if body.is_some(){Method::POST}else{Method::GET};
+    let timeout=if method==Method::POST {Duration::from_secs(110)}else{Duration::from_secs(20)};
+    // Never retry a POST or switch to SMTP after a transport failure.
+    let (status,bytes)=account_request_url(method,url,body,Some(&session.0.session_token),timeout).await?;
+    {let _guard=store.account_protected_cache.operation_lock.lock().await;validate_mail_session(store,session)?;}
+    if !status.is_success(){return Err(server_response_error(status,&bytes));}
+    let value:serde_json::Value=parse_json(&bytes,"messagerie partagée")?;
+    if value["organizationId"].as_str()!=Some(session.organization_id()){return Err(AppError::Validation("La messagerie ne correspond pas à cette entreprise.".into()));}
+    Ok(value)
 }
 
 #[tauri::command]
@@ -1182,7 +1221,7 @@ fn validate_verification_uri(value: &str, user_code: &str) -> AppResult<Url> {
 fn endpoint(path: &str) -> AppResult<Url> {
     if !matches!(
         path,
-        START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH | TEAM_PATH | AUTOMATION_PATH
+        START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH | TEAM_PATH | AUTOMATION_PATH | COMPANY_MAIL_PATH
             | "/api/projects/sync" | "/api/projects/sync/file"
             | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
             | "/api/sync/numbers" | "/api/account/subscription"

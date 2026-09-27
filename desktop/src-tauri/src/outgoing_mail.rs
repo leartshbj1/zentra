@@ -457,7 +457,7 @@ pub struct MailTarget {
     pub entity: String,
     pub id: String,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SendMailInput {
     pub request_id: String,
@@ -468,6 +468,9 @@ pub struct SendMailInput {
     pub subject: String,
     pub body: String,
 }
+
+#[path = "outgoing_mail_shared.rs"]
+pub mod shared;
 fn money(cents: i64, currency: &str) -> String {
     format!("{}.{:02} {currency}", cents / 100, cents.abs() % 100)
 }
@@ -595,7 +598,7 @@ pub(crate) fn preview(store: &LocalStore, target: &MailTarget) -> AppResult<Valu
     let revision = hash(
         serde_json::to_string(&json!([key, doc, customer, company, reminder, credits]))?.as_bytes(),
     );
-    let history=crate::database::query_all(&history_db(store,&key)?,"SELECT recipient,subject,status,created_at AS createdAt FROM submissions WHERE entity=? AND document_id=? ORDER BY created_at DESC LIMIT 5",params![target.entity,target.id])?;
+    let history=crate::database::query_all(&history_db(store,&key)?,"SELECT request_id AS requestId,json_extract(payload_json,'$.channel') AS channel,recipient,subject,status,created_at AS createdAt FROM submissions WHERE entity=? AND document_id=? ORDER BY created_at DESC LIMIT 5",params![target.entity,target.id])?;
     Ok(
         json!({"scope":key,"target":target,"sourceRevision":revision,"recipient":text(&customer,"email"),"subject":subject,"body":body,"signatureLogoDataUrl":logo,"signatureLogoError":logo_error,"attachmentName":format!("{}-{}.pdf",if entity=="quotes"{"Devis"}else{"Facture"},text(&doc,"number")),"documentEntity":entity,"documentId":id,"history":history}),
     )
@@ -820,7 +823,8 @@ fn record_receipt(store: &LocalStore, input: &SendMailInput) -> AppResult<()> {
             "UPDATE reminders SET status='completed',updated_at=? WHERE id=? AND status='due'",
             params![now_iso(), input.target.id],
         )?;
-        tx.execute("INSERT INTO reminder_history(id,reminder_id,action,note,occurred_at) VALUES(?,?,?,?,?)",params![uuid::Uuid::new_v4().to_string(),input.target.id,if changed>0{"completed"}else{"note"},format!("Accepté par le serveur SMTP · {} · {}",input.recipient,input.request_id),now_iso()])?;
+        let transport=if text(&payload,"channel")=="company_mail" {"de messagerie"}else{"SMTP"};
+        tx.execute("INSERT INTO reminder_history(id,reminder_id,action,note,occurred_at) VALUES(?,?,?,?,?)",params![uuid::Uuid::new_v4().to_string(),input.target.id,if changed>0{"completed"}else{"note"},format!("Accepté par le serveur {transport} · {} · {}",input.recipient,input.request_id),now_iso()])?;
     }
     tx.commit()?;
     Ok(())

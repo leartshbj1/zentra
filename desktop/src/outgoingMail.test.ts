@@ -5,6 +5,20 @@ import { setAppLanguage } from './language';
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn().mockResolvedValue({}) }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 describe('company email templates', () => {
+  it('uses the explicit shared sender revision and keeps status recovery separate from sending', async () => {
+    const input = { requestId: 'request-a', scope: 'company-a', target: { entity: 'invoices' as const, id: 'invoice-a' }, sourceRevision: 'revision-1', recipient: 'client@example.com', subject: 'Facture', body: 'Bonjour' };
+    await outgoingMail.sendShared(input, 'connection-revision-a');
+    expect(invoke).toHaveBeenLastCalledWith('send_shared_mail', { input, connectionId: 'connection-revision-a' });
+    await outgoingMail.recoverShared('company-a', 'request-a');
+    expect(invoke).toHaveBeenLastCalledWith('recover_shared_mail', { scope: 'company-a', requestId: 'request-a' });
+    const connection={token:'SYNTHETIC',fromEmail:'office@example.com',fromName:'Company',connected:true,password:'NOT-TO-BE-SENT'};
+    await outgoingMail.connectShared('company-a',connection);
+    expect(invoke).toHaveBeenLastCalledWith('connect_shared_mail',{scope:'company-a',connection:{token:'SYNTHETIC',fromEmail:'office@example.com',fromName:'Company'}});
+  });
+  it.each(['de','it','en'] as const)('translates shared mail guidance in %s', async language => {
+    await setAppLanguage(language);
+    for(const message of ['Vérifier l’état de l’envoi','L’adresse d’envoi a changé. Rouvrez l’e-mail pour vérifier l’expéditeur.','Connectez votre compte dans Paramètres → Compte et choisissez l’entreprise pour partager une adresse d’envoi.'])expect(mailInterfaceMessage(message)).not.toBe(message);
+  });
   afterEach(async () => await setAppLanguage('fr'));
   it('translates native validation messages and variable names without translating customer values', async () => {
     await setAppLanguage('de');

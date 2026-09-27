@@ -20,4 +20,17 @@ html[data-app-theme] .mail-settings .mail-variables button.button{min-height:44p
 .mail-signature-paper{background:#fff;border:1px solid var(--work-line);border-radius:12px;padding:20px;max-width:100%;box-sizing:border-box}
 .mail-signature-paper img{display:block;width:auto;height:auto;max-width:min(180px,100%);max-height:60px;object-fit:contain}
 .mail-signature-issue{margin-top:20px}.mail-signature-issue p{font-size:14px}
+.mail-channel{border:0;padding:0;margin:24px 0;min-width:0}
+.mail-channel legend{font-size:14px;font-weight:600;margin-bottom:12px}
+.mail-channel--compact select{width:100%;min-width:0;font-size:16px;min-height:44px}
+.mail-channel-options{display:flex;gap:12px;flex-wrap:wrap}
+.mail-channel-options label{display:flex;align-items:center;gap:10px;flex:1 1 220px;min-width:0;min-height:56px;padding:12px;border:1px solid var(--work-line);border-radius:12px;cursor:pointer;box-sizing:border-box}
+.mail-channel-options label:has(input:checked){border-color:var(--work-accent);background:var(--work-paper)}
+.mail-channel-options input{flex:0 0 18px;width:18px;height:18px;accent-color:var(--work-accent);margin:0}
+.mail-channel-options span{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}.mail-channel-options strong{font-size:16px;font-weight:600;line-height:1.4}.mail-channel-options small{color:var(--work-muted);font-size:13px;line-height:1.5}
+.mail-channel:disabled label{cursor:default;opacity:.7}.mail-channel-options label:focus-within{outline:2px solid var(--work-accent);outline-offset:3px}
+.mail-disconnect-confirm,.mail-recovery{margin-top:20px;padding-top:16px;border-top:1px solid var(--work-line)}
+.mail-history-row{padding-block:12px;border-bottom:1px solid var(--work-line)}.mail-history-row p{margin:0;padding:0;border:0}.mail-history-row button{margin-top:8px;min-height:44px}
+.mail-from strong{color:var(--work-ink)}.mail-from span{display:block}
 @media(max-width:600px){.mail-fields{grid-template-columns:minmax(0,1fr);gap:16px}.mail-actions>*{flex:1 1 150px}.mail-settings header{margin-bottom:20px}.mail-tabs{gap:4px}.mail-tabs button{flex:1 0 auto;min-width:max-content}.mail-composer .mail-attachment small{flex-basis:100%;padding-left:25px}}
+

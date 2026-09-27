@@ -208,6 +208,11 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-shared-mail-verification:
+    when:
+      equal: [codex/shared-mail-verification-20260927, << pipeline.git.branch >>]
+    jobs:
+      - windows-mail-tests
   first-client-package-1904:
     when:
       equal: [codex/release-1.90.4-smoke, << pipeline.git.branch >>]

@@ -262,6 +262,95 @@ fn input(store: &LocalStore, target: MailTarget) -> SendMailInput {
 fn copy(input: &SendMailInput) -> SendMailInput {
     serde_json::from_value(serde_json::to_value(input).unwrap()).unwrap()
 }
+fn shared_connection() -> Value {
+    json!({"connected":true,"connectionId":"bbbbbbbb-1111-4111-8111-111111111111","fromEmail":"office@example.invalid","fromName":"Nom vérifié"})
+}
+fn shared_request(store:&LocalStore,input:&SendMailInput)->AppResult<Value>{
+    shared::prepare(store,input,"org-a",&shared_connection(),"bbbbbbbb-1111-4111-8111-111111111111")
+}
+fn shared_receipt(store:&LocalStore,input:&SendMailInput,status:&str)->Value{
+    let raw:String=history_db(store,&input.scope).unwrap().query_row("SELECT payload_json FROM submissions WHERE request_id=?",params![input.request_id],|r|r.get(0)).unwrap();
+    let payload:Value=serde_json::from_str(&raw).unwrap();
+    json!({"requestId":input.request_id,"entity":input.target.entity,"documentId":input.target.id,"recipient":payload["recipient"],"subject":payload["subject"],"fromEmail":payload["from_email"],"attachmentHash":payload["attachment_sha256"],"status":status})
+}
+#[test]
+fn shared_mail_builds_real_pdf_and_logo_and_recovers_without_second_submission(){
+    let _serial=TEST_MAIL.lock().unwrap_or_else(|p|p.into_inner());
+    for entity in ["quotes","invoices"] {
+        let (temp,store,target)=fixture(entity);enable_logo(&temp,&store);
+        let draft=input(&store,target.clone());
+        let request=shared_request(&store,&draft).unwrap();
+        let bytes=base64::engine::general_purpose::STANDARD.decode(text(&request,"pdfBase64")).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));assert!(bytes.len()>1000);
+        assert!(text(&request,"signatureLogoDataUrl").starts_with("data:image/png;base64,"));
+        assert!(!request.to_string().contains("LOCAL-FIXTURE-NOT-A-SECRET"));
+        assert!(shared_request(&store,&draft).is_err()); // even a lost response cannot resend
+        let receipt=shared_receipt(&store,&draft,"accepted");
+        let recovered=shared::accept_receipt(&store,&draft.scope,&draft.request_id,"org-a",&receipt).unwrap();
+        assert_eq!(recovered["status"],"accepted");assert_eq!(recovered["historyWarning"],false);
+        assert_eq!(shared_request(&store,&draft).unwrap()["replayed"],true);
+        assert_eq!(shared::accept_receipt(&store,&draft.scope,&draft.request_id,"org-a",&receipt).unwrap()["status"],"accepted");
+        let count:i64=store.connect().unwrap().query_row("SELECT COUNT(*) FROM audit_log WHERE action='smtp_accepted'",[],|r|r.get(0)).unwrap();assert_eq!(count,1);
+        assert_eq!(preview(&store,&target).unwrap()["history"][0]["channel"],"company_mail");
+        let history=history_db(&store,&draft.scope).unwrap();
+        let raw:String=history.query_row("SELECT payload_json FROM submissions",[],|r|r.get(0)).unwrap();
+        assert!(!raw.contains("pdfBase64")&&!raw.contains("signatureLogoDataUrl"));
+    }
+}
+#[test]
+fn shared_mail_rejects_stale_document_sender_and_cross_company_receipts(){
+    let _serial=TEST_MAIL.lock().unwrap_or_else(|p|p.into_inner());
+    let (_temp,store,target)=fixture("quotes");let stale=input(&store,target.clone());
+    store.connect().unwrap().execute("UPDATE clients SET email='changed@example.invalid'",[]).unwrap();
+    assert!(shared_request(&store,&stale).unwrap_err().to_string().contains("changé"));
+    let draft=input(&store,target);
+    assert!(shared::prepare(&store,&draft,"org-a",&shared_connection(),"different-connection").is_err());
+    shared_request(&store,&draft).unwrap();
+    let receipt=shared_receipt(&store,&draft,"accepted");
+    for field in ["requestId","entity","documentId","recipient","subject","fromEmail","attachmentHash"] {
+        let mut changed=receipt.clone();changed[field]=json!("wrong");
+        assert!(shared::accept_receipt(&store,&draft.scope,&draft.request_id,"org-a",&changed).is_err(),"{field}");
+    }
+    assert!(shared::accept_receipt(&store,&draft.scope,&draft.request_id,"org-b",&receipt).is_err());
+    crate::company_collaboration::set_identity(&store,"other-org","owner","Other","owner").unwrap();
+    assert!(shared::accept_receipt(&store,&draft.scope,&draft.request_id,"org-a",&receipt).is_err());
+}
+#[test]
+fn shared_mail_nonaccepted_states_do_not_create_business_receipts_and_cannot_regress_acceptance(){
+    let _serial=TEST_MAIL.lock().unwrap_or_else(|p|p.into_inner());
+    let (_temp,store,target)=fixture("quotes");let draft=input(&store,target);shared_request(&store,&draft).unwrap();
+    for status in ["pending","uncertain","rejected"] {
+        let receipt=shared_receipt(&store,&draft,status);
+        assert_eq!(shared::accept_receipt(&store,&draft.scope,&draft.request_id,"org-a",&receipt).unwrap()["status"],status);
+        assert!(shared_request(&store,&draft).is_err());
+        let count:i64=store.connect().unwrap().query_row("SELECT COUNT(*) FROM audit_log WHERE action='smtp_accepted'",[],|r|r.get(0)).unwrap();assert_eq!(count,0);
+    }
+    let accepted=shared_receipt(&store,&draft,"accepted");
+    shared::accept_receipt(&store,&draft.scope,&draft.request_id,"org-a",&accepted).unwrap();
+    let old=shared_receipt(&store,&draft,"pending");
+    assert_eq!(shared::accept_receipt(&store,&draft.scope,&draft.request_id,"org-a",&old).unwrap()["status"],"accepted");
+    assert!(shared::accept_receipt(&store,&draft.scope,&uuid::Uuid::new_v4().to_string(),"org-a",&accepted).unwrap_err().to_string().contains("Aucun envoi n’a été préparé"));
+}
+#[test]
+fn shared_mail_reminder_recovery_preserves_paid_or_cancelled_status(){
+    let _serial=TEST_MAIL.lock().unwrap_or_else(|p|p.into_inner());
+    for paid_during_send in [false,true] {
+        let (_temp,store,invoice)=fixture("invoices");
+        store.install_reminder_cycle(InstallReminderCycleInput{request_id:uuid::Uuid::new_v4().to_string(),sender_name:None}).unwrap();
+        let scan=store.generate_due_reminders(None).unwrap();
+        let target=MailTarget{entity:"reminders".into(),id:text(&scan["created"][0],"id")};
+        let draft=input(&store,target.clone());shared_request(&store,&draft).unwrap();
+        if paid_during_send {
+            store.record_payment(RecordPaymentInput{request_id:uuid::Uuid::new_v4().to_string(),invoice_id:invoice.id,amount_cents:12500,date:Some(chrono::Local::now().date_naive().to_string()),method:Some("bank".into()),reference:None,notes:None}).unwrap();
+        } else {
+            store.connect().unwrap().execute("UPDATE reminders SET status='cancelled' WHERE id=?",params![target.id]).unwrap();
+        }
+        let before:String=store.connect().unwrap().query_row("SELECT status FROM reminders WHERE id=?",params![target.id],|r|r.get(0)).unwrap();
+        let receipt=shared_receipt(&store,&draft,"accepted");
+        assert_eq!(shared::accept_receipt(&store,&draft.scope,&draft.request_id,"org-a",&receipt).unwrap()["historyWarning"],false);
+        let after:String=store.connect().unwrap().query_row("SELECT status FROM reminders WHERE id=?",params![target.id],|r|r.get(0)).unwrap();assert_eq!(before,after);
+    }
+}
 #[test]
 fn mail_read_only_collaborator_cannot_submit_with_a_saved_connection() {
     let _serial = TEST_MAIL
