@@ -17,7 +17,7 @@ import { installProjectNavigationFixture } from './project-navigation-fixture';
 import { installEntityRecoveryFixture } from './entity-recovery-fixture';
 import { installSalesRecoveryFixture } from './sales-recovery-fixture';
 import { ZentraAssistantProvider } from '../src/ZentraAssistant';
-import { Onboarding } from '../src/Onboarding';
+const Onboarding = lazy(() => import('../src/Onboarding').then(module => ({ default: module.Onboarding })));
 import { installExpenseJournalFixture } from './expense-journal-fixture';
 import { installProjectSyncFixture } from './project-sync-fixture';
 import { installQuotePairFixture } from './quote-pair-fixture';
@@ -33,7 +33,7 @@ import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
 import { installReadOnlyFixture } from './read-only-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
-import { Profiler, useEffect, useState } from 'react';
+import { Profiler, Suspense, lazy, useEffect, useState } from 'react';
 import { openAutomationHub } from '../src/automationExperience';
 import { setAppearance } from '../src/appearance';
 import { setAppLanguage } from '../src/language';
@@ -280,7 +280,7 @@ function Harness() {
       setWorkspace(structuredClone(stored));
     },
   });
-  if (new URLSearchParams(location.search).has('assistantOnboarding')) return <Onboarding onComplete={async()=>{}} onRestore={async()=>{}} />;
+  if (new URLSearchParams(location.search).has('assistantOnboarding')) return <Suspense fallback={null}><Onboarding onComplete={async()=>{}} onRestore={async()=>{}} /></Suspense>;
   if (['agendaGuided', 'settingsRecovery', 'payslipPosting', 'creationOutcome', 'contactFolder', 'readOnlyAudit', 'wizard', 'quotePair', 'accountingSetup', 'periodGuide', 'closing'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
   if (new URLSearchParams(location.search).has('agendaGuided')) Object.assign(window, { __qaAgendaRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('payslipPosting')) Object.assign(window, { __qaReloadPosting: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });

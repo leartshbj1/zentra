@@ -29,7 +29,8 @@ import {
   readLocalCloudAccess,
   readCloudAccessForAccount,
 } from './cloudAccessRevalidation';
-import { Onboarding } from './Onboarding';
+// Returning companies never need the complete first-run wizard on the opening path.
+const Onboarding = lazy(() => import('./Onboarding').then(module => ({ default: module.Onboarding })));
 const loadWorkspaceModule = () => import('./WorkspaceApp').then((module) => ({ default: module.WorkspaceApp }));
 const WorkspaceApp = lazy(loadWorkspaceModule);
 import type { AppSettings, LicenseState, Workspace } from './types';
@@ -198,7 +199,7 @@ export function App() {
   );
   const content =
     !workspace.onboardingCompleted || !workspace.settings ? (
-      <Onboarding
+      <Suspense fallback={<main className="splash-screen" aria-busy="true"><LoaderCircle className="spin" size={24} aria-hidden="true" /><p role="status">{t("Ouverture de votre espace…")}</p></main>}><Onboarding
         accountNotice={license && license.status !== 'valid' ? <LicenseActivation
           license={license} account={cloudAccount} onAccountChange={handleCloudAccountChange} hasNavigation={false}
           onInstall={async token => { setLicense(await desktopApi.installLicenseToken(token)); setWorkspace(await desktopApi.loadWorkspace()); }}
@@ -217,7 +218,7 @@ export function App() {
           setWorkspace(await desktopApi.restoreBackup(path))
         }
         onCloudRestore={async (id: string) => setWorkspace(await desktopApi.restoreCloudBackup(id))}
-      />
+      /></Suspense>
     ) : workspace.activityProfileRequired || activityProfileMissing ? (
       <BusinessProfileGate workspace={workspace} onSaved={setWorkspace} />
     ) : (

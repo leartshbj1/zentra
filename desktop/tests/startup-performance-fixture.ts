@@ -6,7 +6,12 @@ const nativeAccountRead = desktopApi.getCloudAccountState;
 export function installStartupPerformanceFixture() {
   const started = performance.now();
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-  const account: CloudAccountState = {status:'connected',organizationId:'automation-qa',organizationName:'Atelier de test',role:'owner',sessionExpiresAt:'2036-10-02T10:00:00Z'};
+  const fresh = new URLSearchParams(location.search).has('startupFresh');
+  const account: CloudAccountState = fresh ? {status:'disconnected'} : {status:'connected',organizationId:'automation-qa',organizationName:'Atelier de test',role:'owner',sessionExpiresAt:'2036-10-02T10:00:00Z'};
+  if (fresh) {
+    const read = desktopApi.loadWorkspace;
+    desktopApi.loadWorkspace = async () => ({...await read(),onboardingCompleted:false,settings:null});
+  }
   const license = {enforcementConfigured:true,status:'valid',readOnly:false,canRefresh:false,accessRole:'owner',installationId:'55af29dd-fdaa-4993-ae78-17f9ca220e51',reason:''} as LicenseState;
   desktopApi.getCachedCloudAccountState = async () => { await delay(20); return account; };
   desktopApi.getLicenseState = async () => license;

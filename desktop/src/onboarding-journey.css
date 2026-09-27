@@ -288,7 +288,7 @@ html[data-app-theme] .first-run .first-run__preferences select {background:trans
 .first-run .company-logo-setting__copy p {font-size:12px;}
 .first-run .company-logo-setting .button {font-weight:500;min-height:44px;}
 .first-run .setup-answer-list button {padding:24px;border-radius:16px;}
-.first-run--account {display:block;position:relative;min-height:100dvh;}
+.first-run--account {display:block;position:relative;min-height:100dvh;background:var(--setup-paper);}
 .first-run--account .first-run__guide {position:absolute;top:max(24px,var(--safe-top,env(safe-area-inset-top,0px)));left:max(40px,var(--safe-left,env(safe-area-inset-left,0px)));padding:0;min-height:0;max-height:none;background:none;overflow:visible;}
 .first-run--account .first-run__brand {gap:20px;}
 .first-run--account :is(.first-run__guidance,.first-run__index,.first-run__guide-bottom,.first-run__mobile-index,.first-run__progress) {display:none;}

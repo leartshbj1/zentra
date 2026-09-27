@@ -23,9 +23,9 @@ Audit : `C:/Users/alb/Documents/ChatGPT/chantier/outputs/audit-premier-client-20
 | 15 | Taille du texte à ajouter sans zoom global ni suppression du zoom des documents. | Taille 200 %, redistribution mobile et clavier. |
 | 16 | Clarifié localement : cumul toutes années, reste dû toutes années et CA annuel hors TVA explicitement séparés ; devises conservées. Aucune facture émise : CA affiché —. États vides des autres menus encore à traiter. | Stock/flux distingués, prochaine action unique, aucun faux zéro comptable. |
 | 17 | Secret SMTP par appareil et modèles par entreprise indiqués et traduits. Acceptation SMTP distincte de la livraison. | Stratégie partagée/OAuth, droits, erreurs et recette de livraison ; aucun secret synchronisé en clair. |
-| 18 | Synthèse financière extraite du composant principal. Mesure locale sur 1 500 documents par type (9 types, 8 lignes/document) : normalisation 38–58 ms, sommes 0,8–10,5 ms, libellés 6–17 ms. Pas une mesure de serveur, démarrage ou téléphone. Graphe initial et CSS à traiter. | Démarrage/navigation, mémoire, chargement des langues, CSS inutilisé prouvé et absence de régression. |
+| 18 | Synthèse financière extraite et configuration initiale chargée seulement si nécessaire. Graphe JS statique initial : 1 611 943 → 1 427 494 octets (−11,4 % brut ; −7,2 % gzip par fichier). Huit parcours de démarrage passés, compte distant retardé de dix secondes. Pas une mesure de démarrage natif ni de serveur. | Navigation, mémoire, chargement des langues, CSS inutilisé prouvé et absence de régression. |
 | 19 | Sites 274 publié, source dc4de922 : nonce par réponse HTML privée, CSP en observation, HSTS un jour. CSP appliquée existante inchangée. Contrôle public passé ; aucune recette authentifiée/Stripe/Safari implicite. | Observation compatible Vinext puis politique appliquée et parcours authentifiés/Stripe vérifiés. |
-| 20 | Corrigé localement : texte de sauvegarde `.zentra`, anciennes sauvegardes de test explicitement exclues, checklist de préparation actualisée avec domaine/contact actuels. Validateur natif existant inchangé. | Inclure ces textes dans la prochaine livraison ; recette restauration du format courant encore à exécuter. |
+| 20 | Corrigé localement : texte `.zentra` et checklist actualisés. Tests Rust exécutés : 19 réussis, un test HTTPS réel ignoré explicitement ; restauration base/pièces, refus des anciennes archives, intégrité, retour arrière sur échec et licence locale. | Inclure ces textes dans la prochaine livraison ; recette via interface et deux installations réelles encore à exécuter. |
 
 ## Preuves du lot d’interface
 
@@ -57,3 +57,10 @@ Le contrôle navigateur échoue à l’initialisation avec `failed to write kern
 - `desktop/.qa/bank-guided/report.json` : huit parcours banque avec préservation des saisies, refus, correction des comptes, double clic, doublons et lecture seule ; IPC fictif.
 - 46 tests ciblés finances/workflows/langue, puis 10 tests langue/couverture ; TypeScript et build Vite réussis. Aucune règle comptable ou taux modifié.
 - Mesure `desktop/.qa/runtime-speed/first-client-1500.json` ; empreinte de résultat identique sur trois exécutions. Le gain de performance n’est pas inféré d’une extraction de fichier.
+
+## Démarrage et restauration
+
+- `desktop/.qa/startup-lazy/proof.json` : huit parcours Edge/WebKit, 390/1440 px, configuration nouvelle ou entreprise existante. Le compte distant simulé dure dix secondes ; l’espace local s’affiche entre 452 et 590 ms après installation de la fixture. Une seule vérification de compte, aucun téléchargement du guide pour l’entreprise déjà configurée. Mesure Vite locale, pas une promesse sur appareil réel.
+- `desktop/.qa/runtime-speed/entry-before.json` et `entry-after.json` : graphe d’imports statiques construit depuis le HTML et les fichiers de production, imports dynamiques exclus. 184 449 octets JS bruts en moins ; aucun gain CSS annoncé.
+- 32 tests ciblés ouverture/compte/configuration ; TypeScript et Vite réussis. Revue limitée au démarrage et au fond de connexion : ship. Aucune nouvelle étape de connexion ni autorisation changée.
+- `cargo test --locked --lib backup::tests -- --test-threads=2` exécuté sur Windows : 19 réussis, zéro échec, un test cloud HTTPS réel ignoré ; 20,03 s d’exécution après compilation. Données temporaires uniquement. Le format courant revient correctement avec ses pièces et les archives invalides ne remplacent pas les données actives.

@@ -116,6 +116,12 @@ Les calculs et parcours métier existants ont également été retestés : réus
 
 Trois captures ont été ouvertes : [accueil bureau en français](../desktop/.qa/first-client-clarity/home-chromium-1440-fr.png), [accueil téléphone en allemand](../desktop/.qa/first-client-clarity/home-webkit-390-de.png) et [entreprise sur téléphone](../desktop/.qa/first-client-clarity/company-webkit-390.png). Elles montrent respectivement les quatre colonnes, les détails des montants mobiles et l’identité prioritaire avec formats du logo repliés. Le parcours d’accueil ne teste pas le cas sans facture émise ; ses liens financiers ne sont pas cliqués dans cette matrice, distincte du parcours Banque. Les données et opérations de test sont fictives : aucune validation de finances réelles, preuve native ou publication n’est déduite de ces résultats.
 
+## Démarrage : chargement et continuité du fond
+
+Le guide de configuration est chargé à la demande pour une nouvelle entreprise. Le parcours existant ne change pas : aucun nouveau réglage, ni nouvelle autorisation. L’étape Compte conserve désormais le fond papier jusqu’au bas de la fenêtre, sans reste du fond vert de l’introduction.
+
+Huit parcours Edge/WebKit, téléphone et ordinateur, sont enregistrés dans `desktop/.qa/startup-lazy/proof.json`. Ils simulent une réponse du compte après dix secondes ; l’entreprise locale reste accessible, et une seule requête de vérification est effectuée. Les captures `chromium-1440-new.png` et `webkit-390-new.png` ont été relues : disposition ship limitée à cette correction. Les mesures du graphe de JavaScript et leurs limites sont dans le suivi de l’audit.
+
 ## Dérive préexistante et limites
 
 `DESIGN.md` décrit `workspace-atelier.css` comme le dernier import. Dans le `main.tsx` actuel, `onboarding-journey.css`, `workspace-personalization.css` et `brand-identity.css` viennent ensuite. Cet écart documentaire existe avant ce lot et n’a pas été corrigé. La version native 1.83.0 citée par `PRODUCT.md` est une référence historique ; le manifeste inspecté indique 1.90.2, sans prouver quelle version est installée chez un client.
