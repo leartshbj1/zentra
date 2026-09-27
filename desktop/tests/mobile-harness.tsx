@@ -281,6 +281,7 @@ function Harness() {
   if(new URLSearchParams(location.search).has('creditAllocation'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaCreditAllocationRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if(new URLSearchParams(location.search).has('receiptGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaReceiptRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if (new URLSearchParams(location.search).has('catalogForm')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaCatalogRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
+  if (new URLSearchParams(location.search).has('financialStart')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaFinancialRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('stockGuided')) Object.assign(window, {__qaSetReadOnly:setReadOnly,__qaStockRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if (new URLSearchParams(location.search).has('projectNavigation')) Object.assign(window, {
     __qaSetReadOnly: setReadOnly, __qaSetProjectAccount: setProjectAccount,

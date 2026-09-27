@@ -12,6 +12,7 @@ import { Archive, BookOpen, CheckCircle2, ChevronDown, FileCheck2, Landmark, Lis
 import { desktopApi } from './bridge';
 import { SectionTabs } from './SectionTabs';
 import { FinanceOverview } from './FinanceOverview';
+import { t } from './language';
 import { accountingExplanations, financePeriod } from './financeClarity';
 import {
   accountingEntryFocusFilter,
@@ -93,6 +94,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [settings, setSettings] = useState<AccountingSettings>(emptyAccountingSettings);
   const [continuity, setContinuity] = useState<AccountingContinuity>(emptyContinuity);
+  const [baseLoaded, setBaseLoaded] = useState(false);
   const [savedSettings, setSavedSettings] = useState<AccountingSettings>(emptyAccountingSettings);
   const [setupReview, setSetupReview] = useState<{ mode: 'starter' | 'mapping'; settings: AccountingSettings } | null>(null);
   const [manualPlanOpen, setManualPlanOpen] = useState(false);
@@ -166,6 +168,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     setSavedSettings(nextSettings);
     setPeriods(nextPeriods);
     setContinuity(nextContinuity);
+    setBaseLoaded(true);
     const accountId = nextAccounts.some((account) => account.id === selectedAccountId)
       ? selectedAccountId
       : nextAccounts[0]?.id || '';
@@ -450,10 +453,11 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
       </div>}
     </section>
     {['balance', 'income', 'closing'].includes(tab) ? <section className="panel accounting-export-bar"><div><strong>Bilan et compte de résultat</strong><p>Présentation suisse, détails par rubrique et comparaison avec l’exercice précédent.</p></div><Button disabled={busy || !balance || !income} onClick={() => void exportAccounts()}><FileCheck2 size={17} /> Exporter le bilan PDF</Button></section> : null}
-    {error ? <ErrorPanel message={error} /> : null}{notice ? <div className="notice notice--success" role="status" aria-live="polite"><span><CheckCircle2 size={18} />{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Fermer le message"><X size={15} /></button></div> : null}
+    {error ? <ErrorPanel message={error} onRetry={!baseLoaded ? () => void run(async () => { const accountId = await loadBase(); await refreshReports(filter, accountId); }) : undefined} /> : null}{notice ? <div className="notice notice--success" role="status" aria-live="polite"><span><CheckCircle2 size={18} />{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Fermer le message"><X size={15} /></button></div> : null}
 
     {exportedPdf && <PdfExportReceipt result={exportedPdf} disabled={busy} onBusyChange={setBusy} />}
-    {tab === 'overview' ? <FinanceOverview workspace={workspace} income={income} continuity={continuity} busy={busy} periodLabel={periodLabel} readOnly={readOnly} onSection={setTab} onWorkspaceChange={onWorkspaceChange} onInstallStarter={async () => { if (busy || readOnly) return; setTab('accounts'); setSetupReview({ mode: 'starter', settings: { ...settings } }); }}/> : null}
+    {tab === 'overview' && !baseLoaded && busy ? <p role="status">{t('Chargement de la comptabilité…')}</p> : null}
+    {tab === 'overview' && baseLoaded ? <FinanceOverview workspace={workspace} income={income} continuity={continuity} busy={busy} periodLabel={periodLabel} readOnly={readOnly} onSection={setTab} onWorkspaceChange={onWorkspaceChange} onInstallStarter={async () => { if (busy || readOnly) return; setTab('accounts'); setSetupReview({ mode: 'starter', settings: { ...settings } }); }}/> : null}
     {accountingExplanations[tab]?<aside className="finance-reading-note"><BookOpen size={19}/><div><h2>{accountingExplanations[tab].title}</h2><p>{accountingExplanations[tab].text}</p></div></aside>:null}
     {reversalRefreshRequired ? <div className="report-callout is-warning" role="status"><RefreshCw size={20}/><div><strong>Correction enregistrée · actualisation nécessaire</strong><p>Rechargez les états avant une nouvelle écriture.</p></div><Button disabled={busy} onClick={()=>void run(async()=>{const accountId=await loadBase();await refreshReports(filter,accountId);setReversalRefreshRequired(false);},'Les états sont actualisés.')}>Actualiser les états</Button></div> : null}
     {tab === 'journal' && activeEntryFocus && focusedEntryAvailable ? <div className={`report-callout accounting-entry-focus ${activeEntryFocus.outsidePaymentDate ? 'is-warning' : ''}`} role="status"><BookOpen size={20} /><div><strong>Écriture {activeEntryFocus.target.entryNumber} liée à l’encaissement</strong><p>{activeEntryFocus.target.accountingState === 'reversed' ? 'L’écriture originale est mise en évidence et le journal reste en période libre afin de rendre toute la chaîne d’extournes visible. L’effet comptable net de cet encaissement est actuellement annulé.' : activeEntryFocus.target.accountingState === 'restored' ? `L’effet comptable net est rétabli après ${activeEntryFocus.target.reversalDepth ?? 'plusieurs'} extournes. Le journal reste en période libre afin de rendre toute la chaîne visible.` : activeEntryFocus.target.accountingState === 'unknown' ? 'Le lien existe, mais l’état ou la profondeur de sa chaîne d’extournes n’a pas pu être établi de façon fiable. Le journal reste en période libre pour permettre le contrôle.' : activeEntryFocus.outsidePaymentDate ? 'Le lien exact a été retrouvé en période libre, hors du jour indiqué par le paiement. Contrôlez la date depuis « Plan & liaisons ».' : `Le journal est limité au ${formatDate(activeEntryFocus.target.entryDate)} et l’écriture correspondante est mise en évidence ci-dessous.`}</p></div></div> : null}

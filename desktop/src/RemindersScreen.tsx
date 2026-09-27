@@ -22,6 +22,8 @@ import {
   X,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { t } from './language';
+import { FinanceFirstStep } from './FinanceFirstStep';
 import { MailDocumentButton, MailSettings } from './OutgoingMailEntry';
 import {
   compareReminderBalanceSnapshot,
@@ -105,6 +107,7 @@ export function RemindersScreen({
   const [setupSender, setSetupSender] = useState('');
   const [setupConfirmed, setSetupConfirmed] = useState(false);
   const [busy, setBusy] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const scanRequestIds = useRef(new Map<string, string>());
@@ -140,6 +143,7 @@ export function RemindersScreen({
     setTemplates(nextTemplates);
     setReminders(nextReminders);
     setSetupSender(nextSettings.senderName);
+    setLoaded(true);
   }
 
   useEffect(() => {
@@ -337,34 +341,6 @@ export function RemindersScreen({
 
   return (
     <div className="stack-layout reminders-screen">
-      <section className="panel reminder-command-center">
-        <div className="reminder-command-center__copy">
-          <span className="reminder-command-center__icon">
-            <MessageSquareWarning size={22} />
-          </span>
-          <div>
-            <h2>Chaque relance est préparée. Vous décidez de l’envoi.</h2>
-            <p>
-              Zentra recalcule le solde localement, bloque les factures soldées
-              et conserve une preuve distincte de chaque action.
-            </p>
-          </div>
-        </div>
-        <div className="reminder-command-center__stats" aria-label="Résumé des relances">
-          <span>
-            <strong>{openReminders.length}</strong>
-            à valider
-          </span>
-          <span>
-            <strong>{templates.filter((item) => item.active).length}</strong>
-            niveaux actifs
-          </span>
-          <span>
-            <strong>{settings.lastScanAt ? formatDate(settings.lastScanAt) : 'Jamais'}</strong>
-            dernier contrôle
-          </span>
-        </div>
-      </section>
 
       <section className="panel reminder-toolbar">
         <div className="tab-strip" role="tablist" aria-label="Relances">
@@ -377,6 +353,7 @@ export function RemindersScreen({
               aria-selected={tab === id}
               tabIndex={tab === id ? 0 : -1}
               className={tab === id ? 'is-active' : ''}
+              disabled={!loaded}
               key={id}
               onClick={() => setTab(id)}
               onKeyDown={(event) => {
@@ -403,12 +380,12 @@ export function RemindersScreen({
                 document.getElementById(`reminder-tab-${nextTab}`)?.focus();
               }}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
-        <div>
-          <Field label="Contrôler jusqu’au" error={dateError || undefined}>
+        {loaded && configured && tab === 'queue' ? <div>
+          <Field label={t('Contrôler jusqu’au')} error={dateError || undefined}>
             <input
               type="date"
               max={today}
@@ -424,18 +401,12 @@ export function RemindersScreen({
             onClick={() => void scan()}
           >
             <RefreshCw className={busy ? 'spin' : ''} size={16} />
-            Vérifier maintenant
+            {t('Vérifier maintenant')}
           </Button>
-        </div>
+        </div> : null}
       </section>
 
-      <div className="info-strip reminder-trust-strip">
-        <ShieldCheck size={18} />
-        <span>
-          Données et historique sur cet ordinateur. Aucun e-mail et aucune poursuite ne
-          partent automatiquement.
-        </span>
-      </div>
+
       {readOnly ? (
         <div className="notice notice--warning" role="status">
           <span>
@@ -472,12 +443,13 @@ export function RemindersScreen({
           id="reminder-panel-queue"
           aria-labelledby="reminder-tab-queue"
         >
-          <QueuePanel
+          {!loaded ? <div role="status">{busy ? t('Chargement des relances…') : <Button variant="secondary" onClick={() => void perform(load)}>{t('Réessayer le chargement')}</Button>}</div> : <QueuePanel
             busy={busy}
             configured={configured}
             readOnly={readOnly}
             reminders={openReminders}
             settings={settings}
+            onSettings={() => setTab('settings')}
             onSetup={() => {
               setSetupStep(1);
               setSetupOpen(true);
@@ -491,9 +463,29 @@ export function RemindersScreen({
               setResolution({ reminder });
               setResolutionNote('');
             }}
-          />
+          />}
         </div>
       ) : null}
+
+      {loaded && tab === 'queue' && (configured || reminders.length > 0) ? <details className="workspace-summary reminder-overview">
+        <summary>{t('Suivi des relances')} <span>{t('{count} à valider', { count: openReminders.length })}</span></summary>
+        <div className="reminder-command-center__stats" aria-label="Résumé des relances">
+          <span>
+            <strong>{openReminders.length}</strong>
+            {t('à valider')}
+          </span>
+          <span>
+            <strong>{templates.filter((item) => item.active).length}</strong>
+            {t('niveaux actifs')}
+          </span>
+          <span>
+            <strong>{settings.lastScanAt ? formatDate(settings.lastScanAt) : t('Jamais')}</strong>
+            {t('dernier contrôle')}
+          </span>
+        </div>
+      </details> : null}
+
+      {loaded && tab === 'queue' && (configured || reminders.length > 0) ? <p className="reminder-sending-note">{t('Vous vérifiez chaque relance avant de l’envoyer.')}</p> : null}
 
       {tab === 'templates' ? (
         <section
@@ -876,6 +868,7 @@ function QueuePanel({
   reminders,
   settings,
   onSetup,
+  onSettings,
   onPrepare,
   onHistory,
   onResolve,
@@ -886,45 +879,24 @@ function QueuePanel({
   reminders: Reminder[];
   settings: ReminderSettings;
   onSetup: () => void;
+  onSettings: () => void;
   onPrepare: (reminder: Reminder) => void;
   onHistory: (reminder: Reminder) => void;
   onResolve: (reminder: Reminder) => void;
 }) {
+  const setup = !configured ? <FinanceFirstStep
+        title="Préparez vos relances"
+        description={readOnly
+          ? 'Un administrateur peut choisir les délais et les textes de relance.'
+          : 'Choisissez votre expéditeur, les délais et vos textes. Chaque envoi reste soumis à votre confirmation.'}
+        actionLabel={readOnly ? undefined : 'Configurer les relances'}
+        onAction={onSetup}
+        disabled={busy}
+      /> : null;
   return (
-    <section className="panel reminder-queue-panel">
-      <SectionHeading
-        eyebrow="File supervisée"
-        title="Relances à vérifier"
-        description="Le bouton Prévisualiser recalcule les coordonnées, le solde et la nouvelle échéance juste avant l’action."
-        action={
-          !configured ? (
-            <Button disabled={readOnly} onClick={onSetup}>
-              <Sparkles size={15} /> Configurer en 2 minutes
-            </Button>
-          ) : undefined
-        }
-      />
-      {!configured ? (
-        <div className="reminder-first-run">
-          <div>
-            <span>1</span>
-            <strong>Identité</strong>
-            <small>Choisissez le nom affiché.</small>
-          </div>
-          <ChevronRight size={18} />
-          <div>
-            <span>2</span>
-            <strong>Cycle</strong>
-            <small>Relisez trois délais conseillés.</small>
-          </div>
-          <ChevronRight size={18} />
-          <div>
-            <span>3</span>
-            <strong>Activation</strong>
-            <small>Rien ne part sans validation.</small>
-          </div>
-        </div>
-      ) : reminders.length ? (
+    <section className={`reminder-queue-panel ${reminders.length ? 'panel' : 'reminder-queue-panel--empty'}`}>
+      {!reminders.length ? setup : null}
+      {reminders.length ? (
         <div className="reminder-list reminder-queue">
           {reminders.map((reminder) => {
             const balance = compareReminderBalanceSnapshot(
@@ -1015,17 +987,22 @@ function QueuePanel({
             );
           })}
         </div>
-      ) : (
+      ) : configured ? (
         <EmptyState
           icon={<CheckCircle2 />}
-          title="Aucune relance à valider"
+          title={!settings.enabled ? t('Les relances sont en pause') : settings.lastScanAt ? t('Aucune relance à valider') : t('Prêt pour le premier contrôle')}
           text={
             settings.enabled
-              ? 'Le dernier contrôle n’a trouvé aucune facture nécessitant une relance.'
-              : 'Activez l’analyse locale dans les réglages lorsque votre cycle est prêt.'
+              ? settings.lastScanAt
+                ? t('Aucune relance en attente. Vous pouvez consulter les précédentes dans l’historique.')
+                : t('Vérifiez les factures échues pour préparer les relances à valider.')
+              : t('Réactivez la préparation dans les réglages pour rechercher les factures échues.')
           }
+          actionLabel={!settings.enabled ? t('Ouvrir les réglages') : undefined}
+          onAction={!settings.enabled ? onSettings : undefined}
         />
-      )}
+      ) : null}
+      {setup && reminders.length > 0 ? <details className="finance-first-step__secondary"><summary>{t('Configurer les prochaines relances')}</summary>{setup}</details> : null}
     </section>
   );
 }

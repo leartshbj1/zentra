@@ -26,6 +26,8 @@ import { desktopApi } from './bridge';
 import { formatMoney, errorMessage } from './utils';
 import { Button, ErrorPanel, Modal } from './ui';
 import { MobileDetails, useCompactLayout } from './MobileDetails';
+import { FinanceFirstStep } from './FinanceFirstStep';
+import { t } from './language';
 
 type FinanceSection =
   | 'journal'
@@ -58,6 +60,7 @@ export function FinanceOverview({
 }) {
   const [configuration, setConfiguration] = useState(false);
   const compact = useCompactLayout();
+  const needsSetup = !busy && (!continuity.enabled || !continuity.mappingReady) && continuity.journalEntryCount === 0;
   const readable =
     !busy &&
     financeTotalsAvailable(income) &&
@@ -87,9 +90,17 @@ export function FinanceOverview({
   ];
   return (
     <div className="finance-overview">
+      {needsSetup ? <FinanceFirstStep
+        title="Préparez votre comptabilité"
+        description={readOnly
+          ? 'Un administrateur peut préparer les comptes. Vous pouvez consulter la configuration.'
+          : 'Choisissez les comptes qui recevront vos ventes, achats et paiements. Vous vérifierez leur activation avant tout enregistrement.'}
+        actionLabel={readOnly ? 'Voir la configuration' : 'Préparer les comptes'}
+        onAction={() => onSection('accounts')}
+        secondary={!readOnly ? <details><summary>{t('Délais de paiement et validité des devis')}</summary><Button variant="secondary" onClick={() => setConfiguration(true)}>{t('Choisir mes délais')}</Button></details> : undefined}
+      /> : <>
       <header className="finance-overview__intro">
         <div>
-          <p className="finance-overview__eyebrow">{periodLabel}</p>
           <details className="workspace-disclosure"><summary>Vos finances, en clair.</summary>
           <p>
             Comprenez votre résultat, préparez la TVA et avancez une étape à la
@@ -108,7 +119,7 @@ export function FinanceOverview({
       </header>
       <div
         className="finance-overview__figures"
-        aria-label="Résultat comptable de la période"
+        aria-label={`${t('Résultat comptable de la période')} · ${periodLabel}`}
         aria-busy={busy}
       >
         {(compact && !readable ? amounts.slice(-1) : amounts).map((item) => (
@@ -225,6 +236,7 @@ export function FinanceOverview({
           <ArrowRight size={15} />
         </button>
       </aside></MobileDetails>
+      </>}
       {configuration ? (
         <FinanceConfiguration
           key={workspace.settings?.organization.legalName}

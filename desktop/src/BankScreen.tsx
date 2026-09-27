@@ -48,6 +48,7 @@ import { BankRefundCreate } from './BankRefundCreate';
 import { BankCreditRefundCreate } from './BankCreditRefundCreate';
 import { BankExpenseForm, type BankExpenseDraft } from './BankExpenseForm';
 import { BankExpenseCorrection, BankExpenseHistory } from './BankExpenseCorrection';
+import { FinanceFirstStep } from './FinanceFirstStep';
 
 type BankAction = { kind: 'customer' | 'supplier'; movementId: string; documentId: string } | { kind: 'associate' | 'dissociate'; accountId: string; currency: string };
 
@@ -561,6 +562,7 @@ export function BankScreen({
   if (loading) return <div className="bank-loading" role="status"><LoaderCircle className="spin" size={19} /> Chargement de l’espace bancaire local…</div>;
   if (error && !bank) return <ErrorPanel title="Banque indisponible" message={error} onRetry={() => { setLoading(true); void load(); }} />;
   if (!bank) return null;
+  const firstImport = !bank.imports.length && !bank.movements.length && !bank.accounts.length;
 
   return <div className="stack-layout bank-screen">
     {importOpen && <BankImportWizard automatic={autoReconcile} onAutomaticChange={setAutoReconcile} disabled={writesDisabled} accountingReady={accountingReady} onClose={() => setImportOpen(false)} onImport={importStatement} onReview={() => showImportSection('movements')} onAccounts={() => showImportSection('accounts')} onAccounting={() => { setImportOpen(false); onOpenAccounting('accounts'); }} onRefresh={refreshBoth} />}
@@ -581,11 +583,20 @@ export function BankScreen({
     {refundToUnlink ? <BankRefundUnlink movement={refundToUnlink} busy={writesDisabled} close={() => setRefundToUnlink(null)} onConfirm={unlinkRefund} /> : null}
     {correctionMovement ? <BankExpenseCorrection movement={correctionMovement} workspace={workspace} busy={writesDisabled} onClose={() => setCorrectionMovement(null)} onConfirm={unlinkExpense} /> : null}
     {newExpenseMovement ? <BankExpenseForm movement={newExpenseMovement} workspace={workspace} busy={writesDisabled} onClose={() => setNewExpenseMovement(null)} onSave={createExpense} /> : null}
-    <section className="bank-hero">
+    {firstImport ? <FinanceFirstStep
+      title={accountingReady ? 'Retrouvez vos paiements' : 'Préparez le rapprochement bancaire'}
+      description={accountingReady
+        ? 'Importez le relevé XML CAMT de votre banque pour retrouver les factures payées.'
+        : 'Préparez les comptes pour enregistrer chaque paiement avec son écriture comptable. Vous pouvez déjà importer et consulter vos relevés.'}
+      actionLabel={accountingReady ? 'Importer un relevé XML' : readOnly ? 'Voir la configuration' : 'Configurer la comptabilité'}
+      disabled={accountingReady && writesDisabled}
+      onAction={() => accountingReady ? setImportOpen(true) : onOpenAccounting('accounts')}
+      secondary={!accountingReady ? <Button variant="ghost" disabled={writesDisabled} onClick={() => setImportOpen(true)}>{t('Importer un relevé XML')}</Button> : undefined}
+    /> : <section className="bank-hero">
       <div className="bank-hero__icon"><Landmark size={25} /></div>
       <details className="workspace-disclosure"><summary>Retrouvez les factures payées.</summary><p>Importez le relevé XML CAMT exporté depuis votre banque. Zentra retrouve les factures clients grâce à leur référence de paiement et conserve les autres mouvements à contrôler.</p></details>
       <Button disabled={writesDisabled} onClick={() => setImportOpen(true)} title={readOnly ? 'Licence en lecture seule' : 'Choisir un fichier XML sur cet appareil'}>{busy ? <LoaderCircle className="spin" size={16} /> : <FileUp size={16} />} Importer un relevé XML</Button>
-    </section>
+    </section>}
 
 
     {feedback ? <div ref={feedbackRef} tabIndex={-1} className={`bank-feedback bank-feedback--${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>
@@ -594,15 +605,15 @@ export function BankScreen({
     </div> : null}
     {refreshPending ? <div className="bank-refresh-state" role="alert"><div><strong>Données à actualiser</strong><p>Actualisez les données pour poursuivre les rapprochements.</p></div><Button disabled={busy} onClick={() => void retryRefresh()}>Actualiser les données</Button></div> : null}
 
-    {!accountingReady ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité requise pour rapprocher</strong><p>Les relevés restent consultables, mais un encaissement ou règlement n’est confirmé que si le paiement et son écriture bancaire peuvent être créés ensemble.</p></div><Button variant="secondary" size="small" onClick={() => onOpenAccounting('accounts')}>{t('Configurer la comptabilité')}</Button></div> : null}
+    {!accountingReady && !firstImport ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité requise pour rapprocher</strong><p>Les relevés restent consultables, mais un encaissement ou règlement n’est confirmé que si le paiement et son écriture bancaire peuvent être créés ensemble.</p></div><Button variant="secondary" size="small" onClick={() => onOpenAccounting('accounts')}>{t('Configurer la comptabilité')}</Button></div> : null}
 
-    <details className="workspace-summary"><summary>Résumé bancaire local <span>{bank.summary.importCount} imports · {bank.summary.unreconciledCount + bank.summary.unreconciledSupplierCount} à rapprocher</span></summary><div className="bank-summary" aria-label="Résumé bancaire local">
+    {!firstImport ? <details className="workspace-summary"><summary>Résumé bancaire local <span>{bank.summary.importCount} imports · {bank.summary.unreconciledCount + bank.summary.unreconciledSupplierCount} à rapprocher</span></summary><div className="bank-summary" aria-label="Résumé bancaire local">
       <article><FileCode2 /><span>Imports</span><strong>{bank.summary.importCount}</strong><small>fichiers locaux</small></article>
       <article><ArrowDownLeft /><span>Entrées</span><strong>{bank.summary.bookedCreditCount}</strong><small>inscrites au relevé</small></article>
       <article><ArrowUpRight /><span>Sorties</span><strong>{bank.summary.bookedDebitCount}</strong><small>inscrites au relevé</small></article>
       <article className={bank.summary.unreconciledCount + bank.summary.unreconciledSupplierCount ? 'is-attention' : ''}><Link2 /><span>À rapprocher</span><strong>{bank.summary.unreconciledCount + bank.summary.unreconciledSupplierCount}</strong><small>confirmation requise</small></article>
       <article><Clock3 /><span>En attente</span><strong>{bank.summary.pendingCount}</strong><small>aucune écriture possible</small></article>
-    </div></details>
+    </div></details> : null}
 
     {bank.accounts.length ? <section ref={accountsRef} tabIndex={-1} className="bank-accounts" aria-label="Comptes détectés dans les relevés">
       {bank.accounts.map((account) => <article className={account.linked ? 'is-linked' : 'is-unlinked'} key={`${account.accountId}-${account.currency}`}>
@@ -612,12 +623,12 @@ export function BankScreen({
       </article>)}
     </section> : null}
 
-    <section ref={movementsRef} tabIndex={-1} className="panel bank-movements-panel">
+    {!firstImport ? <section ref={movementsRef} tabIndex={-1} className="panel bank-movements-panel">
       <SectionHeading eyebrow="Suivi des paiements" title="Mouvements bancaires" description="Retrouvez un règlement et vérifiez la facture correspondante." action={<Button variant="ghost" size="small" disabled={busy} onClick={() => void retryRefresh()}><RefreshCw size={14} /> Actualiser</Button>} />
-      <label className="field bank-movement-search"><span>Rechercher un mouvement</span><input type="search" value={query} placeholder="Nom, référence, IBAN ou montant" onChange={(event) => { setQuery(event.target.value); setMovementLimit(25); }} /></label>
+      {bank.movements.length ? <><label className="field bank-movement-search"><span>Rechercher un mouvement</span><input type="search" value={query} placeholder="Nom, référence, IBAN ou montant" onChange={(event) => { setQuery(event.target.value); setMovementLimit(25); }} /></label>
       <div className="bank-filter-strip" role="tablist" aria-label="Filtrer les mouvements">
         {(Object.keys(filterLabels) as BankMovementFilter[]).map((item) => <button type="button" role="tab" aria-selected={filter === item} className={filter === item ? 'is-active' : ''} key={item} onClick={() => { setFilter(item); setMovementLimit(25); }}>{filterLabels[item]} <em>{counts[item]}</em></button>)}
-      </div>
+      </div></> : null}
       {movements.length ? <div className="bank-movement-list">
         {movements.slice(0, movementLimit).map((movement,index) => {
           const account = accountFor(movement);
@@ -698,9 +709,9 @@ export function BankScreen({
         onAction={query.trim() ? () => { setQuery(''); setMovementLimit(25); } : bank.imports.length || writesDisabled ? undefined : () => setImportOpen(true)}
       />}
       {movements.length > movementLimit ? <Button className="bank-pagination" variant="secondary" onClick={() => setMovementLimit(movementLimit + 25)}>Afficher les mouvements suivants ({movementLimit} sur {movements.length})</Button> : null}
-    </section>
+    </section> : null}
 
-    <section className="panel bank-imports-panel">
+    {bank.imports.length ? <section className="panel bank-imports-panel">
       <SectionHeading eyebrow="Traçabilité locale" title="Historique des imports" description="Empreinte, type CAMT, compte et nombre d’entrées restent consultables sur cet ordinateur." />
       {bank.imports.length ? <div className="bank-import-list">{bank.imports.map((item) => <article key={item.id}>
         <span><History size={17} /></span>
@@ -708,6 +719,6 @@ export function BankScreen({
         <div><strong>{item.importedCount}</strong><small>mouvement{item.importedCount > 1 ? 's' : ''} importé{item.importedCount > 1 ? 's' : ''} sur {item.entryCount}{item.ignoredCount ? ` · ${item.ignoredCount} ignoré${item.ignoredCount > 1 ? 's' : ''}` : ' · aucun ignoré'}</small></div>
         <time dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time>
       </article>)}</div> : <p className="bank-imports-empty">Aucun relevé importé.</p>}
-    </section>
+    </section> : null}
   </div>;
 }

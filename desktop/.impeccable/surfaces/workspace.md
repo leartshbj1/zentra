@@ -30,3 +30,9 @@ Inspect dashboard, all modules, forms and settings on desktop1440, phone390, nar
 Existing mobile navigation, screen help, calendar period arrows and Automation activity filters now provide at least 44 × 44 CSS px below 861 px. Icons and business actions are unchanged. The header help target aligns with the title and cannot overlap invoice creation. Desktop sizing is preserved.
 
 `tests/mobile-touch-targets.mjs` verifies taps three pixels from the left edge, menu opening/closing, help and Escape after focus settles, calendar navigation, activity filtering and no horizontal overflow. Twelve screen captures cover WebKit 320px DE/light and 390px FR/dark, Edge 768px IT/light and 1440px EN/dark. Scoped detector returned no findings; TypeScript and the web build passed. This is a bounded polish pass, not a new visual system or an independent whole-app review. Touch is simulated in browsers; physical devices and screen readers remain separate validation.
+
+## Financial first steps — 27 September 2026
+
+Distill/refinement, not a replacement world. Accounting and banking show one setup action before empty statistics. Previously recorded entries and bank movements stay visible. Reminder activity comes before setup; removing all active templates must not hide existing reminders. Summary detail follows the queue, sending still requires explicit approval, and loading failures never masquerade as empty companies.
+
+`FinanceFirstStep` is a plain section using the existing type, color and button system. New copy is translated in FR/DE/IT/EN. Two bounded visual rounds flatten the reminder panels and preserve actions at 320px with 200% text. 27 browser checks and 64 focused unit tests pass; build and scoped detector pass. Fixtures simulate native calls and physical devices are not certified. Older accounting navigation translations remain a separate issue. Full evidence and publication boundary: `docs/FINANCES-PREMIER-PAS-20260927.md` at repository root.
