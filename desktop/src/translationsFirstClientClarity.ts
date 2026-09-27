@@ -1,4 +1,5 @@
 export const firstClientClarityTranslations: Record<string,readonly [string,string,string]> = {
+  'Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.':['Diese Rechnung ist in den auf diesem Gerät geladenen Daten nicht verfügbar. Prüfen Sie ihren Status im Einkauf.','Questa fattura non è disponibile nei dati caricati su questo dispositivo. Controlla il suo stato negli acquisti.','This invoice is not available in the data loaded on this device. Check its status in Purchases.'],
   'Création : récente d’abord':['Erstellt: neueste zuerst','Creazione: più recenti prima','Created: newest first'],
   'Création : ancienne d’abord':['Erstellt: älteste zuerst','Creazione: più vecchi prima','Created: oldest first'],
   'Date : récente d’abord':['Datum: neueste zuerst','Data: più recenti prima','Date: newest first'],

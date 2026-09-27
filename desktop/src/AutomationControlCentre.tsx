@@ -124,13 +124,14 @@ const date = (n: number) =>
 export function AutomationControlCentre({
   organizationId,
   request, initialTab = 'review', embedded = false, hideNavigation = false, hideRules = false,
-  activity, onOpen,
+  activity, onOpen, onOpenInvoice,
 }: {
   organizationId: string;
   request: Requester;
   initialTab?: 'review' | 'work' | 'history' | 'rules';
   embedded?: boolean; hideNavigation?: boolean; hideRules?: boolean;
   activity?: AutomationActivity | null; onOpen?: (destination: BriefDestination) => void;
+  onOpenInvoice?: (id: string) => void;
 }) {
   const [data, setData] = useState<AutomationCentreState | null>(null),
     [error, setError] = useState(''),
@@ -360,7 +361,7 @@ export function AutomationControlCentre({
           )}
         </div>
       )}
-      {data && tab === 'history' && embedded && <AutomationJournal runs={data.runs} activity={activity} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <RunRow run={run} canManage={data.canManage} busy={busy} act={action}/>}/>}
+      {data && tab === 'history' && embedded && <AutomationJournal runs={data.runs} activity={activity} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <RunRow run={run} canManage={data.canManage} busy={busy} act={action}/>}/>}
       {data && tab === 'history' && !embedded && (
         <div className="ac-list">
           {!data.runs.length ? (

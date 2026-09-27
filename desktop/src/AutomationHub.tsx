@@ -17,9 +17,10 @@ import './automation-design.css';
 
 const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
 
-export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel, appointmentPanel }: {
+export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel, appointmentPanel, onOpenInvoice }: {
   workspace: Workspace; page: AutomationPage; onPage: (page: AutomationPage) => void; onNavigate: (view: AutomationDestination) => void;
   inboxPanel?: ReactNode; appointmentPanel?: ReactNode;
+  onOpenInvoice?: (id: string) => void;
 }) {
   const language = useAppLanguage();
   const { state, status, refresh, readOnly } = useCompanyAutomation();
@@ -51,7 +52,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
         <Button onClick={() => onPage('settings')}>{t(canManage ? 'Configurer mon équipe' : 'Voir les réglages')}<ArrowRight size={17} aria-hidden="true" /></Button>
       </div>}
     {activityPage && <div className="automation-hub__activity">
-      <div className="automation-hub__journal"><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab="history" activity={state.activity} onOpen={open} embedded hideNavigation hideRules request={data=>invoke('automation_request',{data})}/></div>
+      <div className="automation-hub__journal"><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab="history" activity={state.activity} onOpen={open} onOpenInvoice={onOpenInvoice} embedded hideNavigation hideRules request={data=>invoke('automation_request',{data})}/></div>
       <aside className="automation-hub__day"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} activityFirst hideAttention/><div className="automation-hub__more"><Button variant="ghost" onClick={()=>onPage('tools')}>{t('Les outils de cet écran')}<ArrowRight size={16}/></Button></div></aside>
     </div>}
     {(page === 'invoices' || page === 'appointments') && <section className="automation-hub__focused"><Button variant="ghost" onClick={()=>onPage('overview')}><ArrowLeft size={16}/>{t('Aujourd’hui')}</Button>{page==='invoices'?inboxPanel:appointmentPanel}</section>}

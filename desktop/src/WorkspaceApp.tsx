@@ -622,7 +622,7 @@ function WorkspaceContent({
                 const created=workspaceRef.current.suppliers.filter(s=>!previous.has(s.id)&&s.name===name&&s.email.toLowerCase()===email.toLowerCase());
                 if(created.length!==1)throw new Error(t('Sélectionnez le fournisseur ajouté dans la liste.'));
                 return created[0].id;
-              }} onOpen={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('La facture arrive avec la synchronisation de l’entreprise.')});}}/>;
+              }} onOpen={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}}/>;
   const workspaceMounted = useRef(true);
   const projectWorkspaceReceiver = useRef(setWorkspace);
   useLayoutEffect(() => { projectWorkspaceReceiver.current = setWorkspace; }, [setWorkspace]);
@@ -1911,7 +1911,7 @@ function WorkspaceContent({
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && !compactSales && <AutomationTools key={view} screen={view} workspace={workspace} />}
-          {view === 'automation' && <AutomationHub appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
+          {view === 'automation' && <AutomationHub onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}

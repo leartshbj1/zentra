@@ -127,6 +127,11 @@
   .automation-hub .ac-run[open] > summary > svg {transform: rotate(180deg);}
   .automation-hub .ac-run__detail {font-size: 14px; padding: 4px 0 24px;}
   .automation-hub .ac-run__detail p {font-size: 14px; margin-bottom: 12px;}
+  .automation-journal__facts {display: grid; gap: 12px; margin: 0 0 16px;}
+  .automation-journal__facts > div {display: grid; grid-template-columns: minmax(110px,.8fr) minmax(0,1.2fr); gap: 12px;}
+  .automation-journal__facts dt {color: var(--zen-muted); font-size: 13px;}
+  .automation-journal__facts dd {margin: 0; color: var(--zen-ink); font-size: 14px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums;}
+  .automation-journal__invoice .ac-quiet {display: inline-flex; align-items: center; gap: 8px; min-height: 44px; white-space: normal; text-align: left;}
   .automation-hub .ac-run__detail .ac-source {background: var(--zen-canvas); border-radius: 9px; padding: 10px 16px; margin: 10px 0;}
   .automation-hub .ac-source blockquote {border-left-width: 1px; font-size: 14px; margin-left: 0;}
   .automation-hub .automation-centre .ac-actions button {font-size: 13px; min-height: 44px;}
@@ -188,6 +193,7 @@
     .automation-hub .automation-hub__navigation button {padding: 10px 4px; font-size: 12px; gap: 4px; overflow-wrap: normal; white-space: nowrap;}
     .automation-journal__toolbar {align-items: stretch; flex-direction: column; gap: 10px;}
     .automation-journal__search {width: 100%; box-sizing: border-box;}
+    .automation-journal__facts > div {grid-template-columns: minmax(0,1fr); gap: 3px;}
     .automation-hub .automation-journal__search input {font-size: 16px;}
     .automation-hub__journal {padding: 20px 18px 8px;}
     .automation-hub .ac-run > summary, .automation-hub button.automation-journal__invoice {grid-template-columns: minmax(0,1fr) 16px; gap: 6px 10px;}

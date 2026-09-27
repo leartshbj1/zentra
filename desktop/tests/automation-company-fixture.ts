@@ -29,6 +29,11 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
     activity: { appointments:{imported:2,pending:1}, date: '2026-09-21', timeZone: 'Europe/Zurich', updatedAt: Date.now() / 1000, displayName: 'Camille', totals: { analyzed: 0, suggestions: 0, confirmed: 0, needsReview: 0, observed: 0 }, features: [], supplierInbox: {received:3,imported:1,automatic:0,needsReview:2,recent:[]} },
   };
   const centre = automationDesignFixture(state);
+  if (params.has('automationActivityAudit') && workspace) {
+    const stamp=new Date().toISOString();
+    workspace.supplierInvoices.push({id:'ui-invoice-1',supplierId:'qa-supplier',projectId:null,documentDate:'2026-09-27',dueDate:'2026-10-27',supplierName:'Papeterie du Léman',reference:'LEMAN-2026-091',currency:'CHF',documentStatus:'validated',paymentStatus:'pending',netCents:25000,vatCents:2025,totalCents:27025,paidCents:0,creditedCents:0,balanceCents:27025,matchStatus:'unmatched',validatedAt:stamp,validationJournalEntryId:null,note:'Document fictif de recette',lines:[],payments:[],attachments:[],createdAt:stamp,updatedAt:stamp});
+    Object.assign(window,{__automationActivityQa:{state,centre,refresh:()=>window.dispatchEvent(new Event('zentra-automation-updated'))}});
+  }
   if (params.has('automationWelcome')) Object.assign(window, { __automationWelcomeQa: {
     state, setUnavailable: (value: boolean) => { unavailable = value; },
     refresh: () => window.dispatchEvent(new Event('zentra-automation-updated')),

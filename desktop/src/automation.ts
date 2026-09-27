@@ -31,10 +31,15 @@ export type AutomationCounts = {
   needsReview: number;
   observed: number;
 };
+export type AutomationInvoiceActivity = {
+  id: string; subject: string; state: string; automatic: number; imported_at: number | null;
+  created_at?: number; invoiceId?: string | null; sender?: string | null; fileName?: string | null;
+  supplierName?: string | null; reference?: string | null; currency?: string | null; totalCents?: number | null;
+};
 export type AutomationActivity = {
   workflows?:{tasks:number;drafts:number;summaries:number;open:number;review:number;observed:number};
   appointments?:{imported:number;pending:number};
-  supplierInbox?:{received:number;imported:number;automatic:number;needsReview:number;recent:{id:string;subject:string;state:string;automatic:number;imported_at:number}[]};
+  supplierInbox?:{received:number;imported:number;automatic:number;needsReview:number;recent:AutomationInvoiceActivity[]};
   date: string;
   timeZone: string;
   updatedAt: number;

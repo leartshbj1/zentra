@@ -1,8 +1,10 @@
 import { ArrowUpRight, CalendarDays, Check, ChevronDown, ChevronRight, FileText, Inbox, ListChecks, Settings2 } from 'lucide-react';
 import './AutomationBrief.css';
+import { activityDayLabel, automationLabel } from './automationPresentation';
 
 export type BriefDestination = 'invoices' | 'appointments' | 'review' | 'work' | 'history' | 'settings' | 'support' | 'tools';
 export type BriefActivity = {
+  date?: string; timeZone?: string;
   displayName?: string | null;
   totals: { analyzed: number; confirmed: number; needsReview: number; observed: number };
   supplierInbox?: { received: number; imported: number; automatic: number; needsReview: number };
@@ -61,7 +63,7 @@ export function AutomationBrief({ activity, paused = false, observation = false,
     { key: 'summary', count: activity?.workflows?.summaries ?? 0, target: 'work' as const },
     { key: 'confirmed', count: activity?.totals.confirmed ?? 0, target: 'tools' as const },
   ].filter(row => row.count > 0);
-  const attention = pending.length ? <div className="automation-brief__list">{pending.map(({id,count,icon:Icon}) => <button type="button" key={id} onClick={() => onOpen(id)}>
+  const attention = !activity ? <p className="automation-brief__empty">{automationLabel('activityUnavailable',language)}</p> : pending.length ? <div className="automation-brief__list">{pending.map(({id,count,icon:Icon}) => <button type="button" key={id} onClick={() => onOpen(id)}>
     <Icon size={20}/><span>{label(id)}</span><strong>{count}</strong><ChevronRight size={17}/>
   </button>)}</div> : <p className="automation-brief__empty"><Check size={20}/>{label('clear')}</p>;
   return <section className={`automation-brief${compact ? ' automation-brief--compact' : ''}${activityFirst ? ' automation-brief--activity' : ''}${attentionOnly ? ' automation-brief--attention' : ''}`} aria-label="Zentra Automation">
@@ -71,14 +73,14 @@ export function AutomationBrief({ activity, paused = false, observation = false,
       <button className="automation-brief__icon" type="button" onClick={() => onOpen('settings')} aria-label={label('settings')}><Settings2 size={19}/></button>
     </header>}
     {!hideAttention && (compact ? <details className="automation-brief__attention-disclosure">
-      <summary data-pending={pending.length > 0}><span>{pending.length ? label('attention') : label('clear')}</span><ChevronDown size={17}/></summary>
+      <summary data-pending={pending.length > 0}><span>{!activity ? automationLabel('activityUnavailable',language) : pending.length ? label('attention') : label('clear')}</span><ChevronDown size={17}/></summary>
       {attention}
     </details> : <div className="automation-brief__work">
       <h3>{label('attention')}</h3>
       {attention}
     </div>)}
-    {!attentionOnly && <div className="automation-brief__day"><h3>{label('today')}</h3>
-      {done.length ? <ul>{done.slice(0, compact ? 2 : 6).map(row => <li key={row.key}><button type="button" onClick={() => onOpen(row.target)}><Check size={16} aria-hidden="true"/><span><strong>{row.count}</strong> {label(row.key)}{row.key === 'imported' && !!activity?.supplierInbox?.automatic && <small>{activity.supplierInbox.automatic} {label('automatic')}</small>}</span><ChevronRight size={16} aria-hidden="true"/></button></li>)}</ul> : <p>{label('empty')}</p>}
+    {!attentionOnly && <div className="automation-brief__day"><h3>{activityDayLabel(activity?.date,activity?.timeZone,language)}</h3>
+      {done.length ? <ul>{done.slice(0, compact ? 2 : 6).map(row => <li key={row.key}><button type="button" onClick={() => onOpen(row.target)}><Check size={16} aria-hidden="true"/><span><strong>{row.count}</strong> {label(row.key)}{row.key === 'imported' && !!activity?.supplierInbox?.automatic && <small>{activity.supplierInbox.automatic} {label('automatic')}</small>}</span><ChevronRight size={16} aria-hidden="true"/></button></li>)}</ul> : <p>{activity ? label('empty') : automationLabel('activityUnavailable',language)}</p>}
       {!activityFirst && <button type="button" className="automation-brief__text" onClick={() => onOpen('history')}>{label('history')}<ChevronRight size={16}/></button>}
     </div>}
     {!compact && !attentionOnly && <nav className="automation-brief__destinations" aria-label="Gestion & Support">

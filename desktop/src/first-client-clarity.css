@@ -24,6 +24,8 @@ html[data-app-theme] [data-settings-id="company"] .company-logo-setting__preview
 [data-settings-id="company"] .company-logo-setting .button { min-height: 44px; }
 [data-settings-id="company"] .company-logo-setting .path-note { overflow-wrap: anywhere; }
 @media (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience][data-view="automation"] .automation-hub__navigation {grid-template-columns: minmax(0,.9fr) minmax(0,.8fr) minmax(0,1.3fr);}
+  html[data-app-theme] .desktop-app[data-experience][data-view="automation"] .automation-hub__navigation button {overflow-wrap: normal; word-break: normal; padding-inline: 3px;}
   html[data-app-theme] [data-settings-id="company"] .company-logo-setting { grid-template-columns: 56px minmax(0, 1fr); gap: 12px; }
   html[data-app-theme] [data-settings-id="company"] .company-logo-setting__preview { width: 56px; height: 56px; }
 

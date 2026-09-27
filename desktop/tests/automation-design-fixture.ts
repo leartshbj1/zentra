@@ -10,9 +10,9 @@ export function automationDesignFixture(state: AutomationState): AutomationCentr
     workflows:{tasks:2,drafts:1,summaries:1,open:2,review:1,observed:0},
     totals:{analyzed:12,suggestions:4,confirmed:3,needsReview:0,observed:0},
     supplierInbox:{received:6,imported:4,automatic:3,needsReview:2,recent:[
-      {id:'ui-invoice-1',subject:'Papeterie du Léman · LEMAN-2026-091',state:'imported',automatic:1,imported_at:now-420},
-      {id:'ui-invoice-2',subject:'Studio Romandie · STUDIO-2026-067',state:'imported',automatic:0,imported_at:now-2400},
-      {id:'ui-invoice-3',subject:'Atelier électrique · ELEC-2026-082',state:'needs_review',automatic:0,imported_at:0},
+      {id:'ui-invoice-1',subject:'Votre facture de septembre',supplierName:'Papeterie du Léman',reference:'LEMAN-2026-091',currency:'CHF',totalCents:27025,sender:'facturation@papeterie.example.test',fileName:'LEMAN-2026-091.pdf',invoiceId:'ui-invoice-1',state:'imported',automatic:1,imported_at:now-420},
+      {id:'ui-invoice-2',subject:'Studio Romandie · STUDIO-2026-067',supplierName:'Studio Romandie',reference:'STUDIO-2026-067',currency:'CHF',totalCents:43240,sender:'comptabilite@studio.example.test',fileName:'STUDIO-2026-067.pdf',state:'imported',automatic:0,imported_at:now-2400},
+      {id:'ui-invoice-3',subject:'Atelier électrique · ELEC-2026-082',state:'review',automatic:0,created_at:now-3500,imported_at:0},
     ]},
   };
   return {organizationId:state.organizationId,canManage:state.canManage,canWork:true,
