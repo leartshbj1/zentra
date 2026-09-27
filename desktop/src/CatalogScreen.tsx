@@ -369,7 +369,8 @@ export function CatalogScreen({
       <CatalogImportWizard
         existingItems={items}
         vatRatesBp={vatRatesBp}
-        busy={busy || readOnly}
+        busy={busy}
+        readOnly={readOnly}
         close={() => setImportOpen(false)}
         onImport={onImport}
       />

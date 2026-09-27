@@ -66,7 +66,7 @@ export function PlanningEditor({ kind, item, defaultProjectId, workspace, busy, 
         </div>
         <details open={more} onToggle={event => setMore(event.currentTarget.open)} className="planning-editor-more"><summary>Priorité et précisions</summary><div className="form-grid"><Field label="Priorité" wide error={fieldError('priority')}><select name="priority" value={draft.priority} onChange={event => change('priority', event.target.value)}><option value="low">Basse</option><option value="normal">Normale</option><option value="high">Haute</option><option value="urgent">Urgente</option></select></Field><Field label="Précisions utiles" wide error={fieldError('description')}><textarea name="description" rows={4} maxLength={20000} value={draft.description} onChange={event => change('description', event.target.value)} placeholder="Consignes, matériel à prévoir…" /></Field></div></details>
       </fieldset>
-      <FormActions onCancel={onClose} busy={locked || readOnly} submitLabel={`Enregistrer ${noun}`} />
+      <FormActions onCancel={onClose} busy={locked} disabled={readOnly} submitLabel={`Enregistrer ${noun}`} />
     </form>
   </Modal>;
 }

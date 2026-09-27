@@ -25,6 +25,7 @@ export function CatalogImportWizard({
   existingItems,
   vatRatesBp,
   busy,
+  readOnly = false,
   close,
   onImport,
   migration = false,
@@ -32,6 +33,7 @@ export function CatalogImportWizard({
   existingItems: CatalogItem[];
   vatRatesBp: number[];
   busy: boolean;
+  readOnly?: boolean;
   migration?: boolean;
   close: () => void;
   onImport: (
@@ -91,7 +93,7 @@ export function CatalogImportWizard({
   const currentPage = Math.min(page, lastPage);
 
   async function inspectFile(file: File | undefined) {
-    if (!file || locked) return;
+    if (!file || locked || readOnly) return;
     setError('');
     setPreview(null);
     setPricesConfirmed(false);
@@ -114,7 +116,7 @@ export function CatalogImportWizard({
   }
 
   async function importRows() {
-    if (!ready || locked || inFlight.current) return;
+    if (!ready || locked || readOnly || inFlight.current) return;
     inFlight.current = true;
     setImporting(true);
     setError('');
@@ -146,8 +148,9 @@ export function CatalogImportWizard({
         setError('');
       }} /> :
       <div className="catalog-import-wizard">
-        {mappingSource&&<details open={!preview}><summary>{t('Choisir les colonnes du fichier')}</summary><AutomationCatalogMapping key={mappingSource.fileName} source={mappingSource} disabled={locked} onPrepared={(value,decision,choices)=>{setPreview(value);setError('');setPage(0);mappingAudit.current={decision,choices};}}/></details>}
-        <fieldset disabled={locked}>
+        {readOnly && <p role="status">{t('Mode lecture seule : les modifications ne peuvent pas être enregistrées.')}</p>}
+        {mappingSource&&<details open={!preview}><summary>{t('Choisir les colonnes du fichier')}</summary><AutomationCatalogMapping key={mappingSource.fileName} source={mappingSource} disabled={locked || readOnly} onPrepared={(value,decision,choices)=>{setPreview(value);setError('');setPage(0);mappingAudit.current={decision,choices};}}/></details>}
+        <fieldset disabled={locked || readOnly}>
         <input
           ref={fileInput}
           className="sr-only"
@@ -271,7 +274,7 @@ export function CatalogImportWizard({
           </Button>
           <Button
             type="button"
-            disabled={locked || !ready}
+            disabled={locked || readOnly || !ready}
             onClick={() => void importRows()}
           >
             <Upload size={15} />

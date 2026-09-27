@@ -2275,6 +2275,7 @@ function WorkspaceContent({
               onEditEmployee={(item) => setModal({ type: 'employee', item })}
               onCreatePayslip={() => setModal({ type: 'payslip' })}
               onPayrollSettings={() => { setSettingsFocusTarget('settings-payroll-review'); setView('settings'); }}
+              onManageAccess={() => { setSettingsFocusTarget('automation-account-target'); setSearch(''); setView('settings'); }}
               onImportPayslips={() => setModal({ type: 'payrollImport' })}
               onEditPayslip={(item) => setModal({ type: 'payslip', item })}
               onPostPayslip={(item) => setPayslipPostingId(item.id)}
@@ -2531,7 +2532,7 @@ function CreateButton({
     quotes: ['Nouveau devis', { type: 'document', entity: 'quotes' }],
     invoices: ['Nouvelle facture', { type: 'document', entity: 'invoices' }],
     time: ['Saisir des heures', { type: 'time' }],
-    team: ['Nouveau collaborateur', { type: 'employee' }],
+    team: ['Nouvelle fiche de personnel', { type: 'employee' }],
     expenses: ['Facture fournisseur', { type: 'supplierInvoice' }],
   };
   const current = map[view];
@@ -4457,6 +4458,7 @@ function TeamScreen({
   onEditEmployee,
   onCreatePayslip,
   onPayrollSettings,
+  onManageAccess,
   onImportPayslips,
   onEditPayslip,
   onPostPayslip,
@@ -4474,6 +4476,7 @@ function TeamScreen({
   onEditEmployee: (item: Employee) => void;
   onCreatePayslip: () => void;
   onPayrollSettings: () => void;
+  onManageAccess: () => void;
   onImportPayslips: () => void;
   onEditPayslip: (item: Payslip) => void;
   onPostPayslip: (item: Payslip) => void;
@@ -4527,20 +4530,24 @@ function TeamScreen({
   return (
     <div className="stack-layout team-screen">
       <nav className="team-navigation" aria-label={t("Équipe et paie")}>
-        <button type="button" aria-pressed={teamSection === 'employees'} onClick={() => setTeamSection('employees')}><span className="team-navigation__title">{t("Équipe")}</span><span className="team-navigation__count">{workspace.employees.length}</span></button>
-        <button type="button" aria-pressed={teamSection === 'payslips'} onClick={() => setTeamSection('payslips')}><span className="team-navigation__title">{t("Fiches de salaire")}</span><span className="team-navigation__count">{workspace.payslips.length}</span></button>
+        <button type="button" aria-pressed={teamSection === 'employees'} onClick={() => setTeamSection('employees')}><span className="team-navigation__title">{t("Personnel")}</span><span className="team-navigation__count">{workspace.employees.length}</span></button>
+        <button type="button" aria-label={t('Fiches de salaire')} aria-pressed={teamSection === 'payslips'} onClick={() => setTeamSection('payslips')}><span className="team-navigation__title">{t("Bulletins")}</span><span className="team-navigation__count">{workspace.payslips.length}</span></button>
         <button type="button" aria-pressed={teamSection === 'certificates'} onClick={() => setTeamSection('certificates')}><span className="team-navigation__title">{t("Certificats annuels")}</span></button>
       </nav>
       {teamSection === 'certificates' ? <SalaryCertificates workspace={workspace} disabled={busy} /> : null}
       {teamSection === 'employees' ? <section className="team-directory">
       <SectionHeading
-        title={t("Collaborateurs")}
+        title={t("Fiches de personnel")}
         description={t("Votre équipe, ses coordonnées et ses contrats.")}
         action={
           <Button disabled={busy} onClick={onCreateEmployee}>
-            <Plus size={16} />{t(" Nouveau collaborateur")}</Button>
+            <Plus size={16} />{t("Nouvelle fiche de personnel")}</Button>
         }
       />
+      <div className="team-access-guide">
+        <p>{t('Ces fiches servent aux contrats et à la paie. Elles ne donnent pas accès à Zentra.')}</p>
+        <Button variant="ghost" onClick={onManageAccess}>{t('Gérer les accès à Zentra')}<ArrowRight size={16} aria-hidden="true" /></Button>
+      </div>
       {employees.length ? (
         <div className="employee-grid">
           {employees.map((employee) => (
@@ -4599,8 +4606,8 @@ function TeamScreen({
       ) : (
         <EmptyState disabled={busy}
           icon={<Users />}
-          title={workspace.employees.length ? t("Aucun collaborateur correspondant") : t("Aucun collaborateur")}
-          text={workspace.employees.length ? t("Modifiez votre recherche pour retrouver un collaborateur.") : t("Ajoutez les personnes employées ou suivies.")}
+          title={workspace.employees.length ? t("Aucun collaborateur correspondant") : t("Aucune fiche de personnel")}
+          text={workspace.employees.length ? t("Modifiez votre recherche pour retrouver un collaborateur.") : t("Créez une fiche pour préparer un contrat ou un salaire.")}
         />
       )}
       </section> : null}
@@ -6508,9 +6515,9 @@ function EmployeeForm({
 
   return (
     <Modal
-      title={item ? t("Modifier le collaborateur") : t("Nouveau collaborateur")}
+      title={item ? t("Modifier le collaborateur") : t("Nouvelle fiche de personnel")}
       className="employee-dialog"
-      description={t("Trois étapes pour enregistrer la personne. Les réglages de paie pourront être complétés ensuite.")}
+      description={t("Enregistrez les informations pour les contrats et la paie. Cette fiche ne crée pas de compte de connexion.")}
       onClose={() => { if (!busy && !savingRef.current) close(); }}
       dismissible={!pending}
       wide

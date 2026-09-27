@@ -13,9 +13,8 @@ try {
     page.setDefaultTimeout(12000);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.addInitScript(() => localStorage.setItem('elyko-guided-tour-v3', 'completed'));
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&designQr=1&readOnlyAudit=1&readOnly=1`);
-    const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
-    if (viewport.width > 860) await tour.click();
     const navigate = async name => {
       await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
       await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill(name);
@@ -23,7 +22,10 @@ try {
       await page.locator('.navigation-palette').waitFor({ state: 'detached' });
     };
     const disabled = async name => {
-      const buttons = page.getByRole('button', { name });
+      // Mobile disclosures keep secondary mutations out of the visible list;
+      // they must still be disabled before a user expands those actions.
+      const buttons = page.getByRole('button', { name, includeHidden: true });
+      await buttons.first().waitFor({state:'attached'});
       assert.ok(await buttons.count(), `button missing: ${name}`);
       for (const button of await buttons.all()) assert.ok(await button.isDisabled(), `${viewport.width}: ${name} must be disabled`);
     };
@@ -45,7 +47,7 @@ try {
     await page.getByRole('button', { name: 'Fermer', exact: true }).click();
     await page.getByRole('button', { name: /^Archivés/ }).click(); await disabled(/^Réactiver$/);
     await navigate('Produits & services');
-    for (const name of [/^Nouvelle référence$/, /^Importer Excel$/, /^Modifier Produit/, /^Archiver Produit/, /^Entrée$/, /^Sortie$/, /^Correction$/]) await disabled(name);
+    for (const name of [/^Nouvelle référence$/, /^Importer Excel$/, /^Modifier Produit/, /^Archiver Produit/, /^Entrée$/, /^Sortie$/, /^Inventaire$/]) await disabled(name);
     await page.getByRole('button', { name: /Historique/ }).click();
     await capture('catalogue');
     await page.locator('.catalog-filters select').last().selectOption('archived');
@@ -53,7 +55,7 @@ try {
     await navigate('Temps');
     for (const name of [/^Facturer les heures/, /^Démarrer$/, /Modifier/, /Supprimer|Archiver/]) await disabled(name);
     await navigate('Équipe & salaires');
-    for (const name of [/^Nouveau collaborateur$/, /^Modifier/, /Désactiver|Supprimer/]) await disabled(name);
+    for (const name of [/^Nouvelle fiche de personnel$/, /^Modifier/, /Désactiver|Supprimer/]) await disabled(name);
     await navigate('Devis');
     for (const name of [/^Modifier le devis/, /^Créer une version modifiable/, /^Émettre le devis/, /^Supprimer le brouillon/, /^Marquer le devis/, /^Créer la facture$/, /^Planifier$/, /^Annuler l.acceptation$/]) await disabled(name);
     await page.getByRole('button', { name: /Aperçu du devis Aménagement/ }).click();
@@ -73,18 +75,35 @@ try {
     // Revocation while a populated form is open preserves the typed draft and
     // prevents submit. Restoring write access saves exactly once.
     await page.evaluate(() => window.__qaSetReadOnly(false));
+    await navigate('Produits & services');
+    await page.getByRole('button',{name:'Importer Excel',exact:true}).click();
+    const importer = page.getByRole('dialog',{name:'Importer un catalogue fournisseur',exact:true});
+    await importer.locator('input[type=file]').setInputFiles({name:'recette.csv',mimeType:'text/csv',buffer:Buffer.from('Référence;Nom;Prix achat;Prix de vente;TVA\nQA-ONLY;Article de recette;10;20;8.1\n')});
+    const importButton = importer.getByRole('button',{name:'Importer (1)',exact:true});
+    await importButton.waitFor();assert.ok(await importButton.isEnabled());
+    await page.evaluate(() => window.__qaSetReadOnly(true));
+    await importer.getByText('Mode lecture seule : les modifications ne peuvent pas être enregistrées.',{exact:true}).waitFor();
+    assert.ok(await importButton.isDisabled());
+    assert.ok(await importer.getByRole('button',{name:'Annuler',exact:true}).isEnabled());
+    await capture('revoked-catalog-import');
+    await importer.getByRole('button',{name:'Annuler',exact:true}).click();
+    await importer.waitFor({state:'detached'});
+    await page.evaluate(() => window.__qaSetReadOnly(false));
     await navigate('Clients');
     await page.getByRole('button', { name: /^Actifs/ }).click();
     await page.getByRole('button', { name: 'Modifier Résidence Bellevue', exact: true }).click();
     await page.getByRole('dialog').locator('input[name=company]').fill('Client modifié de recette');
-    for (const [name, value] of [['street', 'Rue de recette'], ['postalCode', '1000'], ['city', 'Lausanne'], ['country', 'CH']]) await page.getByRole('dialog').locator(`input[name=${name}]`).fill(value);
+    for (const [name, value] of [['street', 'Rue de recette'], ['postalCode', '1000'], ['city', 'Lausanne']]) await page.getByRole('dialog').locator(`input[name=${name}]`).fill(value);
+    await page.getByRole('dialog').locator('select[name=country]').selectOption('CH');
     assert.ok(await page.getByRole('dialog').locator('form').evaluate(form => form.checkValidity()));
     await page.evaluate(() => window.__qaSetReadOnly(true));
     await page.getByText('Mode lecture seule : les modifications ne peuvent pas être enregistrées.', { exact: true }).waitFor();
     await disabled(/^Enregistrer$/);
     await capture('revoked-form');
     await page.getByRole('dialog').locator('form').evaluate(form => form.requestSubmit());
-    await page.locator('.notice--error').waitFor();
+    // The contact editor rejects a revoked submission before calling the
+    // mutation runner. Its existing read-only explanation remains visible.
+    await page.getByText('Mode lecture seule : les modifications ne peuvent pas être enregistrées.', { exact: true }).waitFor();
     assert.deepEqual(await page.evaluate(() => JSON.parse(sessionStorage.getItem('readonly-mutation-calls') || '[]')), []);
     assert.equal(await page.getByRole('dialog').locator('input[name=company]').inputValue(), 'Client modifié de recette');
     assert.ok(await page.getByRole('button', { name: 'Annuler', exact: true }).isEnabled());
@@ -101,9 +120,13 @@ try {
       await input.fill('Saisie conservée');
       await page.evaluate(() => window.__qaSetReadOnly(true));
       await page.getByText('Mode lecture seule : les modifications ne peuvent pas être enregistrées.', { exact: true }).waitFor();
-      await disabled(/^Enregistrer$/);
+      const submit = page.getByRole('dialog').locator('button[type="submit"]');
+      await submit.waitFor({state:'attached'});
+      assert.ok(await submit.isDisabled(), `${screen}: revoked form must not submit`);
+      assert.equal(await submit.locator('.spin').count(), 0, `${screen}: read-only is not a save in progress`);
       assert.equal(await input.inputValue(), 'Saisie conservée');
       assert.ok(await page.getByRole('button', { name: 'Annuler', exact: true }).isEnabled());
+      await capture(`revoked-${screen}-${editor}`);
       await page.getByRole('button', { name: 'Annuler', exact: true }).click();
       await page.evaluate(() => window.__qaSetReadOnly(false));
     }

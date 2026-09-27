@@ -32,7 +32,7 @@ try {
     await page.setViewportSize({ width, height: 900 });
     for (const [module, button, slug] of [
       ['Clients', 'Nouveau client', 'client'], ['Produits & services', 'Nouvelle référence', 'catalogue'],
-      ['Équipe & salaires', 'Nouveau collaborateur', 'collaborateur'], ['Agenda', 'Ajouter', 'agenda'],
+      ['Équipe & salaires', 'Nouvelle fiche de personnel', 'collaborateur'], ['Agenda', 'Ajouter', 'agenda'],
       ['Achats & fournisseurs', 'Nouvelle commande', 'commande-achat'], ['Achats & fournisseurs', 'Facture fournisseur', 'facture-achat'],
     ]) {
       await go(module);

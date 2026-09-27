@@ -15,9 +15,9 @@ for (const [engine, driver] of [['edge', chromium], ['webkit', webkit]]) {
       const errors = []; page.on('pageerror', error => errors.push(error.message));
       try {
         await page.clock.setFixedTime(new Date('2028-01-15T12:00:00Z'));
+        await page.addInitScript(()=>localStorage.setItem('elyko-guided-tour-v3','completed'));
         await page.goto(`${base}/tests/mobile-harness.html?browsing=1&recurrence=1`);
         const dismiss = page.getByRole('button', { name: 'Fermer le guide automatique', exact: true });
-        await dismiss.click();
         await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
         await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Commandes & livraisons');
         await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Commandes & livraisons', { exact: true }) }).click();
@@ -52,6 +52,16 @@ for (const [engine, driver] of [['edge', chromium], ['webkit', webkit]]) {
         assert.ok(dateHelp.top >= 0 && dateHelp.bottom <= dateHelp.footer, `Date correction remains visible: ${JSON.stringify(dateHelp)}`);
         await editor.getByRole('button', { name: /Utiliser le/ }).click();
         await date.fill('2028-04-30');
+        await page.evaluate(()=>window.__qaSetReadOnly(true));
+        await page.waitForFunction(()=>document.querySelector('.recurring-editor-modal button[type=submit]')?.disabled);
+        assert.ok(await editor.locator('button[type=submit]').isDisabled());
+        assert.equal(await editor.locator('.form-actions .spin').count(),0);
+        assert.ok(await editor.getByRole('button',{name:'Annuler',exact:true}).isEnabled());
+        assert.equal(await date.inputValue(),'2028-04-30');
+        await editor.locator('form').evaluate(form=>form.requestSubmit());
+        assert.equal((await updates()).length,0);
+        await page.evaluate(()=>window.__qaSetReadOnly(false));
+        await page.waitForFunction(()=>!document.querySelector('.recurring-editor-modal button[type=submit]')?.disabled);
         await page.evaluate(() => sessionStorage.setItem('qa-recurrence-update-failure', 'reject'));
         await editor.getByRole('button', { name: 'Enregistrer la date de fin', exact: true }).click();
         await editor.getByRole('alert').waitFor();

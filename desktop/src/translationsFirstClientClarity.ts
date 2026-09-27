@@ -1,4 +1,13 @@
 export const firstClientClarityTranslations: Record<string,readonly [string,string,string]> = {
+  'Personnel':['Personal','Personale','Staff'],
+  'Bulletins':['Abrechnungen','Buste paga','Payslips'],
+  'Fiches de personnel':['Personalakten','Schede del personale','Staff records'],
+  'Nouvelle fiche de personnel':['Neue Personalakte','Nuova scheda personale','New staff record'],
+  'Aucune fiche de personnel':['Noch keine Personalakten','Nessuna scheda personale','No staff records yet'],
+  'Créez une fiche pour préparer un contrat ou un salaire.':['Erstellen Sie eine Personalakte für Verträge oder Lohnabrechnungen.','Crea una scheda per preparare un contratto o una busta paga.','Create a staff record to prepare a contract or payslip.'],
+  'Ces fiches servent aux contrats et à la paie. Elles ne donnent pas accès à Zentra.':['Diese Akten dienen Verträgen und Lohnabrechnungen. Sie gewähren keinen Zugang zu Zentra.','Queste schede servono per contratti e stipendi. Non concedono accesso a Zentra.','These records are for contracts and payroll. They do not grant access to Zentra.'],
+  'Gérer les accès à Zentra':['Zugänge zu Zentra verwalten','Gestisci gli accessi a Zentra','Manage access to Zentra'],
+  'Enregistrez les informations pour les contrats et la paie. Cette fiche ne crée pas de compte de connexion.':['Erfassen Sie Angaben für Verträge und Lohnabrechnungen. Diese Akte erstellt kein Benutzerkonto.','Registra le informazioni per contratti e stipendi. Questa scheda non crea un account di accesso.','Save the details for contracts and payroll. This record does not create a login account.'],
   'Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.':['Diese Rechnung ist in den auf diesem Gerät geladenen Daten nicht verfügbar. Prüfen Sie ihren Status im Einkauf.','Questa fattura non è disponibile nei dati caricati su questo dispositivo. Controlla il suo stato negli acquisti.','This invoice is not available in the data loaded on this device. Check its status in Purchases.'],
   'Création : récente d’abord':['Erstellt: neueste zuerst','Creazione: più recenti prima','Created: newest first'],
   'Création : ancienne d’abord':['Erstellt: älteste zuerst','Creazione: più vecchi prima','Created: oldest first'],

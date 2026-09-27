@@ -1,4 +1,10 @@
 /* Identity comes before specialised configuration; keep the logo a compact control. */
+html[data-app-theme] .desktop-app[data-experience] .team-access-guide {
+  display:flex; align-items:center; justify-content:space-between; gap:12px 24px;
+  padding-block:12px; margin-bottom:20px; border-bottom:1px solid var(--work-line);
+}
+html[data-app-theme] .desktop-app[data-experience] .team-access-guide p {margin:0; max-width:60ch; color:var(--work-muted); font-size:14px; line-height:1.5;}
+html[data-app-theme] .desktop-app[data-experience] .team-access-guide .button {flex-shrink:0; min-height:44px; white-space:normal;}
 html[data-app-theme] [data-settings-id="company"] .company-logo-setting {
   grid-template-columns: 72px minmax(0, 1fr);
   align-items: start;
@@ -24,6 +30,8 @@ html[data-app-theme] [data-settings-id="company"] .company-logo-setting__preview
 [data-settings-id="company"] .company-logo-setting .button { min-height: 44px; }
 [data-settings-id="company"] .company-logo-setting .path-note { overflow-wrap: anywhere; }
 @media (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .team-access-guide {align-items:flex-start; flex-direction:column; gap:4px;}
+  html[data-app-theme] .desktop-app[data-experience] .team-access-guide .button {padding-left:0; text-align:left;}
   html[data-app-theme] .desktop-app[data-experience][data-view="automation"] .automation-hub__navigation {grid-template-columns: minmax(0,.9fr) minmax(0,.8fr) minmax(0,1.3fr);}
   html[data-app-theme] .desktop-app[data-experience][data-view="automation"] .automation-hub__navigation button {overflow-wrap: normal; word-break: normal; padding-inline: 3px;}
   html[data-app-theme] [data-settings-id="company"] .company-logo-setting { grid-template-columns: 56px minmax(0, 1fr); gap: 12px; }

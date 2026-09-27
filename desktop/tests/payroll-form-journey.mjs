@@ -36,7 +36,7 @@ try {
     await search.fill('personne-inconnue');
     await page.getByText('Aucun collaborateur correspondant', { exact: true }).waitFor();
     await search.fill('');
-    await page.locator('.team-screen').getByRole('button', { name: 'Nouveau collaborateur', exact: true }).click();
+    await page.locator('.team-screen').getByRole('button', { name: 'Nouvelle fiche de personnel', exact: true }).click();
     const modal = page.getByRole('dialog');
     await modal.locator('input[name=name]').fill('Alex de recette');
     await modal.locator('input[name=role]').fill('Responsable administratif');

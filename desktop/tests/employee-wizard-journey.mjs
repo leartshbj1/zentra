@@ -30,7 +30,7 @@ for (const [engine, browserType] of [['edge', chromium], ['webkit', webkit]]) {
       await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
       await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill('Équipe & salaires');
       await page.locator('.navigation-palette__results button').filter({ has: page.getByText('Équipe & salaires', { exact: true }) }).click();
-      await page.getByRole('button', { name: 'Nouveau collaborateur', exact: true }).click();
+      await page.getByRole('button', { name: 'Nouvelle fiche de personnel', exact: true }).click();
       const modal = page.getByRole('dialog');
       const next = modal.getByRole('button', { name: 'Continuer', exact: true });
       await next.click();

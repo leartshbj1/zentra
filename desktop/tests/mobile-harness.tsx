@@ -281,7 +281,7 @@ function Harness() {
     },
   });
   if (new URLSearchParams(location.search).has('assistantOnboarding')) return <Suspense fallback={null}><Onboarding onComplete={async()=>{}} onRestore={async()=>{}} /></Suspense>;
-  if (['agendaGuided', 'settingsRecovery', 'payslipPosting', 'creationOutcome', 'contactFolder', 'readOnlyAudit', 'wizard', 'quotePair', 'accountingSetup', 'periodGuide', 'closing'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
+  if (['recurrence', 'agendaGuided', 'settingsRecovery', 'payslipPosting', 'creationOutcome', 'contactFolder', 'readOnlyAudit', 'wizard', 'quotePair', 'accountingSetup', 'periodGuide', 'closing'].some(key => new URLSearchParams(location.search).has(key))) Object.assign(window, { __qaSetReadOnly: setReadOnly });
   if (new URLSearchParams(location.search).has('agendaGuided')) Object.assign(window, { __qaAgendaRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('payslipPosting')) Object.assign(window, { __qaReloadPosting: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('updater')) return <main><h1>Accueil de recette</h1><button type="button">Action de fond</button><StandaloneUpdaterAccess /></main>;

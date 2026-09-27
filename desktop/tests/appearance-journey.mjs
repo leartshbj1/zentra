@@ -60,7 +60,7 @@ try{
    }
    await page.waitForTimeout(250);await check(name,true);
    if(name==='Équipe & salaires'){
-    await page.getByRole('button',{name:'Nouveau collaborateur',exact:true}).click();await check('Employee-form',true);assert.equal(await page.locator('.payroll-steps').evaluate(el=>getComputedStyle(el).listStyleType),'none');await page.getByRole('dialog').getByRole('button',{name:/^Fermer /}).click();
+    await page.getByRole('button',{name:'Nouvelle fiche de personnel',exact:true}).click();await check('Employee-form',true);assert.equal(await page.locator('.payroll-steps').evaluate(el=>getComputedStyle(el).listStyleType),'none');await page.getByRole('dialog').getByRole('button',{name:/^Fermer /}).click();
     for(const label of ['Fiches de salaire','Certificats annuels']){await page.locator('.team-navigation button').filter({hasText:label}).click();await check('Team-'+label,true);}
    }
    if(name==='Devis'||name==='Factures'){
