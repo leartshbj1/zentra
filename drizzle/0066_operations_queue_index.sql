@@ -1,0 +1,1 @@
+CREATE INDEX `support_ticket_operations` ON `support_tickets` (`state`,`connection_id`,`workspace_id`,`created_at`,`lease_until`);

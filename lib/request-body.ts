@@ -7,7 +7,9 @@ export class RequestBodyError extends Error {
   }
 }
 
-function assertDeclaredLength(request: Request, maxBytes: number) {
+type ReadableBody = Pick<Request, 'headers' | 'body'>;
+
+function assertDeclaredLength(request: ReadableBody, maxBytes: number) {
   const declared = request.headers.get('Content-Length');
   if (!declared) return;
   if (!/^\d+$/.test(declared)) {
@@ -19,7 +21,7 @@ function assertDeclaredLength(request: Request, maxBytes: number) {
 }
 
 export async function readBytesBodyWithinLimit(
-  request: Request,
+  request: ReadableBody,
   maxBytes: number,
 ) {
   assertDeclaredLength(request, maxBytes);
@@ -51,7 +53,7 @@ export async function readBytesBodyWithinLimit(
   return bytes;
 }
 
-export async function readTextBodyWithinLimit(request: Request, maxBytes: number) {
+export async function readTextBodyWithinLimit(request: ReadableBody, maxBytes: number) {
   const bytes = await readBytesBodyWithinLimit(request, maxBytes);
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -61,7 +63,7 @@ export async function readTextBodyWithinLimit(request: Request, maxBytes: number
 }
 
 export async function readJsonObjectWithinLimit(
-  request: Request,
+  request: ReadableBody,
   maxBytes: number,
 ): Promise<Record<string, unknown>> {
   const contentType =
