@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 18 h 03 (Europe/Zurich). Ce document décrit la livraison courante ; les notes `RELEASE-*` conservent son historique.
+Mis à jour le 27 septembre 2026, 18 h 30 (Europe/Zurich). Ce document décrit la livraison courante ; les notes `RELEASE-*` conservent son historique.
 
 ## Fichiers proposés au public
 
@@ -19,11 +19,13 @@ Preuves locales : `outputs/release1904/SOURCES.json`, `github-published-proof.js
 
 ## Site et services
 
-**Site 288**, source `1271b2f7fbcad8776c684d02b6a0e4b4c22bcdf3`, déployé le 27 septembre à 17 h 37, configuration 36. Déploiement : `appgdep_6ab938382c0881919c5865425fe63eb3`. Il conserve les lots précédents et ajoute le canal de mise à jour indépendant des comptes. Les trois manifestes `/updates/` sont vérifiés en production à 17 h 38 : HTTP 200 anonymes, contenu exact, `no-store`. Aucun nouveau paquet proposé ; ils décrivent 1.90.4. [Détail et transition](CANAL-MISE-A-JOUR-20260927.md).
+**Site 290**, source `b9d433ebb365ff46a7adc912338586e12bfa393a`, déployé le 27 septembre à 18 h 29, configuration 37. Déploiement : `appgdep_6ab9445169048191a97c36766a9658db`. Il ajoute le contrôle privé des services et conserve le canal de mise à jour indépendant des comptes de Sites 288. Les trois manifestes `/updates/` ont été vérifiés en production à 17 h 38 : HTTP 200 anonymes, contenu exact, `no-store`. Aucun nouveau paquet proposé ; ils décrivent 1.90.4. [Détail et transition](CANAL-MISE-A-JOUR-20260927.md).
+
+**Supervision à 18 h 30 :** le contrôle autorisé `/api/operations/health` répond 503 en 284 ms : Supabase restreint, statut 402, planificateur inactif et une boîte dont l'échéance remonte au 24 septembre à 23 h 38 UTC. Les lectures des files réussissent ; aucun ticket ni règle en erreur n'est compté, ce qui ne prouve pas leur traitement autonome. Les accès anonyme et avec mauvaise clé renvoient 401. Aucun contenu client ni secret retourné. 69 tests isolés, TypeScript, lint, build et une recette workerd de redirection passent. Le premier déploiement 289 comportait une incompatibilité `redirect: error`, corrigée et revérifiée dans 290. **Aucun moniteur externe ni réception d'alerte encore validés.** [Portée et preuves](SUPERVISION-SERVICES-20260927.md).
 
 **Planificateur non rétabli :** GitHub `support-mail-sync.yml` reste `disabled_manually` au contrôle de 17 h 20, dernière exécution observée le 20 septembre en échec. Aucun drapeau d’arrière-plan ajouté. La migration serveur 0065 empêche une fin ancienne ou rejouée de masquer un traitement récent bloqué. 84 tests isolés, TypeScript, lint, ressources de marque et compilation réussis. Le client planifié corrigé signale aussi une file non terminée à sa limite de temps ou de lots ; il est conservé dans le dépôt Sites, mais n’a pas été installé dans la branche GitHub exécutée par le planificateur. Ni traitement réel fermé, ni réception d’une alerte, ni capacité de 150 entreprises prouvés. Voir le lot serveur `docs/SCHEDULER-CONCURRENCE-20260927.md`.
 
-**Connexion non rétablie :** le contrôle synthétique du 27 septembre à 16 h 53 a reçu HTTP 503 en 3,52 s, `Retry-After: 60`, `no-store`. Le contrôle direct Supabase à **17 h 26** confirme désormais **HTTP 402**, `exceed_egress_quota` et `exceed_storage_size_quota`. Aucun compte ni e-mail créé. Une capture de l’offre et de l’usage est demandée ; aucun abonnement d’hébergement modifié. Les essais réels de collaboration, d’abonnement et d’envoi partagé restent à faire.
+**Connexion non rétablie :** le contrôle synthétique du 27 septembre à 16 h 53 a reçu HTTP 503 en 3,52 s, `Retry-After: 60`, `no-store`. Le contrôle direct Supabase à **17 h 26** confirmait **HTTP 402**, `exceed_egress_quota` et `exceed_storage_size_quota` ; le nouveau contrôle serveur confirme encore 402 à **18 h 30**. Aucun compte ni e-mail créé. Une capture de l’offre et de l’usage est demandée ; aucun abonnement d’hébergement modifié. Les essais réels de collaboration, d’abonnement et d’envoi partagé restent à faire.
 
 ## Sources plus récentes, pas encore dans un installateur
 
