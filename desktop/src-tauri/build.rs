@@ -20,6 +20,13 @@ fn main() {
         println!("cargo:rustc-cdylib-link-arg=-Wl,--exclude-all-symbols");
     }
 
+    // NDK r27 does not default to 16 KB pages. Set both load-segment and
+    // RELRO alignment for the Android cdylib, including optimized releases.
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
+        println!("cargo:rustc-cdylib-link-arg=-Wl,-z,max-page-size=16384");
+        println!("cargo:rustc-cdylib-link-arg=-Wl,-z,common-page-size=16384");
+    }
+
     if env::var("PROFILE").as_deref() == Ok("release") {
         let public_key = load_release_public_key();
         println!("cargo:rustc-env={LICENSE_PUBLIC_KEY_ENV}={public_key}");

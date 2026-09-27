@@ -47,11 +47,13 @@ def check_elf(data, name):
         raise ValueError(f'Invalid ELF program headers: {name}')
     loads = 0
     for i in range(count):
-        ptype, _, file_offset, virtual, _, _, _, alignment = struct.unpack_from('<IIQQQQQQ', data, offset + i * size)
+        ptype, _, file_offset, virtual, _, _, memory_size, alignment = struct.unpack_from('<IIQQQQQQ', data, offset + i * size)
         if ptype == 1:
             loads += 1
             if alignment < 16384 or alignment & (alignment - 1) or (file_offset - virtual) % 16384:
                 raise ValueError(f'Library does not support 16K pages: {name}')
+        if ptype == 0x6474e552 and (virtual + memory_size) % 16384:
+            raise ValueError(f'Library RELRO does not end on a 16K page: {name}')
     if not loads:
         raise ValueError(f'No ELF load segments: {name}')
     return loads

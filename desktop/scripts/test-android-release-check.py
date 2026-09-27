@@ -63,6 +63,15 @@ class AndroidReleaseChecks(unittest.TestCase):
                 archive.writestr('lib/arm64-v8a/a.so', elf())
             self.assertEqual(len(check.check_archive(apk)), 1)
 
+    def test_relro_must_end_at_a_page_boundary(self):
+        data = elf() + bytearray(56)
+        struct.pack_into('<H', data, 56, 2)
+        struct.pack_into('<IIQQQQQQ', data, 120, 0x6474e552, 4, 0, 0x4300, 0, 0x100, 0x3d00, 1)
+        self.assertEqual(check.check_elf(data, 'app.so'), 1)
+        struct.pack_into('<Q', data, 120 + 40, 0x100)
+        with self.assertRaisesRegex(ValueError, 'RELRO'):
+            check.check_elf(data, 'app.so')
+
 
 if __name__ == '__main__':
     unittest.main()
