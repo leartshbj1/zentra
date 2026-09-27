@@ -186,6 +186,8 @@ Le [rapport de blocage courant](C:/Users/alb/.codex/worktrees/zentra-workflows-p
 
 ## Démarrage et restauration
 
+Complément du 27 septembre : chargement de la langue choisie dans `2174c3a4`, puis pagination Clients/Projets. [Démarrage des langues](DEMARRAGE-LANGUES-20260927.md) et [listes volumineuses](LISTES-VOLUMINEUSES-20260927.md) distinguent précisément mesures locales, tests et livraison. Les listes à 2 200 clients / 2 000 projets / 4 000 factures passent d’environ 1,8–8,9 s à 81–156 ms dans la recette locale ; recherche globale et compteurs conservés. 1 749 tests frontend, TypeScript, Vite et 12 parcours navigateur réussis ; revue indépendante `ship` et documentation terminées. Ces deux lots restent absents des installateurs 1.90.3 et ne rétablissent pas les quotas Supabase ni la réception autonome de production.
+
 - `desktop/.qa/startup-lazy/proof.json` : huit parcours Edge/WebKit, 390/1440 px, configuration nouvelle ou entreprise existante. Le compte distant simulé dure dix secondes ; l’espace local s’affiche entre 452 et 590 ms après installation de la fixture. Une seule vérification de compte, aucun téléchargement du guide pour l’entreprise déjà configurée. Mesure Vite locale, pas une promesse sur appareil réel.
 - `desktop/.qa/runtime-speed/entry-before.json` et `entry-after.json` : graphe d’imports statiques construit depuis le HTML et les fichiers de production, imports dynamiques exclus. 184 449 octets JS bruts en moins ; aucun gain CSS annoncé.
 - 32 tests ciblés ouverture/compte/configuration ; TypeScript et Vite réussis. Revue limitée au démarrage et au fond de connexion : ship. Aucune nouvelle étape de connexion ni autorisation changée.

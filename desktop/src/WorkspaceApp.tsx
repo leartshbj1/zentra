@@ -14,6 +14,7 @@ import { SupplierInvoiceValidationOutcomeUnknownError, SupplierInvoiceValidation
 import { t, useAppLanguage, getAppLocale } from './language';
 import { Languages } from 'lucide-react';
 import { LanguageSetting } from './LanguageSetting';
+import {CollectionPagination,useCollectionPage} from './CollectionPagination';
 import {CustomerSettlementOutcomeUnknownError,CustomerSettlementRefreshError} from './customerSettlementWorkflow';
 import { PaymentForm } from './PaymentForm';
 import { PaymentOutcomeUnknownError, PaymentRefreshError } from './paymentWorkflow';
@@ -2894,19 +2895,19 @@ function ProjectsScreen({
     workspace.settings!.business.nogaSection,
   );
   const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
-  const projects = workspace.projects.filter((project) =>
+  const clientsById=useMemo(()=>new Map(workspace.clients.map(client=>[client.id,client])),[workspace.clients]);
+  const projects = useMemo(()=>workspace.projects.filter((project) =>
     (statusFilter === 'all' || project.status === statusFilter) && searchText(
       [
         project.name,
         project.address,
-        workspace.clients.find((client) => client.id === project.clientId)
-          ?.name,
-        workspace.clients.find((client) => client.id === project.clientId)
-          ?.company,
+        clientsById.get(project.clientId)?.name,
+        clientsById.get(project.clientId)?.company,
       ],
       query,
     ),
-  );
+  ),[workspace.projects,clientsById,statusFilter,query]);
+  const pagination=useCollectionPage(projects,JSON.stringify([statusFilter,query]),12);
   const hasActiveClient = workspace.clients.some(
     (client) => !client.archivedAt,
   );
@@ -2971,7 +2972,7 @@ function ProjectsScreen({
           <option value="all">{t('Tous les projets ({count})', {count: workspace.projects.length})}</option>
           {(['planned', 'in_progress', 'paused', 'completed', 'closed'] as const).map((status) => <option key={status} value={status}>{t(({ planned: 'Planifiés', in_progress: 'En cours', paused: 'En pause', completed: 'Terminés', closed: 'Clôturés' })[status])} ({workspace.projects.filter((project) => project.status === status).length})</option>)}
         </select>
-        <span role="status">{t(query ? projects.length === 1 ? '{count} projet trouvé' : '{count} projets trouvés' : projects.length === 1 ? '{count} projet affiché' : '{count} projets affichés', {count: projects.length})}</span>
+        {pagination.pageCount===1?<span role="status">{t(query ? projects.length === 1 ? '{count} projet trouvé' : '{count} projets trouvés' : projects.length === 1 ? '{count} projet affiché' : '{count} projets affichés', {count: projects.length})}</span>:null}
         {statusFilter !== 'all' ? <Button variant="ghost" size="small" onClick={() => setStatusFilter('all')}>{t('Tous les états')}</Button> : null}
       </div> : null}
 
@@ -2993,11 +2994,11 @@ function ProjectsScreen({
           onFocusItemHandled={() => setPlanningTarget(null)}
         />
       ) : (
+        <div className="collection-page-start" ref={pagination.startRef} tabIndex={-1} role="group" aria-label={t('Liste des projets')}>
+        <CollectionPagination pagination={pagination} label={t('Pages des projets')}/>
         <div className="project-card-grid">
-          {projects.map((project) => {
-            const client = workspace.clients.find(
-              (item) => item.id === project.clientId,
-            );
+          {pagination.items.map((project) => {
+            const client = clientsById.get(project.clientId);
             const stats = projectFinancials(
               project,
               workspace.invoices,
@@ -3104,6 +3105,8 @@ function ProjectsScreen({
             </div>
           ) : null}
         </div>
+        <CollectionPagination pagination={pagination} label={t('Pages des projets')} announce={false}/>
+        </div>
       )}
     </div>
   );
@@ -3135,7 +3138,12 @@ function ClientsScreen({
     (client) => !client.archivedAt,
   ).length;
   const archivedCount = workspace.clients.length - activeCount;
-  const clients = workspace.clients.filter(
+  const projectsByClient=useMemo(()=>{
+    const counts=new Map<string,number>();
+    for(const project of workspace.projects)counts.set(project.clientId,(counts.get(project.clientId)??0)+1);
+    return counts;
+  },[workspace.projects]);
+  const clients = useMemo(()=>workspace.clients.filter(
     (client) =>
       (visibility === 'archived'
         ? Boolean(client.archivedAt)
@@ -3150,7 +3158,8 @@ function ClientsScreen({
         ],
         query,
       ),
-  );
+  ),[workspace.clients,visibility,query]);
+  const pagination=useCollectionPage(clients,JSON.stringify([visibility,query]),25);
   if (!workspace.clients.length)
     return (
       <EmptyState disabled={mutationsDisabled}
@@ -3184,6 +3193,8 @@ function ClientsScreen({
         </button>
         <p>{t('Archiver conserve tout l’historique commercial et comptable.')}</p>
       </div>
+      <div className="collection-page-start" ref={pagination.startRef} tabIndex={-1} role="group" aria-label={t('Liste des clients')}>
+      <CollectionPagination pagination={pagination} label={t('Pages des clients')}/>
       <div className="panel table-panel">
         <table>
           <thead>
@@ -3191,12 +3202,12 @@ function ClientsScreen({
               <th>{t('Client')}</th>
               <th>{t('Coordonnées')}</th>
               <th>{t('Adresse')}</th>
-              <th>{terminology.pluralTitle}</th>
+              <th>{t(terminology.pluralTitle)}</th>
               <th aria-label={t('Actions')} />
             </tr>
           </thead>
           <tbody>
-            {clients.map((client) => {
+            {pagination.items.map((client) => {
               return (
                 <tr key={client.id}>
                   <td>
@@ -3232,11 +3243,7 @@ function ClientsScreen({
                   </td>
                   <td>
                     <span className="count-pill">
-                      {
-                        workspace.projects.filter(
-                          (project) => project.clientId === client.id,
-                        ).length
-                      }
+                      {projectsByClient.get(client.id)??0}
                     </span>
                   </td>
                   <td>
@@ -3301,6 +3308,8 @@ function ClientsScreen({
             )}
           />
         ) : null}
+      </div>
+      <CollectionPagination pagination={pagination} label={t('Pages des clients')} announce={false}/>
       </div>
     </div>
   );

@@ -1,0 +1,9 @@
+.collection-page-start { scroll-margin-block-start: 144px; }
+.collection-page-start:focus-visible { outline: 2px solid var(--work-accent); outline-offset: 4px; }
+.collection-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-block: 8px; }
+.collection-pagination > span { min-width: 0; color: var(--muted); text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.collection-pagination .button { min-height: 44px; min-width: 44px; flex-shrink: 0; }
+@media (max-width: 540px) {
+  .collection-pagination__label { display: none; }
+  .collection-pagination .button { padding-inline: 12px; }
+}
