@@ -177,6 +177,13 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-1903:
+    when:
+      equal: [codex/first-client-release-1903, << pipeline.git.branch >>]
+    jobs:
+      - windows
+      - apple
+      - android
   mail-logo-1902:
     when:
       equal: [codex/mail-logo-1902, << pipeline.git.branch >>]
