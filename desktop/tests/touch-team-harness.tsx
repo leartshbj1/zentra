@@ -31,7 +31,7 @@ desktopApi.joinCloudCompany=async()=>{test.calls.push('join');return {} as never
 // Development-only generated PDF; never uploaded or included in release artifacts.
 function pdf(){const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 600] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];const stream='BT /F1 24 Tf 30 550 Td (Plan de demonstration) Tj ET';objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);let s='%PDF-1.4\n';const offsets=[0];objects.forEach((o,i)=>{offsets.push(s.length);s+=`${i+1} 0 obj\n${o}\nendobj\n`;});const x=s.length;s+=`xref\n0 6\n0000000000 65535 f \n`+offsets.slice(1).map(o=>`${String(o).padStart(10,'0')} 00000 n \n`).join('')+`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`;return new TextEncoder().encode(s);}
 const bytes=pdf();
-function Fixture(){const [view,setView]=useState(params.get('view')||'account');return <><nav style={{padding:16}}>{['account','join','document','image','pdf','appearance'].map(v=><button key={v} onClick={()=>setView(v)}>{v}</button>)}</nav>
+function Fixture(){const [view,setView]=useState(params.get('view')||'account');return <><nav data-qa-fixture-toolbar style={{padding:16}}>{['account','join','document','image','pdf','appearance'].map(v=><button key={v} onClick={()=>setView(v)}>{v}</button>)}</nav>
 {view==='appearance'&&<AppearanceSetting/>}
 {view==='account'&&<CloudAccountPanel settings={initialOnboardingSettings}/>}
 {view==='join'&&<JoinCompany onClose={()=>setView('account')} onJoined={()=>setView('joined')}/>}

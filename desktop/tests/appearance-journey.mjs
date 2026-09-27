@@ -17,7 +17,9 @@ async function contrast(){return page.evaluate(()=>{
  const bg=el=>{const c=rgba(getComputedStyle(el).backgroundColor);return c[3]===1?c:blend(c,el.parentElement?bg(el.parentElement):[20,20,22])};
  const seen=new Set(),results=[];
  for(const el of document.querySelectorAll('body *')){
-  if(![...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())||el.closest('.print-root,.print-sheet,.print-page,.document-preview__paper,[data-document-colors],button:disabled,fieldset:disabled,[aria-hidden=true]'))continue;
+  // Fixture-only navigation is outside the shipped app (native browser button
+  // colors vary by host). All actual app controls remain under inspection.
+  if(![...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())||el.closest('[data-qa-fixture-toolbar],.print-root,.print-sheet,.print-page,.document-preview__paper,[data-document-colors],button:disabled,fieldset:disabled,[aria-hidden=true]'))continue;
   const rect=el.getBoundingClientRect(),s=getComputedStyle(el);if(!rect.width||!rect.height||s.visibility==='hidden'||!el.checkVisibility())continue;
   const back=bg(el),a=lum(back),b=lum(blend(rgba(s.color),back)),ratio=(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
   const key=el.className+'|'+s.color+'|'+back.join(',');if(seen.has(key))continue;seen.add(key);
