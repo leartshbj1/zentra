@@ -28,6 +28,36 @@ parameters:
     default: ""
 
 jobs:
+  iphone-brand-1906:
+    macos:
+      xcode: "26.4.1"
+    resource_class: m4pro.medium
+    environment:
+      RUSTUP_TOOLCHAIN: stable
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - run:
+          name: Checkout the iPhone packaging correction over HTTPS
+          command: |
+            set -euo pipefail
+            git init .
+            git remote add origin https://github.com/leartshbj1/zentra.git
+            git fetch --depth 1 origin "$CIRCLE_SHA1"
+            git checkout --detach FETCH_HEAD
+            test "$(git rev-parse HEAD)" = "$CIRCLE_SHA1"
+      - run:
+          name: Verify icon installation and compiled PNG decoding
+          command: python3 desktop/scripts/test_ios_icons.py
+      - run:
+          name: Prepare Apple build tools
+          command: bash desktop/scripts/cloud-release-apple.sh prepare
+      - run:
+          name: Build iPhone package with the approved Zentra icons
+          command: bash desktop/scripts/cloud-release-apple.sh iphone
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts
+          destination: apple
   windows-updater-channel-tests:
     resource_class: windows.medium
     machine:
@@ -270,6 +300,11 @@ jobs:
           destination: apple
 
 workflows:
+  iphone-brand-1906:
+    when:
+      equal: [codex/release-1.90.6-iphone-icons, << pipeline.git.branch >>]
+    jobs:
+      - iphone-brand-1906
   first-client-package-1906:
     when:
       equal: [codex/release-1.90.6-smoke, << pipeline.git.branch >>]

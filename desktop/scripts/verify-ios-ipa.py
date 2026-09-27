@@ -9,6 +9,7 @@ import plistlib
 import shutil
 import struct
 import zipfile
+from ios_icons import verify_ipa_icons
 
 
 def verify(ipa):
@@ -68,6 +69,7 @@ def verify(ipa):
         "physical_device_tested": False,
         "size_bytes": ipa.stat().st_size,
         "sha256": hashlib.file_digest(ipa.open("rb"), "sha256").hexdigest(),
+        "brand_icons": verify_ipa_icons(ipa),
     }
 
 

@@ -40,6 +40,7 @@ iphone)
   [[ "${sdk%%.*}" -ge 26 ]]
   rustup target add aarch64-apple-ios
   pnpm --dir desktop exec tauri ios init --ci --skip-targets-install
+  python3 desktop/scripts/ios_icons.py prepare
   pnpm --dir desktop mobile:ios:ipa
   python3 desktop/scripts/verify-ios-ipa.py desktop/src-tauri/gen/apple/build/arm64/Zentra.ipa --output-dir desktop/artifacts/iphone --source-revision "$(git rev-parse HEAD)"
   cp docs/INSTALL-IPHONE.md desktop/artifacts/iphone/INSTALL-IPHONE.md
