@@ -1,0 +1,25 @@
+.desktop-app[data-experience] .manual-backup__status {
+  color: var(--work-muted);
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0 0 20px;
+  overflow-wrap: anywhere;
+}
+.manual-backup__options { margin-top: 24px; }
+.manual-backup__options > summary {
+  min-height: 44px;
+  padding-block: 10px;
+  color: var(--work-ink);
+  cursor: pointer;
+  line-height: 1.5;
+}
+.manual-backup__options > summary:focus-visible {
+  outline: 2px solid var(--work-accent);
+  outline-offset: 4px;
+}
+.manual-backup__options .check-card { margin-top: 12px; }
+.desktop-app[data-experience] .manual-backup .path-note { font-size: 14px; line-height: 1.5; }
+@media (max-width: 860px) {
+  .desktop-app[data-experience] .manual-backup .section-heading { text-align: start; }
+  .manual-backup .settings-actions .button { width: 100%; min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+}

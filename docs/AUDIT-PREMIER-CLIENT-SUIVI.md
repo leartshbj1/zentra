@@ -2,6 +2,10 @@
 
 Objectif : traiter les vingt points de l’audit, avec des preuves adaptées. Aucun statut global « prêt » n’est déduit d’un build ou de tests simulés.
 
+**État courant au 27 septembre, 16 h 54 : 1.90.4 publiée.** Le tableau de référence est [ETAT-LIVRAISON.md](ETAT-LIVRAISON.md). Les mentions de 1.90.3 et de « non publié » dans les comptes rendus antérieurs ci-dessous restent des étapes historiques ; elles ne remplacent pas ce tableau. La connexion publique renvoie toujours 503 au dernier contrôle.
+
+## Historique des travaux et validations
+
 État de livraison : **1.90.3 publiée sur GitHub**, avec les lots natifs antérieurs au gel et une installation Windows contrôlée sur profil isolé. Le correctif de remboursement `055ac1b7` et les lots « Taille du texte », « Choix d’entreprise et Projets », « Rapports de projet », « Détail des montants », « Paramètres », « Navigation et outils Automation » et « Écrans vides », ajoutés après gel, restent **non publiés et absents de 1.90.3**. La restriction Supabase et le P1 restent ouverts ; les canaux de mise à jour intégrée ne sont pas promus.
 
 Audit : `C:/Users/alb/Documents/ChatGPT/chantier/outputs/audit-premier-client-20260927/AUDIT.md`. Les captures de référence utilisent l’interface réelle et une entreprise fictive ; elles ne sont pas une recette des appareils installés.

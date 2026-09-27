@@ -1,5 +1,7 @@
 # Zentra 1.90.4 — livraison vérifiée
 
+**État courant : publiée le 27 septembre à 13 h 26.** Consulter [l’état des livraisons](ETAT-LIVRAISON.md) pour les signatures, canaux et travaux non encore distribués. Les paragraphes de préparation ci-dessous sont historiques ; ils ne décrivent pas une publication encore en attente.
+
 Cette version rassemble les correctifs natifs postérieurs à 1.90.3 : remboursements après changement de droits, taille du texte, ouverture de l’entreprise, rapports PDF, détail des chiffres de l’accueil, recherche dans les réglages, navigation mobile, chargement de la langue choisie, pagination des grandes listes et personnalisation/import sur téléphone.
 
 Le 27 septembre 2026 : 1 749 tests frontend dans 218 fichiers et la compilation web complète passent sur la source préparée. Les recettes ciblées et leurs limites restent dans `AUDIT-PREMIER-CLIENT-SUIVI.md`. La compilation conserve un avertissement de poids de certains modules ; ce n’est pas une mesure de vitesse native.

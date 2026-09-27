@@ -12,6 +12,7 @@ import { ResetAppPanel } from './ResetAppPanel';
 import { SupplierPaymentOutcomeUnknownError, SupplierPaymentRefreshError, type SupplierPaymentResume } from './supplierPaymentWorkflow';
 import { SupplierInvoiceValidationOutcomeUnknownError, SupplierInvoiceValidationRefreshError } from './supplierInvoiceValidation';
 import { t, useAppLanguage, getAppLocale } from './language';
+import './manual-backup.css';
 import { Languages } from 'lucide-react';
 import { LanguageSetting } from './LanguageSetting';
 import {CollectionPagination,useCollectionPage} from './CollectionPagination';
@@ -4827,6 +4828,7 @@ function SettingsScreen({
   const [payrollDefinitionsRevision, setPayrollDefinitionsRevision] = useState(0);
   const settingsRecovery = useWorkspaceRecovery(() => desktopApi.loadWorkspace());
   const settingsActionInFlight = useRef(false);
+  const choosingRestoreFile = useRef(false);
   const org = settings.organization;
   const billing = settings.billing;
   const accountingReadiness = buildSetupReadiness(workspace, settings).steps.find(
@@ -4899,18 +4901,19 @@ function SettingsScreen({
   }
 
   async function restore() {
-    const source = await desktopApi.chooseRestoreFile();
-    if (
-      !source ||
-      !window.confirm(
-        'Une sauvegarde de sécurité sera créée avant le remplacement. Restaurer le fichier sélectionné ?',
-      )
-    )
-      return;
-    await execute(
-      () => desktopApi.restoreBackup(source),
-      'La sauvegarde a été restaurée et contrôlée.',
-    );
+    if (busy || choosingRestoreFile.current) return;
+    choosingRestoreFile.current = true;
+    try {
+      const source = await desktopApi.chooseRestoreFile();
+      if (!source) return;
+      const file = source.split(/[\\/]/).pop() || source;
+      if (!window.confirm(t('Restaurer « {file} » ? Les données de cet appareil seront remplacées. Une copie de sécurité sera conservée avant le remplacement.', { file }))) return;
+      await execute(() => desktopApi.restoreBackup(source), t('La sauvegarde a été restaurée et contrôlée.'));
+    } catch (reason) {
+      onNotice({ tone: 'error', text: errorMessage(reason, t('Le fichier n’a pas pu être ouvert. Choisissez à nouveau votre sauvegarde .zentra.')) });
+    } finally {
+      choosingRestoreFile.current = false;
+    }
   }
 
   async function exportPortableData(format: 'json' | 'csv') {
@@ -5674,29 +5677,32 @@ function SettingsScreen({
       <AppUpdater />
       <ResetAppPanel disabled={operationBusy} />
       <CloudBackupPanel disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
-        const next = await desktopApi.restoreCloudBackup(id);
-        onWorkspace(next); setSettings(next.settings!);
+        await execute(() => desktopApi.restoreCloudBackup(id), t('La sauvegarde a été restaurée et contrôlée.'), true);
       }} />
       <section
         id={SETTINGS_READINESS_TARGETS.backup}
-        className="panel settings-card settings-scroll-target"
+        className="panel settings-card settings-scroll-target manual-backup"
         tabIndex={-1}
       >
         <SectionHeading
-          eyebrow="Protection"
-          title="Sauvegardes manuelles"
-          description="Vos sauvegardes utilisent le format .zentra. Les anciennes sauvegardes de test ne peuvent plus être restaurées."
+          title={t('Sauvegardes manuelles')}
+          description={t('Vos données, documents et logo dans un fichier .zentra à conserver en lieu sûr.')}
         />
-        <div className="security-status">
-          <span>
-            <Database size={19} />
-          </span>
-          <div>
-            <strong>Base locale</strong>
-            <p>Les données actives restent sur cet appareil.</p>
-          </div>
-          <i />
+        <p className="manual-backup__status" role="status" data-backup-status>
+          {workspace.backupStatus.lastSuccessAt
+            ? t('Dernière copie créée : {date}', { date: formatDateTime(workspace.backupStatus.lastSuccessAt) })
+            : t('Aucune sauvegarde manuelle disponible sur cet appareil.')}
+        </p>
+        <div className="settings-actions">
+          <Button disabled={operationBusy} onClick={() => void backup()}>
+            <Download size={16} /> {t('Créer une sauvegarde')}
+          </Button>
+          <Button variant="secondary" disabled={busy} onClick={() => void restore()}>
+            <RefreshCw size={16} /> {t('Restaurer')}
+          </Button>
         </div>
+        <details className="manual-backup__options">
+        <summary>{t('Options de sauvegarde')}</summary>
         <label className="check-card settings-backup-confirmation">
           <input
             type="checkbox"
@@ -5713,11 +5719,8 @@ function SettingsScreen({
             }
           />
           <span>
-            <strong>Stratégie de récupération confirmée</strong>
-            <small>
-              Je conserverai au moins une sauvegarde récente dans un
-              emplacement distinct et sûr.
-            </small>
+            <strong>{t('Conserver une copie à part')}</strong>
+            <small>{t('Je garderai une sauvegarde récente dans un autre emplacement sûr.')}</small>
           </span>
         </label>
         <div className="settings-actions">
@@ -5726,18 +5729,8 @@ function SettingsScreen({
             disabled={busy}
             onClick={() => void chooseBackupFolder()}
           >
-            <FolderOpen size={16} /> Choisir le dossier
+            <FolderOpen size={16} /> {t('Choisir le dossier')}
           </Button>}
-          <Button disabled={operationBusy} onClick={() => void backup()}>
-            <Download size={16} /> Créer une sauvegarde
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={busy}
-            onClick={() => void restore()}
-          >
-            <RefreshCw size={16} /> Restaurer
-          </Button>
           <Button
             variant="ghost"
             disabled={busy || (!isMobileRuntime() && !settings.backup.folder)}
@@ -5745,22 +5738,23 @@ function SettingsScreen({
               const next = confirmDeferredSetup(settings, 'backup');
               void execute(
                 () => desktopApi.saveSettings(next),
-                'La stratégie de sauvegarde a été enregistrée.',
+                t('Les options de sauvegarde sont enregistrées.'),
               );
             }}
           >
-            <CheckCircle2 size={16} /> Enregistrer la stratégie
+            <CheckCircle2 size={16} /> {t('Enregistrer les options')}
           </Button>
         </div>
         {isMobileRuntime() ? (
-          <p className="path-note">La sauvegarde est créée dans le stockage privé, puis vous choisissez où la conserver depuis le partage du système.</p>
+          <p className="path-note">{t('La sauvegarde est créée sur cet appareil. Choisissez ensuite où la conserver dans la fenêtre de partage.')}</p>
         ) : settings.backup.folder ? (
           <p className="path-note">
             <FolderOpen size={14} /> {settings.backup.folder}
           </p>
         ) : (
-          <p className="path-note">Aucun dossier préféré configuré.</p>
+          <p className="path-note">{t('Aucun dossier préféré configuré.')}</p>
         )}
+        </details>
       </section>
       <section className="panel settings-card">
         <SectionHeading

@@ -4810,7 +4810,7 @@ export const desktopApi = {
   setCloudBackupEnabled: (enabled: boolean) => invoke<CloudBackupState>('set_cloud_backup_enabled', { enabled }),
   deleteCloudBackup: (backupId: string) => invoke<void>('delete_cloud_backup', { backupId }),
   cancelCloudBackup: () => invoke<void>('cancel_cloud_backup'),
-  async restoreCloudBackup(backupId: string) { await invoke<void>('restore_cloud_backup', { backupId }); return loadWorkspace(); },
+  async restoreCloudBackup(backupId: string) { await invoke<void>('restore_cloud_backup', { backupId }); return refreshWorkspaceAfterMutation(loadWorkspace); },
   async startCloudAccountLink(): Promise<CloudAccountState> {
     return cloudAccountReader.mutate(async () => cloudAccountStateFromRaw(
       await invoke<RawRecord>('start_cloud_account_link'),
@@ -6113,7 +6113,7 @@ export const desktopApi = {
     }),
   async restoreBackup(source: string) {
     await invoke<AppState>('restore_backup', { source });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async exportData(format: 'json' | 'csv') {
     const command = format === 'json' ? 'export_json' : 'export_csv_archive';
