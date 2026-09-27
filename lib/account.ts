@@ -1,6 +1,6 @@
 import { RequestBodyError } from '@/lib/request-body';
 import { reportServiceFailure, type ServiceDiagnosticContext } from './service-diagnostics';
-import { SupabaseServerError } from './supabase-server';
+import { supabaseServiceRetryAfter } from './supabase-server';
 import { database } from '@/lib/runtime';
 import { requireMemberSeat } from '@/lib/team-seats';
 import { effectiveAccountUntil } from '@/lib/founder-access';
@@ -59,10 +59,10 @@ export function accountJsonError(reason: unknown, diagnostic?: ServiceDiagnostic
       ? reason
       : undefined;
   const reference = diagnostic ? reportServiceFailure(reason, diagnostic) : undefined;
-  const temporary = reason instanceof SupabaseServerError && [429, 502, 503, 504].includes(reason.status);
+  const retryAfter = supabaseServiceRetryAfter(reason);
   const headers = new Headers(accountNoStoreHeaders());
   if (reference) headers.set('X-Zentra-Request-Id', reference);
-  if (temporary) headers.set('Retry-After', '5');
+  if (retryAfter) headers.set('Retry-After', String(retryAfter));
   return Response.json(
     {
       error: publicReason
@@ -71,7 +71,7 @@ export function accountJsonError(reason: unknown, diagnostic?: ServiceDiagnostic
       ...(reference ? { reference } : {}),
     },
     {
-      status: publicReason ? publicReason.status : temporary ? 503 : 500,
+      status: publicReason ? publicReason.status : retryAfter ? 503 : 500,
       headers,
     },
   );

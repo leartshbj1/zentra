@@ -40,6 +40,14 @@ export class SupabaseServerError extends Error {
   }
 }
 
+/** Infrastructure restrictions are not a customer's subscription/payment error.
+ * Retry slowly while the operator restores the provider; never retry a write here. */
+export function supabaseServiceRetryAfter(error: unknown): number | undefined {
+  if (!(error instanceof SupabaseServerError)) return undefined;
+  if (error.status === 402) return 60;
+  return [429, 502, 503, 504].includes(error.status) ? 5 : undefined;
+}
+
 function decodeJwtPayload(value: string): Record<string, unknown> | null {
   const encoded = value.split('.')[1];
   if (!encoded) return null;
@@ -324,7 +332,7 @@ export class SupabaseServerClient {
         } catch {
           // Error bodies are deliberately not propagated to public callers.
         }
-        throw new SupabaseServerError(response.status, responseCode(payload), resource);
+        throw new SupabaseServerError(response.status, response.status === 402 ? 'service_restricted' : responseCode(payload), resource);
       }
       if (response.status === 204) {
         return [] as T;

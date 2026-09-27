@@ -4,6 +4,7 @@ import { selectSupportWorkspace } from './workspace-selection';
 import { getZentraUser, type ZentraUser } from '@/app/zentra-auth';
 import { database, runtimeValue } from '@/lib/runtime';
 import { reportServiceFailure, type ServiceDiagnosticContext } from '@/lib/service-diagnostics';
+import { supabaseServiceRetryAfter } from '@/lib/supabase-server';
 import { enforceAccountRateLimit, normalizedEmail } from '@/lib/account';
 import { AccountPublicError } from '@/lib/account-security';
 import { captureAppointment } from '@/lib/appointments/service';
@@ -94,6 +95,7 @@ export function supportError(error: unknown, context: ServiceDiagnosticContext =
     error instanceof RequestBodyError ||
     error instanceof AccountPublicError;
   const reference = reportServiceFailure(error, context);
+  const retryAfter = supabaseServiceRetryAfter(error);
   const response = supportJson(
     {
       error: known
@@ -101,9 +103,10 @@ export function supportError(error: unknown, context: ServiceDiagnosticContext =
         : 'Le service support est momentanément indisponible. Votre travail est conservé.',
       ...(reference ? {reference} : {}),
     },
-    known ? error.status : 500,
+    known ? error.status : retryAfter ? 503 : 500,
   );
   if(reference) response.headers.set('X-Zentra-Request-Id', reference);
+  if(retryAfter) response.headers.set('Retry-After', String(retryAfter));
   return response;
 }
 export function requireSameOrigin(request: Request) {
