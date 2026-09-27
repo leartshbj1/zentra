@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RotateCcw, WalletCards } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { expenseRefundTotals } from './expenseRefunds';
@@ -11,7 +11,15 @@ import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (error: unknown) => void) => Promise<boolean>;
 const amount = (value: string) => Math.round(Number(value.replace(',', '.')) * 100);
 
-export function ExpenseRefundForm({ expense, reverse, busy, close, act }: { expense: Expense; reverse?: ExpenseRefund; busy: boolean; close: () => void; act: ActionRunner }) {
+export function ExpenseRefundForm({ expense, reverse, busy, readOnly = false, close, act }: { expense: Expense; reverse?: ExpenseRefund; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner }) {
+  const form = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    // Disabling a focused field can send focus to the page body. Keep Escape
+    // and keyboard navigation inside the open draft after access is revoked.
+    if (!readOnly) return;
+    const frame = requestAnimationFrame(() => form.current?.closest<HTMLElement>('[role="dialog"]')?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [readOnly]);
   const totals = expenseRefundTotals(expense);
   const [requestId] = useState(createId);
   const [creditDate, setCreditDate] = useState(todayIso);
@@ -27,9 +35,9 @@ export function ExpenseRefundForm({ expense, reverse, busy, close, act }: { expe
   const netCents = grossCents - vatCents;
   const invalidAmounts = !Number.isSafeInteger(grossCents) || !Number.isSafeInteger(vatCents) || grossCents <= 0 || vatCents < 0 || netCents < 0;
   return <Modal title={reverse ? 'Corriger un remboursement' : 'Enregistrer un remboursement'} description={`${expense.supplier || 'Fournisseur'} · ${expense.reference || 'Dépense sans référence'}`} onClose={busy ? () => {} : close} wide>
-    <form onSubmit={async (event) => {
+    <form ref={form} onSubmit={async (event) => {
       event.preventDefault();
-      if (busy) return;
+      if (busy || readOnly) return;
       setError('');
       if (invalidAmounts || (!reverse && (netCents > expense.netCents - totals.netCents || vatCents > expense.vatCents - totals.vatCents))) { setError('Le remboursement dépasse le solde HT ou TVA de cet achat, ou ses montants sont incohérents.'); return; }
       if (paymentDate < creditDate) { setError('La date du remboursement ne peut pas précéder celle de l’avoir.'); return; }
@@ -40,18 +48,18 @@ export function ExpenseRefundForm({ expense, reverse, busy, close, act }: { expe
     }}>
       <div className="info-strip"><WalletCards size={18} /><span>{reverse ? 'Utilisez cette correction uniquement pour une saisie erronée. Les écritures inverses rétablissent le coût, la TVA et le montant bancaire aux dates indiquées.' : 'Enregistrez un remboursement effectivement reçu du fournisseur. L’achat initial est conservé et la TVA reprend son traitement historique.'}</span></div>
       <div className="form-grid">
-        <Field label={reverse ? 'Date de correction de l’avoir' : 'Date de l’avoir'} required hint="Date de comptabilisation de la correction du prix."><input type="date" value={creditDate} min={[expense.paidAt ?? expense.date, reverse?.creditDate ?? expense.date].sort().at(-1)} max={todayIso()} onChange={(event) => setCreditDate(event.target.value)} disabled={busy} required /></Field>
-        <Field label={reverse ? 'Date de correction bancaire' : 'Date du remboursement reçu'} required hint={reverse ? 'Date de la correction du montant enregistré en banque.' : 'Date à laquelle le fournisseur vous a remboursé.'}><input type="date" value={paymentDate} min={[creditDate, reverse?.paymentDate ?? expense.paidAt ?? expense.date].sort().at(-1)} max={todayIso()} onChange={(event) => setPaymentDate(event.target.value)} disabled={busy} required /></Field>
-        <Field label="Référence de l’avoir" required wide><input value={reference} onChange={(event) => setReference(event.target.value)} maxLength={255} disabled={busy || Boolean(reverse)} required autoFocus /></Field>
-        <Field label="Montant TTC remboursé (CHF)" required hint={!reverse ? `Solde remboursable : ${formatMoney(expense.totalCents - totals.totalCents)}` : undefined}><input type="number" inputMode="decimal" min="0.01" step="0.01" value={gross} onChange={(event) => setGross(event.target.value)} disabled={busy || Boolean(reverse)} required /></Field>
-        <Field label="Dont TVA selon l’avoir (CHF)" required hint="Reprenez le montant du justificatif, sans recalculer un taux moyen."><input type="number" inputMode="decimal" min="0" step="0.01" value={tax} onChange={(event) => setTax(event.target.value)} disabled={busy || Boolean(reverse)} required /></Field>
+        <Field label={reverse ? 'Date de correction de l’avoir' : 'Date de l’avoir'} required hint="Date de comptabilisation de la correction du prix."><input type="date" value={creditDate} min={[expense.paidAt ?? expense.date, reverse?.creditDate ?? expense.date].sort().at(-1)} max={todayIso()} onChange={(event) => setCreditDate(event.target.value)} disabled={busy || readOnly} required /></Field>
+        <Field label={reverse ? 'Date de correction bancaire' : 'Date du remboursement reçu'} required hint={reverse ? 'Date de la correction du montant enregistré en banque.' : 'Date à laquelle le fournisseur vous a remboursé.'}><input type="date" value={paymentDate} min={[creditDate, reverse?.paymentDate ?? expense.paidAt ?? expense.date].sort().at(-1)} max={todayIso()} onChange={(event) => setPaymentDate(event.target.value)} disabled={busy || readOnly} required /></Field>
+        <Field label="Référence de l’avoir" required wide><input value={reference} onChange={(event) => setReference(event.target.value)} maxLength={255} disabled={busy || readOnly || Boolean(reverse)} required autoFocus /></Field>
+        <Field label="Montant TTC remboursé (CHF)" required hint={!reverse ? `Solde remboursable : ${formatMoney(expense.totalCents - totals.totalCents)}` : undefined}><input type="number" inputMode="decimal" min="0.01" step="0.01" value={gross} onChange={(event) => setGross(event.target.value)} disabled={busy || readOnly || Boolean(reverse)} required /></Field>
+        <Field label="Dont TVA selon l’avoir (CHF)" required hint="Reprenez le montant du justificatif, sans recalculer un taux moyen."><input type="number" inputMode="decimal" min="0" step="0.01" value={tax} onChange={(event) => setTax(event.target.value)} disabled={busy || readOnly || Boolean(reverse)} required /></Field>
         <Field label="Montant hors TVA"><output className="field-output">{invalidAmounts ? 'Montants à vérifier' : formatMoney(netCents)}</output></Field>
-        <Field label={reverse ? 'Motif de la correction' : 'Motif du remboursement'} required wide><textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={1000} rows={3} disabled={busy} required placeholder={reverse ? 'Expliquez pourquoi la saisie était erronée' : 'Ex. retour de marchandises ou réduction de prix'} /></Field>
+        <Field label={reverse ? 'Motif de la correction' : 'Motif du remboursement'} required wide><textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={1000} rows={3} disabled={busy || readOnly} required placeholder={reverse ? 'Expliquez pourquoi la saisie était erronée' : 'Ex. retour de marchandises ou réduction de prix'} /></Field>
       </div>
-      <RefundReceiptPicker receipt={receipt} onChange={setReceipt} disabled={busy} onError={setError} />
+      <RefundReceiptPicker receipt={receipt} onChange={setReceipt} disabled={busy || readOnly} onError={setError} />
       {!receipt ? <p className="field__hint">Vous pourrez aussi joindre la pièce depuis l’historique après l’enregistrement.</p> : null}
       {error ? <ErrorPanel title="Remboursement à contrôler" message={error} reveal /> : null}
-      <FormActions onCancel={close} busy={busy} submitLabel={reverse ? 'Corriger la saisie' : 'Enregistrer le remboursement reçu'} />
+      <FormActions onCancel={close} busy={busy} disabled={readOnly} submitLabel={reverse ? 'Corriger la saisie' : 'Enregistrer le remboursement reçu'} />
     </form>
   </Modal>;
 }

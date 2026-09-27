@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FolderOpen, Paperclip, X } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { fileSizeLabel, PROJECT_FILE_MAX_BYTES } from './projectDocuments';
@@ -47,14 +47,20 @@ export function RefundAttachmentList({ attachments, label = 'Justificatifs du re
   </div>;
 }
 
-export function RefundAttachmentForm({ refund, busy, close, act, supplierCredit = false }: { refund: Pick<ExpenseRefund,'id'|'reference'>; busy: boolean; close: () => void; act: ActionRunner; supplierCredit?: boolean }) {
+export function RefundAttachmentForm({ refund, busy, readOnly = false, close, act, supplierCredit = false }: { refund: Pick<ExpenseRefund,'id'|'reference'>; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner; supplierCredit?: boolean }) {
+  const form = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (!readOnly) return;
+    const frame = requestAnimationFrame(() => form.current?.closest<HTMLElement>('[role="dialog"]')?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [readOnly]);
   const [receipt, setReceipt] = useState<File | null>(null);
   const [error, setError] = useState('');
   const saving = useRef(false);
   return <Modal title="Joindre un justificatif au remboursement" description={refund.reference} onClose={close} dismissible={!busy}>
-    <form onSubmit={async (event) => {
+    <form ref={form} onSubmit={async (event) => {
       event.preventDefault();
-      if (!receipt || busy || saving.current) return;
+      if (!receipt || busy || readOnly || saving.current) return;
       saving.current = true; setError('');
       try {
         const saved = await act(async () => {
@@ -65,9 +71,9 @@ export function RefundAttachmentForm({ refund, busy, close, act, supplierCredit 
       } finally { saving.current = false; }
     }}>
       <p className="field__hint">Cette pièce complète l’historique conservé. Les dates, montants et écritures du remboursement restent inchangés.</p>
-      <RefundReceiptPicker receipt={receipt} onChange={setReceipt} disabled={busy} onError={setError} supplierCredit={supplierCredit} />
+      <RefundReceiptPicker receipt={receipt} onChange={setReceipt} disabled={busy || readOnly} onError={setError} supplierCredit={supplierCredit} />
       {error ? <ErrorPanel title="Justificatif à contrôler" message={error} reveal /> : null}
-      <FormActions onCancel={close} busy={busy} disabled={!receipt} submitLabel="Ajouter le justificatif" />
+      <FormActions onCancel={close} busy={busy} disabled={readOnly || !receipt} submitLabel="Ajouter le justificatif" />
     </form>
   </Modal>;
 }

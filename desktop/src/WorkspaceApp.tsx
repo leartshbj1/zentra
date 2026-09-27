@@ -6095,7 +6095,8 @@ function WorkspaceModal({
         expense={state.expense}
         workspace={workspace}
         close={close}
-        busy={busy || readOnly}
+        busy={busy}
+        readOnly={readOnly}
         act={act}
       />
     );

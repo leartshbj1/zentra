@@ -173,7 +173,7 @@ export { SupplierInvoiceDetail } from './SupplierInvoiceDetail';
 
 export { SupplierPaymentForm } from './SupplierPaymentForm';
 
-export function LegacyExpenseDetail({ expense: initialExpense, workspace, close, busy, act }: { expense: Expense; workspace: Workspace; close: () => void; busy: boolean; act: ActionRunner }) {
+export function LegacyExpenseDetail({ expense: initialExpense, workspace, close, busy, readOnly = false, act }: { expense: Expense; workspace: Workspace; close: () => void; busy: boolean; readOnly?: boolean; act: ActionRunner }) {
   const expense = workspace.expenses.find((row) => row.id === initialExpense.id) ?? initialExpense;
   const [attachmentError, setAttachmentError] = useState('');
   const [attachmentTarget, setAttachmentTarget] = useState<ExpenseRefund | null>(null);
@@ -182,8 +182,8 @@ export function LegacyExpenseDetail({ expense: initialExpense, workspace, close,
   const attachments = (workspace.attachments ?? []).filter((file) => file.entityType === 'expense' && file.entityId === expense.id);
   const terminology = projectTerminology(workspace.settings!.business.nogaSection);
   const project = workspace.projects.find((candidate) => candidate.id === expense.projectId);
-  if (attachmentTarget) return <RefundAttachmentForm refund={attachmentTarget} busy={busy} close={() => setAttachmentTarget(null)} act={act} />;
-  if (refundForm) return <ExpenseRefundForm expense={expense} reverse={refundForm === 'new' ? undefined : refundForm} busy={busy} close={() => setRefundForm(null)} act={act} />;
+  if (attachmentTarget) return <RefundAttachmentForm refund={attachmentTarget} busy={busy} readOnly={readOnly} close={() => setAttachmentTarget(null)} act={act} />;
+  if (refundForm) return <ExpenseRefundForm expense={expense} reverse={refundForm === 'new' ? undefined : refundForm} busy={busy} readOnly={readOnly} close={() => setRefundForm(null)} act={act} />;
   return <Modal title="Dépense" description="Achat comptabilisé, conservé en lecture seule." onClose={close}>
     <div className="supplier-document-summary expense-detail-summary">
       <div><span>Fournisseur</span><strong>{expense.supplier || 'Non renseigné'}</strong></div>
@@ -198,9 +198,9 @@ export function LegacyExpenseDetail({ expense: initialExpense, workspace, close,
     {attachments.length ? <section className="supplier-attachments"><header><strong><Paperclip size={16} /> Justificatifs</strong></header><div className="supplier-attachments__list">{attachments.map((file) => <article key={file.id}><div><strong>{file.originalName}</strong><small>{formatAttachmentSize(file.sizeBytes)}</small></div><Button type="button" variant="secondary" size="small" onClick={async () => { setAttachmentError(''); try { await desktopApi.openAttachment(file.id); } catch (error) { setAttachmentError(errorMessage(error, 'Le justificatif ne peut pas être ouvert.')); } }}><FolderOpen size={14} /> Ouvrir</Button></article>)}</div></section> : null}
     {attachmentError ? <p role="alert">{attachmentError}</p> : null}
     {refunded.totalCents ? <div className="info-strip"><RotateCcw size={17} /><span>{formatMoney(refunded.totalCents)} remboursés · Coût conservé après remboursement : {formatMoney((expense.costCents ?? expense.netCents) - refunded.costCents)}</span></div> : null}
-    <ExpenseRefundHistory expense={expense} disabled={busy} onReverse={setRefundForm} attachments={workspace.attachments} onAttach={setAttachmentTarget} />
+    <ExpenseRefundHistory expense={expense} disabled={busy || readOnly} onReverse={setRefundForm} attachments={workspace.attachments} onAttach={setAttachmentTarget} />
     {expense.costReviewRequired ? <p className="field__hint">Contrôlez la TVA et le journal dans Comptabilité avant d’enregistrer un remboursement.</p> : null}
-    <div className="form-actions"><Button type="button" variant="secondary" onClick={close}>Fermer</Button>{expense.totalCents > refunded.totalCents ? <Button type="button" disabled={busy || Boolean(expense.costReviewRequired) || !expense.paidAt} onClick={() => setRefundForm('new')}><RotateCcw size={16} /> Enregistrer un remboursement</Button> : null}</div>
+    <div className="form-actions"><Button type="button" variant="secondary" onClick={close}>Fermer</Button>{expense.totalCents > refunded.totalCents ? <Button type="button" disabled={busy || readOnly || Boolean(expense.costReviewRequired) || !expense.paidAt} onClick={() => setRefundForm('new')}><RotateCcw size={16} /> Enregistrer un remboursement</Button> : null}</div>
   </Modal>;
 }
 
