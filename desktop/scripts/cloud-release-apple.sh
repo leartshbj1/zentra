@@ -21,6 +21,8 @@ test)
   pnpm --dir desktop exec vitest run src/quoteInterlocutor.test.ts
   cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib quote_interlocutor -- --test-threads=1 2>&1 | tee desktop/artifacts/validation/quote-contact-tests-macos.log
   cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib sales_pdf::tests -- --test-threads=1 2>&1 | tee desktop/artifacts/validation/sales-pdf-tests-macos.log
+  pnpm --dir desktop exec vitest run src/documentDesignLanguage.test.ts src/documentDesignTools.test.ts src/documentDesignValidation.test.ts src/documentTemplates.test.ts src/richTextEditing.test.ts src/richTextSearch.test.ts 2>&1 | tee desktop/artifacts/validation/document-editor-tests.log
+  cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib document_composition:: -- --test-threads=1 2>&1 | tee desktop/artifacts/validation/document-composition-tests-macos.log
   cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib company_ -- --nocapture --test-threads=1 \
     2>&1 | tee desktop/artifacts/validation/company-tests-macos.log
   cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib account_cloud::tests -- --test-threads=1 \

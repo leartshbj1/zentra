@@ -88,6 +88,8 @@ try {
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/quoteInterlocutor.test.ts')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'quote_interlocutor', '--', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'sales_pdf::tests', '--', '--test-threads=1')
+    Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/documentDesignLanguage.test.ts', 'src/documentDesignTools.test.ts', 'src/documentDesignValidation.test.ts', 'src/documentTemplates.test.ts', 'src/richTextEditing.test.ts', 'src/richTextSearch.test.ts')
+    Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'document_composition::', '--', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'company_', '--', '--nocapture', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'account_cloud::tests', '--', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'backup::tests', '--', '--test-threads=1')
@@ -122,6 +124,7 @@ try {
         identifier = 'ch.helvichantier.desktop'; builtAt = [DateTimeOffset]::UtcNow.ToString('o')
         updaterEndpoint = $env:ELYKO_UPDATER_ENDPOINT; updaterPublicKey = $env:ELYKO_UPDATER_PUBLIC_KEY
         companyTestsPassed = $true; accountTestsPassed = $true; authenticodeSigned = $false
+        documentCompositionTestsPassed = $true; documentEditorTestsPassed = $true
         bexioImportTestsPassed = $true; catalogImportTestsPassed = $true
         outgoingMailTestsPassed = $true; fixedAssetsTestsPassed = $true; inputVatTestsPassed = $true; invoiceScanTestsPassed = $true
         files = @($exe, $setup | ForEach-Object { [ordered]@{name = (Split-Path $_ -Leaf); size = (Get-Item $_).Length; sha256 = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()} })
