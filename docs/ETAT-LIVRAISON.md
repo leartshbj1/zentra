@@ -1,6 +1,10 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 21 h 12 (Europe/Zurich). L'objectif premier client reste en cours : ce relevé ne signifie pas que les vingt points sont clos.
+Mis à jour le 27 septembre 2026, 21 h 24 (Europe/Zurich). L'objectif premier client reste en cours : ce relevé ne signifie pas que les vingt points sont clos.
+
+## Version 1.90.6 en compilation
+
+La source **`9ec8e782a160e7fe2cdf3b853e19e54bbfa64a01`** est gelée sur `codex/first-client-release-1906`, avec les quatre lots postérieurs à 1.90.5 décrits plus bas. Les exécutions **150 Windows, 151 Android et 152 Apple** sont confirmées actives à 21 h 24. Les 14 tests de contrat, TypeScript, build et vérification des 50 actifs de marque passent avant gel. Un contrôle Windows distinct est préparé pour le paquet exact une fois la compilation réussie. **Aucune publication 1.90.6 ni promotion du canal n’a encore eu lieu** ; le site et l’installation locale restent en 1.90.5. [Notes et preuves de préparation](RELEASE-1.90.6.md).
 
 ## Version publique 1.90.5
 
