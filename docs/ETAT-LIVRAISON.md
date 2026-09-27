@@ -1,8 +1,10 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 21 h 48 (Europe/Zurich). L'objectif premier client reste en cours : ce relevé ne signifie pas que les vingt points sont clos.
+Mis à jour le 27 septembre 2026, 22 h 06 (Europe/Zurich). L'objectif premier client reste en cours : ce relevé ne signifie pas que les vingt points sont clos.
 
 ## Version 1.90.6 en compilation
+
+**Contrôle supplémentaire bloquant :** l’IPA du build 152 contient l’icône Tauri. Ce paquet est rejeté avant publication. La fabrication a été corrigée et protégée par cinq tests (`805cc9b0`) ; le build 153 reconstruit uniquement l’iPhone. **Windows 150 et sa recette d’installation 154 réussissent maintenant** ; ses fichiers, icônes et signature updater sont vérifiés. Mac et Android restent vérifiés. Aucune publication 1.90.6 ni installation locale encore effectuée. Le relevé précédent ci-dessous est conservé avec cette correction explicite ; détails dans [RELEASE-1.90.6.md](RELEASE-1.90.6.md).
 
 La source **`9ec8e782a160e7fe2cdf3b853e19e54bbfa64a01`** est gelée sur `codex/first-client-release-1906`, avec les quatre lots postérieurs à 1.90.5 décrits plus bas. **151 Android et 152 Apple réussissent ; 150 Windows reste en cours.** Les paquets Android, Mac et iPhone sont vérifiés. Mac démarre et redémarre dans le profil isolé ; sa signature updater et celle de l’APK sont contrôlées. Les 14 tests de contrat, TypeScript, build et vérification des 50 actifs de marque passent avant gel. Un contrôle Windows distinct est préparé pour le paquet exact une fois la compilation réussie. **Aucune publication 1.90.6 ni promotion du canal n’a encore eu lieu** ; le site et l’installation locale restent en 1.90.5. La navigation de cette installation a été mesurée sur 42 passages fictifs : médiane 45 ms, aucune erreur JS. La connexion reste HTTP 503 au contrôle de 21 h 43. [Notes et preuves](RELEASE-1.90.6.md).
 

@@ -1,5 +1,9 @@
 # Zentra 1.90.6
 
+**Correctif découvert avant publication, 22 h 06 :** l’IPA du build 152 est rejeté : ses deux icônes compilées sont celles de Tauri. Les bons PNG étaient dans le dépôt mais n’étaient pas copiés dans le catalogue Xcode après `tauri ios init`. Le commit **`805cc9b0c1ad6ff75581eee7296d3a842bfa6b27`** corrige cette étape et fait refuser une IPA dont les pixels compilés diffèrent des icônes Zentra. Cinq tests passent, dont les cinq filtres PNG et la conversion Apple CgBI. Le build **153 iPhone** est en cours. Les validations antérieures de taille/architecture iPhone ci-dessous ne rendent donc pas le paquet 152 publiable.
+
+**Windows 150 et contrôle d’installation 154 réussis.** Installateur 24 536 107 octets, SHA-256 `d9f5d5b7cdbeb9d1bc0ed1fc2a34d2531348126cfe63b73dd64293d729ccc0cd`. Signature updater et icônes du paquet vérifiées. Aucun remplacement local ni publication encore réalisés. La source applicative `9ec8e782` reste gelée ; le correctif iPhone ne change que les scripts de fabrication, leur vérification et la documentation. La livraison devra consigner séparément la provenance de l’IPA corrigée.
+
 - Personnalisation des documents et outils de texte en français, allemand, italien et anglais. Recherche directe du réglage, valeurs et textes du client conservés.
 - Bouton de retour de l’atelier accessible pendant le défilement ; choix du format adaptés au texte agrandi sur mobile. Nom des polices Inter et Literata corrigé dans les modèles.
 - Rendez-vous reçus visibles dans le journal Automation, avec ouverture du jour exact. Dates invalides et éléments absents de l’appareil signalés.
