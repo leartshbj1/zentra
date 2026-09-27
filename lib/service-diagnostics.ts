@@ -41,6 +41,8 @@ export function reportSchedulerCycle(input: {
   imported?: number;
   processed?: number;
   workflowsChecked?: number;
+  workflowsFailed?: number;
+  workflowsInterrupted?: number;
   reference?: string;
 }) {
   const count = (value: number | undefined) => Number.isSafeInteger(value) && value! >= 0 ? value : undefined;
@@ -50,6 +52,7 @@ export function reportSchedulerCycle(input: {
     job: 'support.mail', outcome,
     durationMs: Number.isFinite(elapsed) && elapsed >= 0 ? Math.round(elapsed) : 0,
     imported: count(input.imported), processed: count(input.processed), workflowsChecked: count(input.workflowsChecked),
+    workflowsFailed: count(input.workflowsFailed), workflowsInterrupted: count(input.workflowsInterrupted),
     ...(input.reference && /^[a-f0-9-]{36}$/.test(input.reference) ? {reference:input.reference} : {}),
   });
 }

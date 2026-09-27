@@ -113,7 +113,7 @@ beforeEach(() => {
     },
   });
 });
-afterEach(() => db.close());
+afterEach(() => {db.close();vi.restoreAllMocks();});
 async function add(mode = 'automatic') {
   const d = base();
   d.mode = mode as typeof d.mode;
@@ -443,6 +443,81 @@ it('queues excess workflows and completes them through the scheduler', async () 
   expect((await centre()).items).toHaveLength(2);
   await runDueWorkflows();
   expect((await centre()).items).toHaveLength(5);
+});
+it('drains more than one full server batch without any new incoming message or duplicate work', async () => {
+  for (let i = 0; i < 27; i++) await add();
+  await dispatchMailWorkflows('support', 'ticket');
+  expect((await centre()).items).toHaveLength(2);
+  expect(await runDueWorkflows()).toEqual({checked:20,failed:0,interrupted:0,more:true});
+  expect(await runDueWorkflows()).toEqual({checked:5,failed:0,interrupted:0,more:false});
+  expect(await runDueWorkflows()).toEqual({checked:0,failed:0,interrupted:0,more:false});
+  expect(db.prepare('SELECT count(*) n FROM automation_work_items').get()?.n).toBe(27);
+});
+it('keeps stable item identities when two authorized scheduler cycles overlap',async()=>{
+  for(let i=0;i<7;i++)await add();
+  await dispatchMailWorkflows('support','ticket');
+  await Promise.all([runDueWorkflows(),runDueWorkflows()]);
+  expect(db.prepare('SELECT count(*) n FROM automation_work_items').get()?.n).toBe(7);
+  expect(db.prepare("SELECT count(*) n FROM automation_workflow_runs WHERE state='completed'").get()?.n).toBe(7);
+  expect(await runDueWorkflows()).toEqual({checked:0,failed:0,interrupted:0,more:false});
+});
+it('reports due work left by the time budget, then resumes it once without duplicates', async () => {
+  const d=base();d.mode='automatic';
+  d.decision={question:'Réparation ?',yes:'Oui',no:'Non'};
+  for (let i = 0; i < 5; i++) await saveWorkflow(owner,{name:'Décision',enabled:true,definition:d});
+  await dispatchMailWorkflows('support', 'ticket');
+  let time=Date.now();
+  vi.spyOn(Date,'now').mockImplementation(()=>time);
+  mocks.decide.mockImplementationOnce(async()=>{
+    time+=21_000;
+    return {answers:{branch:{choice:'yes',confidence:.99}}};
+  });
+  expect(await runDueWorkflows()).toEqual({checked:1,failed:0,interrupted:0,more:true});
+  vi.restoreAllMocks();
+  expect(await runDueWorkflows()).toEqual({checked:2,failed:0,interrupted:0,more:false});
+  expect((await centre()).items).toHaveLength(5);
+});
+it('counts failures before acquiring a lease and defers them instead of spinning on the same company', async () => {
+  for (let i = 0; i < 3; i++) await add();
+  await dispatchMailWorkflows('support', 'ticket');
+  db.exec("UPDATE automation_subscriptions SET status='unpaid'");
+  expect(await runDueWorkflows()).toEqual({checked:1,failed:1,interrupted:0,more:false});
+  const retry=db.prepare("SELECT due_at FROM automation_workflow_runs WHERE state='queued'").get();
+  expect(Number(retry?.due_at)).toBeGreaterThan(Math.floor(Date.now()/1000));
+  expect(await runDueWorkflows()).toEqual({checked:0,failed:0,interrupted:0,more:false});
+  expect(db.prepare('SELECT count(*) n FROM automation_work_items').get()?.n).toBe(2);
+});
+it('counts a model failure handled inside the worker and keeps the remaining healthy rule processing', async () => {
+  for (let i = 0; i < 2; i++) await add();
+  const d=base();d.mode='automatic';
+  d.decision={question:'Réparation ?',yes:'Oui',no:'Non'};
+  await saveWorkflow(owner,{name:'Décision différée',enabled:true,definition:d});
+  await add();
+  await dispatchMailWorkflows('support','ticket');
+  // Queue all rules to exercise the lease-acquired failure path independently of intake order.
+  db.exec("DELETE FROM automation_work_items; UPDATE automation_workflow_runs SET state='queued',result='{}',due_at=0,lease_until=0");
+  mocks.decide.mockRejectedValueOnce(new Error('provider unavailable'));
+  vi.spyOn(console,'error').mockImplementation(()=>{});
+  expect(await runDueWorkflows()).toEqual({checked:4,failed:1,interrupted:0,more:false});
+  expect(db.prepare("SELECT count(*) n FROM automation_workflow_runs WHERE state='failed'").get()?.n).toBe(1);
+  expect(db.prepare('SELECT count(*) n FROM automation_work_items').get()?.n).toBe(3);
+  expect(await runDueWorkflows()).toMatchObject({checked:0,failed:0,more:false});
+});
+it('reports crashed workers only once, separately from current attempts, without touching another company', async () => {
+  await add();await dispatchMailWorkflows('support','ticket');
+  db.exec("UPDATE automation_workflow_runs SET state='running',lease='expired',lease_until=1");
+  expect(await runDueWorkflows('b')).toEqual({checked:0,failed:0,interrupted:0,more:false});
+  expect(await runDueWorkflows('a')).toEqual({checked:0,failed:0,interrupted:1,more:false});
+  expect(await runDueWorkflows('a')).toEqual({checked:0,failed:0,interrupted:0,more:false});
+  expect((await centre()).items).toHaveLength(1);
+});
+it('does not confuse future actions or another company queue with immediately runnable work',async()=>{
+  for(let i=0;i<4;i++) await add();
+  await dispatchMailWorkflows('support','ticket');
+  expect(await runDueWorkflows('b')).toEqual({checked:0,failed:0,interrupted:0,more:false});
+  db.exec("UPDATE automation_workflow_runs SET due_at=2000000000 WHERE state='queued'");
+  expect(await runDueWorkflows('a')).toEqual({checked:0,failed:0,interrupted:0,more:false});
+  expect(db.prepare("SELECT count(*) n FROM automation_workflow_runs WHERE state='queued'").get()?.n).toBe(2);
 });
 it('records an exact factual summary and a completion notification without a model call', async () => {
   const d = structuredClone(

@@ -601,6 +601,7 @@ async function processRun(
         ? error.message
         : 'Le traitement a été interrompu. Les éléments déjà créés sont conservés ; vous pouvez reprendre sans doublon.',
     );
+    return { failed: true };
   }
 }
 /** Triggered from an authenticated intake or its scheduler, never from client-supplied mail data. */
@@ -658,7 +659,7 @@ export async function runDueWorkflows(organizationId?: string) {
   const scope = organizationId ? ' AND organization_id=?' : '';
   const scopeArgs = organizationId ? [organizationId] : [];
   // A crashed worker cannot retain a run forever. Completed steps have stable item IDs.
-  await database()
+  const interrupted = await database()
     .prepare(
       "UPDATE automation_workflow_runs SET state='failed',lease=NULL,lease_until=0,revision=revision+1,updated_at=?,result=json_set(result,'$.message',?) WHERE state='running' AND lease_until<=?" + scope,
     )
@@ -677,10 +678,11 @@ export async function runDueWorkflows(organizationId?: string) {
     .all<{ id: string; organization_id: string }>();
   const started = Date.now();
   let checked = 0;
+  let failed = 0;
   for (const r of rows.results) {
     if (Date.now() - started > 20000) break;
     checked++;
-    await processRun(r.id, r.organization_id).catch(async (error) => {
+    const result = await processRun(r.id, r.organization_id).catch(async (error) => {
       reportServiceFailure(error, {operation:'automation.workflow.retry',startedAt:started});
       await database()
         .prepare(
@@ -697,9 +699,19 @@ export async function runDueWorkflows(organizationId?: string) {
           now(),
         )
         .run();
+      return { failed: true };
     });
+    if (result?.failed) failed++;
   }
-  return { checked };
+  // Read the remaining due queue after processing: delayed or leased work is
+  // not ready yet, and one empty mailbox must not stop other Automation work.
+  const due = await database()
+    .prepare(
+      "SELECT 1 FROM automation_workflow_runs WHERE state IN ('queued','waiting') AND due_at<=? AND lease_until<=?" + scope + ' LIMIT 1',
+    )
+    .bind(now(), now(), ...scopeArgs)
+    .first();
+  return { checked, failed, interrupted: interrupted.meta.changes, more: Boolean(due) };
 }
 export async function workflowAction(
   actor: AutomationActor,

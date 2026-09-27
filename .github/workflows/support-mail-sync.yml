@@ -21,7 +21,7 @@ jobs:
           const token = process.env.SUPPORT_MAIL_SYNC_TOKEN;
           if (!token) throw new Error('La synchronisation mail doit être configurée.');
           const started = Date.now();
-          let imported = 0, processed = 0, failed = 0;
+          let imported = 0, processed = 0, failed = 0, workflowsChecked = 0, workflowsFailed = 0, workflowsInterrupted = 0;
           for (let batch = 0; batch < 60 && Date.now() - started < 12 * 60 * 1000; batch++) {
             const response = await fetch('https://zentraapp.ch/api/support/mail-sync', {
               method: 'POST', redirect: 'error',
@@ -30,11 +30,14 @@ jobs:
             });
             if (!response.ok) throw new Error(`Synchronisation indisponible (${response.status}).`);
             const result = await response.json();
-            if (result.idle) break;
             imported += result.imported || 0;
             processed += result.processed || 0;
             failed += result.failed ? 1 : 0;
+            workflowsChecked += result.workflows?.checked || 0;
+            workflowsFailed += result.workflows?.failed || 0;
+            workflowsInterrupted += result.workflows?.interrupted || 0;
+            if (result.idle) break;
           }
-          console.log(JSON.stringify({ imported, processed, failed }));
-          if (failed) throw new Error('Une boîte nécessite une vérification dans Zentra Support.');
+          console.log(JSON.stringify({ imported, processed, failed, workflowsChecked, workflowsFailed, workflowsInterrupted }));
+          if (failed) throw new Error('Une boîte ou une action Automation nécessite une vérification dans Zentra.');
           JS

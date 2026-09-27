@@ -36,12 +36,14 @@ describe('private actionable service diagnostics',()=>{
   });
   it('records bounded scheduler facts without accepting secrets, arbitrary outcomes or invalid counters',()=>{
     const log=vi.spyOn(console,'info').mockImplementation(()=>{});
-    reportSchedulerCycle({startedAt:Date.now()-5,outcome:'partial',imported:3,processed:2,workflowsChecked:0});
-    expect(log).toHaveBeenCalledWith('zentra_scheduler_cycle',expect.objectContaining({job:'support.mail',outcome:'partial',imported:3,processed:2,workflowsChecked:0}));
-    reportSchedulerCycle({startedAt:NaN,outcome:'private-secret' as 'failed',processed:-1,imported:Infinity,reference:'email@private.test'});
+    reportSchedulerCycle({startedAt:Date.now()-5,outcome:'failed',imported:3,processed:2,workflowsChecked:4,workflowsFailed:1,workflowsInterrupted:2});
+    expect(log).toHaveBeenCalledWith('zentra_scheduler_cycle',expect.objectContaining({job:'support.mail',outcome:'failed',imported:3,processed:2,workflowsChecked:4,workflowsFailed:1,workflowsInterrupted:2}));
+    reportSchedulerCycle({startedAt:NaN,outcome:'private-secret' as 'failed',processed:-1,imported:Infinity,workflowsFailed:-1,workflowsInterrupted:NaN,reference:'email@private.test'});
     const serialized=JSON.stringify(log.mock.calls[1]);
     expect(serialized).not.toMatch(/private|Infinity/);
     expect(log.mock.calls[1][1]).toMatchObject({outcome:'failed',durationMs:0});
+    expect(log.mock.calls[1][1].workflowsFailed).toBeUndefined();
+    expect(log.mock.calls[1][1].workflowsInterrupted).toBeUndefined();
   });
   it('strips filters from failed database requests and never follows a credential redirect',async()=>{
     const fetcher=vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>(async()=>Response.json({code:'PGRST205',message:'private@example.test'},{status:404}));
