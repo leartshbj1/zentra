@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { canonicalNavigationTarget } from './lib/canonical-navigation';
 import { runtimeValue } from './lib/runtime';
 import { isPrivateSearchPath } from './lib/seo-indexing';
-import { privatePageCspObservation } from './lib/csp-observation';
+import { pageScriptPolicy } from './lib/page-csp';
 
 export function middleware(request: Request) {
   const path=new URL(request.url).pathname;
@@ -15,10 +15,11 @@ export function middleware(request: Request) {
     return NextResponse.redirect(url, 308);
   }
   if (!target) {
-    const observation = privatePageCspObservation(request);
-    const response = observation ? NextResponse.next({request:{headers:observation.headers}}) : NextResponse.next();
-    if (observation) {
-      response.headers.set('Content-Security-Policy-Report-Only', observation.policy);
+    const scriptPolicy = pageScriptPolicy(request);
+    const response = scriptPolicy ? NextResponse.next({request:{headers:scriptPolicy.headers}}) : NextResponse.next();
+    if (scriptPolicy) {
+      response.headers.set('Content-Security-Policy', scriptPolicy.policy);
+      // A cached HTML document would reuse its nonce, or mismatch a fresh CSP.
       response.headers.set('Cache-Control', 'private, no-store');
     }
     if (isPrivateSearchPath(path)) response.headers.set('X-Robots-Tag', 'noindex, nofollow');

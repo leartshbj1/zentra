@@ -2,7 +2,8 @@ import type { NextConfig } from 'next';
 
 const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=86400' },
-  { key: 'Content-Security-Policy', value: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; upgrade-insecure-requests" },
+  // HTML CSP is request-specific in middleware. A static value here would
+  // overwrite its nonce and the stricter policies of attachment/OAuth routes.
   { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
   { key: 'Referrer-Policy', value: 'no-referrer' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
