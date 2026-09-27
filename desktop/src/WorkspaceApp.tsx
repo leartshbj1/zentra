@@ -5024,9 +5024,9 @@ function SettingsScreen({
       <span id="automation-account-target" tabIndex={-1} />
       <CloudAccountPanel onAccountChange={onCloudAccountChange} settings={settings} />
       </SettingsCategory>
-      <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings showHubLink /></SettingsCategory>
+      <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings showHubLink embedded /></SettingsCategory>
       <SettingsCategory id="mail" lazy title="E-mails" description="Messagerie, devis, factures et textes personnalisés" icon={Mail}>
-        <MailSettings companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { const next = await desktopApi.loadWorkspace(); onWorkspace(next); if (next.settings) setSettings(next.settings); }} />
+        <MailSettings embedded companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { const next = await desktopApi.loadWorkspace(); onWorkspace(next); if (next.settings) setSettings(next.settings); }} />
       </SettingsCategory>
       <SettingsCategory id="company" title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
       <section
@@ -5444,9 +5444,9 @@ function SettingsScreen({
         </div>
       </section>
       </SettingsCategory>
-      <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Languages}><AppearanceSetting /></SettingsCategory>
+      <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Languages}><AppearanceSetting embedded /></SettingsCategory>
       <SettingsCategory id="personalization" title={t('Mes raccourcis')} description={t('Barre du bas et actions de l’accueil')} icon={Settings}><WorkspacePersonalization automationActive={automationActive} /></SettingsCategory>
-      <SettingsCategory id="language" title={t('Langue et région')} description={t('Français, allemand, italien ou anglais')} icon={Languages}><LanguageSetting /></SettingsCategory>
+      <SettingsCategory id="language" title={t('Langue et région')} description={t('Français, allemand, italien ou anglais')} icon={Languages}><LanguageSetting embedded /></SettingsCategory>
       <SettingsCategory id="assistant" lazy title="Assistant local" description="Installer Qwen et obtenir de l’aide dans Zentra" icon={MessageCircle}><LocalAssistantSetup /></SettingsCategory>
       <SettingsCategory id="documents" lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
         <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={next => execute(() => desktopApi.saveSettings(next), 'Les présentations des documents ont été enregistrées.', true)} onRequestCompany={field => {

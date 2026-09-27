@@ -1,7 +1,9 @@
 import { t } from './language';
 import { useAppLanguage } from './language';
-import { Children, cloneElement, createContext, isValidElement, useContext, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
+import { Children, cloneElement, createContext, isValidElement, useContext, useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, Search, X, type LucideIcon } from 'lucide-react';
+import { matchesSettingsSearch, settingsGroups, settingsNavigationSession, settingsScopes, settingsSearchTerms } from './settingsNavigation';
+import './settings-navigation.css';
 
 type CategoryProps = {
   id: string;
@@ -38,16 +40,29 @@ export function SettingsBrowser({ children, initialCategory, hasDraft = false }:
   const root = useRef<HTMLDivElement>(null);
   const groupName = useId();
   const categories = Children.toArray(children).filter((child): child is ReactElement<CategoryProps> => isValidElement<CategoryProps>(child));
-  const [initial] = useState(() => initialCategory !== undefined ? initialCategory : window.matchMedia('(min-width: 1101px)').matches ? categories[0]?.props.id : null);
+  const [initial] = useState(() => {
+    const requested = initialCategory !== undefined ? initialCategory : settingsNavigationSession.category;
+    if (requested === null || categories.some(child => child.props.id === requested)) return requested;
+    return window.matchMedia('(min-width: 1101px)').matches ? categories[0]?.props.id : null;
+  });
   const [active, setActive] = useState<string | null>(initial ?? null);
+  const [query, setQuery] = useState(settingsNavigationSession.query);
+  const search = useRef<HTMLInputElement>(null);
+  useEffect(() => { settingsNavigationSession.category = active; }, [active]);
+  useEffect(() => { settingsNavigationSession.query = query; }, [query]);
+  const matches = categories.filter(({ props: { id, title, description } }) => matchesSettingsSearch(query, [
+    title, t(title), description, t(description), settingsSearchTerms[id] || '', t(settingsSearchTerms[id] || ''),
+  ]));
+  const groups = settingsGroups.map(group => ({ ...group, categories: group.ids.flatMap(id => matches.filter(child => child.props.id === id)) }));
+  const knownIds: readonly string[] = settingsGroups.flatMap(group => [...group.ids]);
+  const other = matches.filter(child => !knownIds.includes(child.props.id));
 
   function openCategory(id: string) {
     const detail = root.current?.querySelector<HTMLDetailsElement>(`[data-settings-id="${id}"]`);
     if (!detail) return;
     openSettingsCategory(detail);
-    if (window.matchMedia('(max-width: 1100px)').matches) {
-      detail.querySelector('summary')?.focus({ preventScroll: true });
-    }
+    setActive(id);
+    detail.querySelector('summary')?.focus({ preventScroll: true });
     // A previous category can leave the page far down. Reveal the new heading
     // on desktop too, accounting for the sticky application toolbar.
     if (root.current) {
@@ -60,20 +75,45 @@ export function SettingsBrowser({ children, initialCategory, hasDraft = false }:
     const selected = root.current?.querySelector<HTMLElement>('.settings-category[open]')?.dataset.settingsId || active;
     root.current?.querySelectorAll<HTMLDetailsElement>('.settings-category[open]').forEach(detail => { detail.open = false; });
     if (root.current) delete root.current.dataset.settingsOpen;
+    setActive(null);
     const previous = root.current?.querySelector<HTMLButtonElement>(`[data-settings-link="${selected}"]`);
-    previous?.focus({ preventScroll: true });
+    if (previous) previous.focus({ preventScroll: true });
+    else {
+      setQuery('');
+      requestAnimationFrame(() => {
+        root.current?.querySelector<HTMLButtonElement>(`[data-settings-link="${selected}"]`)?.focus({ preventScroll: true });
+      });
+    }
     root.current?.scrollIntoView({ block: 'start' });
   }
 
-  return <div ref={root} className="settings-browser" data-settings-open={active ? 'true' : undefined} data-company-draft={hasDraft || undefined}>
-    <nav className="settings-browser__navigation" aria-label={t("Rubriques des paramètres")}>
-      {categories.map(({ props: { id, title, description, icon: Icon } }) => <button
+  function link({ props: { id, title, description, icon: Icon } }: ReactElement<CategoryProps>) {
+    return <button
         key={id} type="button" data-settings-link={id} aria-current={active === id ? 'true' : undefined}
         aria-controls={`${groupName}-${id}`} onClick={() => openCategory(id)}
       >
         <span className="settings-browser__icon"><Icon size={19} aria-hidden="true" /></span>
         <span><strong>{t(title)}</strong><small>{t(description)}</small></span><ChevronRight size={16} aria-hidden="true" />
-      </button>)}
+      </button>;
+  }
+
+  return <div ref={root} className="settings-browser settings-browser--guided" data-settings-open={active ? 'true' : undefined} data-company-draft={hasDraft || undefined}>
+    <nav className="settings-browser__navigation" data-settings-navigation aria-label={t("Rubriques des paramètres")} data-searching={query.trim() ? 'true' : undefined}>
+      <div className="settings-browser__search">
+        <Search size={18} aria-hidden="true" />
+        <input ref={search} type="search" value={query} aria-label={t('Rechercher un réglage')} placeholder={t('Rechercher un réglage')} onChange={event => setQuery(event.target.value)} onKeyDown={event => {
+          if (event.key === 'Escape' && query) { event.preventDefault(); event.stopPropagation(); setQuery(''); }
+          if (event.key === 'Enter' && matches.length === 1) { event.preventDefault(); openCategory(matches[0].props.id); }
+        }} />
+        {query && <button type="button" aria-label={t('Effacer la recherche des paramètres')} onClick={() => { setQuery(''); search.current?.focus(); }}><X size={18} aria-hidden="true" /></button>}
+      </div>
+      {query.trim() && <p className="settings-browser__count" role="status">{matches.length === 1 ? t('1 rubrique trouvée') : t('{count} rubriques trouvées', { count: String(matches.length) })}</p>}
+      {groups.filter(group => group.categories.length).map(group => <section className="settings-browser__group" key={group.title} aria-labelledby={`${groupName}-${group.ids[0]}-group`}>
+        <h2 id={`${groupName}-${group.ids[0]}-group`}>{t(group.title)}</h2>
+        {group.categories.map(link)}
+      </section>)}
+      {other.map(link)}
+      {!matches.length && <div className="settings-browser__no-results"><strong>{t('Aucun réglage trouvé')}</strong><p>{t('Essayez un autre mot, comme logo, assurance ou sauvegarde.')}</p></div>}
     </nav>
     <div className="settings-browser__detail">
       <button type="button" className="settings-browser__back" onClick={goBack}><ChevronLeft size={19} aria-hidden="true" />{t(" Tous les paramètres")}</button>
@@ -94,7 +134,7 @@ export function SettingsCategory({ id, title, description, icon: Icon, children,
     if (open) setVisited(true);
     onOpenChange?.(id, open);
   }}>
-    <summary><Icon size={22} aria-hidden="true" /><span><strong>{t(title)}</strong><small>{t(description)}</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
+    <summary><Icon size={22} aria-hidden="true" /><span><strong role="heading" aria-level={2}>{t(title)}</strong><small>{t(description)}</small>{settingsScopes[id] && <span className="settings-category__scope">{t(settingsScopes[id])}</span>}</span><ChevronDown size={18} aria-hidden="true" /></summary>
     <div className="settings-category__content settings-layout"><CategoryVisited.Provider value={visited || initiallyOpen}>{!lazy || visited ? children : null}</CategoryVisited.Provider></div>
   </details>;
 }

@@ -84,14 +84,22 @@ export function CompanyReceivingGuard(){
     if(!receiving)return;
     const root=document.getElementById('root');const previous=root?.inert;
     const focused=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    const settingsSearch=focused instanceof HTMLInputElement&&focused.type==='search'&&focused.closest('[data-settings-navigation]')
+      ? {start:focused.selectionStart,end:focused.selectionEnd,direction:focused.selectionDirection}:null;
     // Downloads and preparation stay interactive. Only the final local swap
     // and its React refresh exclude edits bound to the previous workspace.
     // Keep the screen visible without a portal, backdrop or spinner.
     if(root)root.inert=true;
     return()=>{
       if(root)root.inert=Boolean(previous);
-      if(!previous&&focused?.isConnected&&root?.contains(focused)&&
-        (!document.activeElement||document.activeElement===document.body))focused.focus({preventScroll:true});
+      // A received workspace recreates pristine settings. The original search
+      // input no longer exists, but navigation and its cursor still belong here.
+      const target=focused?.isConnected?focused:settingsSearch?root?.querySelector<HTMLInputElement>('[data-settings-navigation] input[type="search"]'):null;
+      if(!previous&&target&&root?.contains(target)&&
+        (!document.activeElement||document.activeElement===document.body)) {
+        target.focus({preventScroll:true});
+        if(settingsSearch&&target instanceof HTMLInputElement)target.setSelectionRange(settingsSearch.start,settingsSearch.end,settingsSearch.direction||undefined);
+      }
     };
   },[receiving]);
   return null;

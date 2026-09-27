@@ -8,7 +8,7 @@ import { mailInterfaceMessage } from './outgoingMail';
 import './outgoing-mail.css';
 
 const emptyConnection: MailConnection = { host: 'mail.infomaniak.com', port: 465, security: 'tls', username: '', fromEmail: '', fromName: '', password: '' };
-export function MailSettings({ companyName = '', companyEmail = '', readOnly = false, initialTab = 'connection', onSaved }: { companyName?: string; companyEmail?: string; readOnly?: boolean; initialTab?: 'connection' | 'quotes' | 'invoices'; onSaved?: () => Promise<void> }) {
+export function MailSettings({ companyName = '', companyEmail = '', readOnly = false, initialTab = 'connection', embedded = false, onSaved }: { companyName?: string; companyEmail?: string; readOnly?: boolean; initialTab?: 'connection' | 'quotes' | 'invoices'; embedded?: boolean; onSaved?: () => Promise<void> }) {
   useAppLanguage();
   const [state, setState] = useState<MailState | null>(null);
   const [connection, setConnection] = useState<MailConnection>({ ...emptyConnection, fromName: companyName, username: companyEmail, fromEmail: companyEmail });
@@ -32,7 +32,7 @@ export function MailSettings({ companyName = '', companyEmail = '', readOnly = f
     requestAnimationFrame(() => { element?.focus(); element?.setSelectionRange(start + token.length, start + token.length); });
   }
   return <section className="mail-settings">
-    <header><h2>{t("Vos e-mails, depuis Zentra.")}</h2><p>{t("Devis, factures et relances avec votre adresse professionnelle.")}</p></header>
+    {!embedded && <header><h2>{t("Vos e-mails, depuis Zentra.")}</h2><p>{t("Devis, factures et relances avec votre adresse professionnelle.")}</p></header>}
     <nav className="mail-tabs" aria-label={t("Réglages des e-mails")}>{([['connection', 'Messagerie'], ['quotes', 'Devis'], ['invoices', 'Factures']] as const).map(([id, label]) => <Button type="button" key={id} variant={tab === id ? 'primary' : 'ghost'} aria-pressed={tab === id} disabled={busy} onClick={() => { setTab(id); setError(''); setNotice(''); }}>{t(label)}</Button>)}</nav>
     {error && <ErrorPanel message={mailInterfaceMessage(error)} onRetry={!state ? () => { setError(''); setAttempt(n => n + 1); } : undefined} />}
     {notice && <p className="mail-notice" role="status"><Check size={17} />{t(notice)}</p>}
