@@ -244,6 +244,13 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-1905:
+    when:
+      equal: [codex/first-client-release-1905, << pipeline.git.branch >>]
+    jobs:
+      - windows
+      - apple
+      - android
   updater-channel-verification:
     when:
       equal: [codex/updater-channel-verification-20260927, << pipeline.git.branch >>]
