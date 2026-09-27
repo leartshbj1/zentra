@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 23 h 31 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
+Mis à jour le 27 septembre 2026, 23 h 54 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
 
 ## Version 1.90.6 publiée ; installation locale Windows refusée
 
@@ -41,9 +41,11 @@ Preuves natives : `outputs/release1906/upgrade-smoke/{updater-check-proof.json,u
 
 Le [planning en quatre langues](PLANNING-LANGUES-20260927.md) comprend formulaires, erreurs reconnues et confirmations traduites, préservation des saisies et compteurs mobiles sans texte débordant. Vingt parcours linguistiques finaux Edge/WebKit passent, dont quatre à 200 % ; huit parcours français complets apportent une régression complémentaire avant les dernières retouches texte/CSS. Suite complète 1 818 tests avant ces retouches ; 19 tests ciblés, TypeScript et build finaux réussis. Aucune installation native ni synchronisation réelle n’en est déduite.
 
-Le [candidat Android optimisé](ANDROID-RELEASE-CANDIDATE-20260927.md) du job 156 a été refusé par le contrôle des bibliothèques natives (pages mémoire de 16 Ko). Correction `a490d797`, six tests du contrôleur réussis ; **job 157 en cours**, sans signature ni publication. Ce candidat contient la correction PDF, mais ne contient pas le nouveau lot Planning. Les téléchargements publics restent ceux de 1.90.6.
+Le [candidat Android optimisé](ANDROID-RELEASE-CANDIDATE-20260927.md) du job 156 a été refusé par le contrôle des bibliothèques natives (pages mémoire de 16 Ko). Correction `a490d797`, six tests du contrôleur réussis ; **job 157 réussi à 23 h 41**, paquet téléchargé et empreinte/alignement contrôlés indépendamment. Il pèse 39 747 291 octets (environ 68 % de moins que l’APK de test public), sans mode débogable. Il contient la correction PDF mais précède Planning et les deux lots de mise à jour ci-dessous. **Aucune signature vérifiée ni recette de démarrage sur émulateur/appareil ; non publié.** Les téléchargements publics restent ceux de 1.90.6, qui ne doivent pas être remplacés par ce candidat portant le même numéro technique.
 
 Le refus Windows 4551 reçoit désormais une explication lisible dans la source : protection des applications, contact du support et maintien des protections. Le diagnostic exact reste dans les informations techniques ; les autres erreurs ne sont pas masquées. Dix tests ciblés, TypeScript/build et sept parcours navigateur passent, dont quatre avec le refus Windows simulé et trois régressions de disponibilité/badge/hors ligne. Aucun réglage Windows, certificat ou installateur changé ; **ce correctif de texte ne débloque pas l’installation**. Preuves : `desktop/.qa/updater-policy-{unit,build,journey,regression}.log`, `desktop/.qa/updater-policy-refusal/report.json` et `desktop/.qa/updater-badge/report.json`.
+
+L’[écran de mise à jour en quatre langues](MISES-A-JOUR-LANGUES-20260927.md) conserve les versions et diagnostics exacts, adapte les tailles/dates et réorganise les commandes à 200 %. Les instructions mobiles ne prétendent plus à une publication dans les stores. Suite de 1 822 tests, 13 tests ciblés, TypeScript et build réussis ; 26 configurations navigateur passent et deux confirmations finales ciblées valident le bandeau agrandi. IPC fictifs et captures relues ; aucune installation ni synchronisation réelle déduite. Le texte Rust mobile de ce lot n’a pas encore été compilé ; aucune nouvelle publication binaire.
 
 ## Site, comptes et traitement autonome
 

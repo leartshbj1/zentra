@@ -35,7 +35,8 @@ import type {
 import { Button, SectionHeading } from './ui';
 import { errorMessage } from './utils';
 import { ReleaseHistory } from './ReleaseHistory';
-import { t } from './language';
+import { t, getAppLocale, useAppLanguage, type InterfaceMessage } from './language';
+import './app-updater-readability.css';
 
 type CheckOutcome = 'idle' | 'available' | 'current' | 'installed';
 
@@ -44,6 +45,7 @@ export const APP_UPDATER_TARGET_ID = 'app-updater';
 export function AppUpdater({
   onInstallingChange,
 }: { onInstallingChange?: (installing: boolean) => void } = {}) {
+  useAppLanguage();
   const sectionRef = useRef<HTMLElement>(null);
   const [policy, setPolicy] = useState<SecureUpdaterPolicy | null>(null);
   const [policyLoading, setPolicyLoading] = useState(true);
@@ -54,7 +56,7 @@ export function AppUpdater({
   const [progress, setProgress] = useState(initialUpdaterProgress);
   const [outcome, setOutcome] = useState<CheckOutcome>('idle');
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
-  const [message, setMessage] = useState(
+  const [message, setMessage] = useState<string | InterfaceMessage>(
     'Lecture de la politique de mise à jour…',
   );
   const [error, setError] = useState('');
@@ -78,8 +80,8 @@ export function AppUpdater({
             setCheckedAt(new Date().toISOString());
             setMessage(
               update
-                ? `Zentra ${update.version} est prête à télécharger.`
-                : `Zentra ${value.currentVersion} est déjà à jour.`,
+                ? { source: 'Zentra {version} est prête à télécharger.', values: { version: update.version } }
+                : { source: 'Zentra {version} est déjà à jour.', values: { version: value.currentVersion } },
             );
           } finally {
             if (active) setChecking(false);
@@ -133,8 +135,8 @@ export function AppUpdater({
       setCheckedAt(new Date().toISOString());
       setMessage(
         update
-          ? `Zentra ${update.version} est disponible. Sa signature sera contrôlée avant l’installation.`
-          : `Zentra ${currentPolicy.currentVersion} est déjà à jour.`,
+          ? { source: 'Zentra {version} est disponible. Sa signature sera contrôlée avant l’installation.', values: { version: update.version } }
+          : { source: 'Zentra {version} est déjà à jour.', values: { version: currentPolicy.currentVersion } },
       );
     } catch (reason) {
       setError(
@@ -191,7 +193,7 @@ export function AppUpdater({
       setOutcome('available');
       const detail = errorMessage(reason, 'L’installation n’a pas abouti. La mise à jour reste disponible : réessayez après vérification.');
       const explanation = updaterFailureExplanation(detail);
-      setError(explanation ? t(explanation) : detail);
+      setError(explanation || detail);
       setInstallationDetail(explanation ? detail : '');
     } finally {
       setInstalling(false);
@@ -199,12 +201,13 @@ export function AppUpdater({
     }
   }
 
+  const messageText = typeof message === 'string' ? t(message) : t(message.source, message.values);
   const progressLabel =
     progress.phase === 'downloading'
       ? progress.contentLength
-        ? `${formatUpdateBytes(progress.downloadedBytes)} sur ${formatUpdateBytes(progress.contentLength)}`
-        : `${formatUpdateBytes(progress.downloadedBytes)} téléchargés`
-      : message;
+        ? t('{downloaded} sur {total}', { downloaded: formatUpdateBytes(progress.downloadedBytes), total: formatUpdateBytes(progress.contentLength) })
+        : t('{downloaded} téléchargés', { downloaded: formatUpdateBytes(progress.downloadedBytes) })
+      : messageText;
   const activeStep = activeUpdaterStep({
     checking,
     phase: progress.phase,
@@ -256,10 +259,10 @@ export function AppUpdater({
         tabIndex={-1}
       >
         <SectionHeading
-          title="Mises à jour mobiles"
-          description={`Version installée : ${policy.currentVersion}`}
+          title={t('Mises à jour mobiles')}
+          description={t('Version installée : {version}', { version: policy.currentVersion })}
         />
-        <p>{policy.reason}</p>
+        <p>{t(policy.reason)}</p>
         <ReleaseHistory version={policy.currentVersion} />
       </section>
     );
@@ -272,9 +275,8 @@ export function AppUpdater({
       tabIndex={-1}
     >
       <SectionHeading
-        eyebrow="Maintenance sécurisée"
-        title="Mettre Zentra à jour sans le réinstaller"
-        description={`Version installée : ${policy?.currentVersion || '…'}. Retrouvez les dernières améliorations en conservant vos données. Le fichier est vérifié avant l’installation.`}
+        title={t('Mettre Zentra à jour sans le réinstaller')}
+        description={t('Version installée : {version}. Retrouvez les dernières améliorations en conservant vos données. Le fichier est vérifié avant l’installation.', { version: policy?.currentVersion || '…' })}
       />
 
       <div
@@ -284,21 +286,20 @@ export function AppUpdater({
       >
         <span>{statusIcon}</span>
         <div>
-          <strong>{statusTitle}</strong>
-          <p>{error || message}</p>
+          <strong>{t(statusTitle)}</strong>
+          <p>{error ? t(error) : messageText}</p>
           {checkedAt && !checking ? (
             <small>
-              <Clock3 size={13} /> Dernière recherche réussie à{' '}
-              {new Date(checkedAt).toLocaleTimeString('fr-CH', {
+              <Clock3 size={13} /> {t('Dernière recherche réussie à {time}', { time: new Date(checkedAt).toLocaleTimeString(getAppLocale(), {
                 hour: '2-digit',
                 minute: '2-digit',
-              })}
+              }) })}
             </small>
           ) : null}
         </div>
       </div>
 
-      <ol className="app-updater__steps" aria-label="Étapes de la mise à jour">
+      <ol className="app-updater__steps" aria-label={t('Étapes de la mise à jour')}>
         {updaterSteps.map((label, stepIndex) => {
           const done =
             outcome === 'installed' ||
@@ -313,7 +314,7 @@ export function AppUpdater({
               aria-current={active ? 'step' : undefined}
             >
               <span>{done ? <CheckCircle2 size={15} /> : stepIndex + 1}</span>
-              <strong>{label}</strong>
+              <strong>{t(label)}</strong>
             </li>
           );
         })}
@@ -322,18 +323,18 @@ export function AppUpdater({
       {available ? (
         <article className="app-updater__release">
           <div>
-            <span>Nouvelle version</span>
+            <span>{t('Nouvelle version')}</span>
             <strong>Zentra {available.version}</strong>
             <small>
               {formattedDate
-                ? `Publiée le ${formattedDate}`
-                : `Depuis Zentra ${available.currentVersion}`}
+                ? t('Publiée le {date}', { date: formattedDate })
+                : t('Depuis Zentra {version}', { version: available.currentVersion })}
             </small>
           </div>
           {available.notes ? (
             <p>{available.notes}</p>
           ) : (
-            <p>Le manifeste ne contient pas de notes de version.</p>
+            <p>{t('Le manifeste ne contient pas de notes de version.')}</p>
           )}
         </article>
       ) : null}
@@ -346,13 +347,10 @@ export function AppUpdater({
           <ShieldCheck size={24} />
           <div>
             <strong id="app-updater-confirm-title">
-              Prêt à installer Zentra {available.version}
+              {t('Prêt à installer Zentra {version}', { version: available.version })}
             </strong>
             <p>
-              Enregistrez les saisies ouvertes. La signature sera contrôlée
-              avant que le système ferme Zentra, installe la version puis
-              relance l’application. Aucune désinstallation manuelle n’est
-              nécessaire.
+              {t('Enregistrez les saisies ouvertes. La signature sera contrôlée avant que le système ferme Zentra, installe la version puis relance l’application. Aucune désinstallation manuelle n’est nécessaire.')}
             </p>
             <div className="app-updater__confirmation-actions">
               <Button
@@ -360,10 +358,10 @@ export function AppUpdater({
                 variant="secondary"
                 onClick={() => setConfirming(false)}
               >
-                Annuler
+                {t('Annuler')}
               </Button>
               <Button type="button" onClick={() => void install()}>
-                <Download size={16} /> Installer et redémarrer
+                <Download size={16} /> {t('Installer et redémarrer')}
               </Button>
             </div>
           </div>
@@ -371,7 +369,7 @@ export function AppUpdater({
       ) : null}
 
       {showProgress ? (
-        <section className="app-updater__progress" aria-label="État du téléchargement" aria-live="polite">
+        <section className="app-updater__progress" aria-label={t('État du téléchargement')} aria-live="polite">
           <div>
             <span>{progressLabel}</span>
             <strong>
@@ -383,12 +381,12 @@ export function AppUpdater({
           <progress
             max={100}
             value={progress.percent ?? undefined}
-            aria-label="Progression de la mise à jour"
+            aria-label={t('Progression de la mise à jour')}
           />
           <small>
             {progress.phase === 'verifying'
-              ? 'Ne fermez pas Zentra : la signature et l’installateur sont en cours de contrôle.'
-              : 'N’éteignez pas l’ordinateur pendant l’installation. Les données locales de votre entreprise restent sur cet appareil.'}
+              ? t('Ne fermez pas Zentra : la signature et l’installateur sont en cours de contrôle.')
+              : t('N’éteignez pas l’ordinateur pendant l’installation. Les données locales de votre entreprise restent sur cet appareil.')}
           </small>
         </section>
       ) : null}
@@ -408,10 +406,10 @@ export function AppUpdater({
             <RefreshCw size={16} />
           )}
           {checking
-            ? 'Recherche…'
+            ? t('Recherche…')
             : error
-              ? 'Réessayer la recherche'
-              : 'Rechercher une mise à jour'}
+              ? t('Réessayer la recherche')
+              : t('Rechercher une mise à jour')}
         </Button>
         {available && !confirming && !installing ? (
           <Button
@@ -419,47 +417,44 @@ export function AppUpdater({
             disabled={checking || installing}
             onClick={() => setConfirming(true)}
           >
-            <Download size={16} /> Préparer l’installation {available.version}
+            <Download size={16} /> {t('Préparer l’installation {version}', { version: available.version })}
           </Button>
         ) : null}
       </div>
       <details className="app-updater__technical">
-        <summary>Informations techniques et confidentialité</summary>
+        <summary>{t('Informations techniques et confidentialité')}</summary>
         {installationDetail ? <p>{installationDetail}</p> : null}
         <div className="app-updater__facts">
           <div>
             <Server size={16} />
-            <span>Version installée</span>
+            <span>{t('Version installée')}</span>
             <strong>{policy?.currentVersion || '—'}</strong>
           </div>
           <div>
             <LockKeyhole size={16} />
-            <span>Transport</span>
+            <span>{t('Transport')}</span>
             <strong>{policy?.transport || 'HTTPS'}</strong>
           </div>
           <div>
             <ShieldCheck size={16} />
-            <span>Signature</span>
-            <strong>Ed25519 obligatoire</strong>
+            <span>{t('Signature')}</span>
+            <strong>{t('Ed25519 obligatoire')}</strong>
           </div>
           <div>
             <RotateCw size={16} />
-            <span>Installation sécurisée</span>
-            <strong>Fermeture et redémarrage</strong>
+            <span>{t('Installation sécurisée')}</span>
+            <strong>{t('Fermeture et redémarrage')}</strong>
           </div>
           {policy?.endpointHost ? (
             <div>
               <Server size={16} />
-              <span>Serveur</span>
+              <span>{t('Serveur')}</span>
               <strong>{policy.endpointHost}</strong>
             </div>
           ) : null}
         </div>
         <p className="app-updater__notice">
-          Aucune mise à jour ne s’installe seule. La requête indique la version,
-          le système et l’architecture ; comme toute connexion HTTPS, le serveur
-          voit aussi l’adresse IP et les métadonnées techniques. Aucune donnée
-          métier n’est envoyée par ce contrôle.
+          {t('Aucune mise à jour ne s’installe seule. La requête indique la version, le système et l’architecture ; comme toute connexion HTTPS, le serveur voit aussi l’adresse IP et les métadonnées techniques. Aucune donnée métier n’est envoyée par ce contrôle.')}
         </p>
       </details>
       <ReleaseHistory version={policy?.currentVersion} />

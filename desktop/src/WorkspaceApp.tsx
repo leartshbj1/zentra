@@ -1665,7 +1665,7 @@ function WorkspaceContent({
       <CompanyReceivingGuard/>
       {mailAfterIssue && <MailComposer target={mailAfterIssue} onClose={() => setMailAfterIssue(null)} />}
       <AutomationWelcome key={companyAutomation.organizationId || 'local'} view={view} />
-      {updaterOpen ? <Modal title={t("Mise à jour de Zentra")} wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
+      {updaterOpen ? <Modal title={t("Mise à jour de Zentra")} className="app-updater-modal" wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
         <div className="standalone-updater-content"><AppUpdater onInstallingChange={setUpdateInstalling} /></div>
       </Modal> : null}
       {(compactNavigation || navigationDrawerOpen) ? <div className={`navigation-scrim${navigationDrawerOpen ? "" : " navigation-scrim--closed"}`} aria-hidden="true" onClick={() => setMenuOpen(false)} /> : null}

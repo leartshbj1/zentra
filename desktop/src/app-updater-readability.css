@@ -1,0 +1,23 @@
+.app-updater .app-updater__steps li strong,
+.app-updater .app-updater__facts strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+}
+.app-updater .app-updater__status small { flex-wrap: wrap; }
+.app-updater .app-updater__technical > p { overflow-wrap: anywhere; }
+.app-updater .app-updater__actions .button,
+.app-updater .app-updater__confirmation-actions .button {
+  height: auto;
+  min-height: 44px;
+  white-space: normal;
+}
+@media (max-width: 600px) {
+  .app-updater .app-updater__steps li { flex-direction: column; align-items: flex-start; }
+  .app-updater .app-updater__status { grid-template-columns: minmax(0, 1fr); }
+  .app-updater .app-updater__status > span { width: 32px; height: 32px; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .app-updater-modal .modal__header { display: grid; grid-template-columns: minmax(0, 1fr); }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .app-updater-modal .modal__header > div:first-child { grid-row: 2; }
+  html[data-app-text-size]:not([data-app-text-size="100"]) .app-updater-modal .modal__header-actions { grid-row: 1; justify-self: end; }
+}

@@ -13,7 +13,7 @@ export function installUpdaterFixture() {
   desktopApi.getSecureUpdatePolicy = async () => ({
     enabled: notesVersion !== 'mobile', currentVersion: notesVersion === 'mobile' ? '1.63.0' : notesVersion || '1.29.0', channel: notesVersion === 'mobile' ? 'store' : 'stable',
     endpointHost: 'updates.example.invalid', signatureRequired: true,
-    transport: 'HTTPS', automaticInstall: false, reason: '',
+    transport: 'HTTPS', automaticInstall: false, reason: notesVersion === 'mobile' ? 'Les mises à jour mobiles ne s’installent pas depuis cet écran. Utilisez la boutique ou l’outil avec lequel vous avez installé Zentra.' : '',
   });
   desktopApi.checkSecureUpdate = async () => {
     state.checks++;

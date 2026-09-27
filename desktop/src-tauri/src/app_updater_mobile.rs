@@ -18,20 +18,15 @@ pub fn initialize<R: Runtime>(_app: &mut tauri::App<R>) -> tauri::Result<()> {
 
 #[tauri::command]
 pub fn get_secure_update_policy() -> Value {
-    let store = if cfg!(target_os = "ios") {
-        "App Store"
-    } else {
-        "Google Play"
-    };
-    json!({"enabled":false,"currentVersion":env!("CARGO_PKG_VERSION"),"channel":"store","endpointHost":null,"signatureRequired":true,"transport":"store","automaticInstall":false,"reason":format!("Les nouvelles versions mobiles sont distribuées par {store}. Activez les mises à jour automatiques dans les réglages du store une fois Zentra installé depuis celui-ci.")})
+    json!({"enabled":false,"currentVersion":env!("CARGO_PKG_VERSION"),"channel":"store","endpointHost":null,"signatureRequired":true,"transport":"store","automaticInstall":false,"reason":"Les mises à jour mobiles ne s’installent pas depuis cet écran. Utilisez la boutique ou l’outil avec lequel vous avez installé Zentra."})
 }
 
 #[tauri::command]
 pub fn check_secure_update() -> Result<Option<Value>, String> {
-    Err("Consultez le store utilisé pour installer Zentra.".into())
+    Err("Utilisez la boutique ou l’outil avec lequel vous avez installé Zentra.".into())
 }
 
 #[tauri::command]
 pub fn install_secure_update(_on_event: Channel<Value>) -> Result<(), String> {
-    Err("Les mises à jour mobiles sont installées par le store.".into())
+    Err("Les mises à jour mobiles ne s’installent pas depuis cet écran.".into())
 }

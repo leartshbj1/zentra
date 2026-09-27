@@ -274,6 +274,7 @@ export function StandaloneUpdaterAccess() {
       {open ? (
         <Modal
           title={t("Mise à jour de Zentra")}
+          className="app-updater-modal"
           wide
           dismissible={!installing}
           onClose={() => { if (!installing) setOpen(false); }}

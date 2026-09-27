@@ -1,4 +1,5 @@
 import type { SecureUpdateEvent } from './types';
+import { getAppLocale, t } from './language';
 
 export function updaterFailureExplanation(detail: string): string | null {
   // Match the OS error, not a version, byte count or arbitrary reference number.
@@ -108,21 +109,21 @@ export function activeUpdaterStep({
 }
 
 export function formatUpdateBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 octet';
+  if (!Number.isFinite(bytes) || bytes <= 0) return t('0 octet');
   const units = ['octets', 'Ko', 'Mo', 'Go'];
   const rank = Math.min(
     Math.floor(Math.log(bytes) / Math.log(1024)),
     units.length - 1,
   );
   const value = bytes / 1024 ** rank;
-  return `${value.toLocaleString('fr-CH', {
+  return `${value.toLocaleString(getAppLocale(), {
     maximumFractionDigits: rank ? 1 : 0,
-  })} ${units[rank]}`;
+  })} ${t(units[rank])}`;
 }
 
 export function formatUpdateDate(value: string | null): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
-  return date.toLocaleDateString('fr-CH');
+  return date.toLocaleDateString(getAppLocale());
 }

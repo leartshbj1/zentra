@@ -8,6 +8,7 @@ import { financeWords, financeSources } from './financeClarity';
 it('provides all three translations for every explicit interface key currently wired to the app', () => {
   const files=['App.tsx','Onboarding.tsx','SettingsCategory.tsx','NavigationPalette.tsx','BusinessProfileEditor.tsx','ScreenHelp.tsx','ZentraAssistant.tsx','LocalAssistantSetup.tsx','CloudAccountAccess.tsx','CloudAccountPanel.tsx','PayrollOrganisationField.tsx','LanguageSetting.tsx','assistantContext.tsx','ui.tsx','WorkspaceApp.tsx','setupLanguage.ts','GuidedTour.tsx','GettingStartedChecklist.tsx','SupplierInboxBatchResult.tsx'];
   const missing:string[]=[];
+  files.push('AppUpdater.tsx', 'appUpdaterLogic.ts');
   files.push('PlanningEditor.tsx', 'ProjectPlanningPanel.tsx', 'planningForm.ts');
   files.push('DocumentDesignStudio.tsx','DocumentDesignNavigator.tsx','DocumentDesignMap.tsx','DocumentWorkbench.tsx','DocumentLayoutControls.tsx','DocumentPageControls.tsx','DocumentPrecisionControls.tsx','DocumentTemplateLibrary.tsx','RichTextEditor.tsx','RichTextSearchPanel.tsx','documentDesignValidation.ts','documentTemplates.ts','richTextEditing.ts','richTextSearch.ts');
   files.push('DocumentEditor.tsx', 'MobileDashboard.tsx', 'documentNumberEntry.ts', 'documentUi.ts', 'WorkspacePersonalization.tsx', 'CatalogScreen.tsx', 'AgendaScreen.tsx');
