@@ -1,3 +1,4 @@
+import { t } from './language';
 import {useEffect,useRef,useState} from 'react';
 import {revealInDialog} from './dialogFocus';
 import {desktopApi} from './bridge';
@@ -62,7 +63,7 @@ export function CustomerSettlementForm({creditId,mode,reverseId,workspace,busy,r
   {review!==null&&!request&&<details><summary>Motif du règlement</summary><p className="credit-allocation-reason">{draft.reason}</p></details>}
   {readOnly&&<p className="credit-allocation-notice">Accès en lecture seule : les enregistrements sont désactivés. Vous pouvez consulter et vérifier l’historique.</p>}
   {!workspace.accountingSettings?.enabled&&<p>La comptabilité est inactive : cette opération restera à comptabiliser.</p>}
-  {problem&&(problem.field==='record'||problem.destination)&&<div className="credit-allocation-alert" role="alert" tabIndex={-1}><strong>Vérifions ce point</strong><p>{problem.message}</p>{detail&&<details><summary>Voir le message détaillé</summary><p>{detail}</p></details>}{problem.destination&&<><p>Retrouvez ensuite cet avoir pour préparer à nouveau le règlement. Une demande interrompue reste conservée.</p><Button type="button" variant="secondary" disabled={locked} onClick={()=>onOpenHelp(problem.destination!)}>{problem.destination==='bank'?'Ouvrir Banque':problem.destination==='periods'?'Ouvrir les exercices':'Ouvrir Plan & liaisons'}</Button></>}</div>}
+  {problem&&(problem.field==='record'||problem.destination)&&<div className="credit-allocation-alert" role="alert" tabIndex={-1}><strong>Vérifions ce point</strong><p>{problem.message}</p>{detail&&<details><summary>Voir le message détaillé</summary><p>{detail}</p></details>}{problem.destination&&<><p>Retrouvez ensuite cet avoir pour préparer à nouveau le règlement. Une demande interrompue reste conservée.</p><Button type="button" variant="secondary" disabled={locked} onClick={()=>onOpenHelp(problem.destination!)}>{problem.destination==='bank'?'Ouvrir Banque':problem.destination==='periods'?'Ouvrir les exercices':t('Configurer la comptabilité')}</Button></>}</div>}
   {!request&&<Button type="button" variant="ghost" disabled={locked} onClick={()=>void refresh()}>Actualiser les factures</Button>}
   <div className="form-actions"><Button type="button" variant="secondary" disabled={locked||Boolean(request)} onClick={()=>review!==null?setReview(null):onCancel()}>{review!==null?'Modifier':'Annuler'}</Button>{!request&&<Button type="submit" disabled={locked||readOnly}>{pending?'Vérification…':review===null?'Vérifier le règlement':changed?'Reprendre la vérification':reverseId?'Enregistrer la correction':'Enregistrer le règlement'}</Button>}</div>
  </form>;

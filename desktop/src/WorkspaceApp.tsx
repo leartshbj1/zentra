@@ -1,3 +1,4 @@
+import './first-client-clarity.css';
 import { AppearanceSetting } from './AppearanceSetting';
 import { CompanySettingsSync } from './CompanySettingsSync';
 import { BexioImportPanel } from './BexioImportPanel';
@@ -83,7 +84,6 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
-  CircleDollarSign,
   ClipboardCheck,
   Clock3,
   CloudUpload,
@@ -144,7 +144,8 @@ import { salesPdfSuggestedFileName } from './salesPdfExport';
 import { BrandMark, BrandWordmark } from './BrandMark';
 import { documentOrders, newestDocumentsFirst, readDocumentOrder, saveDocumentOrder, sortDocuments, type DocumentOrder } from './documentOrder';
 import { matchesSalesDocumentSearch, matchesSalesDocumentStatus, documentCreators, documentCreatorLabel, matchesDocumentCreator } from './salesDocumentList';
-import { salesTotalsByCurrency, formatSalesTotals, turnoverLabel } from './salesFinancials';
+import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
+import { DashboardFinancialSummary } from './DashboardFinancialSummary';
 import { MobileDetails, MobileDocumentActions, useCompactLayout } from './MobileDetails';
 import { MobileDashboard } from './MobileDashboard';
 import type { AgendaEventDraft } from './AgendaScreen';
@@ -472,7 +473,7 @@ const viewTitles: Record<View, [string, string]> = {
     'Échéances, niveaux et historique des actions locales',
   ],
   time: ['Temps', 'Pointage réel et heures par projet'],
-  team: ['Équipe & salaires', 'Collaborateurs et fiches sans retenue estimée'],
+  team: ['Équipe & salaires', 'Salariés et fiches de paie'],
   expenses: [
     'Achats & fournisseurs',
     'Échéances, dépenses payées et annuaire local',
@@ -2602,10 +2603,6 @@ function Dashboard({
   const quoteBlock = creationBlockReason('quotes', prerequisites);
   const expenseBlock = creationBlockReason('expenses', prerequisites);
   const gettingStarted = buildGettingStartedJourney(workspace);
-  const issued = workspace.invoices.filter(
-    (invoice) => invoice.status !== 'draft' && invoice.status !== 'cancelled',
-  );
-  const financialTotals = useMemo(() => salesTotalsByCurrency(workspace.invoices, workspace.payments), [workspace.invoices, workspace.payments]);
   const activeProjects = workspace.projects.filter((project) =>
     ['in_progress', 'paused'].includes(project.status),
   );
@@ -2684,55 +2681,7 @@ function Dashboard({
     );
   return (
     <div className="dashboard-grid">
-      <section className="workspace-finances">
-      <div className="dashboard-overview-heading">
-        <h2>Votre activité en un regard</h2>
-        <span>Toutes périodes · devises séparées</span>
-      </div>
-      <div className="metric-grid dashboard-summary" role="group" aria-label="Résumé de votre activité">
-        <MetricCard
-          label="Factures émises · TTC"
-          value={formatSalesTotals(financialTotals, 'invoicedCents')}
-          note={
-            issued.length
-              ? `${issued.length} facture${issued.length > 1 ? 's' : ''} émise${issued.length > 1 ? 's' : ''}`
-              : 'Aucune facture émise'
-          }
-          icon={<CircleDollarSign />}
-          tone="green"
-        />
-        <MetricCard
-          label="Paiements reçus"
-          value={formatSalesTotals(financialTotals, 'paidCents')}
-          note={
-            workspace.payments.length
-              ? `${workspace.payments.length} paiement${workspace.payments.length > 1 ? 's' : ''}`
-              : 'Aucun paiement enregistré'
-          }
-          icon={<Banknote />}
-          tone="amber"
-        />
-        <MetricCard
-          label="Reste à recevoir"
-          value={
-            formatSalesTotals(financialTotals, 'openCents')
-          }
-          note={
-            issued.length ? 'Montant encore dû par les clients' : 'Pas encore calculable'
-          }
-          icon={<TrendingUp />}
-          tone="blue"
-        />
-        <MetricCard
-          label="Chiffre d’affaires"
-          value={turnoverLabel(workspace.invoices)}
-          note={`Facturé hors TVA · ${new Date().getFullYear()} · avoirs déduits`}
-          icon={<TrendingUp />}
-          tone="violet"
-        />
-      </div>
-      <details className="dashboard-finance-guide"><summary>Comment lire ces chiffres ?</summary><p>Les factures émises indiquent les ventes avec les taxes. Les paiements reçus sont ceux enregistrés dans Zentra. Le reste à recevoir correspond aux montants encore dus. Chaque devise est présentée séparément.</p><p>Pour connaître le bénéfice après les charges, consultez <button type="button" onClick={()=>onNavigate('accounting')}>votre comptabilité</button>. Ces chiffres ne sont pas le solde de votre compte bancaire.</p></details>
-      </section>
+      <DashboardFinancialSummary workspace={workspace} onAccounting={()=>onNavigate('accounting')} />
       <AutomationDailySummary link />
       {!gettingStarted.complete ? (
         <GettingStartedChecklist
@@ -2855,31 +2804,6 @@ function Dashboard({
       </section>
       {quickActions}
     </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  note,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  note: string;
-  icon: React.ReactNode;
-  tone: string;
-}) {
-  return (
-    <article className={`metric-card metric-card--${tone}`}>
-      <div className="metric-card__icon">{icon}</div>
-      <div>
-        <span>{label}</span>
-        <strong className={value.includes(' · ') ? 'metric-card__multiple' : undefined}>{value.split(' · ').map((part, index) => <b key={index}>{part}</b>)}</strong>
-        <small>{note}</small>
-      </div>
-    </article>
   );
 }
 
@@ -5092,48 +5016,11 @@ function SettingsScreen({
         <MailSettings companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { const next = await desktopApi.loadWorkspace(); onWorkspace(next); if (next.settings) setSettings(next.settings); }} />
       </SettingsCategory>
       <SettingsCategory id="company" title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
-      <section className="panel settings-card settings-card--wide">
-        <SectionHeading
-          eyebrow="Activité"
-          title="Profil NOGA 2025 et terminologie"
-          description="Votre secteur précise l’activité de l’entreprise. Vos projets et documents sont conservés."
-        />
-        <BusinessProfileFields
-          profile={settings.business}
-          onChange={(business) =>
-            setSettings((current) => ({ ...current, business }))
-          }
-          disabled={busy}
-        />
-        <div className="form-actions">
-          <Button
-            disabled={
-              busy ||
-              !settings.business.nogaSection ||
-              !settings.business.nogaDivision ||
-              !settings.business.activityDescription.trim()
-            }
-            onClick={() =>
-              void execute(
-                () => desktopApi.saveSettings(settings),
-                'Le profil d’activité et la terminologie ont été enregistrés.',
-              )
-            }
-          >
-            Enregistrer le profil d’activité
-          </Button>
-        </div>
-      </section>
       <section
         id={SETTINGS_READINESS_TARGETS.identity}
         className="panel settings-card settings-card--wide settings-scroll-target"
         tabIndex={-1}
       >
-        <SectionHeading
-          eyebrow="Documents"
-          title="Entreprise et facturation"
-          description="Ces champs sont utilisés sur les documents officiels."
-        />
         <form data-company-receive-safe="true"
           onSubmit={submitForm(async (form) => {
             const vatRegistered = form.get('vatRegistered') === 'on';
@@ -5206,12 +5093,8 @@ function SettingsScreen({
               )}
             </div>
             <div className="company-logo-setting__copy">
-              <strong>Logo de l’entreprise</strong>
-              <p>
-                PNG, JPEG ou WebP · 16 à 4096 px par côté · 8 Mo maximum.
-                Zentra contrôle le contenu puis en conserve une copie locale
-                immuable, incluse dans vos sauvegardes.
-              </p>
+              <strong>{t('Logo de l’entreprise')}</strong>
+              <details><summary>{t('Formats acceptés')}</summary><p>{t('PNG, JPEG ou WebP · 16 à 4096 px par côté · 8 Mo maximum. Une copie du logo est conservée dans vos sauvegardes.')}</p></details>
               <div className="settings-inline-actions">
                 <Button
                   type="button"
@@ -5220,7 +5103,7 @@ function SettingsScreen({
                   onClick={() => void chooseLogo()}
                 >
                   <FolderOpen size={16} />{' '}
-                  {org.logoPath ? 'Remplacer le logo' : 'Choisir le logo'}
+                  {t(org.logoPath ? 'Remplacer le logo' : 'Choisir le logo')}
                 </Button>
                 {org.logoPath ? (
                   <Button
@@ -5516,6 +5399,37 @@ function SettingsScreen({
         </Button>
       </section>
 
+      <section className="panel settings-card settings-card--wide">
+        <SectionHeading
+          title={t('Secteur d’activité et noms des projets')}
+          description={t('Choisissez votre secteur pour adapter les libellés de l’app. La classification NOGA 2025 précise votre activité.')}
+        />
+        <BusinessProfileFields
+          profile={settings.business}
+          onChange={(business) =>
+            setSettings((current) => ({ ...current, business }))
+          }
+          disabled={busy}
+        />
+        <div className="form-actions">
+          <Button
+            disabled={
+              busy ||
+              !settings.business.nogaSection ||
+              !settings.business.nogaDivision ||
+              !settings.business.activityDescription.trim()
+            }
+            onClick={() =>
+              void execute(
+                () => desktopApi.saveSettings(settings),
+                'Le profil d’activité et la terminologie ont été enregistrés.',
+              )
+            }
+          >
+            Enregistrer le profil d’activité
+          </Button>
+        </div>
+      </section>
       </SettingsCategory>
       <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Languages}><AppearanceSetting /></SettingsCategory>
       <SettingsCategory id="personalization" title={t('Mes raccourcis')} description={t('Barre du bas et actions de l’accueil')} icon={Settings}><WorkspacePersonalization automationActive={automationActive} /></SettingsCategory>

@@ -127,7 +127,7 @@ for (const [engine, type] of [['edge', chromium], ['webkit', webkit]]) {
         assert.equal(await page.locator('.bank-hero button').isDisabled(), true);
         await page.goto(`${base}/tests/mobile-harness.html?finance=1&bank=1&bankNoAccounting=1`);
         await navigate(page, 'Banque');
-        await page.getByRole('button', { name: 'Ouvrir Plan & liaisons', exact: true }).click();
+        await page.getByRole('button', { name: 'Configurer la comptabilité', exact: true }).click();
         await page.locator('.accounting-screen').waitFor();
         assert.equal(await page.getByRole('combobox', { name: 'Autres outils comptables', exact: true }).inputValue(), 'accounts');
         assert.deepEqual(errors, []);

@@ -1,3 +1,4 @@
+import { t } from './language';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -593,7 +594,7 @@ export function BankScreen({
     </div> : null}
     {refreshPending ? <div className="bank-refresh-state" role="alert"><div><strong>Données à actualiser</strong><p>Actualisez les données pour poursuivre les rapprochements.</p></div><Button disabled={busy} onClick={() => void retryRefresh()}>Actualiser les données</Button></div> : null}
 
-    {!accountingReady ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité requise pour rapprocher</strong><p>Les relevés restent consultables, mais un encaissement ou règlement n’est confirmé que si le paiement et son écriture bancaire peuvent être créés ensemble.</p></div><Button variant="secondary" size="small" onClick={() => onOpenAccounting('accounts')}>Ouvrir Plan & liaisons</Button></div> : null}
+    {!accountingReady ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité requise pour rapprocher</strong><p>Les relevés restent consultables, mais un encaissement ou règlement n’est confirmé que si le paiement et son écriture bancaire peuvent être créés ensemble.</p></div><Button variant="secondary" size="small" onClick={() => onOpenAccounting('accounts')}>{t('Configurer la comptabilité')}</Button></div> : null}
 
     <details className="workspace-summary"><summary>Résumé bancaire local <span>{bank.summary.importCount} imports · {bank.summary.unreconciledCount + bank.summary.unreconciledSupplierCount} à rapprocher</span></summary><div className="bank-summary" aria-label="Résumé bancaire local">
       <article><FileCode2 /><span>Imports</span><strong>{bank.summary.importCount}</strong><small>fichiers locaux</small></article>

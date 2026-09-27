@@ -30,7 +30,7 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, setup, a
         {totals.length > 1 ? <select aria-label={t('Devise du résumé')} value={total.currency} onChange={event => setChosen(event.target.value)}>{totals.map(item => <option key={item.currency}>{item.currency}</option>)}</select> : null}
       </div>
       <strong className="mobile-home__amount">{total ? formatMoney(total.openCents, total.currency) : '—'}</strong>
-      <span className="mobile-home__period">{t('Toutes périodes')}</span>
+      <span className="mobile-home__period">{t('Encore dû · toutes années confondues')}</span>
       <MobileDetails title="Détail des montants">
         <dl><div><dt>{t('Factures émises · TTC')}</dt><dd>{total ? formatMoney(total.invoicedCents, total.currency) : '—'}</dd></div><div><dt>{t('Paiements reçus')}</dt><dd>{total ? formatMoney(total.paidCents, total.currency) : '—'}</dd></div></dl>
         <p>{t('Montants enregistrés dans Zentra, séparés par devise. Ce résumé ne représente pas le solde bancaire.')}</p>
@@ -46,7 +46,7 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, setup, a
     {projects.length > 0 && <section className="mobile-home__section"><div className="mobile-home__section-heading"><h2>{t('Projets actifs')}</h2><button type="button" onClick={() => onNavigate('projects')}>{t('Tout voir')}</button></div>
       <div className="mobile-home__list">{projects.slice(0, 3).map(project => <button type="button" key={project.id} onClick={() => onOpenProject(project)}><FolderKanban size={21}/><span>{project.name}</span><ChevronRight size={17}/></button>)}</div>
     </section>}
-    <button type="button" className="mobile-home__time" onClick={() => onNavigate('accounting')}><TrendingUp size={19}/><span>{t('Chiffre d’affaires')}<small className="turnover-period">{t('Facturé hors TVA')} · {new Date().getFullYear()}</small></span><strong>{turnoverLabel(workspace.invoices)}</strong><ChevronRight size={17}/></button>
+    <button type="button" className="mobile-home__time" onClick={() => onNavigate('accounting')}><TrendingUp size={19}/><span>{t('Chiffre d’affaires')}<small className="turnover-period">{new Date().getFullYear()} · {t('Facturé hors TVA · avoirs déduits')}</small></span><strong>{workspace.invoices.some(invoice=>!['draft','cancelled'].includes(invoice.status))?turnoverLabel(workspace.invoices):'—'}</strong><ChevronRight size={17}/></button>
     {setup && <MobileDetails title="Pour bien démarrer">{setup}</MobileDetails>}
   </div>;
 }

@@ -17,13 +17,13 @@ Audit : `C:/Users/alb/Documents/ChatGPT/chantier/outputs/audit-premier-client-20
 | 9 | Corrigé localement : compteur commun dédoublonné, indisponibilité distincte de zéro, recherche partagée, brouillon distinct de comptabilisé. Résultat de lot et exceptions explicites ; aucun « tout à jour » quand des brouillons restent à valider. | Comptages reçus/à vérifier/comptabilisés cohérents et vérification de lot avec exceptions. |
 | 10 | Activité d’Automation à rendre plus concrète. | Événements avec document, montant, origine, résultat et lien ; aucune économie inventée. |
 | 11 | Démarrage et sélection des espaces à clarifier. | Même compte sur deux appareils avec des données ; choix explicite et aucun mélange d’entreprises. |
-| 12 | Paie, distinction salariés/membres et assurances à clarifier. | Erreur compréhensible, réglage direct et retour au brouillon ; aucun taux contractuel deviné. |
+| 12 | Amélioré localement : identité et logo avant NOGA, descriptif « Salariés et fiches de paie », boutons « Configurer la comptabilité ». La boucle de correction des assurances et la distinction complète salariés/membres restent à vérifier. | Erreur compréhensible, réglage direct et retour au brouillon ; aucun taux contractuel deviné. |
 | 13 | Corrigé localement : messagerie, variables, modèles, aperçus, erreurs connues et états en FR/DE/IT/EN ; contenu client inchangé. | Parcours quatre langues passés ; compléter messages inconnus observés et publier le binaire. |
 | 14 | Corrigé localement : onglets/variables e-mail 44 px minimum, mots non coupés ; nouvelle rubrique révélée sous la barre fixe, aussi sur ordinateur. | Poursuivre les autres écrans ; ne pas annoncer une conformité globale. |
 | 15 | Taille du texte à ajouter sans zoom global ni suppression du zoom des documents. | Taille 200 %, redistribution mobile et clavier. |
-| 16 | Périodes des indicateurs, unités, absences et écrans vides à préciser. | Stock/flux distingués, prochaine action unique, aucun faux zéro comptable. |
+| 16 | Clarifié localement : cumul toutes années, reste dû toutes années et CA annuel hors TVA explicitement séparés ; devises conservées. Aucune facture émise : CA affiché —. États vides des autres menus encore à traiter. | Stock/flux distingués, prochaine action unique, aucun faux zéro comptable. |
 | 17 | Secret SMTP par appareil et modèles par entreprise indiqués et traduits. Acceptation SMTP distincte de la livraison. | Stratégie partagée/OAuth, droits, erreurs et recette de livraison ; aucun secret synchronisé en clair. |
-| 18 | Structure et performance à traiter par mesures et extractions ciblées. | Démarrage/navigation, mémoire, chargement des langues, CSS inutilisé prouvé et absence de régression. |
+| 18 | Synthèse financière extraite du composant principal. Mesure locale sur 1 500 documents par type (9 types, 8 lignes/document) : normalisation 38–58 ms, sommes 0,8–10,5 ms, libellés 6–17 ms. Pas une mesure de serveur, démarrage ou téléphone. Graphe initial et CSS à traiter. | Démarrage/navigation, mémoire, chargement des langues, CSS inutilisé prouvé et absence de régression. |
 | 19 | Sites 274 publié, source dc4de922 : nonce par réponse HTML privée, CSP en observation, HSTS un jour. CSP appliquée existante inchangée. Contrôle public passé ; aucune recette authentifiée/Stripe/Safari implicite. | Observation compatible Vinext puis politique appliquée et parcours authentifiés/Stripe vérifiés. |
 | 20 | Corrigé localement : texte de sauvegarde `.zentra`, anciennes sauvegardes de test explicitement exclues, checklist de préparation actualisée avec domaine/contact actuels. Validateur natif existant inchangé. | Inclure ces textes dans la prochaine livraison ; recette restauration du format courant encore à exécuter. |
 
@@ -50,3 +50,10 @@ Le contrôle navigateur échoue à l’initialisation avec `failed to write kern
 - Sites 273 : source 47986d8b, journalisation des cycles et erreurs partielles des boîtes et workflows. Pas de preuve de déclenchement planifié sans application.
 - Sites 274 : source dc4de922, déploiement appgdep_6ab86858780c81918a82eb6c7a37a83e réussi le 27 septembre à 00:50 UTC. Contrôle en ligne /connexion, /mot-de-passe, /support/demo et /download : HTTP 200, HSTS présent, aucun incident JavaScript/CSP observé. Pages privées anonymes avec nonce ; aucun test de session réelle ou paiement.
 - Journaux d’erreurs sur les 60 minutes consultées après publication : aucun événement retourné. Sans trafic de collaboration confirmé, cela ne clôt pas le défaut HTTP 500 de l’audit.
+
+## Clarté de l’accueil et des réglages
+
+- `desktop/.qa/first-client-clarity/proof.json` : 24 variantes Edge/WebKit, quatre langues, 320/390/1440 px ; six vérifications des réglages en français. Révision finale revue : ship sur ce lot uniquement.
+- `desktop/.qa/bank-guided/report.json` : huit parcours banque avec préservation des saisies, refus, correction des comptes, double clic, doublons et lecture seule ; IPC fictif.
+- 46 tests ciblés finances/workflows/langue, puis 10 tests langue/couverture ; TypeScript et build Vite réussis. Aucune règle comptable ou taux modifié.
+- Mesure `desktop/.qa/runtime-speed/first-client-1500.json` ; empreinte de résultat identique sur trois exécutions. Le gain de performance n’est pas inféré d’une extraction de fichier.

@@ -1,3 +1,4 @@
+import { firstClientClarityTranslations } from './translationsFirstClientClarity';
 import { mobileTeamTranslations } from './translationsMobileTeam';
 import { personalizationTranslations } from './translationsPersonalization';
 import { onboardingTranslations } from './translationsOnboarding';
@@ -29,6 +30,7 @@ import { outgoingMailTranslations } from './translationsOutgoingMail';
 import { agendaTranslations } from './translationsAgenda';
 import { purchaseInboxTranslations } from './translationsPurchaseInbox';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...firstClientClarityTranslations,
   ...purchaseInboxTranslations,
   ...agendaTranslations,
   'Vos sauvegardes utilisent le format .zentra. Les anciennes sauvegardes de test ne peuvent plus être restaurées.': ['Ihre Sicherungen verwenden das Format .zentra. Alte Testsicherungen können nicht mehr wiederhergestellt werden.', 'I backup usano il formato .zentra. I vecchi backup di prova non possono più essere ripristinati.', 'Your backups use the .zentra format. Old test backups can no longer be restored.'],
@@ -80,7 +82,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   'Paramètres': ['Einstellungen','Impostazioni','Settings'], 'Tableau de bord': ['Übersicht','Panoramica','Dashboard'],
   'Agenda': ['Kalender','Agenda','Calendar'], 'Projets': ['Projekte','Progetti','Projects'], 'Clients': ['Kunden','Clienti','Customers'],
   'Produits & services': ['Produkte & Dienstleistungen','Prodotti e servizi','Products & services'], 'Ventes': ['Verkauf','Vendite','Sales'],
-  'Relances': ['Zahlungserinnerungen','Solleciti','Payment reminders'], 'Temps': ['Zeit','Tempo','Time'],
+  'Relances': ['Mahnungen','Solleciti','Payment reminders'], 'Temps': ['Zeit','Tempo','Time'],
   'Équipe & salaires': ['Team & Löhne','Team e stipendi','Team & payroll'], 'Achats & fournisseurs': ['Einkauf & Lieferanten','Acquisti e fornitori','Purchases & suppliers'],
   'Banque': ['Bank','Banca','Banking'], 'Rapports': ['Berichte','Rapporti','Reports'], 'Comptabilité': ['Buchhaltung','Contabilità','Accounting'],
   'Gestion': ['Verwaltung','Gestione','Management'], 'Pilotage': ['Unternehmensführung','Monitoraggio','Business overview'],

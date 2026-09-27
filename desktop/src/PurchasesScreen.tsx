@@ -1,3 +1,4 @@
+import { t } from './language';
 import { useMemo, useState } from 'react';
 import './workflow-clarity.css';
 import { Archive, Banknote, Building2, CheckCircle2, Clock3, Eye, FileCheck2, FolderOpen, Mail, Paperclip, Pencil, Phone, Plus, ReceiptText, RotateCcw, Search, Trash2, WalletCards } from 'lucide-react';
@@ -290,7 +291,7 @@ export function ExpenseForm({ item, workspace, busy, close, act, onOpenAccountin
         <Field label="Total calculé"><output className="field-output">{formatMoney(netCents + vatCents)}</output></Field>
         <Field label="Note" wide><textarea name="note" rows={3} defaultValue={item?.note} maxLength={2_000} /></Field>
       </div>
-      {accountingEnabled ? <div className="info-strip"><WalletCards size={17} /><span>Un achat payé et son écriture comptable sont enregistrés ensemble, ou entièrement annulés en cas d’erreur. Aucun ordre bancaire n’est envoyé.</span></div> : <div className="report-callout is-warning"><WalletCards size={18} /><div><strong>Paiement protégé</strong><p>Enregistrez l’achat « À payer » ou activez d’abord la comptabilité pour créer paiement et écriture ensemble.</p></div><Button type="button" variant="secondary" onClick={onOpenAccounting}>Ouvrir Plan & liaisons</Button></div>}
+      {accountingEnabled ? <div className="info-strip"><WalletCards size={17} /><span>Un achat payé et son écriture comptable sont enregistrés ensemble, ou entièrement annulés en cas d’erreur. Aucun ordre bancaire n’est envoyé.</span></div> : <div className="report-callout is-warning"><WalletCards size={18} /><div><strong>Paiement protégé</strong><p>Enregistrez l’achat « À payer » ou activez d’abord la comptabilité pour créer paiement et écriture ensemble.</p></div><Button type="button" variant="secondary" onClick={onOpenAccounting}>{t('Configurer la comptabilité')}</Button></div>}
       </fieldset>
       {formError ? <ErrorPanel title="Vérifions cet achat" message={formError} reveal /> : null}
       <FormActions onCancel={close} busy={busy} disabled={paidTransitionBlocked} submitLabel={item ? 'Enregistrer les modifications' : 'Enregistrer l’achat'} />
