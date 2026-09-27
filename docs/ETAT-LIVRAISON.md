@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 17 h 03 (Europe/Zurich). Ce document décrit la livraison courante ; les notes `RELEASE-*` conservent son historique.
+Mis à jour le 27 septembre 2026, 17 h 23 (Europe/Zurich). Ce document décrit la livraison courante ; les notes `RELEASE-*` conservent son historique.
 
 ## Fichiers proposés au public
 
@@ -19,7 +19,9 @@ Preuves locales : `outputs/release1904/SOURCES.json`, `github-published-proof.js
 
 ## Site et services
 
-**Site 286**, source `d8d2db14cf91d5195d1c9c5487f6ce3290a1bc77`, déployé le 27 septembre à 15 h 55, configuration 36. Déploiement : `appgdep_6ab9204876d08191a82b69e35724756b`. Il comprend le service d’e-mails partagé de Site 285 et les adresses de repli de l’icône Apple. Les icônes répondent 200 avec le même contenu officiel.
+**Site 287**, source `ead5b3249d1c090104a00b93e0610045f549f040`, déployé le 27 septembre à 17 h 22, configuration 36. Déploiement : `appgdep_6ab934b12e548191839eeb0c155022b9`. Il comprend le service d’e-mails partagé de Site 285, les adresses de repli de l’icône Apple de Site 286 et la correction du suivi des traitements simultanés. Les icônes avaient été contrôlées en HTTP 200 avec le même contenu officiel ; pas de nouvel essai d’icônes dans ce lot serveur.
+
+**Planificateur non rétabli :** GitHub `support-mail-sync.yml` reste `disabled_manually` au contrôle de 17 h 20, dernière exécution observée le 20 septembre en échec. Aucun drapeau d’arrière-plan ajouté. La migration serveur 0065 empêche une fin ancienne ou rejouée de masquer un traitement récent bloqué. 84 tests isolés, TypeScript, lint, ressources de marque et compilation réussis. Le client planifié corrigé signale aussi une file non terminée à sa limite de temps ou de lots ; il est conservé dans le dépôt Sites, mais n’a pas été installé dans la branche GitHub exécutée par le planificateur. Ni traitement réel fermé, ni réception d’une alerte, ni capacité de 150 entreprises prouvés. Voir le lot serveur `docs/SCHEDULER-CONCURRENCE-20260927.md`.
 
 **Connexion non rétablie :** le contrôle synthétique du 27 septembre à 16 h 53 a reçu HTTP 503 en 3,52 s, `Retry-After: 60`, `no-store`. Aucun compte ni e-mail créé. Les essais réels d’abonnement, de collaboration entre appareils et d’envoi partagé ne sont pas validés par les tests isolés. Le blocage fournisseur constaté précédemment doit être résolu ; ce dernier HTTP 503 ne vérifie pas à lui seul sa cause exacte.
 
