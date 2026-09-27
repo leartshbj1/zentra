@@ -604,7 +604,9 @@ fn truncate_notes(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::validate_download_redirect;
     use std::sync::Mutex;
+    use url::Url;
 
     use base64::Engine;
 
