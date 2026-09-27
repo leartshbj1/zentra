@@ -1,4 +1,5 @@
 import { firstClientClarityTranslations } from './translationsFirstClientClarity';
+import { projectReportTranslations } from './translationsProjectReports';
 import { mobileTeamTranslations } from './translationsMobileTeam';
 import { personalizationTranslations } from './translationsPersonalization';
 import { onboardingTranslations } from './translationsOnboarding';
@@ -31,6 +32,7 @@ import { agendaTranslations } from './translationsAgenda';
 import { purchaseInboxTranslations } from './translationsPurchaseInbox';
 export const translations: Record<string, readonly [string, string, string]> = {
   ...firstClientClarityTranslations,
+  ...projectReportTranslations,
   ...purchaseInboxTranslations,
   ...agendaTranslations,
   'Vos sauvegardes utilisent le format .zentra. Les anciennes sauvegardes de test ne peuvent plus être restaurées.': ['Ihre Sicherungen verwenden das Format .zentra. Alte Testsicherungen können nicht mehr wiederhergestellt werden.', 'I backup usano il formato .zentra. I vecchi backup di prova non possono più essere ripristinati.', 'Your backups use the .zentra format. Old test backups can no longer be restored.'],

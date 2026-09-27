@@ -31,6 +31,7 @@
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 36px;
 }
+.project-reports__layout--single { grid-template-columns:minmax(0,1fr); max-width:960px; }
 .project-reports__picker > label {
   display: grid;
   gap: 8px;
@@ -40,6 +41,7 @@
 .project-reports__picker input {
   width: 100%;
   min-width: 0;
+  min-height: 44px;
 }
 .project-reports__picker > div {
   display: grid;
@@ -93,12 +95,25 @@
 }
 .project-reports__title .button {
   flex-shrink: 0;
+  white-space: normal;
+  height: auto;
+  min-height: 44px;
 }
+.project-reports__composition { margin-top:24px; display:grid; gap:8px; }
+.project-reports__composition label,.project-reports__author { display:grid; gap:8px; font-size:14px; }
+.project-reports__composition select,.project-reports__author input { width:100%; min-width:0; min-height:44px; }
+.project-reports__composition p,.project-reports__scope { margin:0; font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
+.project-reports__scope { white-space:pre-line; margin-block:12px 20px; }
+.project-reports__customize { margin-block:20px; border-block:1px solid var(--line-soft); }
+.project-reports__customize summary { cursor:pointer; padding-block:14px; min-height:48px; font-size:14px; font-weight:550; }
+.project-reports__author { margin-bottom:20px; }
+.project-reports__sort-note { font-size:14px; }
+.project-reports__picker>.project-reports__mobile-picker-label { display:none; }
 .project-reports__figures {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
-  margin: 32px 0;
+  margin: 24px 0 12px;
   padding-block: 24px;
   border-block: 1px solid var(--line-soft);
 }
@@ -119,7 +134,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  margin: 0 0 32px;
+  margin: 12px 0 20px;
 }
 .project-reports__sections legend {
   font-size: 16px;
@@ -130,7 +145,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 36px;
+  min-height: 44px;
   font-size: 14px;
 }
 .project-reports__sections input {
@@ -210,6 +225,7 @@
     gap: 16px;
     align-items: baseline;
     justify-content: space-between;
+    flex-wrap:wrap;
   }
   .project-reports__figures dd {
     font-size: 19px;
@@ -248,4 +264,7 @@
   .project-reports--selected .project-reports__heading {
     display: none;
   }
+  .project-reports__picker>.project-reports__mobile-picker-label { display:grid; }
+  .project-reports__sections { grid-template-columns:minmax(0,1fr); }
+  .project-reports__empty { padding:20px 0; }
 }

@@ -7,6 +7,7 @@ import {
   projectFinancials,
 } from './utils';
 import { salesTotalsByCurrency, formatSalesTotals } from './salesFinancials';
+import { getAppLocale, t } from './language';
 export const reportSections = {
   overview: 'Vue d’ensemble',
   sales: 'Devis et factures',
@@ -16,6 +17,28 @@ export const reportSections = {
   documents: 'Documents et notes',
 } as const;
 export type ReportSectionKey = keyof typeof reportSections;
+export const reportPresets = {
+  summary: { label: 'Synthèse', description: 'Le projet et ses principaux montants, en quelques pages.', sections: ['overview'] },
+  client: { label: 'Dossier client', description: 'Documents émis et avancement. Coûts internes, notes et brouillons exclus.', sections: ['overview', 'sales', 'planning'] },
+  internal: { label: 'Dossier interne', description: 'Le suivi complet : ventes, achats, heures, planning et notes.', sections: Object.keys(reportSections) },
+} as const;
+export type ReportPreset = keyof typeof reportPresets;
+export type ProjectReportOptions = { preset?: ReportPreset; author?: string; createdAt?: Date };
+
+/** Most recently recorded activity first; planned future dates are not activity. */
+export function recentReportProjects(w: Workspace): Project[] {
+  const latest = new Map<string, number>();
+  const record = (id: string | null | undefined, date: string | undefined) => {
+    const value = date ? Date.parse(date) : NaN;
+    if (id && Number.isFinite(value)) latest.set(id, Math.max(latest.get(id) ?? 0, value));
+  };
+  for (const item of [...w.quotes, ...w.invoices]) record(item.projectId, item.createdAt || item.issueDate);
+  for (const item of [...w.projectTasks, ...w.projectMilestones]) record(item.projectId, item.updatedAt || item.createdAt);
+  for (const item of w.attachments ?? []) record(item.projectId, item.createdAt);
+  for (const item of w.timeEntries) record(item.projectId, item.date);
+  for (const item of w.expenses) record(item.projectId, item.date);
+  return [...w.projects].sort((a,b) => (latest.get(b.id) ?? 0) - (latest.get(a.id) ?? 0) || a.name.localeCompare(b.name, getAppLocale()) || a.id.localeCompare(b.id));
+}
 export type ProjectReport = {
   title: string;
   subtitle: string;
@@ -45,15 +68,18 @@ const statuses: Record<string, string> = {
   pending: 'À payer',
   partial: 'Paiement partiel',
 };
-const status = (v: string) => statuses[v] || v;
+const status = (v: string) => typeof v === 'string' && v.trim() ? t(statuses[v] || v) : t('Non renseigné');
 export function buildProjectReport(
   w: Workspace,
   p: Project,
   selected: ReportSectionKey[],
+  options: ProjectReportOptions = {},
 ): ProjectReport {
+  const forClient = options.preset === 'client';
+  const included = forClient ? selected.filter(key => reportPresets.client.sections.some(allowed => allowed === key)) : selected;
   const client = w.clients.find((c) => c.id === p.clientId),
-    invoices = w.invoices.filter((i) => i.projectId === p.id),
-    quotes = w.quotes.filter((q) => q.projectId === p.id);
+    invoices = w.invoices.filter((i) => i.projectId === p.id && (!forClient || !['draft','cancelled'].includes(i.status))),
+    quotes = w.quotes.filter((q) => q.projectId === p.id && (!forClient || !['draft','cancelled'].includes(q.status)));
   const s = projectFinancials(
     p,
     w.invoices,
@@ -65,62 +91,62 @@ export function buildProjectReport(
   );
   const sections: ProjectReport['sections'] = [];
   const add = (title: string, headers: string[], rows: string[][]) =>
-    sections.push({ title, headers, rows });
-  if (selected.includes('overview')) {
+    sections.push({ title: t(title), headers: headers.map(h => t(h)), rows: rows.length ? rows : [headers.map((_,i) => i === 0 ? t('Aucune donnée enregistrée') : '')] });
+  if (included.includes('overview')) {
     add(
       'Le projet',
       ['Information', 'Détail'],
       [
-        ['Client', client?.name || 'Non renseigné'],
+        [t('Client'), client?.company || client?.name || t('Non renseigné')],
         [
-          'Contact',
+          t('Contact'),
           [client?.contactPerson, client?.email, client?.phone]
             .filter(Boolean)
-            .join(' · ') || 'Non renseigné',
+            .join(' · ') || t('Non renseigné'),
         ],
-        ['Adresse', p.address || 'Non renseignée'],
-        ['Statut', status(p.status)],
-        ['Dates prévues', `${p.plannedStart || '—'} / ${p.plannedEnd || '—'}`],
-        ['Dates réelles', `${p.actualStart || '—'} / ${p.actualEnd || '—'}`],
-        ['Budget', formatMoney(p.budgetCents)],
-        ['Heures prévues', formatMinutes(p.plannedMinutes || 0)],
+        [t('Adresse'), p.address || t('Non renseignée')],
+        [t('Statut'), status(p.status)],
+        [t('Dates prévues'), `${p.plannedStart || '—'} / ${p.plannedEnd || '—'}`],
+        [t('Dates réelles'), `${p.actualStart || '—'} / ${p.actualEnd || '—'}`],
+        ...(!forClient ? [[t('Budget'), p.budgetCents ? formatMoney(p.budgetCents) : t('Non renseigné')], [t('Heures prévues'), p.plannedMinutes ? formatMinutes(p.plannedMinutes) : t('Non renseigné')]] : []),
       ],
     );
     add(
       'Situation financière',
       ['Indicateur', 'Montant'],
       [
-        ['Facturé hors TVA · avoirs déduits', s.invoicedNetLabel],
-        ['Facturé TTC', s.invoicedTotalLabel],
+        [t('Facturé hors TVA · avoirs déduits'), s.invoicedNetLabel],
+        [t('Facturé TTC'), s.invoicedTotalLabel],
         [
-          'Paiements reçus',
+          t('Paiements reçus'),
           formatSalesTotals(
             salesTotalsByCurrency(invoices, w.payments),
             'paidCents',
           ),
         ],
         [
-          'Reste à recevoir',
+          t('Reste à recevoir'),
           formatSalesTotals(
             salesTotalsByCurrency(invoices, w.payments),
             'openCents',
           ),
         ],
-        ['Main-d’œuvre', formatMoney(s.laborCost)],
-        ['Coût des achats après avoirs', formatMoney(s.expenseNet)],
-        ['Dont TVA non déductible', formatMoney(s.nonDeductibleVatCost)],
+        ...(!forClient ? [[t('Main-d’œuvre'), formatMoney(s.laborCost)],
+        [t('Coût des achats après avoirs'), formatMoney(s.expenseNet)],
+        [t('Dont TVA non déductible'), formatMoney(s.nonDeductibleVatCost)],
         [
-          'Marge de gestion',
-          s.marginUnavailableReason || formatMoney(s.margin),
+          t('Marge de gestion'),
+          s.marginUnavailableReason ? t(s.marginUnavailableReason) : s.hasActivity ? formatMoney(s.margin) : '—',
         ],
         [
-          'Méthode',
-          'Recettes : factures émises uniquement. Coûts : achats validés et dépenses à payer inclus. Devis et brouillons exclus de la marge. Devises séparées, sans conversion implicite.',
+          t('Méthode'),
+          t('Marge sur les coûts enregistrés, sans estimation des coûts manquants. Factures émises et avoirs, achats validés et dépenses enregistrées. Devis et brouillons exclus. Devises séparées, sans conversion implicite.'),
         ],
+        ] : [[t('Périmètre'),t('Factures émises et avoirs. Montants séparés par devise, sans conversion implicite.')]]),
       ],
     );
   }
-  if (selected.includes('sales')) {
+  if (included.includes('sales')) {
     add(
       'Devis',
       ['Document', 'Date / statut', 'Total TTC'],
@@ -135,13 +161,13 @@ export function buildProjectReport(
       ['Document', 'Date / statut', 'Total / reste TTC'],
       invoices.map((i) => [
         `${i.number} · ${i.title}\n${i.creator?.name || ''}`,
-        `${i.issueDate}\n${status(i.status)}\nÉchéance ${i.dueDate}`,
-        `${formatMoney(documentTotals(i.lines).totalCents, i.currency)}\nReste ${i.type === 'credit_note' || ['draft', 'cancelled'].includes(i.status) ? '—' : formatMoney(invoiceOpenBalance(i, w.invoices, w.payments), i.currency)}`,
+        `${i.issueDate}\n${status(i.status)}\n${t('Échéance')} ${i.dueDate}`,
+        `${formatMoney(documentTotals(i.lines).totalCents, i.currency)}\n${t('Reste')} ${i.type === 'credit_note' || ['draft', 'cancelled'].includes(i.status) ? '—' : formatMoney(invoiceOpenBalance(i, w.invoices, w.payments), i.currency)}`,
       ]),
     );
     for (const doc of [...quotes, ...invoices])
       add(
-        `Détail ${doc.number || doc.title || 'Brouillon'}`,
+        t('Détail {document}',{document:doc.number || doc.title || t('Brouillon')}),
         ['Prestation', 'Quantité', 'Hors TVA'],
         doc.lines.map((l) => [
           l.description,
@@ -165,7 +191,7 @@ export function buildProjectReport(
         ]),
     );
   }
-  if (selected.includes('purchases')) {
+  if (included.includes('purchases')) {
     const rows: string[][] = [];
     for (const i of w.supplierInvoices)
       for (const l of i.lines.filter(
@@ -201,7 +227,7 @@ export function buildProjectReport(
       ),
     );
   }
-  if (selected.includes('time'))
+  if (included.includes('time'))
     add(
       'Heures et équipe',
       ['Collaborateur / travail', 'Date', 'Durée / coût'],
@@ -210,25 +236,25 @@ export function buildProjectReport(
         .map((e) => {
           const person = w.employees.find((p) => p.id === e.employeeId);
           return [
-            (person?.name || 'Collaborateur') + '\n' + e.note,
+            (person?.name || t('Collaborateur')) + '\n' + e.note,
             `${e.date}\n${status(e.status)}`,
             `${formatMinutes(e.minutes)}\n${formatMoney(Math.round((e.minutes * e.hourlyCostCents) / 60))}`,
           ];
         }),
     );
-  if (selected.includes('planning')) {
+  if (included.includes('planning')) {
     add(
       'Étapes et tâches',
       ['Objet', 'Échéance', 'État'],
-      [...w.projectMilestones, ...w.projectTasks]
+      [...w.projectMilestones, ...(forClient ? [] : w.projectTasks)]
         .filter((t) => t.projectId === p.id)
         .map((t) => [
-          `${t.title}\n${t.description}`,
+          `${t.title}${forClient ? '' : '\n' + t.description}`,
           t.dueDate,
           status(t.status),
         ]),
     );
-    add(
+    if (!forClient) add(
       'Rendez-vous',
       ['Objet / lieu', 'Dates', 'État'],
       w.agendaEvents
@@ -240,7 +266,7 @@ export function buildProjectReport(
         ]),
     );
   }
-  if (selected.includes('documents')) {
+  if (included.includes('documents')) {
     add(
       'Documents du projet',
       ['Fichier', 'Type', 'Ajouté le'],
@@ -248,11 +274,11 @@ export function buildProjectReport(
         .filter((a) => a.projectId === p.id)
         .map((a) => [a.originalName, a.mimeType, a.createdAt.slice(0, 10)]),
     );
-    add('Notes du projet', ['Notes'], [[p.notes || 'Aucune note']]);
+    add('Notes du projet', ['Notes'], [[p.notes || t('Aucune note')]]);
   }
   return {
     title: p.name,
-    subtitle: `Rapport de projet · ${new Date().toLocaleDateString('fr-CH')} · Situation enregistrée dans Zentra`,
+    subtitle: `${t(reportPresets[options.preset ?? 'internal'].label)} · ${t('Toute la durée du projet')}\n${t('Situation enregistrée au {date}', {date:(options.createdAt ?? new Date()).toLocaleDateString(getAppLocale())})}${options.author?.trim() ? '\n' + t('Préparé par {name}', {name:options.author.trim()}) : ''}`,
     sections,
   };
 }

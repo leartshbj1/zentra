@@ -109,7 +109,7 @@ fn render(issuer: &Value, report: &ProjectReport) -> AppResult<(Vec<u8>, usize)>
         page.table(&headers, &fractions, &rows)?;
         page.gap(14.);
     }
-    page.finish(&format!("Zentra · Rapport de gestion · {}", now_iso()))
+    page.finish(&format!("Zentra · {}", now_iso()))
 }
 
 #[tauri::command]
@@ -180,5 +180,18 @@ mod tests {
             }],
         };
         assert!(render(&json!({}), &report).is_err());
+    }
+
+    #[test]
+    #[ignore = "Requires explicit synthetic frontend JSON and output paths"]
+    fn render_frontend_report_fixture() {
+        let input = std::env::var("ZENTRA_PROJECT_REPORT_JSON").expect("synthetic report input");
+        let output = std::env::var("ZENTRA_PROJECT_REPORT_SAMPLE").expect("sample output");
+        let report: ProjectReport = serde_json::from_slice(&std::fs::read(input).unwrap()).unwrap();
+        let (bytes, count) = render(&json!({"company_name":"Zentra Démonstration SA"}), &report).unwrap();
+        assert!(count > 0);
+        let document = lopdf::Document::load_mem(&bytes).unwrap();
+        assert_eq!(document.get_pages().len(), count);
+        std::fs::write(output, bytes).unwrap();
     }
 }

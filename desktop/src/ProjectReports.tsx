@@ -1,261 +1,110 @@
 import { t, useAppLanguage } from './language';
-import { useState } from 'react';
-import { BarChart3, Download, ChevronRight, FileText } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { BarChart3, Download, ChevronRight } from 'lucide-react';
 import type { Workspace } from './types';
 import { formatMoney, projectFinancials, errorMessage } from './utils';
 import { Button, EmptyState, StatusBadge } from './ui';
 import { desktopApi } from './bridge';
 import { PdfExportReceipt } from './PdfExportReceipt';
 import type { PdfExportReceipt as Receipt } from './pdfExportDelivery';
-import {
-  buildProjectReport,
-  reportSections,
-  type ReportSectionKey,
-} from './projectReport';
+import { buildProjectReport, recentReportProjects, reportPresets, reportSections, type ReportPreset, type ReportSectionKey } from './projectReport';
 import './ProjectReports.css';
-export function ReportsScreen({
-  workspace,
-  onOpenAccounting,
-}: {
-  workspace: Workspace;
-  onOpenAccounting: () => void;
-}) {
-  useAppLanguage();
-  const [chosen, setChosen] = useState(''),
-    [sections, setSections] = useState<ReportSectionKey[]>(
-      Object.keys(reportSections) as ReportSectionKey[],
-    ),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(''),
-    [receipt, setReceipt] = useState<Receipt | null>(null),
-    [query, setQuery] = useState('');
-  const project = workspace.projects.find((p) => p.id === chosen),
-    report = project ? buildProjectReport(workspace, project, sections) : null;
-  if (!workspace.projects.length)
-    return (
-      <EmptyState
-        icon={<BarChart3 />}
-        title={t('Vos rapports de projet')}
-        text={t(
-          'Créez un projet pour réunir son activité et ses documents dans un rapport.',
-        )}
-      />
-    );
+
+export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{workspace:Workspace;onOpenAccounting:()=>void;onOpenProjects?:()=>void}) {
+  const language=useAppLanguage();
+  const [chosen,setChosen]=useState('');
+  const [preset,setPreset]=useState<ReportPreset>('summary');
+  const [sections,setSections]=useState<ReportSectionKey[]>(['overview']);
+  const [author,setAuthor]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [receipt,setReceipt]=useState<{projectId:string;result:Receipt}|null>(null);
+  const [query,setQuery]=useState('');
+  const [limit,setLimit]=useState(20);
+  const flight=useRef(false);
+  const projects=useMemo(()=>recentReportProjects(workspace),[workspace,language]);
+  const project=workspace.projects.find(p=>p.id===chosen) ?? (workspace.projects.length===1 ? workspace.projects[0] : undefined);
+  const currentId=useRef(project?.id);currentId.current=project?.id;
+  const report=useMemo(()=>project ? buildProjectReport(workspace,project,sections,{preset,author}) : null,[workspace,project,sections,preset,author,language]);
+  const figures=useMemo(()=>project ? projectFinancials(project,workspace.invoices,workspace.payments,workspace.timeEntries,workspace.expenses,workspace.supplierInvoices,workspace.supplierCreditNotes) : null,[workspace,project]);
+  const matches=projects.filter(p=>p.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+  const forClient=preset==='client';
+  function choose(id:string) {setChosen(id);setReceipt(null);setError('');}
+  function choosePreset(value:ReportPreset) {setPreset(value);setSections([...reportPresets[value].sections] as ReportSectionKey[]);setReceipt(null);setError('');}
   async function exportPdf() {
-    if (!report || busy) return;
-    setBusy(true);
-    setError('');
+    if(!report || !project || !sections.length || flight.current || busy)return;
+    const projectId=project.id;
+    flight.current=true;setBusy(true);setError('');setReceipt(null);
     try {
-      const result = await desktopApi.exportProjectReportPdf(report);
-      if (result) setReceipt(result);
-    } catch (e) {
-      setError(errorMessage(e, 'Export du rapport impossible.'));
-    } finally {
-      setBusy(false);
-    }
+      const result=await desktopApi.exportProjectReportPdf(report);
+      if(result && currentId.current===projectId)setReceipt({projectId,result});
+    } catch(reason) {
+      if(currentId.current===projectId)setError(errorMessage(reason,'Export du rapport impossible.'));
+    } finally {flight.current=false;setBusy(false);}
   }
-  return (
-    <div
-      className={`project-reports${chosen ? ' project-reports--selected' : ''}`}
-    >
-      <header className="project-reports__heading">
-        <div>
-          <h2>{t('Une vue claire de vos projets.')}</h2>
-          <p>
-            {t(
-              'Choisissez un projet. Gardez l’essentiel ou exportez son dossier complet.',
-            )}
-          </p>
-        </div>
-        <FileText size={32} />
-      </header>
-      <div className="project-reports__layout">
-        <aside className="project-reports__picker">
-          <select
-            className="project-reports__mobile-picker"
-            aria-label={t('Choisir un projet')}
-            value={chosen}
-            disabled={busy}
-            onChange={(e) => {
-              setChosen(e.target.value);
-              setReceipt(null);
-              setError('');
-            }}
-          >
+  if(!projects.length)return <EmptyState icon={<BarChart3/>} title={t('Vos rapports de projet')} text={t('Créez un projet pour réunir son activité et ses documents dans un rapport.')} actionLabel={onOpenProjects ? t('Voir les projets') : undefined} onAction={onOpenProjects}/>;
+  return <div className={`project-reports${project ? ' project-reports--selected' : ''}`}>
+    <div className={`project-reports__layout${projects.length===1?' project-reports__layout--single':''}`}>
+      {projects.length>1 && <aside className="project-reports__picker" aria-label={t('Choisir un projet')}>
+        <label className="project-reports__mobile-picker-label">{t('Projet')}
+          <select className="project-reports__mobile-picker" aria-label={t('Choisir un projet')} value={project?.id ?? ''} disabled={busy} onChange={e=>choose(e.target.value)}>
             <option value="">{t('Choisir un projet')}</option>
-            {workspace.projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
+            {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <label>
-            {t('Rechercher un projet')}
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('Nom du projet')}
-            />
-          </label>
-          <div>
-            {workspace.projects
-              .filter((p) =>
-                p.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
-              )
-              .map((p) => (
-                <button
-                  type="button"
-                  disabled={busy}
-                  key={p.id}
-                  aria-pressed={p.id === chosen}
-                  onClick={() => {
-                    setChosen(p.id);
-                    setReceipt(null);
-                    setError('');
-                  }}
-                >
-                  <span>
-                    {p.name}
-                    <small>
-                      {workspace.clients.find((c) => c.id === p.clientId)?.name}
-                    </small>
-                  </span>
-                  <ChevronRight size={17} />
-                </button>
-              ))}
+        </label>
+        <label className="project-reports__search">{t('Rechercher un projet')}
+          <input type="search" value={query} disabled={busy} onChange={e=>{setQuery(e.target.value);setLimit(20);}} placeholder={t('Nom du projet')}/>
+        </label>
+        <div className="project-reports__project-list">
+          <p className="project-reports__sort-note">{t('Activité récente en premier')}</p>
+          {matches.slice(0,limit).map(p=><button type="button" disabled={busy} key={p.id} aria-pressed={p.id===project?.id} onClick={()=>choose(p.id)}>
+            <span>{p.name}<small>{workspace.clients.find(c=>c.id===p.clientId)?.company || workspace.clients.find(c=>c.id===p.clientId)?.name}</small></span><ChevronRight size={17} aria-hidden="true"/>
+          </button>)}
+          {!matches.length && <p role="status">{t('Aucun projet trouvé. Modifiez votre recherche.')}</p>}
+          {matches.length>limit && <Button variant="ghost" disabled={busy} onClick={()=>setLimit(value=>value+20)}>{t('Afficher plus de projets')}</Button>}
+        </div>
+      </aside>}
+      <section className="project-reports__detail" aria-label={t('Aperçu du rapport')}>
+        {project && report && figures ? <>
+          <div className="project-reports__title"><div><h2>{project.name}</h2><StatusBadge status={project.status}/></div>
+            <Button disabled={busy || !sections.length} onClick={()=>void exportPdf()}><Download size={17} aria-hidden="true"/>{t(busy?'Création du PDF…':'Exporter le PDF')}</Button>
           </div>
-        </aside>
-        <section className="project-reports__detail">
-          {project && report ? (
-            <>
-              <div className="project-reports__title">
-                <div>
-                  <h2>{project.name}</h2>
-                  <StatusBadge status={project.status} />
-                </div>
-                <Button
-                  disabled={busy || !sections.length}
-                  onClick={() => void exportPdf()}
-                >
-                  <Download size={17} />
-                  {t(busy ? 'Création du PDF…' : 'Exporter le PDF')}
-                </Button>
-              </div>
-              {(() => {
-                const s = projectFinancials(
-                  project,
-                  workspace.invoices,
-                  workspace.payments,
-                  workspace.timeEntries,
-                  workspace.expenses,
-                  workspace.supplierInvoices,
-                  workspace.supplierCreditNotes,
-                );
-                return (
-                  <>
-                    <dl className="project-reports__figures">
-                      <div>
-                        <dt>{t('Facturé hors TVA')}</dt>
-                        <dd>{s.invoicedNetLabel}</dd>
-                      </div>
-                      <div>
-                        <dt>{t('Coûts enregistrés')}</dt>
-                        <dd>{formatMoney(s.laborCost + s.expenseNet)}</dd>
-                      </div>
-                      <div>
-                        <dt>{t('Marge de gestion')}</dt>
-                        <dd>
-                          {s.marginUnavailableReason || formatMoney(s.margin)}
-                        </dd>
-                      </div>
-                    </dl>
-                    {s.purchaseCostReviewCount > 0 && (
-                      <Button variant="secondary" onClick={onOpenAccounting}>
-                        {t('Contrôler les achats')}
-                      </Button>
-                    )}
-                  </>
-                );
-              })()}
-              <fieldset className="project-reports__sections">
-                <legend>{t('Dans votre rapport')}</legend>
-                {Object.entries(reportSections).map(([key, label]) => (
-                  <label key={key}>
-                    <input
-                      type="checkbox"
-                      checked={sections.includes(key as ReportSectionKey)}
-                      onChange={(e) =>
-                        setSections((current) =>
-                          e.target.checked
-                            ? [...current, key as ReportSectionKey]
-                            : current.filter((k) => k !== key),
-                        )
-                      }
-                    />
-                    {t(label)}
-                  </label>
-                ))}
-              </fieldset>
-              {error && <p role="alert">{error}</p>}
-              {receipt && (
-                <PdfExportReceipt
-                  result={receipt}
-                  disabled={busy}
-                  onBusyChange={setBusy}
-                />
-              )}
-              <div className="project-reports__preview">
-                {report.sections.map((s, index) => (
-                  <details key={`${index}-${s.title}`} open={index === 0}>
-                    <summary>
-                      {s.title}
-                      <span>{s.rows.length}</span>
-                    </summary>
-                    <div className="project-reports__table">
-                      <table>
-                        <thead>
-                          <tr>
-                            {s.headers.map((h) => (
-                              <th key={h}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {!s.rows.length && (
-                            <tr>
-                              <td colSpan={s.headers.length}>
-                                {t('Aucune donnée enregistrée')}
-                              </td>
-                            </tr>
-                          )}
-                          {s.rows.map((r, i) => (
-                            <tr key={i}>
-                              {r.map((cell, j) => (
-                                <td key={j}>{cell}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="project-reports__empty">
-              <BarChart3 size={36} />
-              <h3>{t('Quel projet souhaitez-vous examiner ?')}</h3>
-              <p>
-                {t(
-                  'Son rapport réunira les informations déjà enregistrées par votre équipe.',
-                )}
-              </p>
-            </div>
-          )}
-        </section>
-      </div>
+          <div className="project-reports__composition">
+            <label>{t('Type de rapport')}
+              <select aria-label={t('Type de rapport')} value={preset} disabled={busy} onChange={e=>choosePreset(e.target.value as ReportPreset)}>{Object.entries(reportPresets).map(([key,value])=><option key={key} value={key}>{t(value.label)}</option>)}</select>
+            </label>
+            <p>{t(reportPresets[preset].description)}</p>
+          </div>
+          <dl className="project-reports__figures">
+            <div><dt>{t('Facturé hors TVA')}</dt><dd>{figures.invoicedNetLabel}</dd></div>
+            {!forClient && <><div><dt>{t('Coûts enregistrés')}</dt><dd>{formatMoney(figures.laborCost+figures.expenseNet)}</dd></div>
+              <div><dt>{t('Marge de gestion')}</dt><dd>{figures.marginUnavailableReason ? t(figures.marginUnavailableReason) : figures.hasActivity ? formatMoney(figures.margin) : '—'}</dd></div></>}
+          </dl>
+          {!forClient && <p className="project-reports__scope">{t('La marge tient compte des coûts enregistrés, pas des coûts encore inconnus.')}</p>}
+          {!forClient && figures.purchaseCostReviewCount>0 && <Button variant="secondary" onClick={onOpenAccounting}>{t('Contrôler les achats')}</Button>}
+          <details className="project-reports__customize"><summary>{t('Personnaliser le contenu')}</summary>
+            <fieldset className="project-reports__sections" disabled={busy}><legend>{t('Dans votre rapport')}</legend>
+              {Object.entries(reportSections).filter(([key])=>!forClient || reportPresets.client.sections.some(allowed=>allowed===key)).map(([key,label])=><label key={key}>
+                <input type="checkbox" checked={sections.includes(key as ReportSectionKey)} onChange={e=>{setReceipt(null);setSections(current=>e.target.checked ? [...current,key as ReportSectionKey] : current.filter(k=>k!==key));}}/>{t(label)}
+              </label>)}
+            </fieldset>
+            <label className="project-reports__author">{t('Préparé par (facultatif)')}<input value={author} maxLength={120} disabled={busy} onChange={e=>{setAuthor(e.target.value);setReceipt(null);}} autoComplete="name"/></label>
+          </details>
+          {!sections.length && <p role="status">{t('Choisissez au moins une rubrique pour exporter le rapport.')}</p>}
+          {error && <p role="alert">{t(error)}</p>}
+          {receipt?.projectId===project.id && <PdfExportReceipt result={receipt.result} disabled={busy} onBusyChange={setBusy}/>}
+          <p className="project-reports__scope">{report.subtitle}</p>
+          <div className="project-reports__preview" key={project.id}>
+            {report.sections.map((section,index)=><details key={`${index}-${section.title}`} open={index===0}>
+              <summary>{section.title}</summary>
+              <div className="project-reports__table" tabIndex={0} role="region" aria-label={section.title}><table>
+                <thead><tr>{section.headers.map(header=><th key={header} scope="col">{header}</th>)}</tr></thead>
+                <tbody>{section.rows.map((row,i)=><tr key={i}>{row.map((cell,j)=><td key={j}>{cell}</td>)}</tr>)}</tbody>
+              </table></div>
+            </details>)}
+          </div>
+        </> : <div className="project-reports__empty"><BarChart3 size={36} aria-hidden="true"/><h2>{t('Quel projet souhaitez-vous examiner ?')}</h2><p>{t('Choisissez un projet pour voir immédiatement sa synthèse.')}</p></div>}
+      </section>
     </div>
-  );
+  </div>;
 }

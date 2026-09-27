@@ -22,6 +22,7 @@ import { installExpenseJournalFixture } from './expense-journal-fixture';
 import { installProjectSyncFixture } from './project-sync-fixture';
 import { installQuotePairFixture } from './quote-pair-fixture';
 import { installDesignFixture } from './design-fixture';
+import { installProjectReportFixture } from './project-report-fixture';
 import { installClarityFixture } from './clarity-fixture';
 import { installCustomerCreditFixture } from './customer-credit-fixture';
 import { installCustomerCreditSettlementFixture } from './customer-credit-settlement-fixture';
@@ -193,6 +194,7 @@ if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFix
 if (['updater', 'updaterBadge'].some(key => new URLSearchParams(location.search).has(key))) installUpdaterFixture();
 if (new URLSearchParams(location.search).has('quotePair')) installQuotePairFixture(data);
 if (new URLSearchParams(location.search).has('design')) installDesignFixture(data);
+if (new URLSearchParams(location.search).has('reportTest')) installProjectReportFixture(data);
 if (new URLSearchParams(location.search).has('companyCreators')) {
   for (const documents of [data.quotes,data.invoices]) {
     documents[0].creator={id:'alice',name:'alice.martin@entreprise-exemple.ch',installationId:'device-a'};

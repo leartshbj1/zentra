@@ -45,6 +45,19 @@ Invoke-Checked rustup @('toolchain', 'install', $env:RUSTUP_TOOLCHAIN, '--profil
 Invoke-Checked pnpm.cmd @('install', '--frozen-lockfile')
 Start-Transcript -Path (Join-Path $artifacts 'validation.log') | Out-Null
 try {
+    if ($env:ZENTRA_VERIFY_REPORTS_ONLY -eq 'true') {
+        Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/projectReport.test.ts', 'src/salesPdfExport.test.ts', 'src/projectPlanning.test.ts')
+        Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
+        Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'project_report::tests', '--', '--test-threads=1')
+        foreach ($sample in @('summary', 'client', 'internal', 'long')) {
+            $env:ZENTRA_PROJECT_REPORT_JSON = Join-Path $repo "desktop/tests/fixtures/project-reports/$sample.json"
+            $env:ZENTRA_PROJECT_REPORT_SAMPLE = Join-Path $artifacts "$sample.pdf"
+            Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'project_report::tests::render_frontend_report_fixture', '--', '--ignored', '--exact')
+        }
+        $reportProof = [ordered]@{source = (& git rev-parse HEAD).Trim(); renderer = 'project_report::render'; data = 'synthetic'; samples = @('summary', 'client', 'internal', 'long'); completedAt = [DateTimeOffset]::UtcNow.ToString('o')}
+        [IO.File]::WriteAllText((Join-Path $artifacts 'project-report-proof.json'), ($reportProof | ConvertTo-Json -Depth 3), [Text.UTF8Encoding]::new($false))
+        return
+    }
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/bexioImport.test.ts', 'src/catalogImport.test.ts')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'bexio_import', '--', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'catalog_import', '--', '--test-threads=1')

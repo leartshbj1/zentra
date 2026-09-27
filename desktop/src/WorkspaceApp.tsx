@@ -2384,7 +2384,7 @@ function WorkspaceContent({
               />
             </Suspense>
           ) : null}
-          {view === 'reports' ? <ReportsScreen workspace={workspace} onOpenAccounting={() => { setView('accounting'); setSearch(''); }} /> : null}
+          {view === 'reports' ? <ReportsScreen workspace={workspace} onOpenAccounting={() => { setView('accounting'); setSearch(''); }} onOpenProjects={() => { setView('projects'); setSearch(''); }} /> : null}
           {view === 'accounting' ? (
             <Suspense
               fallback={<ViewLoading label={t("Ouverture de la comptabilité…")} />}

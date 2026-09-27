@@ -1,0 +1,92 @@
+{
+  "title": "Rénovation Bellevue — dossier de suivi et de livraison",
+  "subtitle": "Synthèse · Toute la durée du projet\nSituation enregistrée au 27.09.2026",
+  "sections": [
+    {
+      "title": "Le projet",
+      "headers": [
+        "Information",
+        "Détail"
+      ],
+      "rows": [
+        [
+          "Client",
+          "Résidence Bellevue"
+        ],
+        [
+          "Contact",
+          "camille@example.invalid · 021 000 00 00"
+        ],
+        [
+          "Adresse",
+          "Non renseignée"
+        ],
+        [
+          "Statut",
+          "En cours"
+        ],
+        [
+          "Dates prévues",
+          "— / —"
+        ],
+        [
+          "Dates réelles",
+          "— / —"
+        ],
+        [
+          "Budget",
+          "Non renseigné"
+        ],
+        [
+          "Heures prévues",
+          "Non renseigné"
+        ]
+      ]
+    },
+    {
+      "title": "Situation financière",
+      "headers": [
+        "Indicateur",
+        "Montant"
+      ],
+      "rows": [
+        [
+          "Facturé hors TVA · avoirs déduits",
+          "3 574.00 CHF"
+        ],
+        [
+          "Facturé TTC",
+          "3 863.49 CHF"
+        ],
+        [
+          "Paiements reçus",
+          "0.00 CHF"
+        ],
+        [
+          "Reste à recevoir",
+          "3 863.49 CHF"
+        ],
+        [
+          "Main-d’œuvre",
+          "0.00 CHF"
+        ],
+        [
+          "Coût des achats après avoirs",
+          "0.00 CHF"
+        ],
+        [
+          "Dont TVA non déductible",
+          "0.00 CHF"
+        ],
+        [
+          "Marge de gestion",
+          "3 574.00 CHF"
+        ],
+        [
+          "Méthode",
+          "Marge sur les coûts enregistrés, sans estimation des coûts manquants. Factures émises et avoirs, achats validés et dépenses enregistrées. Devis et brouillons exclus. Devises séparées, sans conversion implicite."
+        ]
+      ]
+    }
+  ]
+}

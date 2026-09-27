@@ -1,0 +1,293 @@
+{
+  "title": "Rénovation Bellevue — dossier de suivi et de livraison",
+  "subtitle": "Dossier interne · Toute la durée du projet\nSituation enregistrée au 27.09.2026",
+  "sections": [
+    {
+      "title": "Le projet",
+      "headers": [
+        "Information",
+        "Détail"
+      ],
+      "rows": [
+        [
+          "Client",
+          "Résidence Bellevue"
+        ],
+        [
+          "Contact",
+          "camille@example.invalid · 021 000 00 00"
+        ],
+        [
+          "Adresse",
+          "Non renseignée"
+        ],
+        [
+          "Statut",
+          "En cours"
+        ],
+        [
+          "Dates prévues",
+          "— / —"
+        ],
+        [
+          "Dates réelles",
+          "— / —"
+        ],
+        [
+          "Budget",
+          "Non renseigné"
+        ],
+        [
+          "Heures prévues",
+          "Non renseigné"
+        ]
+      ]
+    },
+    {
+      "title": "Situation financière",
+      "headers": [
+        "Indicateur",
+        "Montant"
+      ],
+      "rows": [
+        [
+          "Facturé hors TVA · avoirs déduits",
+          "3 574.00 CHF"
+        ],
+        [
+          "Facturé TTC",
+          "3 863.49 CHF"
+        ],
+        [
+          "Paiements reçus",
+          "0.00 CHF"
+        ],
+        [
+          "Reste à recevoir",
+          "3 863.49 CHF"
+        ],
+        [
+          "Main-d’œuvre",
+          "0.00 CHF"
+        ],
+        [
+          "Coût des achats après avoirs",
+          "0.00 CHF"
+        ],
+        [
+          "Dont TVA non déductible",
+          "0.00 CHF"
+        ],
+        [
+          "Marge de gestion",
+          "3 574.00 CHF"
+        ],
+        [
+          "Méthode",
+          "Marge sur les coûts enregistrés, sans estimation des coûts manquants. Factures émises et avoirs, achats validés et dépenses enregistrées. Devis et brouillons exclus. Devises séparées, sans conversion implicite."
+        ]
+      ]
+    },
+    {
+      "title": "Devis",
+      "headers": [
+        "Document",
+        "Date / statut",
+        "Total TTC"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "title": "Factures et avoirs",
+      "headers": [
+        "Document",
+        "Date / statut",
+        "Total / reste TTC"
+      ],
+      "rows": [
+        [
+          "F-REPORT-0 · Rénovation de l’espace de vie\n",
+          "2026-01-05\nÉmise\nÉchéance 2026-01-31",
+          "3 863.49 CHF\nReste 3 863.49 CHF"
+        ],
+        [
+          "SECRET-DRAFT-0 · Rénovation de l’espace de vie\n",
+          "2026-01-05\nBrouillon\nÉchéance 2026-01-31",
+          "3 863.49 CHF\nReste —"
+        ]
+      ]
+    },
+    {
+      "title": "Détail F-REPORT-0",
+      "headers": [
+        "Prestation",
+        "Quantité",
+        "Hors TVA"
+      ],
+      "rows": [
+        [
+          "Préparation des surfaces et protection du mobilier",
+          "12",
+          "1 140.00 CHF"
+        ],
+        [
+          "Fourniture et pose du revêtement mural, finitions comprises",
+          "28",
+          "2 184.00 CHF"
+        ],
+        [
+          "Nettoyage de fin d’intervention",
+          "1",
+          "250.00 CHF"
+        ]
+      ]
+    },
+    {
+      "title": "Détail SECRET-DRAFT-0",
+      "headers": [
+        "Prestation",
+        "Quantité",
+        "Hors TVA"
+      ],
+      "rows": [
+        [
+          "Préparation des surfaces et protection du mobilier",
+          "12",
+          "1 140.00 CHF"
+        ],
+        [
+          "Fourniture et pose du revêtement mural, finitions comprises",
+          "28",
+          "2 184.00 CHF"
+        ],
+        [
+          "Nettoyage de fin d’intervention",
+          "1",
+          "250.00 CHF"
+        ]
+      ]
+    },
+    {
+      "title": "Encaissements",
+      "headers": [
+        "Facture",
+        "Date",
+        "Montant"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "title": "Achats et dépenses affectés au projet",
+      "headers": [
+        "Fournisseur / objet",
+        "Date / statut",
+        "Coût"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "title": "Avoirs fournisseurs",
+      "headers": [
+        "Référence",
+        "Statut",
+        "Coût à déduire"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "title": "Heures et équipe",
+      "headers": [
+        "Collaborateur / travail",
+        "Date",
+        "Durée / coût"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "title": "Étapes et tâches",
+      "headers": [
+        "Objet",
+        "Échéance",
+        "État"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "title": "Rendez-vous",
+      "headers": [
+        "Objet / lieu",
+        "Dates",
+        "État"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "title": "Documents du projet",
+      "headers": [
+        "Fichier",
+        "Type",
+        "Ajouté le"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "title": "Notes du projet",
+      "headers": [
+        "Notes"
+      ],
+      "rows": [
+        [
+          "NOTE INTERNE CONFIDENTIELLE"
+        ]
+      ]
+    }
+  ]
+}

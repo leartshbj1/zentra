@@ -1,0 +1,153 @@
+{
+  "title": "Rénovation Bellevue — dossier de suivi et de livraison",
+  "subtitle": "Dossier client · Toute la durée du projet\nSituation enregistrée au 27.09.2026",
+  "sections": [
+    {
+      "title": "Le projet",
+      "headers": [
+        "Information",
+        "Détail"
+      ],
+      "rows": [
+        [
+          "Client",
+          "Résidence Bellevue"
+        ],
+        [
+          "Contact",
+          "camille@example.invalid · 021 000 00 00"
+        ],
+        [
+          "Adresse",
+          "Non renseignée"
+        ],
+        [
+          "Statut",
+          "En cours"
+        ],
+        [
+          "Dates prévues",
+          "— / —"
+        ],
+        [
+          "Dates réelles",
+          "— / —"
+        ]
+      ]
+    },
+    {
+      "title": "Situation financière",
+      "headers": [
+        "Indicateur",
+        "Montant"
+      ],
+      "rows": [
+        [
+          "Facturé hors TVA · avoirs déduits",
+          "3 574.00 CHF"
+        ],
+        [
+          "Facturé TTC",
+          "3 863.49 CHF"
+        ],
+        [
+          "Paiements reçus",
+          "0.00 CHF"
+        ],
+        [
+          "Reste à recevoir",
+          "3 863.49 CHF"
+        ],
+        [
+          "Périmètre",
+          "Factures émises et avoirs. Montants séparés par devise, sans conversion implicite."
+        ]
+      ]
+    },
+    {
+      "title": "Devis",
+      "headers": [
+        "Document",
+        "Date / statut",
+        "Total TTC"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "title": "Factures et avoirs",
+      "headers": [
+        "Document",
+        "Date / statut",
+        "Total / reste TTC"
+      ],
+      "rows": [
+        [
+          "F-REPORT-0 · Rénovation de l’espace de vie\n",
+          "2026-01-05\nÉmise\nÉchéance 2026-01-31",
+          "3 863.49 CHF\nReste 3 863.49 CHF"
+        ]
+      ]
+    },
+    {
+      "title": "Détail F-REPORT-0",
+      "headers": [
+        "Prestation",
+        "Quantité",
+        "Hors TVA"
+      ],
+      "rows": [
+        [
+          "Préparation des surfaces et protection du mobilier",
+          "12",
+          "1 140.00 CHF"
+        ],
+        [
+          "Fourniture et pose du revêtement mural, finitions comprises",
+          "28",
+          "2 184.00 CHF"
+        ],
+        [
+          "Nettoyage de fin d’intervention",
+          "1",
+          "250.00 CHF"
+        ]
+      ]
+    },
+    {
+      "title": "Encaissements",
+      "headers": [
+        "Facture",
+        "Date",
+        "Montant"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "title": "Étapes et tâches",
+      "headers": [
+        "Objet",
+        "Échéance",
+        "État"
+      ],
+      "rows": [
+        [
+          "Aucune donnée enregistrée",
+          "",
+          ""
+        ]
+      ]
+    }
+  ]
+}
