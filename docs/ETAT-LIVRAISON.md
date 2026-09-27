@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 19 h 42 (Europe/Zurich). L'objectif premier client reste en cours : ce relevé ne signifie pas que les vingt points sont clos.
+Mis à jour le 27 septembre 2026, 20 h 10 (Europe/Zurich). L'objectif premier client reste en cours : ce relevé ne signifie pas que les vingt points sont clos.
 
 ## Version publique 1.90.5
 
@@ -46,5 +46,7 @@ Preuves : `outputs/release1905/github-published-proof.json`, `public-head-proof.
 1.90.5 inclut la messagerie partagée par entreprise, le catalogue traduit, les commandes tactiles, les premiers pas Comptabilité/Banque/Relances, les vérifications complètes de sauvegarde, les listes mobiles et le canal updater indépendant. Les lots précédemment notés absents de 1.90.4 sont désormais inclus dans cette source gelée. Les notes historiques conservent leurs limites de validation.
 
 Le lot **`43331dab` Détails Automation**, ajouté après gel, n'est **pas** inclus : dates invalides sécurisées, choix radio lisibles, commandes et étapes traduites. 42 tests, 16 parcours navigateur synthétiques et build réussis ; détail dans [AUTOMATION-DETAILS-20260927.md](AUTOMATION-DETAILS-20260927.md). Limite de titre allemand à 200 %/320 px documentée.
+
+Le lot [Rendez-vous Automation](AUTOMATION-RENDEZ-VOUS-20260927.md), également postérieur au gel et **non publié**, ajoute les rendez-vous effectivement reçus au journal et leur ouverture au jour exact de l’agenda. Dates invalides et absence locale sont explicites, événements annulés accessibles, lecture seule et séparation d’entreprise conservées. 1 795 tests frontend, TypeScript, build et 20 parcours navigateur passent. Données fictives : aucun traitement de messagerie réel ni appareil mobile physique vérifié. **Contrôle Supabase du 27 septembre à 20 h 05 : toujours HTTP 402**, stockage et transfert dépassés ; preuve actualisée `outputs/release1905/account-health-latest.json`.
 
 Restent notamment : rétablissement des comptes, traitement lorsque les apps sont fermées, moniteur externe avec alerte reçue, deux installations synchronisées et reprise hors ligne, paiements/quotas/invitations réels, signatures de distribution et appareils physiques, sélecteurs natifs, traductions des outils avancés et poids du frontend. Les résultats isolés ne démontrent pas une capacité de 150 entreprises. Ne jamais modifier une source gelée déjà publiée.

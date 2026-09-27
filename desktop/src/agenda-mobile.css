@@ -37,3 +37,4 @@
   html[data-app-theme] .desktop-app[data-experience] .agenda-summary { grid-template-columns: 1fr; }
   html[data-app-theme] .desktop-app[data-experience] .agenda-summary article { min-height: 48px; box-shadow: none; }
 }
+.agenda-row:focus-visible {outline: 2px solid var(--work-accent, #286047); outline-offset: 3px;}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays,
   Check,
@@ -36,6 +36,7 @@ import { formatDate, todayIso } from './utils';
 import { MobileDetails, useCompactLayout } from './MobileDetails';
 import { getAppLocale, t, useAppLanguage } from './language';
 import './agenda-mobile.css';
+import { automationLabel } from './automationPresentation';
 
 const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 type AgendaDisplay = 'day' | 'week' | 'month';
@@ -79,6 +80,8 @@ export function AgendaScreen({
   onSave,
   onDelete,
   onNavigate,
+  initialEventId,
+  onInitialEventHandled,
 }: {
   workspace: Workspace;
   busy: boolean;
@@ -86,15 +89,21 @@ export function AgendaScreen({
   onSave: (draft: AgendaEventDraft, onError?: AgendaErrorHandler) => Promise<boolean>;
   onDelete: (event: AgendaEvent, onError?: AgendaErrorHandler) => Promise<boolean>;
   onNavigate: (item: AgendaItem) => void;
+  initialEventId?: string | null;
+  onInitialEventHandled?: () => void;
 }) {
-  useAppLanguage();
+  const language = useAppLanguage();
   const compact = useCompactLayout();
   const [today, setToday] = useState(() => todayIso());
-  const [month, setMonth] = useState(monthKeyFromDate(today));
-  const [selectedDate, setSelectedDate] = useState(today);
-  const [display, setDisplay] = useState<AgendaDisplay>(() => compact ? 'day' : 'month');
+  const [initialEvent] = useState(() => workspace.agendaEvents.find(event => event.id === initialEventId));
+  const [missingInitialEvent] = useState(() => !!initialEventId && !initialEvent);
+  const [focusTargetId, setFocusTargetId] = useState(initialEvent?.id ?? null);
+  const handledInitialEvent = useRef(false);
+  const [month, setMonth] = useState(monthKeyFromDate(initialEvent?.startDate || today));
+  const [selectedDate, setSelectedDate] = useState(initialEvent?.startDate || today);
+  const [display, setDisplay] = useState<AgendaDisplay>(() => initialEvent || compact ? 'day' : 'month');
   const [category, setCategory] = useState<AgendaCategory | 'all'>('all');
-  const [includeClosed, setIncludeClosed] = useState(false);
+  const [includeClosed, setIncludeClosed] = useState(!!initialEvent && initialEvent.status !== 'scheduled');
   const [editor, setEditor] = useState<AgendaEventDraft | null>(null);
   const [action, setAction] = useState<{ event: AgendaEvent; kind: 'complete' | 'delete' } | null>(null);
   const allItems = useMemo(() => buildAgendaItems(workspace), [workspace]);
@@ -123,6 +132,12 @@ export function AgendaScreen({
   const overdueCount = items.filter(
     (item) => item.status === 'active' && item.endDate < today,
   ).length;
+
+  useEffect(() => {
+    if (!initialEventId || handledInitialEvent.current) return;
+    handledInitialEvent.current = true;
+    onInitialEventHandled?.();
+  }, [initialEventId, onInitialEventHandled]);
 
   useEffect(() => {
     let timer = 0;
@@ -159,6 +174,7 @@ export function AgendaScreen({
 
   return (
     <div className="agenda-layout">
+      {missingInitialEvent && <p role="status">{automationLabel('appointmentUnavailable',language)}</p>}
       {!compact && <section className="agenda-summary" aria-label={t('Résumé de l’agenda')}>
         <AgendaMetric label="Aujourd’hui" value={todayCount} />
         <AgendaMetric label="7 prochains jours" value={nextCount} />
@@ -331,6 +347,8 @@ export function AgendaScreen({
                 <AgendaRow
                   key={item.id}
                   item={item}
+                  focusRequested={!!item.event && item.event.id === focusTargetId}
+                  onFocusHandled={() => setFocusTargetId(null)}
                   busy={busy}
                   readOnly={readOnly}
                   onEdit={() => {
@@ -453,6 +471,8 @@ function AgendaRow({
   onNavigate,
   showDate,
   visibleDate,
+  focusRequested,
+  onFocusHandled,
 }: {
   item: AgendaItem;
   busy: boolean;
@@ -463,9 +483,18 @@ function AgendaRow({
   onNavigate: () => void;
   showDate: boolean;
   visibleDate?: string;
+  focusRequested?: boolean;
+  onFocusHandled?: () => void;
 }) {
+  const row = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!focusRequested) return;
+    row.current?.focus({preventScroll:true});
+    row.current?.scrollIntoView({block:'nearest'});
+    onFocusHandled?.();
+  }, [focusRequested, onFocusHandled]);
   return (
-    <article className={`agenda-row agenda-row--${item.category} ${item.status !== 'active' ? 'is-closed' : ''}`}>
+    <article ref={row} tabIndex={-1} aria-label={item.title} data-event-id={item.event?.id} className={`agenda-row agenda-row--${item.category} ${item.status !== 'active' ? 'is-closed' : ''}`}>
       <div className="agenda-row__time">
         <Clock3 size={15} />
         <span>{formatAgendaItemRange(item, showDate, visibleDate)}</span>

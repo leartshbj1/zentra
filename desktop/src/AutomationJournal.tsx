@@ -1,27 +1,32 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ArrowUpRight, ChevronDown, FileText, Search, Workflow, X } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, ChevronDown, FileText, Search, Workflow, X } from 'lucide-react';
 import type { AutomationActivity } from './automation';
 import { useAppLanguage } from './language';
 import { activityInvoiceAmount, activityTimestamp, activityTimeZone, automationLabel, invoiceActivityStatus } from './automationPresentation';
+import type { AppointmentInboxItem, AppointmentInboxState } from './AppointmentInbox';
+import { appointmentActivityStatus, appointmentSchedule, scopedAppointments } from './appointmentActivity';
 
 type JournalRun = { id: string; title: string; state: string; createdAt: number; updatedAt: number };
 type Invoice = NonNullable<AutomationActivity['supplierInbox']>['recent'][number];
-type Entry<R> = { id: string; title: string; at: number } & ({ kind: 'workflow'; run: R } | { kind: 'invoice'; invoice: Invoice });
+type Entry<R> = { id: string; title: string; at: number } & ({ kind: 'workflow'; run: R } | { kind: 'invoice'; invoice: Invoice } | {kind:'appointment'; appointment:AppointmentInboxItem});
 
-export function AutomationJournal<R extends JournalRun>({ runs, activity, renderRun, openInvoices, openInvoice }: {
+export function AutomationJournal<R extends JournalRun>({ runs, activity, renderRun, openInvoices, openInvoice, organizationId, appointments, appointmentsUnavailable, openAppointment, openAppointments }: {
   runs: R[]; activity?: AutomationActivity | null; renderRun: (run: R) => ReactNode; openInvoices?: () => void; openInvoice?: (id: string) => void;
+  organizationId?: string; appointments?: AppointmentInboxState | null; appointmentsUnavailable?: boolean;
+  openAppointment?: (id: string) => void; openAppointments?: () => void;
 }) {
   const language = useAppLanguage();
   const label = (key: Parameters<typeof automationLabel>[0]) => automationLabel(key, language);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<'all' | 'invoice' | 'workflow'>('all');
+  const [filter, setFilter] = useState<'all' | 'invoice' | 'appointment' | 'workflow'>('all');
   const [limit, setLimit] = useState(30);
   const entries = useMemo<Entry<R>[]>(() => [
-    ...runs.map(run => ({ kind: 'workflow' as const, id: `run:${run.id}`, title: run.title, at: activityTimestamp(run.updatedAt || run.createdAt), run })),
+    ...runs.map(run => ({ kind: 'workflow' as const, id: `run:${run.id}`, title: run.title, at: activityTimestamp(run.updatedAt) || activityTimestamp(run.createdAt), run })),
     ...(activity?.supplierInbox?.recent ?? []).map(invoice => ({ kind: 'invoice' as const, id: `invoice:${invoice.id}`, title: invoice.subject, at: activityTimestamp(invoice.imported_at) || activityTimestamp(invoice.created_at), invoice })),
-  ].sort((a, b) => b.at - a.at || a.id.localeCompare(b.id)), [runs, activity?.supplierInbox?.recent]);
+    ...scopedAppointments(appointments, organizationId).map(appointment => ({kind:'appointment' as const, id:`appointment:${appointment.id}`,title:appointment.extraction.title || appointment.subject,at:activityTimestamp(appointment.updatedAt) || activityTimestamp(appointment.importedAt),appointment})),
+  ].sort((a, b) => b.at - a.at || a.id.localeCompare(b.id)), [runs, activity?.supplierInbox?.recent, appointments, organizationId]);
   const normalized = query.trim().toLocaleLowerCase(language);
-  const filtered = entries.filter(entry => (filter === 'all' || entry.kind === filter) && (!normalized || [entry.title,...(entry.kind==='invoice'?[entry.invoice.reference,entry.invoice.supplierName,entry.invoice.sender,entry.invoice.fileName]:[])].filter(Boolean).join(' ').toLocaleLowerCase(language).includes(normalized)));
+  const filtered = entries.filter(entry => (filter === 'all' || entry.kind === filter) && (!normalized || [entry.title,...(entry.kind==='invoice'?[entry.invoice.reference,entry.invoice.supplierName,entry.invoice.sender,entry.invoice.fileName]:entry.kind==='appointment'?[entry.appointment.subject,entry.appointment.sender,entry.appointment.extraction.location,entry.appointment.extraction.startDate]:[])].filter(Boolean).join(' ').toLocaleLowerCase(language).includes(normalized)));
   const timeZone = activityTimeZone(activity?.timeZone);
   const day = (at: number) => at ? new Intl.DateTimeFormat(`${language}-CH`, {dateStyle: 'long', timeZone}).format(at * 1000) : label('unavailableDate');
   const groups = new Map<string, Entry<R>[]>();
@@ -30,13 +35,28 @@ export function AutomationJournal<R extends JournalRun>({ runs, activity, render
     <header className="automation-journal__heading"><div><h2>{label('journal')}</h2><p>{label('recent')}</p></div></header>
     <div className="automation-journal__toolbar">
       <div className="automation-journal__filters" aria-label={label('journal')}>
-        {(['all', 'invoice', 'workflow'] as const).map(value => <button type="button" key={value} aria-pressed={filter === value} onClick={() => { setFilter(value); setLimit(30); }}>{label(value === 'all' ? 'all' : value === 'invoice' ? 'invoices' : 'rules')}</button>)}
+        {(['all', 'invoice', 'appointment', 'workflow'] as const).map(value => <button type="button" key={value} aria-pressed={filter === value} onClick={() => { setFilter(value); setLimit(30); }}>{label(value === 'all' ? 'all' : value === 'invoice' ? 'invoices' : value === 'appointment' ? 'appointments' : 'rules')}</button>)}
       </div>
       <label className="automation-journal__search"><Search size={17} aria-hidden="true"/><input type="search" value={query} placeholder={label('search')} aria-label={label('search')} onChange={e => { setQuery(e.target.value); setLimit(30); }}/>{query && <button type="button" aria-label={label('clear')} onClick={()=>setQuery('')}><X size={16}/></button>}</label>
     </div>
+    {appointmentsUnavailable && <p role="status">{label('appointmentsUnavailable')}</p>}
     {filtered.length === 0 ? <div className="automation-journal__empty"><Workflow size={26} aria-hidden="true"/><p>{entries.length ? label('noResults') : label('empty')}</p></div> : Array.from(groups, ([date, items]) => <section className="automation-journal__group" key={date}><h3>{date}</h3><ol>{items.map(entry => <li key={entry.id} className="automation-journal__entry">
-      <span className="automation-journal__symbol" aria-hidden="true">{entry.kind === 'invoice' ? <FileText size={19}/> : <Workflow size={19}/>}</span>
-      {entry.kind === 'workflow' ? renderRun(entry.run) : <details className="ac-run automation-journal__invoice">
+      <span className="automation-journal__symbol" aria-hidden="true">{entry.kind === 'invoice' ? <FileText size={19}/> : entry.kind === 'appointment' ? <CalendarDays size={19}/> : <Workflow size={19}/>}</span>
+      {entry.kind === 'workflow' ? renderRun(entry.run) : entry.kind === 'appointment' ? <details className="ac-run automation-journal__appointment">
+        <summary>
+          <span><strong>{entry.title}</strong><small>{entry.at ? new Intl.DateTimeFormat(`${language}-CH`,{timeStyle:'short',timeZone}).format(entry.at*1000) : label('unavailableDate')}</small></span>
+          <span className="ac-status" data-state={entry.appointment.state === 'imported' ? 'completed' : ['review','needs_review'].includes(entry.appointment.state) ? 'review' : entry.appointment.state === 'ignored' ? 'cancelled' : 'queued'}>{label(appointmentActivityStatus(entry.appointment))}</span>
+          <ChevronDown size={16} aria-hidden="true"/>
+        </summary>
+        <div className="ac-run__detail">
+          <dl className="automation-journal__facts" aria-label={label('appointmentDetails')}>
+            <div><dt>{label('appointmentWhen')}</dt><dd>{appointmentSchedule(entry.appointment,language)}</dd></div>
+            {entry.appointment.extraction.location && <div><dt>{label('appointmentPlace')}</dt><dd>{entry.appointment.extraction.location}</dd></div>}
+            {entry.appointment.sender && <div><dt>{label('source')}</dt><dd>{entry.appointment.sender}</dd></div>}
+          </dl>
+          {entry.appointment.state === 'imported' && openAppointment ? <button type="button" className="ac-quiet" onClick={()=>openAppointment(entry.appointment.id)}>{label('openAppointment')}<ArrowUpRight size={16} aria-hidden="true"/></button> : openAppointments && <button type="button" className="ac-quiet" onClick={openAppointments}>{label('openAppointments')}<ArrowUpRight size={16} aria-hidden="true"/></button>}
+        </div>
+      </details> : <details className="ac-run automation-journal__invoice">
         <summary>
           <span><strong>{entry.invoice.reference ? `${entry.invoice.supplierName || entry.title} · ${entry.invoice.reference}` : entry.title}</strong><small>{entry.at ? new Intl.DateTimeFormat(`${language}-CH`,{timeStyle:'short',timeZone}).format(entry.at*1000) : label('unavailableDate')}</small></span>
           <span className="ac-status" data-state={entry.invoice.state === 'imported' ? 'completed' : ['review','needs_review'].includes(entry.invoice.state) ? 'review' : 'queued'}>{label(invoiceActivityStatus(entry.invoice.state,entry.invoice.automatic))}</span>

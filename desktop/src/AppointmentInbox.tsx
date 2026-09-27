@@ -5,7 +5,8 @@ import { CalendarDays, Check, ChevronRight } from 'lucide-react';
 import type { Workspace } from './types';
 import { desktopApi } from './bridge';
 import { Button, Field, Modal } from './ui';
-import { formatDate } from './utils';
+import { automationLabel } from './automationPresentation';
+import { appointmentSchedule } from './appointmentActivity';
 type Extraction = {
   title: string;
   startDate: string;
@@ -18,7 +19,7 @@ type Extraction = {
   status: string;
   issues: string[];
 };
-type Item = {
+export type AppointmentInboxItem = {
   id: string;
   organizationId: string;
   sender: string;
@@ -27,13 +28,17 @@ type Item = {
   state: string;
   otherDevice: boolean;
   importedAt: number | null;
+  updatedAt?: number;
+  automatic?: boolean;
 };
-type State = {
+type Item = AppointmentInboxItem;
+export type AppointmentInboxState = {
   organizationId: string;
   active: boolean;
   automatic: boolean;
   items: Item[];
 };
+type State = AppointmentInboxState;
 const request = <T,>(data: unknown = null) =>
   invoke<T>('appointment_inbox_request', { data });
 export function useAppointmentInbox(
@@ -137,20 +142,22 @@ export function useAppointmentInbox(
       void refresh();
     }
   }
-  return { state, error, busy, act };
+  return { state: state?.organizationId === org ? state : null, error: state && state.organizationId !== org ? '' : error, busy, act };
 }
 export function AppointmentInbox({
   inbox,
   workspace,
   readOnly,
   onAgenda,
+  onOpenAppointment,
 }: {
   inbox: ReturnType<typeof useAppointmentInbox>;
   workspace: Workspace;
   readOnly: boolean;
   onAgenda: () => void;
+  onOpenAppointment?: (id: string) => void;
 }) {
-  useAppLanguage();
+  const language = useAppLanguage();
   const [selected, setSelected] = useState<Item | null>(null),
     [error, setError] = useState('');
   useEffect(() => {
@@ -171,7 +178,7 @@ export function AppointmentInbox({
           <p>
             {pending.length
               ? t('{count} à vérifier', { count: pending.length })
-              : t('Votre agenda reste à jour.')}
+              : automationLabel('appointmentsReceived',language)}
           </p>
         </div>
         <Button variant="ghost" onClick={onAgenda}>
@@ -185,10 +192,7 @@ export function AppointmentInbox({
           <div>
             <strong>{i.extraction.title || i.subject}</strong>
             <span>
-              {i.extraction.startDate
-                ? formatDate(i.extraction.startDate)
-                : t('Date à préciser')}{' '}
-              {i.extraction.startTime} {t('·')}
+              {appointmentSchedule(i,language)} {t('·')}{' '}
               {i.extraction.location || i.sender}
             </span>
           </div>
@@ -204,29 +208,26 @@ export function AppointmentInbox({
           </Button>
         </article>
       ))}
-      {!pending.length && (
+      {!pending.length && !inbox.error && (
         <div className="automation-appointments__empty">
-          <Check size={18} />
+          <CalendarDays size={18} />
           <span>
-            {t(
-              'Les confirmations complètes reçues par Support sont ajoutées ici et dans l’agenda.',
-            )}
+            {automationLabel(imported.length ? 'appointmentsNoReview' : 'appointmentsEmpty',language)}
           </span>
         </div>
       )}
       {!!imported.length && (
         <details>
-          <summary>{t('Derniers rendez-vous ajoutés')}</summary>
+          <summary>{automationLabel('appointmentsProcessed',language)}</summary>
           {imported.slice(0, 5).map((i) => (
             <article key={i.id}>
               <div>
                 <strong>{i.extraction.title}</strong>
                 <span>
-                  {formatDate(i.extraction.startDate)} {t('·')}
-                  {i.extraction.startTime}
+                  {appointmentSchedule(i,language)}
                 </span>
               </div>
-              <Check size={18} />
+              {onOpenAppointment ? <Button variant="ghost" onClick={() => onOpenAppointment(i.id)}>{automationLabel('openAppointment',language)}<ChevronRight size={16}/></Button> : <Check size={18} />}
             </article>
           ))}
         </details>

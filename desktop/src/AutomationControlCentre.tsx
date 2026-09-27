@@ -16,6 +16,7 @@ import type { AutomationActivity } from './automation';
 import type { BriefDestination } from './AutomationBrief';
 import { useAppLanguage } from './language';
 import { activityDateTime, activityTimestamp, automationLabel, automationRunStatus } from './automationPresentation';
+import type { AppointmentInboxState } from './AppointmentInbox';
 
 type Rule = {
   id: string;
@@ -124,7 +125,7 @@ const date = (n: number) =>
 export function AutomationControlCentre({
   organizationId,
   request, initialTab = 'review', embedded = false, hideNavigation = false, hideRules = false,
-  activity, onOpen, onOpenInvoice,
+  activity, onOpen, onOpenInvoice, appointments, appointmentsUnavailable, onOpenAppointment,
 }: {
   organizationId: string;
   request: Requester;
@@ -132,6 +133,9 @@ export function AutomationControlCentre({
   embedded?: boolean; hideNavigation?: boolean; hideRules?: boolean;
   activity?: AutomationActivity | null; onOpen?: (destination: BriefDestination) => void;
   onOpenInvoice?: (id: string) => void;
+  appointments?: AppointmentInboxState | null;
+  appointmentsUnavailable?: boolean;
+  onOpenAppointment?: (id: string) => void;
 }) {
   const [data, setData] = useState<AutomationCentreState | null>(null),
     [error, setError] = useState(''),
@@ -361,7 +365,7 @@ export function AutomationControlCentre({
           )}
         </div>
       )}
-      {data && tab === 'history' && embedded && <AutomationJournal runs={data.runs} activity={activity} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={data.canManage} busy={busy} act={action}/>}/>}
+      {tab === 'history' && embedded && <AutomationJournal organizationId={organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} openAppointment={onOpenAppointment} openAppointments={onOpen ? () => onOpen('appointments') : undefined} runs={data?.runs ?? []} activity={activity} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={data?.canManage ?? false} busy={busy} act={action}/>}/>}
       {data && tab === 'history' && !embedded && (
         <div className="ac-list">
           {!data.runs.length ? (

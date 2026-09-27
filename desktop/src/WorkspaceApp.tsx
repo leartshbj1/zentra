@@ -11,7 +11,7 @@ import { availableShortcuts, selectedShortcut, useWorkspacePreferences } from '.
 import { ResetAppPanel } from './ResetAppPanel';
 import { SupplierPaymentOutcomeUnknownError, SupplierPaymentRefreshError, type SupplierPaymentResume } from './supplierPaymentWorkflow';
 import { SupplierInvoiceValidationOutcomeUnknownError, SupplierInvoiceValidationRefreshError } from './supplierInvoiceValidation';
-import { t, useAppLanguage, getAppLocale } from './language';
+import { t, useAppLanguage, getAppLocale, getAppLanguage } from './language';
 import './manual-backup.css';
 import { Languages } from 'lucide-react';
 import { LanguageSetting } from './LanguageSetting';
@@ -41,6 +41,7 @@ import { AutomationCompanyProvider, useCompanyAutomation } from './AutomationCom
 import { AutomationHub } from './AutomationHub';
 import { AutomationWelcome } from './AutomationWelcomeDialog';
 import { AppointmentInbox,useAppointmentInbox } from './AppointmentInbox';
+import { automationLabel } from './automationPresentation';
 import { automationPageFromEvent, type AutomationPage } from './automationExperience';
 import { AutomationSettings } from './AutomationSettings';
 import { AutomationTools, AutomationToolsLauncher } from './AutomationTools';
@@ -513,6 +514,7 @@ function WorkspaceContent({
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [view, setView] = useState<View>('dashboard');
+  const [agendaEventToOpen, setAgendaEventToOpen] = useState<{organizationId:string; id:string} | null>(null);
   const compactSales = useCompactLayout() && (view === 'quotes' || view === 'invoices');
   const companyAutomation = useCompanyAutomation();
   const preferences = useWorkspacePreferences();
@@ -621,6 +623,13 @@ function WorkspaceContent({
   const actionInFlight = useRef(false);
   const supplierInbox=useSupplierInbox(cloudAccount?.status==='connected'?cloudAccount.organizationId??null:null,readOnly,()=>actionInFlight.current||busy||!!modal||!!document.querySelector('[role="dialog"]'),next=>{workspaceRef.current=next;setWorkspace(next);});
   const appointmentInbox=useAppointmentInbox(cloudAccount?.status==='connected'?cloudAccount.organizationId??null:null,readOnly,()=>actionInFlight.current||busy||!!modal||!!document.querySelector('[role="dialog"]'),next=>{workspaceRef.current=next;setWorkspace(next);});
+  const openAutomationAppointment = (id: string) => {
+    const organizationId = cloudAccount?.organizationId;
+    if (!organizationId || appointmentInbox.state?.organizationId !== organizationId || !workspaceRef.current.agendaEvents.some(event => event.id === id)) {
+      setNotice({tone:'warning',text:automationLabel('appointmentUnavailable',getAppLanguage())}); return;
+    }
+    setAgendaEventToOpen({organizationId,id}); setView('agenda'); setSearch('');
+  };
   const automationPendingCount=(supplierInbox.state?.items.filter(row=>!['imported','ignored'].includes(row.state)).length||0)+(appointmentInbox.state?.items.filter(row=>!['imported','ignored'].includes(row.state)).length||0)+(companyAutomation.state?.activity?.workflows?.review||0)+(companyAutomation.state?.activity?.workflows?.open||0)+(companyAutomation.state?.activity?.totals.needsReview||0);
   const renderSupplierInbox = (embedded: boolean, searchQuery?: string) => <SupplierInbox embedded={embedded} searchQuery={searchQuery} inbox={supplierInbox} workspace={workspace} readOnly={readOnly} onCreateSupplier={async(name,email)=>{
                 const existing=workspaceRef.current.suppliers.filter(s=>!s.archivedAt&&s.name.trim().toLowerCase()===name.toLowerCase()&&s.email.trim().toLowerCase()===email.toLowerCase());
@@ -1927,7 +1936,7 @@ function WorkspaceContent({
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
-          {view === 'automation' && <AutomationHub onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
+          {view === 'automation' && <AutomationHub appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -1952,6 +1961,9 @@ function WorkspaceContent({
           {view === 'agenda' ? (
             <Suspense fallback={<ViewLoading label={t("Ouverture de l’agenda…")} />}>
               <AgendaScreen
+                key={cloudAccount?.organizationId ?? 'local'}
+                initialEventId={agendaEventToOpen?.organizationId === cloudAccount?.organizationId ? agendaEventToOpen?.id : null}
+                onInitialEventHandled={() => setAgendaEventToOpen(null)}
                 workspace={workspace}
                 busy={busy}
                 readOnly={readOnly}

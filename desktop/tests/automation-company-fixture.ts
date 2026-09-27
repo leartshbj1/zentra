@@ -2,6 +2,7 @@ import type { Workspace } from '../src/types';
 import type { AutomationState } from '../src/automation';
 import { automationDesignFixture } from './automation-design-fixture';
 import { automationWelcomeKey } from '../src/automationWelcomeState';
+import { appointmentInboxFixture, appointmentWorkspace } from './appointment-activity-fixture';
 /** Synthetic bridge used only by the local, non-shipping UI harness. */
 export function installAutomationCompanyFixture(workspace?:Workspace) {
   const params = new URLSearchParams(location.search);
@@ -29,6 +30,14 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
     activity: { appointments:{imported:2,pending:1}, date: '2026-09-21', timeZone: 'Europe/Zurich', updatedAt: Date.now() / 1000, displayName: 'Camille', totals: { analyzed: 0, suggestions: 0, confirmed: 0, needsReview: 0, observed: 0 }, features: [], supplierInbox: {received:3,imported:1,automatic:0,needsReview:2,recent:[]} },
   };
   const centre = automationDesignFixture(state);
+  const receivedAppointments = params.has('appointmentActivityAudit') ? {
+    ...structuredClone(appointmentInboxFixture), organizationId:'automation-qa', automatic:false,
+    items:appointmentInboxFixture.items.map(item=>({...structuredClone(item),organizationId:'automation-qa'})),
+  } : null;
+  if(receivedAppointments && workspace) {
+    workspace.agendaEvents.push(...structuredClone(appointmentWorkspace.agendaEvents));
+    Object.assign(window,{__appointmentIntegrationQa:{received:receivedAppointments,refresh:()=>window.dispatchEvent(new Event('focus'))}});
+  }
   if (params.has('automationActivityAudit') && workspace) {
     const stamp=new Date().toISOString();
     workspace.supplierInvoices.push({id:'ui-invoice-1',supplierId:'qa-supplier',projectId:null,documentDate:'2026-09-27',dueDate:'2026-10-27',supplierName:'Papeterie du Léman',reference:'LEMAN-2026-091',currency:'CHF',documentStatus:'validated',paymentStatus:'pending',netCents:25000,vatCents:2025,totalCents:27025,paidCents:0,creditedCents:0,balanceCents:27025,matchStatus:'unmatched',validatedAt:stamp,validationJournalEntryId:null,note:'Document fictif de recette',lines:[],payments:[],attachments:[],createdAt:stamp,updatedAt:stamp});
@@ -51,6 +60,10 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
         throw Error('Fixture: no accounting writes');
       }
       if (command === 'appointment_inbox_request') {
+        if (receivedAppointments) {
+          if (!args?.data) return structuredClone(receivedAppointments);
+          throw Error('Appointment activity fixture forbids business writes');
+        }
         if (!args?.data) return {organizationId:'automation-qa',active:true,automatic:false,items:[{id:'11111111-1111-4111-8111-111111111111',organizationId:'automation-qa',sender:'client@example.test',subject:'Visite des bureaux',state:'review',otherDevice:false,importedAt:null,extraction:{title:'Visite des nouveaux bureaux de la société du Léman',startDate:'2026-09-24',endDate:'2026-09-24',startTime:'09:00',endTime:'',allDay:false,location:'Avenue du Léman 12, Lausanne',notes:'Accueil au deuxième étage. Apporter les plans.',status:'scheduled',issues:['Précisez l’heure de fin.']}}]};
         if (args.data.action==='import' && workspace) {const v=args.data.event as Record<string,unknown>; workspace.agendaEvents.push({id:String(args.data.id),title:String(v.title),startDate:String(v.start_date),endDate:String(v.end_date),startTime:String(v.start_time),endTime:String(v.end_time),allDay:!!v.all_day,kind:'appointment',status:'scheduled',location:String(v.location),notes:String(v.notes),projectId:null,employeeId:null,updatedAt:new Date().toISOString(),createdAt:new Date().toISOString()} as Workspace['agendaEvents'][number]);return{saved:true};}
         return {saved:true};
