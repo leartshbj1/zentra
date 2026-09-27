@@ -2,7 +2,7 @@
 
 Objectif : traiter les vingt points de l’audit, avec des preuves adaptées. Aucun statut global « prêt » n’est déduit d’un build ou de tests simulés.
 
-**État courant au 27 septembre, 22 h 29 : 1.90.6 publiée, Sites 292.** Les douze fichiers et les canaux sont vérifiés. Le vrai updater Windows télécharge et vérifie le paquet, mais le lancement est refusé par Code Integrity (4551) : ce PC reste en 1.90.5, données fictives intactes. Huit exemples PDF sont contrôlés sur cette version ; un titre orphelin du bilan reste à corriger. Connexion toujours HTTP 503 à 21 h 43 ; planificateur et recettes connectées ouverts. Le tableau canonique est [ETAT-LIVRAISON.md](ETAT-LIVRAISON.md). Les mentions antérieures ci-dessous sont historiques : les lots locaux gelés dans 1.90.6 sont désormais publiés, sans élargir leurs preuves de validation.
+**État courant au 27 septembre, 22 h 50 : 1.90.6 publiée, Sites 292.** Les douze fichiers et les canaux sont vérifiés. Le vrai updater Windows télécharge et vérifie le paquet, mais le lancement est refusé par Code Integrity (4551) : ce PC reste en 1.90.5, données fictives intactes. Le titre orphelin du bilan est corrigé dans la source `4f9ca690`, **pas dans la release** : 62 tests natifs et 41 pages contrôlées, [preuves de pagination](PAGINATION-BILANS-20260927.md). Connexion toujours HTTP 503 à 22 h 37 ; planificateur et recettes connectées ouverts. Le tableau canonique est [ETAT-LIVRAISON.md](ETAT-LIVRAISON.md). Les mentions antérieures ci-dessous sont historiques : les lots locaux gelés dans 1.90.6 sont désormais publiés, sans élargir leurs preuves de validation.
 
 ## Historique des travaux et validations
 

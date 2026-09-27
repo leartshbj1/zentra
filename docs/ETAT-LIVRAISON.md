@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 27 septembre 2026, 22 h 29 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
+Mis à jour le 27 septembre 2026, 22 h 50 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
 
 ## Version 1.90.6 publiée ; installation locale Windows refusée
 
@@ -33,7 +33,7 @@ Preuves : `outputs/release1906/{SOURCES.json,source-equivalence-proof.json,githu
 - Build Apple : 21 tests de composition PDF et 61 tests frontend de l’éditeur réussis. Ce n’est pas un test de connexion réelle ni d’appareil mobile.
 - Sur la version Windows **1.90.5**, 42 navigations natives sur 14 écrans et petite entreprise fictive : médiane 45 ms, p95 345 ms, maximum 362 ms, aucune erreur JS ni longue tâche détectée. Aucun résultat 1.90.6 local n’est déduit.
 - Toujours sur **1.90.5**, huit PDF réellement exportés par la commande native : devis, facture, comptes, paie, avec Inter et Literata. Les 14 pages sont rendues et inspectées ; polices embarquées, logos, gras/italique/soulignement, montants et orientation paysage vérifiés. Durées d’export 11–14 ms sur ce petit exemple. Destination fournie directement, sélecteur système non testé. Les sources Rust du moteur sont identiques à 1.90.6, mais cela ne remplace pas une recette de ce binaire sur ce PC.
-- Détail visuel encore ouvert : le titre de section « Fonds propres » peut finir une page du bilan paysage alors que ses lignes commencent sur la suivante. Les montants sont présents ; ne pas déclarer une pagination parfaite.
+- Détail observé dans 1.90.5/1.90.6 : « Fonds propres » peut finir une page alors que ses lignes commencent sur la suivante. **Corrigé dans la source postérieure `4f9ca690`, non publiée** : rubriques avec leur première ligne, colonnes répétées sur les très longues lignes et contrôle du bilan avec son total. 62 tests natifs passent ; neuf exemples et 41 pages sont rendus et inspectés. [Portée et preuves](PAGINATION-BILANS-20260927.md). Le job cloud 155 réussi porte sur le premier commit `bb266a50`, pas sur les deux derniers ajustements.
 
 Preuves natives : `outputs/release1906/upgrade-smoke/{updater-check-proof.json,updater-ui-events.json,updater-install-refused-proof.json,windows-code-integrity-refusal.json,navigation-1.90.5.json,native-pdf-export-proof.json,native-pdf-checks.json}` et `outputs/release1905/upgrade-smoke/{after-updater-refused,after-pdf-export,final-closed}-snapshot.json`. Aucun envoi de document, aucune création de compte et aucune modification de données réelles lors de cette recette.
 
@@ -41,12 +41,12 @@ Preuves natives : `outputs/release1906/upgrade-smoke/{updater-check-proof.json,u
 
 Sites **292**, source `20ecc8c536df184ac1d75f095d52d6ef4d70bc49`, environnement 37, déploiement `appgdep_6ab97a5521b88191868471bd3bba8858`, sauvegarde avec archive vérifiée. Publication réussie à 22 h 19. Quatorze tests, TypeScript, marque et build réussis. Les reprises de préparation n’ont changé ni dépendance ni contenu : Bash ajouté au PATH de la commande, puis `TAR_OPTIONS=--force-local` pour traiter le chemin Windows comme local.
 
-**Comptes toujours indisponibles au contrôle de 21 h 43** : connexion synthétique HTTP 503 en 3 753 ms, `Retry-After: 60`, `no-store`. Aucun compte ni e-mail créé. Le contrôle direct Supabase de **20 h 05** confirmait HTTP 402, quotas de stockage et transfert dépassés ; il n’a pas été répété à 21 h 43. L’intervention d’hébergement attendue et les recettes connectées restent ouvertes. Voir `outputs/release1906/auth-readiness.json` et `outputs/release1905/account-health-latest.json`.
+**Comptes toujours indisponibles au contrôle de 22 h 37** : connexion synthétique HTTP 503, `Retry-After: 60`, `no-store`, avec l'origine attendue. Aucun compte ni e-mail créé. Le contrôle direct Supabase de **20 h 05** confirmait HTTP 402, quotas de stockage et transfert dépassés ; il n’a pas été répété à 22 h 37. L’intervention d’hébergement attendue et les recettes connectées restent ouvertes. Voir `outputs/release1906/auth-readiness-latest.json` et `outputs/release1905/account-health-latest.json`. Le premier contrôle sans en-tête Origin a été refusé HTTP 403 par la protection normale : ce n'est pas la cause de l'indisponibilité.
 
 **Planificateur non rétabli** : GitHub `master` contient le correctif `59dcf5ba`, après 36 tests ciblés ; l’essai `36339873810` de 20 h 14 a été refusé avant exécution pour facturation. Workflow désactivé de nouveau, aucun drapeau d’arrière-plan ajouté. Aucun traitement réel avec apps fermées, moniteur externe ou alerte reçue encore prouvés. Voir [PLANIFICATEUR-ETAT-20260927.md](PLANIFICATEUR-ETAT-20260927.md) et [SUPERVISION-SERVICES-20260927.md](SUPERVISION-SERVICES-20260927.md).
 
 ## Travaux restant ouverts
 
-Rétablir les comptes et le traitement autonome ; terminer le parcours réel inscription/paiement/invitation/deux appareils/reprise hors ligne ; rendre la distribution acceptable aux systèmes sans abaisser leur sécurité ; valider les appareils et sélecteurs natifs ; poursuivre traduction, accessibilité et pagination des autres écrans. Les essais locaux ne prouvent pas une capacité de 150 entreprises ni la fermeture des vingt points.
+Rétablir les comptes et le traitement autonome ; terminer le parcours réel inscription/paiement/invitation/deux appareils/reprise hors ligne ; rendre la distribution acceptable aux systèmes sans abaisser leur sécurité ([diagnostic et parcours Windows](SIGNATURE-WINDOWS-20260927.md)) ; valider les appareils et sélecteurs natifs ; poursuivre traduction, accessibilité et pagination des autres écrans. Les essais locaux ne prouvent pas une capacité de 150 entreprises ni la fermeture des vingt points.
 
 L’historique détaillé de 1.90.5 et de sa restauration effective est conservé dans [HISTORIQUE-LIVRAISON-1905-20260927.md](HISTORIQUE-LIVRAISON-1905-20260927.md). La restauration `.zentra` depuis un dossier source inaccessible a bien conservé base, documents et logo sur ce profil fictif ; aucune restauration sur deux appareils connectés n’en est déduite.
