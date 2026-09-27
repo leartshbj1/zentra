@@ -15,7 +15,9 @@ describe('truthful synchronization status',()=>{
     expect(present({conflict:true,pending:true}).kind).toBe('attention');
     expect(present({error:'401',pending:true}).kind).toBe('attention');
     expect(present({pending:true}).kind).toBe('sending');
-    expect(present({ready:true}).kind).toBe('receiving');
+    expect(present({ready:true}).kind).toBe('waiting');
+    expect(companySyncPresentation({...base, ready:true, receiving:true}, 'company-a', true, now).kind).toBe('receiving');
+    expect(companySyncPresentation({...base, ready:true, settingsDraft:true}, 'company-a', true, now).detail).toBe('Enregistrez vos modifications, puis quittez les paramètres pour recevoir les nouveautés de votre équipe.');
     expect(present().kind).toBe('current');
   });
 });

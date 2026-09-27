@@ -25,6 +25,7 @@ export function installCompanyRealtimeFixture(data: Workspace, synchronize: type
       throw new Error(`Unexpected native fixture call: ${command}`);
     }},
     companyRealtimeFixture:{calls,
+      renameCompany:(name:string)=>{remote.settings!.organization.legalName=name;revision++;},
       issue:()=>{invoiceSequence++;const invoice=structuredClone(remote.invoices[0]);invoice.id=`phone-invoice-${invoiceSequence}`;invoice.number=`F-2026-${999+invoiceSequence}`;invoice.title='Facture créée sur iPhone';invoice.status='issued';invoice.lines=[{...invoice.lines[0],id:`phone-line-${invoiceSequence}`,quantity:1,unitPriceCents:100000,vatBp:0,discountBp:0}];remote.invoices.push(invoice);revision++;},
       pay:()=>{remote.payments.push({id:`phone-payment-${revision}`,invoiceId:`phone-invoice-${invoiceSequence}`,amountCents:25000,date:'2026-09-15',method:'bank',reference:'TEST',notes:''});revision++;},
       holdNextApply:()=>{heldApply=new Promise<void>((resolve,reject)=>{finishApply=(fail=false)=>{finishApply=null;fail?reject(new Error('Synthetic interrupted reception')):resolve();};});},
@@ -34,5 +35,10 @@ export function installCompanyRealtimeFixture(data: Workspace, synchronize: type
   });
   desktopApi.getProjectSyncStatus=async()=>({mode:'business',pending:0,syncing:false,connected:true,documents:[]});
   desktopApi.loadWorkspace=async()=>structuredClone(local);
+  const account = async () => ({status:'connected' as const,organizationId:'synthetic-company',role:'owner' as const,organizationName:local.settings!.organization.legalName,email:'fixture@example.invalid'});
+  desktopApi.getCachedCloudAccountState=account;
+  desktopApi.getCloudAccountState=account;
+  desktopApi.getCloudTeam=async()=>({continuous:true,organizationId:'synthetic-company',organizationName:local.settings!.organization.legalName,role:'owner',canManage:true,profile:null,companyCopy:null,seats:{planName:'Start',limit:3,used:1,reserved:0,available:2,subscriptionActive:true},members:[],invitations:[]});
+  desktopApi.saveSettings=async settings=>{local.settings=structuredClone(settings);return structuredClone(local);};
   desktopApi.syncProjectDocuments=synchronize;
 }

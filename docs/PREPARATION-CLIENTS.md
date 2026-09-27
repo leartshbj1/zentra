@@ -1,38 +1,36 @@
-# Préparation de Zentra pour des clients
+# Préparation de Zentra pour les clients
 
-Objectif accepté : terminer l'ensemble des priorités, avec preuve du parcours réel. Cette liste suit les travaux ; elle ne constitue pas une autorisation de mise en production sans validation technique.
+Le suivi courant est [Audit premier client — corrections et preuves](AUDIT-PREMIER-CLIENT-SUIVI.md). Il remplace la liste qui décrivait encore la version 1.46.1 et un domaine à acheter.
 
-| Priorité | Condition de livraison | Situation |
-| --- | --- | --- |
-| Données partagées | Deux installations et deux collaborateurs retrouvent clients, devis, factures, banque, paie et comptabilité. Modifications simultanées et hors ligne conservées ; conflits explicites ; pas de doublon de numérotation ni de journal déséquilibré. | À réaliser. Les fichiers de projet seuls ont un protocole de synchronisation. La liste de routes native qui les bloquait est corrigée dans les sources ; nouveaux installateurs à distribuer. |
-| E-mails | Domaine vérifié, SMTP Supabase de production, inscription et réinitialisation reçues par un utilisateur extérieur. | Domaine demandé au titulaire. Intégration Resend préparée précédemment. |
-| Abonnements | Vendeur et TVA exacts ; achat, activation, renouvellement, défaut de paiement et résiliation validés ; quotas titulaire compris. | Parcours sandbox vérifié, bascule live non effectuée. Shabija Leart, non assujetti à la TVA, support leartshabija@gmail.com ; adresse professionnelle encore attendue. |
-| Publication | Sources testées, site déployé, installateurs actuels vérifiés ; installation neuve et mise à jour préservant les données. | Version 1.46.1 publiée, site 72 et manifeste commun vérifiés. Installation neuve et remplacement Windows réussis ; remplacement Mac réussi avec autorisation normale du Trousseau, données et identité conservées. Signatures d'éditeur et notarisation restent à obtenir. |
-| Reprise après panne | Sauvegarde complète hors appareil, reprise d'un envoi interrompu, restauration sur installation vierge, contrôles d'intégrité et conservation d'une copie de sécurité. | Coffre et récupération web après résiliation publiés. Recette native HTTPS réussie : archive de 9,5 Mo, reprise après premier fragment, base et pièce jointes restaurées dans une seconde installation isolée, puis archive et sessions de test nettoyées. Nouveaux installateurs et essai physique à fermer. Une sauvegarde ne remplace pas la synchronisation concurrente. |
-| Validation professionnelle | Dossier d'essai fiduciaire avec chiffres attendus ; examen du vendeur, conditions d'abonnement, assistance et validation comptable documentée. | Dossier de cinq pages préparé et vérifié visuellement : TVA/bilan, acomptes/banque, paie/certificat annuel et procès-verbal. Les chiffres sont des attendus indépendants ; l'exécution avec pièces produites par l'application puis la validation professionnelle restent à obtenir. |
-| iOS et Android | Comptes de distribution actifs, builds signés acceptés, installation physique, droits fichiers/caméra, sauvegarde, reprise réseau et mise à jour testés. | Comptes et appareils à vérifier. Un IPA non signé n'est pas une publication App Store. |
+## Informations confirmées
+
+- Produit et domaine : Zentra, https://zentraapp.ch.
+- Vendeur déclaré : Shabija Leart, non assujetti à la TVA suisse.
+- Adresse fournie : Avenue de Châtelaine 72. Vérifier les coordonnées postales complètes publiées avant la recette commerciale.
+- Contact fourni : info@zentraapp.ch.
+
+Le statut TVA du vendeur est indépendant de celui des entreprises clientes. Ces informations ne prouvent aucune validation fiduciaire, certification Swissdec ou approbation en boutique.
+
+## Conditions de livraison
+
+1. Inscription extérieure, confirmation reçue et récupération de compte réussie.
+2. Abonnements testés en mode test Stripe, droits et limites appliqués à tous les produits.
+3. Deux installations réellement connectées au même espace, opérations simultanées et reprise hors ligne sans pertes ni doublons.
+4. Travail d’Automation observé avec toutes les applications fermées, historique et récupération vérifiés.
+5. Documents, montants, fournisseurs et paie vérifiés avec des attendus indépendants.
+6. Sauvegarde .zentra compatible restaurée dans une installation isolée, pièces jointes comprises.
+7. Artefact exact vérifié : version, empreinte, signature, installation neuve et mise à jour conservant les données.
+8. Quatre langues, deux thèmes, écrans mobiles/ordinateur, erreurs, clavier et contenus longs vérifiés.
 
 ## Invariants
 
-Informations du vendeur confirmées par le titulaire le 8 septembre 2026 : **Shabija Leart**, **non assujetti à la TVA**, assistance **leartshabija@gmail.com**. Adresse professionnelle et domaine encore attendus. Le statut TVA du vendeur de Zentra est indépendant du paramétrage TVA des entreprises clientes.
+- Calculs en centimes et points de base, documents émis immuables et pièces traçables.
+- Aucun remplacement silencieux d’une base modifiée ou d’un brouillon par la copie reçue.
+- Sauvegardes intégrales réservées aux personnes autorisées ; les salaires et pièces jointes sont sensibles.
+- Secrets, licences et clés propres à l’installation exclus des sauvegardes partagées.
+- Un envoi accepté par SMTP ne prouve pas la livraison. Un build ne prouve pas une installation physique. Une IPA non signée n’est pas une publication App Store.
+- Un échec réseau conserve les données et n’est jamais annoncé comme un succès.
 
-- Conserver les calculs en centimes et points de base, les pièces émises immuables et les preuves comptables.
-- Ne jamais remplacer une base modifiée par la dernière copie reçue sans fusion validée ou restauration expressément confirmée.
-- Réserver les sauvegardes intégrales au titulaire et aux administrateurs : elles contiennent notamment les salaires.
-- Exclure des copies les secrets de connexion, les licences et les clés propres à l'installation.
-- Un échec réseau ne doit ni effacer la copie locale ni annoncer une sauvegarde terminée.
-- Les tests simulés, tests SQLite, contrôles du serveur et essais physiques doivent être distingués.
+## Preuves de release
 
-## Travaux indépendants des réponses attendues
-
-1. Corriger et tester le transport des fichiers de projet.
-2. Livrer le coffre de sauvegardes, sa reprise d'envoi et la restauration native ; vérifier une vraie archive multi-fichiers sur une installation isolée.
-3. Concevoir puis implémenter la réplication métier avec gestion des conflits et tests de deux bases modifiées hors ligne.
-4. Préparer les scénarios de recette fiduciaire, conditions commerciales et procédures d'assistance.
-5. Effectuer les validations de release puis publier les artefacts vérifiables.
-
-Les réponses sur le domaine, le vendeur et la TVA permettent de reprendre en parallèle l'e-mail et la commercialisation. Elles ne bloquent pas les étapes ci-dessus.
-
-## Point technique intermédiaire
-
-La source native 1.46.1 (`b83aa865`) passe avec 742 tests d'interface, 647 tests natifs et deux tests ignorés explicitement sur le build Mac ; le contrôle HTTPS de sauvegarde a été exécuté séparément. La suite serveur passe avec 240 tests. L'installateur Windows exact passe en installation neuve et en remplacement de 1.45.0, données et identité conservées. L'APK x86_64 compagnon passe aussi son remplacement exact. Le parcours Mac nécessite l'autorisation du Trousseau et sa recette reste suivie dans `RELEASE-1.46.md`. La réservation de numéros partagés reste inactive ; voir `SYNCHRONISATION-METIER.md`. Ces résultats ne prouvent ni la réplication métier complète ni une installation sur téléphone physique.
+Les manifestes, empreintes et preuves d’installation de la version exacte font foi. Le dossier disponible au début de cet audit est outputs/release1902/STATE.md : il distingue la publication des artefacts, leurs limites de signature et les essais physiques restant à réaliser. Les nouveaux travaux ne sont pas présentés comme déjà installés.

@@ -1,6 +1,10 @@
 @media screen {
   .assistant-launcher,.assistant-help {display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #d9e1dc;color:#244b38;background:#fff;cursor:pointer;font:inherit;font-weight:600;min-height:44px;padding:10px 16px;border-radius:24px;transition:background .18s,box-shadow .18s;}
   .assistant-launcher {position:fixed;right:24px;bottom:24px;z-index:39;box-shadow:0 4px 22px #23432d1a;}
+  .assistant-launcher-slot {display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;flex:none;}
+  html[data-app-theme] .assistant-launcher-slot .assistant-launcher--docked {position:static;inset:auto;z-index:auto;width:44px;height:44px;min-width:44px;min-height:44px;padding:10px;border:0;border-radius:12px;box-shadow:none;background:transparent;color:var(--work-muted);}
+  html[data-app-theme] .assistant-launcher-slot .assistant-launcher--docked:hover {background:var(--work-surface-soft, var(--work-line));color:var(--work-ink);box-shadow:none;}
+  .assistant-launcher--docked > span {display:none;}
   .assistant-launcher:hover,.assistant-help:hover {background:#f1f5f2;box-shadow:0 4px 18px #23432d14;}
   body:has(.modal) .assistant-launcher {display:none;}
   .assistant-help--compact {padding:10px;min-width:44px;flex:none;}

@@ -1,4 +1,7 @@
 export const companyTranslations:Record<string,readonly[string,string,string]>={
+ 'Nouveautés en attente':['Aktualisierungen warten','Novità in attesa','Updates waiting'],
+ 'Enregistrez vos modifications, puis quittez les paramètres pour recevoir les nouveautés de votre équipe.':['Speichern Sie Ihre Änderungen und verlassen Sie die Einstellungen, um die Aktualisierungen Ihres Teams zu empfangen.','Salva le modifiche, poi esci dalle impostazioni per ricevere le novità del team.','Save your changes, then leave settings to receive your team’s updates.'],
+ 'Terminez votre saisie ou fermez la fenêtre ouverte pour afficher les nouveautés de votre équipe.':['Beenden Sie Ihre Eingabe oder schliessen Sie das offene Fenster, um die Änderungen Ihres Teams anzuzeigen.','Termina la modifica o chiudi la finestra aperta per visualizzare le novità del team.','Finish editing or close the open window to show your team’s updates.'],
  'Toute l’entreprise est partagée : documents, montants, comptabilité, logo et salaires.':['Das gesamte Unternehmen wird geteilt: Dokumente, Beträge, Buchhaltung, Logo und Löhne.','È condivisa tutta l’azienda: documenti, importi, contabilità, logo e stipendi.','The whole company is shared: documents, amounts, accounting, logo and payroll.'],
  'Activer le partage':['Freigabe aktivieren','Attiva la condivisione','Enable sharing'],
  'Partage activé.':['Freigabe aktiviert.','Condivisione attivata.','Sharing enabled.'],

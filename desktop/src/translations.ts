@@ -25,7 +25,10 @@ import { supplierDetailTranslations } from './translationsSupplierDetail';
 import { supplierReviewTranslations } from './translationsSupplierReview';
 import { workflowClarityTranslations } from './translationsWorkflowClarity';
 import { documentEditorTranslations } from './translationsDocumentEditor';
+import { outgoingMailTranslations } from './translationsOutgoingMail';
 export const translations: Record<string, readonly [string, string, string]> = {
+  'Vos sauvegardes utilisent le format .zentra. Les anciennes sauvegardes de test ne peuvent plus être restaurées.': ['Ihre Sicherungen verwenden das Format .zentra. Alte Testsicherungen können nicht mehr wiederhergestellt werden.', 'I backup usano il formato .zentra. I vecchi backup di prova non possono più essere ripristinati.', 'Your backups use the .zentra format. Old test backups can no longer be restored.'],
+  ...outgoingMailTranslations,
   'Ajouter le logo de l’entreprise': ['Firmenlogo hinzufügen', 'Aggiungi il logo aziendale', 'Add the company logo'],
   'Après votre message, pour les devis, factures et relances.': ['Am Ende der E-Mails für Offerten, Rechnungen und Mahnungen.', 'Alla fine delle e-mail con preventivi, fatture e solleciti.', 'At the end of emails for quotes, invoices and reminders.'],
   'Logo ajouté après votre message': ['Logo unter Ihrer Nachricht', 'Logo aggiunto dopo il messaggio', 'Logo added below your message'],

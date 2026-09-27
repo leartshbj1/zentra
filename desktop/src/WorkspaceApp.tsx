@@ -1,4 +1,5 @@
 import { AppearanceSetting } from './AppearanceSetting';
+import { CompanySettingsSync } from './CompanySettingsSync';
 import { BexioImportPanel } from './BexioImportPanel';
 import { MailComposer, MailDocumentButton, MailSettings } from './OutgoingMailEntry';
 import type { MailTarget } from './outgoingMail';
@@ -28,7 +29,7 @@ import { PdfExportReceipt } from './PdfExportReceipt';
 import type { PdfExportReceipt as PdfReceipt } from './pdfExportDelivery';
 import { deferView } from './DeferredView';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
-import { useAssistantScreen } from './assistantContext';
+import { AssistantLauncherSlot, useAssistantScreen } from './assistantContext';
 import { AutomationDailySummary } from './AutomationDailySummary';
 import { SupplierInbox } from './SupplierInboxPanel';
 import { useSupplierInbox } from './supplierInbox';
@@ -1784,6 +1785,7 @@ function WorkspaceContent({
             >
               <CircleHelp size={18} />
             </Button>
+            <AssistantLauncherSlot />
             <CloudAccountAccess account={cloudAccount} onAccountChange={onCloudAccountChange} />
           </div>
         </header>
@@ -2392,7 +2394,10 @@ function WorkspaceContent({
             </Suspense>
           ) : null}
           {view === 'settings' ? (
+            <CompanySettingsSync busy={busy}>{(revision, category) =>
             <SettingsScreen
+              key={revision}
+              initialCategory={revision ? category : undefined}
               automationActive={companyAutomation.knownActive}
               workspace={workspace}
               busy={busy}
@@ -2406,6 +2411,7 @@ function WorkspaceContent({
                 setSearch('');
               }}
             />
+            }</CompanySettingsSync>
           ) : null}
         </section>
       </main>
@@ -4836,6 +4842,7 @@ function TeamScreen({
 }
 
 function SettingsScreen({
+  initialCategory,
   automationActive,
   workspace,
   busy: operationBusy,
@@ -4846,6 +4853,7 @@ function SettingsScreen({
   onOpenAccounting,
   onCloudAccountChange,
 }: {
+  initialCategory?: string | null;
   workspace: Workspace;
   busy: boolean;
   readOnly: boolean;
@@ -5065,7 +5073,7 @@ function SettingsScreen({
   return (
     <>
     {settingsRecovery.reason && <WorkspaceRecoveryDialog reason={settingsRecovery.reason} onReload={settingsRecovery.retry} />}
-    <SettingsBrowser>
+    <SettingsBrowser initialCategory={initialCategory} hasDraft={Boolean(vatDraft) || JSON.stringify(settings) !== JSON.stringify(workspace.settings)}>
       <SettingsCategory id="readiness" title="État de la configuration" description="Les réglages prêts et les prochaines étapes" icon={ListChecks}>
       <SetupReadinessCenter
         workspace={workspace}
@@ -5124,7 +5132,7 @@ function SettingsScreen({
           title="Entreprise et facturation"
           description="Ces champs sont utilisés sur les documents officiels."
         />
-        <form
+        <form data-company-receive-safe="true"
           onSubmit={submitForm(async (form) => {
             const vatRegistered = form.get('vatRegistered') === 'on';
             if (vatRegistered && !billing.vatRatesBp.length) {
@@ -5396,7 +5404,7 @@ function SettingsScreen({
           title="Adresse structurée du créancier"
           description="Le numéro de bâtiment doit rester séparé de la rue."
         />
-        <form
+        <form data-company-receive-safe="true"
           onSubmit={submitForm(async (form) => {
             const next = {
               ...settings,
@@ -5573,7 +5581,7 @@ function SettingsScreen({
           title="Règles de travail"
           description="Ces valeurs restent explicites et modifiables."
         />
-        <form
+        <form data-company-receive-safe="true"
           onSubmit={submitForm(async (form) => {
             const categories = String(form.get('costCategories'))
               .split('\n')
@@ -5732,7 +5740,7 @@ function SettingsScreen({
         <SectionHeading
           eyebrow="Protection"
           title="Sauvegardes manuelles"
-          description="Les nouvelles sauvegardes utilisent .zentra; les archives .elyko et .hchantier restent importables."
+          description="Vos sauvegardes utilisent le format .zentra. Les anciennes sauvegardes de test ne peuvent plus être restaurées."
         />
         <div className="security-status">
           <span>

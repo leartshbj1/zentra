@@ -1,4 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
+import { t } from './language';
+
+/** Native error envelopes are interface copy; customer document text is never passed here. */
+export function mailInterfaceMessage(message: string): string {
+  const source = message.replace(/^Champ invalide\s*:\s*/u, '').trim();
+  const variable = /^Variable inconnue : (\{[^}]*\})\. (?:Choisissez une variable proposée|Utilisez les variables proposées)\.$/u.exec(source);
+  return variable ? t('Variable inconnue : {variable}. Choisissez une variable proposée.', { variable: variable[1] }) : t(source);
+}
 
 export type MailTemplate = { subject: string; body: string };
 export type MailTemplates = { quotes: MailTemplate; invoices: MailTemplate };

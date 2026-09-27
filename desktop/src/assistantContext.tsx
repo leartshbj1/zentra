@@ -9,7 +9,14 @@ export const AssistantContext = createContext<null | {
   open: () => void;
   register: (id: string, priority: number, context: AssistantScreen) => void;
   remove: (id: string) => void;
+  setLauncherHost: (host: HTMLElement | null) => void;
 }>(null);
+
+/** The workspace reserves space for help instead of covering the last row or action. */
+export function AssistantLauncherSlot() {
+  const assistant = useContext(AssistantContext);
+  return assistant ? <span className="assistant-launcher-slot" ref={assistant.setLauncherHost} /> : null;
+}
 
 export function useAssistantScreen(context: AssistantScreen, priority = 0) {
   const assistant = useContext(AssistantContext);

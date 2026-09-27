@@ -264,7 +264,7 @@ function Harness() {
     __qaSetReadOnly: setReadOnly,
     __qaReloadPurchases: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; return next; },
   });
-  const [projectAccount, setProjectAccount] = useState(new URLSearchParams(location.search).has('automation') ? 'automation-qa' : '');
+  const [projectAccount, setProjectAccount] = useState(previewQuery.has('companyRealtime') ? 'synthetic-company' : new URLSearchParams(location.search).has('automation') ? 'automation-qa' : '');
   if (previewQuery.has('automationWelcome')) Object.assign(window, { __qaSetWelcomeAccount: setProjectAccount });
   if(new URLSearchParams(location.search).has('supplierRefundGuided')||new URLSearchParams(location.search).has('paymentGuided')||new URLSearchParams(location.search).has('customerSettlementGuided'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaSupplierRefundRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if(new URLSearchParams(location.search).has('creditAllocation'))Object.assign(window,{__qaSetReadOnly:setReadOnly,__qaCreditAllocationRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});

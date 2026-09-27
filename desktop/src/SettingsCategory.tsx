@@ -33,12 +33,12 @@ function openSettingsCategory(detail: HTMLDetailsElement) {
 }
 
 /** Native details retain drafts and keep links from setup/update screens working. */
-export function SettingsBrowser({ children }: { children: ReactNode }) {
+export function SettingsBrowser({ children, initialCategory, hasDraft = false }: { children: ReactNode; initialCategory?: string | null; hasDraft?: boolean }) {
   useAppLanguage();
   const root = useRef<HTMLDivElement>(null);
   const groupName = useId();
   const categories = Children.toArray(children).filter((child): child is ReactElement<CategoryProps> => isValidElement<CategoryProps>(child));
-  const [initial] = useState(() => window.matchMedia('(min-width: 1101px)').matches ? categories[0]?.props.id : null);
+  const [initial] = useState(() => initialCategory !== undefined ? initialCategory : window.matchMedia('(min-width: 1101px)').matches ? categories[0]?.props.id : null);
   const [active, setActive] = useState<string | null>(initial ?? null);
 
   function openCategory(id: string) {
@@ -47,7 +47,12 @@ export function SettingsBrowser({ children }: { children: ReactNode }) {
     openSettingsCategory(detail);
     if (window.matchMedia('(max-width: 1100px)').matches) {
       detail.querySelector('summary')?.focus({ preventScroll: true });
-      root.current?.scrollIntoView({ block: 'start' });
+    }
+    // A previous category can leave the page far down. Reveal the new heading
+    // on desktop too, accounting for the sticky application toolbar.
+    if (root.current) {
+      root.current.style.scrollMarginTop = `${(document.querySelector('.topbar')?.getBoundingClientRect().height || 0) + 16}px`;
+      root.current.scrollIntoView({ block: 'start' });
     }
   }
 
@@ -60,7 +65,7 @@ export function SettingsBrowser({ children }: { children: ReactNode }) {
     root.current?.scrollIntoView({ block: 'start' });
   }
 
-  return <div ref={root} className="settings-browser" data-settings-open={active ? 'true' : undefined}>
+  return <div ref={root} className="settings-browser" data-settings-open={active ? 'true' : undefined} data-company-draft={hasDraft || undefined}>
     <nav className="settings-browser__navigation" aria-label={t("Rubriques des paramètres")}>
       {categories.map(({ props: { id, title, description, icon: Icon } }) => <button
         key={id} type="button" data-settings-link={id} aria-current={active === id ? 'true' : undefined}

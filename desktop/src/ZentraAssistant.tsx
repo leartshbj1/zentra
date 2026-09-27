@@ -15,6 +15,7 @@ export function ZentraAssistantProvider({ children }: { children: ReactNode }) {
   useAppLanguage();
   const registry = useRef(new Map<string, { priority: number; value: AssistantScreen }>());
   const [opened,setOpened]=useState(false);
+  const [launcherHost, setLauncherHost] = useState<HTMLElement | null>(null);
   const [screen,setScreen]=useState<AssistantScreen>({screen:'Accueil Zentra'});
   const [messages,setMessages]=useState<Turn[]>([]);
   const [question,setQuestion]=useState('');
@@ -38,7 +39,7 @@ export function ZentraAssistantProvider({ children }: { children: ReactNode }) {
     if (scope.current !== (next.scope ?? next.screen)) { setMessages([]); setQuestion(''); scope.current=next.scope ?? next.screen; }
     setScreen(next); setError(''); setOpened(true);
   },[currentScreen]);
-  const context=useMemo(()=>({open,register:(id:string,priority:number,value:AssistantScreen)=>{registry.current.set(id,{priority,value});},remove:(id:string)=>{registry.current.delete(id);}}),[open]);
+  const context=useMemo(()=>({open,setLauncherHost,register:(id:string,priority:number,value:AssistantScreen)=>{registry.current.set(id,{priority,value});},remove:(id:string)=>{registry.current.delete(id);}}),[open]);
   useEffect(()=>{
     if (opened || busy || model.phase === 'installing') return;
     const timer=window.setTimeout(()=>payrollLocalAi.releaseIfIdle(),60_000);
@@ -69,7 +70,7 @@ export function ZentraAssistantProvider({ children }: { children: ReactNode }) {
   }
   const guides=selectAssistantGuides(messages.filter(m=>m.role==='user').at(-1)?.content ?? screen.screen, screen.screen);
   return <AssistantContext.Provider value={context}>{children}
-    {!opened && createPortal(<button type="button" className="assistant-launcher" onClick={open} aria-label={t('Demander à l’assistant Zentra')}><MessageCircle size={21}/><span>{t('Assistant')}</span></button>,document.body)}
+    {!opened && createPortal(<button type="button" className={`assistant-launcher${launcherHost ? ' assistant-launcher--docked' : ''}`} onClick={open} title={t('Demander à l’assistant Zentra')} aria-label={t('Demander à l’assistant Zentra')}><MessageCircle size={21} aria-hidden="true"/><span>{t('Assistant')}</span></button>,launcherHost ?? document.body)}
     {opened && <Modal title="Assistant Zentra" description="Votre aide locale, au fil de votre travail." onClose={close} className="zentra-assistant-dialog" assistantHelp={false}>
       <div className="assistant-context"><span><span className="assistant-status-dot"/>{screen.screen}</span><details><summary>Contexte utilisé</summary><p>Ces informations restent sur cet appareil. Aucun dossier complet n’est transmis.</p><dl>{Object.entries(assistantPrompt('',screen.screen,screen.facts??{},[]).facts).map(([key,value])=><div key={key}><dt>{key}</dt><dd>{value == null ? 'Non renseigné' : typeof value === 'boolean' ? value ? 'Oui' : 'Non' : String(value)}</dd></div>)}</dl></details></div>
       {model.phase !== 'installed' && <LocalAssistantSetup/>}
