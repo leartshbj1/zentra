@@ -28,6 +28,19 @@ parameters:
     default: ""
 
 jobs:
+  windows-package-smoke-1907:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact 1.90.7 installer in a disposable Windows profile
+          command: python desktop/scripts/cloud-package-smoke.py windows 168 958787be4e608b89a357f98c73d0c236bda677b4
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
   android-optimized-payload-smoke:
     machine:
       image: android:default
@@ -337,6 +350,11 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-package-1907:
+    when:
+      equal: [codex/release-1.90.7-windows-smoke, << pipeline.git.branch >>]
+    jobs:
+      - windows-package-smoke-1907
   first-client-1907:
     when:
       equal: [codex/first-client-release-1907, << pipeline.git.branch >>]
