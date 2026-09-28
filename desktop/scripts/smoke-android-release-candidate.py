@@ -244,6 +244,17 @@ def main():
         raise RuntimeError('Disposable emulator root is required to inspect a non-debuggable profile')
     if PACKAGE in adb('shell', 'pm', 'list', 'packages'):
         raise RuntimeError('Expected a fresh emulator without Zentra')
+    # The stock Messages app raised its own ANR dialog in recipe 170 while
+    # Zentra remained responsive. Remove that unrelated fixture interference
+    # only on the fresh, rooted emulator verified above. Never suppress ANRs
+    # globally or dismiss a Zentra failure dialog.
+    disabled_fixture_packages = []
+    messaging = 'com.google.android.apps.messaging'
+    if 'package:' + messaging in adb('shell', 'pm', 'list', 'packages').splitlines():
+        result = adb('shell', 'pm', 'disable-user', '--user', '0', messaging)
+        if 'new state: disabled-user' not in result:
+            raise RuntimeError('Could not isolate the disposable emulator from Messages')
+        disabled_fixture_packages.append(messaging)
     fetch = module('cloud_fetch', 'cloud-package-smoke.py').fetch
     verifier = module('preview_verify', 'verify-android-preview.py')
     release = module('candidate_check', 'check-android-release.py')
@@ -256,6 +267,7 @@ def main():
     proof = {'source': REVISION, 'sourceJob': JOB, 'unsignedSha256': SHA, 'emulatorAbis': abi,
              'signingIdentity': 'disposable-emulator-only', 'physicalDeviceTested': False, 'published': False}
     proof['displaySize'] = adb('shell', 'wm', 'size')
+    proof['disabledEmulatorFixturePackages'] = disabled_fixture_packages
     proof['displayDensity'] = adb('shell', 'wm', 'density')
     (OUT / 'webview-provider.txt').write_text(adb('shell', 'dumpsys', 'webviewupdate'), encoding='utf-8')
     with tempfile.TemporaryDirectory(prefix='zentra-android-payload-') as folder:
