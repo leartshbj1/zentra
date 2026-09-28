@@ -1,7 +1,7 @@
 import './languageTestPacks';
 import { afterEach, expect, it } from 'vitest';
 import { appLanguages, getAppLocale, setAppLanguage } from './language';
-import { documentTotals, formatDate, formatDateTime, formatMoney, invoiceOpenBalance, invoicePaid } from './utils';
+import { documentTotals, formatDate, formatDateTime, formatMoney, formatMoneyParts, invoiceOpenBalance, invoicePaid } from './utils';
 import { salesTotalsByCurrency, type SalesCurrencyTotal } from './salesFinancials';
 import type { Invoice, Payment } from './types';
 
@@ -10,7 +10,9 @@ it('retains exact formatted output through every language, currency and negative
   for (const language of [...appLanguages, 'fr'] as const) {
     await setAppLanguage(language);
     for (const currency of ['CHF','EUR','USD','JPY']) for (const cents of [0,123456,-12345]) {
-      expect(formatMoney(cents,currency)).toBe(new Intl.NumberFormat(getAppLocale(),{style:'currency',currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(cents/100));
+      const expected=new Intl.NumberFormat(getAppLocale(),{style:'currency',currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(cents/100);
+      expect(formatMoney(cents,currency)).toBe(expected);
+      expect(formatMoneyParts(cents,currency).map(part=>part.value).join('')).toBe(expected);
     }
     expect(formatDate('2026-09-25')).toBe(new Date('2026-09-25T12:00:00').toLocaleDateString(getAppLocale(),{day:'2-digit',month:'short',year:'numeric'}));
     expect(formatDateTime('2026-09-25T12:00:00Z')).toBe(new Date('2026-09-25T12:00:00Z').toLocaleString(getAppLocale(),{dateStyle:'medium',timeStyle:'short'}));

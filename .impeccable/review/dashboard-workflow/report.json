@@ -1,0 +1,369 @@
+[
+  {
+    "selectedInvoice": "F-2026-001",
+    "title": "Rénovation de l’espace de vie"
+  },
+  {
+    "name": "1440-light-fr-100",
+    "width": 1440,
+    "scroll": 1440,
+    "textScale": 1,
+    "actions": [
+      {
+        "height": 48,
+        "width": 265.578125,
+        "disabled": false
+      },
+      {
+        "height": 48,
+        "width": 265.59375,
+        "disabled": false
+      },
+      {
+        "height": 48,
+        "width": 265.578125,
+        "disabled": false
+      },
+      {
+        "height": 48,
+        "width": 265.59375,
+        "disabled": false
+      }
+    ],
+    "order": [
+      {
+        "class": "workspace-finances",
+        "top": 210.078125,
+        "height": 324.53125
+      },
+      {
+        "class": "dashboard-personal-actions dashboard-personal-actions--toolbar",
+        "top": 564.609375,
+        "height": 103.59375
+      },
+      {
+        "class": "activity-shortcuts",
+        "top": 698.203125,
+        "height": 146.84375
+      },
+      {
+        "class": "setup-strip",
+        "top": 875.046875,
+        "height": 82
+      },
+      {
+        "class": "panel panel--span dashboard-project-panel",
+        "top": 987.046875,
+        "height": 332.078125
+      },
+      {
+        "class": "panel",
+        "top": 987.046875,
+        "height": 208.34375
+      }
+    ],
+    "errors": [],
+    "readOnlyPreserved": true
+  },
+  {
+    "name": "1440-dark-fr-100",
+    "width": 1440,
+    "scroll": 1440,
+    "textScale": 1,
+    "actions": [
+      {
+        "height": 48,
+        "width": 265.578125,
+        "disabled": false
+      },
+      {
+        "height": 48,
+        "width": 265.59375,
+        "disabled": false
+      },
+      {
+        "height": 48,
+        "width": 265.578125,
+        "disabled": false
+      },
+      {
+        "height": 48,
+        "width": 265.59375,
+        "disabled": false
+      }
+    ],
+    "order": [
+      {
+        "class": "workspace-finances",
+        "top": 210.078125,
+        "height": 324.53125
+      },
+      {
+        "class": "dashboard-personal-actions dashboard-personal-actions--toolbar",
+        "top": 564.609375,
+        "height": 103.59375
+      },
+      {
+        "class": "activity-shortcuts",
+        "top": 698.203125,
+        "height": 146.84375
+      },
+      {
+        "class": "setup-strip",
+        "top": 875.046875,
+        "height": 82
+      },
+      {
+        "class": "panel panel--span dashboard-project-panel",
+        "top": 987.046875,
+        "height": 332.078125
+      },
+      {
+        "class": "panel",
+        "top": 987.046875,
+        "height": 208.34375
+      }
+    ],
+    "errors": [],
+    "readOnlyPreserved": true
+  },
+  {
+    "name": "390-light-it-100",
+    "width": 390,
+    "scroll": 390,
+    "textScale": 1,
+    "actions": [
+      {
+        "height": 80,
+        "width": 170,
+        "disabled": false
+      },
+      {
+        "height": 80,
+        "width": 170,
+        "disabled": false
+      },
+      {
+        "height": 80,
+        "width": 170,
+        "disabled": false
+      },
+      {
+        "height": 80,
+        "width": 170,
+        "disabled": false
+      }
+    ],
+    "order": [],
+    "errors": [],
+    "readOnlyPreserved": true
+  },
+  {
+    "name": "390-dark-fr-100",
+    "width": 390,
+    "scroll": 390,
+    "textScale": 1,
+    "actions": [
+      {
+        "height": 80,
+        "width": 170,
+        "disabled": false
+      },
+      {
+        "height": 80,
+        "width": 170,
+        "disabled": false
+      },
+      {
+        "height": 80,
+        "width": 170,
+        "disabled": false
+      },
+      {
+        "height": 80,
+        "width": 170,
+        "disabled": false
+      }
+    ],
+    "order": [],
+    "errors": [],
+    "readOnlyPreserved": true
+  },
+  {
+    "enlargedText": {
+      "money": [
+        {
+          "text": "3'863.49",
+          "width": 201,
+          "scroll": 201,
+          "whiteSpace": "nowrap",
+          "left": 44,
+          "right": 245.078125
+        },
+        {
+          "text": "3'574.00",
+          "width": 107,
+          "scroll": 107,
+          "whiteSpace": "nowrap",
+          "left": 98.953125,
+          "right": 205.6875
+        },
+        {
+          "text": "3'574.00",
+          "width": 107,
+          "scroll": 107,
+          "whiteSpace": "nowrap",
+          "left": 98.515625,
+          "right": 205.25
+        }
+      ],
+      "navigation": [
+        {
+          "label": "Start",
+          "width": 48,
+          "scroll": 48,
+          "left": 20,
+          "right": 160,
+          "top": 693,
+          "bottom": 761.5,
+          "height": 68.5
+        },
+        {
+          "label": "Projekte",
+          "width": 82,
+          "scroll": 82,
+          "left": 160,
+          "right": 300,
+          "top": 693,
+          "bottom": 761.5,
+          "height": 68.5
+        },
+        {
+          "label": "Verkauf",
+          "width": 76,
+          "scroll": 76,
+          "left": 20,
+          "right": 160,
+          "top": 761.5,
+          "bottom": 830,
+          "height": 68.5
+        },
+        {
+          "label": "Kalender",
+          "width": 88,
+          "scroll": 88,
+          "left": 160,
+          "right": 300,
+          "top": 761.5,
+          "bottom": 830,
+          "height": 68.5
+        },
+        {
+          "label": "Menü",
+          "width": 58,
+          "scroll": 58,
+          "left": 20,
+          "right": 126.703125,
+          "top": 830,
+          "bottom": 884,
+          "height": 54
+        }
+      ]
+    },
+    "touchDestinations": 4,
+    "keyboardHomeAndMenu": true
+  },
+  {
+    "name": "320-light-de-200",
+    "width": 320,
+    "scroll": 320,
+    "textScale": 2,
+    "actions": [
+      {
+        "height": 80,
+        "width": 280,
+        "disabled": false
+      },
+      {
+        "height": 80,
+        "width": 280,
+        "disabled": false
+      },
+      {
+        "height": 80,
+        "width": 280,
+        "disabled": false
+      },
+      {
+        "height": 80,
+        "width": 280,
+        "disabled": false
+      }
+    ],
+    "order": [],
+    "errors": [],
+    "readOnlyPreserved": true
+  },
+  {
+    "name": "1024-dark-en-100",
+    "width": 1024,
+    "scroll": 1024,
+    "textScale": 1,
+    "actions": [
+      {
+        "height": 48,
+        "width": 180.484375,
+        "disabled": false
+      },
+      {
+        "height": 48,
+        "width": 180.5,
+        "disabled": false
+      },
+      {
+        "height": 48,
+        "width": 180.5,
+        "disabled": false
+      },
+      {
+        "height": 48,
+        "width": 180.5,
+        "disabled": false
+      }
+    ],
+    "order": [
+      {
+        "class": "workspace-finances",
+        "top": 262.390625,
+        "height": 447.09375
+      },
+      {
+        "class": "dashboard-personal-actions dashboard-personal-actions--toolbar",
+        "top": 739.484375,
+        "height": 103.59375
+      },
+      {
+        "class": "activity-shortcuts",
+        "top": 873.078125,
+        "height": 146.84375
+      },
+      {
+        "class": "setup-strip",
+        "top": 1049.921875,
+        "height": 82
+      },
+      {
+        "class": "panel panel--span dashboard-project-panel",
+        "top": 1161.921875,
+        "height": 332.078125
+      },
+      {
+        "class": "panel",
+        "top": 1161.921875,
+        "height": 208.34375
+      }
+    ],
+    "errors": [],
+    "readOnlyPreserved": true
+  }
+]

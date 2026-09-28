@@ -1,5 +1,7 @@
 import './first-client-clarity.css';
 import './workspace-navigation.css';
+import './dashboard-workflow.css';
+import { dashboardDeadlines } from './dashboardDeadlines';
 import { AppearanceSetting } from './AppearanceSetting';
 import { CompanySettingsSync } from './CompanySettingsSync';
 import { BexioImportPanel } from './BexioImportPanel';
@@ -2682,8 +2684,8 @@ function Dashboard({
   }
 
   const quickActions = (
-      <section className="panel dashboard-personal-actions">
-        <SectionHeading eyebrow={t("Accès rapide")} title={t("Nouvelle saisie")} action={<Button variant="ghost" size="small" onClick={onCustomize}><Settings size={16} aria-hidden="true" />{t('Personnaliser')}</Button>} />
+      <section className="dashboard-personal-actions dashboard-personal-actions--toolbar" aria-label={t('Nouvelle saisie')}>
+        <SectionHeading title={t("Nouvelle saisie")} action={<Button variant="ghost" size="small" onClick={onCustomize}><Settings size={16} aria-hidden="true" />{t('Personnaliser')}</Button>} />
         <div className="quick-actions" data-personalized-actions>
           {preferences.actions.map(id => {
             const { label, icon: Icon } = quickActionMeta[id];
@@ -2714,17 +2716,10 @@ function Dashboard({
       />{quickActions}</>
     );
   return (
-    <div className="dashboard-grid">
+    <div className="dashboard-grid dashboard-grid--daily">
       <DashboardFinancialSummary workspace={workspace} onAccounting={()=>onNavigate('accounting')} onOpenInvoice={invoice=>onCreate({type:'document',entity:'invoices',item:invoice})} />
+      {quickActions}
       <AutomationDailySummary link />
-      {!gettingStarted.complete ? (
-        <GettingStartedChecklist
-          compact
-          workspace={workspace}
-          readOnly={readOnly}
-          onAction={runGettingStartedAction}
-        />
-      ) : null}
       <section className="activity-shortcuts" aria-label={t('À suivre')}>
         <div className="activity-shortcuts__heading"><span className="eyebrow">{t('À suivre')}</span><span>{new Intl.DateTimeFormat(getAppLocale(), { day: 'numeric', month: 'long' }).format(new Date())}</span></div>
         <div className="activity-shortcuts__items">
@@ -2733,17 +2728,24 @@ function Dashboard({
           <button type="button" onClick={() => onNavigate('projects')}><span className="activity-shortcuts__icon"><ProjectIcon size={19} /></span><span><strong>{activeProjects.length}</strong><span>{t('Projets actifs')}</span></span><ArrowRight size={17} /></button>
         </div>
       </section>
-      <section className="panel panel--span dashboard-project-panel">
+      {!gettingStarted.complete ? (
+        <GettingStartedChecklist
+          compact
+          workspace={workspace}
+          readOnly={readOnly}
+          onAction={runGettingStartedAction}
+        />
+      ) : null}
+      <section className="panel panel--span dashboard-project-panel" data-empty={!activeProjects.length || undefined}>
         <SectionHeading
-          eyebrow="En cours"
-          title={`${terminology.pluralTitle} actifs`}
+          title={t('Projets actifs')}
           action={
             <Button
               variant="ghost"
               size="small"
               onClick={() => onNavigate('projects')}
             >
-              Tous les {terminology.plural} <ArrowRight size={15} />
+              {t('Tous les projets')} <ArrowRight size={15} />
             </Button>
           }
         />
@@ -2772,11 +2774,11 @@ function Dashboard({
                     <span>
                       {client?.company ||
                         client?.name ||
-                        'Client non renseigné'}
+                        t('Client non renseigné')}
                     </span>
                   </div>
                   <div>
-                    <small>Facturé</small>
+                    <small>{t('Facturé')}</small>
                     <strong>
                       {stats.invoicedTotal || stats.requiresCurrencyConversion
                         ? stats.invoicedTotalLabel
@@ -2784,7 +2786,7 @@ function Dashboard({
                     </strong>
                   </div>
                   <div>
-                    <small>Temps réel</small>
+                    <small>{t('Temps réel')}</small>
                     <strong>
                       {stats.minutes ? formatMinutes(stats.minutes) : '—'}
                     </strong>
@@ -2796,33 +2798,27 @@ function Dashboard({
           </div>
         ) : (
           <EmptyState
-            title={`Aucun ${terminology.singular} actif`}
-            text={`Les ${terminology.plural} planifiés ou terminés restent accessibles dans la liste complète.`}
+            title={t('Aucun projet actif')}
+            text={t('Les projets planifiés ou terminés restent accessibles dans la liste complète.')}
           />
         )}
       </section>
       <section className="panel">
-        <SectionHeading eyebrow="À traiter" title="Échéances" />
+        <SectionHeading title={t('Échéances')} />
         {workspace.invoices.filter(
           (invoice) =>
             invoice.type !== 'credit_note' &&
             ['issued', 'partially_paid'].includes(invoice.status),
         ).length ? (
           <div className="deadline-list">
-            {workspace.invoices
-              .filter(
-                (invoice) =>
-                  invoice.type !== 'credit_note' &&
-                  ['issued', 'partially_paid'].includes(invoice.status),
-              )
-              .slice(0, 5)
+            {dashboardDeadlines(workspace.invoices)
               .map((invoice) => (
-                <button key={invoice.id} onClick={() => onNavigate('invoices')}>
+                <button type="button" key={invoice.id} onClick={() => onCreate({type:'document',entity:'invoices',item:invoice})}>
                   <span>
                     <Receipt size={16} />
                   </span>
                   <div>
-                    <strong>{invoice.number || 'Facture non numérotée'}</strong>
+                    <strong>{invoice.number || t('Facture non numérotée')}</strong>
                     <small>{invoice.title}</small>
                   </div>
                   <em>{formatDate(invoice.dueDate)}</em>
@@ -2832,11 +2828,10 @@ function Dashboard({
         ) : (
           <div className="compact-empty">
             <CheckCircle2 size={20} />
-            <span>Aucune facture émise en attente.</span>
+            <span>{t('Aucune facture émise en attente.')}</span>
           </div>
         )}
       </section>
-      {quickActions}
     </div>
   );
 }

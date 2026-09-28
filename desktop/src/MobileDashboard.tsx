@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { ArrowUpRight, ChevronRight, TrendingUp, FileText, FolderKanban, Receipt } from 'lucide-react';
 import type { Invoice, Project, Workspace } from './types';
-import { salesTotalsByCurrency, turnoverLabel } from './salesFinancials';
+import { salesTotalsByCurrency, turnoverByCurrency } from './salesFinancials';
+import { ResponsiveMoney } from './ResponsiveMoney';
 import { formatMoney } from './utils';
 import { MobileDetails } from './MobileDetails';
 import { t, useAppLanguage } from './language';
@@ -21,6 +22,7 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, onOpenIn
   const [chosen, setChosen] = useState('CHF');
   const {metric,selectMetric,closeDetail}=useFinancialDetailSelection();
   const year=new Date().getFullYear();
+  const turnover = turnoverByCurrency(workspace.invoices, year);
   const total = totals.find(item => item.currency === chosen) ?? totals[0];
   const projects = workspace.projects.filter(item => ['in_progress', 'paused'].includes(item.status));
   const links = [
@@ -33,7 +35,7 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, onOpenIn
       <div className="mobile-home__balance-heading"><span>{t('Reste à recevoir')}</span>
         {totals.length > 1 ? <select aria-label={t('Devise du résumé')} value={total.currency} onChange={event => setChosen(event.target.value)}>{totals.map(item => <option key={item.currency}>{item.currency}</option>)}</select> : null}
       </div>
-      <strong className="mobile-home__amount">{total ? formatMoney(total.openCents, total.currency) : '—'}</strong>
+      <strong className="mobile-home__amount">{total ? <ResponsiveMoney cents={total.openCents} currency={total.currency} /> : '—'}</strong>
       <span className="mobile-home__period">{t('Encore dû · toutes années confondues')}</span>
       <button type="button" className="mobile-home__calculation-action" aria-expanded={metric==='openCents'} onClick={event=>selectMetric('openCents',event.currentTarget)}>{t('Voir le détail')}<ChevronRight size={17}/></button>
       <MobileDetails title="Détail des montants">
@@ -52,7 +54,7 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, onOpenIn
     {projects.length > 0 && <section className="mobile-home__section"><div className="mobile-home__section-heading"><h2>{t('Projets actifs')}</h2><button type="button" onClick={() => onNavigate('projects')}>{t('Tout voir')}</button></div>
       <div className="mobile-home__list">{projects.slice(0, 3).map(project => <button type="button" key={project.id} onClick={() => onOpenProject(project)}><FolderKanban size={21}/><span>{project.name}</span><ChevronRight size={17}/></button>)}</div>
     </section>}
-    <button type="button" className="mobile-home__time" aria-expanded={metric==='netCents'} onClick={event=>selectMetric('netCents',event.currentTarget)}><TrendingUp size={19}/><span>{t('Chiffre d’affaires')}<small className="turnover-period">{year} · {t('Facturé hors TVA · avoirs déduits')}</small></span><strong>{workspace.invoices.some(invoice=>!['draft','cancelled'].includes(invoice.status))?turnoverLabel(workspace.invoices):'—'}</strong><ChevronRight size={17}/></button>
+    <button type="button" className="mobile-home__time" aria-expanded={metric==='netCents'} onClick={event=>selectMetric('netCents',event.currentTarget)}><TrendingUp size={19}/><span>{t('Chiffre d’affaires')}<small className="turnover-period">{year} · {t('Facturé hors TVA · avoirs déduits')}</small></span><strong>{workspace.invoices.some(invoice=>!['draft','cancelled'].includes(invoice.status)) ? (turnover.length ? turnover : [{ currency: 'CHF', netCents: 0 }]).map(row=><ResponsiveMoney key={row.currency} cents={row.netCents} currency={row.currency}/>) : '—'}</strong><ChevronRight size={17}/></button>
     {setup && <MobileDetails title="Pour bien démarrer">{setup}</MobileDetails>}
   </div>;
 }

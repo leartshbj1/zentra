@@ -32,7 +32,7 @@ function dateFormatter(withTime: boolean) {
   return formatter;
 }
 
-export function formatMoney(cents: number | null | undefined, currency = 'CHF'): string {
+function moneyFormatter(currency: string): Intl.NumberFormat {
   const locale = getAppLocale();
   const key = `${locale}:${currency}`;
   let formatter = moneyFormatters.get(key);
@@ -41,7 +41,15 @@ export function formatMoney(cents: number | null | undefined, currency = 'CHF'):
     if (moneyFormatters.size >= 32) moneyFormatters.delete(moneyFormatters.keys().next().value!);
     moneyFormatters.set(key, formatter);
   }
-  return formatter.format((cents ?? 0) / 100);
+  return formatter;
+}
+
+export function formatMoney(cents: number | null | undefined, currency = 'CHF'): string {
+  return moneyFormatter(currency).format((cents ?? 0) / 100);
+}
+
+export function formatMoneyParts(cents: number | null | undefined, currency = 'CHF'): Intl.NumberFormatPart[] {
+  return moneyFormatter(currency).formatToParts((cents ?? 0) / 100);
 }
 
 export function formatDate(value: string | null | undefined): string {

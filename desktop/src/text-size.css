@@ -35,7 +35,7 @@ html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .deskto
   html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .accounting-screen--overview .finance-navigation { grid-template-columns: minmax(0, 1fr); }
   html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .section-navigation__current > span:not(.section-navigation__icon) { overflow-wrap: anywhere; white-space: normal; }
   html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .mobile-navigation[data-personalized] { display: flex; border-radius: 16px; }
-  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .mobile-navigation[data-personalized] button { flex: 0 0 auto; padding: 8px 12px; border-radius: 10px; }
+  html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .mobile-navigation[data-personalized] button { flex: 0 0 auto; width:auto; padding: 8px 12px; border-radius: 10px; }
   html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .desktop-app[data-experience] .mobile-navigation[data-personalized] button span { overflow: visible; white-space: nowrap; text-overflow: clip; overflow-wrap: normal; line-height: 1.25; }
   html[data-app-text-size]:not([data-app-text-size="100"]) .mobile-navigation__shortcuts { display: flex; min-width: 0; flex: 1; overflow-x: auto; overscroll-behavior-x: contain; }
   html[data-app-text-size]:not([data-app-text-size="100"]) .mobile-navigation__selection { display: none; }
@@ -60,4 +60,11 @@ html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .deskto
   html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-wizard-footer__total { flex-wrap: wrap; gap: 8px; }
   html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-wizard-footer .form-actions { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
   html[data-app-theme][data-app-text-size]:not([data-app-text-size="100"]) .document-editor-dialog .document-wizard-footer .button { width: 100%; overflow-wrap: normal; }
+}
+
+@media screen and (max-width:480px) {
+  html[data-app-text-size]:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .mobile-navigation[data-personalized] { flex-wrap:wrap; }
+  html[data-app-text-size]:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .mobile-navigation__shortcuts { flex:1 1 100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); overflow:visible; }
+  html[data-app-text-size]:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .mobile-navigation[data-personalized] > button { flex:1 1 100%; flex-direction:row; }
+  html[data-app-text-size]:is([data-app-text-size="150"],[data-app-text-size="175"],[data-app-text-size="200"]) .desktop-app[data-experience] .mobile-navigation[data-personalized] button span { white-space:normal; overflow-wrap:normal; hyphens:auto; }
 }
