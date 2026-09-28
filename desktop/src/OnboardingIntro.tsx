@@ -79,7 +79,9 @@ export function ZentraArrival({ onStart, product = 'gestion', storageKey = seenK
     const observer = new ResizeObserver(resize); observer.observe(canvas); resize();
     const draw = (now: number) => {
       if (cancelled) return;
-      if (previous) elapsed += Math.min(now - previous, 64);
+      // Keep the sequence on its real clock even when a device drops frames.
+      // Visibility changes reset `previous`, so time in the background is excluded.
+      if (previous) elapsed += Math.max(0, now - previous);
       previous = now;
       const time = elapsed / 1000, converge = smooth((elapsed - 3850) / 2300), fade = 1-smooth((elapsed-6350)/1400);
       ctx.clearRect(0,0,width,height);

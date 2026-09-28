@@ -1,16 +1,16 @@
 # Premier client — état des vingt points
 
-28 septembre 2026, 01 h 20. Ce tableau remplace les statuts intermédiaires de l’historique, sans effacer les preuves de chaque lot. [État de livraison et provenance](ETAT-LIVRAISON.md). **Les vingt points ne sont pas clos.**
+28 septembre 2026, 02 h 05. Ce tableau remplace les statuts intermédiaires de l’historique, sans effacer les preuves de chaque lot. [État de livraison et provenance](ETAT-LIVRAISON.md). **Les vingt points ne sont pas clos.**
 
 | Point de l’audit | Travail et preuve disponibles | Ce qui manque pour le clôturer |
 |---|---|---|
 | 1. Synchronisation serveur | Refus Supabase pour quotas identifié ; protection des données, reprises et diagnostics traités. Connexion toujours 503 à 01 h 18. | Rétablir l’hébergement, puis émission/encaissement/remboursement et reprise réseau sur deux comptes/appareils réels, propagation mesurée. |
 | 2. Diagnostic des incidents | Diagnostics privés structurés et état local de fraîcheur publiés ; tests de panne simulée et de présentation. | Corrélation d’un incident réel et réception d’une alerte d’exploitation. |
 | 3. Automation applications fermées | Correctif du planificateur présent sur GitHub ; reprises et supervision documentées. Dernière exécution refusée avant étapes pour facturation. | Planificateur opérationnel et plusieurs cycles réels, apps fermées, y compris reprise après échec. |
-| 4. Distribution | Paquets 1.90.6 vérifiés ; cloud Windows/Mac, icônes iPhone corrigées ; candidat Android non débogable plus petit, contrôlé. | Signature Windows acceptable sur ce PC ; notarisation Mac, signature iOS et appareils/stores. Les mêmes versions publiques ne sont pas remplacées. |
+| 4. Distribution | Paquets 1.90.6 vérifiés ; cloud Windows/Mac, icônes iPhone corrigées ; candidat Android non débogable de 39,8 Mo signé localement, contenu exact testé sur émulateur avec un certificat de fixture distinct. Deux redémarrages/intégrités réussis. | Signature Windows acceptable sur ce PC ; notarisation Mac, signature iOS et appareils/stores. Mise à jour Android avec certificat persistant à tester sur appareil ; les mêmes versions publiques ne sont pas remplacées. |
 | 5. Recette client complète | Restauration réelle d’un profil fictif et conservation de ses documents prouvées sous 1.90.5 ; navigation native de la source récente prouvée. | Inscription extérieure, e-mails reçus, paiement Stripe test, droits, invitation et second appareil après rétablissement des comptes. |
 | 6. Réception pendant consultation | Formulaires de base des paramètres consultables sans bloquer la réception ; brouillons protégés et attente distinguée du réseau. Tests et release. | Scénario réel de collaboration, sans écrasement de saisie. |
-| 7. Densité mobile | Ventes, agenda, achats et Support compactés ; parcours responsive et traductions ; clients/fichiers fictifs. | Recette authentifiée et gestes/clavier sur appareils physiques. |
+| 7. Densité mobile | Ventes, agenda, achats et Support compactés ; parcours responsive et traductions ; clients/fichiers fictifs. Chevauchement logo/langue trouvé sur émulateur Android 320 px puis corrigé ; huit parcours navigateur de confirmation passent. | Nouveau rendu natif après build 160 ; recette authentifiée et gestes/clavier sur appareils physiques. |
 | 8. Assistance superposée | Assistance déplacée dans la barre ; captures natives et navigateur sans l’ancien bouton recouvrant le contenu. | Vérifier modales, clavier virtuel et technologies d’assistance sur les appareils ciblés. |
 | 9. Achats et états | Compteurs reçus/en attente/comptabilisés distingués, recherche commune, exceptions de lot explicites. | Factures reçues et vérifiées en bout en bout avec fournisseurs réels de test, droits et reprises. |
 | 10. Résultats Automation | Journal factuel, source/destination, documents et rendez-vous ouvrables ; absence et erreurs explicites. Serveur et UI traités. | Réception authentifiée d’e-mails et traitement autonome avec comptes opérationnels. |
@@ -24,6 +24,8 @@
 | 18. Structure et performance | Synthèse financière extraite, configuration différée, poids initial réduit. [Test natif de 5 001 factures et 5 001 devis](VOLUMES-ET-PERIODES-20260928.md) : chargement complet 14,8 → 9 s et contrôle comptable 5,7 → 0,9 s en debug ; réponses intégralement identiques. | Démarrage à froid, version optimisée et machine modeste ; chargement complet encore volumineux. Aucune preuve de capacité de 150 entreprises simultanées. |
 | 19. Sécurité du site | CSP avec nonce **appliquée**, pas seulement en observation ; entrée forgée neutralisée, HSTS, contrôles de scripts et routes anonymes réussis. | Sessions réelles, parcours Stripe/OAuth authentifiés et suivi des violations après rétablissement du service. |
 | 20. Sauvegarde et vérité de livraison | Texte `.zentra`, dossier courant séparé des archives, versions/signatures précises ; restauration native fictive avec base/logo/pièces et refus d’archive corrompue. | Restauration et continuité sur deux appareils réellement connectés ; dernière source encore à livrer. |
+
+Complément au point 18 : l’introduction utilise désormais le temps réel entre images, au lieu de plafonner chaque image à 64 ms. Le blocage prolongé sur rendu lent est reproduit avant correction ; une contre-épreuve à une image par seconde et trois parcours de régression passent après correction. La recette native de ce dernier correctif reste ouverte, indépendamment des compilations précédentes.
 
 ## Ordre de reprise
 
