@@ -54,7 +54,9 @@ Une contre-épreuve navigateur limite réellement chaque callback à une image p
 
 Trois parcours de régression passent : 1 293 px, 390 px et réduction des animations. Les deux parcours animés passent la citation, le logo, le démarrage, le saut au clavier, la relecture, le retour et la connexion fictive ; l’animation s’arrête au repos. Captures relues. Preuves : `desktop/.qa/onboarding-slow-frames/`, journaux `onboarding-slow-frames-{baseline,fixed}.log` et `desktop/.qa/onboarding-arrival/motion-results.json`.
 
-**Ce correctif d’horloge est postérieur au job 160.** Son résultat ne pourra donc pas lui être attribué : une nouvelle compilation sera nécessaire pour sa recette native.
+La contre-épreuve complémentaire suspend le document pendant 5,2 secondes, puis le reprend : la séquence reste à la même phase pendant la suspension, ne saute pas à la fin à la reprise et se termine ensuite normalement. Il s’agit d’un événement de visibilité simulé, pas d’un essai de mise en veille physique. Journal `onboarding-slow-frames-visibility.log`, dernière contre-épreuve à faible cadence : 10 076 ms observées.
+
+**Ce correctif d’horloge est postérieur au job 160.** Le job **161**, source **`a5bd668af375a47f08b70c77518ff7fdb58d43d8`**, est confirmé en compilation à 02 h 07. Il inclut la correction ; le job 160 conserve son rôle de validation du lot précédent. Aucun des deux n’est encore déclaré testé sur émulateur.
 
 ## Limites de livraison
 

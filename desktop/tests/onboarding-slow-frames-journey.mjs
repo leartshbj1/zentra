@@ -35,5 +35,23 @@ try{
  await page.locator('.zentra-arrival__start').click();
  await page.locator('.first-run--account').waitFor();
  const proof={passed:true,elapsedMs:elapsed,maxFramesPerCallback:maxFrames,minGapMs,configurationReachable:true,nativeDevice:false};
+ await page.close();
+ const paused=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'no-preference'});
+ await paused.route('**/*',r=>new URL(r.request().url()).hostname==='127.0.0.1'?r.continue():r.abort());
+ await paused.addInitScript(()=>{
+  // Exercise the visibility lifecycle without claiming a physical-device test.
+  let hidden=false;Object.defineProperty(document,'hidden',{get:()=>hidden});
+  window.__setHidden=value=>{hidden=value;document.dispatchEvent(new Event('visibilitychange'));};
+ });
+ await paused.goto(`${process.env.ZENTRA_QA_ORIGIN||'http://127.0.0.1:5367'}/tests/onboarding-preview.html?intro=1`);
+ await paused.waitForFunction(()=>document.querySelector('.zentra-arrival')?.getAttribute('data-phase')==='light');
+ await paused.evaluate(()=>window.__setHidden(true));
+ await paused.waitForTimeout(5200);
+ assert.equal(await paused.locator('.zentra-arrival').getAttribute('data-phase'),'light','Hidden time does not advance the sequence');
+ await paused.evaluate(()=>window.__setHidden(false));
+ await paused.waitForTimeout(400);
+ assert.notEqual(await paused.locator('.zentra-arrival').getAttribute('data-phase'),'ready','Resuming does not add the hidden duration');
+ await paused.waitForFunction(()=>document.querySelector('.zentra-arrival')?.getAttribute('data-phase')==='ready',{},{timeout:6500});
+ proof.visibilityLifecyclePaused=true;
  await writeFile(`${out}/report.json`,JSON.stringify(proof,null,2));console.log(JSON.stringify(proof));
 }finally{await browser.close();}

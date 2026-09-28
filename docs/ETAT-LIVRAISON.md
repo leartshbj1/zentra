@@ -6,7 +6,7 @@ Dernier lot : [Android, signature et recette](ANDROID-SIGNATURE-ET-RECETTE-20260
 
 Dernier lot local : [gros historique et périodes comptables](VOLUMES-ET-PERIODES-20260928.md). Sur 5 001 factures et leurs devis, la réponse native complète passe de 14,8 à 9 s et le contrôle comptable de 5,7 à 0,9 s, en debug sur ce PC, sans différence de données. Périodes réelles affichées, 1 823 tests frontend, contrôles Rust et parcours mobile/ordinateur réussis. Source non distribuée ; instance fictive fermée normalement, installation réelle toujours 1.90.5. **Connexion serveur encore 503 à 01 h 18.**
 
-L’horloge de l’introduction est corrigée après la source du job 160 : elle pouvait prolonger les 7,8 secondes prévues jusqu’à plusieurs minutes sur un rendu lent. La contre-épreuve à une image par seconde atteint désormais la configuration, en environ dix secondes observées ; trois parcours de régression (ordinateur, mobile, réduction des animations) passent. Cette correction supplémentaire nécessite encore une compilation et une recette natives.
+L’horloge de l’introduction est corrigée après la source du job 160 : elle pouvait prolonger les 7,8 secondes prévues jusqu’à plusieurs minutes sur un rendu lent. La contre-épreuve à une image par seconde atteint désormais la configuration, en environ dix secondes observées ; trois parcours de régression (ordinateur, mobile, réduction des animations) et la suspension/reprise simulée passent. **Job 161 en compilation à 02 h 07, source `a5bd668a`**, pour intégrer cette correction ; sa recette native reste à faire.
 
 ## Version 1.90.6 publiée ; installation locale Windows refusée
 
