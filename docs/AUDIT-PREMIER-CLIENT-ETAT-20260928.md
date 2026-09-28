@@ -1,10 +1,10 @@
 # Premier client — état des vingt points
 
-28 septembre 2026, 02 h 05. Ce tableau remplace les statuts intermédiaires de l’historique, sans effacer les preuves de chaque lot. [État de livraison et provenance](ETAT-LIVRAISON.md). **Les vingt points ne sont pas clos.**
+28 septembre 2026, 02 h 09. Ce tableau remplace les statuts intermédiaires de l’historique, sans effacer les preuves de chaque lot. [État de livraison et provenance](ETAT-LIVRAISON.md). **Les vingt points ne sont pas clos.**
 
 | Point de l’audit | Travail et preuve disponibles | Ce qui manque pour le clôturer |
 |---|---|---|
-| 1. Synchronisation serveur | Refus Supabase pour quotas identifié ; protection des données, reprises et diagnostics traités. Connexion toujours 503 à 01 h 18. | Rétablir l’hébergement, puis émission/encaissement/remboursement et reprise réseau sur deux comptes/appareils réels, propagation mesurée. |
+| 1. Synchronisation serveur | Refus Supabase pour quotas identifié ; protection des données, reprises et diagnostics traités. Connexion toujours 503 à 02 h 08. | Rétablir l’hébergement, puis émission/encaissement/remboursement et reprise réseau sur deux comptes/appareils réels, propagation mesurée. |
 | 2. Diagnostic des incidents | Diagnostics privés structurés et état local de fraîcheur publiés ; tests de panne simulée et de présentation. | Corrélation d’un incident réel et réception d’une alerte d’exploitation. |
 | 3. Automation applications fermées | Correctif du planificateur présent sur GitHub ; reprises et supervision documentées. Dernière exécution refusée avant étapes pour facturation. | Planificateur opérationnel et plusieurs cycles réels, apps fermées, y compris reprise après échec. |
 | 4. Distribution | Paquets 1.90.6 vérifiés ; cloud Windows/Mac, icônes iPhone corrigées ; candidat Android non débogable de 39,8 Mo signé localement, contenu exact testé sur émulateur avec un certificat de fixture distinct. Deux redémarrages/intégrités réussis. | Signature Windows acceptable sur ce PC ; notarisation Mac, signature iOS et appareils/stores. Mise à jour Android avec certificat persistant à tester sur appareil ; les mêmes versions publiques ne sont pas remplacées. |

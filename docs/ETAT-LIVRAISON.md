@@ -1,6 +1,6 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 28 septembre 2026, 02 h 05 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
+Mis à jour le 28 septembre 2026, 02 h 09 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
 
 Dernier lot : [Android, signature et recette](ANDROID-SIGNATURE-ET-RECETTE-20260928.md). Candidat 157 signé localement avec l’identité persistante (39,8 Mo, contenu inchangé) ; recettes 158/159 réussies sur émulateur, avec certificat de fixture distinct : introduction, configuration et redémarrage, base/identité conservées. Les captures ont révélé un chevauchement logo/préférences, corrigé avec le fond du compte sombre et une traduction manquante. Huit parcours navigateur et 14 tests ciblés passent. Source `68b1d297`, compilation Android **160 en cours à 01 h 53** ; le rendu natif corrigé n’est pas encore validé. Aucune publication ni installation utilisateur.
 
@@ -60,6 +60,8 @@ Le [guide de prise en main reste lisible avec le texte agrandi](GUIDE-LISIBILITE
 La [recette native locale `a46085d9`](RECETTE-NATIVE-ET-ACCUEIL-20260928.md) complète ces preuves : compilation debug sans installateur, 42 navigations et 16 étapes du guide, zéro erreur JS, médiane 47 ms et maximum 478 ms. Les 110 tables métier, trois fichiers et montants fictifs sont conservés après fermeture normale. L’installateur public et l’application installée ne sont pas modifiés. La revue révèle une colonne inutile sans Automation : correction CSS et traductions du suivi validées ensuite sur 20 configurations navigateur, sans nouvelle compilation native de ce dernier ajustement. Les chiffres natifs ne lui sont pas attribués.
 
 ## Site, comptes et traitement autonome
+
+Dernière contre-épreuve des comptes : **28 septembre, 02 h 08, HTTP 503**, `Retry-After: 60`, `no-store`, avec une connexion synthétique à une adresse inexistante et l’origine correcte. Aucun compte, cookie fourni ou e-mail envoyé. Preuve `outputs/android-release-candidate-20260927/auth-readiness-node.json`. Le client Python standard a reçu séparément un refus du proxy 403/1010 : celui-ci ne constitue pas le diagnostic Supabase et n’est pas confondu avec la réponse applicative obtenue par Node.
 
 Sites **292**, source `20ecc8c536df184ac1d75f095d52d6ef4d70bc49`, environnement 37, déploiement `appgdep_6ab97a5521b88191868471bd3bba8858`, sauvegarde avec archive vérifiée. Publication réussie à 22 h 19. Quatorze tests, TypeScript, marque et build réussis. Les reprises de préparation n’ont changé ni dépendance ni contenu : Bash ajouté au PATH de la commande, puis `TAR_OPTIONS=--force-local` pour traiter le chemin Windows comme local.
 
