@@ -3,9 +3,16 @@ package ch.zentra.mobile
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.view.View
+import android.view.WindowManager
+import android.webkit.WebView
 import android.webkit.MimeTypeMap
 import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -21,6 +28,26 @@ class ZentraFileProvider: FileProvider()
 
 @TauriPlugin
 class ZentraMobilePlugin(private val activity: Activity): Plugin(activity) {
+    override fun load(webView: WebView) {
+        // Resize the actual WebView even on older Android System WebViews,
+        // where keyboard insets do not resize the visual viewport themselves.
+        activity.window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        WindowCompat.setDecorFitsSystemWindows(activity.window, false)
+        val content = activity.findViewById<View>(android.R.id.content)
+        val initial = Insets.of(content.paddingLeft, content.paddingTop, content.paddingRight, content.paddingBottom)
+        val handled = WindowInsetsCompat.Type.systemBars() or
+            WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime()
+        ViewCompat.setOnApplyWindowInsetsListener(content) { view, windowInsets ->
+            val safe = windowInsets.getInsets(handled)
+            view.setPadding(initial.left + safe.left, initial.top + safe.top,
+                initial.right + safe.right, initial.bottom + safe.bottom)
+            // Forward explicit zeros: newer WebViews must not apply these
+            // insets twice, or retain keyboard padding after it is dismissed.
+            WindowInsetsCompat.Builder(windowInsets).setInsets(handled, Insets.NONE).build()
+        }
+        webView.post { ViewCompat.requestApplyInsets(content) }
+    }
+
     @Command fun configureAppearance(invoke: Invoke) {
         val args = invoke.parseArgs(AppearanceArgs::class.java)
         if (args.appearance !in listOf("system", "light", "dark")) { invoke.reject("Apparence inconnue"); return }
