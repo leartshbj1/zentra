@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 import subprocess
 import zipfile
+import xml.etree.ElementTree as ET
 
 spec = importlib.util.spec_from_file_location('preview_check', Path(__file__).with_name('verify-android-preview.py'))
 check = importlib.util.module_from_spec(spec)
@@ -67,6 +68,21 @@ class PreviewVerification(unittest.TestCase):
                 with self.assertRaises(subprocess.CalledProcessError):
                     smoke.snapshot('unavailable')
         self.assertEqual(len(set(paths)), 2)
+
+    def test_emulator_rejects_hidden_controls_and_overlapping_header(self):
+        module_spec = importlib.util.spec_from_file_location('candidate_layout', Path(__file__).with_name('smoke-android-release-candidate.py'))
+        smoke = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(smoke)
+        hidden = ET.fromstring('<hierarchy><node text="Start" bounds="[0,0][0,0]" enabled="true" clickable="true"/></hierarchy>')
+        with patch.object(smoke, 'adb') as adb_call:
+            self.assertFalse(smoke.tap(hidden, {'Start'}))
+            adb_call.assert_not_called()
+        markup = ('<hierarchy><node class="android.widget.Image" text="Zentra" bounds="[24,14][142,46]"/>'
+                  '<node text="Langue de l’application" clickable="true" bounds="[117,{top}][194,{bottom}]"/>'
+                  '<node text="Apparence" clickable="true" bounds="[196,{top}][296,{bottom}]"/></hierarchy>')
+        with self.assertRaisesRegex(RuntimeError, 'overlaps'):
+            smoke.check_account_header(ET.fromstring(markup.format(top=14, bottom=58)))
+        self.assertTrue(smoke.check_account_header(ET.fromstring(markup.format(top=66, bottom=110)))['noOverlap'])
 
 
 if __name__ == '__main__':

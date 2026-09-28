@@ -19,9 +19,9 @@ import xml.etree.ElementTree as ET
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parents[1] / 'desktop/artifacts/android-release-smoke'
 OUT.mkdir(parents=True, exist_ok=True)
-JOB = int(os.environ.get('ZENTRA_ANDROID_SMOKE_JOB', '157'))
-REVISION = os.environ.get('ZENTRA_ANDROID_SMOKE_SOURCE', 'a490d797e2358dc95fc1615e48ea82eb400f86b1')
-SHA = os.environ.get('ZENTRA_ANDROID_SMOKE_SHA256', 'aff706d3c1d42c0222cbee2a365e14ba5bfc65c0b685d7a294491df2b760168d')
+JOB = int(os.environ.get('ZENTRA_ANDROID_SMOKE_JOB', '160'))
+REVISION = os.environ.get('ZENTRA_ANDROID_SMOKE_SOURCE', '68b1d2974feb887ad98d6cec795a836a8fbd790a')
+SHA = os.environ.get('ZENTRA_ANDROID_SMOKE_SHA256', 'e108ced9f6c388d7674bf1705087ce0af8722d34f8c5e80162afb2da613cb411')
 PACKAGE = 'ch.zentra.mobile'
 PROFILE = '/data/user/0/' + PACKAGE
 
@@ -62,15 +62,56 @@ def visible(root):
     return [(n.get('text', '') or n.get('content-desc', '')).strip() for n in root.iter('node')]
 
 
+def bounds(node):
+    coords = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.get('bounds', ''))
+    if coords:
+        x1, y1, x2, y2 = map(int, coords.groups())
+        if x2 > x1 and y2 > y1:
+            return x1, y1, x2, y2
+    return None
+
+
 def tap(root, labels):
-    for node in root.iter('node'):
-        if (node.get('text') or node.get('content-desc')) in labels:
-            coords = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.get('bounds', ''))
-            if coords and node.get('enabled') == 'true':
-                x1, y1, x2, y2 = map(int, coords.groups())
-                adb('shell', 'input', 'tap', str((x1+x2)//2), str((y1+y2)//2))
-                return True
+    matches = [n for n in root.iter('node') if (n.get('text') or n.get('content-desc')) in labels]
+    # Android exposes both a control and its label. Prefer the actual control;
+    # never tap [0,0][0,0] from an off-screen accessibility node.
+    for node in sorted(matches, key=lambda n: n.get('clickable') != 'true'):
+        box = bounds(node)
+        if box and box[3]-box[1] >= 24 and node.get('enabled') == 'true':
+            x1, y1, x2, y2 = box
+            adb('shell', 'input', 'tap', str((x1+x2)//2), str((y1+y2)//2))
+            return True
     return False
+
+
+def check_account_header(root):
+    brand = [bounds(n) for n in root.iter('node') if n.get('class') == 'android.widget.Image' and n.get('text') == 'Zentra']
+    controls = [bounds(n) for n in root.iter('node') if n.get('clickable') == 'true' and n.get('text') in {'Apparence', 'Langue de l’application'}]
+    if len(brand) != 1 or len(controls) != 2 or not brand[0] or not all(controls):
+        raise RuntimeError('Brand and both preference controls must be visible')
+    a = brand[0]
+    for b in controls:
+        if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]:
+            raise RuntimeError('Account brand overlaps a preference control')
+    return {'brand': a, 'preferences': controls, 'noOverlap': True}
+
+
+def scroll(root):
+    frame = next((bounds(n) for n in root.iter('node') if bounds(n)), None)
+    if not frame:
+        raise RuntimeError('Cannot determine emulator viewport')
+    x1, y1, x2, y2 = frame
+    adb('shell', 'input', 'swipe', str((x1+x2)//2), str(y1+(y2-y1)*3//4),
+        str((x1+x2)//2), str(y1+(y2-y1)//4), '350')
+
+
+def scroll_and_tap(root, labels, label):
+    for attempt in range(5):
+        if tap(root, labels):
+            return
+        scroll(root)
+        root = snapshot(f'{label}-{attempt+1}')
+    raise RuntimeError(f'Control not reachable by scrolling: {labels}')
 
 
 def wait_ui(label, predicate, seconds=100):
@@ -177,7 +218,40 @@ def main():
         account_markers = {'Tout commence avec vous.', 'It all starts with you.', 'Alles beginnt mit Ihnen.', 'Tutto inizia da te.'}
         account = wait_ui('02-account', lambda labels: bool(account_markers.intersection(labels)))
         proof['accountScreenVisible'] = True
+        proof['accountHeader'] = check_account_header(account)
         print('Account setup screen reached without connecting an account', flush=True)
+        # Exercise the real Android select popup and record both native themes.
+        # Screenshots are reviewed separately; choosing an option alone does not
+        # prove that the native bars have the correct contrast.
+        for mode in ('Sombre', 'Clair'):
+            if not tap(account, {'Apparence'}):
+                raise RuntimeError('Appearance selector is not reachable')
+            choices = wait_ui('appearance-options', lambda labels: mode in labels)
+            if not tap(choices, {mode}):
+                raise RuntimeError('Native appearance option is not reachable')
+            account = wait_ui('02-account-' + mode, lambda labels: bool(account_markers.intersection(labels)))
+            (OUT / ('window-' + mode + '.txt')).write_text(adb('shell', 'dumpsys', 'window', 'windows'), encoding='utf-8')
+        proof['appearanceSelectionsExecuted'] = ['dark', 'light']
+        scroll_and_tap(account, {'Créer une entreprise'}, 'account-scroll')
+        identity = wait_ui('04-identity', lambda labels: 'Donnons un nom à votre espace.' in labels)
+        for attempt in range(5):
+            fields = [n for n in identity.iter('node') if n.get('class') == 'android.widget.EditText' and bounds(n) and bounds(n)[3]-bounds(n)[1] >= 40]
+            if fields:
+                x1, y1, x2, y2 = bounds(fields[0])
+                adb('shell', 'input', 'tap', str((x1+x2)//2), str((y1+y2)//2))
+                break
+            scroll(identity)
+            identity = snapshot(f'identity-scroll-{attempt+1}')
+        else:
+            raise RuntimeError('No editable identity field is reachable')
+        adb('shell', 'input', 'text', 'Zentra-Recette-Emulateur')
+        keyboard = wait_ui('05-identity-keyboard', lambda labels: 'Zentra-Recette-Emulateur' in labels)
+        adb('shell', 'input', 'keyevent', '4')
+        identity = snapshot('06-identity-keyboard-closed')
+        scroll_and_tap(identity, {'Retour'}, 'identity-return')
+        wait_ui('07-back-account', lambda labels: bool(account_markers.intersection(labels)))
+        proof['identityDraftEdited'] = True
+        proof['accountReturnedAfterEditing'] = True
         # Normal app restart, with the native identity and database preserved.
         adb('shell', 'am', 'force-stop', PACKAGE)
         before = profile_state(temp, 'before-restart')
