@@ -1,6 +1,18 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 28 septembre 2026, 03 h 26 (Europe/Zurich). Les vingt points ne sont pas clos : la recette finale dépend du rétablissement des services et des signatures de distribution.
+Mis à jour le 28 septembre 2026, 04 h 58 (Europe/Zurich). **La version courante publiée est 1.90.7 sur les quatre plateformes.** Les vingt points ne sont pas clos : la recette connectée finale dépend du rétablissement des services et des signatures de distribution.
+
+## Version 1.90.7 publiée
+
+[Notes et preuves complètes](RELEASE-1.90.7.md). Source native commune `958787be4e608b89a357f98c73d0c236bda677b4`. Builds Windows 168, Apple 169 et Android 167 réussis ; installation/démarrage/relancement Windows 173, Mac intégré au build 169, clavier/thèmes/redémarrage Android 172 et cinq tests UIKit réussis. Les signatures updater Windows/Mac et le certificat persistant Android sont vérifiés ; l’IPA reste non signé.
+
+Les douze actifs GitHub sont publics depuis 04 h 53 et les quatre liens principaux répondent HTTP 200. **Sites 294**, source `b863979575e3f96a3d05aa6ea7549abb9916b89b`, environnement 37 inchangé, est publié à 04 h 56. Les canaux du site annoncent 1.90.7, HTTP 200 et `no-store`, à 04 h 57. Les manifestes historiques Supabase et les anciennes releases restent inchangés.
+
+Cette livraison regroupe tous les lots décrits plus bas comme postérieurs à 1.90.6 : PDF, planning, langues, guide agrandi, performances, périodes, introduction et correctifs Android. **Les mentions « non publié » dans leur historique décrivent leur état avant cette livraison ; elles ne sont plus le statut courant.** Les candidats Android portant encore le numéro technique 1.90.6 n’ont jamais remplacé les fichiers publics.
+
+Le PC utilisateur n’a pas été réinstallé : son dernier état vérifié reste 1.90.5 et le refus Code Integrity reste ouvert. Les comptes n’ont pas été retestés pendant la publication ; l’utilisateur prévoit Supabase Pro le 29 septembre. Le planificateur GitHub, les signatures commerciales et les appareils physiques restent à traiter séparément.
+
+## Historique de préparation avant 1.90.7
 
 Dernier lot : [Android, signature et recette](ANDROID-SIGNATURE-ET-RECETTE-20260928.md). **Compilation 165 et recette native 166 réussies**, sur le contenu `5b88d22f` : marges et icônes natives correctes en clair/sombre, clavier sans recouvrement, saisie conservée, viewport restauré, redémarrage et intégrité du profil fictif. Cinq captures finales relues. Signature locale persistante vérifiée séparément ; la recette distante utilise un certificat jetable. Aucun de ces candidats ne remplace les fichiers publics 1.90.6 et aucun essai physique n’est déduit.
 
@@ -43,7 +55,7 @@ Preuves : `outputs/release1906/{SOURCES.json,source-equivalence-proof.json,githu
 
 Preuves natives : `outputs/release1906/upgrade-smoke/{updater-check-proof.json,updater-ui-events.json,updater-install-refused-proof.json,windows-code-integrity-refusal.json,navigation-1.90.5.json,native-pdf-export-proof.json,native-pdf-checks.json}` et `outputs/release1905/upgrade-smoke/{after-updater-refused,after-pdf-export,final-closed}-snapshot.json`. Aucun envoi de document, aucune création de compte et aucune modification de données réelles lors de cette recette.
 
-## Lots postérieurs à 1.90.6
+## Lots postérieurs à 1.90.6, désormais inclus dans 1.90.7
 
 Le [planning en quatre langues](PLANNING-LANGUES-20260927.md) comprend formulaires, erreurs reconnues et confirmations traduites, préservation des saisies et compteurs mobiles sans texte débordant. Vingt parcours linguistiques finaux Edge/WebKit passent, dont quatre à 200 % ; huit parcours français complets apportent une régression complémentaire avant les dernières retouches texte/CSS. Suite complète 1 818 tests avant ces retouches ; 19 tests ciblés, TypeScript et build finaux réussis. Aucune installation native ni synchronisation réelle n’en est déduite.
 
