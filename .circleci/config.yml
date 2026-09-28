@@ -337,6 +337,14 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-1907:
+    when:
+      equal: [codex/first-client-release-1907, << pipeline.git.branch >>]
+    jobs:
+      - windows
+      - apple
+      - android:
+          build-mode: release
   first-client-android-payload-smoke:
     when:
       equal: [codex/first-client-android-smoke-20260928, << pipeline.git.branch >>]

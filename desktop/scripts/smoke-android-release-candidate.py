@@ -24,6 +24,7 @@ JOB = int(os.environ.get('ZENTRA_ANDROID_SMOKE_JOB', '165'))
 REVISION = os.environ.get('ZENTRA_ANDROID_SMOKE_SOURCE', '5b88d22fbf360d91fc6ea31fb9430bcb550ff8d5')
 SHA = os.environ.get('ZENTRA_ANDROID_SMOKE_SHA256', '456da5264629bedc2bfb07c7eea1d3eabe2e3a478197c8dce785fc902b81de9f')
 PACKAGE = 'ch.zentra.mobile'
+VERSION = json.loads((HERE.parents[1] / 'desktop/package.json').read_text(encoding='utf-8'))['version']
 PROFILE = '/data/user/0/' + PACKAGE
 
 
@@ -265,7 +266,7 @@ def main():
             raise RuntimeError('Downloaded payload hash mismatch')
         badging = run(str(tools / 'aapt'), 'dump', 'badging', str(apk))
         tree = run(str(tools / 'aapt'), 'dump', 'xmltree', str(apk), 'AndroidManifest.xml')
-        proof['manifest'] = release.check_manifest(badging, tree, '1.90.6')
+        proof['manifest'] = release.check_manifest(badging, tree, VERSION)
         proof['nativeLibraries'] = release.check_archive(apk)
         signed, key = temp / 'test-only.apk', temp / 'ephemeral.p12'
         run('keytool', '-genkeypair', '-keystore', str(key), '-storetype', 'PKCS12', '-storepass', 'test-only-fixture',
