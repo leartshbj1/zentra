@@ -350,6 +350,11 @@ jobs:
           destination: apple
 
 workflows:
+  android-package-1907:
+    when:
+      equal: [codex/release-1.90.7-android-smoke, << pipeline.git.branch >>]
+    jobs:
+      - android-optimized-payload-smoke
   first-client-package-1907:
     when:
       equal: [codex/release-1.90.7-windows-smoke, << pipeline.git.branch >>]

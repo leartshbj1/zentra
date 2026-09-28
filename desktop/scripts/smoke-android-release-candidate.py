@@ -20,9 +20,9 @@ import xml.etree.ElementTree as ET
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parents[1] / 'desktop/artifacts/android-release-smoke'
 OUT.mkdir(parents=True, exist_ok=True)
-JOB = int(os.environ.get('ZENTRA_ANDROID_SMOKE_JOB', '165'))
-REVISION = os.environ.get('ZENTRA_ANDROID_SMOKE_SOURCE', '5b88d22fbf360d91fc6ea31fb9430bcb550ff8d5')
-SHA = os.environ.get('ZENTRA_ANDROID_SMOKE_SHA256', '456da5264629bedc2bfb07c7eea1d3eabe2e3a478197c8dce785fc902b81de9f')
+JOB = int(os.environ.get('ZENTRA_ANDROID_SMOKE_JOB', '167'))
+REVISION = os.environ.get('ZENTRA_ANDROID_SMOKE_SOURCE', '958787be4e608b89a357f98c73d0c236bda677b4')
+SHA = os.environ.get('ZENTRA_ANDROID_SMOKE_SHA256', '5d0b410c900881d60354293976d4f1d7f52db1cef9381766a724ce69dba075d6')
 PACKAGE = 'ch.zentra.mobile'
 VERSION = json.loads((HERE.parents[1] / 'desktop/package.json').read_text(encoding='utf-8'))['version']
 PROFILE = '/data/user/0/' + PACKAGE
