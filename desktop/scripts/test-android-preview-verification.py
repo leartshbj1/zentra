@@ -7,6 +7,7 @@ from unittest.mock import patch
 import subprocess
 import zipfile
 import xml.etree.ElementTree as ET
+from types import SimpleNamespace
 
 spec = importlib.util.spec_from_file_location('preview_check', Path(__file__).with_name('verify-android-preview.py'))
 check = importlib.util.module_from_spec(spec)
@@ -97,6 +98,23 @@ class PreviewVerification(unittest.TestCase):
         self.assertEqual(smoke.check_keyboard_field(good, windows)['keyboardTop'], 380)
         with self.assertRaisesRegex(RuntimeError, 'missing'):
             smoke.check_keyboard_field(good, windows.replace('mVisible=true', 'mVisible=false'))
+
+    def test_native_theme_guard_checks_pixels_and_system_icons(self):
+        module_spec = importlib.util.spec_from_file_location('theme_smoke', Path(__file__).with_name('smoke-android-release-candidate.py'))
+        smoke = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(smoke)
+        root = ET.fromstring('<hierarchy><node class="android.webkit.WebView" bounds="[0,24][320,616]"/></hierarchy>')
+        window = '\n Window #7 MainActivity:\n package=ch.zentra.mobile appop=NONE\n isVisible=true\n'
+        for dark, color in [(True, (20,20,22)), (False, (245,245,247))]:
+            flags = '' if dark else ' apr=LIGHT_STATUS_BARS LIGHT_NAVIGATION_BARS\n'
+            with patch.object(smoke, 'module', return_value=SimpleNamespace(pixels=lambda _: (320,640,bytes(color)*320*640))):
+                self.assertEqual(smoke.check_native_bars(root, b'fixture', window+flags, dark)['dark'], dark)
+                with self.assertRaisesRegex(RuntimeError, 'icon contrast'):
+                    wrong_flags = ' apr=LIGHT_STATUS_BARS LIGHT_NAVIGATION_BARS\n' if dark else ''
+                    smoke.check_native_bars(root, b'fixture', window+wrong_flags, dark)
+        with patch.object(smoke, 'module', return_value=SimpleNamespace(pixels=lambda _: (320,640,bytes((255,255,255))*320*640))):
+            with self.assertRaisesRegex(RuntimeError, 'does not match'):
+                smoke.check_native_bars(root, b'fixture', window, True)
 
 
 if __name__ == '__main__':

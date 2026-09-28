@@ -70,6 +70,20 @@ La recette renforcée doit capturer le fournisseur WebView et la densité, atten
 
 Preuves de la recette échouée : `outputs/android-release-candidate-20260927/job162/`, captures `02-account-Clair.png`, `02-account-Sombre.png`, `05-identity-keyboard.png` et leurs arbres d’accessibilité. Les états « en cours » des sections précédentes décrivent leur instant historique, pas le statut actuel ci-dessus.
 
+## Résultat du correctif clavier et limite visuelle suivante
+
+**Compilation 163 réussie à 02 h 47, recette 164 réussie à 02 h 55.** Source applicative `643670acac79d24c23d29678e0732b39f7687c26`, source de recette `1372c03d7cd00622bec0699a6399279e0c854fa4`. APK non signé : 39 763 883 octets, SHA-256 `47b8f7974a507a8754d13278c560f0304ce63f89173bcbee20995705797c01bf`. Le DEX et la bibliothèque native diffèrent bien du paquet 160 malgré une taille d’archive identique.
+
+La signature locale persistante est vérifiée : 39 846 622 octets, SHA-256 `a5e5cef7a0c7561c345d0a39ec2e6aecc0625aa86112545a6f467aefbe7096a9`, même certificat épinglé, 964 entrées applicatives identiques, alignement 16 Ko. La recette distante conserve son certificat jetable ; elle ne prouve pas l’installation du fichier local signé avec l’identité persistante.
+
+Émulateur 320 × 640, densité 160, WebView **124.0.6367.219**. Avant et après saisie du marqueur, champ `[24,310][296,363]`, WebView `[0,24][320,381]`, clavier commençant à **381**. Le texte `Zentra-Test` est conservé. Le viewport reprend ses dimensions après fermeture du clavier. Retour au compte et redémarrage passent ; SQLite reste au schéma 60, intègre, sans erreur de clé étrangère, avec identité protégée identique. Aucun compte connecté ni entreprise créée.
+
+L’interface de bienvenue est obtenue après 71 110 ms d’observation, incluant les délais de deux inspections UIAutomator sans racine. La capture intermédiaire montre encore l’introduction. Cette mesure ne permet pas d’isoler la durée native de l’animation ou de promettre un temps de démarrage physique ; seule la correction d’horloge est isolée par la contre-épreuve navigateur précédente.
+
+**Le passage fonctionnel ne suffisait pas à valider le thème.** Les captures 164 montrent du blanc dans les marges natives, avec icônes claires en mode sombre. La correction `5b88d22fbf360d91fc6ea31fb9430bcb550ff8d5` colore le conteneur natif d’après le `theme-color` clair/sombre utilisé par l’app ; compilation 165 lancée à 02 h 58. Le nouvel examen des pixels rejette réellement la capture sombre 164 et accepte sa capture claire. Il vérifie aussi les indicateurs natifs de contraste des icônes, pas uniquement la sélection du menu. Sa confirmation sur le nouveau binaire reste à faire.
+
+Preuves : `outputs/android-release-candidate-20260927/job163/signed/` et `job164/`, notamment `proof.json`, `webview-provider.txt`, les captures de saisie et les deux thèmes. Le journal natif ne contient pas de plantage de Zentra identifié par les recherches FATAL/ANR/panic ; cela n’est pas une preuve d’absence de tout défaut.
+
 ## Limites de livraison
 
 Le candidat 157 précède plusieurs corrections locales récentes, dont les périodes comptables et les performances des gros historiques. Le candidat 160 les inclut mais précède la correction d’horloge ci-dessus. Leur numéro technique 1.90.6 ne doit pas remplacer les fichiers publics de même version. La future livraison doit regrouper les sources finales sous un nouveau numéro. Ni installation chez le client, ni publication Play Store, ni validation physique n’est annoncée.

@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import statistics
 import subprocess
 import tempfile
 import time
@@ -101,6 +102,35 @@ def webview_bounds(root):
     if not boxes:
         raise RuntimeError('Visible WebView bounds missing')
     return boxes[-1]
+
+
+def check_native_bars(root, screenshot, window_dump, dark):
+    width, height, rgb = module('screenshot_pixels', 'ios_icons.py').pixels(screenshot)
+    viewport = webview_bounds(root)
+    bands = {'status': (0, viewport[1]), 'navigation': (viewport[3], height)}
+    medians = {}
+    for name, (start, end) in bands.items():
+        if end-start < 4:
+            raise RuntimeError('Expected native safe area is missing: ' + name)
+        # A central rectangle avoids the clock/battery; the median ignores the
+        # narrow gesture handle. Check real pixels, not just selected options.
+        samples = [rgb[(y*width+x)*3+channel]
+                   for y in range(start+(end-start)//4, end-(end-start)//4)
+                   for x in range(width*35//100, width*65//100)
+                   for channel in range(3)]
+        medians[name] = statistics.median(samples)
+        if (dark and medians[name] > 80) or (not dark and medians[name] < 190):
+            raise RuntimeError('Native safe area does not match the theme: ' + name)
+    app_windows = [block for block in re.split(r'\n\s*Window #', window_dump)
+                   if 'package=ch.zentra.mobile ' in block and 'isVisible=true' in block]
+    if len(app_windows) != 1:
+        raise RuntimeError('Visible application window is ambiguous')
+    appearance = re.search(r'\bapr=([^\n]+)', app_windows[0])
+    appearance = appearance[1] if appearance else ''
+    for flag in ('LIGHT_STATUS_BARS', 'LIGHT_NAVIGATION_BARS'):
+        if (flag in appearance) == dark:
+            raise RuntimeError('Native system icon contrast does not match the theme')
+    return {'backgroundMedians': medians, 'dark': dark, 'iconAppearance': appearance}
 
 
 def check_keyboard_field(root, window_dump):
@@ -266,6 +296,7 @@ def main():
         account = wait_ui('02-account', lambda labels: bool(account_markers.intersection(labels)))
         proof['accountScreenVisible'] = True
         proof['accountHeader'] = check_account_header(account)
+        proof['nativeThemes'] = {}
         print('Account setup screen reached without connecting an account', flush=True)
         # Exercise the real Android select popup and record both native themes.
         # Screenshots are reviewed separately; choosing an option alone does not
@@ -277,7 +308,10 @@ def main():
             if not tap(choices, {mode}):
                 raise RuntimeError('Native appearance option is not reachable')
             account = wait_ui('02-account-' + mode, lambda labels: bool(account_markers.intersection(labels)))
-            (OUT / ('window-' + mode + '.txt')).write_text(adb('shell', 'dumpsys', 'window', 'windows'), encoding='utf-8')
+            windows = adb('shell', 'dumpsys', 'window', 'windows')
+            (OUT / ('window-' + mode + '.txt')).write_text(windows, encoding='utf-8')
+            proof['nativeThemes'][mode] = check_native_bars(account,
+                (OUT / ('02-account-' + mode + '.png')).read_bytes(), windows, mode == 'Sombre')
         proof['appearanceSelectionsExecuted'] = ['dark', 'light']
         scroll_and_tap(account, {'Créer une entreprise'}, 'account-scroll')
         identity = wait_ui('04-identity', lambda labels: 'Donnons un nom à votre espace.' in labels)
