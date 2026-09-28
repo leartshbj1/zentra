@@ -294,6 +294,13 @@ def main():
         print('Verified optimized ARM payload installed on the disposable emulator', flush=True)
         # No account is used and no production endpoint is needed for this recipe.
         adb('shell', 'svc', 'wifi', 'disable')
+        # sys.boot_completed may precede telephony registration on a loaded
+        # emulator. Require the actual service before issuing its command.
+        phone_deadline = time.monotonic() + 60
+        while adb('shell', 'service', 'check', 'phone').strip() != 'Service phone: found':
+            if time.monotonic() >= phone_deadline:
+                raise RuntimeError('Disposable emulator phone service did not become ready')
+            time.sleep(2)
         adb('shell', 'svc', 'data', 'disable')
         adb('logcat', '-c')
         started = time.monotonic()
