@@ -96,6 +96,50 @@ def check_account_header(root):
     return {'brand': a, 'preferences': controls, 'noOverlap': True}
 
 
+def webview_bounds(root):
+    boxes = [bounds(n) for n in root.iter('node') if n.get('class') == 'android.webkit.WebView' and bounds(n)]
+    if not boxes:
+        raise RuntimeError('Visible WebView bounds missing')
+    return boxes[-1]
+
+
+def check_keyboard_field(root, window_dump):
+    # Use the OS's IME inset, not a fixed keyboard height or screenshot guess.
+    ime_boxes = []
+    for line in window_dump.splitlines():
+        if not re.search(r'(?:mType|type)=ime\b', line) or not re.search(r'(?:mVisible|visible)=true\b', line):
+            continue
+        frame = re.search(r'(?:mFrame|frame)=(\[\d+,\d+\]\[\d+,\d+\])', line)
+        if frame:
+            box = bounds(ET.Element('node', bounds=frame[1]))
+            if box:
+                ime_boxes.append(box)
+    if not ime_boxes:
+        raise RuntimeError('Visible keyboard inset missing')
+    keyboard_top = min(box[1] for box in ime_boxes)
+    focused = [n for n in root.iter('node') if n.get('class') == 'android.widget.EditText' and n.get('focused') == 'true']
+    box = bounds(focused[0]) if len(focused) == 1 else None
+    viewport = webview_bounds(root)
+    if not box or box[3]-box[1] < 40 or box[1] < viewport[1] or box[3] > keyboard_top or viewport[3] > keyboard_top:
+        raise RuntimeError('Focused field or WebView is obscured by the keyboard')
+    return {'focusedField': box, 'webView': viewport, 'keyboardTop': keyboard_top}
+
+
+def wait_keyboard_field(label):
+    deadline = time.monotonic() + 45
+    last_error = None
+    while time.monotonic() < deadline:
+        try:
+            root = snapshot(label)
+            windows = adb('shell', 'dumpsys', 'window')
+            (OUT / (label + '-windows.txt')).write_text(windows, encoding='utf-8')
+            return root, check_keyboard_field(root, windows)
+        except (RuntimeError, subprocess.SubprocessError, ET.ParseError) as error:
+            last_error = str(error)
+        time.sleep(1)
+    raise RuntimeError(f'Keyboard field never became usable: {last_error}')
+
+
 def scroll(root):
     frame = next((bounds(n) for n in root.iter('node') if bounds(n)), None)
     if not frame:
@@ -180,6 +224,9 @@ def main():
     tools = Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0'
     proof = {'source': REVISION, 'sourceJob': JOB, 'unsignedSha256': SHA, 'emulatorAbis': abi,
              'signingIdentity': 'disposable-emulator-only', 'physicalDeviceTested': False, 'published': False}
+    proof['displaySize'] = adb('shell', 'wm', 'size')
+    proof['displayDensity'] = adb('shell', 'wm', 'density')
+    (OUT / 'webview-provider.txt').write_text(adb('shell', 'dumpsys', 'webviewupdate'), encoding='utf-8')
     with tempfile.TemporaryDirectory(prefix='zentra-android-payload-') as folder:
         temp = Path(folder)
         apk = temp / 'unsigned.apk'
@@ -234,6 +281,7 @@ def main():
         proof['appearanceSelectionsExecuted'] = ['dark', 'light']
         scroll_and_tap(account, {'Créer une entreprise'}, 'account-scroll')
         identity = wait_ui('04-identity', lambda labels: 'Donnons un nom à votre espace.' in labels)
+        viewport_before_keyboard = webview_bounds(identity)
         for attempt in range(5):
             fields = [n for n in identity.iter('node') if n.get('class') == 'android.widget.EditText' and bounds(n) and bounds(n)[3]-bounds(n)[1] >= 40]
             if fields:
@@ -244,10 +292,22 @@ def main():
             identity = snapshot(f'identity-scroll-{attempt+1}')
         else:
             raise RuntimeError('No editable identity field is reachable')
-        adb('shell', 'input', 'text', 'Zentra-Recette-Emulateur')
-        keyboard = wait_ui('05-identity-keyboard', lambda labels: 'Zentra-Recette-Emulateur' in labels)
+        _, proof['keyboardBeforeTyping'] = wait_keyboard_field('05-keyboard-ready')
+        # Avoid a burst of ADB key events racing the first IME/React frame on
+        # this translated ARM emulator; every character must still survive.
+        marker = 'Zentra-Test'
+        for character in marker:
+            adb('shell', 'input', 'text', character)
+            time.sleep(0.2)
+        keyboard = wait_ui('05-identity-keyboard', lambda labels: marker in labels)
+        windows = adb('shell', 'dumpsys', 'window')
+        (OUT / '05-identity-keyboard-windows.txt').write_text(windows, encoding='utf-8')
+        proof['keyboardAfterTyping'] = check_keyboard_field(keyboard, windows)
         adb('shell', 'input', 'keyevent', '4')
         identity = snapshot('06-identity-keyboard-closed')
+        if webview_bounds(identity) != viewport_before_keyboard:
+            raise RuntimeError('Viewport did not recover after dismissing the keyboard')
+        proof['keyboardDismissalRestoresViewport'] = True
         scroll_and_tap(identity, {'Retour'}, 'identity-return')
         wait_ui('07-back-account', lambda labels: bool(account_markers.intersection(labels)))
         proof['identityDraftEdited'] = True

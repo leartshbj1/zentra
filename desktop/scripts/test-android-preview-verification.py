@@ -84,6 +84,20 @@ class PreviewVerification(unittest.TestCase):
             smoke.check_account_header(ET.fromstring(markup.format(top=14, bottom=58)))
         self.assertTrue(smoke.check_account_header(ET.fromstring(markup.format(top=66, bottom=110)))['noOverlap'])
 
+    def test_keyboard_guard_rejects_the_reproduced_occlusion(self):
+        module_spec = importlib.util.spec_from_file_location('keyboard_smoke', Path(__file__).with_name('smoke-android-release-candidate.py'))
+        smoke = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(smoke)
+        markup = ('<hierarchy><node class="android.webkit.WebView" bounds="[0,24][320,{bottom}]"/>'
+                  '<node class="android.widget.EditText" focused="true" bounds="[24,{top}][296,{end}]"/></hierarchy>')
+        windows = 'InsetsSource: {28 mType=ime mFrame=[0,380][320,640] mVisible=true}'
+        with self.assertRaisesRegex(RuntimeError, 'obscured'):
+            smoke.check_keyboard_field(ET.fromstring(markup.format(bottom=640, top=584, end=637)), windows)
+        good = ET.fromstring(markup.format(bottom=380, top=300, end=353))
+        self.assertEqual(smoke.check_keyboard_field(good, windows)['keyboardTop'], 380)
+        with self.assertRaisesRegex(RuntimeError, 'missing'):
+            smoke.check_keyboard_field(good, windows.replace('mVisible=true', 'mVisible=false'))
+
 
 if __name__ == '__main__':
     unittest.main()

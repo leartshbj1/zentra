@@ -58,6 +58,18 @@ La contre-épreuve complémentaire suspend le document pendant 5,2 secondes, pui
 
 **Ce correctif d’horloge est postérieur au job 160.** Le job **161**, source **`a5bd668af375a47f08b70c77518ff7fdb58d43d8`**, est confirmé en compilation à 02 h 07. Il inclut la correction ; le job 160 conserve son rôle de validation du lot précédent. Aucun des deux n’est encore déclaré testé sur émulateur.
 
+## Suite de la recette, 28 septembre à 02 h 43
+
+Les compilations **160 et 161 ont réussi**. Leurs APK non signés font chacun 39 763 883 octets ; empreintes respectives `e108ced9f6c388d7674bf1705087ce0af8722d34f8c5e80162afb2da613cb411` et `7bd02f2025bd057f481424caff5ae0515366ee70f49fb155db63e908bd352344`. Les sources et empreintes sont recoupées avec les reçus CI. Le manifeste et les bibliothèques 16 Ko de 160 ont également été revérifiés localement.
+
+**La recette 162 a échoué**, à 02 h 23, sur le paquet 160. Elle confirme par captures natives le logo sans chevauchement, les thèmes clair/sombre et le contraste des barres système. Elle atteint la saisie d’identité, mais le clavier couvre le champ : celui-ci reste à `[24,584][296,637]` dans un écran de 320 × 640. Le texte injecté par ADB est partiel ; cette injection rapide ne permet pas d’attribuer séparément une perte de caractères au produit. L’ancienne horloge explique encore l’introduction très longue dans ce paquet, qui précède sa correction. Aucun succès du parcours complet ou du redémarrage n’est attribué à 162.
+
+Attention au diagnostic des fenêtres : la fenêtre **Zentra** indique `adjust=pan` ; la fenêtre `adjust=nothing` est celle du lanceur Android. La correction `643670acac79d24c23d29678e0732b39f7687c26` utilise `adjustResize` et un conteneur natif qui applique les insets clavier/barres/encoche. Les insets traités sont ensuite transmis à zéro au WebView pour éviter un double espacement ou un espace restant après fermeture du clavier, conformément à la [documentation Android](https://developer.android.com/develop/ui/views/layout/webapps/understand-window-insets). La compilation **163 est en cours** ; cette correction n’est pas encore déclarée validée à l’exécution.
+
+La recette renforcée doit capturer le fournisseur WebView et la densité, attendre le clavier effectif, comparer les coordonnées du champ à l’inset IME fourni par Android, saisir un marqueur sans rafale ADB, puis vérifier le retour aux dimensions précédentes. Un test négatif rejette les coordonnées du défaut reproduit ; les cinq tests des contrôleurs passent. Les données restent fictives, sans connexion de compte ni création d’entreprise.
+
+Preuves de la recette échouée : `outputs/android-release-candidate-20260927/job162/`, captures `02-account-Clair.png`, `02-account-Sombre.png`, `05-identity-keyboard.png` et leurs arbres d’accessibilité. Les états « en cours » des sections précédentes décrivent leur instant historique, pas le statut actuel ci-dessus.
+
 ## Limites de livraison
 
 Le candidat 157 précède plusieurs corrections locales récentes, dont les périodes comptables et les performances des gros historiques. Le candidat 160 les inclut mais précède la correction d’horloge ci-dessus. Leur numéro technique 1.90.6 ne doit pas remplacer les fichiers publics de même version. La future livraison doit regrouper les sources finales sous un nouveau numéro. Ni installation chez le client, ni publication Play Store, ni validation physique n’est annoncée.

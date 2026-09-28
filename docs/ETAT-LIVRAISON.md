@@ -1,12 +1,12 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 28 septembre 2026, 02 h 09 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
+Mis à jour le 28 septembre 2026, 02 h 40 (Europe/Zurich). L’objectif premier client reste en cours : les vingt points ne sont pas clos.
 
-Dernier lot : [Android, signature et recette](ANDROID-SIGNATURE-ET-RECETTE-20260928.md). Candidat 157 signé localement avec l’identité persistante (39,8 Mo, contenu inchangé) ; recettes 158/159 réussies sur émulateur, avec certificat de fixture distinct : introduction, configuration et redémarrage, base/identité conservées. Les captures ont révélé un chevauchement logo/préférences, corrigé avec le fond du compte sombre et une traduction manquante. Huit parcours navigateur et 14 tests ciblés passent. Source `68b1d297`, compilation Android **160 en cours à 01 h 53** ; le rendu natif corrigé n’est pas encore validé. Aucune publication ni installation utilisateur.
+Dernier lot : [Android, signature et recette](ANDROID-SIGNATURE-ET-RECETTE-20260928.md). Compilations **160 et 161 réussies**. La recette native **162 du paquet 160** confirme le logo et les thèmes corrigés, mais échoue sur la saisie : le clavier recouvre le champ. Correction des insets source `643670ac`, **compilation 163 en cours**. La recette suivante vérifie les limites réelles du clavier, le texte saisi et le retour à la taille initiale. Aucun de ces candidats ne remplace les fichiers publics 1.90.6.
 
 Dernier lot local : [gros historique et périodes comptables](VOLUMES-ET-PERIODES-20260928.md). Sur 5 001 factures et leurs devis, la réponse native complète passe de 14,8 à 9 s et le contrôle comptable de 5,7 à 0,9 s, en debug sur ce PC, sans différence de données. Périodes réelles affichées, 1 823 tests frontend, contrôles Rust et parcours mobile/ordinateur réussis. Source non distribuée ; instance fictive fermée normalement, installation réelle toujours 1.90.5. **Connexion serveur encore 503 à 01 h 18.**
 
-L’horloge de l’introduction est corrigée après la source du job 160 : elle pouvait prolonger les 7,8 secondes prévues jusqu’à plusieurs minutes sur un rendu lent. La contre-épreuve à une image par seconde atteint désormais la configuration, en environ dix secondes observées ; trois parcours de régression (ordinateur, mobile, réduction des animations) et la suspension/reprise simulée passent. **Job 161 en compilation à 02 h 07, source `a5bd668a`**, pour intégrer cette correction ; sa recette native reste à faire.
+L’horloge de l’introduction est corrigée après la source du job 160 : elle pouvait prolonger les 7,8 secondes prévues jusqu’à plusieurs minutes sur un rendu lent. La contre-épreuve à une image par seconde atteint désormais la configuration, en environ dix secondes observées ; trois parcours de régression (ordinateur, mobile, réduction des animations) et la suspension/reprise simulée passent. **Job 161 compilé avec succès, source `a5bd668a`** ; la correction est également incluse dans 163. Pas encore de validation native de cette horloge.
 
 ## Version 1.90.6 publiée ; installation locale Windows refusée
 
@@ -60,6 +60,10 @@ Le [guide de prise en main reste lisible avec le texte agrandi](GUIDE-LISIBILITE
 La [recette native locale `a46085d9`](RECETTE-NATIVE-ET-ACCUEIL-20260928.md) complète ces preuves : compilation debug sans installateur, 42 navigations et 16 étapes du guide, zéro erreur JS, médiane 47 ms et maximum 478 ms. Les 110 tables métier, trois fichiers et montants fictifs sont conservés après fermeture normale. L’installateur public et l’application installée ne sont pas modifiés. La revue révèle une colonne inutile sans Automation : correction CSS et traductions du suivi validées ensuite sur 20 configurations navigateur, sans nouvelle compilation native de ce dernier ajustement. Les chiffres natifs ne lui sont pas attribués.
 
 ## Site, comptes et traitement autonome
+
+**Sites 293 publié à 02 h 38**, source `15b170780e0d55592005478dadf46c2b7c4a052b`, environnement 37 inchangé. Le chronométrage des incidents de messagerie inclut désormais l’attente réelle ; 7 tests ciblés, TypeScript et build passent. [Détail du lot](MESSAGERIE-DIAGNOSTIC-20260928.md). Cette publication ne rétablit pas les comptes.
+
+Le connecteur Infomaniak partagé est déjà présent côté serveur et dans la source publique 1.90.6, avec droits par entreprise, secret chiffré, journal partagé et récupération sans renvoi. Les réglages le distinguent du SMTP local. La recette réelle sur deux appareils et la réception restent à valider après rétablissement du compte ; OAuth partagé n’est pas annoncé.
 
 Dernière contre-épreuve des comptes : **28 septembre, 02 h 08, HTTP 503**, `Retry-After: 60`, `no-store`, avec une connexion synthétique à une adresse inexistante et l’origine correcte. Aucun compte, cookie fourni ou e-mail envoyé. Preuve `outputs/android-release-candidate-20260927/auth-readiness-node.json`. Le client Python standard a reçu séparément un refus du proxy 403/1010 : celui-ci ne constitue pas le diagnostic Supabase et n’est pas confondu avec la réponse applicative obtenue par Node.
 
