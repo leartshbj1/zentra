@@ -99,6 +99,8 @@ export const supportConnections = sqliteTable(
     directoryJson: text('directory_json').notNull(),
     routesJson: text('routes_json').notNull(),
     active: integer('active').notNull().default(1),
+    checkedAt: integer('checked_at'),
+    checkError: text('check_error'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => [index('support_connections_workspace').on(t.workspaceId)],
@@ -199,6 +201,36 @@ export const supportSolicitationReplies = sqliteTable('support_solicitation_repl
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, t => [uniqueIndex('support_solicitation_once').on(t.ticketId, t.fingerprint), index('support_solicitation_workspace').on(t.workspaceId, t.createdAt)]);
+export const supportSenderPolicies = sqliteTable('support_sender_policies', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull().references(() => supportWorkspaces.id),
+  sender: text('sender').notNull(),
+  subject: text('subject').notNull().default(''),
+  category: text('category').notNull(), // trusted, or a supported category
+  enabled: integer('enabled').notNull().default(1),
+  revision: integer('revision').notNull().default(1),
+  createdBy: text('created_by').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, t => [uniqueIndex('support_sender_policy_identity').on(t.workspaceId,t.sender,t.subject), index('support_sender_policy_workspace').on(t.workspaceId,t.enabled)]);
+
+export const supportFollowups = sqliteTable('support_followups', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull().references(() => supportWorkspaces.id),
+  ticketId: text('ticket_id').notNull().references(() => supportTickets.id),
+  fingerprint: text('fingerprint').notNull(),
+  title: text('title').notNull(),
+  assignedTo: text('assigned_to').notNull(),
+  dueAt: integer('due_at').notNull(),
+  state: text('state').notNull().default('open'),
+  organizationId: text('organization_id'),
+  taskId: text('task_id'),
+  revision: integer('revision').notNull().default(1),
+  createdBy: text('created_by').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, t => [uniqueIndex('support_followup_source').on(t.ticketId,t.fingerprint),index('support_followup_due').on(t.workspaceId,t.state,t.dueAt)]);
+
 export const supportSecrets = sqliteTable('support_platform_secrets', {
   id: text('id').primaryKey(),
   secret: text('secret').notNull(),

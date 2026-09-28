@@ -58,6 +58,9 @@ type WorkItem = {
   state: string;
   revision: number;
   assigned_to: string | null;
+  due_at?: number | null;
+  support_ticket_id?:string|null;
+  support_workspace_id?:string|null;
   created_at: number;
 };
 export type AutomationCentreState = {
@@ -309,6 +312,8 @@ export function AutomationControlCentre({
                     {date(item.created_at)}
                   </span>
                   <h3>{item.title}</h3>
+                  {item.support_ticket_id && item.support_workspace_id && <a href={`/support/espace?workspace=${encodeURIComponent(item.support_workspace_id)}&ticket=${encodeURIComponent(item.support_ticket_id)}`}>Ouvrir la proposition dans Support</a>}
+                  {!!item.due_at && <p className="ac-meta">{item.state==='open' && item.due_at<Date.now()/1000?'Rappel à traiter':'Rappel'} : {date(item.due_at)}</p>}
                   {item.assigned_to && (
                     <p className="ac-meta">
                       Pour{' '}

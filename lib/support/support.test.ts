@@ -660,6 +660,27 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     expect(ignored.tickets[0].solicitation).toEqual({intent:'ignore',state:'ignored'});
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+  it('charge un ancien message ciblé hors des 60 derniers, uniquement dans son espace',async()=>{
+    const first=await json(await hook({ticketId:'old-proposal',subject:'Ancienne proposition',body:'Proposition pour votre entreprise'}));
+    sql.prepare('UPDATE support_tickets SET updated_at=1 WHERE id=?').run(first.ticket.id);
+    const original=sql.prepare('SELECT * FROM support_tickets WHERE id=?').get(first.ticket.id)!;
+    const insert=sql.prepare('INSERT INTO support_tickets(id,workspace_id,connection_id,external_id,subject,body,source_json,fingerprint,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
+    for(let i=0;i<65;i++)insert.run(`recent-${i}`,workspace,connection,`recent-${i}`,'Récent','Texte',original.source_json,'fp','pending',100+i,100+i);
+    const result=await json(await getWorkspaceState(new Request(`https://zentraapp.ch/api/support?ticket=${first.ticket.id}`)));
+    expect(result.tickets).toHaveLength(60);expect(result.tickets.some((t:{id:string})=>t.id===first.ticket.id)).toBe(false);
+    expect(result.focusedTicket.id).toBe(first.ticket.id);
+    sql.prepare("INSERT INTO support_solicitation_replies(id,workspace_id,ticket_id,fingerprint,intent,state,actor,created_at,updated_at) VALUES('expired',?,?,?,'stop','submitting','owner',1,1)").run(workspace,first.ticket.id,original.fingerprint);
+    const expired=await json(await getWorkspaceState(new Request(`https://zentraapp.ch/api/support?ticket=${first.ticket.id}`)));
+    expect(expired.focusedTicket.solicitation.state).toBe('uncertain');
+    await expect(getWorkspaceState(new Request('https://zentraapp.ch/api/support?ticket=outside'))).rejects.toMatchObject({status:404});
+  });
+  it('réserve les règles aux administrateurs et protège toutes les nouvelles mutations en lecture seule',async()=>{
+    sql.prepare("INSERT INTO support_members(id,workspace_id,email,role,created_at) VALUES('member-new',?,'member@example.test','member',1)").run(workspace);
+    state.user={...state.user,userId:'member-new',email:'member@example.test'};
+    await expect(post({action:'saveSenderPolicy',sender:'a@example.test',category:'trusted'})).rejects.toMatchObject({status:403});
+    sql.exec("UPDATE support_members SET role='read_only'");
+    for(const action of ['notSolicitation','createFollowup','completeFollowup','ignoreSolicitationBatch','previewSolicitationBatch','sendSolicitationBatch']) await expect(post({action})).rejects.toMatchObject({status:403});
+  });
   it('garde un démarchage incertain dans la vérification humaine', async()=>{
     await post({action:'settings',name:'Support',mode:'automatic',threshold:85,baselineSeconds:60});
     const decision=answer('solicitation',.86);decision.answers.priority=choice(Object.keys(PRIORITIES),'low');

@@ -1959,6 +1959,45 @@
 .support-app .support-folder-toggle {
   display: none;
 }
+.support-daily { padding: 8px 0 24px; margin-bottom: 28px; border-bottom: 1px solid var(--s-line); }
+.support-daily h2 { font-size: 1.2rem; font-weight: 600; margin: 0 0 8px; }
+.support-daily p { max-width: 72ch; margin: 6px 0; color: var(--s-muted); }
+.support-daily summary, .support-batch summary { cursor: pointer; min-height: 44px; padding: 12px 0; font-weight: 600; }
+.support-followup-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 0; text-align: left; border-bottom: 1px solid var(--s-line); }
+.support-followup-row span { flex: 1; min-width: 0; }
+.support-followup-row strong, .support-followup-row small { display: block; overflow-wrap: anywhere; }
+.support-followup-row small, .support-health small { color: var(--s-muted); }
+.support-health, .support-rules { max-width: 780px; padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid var(--s-line); }
+.support-health h2, .support-rules h2 { margin: 0 0 12px; font-size: 1.4rem; font-weight: 600; }
+.support-health h3, .support-batch h3 { margin: 0 0 8px; font-size: 1rem; font-weight: 600; }
+.support-health-row, .support-rule-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 0; border-bottom: 1px solid var(--s-line); }
+.support-health-row > div, .support-rule-row > div { min-width: 0; overflow-wrap: anywhere; }
+.support-health-row p, .support-rule-row p { color: var(--s-muted); margin: 6px 0; }
+.support-form-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+.support-inline-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.support-inline-actions > span { display: flex; align-items: center; gap: 6px; color: var(--s-accent); }
+.support-message-tools { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--s-line); }
+.support-message-tools .support-inline-actions { margin: 0 0 16px; }
+.support-followup-form, .support-followup-saved { padding: 20px 0 0; }
+.support-check { display: flex; align-items: flex-start; gap: 12px; min-height: 44px; padding-block: 10px; cursor: pointer; overflow-wrap: anywhere; }
+.support-check input[type=checkbox] { width: 18px; height: 18px; margin: 3px 0 0; flex: 0 0 18px; accent-color: var(--s-accent); }
+.support-batch { margin-bottom: 24px; border-block: 1px solid var(--s-line); max-width: 820px; }
+.support-batch[open] { padding-bottom: 24px; }
+.support-batch-selection { max-height: 360px; overflow: auto; padding-right: 8px; }
+.support-batch-selection summary { font-size: .9rem; color: var(--s-muted); overflow-wrap: anywhere; }
+.support-batch-reply { padding: 24px 0; border-top: 1px solid var(--s-line); margin-top: 20px; }
+.support-batch-reply h3, .support-batch-reply p { overflow-wrap: anywhere; }
+.support-rules form { margin-top: 24px; }
+.support-message-tools button, .support-batch button, .support-rule-row button { white-space: normal; height: auto; min-height: 44px; text-align: left; }
+@media(max-width:600px) {
+ .support-form-row { grid-template-columns: minmax(0,1fr); gap: 4px; }
+ .support-health-row, .support-rule-row { align-items: flex-start; flex-direction: column; gap: 12px; }
+ .support-rules, .support-health, .support-batch, .support-message-tools { min-width: 0; }
+ .support-message-tools input, .support-batch input, .support-batch textarea, .support-rules input { min-width: 0; font-size: 16px; }
+ .support-inline-actions > button { max-width: 100%; }
+ .support-daily { padding-bottom: 16px; margin-bottom: 20px; }
+ .support-daily h2 { font-size: 1.1rem; }
+}
 
 /* Démarchage: a quiet part of the existing reading surface, not a second inbox. */
 .support-solicitation-banner,
@@ -2000,7 +2039,8 @@
 .support-reply-addresses dd { margin: 0; overflow-wrap: anywhere; }
 .support-reply-editor .support-field { margin-bottom: 16px; }
 .support-reply-editor textarea,
-.support-solicitation-settings textarea { width: 100%; resize: vertical; min-height: 160px; font: inherit; line-height: 1.6; padding: 14px; color: var(--s-ink); background: white; border: 1px solid var(--s-line); border-radius: 9px; caret-color: var(--s-accent); }
+.support-solicitation-settings textarea,
+.support-batch-reply textarea { width: 100%; resize: vertical; min-height: 160px; font: inherit; line-height: 1.6; padding: 14px; color: var(--s-ink); background: white; border: 1px solid var(--s-line); border-radius: 9px; caret-color: var(--s-accent); }
 .support-reply-footer { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; margin-top: 20px; }
 .support-reply-footer button { min-height: 44px; height: auto; white-space: normal; }
 .support-solicitation-settings { max-width: 780px; }

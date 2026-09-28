@@ -245,7 +245,7 @@ export async function readProviderTicket(
     connection.provider === 'zendesk'
       ? `/api/v2/tickets/${id}.json`
       : connection.provider === 'freshdesk'
-        ? `/api/v2/tickets/${id}`
+        ? `/api/v2/tickets/${id}?include=requester`
         : `/api/tickets/${id}`;
   const raw = record(
     await providerRequest(connection, secret, path, 'GET', undefined, fetcher),
@@ -260,6 +260,7 @@ export async function readProviderTicket(
       ticket.description_text ?? ticket.description ?? ticket.excerpt,
     ),
     incomplete = false;
+  let senderEmail = '';
   if (connection.provider === 'gorgias') {
     const messages = record(
       await providerRequest(
@@ -277,6 +278,8 @@ export async function readProviderTicket(
         502,
       );
     incomplete = !!record(messages.meta).next_cursor;
+    const incoming=messages.data.map(record).find(m=>m.from_agent===false && m.channel==='email');
+    if(incoming) senderEmail=text(record(record(incoming.source).from).address,254);
     body =
       messages.data
         .map(record)
@@ -303,6 +306,13 @@ export async function readProviderTicket(
         502,
       );
     incomplete = !!comments.next_page;
+    // Optional envelope enrichment. A missing user scope must not stop ticket ingestion.
+    if(ticket.requester_id) {
+      try {
+        const requester=record(await providerRequest(connection,secret,`/api/v2/users/${numericId(ticket.requester_id)}.json`,'GET',undefined,fetcher));
+        if(String(record(requester.user).id)===String(ticket.requester_id)) senderEmail=text(record(requester.user).email,254);
+      } catch { /* Sender-specific rules remain unavailable until the provider permits reading it. */ }
+    }
     body =
       comments.comments
         .map(record)
@@ -327,6 +337,8 @@ export async function readProviderTicket(
         502,
       );
     incomplete = comments.length >= 30;
+    const incoming=comments.map(record).find(m=>m.incoming===true && m.private!==true);
+    senderEmail=text(record(ticket.requester).email || incoming?.from_email || ticket.email,254);
     body = [
       body,
       ...comments
@@ -348,6 +360,7 @@ export async function readProviderTicket(
         : (ticket.priority as Priority);
   return {
     externalId: id,
+    ...(senderEmail ? {senderEmail} : {}),
     subject: text(ticket.subject, 300) || 'Ticket sans objet',
     body: body.slice(0, 24000),
     incomplete: incomplete || body.length > 24000,

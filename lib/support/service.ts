@@ -1,4 +1,8 @@
 import { SUPPORT_WORKSPACES_SQL } from './workspace-access';
+import { senderAddress, senderPolicies, applySenderPolicies, saveSenderPolicy, deleteSenderPolicy, protectTicket } from './sender-policies';
+import { productivityState } from './productivity';
+import { createFollowup, completeFollowup } from './followups';
+import { solicitationBatch } from './batch';
 import {readSchedulerHealth} from '@/lib/scheduler-health';
 import { supportAutomationState, requireSupportAutomation, supportAutomationFetch } from '@/lib/automation/execution';
 import { selectSupportWorkspace } from './workspace-selection';
@@ -311,6 +315,7 @@ function publicTicket(t: Ticket & { solicitation_json?: string | null }) {
     externalId: t.external_id,
     subject: t.subject,
     body: t.body,
+    senderEmail: senderAddress(JSON.parse(t.source_json) as SourceTicket),
     revision: t.revision,
     state: t.state,
     decision: t.decision_json
@@ -397,6 +402,9 @@ export async function getWorkspaceState(request: Request) {
       ).results
     : [];
   const billing = await billingState(workspace);
+  const focusedId=text(params.get('ticket'),50);
+  const focused=focusedId && billing.active ? await database().prepare(`SELECT t.*, (SELECT json_object('intent',r.intent,'state',CASE WHEN r.state='submitting' AND r.updated_at<unixepoch()-180 THEN 'uncertain' WHEN r.state='preparing' AND r.updated_at<unixepoch()-180 THEN 'rejected' ELSE r.state END) FROM support_solicitation_replies r WHERE r.workspace_id=t.workspace_id AND r.ticket_id=t.id AND r.fingerprint=t.fingerprint) AS solicitation_json FROM support_tickets t WHERE t.workspace_id=? AND t.id=?`).bind(workspace.id,focusedId).first<Ticket>() : null;
+  if(focusedId && billing.active && !focused) throw new SupportError('Ce message n’est plus accessible dans cet espace.',404);
   const events = await database()
     .prepare(
       'SELECT id,ticket_id AS ticketId,kind,detail,actor,created_at AS createdAt FROM support_events WHERE workspace_id=? ORDER BY created_at DESC,id DESC LIMIT 80',
@@ -428,6 +436,7 @@ export async function getWorkspaceState(request: Request) {
     tickets: billing.active
       ? tickets.results.slice(0, 60).map(publicTicket)
       : [],
+    focusedTicket: focused ? publicTicket(focused) : null,
     solicitationFeed: billing.active && workspace.solicitation_notifications
       ? (await database().prepare("SELECT id FROM support_tickets WHERE workspace_id=? AND state='quiet' AND json_extract(decision_json,'$.category')='solicitation' ORDER BY created_at DESC,id DESC LIMIT 20").bind(workspace.id).all<{id:string}>()).results : [],
     hasMore: billing.active && tickets.results.length > 60,
@@ -445,12 +454,13 @@ export async function getWorkspaceState(request: Request) {
     members,
     billing,
     events: billing.active ? events.results : [],
+    productivity: billing.active ? await productivityState(workspace.id,user.userId,manage,{email:user.email,role:workspace.role}) : null,
   });
 }
 
 export async function mutateWorkspace(request: Request) {
   requireSameOrigin(request);
-  const body = await readJsonObjectWithinLimit(request, 64000),
+  const body = await readJsonObjectWithinLimit(request, 160000),
     action = text(body.action, 40),
     db = database();
   if (action === 'configureZendesk') {
@@ -559,10 +569,13 @@ export async function mutateWorkspace(request: Request) {
     [
       'settings',
       'solicitationSettings',
+      'saveSenderPolicy',
+      'deleteSenderPolicy',
       'connect',
       'connectMailbox',
       'linkGestion',
       'syncMailbox',
+      'checkConnection',
       'syncMailboxes',
       'startZendesk',
       'disconnect',
@@ -736,6 +749,24 @@ export async function mutateWorkspace(request: Request) {
       .bind(workspace.id, now(), now())
       .first<Connection>();
     return supportJson(c ? await syncMailbox(workspace, c) : { idle: true });
+  }
+  if (action === 'checkConnection') {
+    const c=await connectionFor(workspace.id,text(body.connectionId,50));
+    await enforceAccountRateLimit(request,'support-connection-check',user.userId,10);
+    if(c.provider==='api') throw new SupportError('Envoyez un événement depuis votre outil pour vérifier la réception de cette connexion.');
+    try {
+      if(c.provider==='infomaniak') {
+        const result=await syncMailbox(workspace,c);
+        return supportJson(result);
+      }
+      await loadDirectory(c,await secretFor(c));
+      await db.prepare('UPDATE support_connections SET checked_at=?,check_error=NULL WHERE workspace_id=? AND id=?').bind(now(),workspace.id,c.id).run();
+      return supportJson({saved:true});
+    } catch(error) {
+      const message=error instanceof SupportError?error.message:'La connexion n’a pas pu être vérifiée. Vérifiez ses accès dans Connexions.';
+      await db.prepare('UPDATE support_connections SET checked_at=?,check_error=? WHERE workspace_id=? AND id=?').bind(now(),message,workspace.id,c.id).run();
+      throw error;
+    }
   }
   if (action === 'syncMailbox') {
     await enforceAccountRateLimit(
@@ -928,6 +959,24 @@ export async function mutateWorkspace(request: Request) {
       'Votre accès permet de consulter les tickets, pas de les modifier.',
       403,
     );
+  if(['saveSenderPolicy','deleteSenderPolicy','notSolicitation','createFollowup','completeFollowup','previewSolicitationBatch','sendSolicitationBatch','ignoreSolicitationBatch'].includes(action)) {
+    await requireSupportSubscription(workspace);
+    await enforceAccountRateLimit(request,'support-productivity',user.userId,60);
+    if(action==='saveSenderPolicy') return supportJson(await saveSenderPolicy(workspace.id,user.email,body));
+    if(action==='deleteSenderPolicy') return supportJson(await deleteSenderPolicy(workspace.id,body));
+    if(action==='completeFollowup') return supportJson(await completeFollowup(request,workspace.id,body));
+    const reauthorize=async()=>{const current=await access(await signedIn(),workspace.id);if(current.role==='read_only')throw new SupportError('Votre accès ne permet plus cette action.',403);await requireSupportSubscription(current);return current;};
+    if(action.endsWith('Batch')) return supportJson(await solicitationBatch(body,action,async(operation,item)=>{
+      const ticket=await db.prepare('SELECT * FROM support_tickets WHERE workspace_id=? AND id=?').bind(workspace.id,text(item.ticketId,50)).first<Ticket>();
+      if(!ticket)throw new SupportError('Ce message n’est pas accessible.',404);
+      const connection=await connectionFor(workspace.id,ticket.connection_id);
+      return solicitationAction({action:operation,raw:item,workspace:await reauthorize(),ticket,connection,actor:user.email,secret:()=>secretFor(connection),reauthorize});
+    },reauthorize));
+    const ticket=await db.prepare('SELECT * FROM support_tickets WHERE workspace_id=? AND id=?').bind(workspace.id,text(body.ticketId,50)).first<Ticket>();
+    if(!ticket)throw new SupportError('Ce message n’est pas accessible.',404);
+    if(action==='notSolicitation') return supportJson(await protectTicket(ticket,body.revision));
+    return supportJson(await createFollowup(request,ticket,user,body));
+  }
   if (['previewSolicitationReply','sendSolicitationReply','ignoreSolicitation','restoreSolicitation'].includes(action)) {
     await requireSupportSubscription(workspace);
     await enforceAccountRateLimit(request,'support-reply',user.userId,60);
@@ -1179,6 +1228,7 @@ export async function processTicket(
       ));
     await finishAnalysis(reservation, true);
     reservation = null;
+    if(!manual) decision=applySenderPolicies(decision,source,await senderPolicies(workspace.id),JSON.parse(active.routes_json) as Rules);
     const localSolicitation = manual?.category === 'solicitation' || (!manual && currentWorkspace.mode === 'automatic' &&
       confirmedSolicitation(decision,currentWorkspace.threshold) && !source.incomplete && !source.closed && !source.agentId);
     let auto =

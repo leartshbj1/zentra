@@ -45,6 +45,7 @@ export default async function Page({
                 typeof query.organizationId === 'string' ? query.organizationId : typeof query.entreprise === 'string' ? query.entreprise : ''
               }
               paymentReturned={query.paiement === 'retour'}
+              initialWork={query.section === 'workflows'}
             />
             <details className="automation-account-extra"><summary>Parrainage</summary><ReferralPanel organizations={organizations} /></details>
             {isAutomationFounder(user) && <details className="automation-account-extra"><summary>Administration Zentra</summary><AutomationFounderSettings /></details>}

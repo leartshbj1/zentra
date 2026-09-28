@@ -69,6 +69,8 @@ export type Decision = {
   };
 };
 export type SourceTicket = {
+  /** Address supplied by the connector envelope, never extracted from message text. */
+  senderEmail?: string;
   mail?: {
     sender: string;
     calendarText?: string;
@@ -128,7 +130,7 @@ export type Ticket = {
   source_json: string;
   fingerprint: string;
   revision: number;
-  state: 'pending' | 'processing' | 'review' | 'ready' | 'routed' | 'error';
+  state: 'pending' | 'processing' | 'review' | 'ready' | 'routed' | 'error' | 'quiet';
   decision_json: string | null;
   error: string | null;
   attempts: number;

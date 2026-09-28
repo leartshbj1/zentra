@@ -3,6 +3,7 @@ import type { SupportBillingState } from '@/lib/support/plans';
 import type {SchedulerHealth} from '@/lib/scheduler-health';
 import type { SolicitationSettings } from '@/lib/support/solicitation';
 export type SupportTicket = {
+  senderEmail?: string;
   solicitation?: {intent:string;state:string} | null;
   id: string;
   connectionId: string;
@@ -30,6 +31,8 @@ export type SupportConnection = {
   hookUrl: string;
 };
 export type SupportState = {
+  focusedTicket?: SupportTicket|null;
+  productivity?: Productivity | null;
   solicitationFeed?: {id:string}[];
   automation?: {active:boolean;enabled:boolean};
   gestion?: { linked:boolean;organizationId:string|null;organizationName?:string|null;role?:string|null;autoPost:boolean;choices:{id:string;name:string}[] };
@@ -82,6 +85,15 @@ export type SupportState = {
     createdAt: number;
   }[];
 };
+export type Productivity = {
+  day:string; timeZone:string;
+  daily:{sorted:number;quiet:number;pending:number;gestion:null|{invoices:number;appointments:number;pending:number}};
+  health:{id:string;label:string;provider:string;checkedAt:number|null;checkError:string|null;lastSyncAt:number|null;lastError:string|null;lastReceivedAt:number|null}[];
+  policies:import('@/lib/support/sender-policies').SenderPolicy[];
+  followups:import('@/lib/support/followups').Followup[];
+  members:{email:string;role:string}[];
+  canCreateGestion:boolean;
+};
 export type Mutate = (
   body: Record<string, unknown>,
 ) => Promise<Record<string, unknown> | null>;
@@ -133,6 +145,8 @@ export function demoState(): SupportState {
       agents: [],
     };
   const drafts = [
+    {id:'1053',subject:'Suite à notre proposition pour votre atelier',body:'Bonjour, voici une nouvelle proposition commerciale fictive de notre agence. Aucun envoi réel dans cette démonstration.',category:'solicitation',priority:'low',team:'',confidence:.98},
+    {id:'1054',subject:'Une offre de téléphonie pour votre équipe',body:'Bonjour, nous proposons des forfaits de téléphonie professionnels. Seriez-vous intéressés ? Exemple fictif.',category:'solicitation',priority:'low',team:'',confidence:.97},
     {
       id: '1052', subject: 'Une idée pour la visibilité de votre atelier',
       body: 'Bonjour,\n\nJe vous contacte pour vous proposer les services de notre agence de communication. Nous accompagnons les entreprises locales dans leur visibilité en ligne. Auriez-vous 15 minutes pour découvrir notre offre ?\n\nAlex · Agence Horizon\nExemple fictif',
@@ -178,6 +192,7 @@ export function demoState(): SupportState {
   return {
     ...emptyState,
     user: { name: 'Camille', email: 'exemple@entreprise.test' },
+    productivity:{day:new Date().toISOString().slice(0,10),timeZone:'Europe/Zurich',daily:{sorted:6,quiet:3,pending:1,gestion:{invoices:2,appointments:1,pending:0}},health:[{id:'demo-connection',label:'Support — exemple',provider:'zendesk',lastSyncAt:null,lastError:null,checkedAt:time-180,checkError:null,lastReceivedAt:time-120}],policies:[],followups:[],members:[{email:'exemple@entreprise.test',role:'owner'},{email:'lea@entreprise.test',role:'member'}],canCreateGestion:true},
     workspaces: [{ id: 'demo', name: 'Atelier — exemple', role: 'owner' }],
     workspace: {
       id: 'demo',
@@ -215,6 +230,7 @@ export function demoState(): SupportState {
     tickets: drafts.map((d, i) => ({
       id: d.id,
       externalId: d.id,
+      senderEmail:d.id==='1054'?'contact@telephonie.example':'alex@horizon.example',
       connectionId: 'demo-connection',
       subject: d.subject,
       body: d.body,
@@ -243,7 +259,7 @@ export function demoState(): SupportState {
       routedAt: d.confidence >= 0.85 ? time - i * 200 : null,
     })),
     counts: {
-      total: 5,
+      total: 7,
       review: 1,
       errors: 0,
       ready: 0,

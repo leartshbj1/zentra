@@ -477,6 +477,13 @@
       "when": 1790565155404,
       "tag": "0067_quiet_expediter",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "6",
+      "when": 1790604047279,
+      "tag": "0068_burly_silverclaw",
+      "breakpoints": true
     }
   ]
 }

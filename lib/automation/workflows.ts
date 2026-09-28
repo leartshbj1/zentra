@@ -887,7 +887,7 @@ export async function workflowCentre(actor: AutomationActor) {
   const [rules, runs, items, members] = await Promise.all([
     db
       .prepare(
-        "SELECT * FROM automation_workflows WHERE organization_id=? AND (?=1 OR json_extract(definition,'$.conditions.category')<>'human_resources') ORDER BY created_at DESC LIMIT 50",
+        "SELECT * FROM automation_workflows WHERE organization_id=? AND id NOT LIKE 'support-followup:%' AND (?=1 OR json_extract(definition,'$.conditions.category')<>'human_resources') ORDER BY created_at DESC LIMIT 50",
       )
       .bind(org, allowed)
       .all<Rule>(),
@@ -899,7 +899,7 @@ export async function workflowCentre(actor: AutomationActor) {
       .all<Run>(),
     db
       .prepare(
-        "SELECT i.* FROM automation_work_items i JOIN automation_workflow_runs r ON r.id=i.run_id AND r.organization_id=i.organization_id WHERE i.organization_id=? AND (?=1 OR COALESCE(json_extract(r.result,'$.category'),'')<>'human_resources') AND (?=1 OR i.assigned_to IS NULL OR i.assigned_to=?) ORDER BY i.created_at DESC,i.id LIMIT 150",
+        "SELECT i.*,f.ticket_id AS support_ticket_id,f.workspace_id AS support_workspace_id FROM automation_work_items i JOIN automation_workflow_runs r ON r.id=i.run_id AND r.organization_id=i.organization_id LEFT JOIN support_followups f ON f.task_id=i.id AND f.organization_id=i.organization_id WHERE i.organization_id=? AND (?=1 OR COALESCE(json_extract(r.result,'$.category'),'')<>'human_resources') AND (?=1 OR i.assigned_to IS NULL OR i.assigned_to=?) ORDER BY i.created_at DESC,i.id LIMIT 150",
       )
       .bind(org, allowed, allowed, actor.userId)
       .all(),

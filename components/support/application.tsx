@@ -49,6 +49,8 @@ import { Choice, Field, formatDate } from './controls';
 import { BillingPanel } from './billing-panel';
 import { SupportQuotaNotice } from './quota-notice';
 import { SolicitationActions, SolicitationPreferences, dispositionLabel } from './solicitation-panel';
+import { DailyBrief, ConnectionHealth, SenderRules, MessageProductivity, BatchSolicitations } from './productivity-panel';
+import { productivityDemo } from './productivity-demo';
 import { solicitationDraft } from '@/lib/support/solicitation';
 import type { Workspace } from '@/lib/support/types';
 import {
@@ -73,6 +75,7 @@ const sections = [
   { id: 'settings', label: 'Paramètres', icon: Settings2 },
 ];
 export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
+  const [ruleDraft,setRuleDraft]=useState<{sender:string;subject:string;category:string}|undefined>();
   const [data, setData] = useState<SupportState>(() =>
       demo ? demoState() : emptyState,
     ),
@@ -96,6 +99,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     [connectionId, setConnection] = useState(''),
     [externalId, setExternalId] = useState('');
   const detailHeading = useRef<HTMLHeadingElement>(null);
+  const selectedRef=useRef(selected);selectedRef.current=selected;
   const filterToggle = useRef<HTMLButtonElement>(null);
   const filtersId = useId();
   const closeFilters = () => {
@@ -123,6 +127,8 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     if (demo && window.matchMedia('(max-width: 1100px)').matches)
       setSelected(null);
     if (!demo) {
+      const target=new URLSearchParams(window.location.search).get('ticket');
+      if(target){setSelected(target);selectedRef.current=target;}
       setWorkspace(
         new URLSearchParams(window.location.search).get('workspace') || '',
       );
@@ -152,6 +158,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         workspace?: string;
         quiet?: boolean;
         unfiltered?: boolean;
+        ticket?: string;
       } = {},
     ) => {
       if (demo) return;
@@ -165,6 +172,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         );
         if (org) params.set('organizationId', org);
       }
+      if(options.ticket || selectedRef.current) params.set('ticket',options.ticket || selectedRef.current!);
       if (query && !options.unfiltered) params.set('search', query);
       if (filter && !options.unfiltered) params.set('state', filter);
       if (category && !options.unfiltered) params.set('category', category);
@@ -294,6 +302,8 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     setNotice('');
     try {
       if (demo) {
+        const productivity=productivityDemo(data,body);
+        if(productivity){setData(productivity.data);return productivity.result;}
         if (body.action === 'previewSolicitationReply') {
           const t=data.tickets.find(t=>t.id===body.ticketId)!;
           const draft=solicitationDraft({name:data.workspace!.name,solicitation_settings_json:JSON.stringify(data.workspace!.solicitationSettings||{})} as Workspace,t.subject,t.decision!,body.intent as 'interested'|'stop');
@@ -381,7 +391,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         if (response.status === 401) setSignedOut(true);
         throw new Error(result.error || 'L’action n’a pas abouti. Réessayez.');
       }
-      if (body.action === 'previewSolicitationReply') return result;
+      if (body.action === 'previewSolicitationReply' || body.action==='previewSolicitationBatch') return result;
       if (result.ticketId) {
         setTab('inbox');
         setFilter('');
@@ -427,7 +437,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
-  const ticket = tickets.find((t) => t.id === selected),
+  const ticket = tickets.find((t) => t.id === selected) || (data.focusedTicket?.id===selected?data.focusedTicket:undefined),
     connection = data.connections.find((c) => c.id === ticket?.connectionId),
     readOnly = data.workspace?.role === 'read_only';
   const folderName = category
@@ -789,6 +799,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                 />
               ) : (
                 <>
+                  {!category && !filter && <DailyBrief data={data} openConnections={()=>setTab('connections')} openTicket={id=>{setSelected(id);setCategory('');setFilter('');setQuery('');setSearch('');void load({unfiltered:true,ticket:id});}}/>}
                   <div className="support-page-heading">
                     <div>
                       <h1>{folderName}</h1>
@@ -936,6 +947,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                       Afficher les demandes<ChevronDown size={17} aria-hidden="true" />
                     </Button>
                   </div>
+                  {category==='solicitation' && !ticket && <BatchSolicitations key={data.workspace.id} tickets={tickets} mutate={mutate} busy={busy} readOnly={!!readOnly}/>}
                   <div className="support-inbox-layout" data-detail={!!ticket}>
                     <section
                       className="support-ticket-list"
@@ -1086,6 +1098,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                           )}
                           <div className="support-message">{ticket.body}</div>
                           {ticket.decision?.category==='solicitation' && <SolicitationActions key={`solicitation-${ticket.id}`} ticket={ticket} mutate={mutate} busy={busy} readOnly={!!readOnly} settings={()=>setTab('settings')} demo={demo}/>}
+                          <MessageProductivity key={`tools-${ticket.id}`} ticket={ticket} data={data} mutate={mutate} busy={busy} rule={(sender,subject,category)=>{setRuleDraft({sender,subject,category});setTab('settings');}}/>
                           {ticket.error && (
                             <div className="support-notice support-error">
                               <span>{ticket.error}</span>
@@ -1254,6 +1267,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               <RoutingPanel data={data} mutate={mutate} busy={busy} />
             </TabsContent>
             <TabsContent value="connections">
+              <ConnectionHealth data={data} mutate={mutate} busy={busy}/>
               <ConnectionsPanel
                 data={data}
                 mutate={mutate}
@@ -1265,7 +1279,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
             <TabsContent value="insights">
               <InsightsPanel data={data} />
             </TabsContent>
-            <TabsContent value="settings"><SolicitationPreferences key={data.workspace.id} data={data} mutate={mutate} busy={busy}/></TabsContent>
+            <TabsContent value="settings"><SenderRules key={`${data.workspace.id}-${JSON.stringify(ruleDraft)}`} initial={ruleDraft} data={data} mutate={mutate} busy={busy}/><SolicitationPreferences key={data.workspace.id} data={data} mutate={mutate} busy={busy}/></TabsContent>
             <TabsContent value="team">
               <TeamPanel data={data} mutate={mutate} busy={busy} />
             </TabsContent>

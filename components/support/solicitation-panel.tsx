@@ -12,7 +12,7 @@ import {
 } from '@/lib/support/solicitation';
 import type { Mutate, SupportState, SupportTicket } from './model';
 
-type Draft = {
+export type Draft = {
   intent: ReplyIntent;
   language: ReplyLanguage;
   subject: string;
@@ -36,7 +36,7 @@ export const dispositionLabel = (
   if (!value) return '';
   if (value.state === 'ignored') return 'Ignoré';
   if (value.state === 'accepted')
-    return value.intent === 'stop' ? 'STOP envoyé' : 'Intérêt transmis';
+    return value.intent === 'stop' ? 'STOP accepté par la messagerie' : 'Réponse acceptée par la messagerie';
   if (value.state === 'uncertain' || value.state === 'submitting')
     return 'Envoi à vérifier';
   if (value.state === 'preparing') return 'Préparation en cours';
@@ -107,6 +107,7 @@ export function SolicitationActions({
           cette réponse pour éviter un doublon.
         </p>
       )}
+      {ticket.solicitation?.state === 'accepted' && <p className="support-small">La messagerie a accepté la réponse. Sa livraison au destinataire n’est pas confirmée.</p>}
       {!draft && !closed && (
         <div className="support-solicitation-buttons">
           <Button

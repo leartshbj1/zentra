@@ -63,9 +63,11 @@ export function AutomationCompanySettings({
   organizations,
   initialOrganization = '',
   paymentReturned = false,
+  initialWork = false,
 }: {
   initialOrganization?: string;
   paymentReturned?: boolean;
+  initialWork?: boolean;
   organizations: {
     organizationId: string;
     organizationName: string;
@@ -73,8 +75,8 @@ export function AutomationCompanySettings({
   }[];
 }) {
   const pending=useRef(false);
-  const [view,setView]=useState<'today'|'followup'|'settings'|'rules'|'appointments'|'tools'>('today');
-  const [followup,setFollowup]=useState<'review'|'work'|'history'>('review');
+  const [view,setView]=useState<'today'|'followup'|'settings'|'rules'|'appointments'|'tools'>(initialWork?'followup':'today');
+  const [followup,setFollowup]=useState<'review'|'work'|'history'>(initialWork?'work':'review');
   const [org, setOrg] = useState(
       organizations.some((o) => o.organizationId === initialOrganization)
         ? initialOrganization

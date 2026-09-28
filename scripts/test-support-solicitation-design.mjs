@@ -33,7 +33,7 @@ try {
     await page
       .getByRole('heading', { name: 'Démarchage', exact: true })
       .waitFor();
-    assert.equal(await page.locator('.support-ticket-row').count(), 1);
+    assert.equal(await page.locator('.support-ticket-row').count(), 3);
     await page.evaluate(() => {
       window.scrollTo(0, 0);
       document.querySelector('.support-sidebar')?.scrollTo(0, 0);
@@ -43,7 +43,7 @@ try {
       path: `${dir}/folder-${width}.png`,
       fullPage: true,
     });
-    await page.locator('.support-ticket-row').click();
+    await page.locator('.support-ticket-row').filter({hasText:'Une idée pour la visibilité de votre atelier'}).click();
     await page
       .getByRole('button', { name: 'Intéressé', exact: true })
       .waitFor();
@@ -85,7 +85,7 @@ try {
       .click();
     await page
       .locator('.support-solicitation-actions')
-      .getByText('STOP envoyé', { exact: true })
+      .getByText('STOP accepté par la messagerie', { exact: true })
       .waitFor();
     await page.getByRole('tab', { name: 'Paramètres', exact: true }).click();
     await page
