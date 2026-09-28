@@ -1,5 +1,5 @@
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
-import { groupRows, firstRows } from './rowIndex';
+import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
 import { errorMessage } from './utils';
 import { runSupplierInvoiceValidation } from './supplierInvoiceValidation';
@@ -2250,6 +2250,9 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const stockReservationEvents = (raw.stock_reservation_events ?? []).map(
     stockReservationEventFromRaw,
   );
+  const stockReservationsByCatalog = raw.stock_availability?.length
+    ? null
+    : groupRows(stockReservationEvents, event => event.catalogItemId);
   const stockAvailability: StockAvailability[] = raw.stock_availability?.length
     ? raw.stock_availability.map((row) => {
         const onHandMilli = numberValue(row.on_hand_milli);
@@ -2267,8 +2270,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     : catalogItems
         .filter((item) => item.kind === 'product' && item.trackStock)
         .map((item) => {
-          const reservedMilli = stockReservationEvents
-            .filter((event) => event.catalogItemId === item.id)
+          const reservedMilli = (stockReservationsByCatalog?.get(item.id) ?? [])
             .reduce((total, event) => total + event.quantityDeltaMilli, 0);
           return {
             catalogItemId: item.id,
@@ -2368,6 +2370,15 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const supplierPaymentsByInvoice = groupRows(supplierInvoicePayments, payment => payment.supplierInvoiceId);
   const supplierLinesByCredit = groupRows(supplierCreditNoteItems, line => line.supplierCreditNoteId);
   const qrBillsByInvoice = firstRows(invoiceQrBills, item => stringValue(item.invoice_id));
+  // Build fresh relationship indexes once per snapshot. Never reuse another
+  // company's rows or cache financial results across a mutation/sync.
+  const billingPairsByInvoice = firstRowsByKeys(raw.quote_invoice_pairs ?? [], pair => [pair.deposit_invoice_id, pair.balance_invoice_id]);
+  const customerCreditBalancesByInvoice = firstRows(raw.customer_credit_balances ?? [], balance => balance.credit_note_id);
+  const customerSettlementsByInvoice = groupRowsByKeys(raw.customer_credit_settlements ?? [], event => [event.credit_note_id, event.invoice_id]);
+  const supplierRefundsByCredit = groupRows(raw.supplier_credit_refunds ?? [], refund => refund.supplier_credit_note_id);
+  const supplierAllocationsByCredit = groupRows(supplierCreditAllocations, allocation => allocation.supplierCreditNoteId);
+  const supplierReclassificationLinesById = groupRows(supplierExpenseReclassificationLines, line => line.reclassificationId);
+  const supplierAttachmentsByInvoice = groupRows(supplierInvoiceAttachments, attachment => attachment.entityId);
   const quotes: Quote[] = (raw.quotes ?? []).map((row) => ({
     creator: row.creator_installation ? {id:nullableString(row.creator_id),name:stringValue(row.creator_name),installationId:stringValue(row.creator_installation)} : null,
     id: stringValue(row.id),
@@ -2512,17 +2523,17 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       projectId: stringValue(row.project_id) || null,
       quoteId: stringValue(row.quote_id) || null,
       billingPair: (() => {
-        const pair = raw.quote_invoice_pairs?.find((pair) => pair.deposit_invoice_id === row.id || pair.balance_invoice_id === row.id);
+        const pair = billingPairsByInvoice.get(row.id);
         return pair ? { depositInvoiceId: stringValue(pair.deposit_invoice_id), balanceInvoiceId: stringValue(pair.balance_invoice_id) } : null;
       })(),
       originalInvoiceId: stringValue(row.original_invoice_id) || null,
       creditedCents: row.credited_cents == null ? undefined : numberValue(row.credited_cents),
       customerCredit: (() => {
-        const balance=raw.customer_credit_balances?.find((balance)=>balance.credit_note_id===row.id);
+        const balance=customerCreditBalancesByInvoice.get(row.id);
         return balance ? {allocatedCents:numberValue(balance.allocated_cents),refundedCents:numberValue(balance.refunded_cents),remainingCents:numberValue(balance.remaining_cents)} : undefined;
       })(),
       creditRecovery: creditRecoveryById.get(stringValue(row.id)),
-      creditSettlements: (raw.customer_credit_settlements ?? []).filter((event)=>event.credit_note_id===row.id || event.invoice_id===row.id).map((event)=>({
+      creditSettlements: (customerSettlementsByInvoice.get(row.id) ?? []).map((event)=>({
         id:stringValue(event.id),requestId:stringValue(event.request_id),creditNoteId:stringValue(event.credit_note_id),invoiceId:stringValue(event.invoice_id)||null,
         eventType:stringValue(event.event_type) as NonNullable<Invoice['creditSettlements']>[number]['eventType'],
         date:stringValue(event.date),amountCents:numberValue(event.amount_cents),reference:stringValue(event.reference),reason:stringValue(event.reason),
@@ -2717,9 +2728,10 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     costCents: numberValue(row.cost_cents), costReviewRequired: !['refund','reverse'].includes(String(row.event_type)) || !Number.isSafeInteger(Number(row.cost_cents)),
     treatment: stringValue(row.treatment), creditJournalId: stringValue(row.credit_journal_id), paymentJournalId: stringValue(row.payment_journal_id), createdAt: stringValue(row.created_at),
   }));
+  const refundsByExpense = groupRows<ExpenseRefund, unknown>(expenseRefunds, refund => refund.expenseId);
   const expenses: Expense[] = (raw.expenses ?? []).map((row) => ({
     ...purchaseCostFromRaw(row, 'vat_cents'),
-    refunds: expenseRefunds.filter((refund) => refund.expenseId === row.id),
+    refunds: (refundsByExpense.get(row.id) ?? []).slice(),
     id: stringValue(row.id),
     projectId: stringValue(row.project_id) || null,
     supplierId: stringValue(row.supplier_id) || null,
@@ -2823,15 +2835,13 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     raw.supplier_credit_notes ?? []
   ).map((row) => {
     const id = stringValue(row.id);
-    const refunds: SupplierCreditRefund[] = (raw.supplier_credit_refunds ?? []).filter((refund) => refund.supplier_credit_note_id === id).map((refund) => ({
+    const refunds: SupplierCreditRefund[] = (supplierRefundsByCredit.get(id) ?? []).map((refund) => ({
       id: stringValue(refund.id), requestId: stringValue(refund.request_id), sequence: numberValue(refund.sequence), supplierCreditNoteId: id,
       eventType: refund.event_type === 'reverse' ? 'reverse' : 'refund', reversesId: nullableString(refund.reverses_id),
       date: stringValue(refund.date), amountCents: numberValue(refund.amount_cents), reference: stringValue(refund.reference), reason: stringValue(refund.reason),
       bankAccountId: stringValue(refund.bank_account_id), payableAccountId: stringValue(refund.payable_account_id), journalEntryId: stringValue(refund.journal_entry_id),
     }));
-    const allocations = supplierCreditAllocations.filter(
-      (allocation) => allocation.supplierCreditNoteId === id,
-    );
+    const allocations = (supplierAllocationsByCredit.get(id) ?? []).slice();
     return {
       id,
       supplierId: stringValue(row.supplier_id),
@@ -2876,9 +2886,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       reason: stringValue(row.reason),
       journalEntryId: stringValue(row.journal_entry_id),
       createdAt: stringValue(row.created_at),
-      lines: supplierExpenseReclassificationLines.filter(
-        (line) => line.reclassificationId === id,
-      ),
+      lines: (supplierReclassificationLinesById.get(id) ?? []).slice(),
     };
   });
   const supplierInvoices: SupplierInvoice[] = (raw.supplier_invoices ?? []).map(
@@ -2946,10 +2954,8 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
               left.date.localeCompare(right.date) ||
               left.createdAt.localeCompare(right.createdAt),
           ),
-        attachments: attachmentsForSupplierInvoice(
-          supplierInvoiceAttachments,
-          id,
-        ),
+        attachments: (supplierAttachmentsByInvoice.get(id) ?? []).slice()
+          .sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
         createdAt: stringValue(row.created_at),
         updatedAt: stringValue(row.updated_at),
       };
