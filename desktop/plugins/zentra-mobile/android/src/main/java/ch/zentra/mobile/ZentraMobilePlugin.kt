@@ -52,6 +52,13 @@ class ZentraMobilePlugin(private val activity: Activity): Plugin(activity) {
         val args = invoke.parseArgs(AppearanceArgs::class.java)
         if (args.appearance !in listOf("system", "light", "dark")) { invoke.reject("Apparence inconnue"); return }
         activity.runOnUiThread {
+            // The native container owns the safe areas outside the WebView.
+            // Match the app's theme-color so light icons never sit on a white
+            // status bar after the keyboard/safe-area resize correction.
+            activity.findViewById<View>(android.R.id.content).setBackgroundColor(
+                if (args.dark) android.graphics.Color.rgb(20, 20, 22)
+                else android.graphics.Color.rgb(245, 245, 247)
+            )
             val controls = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
             controls.isAppearanceLightStatusBars = !args.dark
             controls.isAppearanceLightNavigationBars = !args.dark
