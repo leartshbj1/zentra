@@ -19,6 +19,8 @@ import {
   CheckCheck,
   ChevronDown,
   Workflow,
+  BellOff,
+  Bell,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -46,6 +48,9 @@ import {
 import { Choice, Field, formatDate } from './controls';
 import { BillingPanel } from './billing-panel';
 import { SupportQuotaNotice } from './quota-notice';
+import { SolicitationActions, SolicitationPreferences, dispositionLabel } from './solicitation-panel';
+import { solicitationDraft } from '@/lib/support/solicitation';
+import type { Workspace } from '@/lib/support/types';
 import {
   emptyState,
   demoState,
@@ -65,6 +70,7 @@ const sections = [
   { id: 'insights', label: 'Résultats', icon: BarChart3 },
   { id: 'team', label: 'Équipe', icon: Users },
   { id: 'billing', label: 'Abonnement', icon: CreditCard },
+  { id: 'settings', label: 'Paramètres', icon: Settings2 },
 ];
 export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
   const [data, setData] = useState<SupportState>(() =>
@@ -97,6 +103,16 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     filterToggle.current?.focus();
   };
   const ticketButtons = useRef(new Map<string, HTMLButtonElement>());
+  const solicitationSeen = useRef<{workspace:string;enabled:boolean;ids:Set<string>} | null>(null);
+  const [solicitationAlert,setSolicitationAlert] = useState(0);
+  useEffect(()=>{
+    const id=data.workspace?.id||'', enabled=!!data.workspace?.solicitationNotifications;
+    const ids=new Set((data.solicitationFeed||[]).map(t=>t.id));
+    const previous=solicitationSeen.current;
+    if(previous?.workspace===id && previous.enabled && enabled){const fresh=[...ids].filter(v=>!previous.ids.has(v));if(fresh.length)setSolicitationAlert(n=>n+fresh.length);}
+    else setSolicitationAlert(0);
+    solicitationSeen.current={workspace:id,enabled,ids};
+  },[data.workspace?.id,data.workspace?.solicitationNotifications,data.solicitationFeed]);
   const sequence = useRef(0),
     busyRef = useRef(false),
     dataRef = useRef(data),
@@ -278,6 +294,20 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     setNotice('');
     try {
       if (demo) {
+        if (body.action === 'previewSolicitationReply') {
+          const t=data.tickets.find(t=>t.id===body.ticketId)!;
+          const draft=solicitationDraft({name:data.workspace!.name,solicitation_settings_json:JSON.stringify(data.workspace!.solicitationSettings||{})} as Workspace,t.subject,t.decision!,body.intent as 'interested'|'stop');
+          return {draft:{...draft,intent:body.intent,fingerprint:'demo',target:{recipient:'alex@horizon.example',from:'bonjour@atelier.example',name:'Atelier',sourceVersion:'demo'},enabled:data.workspace?.repliesEnabled,unavailable:'',status:t.solicitation}};
+        }
+        if (['ignoreSolicitation','restoreSolicitation','sendSolicitationReply'].includes(String(body.action))) {
+          const status=body.action==='restoreSolicitation'?null:{intent:String(body.intent||'ignore'),state:body.action==='sendSolicitationReply'?'accepted':'ignored'};
+          setData(d=>({...d,tickets:d.tickets.map(t=>t.id===body.ticketId?{...t,solicitation:status}:t)}));
+          return {saved:true,reply:status};
+        }
+        if(body.action==='solicitationSettings'){
+          setData(d=>({...d,workspace:{...d.workspace!,solicitationNotifications:!!body.notifications,repliesEnabled:!!body.repliesEnabled,solicitationSettings:body.settings as NonNullable<SupportState['workspace']>['solicitationSettings']}}));
+          return {saved:true};
+        }
         if (body.action === 'approve')
           setData((d) => ({
             ...d,
@@ -351,6 +381,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         if (response.status === 401) setSignedOut(true);
         throw new Error(result.error || 'L’action n’a pas abouti. Réessayez.');
       }
+      if (body.action === 'previewSolicitationReply') return result;
       if (result.ticketId) {
         setTab('inbox');
         setFilter('');
@@ -624,6 +655,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                       'appointment',
                       'quote',
                       'refund',
+                      'solicitation',
                     ].includes(key),
                   )
                   .map(([value, label]) => folderButton(value, label))}
@@ -640,6 +672,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                           'appointment',
                           'quote',
                           'refund',
+                          'solicitation',
                         ].includes(key),
                     )
                     .map(([value, label]) => folderButton(value, label))}
@@ -698,6 +731,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
             data-reading={tab === 'inbox' && !!ticket}
           >
             {noticeView}
+            {solicitationAlert>0 && data.workspace?.solicitationNotifications && <div className="support-solicitation-alert" role="status"><Bell size={18} aria-hidden="true"/><span>{solicitationAlert===1?'Une nouvelle proposition commerciale.':`${solicitationAlert} nouvelles propositions commerciales.`}</span><Button variant="ghost" onClick={()=>{chooseFolder('','solicitation');setSolicitationAlert(0);}}>Consulter</Button><Button variant="ghost" aria-label="Fermer l’alerte de démarchage" onClick={()=>setSolicitationAlert(0)}><X size={16}/></Button></div>}
             {!demo && (
               <SupportQuotaNotice
                 billing={data.billing}
@@ -759,7 +793,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                     <div>
                       <h1>{folderName}</h1>
                       <p className="support-page-description">
-                        {!demo && !data.automation?.enabled
+                        {category === 'solicitation' ? 'Vos propositions commerciales, à consulter quand vous le souhaitez.' : !demo && !data.automation?.enabled
                           ? 'Le classement manuel est disponible.'
                           : category
                             ? 'Les demandes de cette catégorie, réunies au même endroit.'
@@ -805,6 +839,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                     </Button>
                     </div>
                   </div>
+                  {category === 'solicitation' && <div className="support-solicitation-banner"><span>{data.workspace.solicitationNotifications?<Bell size={17}/>:<BellOff size={17}/>} {data.workspace.solicitationNotifications?'Alertes activées':'Sans notification'}</span><Button variant="ghost" onClick={()=>setTab('settings')}>Préférences</Button></div>}
                   {!demo &&
                     data.billing?.active &&
                     !data.automation?.enabled && (
@@ -958,7 +993,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                                 ? CATEGORIES[t.decision.category]
                                 : 'À analyser'}
                             </span>
-                            <span>{STATES[t.state] || t.state}</span>
+                            <span>{dispositionLabel(t.solicitation) || STATES[t.state] || t.state}</span>
                           </footer>
                         </button>
                       ))}
@@ -1050,6 +1085,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                             </a>
                           )}
                           <div className="support-message">{ticket.body}</div>
+                          {ticket.decision?.category==='solicitation' && <SolicitationActions key={`solicitation-${ticket.id}`} ticket={ticket} mutate={mutate} busy={busy} readOnly={!!readOnly} settings={()=>setTab('settings')} demo={demo}/>}
                           {ticket.error && (
                             <div className="support-notice support-error">
                               <span>{ticket.error}</span>
@@ -1061,7 +1097,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                               </Button>
                             </div>
                           )}
-                          {ticket.decision && (
+                          {ticket.decision && ticket.decision.category !== 'solicitation' && (
                             <div className="support-decision">
                               <div>
                                 <ShieldCheck size={21} />
@@ -1154,10 +1190,10 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
                               <details
                                 className="support-review-disclosure"
                                 key={ticket.id}
-                                open={ticket.state !== 'routed'}
+                                open={!['routed','quiet'].includes(ticket.state)}
                               >
                                 <summary>
-                                  {ticket.state === 'routed'
+                                  {['routed','quiet'].includes(ticket.state)
                                     ? 'Modifier le classement'
                                     : 'Vérifier et valider'}
                                   <ChevronDown size={16} aria-hidden="true" />
@@ -1229,6 +1265,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
             <TabsContent value="insights">
               <InsightsPanel data={data} />
             </TabsContent>
+            <TabsContent value="settings"><SolicitationPreferences key={data.workspace.id} data={data} mutate={mutate} busy={busy}/></TabsContent>
             <TabsContent value="team">
               <TeamPanel data={data} mutate={mutate} busy={busy} />
             </TabsContent>

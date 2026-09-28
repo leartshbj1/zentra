@@ -1,4 +1,6 @@
 import { database } from '@/lib/runtime';
+import { quietSolicitation } from '@/lib/support/solicitation';
+import type { Decision, Workspace } from '@/lib/support/types';
 import { AccountPublicError } from '@/lib/account-security';
 import { reportServiceFailure } from '@/lib/service-diagnostics';
 import type { AutomationActor } from './access';
@@ -279,6 +281,9 @@ async function runActor(run: Run) {
       'Le message a changé. Vérifiez sa nouvelle version avant de continuer.',
       409,
     );
+  const supportWorkspace = await database().prepare('SELECT * FROM support_workspaces WHERE id=?').bind(row.workspace_id).first<Workspace>();
+  if (supportWorkspace && quietSolicitation(supportWorkspace,row.decision_json ? JSON.parse(row.decision_json) as Decision : null))
+    throw new AccountPublicError('Démarchage sans alerte : ce workflow est suspendu par les préférences Support.',409);
   return { actor, rule, context };
 }
 async function processRun(
@@ -614,6 +619,8 @@ export async function dispatchMailWorkflows(
   const org = state.actor.organizationId,
     { context, row } = await source(org, ticketId);
   if (row.workspace_id !== workspaceId) return;
+  const workspace = await database().prepare('SELECT * FROM support_workspaces WHERE id=?').bind(workspaceId).first<Workspace>();
+  if (workspace && quietSolicitation(workspace,row.decision_json ? JSON.parse(row.decision_json) as Decision : null)) return;
   const rules = await database()
     .prepare(
       'SELECT * FROM automation_workflows WHERE organization_id=? AND enabled=1 ORDER BY created_at,id LIMIT 50',

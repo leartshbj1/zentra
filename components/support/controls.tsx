@@ -50,7 +50,7 @@ export function Choice({
 export function Field({
   label,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+}: React.ComponentPropsWithRef<'input'> & { label: string }) {
   return (
     <label className="support-field">
       <span>{label}</span>

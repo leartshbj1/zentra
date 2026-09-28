@@ -126,6 +126,13 @@ async function add(mode = 'automatic') {
 async function centre() {
   return workflowCentre(owner);
 }
+it('ne crée aucune tâche ou notification pour un démarchage confirmé silencieux',async()=>{
+  await add();
+  db.prepare('UPDATE support_tickets SET decision_json=?').run(JSON.stringify({category:'solicitation',priority:'low',confidence:.99,signals:{humanRequested:0}}));
+  await dispatchMailWorkflows('support','ticket');
+  expect(db.prepare('SELECT count(*) n FROM automation_workflow_runs').get()?.n).toBe(0);
+  expect((await centre()).items).toHaveLength(0);expect(mocks.decide).not.toHaveBeenCalled();
+});
 it('creates exactly one task for repeated delivery and shows it to the same company team', async () => {
   await add();
   await Promise.all([

@@ -9,6 +9,7 @@ export const CATEGORIES = {
   administration: 'Administratif',
   human_resources: 'Ressources humaines',
   spam: 'Indésirables',
+  solicitation: 'Démarchage',
   quote: 'Devis et offres',
   credit_note: 'Avoirs',
   payment_reminder: 'Rappels de paiement',
@@ -89,6 +90,9 @@ export type SourceTicket = {
   incompleteReason?: string;
 };
 export type Workspace = {
+  solicitation_notifications?: number;
+  solicitation_settings_json?: string;
+  replies_enabled?: number;
   id: string;
   owner_id: string;
   name: string;

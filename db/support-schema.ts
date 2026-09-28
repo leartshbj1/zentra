@@ -11,6 +11,9 @@ export const supportWorkspaces = sqliteTable('support_workspaces', {
   ownerId: text('owner_id').notNull().unique(),
   name: text('name').notNull(),
   triageContext: text('triage_context').notNull().default(''),
+  solicitationNotifications: integer('solicitation_notifications').notNull().default(0),
+  solicitationSettingsJson: text('solicitation_settings_json').notNull().default('{}'),
+  repliesEnabled: integer('replies_enabled').notNull().default(0),
   mode: text('mode').notNull().default('review'),
   threshold: integer('threshold').notNull().default(85),
   baselineSeconds: integer('baseline_seconds').notNull().default(60),
@@ -179,6 +182,23 @@ export const supportEvents = sqliteTable(
     index('support_events_ticket_time').on(t.ticketId, t.createdAt),
   ],
 );
+
+// One explicit disposition/send per unchanged source. An uncertain send is never retried.
+export const supportSolicitationReplies = sqliteTable('support_solicitation_replies', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull().references(() => supportWorkspaces.id),
+  ticketId: text('ticket_id').notNull().references(() => supportTickets.id),
+  fingerprint: text('fingerprint').notNull(),
+  intent: text('intent').notNull(),
+  state: text('state').notNull(),
+  recipient: text('recipient').notNull().default(''),
+  subject: text('subject').notNull().default(''),
+  body: text('body').notNull().default(''),
+  payloadHash: text('payload_hash').notNull().default(''),
+  actor: text('actor').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, t => [uniqueIndex('support_solicitation_once').on(t.ticketId, t.fingerprint), index('support_solicitation_workspace').on(t.workspaceId, t.createdAt)]);
 export const supportSecrets = sqliteTable('support_platform_secrets', {
   id: text('id').primaryKey(),
   secret: text('secret').notNull(),

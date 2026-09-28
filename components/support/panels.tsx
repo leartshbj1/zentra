@@ -97,7 +97,7 @@ export function ReviewForm({
         <Choice
           label="Catégorie"
           value={category}
-          onChange={(v) => setCategory(v as Category)}
+          onChange={(v) => {setCategory(v as Category);if(v==='solicitation')setPriority('low');}}
           options={Object.entries(CATEGORIES).map(([value, label]) => ({
             value,
             label,
@@ -114,6 +114,7 @@ export function ReviewForm({
         />
         <Choice
           label="Équipe"
+          disabled={category === 'solicitation'}
           value={teamId}
           onChange={(v) => {
             setTeam(v);
@@ -129,6 +130,7 @@ export function ReviewForm({
         />
         <Choice
           label="Agent"
+          disabled={category === 'solicitation'}
           value={agentId}
           onChange={setAgent}
           options={[
@@ -143,10 +145,10 @@ export function ReviewForm({
       <Button
         className="support-primary"
         type="submit"
-        disabled={busy || readOnly || stale || !teamId || !connection}
+        disabled={busy || readOnly || stale || (!teamId && category !== 'solicitation') || !connection}
       >
         <Check size={17} />{' '}
-        {connection?.provider === 'api'
+        {category === 'solicitation' ? 'Classer comme démarchage' : connection?.provider === 'api'
           ? 'Valider pour mon connecteur'
           : connection?.provider === 'infomaniak'
             ? 'Classer dans Zentra Support'

@@ -2,6 +2,8 @@ import { SUPPORT_WORKSPACES_SQL } from './workspace-access';
 import {readSchedulerHealth} from '@/lib/scheduler-health';
 import { supportAutomationState, requireSupportAutomation, supportAutomationFetch } from '@/lib/automation/execution';
 import { selectSupportWorkspace } from './workspace-selection';
+import { confirmedSolicitation, solicitationSettings, workspaceSolicitationSettings } from './solicitation';
+import { solicitationAction } from './solicitation-service';
 import { getZentraUser, type ZentraUser } from '@/app/zentra-auth';
 import { database, runtimeValue } from '@/lib/runtime';
 import { reportServiceFailure, type ServiceDiagnosticContext } from '@/lib/service-diagnostics';
@@ -302,7 +304,7 @@ function publicConnection(c: Connection) {
     hookUrl: `${publicSiteUrl()}/api/support/hooks/${c.id}`,
   };
 }
-function publicTicket(t: Ticket) {
+function publicTicket(t: Ticket & { solicitation_json?: string | null }) {
   return {
     id: t.id,
     connectionId: t.connection_id,
@@ -323,6 +325,7 @@ function publicTicket(t: Ticket) {
     createdAt: t.created_at,
     updatedAt: t.updated_at,
     routedAt: t.routed_at,
+    solicitation: t.solicitation_json ? JSON.parse(t.solicitation_json) : null,
   };
 }
 
@@ -358,7 +361,7 @@ export async function getWorkspaceState(request: Request) {
     beforeId = text(params.get('beforeId'), 50);
   if (!Number.isSafeInteger(before) || before < 0)
     throw new SupportError('La pagination a expiré. Rechargez les tickets.');
-  const query = `SELECT * FROM support_tickets WHERE workspace_id=? AND (?='' OR subject LIKE ? ESCAPE '\\' OR external_id LIKE ? ESCAPE '\\') AND (?='' OR state=?) AND (?='' OR json_extract(decision_json,'$.category')=?) AND (?=0 OR updated_at<? OR (updated_at=? AND id<?)) ORDER BY updated_at DESC,id DESC LIMIT 61`;
+  const query = `SELECT t.*, (SELECT json_object('intent',r.intent,'state',CASE WHEN r.state='submitting' AND r.updated_at<unixepoch()-180 THEN 'uncertain' WHEN r.state='preparing' AND r.updated_at<unixepoch()-180 THEN 'rejected' ELSE r.state END) FROM support_solicitation_replies r WHERE r.workspace_id=t.workspace_id AND r.ticket_id=t.id AND r.fingerprint=t.fingerprint) AS solicitation_json FROM support_tickets t WHERE workspace_id=? AND (?='' OR subject LIKE ? ESCAPE '\\' OR external_id LIKE ? ESCAPE '\\') AND (?='' OR state=?) AND (?='' OR json_extract(decision_json,'$.category')=?) AND (?=0 OR updated_at<? OR (updated_at=? AND id<?)) ORDER BY updated_at DESC,id DESC LIMIT 61`;
   const tickets = await database()
     .prepare(query)
     .bind(
@@ -409,6 +412,9 @@ export async function getWorkspaceState(request: Request) {
       threshold: workspace.threshold,
       baselineSeconds: workspace.baseline_seconds,
       triageContext: workspace.triage_context || '',
+      solicitationNotifications: !!workspace.solicitation_notifications,
+      solicitationSettings: workspaceSolicitationSettings(workspace),
+      repliesEnabled: !!workspace.replies_enabled,
       role: workspace.role,
       canManage: manage,
       aiReady: !!(await aiKey()),
@@ -422,6 +428,8 @@ export async function getWorkspaceState(request: Request) {
     tickets: billing.active
       ? tickets.results.slice(0, 60).map(publicTicket)
       : [],
+    solicitationFeed: billing.active && workspace.solicitation_notifications
+      ? (await database().prepare("SELECT id FROM support_tickets WHERE workspace_id=? AND state='quiet' AND json_extract(decision_json,'$.category')='solicitation' ORDER BY created_at DESC,id DESC LIMIT 20").bind(workspace.id).all<{id:string}>()).results : [],
     hasMore: billing.active && tickets.results.length > 60,
     counts: billing.active
       ? counts
@@ -550,6 +558,7 @@ export async function mutateWorkspace(request: Request) {
     text(body.workspaceId, 50),
     [
       'settings',
+      'solicitationSettings',
       'connect',
       'connectMailbox',
       'linkGestion',
@@ -586,6 +595,14 @@ export async function mutateWorkspace(request: Request) {
   }
   if (['importTicket', 'retry', 'approve', 'invite'].includes(action))
     await requireSupportSubscription(workspace);
+  if (action === 'solicitationSettings') {
+    if (typeof body.notifications !== 'boolean' || typeof body.repliesEnabled !== 'boolean') throw new SupportError('Vérifiez les préférences Démarchage.');
+    const settings = solicitationSettings(body.settings);
+    await db.prepare('UPDATE support_workspaces SET solicitation_notifications=?,solicitation_settings_json=?,replies_enabled=?,updated_at=? WHERE id=?')
+      .bind(body.notifications ? 1 : 0,JSON.stringify(settings),body.repliesEnabled ? 1 : 0,now(),workspace.id).run();
+    await event(workspace.id,null,'settings','Préférences Démarchage mises à jour.',user.email);
+    return supportJson({saved:true});
+  }
   if (action === 'settings') {
     const name = text(body.name, 100),
       threshold = Number(body.threshold),
@@ -911,6 +928,15 @@ export async function mutateWorkspace(request: Request) {
       'Votre accès permet de consulter les tickets, pas de les modifier.',
       403,
     );
+  if (['previewSolicitationReply','sendSolicitationReply','ignoreSolicitation','restoreSolicitation'].includes(action)) {
+    await requireSupportSubscription(workspace);
+    await enforceAccountRateLimit(request,'support-reply',user.userId,60);
+    const ticket = await db.prepare('SELECT * FROM support_tickets WHERE workspace_id=? AND id=?').bind(workspace.id,text(body.ticketId,50)).first<Ticket>();
+    if (!ticket) throw new SupportError('Ce message n’est pas accessible.',404);
+    const connection = await connectionFor(workspace.id,ticket.connection_id);
+    return supportJson(await solicitationAction({action,raw:body,workspace,ticket,connection,actor:user.email,secret:()=>secretFor(connection),
+      reauthorize:async()=>{const current=await access(await signedIn(),workspace.id); if(current.role==='read_only') throw new SupportError('Votre accès ne permet plus de répondre.',403); await requireSupportSubscription(current); return current;}}));
+  }
   if (action === 'importTicket') {
     const c = await connectionFor(workspace.id, text(body.connectionId, 50));
     if (c.provider === 'api' || c.provider === 'infomaniak')
@@ -957,7 +983,7 @@ export async function mutateWorkspace(request: Request) {
         !Object.hasOwn(PRIORITIES, priority)
       )
         throw new SupportError('Choisissez une catégorie et une priorité.');
-      const dest = destination(
+      const dest = category === 'solicitation' ? null : destination(
         body.destination,
         JSON.parse(c.directory_json) as Directory,
         c.provider,
@@ -1153,6 +1179,8 @@ export async function processTicket(
       ));
     await finishAnalysis(reservation, true);
     reservation = null;
+    const localSolicitation = manual?.category === 'solicitation' || (!manual && currentWorkspace.mode === 'automatic' &&
+      confirmedSolicitation(decision,currentWorkspace.threshold) && !source.incomplete && !source.closed && !source.agentId);
     let auto =
       !manual &&
       currentWorkspace.mode === 'automatic' &&
@@ -1160,6 +1188,12 @@ export async function processTicket(
       !source.closed &&
       !source.agentId &&
       !source.incomplete;
+    if (localSolicitation) {
+      auto = !manual;
+      decision = {...decision,priority:'low',destination:null,reason:currentWorkspace.solicitation_notifications
+        ? 'Démarchage classé en priorité basse. Les alertes Zentra sont activées pour votre équipe.'
+        : 'Démarchage classé en priorité basse, sans notification Zentra.'};
+    }
     if (!manual && source.incomplete)
       decision = {
         ...decision,
@@ -1199,7 +1233,7 @@ export async function processTicket(
       )
       .bind(JSON.stringify(decision), now(), id, workspace.id, lease)
       .run();
-    let state = 'review';
+    let state = localSolicitation ? 'quiet' : 'review';
     if (shouldRoute && decision.destination) {
       if (active.provider === 'api') state = 'ready';
       else if (active.provider === 'infomaniak') state = 'routed';

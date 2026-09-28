@@ -1,7 +1,9 @@
 import type { Decision, Directory, Provider, Rules } from '@/lib/support/types';
 import type { SupportBillingState } from '@/lib/support/plans';
 import type {SchedulerHealth} from '@/lib/scheduler-health';
+import type { SolicitationSettings } from '@/lib/support/solicitation';
 export type SupportTicket = {
+  solicitation?: {intent:string;state:string} | null;
   id: string;
   connectionId: string;
   externalId: string;
@@ -28,6 +30,7 @@ export type SupportConnection = {
   hookUrl: string;
 };
 export type SupportState = {
+  solicitationFeed?: {id:string}[];
   automation?: {active:boolean;enabled:boolean};
   gestion?: { linked:boolean;organizationId:string|null;organizationName?:string|null;role?:string|null;autoPost:boolean;choices:{id:string;name:string}[] };
   mailSync?: Partial<SchedulerHealth> & {background: boolean};
@@ -43,6 +46,9 @@ export type SupportState = {
     threshold: number;
     baselineSeconds: number;
     triageContext: string;
+    solicitationNotifications?: boolean;
+    solicitationSettings?: SolicitationSettings;
+    repliesEnabled?: boolean;
     role: string;
     canManage: boolean;
     aiReady: boolean;
@@ -93,6 +99,7 @@ export const STATES: Record<string, string> = {
   ready: 'À appliquer par votre outil',
   routed: 'Affecté',
   error: 'À reprendre',
+  quiet: 'Classé sans affectation',
 };
 export const emptyState: SupportState = {
   user: { name: '', email: '' },
@@ -126,6 +133,11 @@ export function demoState(): SupportState {
       agents: [],
     };
   const drafts = [
+    {
+      id: '1052', subject: 'Une idée pour la visibilité de votre atelier',
+      body: 'Bonjour,\n\nJe vous contacte pour vous proposer les services de notre agence de communication. Nous accompagnons les entreprises locales dans leur visibilité en ligne. Auriez-vous 15 minutes pour découvrir notre offre ?\n\nAlex · Agence Horizon\nExemple fictif',
+      category: 'solicitation', priority: 'low', team: '', confidence: .98,
+    },
     {
       id: '1048',
       subject: 'Double prélèvement sur ma commande',
@@ -174,6 +186,9 @@ export function demoState(): SupportState {
       threshold: 85,
       baselineSeconds: 60,
       triageContext: '',
+      solicitationNotifications: false,
+      solicitationSettings: {language:'auto',signature:'L’équipe Atelier',templates:{}},
+      repliesEnabled: true,
       role: 'owner',
       canManage: true,
       aiReady: true,
@@ -204,7 +219,7 @@ export function demoState(): SupportState {
       subject: d.subject,
       body: d.body,
       revision: 1,
-      state: d.confidence < 0.85 ? 'review' : 'routed',
+      state: d.category === 'solicitation' ? 'quiet' : d.confidence < 0.85 ? 'review' : 'routed',
       decision: {
         category: d.category,
         priority: d.priority,
@@ -228,7 +243,7 @@ export function demoState(): SupportState {
       routedAt: d.confidence >= 0.85 ? time - i * 200 : null,
     })),
     counts: {
-      total: 4,
+      total: 5,
       review: 1,
       errors: 0,
       ready: 0,

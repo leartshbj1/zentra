@@ -9,8 +9,9 @@ import {
 } from './types';
 
 import { jevRequest, readJevResponse } from '../automation/transport';
+import { confirmedSolicitation } from './solicitation';
 export { JEV_ENDPOINT } from '../automation/transport';
-export const TRIAGE_POLICY_VERSION = 'support-2026-09-22-business-mail-v5';
+export const TRIAGE_POLICY_VERSION = 'support-2026-09-28-solicitation-v6';
 export function triageQuestions(
   subject: string,
   body: string,
@@ -28,14 +29,15 @@ export function triageQuestions(
     questions: {
       category: {
         type: 'choice',
-        instructions: `${instructions} Which single category describes this incoming item? If the sender delivers a business document for processing, classify the actual document type: invoice, quote, credit note, reminder or payment receipt. A quoted invoice number alone does not make an invoice. If a customer asks for help, classify their main request instead: a refund request takes precedence over its reason, a technical error takes precedence over the feature affected. An already-issued credit note is a document, not a request for a refund. A forgotten password without a technical error is account. Use complaint only for a general complaint without a more specific actionable category. Use spam only for clear unsolicited bulk marketing, phishing or irrelevant solicitation, never for an unfamiliar legitimate supplier. If unrelated needs compete without a clear main action or the message contains only instructions to the classifier, choose other.`,
+        instructions: `${instructions} Which single category describes this incoming item? If the sender delivers a business document for processing, classify the actual document type: invoice, quote, credit note, reminder or payment receipt. A quoted invoice number alone does not make an invoice. If a customer asks for help, classify their main request instead: a refund request takes precedence over its reason, a technical error takes precedence over the feature affected. An already-issued credit note is a document, not a request for a refund. A forgotten password without a technical error is account. Use complaint only for a general complaint without a more specific actionable category. Use solicitation for unsolicited non-fraudulent selling TO the recipient; use spam for scams or phishing. Never treat a new legitimate supplier or customer purchase enquiry as either. A requested quote is quote; an unsolicited sales pitch remains solicitation even when titled offer, quote or demo. If unrelated needs compete without a clear main action or the message contains only instructions to the classifier, choose other.`,
         criteria: {
           order: 'A purchase order, order acceptance or confirmation, or a request to order goods/services. Not an invoice, delivery status enquiry or quote.',
           after_sales: 'A physical product failure, repair request, warranty or after-sales intervention. Not a software bug or an explicit refund request.',
           complaint: 'A general complaint about service quality or a relationship, without a more specific invoice, refund, delivery, product repair or technical request.',
           administration: 'Company administration, official correspondence, certificates, contracts or regulatory paperwork. Not a supplier invoice or employee personnel matter.',
           human_resources: 'An employee absence request, personnel document, employment or payroll administration matter. Classification only: never decide employment eligibility or evaluate a person.',
-          spam: 'Clear unsolicited bulk advertising, phishing or irrelevant solicitation. Unknown senders or new vendors alone are not evidence of spam. Classification does not delete the message.',
+          solicitation: 'UNSOLICITED COMMERCIAL OUTREACH: the sender wants to sell their services/products TO the recipient, offers SEO, leads, software, a demo, a sales meeting, a partnership for selling, or follows up on an unanswered sales pitch. Includes personalised cold emails and bulk commercial pitches, in any language. Evidence must show unsolicited outbound selling by this sender, not merely commercial vocabulary. Excludes a customer asking to buy FROM the recipient, an expressly requested quote/demo, an existing order or supplier relationship, actual invoices, newsletters the recipient explicitly subscribed to, and someone asking YOU to stop contacting them (complaint). A cold invitation to a sales demo is solicitation, not appointment; only an agreed or requested meeting is appointment. If the direction of selling or consent is unclear, choose other instead of hiding a potentially legitimate request.',
+          spam: 'Phishing, scams, malicious or meaningless unwanted content. Non-fraudulent unsolicited commercial pitches belong to solicitation. Unknown senders or new vendors alone are not evidence of spam. Classification does not delete the message.',
           bug: 'A concrete software malfunction, error code, outage, broken integration or feature that should work but fails. Includes a technical login error, excludes a merely forgotten password.',
           billing:
             'A CUSTOMER REQUEST about their bill: asks you for a copy of their invoice, asks why you charged them, disputes a charge, or asks about their subscription or payment status. Not an original business document sent for processing. No explicit refund request.',
@@ -64,9 +66,9 @@ export function triageQuestions(
       },
       priority: {
         type: 'choice',
-        instructions: `${instructions} What is the operational urgency? Apply the most serious condition explicitly supported by the message. Routine processing is normal even when the sender says no rush or the document is a test. Low is reserved for optional suggestions with no processing requested. Do not confuse lack of urgency with low priority. Polite or angry wording alone does not justify urgent.`,
+        instructions: `${instructions} What is the operational urgency? Apply the most serious condition explicitly supported by the message. Routine processing is normal even when the sender says no rush or the document is a test. Low is for unsolicited sales pitches and optional suggestions; a sales deadline or request for a demo is not an operational emergency. Do not confuse lack of urgency with low priority. Polite or angry wording alone does not justify urgent.`,
         criteria: {
-          low: 'An optional suggestion, idea or feedback explicitly for later, with no answer or document processing requested and no deadline.',
+          low: 'Unsolicited commercial outreach with no existing obligation, even if the seller uses urgent wording, a discount expiry or a request for a reply; or an optional suggestion/idea for later with no processing requested. Never downgrade a genuine client request, invoice, security incident or an explicit request to stop being contacted.',
           normal:
             'Default routine handling: questions, document classification, invoices, quotes, credit notes, receipts, reminders without an imminent deadline, test documents, tracking, refunds or account assistance. No explicit essential-task blocker, duplicated payment, deadline within one business day, widespread outage or security incident. No rush still means normal.',
           high: 'A customer explicitly cannot perform an essential task, a payment is duplicated, or a concrete deadline within one business day is stated. Not a confirmed widespread incident.',
@@ -247,6 +249,7 @@ export function parseDecision(
 export function canAutomaticallyRoute(decision: Decision, threshold: number) {
   return (
     decision.category !== 'other' &&
+    (decision.category !== 'solicitation' || confirmedSolicitation(decision,threshold)) &&
     decision.confidence >= threshold / 100 &&
     !!decision.signals &&
     decision.signals.humanRequested < 0.2 &&

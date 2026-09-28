@@ -643,6 +643,47 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     sql.close();
     vi.unstubAllGlobals();
   });
+  it('classe le démarchage fiable localement, sans notification ni affectation externe', async () => {
+    await post({action:'settings',name:'Support',mode:'automatic',threshold:85,baselineSeconds:60});
+    const decision=answer('solicitation'); decision.answers.priority=choice(Object.keys(PRIORITIES),'low');
+    vi.mocked(fetch).mockResolvedValue(Response.json(decision));
+    const result=await json(await hook({ticketId:'cold-sales',subject:'Notre logiciel',body:'Nous vendons un logiciel. Accepteriez-vous une démo de notre offre ?'}));
+    expect(result.ticket).toMatchObject({state:'quiet',automatic:true,decision:{category:'solicitation',priority:'low',destination:null}});
+    const initial=await json(await getWorkspaceState(new Request('https://zentraapp.ch/api/support?category=solicitation')));
+    expect(initial.workspace.solicitationNotifications).toBe(false);expect(initial.solicitationFeed).toEqual([]);expect(initial.counts.review).toBe(0);expect(initial.tickets).toHaveLength(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await post({action:'solicitationSettings',notifications:true,repliesEnabled:false,settings:{signature:'Atelier'}});
+    const enabled=await json(await getWorkspaceState(new Request('https://zentraapp.ch/api/support')));
+    expect(enabled.solicitationFeed).toEqual([{id:result.ticket.id}]);
+    await post({action:'ignoreSolicitation',ticketId:result.ticket.id,revision:result.ticket.revision});
+    const ignored=await json(await getWorkspaceState(new Request('https://zentraapp.ch/api/support')));
+    expect(ignored.tickets[0].solicitation).toEqual({intent:'ignore',state:'ignored'});
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('garde un démarchage incertain dans la vérification humaine', async()=>{
+    await post({action:'settings',name:'Support',mode:'automatic',threshold:85,baselineSeconds:60});
+    const decision=answer('solicitation',.86);decision.answers.priority=choice(Object.keys(PRIORITIES),'low');
+    vi.mocked(fetch).mockResolvedValue(Response.json(decision));
+    const result=await json(await hook({ticketId:'uncertain-sales',subject:'Offre',body:'Suite à notre discussion, voici une proposition.'}));
+    expect(result.ticket.state).toBe('review');
+  });
+  it('permet de confirmer manuellement un démarchage sans équipe ni modification du connecteur',async()=>{
+    const result=await json(await hook({ticketId:'manual-sales',subject:'Offre',body:'Notre nouvelle solution'}));
+    vi.mocked(fetch).mockClear();
+    await post({action:'approve',ticketId:result.ticket.id,revision:result.ticket.revision,category:'solicitation',priority:'low'});
+    expect(sql.prepare('SELECT state FROM support_tickets WHERE id=?').get(result.ticket.id)?.state).toBe('quiet');expect(fetch).not.toHaveBeenCalled();
+  });
+  it('réserve les préférences aux administrateurs et les réponses aux membres autorisés',async()=>{
+    const result=await json(await hook({ticketId:'access-sales',subject:'Offre',body:'Notre nouvelle solution'}));
+    await post({action:'approve',ticketId:result.ticket.id,revision:result.ticket.revision,category:'solicitation',priority:'low'});
+    const saved=sql.prepare('SELECT revision FROM support_tickets WHERE id=?').get(result.ticket.id)!;
+    sql.prepare("INSERT INTO support_members(id,workspace_id,email,role,created_at) VALUES('reader',?,'reader@example.test','read_only',1)").run(workspace);
+    state.user={...state.user,userId:'reader',email:'reader@example.test'};
+    await expect(post({action:'solicitationSettings',notifications:true,repliesEnabled:true,settings:{}})).rejects.toMatchObject({status:403});
+    await expect(post({action:'ignoreSolicitation',ticketId:result.ticket.id,revision:saved.revision})).rejects.toMatchObject({status:403});
+    state.user={...state.user,userId:'outsider',email:'outsider@example.test'};
+    await expect(post({action:'previewSolicitationReply',ticketId:result.ticket.id,revision:saved.revision,intent:'stop'})).rejects.toMatchObject({status:404});
+  });
   it('reçoit les tickets sans Automation et permet leur classement manuel sans appel Jev', async () => {
     sql.exec("UPDATE automation_subscriptions SET status='canceled'");
     vi.mocked(fetch).mockClear();

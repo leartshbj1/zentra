@@ -1959,6 +1959,76 @@
 .support-app .support-folder-toggle {
   display: none;
 }
+
+/* Démarchage: a quiet part of the existing reading surface, not a second inbox. */
+.support-solicitation-banner,
+.support-solicitation-alert {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-block: 1px solid var(--s-line);
+  padding: 10px 0;
+  margin-bottom: 20px;
+  color: var(--s-muted);
+}
+@media (max-width: 360px) {
+  .support-app .support-topbar > a:first-child { flex-shrink: 0; }
+  .support-app .support-topbar .support-wordmark { display: none; }
+}
+.support-solicitation-banner { justify-content: space-between; }
+.support-solicitation-banner > span,
+.support-disposition { display: flex; align-items: center; gap: 8px; }
+.support-solicitation-banner svg,
+.support-solicitation-alert svg,
+.support-disposition svg { flex-shrink: 0; }
+.support-solicitation-actions { border-top: 1px solid var(--s-line); margin-top: 28px; padding-top: 24px; }
+.support-solicitation-caption { display: flex; gap: 12px; align-items: flex-start; }
+.support-solicitation-caption > svg { margin-top: 4px; flex-shrink: 0; color: var(--s-accent); }
+.support-solicitation-caption h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 4px; }
+.support-solicitation-caption p { color: var(--s-muted); margin: 0; }
+.support-solicitation-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 12px; }
+.support-solicitation-buttons button { min-height: 44px; flex: 1 1 100px; }
+.support-app .support-stop-button { color: var(--s-ink); }
+.support-disposition { color: var(--s-accent); font-weight: 550; padding-block: 12px; }
+.support-reply-editor { margin-top: 24px; min-width: 0; }
+.support-reply-title { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.support-reply-title h4 { margin: 0; font-size: 1rem; font-weight: 600; }
+.support-reply-addresses { margin: 12px 0 20px; font-size: .875rem; }
+.support-reply-addresses > div { display: grid; grid-template-columns: 55px minmax(0,1fr); gap: 12px; margin-block: 6px; }
+.support-reply-addresses dt { color: var(--s-muted); }
+.support-reply-addresses dd { margin: 0; overflow-wrap: anywhere; }
+.support-reply-editor .support-field { margin-bottom: 16px; }
+.support-reply-editor textarea,
+.support-solicitation-settings textarea { width: 100%; resize: vertical; min-height: 160px; font: inherit; line-height: 1.6; padding: 14px; color: var(--s-ink); background: white; border: 1px solid var(--s-line); border-radius: 9px; caret-color: var(--s-accent); }
+.support-reply-footer { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; margin-top: 20px; }
+.support-reply-footer button { min-height: 44px; height: auto; white-space: normal; }
+.support-solicitation-settings { max-width: 780px; }
+.support-solicitation-settings fieldset { border: 0; min-width: 0; padding: 0; }
+.support-solicitation-settings .support-section-heading { margin-bottom: 32px; }
+.support-solicitation-settings h1 { font-size: 1.75rem; line-height: 1.2; letter-spacing: -.025em; }
+.support-preference-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid var(--s-line); padding-block: 24px 8px; cursor: pointer; }
+.support-preference-row > span { min-width: 0; }
+.support-preference-row strong { display: block; font-weight: 550; }
+.support-preference-row small { display: block; color: var(--s-muted); margin-top: 5px; font-size: .875rem; }
+.support-preference-row input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--s-accent); margin: 11px; }
+.support-preference-row + .support-small { margin-bottom: 28px; max-width: 68ch; }
+.support-reply-personalization { border-top: 1px solid var(--s-line); padding-top: 28px; margin-block: 24px 32px; }
+.support-reply-personalization h2 { margin-bottom: 24px; font-size: 1.25rem; font-weight: 550; }
+.support-reply-personalization details[open] summary { margin-bottom: 24px; }
+.support-solicitation-settings code { overflow-wrap: anywhere; }
+.support-reply-editor .support-small button { color: var(--s-accent); text-decoration: underline; text-underline-offset: 3px; min-height: 44px; }
+.support-reply-editor ::selection { color: var(--s-ink); background: var(--s-soft); }
+@media (max-width: 600px) {
+  .support-solicitation-settings h1 { font-size: 1.5rem; }
+  .support-solicitation-settings .support-section-heading > svg { display: none; }
+  .support-solicitation-settings textarea,
+  .support-reply-editor textarea,
+  .support-reply-editor input { font-size: 16px; }
+  .support-reply-footer button { width: 100%; }
+  .support-solicitation-settings .support-primary { width: 100%; height: auto; min-height: 44px; white-space: normal; }
+  .support-preference-row { gap: 12px; }
+}
 .support-inbox-actions {display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
 .support-app .support-filter-toggle,.support-app .support-filters-done,.support-import-short {display:none;}
 .support-app .support-review-disclosure {

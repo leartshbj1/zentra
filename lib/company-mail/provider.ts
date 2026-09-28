@@ -14,8 +14,8 @@ export type PreparedMail = {
   recipient: string;
   subject: string;
   body: string;
-  filename: string;
-  pdf: Uint8Array;
+  filename?: string;
+  pdf?: Uint8Array;
   logo?: MailLogo;
 };
 export type ProviderDraft = { uuid: string; payload: Record<string, unknown> };
@@ -81,7 +81,7 @@ const escapeHtml = (value: string) =>
   );
 
 /** Only fixed HTTPS endpoints. No redirect, provider error text, secret logging,
- * automatic send retry or reuse of Support's read-only connection. API contract:
+ * automatic send retry. Callers enforce sender ownership and explicit reply authorization. API contract:
  * https://github.com/Infomaniak/mcp-server-mail/blob/main/src/mail-client.ts */
 export class InfomaniakSender {
   private token: string;
@@ -257,6 +257,8 @@ export class InfomaniakSender {
     input: PreparedMail,
   ): Promise<ProviderDraft> {
     const base = `/mail/${identifier(identity.mailboxId)}/draft`;
+    const attachments: string[] = [];
+    if (input.pdf && input.filename) {
     const attachment = await this.request(base + '/attachment', {
       method: 'POST',
       body: input.pdf as BodyInit,
@@ -268,7 +270,8 @@ export class InfomaniakSender {
         'x-ws-attachment-mime-type': 'application/pdf',
       },
     });
-    const attachments = [identifier(object(attachment.data).uuid)];
+    attachments.push(identifier(object(attachment.data).uuid));
+    }
     let signature = '';
     if (input.logo) {
       // Official iOS API contract: disposition=inline returns content_id.
