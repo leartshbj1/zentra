@@ -15,6 +15,7 @@ export const dynamic = 'force-dynamic';
 const json = (data: unknown) =>
   Response.json(data, { headers: accountNoStoreHeaders() });
 export async function GET(request: Request) {
+  const startedAt = Date.now();
   try {
     const url = new URL(request.url),
       actor = await automationActor(
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
     return accountJsonError(error, {
       request,
       operation: 'company-mail.read',
-      startedAt: Date.now(),
+      startedAt,
     });
   }
 }
