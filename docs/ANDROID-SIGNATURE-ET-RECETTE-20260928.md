@@ -1,6 +1,6 @@
 # Android optimisé — signature et recette
 
-28 septembre 2026, 02 h 05. Travail sur des candidats de validation, **sans remplacement de la release publique 1.90.6**.
+28 septembre 2026, complété à 03 h 26. Travail sur des candidats de validation, **sans remplacement de la release publique 1.90.6**. Le résultat final 165/166 figure en fin de document ; les étapes précédentes conservent leur statut historique.
 
 ## Signature locale vérifiée
 
@@ -83,6 +83,20 @@ L’interface de bienvenue est obtenue après 71 110 ms d’observation, incluan
 **Le passage fonctionnel ne suffisait pas à valider le thème.** Les captures 164 montrent du blanc dans les marges natives, avec icônes claires en mode sombre. La correction `5b88d22fbf360d91fc6ea31fb9430bcb550ff8d5` colore le conteneur natif d’après le `theme-color` clair/sombre utilisé par l’app ; compilation 165 lancée à 02 h 58. Le nouvel examen des pixels rejette réellement la capture sombre 164 et accepte sa capture claire. Il vérifie aussi les indicateurs natifs de contraste des icônes, pas uniquement la sélection du menu. Sa confirmation sur le nouveau binaire reste à faire.
 
 Preuves : `outputs/android-release-candidate-20260927/job163/signed/` et `job164/`, notamment `proof.json`, `webview-provider.txt`, les captures de saisie et les deux thèmes. Le journal natif ne contient pas de plantage de Zentra identifié par les recherches FATAL/ANR/panic ; cela n’est pas une preuve d’absence de tout défaut.
+
+## Confirmation finale du clavier et des thèmes — 03 h 26
+
+**Compilation 165 réussie à 03 h 15 ; recette 166 réussie à 03 h 23.** Source applicative `5b88d22fbf360d91fc6ea31fb9430bcb550ff8d5`, source de recette `543208125914ed61b8028c6a894a6f48ff2e40d5`. Paquet non signé : 39 763 883 octets, SHA-256 `456da5264629bedc2bfb07c7eea1d3eabe2e3a478197c8dce785fc902b81de9f`.
+
+Le candidat signé localement fait 39 846 622 octets, SHA-256 `d7cddcfc4d8ef010d34364d5d2dc3f7ff6b3a48292a44988c2c5f64e52286a2d`. Certificat persistant inchangé, 964 entrées applicatives identiques, manifeste non débogable et alignement 16 Ko vérifiés. La recette distante utilise toujours sa propre identité jetable : elle valide le contenu applicatif, sans revendiquer une installation de cette signature persistante sur appareil physique.
+
+Sur l’émulateur 320 × 640 / densité 160, les médianes des pixels des marges système sont 20/22 en sombre, 245/245 en clair. Les indicateurs Android des icônes suivent les deux thèmes. Les captures `02-account-Sombre.png` et `02-account-Clair.png` sont relues : les marges blanches et icônes invisibles de 164 ont disparu. Le logo reste séparé des préférences.
+
+Le champ de saisie reste à `[24,176][296,229]`, dans un WebView `[0,24][320,381]`, au-dessus du clavier commençant à 381. Le marqueur `Zentra-Test` reste complet ; les dimensions se restaurent après fermeture du clavier. Les captures de saisie, de clavier fermé et de redémarrage sont également relues. Retour au compte et redémarrage réussis ; SQLite schéma 60, intégrité correcte, aucune erreur de clé étrangère, identité protégée inchangée. Aucun compte connecté ni entreprise créée.
+
+Les 75 405 ms avant inspection exploitable de la bienvenue incluent l’émulation et les attentes d’UIAutomator ; les durées Android d’affichage d’activité (4 144 puis 4 683 ms) ne prouvent pas non plus que l’écran est immédiatement utilisable. La durée de l’introduction reste isolée par la contre-épreuve navigateur, sans extrapolation au matériel physique.
+
+Preuves finales : `outputs/android-release-candidate-20260927/job165/signed/` et `job166/`, avec `proof.json`, captures natives, arbres d’accessibilité, fenêtres Android, journaux et manifeste de téléchargement. Aucun nouveau paquet public n’a été publié pendant cette recette.
 
 ## Limites de livraison
 
