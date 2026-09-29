@@ -31,7 +31,9 @@ jobs:
   android-package-smoke-1909:
     machine:
       image: android:default
-    resource_class: medium
+    # Recipe 182 recorded fixture CPU saturation and a GMS ANR. Keep the exact
+    # APK, native gesture and screen deadlines; give only this recipe more CPU.
+    resource_class: large
     environment:
       ZENTRA_ANDROID_SMOKE_JOB: "180"
       ZENTRA_ANDROID_SMOKE_SOURCE: "01ad1279b934113006398504163f309948d92e07"

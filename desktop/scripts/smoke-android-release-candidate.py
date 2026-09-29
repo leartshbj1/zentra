@@ -13,6 +13,7 @@ import re
 import sqlite3
 import statistics
 import subprocess
+import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
@@ -26,6 +27,7 @@ SHA = os.environ.get('ZENTRA_ANDROID_SMOKE_SHA256', '5d0b410c900881d60354293976d
 PACKAGE = 'ch.zentra.mobile'
 VERSION = json.loads((HERE.parents[1] / 'desktop/package.json').read_text(encoding='utf-8'))['version']
 PROFILE = '/data/user/0/' + PACKAGE
+INPUT_OBSERVATIONS = {}
 
 
 def module(name, filename):
@@ -43,9 +45,9 @@ def adb(*args, **kwargs):
     return run('adb', '-s', 'emulator-5554', *args, **kwargs)
 
 
-def capture_screen(label):
+def capture_screen(label, timeout=30):
     # Do not strip PNG bytes: trailing whitespace can be part of the checksum.
-    png = subprocess.check_output(['adb', '-s', 'emulator-5554', 'exec-out', 'screencap', '-p'], timeout=30)
+    png = subprocess.check_output(['adb', '-s', 'emulator-5554', 'exec-out', 'screencap', '-p'], timeout=timeout)
     (OUT / (label + '.png')).write_bytes(png)
 
 
@@ -73,7 +75,70 @@ def bounds(node):
     return None
 
 
-def tap(root, labels):
+def diagnostic_write(path, value):
+    try:
+        path.write_text(value, encoding='utf-8')
+        return True
+    except OSError as error:
+        try:
+            print(f'Diagnostic write failed: {path.name}: {type(error).__name__}', file=sys.stderr)
+        except OSError:
+            pass
+        return False
+
+
+def input_diagnostics(label):
+    """Bounded observations of this disposable fixture, never recovery actions."""
+    observations = {}
+    commands = {
+        'pressure': ('shell', 'cat', '/proc/pressure/cpu', '/proc/pressure/memory', '/proc/loadavg'),
+        'processes': ('shell', 'top', '-b', '-n', '1', '-m', '12'),
+        'windows': ('shell', 'dumpsys', 'window', 'windows'),
+    }
+    for name, command in commands.items():
+        try:
+            saved = diagnostic_write(OUT / f'{label}-{name}.txt', adb(*command, timeout=8))
+            observations[name] = 'captured' if saved else 'write_failed'
+        except (OSError, subprocess.SubprocessError) as error:
+            observations[name] = type(error).__name__
+    return observations
+
+
+def diagnosed_tap(x, y, label, target):
+    # One native tap only. Command completion is not evidence of a UI click;
+    # the unchanged destination-screen assertion remains authoritative.
+    # Record in memory only. Additional ADB calls or file writes here would give
+    # the UI extra settling time before its unchanged destination assertion.
+    record = {'target': target, 'x': x, 'y': y, 'nativeTapAttempts': 1,
+              'beforeScreenshot': '01-welcome.png', 'destinationScreenshot': '02-account.png'}
+    INPUT_OBSERVATIONS[label] = record
+    started = time.monotonic_ns()
+    try:
+        adb('shell', 'input', 'tap', str(x), str(y))
+        record['commandCompleted'] = True
+    except (OSError, subprocess.SubprocessError) as error:
+        record['commandCompleted'] = False
+        record['commandError'] = type(error).__name__
+        raise
+    finally:
+        record['commandDurationMs'] = (time.monotonic_ns() - started) / 1_000_000
+
+
+def collect_input_observations():
+    # Only after the complete recipe passed or failed. These observations must
+    # not delay a gesture or extend any screen deadline. Existing screenshots
+    # come from the original UI wait; fixture state below is explicitly later.
+    for label, record in INPUT_OBSERVATIONS.items():
+        try:
+            capture_screen(label + '-after-recipe', timeout=10)
+            record['afterRecipeScreenshot'] = 'captured'
+        except (OSError, subprocess.SubprocessError) as error:
+            record['afterRecipeScreenshot'] = type(error).__name__
+        record['afterRecipeState'] = input_diagnostics(label + '-after-recipe')
+        diagnostic_write(OUT / (label + '-input.json'), json.dumps(record, indent=2) + '\n')
+
+
+def tap(root, labels, diagnostic_label=None):
     matches = [n for n in root.iter('node') if (n.get('text') or n.get('content-desc')) in labels]
     # Android exposes both a control and its label. Prefer the actual control;
     # never tap [0,0][0,0] from an off-screen accessibility node.
@@ -81,7 +146,11 @@ def tap(root, labels):
         box = bounds(node)
         if box and box[3]-box[1] >= 24 and node.get('enabled') == 'true':
             x1, y1, x2, y2 = box
-            adb('shell', 'input', 'tap', str((x1+x2)//2), str((y1+y2)//2))
+            x, y = (x1+x2)//2, (y1+y2)//2
+            if diagnostic_label:
+                diagnosed_tap(x, y, diagnostic_label, dict(node.attrib))
+            else:
+                adb('shell', 'input', 'tap', str(x), str(y))
             return True
     return False
 
@@ -310,7 +379,7 @@ def main():
         welcome = wait_ui('01-welcome', lambda labels: bool(starts.intersection(labels)), seconds=150)
         proof['accessibleWelcomeObservedMs'] = round((time.monotonic()-started)*1000)
         print(f'Usable welcome interface observed after {proof["accessibleWelcomeObservedMs"]} ms, including accessibility inspection', flush=True)
-        if not tap(welcome, starts):
+        if not tap(welcome, starts, diagnostic_label='01-welcome-start'):
             raise RuntimeError('Welcome start control is not usable')
         account_markers = {'Tout commence avec vous.', 'It all starts with you.', 'Alles beginnt mit Ihnen.', 'Tutto inizia da te.'}
         account = wait_ui('02-account', lambda labels: bool(account_markers.intersection(labels)))
@@ -387,11 +456,18 @@ def main():
         print(json.dumps(proof), flush=True)
 
 
+def collect_final_logs():
+    # Keep crash evidence on failure too; do not overwrite the original error.
+    for name, args in (('runtime', ('logcat', '-d')), ('crash', ('logcat', '-b', 'crash', '-d'))):
+        try:
+            diagnostic_write(OUT / (name + '.log'), adb(*args, timeout=15))
+        except (OSError, subprocess.SubprocessError) as error:
+            diagnostic_write(OUT / (name + '-collection-error.txt'), type(error).__name__)
+
+
 if __name__ == '__main__':
     try:
         main()
     finally:
-        try:
-            (OUT / 'runtime.log').write_text(adb('logcat', '-d'), encoding='utf-8')
-        except subprocess.SubprocessError:
-            pass
+        collect_final_logs()
+        collect_input_observations()

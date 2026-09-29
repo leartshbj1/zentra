@@ -48,6 +48,14 @@ Windows **181 est confirmé encore en cours à 01:58:29 UTC**. Aucun relancement
 
 ## Avant publication
 
+### Diagnostic complémentaire Android 182
+
+L'inspection du journal trouve une pression CPU de 91,59 %, une CPU totale à 100 % et une ANR Google Play Services. Le bouton accessible et les coordonnées du geste sont corrects. L'hypothèse d'un geste perturbé par la fixture saturée reste une hypothèse : aucun événement DOWN/UP n'a été enregistré et l'absence de régression applicative n'est pas prouvée. L'échec 182 demeure conservé.
+
+La recette suivante conserve l'APK 180, sa source et son empreinte, le tap ADB unique, le parcours et tous les délais/assertions. Seul le job Android 1909 passe de `medium` à `large`. Le tap enregistre uniquement sa cible et sa durée en mémoire : aucun autre appel ADB ni écriture n'est ajouté avant le constat d'écran. Les captures déjà produites par l'attente restent les références. L'état de la fixture et les buffers runtime/crash sont collectés après la fin de la recette, même en cas d'échec, et leurs erreurs ne masquent pas l'erreur initiale. Ces observations tardives ne mesurent pas la pression exacte au moment du geste.
+
+Six contre-épreuves hors ligne passent, dont le geste unique sans attente diagnostique, le défaut de commande sans nouvelle tentative, le contrôle inaccessible et l'écriture de diagnostic refusée sans masquage de l'échec initial. YAML valide ; isolation de la ressource 1909 vérifiée. Une revue indépendante a demandé de supprimer les collectes synchrones autour du geste ; le diff final résout les deux points relevés. Ceci valide le dispositif, pas l'application Android : une nouvelle exécution complète reste requise.
+
 Récupérer et vérifier les nouveaux paquets exacts et leurs sources ; tester l'installation/relancement Windows, l'archive Mac exacte et le contenu Android sur émulateur ; vérifier IPA/architectures/marque ; signer avec les identités existantes et contrôler les signatures. Les nouvelles recettes et leurs empreintes doivent être renseignées dans le plan 1909, jamais remplacées par celles de 1908. Publier un tag distinct, puis seulement mettre à jour les téléchargements et canaux du site à partir de sa source courante.
 
 Les outils sont sous `outputs/release1909/`. Un plan ou script n'est pas une preuve d'exécution. Aucun téléchargement public ni manifeste du site n'est passé à 1.90.9 à ce stade.
