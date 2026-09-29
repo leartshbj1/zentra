@@ -35,6 +35,24 @@ import {
 } from './accountingManualJournal';
 
 type Tab = 'overview' | 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'accounts' | 'periods' | 'assets';
+type ReportSelection = { tab: Tab; filter: PeriodFilter; accountId: string };
+type Reports = { journal: JournalReport | null; trial: TrialBalanceReport | null; ledger: LedgerReport | null; balance: BalanceSheetReport | null; income: IncomeStatementReport | null };
+const emptyReports = (): Reports => ({ journal: null, trial: null, ledger: null, balance: null, income: null });
+
+// No cross-tab cache: a later visit always reads current local accounting data.
+// Both annual statements remain required by the shared PDF export control.
+export async function readAccountingReports({ tab, filter, accountId }: ReportSelection, api = desktopApi) {
+  const reports = emptyReports();
+  const jobs: Array<{ label: string; read: () => Promise<void> }> = [];
+  if (tab === 'journal') jobs.push({ label: 'journal', read: async () => { reports.journal = await api.getJournal(filter); } });
+  if (tab === 'trial' || tab === 'closing') jobs.push({ label: 'balance des comptes', read: async () => { reports.trial = await api.getTrialBalance(filter); } });
+  if (tab === 'ledger' && accountId) jobs.push({ label: 'grand livre', read: async () => { reports.ledger = await api.getLedger(accountId, filter); } });
+  if (tab === 'balance' || tab === 'income' || tab === 'closing') jobs.push({ label: 'bilan', read: async () => { reports.balance = await api.getBalanceSheet(filter); } });
+  if (tab === 'overview' || tab === 'balance' || tab === 'income' || tab === 'closing') jobs.push({ label: 'compte de résultat', read: async () => { reports.income = await api.getIncomeStatement(filter); } });
+  const results = await Promise.allSettled(jobs.map(job => job.read()));
+  const failures = results.flatMap((result, index) => result.status === 'rejected' ? [{ label: jobs[index].label, reason: result.reason as unknown }] : []);
+  return { reports, failures };
+}
 type JournalDraftLine = { id: string; accountId: string; debitCents: number; creditCents: number; memo: string; projectId: string; clientId: string; employeeId: string };
 type ActiveEntryFocus = {
   target: AccountingEntryFocus;
@@ -89,7 +107,7 @@ const newJournalLine = (): JournalDraftLine => ({ id: createId(), accountId: '',
 
 export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onFocusHandled, readOnly=false, initialTab, onInitialTabHandled }: { workspace: Workspace; onWorkspaceChange: (workspace: Workspace) => void; focusEntry: AccountingEntryFocus | null; onFocusHandled: () => void; readOnly?:boolean; initialTab?: 'accounts' | 'periods'; onInitialTabHandled?: () => void }) {
   const payrollFallback = Boolean(workspace.settings?.payroll.enabled) || (workspace.payslips ?? []).some(payslip => ['posted', 'paid'].includes(payslip.status));
-  const [tab, setTab] = useState<Tab>(initialTab || 'overview');
+  const [tab, setCurrentTab] = useState<Tab>(initialTab || 'overview');
   useEffect(() => { if (initialTab) { setTab(initialTab); onInitialTabHandled?.(); } }, [initialTab, onInitialTabHandled]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [settings, setSettings] = useState<AccountingSettings>(emptyAccountingSettings);
@@ -125,6 +143,11 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const [activeEntryFocus, setActiveEntryFocus] = useState<ActiveEntryFocus | null>(null);
   const reportRequest = useRef(0);
   const actionRequest = useRef(0);
+  const blockingActions = useRef(0);
+  const pdfSharePending = useRef(false);
+  const latestActionPending = useRef(false);
+  const baseReady = useRef(false);
+  const selection = useRef<ReportSelection>({ tab, filter, accountId: selectedAccountId });
   const manualJournalAttempt = useRef<ManualJournalAttempt | null>(loadManualJournalAttempt());
 
   const activeAccounts = accounts.filter((account) => account.active);
@@ -149,8 +172,10 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
       ),
   );
 
-  async function run(action: () => Promise<void>, success?: string, rethrow = false) {
+  async function run(action: () => Promise<void>, success?: string, rethrow = false, reading = false) {
     const request = ++actionRequest.current;
+    latestActionPending.current = true;
+    if (!reading) blockingActions.current++;
     setBusy(true);
     setError('');
     setNotice('');
@@ -158,11 +183,44 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
       await action();
       if (request === actionRequest.current && success) setNotice(success);
     } catch (reason) {
-      if (request === actionRequest.current && !rethrow) setError(errorMessage(reason, 'La commande comptable locale a échoué.'));
+      if ((!reading || request === actionRequest.current) && !rethrow) setError(errorMessage(reason, 'La commande comptable locale a échoué.'));
       if (rethrow) throw reason;
     } finally {
-      if (request === actionRequest.current) setBusy(false);
+      if (!reading) blockingActions.current--;
+      if (request === actionRequest.current) latestActionPending.current = false;
+      setBusy(latestActionPending.current || blockingActions.current > 0);
     }
+  }
+
+  function runRead(action: () => Promise<void>, success?: string) { return run(action, success, false, true); }
+
+  function setPdfShareBusy(pending: boolean) {
+    if (pdfSharePending.current === pending) return;
+    pdfSharePending.current = pending;
+    blockingActions.current += pending ? 1 : -1;
+    setBusy(latestActionPending.current || blockingActions.current > 0);
+  }
+
+  function applyReports(reports: Reports) {
+    setJournal(reports.journal); setTrial(reports.trial); setLedger(reports.ledger);
+    setBalance(reports.balance); setIncome(reports.income);
+  }
+
+  function selectReports(patch: Partial<ReportSelection>) {
+    selection.current = { ...selection.current, ...patch };
+    // Invalidate immediately, including a pending journal lookup or base read.
+    reportRequest.current++;
+    applyReports(emptyReports());
+    if (patch.tab !== undefined) setCurrentTab(patch.tab);
+    if (patch.filter !== undefined) setFilter(patch.filter);
+    if (patch.accountId !== undefined) setSelectedAccountId(patch.accountId);
+  }
+
+  function setTab(nextTab: Tab) {
+    if (nextTab === selection.current.tab) return;
+    selectReports({ tab: nextTab });
+    if (activeEntryFocus) { setActiveEntryFocus(null); onFocusHandled(); }
+    if (baseReady.current) void runRead(() => refreshReports());
   }
 
   async function loadBase(keepMappingDraft = false) {
@@ -173,68 +231,53 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     setPeriods(nextPeriods);
     setContinuity(nextContinuity);
     setBaseLoaded(true);
-    const accountId = nextAccounts.some((account) => account.id === selectedAccountId)
-      ? selectedAccountId
+    baseReady.current = true;
+    const accountId = nextAccounts.some((account) => account.id === selection.current.accountId)
+      ? selection.current.accountId
       : nextAccounts[0]?.id || '';
-    if (selectedAccountId !== accountId) setSelectedAccountId(accountId);
+    selection.current = { ...selection.current, accountId };
+    setSelectedAccountId(accountId);
     return accountId;
   }
 
-  async function refreshReports(nextFilter: PeriodFilter = filter, accountId = selectedAccountId) {
+  async function refreshReports() {
     const request = ++reportRequest.current;
-    try {
-      const [nextJournal, nextTrial, nextLedger, nextBalance, nextIncome] = await Promise.allSettled([
-        desktopApi.getJournal(nextFilter),
-        desktopApi.getTrialBalance(nextFilter),
-        accountId ? desktopApi.getLedger(accountId, nextFilter) : Promise.resolve(null),
-        desktopApi.getBalanceSheet(nextFilter),
-        desktopApi.getIncomeStatement(nextFilter),
-      ]);
-      if (request !== reportRequest.current) return;
-      const failures: Array<{ label: string; reason: unknown }> = [];
-      if (nextJournal.status === 'fulfilled') setJournal(nextJournal.value);
-      else { setJournal(null); failures.push({ label: 'journal', reason: nextJournal.reason }); }
-      if (nextTrial.status === 'fulfilled') setTrial(nextTrial.value);
-      else { setTrial(null); failures.push({ label: 'balance des comptes', reason: nextTrial.reason }); }
-      if (nextLedger.status === 'fulfilled') setLedger(nextLedger.value);
-      else { setLedger(null); failures.push({ label: 'grand livre', reason: nextLedger.reason }); }
-      if (nextBalance.status === 'fulfilled') setBalance(nextBalance.value);
-      else { setBalance(null); failures.push({ label: 'bilan', reason: nextBalance.reason }); }
-      if (nextIncome.status === 'fulfilled') setIncome(nextIncome.value);
-      else { setIncome(null); failures.push({ label: 'compte de résultat', reason: nextIncome.reason }); }
-      if (failures.length) {
-        const labels = failures.map((failure) => failure.label).join(', ');
-        throw new Error(`Certains états n’ont pas pu être actualisés (${labels}). Les autres résultats chargés restent affichés. ${errorMessage(failures[0].reason, 'Erreur locale non détaillée.')}`);
-      }
-    } catch (reason) {
-      if (request === reportRequest.current) throw reason;
+    applyReports(emptyReports());
+    const { reports, failures } = await readAccountingReports(selection.current);
+    if (request !== reportRequest.current) return;
+    applyReports(reports);
+    if (failures.length) {
+      const labels = failures.map((failure) => failure.label).join(', ');
+      throw new Error(`Certains états n’ont pas pu être actualisés (${labels}). Les autres résultats chargés restent affichés. ${errorMessage(failures[0].reason, 'Erreur locale non détaillée.')}`);
     }
   }
 
   useEffect(() => {
     if (focusEntry) return;
-    void run(async () => {
-      const accountId = await loadBase();
-      await refreshReports(filter, accountId);
+    void runRead(async () => {
+      await loadBase();
+      await refreshReports();
     });
   }, []);
 
   useEffect(() => {
     if (!focusEntry) return;
     const preferredFilter = accountingEntryFocusFilter(focusEntry);
-    setTab('journal');
+    selectReports({ tab: 'journal', filter: preferredFilter });
+    const request = reportRequest.current;
     setPeriodId('');
-    setFilter(preferredFilter);
     setActiveEntryFocus({
       target: focusEntry,
       outsidePaymentDate:
         focusEntry.accountingState !== 'active' || !preferredFilter.dateFrom,
     });
 
-    void run(async () => {
-      const accountId = await loadBase();
+    void runRead(async () => {
+      await loadBase();
+      if (request !== reportRequest.current) { await refreshReports(); return; }
       let resolvedFilter = preferredFilter;
       let targetJournal = await desktopApi.getJournal(resolvedFilter);
+      if (request !== reportRequest.current) return;
       let outsidePaymentDate =
         focusEntry.accountingState !== 'active' || !preferredFilter.dateFrom;
 
@@ -244,6 +287,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
       ) {
         resolvedFilter = {};
         targetJournal = await desktopApi.getJournal(resolvedFilter);
+        if (request !== reportRequest.current) return;
         outsidePaymentDate = true;
       }
 
@@ -256,9 +300,11 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
       }
 
       setActiveEntryFocus({ target: focusEntry, outsidePaymentDate });
-      setFilter(resolvedFilter);
-      await refreshReports(resolvedFilter, accountId);
-    }, `Écriture ${focusEntry.entryNumber} affichée dans le journal.`);
+      selectReports({ filter: resolvedFilter });
+      // Reuse the exact journal already checked above, including its fallback.
+      setJournal(targetJournal);
+      setNotice(`Écriture ${focusEntry.entryNumber} affichée dans le journal.`);
+    });
   }, [focusEntry]);
 
   useEffect(() => {
@@ -295,36 +341,48 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     };
   }, [activeEntryFocus, focusedEntryAvailable, onFocusHandled, tab]);
 
-  async function reloadAll(success?: string, rethrow = false) { await run(async () => { const accountId = await loadBase(); await refreshReports(filter, accountId); }, success, rethrow); }
+  async function reloadAll(success?: string, rethrow = false) { await run(async () => { await loadBase(); await refreshReports(); }, success, rethrow); }
 
-  function choosePeriod(id: string) {
+  async function retryReversalReports() {
+    await run(async () => {
+      await loadBase();
+      // A view refresh may be superseded by navigation and ignore its failure.
+      // Only this independent, successful read can clear the reversal guard.
+      await desktopApi.getJournal(selection.current.filter);
+      await refreshReports();
+      setReversalRefreshRequired(false);
+    }, 'Les états sont actualisés.');
+  }
+
+  function choosePeriod(id: string, nextTab = selection.current.tab) {
     setPeriodId(id);
     const period = periods.find((item) => item.id === id);
     const nextFilter = period ? { dateFrom: period.dateFrom, dateTo: period.dateTo } : {};
-    setFilter(nextFilter);
-    void run(() => refreshReports(nextFilter), period ? `Les états de « ${period.name} » sont affichés.` : 'La période libre est affichée.');
+    selectReports({ filter: nextFilter, tab: nextTab });
+    void runRead(() => refreshReports(), period ? `Les états de « ${period.name} » sont affichés.` : 'La période libre est affichée.');
   }
 
   async function refreshSavedPeriod(saved: PeriodDraft) {
     const nextFilter = { dateFrom: saved.dateFrom, dateTo: saved.dateTo };
+    const request = reportRequest.current;
     await run(async () => {
-      const accountId = await loadBase();
-      await refreshReports(nextFilter, accountId);
-      setPeriodId(saved.id); setFilter(nextFilter);
+      await loadBase();
+      if (request === reportRequest.current) { setPeriodId(saved.id); selectReports({ filter: nextFilter }); }
+      await refreshReports();
     }, 'L’exercice et ses états ont été actualisés.', true);
   }
 
   function openClosingPeriod(id: string) {
     if (busy) return;
     if (!periods.some(period => period.id === id)) { setError('Cet exercice n’est pas dans la liste chargée. Actualisez les données pour le retrouver.'); return; }
-    setReturnToClosing(false); choosePeriod(id); setTab('closing');
+    setReturnToClosing(false); choosePeriod(id, 'closing');
   }
 
   function changeFreeFilter(patch: Partial<PeriodFilter>) {
-    const nextFilter = { ...filter, ...patch };
+    const nextFilter = { ...selection.current.filter, ...patch };
     setPeriodId('');
-    setFilter(nextFilter);
-    void run(() => refreshReports(nextFilter));
+    selectReports({ filter: nextFilter });
+    void runRead(() => refreshReports());
   }
 
   async function saveAccount(form: FormData) {
@@ -332,7 +390,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     const normalBalance = String(form.get('normalBalance')) as Account['normalBalance'];
     await run(async () => {
       await desktopApi.upsertAccount({ id: accountDraft?.id, code: String(form.get('code')), name: String(form.get('name')), accountType, normalBalance, reportSection: String(form.get('reportSection')) as Account['reportSection'], active: form.get('active') === 'on' });
-      setAccountDraft(null); const accountId = await loadBase(true); await refreshReports(filter, accountId);
+      setAccountDraft(null); await loadBase(true); await refreshReports();
     }, 'Le compte a été enregistré.');
   }
 
@@ -341,20 +399,22 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     const issue = setupReview.mode === 'mapping' ? accountingMappingIssues(setupReview.settings, accounts, mappingFields)[0] : null;
     if (issue) throw new Error(issue.message);
     if (setupReview.mode === 'starter' && !continuity.starterAvailable) throw new Error('Une configuration existe déjà. Revenez aux comptes pour la vérifier.');
+    blockingActions.current++;
     setBusy(true); setError(''); setNotice('');
     try { return setupReview.mode === 'starter' ? await desktopApi.installSwissAccountingStarter() : await desktopApi.configureAccounting(setupReview.settings); }
-    finally { setBusy(false); }
+    finally { blockingActions.current--; setBusy(latestActionPending.current || blockingActions.current > 0); }
   }
 
   async function refreshAccountingSetup(result: AccountingConfigurationResult) {
+    blockingActions.current++;
     setBusy(true);
     try {
-      const [accountId, nextWorkspace] = await Promise.all([loadBase(), desktopApi.loadWorkspace()]);
+      const [, nextWorkspace] = await Promise.all([loadBase(), desktopApi.loadWorkspace()]);
       onWorkspaceChange(nextWorkspace);
-      await refreshReports(filter, accountId);
+      await refreshReports();
       const sync = result.synchronization;
       setNotice(`Configuration enregistrée · ${sync.createdTotal} écriture(s) intégrée(s).${sync.skippedClosedHistory ? ` ${sync.skippedClosedHistory} opération(s) de périodes fermées demandent une reprise de soldes d’ouverture.` : ''}${sync.remaining.totalAnomalies ? ` ${sync.remaining.totalAnomalies} point(s) restent à contrôler.` : ''}`);
-    } finally { setBusy(false); }
+    } finally { blockingActions.current--; setBusy(latestActionPending.current || blockingActions.current > 0); }
   }
 
   function openAccountDraft(draft: Partial<Account> & Pick<Account, 'code' | 'name'>) {
@@ -392,19 +452,20 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
 
   async function reverseEntry(date: string, description: string) {
     if (!reversalTarget || busy || reversalRefreshRequired) throw new Error('Actualisez le journal avant de poursuivre.');
+    blockingActions.current++;
     setBusy(true); setError(''); setNotice('');
     try {
       await desktopApi.reverseJournalEntry(reversalTarget.id,date,description);
       setReversalTarget(null);
       setNotice(reversalTarget.reversalAction==='restore_expense' ? 'La dépense a été rétablie dans le journal. Aucun nouveau paiement bancaire n’a été envoyé.' : 'L’écriture inverse a été enregistrée.');
-      try { const accountId=await loadBase(); await refreshReports(filter,accountId); }
+      try { await loadBase(); await refreshReports(); }
       catch(cause) { setReversalRefreshRequired(true); setError(errorMessage(cause,'La correction est enregistrée, mais la lecture du journal a échoué.')); }
-    } finally { setBusy(false); }
+    } finally { blockingActions.current--; setBusy(latestActionPending.current || blockingActions.current > 0); }
   }
 
   async function openLinkedJournal(entryId:string) {
-    setActiveEntryFocus(null); setVatJournalFocus(entryId); setPeriodId(''); setFilter({}); setTab('journal');
-    await run(()=>refreshReports({}));
+    setActiveEntryFocus(null); setVatJournalFocus(entryId); setPeriodId(''); selectReports({ filter: {}, tab: 'journal' });
+    await runRead(()=>refreshReports());
   }
   useEffect(()=>{
     if(!vatJournalFocus || tab!=='journal')return;
@@ -457,18 +518,18 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
       </div>}
     </section>
     {['balance', 'income', 'closing'].includes(tab) ? <section className="panel accounting-export-bar"><div><strong>Bilan et compte de résultat</strong><p>Présentation suisse, détails par rubrique et comparaison avec l’exercice précédent.</p></div><Button disabled={busy || !balance || !income} onClick={() => void exportAccounts()}><FileCheck2 size={17} /> Exporter le bilan PDF</Button></section> : null}
-    {error ? <ErrorPanel message={error} onRetry={!baseLoaded ? () => void run(async () => { const accountId = await loadBase(); await refreshReports(filter, accountId); }) : undefined} /> : null}{notice ? <div className="notice notice--success" role="status" aria-live="polite"><span><CheckCircle2 size={18} />{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Fermer le message"><X size={15} /></button></div> : null}
+    {error ? <ErrorPanel message={error} onRetry={() => { if (!busy) void reloadAll(); }} /> : null}{notice ? <div className="notice notice--success" role="status" aria-live="polite"><span><CheckCircle2 size={18} />{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Fermer le message"><X size={15} /></button></div> : null}
 
-    {exportedPdf && <PdfExportReceipt result={exportedPdf} disabled={busy} onBusyChange={setBusy} />}
+    {exportedPdf && <PdfExportReceipt result={exportedPdf} disabled={busy} onBusyChange={setPdfShareBusy} />}
     {tab === 'overview' && !baseLoaded && busy ? <p role="status">{t('Chargement de la comptabilité…')}</p> : null}
     {tab === 'overview' && baseLoaded ? <FinanceOverview workspace={workspace} income={income} continuity={continuity} busy={busy} periodLabel={periodLabel} readOnly={readOnly} onSection={setTab} onWorkspaceChange={onWorkspaceChange} onInstallStarter={async () => { if (busy || readOnly) return; setTab('accounts'); setSetupReview({ mode: 'starter', settings: { ...settings } }); }}/> : null}
     {accountingExplanations[tab]?<aside className="finance-reading-note"><BookOpen size={19}/><div><h2>{accountingExplanations[tab].title}</h2><p>{accountingExplanations[tab].text}</p></div></aside>:null}
-    {reversalRefreshRequired ? <div className="report-callout is-warning" role="status"><RefreshCw size={20}/><div><strong>Correction enregistrée · actualisation nécessaire</strong><p>Rechargez les états avant une nouvelle écriture.</p></div><Button disabled={busy} onClick={()=>void run(async()=>{const accountId=await loadBase();await refreshReports(filter,accountId);setReversalRefreshRequired(false);},'Les états sont actualisés.')}>Actualiser les états</Button></div> : null}
+    {reversalRefreshRequired ? <div className="report-callout is-warning" role="status"><RefreshCw size={20}/><div><strong>Correction enregistrée · actualisation nécessaire</strong><p>Rechargez les états avant une nouvelle écriture.</p></div><Button disabled={busy} onClick={()=>void retryReversalReports()}>Actualiser les états</Button></div> : null}
     {tab === 'journal' && activeEntryFocus && focusedEntryAvailable ? <div className={`report-callout accounting-entry-focus ${activeEntryFocus.outsidePaymentDate ? 'is-warning' : ''}`} role="status"><BookOpen size={20} /><div><strong>Écriture {activeEntryFocus.target.entryNumber} liée à l’encaissement</strong><p>{activeEntryFocus.target.accountingState === 'reversed' ? 'L’écriture originale est mise en évidence et le journal reste en période libre afin de rendre toute la chaîne d’extournes visible. L’effet comptable net de cet encaissement est actuellement annulé.' : activeEntryFocus.target.accountingState === 'restored' ? `L’effet comptable net est rétabli après ${activeEntryFocus.target.reversalDepth ?? 'plusieurs'} extournes. Le journal reste en période libre afin de rendre toute la chaîne visible.` : activeEntryFocus.target.accountingState === 'unknown' ? 'Le lien existe, mais l’état ou la profondeur de sa chaîne d’extournes n’a pas pu être établi de façon fiable. Le journal reste en période libre pour permettre le contrôle.' : activeEntryFocus.outsidePaymentDate ? 'Le lien exact a été retrouvé en période libre, hors du jour indiqué par le paiement. Contrôlez la date depuis « Plan & liaisons ».' : `Le journal est limité au ${formatDate(activeEntryFocus.target.entryDate)} et l’écriture correspondante est mise en évidence ci-dessous.`}</p></div></div> : null}
 
     {tab === 'journal' ? <section className="panel"><SectionHeading eyebrow="Partie double" title="Journal chronologique" description="Chaque écriture validée est immuable et équilibrée; une correction passe par une extourne traçable." action={<Button disabled={!settings.enabled || busy || reversalRefreshRequired} onClick={() => setEntryOpen((value) => !value)}><Plus size={15} /> Saisir une écriture</Button>} />{!settings.enabled ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité non activée</strong><p>Créez le plan comptable et sélectionnez les {mappingCountLabel} comptes de liaison requis.</p></div></div> : null}{entryOpen ? <form className="accounting-entry-form" onSubmit={submitForm(postEntry)}><div className="form-grid"><Field label="Date" required><input name="entryDate" type="date" defaultValue={todayIso()} required /></Field><Field label="Description" required wide><input name="description" required /></Field></div><JournalLinesEditor lines={entryLines} accounts={activeAccounts} workspace={workspace} onPatch={patchLine} onAdd={() => setEntryLines((current) => [...current, newJournalLine()])} onRemove={(id) => setEntryLines((current) => current.length > 2 ? current.filter((line) => line.id !== id) : current)} /><div className={`entry-balance ${debit === credit && debit > 0 ? 'is-balanced' : ''}`}><span>Débits {formatMoney(debit)}</span><span>Crédits {formatMoney(credit)}</span><strong>{debit === credit && debit > 0 ? 'Équilibrée' : `Écart ${formatMoney(Math.abs(debit - credit))}`}</strong></div><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setEntryOpen(false)}>Annuler</Button><Button type="submit" disabled={busy || reversalRefreshRequired || debit <= 0 || debit !== credit}>Comptabiliser</Button></div></form> : null}{reversalTarget ? <JournalReversalDialog entry={reversalTarget} busy={busy} onClose={()=>setReversalTarget(null)} onConfirm={reverseEntry}/> : null}{journal?.entries.length ? <JournalTable report={journal} disabled={busy || reversalRefreshRequired} onReverse={setReversalTarget} /> : <EmptyState icon={<BookOpen />} title="Journal vide" text="Aucune écriture réelle n’a encore été comptabilisée pour cette période." />}</section> : null}
 
-    {tab === 'ledger' ? <section className="panel"><SectionHeading eyebrow={`Mouvements par compte · ${ledger?.currency.baseCurrency || 'CHF'}`} title="Grand livre" description="Le solde d’ouverture reprend toutes les écritures antérieures; chaque ligne montre ensuite le solde cumulé et la clôture de la période." /><div className="ledger-picker"><Field label="Compte"><select value={selectedAccountId} disabled={busy} onChange={(event) => { const id = event.target.value; setSelectedAccountId(id); if (id) void run(() => refreshReports(filter, id)); else setLedger(null); }}><option value="">Choisir un compte</option>{accounts.map((account) => <option value={account.id} key={account.id}>{account.code} · {account.name}</option>)}</select></Field></div>{ledger ? <><div className="summary-strip"><div><span>Solde d’ouverture</span><strong>{balanceSideLabel(ledger.openingDebitBalanceCents, ledger.openingCreditBalanceCents)}</strong></div><div><span>Débits de la période</span><strong>{formatMoney(ledger.debitCents)}</strong></div><div><span>Crédits de la période</span><strong>{formatMoney(ledger.creditCents)}</strong></div><div><span>Solde de clôture</span><strong>{balanceSideLabel(ledger.closingDebitBalanceCents, ledger.closingCreditBalanceCents)}</strong></div></div>{ledger.lines.length ? <JournalLineTable lines={ledger.lines} showRunningBalance /> : <div className="report-callout"><ListChecks size={20} /><div><strong>Aucun mouvement dans la période</strong><p>Le compte conserve néanmoins son solde d’ouverture de {balanceSideLabel(ledger.openingDebitBalanceCents, ledger.openingCreditBalanceCents)}.</p></div></div>}</> : <EmptyState icon={<ListChecks />} title="Aucun compte sélectionné" text="Choisissez un compte du plan comptable pour afficher son ouverture, ses mouvements et sa clôture." />}</section> : null}
+    {tab === 'ledger' ? <section className="panel"><SectionHeading eyebrow={`Mouvements par compte · ${ledger?.currency.baseCurrency || 'CHF'}`} title="Grand livre" description="Le solde d’ouverture reprend toutes les écritures antérieures; chaque ligne montre ensuite le solde cumulé et la clôture de la période." /><div className="ledger-picker"><Field label="Compte"><select value={selectedAccountId} disabled={busy} onChange={(event) => { selectReports({ accountId: event.target.value }); void runRead(() => refreshReports()); }}><option value="">Choisir un compte</option>{accounts.map((account) => <option value={account.id} key={account.id}>{account.code} · {account.name}</option>)}</select></Field></div>{ledger ? <><div className="summary-strip"><div><span>Solde d’ouverture</span><strong>{balanceSideLabel(ledger.openingDebitBalanceCents, ledger.openingCreditBalanceCents)}</strong></div><div><span>Débits de la période</span><strong>{formatMoney(ledger.debitCents)}</strong></div><div><span>Crédits de la période</span><strong>{formatMoney(ledger.creditCents)}</strong></div><div><span>Solde de clôture</span><strong>{balanceSideLabel(ledger.closingDebitBalanceCents, ledger.closingCreditBalanceCents)}</strong></div></div>{ledger.lines.length ? <JournalLineTable lines={ledger.lines} showRunningBalance /> : <div className="report-callout"><ListChecks size={20} /><div><strong>Aucun mouvement dans la période</strong><p>Le compte conserve néanmoins son solde d’ouverture de {balanceSideLabel(ledger.openingDebitBalanceCents, ledger.openingCreditBalanceCents)}.</p></div></div>}</> : <EmptyState icon={<ListChecks />} title="Aucun compte sélectionné" text="Choisissez un compte du plan comptable pour afficher son ouverture, ses mouvements et sa clôture." />}</section> : null}
 
     {tab === 'trial' ? <section className="panel"><SectionHeading eyebrow={`${reportState} · ${trial?.currency.baseCurrency || 'CHF'}`} title="Balance des comptes" description="Ouverture, mouvements et clôture sont présentés séparément. Les trois couples de totaux doivent rester équilibrés." />{trial?.rows.length ? <><div className={`report-callout ${trial.balanced ? '' : 'is-warning'}`}><Scale size={20} /><div><strong>{trial.balanced ? 'Ouverture, mouvements et clôture équilibrés' : 'Écart comptable à contrôler'}</strong><p>Ouverture {formatMoney(trial.openingDebitBalanceCents)} / {formatMoney(trial.openingCreditBalanceCents)} · mouvements {formatMoney(trial.debitCents)} / {formatMoney(trial.creditCents)} · clôture {formatMoney(trial.closingDebitBalanceCents)} / {formatMoney(trial.closingCreditBalanceCents)}.</p></div></div><div className="table-panel"><table><thead><tr><th>Compte</th><th>Ouverture débit</th><th>Ouverture crédit</th><th>Mouvements débit</th><th>Mouvements crédit</th><th>Clôture débit</th><th>Clôture crédit</th></tr></thead><tbody>{trial.rows.map((row) => <tr key={row.id}><td><strong>{row.code}</strong><small>{row.name}</small></td><td>{formatMoney(row.openingDebitBalanceCents)}</td><td>{formatMoney(row.openingCreditBalanceCents)}</td><td>{formatMoney(row.debitCents)}</td><td>{formatMoney(row.creditCents)}</td><td>{formatMoney(row.debitBalanceCents)}</td><td>{formatMoney(row.creditBalanceCents)}</td></tr>)}</tbody><tfoot><tr><th>Totaux</th><th>{formatMoney(trial.openingDebitBalanceCents)}</th><th>{formatMoney(trial.openingCreditBalanceCents)}</th><th>{formatMoney(trial.debitCents)}</th><th>{formatMoney(trial.creditCents)}</th><th>{formatMoney(trial.closingDebitBalanceCents)}</th><th>{formatMoney(trial.closingCreditBalanceCents)}</th></tr></tfoot></table></div></> : <EmptyState icon={<Scale />} title="Balance vide" text="Aucune écriture ne contribue à l’ouverture ni à la période sélectionnée." />}</section> : null}
 
@@ -483,7 +544,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
       <CustomerCreditAccountingIssues issues={continuity.customerCreditIssues} busy={busy} onOpenJournal={(id)=>void openLinkedJournal(id)}/>
       {continuity.closedHistoryRequiresOpening > 0 ? <div className="report-callout is-warning"><LockKeyhole size={20} /><div><strong>{continuity.closedHistoryRequiresOpening} opération{continuity.closedHistoryRequiresOpening > 1 ? 's' : ''} appartiennent à des exercices clôturés</strong><p>Zentra ne déplace jamais leur chiffre d’affaires, TVA ou charges dans l’exercice courant. Activez la chaîne future, puis faites valider les soldes d’ouverture par votre fiduciaire. {continuity.totalAnomalies > continuity.closedHistoryRequiresOpening ? `${continuity.totalAnomalies - continuity.closedHistoryRequiresOpening} autre(s) anomalie(s) restent aussi à traiter.` : ''}</p></div></div> : continuity.enabled && !continuity.mappingReady ? <div className="report-callout is-warning"><RefreshCw size={20} /><div><strong>Comptabilité active mais liaisons incomplètes</strong><p>Vérifiez les {mappingCountLabel} comptes actifs avant la prochaine opération financière.{continuity.totalAnomalies > 1 ? ` ${continuity.totalAnomalies - 1} autre(s) point(s) de continuité restent à traiter.` : ''}</p></div></div> : continuity.totalAnomalies > 0 ? <div className="report-callout is-warning"><RefreshCw size={20} /><div><strong>{continuity.totalAnomalies} anomalie{continuity.totalAnomalies > 1 ? 's' : ''} de continuité à traiter</strong><p>À intégrer dans une période ouverte : {continuity.totalMissing}. Écritures dont la date, le montant, la devise ou le compte lié diffèrent de la source : {continuity.semanticPostingMismatches}. Sources extournées ou incohérentes : {continuity.reversedSources + continuity.cancelledActivePostings}. Paiements liés à une facture annulée : {continuity.cancelledInvoicePayments}. Paiements de salaire sans date : {continuity.undatedPayslipPayments}. Liens de journal hérités à contrôler : {continuity.payslipPaymentLinksMissing}. Aucune correction n’est inventée silencieusement.</p></div></div> : continuity.enabled && continuity.mappingReady ? <div className="report-callout"><ShieldCheck size={20} /><div><strong>Chaîne comptable continue</strong><p>Aucune facture, dépense payée, paie ou transaction client ne manque dans le journal; leurs dates, montants, devises et comptes liés correspondent aux opérations d’origine.</p></div></div> : null}
       <AccountingSetupPanel settings={settings} savedSettings={savedSettings} accounts={accounts} continuity={continuity} fields={mappingFields} busy={busy || readOnly} onChange={setSettings} onReview={() => setSetupReview({ mode: 'mapping', settings: { ...settings } })} onStarter={() => setSetupReview({ mode: 'starter', settings: { ...settings } })} onNewAccount={() => openAccountDraft({ code: '', name: '' })} />
-      <details className="accounting-account-plan" open={manualPlanOpen} onToggle={event => setManualPlanOpen(event.currentTarget.open)}><summary>Voir et modifier le plan comptable ({accounts.length} comptes)</summary><section className="panel settings-card settings-card--wide"><SectionHeading eyebrow="Plan comptable" title="Comptes" description="Utilisez votre plan réel ou installez la base essentielle adaptée aux modules actifs, puis faites-la contrôler par votre fiduciaire." action={<div className="settings-inline-actions"><Button onClick={() => openAccountDraft({ code: '', name: '' })}><Plus size={15} /> Nouveau compte</Button></div>} />{accountDraft ? <form className="account-inline-form" onSubmit={submitForm(saveAccount)}><Field label="Code" required><input name="code" defaultValue={accountDraft.code} required /></Field><Field label="Nom" required><input name="name" defaultValue={accountDraft.name} required /></Field><Field label="Type" required><select name="accountType" defaultValue={accountDraft.accountType ?? ''} required><option value="">Choisir</option><option value="asset">Actif</option><option value="liability">Passif</option><option value="equity">Fonds propres</option><option value="revenue">Produit</option><option value="expense">Charge</option></select></Field><Field label="Rubrique des états" required><select name="reportSection" defaultValue={accountDraft.reportSection ?? ''} required><option value="">Choisir</option>{reportSections.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Solde normal" required><select name="normalBalance" defaultValue={accountDraft.normalBalance ?? ''} required><option value="">Choisir</option><option value="debit">Débit</option><option value="credit">Crédit</option></select></Field><label className="check-card"><input name="active" type="checkbox" defaultChecked={accountDraft.active ?? true} /><span><strong>Compte actif</strong></span></label><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setAccountDraft(null)}>Annuler</Button><Button type="submit" disabled={busy}>Enregistrer</Button></div></form> : null}{accounts.length ? <div className="account-list">{accounts.map((account) => <article key={account.id}><div><strong>{account.code}</strong><span>{account.name}</span><small>{reportSections.find(([value]) => value === account.reportSection)?.[1] || account.reportSection} · solde habituel {account.normalBalance === 'debit' ? 'débiteur' : 'créditeur'}</small></div><StatusBadge status={account.active ? 'validated' : 'incomplete'} /><Button variant="ghost" size="small" onClick={() => openAccountDraft(account)}>Modifier</Button><Button variant="ghost" size="icon" onClick={() => { if (window.confirm(`Supprimer le compte ${account.code} ?`)) void run(async () => { await desktopApi.deleteAccount(account.id); const accountId = await loadBase(); await refreshReports(filter, accountId); }, 'Le compte inutilisé a été supprimé.'); }}><Archive size={15} /></Button></article>)}</div> : <EmptyState title="Plan comptable vide" text="Installez la base essentielle ou créez votre plan réel avant d’activer les écritures automatiques." />}</section></details>
+      <details className="accounting-account-plan" open={manualPlanOpen} onToggle={event => setManualPlanOpen(event.currentTarget.open)}><summary>Voir et modifier le plan comptable ({accounts.length} comptes)</summary><section className="panel settings-card settings-card--wide"><SectionHeading eyebrow="Plan comptable" title="Comptes" description="Utilisez votre plan réel ou installez la base essentielle adaptée aux modules actifs, puis faites-la contrôler par votre fiduciaire." action={<div className="settings-inline-actions"><Button onClick={() => openAccountDraft({ code: '', name: '' })}><Plus size={15} /> Nouveau compte</Button></div>} />{accountDraft ? <form className="account-inline-form" onSubmit={submitForm(saveAccount)}><Field label="Code" required><input name="code" defaultValue={accountDraft.code} required /></Field><Field label="Nom" required><input name="name" defaultValue={accountDraft.name} required /></Field><Field label="Type" required><select name="accountType" defaultValue={accountDraft.accountType ?? ''} required><option value="">Choisir</option><option value="asset">Actif</option><option value="liability">Passif</option><option value="equity">Fonds propres</option><option value="revenue">Produit</option><option value="expense">Charge</option></select></Field><Field label="Rubrique des états" required><select name="reportSection" defaultValue={accountDraft.reportSection ?? ''} required><option value="">Choisir</option>{reportSections.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Solde normal" required><select name="normalBalance" defaultValue={accountDraft.normalBalance ?? ''} required><option value="">Choisir</option><option value="debit">Débit</option><option value="credit">Crédit</option></select></Field><label className="check-card"><input name="active" type="checkbox" defaultChecked={accountDraft.active ?? true} /><span><strong>Compte actif</strong></span></label><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setAccountDraft(null)}>Annuler</Button><Button type="submit" disabled={busy}>Enregistrer</Button></div></form> : null}{accounts.length ? <div className="account-list">{accounts.map((account) => <article key={account.id}><div><strong>{account.code}</strong><span>{account.name}</span><small>{reportSections.find(([value]) => value === account.reportSection)?.[1] || account.reportSection} · solde habituel {account.normalBalance === 'debit' ? 'débiteur' : 'créditeur'}</small></div><StatusBadge status={account.active ? 'validated' : 'incomplete'} /><Button variant="ghost" size="small" onClick={() => openAccountDraft(account)}>Modifier</Button><Button variant="ghost" size="icon" onClick={() => { if (window.confirm(`Supprimer le compte ${account.code} ?`)) void run(async () => { await desktopApi.deleteAccount(account.id); await loadBase(); await refreshReports(); }, 'Le compte inutilisé a été supprimé.'); }}><Archive size={15} /></Button></article>)}</div> : <EmptyState title="Plan comptable vide" text="Installez la base essentielle ou créez votre plan réel avant d’activer les écritures automatiques." />}</section></details>
     </div> : null}
     {setupReview && <AccountingSetupDialog mode={setupReview.mode} settings={setupReview.settings} accounts={accounts} fields={mappingFields} continuity={continuity} busy={busy} readOnly={readOnly} onClose={() => setSetupReview(null)} onCommit={commitAccountingSetup} onRefresh={refreshAccountingSetup} />}
 
