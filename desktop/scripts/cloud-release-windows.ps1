@@ -91,7 +91,7 @@ try {
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'fixed_assets', '--', '--test-threads=1')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'input_vat', '--', '--test-threads=1')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/invoiceScan.test.ts', 'src/supplierInvoicePreparation.test.ts')
-    Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/runtimeFinancials.test.ts', 'src/workspaceIndexBridge.test.ts', 'src/runtimePerformance.test.ts')
+    Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/runtimeFinancials.test.ts', 'src/workspaceIndexBridge.test.ts', 'src/runtimePerformance.test.ts', 'src/rowIndex.test.ts', 'src/workspaceFinancialRelations.test.ts', 'src/dashboardDeadlines.test.ts')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/workspacePreferences.test.ts', 'src/workspacePersonalizationLanguage.test.ts', 'src/nativeNavigationSession.test.ts', 'src/companySyncPresentation.test.ts')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/companyAccount.test.ts', 'src/companyRealtime.test.ts', 'src/projectSyncScheduler.test.ts', 'src/automationCompanySession.test.ts', 'src/appReleaseNotes.test.ts', 'src/automationDailySummary.test.tsx', 'src/automationHub.test.tsx', 'src/automationJournal.test.tsx', 'src/automationNavigation.test.tsx', 'src/appearance.test.ts', 'src/supplierInboxReview.test.ts', 'src/supplierInboxBatch.test.ts', 'src/languageCatalogCoverage.test.ts', 'src/projectReport.test.ts')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')

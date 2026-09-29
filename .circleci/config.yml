@@ -350,6 +350,16 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-1908:
+    when:
+      and:
+        - equal: [codex/first-client-release-1908, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows
+      - apple
+      - android:
+          build-mode: release
   android-package-1907:
     when:
       equal: [codex/release-1.90.7-android-smoke, << pipeline.git.branch >>]
@@ -558,7 +568,8 @@ workflows:
             - equal: [all, << pipeline.parameters.platform >>]
             - equal: [android, << pipeline.parameters.platform >>]
     jobs:
-      - android
+      - android:
+          build-mode: release
   verify-windows-package:
     when:
       not:
