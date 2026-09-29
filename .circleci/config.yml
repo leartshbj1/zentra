@@ -426,6 +426,16 @@ jobs:
           destination: apple
 
 workflows:
+  first-client-1910:
+    when:
+      and:
+        - equal: [codex/first-client-release-1910, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows
+      - apple
+      - android:
+          build-mode: release
   windows-volume-1909:
     when:
       and:
