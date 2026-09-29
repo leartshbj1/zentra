@@ -168,10 +168,20 @@ def check_account_header(root):
 
 
 def webview_bounds(root):
-    boxes = [bounds(n) for n in root.iter('node') if n.get('class') == 'android.webkit.WebView' and bounds(n)]
-    if not boxes:
-        raise RuntimeError('Visible WebView bounds missing')
-    return boxes[-1]
+    # Android exposes both the native viewport and a nested accessibility
+    # document as WebView. Focus/scroll can offset the document by a pixel;
+    # only the outer native viewport represents IME and system-bar insets.
+    boxes = []
+    def visit(node, inside_webview=False):
+        is_webview = node.get('class') == 'android.webkit.WebView'
+        if is_webview and not inside_webview and bounds(node):
+            boxes.append(bounds(node))
+        for child in node:
+            visit(child, inside_webview or is_webview)
+    visit(root)
+    if len(boxes) != 1:
+        raise RuntimeError('Exactly one visible native WebView viewport is required')
+    return boxes[0]
 
 
 def check_native_bars(root, screenshot, window_dump, dark):

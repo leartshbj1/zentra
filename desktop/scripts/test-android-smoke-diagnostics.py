@@ -23,7 +23,7 @@ class DiagnosticsTests(unittest.TestCase):
                        adb=self.adb, capture_screen=lambda label, **kw: self.calls.append(('screen', label)))
         source = Path(__file__).with_name('smoke-android-release-candidate.py')
         tree = ast.parse(source.read_text(encoding='utf-8'))
-        selected = {'bounds', 'tap', 'diagnosed_tap', 'input_diagnostics', 'collect_final_logs', 'collect_input_observations', 'diagnostic_write'}
+        selected = {'bounds', 'tap', 'diagnosed_tap', 'input_diagnostics', 'collect_final_logs', 'collect_input_observations', 'diagnostic_write', 'webview_bounds'}
         functions = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in selected], type_ignores=[])
         exec(compile(functions, str(source), 'exec'), self.ns)
 
@@ -108,6 +108,27 @@ class DiagnosticsTests(unittest.TestCase):
                 finally:
                     self.ns['collect_final_logs']()
                     self.ns['collect_input_observations']()
+
+    def webviews(self, outer, inner):
+        return ET.fromstring(f'<hierarchy><node class="android.widget.FrameLayout"><node class="android.webkit.WebView" bounds="{outer}"><node class="android.webkit.WebView" text="Zentra" bounds="{inner}"/></node></node></hierarchy>')
+
+    def test_native_viewport_is_not_the_scrolled_accessibility_document(self):
+        # Exact rectangles from recipe 183: the native viewport was restored,
+        # but its nested document was scrolled/focused one pixel lower.
+        before = self.webviews('[0,24][320,616]', '[0,24][320,616]')
+        after = self.webviews('[0,24][320,616]', '[0,25][320,616]')
+        self.assertEqual(self.ns['webview_bounds'](after), (0, 24, 320, 616))
+        self.assertEqual(self.ns['webview_bounds'](before), self.ns['webview_bounds'](after))
+
+    def test_real_native_reduction_is_still_detected(self):
+        before = self.webviews('[0,24][320,616]', '[0,24][320,616]')
+        keyboard = self.webviews('[0,24][320,381]', '[0,25][320,381]')
+        self.assertNotEqual(self.ns['webview_bounds'](before), self.ns['webview_bounds'](keyboard))
+
+    def test_multiple_native_webviews_are_ambiguous(self):
+        root = ET.fromstring('<hierarchy><node class="android.webkit.WebView" bounds="[0,24][320,616]"/><node class="android.webkit.WebView" bounds="[0,24][320,616]"/></hierarchy>')
+        with self.assertRaises(RuntimeError):
+            self.ns['webview_bounds'](root)
 
 
 if __name__ == '__main__':

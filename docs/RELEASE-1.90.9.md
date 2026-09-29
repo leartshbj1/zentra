@@ -48,6 +48,16 @@ Windows **181 est confirmé encore en cours à 01:58:29 UTC**. Aucun relancement
 
 ## Avant publication
 
+### Windows et nouvelle recette Android, 29 septembre à 02:21 UTC
+
+Windows **181 a réussi à 02:14:34 UTC**. Les quatre fichiers téléchargés et leurs empreintes sont vérifiés : installateur 24 530 748 octets, SHA-256 `aa6624528acfdc0b5ec69460972a88d39e92d122ca9c370b9bead04f75a69447`. La recette **184** a réussi l'installation, le démarrage, le relancement et l'intégrité SQLite dans un espace jetable. La source du vérificateur est `027f4272a7177487adcc8539d8e7dc92ec9b31c5`, distincte de la source du paquet `01ad1279…`. La signature updater est créée et vérifiée, sans Authenticode ni installation sur le PC utilisateur. Preuves locales `windows/`, `smoke-windows/` et `windows-brand-proof.json`.
+
+La recette Android **183**, issue du même vérificateur, a atteint le compte, les thèmes et la saisie, puis échoué à 02:17:05 UTC sur la comparaison des dimensions après fermeture du clavier. Le diagnostic exact identifie un défaut du vérificateur : il sélectionnait le dernier WebView de l'arbre d'accessibilité, qui représente le document enfant. Le viewport natif extérieur est `[0,24][320,616]` avant et après fermeture ; seul le document enfant passe de y=24 à y=25. Les captures `06-identity-keyboard-closed` et `after-recipe` montrent le clavier fermé et la saisie conservée. Les 36 artefacts utiles restent sous `android-smoke-failed-183/` ; l'échec n'est pas requalifié en recette réussie.
+
+Le sélecteur corrigé exige l'unique WebView sans ancêtre WebView. Deux contre-épreuves échouent avant correction puis les neuf tests passent : aucun pixel de tolérance ou délai supplémentaire, ambiguïté désormais refusée et vraie réduction native toujours détectée. Le rejeu hors ligne des trois XML exacts est conservé dans `android-viewport-replay-183.json`. Une revue indépendante confirme le mauvais objet mesuré. Une nouvelle recette complète reste nécessaire.
+
+Le test de volume Windows est séparé du smoke : pipeline **272** `b91d2374-d9de-4e9d-b03e-0693557f66ad`, workflow `930a0e53-bdeb-40cc-9759-b094d4d955a4`, job **185**, vérificateur `cdfbcb7ed91f5482fc480d368279bfc04a5db1a9`. Sa dernière observation est en file d'attente, pas une mesure réalisée. Le [protocole](RECETTE-WINDOWS-VOLUME-1.90.9.md) exige les données fictives, l'absence de licence ajoutée et les invariants métier. Les deux défauts de confinement/prérequis ont été corrigés, huit tests ciblés et une revue indépendante les valident ; les 23 contrôles du collecteur et trois tests du générateur restent ceux de la préparation. Le YAML et 64 combinaisons de déclenchement sont vérifiés. Aucun résultat partiel ne devient un succès de performance.
+
 ### Diagnostic complémentaire Android 182
 
 L'inspection du journal trouve une pression CPU de 91,59 %, une CPU totale à 100 % et une ANR Google Play Services. Le bouton accessible et les coordonnées du geste sont corrects. L'hypothèse d'un geste perturbé par la fixture saturée reste une hypothèse : aucun événement DOWN/UP n'a été enregistré et l'absence de régression applicative n'est pas prouvée. L'échec 182 demeure conservé.
