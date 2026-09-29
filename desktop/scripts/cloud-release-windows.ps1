@@ -92,6 +92,7 @@ try {
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'input_vat', '--', '--test-threads=1')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/invoiceScan.test.ts', 'src/supplierInvoicePreparation.test.ts')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/runtimeFinancials.test.ts', 'src/workspaceIndexBridge.test.ts', 'src/runtimePerformance.test.ts', 'src/rowIndex.test.ts', 'src/workspaceFinancialRelations.test.ts', 'src/dashboardDeadlines.test.ts')
+    Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'interface_workspace_', '--', '--test-threads=1')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/workspacePreferences.test.ts', 'src/workspacePersonalizationLanguage.test.ts', 'src/nativeNavigationSession.test.ts', 'src/companySyncPresentation.test.ts')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/companyAccount.test.ts', 'src/companyRealtime.test.ts', 'src/projectSyncScheduler.test.ts', 'src/automationCompanySession.test.ts', 'src/appReleaseNotes.test.ts', 'src/automationDailySummary.test.tsx', 'src/automationHub.test.tsx', 'src/automationJournal.test.tsx', 'src/automationNavigation.test.tsx', 'src/appearance.test.ts', 'src/supplierInboxReview.test.ts', 'src/supplierInboxBatch.test.ts', 'src/languageCatalogCoverage.test.ts', 'src/projectReport.test.ts')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
@@ -137,6 +138,7 @@ try {
         documentCompositionTestsPassed = $true; documentEditorTestsPassed = $true
         bexioImportTestsPassed = $true; catalogImportTestsPassed = $true
         outgoingMailTestsPassed = $true; fixedAssetsTestsPassed = $true; inputVatTestsPassed = $true; invoiceScanTestsPassed = $true
+        interfaceWorkspaceTestsPassed = $true
         files = @($exe, $setup | ForEach-Object { [ordered]@{name = (Split-Path $_ -Leaf); size = (Get-Item $_).Length; sha256 = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()} })
     }
     [IO.File]::WriteAllText((Join-Path $artifacts 'provenance.json'), ($proof | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))
