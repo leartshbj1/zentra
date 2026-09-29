@@ -362,6 +362,255 @@ class WindowsBoundsTests(unittest.TestCase):
             self.assertFalse(result['measured'])
 
 
+@unittest.skipUnless(os.name == 'nt', 'Windows nested Job Object containment only')
+class WindowsNestedJobsTests(unittest.TestCase):
+    """Real disposable Python processes; never an app package or network call."""
+
+    def kernel(self):
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        return kernel
+
+    def wait_json(self, filename, proc):
+        end = time.monotonic() + 5
+        while time.monotonic() < end:
+            self.assertIsNone(proc.poll(), 'Disposable worker exited before its proof')
+            try:
+                return json.loads(filename.read_text())
+            except (FileNotFoundError, json.JSONDecodeError):
+                time.sleep(.01)
+        self.fail(f'Disposable process did not write {filename.name} within five seconds')
+
+    def worker_command(self, root, spawn_breakaway):
+        resume = root / 'allow-grandchild'
+        grandchild_proof = root / 'grandchild.json'
+        # The child cannot spawn anything until the test has verified its outer
+        # Job membership. It also exits by itself if that permission never comes.
+        child_code = (
+            'import json,pathlib,subprocess,sys,time\n'
+            'end=time.monotonic()+10\n'
+            f'while not pathlib.Path({str(resume)!r}).exists() and time.monotonic()<end: time.sleep(.01)\n'
+            f'if not pathlib.Path({str(resume)!r}).exists(): sys.exit(47)\n'
+            "grandchild=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'])\n"
+            f'pathlib.Path({str(grandchild_proof)!r}).write_text(json.dumps({{"pid":grandchild.pid}}))\n'
+            'time.sleep(30)\n'
+        )
+        worker_code = (
+            'import importlib.util,json,pathlib,subprocess,sys,time\n'
+            f"spec=importlib.util.spec_from_file_location('launcher',{str(Path(launcher.__file__).resolve())!r})\n"
+            'launcher=importlib.util.module_from_spec(spec);spec.loader.exec_module(launcher)\n'
+            'launcher.wait_for_start_gate(int(sys.argv[-1]),time.time()+10)\n'
+        )
+        if spawn_breakaway:
+            worker_code += (
+                'try:\n'
+                f' child=subprocess.Popen([sys.executable,"-c",{child_code!r}],creationflags=subprocess.CREATE_BREAKAWAY_FROM_JOB)\n'
+                ' outcome={"created":True,"pid":child.pid}\n'
+                'except OSError as error:\n'
+                ' outcome={"created":False,"winerror":error.winerror}\n'
+                f'pathlib.Path({str(root / "child.json")!r}).write_text(json.dumps(outcome))\n'
+            )
+        else:
+            worker_code += f'pathlib.Path({str(root / "forbidden-after-gate")!r}).write_text("unexpected")\n'
+        worker_code += 'time.sleep(30)\n'
+        return [sys.executable, '-c', worker_code]
+
+    def open_owned_process(self, kernel, pid, handles):
+        # Hold the exact process object for membership/termination checks rather
+        # than relying on a later PID lookup after the process may have exited.
+        handle = kernel.OpenProcess(0x00100000 | 0x1000 | 0x0001, False, pid)
+        self.assertTrue(handle)
+        handles.append(handle)
+        return handle
+
+    def finish_processes(self, kernel, proc, close_job, handles):
+        try:
+            if close_job:
+                close_job()
+            if proc is not None and proc.poll() is None:
+                proc.kill()
+            if proc is not None:
+                proc.wait(timeout=3)
+        finally:
+            for handle in handles:
+                try:
+                    # An assertion may have discovered a containment regression;
+                    # terminate only the explicitly opened disposable processes.
+                    if kernel.WaitForSingleObject(handle, 0) == 258:
+                        kernel.TerminateProcess(handle, 99)
+                        kernel.WaitForSingleObject(handle, 3000)
+                finally:
+                    kernel.CloseHandle(handle)
+
+    def test_strict_job_refuses_explicit_breakaway_child(self):
+        kernel = self.kernel()
+        with tempfile.TemporaryDirectory(prefix='zentra-volume-1909-nested-strict-') as folder:
+            root = Path(folder)
+            proc, close_job, handles = None, None, []
+            try:
+                with (root / 'worker.log').open('wb') as log:
+                    proc, close_job = launcher.launch_owned_worker(self.worker_command(root, True), log, job_layout='strict')
+                    outcome = self.wait_json(root / 'child.json', proc)
+                    if outcome.get('created'):
+                        self.open_owned_process(kernel, outcome['pid'], handles)
+                    self.assertEqual(outcome, {'created': False, 'winerror': 5})
+                    self.assertEqual(close_job.membership(proc._handle), {'outer': True, 'inner': None})
+                    self.assertEqual(close_job.evidence['layout'], 'strict')
+                    self.assertEqual(close_job.evidence['outerLimitFlags'], 8192)
+                    self.assertIsNone(close_job.evidence['innerLimitFlags'])
+                    self.assertEqual(close_job.evidence['workerMembership'], {'outer': True, 'inner': None})
+                    self.assertFalse((root / 'grandchild.json').exists())
+                    close_job()
+                    close_job()  # Required idempotence; must not close reused handles.
+                    proc.wait(timeout=3)
+            finally:
+                self.finish_processes(kernel, proc, close_job, handles)
+
+    def test_nested_breakaway_keeps_child_and_grandchild_in_outer_until_closed(self):
+        kernel = self.kernel()
+        with tempfile.TemporaryDirectory(prefix='zentra-volume-1909-nested-allowed-') as folder:
+            root = Path(folder)
+            proc, close_job, handles = None, None, []
+            try:
+                with (root / 'worker.log').open('wb') as log:
+                    proc, close_job = launcher.launch_owned_worker(self.worker_command(root, True), log, job_layout='nested-breakaway')
+                    outcome = self.wait_json(root / 'child.json', proc)
+                    self.assertTrue(outcome.get('created'), outcome)
+                    child = self.open_owned_process(kernel, outcome['pid'], handles)
+                    self.assertEqual(close_job.membership(proc._handle), {'outer': True, 'inner': True})
+                    self.assertEqual(close_job.membership(child), {'outer': True, 'inner': False})
+                    self.assertEqual(close_job.evidence['layout'], 'nested-breakaway')
+                    self.assertEqual(close_job.evidence['outerLimitFlags'], 8192)
+                    self.assertEqual(close_job.evidence['innerLimitFlags'], 2048)
+                    self.assertEqual(close_job.evidence['workerMembership'], {'outer': True, 'inner': True})
+                    (root / 'allow-grandchild').write_text('Outer membership verified')
+                    grandchild_info = self.wait_json(root / 'grandchild.json', proc)
+                    grandchild = self.open_owned_process(kernel, grandchild_info['pid'], handles)
+                    self.assertEqual(close_job.membership(grandchild), {'outer': True, 'inner': False})
+                    self.assertEqual(kernel.WaitForSingleObject(child, 0), 258)
+                    self.assertEqual(kernel.WaitForSingleObject(grandchild, 0), 258)
+                    close_job()
+                    close_job()
+                    self.assertEqual(kernel.WaitForSingleObject(child, 3000), 0)
+                    self.assertEqual(kernel.WaitForSingleObject(grandchild, 3000), 0)
+                    proc.wait(timeout=3)
+            finally:
+                self.finish_processes(kernel, proc, close_job, handles)
+
+    def test_unknown_job_layout_is_rejected_before_using_a_process(self):
+        with self.assertRaises(ValueError):
+            launcher.owned_job(None, job_layout='uncontrolled-breakaway')
+
+    def test_second_attachment_failure_keeps_gate_closed_and_terminates_worker(self):
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+        assignments, processes = [], []
+        real_popen = subprocess.Popen
+
+        class RejectSecondAttachment:
+            def __call__(self, job, process):
+                assignments.append((job, process))
+                if len(assignments) == 2:
+                    ctypes.set_last_error(5)
+                    return 0
+                return kernel.AssignProcessToJobObject(job, process)
+
+        class KernelProxy:
+            AssignProcessToJobObject = RejectSecondAttachment()
+
+            def __getattr__(self, name):
+                return getattr(kernel, name)
+
+        def remember_process(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            processes.append(proc)
+            return proc
+
+        with tempfile.TemporaryDirectory(prefix='zentra-volume-1909-nested-failure-') as folder:
+            root = Path(folder)
+            try:
+                with (root / 'worker.log').open('wb') as log, patch.object(launcher.ctypes, 'WinDLL', return_value=KernelProxy()), patch.object(launcher.subprocess, 'Popen', side_effect=remember_process), patch.object(launcher.WorkerStartGate, 'release', autospec=True) as release:
+                    with self.assertRaises(OSError):
+                        launcher.launch_owned_worker(self.worker_command(root, False), log, job_layout='nested-breakaway')
+                    release.assert_not_called()
+                self.assertEqual(len(assignments), 2)
+                self.assertEqual(len(processes), 1)
+                self.assertIsNotNone(processes[0].poll())
+                self.assertFalse((root / 'forbidden-after-gate').exists())
+            finally:
+                for proc in processes:
+                    if proc.poll() is None:
+                        proc.kill()
+                    proc.wait(timeout=3)
+
+
+@unittest.skipUnless(os.name == 'nt', 'Windows host-token evidence only')
+class HostTokenTests(unittest.TestCase):
+    def test_actual_token_exports_only_elevation_and_integrity_metadata(self):
+        evidence = launcher.current_token_evidence()
+        self.assertEqual(set(evidence), {'elevated', 'integrityRid', 'integrity'})
+        self.assertIs(type(evidence['elevated']), bool)
+        self.assertIs(type(evidence['integrityRid']), int)
+        self.assertGreaterEqual(evidence['integrityRid'], 0)
+        self.assertIn(evidence['integrity'], {'system', 'high', 'medium', 'low', 'untrusted'})
+
+    def test_host_requires_known_non_elevated_medium_integrity(self):
+        medium = {'elevated': False, 'integrityRid': 0x2000, 'integrity': 'medium'}
+        self.assertTrue(launcher.supported_volume_host(medium))
+        self.assertTrue(launcher.supported_volume_host({**medium, 'integrityRid': 0x2100}))
+        refused = [
+            {}, {'unavailable': 'Token query failed'},
+            {**medium, 'elevated': True}, {**medium, 'elevated': None}, {**medium, 'elevated': 0},
+            {**medium, 'integrityRid': 0x3000, 'integrity': 'high'},
+            {**medium, 'integrityRid': 0x4000, 'integrity': 'system'},
+            {**medium, 'integrityRid': 0x1000, 'integrity': 'low'},
+            {**medium, 'integrityRid': 0, 'integrity': 'untrusted'},
+            {**medium, 'integrityRid': None}, {**medium, 'integrityRid': '8192'},
+            {**medium, 'integrityRid': True}, {**medium, 'integrityRid': -1},
+        ]
+        for evidence in refused:
+            with self.subTest(evidence=evidence):
+                self.assertFalse(launcher.supported_volume_host(evidence))
+
+    def test_unsupported_or_unavailable_token_stops_before_processes_or_downloads(self):
+        elevated = {'elevated': True, 'integrityRid': 0x3000, 'integrity': 'high'}
+        for evidence in [elevated, OSError('Token query unavailable')]:
+            with self.subTest(evidence=evidence), tempfile.TemporaryDirectory(prefix='zentra-volume-1909-token-') as folder:
+                events = []
+                args = SimpleNamespace(worker_root=folder, output=folder,
+                                       deadline_epoch_ms=int((time.time() + 30) * 1000),
+                                       start_gate_handle=123, node='not-invoked', job_layout='strict')
+                def token():
+                    events.append('token')
+                    if isinstance(evidence, Exception):
+                        raise evidence
+                    return evidence
+                with patch.object(launcher, 'wait_for_start_gate', side_effect=lambda *args: events.append('gate')), patch.object(launcher, 'probe_node', side_effect=lambda *args: events.append('node') or {'version': '22.0.0'}), patch.object(launcher, 'current_token_evidence', side_effect=token), patch.object(launcher, 'exact_package') as package, patch.object(launcher.subprocess, 'check_output') as tasklist, patch.object(launcher.subprocess, 'Popen') as popen, patch.object(launcher.socket, 'socket') as network:
+                    self.assertEqual(launcher.worker(args), 2)
+                    package.assert_not_called()
+                    tasklist.assert_not_called()
+                    popen.assert_not_called()
+                    network.assert_not_called()
+                self.assertEqual(events, ['gate', 'node', 'token'])
+                result = json.loads((Path(folder) / 'result.json').read_text())
+                self.assertEqual(result['status'], 'not_measured')
+                self.assertFalse(result['measured'])
+                self.assertFalse(result['ipcMeasured'])
+                self.assertFalse(result['uiMeasured'])
+                if isinstance(evidence, Exception):
+                    self.assertIn('Token query unavailable', result['hostToken']['unavailable'])
+                else:
+                    self.assertEqual(result['hostToken'], elevated)
+
+
 class NodePreflightTests(unittest.TestCase):
     def test_actual_node_runtime_has_required_capabilities(self):
         node = os.environ.get('ZENTRA_VOLUME_TEST_NODE') or launcher.shutil.which('node')

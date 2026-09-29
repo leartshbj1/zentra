@@ -114,14 +114,14 @@ class WorkerStartGate:
             self.handle = None
 
 
-def launch_owned_worker(command, log):
+def launch_owned_worker(command, log, job_layout='strict'):
     gate = WorkerStartGate()
     proc, close_job = None, None
     try:
         proc = subprocess.Popen([*command, '--start-gate-handle', str(int(gate.handle))],
             stdout=log, stderr=log, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
             startupinfo=gate.startup_info(), close_fds=True)
-        close_job = owned_job(proc)
+        close_job = owned_job(proc) if job_layout == 'strict' else owned_job(proc, job_layout)
         # This is the only release site, after successful job creation AND attachment.
         gate.release()
         return proc, close_job
@@ -151,6 +151,49 @@ def private_environment(profile, webview, port):
     for name in ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY']:
         env[name.lower()] = env[name]
     return env
+
+
+def current_token_evidence():
+    """Read only privilege metadata; never export a SID, user name or token."""
+    class SidAndAttributes(ctypes.Structure):
+        _fields_ = [('sid', ctypes.c_void_p), ('attributes', wintypes.DWORD)]
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    advapi = ctypes.WinDLL('advapi32', use_last_error=True)
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    advapi.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    advapi.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                                          wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    advapi.IsValidSid.argtypes = [ctypes.c_void_p]
+    advapi.GetSidSubAuthorityCount.argtypes = [ctypes.c_void_p]
+    advapi.GetSidSubAuthorityCount.restype = ctypes.POINTER(ctypes.c_ubyte)
+    advapi.GetSidSubAuthority.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+    advapi.GetSidSubAuthority.restype = ctypes.POINTER(wintypes.DWORD)
+    token, size, elevated = wintypes.HANDLE(), wintypes.DWORD(), wintypes.DWORD()
+    if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 0x0008, ctypes.byref(token)):  # TOKEN_QUERY
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        if not advapi.GetTokenInformation(token, 20, ctypes.byref(elevated), ctypes.sizeof(elevated), ctypes.byref(size)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        advapi.GetTokenInformation(token, 25, None, 0, ctypes.byref(size))
+        fixture.require(0 < size.value <= 65536, 'Unexpected integrity-token size')
+        buffer = ctypes.create_string_buffer(size.value)
+        if not advapi.GetTokenInformation(token, 25, buffer, size, ctypes.byref(size)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        sid = ctypes.cast(buffer, ctypes.POINTER(SidAndAttributes)).contents.sid
+        fixture.require(advapi.IsValidSid(sid), 'Invalid integrity SID')
+        count = advapi.GetSidSubAuthorityCount(sid)[0]
+        fixture.require(count > 0, 'Integrity SID has no authority')
+        rid = advapi.GetSidSubAuthority(sid, count - 1)[0]
+        level = 'system' if rid >= 0x4000 else 'high' if rid >= 0x3000 else 'medium' if rid >= 0x2000 else 'low' if rid >= 0x1000 else 'untrusted'
+        return {'elevated': bool(elevated.value), 'integrityRid': rid, 'integrity': level}
+    finally:
+        kernel.CloseHandle(token)
+
+
+def supported_volume_host(evidence):
+    rid = evidence.get('integrityRid')
+    return evidence.get('elevated') is False and type(rid) is int and 0x2000 <= rid < 0x3000
 
 
 def stop_tree(proc):
@@ -361,7 +404,17 @@ def worker(args):
     deadline = args.deadline_epoch_ms / 1000
     try:
         wait_for_start_gate(args.start_gate_handle, deadline)
+        result['containment'] = {'layout': getattr(args, 'job_layout', 'strict'), 'startupGatePassed': True}
         result['nodeRuntime'] = probe_node(args.node, deadline)
+        try:
+            result['hostToken'] = current_token_evidence()
+        except Exception as token_error:
+            result['hostToken'] = {'unavailable': f'{type(token_error).__name__}: {token_error}'[:512]}
+        if not supported_volume_host(result['hostToken']):
+            result.update(status='not_measured', reason='A verified non-elevated medium-integrity host is required; '
+                          'WebView2 ignores WEBVIEW2_* environment overrides when elevated')
+            fixture.write_json(out / 'result.json', result)
+            return 2
         existing = subprocess.check_output(['tasklist', '/FI', 'IMAGENAME eq Zentra.exe', '/FO', 'CSV'],
                                            timeout=remaining(deadline, 5), text=True)
         fixture.require('"zentra.exe"' not in existing.lower(), 'Another Zentra instance exists; use a disposable runner')
@@ -433,8 +486,9 @@ def worker(args):
     return 0 if result['measured'] and result['status'] == 'passed' else 2 if result['status'] in ('not_measured', 'partial') else 1
 
 
-def owned_job(proc):
+def owned_job(proc, job_layout='strict'):
     """Kill every owned descendant on timeout or supervisor failure (Windows)."""
+    fixture.require(job_layout in ('strict', 'nested-breakaway'), 'Unknown Job Object layout')
     class Basic(ctypes.Structure):
         _fields_ = [('processTime', ctypes.c_int64), ('jobTime', ctypes.c_int64), ('flags', wintypes.DWORD),
                     ('minWorkingSet', ctypes.c_size_t), ('maxWorkingSet', ctypes.c_size_t),
@@ -448,13 +502,53 @@ def owned_job(proc):
     kernel.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
     kernel.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
     kernel.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+    kernel.IsProcessInJob.argtypes = [wintypes.HANDLE, wintypes.HANDLE, ctypes.POINTER(wintypes.BOOL)]
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
-    handle = kernel.CreateJobObjectW(None, None)
-    limits = Extended(); limits.basic.flags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-    if not handle or not kernel.SetInformationJobObject(handle, 9, ctypes.byref(limits), ctypes.sizeof(limits)) or not kernel.AssignProcessToJobObject(handle, wintypes.HANDLE(int(proc._handle))):
-        if handle: kernel.CloseHandle(handle)
-        raise ctypes.WinError(ctypes.get_last_error())
-    return lambda: kernel.CloseHandle(handle)
+    handles, closed = [], False
+
+    def close_job():
+        nonlocal closed
+        if not closed:
+            closed = True
+            # Close the non-breakaway outer Job first, including escaped inner children.
+            for handle in handles: kernel.CloseHandle(handle)
+
+    def membership(process_handle):
+        fixture.require(not closed, 'Job handles have already been closed')
+        answer = {'outer': None, 'inner': None}
+        for name, handle in zip(('outer', 'inner'), handles):
+            included = wintypes.BOOL()
+            if not kernel.IsProcessInJob(wintypes.HANDLE(int(process_handle)), handle, ctypes.byref(included)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            answer[name] = bool(included.value)
+        return answer
+
+    try:
+        # The outer Job never permits any form of breakaway. The optional inner
+        # Job permits only an explicit CREATE_BREAKAWAY_FROM_JOB request, which
+        # stops at that non-breakaway outer ancestor (Windows nested-job rules).
+        flags = [0x2000] + ([0x0800] if job_layout == 'nested-breakaway' else [])
+        for limit_flags in flags:
+            handle = kernel.CreateJobObjectW(None, None)
+            if not handle: raise ctypes.WinError(ctypes.get_last_error())
+            handles.append(handle)
+            limits = Extended(); limits.basic.flags = limit_flags
+            if not kernel.SetInformationJobObject(handle, 9, ctypes.byref(limits), ctypes.sizeof(limits)):
+                raise ctypes.WinError(ctypes.get_last_error())
+        for handle in handles:
+            if not kernel.AssignProcessToJobObject(handle, wintypes.HANDLE(int(proc._handle))):
+                raise ctypes.WinError(ctypes.get_last_error())
+        worker_membership = membership(proc._handle)
+        fixture.require(worker_membership['outer'] and
+                        (job_layout == 'strict' or worker_membership['inner']), 'Worker escaped its required Jobs')
+        close_job.membership = membership
+        close_job.evidence = {'layout': job_layout, 'outerLimitFlags': flags[0],
+                              'innerLimitFlags': flags[1] if len(flags) == 2 else None,
+                              'workerMembership': worker_membership}
+        return close_job
+    except BaseException:
+        close_job()
+        raise
 
 
 def main():
@@ -464,6 +558,8 @@ def main():
     parser.add_argument('--schema', type=int, required=True, help='Schema version from this exact release source')
     parser.add_argument('--output', required=True, help='New directory for JSON/logs/screenshots, never SQLite')
     parser.add_argument('--node', default=shutil.which('node'))
+    parser.add_argument('--job-layout', choices=('strict', 'nested-breakaway'), default='strict',
+                        help='Explicit containment experiment; the outer Job always refuses breakaway')
     parser.add_argument('--disposable-runner', action='store_true', required=True)
     parser.add_argument('--worker-root', help=argparse.SUPPRESS)
     parser.add_argument('--deadline-epoch-ms', type=int, help=argparse.SUPPRESS)
@@ -483,11 +579,15 @@ def main():
     worker_deadline = deadline - 5
     command = [sys.executable, str(Path(__file__).resolve()), '--job', str(args.job), '--source', args.source,
                '--schema', str(args.schema), '--output', str(out), '--node', str(Path(args.node).resolve()),
+               '--job-layout', args.job_layout,
                '--disposable-runner', '--worker-root', str(root), '--deadline-epoch-ms', str(round(worker_deadline * 1000))]
     close_job, proc = None, None
     with (out / 'runner.log').open('wb') as log:
         try:
-            proc, close_job = launch_owned_worker(command, log)
+            proc, close_job = (launch_owned_worker(command, log) if args.job_layout == 'strict' else
+                               launch_owned_worker(command, log, args.job_layout))
+            if hasattr(close_job, 'evidence'):
+                fixture.write_json(out / 'containment.json', close_job.evidence)
             code = proc.wait(timeout=remaining(worker_deadline, 595))
         except Exception as error:
             # Stop the worker before writing the final watchdog result so a late

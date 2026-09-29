@@ -18,6 +18,20 @@ Avant l’arrêt, une collecte complémentaire dispose d’au plus deux secondes
 
 Le job volume 185 a échoué avant peuplement après validation de Node 22.23.3 et de l’installation exacte. Son ancien résultat ne permet pas d’identifier la cause. Le smoke 184 a réussi avec le même SHA256 installé `cfb7565a480034507523b568cf3ae51a3659b019dff49f3450062137ca1e55ad` et le schéma 60. Les différences restent à distinguer : attente SQLite 0,2 seconde contre cinq secondes implicites dans le smoke, Job Object, stockage WebView distinct et paramètres CDP/proxy. Aucune de ces différences n’est une cause démontrée ; le confinement, les délais et l’environnement restent inchangés.
 
+Le job volume 188 conserve davantage de preuves : après 60 001 ms, la base est absente, le profil fictif est vide, Zentra est vivant et le cliché complet montre un seul descendant `msedgewebview2.exe`. Aucun appel `get_workspace`, peuplement ou chronométrage IPC/UI n’a donc été obtenu. Ce démarrage incomplet ne démontre ni une régression de la projection `get_workspace` de 1.90.9 ni une cause liée au Job Object. Le smoke 184 et la mesure volumétrique restent deux preuves distinctes.
+
+## Expérience de confinement après le job 188
+
+Le mode par défaut reste `--job-layout strict`. L’option explicite `--job-layout nested-breakaway` ajoute un Job interne autorisant seulement une demande `CREATE_BREAKAWAY_FROM_JOB`. Le Job externe conserve exclusivement `KILL_ON_JOB_CLOSE` (`0x2000`), sans aucune autorisation de breakaway. Le Job interne utilise `BREAKAWAY_OK` (`0x0800`), jamais `SILENT_BREAKAWAY_OK`. Les deux rattachements et leur appartenance sont vérifiés avant de libérer la barrière. `containment.json` conserve le mode, les flags et l’appartenance du worker ; un échec de création/rattachement arrête le worker encore bloqué.
+
+Selon les règles Microsoft, une demande de sortie de Jobs imbriqués s’arrête au premier parent qui la refuse : un enfant peut ainsi quitter l’interne tout en restant sous le contrôle de l’externe. Les tests locaux vérifient cette propriété avec de vrais processus Python, puis leur terminaison à la fermeture du Job externe. Cette expérience teste une permission du Job immédiat ; elle ne retire aucun confinement extérieur et ne désactive aucun sandbox. [Jobs imbriqués Microsoft](https://learn.microsoft.com/en-us/windows/win32/procthread/nested-jobs), [flags des limites de Job](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_limit_information).
+
+L’hypothèse n’est pas tenue pour acquise : Chromium utilise lui-même `KILL_ON_JOB_CLOSE` et sait rattacher ses processus sandbox à un Job. Ce code public courant ne prouve pas le comportement exact du Runtime Edge installé dans le runner. [Job Chromium](https://raw.githubusercontent.com/chromium/chromium/main/sandbox/win/src/job.cc), [création des processus sandbox](https://raw.githubusercontent.com/chromium/chromium/main/sandbox/win/src/broker_services.cc).
+
+Avant tout téléchargement de paquet, les deux modes relèvent le jeton effectif : booléen d’élévation et niveau d’intégrité uniquement, sans SID, nom d’utilisateur ni jeton exporté. La recette exige un hôte vérifié non élevé, d’intégrité moyenne. Un hôte élevé, bas ou non vérifiable produit `not_measured`, code 2, sans installation. Microsoft documente que les overrides `WEBVIEW2_*` sont ignorés lorsque l’hôte est élevé ; continuer ne garantirait donc pas le port CDP et le stockage WebView privé demandés. Aucun privilège, compte, registre ou réglage de l’application n’est modifié. Si le runner est effectivement élevé, la prochaine étape sera de préparer une exécution avec un jeton standard dans la VM CI jetable, en conservant ces mêmes protections. [Niveau de privilège et overrides WebView2](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/security).
+
+Pour l’essai comparatif, ajouter seulement `--job-layout nested-breakaway` à la commande de recette ci-dessous. Le paquet, le profil neuf, le proxy, les délais et les critères IPC/UI restent identiques. Il n’y a aucune seconde tentative automatique ni lancement de matrice de variantes. Même une initialisation réussie de cette variante ne constitue pas une preuve de rendu tant que le collecteur n’a pas produit ses mesures réelles.
+
 ## Données déterministes
 
 `windows-volume-fixture.py` refuse un chemin non canonique, un lien symbolique, un marqueur absent, une base non initialisée par le paquet, une entreprise déjà présente ou des fichiers de compte/licence. Il peuple la base arrêtée dans une transaction, avec identifiants et dates fixes :
@@ -61,7 +75,7 @@ python desktop/scripts/windows-package-volume.py --job 181 --source 01ad1279b934
 
 Le répertoire de sortie doit être absent. `--node C:/chemin/node.exe` permet de préciser le runtime. Le script télécharge uniquement les artefacts CI nécessaires ; il ne déclenche aucun job.
 
-Lire ensemble `result.json`, `initialization.json`, puis, lorsqu’ils ont pu être produits, `measurements.json`, `fixture.json`, `before.json`, `after.json`, les journaux et les captures. Les fichiers de preuve ne contiennent pas les tableaux métier bruts. Le dossier SQLite temporaire est indiqué pour vérification locale, sans être inclus dans les artefacts à publier.
+Lire ensemble `result.json`, `containment.json`, `initialization.json`, puis, lorsqu’ils ont pu être produits, `measurements.json`, `fixture.json`, `before.json`, `after.json`, les journaux et les captures. Un refus du contexte d’exécution peut survenir avant `initialization.json` et avant tout paquet. Les fichiers de preuve ne contiennent pas les tableaux métier bruts. Le dossier SQLite temporaire est indiqué pour vérification locale, sans être inclus dans les artefacts à publier.
 
 - Code 0 : mesures complètes **et** invariants conservés.
 - Code 2 : résultat partiel/non mesuré, notamment CDP absent, accès UI bloqué ou délai global ; ne pas le convertir en succès de performance.
@@ -82,7 +96,7 @@ node desktop/scripts/test-windows-volume-collector.mjs
 Les régressions du superviseur et de Node peuvent aussi être exécutées seules, sans fixture SQLite :
 
 ```powershell
-python desktop/scripts/test-windows-volume-fixture.py InitializationDiagnosticsTests WindowsBoundsTests NodePreflightTests -v
+python desktop/scripts/test-windows-volume-fixture.py InitializationDiagnosticsTests WindowsBoundsTests WindowsNestedJobsTests HostTokenTests NodePreflightTests -v
 ```
 
 Validation réalisée lors de la préparation : deux générations complètes identiques, refus d’un profil non marqué ou peuplé, refus avant mutation après expiration du budget ; trois tests réussis. Les tests ciblés Windows vérifient, avec des processus Python jetables, l’absence de départ avant libération, la terminaison des descendants par le Job, les échecs d’attachement et de libération, les handles absents/invalides et l’expiration. Les tests Node vérifient le runtime local réel (24.19.0), ainsi que les refus de version/capacités, JSON invalide, sortie en erreur et expiration simulés, avant tout téléchargement. Les 23 contrôles du collecteur passent avec DOM/CDP simulés, y compris l’IPC conservé sous activation bloquante, le refus d’un mauvais profil/version avant lecture métier et l’absence de CDP. Ce résultat valide le dispositif local ; il ne constitue pas une mesure de l’installateur 1.90.9.
