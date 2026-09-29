@@ -114,18 +114,30 @@ class WorkerStartGate:
             self.handle = None
 
 
-def launch_owned_worker(command, log, job_layout='strict'):
+def launch_owned_worker(command, log, job_layout='strict', worker_token='inherit'):
+    fixture.require(worker_token in ('inherit', 'restricted-medium'), 'Unknown worker-token mode')
     gate = WorkerStartGate()
     proc, close_job = None, None
     try:
-        proc = subprocess.Popen([*command, '--start-gate-handle', str(int(gate.handle))],
-            stdout=log, stderr=log, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-            startupinfo=gate.startup_info(), close_fds=True)
+        gated_command = [*command, '--start-gate-handle', str(int(gate.handle))]
+        if worker_token == 'restricted-medium':
+            token_helper = module('volume_token', 'windows-volume-token.py')
+            proc = token_helper.create_restricted_worker(gated_command, int(gate.handle), log)
+        else:
+            proc = subprocess.Popen(gated_command, stdout=log, stderr=log,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP, startupinfo=gate.startup_info(), close_fds=True)
         close_job = owned_job(proc) if job_layout == 'strict' else owned_job(proc, job_layout)
+        if worker_token == 'restricted-medium':
+            close_job.evidence['workerToken'] = proc.token_evidence
+            # The restricted process has not executed even one instruction yet.
+            # Both token inspection and Job ownership must precede its resume.
+            proc.resume()
         # This is the only release site, after successful job creation AND attachment.
         gate.release()
         return proc, close_job
-    except BaseException:
+    except BaseException as error:
+        if proc is not None and hasattr(proc, 'token_evidence'):
+            error.token_evidence = proc.token_evidence
         if close_job:
             close_job()
         elif proc is not None and proc.poll() is None:
@@ -133,6 +145,7 @@ def launch_owned_worker(command, log, job_layout='strict'):
             proc.kill()
         if proc is not None:
             proc.wait(timeout=5)
+            if hasattr(proc, 'close'): proc.close()
         raise
     finally:
         gate.close()
@@ -402,9 +415,12 @@ def worker(args):
               'verifierFilesSha256': {name: sha(Path(__file__).with_name(name)) for name in
                   ['windows-package-volume.py', 'windows-volume-fixture.py', 'windows-volume-collector.mjs', 'cloud-package-smoke.py']}}
     deadline = args.deadline_epoch_ms / 1000
+    if getattr(args, 'worker_token', 'inherit') == 'restricted-medium':
+        result['verifierFilesSha256']['windows-volume-token.py'] = sha(Path(__file__).with_name('windows-volume-token.py'))
     try:
         wait_for_start_gate(args.start_gate_handle, deadline)
-        result['containment'] = {'layout': getattr(args, 'job_layout', 'strict'), 'startupGatePassed': True}
+        result['containment'] = {'layout': getattr(args, 'job_layout', 'strict'),
+                                 'workerToken': getattr(args, 'worker_token', 'inherit'), 'startupGatePassed': True}
         result['nodeRuntime'] = probe_node(args.node, deadline)
         try:
             result['hostToken'] = current_token_evidence()
@@ -415,6 +431,23 @@ def worker(args):
                           'WebView2 ignores WEBVIEW2_* environment overrides when elevated')
             fixture.write_json(out / 'result.json', result)
             return 2
+        if getattr(args, 'worker_token', 'inherit') == 'restricted-medium':
+            try:
+                # Check only new recipe-owned directories, before downloading a package.
+                for directory in (root, out):
+                    with (directory / 'restricted-worker-access.json').open('x', encoding='utf-8') as proof:
+                        json.dump({'synthetic': True, 'restrictedWorkerWrite': True}, proof)
+                result['restrictedWorkerAccess'] = True
+            except OSError as access_error:
+                result.update(status='not_measured', reason='Restricted worker cannot write its new recipe directories',
+                              accessError=f'{type(access_error).__name__}: {access_error}'[:512])
+                try:
+                    fixture.write_json(out / 'result.json', result)
+                except OSError:
+                    # The inherited log handle remains writable even when a new
+                    # output file is refused; the supervisor will record failure.
+                    print(json.dumps(result), flush=True)
+                return 2
         existing = subprocess.check_output(['tasklist', '/FI', 'IMAGENAME eq Zentra.exe', '/FO', 'CSV'],
                                            timeout=remaining(deadline, 5), text=True)
         fixture.require('"zentra.exe"' not in existing.lower(), 'Another Zentra instance exists; use a disposable runner')
@@ -560,6 +593,8 @@ def main():
     parser.add_argument('--node', default=shutil.which('node'))
     parser.add_argument('--job-layout', choices=('strict', 'nested-breakaway'), default='strict',
                         help='Explicit containment experiment; the outer Job always refuses breakaway')
+    parser.add_argument('--worker-token', choices=('inherit', 'restricted-medium'), default='inherit',
+                        help='CI-only same-user restricted worker; never falls back to inherited elevation')
     parser.add_argument('--disposable-runner', action='store_true', required=True)
     parser.add_argument('--worker-root', help=argparse.SUPPRESS)
     parser.add_argument('--deadline-epoch-ms', type=int, help=argparse.SUPPRESS)
@@ -568,6 +603,8 @@ def main():
     fixture.require(os.name == 'nt', 'Only a disposable Windows runner is supported')
     fixture.require(args.job == 181 and re.fullmatch('[a-f0-9]{40}', args.source), 'Require exact Windows build 181 and source SHA')
     fixture.require(args.node and Path(args.node).is_file(), 'Node >=22 is required for native WebSocket CDP')
+    fixture.require(args.worker_token != 'restricted-medium' or os.environ.get('CIRCLECI') == 'true',
+                    'restricted-medium application runs are allowed only in the disposable CI runner')
     if args.worker_root:
         return worker(args)
     out = Path(args.output).resolve()
@@ -580,15 +617,25 @@ def main():
     command = [sys.executable, str(Path(__file__).resolve()), '--job', str(args.job), '--source', args.source,
                '--schema', str(args.schema), '--output', str(out), '--node', str(Path(args.node).resolve()),
                '--job-layout', args.job_layout,
+               '--worker-token', args.worker_token,
                '--disposable-runner', '--worker-root', str(root), '--deadline-epoch-ms', str(round(worker_deadline * 1000))]
     close_job, proc = None, None
     with (out / 'runner.log').open('wb') as log:
         try:
-            proc, close_job = (launch_owned_worker(command, log) if args.job_layout == 'strict' else
-                               launch_owned_worker(command, log, args.job_layout))
+            if args.worker_token == 'restricted-medium':
+                proc, close_job = launch_owned_worker(command, log, args.job_layout, args.worker_token)
+            else:
+                proc, close_job = (launch_owned_worker(command, log) if args.job_layout == 'strict' else
+                                   launch_owned_worker(command, log, args.job_layout))
             if hasattr(close_job, 'evidence'):
                 fixture.write_json(out / 'containment.json', close_job.evidence)
             code = proc.wait(timeout=remaining(worker_deadline, 595))
+            if not (out / 'result.json').is_file():
+                fixture.write_json(out / 'result.json', {'status': 'not_measured', 'measured': False,
+                    'ipcMeasured': False, 'uiMeasured': False, 'workerExit': code,
+                    'reason': 'Worker exited without a result; inspect the owned runner.log',
+                    'scope': 'No complete IPC/UI result', 'profile': str(root / 'profile')})
+                if code == 0: code = 2
         except Exception as error:
             # Stop the worker before writing the final watchdog result so a late
             # worker cannot overwrite it with a success/partial status.
@@ -599,11 +646,15 @@ def main():
                 stop_tree(proc)
             fixture.write_json(out / 'result.json', {'status': 'not_measured', 'measured': False,
                 'reason': f'{type(error).__name__}: supervisor deadline or ownership failure',
+                'launchFailure': {'type': type(error).__name__, 'message': str(error)[:1024],
+                                  'winerror': getattr(error, 'winerror', None),
+                                  'tokenEvidence': getattr(error, 'token_evidence', None)},
                 'scope': 'No complete IPC/UI result; partial evidence only', 'profile': str(root / 'profile')})
             code = 2
         finally:
             if close_job: close_job()
             elif proc is not None and proc.poll() is None: stop_tree(proc)
+            if proc is not None and hasattr(proc, 'close'): proc.close()
     print(json.dumps({'result': str(out / 'result.json'), 'exitCode': code}))
     return code
 

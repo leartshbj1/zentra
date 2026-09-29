@@ -433,7 +433,7 @@ class WindowsNestedJobsTests(unittest.TestCase):
         try:
             if close_job:
                 close_job()
-            if proc is not None and proc.poll() is None:
+            elif proc is not None and proc.poll() is None:
                 proc.kill()
             if proc is not None:
                 proc.wait(timeout=3)
@@ -609,6 +609,183 @@ class HostTokenTests(unittest.TestCase):
                     self.assertIn('Token query unavailable', result['hostToken']['unavailable'])
                 else:
                     self.assertEqual(result['hostToken'], elevated)
+
+
+@unittest.skipUnless(os.name == 'nt', 'Windows restricted-token process creation only')
+class RestrictedWorkerTests(unittest.TestCase):
+    kernel = WindowsNestedJobsTests.kernel
+    wait_json = WindowsNestedJobsTests.wait_json
+    open_owned_process = WindowsNestedJobsTests.open_owned_process
+    finish_processes = WindowsNestedJobsTests.finish_processes
+
+    def command(self, root, breakaway):
+        grandchild = root / 'grandchild.json'
+        permission = root / 'allow-grandchild'
+        child_code = ('import json,pathlib,subprocess,sys,time\n'
+                      'end=time.monotonic()+10\n'
+                      f'while not pathlib.Path({str(permission)!r}).exists() and time.monotonic()<end: time.sleep(.01)\n'
+                      f'if not pathlib.Path({str(permission)!r}).exists(): sys.exit(47)\n'
+                      "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'])\n"
+                      f'pathlib.Path({str(grandchild)!r}).write_text(json.dumps({{"pid":child.pid}}))\n'
+                      'time.sleep(30)\n')
+        code = ('import importlib.util,json,pathlib,subprocess,sys,time\n'
+                f"spec=importlib.util.spec_from_file_location('launcher',{str(Path(launcher.__file__).resolve())!r})\n"
+                'launcher=importlib.util.module_from_spec(spec);spec.loader.exec_module(launcher)\n'
+                'launcher.wait_for_start_gate(int(sys.argv[-1]),time.time()+10)\n'
+                f'pathlib.Path({str(root / "token.json")!r}).write_text(json.dumps(launcher.current_token_evidence()))\n'
+                'print("SYNTHETIC_RESTRICTED_STDOUT",flush=True)\n'
+                'try:\n'
+                f' child=subprocess.Popen([sys.executable,"-c",{child_code!r}],creationflags={subprocess.CREATE_BREAKAWAY_FROM_JOB if breakaway else 0})\n'
+                ' proof={"created":True,"pid":child.pid}\n'
+                'except OSError as error:\n'
+                ' proof={"created":False,"winerror":error.winerror}\n'
+                f'pathlib.Path({str(root / "child.json")!r}).write_text(json.dumps(proof))\n'
+                'time.sleep(30)\n')
+        return [sys.executable, '-c', code]
+
+    def test_actual_restricted_worker_keeps_gate_medium_identity_and_outer_containment(self):
+        helper = launcher.module('restricted_token_test', 'windows-volume-token.py')
+        for layout in ('strict', 'nested-breakaway'):
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory(prefix='zentra-volume-1909-restricted-') as folder:
+                root = Path(folder); kernel = self.kernel()
+                gate = launcher.WorkerStartGate()
+                proc, close_job, handles = None, None, []
+                try:
+                    with (root / 'worker.log').open('wb') as log:
+                        command = [*self.command(root, True), '--start-gate-handle', str(int(gate.handle))]
+                        proc = helper.create_restricted_worker(command, int(gate.handle), log)
+                        self.assertFalse((root / 'token.json').exists(), 'Suspended process already executed')
+                        self.assertTrue(launcher.supported_volume_host(proc.token_evidence['prepared']))
+                        self.assertTrue(launcher.supported_volume_host(proc.token_evidence['actual']))
+                        self.assertTrue(proc.token_evidence['sameUser'])
+                        self.assertTrue(proc.token_evidence['sameSession'])
+                        self.assertTrue(proc.token_evidence['restricted'])
+                        close_job = launcher.owned_job(proc, layout)
+                        self.assertTrue(close_job.membership(proc._handle)['outer'])
+                        proc.resume()
+                        time.sleep(.05)
+                        self.assertFalse((root / 'token.json').exists(), 'Gate allowed execution before release')
+                        gate.release()
+                        actual = self.wait_json(root / 'token.json', proc)
+                        self.assertEqual(actual, {key: proc.token_evidence['actual'][key] for key in actual})
+                        self.assertTrue(launcher.supported_volume_host(actual))
+                        outcome = self.wait_json(root / 'child.json', proc)
+                        if layout == 'strict':
+                            self.assertEqual(outcome, {'created': False, 'winerror': 5})
+                        else:
+                            self.assertTrue(outcome['created'])
+                            child = self.open_owned_process(kernel, outcome['pid'], handles)
+                            self.assertEqual(close_job.membership(child), {'outer': True, 'inner': False})
+                            (root / 'allow-grandchild').write_text('SYNTHETIC')
+                            info = self.wait_json(root / 'grandchild.json', proc)
+                            grandchild = self.open_owned_process(kernel, info['pid'], handles)
+                            self.assertEqual(close_job.membership(grandchild), {'outer': True, 'inner': False})
+                        close_job(); close_job()
+                        proc.wait(timeout=3)
+                        for handle in handles:
+                            self.assertEqual(kernel.WaitForSingleObject(handle, 3000), 0)
+                    self.assertIn('SYNTHETIC_RESTRICTED_STDOUT', (root / 'worker.log').read_text())
+                finally:
+                    gate.close()
+                    self.finish_processes(kernel, proc, close_job, handles)
+                    if proc is not None: proc.close(); proc.close()
+
+    def test_restricted_launch_does_not_inherit_an_unlisted_handle(self):
+        helper = launcher.module('restricted_token_handles_test', 'windows-volume-token.py')
+        kernel = self.kernel()
+        kernel.GetCurrentProcess.restype = launcher.wintypes.HANDLE
+        kernel.DuplicateHandle.argtypes = [launcher.wintypes.HANDLE, launcher.wintypes.HANDLE,
+            launcher.wintypes.HANDLE, launcher.ctypes.POINTER(launcher.wintypes.HANDLE),
+            launcher.wintypes.DWORD, launcher.wintypes.BOOL, launcher.wintypes.DWORD]
+        gate, unlisted = launcher.WorkerStartGate(), launcher.WorkerStartGate()
+        proc, duplicate = None, launcher.wintypes.HANDLE()
+        try:
+            with tempfile.TemporaryFile() as log:
+                proc = helper.create_restricted_worker([sys.executable, '-c', 'raise RuntimeError("must stay suspended")'], int(gate.handle), log)
+                copied = kernel.DuplicateHandle(proc._handle, unlisted.handle, kernel.GetCurrentProcess(),
+                                                launcher.ctypes.byref(duplicate), 0, False, 2)
+                self.assertFalse(copied, 'An unlisted inheritable event reached the restricted process')
+                self.assertEqual(launcher.ctypes.get_last_error(), 6)
+        finally:
+            if duplicate.value: kernel.CloseHandle(duplicate)
+            if proc is not None: proc.close()
+            gate.close(); unlisted.close()
+
+    def test_restricted_verification_rejects_identity_or_authority_mismatch(self):
+        helper = launcher.module('restricted_token_validation_test', 'windows-volume-token.py')
+        source = {'user': b'synthetic-user', 'session': 42}
+        public = {'elevated': False, 'integrityRid': 8192, 'restricted': True,
+                  'primary': True, 'administratorsPresent': True,
+                  'administratorsEnabled': False, 'administratorsDenyOnly': True}
+        valid = {**source, 'public': public}
+        helper._verify_restricted(valid, source)
+        variants = [
+            {**valid, 'user': b'other-user'},
+            {**valid, 'session': 43},
+            *[{**valid, 'public': {**public, key: value}} for key, value in (
+                ('primary', False), ('elevated', True), ('integrityRid', 12288),
+                ('integrityRid', 4096), ('restricted', False),
+                ('administratorsEnabled', True), ('administratorsDenyOnly', False))],
+        ]
+        for index, invalid in enumerate(variants):
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                helper._verify_restricted(invalid, source)
+
+    def test_launcher_integrates_real_restricted_worker_and_job_proof(self):
+        with tempfile.TemporaryDirectory(prefix='zentra-volume-1909-restricted-launch-') as folder:
+            root = Path(folder)
+            proc, close_job = None, None
+            try:
+                with (root / 'worker.log').open('wb') as log:
+                    proc, close_job = launcher.launch_owned_worker(
+                        self.command(root, True), log, worker_token='restricted-medium')
+                    self.assertEqual(close_job.evidence['workerToken'], proc.token_evidence)
+                    self.assertEqual(close_job.membership(proc._handle), {'outer': True, 'inner': None})
+                    self.assertTrue(launcher.supported_volume_host(self.wait_json(root / 'token.json', proc)))
+                    self.assertEqual(self.wait_json(root / 'child.json', proc),
+                                     {'created': False, 'winerror': 5})
+                    close_job()
+                    proc.wait(timeout=3)
+            finally:
+                self.finish_processes(self.kernel(), proc, close_job, [])
+                if proc is not None: proc.close()
+
+    def test_restricted_privilege_failure_never_falls_back_to_popen(self):
+        error = launcher.ctypes.WinError(1314)
+        helper = SimpleNamespace(create_restricted_worker=Mock(side_effect=error))
+        with tempfile.TemporaryFile() as log, patch.object(launcher, 'module', return_value=helper), patch.object(launcher.subprocess, 'Popen') as popen, patch.object(launcher, 'owned_job') as job, patch.object(launcher.WorkerStartGate, 'release') as release:
+            with self.assertRaises(OSError) as caught:
+                launcher.launch_owned_worker([sys.executable, '-c', 'pass'], log, worker_token='restricted-medium')
+            self.assertEqual(caught.exception.winerror, 1314)
+            popen.assert_not_called(); job.assert_not_called(); release.assert_not_called()
+
+    def test_job_attachment_failure_kills_suspended_restricted_worker(self):
+        seen = []
+        def refuse(proc):
+            seen.append(proc)
+            raise OSError('Synthetic attachment refusal')
+        with tempfile.TemporaryDirectory(prefix='zentra-volume-1909-restricted-refusal-') as folder:
+            root = Path(folder)
+            with (root / 'worker.log').open('wb') as log, patch.object(launcher, 'owned_job', side_effect=refuse), patch.object(launcher.WorkerStartGate, 'release') as release:
+                with self.assertRaisesRegex(OSError, 'attachment refusal') as caught:
+                    launcher.launch_owned_worker(self.command(root, False), log, worker_token='restricted-medium')
+                release.assert_not_called()
+                self.assertEqual(caught.exception.token_evidence, seen[0].token_evidence)
+            self.assertEqual(len(seen), 1)
+            self.assertIsNotNone(seen[0].poll())
+            self.assertFalse((root / 'token.json').exists())
+
+    def test_supervisor_records_restricted_winerror_without_claiming_measurement(self):
+        with tempfile.TemporaryDirectory(prefix='zentra-volume-1909-restricted-result-') as folder:
+            root, output = Path(folder) / 'worker', Path(folder) / 'proof'; root.mkdir()
+            args = ['volume', '--source', 'a' * 40, '--schema', '60', '--output', str(output),
+                    '--node', sys.executable, '--disposable-runner', '--worker-token', 'restricted-medium']
+            with patch.object(sys, 'argv', args), patch.dict(os.environ, {'CIRCLECI': 'true'}), patch.object(launcher.tempfile, 'mkdtemp', return_value=str(root)), patch.object(launcher, 'launch_owned_worker', side_effect=launcher.ctypes.WinError(1314)), patch('builtins.print'):
+                self.assertEqual(launcher.main(), 2)
+            result = json.loads((output / 'result.json').read_text())
+            self.assertEqual(result['status'], 'not_measured')
+            self.assertFalse(result['measured'])
+            self.assertEqual(result['launchFailure']['winerror'], 1314)
 
 
 class NodePreflightTests(unittest.TestCase):

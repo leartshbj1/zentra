@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([ValidateSet('strict','nested-breakaway')][string]$JobLayout='strict')
+param(
+  [ValidateSet('strict','nested-breakaway')][string]$JobLayout='strict',
+  [ValidateSet('inherit','restricted-medium')][string]$WorkerToken='inherit'
+)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -29,6 +32,6 @@ $node = Join-Path (Join-Path $toolsRoot ([IO.Path]::GetFileNameWithoutExtension(
 if (-not (Test-Path -LiteralPath $node -PathType Leaf)) { throw 'Verified Node executable missing' }
 $runtime = [ordered]@{ archive=$zipName; sha256=$zipHash; vendor=$nodeBase; source=$env:CIRCLE_SHA1 }
 [IO.File]::WriteAllText((Join-Path $out 'runtime-download.json'), ($runtime | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
-& python desktop/scripts/windows-package-volume.py --job 181 --source 01ad1279b934113006398504163f309948d92e07 --schema 60 --output (Join-Path $out 'measurement') --node $node --job-layout $JobLayout --disposable-runner
+& python desktop/scripts/windows-package-volume.py --job 181 --source 01ad1279b934113006398504163f309948d92e07 --schema 60 --output (Join-Path $out 'measurement') --node $node --job-layout $JobLayout --worker-token $WorkerToken --disposable-runner
 # Preserve partial/unmeasured status 2; it is not a performance success.
 exit $LASTEXITCODE

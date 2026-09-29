@@ -37,7 +37,7 @@ jobs:
       - checkout
       - run:
           name: Measure the exact Windows package with 5000 synthetic invoices and quotes
-          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/run-windows-package-volume.ps1 -JobLayout nested-breakaway
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/run-windows-package-volume.ps1 -JobLayout nested-breakaway -WorkerToken restricted-medium
           no_output_timeout: 15m
       - store_artifacts:
           path: desktop/artifacts/windows-volume
