@@ -1,0 +1,82 @@
+# Mesure locale du paquet Windows 1.90.9
+
+Protocole préparé le 29 septembre 2026. Ce lot contient uniquement des scripts de recette. Il ne lance pas CircleCI, ne reconstruit pas l’application et ne conditionne pas la publication initiale. **Aucune mesure du paquet 1.90.9 n’est encore produite par ce protocole.**
+
+## Paquet et isolation
+
+La cible est le **job Windows 181**, source `01ad1279b934113006398504163f309948d92e07`, version `1.90.9`, schéma `60`. Le job 179 est Apple. Les correctifs postérieurs, dont celui du dialogue Modal, ne font pas partie de ce paquet et ne peuvent pas être crédités par ses mesures.
+
+Exécuter uniquement dans un runner Windows jetable sans autre instance Zentra. Le garde d’instance unique utilise l’identifiant de l’application, pas le chemin de la base : un second lancement sur un poste utilisateur pourrait focaliser son application réelle. Le lanceur refuse donc toute instance Zentra existante. NSIS peut écrire des raccourcis et des métadonnées dans le profil Windows du runner ; ce n’est pas une installation à essayer dans le compte utilisateur habituel.
+
+`desktop/scripts/windows-package-volume.py` réutilise le téléchargement HTTPS contrôlé de `cloud-package-smoke.py`, qui reste inchangé. Il exige le succès du job et la révision exacte, la provenance 1.90.9, les preuves de tests, les tailles et SHA256 de l’installateur et du binaire. Après installation, il applique uniquement en mémoire la transformation documentée du marqueur NSIS à la copie du binaire brut et compare chaque octet par SHA256 avec l’exécutable installé. Le binaire exécuté est celui de l’installateur. Aucun binaire n’est modifié.
+
+Le profil et le stockage WebView sont nouveaux, sous `%TEMP%/zentra-volume-1909-…`. `HELVICHANTIER_DATA_DIR` et `WEBVIEW2_USER_DATA_FOLDER` les isolent. Le paquet crée d’abord lui-même la base vide au schéma attendu, puis son processus et ses descendants sont arrêtés avant le peuplement. Aucun profil existant ni fichier SQLite préfabriqué n’est copié. La base générée reste hors du répertoire des preuves et ne doit pas être publiée comme artefact CI.
+
+## Données déterministes
+
+`windows-volume-fixture.py` refuse un chemin non canonique, un lien symbolique, un marqueur absent, une base non initialisée par le paquet, une entreprise déjà présente ou des fichiers de compte/licence. Il peuple la base arrêtée dans une transaction, avec identifiants et dates fixes :
+
+- 500 clients, 100 projets, 5 000 devis et 5 000 factures ;
+- 40 000 lignes de devis et 40 000 lignes de factures ;
+- 3 333 paiements, 8 333 écritures et 16 666 lignes comptables équilibrées ;
+- trois petites pièces texte explicitement fictives.
+
+La société s’appelle `Atelier Volume 1909 - FICTIF`. Les écritures comptables sont un historique manuel fictif. Cette génération SQL **ne valide pas** les parcours d’émission, d’encaissement, la continuité comptable métier ou la conformité d’un dossier client. Les fonctions SQLite locales nécessaires aux gardes sont enregistrées sur la connexion de génération ; aucun trigger ni contrôle de contrainte n’est supprimé. Le générateur n’ajoute ni compte distant, ni licence, ni jeton, ni secret SMTP.
+
+Après génération, les preuves consignent comptes et empreintes de toutes les tables, les trois pièces, l’intégrité, les clés étrangères et l’équilibre de chaque écriture. Après arrêt du paquet, toutes les tables métier et pièces doivent être identiques. Les tables locales de cache/horloge sont conservées séparément dans les deux preuves ; elles ne sont pas assimilées à des données métier. Toute modification métier fait échouer la recette.
+
+## Mesures et limites
+
+Le processus reçoit un port CDP lié à `127.0.0.1`, jamais une adresse réseau. Aucun service n’est créé. Les clients natifs reçoivent un proxy local fermé ; le WebView reçoit aussi un proxy fermé avec exceptions locales et le collecteur bloque les requêtes externes du renderer après attachement. Le profil n’a pas de session connectée. Ces réglages sont propres aux processus lancés, sans changement du pare-feu ou du système. Ce n’est pas une preuve d’isolement réseau de tous les composants Windows : utiliser un runner dont la politique réseau interdit les destinations de production si cette garantie supplémentaire est requise.
+
+Le collecteur externe Node ≥22 `windows-volume-collector.mjs` cherche une seule cible `http://tauri.localhost/` pendant **15 secondes maximum**. Il vérifie `get_app_state.data_dir` et la version avant toute lecture métier, puis le nom de la société fictive et les comptes attendus avant capture. Il ne remplace aucun appel natif et ne simule aucun état de compte ou licence.
+
+Avant tout téléchargement ou installation, le lanceur exécute le Node réellement sélectionné avec une sonde locale de **cinq secondes maximum**. Il exige un code de sortie nul, un objet JSON valide, une version ≥22 et la présence de `WebSocket`, `fetch` et `AbortSignal.timeout`. Un Node incompatible, une sonde échouée ou expirée arrêtent la recette avant l’accès aux artefacts ; `result.json` consigne la version et les capacités lorsque la sonde réussit.
+
+Budget maximal de **dix minutes pour l’ensemble**, téléchargements et installation compris : 595 secondes d’exécution, puis cinq secondes réservées à l’arrêt. Le worker attend obligatoirement un événement Windows anonyme, initialement fermé. Le superviseur le libère seulement après création du Windows Job Object et rattachement réussi du worker. Avant cette libération, aucun descendant, aucune sonde Node et aucun téléchargement ne sont admis. Un handle absent, une attente échouée ou une attente expirée arrêtent le worker. Le handle de barrière est fermé avant de lancer ses descendants. La fermeture du Job termine les processus qu’il contient, même après un blocage ; le superviseur attend la fin du worker avant d’écrire son résultat définitif. Les étapes utilisent également des délais locaux. Le collecteur engage seulement :
+
+1. Trois `get_workspace` réels et séquentiels. Le chronomètre couvre appel natif, verrou, requêtes, sérialisation/transfert IPC et réponse décodée dans le WebView. Comptage, sérialisation de contrôle et SHA256 se font ensuite, hors chronométrage. Les tableaux complets `journal_entries` et `journal_lines` doivent être absents, les autres données conservées.
+2. Un rechargement instrumenté du renderer, sans nouveau build ni données simulées.
+3. Quatre écrans : Accueil, Ventes, Clients et Comptabilité. L’attente porte sur du contenu spécifique, l’absence de chargement/erreur et deux frames, pas seulement sur un titre. Captures, débordement horizontal, erreurs et tâches longues sont relevés.
+
+Le temps processus → contenu observé inclut l’attachement CDP, le contrôle d’appartenance et le délai d’observation ; il constitue une durée observée, pas un marqueur interne exact. Si le contenu n’était pas prêt au premier contrôle, il peut aussi inclure les trois lectures IPC ; `observedAfterMeasuredIpcReads` l’indique et interdit d’assimiler cette durée au seul démarrage. Le rechargement utilise un processus déjà ouvert et les caches existants. Aucune de ces mesures ne représente un démarrage à froid du système, du matériel modeste, du mobile ou 150 entreprises simultanées. Trois passages ne justifient pas un p95.
+
+Une activation licence ou un autre dialogue peut empêcher l’accès au tableau de bord. **Aucun dialogue d’activation n’est contourné, aucune licence n’est ajoutée.** Si l’IPC reste accessible, ses trois mesures sont conservées et le rendu reste explicitement non mesuré avec sa cause. Si CDP n’est pas accessible, IPC et UI sont tous deux non mesurés. Le smoke ordinaire reste une preuve distincte de démarrage et d’intégrité SQLite, jamais une preuve UI.
+
+## Exécution après revue
+
+Le workflow dédié `windows-volume-1909` ne démarre que sur la branche explicite `codex/release-1.90.9-windows-volume`, hors compilation de release. Il utilise un runner Windows jetable et `run-windows-package-volume.ps1`. Ce wrapper refuse une exécution hors CI ou un dossier de résultats préexistant, prépare Node 22 dans un dossier temporaire neuf depuis le fournisseur avec SHA-256 vérifié, et conserve sa version/empreinte dans les artefacts. Il ne modifie pas le runtime global. La préparation de Node précède le budget de dix minutes de la mesure. Un résultat partiel conserve le code 2 et fait échouer ce workflow de mesure ; il ne devient pas une réussite du smoke de distribution, qui reste séparé.
+
+Sur le runner jetable, depuis un checkout contenant ces scripts, avec Node ≥22 et Python 3.11+ :
+
+```powershell
+python desktop/scripts/windows-package-volume.py --job 181 --source 01ad1279b934113006398504163f309948d92e07 --schema 60 --output C:/volume-proof-1909 --disposable-runner
+```
+
+Le répertoire de sortie doit être absent. `--node C:/chemin/node.exe` permet de préciser le runtime. Le script télécharge uniquement les artefacts CI nécessaires ; il ne déclenche aucun job.
+
+Lire ensemble `result.json`, `measurements.json`, `fixture.json`, `before.json`, `after.json`, les journaux et les captures. Les fichiers de preuve ne contiennent pas les tableaux métier bruts. Le dossier SQLite temporaire est indiqué pour vérification locale, sans être inclus dans les artefacts à publier.
+
+- Code 0 : mesures complètes **et** invariants conservés.
+- Code 2 : résultat partiel/non mesuré, notamment CDP absent, accès UI bloqué ou délai global ; ne pas le convertir en succès de performance.
+- Code 1 : échec de provenance, garde, intégrité ou recette ; aucune conclusion positive globale.
+
+## Validation locale du dispositif
+
+Sans démarrer Zentra ni contacter le réseau, les tests de génération peuvent copier **seulement le schéma** de la fixture connue fictive. Ils n’en copient aucune ligne, pièce, licence ou identité. Le marqueur `synthetic`, l’absence de compte ajouté et le nom `Atelier Recette 1905` sont exigés avant la lecture du schéma.
+
+```powershell
+$env:ZENTRA_VOLUME_TEST_SCHEMA = (Resolve-Path outputs/release1908/volume-release/profile).Path
+python desktop/scripts/test-windows-volume-fixture.py -v
+Remove-Item Env:ZENTRA_VOLUME_TEST_SCHEMA
+node --check desktop/scripts/windows-volume-collector.mjs
+node desktop/scripts/test-windows-volume-collector.mjs
+```
+
+Les régressions du superviseur et de Node peuvent aussi être exécutées seules, sans fixture SQLite :
+
+```powershell
+python desktop/scripts/test-windows-volume-fixture.py WindowsBoundsTests NodePreflightTests -v
+```
+
+Validation réalisée lors de la préparation : deux générations complètes identiques, refus d’un profil non marqué ou peuplé, refus avant mutation après expiration du budget ; trois tests réussis. Les tests ciblés Windows vérifient, avec des processus Python jetables, l’absence de départ avant libération, la terminaison des descendants par le Job, les échecs d’attachement et de libération, les handles absents/invalides et l’expiration. Les tests Node vérifient le runtime local réel (24.19.0), ainsi que les refus de version/capacités, JSON invalide, sortie en erreur et expiration simulés, avant tout téléchargement. Les 23 contrôles du collecteur passent avec DOM/CDP simulés, y compris l’IPC conservé sous activation bloquante, le refus d’un mauvais profil/version avant lecture métier et l’absence de CDP. Ce résultat valide le dispositif local ; il ne constitue pas une mesure de l’installateur 1.90.9.

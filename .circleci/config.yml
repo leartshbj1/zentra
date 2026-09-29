@@ -28,6 +28,20 @@ parameters:
     default: ""
 
 jobs:
+  windows-package-volume-1909:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    steps:
+      - checkout
+      - run:
+          name: Measure the exact Windows package with 5000 synthetic invoices and quotes
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/run-windows-package-volume.ps1
+          no_output_timeout: 15m
+      - store_artifacts:
+          path: desktop/artifacts/windows-volume
+          destination: windows-volume
   android-package-smoke-1909:
     machine:
       image: android:default
@@ -412,6 +426,13 @@ jobs:
           destination: apple
 
 workflows:
+  windows-volume-1909:
+    when:
+      and:
+        - equal: [codex/release-1.90.9-windows-volume, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-package-volume-1909
   android-package-1909:
     when:
       and:
