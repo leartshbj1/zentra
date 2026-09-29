@@ -43,6 +43,12 @@ export function reportSchedulerCycle(input: {
   workflowsChecked?: number;
   workflowsFailed?: number;
   workflowsInterrupted?: number;
+  mailboxesChecked?: number;
+  mailboxesFailed?: number;
+  mailboxesDue?: number;
+  mailboxesOverdue?: number;
+  mailboxesActive?: number;
+  mailboxBudgetExhausted?: boolean;
   reference?: string;
 }) {
   const count = (value: number | undefined) => Number.isSafeInteger(value) && value! >= 0 ? value : undefined;
@@ -53,6 +59,9 @@ export function reportSchedulerCycle(input: {
     durationMs: Number.isFinite(elapsed) && elapsed >= 0 ? Math.round(elapsed) : 0,
     imported: count(input.imported), processed: count(input.processed), workflowsChecked: count(input.workflowsChecked),
     workflowsFailed: count(input.workflowsFailed), workflowsInterrupted: count(input.workflowsInterrupted),
+    mailboxesChecked:count(input.mailboxesChecked),mailboxesFailed:count(input.mailboxesFailed),
+    mailboxesDue:count(input.mailboxesDue),mailboxesOverdue:count(input.mailboxesOverdue),mailboxesActive:count(input.mailboxesActive),
+    mailboxBudgetExhausted:typeof input.mailboxBudgetExhausted==='boolean'?input.mailboxBudgetExhausted:undefined,
     ...(input.reference && /^[a-f0-9-]{36}$/.test(input.reference) ? {reference:input.reference} : {}),
   });
 }

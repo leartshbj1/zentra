@@ -1,4 +1,5 @@
-import { runMailSync, requireMailScheduler } from '@/lib/support/mail-sync';
+import { requireMailScheduler } from '@/lib/support/mail-sync';
+import { runMailSyncBatch } from '@/lib/support/mail-sync-batch';
 import { supportError, supportJson } from '@/lib/support/service';
 import { runDueWorkflows } from '@/lib/automation/workflows';
 import { reportSchedulerCycle } from '@/lib/service-diagnostics';
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     await requireMailScheduler(request);
     authorized=true;
     heartbeat=await startSchedulerHeartbeat(startedAt);
-    const result=await runMailSync(request);
+    const result=await runMailSyncBatch(request);
     const workflows=await runDueWorkflows();
     const failed=Boolean(result.failed || workflows.failed || workflows.interrupted);
     const idle=result.idle && workflows.checked===0 && !workflows.more && !failed;
@@ -32,6 +33,9 @@ export async function POST(request: Request) {
       imported:result.imported,processed:result.processed,
       workflowsChecked:workflows.checked,workflowsFailed:workflows.failed,
       workflowsInterrupted:workflows.interrupted,reference:result.reference,
+      mailboxesChecked:result.mailboxes?.checked,mailboxesFailed:result.mailboxes?.failed,
+      mailboxesDue:result.mailboxes?.due,mailboxesOverdue:result.mailboxes?.overdue,
+      mailboxesActive:result.mailboxes?.active,mailboxBudgetExhausted:result.mailboxes?.budgetExhausted,
     });
     return supportJson({...result,idle,failed,workflows});
   } catch (error) {
