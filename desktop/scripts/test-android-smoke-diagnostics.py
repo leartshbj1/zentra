@@ -23,7 +23,7 @@ class DiagnosticsTests(unittest.TestCase):
                        adb=self.adb, capture_screen=lambda label, **kw: self.calls.append(('screen', label)))
         source = Path(__file__).with_name('smoke-android-release-candidate.py')
         tree = ast.parse(source.read_text(encoding='utf-8'))
-        selected = {'bounds', 'tap', 'diagnosed_tap', 'input_diagnostics', 'collect_final_logs', 'collect_input_observations', 'diagnostic_write', 'webview_bounds'}
+        selected = {'bounds', 'tap', 'diagnosed_tap', 'input_diagnostics', 'collect_final_logs', 'collect_input_observations', 'diagnostic_write', 'webview_bounds', 'ensure_emulator_root'}
         functions = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in selected], type_ignores=[])
         exec(compile(functions, str(source), 'exec'), self.ns)
 
@@ -129,6 +129,44 @@ class DiagnosticsTests(unittest.TestCase):
         root = ET.fromstring('<hierarchy><node class="android.webkit.WebView" bounds="[0,24][320,616]"/><node class="android.webkit.WebView" bounds="[0,24][320,616]"/></hierarchy>')
         with self.assertRaises(RuntimeError):
             self.ns['webview_bounds'](root)
+
+    def root_transport(self, command_failed=True, qemu='1', uid='0', wait_fails=False):
+        def adb(*args, **kw):
+            self.calls.append(args)
+            if args == ('root',) and command_failed:
+                raise subprocess.CalledProcessError(1, 'adb root')
+            if args == ('wait-for-device',) and wait_fails:
+                raise subprocess.TimeoutExpired('wait-for-device', 45)
+            if args == ('shell', 'getprop', 'ro.kernel.qemu'): return qemu
+            if args == ('shell', 'id', '-u'): return uid
+            return ''
+        self.ns['adb'] = adb
+
+    def test_root_transport_restart_requires_verified_root(self):
+        self.root_transport()
+        result = self.ns['ensure_emulator_root']()
+        self.assertEqual(result, {'rootCommandExit': 1, 'emulatorAndRootVerified': True})
+        self.assertEqual(self.calls.count(('root',)), 1)
+        self.assertEqual(self.calls.count(('wait-for-device',)), 1)
+
+    def test_successful_root_command_still_probes_identity(self):
+        self.root_transport(command_failed=False)
+        self.assertEqual(self.ns['ensure_emulator_root']()['rootCommandExit'], 0)
+        self.assertIn(('shell', 'id', '-u'), self.calls)
+
+    def test_shell_identity_does_not_pass_after_root_failure(self):
+        self.root_transport(uid='2000')
+        with self.assertRaises(RuntimeError): self.ns['ensure_emulator_root']()
+        self.assertEqual(self.calls.count(('root',)), 1)
+
+    def test_root_transport_cannot_switch_to_a_physical_device(self):
+        self.root_transport(qemu='0')
+        with self.assertRaises(RuntimeError): self.ns['ensure_emulator_root']()
+
+    def test_disconnected_device_stays_failure_without_retry(self):
+        self.root_transport(wait_fails=True)
+        with self.assertRaises(subprocess.TimeoutExpired): self.ns['ensure_emulator_root']()
+        self.assertEqual(self.calls.count(('root',)), 1)
 
 
 if __name__ == '__main__':

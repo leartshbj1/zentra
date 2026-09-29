@@ -58,6 +58,14 @@ Le sélecteur corrigé exige l'unique WebView sans ancêtre WebView. Deux contre
 
 Le test de volume Windows est séparé du smoke : pipeline **272** `b91d2374-d9de-4e9d-b03e-0693557f66ad`, workflow `930a0e53-bdeb-40cc-9759-b094d4d955a4`, job **185**, vérificateur `cdfbcb7ed91f5482fc480d368279bfc04a5db1a9`. Sa dernière observation est en file d'attente, pas une mesure réalisée. Le [protocole](RECETTE-WINDOWS-VOLUME-1.90.9.md) exige les données fictives, l'absence de licence ajoutée et les invariants métier. Les deux défauts de confinement/prérequis ont été corrigés, huit tests ciblés et une revue indépendante les valident ; les 23 contrôles du collecteur et trois tests du générateur restent ceux de la préparation. Le YAML et 64 combinaisons de déclenchement sont vérifiés. Aucun résultat partiel ne devient un succès de performance.
 
+### Diagnostics suivants — distribution toujours retenue
+
+La recette Android **186** (vérificateur `6006100dee8bf4b9d5cfd4f45a89e8aa04d3796a`) échoue à **02:24:26 UTC**, avant téléchargement ou installation du paquet : la commande `adb root` perd son transport. Les journaux restent sous `android-smoke-failed-186/`. Le prérequis vérifie maintenant l'état résultant même si cette commande retourne un code non nul : un seul `root`, l'attente de connexion existante, puis `qemu=1` et `uid=0` obligatoires. Timeouts et autres erreurs restent bloquants. Le code de sortie réel est conservé dans la preuve. Aucun délai d'écran, assertion applicative ou geste n'est modifié. Quatorze tests ciblés passent et une revue indépendante valide les gardes. Une exécution complète demeure nécessaire.
+
+Complément factuel sur 183 : l'enfant WebView était déjà décalé à y=25 dans `identity-scroll-1.xml`, avant ouverture du clavier ; le journal `onHidden` précède le dump 06. Ce cas ne justifiait donc pas d'allonger l'attente de fermeture.
+
+Windows volume **185 a échoué à 02:21:49 UTC**, remplaçant l'observation de file d'attente ci-dessus. Node 22.23.3 et l'installateur exact sont validés, mais l'initialisation du profil attendu n'est pas observée dans les 60 secondes. `outputs/release1909/windows-volume-185/result.json` indique `measured=false`, `ipcMeasured=false`, `uiMeasured=false`. La cause n'est pas encore établie ; Job Object, profil WebView et proxy diffèrent du smoke réussi 184. Aucun paquet utilisateur ni seuil de validation n'est changé sur la seule base de ces hypothèses. L'observabilité doit être complétée avant un nouvel essai de volume.
+
 ### Diagnostic complémentaire Android 182
 
 L'inspection du journal trouve une pression CPU de 91,59 %, une CPU totale à 100 % et une ANR Google Play Services. Le bouton accessible et les coordonnées du geste sont corrects. L'hypothèse d'un geste perturbé par la fixture saturée reste une hypothèse : aucun événement DOWN/UP n'a été enregistré et l'absence de régression applicative n'est pas prouvée. L'échec 182 demeure conservé.

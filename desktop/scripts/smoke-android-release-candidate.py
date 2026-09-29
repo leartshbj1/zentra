@@ -308,6 +308,24 @@ def profile_state(temp, label):
     return {'identitySha256': identity_hash, 'schema': schema, 'integrity': integrity, 'foreignKeyErrors': 0}
 
 
+def ensure_emulator_root():
+    # ADB may close its transport while adbd restarts. A non-zero command alone
+    # is not accepted: reconnect once and prove the required emulator/root state.
+    # No root retry, no physical device, and no application assertion is skipped.
+    outcome = {'rootCommandExit': 0}
+    try:
+        adb('root')
+    except subprocess.CalledProcessError as error:
+        outcome['rootCommandExit'] = error.returncode
+    adb('wait-for-device')
+    if adb('shell', 'getprop', 'ro.kernel.qemu') != '1':
+        raise RuntimeError('Root setup must remain on the disposable emulator')
+    if adb('shell', 'id', '-u') != '0':
+        raise RuntimeError('Disposable emulator root is required to inspect a non-debuggable profile')
+    outcome['emulatorAndRootVerified'] = True
+    return outcome
+
+
 def main():
     if JOB <= 0 or not re.fullmatch(r'[0-9a-f]{40}', REVISION) or not re.fullmatch(r'[0-9a-f]{64}', SHA):
         raise ValueError('An exact source job, revision and independently recorded hash are required')
@@ -317,10 +335,7 @@ def main():
     if 'arm64-v8a' not in abi.split(','):
         raise RuntimeError('This emulator does not expose ARM64 translation')
     print(f'Disposable emulator ready; supported ABIs: {abi}', flush=True)
-    adb('root')
-    adb('wait-for-device')
-    if adb('shell', 'id', '-u') != '0':
-        raise RuntimeError('Disposable emulator root is required to inspect a non-debuggable profile')
+    root_setup = ensure_emulator_root()
     if PACKAGE in adb('shell', 'pm', 'list', 'packages'):
         raise RuntimeError('Expected a fresh emulator without Zentra')
     # The stock Messages app raised its own ANR dialog in recipe 170 while
@@ -345,6 +360,7 @@ def main():
     tools = Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0'
     proof = {'source': REVISION, 'sourceJob': JOB, 'unsignedSha256': SHA, 'emulatorAbis': abi,
              'signingIdentity': 'disposable-emulator-only', 'physicalDeviceTested': False, 'published': False}
+    proof['rootSetup'] = root_setup
     proof['displaySize'] = adb('shell', 'wm', 'size')
     proof['disabledEmulatorFixturePackages'] = disabled_fixture_packages
     proof['displayDensity'] = adb('shell', 'wm', 'density')
