@@ -815,6 +815,27 @@ class RestrictedWorkerTests(unittest.TestCase):
 
 
 class NodePreflightTests(unittest.TestCase):
+    def test_exception_frames_are_bounded_and_exclude_source_arguments_and_full_paths(self):
+        namespace = {}
+        source = ('def private_probe(depth, secret_argument):\n'
+                  '    if depth: return private_probe(depth - 1, secret_argument)\n'
+                  '    raise OSError("PRIVATE_EXCEPTION_CONTENT")\n')
+        exec(compile(source, 'C:/PRIVATE_DIRECTORY/private-probe.py', 'exec'), namespace)
+        try:
+            namespace['private_probe'](20, 'PRIVATE_ARGUMENT_VALUE')
+        except OSError as error:
+            frames = launcher.exception_frames(error)
+        self.assertEqual(len(frames), 8)
+        for frame in frames:
+            self.assertEqual(set(frame), {'file', 'function', 'line'})
+            self.assertEqual(frame['file'], 'private-probe.py')
+            self.assertEqual(frame['function'], 'private_probe')
+            self.assertIn(frame['line'], (2, 3))
+        serialized = json.dumps(frames)
+        for value in ('PRIVATE_DIRECTORY', 'PRIVATE_ARGUMENT_VALUE', 'PRIVATE_EXCEPTION_CONTENT',
+                      'secret_argument', 'raise OSError', 'C:/'):
+            self.assertNotIn(value, serialized)
+
     @unittest.skipUnless(os.name == 'nt', 'Windows executable access only')
     def test_real_access_diagnostic_distinguishes_denied_execute_on_disposable_file(self):
         # Change only this test-created non-executable file, never a runtime or directory.
@@ -859,6 +880,10 @@ class NodePreflightTests(unittest.TestCase):
             self.assertEqual(run.call_args.args[0][0], sys.executable)
             self.assertLessEqual(run.call_args.kwargs['timeout'], 2)
             self.assertEqual(evidence['pythonControl']['winerror'], 5)
+            self.assertTrue(evidence['pythonControl']['frames'])
+            self.assertLessEqual(len(evidence['pythonControl']['frames']), 8)
+            self.assertTrue(all(set(frame) == {'file', 'function', 'line'}
+                                for frame in evidence['pythonControl']['frames']))
         with patch.object(launcher, 'executable_access_evidence') as access, patch.object(launcher.subprocess, 'run') as run:
             evidence = launcher.node_failure_diagnostics('never-run-this-node', time.time() - 1)
             self.assertTrue(evidence['budgetExpired'])
@@ -882,6 +907,8 @@ class NodePreflightTests(unittest.TestCase):
                     original = json.loads((Path(folder) / 'node-preflight-failure.json').read_text())
                     self.assertEqual(original['stage'], 'node-capability-probe')
                     self.assertEqual(original['winerror'], 5)
+                    self.assertTrue(original['frames'])
+                    self.assertLessEqual(len(original['frames']), 8)
                     self.assertFalse(original['measured'] or original['ipcMeasured'] or original['uiMeasured'])
                     if isinstance(diagnostics, Exception): raise diagnostics
                     return diagnostics
@@ -894,6 +921,8 @@ class NodePreflightTests(unittest.TestCase):
                 self.assertEqual(result['winerror'], 5)
                 self.assertEqual(result['nodeFailure']['winerror'], 5)
                 self.assertTrue(result['nodeFailure']['originalProofPublished'])
+                self.assertEqual(result['nodeFailure']['frames'],
+                    json.loads((Path(folder) / 'node-preflight-failure.json').read_text())['frames'])
                 self.assertFalse(result['measured'] or result['ipcMeasured'] or result['uiMeasured'])
                 self.assertNotIn('nodeRuntime', result)
                 if isinstance(diagnostics, Exception):

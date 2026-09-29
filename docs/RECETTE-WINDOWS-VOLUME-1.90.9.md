@@ -56,6 +56,8 @@ Les deux secondes sont un **budget coopératif d’admission**, pris dans le bud
 
 Lire `result.json.nodeFailure.diagnostics` :
 
+La preuve initiale `node-preflight-failure.json` et `nodeFailure.frames` conservent aussi les huit dernières frames au maximum : nom de fichier seul (128 caractères), fonction (96 caractères) et numéro de ligne. `pythonControl.frames` utilise le même filtre en cas d’échec du témoin. Aucun chemin complet, contenu source, argument, variable locale ou message d’exception n’est inclus dans ces frames. Elles permettent de distinguer la préparation des handles de l’appel de création du processus sans ajouter de sonde.
+
 - `access.node.execute.granted: false` avec `winerror: 5` prouve un refus d’accès à l’image dans ce contexte ; le contrôle Python aide à distinguer ce refus d’un problème général de création de processus. Cela n’identifie pas encore l’ACE ou le composant responsable.
 - Node et Python lisibles/exécutables, mais `pythonControl` refusé : chercher la création de processus ou le contexte du jeton/Job avant d’accuser les ACL du runtime.
 - Contrôle Python réussi et accès Node accordé : l’exécution de Node reste le point à examiner ; les contrôles d’ouverture ne prouvent ni son chargement ni sa réussite.

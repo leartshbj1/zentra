@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 
 
 def module(name, filename):
@@ -86,6 +87,13 @@ def executable_access_evidence(executable):
     return evidence
 
 
+def exception_frames(error):
+    """Last eight frames only, without source text, arguments, locals or full paths."""
+    return [{'file': Path(frame.filename).name[:128], 'function': frame.name[:96],
+             'line': frame.lineno}
+            for frame in traceback.extract_tb(error.__traceback__, limit=-8)]
+
+
 def node_failure_diagnostics(executable, deadline):
     """Admit probes within two seconds; synchronous Win32 calls can outlive that budget.
 
@@ -117,7 +125,8 @@ def node_failure_diagnostics(executable, deadline):
             expectedOutput=completed.stdout.strip() == 'SYNTHETIC_NODE_ACCESS_CONTROL')
     except Exception as error:
         evidence['pythonControl'].update(error=type(error).__name__,
-            winerror=getattr(error, 'winerror', None), timedOut=isinstance(error, subprocess.TimeoutExpired))
+            winerror=getattr(error, 'winerror', None), timedOut=isinstance(error, subprocess.TimeoutExpired),
+            frames=exception_frames(error))
     return evidence
 
 
@@ -479,13 +488,15 @@ def worker(args):
             result['nodeRuntime'] = probe_node(args.node, deadline)
         except OSError as node_error:
             result['nodeFailure'] = {'type': type(node_error).__name__,
-                                     'winerror': getattr(node_error, 'winerror', None)}
+                                     'winerror': getattr(node_error, 'winerror', None),
+                                     'frames': exception_frames(node_error)}
             # Publish separately before any diagnostic that could block in a
             # synchronous Win32 API. A watchdog result must not erase this proof.
             original = {'stage': result['stage'], 'measured': False,
                         'ipcMeasured': False, 'uiMeasured': False,
                         'type': type(node_error).__name__,
-                        'winerror': getattr(node_error, 'winerror', None)}
+                        'winerror': getattr(node_error, 'winerror', None),
+                        'frames': result['nodeFailure']['frames']}
             try:
                 fixture.write_json(out / 'node-preflight-failure.json', original)
                 result['nodeFailure']['originalProofPublished'] = True
