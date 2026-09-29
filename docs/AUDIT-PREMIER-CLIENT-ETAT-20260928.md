@@ -36,7 +36,9 @@ La revue CSS finale reste en lecture seule : les suppressions garanties ne repr�
 1. Rétablir l’authentification : c’est le prérequis commun aux validations de collaboration, abonnement, messagerie et Automation. La sonde fictive du 29 septembre à **01:09:30.902 UTC** reçoit toujours **503**, « L’authentification est temporairement indisponible. », sans connexion réelle, inscription ni demande d’e-mail. `outputs/release1908/auth-readiness.json` ne contrôle pas directement la facturation Supabase ; les diagnostics antérieurs de quotas restent historiques.
 2. Rétablir le planificateur et observer les traitements sans application ouverte, avec une alerte reçue.
 3. Terminer les signatures/distributions et les essais sur appareils propres, sans désactiver leurs protections.
-4. Exécuter la recette connectée de bout en bout avec données fictives après rétablissement des services. La version 1.90.8 est déjà publiée ; toute correction supplémentaire justifiera une nouvelle version distincte.
+4. Exécuter la recette connectée de bout en bout avec données fictives après rétablissement des services. La version 1.90.9 est déjà publiée ; toute correction supplémentaire justifiera une nouvelle version distincte.
+
+Actualisation du 29 septembre à 03:15 UTC : le test de connexion fictive reçoit encore 503 (`outputs/readiness-20260928/result-2026-09-29T03-15-50-317Z.json`), sans preuve directe d'un changement de facturation. Les essais Windows 189 et 190 concernent uniquement le dispositif de volume ; 190 prouve le worker Medium restreint mais échoue sur un refus d'accès avant Node, sans mesure du produit. Les lots locaux de [lectures comptables](COMPTABILITE-CHARGEMENT-A-LA-DEMANDE-20260929.md) et [lisibilité](COMPTABILITE-LISIBILITE-20260929.md) ajoutent des preuves ciblées aux points 14, 15 et 18, sans clôturer les recettes complètes ni être distribués dans 1.90.9.
 
 La validation locale et les retouches visuelles déjà réussies ne remplacent pas ces quatre étapes. Éviter de répéter les mêmes campagnes sans modification ni risque nouveau ; conserver les périmètres et preuves exacts.
 
