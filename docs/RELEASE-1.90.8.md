@@ -1,6 +1,6 @@
-# Zentra 1.90.8 — compilation en cours, non publiée
+# Zentra 1.90.8 — validation des paquets, non publiée
 
-29 septembre 2026. La version native actuellement publiée reste **1.90.7**. Ce document décrit la source préparée pour 1.90.8 ; aucun paquet, signature, installation ou publication de cette version n’est attesté à ce stade.
+29 septembre 2026. La version native actuellement publiée reste **1.90.7**. Les paquets Apple et Android 1.90.8 sont compilés et vérifiés ; Windows reste en compilation. Aucun téléchargement public ni canal de mise à jour n’est passé à 1.90.8.
 
 ## Contenu préparé
 
@@ -14,9 +14,10 @@ Les changements applicatifs préparés sont documentés par `55152c8b9279a13d693
 
 - Les quatre fichiers de version sont cohérents ; 11 tests des notes, traductions et contrats updater Windows/Mac passent. Le YAML est parsé et les 16 combinaisons branche/paramètres évaluées ne déclenchent aucun job en double.
 - Pipeline CircleCI **264**, `d4029f87-d293-4bfe-8dd6-20ea9a3306a9`, workflow `37f7dc84-4fd7-4c76-8753-5746f30ca685`, créé le 29 septembre à 00:10:50 UTC.
-- [Windows 174](https://circleci.com/gh/leartshbj1/zentra/174), [Android 175](https://circleci.com/gh/leartshbj1/zentra/175), [Apple 176](https://circleci.com/gh/leartshbj1/zentra/176). Contrôle API à 00:17:15 UTC : les trois jobs sont démarrés et toujours en cours, avec la source exacte attendue. Observation conservée dans `outputs/release1908/build-status.json`. Aucun résultat final ni artefact n’est encore attesté.
-- Les recettes des fichiers Windows et Android exacts seront déclenchées après vérification des résultats de compilation ; la recette macOS est intégrée au job Apple. Les téléchargements publics et canaux restent sur 1.90.7 pendant ces contrôles.
-- Les outils de distribution sont préparés dans `outputs/release1908/` : provenance, téléchargement, vérification des octets, signature et publication. Leur syntaxe est contrôlée (7 Python, 3 PowerShell et 2 JavaScript) ; les IDs des futures recettes Windows/Android restent non renseignés jusqu’à leur lancement. Aucun résultat de la version précédente n’est recopié pour simuler une validation.
+- [Windows 174](https://circleci.com/gh/leartshbj1/zentra/174) reste en compilation. [Android 175](https://circleci.com/gh/leartshbj1/zentra/175) et [Apple 176](https://circleci.com/gh/leartshbj1/zentra/176) ont réussi. L’observation API datée est conservée dans `outputs/release1908/build-status.json` ; les preuves de téléchargement vérifient leur source et les octets reçus.
+- La recette macOS intégrée à 176 a démarré puis relancé l’archive universelle exacte dans un profil isolé : intégrité SQLite, architectures et signature ad hoc vérifiées. L’archive porte ensuite la signature updater vérifiée localement. Cela ne vaut pas notarisation ni essai interactif sur le Mac d’un client. L’IPA ARM64 et ses deux icônes compilées sont vérifiés ; l’IPA reste non signée et non testée sur iPhone physique.
+- L’APK optimisé 175, non débogable, est signé avec le certificat persistant de préversion. La recette [Android 177](https://circleci.com/gh/leartshbj1/zentra/177) a réussi sur son contenu exact, resigné uniquement pour l’émulateur : écran de compte, thèmes natifs, champ visible au-dessus du clavier, brouillon conservé et relancement. Deux captures 320 × 640 du thème sombre et du clavier ont été relues localement. Aucune connexion de compte ni entreprise réelle n’est déduite de cet essai.
+- Les outils de distribution sont préparés dans `outputs/release1908/` : provenance, téléchargement, vérification des octets, signature et publication. La recette Windows du fichier exact est prête et sera lancée après réussite de 174. `release-plan.json` distingue le SHA applicatif commun du SHA du vérificateur Android `c94162093f978cd160f6ae05a569d3a1ea9167ea`. Aucun résultat de la version précédente n’est recopié pour simuler une validation.
 
 ## Contrôles avant distribution
 
