@@ -27,6 +27,8 @@ Inspect dashboard, all modules, forms and settings on desktop1440, phone390, nar
 
 ## Accounting enlarged-text reflow — 29 September 2026
 
+The subsequent accounting navigation refinement combines all eleven destinations in the compact picker and removes the redundant tools picker on phones. The selected title uses the full flex column after its icon is hidden. A wrapping period caption overlays the native select, preserving accessible naming, focus and interaction. Financial overview and configuration copy follows FR/DE/IT/EN. Ten fixture journeys and 66 geometry checks pass, including 320px German at 200%, 800px tablet and 844px landscape. Compact and expanded navigation now share the 860px breakpoint, preserving all destinations at intermediate widths; focus outline and Tab exit are checked. The web build passes. Long title/word breaks and physical assistive-technology testing remain separate. See `docs/FINANCES-SYNTHESE-LANGUES-20260929.md`; not included in public 1.90.9.
+
 The accounting introduction reserves a readable text column before wrapping its configuration action. Enlarged titles request language-aware hyphenation without reducing the selected size. Five Edge/WebKit viewport cases confirm the introduction width and disclosure/configuration controls, with synthetic data. Windows browser dictionaries did not visibly hyphenate the long French/German titles; those breaks and remaining untranslated accounting copy remain open. See `docs/COMPTABILITE-LISIBILITE-20260929.md`; this local refinement is absent from the frozen 1.90.9 release.
 
 ## Narrow touch-target correction — 27 September 2026

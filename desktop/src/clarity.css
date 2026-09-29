@@ -317,6 +317,7 @@
     font: inherit;
     font-size: 0.8125rem;
   }
+  .finance-navigation__period-value { display: none; }
   .finance-overview {
     display: grid;
     gap: 23px;

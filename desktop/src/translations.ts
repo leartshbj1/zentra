@@ -7,6 +7,7 @@ import { firstClientClarityTranslations } from './translationsFirstClientClarity
 import { emptyScreenTranslations } from './translationsEmptyScreens';
 import { projectReportTranslations } from './translationsProjectReports';
 import { financialDetailTranslations } from './translationsFinancialDetail';
+import { financeOverviewTranslations } from './translationsFinanceOverview';
 import { settingsNavigationTranslations } from './translationsSettingsNavigation';
 import { mobileTeamTranslations } from './translationsMobileTeam';
 import { personalizationTranslations } from './translationsPersonalization';
@@ -52,6 +53,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   ...firstClientClarityTranslations,
   ...projectReportTranslations,
   ...financialDetailTranslations,
+  ...financeOverviewTranslations,
   ...settingsNavigationTranslations,
   ...purchaseInboxTranslations,
   ...agendaTranslations,

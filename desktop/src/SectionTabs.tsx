@@ -2,19 +2,19 @@ import { useRef, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useNavigationSelection } from './useNavigationSelection';
 
-export function SectionTabs<T extends string>({ items, value, onChange, label }: {
-  items: Array<[T, string, ReactNode]>; value: T; onChange: (value: T) => void; label: string;
+export function SectionTabs<T extends string>({ items, mobileItems = items, value, onChange, label }: {
+  items: Array<[T, string, ReactNode]>; mobileItems?: Array<[T, string, ReactNode]>; value: T; onChange: (value: T) => void; label: string;
 }) {
   const columns = Math.max(1, items.length);
   const compactColumns = Math.ceil(columns / Math.ceil(columns / 3));
   const navigation = useRef<HTMLDivElement>(null);
-  const selected = items.find(([id]) => id === value);
+  const selected = mobileItems.find(([id]) => id === value);
   useNavigationSelection(navigation, value, false);
   return <div className="section-navigation" style={{ '--section-columns': columns, '--section-compact-columns': compactColumns } as CSSProperties}>
     <label className="section-navigation__mobile"><span>{label}</span>
       <span className="section-navigation__picker">
         <span className="section-navigation__current" aria-hidden="true"><span className="section-navigation__icon">{selected?.[2]}</span><span>{selected?.[1]}</span><ChevronDown size={18} /></span>
-        <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value as T)}>{items.map(([id, title]) => <option key={id} value={id}>{title}</option>)}</select>
+        <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value as T)}>{mobileItems.map(([id, title]) => <option key={id} value={id}>{title}</option>)}</select>
       </span>
     </label>
     <div ref={navigation} className="tab-strip section-navigation__tabs" role="tablist" aria-label={label}>

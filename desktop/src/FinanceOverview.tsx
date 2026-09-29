@@ -27,7 +27,7 @@ import { formatMoney, errorMessage } from './utils';
 import { Button, ErrorPanel, Modal } from './ui';
 import { MobileDetails, useCompactLayout } from './MobileDetails';
 import { FinanceFirstStep } from './FinanceFirstStep';
-import { t } from './language';
+import { t, useAppLanguage } from './language';
 
 type FinanceSection =
   | 'journal'
@@ -58,6 +58,7 @@ export function FinanceOverview({
   onWorkspaceChange: (workspace: Workspace) => void;
   onInstallStarter: () => Promise<void>;
 }) {
+  useAppLanguage();
   const [configuration, setConfiguration] = useState(false);
   const compact = useCompactLayout();
   const needsSetup = !busy && (!continuity.enabled || !continuity.mappingReady) && continuity.journalEntryCount === 0;
@@ -67,25 +68,25 @@ export function FinanceOverview({
     (continuity.enabled || continuity.journalEntryCount > 0);
   const amounts = [
     {
-      title: 'Revenus enregistrés',
+      title: t('Revenus enregistrés'),
       value: income?.revenueCents,
       icon: ArrowDownLeft,
-      text: 'Les produits de votre activité, comptabilisés sur la période.',
+      text: t('Les produits de votre activité, comptabilisés sur la période.'),
     },
     {
-      title: 'Charges enregistrées',
+      title: t('Charges enregistrées'),
       value: income?.expenseCents,
       icon: ArrowUpRight,
-      text: 'Les achats, salaires et autres coûts comptabilisés.',
+      text: t('Les achats, salaires et autres coûts comptabilisés.'),
     },
     {
       title:
         (income?.profitCents ?? 0) < 0
-          ? 'Perte de la période'
-          : 'Résultat de la période',
+          ? t('Perte de la période')
+          : t('Résultat de la période'),
       value: income?.profitCents,
       icon: Landmark,
-      text: 'Revenus moins charges. Le détail explique chaque montant.',
+      text: t('Revenus moins charges. Le détail explique chaque montant.'),
     },
   ];
   return (
@@ -101,10 +102,9 @@ export function FinanceOverview({
       /> : <>
       <header className="finance-overview__intro">
         <div>
-          <details className="workspace-disclosure"><summary>Vos finances, en clair.</summary>
+          <details className="workspace-disclosure"><summary>{t('Vos finances, en clair.')}</summary>
           <p>
-            Comprenez votre résultat, préparez la TVA et avancez une étape à la
-            fois.
+            {t('Comprenez votre résultat, préparez la TVA et avancez une étape à la fois.')}
           </p>
           </details>
           <p className="finance-overview__period">{periodLabel}</p>
@@ -115,7 +115,7 @@ export function FinanceOverview({
           onClick={() => setConfiguration(true)}
         >
           <Settings2 size={17} />
-          Configurer simplement
+          {t('Configurer simplement')}
         </Button>
       </header>
       <div
@@ -134,9 +134,9 @@ export function FinanceOverview({
                 ? formatMoney(item.value, income!.currency.baseCurrency)
                 : '—'}
             </strong>
-            <p>{busy ? 'Actualisation des écritures…' : item.text}</p>
+            <p>{busy ? t('Actualisation des écritures…') : item.text}</p>
             <button type="button" onClick={() => onSection('income')}>
-              Voir le détail
+              {t('Voir le détail')}
               <ArrowRight size={15} />
             </button>
           </article>
@@ -145,12 +145,12 @@ export function FinanceOverview({
       {!busy && !readable ? (
         <p className="finance-overview__notice" role="status">
           {!continuity.enabled && !continuity.journalEntryCount
-            ? 'Préparez les comptes pour commencer à suivre votre résultat. Aucun montant comptable n’est encore présenté.'
+            ? t('Préparez les comptes pour commencer à suivre votre résultat. Aucun montant comptable n’est encore présenté.')
             : income &&
                 !income.currency.singleCurrency &&
                 !income.currency.exchangeRatesApplied
-              ? 'Plusieurs devises sont présentes sans conversion : consultez le détail par devise.'
-              : 'Les chiffres apparaîtront quand les états comptables seront disponibles.'}
+              ? t('Plusieurs devises sont présentes sans conversion : consultez le détail par devise.')
+              : t('Les chiffres apparaîtront quand les états comptables seront disponibles.')}
         </p>
       ) : null}
       <section className="finance-overview__next">
@@ -165,48 +165,48 @@ export function FinanceOverview({
           <div>
             <h3>
               {!continuity.enabled || !continuity.mappingReady
-                ? 'Commencez par votre configuration'
+                ? t('Commencez par votre configuration')
                 : continuity.totalAnomalies || continuity.totalMissing
-                  ? 'Quelques opérations sont à vérifier'
-                  : 'Votre suivi comptable est en place'}
+                  ? t('Quelques opérations sont à vérifier')
+                  : t('Votre suivi comptable est en place')}
             </h3>
             <p>
               {!continuity.enabled || !continuity.mappingReady
-                ? 'Zentra peut préparer les comptes de base et leurs liaisons. Vous vérifiez le choix avant de les activer.'
+                ? t('Zentra peut préparer les comptes de base et leurs liaisons. Vous vérifiez le choix avant de les activer.')
                 : continuity.totalAnomalies || continuity.totalMissing
-                  ? 'Ouvrez les contrôles pour retrouver les pièces manquantes et les écarts à corriger.'
-                  : 'Vos opérations alimentent les états. Vérifiez les pièces et les paiements avant chaque déclaration.'}
+                  ? t('Ouvrez les contrôles pour retrouver les pièces manquantes et les écarts à corriger.')
+                  : t('Vos opérations alimentent les états. Vérifiez les pièces et les paiements avant chaque déclaration.')}
             </p>
           </div>
         </div>
         <Button variant="secondary" onClick={() => onSection('accounts')}>
           {!continuity.enabled || !continuity.mappingReady
-            ? 'Préparer les comptes'
-            : 'Vérifier ma configuration'}
+            ? t('Préparer les comptes')
+            : t('Vérifier ma configuration')}
           <ArrowRight size={16} />
         </Button>
       </section>
       <section
         className="finance-overview__paths"
-        aria-label="Que souhaitez-vous faire ?"
+        aria-label={t('Que souhaitez-vous faire ?')}
       >
         {[
           {
             id: 'vat' as const,
-            title: 'Préparer ma TVA',
-            text: 'Retrouver la taxe due, les achats déductibles et les contrôles.',
+            title: t('Préparer ma TVA'),
+            text: t('Retrouver la taxe due, les achats déductibles et les contrôles.'),
             icon: ReceiptText,
           },
           {
             id: 'balance' as const,
-            title: 'Comprendre mon bilan',
-            text: 'Voir ce que l’entreprise possède et ce qu’elle doit.',
+            title: t('Comprendre mon bilan'),
+            text: t('Voir ce que l’entreprise possède et ce qu’elle doit.'),
             icon: Landmark,
           },
           {
             id: 'closing' as const,
-            title: 'Préparer la fin d’année',
-            text: 'Contrôler les pièces et exporter le dossier pour la fiduciaire.',
+            title: t('Préparer la fin d’année'),
+            text: t('Contrôler les pièces et exporter le dossier pour la fiduciaire.'),
             icon: FileCheck2,
           },
         ].map((item) => (
@@ -224,16 +224,14 @@ export function FinanceOverview({
           </button>
         ))}
       </section>
-      <MobileDetails title="Comprendre ces montants"><aside className="finance-overview__learn">
+      <MobileDetails title={t('Comprendre ces montants')}><aside className="finance-overview__learn">
         {compact && <dl>{amounts.map(item => <div key={item.title}><dt>{item.title}</dt><dd>{item.text}</dd></div>)}</dl>}
-        <h3>Résultat et argent en banque</h3>
+        <h3>{t('Résultat et argent en banque')}</h3>
         <p>
-          Le résultat suit les revenus et les charges. Le solde bancaire suit
-          les paiements réellement passés. Une facture peut donc améliorer le
-          résultat alors que son paiement reste à recevoir.
+          {t('Le résultat suit les revenus et les charges. Le solde bancaire suit les paiements réellement passés. Une facture peut donc améliorer le résultat alors que son paiement reste à recevoir.')}
         </p>
         <button type="button" onClick={() => onSection('journal')}>
-          Consulter les opérations
+          {t('Consulter les opérations')}
           <ArrowRight size={15} />
         </button>
       </aside></MobileDetails>
@@ -268,6 +266,7 @@ function FinanceConfiguration({
   onWorkspaceChange: (workspace: Workspace) => void;
   onClose: () => void;
 }) {
+  useAppLanguage();
   const [step, setStep] = useState(0),
     [preset, setPreset] = useState<BillingPresetId | null>(null),
     [busy, setBusy] = useState(false),
@@ -308,13 +307,13 @@ function FinanceConfiguration({
     <Modal
       title={
         saved
-          ? 'Votre configuration est enregistrée'
-          : 'Configurer mes finances'
+          ? t('Votre configuration est enregistrée')
+          : t('Configurer mes finances')
       }
       description={
         saved
-          ? 'Ces délais seront proposés sur vos prochains documents.'
-          : 'Choisissez des réglages de départ, puis vérifiez leur effet.'
+          ? t('Ces délais seront proposés sur vos prochains documents.')
+          : t('Choisissez des réglages de départ, puis vérifiez leur effet.')
       }
       onClose={onClose}
       dismissible={!busy}
@@ -324,21 +323,20 @@ function FinanceConfiguration({
         <>
           <ol
             className="finance-configuration__progress"
-            aria-label="Étapes de configuration"
+            aria-label={t('Étapes de configuration')}
           >
             {['Choisir', 'Vérifier'].map((label, i) => (
               <li key={label} aria-current={step === i ? 'step' : undefined}>
                 <span>{i + 1}</span>
-                {label}
+                {t(label)}
               </li>
             ))}
           </ol>
           {step === 0 ? (
             <section>
-              <h3>Quel délai proposez-vous à vos clients ?</h3>
+              <h3>{t('Quel délai proposez-vous à vos clients ?')}</h3>
               <p>
-                Il s’agit de conditions commerciales que vous choisissez, à
-                convenir avec vos clients.
+                {t('Il s’agit de conditions commerciales que vous choisissez, à convenir avec vos clients.')}
               </p>
               <div className="finance-configuration__choices">
                 {billingPresets.map((p) => (
@@ -354,12 +352,12 @@ function FinanceConfiguration({
                       onChange={() => setPreset(p.id)}
                     />
                     <span>
-                      <strong>{p.name}</strong>
-                      <small>{p.text}</small>
+                      <strong>{t(p.name)}</strong>
+                      <small>{t(p.text)}</small>
                     </span>
                     <b>
                       {p.days}
-                      <small>jours</small>
+                      <small>{t('jours')}</small>
                     </b>
                   </label>
                 ))}
@@ -367,28 +365,27 @@ function FinanceConfiguration({
             </section>
           ) : (
             <section>
-              <h3>Vérifiez les réglages proposés</h3>
+              <h3>{t('Vérifiez les réglages proposés')}</h3>
               <dl className="finance-configuration__review">
                 <div>
-                  <dt>Délai de paiement des factures</dt>
+                  <dt>{t('Délai de paiement des factures')}</dt>
                   <dd>
-                    {settings.billing.paymentTermsDays} jours{' '}
+                    {settings.billing.paymentTermsDays} {t('jours')}{' '}
                     <ArrowRight size={15} />
-                    <strong>{chosen!.days} jours</strong>
+                    <strong>{chosen!.days} {t('jours')}</strong>
                   </dd>
                 </div>
                 <div>
-                  <dt>Validité des devis</dt>
+                  <dt>{t('Validité des devis')}</dt>
                   <dd>
-                    {settings.billing.quoteValidityDays} jours{' '}
+                    {settings.billing.quoteValidityDays} {t('jours')}{' '}
                     <ArrowRight size={15} />
-                    <strong>{chosen!.validity} jours</strong>
+                    <strong>{chosen!.validity} {t('jours')}</strong>
                   </dd>
                 </div>
               </dl>
               <p>
-                Les documents déjà créés gardent leurs conditions. La TVA, les
-                coordonnées bancaires et les salaires conservent leurs réglages.
+                {t('Les documents déjà créés gardent leurs conditions. La TVA, les coordonnées bancaires et les salaires conservent leurs réglages.')}
               </p>
             </section>
           )}
@@ -401,21 +398,21 @@ function FinanceConfiguration({
                 onClick={() => setStep(0)}
               >
                 <ChevronLeft size={16} />
-                Retour
+                {t('Retour')}
               </Button>
             ) : null}
             <Button variant="secondary" disabled={busy} onClick={onClose}>
-              Plus tard
+              {t('Plus tard')}
             </Button>
             <Button
               disabled={readOnly || busy || !preset}
               onClick={() => (step === 0 ? setStep(1) : void save())}
             >
               {busy
-                ? 'Enregistrement…'
+                ? t('Enregistrement…')
                 : step === 0
-                  ? 'Vérifier mes choix'
-                  : 'Appliquer ces réglages'}
+                  ? t('Vérifier mes choix')
+                  : t('Appliquer ces réglages')}
               <ArrowRight size={16} />
             </Button>
           </div>
@@ -423,18 +420,15 @@ function FinanceConfiguration({
       ) : (
         <section className="finance-configuration__done">
           <Check size={35} />
-          <h3>Vous pouvez préparer vos documents</h3>
+          <h3>{t('Vous pouvez préparer vos documents')}</h3>
           <p>
-            {chosen!.days} jours pour régler une facture, {chosen!.validity}{' '}
-            jours pour accepter un devis.
+            {t('{paymentDays} jours pour régler une facture, {validityDays} jours pour accepter un devis.', { paymentDays: chosen!.days, validityDays: chosen!.validity })}
           </p>
           {canInstall ? (
             <div>
-              <h4>Prochaine étape : les comptes de base</h4>
+              <h4>{t('Prochaine étape : les comptes de base')}</h4>
               <p>
-                Préparez les comptes essentiels pour relier les ventes, achats
-                et paiements à la comptabilité. Une confirmation présente leur
-                activation.
+                {t('Préparez les comptes essentiels pour relier les ventes, achats et paiements à la comptabilité. Une confirmation présente leur activation.')}
               </p>
               <Button
                 variant="secondary"
@@ -444,12 +438,12 @@ function FinanceConfiguration({
                   void onInstallStarter().finally(() => setBusy(false));
                 }}
               >
-                Préparer les comptes suisses
+                {t('Préparer les comptes suisses')}
               </Button>
             </div>
           ) : null}
           <Button onClick={onClose} disabled={busy}>
-            Terminer
+            {t('Terminer')}
           </Button>
         </section>
       )}

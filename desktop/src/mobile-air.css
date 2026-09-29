@@ -127,14 +127,27 @@
   html[data-app-theme] .desktop-app[data-experience] .payroll-preparation__document { margin: 0; padding: 4px 0; background: transparent; }
   html[data-app-theme] .desktop-app[data-experience] .payroll-preparation__document strong { display: none; }
 
-  /* Accounting: two compact pickers, then the result and its components. */
+  /* Accounting: one section picker, plus the reporting period on the overview. */
   html[data-app-theme] .desktop-app[data-experience] .accounting-screen--overview .accounting-toolbar { padding: 0; border: 0; background: transparent; }
   html[data-app-theme] .desktop-app[data-experience] .accounting-screen--overview .finance-navigation { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
   html[data-app-theme] .desktop-app[data-experience] .finance-navigation__more { max-width: none; margin: 0; }
-  html[data-app-theme] .desktop-app[data-experience] .finance-navigation :is(.section-navigation__mobile > span:first-child, .finance-navigation__more > span) { display: none; }
-  html[data-app-theme] .desktop-app[data-experience] .finance-navigation .section-navigation__current { min-height: 48px; padding: 10px 12px; gap: 6px; border: 1px solid var(--line-soft); background: var(--paper); border-radius: 13px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation :is(.section-navigation__mobile > span:first-child, .finance-navigation__more > span:not(.finance-navigation__period-value)) { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation .section-navigation__picker { border: 1px solid var(--line-soft); background: var(--paper); border-radius: 13px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation .section-navigation__current { display: flex; min-height: 48px; padding: 10px 12px; gap: 6px; text-align: start; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation .section-navigation__current > span:not(.section-navigation__icon) { flex: 1; min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation .section-navigation__current > svg { flex: 0 0 18px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation .section-navigation__mobile { display: flex; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation .section-navigation__tabs { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation__more--tools { display: none; }
   html[data-app-theme] .desktop-app[data-experience] .finance-navigation .section-navigation__icon { display: none; }
   html[data-app-theme] .desktop-app[data-experience] .finance-navigation__more select { min-height: 48px; padding: 10px; font-size: 14px; background: var(--paper); border: 1px solid var(--line-soft); border-radius: 13px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation__more--period { position: relative; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation__more--period > .finance-navigation__period-value { display: flex; align-items: center; gap: 6px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: 13px; background: var(--paper); color: var(--ink); font-size: 14px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation__period-value > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation__period-value > svg { flex: 0 0 18px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation__more--period select { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; appearance: none; -webkit-appearance: none; contain: paint; opacity: 0; cursor: pointer; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation__more--period:has(select:focus-visible) { outline: 3px solid var(--green-700); outline-offset: 3px; border-radius: 13px; }
+  html[data-app-theme] .desktop-app[data-experience] .finance-navigation__more--period:has(select:disabled) { opacity: .55; }
   html[data-app-theme] .desktop-app[data-experience] .finance-overview { gap: 22px; }
   html[data-app-theme] .desktop-app[data-experience] .finance-overview__intro { padding: 0; display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; }
   /* Keep a readable text column; wrap the action before squeezing its sibling. */
