@@ -1,16 +1,16 @@
 export const ZENTRA_VERSION = '1.46.1';
 // Current verified files; historical Supabase manifests remain unchanged.
-export const ZENTRA_WINDOWS_PREVIEW_VERSION = '1.90.7';
+export const ZENTRA_WINDOWS_PREVIEW_VERSION = '1.90.8';
 export const ZENTRA_WINDOWS_PREVIEW_NAME = `Zentra_${ZENTRA_WINDOWS_PREVIEW_VERSION}_x64-setup.exe`;
 export const ZENTRA_WINDOWS_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_WINDOWS_PREVIEW_VERSION}/${ZENTRA_WINDOWS_PREVIEW_NAME}`;
-export const ZENTRA_WINDOWS_PREVIEW_SHA256 = '59117C437941D1F9880068F151CE5C0F104D24B346EC2882452FE6455AB2F824';
+export const ZENTRA_WINDOWS_PREVIEW_SHA256 = 'FBDD41842DF282F39F2C02FB1DC340E5606B24853BEA925F7AC0F1A332A2AA6C';
 export const ZENTRA_WINDOWS_VERSION = ZENTRA_WINDOWS_PREVIEW_VERSION;
-export const ZENTRA_MAC_VERSION = '1.90.7';
-export const ZENTRA_RELEASE_VERSION = '1.90.7';
+export const ZENTRA_MAC_VERSION = '1.90.8';
+export const ZENTRA_RELEASE_VERSION = '1.90.8';
 export const ZENTRA_GITHUB_RELEASE_PATH = `https://github.com/leartshbj1/zentra/releases/tag/v${ZENTRA_RELEASE_VERSION}`;
-export const ZENTRA_ANDROID_VERSION = '1.90.7';
+export const ZENTRA_ANDROID_VERSION = '1.90.8';
 export const ZENTRA_ANDROID_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_ANDROID_VERSION}/Zentra-${ZENTRA_ANDROID_VERSION}-Android-arm64-test.apk`;
-export const ZENTRA_IPHONE_VERSION = '1.90.7';
+export const ZENTRA_IPHONE_VERSION = '1.90.8';
 export const ZENTRA_IPHONE_IPA_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_IPHONE_VERSION}/Zentra-${ZENTRA_IPHONE_VERSION}-iPhone-unsigned.ipa`;
 export const ZENTRA_IOS_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_VERSION}/Zentra-${ZENTRA_VERSION}-iOS-simulateur.zip`;
 export const ZENTRA_INSTALLER_NAME = `Zentra_${ZENTRA_WINDOWS_VERSION}_x64-setup.exe`;
@@ -29,4 +29,4 @@ export const ZENTRA_MAC_DMG_PATH = `https://github.com/leartshbj1/zentra/release
 export const ZENTRA_MAC_DMG_CHECKSUM_PATH = `${ZENTRA_MAC_DMG_PATH}.sha256.txt`;
 export const ZENTRA_MAC_DMG_SIZE_MIB = '52,24';
 export const ZENTRA_MAC_DMG_SHA256 =
-  'B209E44CBD50B7E0A1E76629084DF0B116E4DC38AF20252BBE46623AEEA5D034';
+  '8CC72D770C9021828F73CC37819A7B12C76947AEBD68D673B7EC594C2DD89307';
