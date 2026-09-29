@@ -12,6 +12,12 @@ Exécuter uniquement dans un runner Windows jetable sans autre instance Zentra. 
 
 Le profil et le stockage WebView sont nouveaux, sous `%TEMP%/zentra-volume-1909-…`. `HELVICHANTIER_DATA_DIR` et `WEBVIEW2_USER_DATA_FOLDER` les isolent. Le paquet crée d’abord lui-même la base vide au schéma attendu, puis son processus et ses descendants sont arrêtés avant le peuplement. Aucun profil existant ni fichier SQLite préfabriqué n’est copié. La base générée reste hors du répertoire des preuves et ne doit pas être publiée comme artefact CI.
 
+Si l’initialisation échoue, `result.json.initialization` et `initialization.json` conservent le nombre d’essais, le temps écoulé, la version SQLite, le dernier schéma/intégrité/contrôle de clés étrangères observé et la dernière erreur SQLite avec son code. Les contrôles ne sont plus masqués par une erreur générique. L’attente reste de 60 secondes maximum, avec un timeout SQLite de 0,2 seconde et une cadence de 0,2 seconde ; aucun critère n’est assoupli.
+
+Avant l’arrêt, une collecte complémentaire dispose d’au plus deux secondes dans le budget global existant. Elle relève uniquement l’état du PID lancé, ses descendants observés (PID, parent, nom du binaire et nombre de `msedgewebview2.exe`) et au plus 64 métadonnées de fichiers sur trois niveaux du profil fictif. Elle ne lit ni contenu, ni profil extérieur, ni titre de fenêtre, ni ligne de commande ; les liens et points de réanalyse ne sont pas suivis. Une collecte indisponible ou tronquée est indiquée, sans remplacer l’erreur initiale. Le cliché des processus n’est pas un historique : l’absence de WebView2 dans ce cliché ne prouve pas la raison de son absence ou de son arrêt.
+
+Le job volume 185 a échoué avant peuplement après validation de Node 22.23.3 et de l’installation exacte. Son ancien résultat ne permet pas d’identifier la cause. Le smoke 184 a réussi avec le même SHA256 installé `cfb7565a480034507523b568cf3ae51a3659b019dff49f3450062137ca1e55ad` et le schéma 60. Les différences restent à distinguer : attente SQLite 0,2 seconde contre cinq secondes implicites dans le smoke, Job Object, stockage WebView distinct et paramètres CDP/proxy. Aucune de ces différences n’est une cause démontrée ; le confinement, les délais et l’environnement restent inchangés.
+
 ## Données déterministes
 
 `windows-volume-fixture.py` refuse un chemin non canonique, un lien symbolique, un marqueur absent, une base non initialisée par le paquet, une entreprise déjà présente ou des fichiers de compte/licence. Il peuple la base arrêtée dans une transaction, avec identifiants et dates fixes :
@@ -55,7 +61,7 @@ python desktop/scripts/windows-package-volume.py --job 181 --source 01ad1279b934
 
 Le répertoire de sortie doit être absent. `--node C:/chemin/node.exe` permet de préciser le runtime. Le script télécharge uniquement les artefacts CI nécessaires ; il ne déclenche aucun job.
 
-Lire ensemble `result.json`, `measurements.json`, `fixture.json`, `before.json`, `after.json`, les journaux et les captures. Les fichiers de preuve ne contiennent pas les tableaux métier bruts. Le dossier SQLite temporaire est indiqué pour vérification locale, sans être inclus dans les artefacts à publier.
+Lire ensemble `result.json`, `initialization.json`, puis, lorsqu’ils ont pu être produits, `measurements.json`, `fixture.json`, `before.json`, `after.json`, les journaux et les captures. Les fichiers de preuve ne contiennent pas les tableaux métier bruts. Le dossier SQLite temporaire est indiqué pour vérification locale, sans être inclus dans les artefacts à publier.
 
 - Code 0 : mesures complètes **et** invariants conservés.
 - Code 2 : résultat partiel/non mesuré, notamment CDP absent, accès UI bloqué ou délai global ; ne pas le convertir en succès de performance.
@@ -76,7 +82,9 @@ node desktop/scripts/test-windows-volume-collector.mjs
 Les régressions du superviseur et de Node peuvent aussi être exécutées seules, sans fixture SQLite :
 
 ```powershell
-python desktop/scripts/test-windows-volume-fixture.py WindowsBoundsTests NodePreflightTests -v
+python desktop/scripts/test-windows-volume-fixture.py InitializationDiagnosticsTests WindowsBoundsTests NodePreflightTests -v
 ```
 
 Validation réalisée lors de la préparation : deux générations complètes identiques, refus d’un profil non marqué ou peuplé, refus avant mutation après expiration du budget ; trois tests réussis. Les tests ciblés Windows vérifient, avec des processus Python jetables, l’absence de départ avant libération, la terminaison des descendants par le Job, les échecs d’attachement et de libération, les handles absents/invalides et l’expiration. Les tests Node vérifient le runtime local réel (24.19.0), ainsi que les refus de version/capacités, JSON invalide, sortie en erreur et expiration simulés, avant tout téléchargement. Les 23 contrôles du collecteur passent avec DOM/CDP simulés, y compris l’IPC conservé sous activation bloquante, le refus d’un mauvais profil/version avant lecture métier et l’absence de CDP. Ce résultat valide le dispositif local ; il ne constitue pas une mesure de l’installateur 1.90.9.
+
+Les diagnostics d’initialisation sont testés sur SQLite jetable : base absente sans création, mauvais schéma, base corrompue, verrou exclusif, base valide et sortie précoce. Les tests couvrent aussi les plafonds de métadonnées, les erreurs de collecte/écriture sans masquage, et le filtrage d’un véritable descendant Python dans le cliché Windows. Le test de lien symbolique réel nécessite le privilège Windows correspondant et peut être explicitement sauté ; un test distinct de métadonnées de point de réanalyse vérifie le refus de traversée sans ce privilège.

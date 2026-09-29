@@ -16,6 +16,7 @@ import re
 import shutil
 import socket
 import sqlite3
+import stat
 import subprocess
 import sys
 import tempfile
@@ -159,6 +160,150 @@ def stop_tree(proc):
         proc.wait(timeout=8)
 
 
+def wait_for_initialization(profile, expected_schema, proc, deadline, evidence):
+    """Preserve the last failed check without changing the 60-second wait."""
+    started = time.time()
+    end = min(deadline, started + 60)
+    database = profile / 'helvichantier.sqlite3'
+    evidence.update(expectedSchema=expected_schema, sqliteVersion=sqlite3.sqlite_version,
+                    databaseAccess='existing-file-only, query_only=ON', attempts=0,
+                    observedSchema=None, integrity=None, foreignKeys=None, lastSqliteError=None)
+    try:
+        while time.time() < end:
+            evidence['processExit'] = proc.poll()
+            fixture.require(evidence['processExit'] is None,
+                            'Packaged app exited during empty-profile initialization')
+            evidence['attempts'] += 1
+            evidence['databaseExists'] = database.is_file()
+            try:
+                with closing(sqlite3.connect(database.as_uri() + '?mode=rw', uri=True, timeout=.2)) as db:
+                    db.execute('PRAGMA query_only=ON')
+                    evidence['observedSchema'] = db.execute('PRAGMA user_version').fetchone()[0]
+                    # Do not short-circuit diagnostics merely because the schema differs.
+                    evidence['integrity'] = str(db.execute('PRAGMA integrity_check').fetchone()[0])[:512]
+                    violations = db.execute('PRAGMA foreign_key_check').fetchmany(17)
+                    evidence['foreignKeys'] = {'observedViolations': min(len(violations), 16),
+                                               'truncated': len(violations) > 16}
+                failed = []
+                if evidence['observedSchema'] != expected_schema: failed.append('schema')
+                if evidence['integrity'] != 'ok': failed.append('integrity')
+                if violations: failed.append('foreign_keys')
+                evidence['lastFailedChecks'] = failed
+                if not failed:
+                    evidence['validated'] = True
+                    return evidence['observedSchema']
+            except sqlite3.Error as error:
+                evidence['lastFailedChecks'] = ['sqlite_error']
+                evidence['lastSqliteError'] = {
+                    'type': type(error).__name__, 'message': str(error)[:1024],
+                    'code': getattr(error, 'sqlite_errorcode', None),
+                    'name': getattr(error, 'sqlite_errorname', None), 'attempt': evidence['attempts']}
+            time.sleep(min(.2, max(0, end - time.time())))
+        raise ValueError('Exact package did not initialize the expected schema')
+    finally:
+        evidence['elapsedMs'] = round((time.time() - started) * 1000)
+
+
+def profile_file_diagnostics(profile, deadline):
+    """Metadata only, at most 64 entries/three levels; never follow reparse points."""
+    profile = Path(profile)
+    fixture.require(profile.is_absolute() and profile.name == 'profile' and
+                    profile.parent.name.startswith('zentra-volume-1909-'), 'Unexpected diagnostic profile')
+    for path in (profile, *profile.parents):
+        info = path.lstat()
+        fixture.require(not stat.S_ISLNK(info.st_mode) and not
+                        (getattr(info, 'st_file_attributes', 0) & 0x400), 'Diagnostic reparse point forbidden')
+    fixture.require(profile.resolve() == profile, 'Diagnostic profile must be canonical')
+    entries, pending, truncated = [], [(profile, 0)], False
+    while pending:
+        folder, depth = pending.pop()
+        with os.scandir(folder) as listing:
+            for item in listing:
+                if len(entries) >= 64 or time.time() >= deadline:
+                    return {'entries': entries, 'truncated': True}
+                info = item.stat(follow_symlinks=False)
+                linked = stat.S_ISLNK(info.st_mode) or bool(getattr(info, 'st_file_attributes', 0) & 0x400)
+                directory = stat.S_ISDIR(info.st_mode)
+                entries.append({'path': str(Path(item.path).relative_to(profile))[:256],
+                                'kind': 'reparse' if linked else 'directory' if directory else 'file',
+                                'bytes': info.st_size if not directory and not linked else None})
+                if directory and not linked:
+                    if depth < 2: pending.append((Path(item.path), depth + 1))
+                    else: truncated = True
+    return {'entries': entries, 'truncated': truncated}
+
+
+def owned_process_diagnostics(pid, deadline):
+    """Export only the selected process tree; no command lines, titles or environment."""
+    class ProcessEntry(ctypes.Structure):
+        _fields_ = [('size', wintypes.DWORD), ('usage', wintypes.DWORD), ('pid', wintypes.DWORD),
+                    ('heap', ctypes.c_size_t), ('module', wintypes.DWORD), ('threads', wintypes.DWORD),
+                    ('parent', wintypes.DWORD), ('priority', wintypes.LONG), ('flags', wintypes.DWORD),
+                    ('image', wintypes.WCHAR * 260)]
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    kernel.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry)]
+    kernel.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry)]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel.CreateToolhelp32Snapshot(2, 0)  # TH32CS_SNAPPROCESS
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    entries, truncated = [], False
+    try:
+        entry = ProcessEntry(); entry.size = ctypes.sizeof(ProcessEntry)
+        available = kernel.Process32FirstW(handle, ctypes.byref(entry))
+        if not available: raise ctypes.WinError(ctypes.get_last_error())
+        while available:
+            if len(entries) >= 4096 or time.time() >= deadline:
+                truncated = True
+                break
+            entries.append({'pid': entry.pid, 'parentPid': entry.parent, 'image': entry.image})
+            available = kernel.Process32NextW(handle, ctypes.byref(entry))
+            if not available:
+                error = ctypes.get_last_error()
+                if error != 18:  # ERROR_NO_MORE_FILES is the only normal end.
+                    raise ctypes.WinError(error)
+    finally:
+        kernel.CloseHandle(handle)
+    selected, owned = [], {pid}
+    for _ in range(32):
+        children = [row for row in entries if row['parentPid'] in owned and row['pid'] not in owned]
+        if not children: break
+        for child in children:
+            if len(selected) >= 128:
+                return {'descendants': selected, 'truncated': True}
+            selected.append(child); owned.add(child['pid'])
+    else: truncated = True
+    return {'descendants': selected, 'truncated': truncated,
+            'webview2Count': sum(row['image'].lower() == 'msedgewebview2.exe' for row in selected)}
+
+
+def initialization_diagnostics(profile, proc, deadline, evidence, error):
+    """Best-effort evidence within two seconds/the existing global budget."""
+    evidence['failure'] = f'{type(error).__name__}: {error}'[:1024]
+    end = min(deadline, time.time() + 2)
+    checks = [('process', lambda: {'pid': proc.pid, 'exitCode': proc.poll()}),
+              ('profileFiles', lambda: profile_file_diagnostics(profile, end)),
+              ('processTree', lambda: owned_process_diagnostics(proc.pid, end))]
+    for name, collect in checks:
+        if time.time() >= end:
+            evidence[name] = {'unavailable': 'diagnostic budget exhausted'}
+            continue
+        try:
+            evidence[name] = collect()
+        except Exception as diagnostic_error:
+            evidence[name] = {'unavailable': f'{type(diagnostic_error).__name__}: {diagnostic_error}'[:512]}
+
+
+def save_initialization_evidence(out, evidence):
+    try:
+        fixture.write_json(out / 'initialization.json', evidence)
+    except Exception as error:
+        # A failed diagnostic write must never hide the original startup failure.
+        evidence['diagnosticWriteError'] = f'{type(error).__name__}: {error}'[:512]
+
+
 def exact_package(args, root, deadline):
     # Reuse the unchanged smoke downloader's HTTPS/CI-host/size restrictions.
     # The NSIS byte-for-byte check is deliberately the same as the ordinary smoke.
@@ -234,25 +379,17 @@ def worker(args):
         log = (out / 'package-startup.log').open('ab')
         try:
             proc = subprocess.Popen([str(exe)], env=env, stdout=log, stderr=log)
+            initialization = result['initialization'] = {}
             try:
-                init_end = min(deadline, time.time() + 60)
-                initialized = False
-                while time.time() < init_end:
-                    fixture.require(proc.poll() is None, 'Packaged app exited during empty-profile initialization')
-                    try:
-                        with closing(sqlite3.connect((profile / 'helvichantier.sqlite3').as_uri() + '?mode=rw', uri=True, timeout=.2)) as db:
-                            db.execute('PRAGMA query_only=ON')
-                            schema = db.execute('PRAGMA user_version').fetchone()[0]
-                            initialized = schema == args.schema and db.execute('PRAGMA integrity_check').fetchone()[0] == 'ok' and not db.execute('PRAGMA foreign_key_check').fetchall()
-                        if initialized: break
-                    except sqlite3.Error:
-                        pass
-                    time.sleep(.2)
-                fixture.require(initialized, 'Exact package did not initialize the expected schema')
+                schema = wait_for_initialization(profile, args.schema, proc, deadline, initialization)
                 # Match the ordinary smoke's post-initialization survival check.
                 time.sleep(remaining(deadline, 5))
                 fixture.require(proc.poll() is None, 'Packaged app exited after database initialization')
+            except Exception as error:
+                initialization_diagnostics(profile, proc, deadline, initialization, error)
+                raise
             finally:
+                save_initialization_evidence(out, initialization)
                 stop_tree(proc)
             marker = {'purpose': fixture.PURPOSE, 'synthetic': True, 'profile': str(profile),
                       'initializedByPackage': True, 'schema': schema, 'applicationSha256': package['installedExecutableSha256']}
