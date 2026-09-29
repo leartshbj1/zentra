@@ -80,6 +80,16 @@ Récupérer et vérifier les nouveaux paquets exacts et leurs sources ; tester l
 
 Les outils sont sous `outputs/release1909/`. Un plan ou script n'est pas une preuve d'exécution. Aucun téléchargement public ni manifeste du site n'est passé à 1.90.9 à ce stade.
 
+## Vérifications du 29 septembre à 02:42 UTC
+
+La recette Android **187 a réussi à 02:33:23 UTC**, sur l'APK exact du job 180 et avec le vérificateur `b98bc22158e6a325c1fd765d02310eb477705b3b`. Ses 45 artefacts sont conservés sous `outputs/release1909/smoke-android/`. Le parcours atteint l'accueil et le compte, change réellement les deux thèmes, saisit l'identité avec le clavier, revient au compte et relance l'application. L'identité enregistrée, le schéma 60, l'intégrité et l'absence d'erreurs de clés étrangères sont conservés. Les captures à 320 × 640 montrent le champ saisi au-dessus du clavier et les contrôles du compte distincts. Le délai d'observation de l'accueil inclut l'inspection d'accessibilité : ce n'est pas une mesure isolée de démarrage.
+
+L'APK de distribution a ensuite été signé avec l'identité persistante existante ; alignement 16 Ko, signature, manifeste et 964 entrées de contenu inchangées sont vérifiés. Taille 39 850 718 octets, SHA-256 `d500ffaa2750f0004dbba2e94edc0e1d8d16713264f68d2a5f0a485bfa5c7beb`. Cinq ressources du lanceur correspondent aux pixels approuvés. Le certificat de distribution diffère du certificat jetable de la recette émulateur, sans changement de contenu applicatif.
+
+`validate-release-inputs.py --platform all` réussit sur les nouveaux fichiers Windows, Mac, iPhone et Android : sources, empreintes, recettes et signatures updater concordent. Cela ne transforme pas les limites de signature commerciale ni les validations connectées en succès.
+
+La nouvelle mesure de volume Windows **188** (pipeline 275 `1efda27f-66a0-470d-b180-6ace572fc9c1`, workflow `56ff5f0d-d7b2-4569-b34b-4fb918364fa8`, vérificateur `a866121935107bb385aa5b82362b909c32061ae8`) échoue à **02:39:23 UTC**. Les nouveaux diagnostics constatent un processus Zentra vivant, un seul descendant WebView2, un dossier de profil vide et aucune base SQLite après 60 secondes. Les trois artefacts sont téléchargés et empreintés dans `windows-volume-188/`. La cause n'est pas établie ; l'échec survient avant le peuplement volumineux. Le smoke standard 184 du même exécutable reste réussi, mais aucune mesure IPC/rendu à ce volume n'est encore obtenue. L'investigation continue sur le dispositif de mesure, sans diminution des assertions ni déclaration de capacité.
+
 ## Limites
 
 L'authentification renvoie encore 503 lors du dernier contrôle du 29 septembre à 01:09:30 UTC. Les recettes connectées à deux appareils, le planificateur réel et la capacité de production restent ouverts. Cette version ne lève pas une restriction d'hébergement.
