@@ -2,10 +2,12 @@
 
 L’objectif reste la refonte de toute l’application et le fonctionnement fiable de nombreux appareils simultanés, avec les vingt points de l’[audit premier client](AUDIT-PREMIER-CLIENT-ETAT-20260928.md). Ce lot ne redéfinit pas cet objectif autour du seul tableau de bord. **Objectif encore actif ; aucune certification globale.**
 
+État courant au 29 septembre, contrôles de publication jusqu’à 01:11 UTC (03:11 Europe/Zurich) : **1.90.8 publiée sur les quatre plateformes et Sites 299 réussi**. Les preuves ci-dessous distinguent cette distribution des validations connectées, des signatures commerciales, des appareils physiques et de la capacité restant ouverts.
+
 ## Changements livrables
 
 - Natif `55152c8b` : index temporaires des relations financières construits une fois par chargement. Ordre, centimes, liens et séparation des entreprises conservés. [Mesures et périmètre](NORMALISATION-HISTORIQUE-FINANCIER-20260929.md).
-- Natif `1a4767f0` : lecture du tableau de bord « finances → actions choisies → suivi », ouverture de la facture exacte depuis son échéance, traductions des panneaux concernés, montants et navigation adaptés à 320px/200 % de texte. La version des installateurs reste 1.90.7 à ce stade ; ces deux commits ne sont pas encore distribués.
+- Natif `1a4767f0` : lecture du tableau de bord « finances → actions choisies → suivi », ouverture de la facture exacte depuis son échéance, traductions des panneaux concernés, montants et navigation adaptés à 320px/200 % de texte. Ce lot et la normalisation `55152c8b` sont distribués dans la version **1.90.8**, source commune `cc92d4cf31d4cbcff61fe4ad285ab6cd4cded0e3`.
 - Serveur `078d3fa73a4509aff22e519c9877be207cbe560b` : accusés de souscription répétés sans lectures redondantes, budget de connexion borné, nettoyage immédiat des sockets interrompus et lecture finale durable. Un socket reçu après annulation est accepté puis fermé selon les contraintes workerd.
 
 ## Preuves et portée
@@ -18,6 +20,7 @@ L’objectif reste la refonte de toute l’application et le fonctionnement fiab
 - [Verdict indépendant](../.impeccable/review/dashboard-workflow/review.md) : **ship** pour les cinq corrections demandées. Aucun verdict global sur tous les écrans ou sur les appareils physiques.
 - Après la dernière modification du formateur monétaire : **24 tests ciblés réussis**, un test de profilage explicitement ignoré. Langues, centimes et devises, rapports, échéances, relations financières et indexation couverts.
 - `pnpm build:web` réussi (vérification de marque, palette sombre, TypeScript et Vite). Le comparatif de normalisation est distinct du démarrage : 6 000 entrées par famille, 1 727,99 → 36,36 ms pour cette étape seule, réponse complète identique. La précédente suite de 1 827 tests précède le dernier lot de présentation ; elle ne vaut pas réexécution de toute la suite après ce lot.
+- [Profilage Rust optimisé de la source 1.90.8](VOLUMES-OPTIMISES-20260929.md) : trois passages réussis après échauffement sur 5 001 factures et 5 001 devis fictifs. Lecture médiane de l’espace **1 289,95 ms**, sérialisation **162,17 ms**, réponse **49 718 748 octets**. Les valeurs avant/après sérialisation et les empreintes des 110 tables métier et trois pièces sont conservées. Binaire de test GNU distinct de l’installateur MSVC ; ouverture à froid, verrou applicatif, IPC, normalisation JavaScript et rendu exclus. Aucun gain global comparé au debug, aucune preuve sur machine modeste ou de capacité de 150 entreprises. Une éventuelle projection allégée reste un travail séparé, sans livraison déduite de ce profilage.
 
 ### Serveur
 
@@ -29,13 +32,15 @@ L’objectif reste la refonte de toute l’application et le fonctionnement fiab
 
 ## Blocages d’exploitation constatés
 
-Le tableau de bord Supabase de l’organisation indique encore **Free**, **Services restricted**, **Egress Exceeded** et **Storage Size Exceeded**. Les derniers journaux serveur confirment `company.watch` / `company.read` : refus Supabase 402 sur `zentra_workspaces`, présenté en 503 côté application. La publication 297 ne lève pas cette restriction. Une demande d’activation de Pro a été envoyée à l’utilisateur ; aucun paiement ou changement d’offre effectué.
+Le diagnostic d’exploitation antérieur à la publication 297 relevait **Free**, **Services restricted**, **Egress Exceeded** et **Storage Size Exceeded** dans le tableau de bord Supabase, avec refus 402 sur `zentra_workspaces` dans les journaux `company.watch` / `company.read`, présenté en 503 côté application. Une demande d’activation de Pro avait été envoyée à l’utilisateur ; aucun paiement ou changement d’offre n’a été effectué par ce travail.
+
+La nouvelle sonde du **29 septembre à 01:09:30.902 UTC**, après Sites 299, reçoit toujours **503**, « L’authentification est temporairement indisponible. ». Elle tente une connexion avec une adresse fictive inexistante et l’origine requise, sans connexion réelle, inscription ni demande d’e-mail. Preuve : `outputs/release1908/auth-readiness.json`. **Cette sonde ne contrôle pas directement la facturation Supabase** et ne réactualise pas à elle seule les anciens constats du tableau de bord ; elle ne fournit aucune preuve de rétablissement de l’authentification.
 
 Le workflow GitHub de synchronisation des mails est `disabled_manually`. Sa dernière exécution connue `36339873810` n’a exécuté aucune étape, le compte étant verrouillé pour facturation. Aucun traitement automatique de mails réels, application fermée, n’est revendiqué. Le contrôle de santé authentifié n’a pas été exécuté : la clé d’exploitation n’est pas accessible dans les valeurs masquées de configuration.
 
 ## Reste à démontrer pour l’objectif complet
 
-1. Distribuer les nouveaux commits natifs avec une version distincte, et vérifier l’installation/mise à jour avec les signatures et appareils appropriés. Une compilation web n’est pas un nouvel installateur.
+1. Compléter la distribution 1.90.8 désormais publique par les signatures reconnues et les essais d’installation/mise à jour sur les appareils appropriés. Les recettes cloud et émulateur ne lèvent pas le refus Code Integrity de ce PC et ne remplacent pas les appareils physiques.
 2. Après rétablissement de Supabase, mesurer la propagation réelle émission/encaissement/remboursement entre deux comptes et appareils, avec brouillon ouvert, déconnexion et reprise, puis charge représentative de plusieurs entreprises.
 3. Restaurer un planificateur effectif de messagerie, observer plusieurs cycles applications fermées, puis les erreurs/reprises et une alerte réellement reçue.
 4. Terminer la recette inscription, abonnement test, invitations, changement d’espace, fichiers, restauration et automatisation avec les comptes opérationnels.
@@ -45,7 +50,13 @@ Les contrôles déjà réussis ne doivent être répétés que si une modificati
 
 ## Suite du 29 septembre — distribution native
 
-La préparation 1.90.8 est gelée dans `cc92d4cf31d4cbcff61fe4ad285ab6cd4cded0e3` et poussée sur `codex/first-client-release-1908`. Les 11 tests relatifs aux notes de version, langues et contrats updater passent, les quatre versions sont cohérentes et les conditions du workflow évitent les compilations en double. Android 175 et Apple 176 ont réussi, ainsi que la recette Android 177 du contenu exact ; paquets Apple/Android récupérés et vérifiés, Mac signé pour l'updater et Android avec l'identité persistante de préversion. Windows 174 compile encore lors du contrôle de 00:51 UTC. [Suivi de la version et liens des jobs](RELEASE-1.90.8.md). La publication native reste 1.90.7.
+La version 1.90.8 est gelée dans `cc92d4cf31d4cbcff61fe4ad285ab6cd4cded0e3` et poussée sur `codex/first-client-release-1908`. Les 11 tests relatifs aux notes de version, langues et contrats updater passent, les quatre versions sont cohérentes et les conditions du workflow évitent les compilations en double. **Windows 174, Android 175, Apple 176 et les recettes Android 177 / Windows 178 ont tous réussi**. Le vérificateur Windows/Android est `c94162093f978cd160f6ae05a569d3a1ea9167ea` ; il teste le contenu de la source applicative commune. Les paquets ont été récupérés et vérifiés, les signatures updater Windows/Mac contrôlées, l’APK signé avec l’identité persistante de préversion. Les recettes Mac, Windows et Android restent bornées à leurs profils isolés et à l’émulateur. [Version, provenance et liens des jobs](RELEASE-1.90.8.md).
+
+**Douze actifs GitHub publiés à 01:01:04 UTC**, puis **Sites 299 réussi à 01:08:28 UTC**, source `dcf9a0d726acdb59072284e4ae4c32ed1d64d667`, environnement 37 inchangé. Les quatre liens principaux répondent HTTP 200 avec leurs tailles exactes et les trois manifestes annoncent 1.90.8 en `no-store`, conformes aux fichiers locaux à 01:08:58 UTC. Preuves dans `outputs/release1908/{github-published-proof,site-publish-proof,public-head-proof,update-channel-live-proof}.json` ; succès des jobs et paquets dans `build-status.json` et les sous-dossiers de téléchargement/recette.
+
+La page `/download` répond aussi HTTP 200 et contient les quatre références 1.90.8 à 01:11:02 UTC : `outputs/release1908/download-page-proof.json`.
+
+Windows n’a pas d’Authenticode et ce PC n’a pas été réinstallé ; Mac demeure ad hoc et non notarié, l’IPA non signée. Le certificat de l’APK public est distinct de celui de la recette émulateur. Aucun appareil physique, store ou capacité de 150 entreprises n’est validé par cette publication. Historique du 29 septembre à 00:51 UTC : Windows était encore en compilation et 1.90.7 restait publique ; ces deux statuts sont désormais remplacés par les preuves ci-dessus.
 
 ## Suite du 29 septembre — réservation et lots de messagerie
 

@@ -1,8 +1,24 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 28 septembre 2026, 04 h 58 (Europe/Zurich). **La version courante publiée est 1.90.7 sur les quatre plateformes.** Les vingt points ne sont pas clos : la recette connectée finale dépend du rétablissement des services et des signatures de distribution.
+Mis à jour le 29 septembre 2026 ; contrôles de publication jusqu’à 01:11 UTC (03:11 Europe/Zurich). **La version courante publiée est 1.90.8 sur les quatre plateformes, avec Sites 299.** Les vingt points ne sont pas clos : la recette connectée finale, les signatures de distribution, les appareils physiques et la capacité en production restent à démontrer.
 
-## Version 1.90.7 publiée
+## Version 1.90.8 publiée
+
+[Notes et preuves complètes](RELEASE-1.90.8.md). Source native commune **`cc92d4cf31d4cbcff61fe4ad285ab6cd4cded0e3`**. Builds Windows 174, Android 175 et Apple 176 réussis ; recette Windows 178 du paquet installé dans le cloud, démarrage/relancement Mac intégré à 176 et recette Android 177 du contenu exact réussis. Les vérificateurs Windows/Android proviennent de `c94162093f978cd160f6ae05a569d3a1ea9167ea`, distinct du SHA applicatif. Les preuves de téléchargement et de recette sont dans `outputs/release1908/{windows,apple,android,smoke-windows,smoke-android}/` ; `build-status.json` les réconcilie à 01:10:08 UTC.
+
+Les **douze actifs GitHub** sont publics depuis **01:01:04 UTC**. Les quatre fichiers principaux répondent HTTP 200 anonymes avec les tailles attendues : Windows 24 499 463 octets, DMG 54 782 073, IPA 27 408 625 et APK 39 850 718. **Sites 299**, source **`dcf9a0d726acdb59072284e4ae4c32ed1d64d667`**, environnement 37 inchangé, atteint `succeeded` à **01:08:28 UTC**. À 01:08:58 UTC, les trois manifestes du site annoncent 1.90.8, répondent HTTP 200 avec `no-store` et correspondent aux fichiers locaux ; un canal inconnu répond 404. Preuves : `github-published-proof.json`, `site-publish-proof.json`, `public-head-proof.json` et `update-channel-live-proof.json` dans `outputs/release1908/`.
+
+Cette version distribue la normalisation des relations financières (`55152c8b`) et l’accueil (`1a4767f0`) en plus du contenu 1.90.7. Les signatures updater Windows/Mac sont vérifiées. Windows reste sans Authenticode ; **ce PC n’a pas été réinstallé**, son dernier état vérifié reste 1.90.5 et le refus Code Integrity demeure ouvert. Mac reste ad hoc et non notarié, l’IPA non signée, Android signé avec l’identité persistante de préversion. La recette émulateur Android utilise un certificat distinct ; elle ne prouve ni une mise à jour sur appareil physique ni une publication dans les stores.
+
+`download-page-proof.json` confirme également la page `/download` en HTTP 200 avec les quatre fichiers 1.90.8 à 01:11:02 UTC. La [mesure optimisée du gros historique](VOLUMES-OPTIMISES-20260929.md) comporte trois passages réussis de la même source applicative : lecture médiane 1 289,95 ms, sérialisation 162,17 ms, JSON de 49 718 748 octets, 110 tables et trois pièces conservées. Ce test Rust GNU après échauffement est distinct de l’installateur MSVC et exclut démarrage à froid, IPC, rendu, machine modeste et capacité de 150 entreprises ; aucune comparaison globale avec les anciens relevés debug.
+
+La dernière sonde d’authentification, le **29 septembre à 01:09:30.902 UTC** (03:09:30 Europe/Zurich), reçoit toujours **HTTP 503**, « L’authentification est temporairement indisponible. ». Elle utilise un compte fictif inexistant et l’origine requise : aucune connexion réelle, inscription ou demande d’e-mail. `outputs/release1908/auth-readiness.json` constate l’indisponibilité du service ; **ce n’est pas un contrôle direct de la facturation Supabase**. Les derniers diagnostics de quotas restent des observations antérieures, pas une mesure renouvelée par cette sonde.
+
+Sites 298 avait publié le lot de réservation et de traitement borné des messageries à 00:50:56 UTC, avant la mise à jour des téléchargements en 299. Cela n’active ni le planificateur, ni un secret, ni l’Automation en arrière-plan. Les simulations de 150 boîtes ou entreprises ne certifient aucune capacité de production. Voir [l’état de la refonte et de la capacité](REFONTE-CAPACITE-20260929.md).
+
+## Historique — version 1.90.7 publiée le 28 septembre 2026
+
+Les sections historiques ci-dessous conservent les observations faites jusqu’au 28 septembre à 04 h 58 (Europe/Zurich), puis leurs lots antérieurs. Leurs mentions « non publié », « pas encore compilé », anciens canaux et anciens derniers contrôles décrivent ces étapes datées ; le statut courant est celui de 1.90.8 ci-dessus.
 
 [Notes et preuves complètes](RELEASE-1.90.7.md). Source native commune `958787be4e608b89a357f98c73d0c236bda677b4`. Builds Windows 168, Apple 169 et Android 167 réussis ; installation/démarrage/relancement Windows 173, Mac intégré au build 169, clavier/thèmes/redémarrage Android 172 et cinq tests UIKit réussis. Les signatures updater Windows/Mac et le certificat persistant Android sont vérifiés ; l’IPA reste non signé.
 
@@ -20,7 +36,7 @@ Dernier lot local : [gros historique et périodes comptables](VOLUMES-ET-PERIODE
 
 L’horloge de l’introduction est corrigée après la source du job 160 : elle pouvait prolonger les 7,8 secondes prévues jusqu’à plusieurs minutes sur un rendu lent. La contre-épreuve à une image par seconde atteint désormais la configuration, en environ dix secondes observées ; trois parcours de régression et la suspension/reprise simulée passent. Le paquet 163 atteint effectivement la configuration dans la recette native 164. Les **71 secondes d’observation** incluent émulation ARM et échecs temporaires d’UIAutomator : elles ne prouvent ni un démarrage physique rapide ni une animation native chronométrée à dix secondes.
 
-## Version 1.90.6 publiée ; installation locale Windows refusée
+## Historique — version 1.90.6 publiée le 27 septembre ; installation locale Windows refusée
 
 Les douze fichiers de la [release 1.90.6](https://github.com/leartshbj1/zentra/releases/tag/v1.90.6) sont publics et leurs empreintes correspondent aux fichiers vérifiés. Les quatre téléchargements principaux répondent HTTP 200 avec les tailles attendues à 22 h 11. **Sites 292** est publié à 22 h 19 ; la page de téléchargement et les canaux Windows/macOS proposent 1.90.6. Les trois manifestes répondent HTTP 200 anonymes, `no-store`, avec le contenu exact à 22 h 20 ; un canal inconnu répond 404.
 
@@ -55,7 +71,7 @@ Preuves : `outputs/release1906/{SOURCES.json,source-equivalence-proof.json,githu
 
 Preuves natives : `outputs/release1906/upgrade-smoke/{updater-check-proof.json,updater-ui-events.json,updater-install-refused-proof.json,windows-code-integrity-refusal.json,navigation-1.90.5.json,native-pdf-export-proof.json,native-pdf-checks.json}` et `outputs/release1905/upgrade-smoke/{after-updater-refused,after-pdf-export,final-closed}-snapshot.json`. Aucun envoi de document, aucune création de compte et aucune modification de données réelles lors de cette recette.
 
-## Lots postérieurs à 1.90.6, désormais inclus dans 1.90.7
+## Historique — lots postérieurs à 1.90.6, inclus dans 1.90.7 puis 1.90.8
 
 Le [planning en quatre langues](PLANNING-LANGUES-20260927.md) comprend formulaires, erreurs reconnues et confirmations traduites, préservation des saisies et compteurs mobiles sans texte débordant. Vingt parcours linguistiques finaux Edge/WebKit passent, dont quatre à 200 % ; huit parcours français complets apportent une régression complémentaire avant les dernières retouches texte/CSS. Suite complète 1 818 tests avant ces retouches ; 19 tests ciblés, TypeScript et build finaux réussis. Aucune installation native ni synchronisation réelle n’en est déduite.
 
@@ -71,13 +87,13 @@ Le [guide de prise en main reste lisible avec le texte agrandi](GUIDE-LISIBILITE
 
 La [recette native locale `a46085d9`](RECETTE-NATIVE-ET-ACCUEIL-20260928.md) complète ces preuves : compilation debug sans installateur, 42 navigations et 16 étapes du guide, zéro erreur JS, médiane 47 ms et maximum 478 ms. Les 110 tables métier, trois fichiers et montants fictifs sont conservés après fermeture normale. L’installateur public et l’application installée ne sont pas modifiés. La revue révèle une colonne inutile sans Automation : correction CSS et traductions du suivi validées ensuite sur 20 configurations navigateur, sans nouvelle compilation native de ce dernier ajustement. Les chiffres natifs ne lui sont pas attribués.
 
-## Site, comptes et traitement autonome
+## Historique — site, comptes et traitement autonome au 28 septembre
 
 **Sites 293 publié à 02 h 38**, source `15b170780e0d55592005478dadf46c2b7c4a052b`, environnement 37 inchangé. Le chronométrage des incidents de messagerie inclut désormais l’attente réelle ; 7 tests ciblés, TypeScript et build passent. [Détail du lot](MESSAGERIE-DIAGNOSTIC-20260928.md). Cette publication ne rétablit pas les comptes.
 
 Le connecteur Infomaniak partagé est déjà présent côté serveur et dans la source publique 1.90.6, avec droits par entreprise, secret chiffré, journal partagé et récupération sans renvoi. Les réglages le distinguent du SMTP local. La recette réelle sur deux appareils et la réception restent à valider après rétablissement du compte ; OAuth partagé n’est pas annoncé.
 
-Dernière contre-épreuve des comptes : **28 septembre, 03 h 06, HTTP 503**, `Retry-After: 60`, `no-store`, avec une connexion synthétique à une adresse inexistante et l’origine correcte. Aucun compte, cookie fourni ou e-mail envoyé. Preuve `outputs/readiness-20260928/result-2026-09-28T01-06-28-342Z.json`. Le contrôle direct sans clé sur Supabase renvoie 401 et ne permet pas de conclure à la levée des quotas ; le dernier diagnostic authentifié reste celui du 27 septembre à 20 h 05 (402, stockage/transfert dépassés). Des journaux vides ne constituent pas une preuve de rétablissement.
+Contre-épreuve historique des comptes : **28 septembre, 03 h 06, HTTP 503**, `Retry-After: 60`, `no-store`, avec une connexion synthétique à une adresse inexistante et l’origine correcte. Aucun compte, cookie fourni ou e-mail envoyé. Preuve `outputs/readiness-20260928/result-2026-09-28T01-06-28-342Z.json`. Le contrôle direct sans clé sur Supabase renvoie 401 et ne permet pas de conclure à la levée des quotas ; le diagnostic authentifié alors disponible est celui du 27 septembre à 20 h 05 (402, stockage/transfert dépassés). Des journaux vides ne constituent pas une preuve de rétablissement. La nouvelle sonde du 29 septembre est décrite dans l’état courant ci-dessus.
 
 Sites **292**, source `20ecc8c536df184ac1d75f095d52d6ef4d70bc49`, environnement 37, déploiement `appgdep_6ab97a5521b88191868471bd3bba8858`, sauvegarde avec archive vérifiée. Publication réussie à 22 h 19. Quatorze tests, TypeScript, marque et build réussis. Les reprises de préparation n’ont changé ni dépendance ni contenu : Bash ajouté au PATH de la commande, puis `TAR_OPTIONS=--force-local` pour traiter le chemin Windows comme local.
 
