@@ -1,6 +1,8 @@
 # Premier client — état des vingt points
 
-Mis à jour le 29 septembre 2026 : **version courante 1.90.8 publiée, Sites 299 réussi**. Le point 4 et les références de version courante sont réconciliés avec cette livraison ; le point 18 reçoit la mesure optimisée circonscrite du 29 septembre. Les autres preuves du tableau restent celles de leurs lots datés, sans nouvelle validation implicite. [État de livraison et provenance](ETAT-LIVRAISON.md). **Les vingt points ne sont pas clos.** Les critères ci-dessous suivent l’audit d’origine : une recette commune ne crée pas un nouveau chantier pour chaque ligne.
+Mis à jour le 29 septembre 2026 : **version courante 1.90.9 publiée, Sites 300 réussi**. [État de livraison et provenance](ETAT-LIVRAISON.md). Les preuves du tableau conservent leurs lots datés ; les compléments ci-dessous actualisent les points concernés sans validation implicite des autres. **Les vingt points ne sont pas clos.** Les critères suivent l’audit d’origine : une recette commune ne crée pas un nouveau chantier pour chaque ligne.
+
+Complément courant aux points 4 et 18 : [1.90.9](RELEASE-1.90.9.md), source `01ad1279…`, est distribuée depuis 02:46:41 UTC ; Sites 300 est réussi et ses canaux sont vérifiés à 02:50 UTC. La projection allégée est donc publiée. Constructions 179/180/181 et recettes Windows 184, Mac et Android 187 réussies. La mesure de volume 188 échoue avant SQLite, sans résultat IPC/rendu ni capacité démontrée. Les exigences de signature, d'appareils physiques et de capacité restent ouvertes.
 
 | Point de l’audit | Travail et preuve disponibles | Ce qui manque pour le clôturer |
 |---|---|---|

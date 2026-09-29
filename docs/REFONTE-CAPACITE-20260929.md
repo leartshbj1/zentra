@@ -2,7 +2,7 @@
 
 L’objectif reste la refonte de toute l’application et le fonctionnement fiable de nombreux appareils simultanés, avec les vingt points de l’[audit premier client](AUDIT-PREMIER-CLIENT-ETAT-20260928.md). Ce lot ne redéfinit pas cet objectif autour du seul tableau de bord. **Objectif encore actif ; aucune certification globale.**
 
-État courant au 29 septembre, contrôles de publication jusqu’à 01:11 UTC (03:11 Europe/Zurich) : **1.90.8 publiée sur les quatre plateformes et Sites 299 réussi**. Les preuves ci-dessous distinguent cette distribution des validations connectées, des signatures commerciales, des appareils physiques et de la capacité restant ouverts.
+État courant au 29 septembre, contrôles de publication jusqu’à 02:50 UTC (04:50 Europe/Zurich) : **1.90.9 publiée sur les quatre plateformes et Sites 300 réussi**. Les sections ci-dessous conservent leurs preuves datées ; [la publication 1.90.9](RELEASE-1.90.9.md) distribue aussi la projection allégée. Les validations connectées, signatures commerciales, appareils physiques et capacité restent ouverts. La mesure de volume Windows 188 échoue avant SQLite, sans preuve de régression applicative ni mesure IPC/rendu obtenue.
 
 ## Changements livrables
 
@@ -40,7 +40,7 @@ Le workflow GitHub de synchronisation des mails est `disabled_manually`. Sa dern
 
 ## Reste à démontrer pour l’objectif complet
 
-1. Compléter la distribution 1.90.8 désormais publique par les signatures reconnues et les essais d’installation/mise à jour sur les appareils appropriés. Les recettes cloud et émulateur ne lèvent pas le refus Code Integrity de ce PC et ne remplacent pas les appareils physiques.
+1. Compléter la distribution 1.90.9 désormais publique par les signatures reconnues et les essais d’installation/mise à jour sur les appareils appropriés. Les recettes cloud et émulateur ne lèvent pas le refus Code Integrity de ce PC et ne remplacent pas les appareils physiques.
 2. Après rétablissement de Supabase, mesurer la propagation réelle émission/encaissement/remboursement entre deux comptes et appareils, avec brouillon ouvert, déconnexion et reprise, puis charge représentative de plusieurs entreprises.
 3. Restaurer un planificateur effectif de messagerie, observer plusieurs cycles applications fermées, puis les erreurs/reprises et une alerte réellement reçue.
 4. Terminer la recette inscription, abonnement test, invitations, changement d’espace, fichiers, restauration et automatisation avec les comptes opérationnels.
@@ -70,7 +70,9 @@ Cette publication n'active ni Supabase Cron, ni secret, ni l'indicateur d'Automa
 
 Après la publication 1.90.8, les deux retours UI de l'espace évitent les lectures exhaustives du journal que Comptabilité charge déjà séparément. Trois tests Rust `--release` réussissent, avec conservation des exports et des journaux extraits des sauvegardes et archives de collaboration. Le comparatif sur le même binaire et la même fixture de 5 001 factures/devis réduit le JSON de 49 718 748 à 40 778 676 octets, tous les champs conservés identiques. Les 110 tables métier et trois pièces gardent leurs empreintes. [Protocole, mesures et limites](VOLUMES-OPTIMISES-20260929.md).
 
-Cette modification supplémentaire est **dans la source 1.90.9, non distribuée**. Sa source est figée dans `01ad1279b934113006398504163f309948d92e07`, avec les constructions 179/180/181 et la recette Android 182. Les actifs publics 1.90.8 restent immuables. [Progression et contrôles de la nouvelle version](RELEASE-1.90.9.md). Les mesures locales après échauffement ne clôturent pas le démarrage à froid, le rendu/IPC, les appareils modestes ou la capacité de production.
+Cette modification supplémentaire est **distribuée dans 1.90.9**. Sa source est figée dans `01ad1279b934113006398504163f309948d92e07`, avec les constructions 179/180/181, la recette Windows 184 et la recette Android 187 réussies. Les actifs publics 1.90.8 restent immuables. [Publication et contrôles de la nouvelle version](RELEASE-1.90.9.md). Les mesures locales après échauffement ne clôturent pas le démarrage à froid, le rendu/IPC, les appareils modestes ou la capacité de production.
+
+Le job de volume Windows **189**, vérificateur `22f3056e`, s'arrête avant installation avec `not_measured` : le jeton du runner est élevé, d'intégrité High (`12288`). La garde exige un processus Medium non élevé pour que les paramètres privés WebView2 soient pris en compte. Le confinement dans les deux Jobs est établi, mais l'application n'est pas lancée ; ce résultat ne prouve donc pas la cause de l'échec 188. Preuves : `outputs/release1909/windows-volume-189/{result,containment,download-proof}.json`. Un worker restreint dans le seul environnement CI est étudié séparément, sans abaisser les protections du PC utilisateur.
 
 ## Suite du 29 septembre — accessibilité de l'assistant dans la paie
 

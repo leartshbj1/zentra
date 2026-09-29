@@ -1,6 +1,14 @@
-# Zentra 1.90.9 — préparation, non publiée
+# Zentra 1.90.9 — publiée
 
-29 septembre 2026. La version publique reste **1.90.8**. La source 1.90.9 est figée dans **`01ad1279b934113006398504163f309948d92e07`**, poussée sans forçage puis vérifiée sur `codex/first-client-release-1909`.
+29 septembre 2026. **1.90.9 est publiée sur les quatre plateformes ; Sites 300 est réussi.** La source applicative est figée dans **`01ad1279b934113006398504163f309948d92e07`**. Les sections de préparation conservent leurs observations datées ; la publication ci-dessous les remplace comme état courant.
+
+## Publication vérifiée
+
+Douze actifs GitHub sont publics depuis **02:46:41 UTC**. Les quatre fichiers principaux répondent HTTP 200 avec leurs tailles attendues à 02:47:20 UTC : Windows 24 530 748 octets, Mac DMG 54 778 706, iPhone IPA 27 410 502 et Android APK 39 850 718. Le tag `v1.90.9` vise exactement la source figée et les douze empreintes publiées correspondent aux fichiers contrôlés.
+
+**Sites 300**, source `3044646b331061ef15e35afcd68d4bfb21585198`, déploiement `appgdep_6abb272969948191b63fffe2914640de`, atteint `succeeded` à **02:49:35 UTC**, environnement 37 inchangé. L'archive de 701 fichiers est comparée aux sorties de la compilation réussie ; les quatorze tests des téléchargements et canaux passent. Les trois canaux publics annoncent 1.90.9 avec leurs signatures attendues et `no-store` à 02:50:03 UTC ; un canal inconnu répond 404. `/download` répond 200 avec les quatre références exactes à 02:50:04 UTC.
+
+Preuves dans `outputs/release1909/{github-published-proof,site-publish-proof,public-head-proof,update-channel-live-proof,download-page-proof}.json`. La mesure de volume Windows demeure non obtenue ; l'échec 188 précède la création de la base et n'établit pas une régression de la projection modifiée. Les limites d'exploitation et de signature en fin de document restent ouvertes.
 
 ## Changement
 

@@ -1,8 +1,14 @@
 # Zentra — état courant des livraisons
 
-Mis à jour le 29 septembre 2026 ; contrôles de publication jusqu’à 01:11 UTC (03:11 Europe/Zurich). **La version courante publiée est 1.90.8 sur les quatre plateformes, avec Sites 299.** Les vingt points ne sont pas clos : la recette connectée finale, les signatures de distribution, les appareils physiques et la capacité en production restent à démontrer.
+Mis à jour le 29 septembre 2026 ; contrôles de publication jusqu’à 02:50 UTC (04:50 Europe/Zurich). **La version courante publiée est 1.90.9 sur les quatre plateformes, avec Sites 300.** Les vingt points ne sont pas clos : la recette connectée finale, les signatures de distribution, les appareils physiques et la capacité en production restent à démontrer.
 
-## Version 1.90.8 publiée
+## Version 1.90.9 publiée
+
+[Notes et preuves complètes](RELEASE-1.90.9.md). Source native `01ad1279b934113006398504163f309948d92e07` ; constructions Windows 181, Apple 179 et Android 180, recettes Windows 184, Mac intégrée à 179 et Android 187 réussies. Les douze actifs sont publics depuis 02:46:41 UTC. Sites 300, source `3044646b331061ef15e35afcd68d4bfb21585198`, est publié à 02:49:35 UTC. Quatre fichiers principaux accessibles en HTTP 200 ; page de téléchargement et canaux vérifiés en 1.90.9 à 02:50 UTC. Les signatures updater et l'identité Android persistante sont contrôlées.
+
+Cette version allège la réponse locale destinée à l'interface, en conservant les lectures dédiées, sauvegardes, exports et archives de collaboration. La mesure de volume Windows reste non obtenue : son dispositif 188 échoue avant la création de SQLite, alors que le même paquet réussit le smoke standard 184. Pas de gain global, de capacité de production ou de rétablissement des comptes déduit de cette publication. Les limites Windows sans Authenticode, Mac non notarié, IPA non signée, appareils physiques et installation sur le PC utilisateur sont inchangées.
+
+## Historique — version 1.90.8 publiée
 
 [Notes et preuves complètes](RELEASE-1.90.8.md). Source native commune **`cc92d4cf31d4cbcff61fe4ad285ab6cd4cded0e3`**. Builds Windows 174, Android 175 et Apple 176 réussis ; recette Windows 178 du paquet installé dans le cloud, démarrage/relancement Mac intégré à 176 et recette Android 177 du contenu exact réussis. Les vérificateurs Windows/Android proviennent de `c94162093f978cd160f6ae05a569d3a1ea9167ea`, distinct du SHA applicatif. Les preuves de téléchargement et de recette sont dans `outputs/release1908/{windows,apple,android,smoke-windows,smoke-android}/` ; `build-status.json` les réconcilie à 01:10:08 UTC.
 
@@ -18,7 +24,7 @@ Sites 298 avait publié le lot de réservation et de traitement borné des messa
 
 ## Historique — version 1.90.7 publiée le 28 septembre 2026
 
-Les sections historiques ci-dessous conservent les observations faites jusqu’au 28 septembre à 04 h 58 (Europe/Zurich), puis leurs lots antérieurs. Leurs mentions « non publié », « pas encore compilé », anciens canaux et anciens derniers contrôles décrivent ces étapes datées ; le statut courant est celui de 1.90.8 ci-dessus.
+Les sections historiques ci-dessous conservent les observations faites jusqu’au 28 septembre à 04 h 58 (Europe/Zurich), puis leurs lots antérieurs. Leurs mentions « non publié », « pas encore compilé », anciens canaux et anciens derniers contrôles décrivent ces étapes datées ; le statut courant est celui de 1.90.9 ci-dessus.
 
 [Notes et preuves complètes](RELEASE-1.90.7.md). Source native commune `958787be4e608b89a357f98c73d0c236bda677b4`. Builds Windows 168, Apple 169 et Android 167 réussis ; installation/démarrage/relancement Windows 173, Mac intégré au build 169, clavier/thèmes/redémarrage Android 172 et cinq tests UIKit réussis. Les signatures updater Windows/Mac et le certificat persistant Android sont vérifiés ; l’IPA reste non signé.
 
