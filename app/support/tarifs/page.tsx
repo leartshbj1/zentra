@@ -34,7 +34,7 @@ export default function SupportPricing() {
             <strong>Commencez par vérifier votre connexion.</strong> Le compte
             et la préparation sont gratuits. Le traitement manuel nécessite
             un abonnement Support. Le classement et le routage automatiques
-            nécessitent aussi l’option Automation à +15 CHF/mois pour cet espace.
+            nécessitent aussi Automation à +15 CHF/mois et une entreprise Gestion active et reliée.
           </p>
           <a href="/support/connexions" className="sp-text-link">
             Vérifier mon logiciel <ArrowRight size={16} />

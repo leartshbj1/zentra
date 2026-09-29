@@ -77,6 +77,10 @@ export default async function SupportPresentation({
         </div>
         <RoutingExample />
       </section>
+      <div className="product-inclusions sp-wrap">
+        <p><strong>Avec Support seul</strong> Vos messages, leur traitement manuel et votre équipe dans un espace partagé. Gestion n’est pas nécessaire.</p>
+        <p><strong>Pour automatiser le tri</strong> Ajoutez <a href="/automation">Automation</a> et reliez une entreprise <a href="/gestion">Gestion</a> active. Les trois sont inclus dans <a href="/complet">Complet</a>.</p>
+      </div>
       <section
         className="sp-product-statement sp-wrap"
         aria-label="Un produit indépendant"

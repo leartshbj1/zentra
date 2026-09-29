@@ -26,13 +26,6 @@ export function PricingPlans() {
                 <Users className="size-5 text-[#788a7d]" />
               )}
             </div>
-            <p className="mt-3 min-h-12 text-sm leading-6 text-[#657068]">
-              {plan.id === 'solo'
-                ? 'Votre entreprise, à votre rythme.'
-                : plan.id === 'start'
-                  ? 'Un espace pour votre petite équipe.'
-                  : 'De la place pour votre équipe au complet.'}
-            </p>
             <p className="mt-6">
               <strong className="text-5xl font-semibold tracking-[-.06em]">
                 {plan.priceChfCents / 100}
@@ -45,28 +38,17 @@ export function PricingPlans() {
                 : `Jusqu’à ${plan.seats} personnes`}
             </p>
             <p className="mt-1 text-sm text-[#657068]">Titulaire compris</p>
-            <ul className="my-6 space-y-3 text-sm leading-6">
-              {[
-                'Fonctions de Zentra Gestion',
-                'Automation en option : 15 CHF/mois',
-                'Mises à jour incluses',
-                'Plusieurs appareils par personne',
-              ].map((feature) => (
-                <li key={feature} className="flex gap-2">
-                  <Check
-                    aria-hidden="true"
-                    className="mt-1 size-4 shrink-0 text-[#41805b]"
-                  />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-auto">
+            <div className="plan-choice-action">
               <PurchaseButton planId={plan.id} compact />
             </div>
           </article>
         ))}
       </div>
+      <section className="pricing-shared" aria-label="Inclus dans toutes les formules Gestion">
+        <h3>Dans chaque formule Gestion</h3>
+        <ul>{['Devis, factures, projets et comptabilité', 'Achats, salaires et banque', 'Mises à jour incluses', 'Plusieurs appareils par personne'].map(feature => <li key={feature}><Check size={17} aria-hidden="true" />{feature}</li>)}</ul>
+        <p><a href="/automation">Automation : +15 CHF/mois par entreprise</a>. <a href="/support/tarifs">Support vendu séparément</a>, ou les trois produits dans <a href="/complet">Zentra Complet</a>.</p>
+      </section>
       <p className="mt-6 text-center text-sm font-medium leading-6 text-[#354e40]">
         {PLAN_FEATURE_PROMISE}
       </p>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { ArrowRight, ChevronDown, Menu, X } from 'lucide-react';
+import { ArrowRight, Menu, X } from 'lucide-react';
 import { BrandWordmark } from './brand-mark';
 import { AccountLink } from './account-link';
 
@@ -85,6 +85,13 @@ const productMenus = {
   },
 } as const;
 
+const essentialLinks = {
+  gestion: [['Fonctionnalités', '/features'], ['Aperçu', '/demo-facture'], ['Tarifs', '/pricing']],
+  support: [['Fonctionnalités', '/support/fonctionnalites'], ['Aperçu', '/support/demo'], ['Tarifs', '/support/tarifs']],
+  automation: [['Fonctionnalités', '/automation#fonctions'], ['En action', '/automation#parcours'], ['Tarif', '/automation#tarif']],
+  complet: [['Inclus', '/complet#inclus'], ['Les packs', '/complet#formules'], ['Questions', '/complet#questions']],
+} as const;
+
 export function SiteHeader() {
   const pathname = usePathname() ?? '/';
   const product = pathname.startsWith('/complet')
@@ -108,26 +115,22 @@ export function SiteHeader() {
           ? 'gestion'
           : null;
   const menu = product ? productMenus[product] : null;
-  const [open, setOpen] = useState(false);
   const [exploreOpen, setExploreOpen] = useState(false);
   const root = useRef<HTMLElement>(null);
-  const toggle = useRef<HTMLButtonElement>(null);
   const exploreToggle = useRef<HTMLButtonElement>(null);
   const previousPath = useRef(pathname);
   useEffect(() => {
     if (previousPath.current !== pathname) {
-      setOpen(false);
       setExploreOpen(false);
     }
     previousPath.current = pathname;
   }, [pathname]);
   useEffect(() => {
-    if (!open && !exploreOpen) return;
+    if (!exploreOpen) return;
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setOpen(false);
         setExploreOpen(false);
-        (exploreOpen ? exploreToggle : toggle).current?.focus();
+        exploreToggle.current?.focus();
       }
     };
     const outside = (event: PointerEvent) => {
@@ -135,7 +138,6 @@ export function SiteHeader() {
         event.target instanceof Node &&
         !root.current?.contains(event.target)
       ) {
-        setOpen(false);
         setExploreOpen(false);
       }
     };
@@ -145,17 +147,16 @@ export function SiteHeader() {
       document.removeEventListener('keydown', key);
       document.removeEventListener('pointerdown', outside);
     };
-  }, [open, exploreOpen]);
+  }, [exploreOpen]);
   return (
     <header
-      className="catalog-header intuitive-header"
+      className={`catalog-header intuitive-header${menu ? ' focused-product-header' : ''}`}
       ref={root}
       onBlur={(event) => {
         if (
           event.relatedTarget instanceof Node &&
           !event.currentTarget.contains(event.relatedTarget)
         ) {
-          setOpen(false);
           setExploreOpen(false);
         }
       }}
@@ -168,7 +169,10 @@ export function SiteHeader() {
         >
           <BrandWordmark />
         </a>
-        <nav className="catalog-products" aria-label="Les produits Zentra">
+        {menu && <a className="catalog-current-product" href={menu.href}>{menu.name}</a>}
+        {product ? <nav className="catalog-essentials" aria-label={'Explorer ' + menu?.name}>
+          {essentialLinks[product].map(([label, href]) => <a key={href} href={href} aria-current={pathname === href ? 'page' : undefined}>{label}</a>)}
+        </nav> : <nav className="catalog-products" aria-label="Les produits Zentra">
           {products.map((item) => (
             <a
               key={item.key}
@@ -178,7 +182,7 @@ export function SiteHeader() {
               {item.name}
             </a>
           ))}
-        </nav>
+        </nav>}
         <AccountLink className="catalog-account" />
         <button
           className="catalog-explore-toggle"
@@ -189,7 +193,6 @@ export function SiteHeader() {
           aria-controls="catalog-explore"
           onClick={() => {
             setExploreOpen(!exploreOpen);
-            setOpen(false);
           }}
         >
           <span>Menu</span>
@@ -226,6 +229,11 @@ export function SiteHeader() {
             ))}
           </nav>
           <nav className="catalog-shortcuts" aria-label="Accès directs">
+            {menu && <>
+              <p>{menu.name}</p>
+              {menu.links.map(([label, href]) => <a key={href} href={href} onClick={() => setExploreOpen(false)}>{label}</a>)}
+              <a href={menu.action[1]} onClick={() => setExploreOpen(false)}>{menu.action[0]} <ArrowRight size={16} aria-hidden="true" /></a>
+            </>}
             <p>Pour commencer</p>
             <a href="/#choisir" onClick={() => setExploreOpen(false)}>
               Trouver mon outil <ArrowRight size={16} aria-hidden="true" />
@@ -248,68 +256,7 @@ export function SiteHeader() {
           </nav>
         </div>
       </div>
-      {menu && (
-        <div className="catalog-local">
-          <div className="catalog-local-row">
-            <a className="catalog-product-title" href={menu.href}>
-              {menu.name}
-            </a>
-            <nav
-              className="catalog-desktop-links"
-              aria-label={'Explorer ' + menu.name}
-            >
-              {menu.links.map(([label, href]) => (
-                <a
-                  key={href}
-                  href={href}
-                  aria-current={pathname === href ? 'page' : undefined}
-                >
-                  {label}
-                </a>
-              ))}
-            </nav>
-            <div className="catalog-local-actions">
-              <button
-                className="catalog-menu-toggle"
-                ref={toggle}
-                type="button"
-                aria-label={'Menu ' + menu.name}
-                aria-expanded={open}
-                aria-controls="catalog-product-menu"
-                onClick={() => {
-                  setOpen((value) => !value);
-                  setExploreOpen(false);
-                }}
-              >
-                <ChevronDown size={20} aria-hidden="true" />
-              </button>
-              <a className="catalog-action" href={menu.action[1]}>
-                {menu.action[0]}
-              </a>
-            </div>
-          </div>
-          <nav
-            className="catalog-mobile-links"
-            id="catalog-product-menu"
-            aria-label={'Explorer ' + menu.name + ' sur mobile'}
-            hidden={!open}
-          >
-            {menu.links.map(([label, href]) => (
-              <a
-                key={href}
-                href={href}
-                aria-current={pathname === href ? 'page' : undefined}
-                onClick={() => setOpen(false)}
-              >
-                {label}
-              </a>
-            ))}
-            <a href="/produits" onClick={() => setOpen(false)}>
-              Voir tous les produits
-            </a>
-          </nav>
-        </div>
-      )}
+
     </header>
   );
 }

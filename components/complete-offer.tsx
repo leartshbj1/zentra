@@ -1,98 +1,29 @@
-'use client';
-
-import { useState } from 'react';
-import { ArrowRight, Check, Users } from 'lucide-react';
-import {
-  COMPLETE_PLANS,
-  completePlan,
-  type CompletePlanId,
-} from '@/lib/complete/plans';
+import { ArrowRight, Check } from 'lucide-react';
+import { COMPLETE_PLANS, completePlan } from '@/lib/complete/plans';
 
 export function CompleteOffer() {
-  const [selected, setSelected] = useState<CompletePlanId>('team');
-  const plan = completePlan(selected)!;
   return (
     <div className="complete-offer" id="formules">
-      <p>Découvrez les trois produits pendant 14 jours : 3 personnes et 250 analyses partagées. <a href="/compte">Commencer sans carte bancaire</a>.</p>
-      <fieldset className="complete-plan-options">
-        <legend>Choisissez la taille de votre équipe.</legend>
-        {COMPLETE_PLANS.map((item) => {
-          const p = completePlan(item.id)!;
-          return (
-            <label
-              key={p.id}
-              className={selected === p.id ? 'is-selected' : ''}
-            >
-              <input
-                type="radio"
-                name="complete-plan"
-                value={p.id}
-                checked={selected === p.id}
-                onChange={() => setSelected(p.id)}
-              />
-              <span className="complete-plan-top">
-                <strong>{p.name}</strong>
-                {p.id === 'team' && <span>Notre conseil</span>}
-              </span>
-              <span className="complete-plan-seat">
-                {p.seats === 1 ? '1 personne' : `Jusqu’à ${p.seats} personnes`}
-              </span>
-              <span className="complete-plan-price">
-                {p.priceChfCents / 100}
-                <small> CHF / mois</small>
-              </span>
-              <span className="complete-plan-volume">
-                {p.analyses.toLocaleString('fr-CH')} analyses Support / mois
-              </span>
-            </label>
-          );
+      <p className="complete-trial-note">Découvrez les trois produits pendant 14 jours : 3 personnes et 250 analyses partagées. <a href="/compte">Commencer sans carte bancaire</a>.</p>
+      <div className="complete-compact-plans">
+        {COMPLETE_PLANS.map(item => {
+          const plan = completePlan(item.id)!;
+          return <article className="complete-compact-plan" key={plan.id}>
+            <h2>{plan.name}</h2>
+            <p className="complete-compact-price"><strong>{plan.priceChfCents / 100}</strong> CHF / mois</p>
+            <p className="complete-compact-seats">{plan.seats === 1 ? '1 personne' : `Jusqu’à ${plan.seats} personnes`}<span>Titulaire compris</span></p>
+            <p>{plan.analyses.toLocaleString('fr-CH')} analyses Support / mois</p>
+            <a className="zentra-primary" href={`/complet/abonnement?formule=${plan.id}`}>Choisir {plan.name}<ArrowRight size={17} aria-hidden="true" /></a>
+            <details><summary>Comparer au prix séparé</summary><p>{plan.saving / 100} CHF économisés par mois : Gestion {plan.gestionName}, Support {plan.supportName} et Automation coûtent {plan.separatePrice / 100} CHF séparément.</p></details>
+          </article>;
         })}
-      </fieldset>
-      <div className="complete-selection" aria-live="polite" aria-atomic="true">
-        <div className="complete-selection-copy">
-          <div className="complete-selection-heading">
-            <Users size={22} aria-hidden="true" />
-            <h2>Zentra Complet {plan.name}</h2>
-          </div>
-          <p>{plan.description}</p>
-          <ul>
-            <li>
-              <Check size={18} aria-hidden="true" /> Gestion {plan.gestionName}
-            </li>
-            <li>
-              <Check size={18} aria-hidden="true" /> Support {plan.supportName}
-            </li>
-            <li>
-              <Check size={18} aria-hidden="true" /> Automation incluse
-            </li>
-          </ul>
-          <p className="complete-saving">
-            {plan.saving / 100} CHF économisés chaque mois{' '}
-            <span>
-              par rapport aux produits séparés ({plan.separatePrice / 100} CHF).
-            </span>
-          </p>
-        </div>
-        <div className="complete-selection-action">
-          <p>
-            <strong>{plan.priceChfCents / 100}</strong> CHF / mois
-          </p>
-          <a
-            className="zentra-primary"
-            href={`/complet/abonnement?formule=${plan.id}`}
-          >
-            Choisir {plan.name}
-            <ArrowRight size={18} aria-hidden="true" />
-          </a>
-          <span>Pour une entreprise · titulaire compris</span>
-          <a href="/complet#deja-client">Déjà client Zentra ?</a>
-        </div>
       </div>
-      <p className="complete-terms-note">
-        Abonnement mensuel, renouvelé automatiquement. Résiliation pour la fin
-        de la période payée. Aucun dépassement d’analyses facturé
-        automatiquement.
-      </p>
+      <section className="pricing-shared" aria-label="Inclus dans tous les packs">
+        <h3>Trois produits inclus dans chaque pack</h3>
+        <ul>{['Gestion et ses fonctions métier', 'Support et son espace partagé', 'Automation pour la même entreprise'].map(text => <li key={text}><Check size={17} aria-hidden="true" />{text}</li>)}</ul>
+        <p>Connectez vos outils et activez vos règles. Les services tiers conservent leurs propres abonnements. <a href="#inclus">Voir ce qui est inclus</a>.</p>
+      </section>
+      <p className="complete-terms-note">Abonnement mensuel, renouvelé automatiquement. Résiliation pour la fin de la période payée. Aucun dépassement d’analyses facturé automatiquement. <a href="/complet#deja-client">Déjà client Zentra ?</a></p>
     </div>
   );
 }

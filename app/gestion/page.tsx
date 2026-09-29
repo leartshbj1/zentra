@@ -11,6 +11,7 @@ import {
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { GestionExperience } from '@/components/gestion-experience';
+import { AppFirstPreview } from '@/components/app-first-preview';
 
 export const metadata: Metadata = {
   title: {
@@ -75,26 +76,31 @@ export default function GestionPage() {
       </a>
       <SiteHeader />
       <main id="contenu" tabIndex={-1} className="gestion-page polished-page">
-        <section className="page-intro page-width">
+        <section className="page-intro page-width gestion-first-look">
+          <div className="gestion-first-copy">
           <h1>
             Votre entreprise.
             <br />
             <span>Bien organisée.</span>
           </h1>
           <p>
-            Vos devis, vos chiffres et votre équipe.
-            <br />
-            Tout se retrouve, tout devient plus simple.
+            Devis, factures et projets. Votre activité au même endroit.
           </p>
           <div className="page-actions">
             <a className="page-primary" href="#fonctionnalites">
-              Découvrir les fonctionnalités <ArrowRight size={17} aria-hidden="true" />
+              Les fonctionnalités <ArrowRight size={17} aria-hidden="true" />
             </a>
             <a className="page-text-link" href="/pricing">
               Dès 49 CHF / mois <ArrowRight size={17} aria-hidden="true" />
             </a>
           </div>
+          </div>
+          <AppFirstPreview />
         </section>
+        <div className="product-inclusions page-width">
+          <p><strong>Inclus dans Gestion</strong> Devis, factures, projets, achats, comptabilité et salaires.</p>
+          <p><strong>En option</strong> <a href="/automation">Automation · 15 CHF/mois</a>. Les parcours e-mail nécessitent aussi <a href="/support">Support</a>.</p>
+        </div>
         <GestionExperience />
         <section
           className="page-section page-width"

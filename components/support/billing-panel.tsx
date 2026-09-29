@@ -17,33 +17,22 @@ export function SupportPrices({
   disabled?: boolean;
 }) {
   return (
+    <div className="support-price-offers">
     <div className="support-prices">
       {SUPPORT_PLANS.map((plan) => (
         <article
           key={plan.id}
           className={`support-price-card ${plan.id === 'team' ? 'support-price-featured' : ''}`}
         >
-          <span className="support-eyebrow">{plan.name}</span>
-          <h3>
+          <h3 className="support-plan-name">{plan.name}</h3>
+          <p className="support-plan-price">
             {plan.priceChfCents / 100}
             <small> CHF / mois</small>
-          </h3>
-          <p>{plan.description}</p>
+          </p>
+          <p className="support-plan-seats">Toute votre équipe incluse</p>
           <strong>
             Jusqu’à {plan.analyses.toLocaleString('fr-CH')} analyses / mois avec Automation
           </strong>
-          <ul>
-            <li>
-              <Check size={16} /> Réception et traitement manuel des tickets
-            </li>
-            <li>
-              <Check size={16} /> Équipe incluse, sans prix par personne
-            </li>
-            <li>
-              <Check size={16} /> Connexions et historique partagés
-            </li>
-          </ul>
-          <p className="support-small">Automation en option : +15 CHF/mois par espace pour le tri et le routage automatiques.</p>
           {onChoose ? (
             <Button
               className="support-primary"
@@ -63,6 +52,12 @@ export function SupportPrices({
           )}
         </article>
       ))}
+    </div>
+    <section className="pricing-shared" aria-label="Inclus dans toutes les formules Support">
+      <h3>Dans chaque formule Support</h3>
+      <ul>{['Réception et traitement manuel des tickets', 'Équipe incluse, sans prix par personne', 'Connexions et historique partagés'].map(text => <li key={text}><Check size={17} aria-hidden="true" />{text}</li>)}</ul>
+      <p>Tri et routage automatiques : <a href="/automation">Automation à +15 CHF/mois</a>, avec une entreprise <a href="/gestion">Gestion</a> active et reliée. Aucun dépassement d’analyses facturé automatiquement.</p>
+    </section>
     </div>
   );
 }

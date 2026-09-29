@@ -1,7 +1,7 @@
 'use client';
 
 import { CreditCard, LoaderCircle, ShieldCheck } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { planById, type PlanId } from '@/lib/plans';
 import { LEGAL_VERSION } from '@/lib/legal';
@@ -42,6 +42,11 @@ export function PurchaseButton({
   const [ready, setReady] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const termsInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (expanded) termsInput.current?.focus({ preventScroll: true });
+  }, [expanded]);
   const [error, setError] = useState('');
   const [portalLoginUrl, setPortalLoginUrl] = useState('');
   const [accessRestricted, setAccessRestricted] = useState(false);
@@ -120,7 +125,7 @@ export function PurchaseButton({
     : ready === null
       ? 'Vérification de Stripe…'
       : loginRequired
-        ? 'Se connecter pour s’abonner'
+        ? compact ? `Choisir ${plan.name}` : 'Se connecter pour s’abonner'
         : unavailable
           ? 'Paiement temporairement indisponible'
           : compact
@@ -129,10 +134,15 @@ export function PurchaseButton({
 
   return (
     <div className="w-full">
+      {compact && ready === true && !loginRequired && !expanded ? (
+        <button type="button" className="compact-purchase-choice" onClick={() => setExpanded(true)} aria-expanded={false}>
+          Choisir {plan.name}
+        </button>
+      ) : <>
       {ready === true && !loginRequired && <div className="mb-3 text-sm leading-6">
         <details className="mb-4"><summary className="cursor-pointer py-3">Vous avez un code de parrainage ?</summary><label className="block">Code de l’entreprise qui vous invite<input value={referralCode} maxLength={30} onChange={e=>setReferralCode(e.target.value)} autoCapitalize="characters" placeholder="ZT-…" className="my-2 block min-h-12 w-full rounded-xl border border-[#c5cdc7] bg-white px-3 text-base text-[#173d2c]"/></label><p>−50 % sur votre premier mois, puis {plan.priceChfCents/100} CHF/mois. Réservé aux nouvelles entreprises clientes. <a href="/parrainage/conditions" className="underline" target="_blank" rel="noreferrer">Conditions</a></p></details>
         <label className="flex min-h-11 cursor-pointer items-start gap-3">
-          <input type="checkbox" checked={acceptTerms} onChange={event => setAcceptTerms(event.target.checked)} className="mt-1 size-5 shrink-0 accent-[#315e48]" />
+          <input type="checkbox" ref={termsInput} checked={acceptTerms} onChange={event => setAcceptTerms(event.target.checked)} className="mt-1 size-5 shrink-0 accent-[#315e48]" />
           <span>J’accepte les <a href="/conditions" target="_blank" rel="noopener noreferrer" className="underline">conditions d’abonnement</a>, dont l’<a href="/sous-traitance" target="_blank" rel="noopener noreferrer" className="underline">annexe de traitement des données</a>.</span>
         </label>
         <p>{plan.priceChfCents / 100} CHF/mois · renouvellement mensuel · résiliation pour la prochaine échéance. Aucune TVA suisse facturée par l’éditeur.</p>
@@ -171,6 +181,7 @@ export function PurchaseButton({
           Déjà client ? Gérer mon abonnement
         </a>
       )}
+      </>}
     </div>
   );
 }

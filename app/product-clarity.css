@@ -1,0 +1,119 @@
+/* Public product discovery: a short introduction, the real app, then details. */
+body .focused-product-header .catalog-global { gap: 28px; }
+.catalog-current-product { padding-left: 24px; border-left: 1px solid var(--studio-rule); color: var(--studio-ink); font-size: 17px; font-weight: 550; white-space: nowrap; }
+.catalog-essentials { display: flex; justify-content: center; align-items: center; flex: 1; gap: 28px; }
+.catalog-essentials a { display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; color: #4e5c54; }
+.catalog-essentials a:hover, .catalog-essentials a[aria-current] { color: var(--studio-green); text-decoration: underline; text-underline-offset: 6px; }
+.catalog-shortcuts p:not(:first-child) { margin-top: 24px; }
+body .catalog-explore { max-height: calc(100dvh - 70px); }
+
+body .home-experience { padding-top: 42px; }
+.home-first-look { display: grid; grid-template-columns: .85fr 1.15fr; grid-template-areas: 'copy preview' 'choices choices'; gap: 34px 42px; align-items: center; }
+.home-first-look .experience-intro { grid-area: copy; text-align: left; }
+body .home-first-look h1, body .gestion-first-look h1 { font-size: clamp(38px, 4.2vw, 60px); line-height: 1.1; letter-spacing: -.035em; }
+body .home-first-look .experience-intro > p { font-size: 18px; line-height: 1.6; margin: 22px 0 0; max-width: 38ch; }
+.home-first-look .experience-actions { justify-content: flex-start; gap: 12px 22px; flex-wrap: wrap; margin-top: 24px; }
+.app-first-preview { grid-area: preview; margin: 0; min-width: 0; }
+.app-first-image { overflow: hidden; border: 1px solid #dce1de; border-radius: 14px; background: var(--studio-canvas); }
+.app-first-image img { display: block; width: 100%; height: auto; }
+.app-first-preview figcaption { color: #58675e; font-size: 14px; line-height: 1.5; margin: 12px 0 0; text-align: center; }
+.product-quick-choice { grid-area: choices; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border-block: 1px solid var(--studio-rule); }
+.product-quick-choice a { display: flex; justify-content: center; align-items: center; gap: 12px; min-height: 80px; padding: 14px; text-align: center; }
+.product-quick-choice a + a { border-left: 1px solid var(--studio-rule); }
+.product-quick-choice strong { font-size: 18px; font-weight: 550; color: var(--studio-green); }
+.product-quick-choice span { font-size: 14px; color: #58675e; }
+.product-quick-choice a:hover { background: #f2f6f3; }
+.experience-section-heading { margin: 66px 0 24px; text-align: center; }
+.experience-section-heading h2 { font-size: clamp(28px,3vw,40px); line-height: 1.15; font-weight: 540; letter-spacing: -.025em; }
+.experience-section-heading p { color: var(--studio-muted); font-size: 17px; margin-top: 14px; }
+body .home-experience .experience-stage { margin-top: 22px; }
+body .experience-caption, body .experience-progress button { font-size: 14px; }
+body .gestion-first-look { display: grid; grid-template-columns: .78fr 1.22fr; grid-template-areas: 'copy preview'; gap: 40px; align-items: center; text-align: left; padding-block: 42px 32px; width: min(100% - 80px,1280px); }
+.gestion-first-copy { grid-area: copy; }
+.gestion-first-copy > p { font-size: 18px; line-height: 1.6; color: var(--studio-muted); margin-top: 22px; max-width: 35ch; }
+.gestion-first-copy .page-actions { justify-content: flex-start; gap: 12px 20px; }
+.product-inclusions { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; padding-block: 24px; border-block: 1px solid var(--studio-rule); margin-bottom: 48px; }
+.product-inclusions p { color: #56645c; font-size: 15px; line-height: 1.65; margin: 0; }
+.product-inclusions strong { display: block; color: var(--studio-ink); font-weight: 550; margin-bottom: 5px; }
+.product-inclusions a, .pricing-shared a, .complete-terms-note a, .complete-trial-note a { text-decoration: underline; text-underline-offset: 3px; color: var(--studio-green); }
+
+body .pricing-plan { padding: 26px; }
+body .pricing-plan > p { margin-top: 16px; }
+body .pricing-plan > p + p { padding-top: 16px; }
+body .pricing-plan > p:last-of-type { padding-top: 0; margin-top: 4px; }
+.plan-choice-action { margin-top: 24px; }
+body .compact-purchase-choice { min-height: 48px; width: 100%; border-radius: 10px; font-size: 15px; font-weight: 550; cursor: pointer; }
+.pricing-shared { border-top: 1px solid var(--studio-rule); margin-top: 28px; padding-top: 24px; }
+body .pricing-shared h3 { font-size: 21px; font-weight: 550; margin: 0 0 16px; color: var(--studio-ink); }
+.pricing-shared ul { display: flex; flex-wrap: wrap; gap: 14px 28px; list-style: none; margin: 0; padding: 0; }
+.pricing-shared li { display: flex; align-items: flex-start; gap: 9px; font-size: 15px; line-height: 1.6; }
+.pricing-shared li svg { flex-shrink: 0; color: var(--studio-green); margin-top: 4px; }
+.pricing-shared p { max-width: 80ch; color: #56645c; font-size: 15px; line-height: 1.65; margin-top: 20px; }
+body .support-price-card { padding: 26px; border-radius: 14px; gap: 16px; }
+body .support-price-card .support-plan-name { font-size: 24px; font-weight: 550; letter-spacing: -.025em; }
+body .support-price-card .support-plan-price { font-size: 44px; line-height: 1.15; font-weight: 550; letter-spacing: -.035em; color: #19251f; margin: 4px 0; }
+.support-plan-price small { font-size: 14px; letter-spacing: 0; font-weight: 400; color: #56645c; white-space: nowrap; }
+body .support-price-card .support-plan-seats { font-size: 16px; color: #19251f; margin: 0; }
+body .support-price-card > strong { font-size: 14px; line-height: 1.6; color: #56645c; font-weight: 400; }
+body .support-price-featured { box-shadow: none; }
+.complete-compact-plans { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+.complete-compact-plan { padding: 26px; border: 1px solid #dce1de; border-radius: 14px; background: white; }
+body .complete-compact-plan h2 { font-size: 24px; font-weight: 550; letter-spacing: -.025em; margin: 0 0 20px; }
+.complete-compact-plan p { margin: 16px 0; font-size: 14px; color: #56645c; line-height: 1.6; }
+.complete-compact-price strong { font-size: 44px; font-weight: 550; letter-spacing: -.035em; color: var(--studio-ink); }
+body .complete-compact-seats { font-size: 18px; color: var(--studio-ink); font-weight: 550; }
+.complete-compact-seats span { display: block; font-size: 14px; font-weight: 400; color: #56645c; margin-top: 4px; }
+.complete-compact-plan .zentra-primary { width: 100%; margin-top: 8px; }
+.complete-compact-plan details { margin-top: 12px; font-size: 14px; color: #56645c; }
+.complete-compact-plan summary { cursor: pointer; min-height: 44px; padding-block: 12px; }
+.complete-compact-plan details p { margin: 4px 0 0; }
+.complete-trial-note { font-size: 16px; line-height: 1.65; margin-bottom: 28px; max-width: 80ch; }
+body .complete-terms-note { font-size: 14px; }
+
+/* These notes describe product requirements, so keep them readable at every size. */
+body .support-presentation :is(.sp-caption,.sp-hero-note,.sp-page-intro > .sp-caption,.sp-finish > .sp-caption,.support-small),
+body .automation-intro-note { font-size: 14px; line-height: 1.65; color: #53645a; }
+body .support-presentation .sp-routing-caption { font-size: 14px; }
+body .support-presentation .sp-hero-note { max-width: 55ch; }
+body .support-presentation :is(.automation-bridge small, .bridge-note, .sp-integrations-detailed small) { font-size: 14px; line-height: 1.65; color: #53645a; }
+body .support-presentation :is(.sp-example-heading, .sp-example-tabs button, .sp-person small, .sp-message-card p, .sp-analysis-card dt, .sp-product-statement > p, .sp-step-top span, .sp-steps p, .studio-usecase-category, .sp-integrations p, .sp-faq p, .sp-faq summary span, .sp-pricing-notice p, .sp-routing-example dt) { color: #53645a; }
+body .support-presentation .sp-text-link { color: #225b40; }
+body .support-presentation dt { color: #53645a; }
+body .support-presentation .sp-time > div > p:not(.sp-kicker),
+body .support-presentation .sp-time .sp-time-note { color: #f0f4ec !important; }
+@media (max-width: 1100px) {
+  body .focused-product-header .catalog-global { gap: 18px; }
+  .catalog-current-product { display: none; }
+  .home-first-look { grid-template-columns: 1fr 1.15fr; gap: 26px; }
+  .product-quick-choice a { flex-direction: column; gap: 4px; }
+}
+@media (max-width: 760px) {
+  .catalog-essentials { display: none; }
+  body .home-experience { padding: 28px 20px 0; }
+  .home-first-look { grid-template-columns: minmax(0,1fr); grid-template-areas: 'copy' 'choices' 'preview'; gap: 22px; }
+  .home-first-look .experience-intro { margin: 0; }
+  body .home-first-look h1, body .gestion-first-look h1 { font-size: clamp(34px,8.8vw,48px); }
+  body .home-first-look .experience-intro > p { font-size: 16px; line-height: 1.6; margin-top: 16px; }
+  .home-first-look .experience-actions { display: none; }
+  .product-quick-choice a { padding: 12px 4px; min-height: 52px; }
+  .product-quick-choice strong { font-size: 15px; }
+  .product-quick-choice span { display: none; }
+  .app-first-preview figcaption { font-size: 14px; text-align: left; }
+  .experience-section-heading { margin-top: 44px; text-align: left; }
+  .experience-section-heading p { font-size: 16px; }
+  body .gestion-first-look { display: flex; flex-direction: column; align-items: stretch; width: calc(100% - 40px); padding-block: 28px 24px; gap: 24px; }
+  .gestion-first-copy > p { font-size: 16px; margin-top: 16px; }
+  .gestion-first-copy .page-actions { flex-direction: row; align-items: center; gap: 8px 18px; margin-top: 16px; }
+  .gestion-first-copy .page-primary { width: auto; font-size: 14px; padding-inline: 14px; }
+  .product-inclusions { grid-template-columns: 1fr; gap: 16px; margin-bottom: 32px; }
+  .pricing-shared ul { display: grid; gap: 12px; }
+  .complete-compact-plans { grid-template-columns: 1fr; }
+  .complete-compact-plan, body .pricing-plan, body .support-price-card { padding: 24px; }
+}
+@media (max-width: 600px) {
+  .app-first-image { height: 348px; position: relative; }
+  .app-first-image img { width: 100%; height: auto; transform: translateY(-43%); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .product-quick-choice a { transition: background-color .18s ease-out; }
+}

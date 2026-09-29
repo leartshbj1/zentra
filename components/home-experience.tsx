@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { AppFirstPreview } from './app-first-preview';
 import {
   ArrowRight,
   CalendarDays,
@@ -130,19 +131,22 @@ export function HomeExperience() {
 
   return (
     <section className="home-experience" aria-labelledby="home-title">
+      <div className="home-first-look">
       <div className="experience-intro">
         <h1 id="home-title">
           Votre entreprise.
           <br />
-          <span>Un quotidien plus simple.</span>
+          <span>Tout devient plus simple.</span>
         </h1>
         <p>
-          Gestion, Support et Automation relient vos clients, vos factures et
-          vos tâches. Tout avance ensemble. Vous gardez la main.
+          Vos clients, vos factures et vos tâches. Trois produits qui travaillent ensemble.
         </p>
         <div className="experience-actions">
+          <a className="zentra-primary" href="#produits">
+            Découvrir les produits <ArrowRight size={17} aria-hidden="true" />
+          </a>
           <button
-            className="zentra-primary"
+            className="zentra-text-link"
             type="button"
             onClick={() => {
               stage.current?.scrollIntoView({
@@ -158,12 +162,19 @@ export function HomeExperience() {
           >
             Voir Zentra à l’œuvre <Play size={16} aria-hidden="true" />
           </button>
-          <a className="zentra-text-link" href="#choisir">
-            Trouver mon outil <ArrowRight size={17} aria-hidden="true" />
-          </a>
         </div>
       </div>
-
+      <nav className="product-quick-choice" aria-label="Choisir un produit Zentra">
+        <a href="/gestion"><strong>Gestion</strong><span>Piloter l’entreprise</span></a>
+        <a href="/support"><strong>Support</strong><span>Suivre les demandes</span></a>
+        <a href="/automation"><strong>Automation</strong><span>Automatiser les tâches</span></a>
+      </nav>
+      <AppFirstPreview />
+      </div>
+      <div className="experience-section-heading">
+        <h2>Voyez comment tout se relie.</h2>
+        <p>Un message reçu. Les informations à la bonne place.</p>
+      </div>
       <div className="experience-stage" id="parcours" ref={stage}>
         <fieldset
           className="experience-examples"
