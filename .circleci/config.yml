@@ -28,6 +28,36 @@ parameters:
     default: ""
 
 jobs:
+  android-package-smoke-1909:
+    machine:
+      image: android:default
+    resource_class: medium
+    environment:
+      ZENTRA_ANDROID_SMOKE_JOB: "180"
+      ZENTRA_ANDROID_SMOKE_SOURCE: "01ad1279b934113006398504163f309948d92e07"
+      ZENTRA_ANDROID_SMOKE_SHA256: "286eda7a9890bf24593ec737232b6a164240a059a04f4d51b00d1ab7e5aa89e3"
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact 1.90.9 optimized Android payload on an emulator
+          command: timeout 18m bash desktop/scripts/smoke-android-release-candidate.sh
+          no_output_timeout: 5m
+      - store_artifacts:
+          path: desktop/artifacts/android-release-smoke
+          destination: android-release-smoke
+  windows-package-smoke-1909:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact 1.90.9 installer in a disposable Windows profile
+          command: python desktop/scripts/cloud-package-smoke.py windows 181 01ad1279b934113006398504163f309948d92e07
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
   android-package-smoke-1908:
     machine:
       image: android:default
@@ -380,6 +410,20 @@ jobs:
           destination: apple
 
 workflows:
+  android-package-1909:
+    when:
+      and:
+        - equal: [codex/release-1.90.9-android-smoke, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - android-package-smoke-1909
+  first-client-package-1909:
+    when:
+      and:
+        - equal: [codex/release-1.90.9-windows-smoke, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-package-smoke-1909
   first-client-1909:
     when:
       and:
