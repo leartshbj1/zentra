@@ -63,6 +63,12 @@ use crate::{
 #[cfg(test)]
 use crate::schema::BUSINESS_TABLES;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WorkspaceReadScope {
+    Complete,
+    Interface,
+}
+
 #[derive(Debug, Clone)]
 pub struct LocalStore {
     pub(crate) data_dir: PathBuf,
@@ -1911,9 +1917,28 @@ impl LocalStore {
 
     pub(crate) fn complete_onboarding_scoped(
         &self,
+        input: OnboardingInput,
+        app_version: &str,
+        scope: OnboardingValidationScope,
+    ) -> AppResult<CompleteOnboardingResult> {
+        self.complete_onboarding_with_workspace(input, app_version, scope, WorkspaceReadScope::Complete)
+    }
+
+    pub(crate) fn complete_onboarding_for_interface(
+        &self,
+        input: OnboardingInput,
+        app_version: &str,
+        scope: OnboardingValidationScope,
+    ) -> AppResult<CompleteOnboardingResult> {
+        self.complete_onboarding_with_workspace(input, app_version, scope, WorkspaceReadScope::Interface)
+    }
+
+    fn complete_onboarding_with_workspace(
+        &self,
         mut input: OnboardingInput,
         app_version: &str,
         scope: OnboardingValidationScope,
+        workspace_scope: WorkspaceReadScope,
     ) -> AppResult<CompleteOnboardingResult> {
         let stored_logo = self.store_company_logo_reference(input.logo_path.as_deref())?;
         input.logo_path = stored_logo;
@@ -2028,7 +2053,7 @@ impl LocalStore {
         if let Some(rates) = settings_rates_to_import.as_ref() {
             import_explicit_settings_rates(&transaction, rates)?;
         }
-        let workspace = self.workspace_from_connection(&transaction)?;
+        let workspace = self.workspace_from_connection_scoped(&transaction, workspace_scope)?;
         let app_state = AppStateInfo {
             onboarding_completed: true,
             activity_profile_required: false,
@@ -2048,7 +2073,20 @@ impl LocalStore {
         self.workspace_from_connection(&connection)
     }
 
+    pub(crate) fn get_interface_workspace(&self) -> AppResult<Value> {
+        let connection = self.connect()?;
+        self.workspace_from_connection_scoped(&connection, WorkspaceReadScope::Interface)
+    }
+
     fn workspace_from_connection(&self, connection: &Connection) -> AppResult<Value> {
+        self.workspace_from_connection_scoped(connection, WorkspaceReadScope::Complete)
+    }
+
+    fn workspace_from_connection_scoped(
+        &self,
+        connection: &Connection,
+        scope: WorkspaceReadScope,
+    ) -> AppResult<Value> {
         self.require_onboarding(connection)?;
         let settings = query_optional(connection, "SELECT * FROM settings WHERE id = 1", [])?;
         let clients = query_all(
@@ -2521,16 +2559,18 @@ impl LocalStore {
             "SELECT * FROM accounting_periods ORDER BY date_from",
             [],
         )?;
-        let journal_entries = query_all(
-            connection,
-            "SELECT * FROM journal_entries ORDER BY entry_date,number",
-            [],
-        )?;
-        let journal_lines = query_all(
-            connection,
-            "SELECT * FROM journal_lines ORDER BY journal_entry_id,rowid",
-            [],
-        )?;
+        // The interface reads journals through get_journal/get_ledger. Keep
+        // complete journals in exports and internal snapshots, but avoid these
+        // two bulk reads and their IPC payload in ordinary interface refreshes.
+        // Journal joins and financial integrity checks above/below stay active.
+        let journals = if scope == WorkspaceReadScope::Complete {
+            Some((
+                query_all(connection, "SELECT * FROM journal_entries ORDER BY entry_date,number", [])?,
+                query_all(connection, "SELECT * FROM journal_lines ORDER BY journal_entry_id,rowid", [])?,
+            ))
+        } else {
+            None
+        };
         let reminder_settings =
             query_optional(connection, "SELECT * FROM reminder_settings WHERE id=1", [])?;
         let reminder_templates = query_all(
@@ -2618,8 +2658,6 @@ impl LocalStore {
             ("accounts".into(), Value::Array(accounts)),
             ("accounting_settings".into(), accounting_settings.unwrap_or(Value::Null)),
             ("accounting_periods".into(), Value::Array(accounting_periods)),
-            ("journal_entries".into(), Value::Array(journal_entries)),
-            ("journal_lines".into(), Value::Array(journal_lines)),
             ("reminder_settings".into(), reminder_settings.unwrap_or(Value::Null)),
             ("reminder_templates".into(), Value::Array(reminder_templates)),
             ("reminders".into(), Value::Array(reminders)),
@@ -2631,6 +2669,10 @@ impl LocalStore {
             ("quote_conversions".into(), Value::Array(quote_conversions)),
             ("audit_log".into(), Value::Array(audit_log)),
         ]));
+        if let Some((entries, lines)) = journals {
+            workspace["journal_entries"] = Value::Array(entries);
+            workspace["journal_lines"] = Value::Array(lines);
+        }
         workspace["agenda_events"] = Value::Array(agenda_events);
         workspace["quote_invoice_pairs"] = Value::Array(query_all(connection, "SELECT * FROM quote_invoice_pairs ORDER BY created_at", [])?);
         workspace["backup_status"] = backup_status;

@@ -25,3 +25,32 @@ Le test lit cinq tables avant la lecture complète : il mesure un historique **a
 Les anciens relevés debug du parcours natif et la mesure de normalisation JavaScript ont des périmètres différents. Aucun pourcentage d'amélioration globale n'est déduit de leur comparaison avec ces durées.
 
 Le volume de presque 50 Mo reste à réduire. Une piste vérifiée dans le code est la lecture des deux tableaux complets du journal comptable alors que l'interface utilise une commande comptable dédiée. Toute projection allégée doit conserver les données des sauvegardes, exports et synchronisations, et être validée séparément avant distribution.
+
+## Projection de l'interface — source supplémentaire validée, non distribuée
+
+Après la publication 1.90.8, une projection dédiée est ajoutée aux deux retours natifs de l'interface : `get_workspace` et `complete_onboarding`, dans ses modes Essential et Complete. Elle évite les deux lectures exhaustives et la sérialisation de `journal_entries` et `journal_lines`. Les jointures utilisées pour les montants, avoirs et remboursements restent actives. Le normaliseur TypeScript ne consomme pas ces deux collections ; Comptabilité les lit déjà par `get_journal` et `get_ledger`.
+
+Le `LocalStore::get_workspace()` interne reste complet pour les exports JSON/CSV. Les sauvegardes et la collaboration conservent leur archive SQLite complète. Il n'y a ni modification du schéma, ni suppression en base, ni cache interentreprise.
+
+**Trois tests Rust optimisés passent** : journal fictif non vide et équilibré, identité de tous les autres champs, lecture comptable dédiée inchangée, deux modes de configuration, export JSON effectif, présence des lignes dans le CSV, extraction des journaux complets depuis les deux archives de sauvegarde et collaboration. Le test de profilage reste ignoré par défaut puis est exécuté explicitement avec succès.
+
+Le comparatif utilise le même binaire optimisé, la même instance et la même connexion. Trois paires après échauffement alternent l'ordre complet/interface. L'égalité structurelle de tous les champs conservés est vérifiée hors chronométrage. La nouvelle vérification indépendante avant/après retrouve les 110 tables et trois pièces identiques.
+
+| Mesure | Lecture complète | Interface allégée |
+|---|---:|---:|
+| Lecture médiane | 858,79 ms | 778,94 ms |
+| Sérialisation médiane | 160,13 ms | 141,15 ms |
+| Taille JSON, identique aux trois passages | 49 718 748 octets | 40 778 676 octets |
+
+Réduction de **8 940 072 octets, soit 17,98 % du payload local**. Ce pourcentage ne représente ni un gain global de démarrage, ni une baisse mesurée du trafic serveur. Les durées complètes de ce comparatif ne doivent pas être mélangées avec celles de la première campagne plus haut : ordres et charge de machine diffèrent.
+
+Preuves : `outputs/release1908/volume-release/{interface-tests.log,interface-profile.log,interface-report.json,before.json,after.json}`. `interface-report.json` conserve les empreintes du binaire et des trois sources mesurées. Commandes reproductibles :
+
+```powershell
+cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --release --lib interface_workspace_ -- --nocapture
+$env:ZENTRA_VOLUME_PROFILE = (Join-Path (Get-Location) 'outputs/release1908/volume-release/profile')
+cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --release --lib database::workspace_volume_tests::profile_synthetic_interface_workspace_volume -- --ignored --exact --nocapture
+Remove-Item Env:ZENTRA_VOLUME_PROFILE
+```
+
+Lors de cette recette, le second test a été lancé directement depuis le chemin du binaire que Cargo venait de produire, sans nouvelle compilation. La source applicative conserve provisoirement le numéro technique 1.90.8 ; elle **ne remplace pas les paquets publiés**. Une nouvelle version et ses recettes de distribution sont nécessaires pour livrer cette projection.

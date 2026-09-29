@@ -129,13 +129,9 @@ pub async fn complete_onboarding(
         .require_onboarding_write_access()
         .map_err(command_error)?;
     let was_empty = crate::cloud_backup::require_empty_company(&state).is_ok();
-    let result = match scope {
-        OnboardingValidationScope::Essential => {
-            state.complete_onboarding_scoped(input, &app_version(&app), scope)
-        }
-        OnboardingValidationScope::Complete => state.complete_onboarding(input, &app_version(&app)),
-    }
-    .map_err(command_error)?;
+    let result = state
+        .complete_onboarding_for_interface(input, &app_version(&app), scope)
+        .map_err(command_error)?;
     if was_empty {
         crate::account_cloud::bind_new_company_to_account(&state).map_err(command_error)?;
     }
@@ -157,7 +153,7 @@ pub async fn get_workspace(state: State<'_, LocalStore>) -> Result<Value, String
     let store = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = store.lock().map_err(command_error)?;
-        store.get_workspace().map_err(command_error)
+        store.get_interface_workspace().map_err(command_error)
     })
     .await
     .map_err(|error| error.to_string())?
