@@ -24,6 +24,12 @@ html[data-app-text-size]:not([data-app-text-size="100"]) :is(.desktop-app, .moda
 html[data-app-text-size]:not([data-app-text-size="100"]) :is(.desktop-app, .modal, .onboarding-shell) :is(h1,h2,h3,p,legend):not(:where(.print-root *, .print-page *, .print-sheet *, .document-preview__paper *, [data-document-colors] *)) {
   overflow-wrap: anywhere;
 }
+/* Keep enlarged titles at their chosen size while using language-aware breaks. */
+html[data-app-text-size]:not([data-app-text-size="100"]) .desktop-app .page-header h1 {
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  hyphenate-limit-chars: 6 3 3;
+}
 html[data-app-text-size]:not([data-app-text-size="100"]) .appearance-choices { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
 html[data-app-text-size]:not([data-app-text-size="100"]) .form-actions { flex-wrap: wrap; }
 html[data-app-text-size]:not([data-app-text-size="100"]) .sidebar__wordmark { flex-wrap: wrap; min-width: 0; gap: 8px; }

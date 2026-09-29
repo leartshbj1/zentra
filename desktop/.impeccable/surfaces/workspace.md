@@ -25,6 +25,10 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 ## Verification boundary
 Inspect dashboard, all modules, forms and settings on desktop1440, phone390, narrow320, both themes and long translated copy. Test real frontend paths using synthetic fixtures. Build actual platform binaries and verify releases independently of the browser preview.
 
+## Accounting enlarged-text reflow — 29 September 2026
+
+The accounting introduction reserves a readable text column before wrapping its configuration action. Enlarged titles request language-aware hyphenation without reducing the selected size. Five Edge/WebKit viewport cases confirm the introduction width and disclosure/configuration controls, with synthetic data. Windows browser dictionaries did not visibly hyphenate the long French/German titles; those breaks and remaining untranslated accounting copy remain open. See `docs/COMPTABILITE-LISIBILITE-20260929.md`; this local refinement is absent from the frozen 1.90.9 release.
+
 ## Narrow touch-target correction — 27 September 2026
 
 Existing mobile navigation, screen help, calendar period arrows and Automation activity filters now provide at least 44 × 44 CSS px below 861 px. Icons and business actions are unchanged. The header help target aligns with the title and cannot overlap invoice creation. Desktop sizing is preserved.
