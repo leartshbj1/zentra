@@ -37,3 +37,5 @@ La revue CSS finale reste en lecture seule : les suppressions garanties ne repr�
 4. Exécuter la recette connectée de bout en bout avec données fictives après rétablissement des services. La version 1.90.8 est déjà publiée ; toute correction supplémentaire justifiera une nouvelle version distincte.
 
 La validation locale et les retouches visuelles déjà réussies ne remplacent pas ces quatre étapes. Éviter de répéter les mêmes campagnes sans modification ni risque nouveau ; conserver les périmètres et preuves exacts.
+
+Complément au point 8, 29 septembre : la superposition fiche de salaire/assistant a été reproduite puis corrigée dans le composant `Modal`. Un seul dialogue est maintenant exposé et la fiche sous-jacente est inerte. Quatre configurations Edge/WebKit, ordinateur/téléphone, confirment l'isolation, quarante déplacements de tabulation, les deux retours de focus et la saisie conservée. [Rapport](../.impeccable/review/modal-assistant-accessibility/report.md). Ce lot est local, absent de la source figée 1.90.9 et non distribué. Les technologies d'assistance et appareils physiques restent à vérifier ; le point 8 n'est pas clos.

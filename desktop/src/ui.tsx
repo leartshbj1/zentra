@@ -127,6 +127,31 @@ function modalFocusableElements(dialog: HTMLElement) {
   );
 }
 
+// Keep stacked shared modals out of each other's focus and accessibility tree.
+// Preserve pre-existing attributes and restore them when the last layer closes.
+const modalLayers: HTMLElement[] = [];
+const modalIsolation = new Map<HTMLElement, { inert: boolean; ariaHidden: string | null }>();
+
+function restoreModalIsolation(element: HTMLElement) {
+  const previous = modalIsolation.get(element);
+  if (!previous) return;
+  element.inert = previous.inert;
+  if (previous.ariaHidden === null) element.removeAttribute('aria-hidden');
+  else element.setAttribute('aria-hidden', previous.ariaHidden);
+  modalIsolation.delete(element);
+}
+
+function isolateModalLayer(active: HTMLElement) {
+  for (const sibling of document.body.children) {
+    if (!(sibling instanceof HTMLElement) || sibling === active) continue;
+    if (!modalIsolation.has(sibling)) {
+      modalIsolation.set(sibling, { inert: sibling.inert, ariaHidden: sibling.getAttribute('aria-hidden') });
+    }
+    sibling.inert = true;
+    sibling.setAttribute('aria-hidden', 'true');
+  }
+}
+
 export function Modal({
   title,
   description,
@@ -152,28 +177,41 @@ export function Modal({
   const descriptionId = useId();
 
   useEffect(() => {
+    const dialog = dialogRef.current;
+    const layer = dialog?.parentElement;
+    if (!dialog || !layer) return;
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    modalLayers.push(layer);
+    restoreModalIsolation(layer);
     const focusFrame = window.requestAnimationFrame(() => {
-      const dialog = dialogRef.current;
-      if (!dialog || dialog.contains(document.activeElement)) return;
-
-      const focusableElements = modalFocusableElements(dialog);
-      const preferredFocus = dialog.querySelector<HTMLElement>(
-        '[autofocus], [data-modal-initial-focus]',
-      );
-      if (preferredFocus && focusableElements.includes(preferredFocus)) {
-        preferredFocus.focus({ preventScroll: true });
-        return;
+      if (modalLayers.at(-1) !== layer) return;
+      if (!dialog.contains(document.activeElement)) {
+        const focusableElements = modalFocusableElements(dialog);
+        const preferredFocus = dialog.querySelector<HTMLElement>(
+          '[autofocus], [data-modal-initial-focus]',
+        );
+        (preferredFocus && focusableElements.includes(preferredFocus) ? preferredFocus : dialog)
+          .focus({ preventScroll: true });
       }
-      dialog.focus({ preventScroll: true });
+      // Move focus first: aria-hidden must never enclose the active control.
+      isolateModalLayer(layer);
     });
 
     return () => {
       window.cancelAnimationFrame(focusFrame);
-      if (previouslyFocused?.isConnected) {
+      const wasTop = modalLayers.at(-1) === layer;
+      const index = modalLayers.indexOf(layer);
+      if (index !== -1) modalLayers.splice(index, 1);
+      const nextLayer = modalLayers.at(-1);
+      if (nextLayer) restoreModalIsolation(nextLayer);
+      else for (const element of [...modalIsolation.keys()]) restoreModalIsolation(element);
+      if (wasTop && previouslyFocused?.isConnected && !previouslyFocused.closest('[inert]')) {
         previouslyFocused.focus({ preventScroll: true });
+      } else if (wasTop && nextLayer) {
+        nextLayer.querySelector<HTMLElement>('[role="dialog"]')?.focus({ preventScroll: true });
       }
+      if (nextLayer) isolateModalLayer(nextLayer);
     };
   }, []);
 

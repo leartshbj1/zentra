@@ -1,0 +1,22 @@
+- dialog "Assistant Zentra":
+  - banner:
+    - heading "Assistant Zentra" [level=2]
+    - paragraph: Votre aide locale, au fil de votre travail.
+    - button "Fermer « Assistant Zentra »"
+  - text: Création de fiche de salaire
+  - group: Contexte utilisé
+  - paragraph: Qwen fonctionne sur cet appareil. Il explique les étapes ; vous gardez la décision et la validation.
+  - log "Conversation avec l’assistant":
+    - text: Vous
+    - paragraph: Comment vérifier le contrat de la caisse de pension avant de terminer cette fiche ?
+    - text: Guide vérifié Zentra
+    - paragraph: Ouvrez le plan LPP pour vérifier le contrat de votre caisse, puis revenez au salaire.
+    - button "Copier la réponse"
+  - status: La réponse de l’assistant est disponible.
+  - group: Guide Zentra et raccourcis
+  - text: Votre question
+  - textbox "Votre question":
+    - /placeholder: Posez votre question…
+  - button "Envoyer la question" [disabled]
+  - text: Pour les chiffres et les cotisations, vérifiez les calculs Zentra et vos documents.
+  - button "Effacer la conversation"

@@ -1,0 +1,337 @@
+- complementary:
+  - img "Zentra"
+  - text: Gestion
+  - strong: Atelier de recette
+  - text: Mon espace
+  - button "Aller à un écran": Aller à…
+  - navigation "Navigation principale":
+    - button "Tableau de bord"
+    - button "Agenda"
+    - button "Projets"
+    - button "Clients"
+    - button "Produits & services"
+    - paragraph: Gestion
+    - button "Ventes"
+    - button "Relances"
+    - button "Temps"
+    - button "Équipe & salaires"
+    - button "Achats & fournisseurs"
+    - button "Banque"
+    - paragraph: Pilotage
+    - button "Rapports"
+    - button "Comptabilité"
+    - button "Paramètres"
+  - button "Un peu d’aide ?":
+    - strong: Un peu d’aide ?
+  - button "Personnaliser les raccourcis"
+  - strong: Données locales
+- main:
+  - text: Atelier de recette
+  - searchbox "Rechercher dans Équipe & salaires"
+  - button "Ouvrir les mises à jour de Zentra"
+  - button "Ouvrir le guide complet"
+  - button "Se connecter"
+  - heading "Équipe & salaires" [level=1]
+  - paragraph: Salariés et fiches de paie
+  - button "Comprendre cet écran"
+  - region "Équipe & salaires":
+    - navigation "Équipe et paie":
+      - button "Personnel 2"
+      - button "Fiches de salaire" [pressed]: Bulletins 32
+      - button "Certificats annuels"
+    - heading "Fiches de salaire" [level=2]
+    - paragraph: Choisissez une personne et un mois pour commencer.
+    - button "Importer des fiches"
+    - button "Nouvelle fiche"
+    - text: État des fiches
+    - combobox "État des fiches de salaire":
+      - option "Tous les états" [selected]
+      - option "Brouillons · à compléter"
+      - option "À contrôler"
+      - option "Validées"
+      - option "À payer"
+      - option "Payées"
+    - status: 32 / 32 · Plus récentes d’abord
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-12 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-12 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-11 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-11 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-10 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-10 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-09 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-09 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-08 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-08 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-08 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-07 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-07 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-07 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-06 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-06 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-06 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-05 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-05 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-05 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-04 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-04 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Jean Martin
+      - text: Période 2025-04 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-03 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - article:
+      - strong: Élodie Dubois
+      - text: Période 2025-03 Brut saisi
+      - strong: 5 000.00 CHF
+      - text: Net calculé
+      - strong: 5 000.00 CHF
+      - text: À contrôler
+      - button "Contrôler la fiche"
+      - button "Supprimer"
+    - navigation "Pages des fiches de salaire":
+      - button "Précédent" [disabled]
+      - status: 1 / 2
+      - button "Suivant"
+- dialog "Nouvelle fiche de salaire":
+  - banner:
+    - heading "Nouvelle fiche de salaire" [level=2]
+    - paragraph: Choisissez la personne, indiquez son salaire et vérifiez le net.
+    - button "Demander à l’assistant Zentra"
+    - button "Fermer « Nouvelle fiche de salaire »"
+  - list "Étapes de création":
+    - listitem: Collaborateur
+    - listitem: 2 Salaire du mois
+    - listitem: 3 Vérification
+  - paragraph: Élodie Dubois · septembre 2026
+  - heading "Qu’est-ce qui change ce mois-ci ?" [level=3]
+  - paragraph: Le salaire habituel est prérempli. Ajoutez seulement les compléments nécessaires.
+  - group:
+    - text: Salaire brut du mois
+    - spinbutton "Salaire brut du mois (CHF)": "5123.45"
+    - text: CHF Montant avant retenues, pour le taux d’activité convenu.
+    - group: Ajouter ou modifier un complément de salaire
+    - group: Règles et montants de mon canton · 2026
+    - region "La prochaine étape":
+      - strong: 1 point à compléter
+      - paragraph: Commençons par « Complétez le salaire annuel pour la pension ». Le guide ouvre le bon champ, puis vous ramène à cette fiche.
+      - button "Compléter avec le guide"
+    - group:
+      - text: Mes cotisations et assurances
+      - group: Vérifier les cotisations et leurs bases
+  - complementary "Continuer plus tard":
+    - strong: Vous pouvez continuer plus tard.
+    - paragraph: Conservez le salaire saisi, même si les assurances ne sont pas encore prêtes. Le brouillon restera à calculer avant de pouvoir être payé.
+    - button "Enregistrer le salaire en brouillon"
+  - button "Retour"
+  - button "Vérifier le salaire"
+- dialog "Assistant Zentra":
+  - banner:
+    - heading "Assistant Zentra" [level=2]
+    - paragraph: Votre aide locale, au fil de votre travail.
+    - button "Fermer « Assistant Zentra »"
+  - text: Création de fiche de salaire
+  - group: Contexte utilisé
+  - paragraph: Qwen fonctionne sur cet appareil. Il explique les étapes ; vous gardez la décision et la validation.
+  - log "Conversation avec l’assistant":
+    - text: Vous
+    - paragraph: Comment vérifier le contrat de la caisse de pension avant de terminer cette fiche ?
+    - text: Guide vérifié Zentra
+    - paragraph: Ouvrez le plan LPP pour vérifier le contrat de votre caisse, puis revenez au salaire.
+    - button "Copier la réponse"
+  - status: La réponse de l’assistant est disponible.
+  - group: Guide Zentra et raccourcis
+  - text: Votre question
+  - textbox "Votre question":
+    - /placeholder: Posez votre question…
+  - button "Envoyer la question" [disabled]
+  - text: Pour les chiffres et les cotisations, vérifiez les calculs Zentra et vos documents.
+  - button "Effacer la conversation"
