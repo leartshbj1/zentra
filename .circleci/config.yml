@@ -28,6 +28,23 @@ parameters:
     default: ""
 
 jobs:
+  android-package-smoke-1908:
+    machine:
+      image: android:default
+    resource_class: medium
+    environment:
+      ZENTRA_ANDROID_SMOKE_JOB: "175"
+      ZENTRA_ANDROID_SMOKE_SOURCE: "cc92d4cf31d4cbcff61fe4ad285ab6cd4cded0e3"
+      ZENTRA_ANDROID_SMOKE_SHA256: "46f240a699ef6001daa843d059a0501ee0a3ade9784667492055ed62402fa3f1"
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact 1.90.8 optimized Android payload on an emulator
+          command: timeout 18m bash desktop/scripts/smoke-android-release-candidate.sh
+          no_output_timeout: 5m
+      - store_artifacts:
+          path: desktop/artifacts/android-release-smoke
+          destination: android-release-smoke
   windows-package-smoke-1908:
     resource_class: windows.medium
     machine:
@@ -363,6 +380,11 @@ jobs:
           destination: apple
 
 workflows:
+  android-package-1908:
+    when:
+      equal: [codex/release-1.90.8-android-smoke, << pipeline.git.branch >>]
+    jobs:
+      - android-package-smoke-1908
   windows-package-1908:
     when:
       equal: [codex/release-1.90.8-windows-smoke, << pipeline.git.branch >>]
