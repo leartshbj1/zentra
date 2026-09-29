@@ -759,6 +759,32 @@ class RestrictedWorkerTests(unittest.TestCase):
             self.assertEqual(caught.exception.winerror, 1314)
             popen.assert_not_called(); job.assert_not_called(); release.assert_not_called()
 
+    def test_access_diagnostics_run_inside_real_restricted_worker(self):
+        with tempfile.TemporaryDirectory(prefix='zentra-volume-1909-restricted-node-') as folder:
+            root = Path(folder)
+            proof_path = root / 'node-access.json'
+            code = ('import importlib.util,json,pathlib,sys,time\n'
+                    f"spec=importlib.util.spec_from_file_location('launcher',{str(Path(launcher.__file__).resolve())!r})\n"
+                    'launcher=importlib.util.module_from_spec(spec);spec.loader.exec_module(launcher)\n'
+                    'launcher.wait_for_start_gate(int(sys.argv[-1]),time.time()+5)\n'
+                    'proof=launcher.node_failure_diagnostics(sys.executable,time.time()+3)\n'
+                    'proof["hostToken"]=launcher.current_token_evidence()\n'
+                    f'pathlib.Path({str(proof_path)!r}).write_text(json.dumps(proof))\n')
+            proc, close_job = None, None
+            try:
+                with (root / 'worker.log').open('wb') as log:
+                    proc, close_job = launcher.launch_owned_worker([sys.executable, '-c', code], log,
+                        job_layout='nested-breakaway', worker_token='restricted-medium')
+                    self.assertEqual(proc.wait(timeout=5), 0)
+                proof = json.loads(proof_path.read_text())
+                self.assertTrue(launcher.supported_volume_host(proof['hostToken']))
+                self.assertEqual(proof['pythonControl'],
+                    {'attempted': True, 'started': True, 'exitCode': 0, 'expectedOutput': True})
+                self.assertEqual(proof['access']['python']['execute'], {'granted': True})
+            finally:
+                self.finish_processes(self.kernel(), proc, close_job, [])
+                if proc is not None: proc.close()
+
     def test_job_attachment_failure_kills_suspended_restricted_worker(self):
         seen = []
         def refuse(proc):
@@ -789,6 +815,109 @@ class RestrictedWorkerTests(unittest.TestCase):
 
 
 class NodePreflightTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Windows executable access only')
+    def test_real_access_diagnostic_distinguishes_denied_execute_on_disposable_file(self):
+        # Change only this test-created non-executable file, never a runtime or directory.
+        kernel = launcher.ctypes.WinDLL('kernel32', use_last_error=True)
+        advapi = launcher.ctypes.WinDLL('advapi32', use_last_error=True)
+        pointer = launcher.ctypes.c_void_p
+        advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [
+            launcher.wintypes.LPCWSTR, launcher.wintypes.DWORD,
+            launcher.ctypes.POINTER(pointer), launcher.ctypes.POINTER(launcher.wintypes.DWORD)]
+        advapi.SetFileSecurityW.argtypes = [launcher.wintypes.LPCWSTR, launcher.wintypes.DWORD, pointer]
+        kernel.LocalFree.argtypes = [pointer]
+        kernel.LocalFree.restype = pointer
+        descriptor = pointer()
+        try:
+            with tempfile.TemporaryDirectory(prefix='zentra-volume-1909-access-test-') as folder:
+                target = Path(folder) / 'synthetic-access.txt'
+                target.write_text('SYNTHETIC ONLY')
+                self.assertTrue(launcher.executable_access_evidence(target)['execute']['granted'])
+                # Deny only FILE_EXECUTE (0x20), preserving read/delete for the owner.
+                self.assertTrue(advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    'D:P(D;;0x20;;;WD)(A;;FA;;;OW)', 1, launcher.ctypes.byref(descriptor), None))
+                self.assertTrue(advapi.SetFileSecurityW(str(target), 4 | 0x80000000, descriptor))
+                proof = launcher.executable_access_evidence(target)
+                self.assertTrue(proof['read']['granted'])
+                self.assertEqual(proof['execute'], {'granted': False, 'winerror': 5})
+                self.assertEqual(target.read_text(), 'SYNTHETIC ONLY')
+        finally:
+            if descriptor.value: kernel.LocalFree(descriptor)
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows process control only')
+    def test_node_failure_control_runs_one_real_python_child(self):
+        evidence = launcher.node_failure_diagnostics(sys.executable, time.time() + 3)
+        self.assertEqual(evidence['pythonControl'],
+            {'attempted': True, 'started': True, 'exitCode': 0, 'expectedOutput': True})
+        self.assertEqual(evidence['access']['python'],
+            {'read': {'granted': True}, 'execute': {'granted': True}})
+
+    def test_node_failure_diagnostic_checks_admission_budget_and_does_not_retry_node(self):
+        with patch.object(launcher, 'executable_access_evidence', return_value={'read': {'granted': True}}), patch.object(launcher.subprocess, 'run', side_effect=launcher.ctypes.WinError(5)) as run:
+            evidence = launcher.node_failure_diagnostics('never-run-this-node', time.time() + 10)
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(run.call_args.args[0][0], sys.executable)
+            self.assertLessEqual(run.call_args.kwargs['timeout'], 2)
+            self.assertEqual(evidence['pythonControl']['winerror'], 5)
+        with patch.object(launcher, 'executable_access_evidence') as access, patch.object(launcher.subprocess, 'run') as run:
+            evidence = launcher.node_failure_diagnostics('never-run-this-node', time.time() - 1)
+            self.assertTrue(evidence['budgetExpired'])
+            access.assert_not_called(); run.assert_not_called()
+
+    def test_node_control_is_not_attempted_when_last_access_probe_exhausts_budget(self):
+        with patch.object(launcher.time, 'time', side_effect=[100, 100, 100, 102]), patch.object(launcher, 'executable_access_evidence', return_value={'read': {'granted': True}}) as access, patch.object(launcher.subprocess, 'run') as run:
+            evidence = launcher.node_failure_diagnostics('never-run-this-node', 200)
+            self.assertEqual(access.call_count, 2)
+            self.assertTrue(evidence['budgetExpired'])
+            self.assertEqual(evidence['pythonControl'], {'attempted': False})
+            run.assert_not_called()
+
+    def test_node_access_failure_records_stage_without_package_or_measurement(self):
+        for diagnostics in ({'synthetic': True}, RuntimeError('Synthetic diagnostic refusal')):
+            with self.subTest(diagnostics=type(diagnostics).__name__), tempfile.TemporaryDirectory(prefix='zentra-volume-1909-access-result-') as folder:
+                args = SimpleNamespace(worker_root=folder, output=folder,
+                    deadline_epoch_ms=int((time.time() + 30) * 1000), start_gate_handle=123, node='denied-node')
+                def diagnose(*_args):
+                    # This proof must already be closed on disk when diagnostics begin.
+                    original = json.loads((Path(folder) / 'node-preflight-failure.json').read_text())
+                    self.assertEqual(original['stage'], 'node-capability-probe')
+                    self.assertEqual(original['winerror'], 5)
+                    self.assertFalse(original['measured'] or original['ipcMeasured'] or original['uiMeasured'])
+                    if isinstance(diagnostics, Exception): raise diagnostics
+                    return diagnostics
+                diag = Mock(side_effect=diagnose)
+                with patch.object(launcher, 'wait_for_start_gate'), patch.object(launcher, 'probe_node', side_effect=launcher.ctypes.WinError(5)), patch.object(launcher, 'node_failure_diagnostics', diag), patch.object(launcher, 'exact_package') as package:
+                    self.assertEqual(launcher.worker(args), 1)
+                    package.assert_not_called()
+                result = json.loads((Path(folder) / 'result.json').read_text())
+                self.assertEqual(result['stage'], 'node-capability-probe')
+                self.assertEqual(result['winerror'], 5)
+                self.assertEqual(result['nodeFailure']['winerror'], 5)
+                self.assertTrue(result['nodeFailure']['originalProofPublished'])
+                self.assertFalse(result['measured'] or result['ipcMeasured'] or result['uiMeasured'])
+                self.assertNotIn('nodeRuntime', result)
+                if isinstance(diagnostics, Exception):
+                    self.assertEqual(result['nodeFailure']['diagnosticsUnavailable'], 'RuntimeError')
+                else:
+                    self.assertEqual(result['nodeFailure']['diagnostics'], diagnostics)
+
+    def test_failure_to_publish_original_proof_skips_diagnostic_and_preserves_node_error(self):
+        with tempfile.TemporaryDirectory(prefix='zentra-volume-1909-access-publication-') as folder:
+            args = SimpleNamespace(worker_root=folder, output=folder,
+                deadline_epoch_ms=int((time.time() + 30) * 1000), start_gate_handle=123, node='denied-node')
+            original_write = launcher.fixture.write_json
+            def write(path, value):
+                if Path(path).name == 'node-preflight-failure.json':
+                    raise launcher.ctypes.WinError(112)
+                original_write(path, value)
+            with patch.object(launcher, 'wait_for_start_gate'), patch.object(launcher, 'probe_node', side_effect=launcher.ctypes.WinError(5)), patch.object(launcher.fixture, 'write_json', side_effect=write), patch.object(launcher, 'node_failure_diagnostics') as diagnostics:
+                self.assertEqual(launcher.worker(args), 1)
+                diagnostics.assert_not_called()
+            result = json.loads((Path(folder) / 'result.json').read_text())
+            self.assertEqual(result['winerror'], 5)
+            self.assertFalse(result['nodeFailure']['originalProofPublished'])
+            self.assertEqual(result['nodeFailure']['originalProofWriteError']['winerror'], 112)
+
     def test_actual_node_runtime_has_required_capabilities(self):
         node = os.environ.get('ZENTRA_VOLUME_TEST_NODE') or launcher.shutil.which('node')
         if not node: self.skipTest('Node is unavailable')

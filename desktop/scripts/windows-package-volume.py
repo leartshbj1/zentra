@@ -68,6 +68,59 @@ def probe_node(executable, deadline):
     return {name: info[name] for name in ('version', 'WebSocket', 'fetch', 'abortTimeout')}
 
 
+def executable_access_evidence(executable):
+    """Check actual Windows read/execute access; no ACL changes or file contents."""
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+        ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    evidence = {}
+    for name, rights in (('read', 0x80000000), ('execute', 0x20000000)):
+        handle = kernel.CreateFileW(str(executable), rights, 7, None, 3, 0, None)
+        if handle == ctypes.c_void_p(-1).value:
+            evidence[name] = {'granted': False, 'winerror': ctypes.get_last_error()}
+        else:
+            evidence[name] = {'granted': True}
+            kernel.CloseHandle(handle)
+    return evidence
+
+
+def node_failure_diagnostics(executable, deadline):
+    """Admit probes within two seconds; synchronous Win32 calls can outlive that budget.
+
+    The external Job watchdog remains the hard stop. No synchronous file-open or
+    process-creation API here claims its own preemptive two-second timeout.
+    """
+    evidence = {'scope': 'Failed Node preflight only; no application or package',
+                'access': {}, 'pythonControl': {'attempted': False}}
+    end = min(deadline, time.time() + 2)
+    for name, path in (('node', executable), ('python', sys.executable)):
+        if time.time() >= end:
+            evidence['budgetExpired'] = True
+            return evidence
+        try:
+            evidence['access'][name] = executable_access_evidence(path)
+        except Exception as error:
+            evidence['access'][name] = {'unavailable': type(error).__name__,
+                                        'winerror': getattr(error, 'winerror', None)}
+    seconds = min(2, end - time.time())
+    if seconds <= 0:
+        evidence['budgetExpired'] = True
+        return evidence
+    try:
+        evidence['pythonControl']['attempted'] = True
+        completed = subprocess.run([sys.executable, '-c', 'print("SYNTHETIC_NODE_ACCESS_CONTROL")'],
+            capture_output=True, text=True, timeout=seconds, check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW)
+        evidence['pythonControl'].update(started=True, exitCode=completed.returncode,
+            expectedOutput=completed.stdout.strip() == 'SYNTHETIC_NODE_ACCESS_CONTROL')
+    except Exception as error:
+        evidence['pythonControl'].update(error=type(error).__name__,
+            winerror=getattr(error, 'winerror', None), timedOut=isinstance(error, subprocess.TimeoutExpired))
+    return evidence
+
+
 def wait_for_start_gate(handle, deadline):
     """No worker subprocess/network activity is permitted before this succeeds."""
     fixture.require(isinstance(handle, int) and handle > 0, 'Missing mandatory worker start gate')
@@ -421,7 +474,34 @@ def worker(args):
         wait_for_start_gate(args.start_gate_handle, deadline)
         result['containment'] = {'layout': getattr(args, 'job_layout', 'strict'),
                                  'workerToken': getattr(args, 'worker_token', 'inherit'), 'startupGatePassed': True}
-        result['nodeRuntime'] = probe_node(args.node, deadline)
+        result['stage'] = 'node-capability-probe'
+        try:
+            result['nodeRuntime'] = probe_node(args.node, deadline)
+        except OSError as node_error:
+            result['nodeFailure'] = {'type': type(node_error).__name__,
+                                     'winerror': getattr(node_error, 'winerror', None)}
+            # Publish separately before any diagnostic that could block in a
+            # synchronous Win32 API. A watchdog result must not erase this proof.
+            original = {'stage': result['stage'], 'measured': False,
+                        'ipcMeasured': False, 'uiMeasured': False,
+                        'type': type(node_error).__name__,
+                        'winerror': getattr(node_error, 'winerror', None)}
+            try:
+                fixture.write_json(out / 'node-preflight-failure.json', original)
+                result['nodeFailure']['originalProofPublished'] = True
+            except Exception as publication_error:
+                result['nodeFailure']['originalProofPublished'] = False
+                result['nodeFailure']['originalProofWriteError'] = {
+                    'type': type(publication_error).__name__,
+                    'winerror': getattr(publication_error, 'winerror', None)}
+                result['nodeFailure']['diagnosticsSkipped'] = 'Original failure proof could not be published'
+                raise node_error from None
+            try:
+                result['nodeFailure']['diagnostics'] = node_failure_diagnostics(args.node, deadline)
+            except Exception as diagnostic_error:
+                result['nodeFailure']['diagnosticsUnavailable'] = type(diagnostic_error).__name__
+            raise
+        result['stage'] = 'host-token-check'
         try:
             result['hostToken'] = current_token_evidence()
         except Exception as token_error:
@@ -432,6 +512,7 @@ def worker(args):
             fixture.write_json(out / 'result.json', result)
             return 2
         if getattr(args, 'worker_token', 'inherit') == 'restricted-medium':
+            result['stage'] = 'restricted-directory-access'
             try:
                 # Check only new recipe-owned directories, before downloading a package.
                 for directory in (root, out):
@@ -448,6 +529,7 @@ def worker(args):
                     # output file is refused; the supervisor will record failure.
                     print(json.dumps(result), flush=True)
                 return 2
+        result['stage'] = 'existing-application-check'
         existing = subprocess.check_output(['tasklist', '/FI', 'IMAGENAME eq Zentra.exe', '/FO', 'CSV'],
                                            timeout=remaining(deadline, 5), text=True)
         fixture.require('"zentra.exe"' not in existing.lower(), 'Another Zentra instance exists; use a disposable runner')
@@ -455,6 +537,7 @@ def worker(args):
         with socket.socket() as proxy:
             proxy.settimeout(.2)
             fixture.require(proxy.connect_ex(('127.0.0.1', 9)) != 0, 'The offline proxy port is occupied')
+        result['stage'] = 'exact-package-installation'
         exe, package = exact_package(args, root, deadline)
         result['package'] = package
         profile.mkdir(); webview.mkdir()
@@ -462,6 +545,7 @@ def worker(args):
             reservation.bind(('127.0.0.1', 0)); port = reservation.getsockname()[1]
         env = private_environment(profile, webview, port)
         # The exact application, not Python, creates the original empty database.
+        result['stage'] = 'package-initialization'
         log = (out / 'package-startup.log').open('ab')
         try:
             proc = subprocess.Popen([str(exe)], env=env, stdout=log, stderr=log)
@@ -480,11 +564,13 @@ def worker(args):
             marker = {'purpose': fixture.PURPOSE, 'synthetic': True, 'profile': str(profile),
                       'initializedByPackage': True, 'schema': schema, 'applicationSha256': package['installedExecutableSha256']}
             fixture.write_json(root / 'volume-run.json', marker)
+            result['stage'] = 'synthetic-fixture'
             result['fixture'] = fixture.seed(profile, deadline=time.monotonic() + remaining(deadline, 600))
             fixture.write_json(out / 'fixture.json', result['fixture'])
             before = fixture.snapshot(profile)
             fixture.write_json(out / 'before.json', before)
             started = time.time()
+            result['stage'] = 'ipc-render-measurement'
             proc = subprocess.Popen([str(exe)], env=env, stdout=log, stderr=log)
             try:
                 collector = Path(__file__).with_name('windows-volume-collector.mjs')
@@ -497,6 +583,7 @@ def worker(args):
                 stop_tree(proc)
         finally:
             log.close()
+        result['stage'] = 'business-invariants'
         after = fixture.snapshot(profile)
         fixture.write_json(out / 'after.json', after)
         result['businessDataUnchanged'] = fixture.unchanged(before, after)
@@ -514,7 +601,8 @@ def worker(args):
             fixture.require(result['collectorExit'] == 0 and result['measured'] and result['ipcMeasured'] and result['uiMeasured'],
                             'A complete result requires both native IPC and UI measurements')
     except Exception as error:
-        result.update(status='failed', measured=False, error=f'{type(error).__name__}: {error}')
+        result.update(status='failed', measured=False, error=f'{type(error).__name__}: {error}',
+                      winerror=getattr(error, 'winerror', None))
     fixture.write_json(out / 'result.json', result)
     return 0 if result['measured'] and result['status'] == 'passed' else 2 if result['status'] in ('not_measured', 'partial') else 1
 
