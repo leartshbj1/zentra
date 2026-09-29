@@ -41,4 +41,8 @@ Le workflow GitHub de synchronisation des mails est `disabled_manually`. Sa dern
 4. Terminer la recette inscription, abonnement test, invitations, changement d’espace, fichiers, restauration et automatisation avec les comptes opérationnels.
 5. Poursuivre les surfaces et parcours encore non validés de la refonte complète, les contenus longs et technologies d’assistance, ainsi que le démarrage natif à froid sur machine modeste. Le lot du tableau de bord n’est pas une validation des autres écrans.
 
-Les contrôles déjà réussis ne doivent être répétés que si une modification ou un risque nouveau le justifie. Prochain travail utile : préparation de distribution native ; les essais connectés attendent la levée de la restriction Supabase.
+Les contrôles déjà réussis ne doivent être répétés que si une modification ou un risque nouveau le justifie. Les essais connectés attendent la levée de la restriction Supabase.
+
+## Suite du 29 septembre — distribution native
+
+La préparation 1.90.8 est gelée dans `cc92d4cf31d4cbcff61fe4ad285ab6cd4cded0e3` et poussée sur `codex/first-client-release-1908`. Les 11 tests relatifs aux notes de version, langues et contrats updater passent, les quatre versions sont cohérentes et les conditions du workflow évitent les compilations en double. Le pipeline CircleCI 264 a créé Windows 174, Android 175 et Apple 176 ; Android et Apple sont confirmés démarrés, Windows est initialement en file d’attente. [Suivi de la version et liens des jobs](RELEASE-1.90.8.md). Aucun nouvel installateur n’est encore annoncé publié. Prochaines actions : vérifier les résultats de ces mêmes jobs, télécharger leurs artefacts exacts et exécuter les recettes des paquets avant signature et publication.
