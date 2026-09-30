@@ -195,6 +195,7 @@ const CSV_EXPORT_COLLECTIONS: &[(&str, &str)] = &[
     ("project_milestones", "07_projets/jalons.csv"),
     ("project_tasks", "07_projets/taches.csv"),
     ("agenda_events", "07_projets/agenda.csv"),
+    ("work_notes", "07_projets/notes.csv"),
     ("time_entries", "07_projets/heures.csv"),
     (
         "time_billing_batches",
@@ -1163,6 +1164,15 @@ pub(crate) fn validate_database(path: &Path) -> AppResult<()> {
 
 fn strip_restored_license(path: &Path) -> AppResult<()> {
     let connection = Connection::open(path)?;
+    let has_notes_scope: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_notes_scope')",
+        [], |r| r.get(0),
+    )?;
+    if has_notes_scope {
+        // A restore/import is a new draft boundary. Ordinary company receives
+        // explicitly restore their previous private scope after installation.
+        connection.execute("DELETE FROM company_local_notes_scope", [])?;
+    }
     let has_license_table: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='license_state')",
         [],

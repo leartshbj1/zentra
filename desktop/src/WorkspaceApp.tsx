@@ -1,4 +1,5 @@
 import './first-client-clarity.css';
+import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
 import './workspace-navigation.css';
 import './dashboard-workflow.css';
 import { dashboardDeadlines } from './dashboardDeadlines';
@@ -109,6 +110,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   Menu,
+  NotebookPen,
   MessageCircle,
   MessageSquareWarning,
   Mail,
@@ -382,7 +384,9 @@ function ViewLoading({ label }: { label: string }) {
   );
 }
 
-type View = TourView | 'orders' | 'agenda' | 'automation';
+const NotesScreen = lazy(() => import('./NotesScreen').then(module => ({ default: module.NotesScreen })));
+
+type View = TourView | 'orders' | 'agenda' | 'automation' | 'notes';
 type ModalState = (
   | { type: 'client'; item?: Client }
   | { type: 'clientDetail'; client: Client }
@@ -441,6 +445,7 @@ const navigation: Array<{
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { id: 'automation', label: 'Zentra Automation', icon: ListChecks },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
+  { id: 'notes', label: 'Notes', icon: NotebookPen },
   { id: 'projects', label: 'Projets', icon: FolderKanban },
   { id: 'clients', label: 'Clients', icon: UserRound },
   { id: 'catalog', label: 'Produits & services', icon: Package },
@@ -457,6 +462,7 @@ const navigation: Array<{
 
 const viewTitles: Record<View, [string, string]> = {
   automation: ['Zentra Automation', 'Votre équipe, vos outils et vos réglages réunis'],
+  notes: ['Notes', 'Vos observations, au même endroit'],
   dashboard: [
     'Tableau de bord',
     'L’essentiel de votre activité, en un coup d’œil',
@@ -517,6 +523,8 @@ function WorkspaceContent({
 }) {
   const [view, setView] = useState<View>('dashboard');
   const [agendaEventToOpen, setAgendaEventToOpen] = useState<{organizationId:string; id:string} | null>(null);
+  const [notesProjectId, setNotesProjectId] = useState<string | null>(null);
+  const [notesEditing, setNotesEditing] = useState(false);
   const compactSales = useCompactLayout() && (view === 'quotes' || view === 'invoices');
   const companyAutomation = useCompanyAutomation();
   const preferences = useWorkspacePreferences();
@@ -652,6 +660,21 @@ function WorkspaceContent({
   }, next => projectWorkspaceReceiver.current(next)), [cloudAccount?.organizationId]);
   useLayoutEffect(() => { projectFileSessions.start(); return () => projectFileSessions.stop(); }, [projectFileSessions]);
   useLayoutEffect(() => { projectFileSessions.setWritable(!readOnly); }, [projectFileSessions, readOnly]);
+  const notesScope = workspace.workNotesScope || cloudAccount?.organizationId || 'local';
+  const notesStore = useMemo(() => {
+    const drafts = readNoteDrafts(notesScope);
+    const store = new WorkNotesStore({
+      save: input => desktopApi.saveWorkNote({ ...input, expectedWorkspaceScope: notesScope }),
+      remove: (id, updatedAt) => desktopApi.deleteWorkNote(id, updatedAt, notesScope),
+      saved: note => projectWorkspaceReceiver.current(current => current ? ({ ...current, workNotes: [...(current.workNotes ?? []).filter(item => item.id !== note.id), note] }) : current),
+      removed: id => projectWorkspaceReceiver.current(current => current ? ({ ...current, workNotes: (current.workNotes ?? []).filter(item => item.id !== id) }) : current),
+      persist: drafts => persistNoteDrafts(notesScope, drafts),
+    }, false);
+    store.merge(workspace.workNotes ?? []); store.restore(drafts); return store;
+  }, [notesScope]);
+  useLayoutEffect(() => { notesStore.setWritable(!readOnly); }, [notesStore, readOnly]);
+  useLayoutEffect(() => { notesStore.start(); return () => notesStore.stop(); }, [notesStore]);
+  useLayoutEffect(() => { notesStore.merge(workspace.workNotes ?? []); }, [notesStore, workspace.workNotes]);
   const { reason: workspaceRecoveryReason, checkingCreation, waitForRefresh, retry: retryWorkspaceRefresh, isPending: isWorkspaceRecoveryPending } = useWorkspaceRecovery(desktopApi.loadWorkspace);
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const quoteRevisionInFlight = useRef(new Set<string>());
@@ -665,7 +688,7 @@ function WorkspaceContent({
   }, []);
   const nativeNavigation = useNativeNavigation(
     isNativeMacOS ? (view === 'dashboard' || view === 'projects' ? view : ['quotes', 'invoices', 'orders'].includes(view) ? 'quotes' : 'menu') : selectedMobileShortcut,
-    (compactNavigation || isNativeMacOS) && !menuOpen && !navigationOpen && !modal && !printTarget && !guidedTour.open,
+    (compactNavigation || isNativeMacOS) && !menuOpen && !navigationOpen && !modal && !printTarget && !guidedTour.open && !notesEditing,
     (destination) => { if (destination === 'menu') setMenuOpen(true); else navigateTour(destination); },
     isNativeMacOS ? undefined : [...shortcuts.map(id => ({ id, label: t(shortcutMeta[id].label) })), { id: 'menu', label: t('Menu') }],
   );
@@ -1663,7 +1686,7 @@ function WorkspaceContent({
   );
 
   return (
-    <div className="desktop-app" data-experience="clarity" data-view={view} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
+    <div className="desktop-app" data-experience="clarity" data-view={view} data-notes-editing={view === 'notes' && notesEditing ? 'true' : undefined} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
       <CompanyReceivingGuard/>
       {mailAfterIssue && <MailComposer target={mailAfterIssue} onClose={() => setMailAfterIssue(null)} />}
       <AutomationWelcome key={companyAutomation.organizationId || 'local'} view={view} />
@@ -1860,7 +1883,7 @@ function WorkspaceContent({
             <p>{view === 'dashboard' ? new Date().toLocaleDateString(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }) : t(title[1])}</p>
           </div>
           <div className="page-header__actions">
-            {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && <AutomationToolsLauncher screen={view} section={t(title[0])} open={automationToolsOpen} onToggle={()=>setAutomationToolsScreen(automationToolsOpen?null:view)} />}
+            {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && <AutomationToolsLauncher screen={view} section={t(title[0])} open={automationToolsOpen} onToggle={()=>setAutomationToolsScreen(automationToolsOpen?null:view)} />}
             <ScreenHelp key={view} view={view} title={view==='quotes'?t("Devis"):view==='invoices'?t("Factures"):title[0]}/>
             {view === 'dashboard' ? (
               <>
@@ -1880,7 +1903,7 @@ function WorkspaceContent({
             {view !== 'settings' &&
             view !== 'reports' &&
             view !== 'team' &&
-            view !== 'dashboard' ? (
+            view !== 'dashboard' && view !== 'notes' ? (
               <CreateButton
                 view={view}
                 onClick={setModal}
@@ -1937,7 +1960,7 @@ function WorkspaceContent({
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label={t("Reprendre la facture fournisseur")}><span>{t("Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.")}</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>{t("Reprendre la facture fournisseur")}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>{t("Plus tard")}</Button></div>}
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
-          {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
+          {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
           {view === 'automation' && <AutomationHub appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
@@ -1993,6 +2016,7 @@ function WorkspaceContent({
               />
             </Suspense>
           ) : null}
+          {view === 'notes' && <Suspense fallback={<ViewLoading label={t('Ouverture des notes…')} />}><NotesScreen key={notesScope} store={notesStore} projects={workspace.projects} readOnly={readOnly} initialProjectId={notesProjectId} onProjectHandled={() => setNotesProjectId(null)} onEditingChange={setNotesEditing} /></Suspense>}
           {view === 'projects' ? (
             <ProjectsScreen
               key={cloudAccount?.organizationId ?? 'local'}
@@ -2003,6 +2027,7 @@ function WorkspaceContent({
               query={search}
               onClearSearch={() => setSearch('')}
               onOpenTime={() => { setView('time'); setSearch(''); }}
+              onOpenNotes={projectId => { setNotesProjectId(projectId); setView('notes'); setSearch(''); }}
               busy={busy}
               readOnly={readOnly}
               onEdit={(item) => setModal({ type: 'project', item })}
@@ -2690,9 +2715,10 @@ function Dashboard({
           {preferences.actions.map(id => {
             const { label, icon: Icon } = quickActionMeta[id];
             const block = id === 'project' ? projectBlock : ['quote', 'invoice'].includes(id) ? quoteBlock : id === 'purchase' ? expenseBlock : null;
-            const changesData = !['agenda', 'clients'].includes(id);
+            const changesData = !['agenda', 'clients', 'notes'].includes(id);
             const run = () => {
-              if (id === 'agenda') onNavigate('agenda');
+              if (id === 'notes') onNavigate('notes');
+              else if (id === 'agenda') onNavigate('agenda');
               else if (id === 'clients') onNavigate('clients');
               else if (readOnly) return;
               else if (block) onNavigate(id === 'project' ? 'projects' : id === 'purchase' ? 'expenses' : id === 'invoice' ? 'invoices' : 'quotes');
@@ -2844,6 +2870,7 @@ function ProjectsScreen({
   query,
   onClearSearch,
   onOpenTime,
+  onOpenNotes,
   busy,
   readOnly,
   onEdit,
@@ -2868,6 +2895,7 @@ function ProjectsScreen({
   query: string;
   onClearSearch: () => void;
   onOpenTime: () => void;
+  onOpenNotes: (projectId: string) => void;
   busy: boolean;
   readOnly: boolean;
   onEdit: (item: Project) => void;
@@ -2921,7 +2949,7 @@ function ProjectsScreen({
     (client) => !client.archivedAt,
   );
   const folder = workspace.projects.find((project) => project.id === folderId);
-  if (folder) return <ProjectFolder key={folder.id} fileSession={fileSessions.forProject(folder.id)} onOpenExpense={onOpenExpense} project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => onFolderChange(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
+  if (folder) return <ProjectFolder key={folder.id} fileSession={fileSessions.forProject(folder.id)} onOpenNotes={onOpenNotes} onOpenExpense={onOpenExpense} project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => onFolderChange(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
   if (!workspace.projects.length)
     return (
       <EmptyState

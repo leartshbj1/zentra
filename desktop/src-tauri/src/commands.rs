@@ -50,6 +50,28 @@ fn app_version(app: &AppHandle) -> String {
     app.package_info().version.to_string()
 }
 
+#[tauri::command]
+pub fn save_work_note(
+    state: State<'_, LocalStore>,
+    input: crate::work_notes::SaveWorkNoteInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.save_work_note(input).map_err(command_error)
+}
+
+#[tauri::command]
+pub fn delete_work_note(
+    state: State<'_, LocalStore>,
+    id: String,
+    expected_updated_at: Option<String>,
+    expected_workspace_scope: Option<String>,
+) -> Result<DeleteResult, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state.delete_work_note_scoped(&id, expected_updated_at.as_deref(), expected_workspace_scope.as_deref()).map_err(command_error)
+}
+
 fn require_write(state: &LocalStore) -> Result<(), String> {
     state.require_write_access().map_err(command_error)
 }

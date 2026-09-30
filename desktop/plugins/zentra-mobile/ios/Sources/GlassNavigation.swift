@@ -6,7 +6,7 @@ struct NavigationItem: Decodable, Equatable { let id: String; let label: String 
 @available(iOS 26.0, *)
 final class GlassNavigation: UIStackView {
   private var destinations = [NavigationItem(id: "dashboard", label: "Accueil"), NavigationItem(id: "projects", label: "Projets"), NavigationItem(id: "quotes", label: "Ventes"), NavigationItem(id: "menu", label: "Menu")]
-  private let symbols = ["dashboard": "house", "projects": "folder", "quotes": "doc.text", "menu": "line.3.horizontal", "agenda": "calendar", "clients": "person", "catalog": "shippingbox", "invoices": "doc.plaintext", "reminders": "bell", "time": "clock", "team": "person.2", "expenses": "tray", "bank": "banknote", "reports": "chart.bar", "accounting": "building.columns", "automation": "checklist", "settings": "gearshape"]
+  private let symbols = ["dashboard": "house", "projects": "folder", "quotes": "doc.text", "menu": "line.3.horizontal", "agenda": "calendar", "notes": "note.text", "clients": "person", "catalog": "shippingbox", "invoices": "doc.plaintext", "reminders": "bell", "time": "clock", "team": "person.2", "expenses": "tray", "bank": "banknote", "reports": "chart.bar", "accounting": "building.columns", "automation": "checklist", "settings": "gearshape"]
   var onSelect: ((String) -> Void)?
   private var requestedVisible = false
   private var selectedDestination: String?

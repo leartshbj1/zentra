@@ -41,7 +41,9 @@ import { agendaTranslations } from './translationsAgenda';
 import { planningTranslations } from './translationsPlanning';
 import { updaterTranslations } from './translationsUpdater';
 import { purchaseInboxTranslations } from './translationsPurchaseInbox';
+import { notesTranslations } from './translationsNotes';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...notesTranslations,
   ...updaterTranslations,
   ...planningTranslations,
   ...catalogTranslations,

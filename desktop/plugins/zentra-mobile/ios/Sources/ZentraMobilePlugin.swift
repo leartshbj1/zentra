@@ -27,7 +27,7 @@ class ZentraMobilePlugin: Plugin {
 
   @objc func configureNavigation(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(NavigationArgs.self)
-    let allowed = ["dashboard", "agenda", "projects", "clients", "catalog", "quotes", "invoices", "reminders", "time", "team", "expenses", "bank", "reports", "accounting", "automation", "settings", "menu"]
+    let allowed = ["dashboard", "agenda", "notes", "projects", "clients", "catalog", "quotes", "invoices", "reminders", "time", "team", "expenses", "bank", "reports", "accounting", "automation", "settings", "menu"]
     guard allowed.contains(args.selected) else { invoke.reject("Navigation inconnue"); return }
     if let items = args.items {
       guard items.count == 5, items.last?.id == "menu", Set(items.map(\.id)).count == 5,

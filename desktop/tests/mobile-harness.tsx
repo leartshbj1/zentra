@@ -22,6 +22,7 @@ import { installExpenseJournalFixture } from './expense-journal-fixture';
 import { installProjectSyncFixture } from './project-sync-fixture';
 import { installQuotePairFixture } from './quote-pair-fixture';
 import { installDesignFixture } from './design-fixture';
+import { installNotesFixture } from './notes-fixture';
 import { installProjectReportFixture } from './project-report-fixture';
 import { installFinancialDetailFixture } from './financial-detail-fixture';
 import { installClarityFixture } from './clarity-fixture';
@@ -196,6 +197,7 @@ if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFix
 if (['updater', 'updaterBadge'].some(key => new URLSearchParams(location.search).has(key))) installUpdaterFixture();
 if (new URLSearchParams(location.search).has('quotePair')) installQuotePairFixture(data);
 if (new URLSearchParams(location.search).has('design')) installDesignFixture(data);
+if (new URLSearchParams(location.search).has('notes')) installNotesFixture(data);
 if (previewQuery.has('collectionTest')) {
   data.clients.push({...data.clients[0], id:'archived-collection-qa', company:'Ancien client de recette', archivedAt:'2026-09-01'});
   if (previewQuery.has('collectionLong')) {

@@ -10,16 +10,19 @@ import { ProjectSyncIssues } from './ProjectSyncIssues';
 import { fileSizeLabel, isProjectFile, projectDocuments } from './projectDocuments';
 import type { Attachment, Invoice, Project, Quote, Workspace } from './types';
 import { Button, ErrorPanel, Modal, StatusBadge } from './ui';
+import { NotebookPen } from 'lucide-react';
+import { t } from './language';
 import { documentTotals, errorMessage, formatDate, formatMoney } from './utils';
 import { createProjectFileSessions, type ProjectFileSession } from './projectFileSessions';
 
-export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOpenDocument, onCreateDocument, onWorkspaceChange, onOpenExpense, fileSession }: {
+export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOpenDocument, onCreateDocument, onWorkspaceChange, onOpenExpense, fileSession, onOpenNotes }: {
   project: Project; workspace: Workspace; busy: boolean; readOnly: boolean; onBack: () => void;
   onOpenDocument: (entity: 'quotes' | 'invoices', item: Quote | Invoice) => void;
   onCreateDocument: (entity: 'quotes' | 'invoices', project: Project) => void;
   onWorkspaceChange: (workspace: Workspace) => void;
   onOpenExpense?: (expenseId: string) => void;
   fileSession?: ProjectFileSession;
+  onOpenNotes?: (projectId: string) => void;
 }) {
   const [tab, setTab] = useState<'all' | 'files' | 'quotes' | 'invoices'>('all');
   const [ownSessions] = useState(() => createProjectFileSessions({
@@ -110,6 +113,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
       <Button variant="ghost" onClick={onBack} disabled={opening}><ArrowLeft size={18} /> Projets</Button>
       <div><h2>{project.name}</h2><p>{client?.company || client?.name}</p></div>
       <StatusBadge status={project.status} />
+      {onOpenNotes && <Button variant="secondary" onClick={() => onOpenNotes(project.id)}><NotebookPen size={18} aria-hidden="true" />{t('Notes')}{(workspace.workNotes ?? []).filter(note => note.projectId === project.id).length > 0 && <span>{(workspace.workNotes ?? []).filter(note => note.projectId === project.id).length}</span>}</Button>}
     </header>
     <nav className="project-folder__tabs" aria-label="Contenu du projet">{([
       ['all', 'Tout', contents.files.length + contents.quotes.length + contents.invoices.length],

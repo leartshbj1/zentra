@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 
-export const navigationIds = ['dashboard', 'agenda', 'projects', 'clients', 'catalog', 'quotes', 'invoices', 'reminders', 'time', 'team', 'expenses', 'bank', 'reports', 'accounting', 'automation', 'settings'] as const;
+export const navigationIds = ['dashboard', 'agenda', 'notes', 'projects', 'clients', 'catalog', 'quotes', 'invoices', 'reminders', 'time', 'team', 'expenses', 'bank', 'reports', 'accounting', 'automation', 'settings'] as const;
 export type ShortcutId = typeof navigationIds[number];
-export const quickActionIds = ['client', 'project', 'quote', 'invoice', 'purchase', 'employee', 'agenda', 'clients'] as const;
+export const quickActionIds = ['client', 'project', 'quote', 'invoice', 'purchase', 'employee', 'agenda', 'clients', 'notes'] as const;
 export type QuickActionId = typeof quickActionIds[number];
 export type WorkspacePreferences = { version: 1; shortcuts: ShortcutId[]; actions: QuickActionId[] };
 export const workspacePreferencesKey = 'zentra.workspace.preferences.v1';

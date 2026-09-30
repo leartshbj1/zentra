@@ -442,6 +442,10 @@ pub(crate) fn strip_private(connection: &Connection) -> AppResult<()> {
     if exists {
         connection.execute("DELETE FROM company_local_identity", [])?;
     }
+    let has_notes_scope:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_notes_scope')",[],|r|r.get(0))?;
+    if has_notes_scope {
+        connection.execute("DELETE FROM company_local_notes_scope", [])?;
+    }
     Ok(())
 }
 pub(crate) fn set_identity(
@@ -1062,6 +1066,7 @@ async fn download_content(
 }
 const PRIVATE_ROWS: &[&str] = &[
     "company_local_identity",
+    "company_local_notes_scope",
     "device_number_ranges",
     "active_timers",
     "project_sync_binding",
@@ -1114,6 +1119,7 @@ fn restore_private(store: &LocalStore, rows: &[(String, Vec<Value>)]) -> AppResu
             )?;
         }
     }
+    crate::work_notes::ensure_workspace_scope(&tx)?;
     tx.commit()?;
     Ok(())
 }
@@ -1141,7 +1147,12 @@ fn apply(
             "Des modifications locales doivent être envoyées avant de recevoir celles de l’équipe.",
         ));
     }
-    let private = private_rows(store)?;
+    let mut private = private_rows(store)?;
+    if joining {
+        for (table, rows) in &mut private {
+            if table == "company_local_notes_scope" { rows.clear(); }
+        }
+    }
     // Keep a named recovery copy before an explicit conflict decision. Ordinary
     // receiving uses checked restoration with rollback of the data swap.
     if accept_remote {
@@ -1601,6 +1612,22 @@ pub async fn apply_company_update(state: State<'_, LocalStore>) -> Result<Value,
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn notes_draft_scope_survives_same_company_receives_but_not_a_first_join() {
+        let dir = tempfile::tempdir().unwrap();
+        let sender = LocalStore::initialize(dir.path().join("sender")).unwrap();
+        sender.complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION")).unwrap();
+        let archive = dir.path().join("shared-company.zentra");
+        sender.create_backup_at(&archive, env!("CARGO_PKG_VERSION")).unwrap();
+        let receiver = LocalStore::initialize(dir.path().join("receiver")).unwrap();
+        let empty_scope = crate::work_notes::workspace_scope(&receiver.connect().unwrap()).unwrap();
+        apply(&receiver, &archive, "notes-company", 1, clock(&receiver).unwrap(), true, false).unwrap();
+        let company_scope = crate::work_notes::workspace_scope(&receiver.connect().unwrap()).unwrap();
+        assert_ne!(company_scope, empty_scope);
+        assert_ne!(company_scope, crate::work_notes::workspace_scope(&sender.connect().unwrap()).unwrap());
+        apply(&receiver, &archive, "notes-company", 2, clock(&receiver).unwrap(), false, false).unwrap();
+        assert_eq!(crate::work_notes::workspace_scope(&receiver.connect().unwrap()).unwrap(), company_scope);
+    }
     fn issued(store: &LocalStore, client: &str, title: &str, cents: i64) -> String {
         let invoice=store.create_record("invoices",json!({"client_id":client,"title":title,"service_date_from":"2026-09-15","service_date_to":"2026-09-15"})).unwrap();
         let id = invoice["id"].as_str().unwrap();

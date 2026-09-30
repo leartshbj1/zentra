@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 60;
+pub const SCHEMA_VERSION: i64 = 61;
+pub const MIGRATION_V61_SQL: &str = include_str!("work_notes_schema.sql");
 pub const MIGRATION_V59_SQL: &str = include_str!("shared_numbering_schema.sql");
 pub const MIGRATION_V58_SQL: &str = include_str!("project_sync_schema.sql");
 pub const MIGRATION_V57_SQL: &str = include_str!("bank_customer_credit_refund_schema.sql");
@@ -140,6 +141,7 @@ pub const BUSINESS_TABLES: &[&str] = &[
     "project_milestones",
     "project_tasks",
     "agenda_events",
+    "work_notes",
     "quotes",
     "quote_items",
     "invoices",

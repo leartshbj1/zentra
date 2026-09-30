@@ -1538,6 +1538,7 @@ impl LocalStore {
         }
         if current == SCHEMA_VERSION {
             let transaction=connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            crate::work_notes::ensure_workspace_scope(&transaction)?;
             crate::company_collaboration::upgrade_tracking(&transaction)?;
             workspace_read_indexes::ensure(&transaction)?;
             transaction.commit()?;
@@ -1815,6 +1816,15 @@ impl LocalStore {
         }
         if current < 60 {
             crate::company_collaboration::migrate(&transaction)?;
+        }
+        if current < 61 {
+            transaction.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
+            crate::work_notes::ensure_workspace_scope(&transaction)?;
+            // Register the new shared table with the normal transaction clock
+            // and write gate, then refresh the column-aware trigger set.
+            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
+            crate::company_collaboration::migrate(&transaction)?;
+            transaction.pragma_update(None, "user_version", 61)?;
         }
         workspace_read_indexes::ensure(&transaction)?;
         transaction.commit()?;
@@ -2674,6 +2684,8 @@ impl LocalStore {
             workspace["journal_lines"] = Value::Array(lines);
         }
         workspace["agenda_events"] = Value::Array(agenda_events);
+        workspace["work_notes"] = Value::Array(crate::work_notes::workspace_notes(connection)?);
+        workspace["work_notes_scope"] = json!(crate::work_notes::workspace_scope(connection)?);
         workspace["quote_invoice_pairs"] = Value::Array(query_all(connection, "SELECT * FROM quote_invoice_pairs ORDER BY created_at", [])?);
         workspace["backup_status"] = backup_status;
         workspace["reminder_deliveries"] = Value::Array(reminder_deliveries);
@@ -7806,6 +7818,7 @@ fn is_boolean_column(name: &str) -> bool {
             | "reimbursable"
             | "track_stock"
             | "all_day"
+            | "pinned"
             | "active"
             | "reversal"
             | "enabled"

@@ -346,6 +346,7 @@ mod tests {
         mac.create_record("clients", json!({"name":"Ancien client Mac"}))
             .unwrap();
         let old = prepare(&mac, "old", true).unwrap();
+        let old_notes_scope = crate::work_notes::workspace_scope(&mac.connect().unwrap()).unwrap();
         confirm_sent(&mac, &old.id, 1).unwrap();
         fs::write(mac.data_dir.join("cloud-backup-state.json"), b"old company").unwrap();
         open_saved_company(
@@ -364,6 +365,7 @@ mod tests {
             b"shared document"
         );
         assert_eq!(status(&mac).unwrap()["organizationId"], "a");
+        assert_ne!(crate::work_notes::workspace_scope(&mac.connect().unwrap()).unwrap(), old_notes_scope);
         assert!(!mac.data_dir.join("cloud-backup-state.json").exists());
         let recovery = fs::read_dir(&mac.backups_dir)
             .unwrap()

@@ -1,4 +1,5 @@
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
+import type { WorkNote, WorkNoteDraft } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
 import { errorMessage } from './utils';
@@ -265,6 +266,8 @@ type RawWorkspace = {
   project_milestones?: RawRecord[];
   project_tasks?: RawRecord[];
   agenda_events?: RawRecord[];
+  work_notes?: RawRecord[];
+  work_notes_scope?: unknown;
   quotes?: RawRecord[];
   quote_items?: RawRecord[];
   sales_orders?: RawRecord[];
@@ -2130,6 +2133,13 @@ function documentSnapshotFromRaw(
   };
 }
 
+export function workNoteFromRaw(row: RawRecord): WorkNote {
+  return { id: stringValue(row.id), title: stringValue(row.title), body: stringValue(row.body),
+    projectId: nullableString(row.project_id), pinned: boolValue(row.pinned),
+    createdAt: stringValue(row.created_at), updatedAt: stringValue(row.updated_at),
+    createdByMemberId: nullableString(row.created_by_member_id), authorName: stringValue(row.author_name) };
+}
+
 function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
   const creditRecoveryById=new Map<string,NonNullable<Invoice['creditRecovery']>>();
   for(const saved of raw.customer_credit_recoveries ?? []) {
@@ -3040,6 +3050,8 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     projectMilestones,
     projectTasks,
     agendaEvents,
+    workNotes: (raw.work_notes ?? []).map(workNoteFromRaw),
+    workNotesScope: stringValue(raw.work_notes_scope),
     quotes,
     salesOrders,
     recurrenceSchedules,
@@ -3102,6 +3114,7 @@ function emptyWorkspace(): Workspace {
     projectMilestones: [],
     projectTasks: [],
     agendaEvents: [],
+    workNotes: [],
     quotes: [],
     salesOrders: [],
     recurrenceSchedules: [],
@@ -5076,6 +5089,17 @@ export const desktopApi = {
   async deleteProjectTask(id: string) {
     await invoke('delete_project_task', { id });
     return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async saveWorkNote(input: WorkNoteDraft): Promise<WorkNote> {
+    const raw = await invoke<RawRecord>('save_work_note', { input: {
+      id: input.id, title: input.title, body: input.body, project_id: input.projectId,
+      pinned: input.pinned, expected_updated_at: input.expectedUpdatedAt,
+      expected_workspace_scope: input.expectedWorkspaceScope,
+    } });
+    return workNoteFromRaw(raw);
+  },
+  async deleteWorkNote(id: string, expectedUpdatedAt: string, expectedWorkspaceScope?: string) {
+    return invoke('delete_work_note', { id, expectedUpdatedAt, expectedWorkspaceScope });
   },
   async saveAgendaEvent(input: {
     id: string;

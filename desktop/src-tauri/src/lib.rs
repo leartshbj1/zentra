@@ -9,6 +9,7 @@ mod accounting;
 mod fixed_assets;
 mod accounting_closure;
 mod agenda;
+mod work_notes;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod app_updater;
 #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -221,6 +222,8 @@ pub fn run() {
             delete_project_task,
             save_agenda_event,
             delete_agenda_event,
+            save_work_note,
+            delete_work_note,
             record_stock_entry,
             record_stock_exit,
             record_stock_correction,

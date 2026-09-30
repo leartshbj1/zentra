@@ -1,5 +1,11 @@
 export type Identifier = string;
 
+export type WorkNote = {
+  id: string; title: string; body: string; projectId: string | null; pinned: boolean;
+  createdAt: string; updatedAt: string; createdByMemberId: string | null; authorName: string;
+};
+export type WorkNoteDraft = Pick<WorkNote, 'id' | 'title' | 'body' | 'projectId' | 'pinned'> & { expectedUpdatedAt: string | null; expectedWorkspaceScope?: string };
+
 export type EntityKind =
   | 'clients'
   | 'catalogItems'
@@ -1744,6 +1750,8 @@ export type Workspace = {
   projectMilestones: ProjectMilestone[];
   projectTasks: ProjectTask[];
   agendaEvents: AgendaEvent[];
+  workNotes?: WorkNote[];
+  workNotesScope?: string;
   quotes: Quote[];
   salesOrders: SalesOrder[];
   recurrenceSchedules: RecurrenceSchedule[];

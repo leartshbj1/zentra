@@ -271,6 +271,19 @@ fn text(row: &Row, table: &Table, column: &str) -> Option<String> {
         })
 }
 fn read(db: &Connection) -> AppResult<Data> {
+    // The v61 addition is an empty shared notes table. Upgrade only disposable,
+    // already validated archive copies before comparing branches, so two
+    // devices' first independent notes can merge against their v60 reference.
+    // Other schema differences continue to require an explicit app update.
+    let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
+    if version == 60 {
+        let tx = db.unchecked_transaction()?;
+        tx.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
+        tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
+        crate::company_collaboration::migrate(&tx)?;
+        tx.pragma_update(None, "user_version", 61)?;
+        tx.commit()?;
+    }
     let mut result = Data::new();
     let mut q = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")?;
     let names = q
