@@ -1,6 +1,6 @@
 # Notes dans Zentra Gestion
 
-État du lot : 30 septembre 2026. Notes est implémenté dans les sources de l’application, avec validation frontend et contrôles SQLite portables. La relecture Impeccable finale conclut **ship** pour la surface examinée. Aucune release native ni installation de ce lot n’est attestée.
+État du lot : 30 septembre 2026. Notes est publié dans **Zentra 1.90.11** pour Windows, macOS, iPhone (IPA à signer) et Android (APK). Les builds, tests natifs et recettes de paquets sont consignés dans [RELEASE-1.90.11.md](RELEASE-1.90.11.md). La relecture Impeccable finale conclut **ship** pour la surface frontend examinée ; la synchronisation Notes entre appareils réels et les téléphones physiques restent non attestés.
 
 ## Fonction et accès
 
@@ -54,18 +54,18 @@ Le lot a passé les validations suivantes :
 
 | Validation | Résultat et portée |
 | --- | --- |
-| Tests frontend ciblés | **72 réussis** : 48 `workNotes`, 10 bridge, 8 préférences, 6 navigation native. Ils vérifient les stores et contrats frontend, sans prouver une exécution native sur appareil. |
+| Tests frontend ciblés | **74 réussis** : 48 `workNotes`, 10 bridge, 8 préférences, 6 navigation native et 2 historique des versions. Suite complète : **1 905 réussis, 1 ignoré**. Ils vérifient les stores et contrats frontend, sans prouver une exécution native sur téléphone physique. |
 | Contrôles SQLite portables | **5 réussis** : migration et intégrité, contraintes, auteur immuable, suppression et retrait de projet, sauvegarde et réouverture. Bases temporaires, sans accès à un profil utilisateur réel. |
-| Tests Rust | `cargo test --lib work_notes --no-run` compilé. L’exécution locale a été bloquée par Windows AppControl, erreur **4551** ; les scénarios Rust ne sont donc pas déclarés réussis. |
+| Tests Rust | **10 tests Notes réussis** sur Windows (CircleCI 199) et Mac (200), dont migration 60 → 61, CRUD, droits, scopes, audit et conflits. Les groupes Company passent aussi : **40 réussis, 1 diagnostic ignoré** sur chaque plateforme. |
 | Compilation interface | `build:web` réussi pour TypeScript et Vite. Ce résultat ne produit pas à lui seul un paquet natif distribué. |
 | Parcours navigateur | **6 configurations Edge réussies**, consignées dans [journey.json](../desktop/.impeccable/review/notes/journey.json), avec [12 captures liste/éditeur](../desktop/.impeccable/review/notes/). Données et pont natif fictifs. |
 | Relecture Impeccable finale | **ship** pour Notes dans le périmètre frontend examiné : statut sur sa ligne à 320 px, safe areas natives prioritaires, pied tactile de 44 px. |
 
 Les configurations navigateur sont 1440 px clair FR, 390 px clair FR, 320 px sombre FR, 390 px sombre DE, 390 px clair IT et 1440 px sombre EN. Le script vérifie édition et cases, sauvegarde simulée, absence d’erreur JavaScript et de débordement horizontal du document ; les parcours français ajoutent création, retour avant la fin de sauvegarde, suppression confirmée et édition hors ligne avec le pont fictif. Cela ne prouve pas tous les états de conflit, toutes les dimensions, une utilisation avec clavier natif ou une synchronisation réelle entre appareils.
 
-La page de présentation distincte [zentraapp.ch/gestion/notes](https://zentraapp.ch/gestion/notes) a été publiée dans la version Sites **303**, source `a7ecb77a`, et vérifiée en direct à 1440 et 390 px : liens, images, détails ouvrables, sans erreur ni débordement observé. Elle annonce la fonctionnalité pour une **prochaine mise à jour**. Cette publication ne distribue pas le module dans l’application.
+La page de présentation distincte [zentraapp.ch/gestion/notes](https://zentraapp.ch/gestion/notes), initialement publiée dans Sites **303** puis reprise sans captures d’application dans **304**, annonce désormais la disponibilité dans **1.90.11**. Le site **305**, source `f2ae8d88`, est déployé avec succès ; ses téléchargements et manifestes updater proviennent des paquets publiés vérifiés. Cette publication a passé les tests locaux et le build du site ; aucun contrôle navigateur du site public n’a été ajouté à cette livraison.
 
-Restent non attestés pour ce lot : release et installation Windows/macOS/iOS/Android, session réelle de plusieurs appareils, réception distante des notes et comportement sur téléphone physique. Aucun résultat navigateur ni verdict de design ne constitue une livraison iOS/Android.
+La release native est attestée : quatre installables publics, signatures de mise à jour Windows/Mac vérifiées, APK à identité persistante, IPA non signée. Les recettes Windows/Mac couvrent le démarrage et redémarrage sur des profils isolés ; Android couvre l’émulateur, thèmes et clavier. Restent non attestés : parcours Notes interactif dans ces paquets, session réelle de plusieurs appareils, réception distante des notes et comportement sur téléphone physique. Aucun résultat navigateur ni verdict de design ne constitue une validation sur appareil iOS physique.
 
 ## Sources d’implémentation
 
