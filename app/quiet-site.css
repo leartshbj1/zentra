@@ -25,12 +25,8 @@
 .quiet-home-questions { padding-block: 16px 60px; }
 .quiet-home-questions > details > summary { color: #526259; font-size: 16px; padding-block: 15px; cursor: pointer; }
 .quiet-home-questions .quiet-details { margin-top: 10px; }
-.quiet-capture { margin: 42px 0 0; }
-.quiet-capture picture { display: block; padding: 16px; border-radius: 20px; background: #f0f4f1; }
-.quiet-capture img { display: block; width: 100%; max-height: 530px; object-fit: contain; border-radius: 8px; }
-.quiet-capture figcaption { margin-top: 14px; font-size: 14px; line-height: 1.5; color: #5c6b62; }
 .quiet-notes .quiet-note { font-size:16px; line-height:1.5; color:#5c6b62; }
-.quiet-notes .notes-product-capture img { max-height:620px; }
+.sp-control.sp-control-text { grid-template-columns:minmax(0, 760px); justify-content:center; }
 .quiet-section { padding-block: 56px; border-top: 1px solid #dce4df; }
 .quiet-section > h2, .quiet-offer h2 { font-size: clamp(28px, 3vw, 38px); font-weight: 550; line-height: 1.15; letter-spacing: -.03em; margin-bottom: 28px; }
 .quiet-details > details { border-top: 1px solid #dce4df; padding-block: 4px; }
@@ -53,12 +49,6 @@
 .quiet-module-links h3 { font-size: 20px; line-height: 1.4; font-weight: 550; }
 .quiet-module-links p { margin-top: 8px; font-size: 17px; color: #53635a; line-height: 1.6; }
 .quiet-module-links a:hover h3 { color: #286345; }
-.quiet-support-example { max-width: 800px; margin: 44px auto 0; text-align: left; border-block: 1px solid #dce4df; }
-.quiet-support-example > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; justify-content: space-between; padding: 22px 0; border-bottom: 1px solid #e8ede9; }
-.quiet-support-example > div:last-child { border-bottom: 0; }
-.quiet-support-example strong { font-size: 17px; font-weight: 500; }
-.quiet-support-example span { font-size: 15px; color: #526259; }
-.quiet-support-example > p { text-align: center; margin-top: 16px; font-size: 14px; color: #5c6b62; }
 .quiet-complete .complete-offer { padding-block: 0 48px; }
 .quiet-complete .complete-compact-plan { border-radius: 18px; background: #f6f8f6; box-shadow: none; }
 .quiet-complete .complete-trial-note { font-size: 16px; color: #526259; line-height: 1.6; }
@@ -98,10 +88,6 @@
   .quiet-product-row p { font-size: 16px; max-width: 310px; }
   .quiet-product-row > span { grid-column: 1; font-size: 14px; }
   .quiet-home-questions { padding-bottom: 36px; }
-  .quiet-capture { margin-top: 32px; }
-  .quiet-capture picture { padding: 12px; }
-  .quiet-capture img { max-height: 390px; height: auto; width: 100%; }
-  .quiet-capture figcaption { font-size: 14px; }
   .quiet-section { padding-block: 38px; }
   .quiet-section > h2 { margin-bottom: 22px; }
   .quiet-details summary { font-size: 17px; padding-block: 17px; }

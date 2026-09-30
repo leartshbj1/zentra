@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import { ProductHero, ProductCapture, ProductDetails } from '@/components/quiet-product';
+import { ProductHero, ProductDetails } from '@/components/quiet-product';
 
 export const metadata: Metadata = {
   title: {
@@ -82,9 +82,7 @@ export default function GestionPage() {
       <main id="contenu" tabIndex={-1}>
         <ProductHero title={<>Votre entreprise.<br /><span>Bien organisée.</span></>}
           description="Devis, factures, projets et comptabilité. Retrouvez votre activité dans un même espace."
-          href="/download" action="Télécharger Zentra" price="Voir les formules" priceHref="/pricing">
-          <ProductCapture screen="factures" label="Les factures et leurs encaissements dans Zentra Gestion" />
-        </ProductHero>
+          href="/download" action="Télécharger Zentra" price="Voir les formules" priceHref="/pricing" />
         <section className="quiet-section quiet-width" id="fonctionnalites">
           <h2>Tout ce qui fait votre quotidien.</h2>
           <div className="quiet-module-links">

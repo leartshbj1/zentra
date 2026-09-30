@@ -26,14 +26,7 @@ export default async function SupportPresentation({ searchParams }: {
       <main id="support-content" tabIndex={-1}>
         <ProductHero title={<>Chaque demande.<br /><span>À sa place.</span></>}
           description="Vos messages et tickets rassemblés dans un espace clair, pour toute votre équipe."
-          href="/support/connexions" action="Voir les connexions" price="Voir les formules" priceHref="/support/tarifs">
-          <div className="quiet-support-example" aria-label="Exemple de demandes organisées">
-            <div><strong>Une facture fournisseur</strong><span>Facturation</span></div>
-            <div><strong>Une confirmation de rendez-vous</strong><span>Rendez-vous</span></div>
-            <div><strong>Une question sur votre produit</strong><span>Question produit</span></div>
-            <p>Exemple illustratif · le tri automatique nécessite Automation.</p>
-          </div>
-        </ProductHero>
+          href="/support/connexions" action="Voir les connexions" price="Voir les formules" priceHref="/support/tarifs" />
         <ProductDetails title="Un support facile à suivre." id="fonctionnement">
           <details><summary>Rassembler les demandes</summary>
             <p>Connectez une messagerie ou un outil compatible. Retrouvez les demandes, les dossiers et l’historique dans Support.</p>

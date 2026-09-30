@@ -2,7 +2,7 @@ import { StructuredData } from '@/components/structured-data';
 import { productData, breadcrumbData } from '@/lib/seo';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import { ProductHero, ProductCapture, ProductDetails } from '@/components/quiet-product';
+import { ProductHero, ProductDetails } from '@/components/quiet-product';
 import '@/components/zentra-presentation.css';
 import './presentation.css';
 
@@ -32,8 +32,8 @@ const functions = [
     body: 'Automation reconnaît les confirmations reçues dans Support et transmet les informations disponibles à l’agenda de Gestion : intitulé, date, heure et lieu.',
     detail:
       'L’import doit être activé. Un rendez-vous ambigu ou incomplet reste à vérifier.',
-    link: '/automation#parcours',
-    label: 'Explorer un exemple',
+    link: '/demo-facture#agenda',
+    label: 'Voir l’agenda dans la démo',
   },
   {
     title: 'E-mails, tickets et équipes',
@@ -86,11 +86,9 @@ export default function AutomationPage() {
           description="Les factures, les messages et les rendez-vous trouvent leur place. Vous retrouvez ce qui est fait et ce qui reste à vérifier."
           href="#fonctions" action="Découvrir les fonctions" price="Activer Automation" priceHref="/compte/automation">
           <p className="quiet-note">Option de Gestion. Les parcours e-mail nécessitent Support relié.</p>
-          <div id="parcours"><span id="quotidien" className="quiet-anchor" />
-            <ProductCapture screen="automation" label="L’activité Automation et les éléments à vérifier dans Zentra Gestion" />
-          </div>
         </ProductHero>
         <ProductDetails title="Ce qu’Automation fait pour vous." id="fonctions">
+          <span id="parcours" className="quiet-anchor" /><span id="quotidien" className="quiet-anchor" />
           {functions.map(f => <details key={f.title}><summary>{f.title}</summary>
             <p>{f.body}</p><p>{f.detail}</p><a className="quiet-link" href={f.link}>{f.label}</a>
           </details>)}

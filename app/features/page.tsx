@@ -24,10 +24,8 @@ import {
   Users,
   WalletCards,
 } from 'lucide-react';
-import { ProductShowcase } from '@/components/product-showcase';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import { VatClosingDemo } from '@/components/vat-closing-demo';
 import { PageDisclosures } from '@/components/page-disclosures';
 export const metadata: Metadata = {
   title: 'Fonctionnalités — Tout votre quotidien dans Gestion',
@@ -417,9 +415,6 @@ export default function FeaturesPage() {
                     text="Pré-revue, empreinte, verrouillage explicite et dossier pour la fiduciaire."
                   />
                 </div>
-                <div className="mt-10">
-                  <VatClosingDemo />
-                </div>
                 <TruthNote>
                   Le XML eCH-0217 est destiné à un import manuel dans Décompte
                   TVA pro. Zentra ne transmet rien à l’AFC et ne revendique
@@ -678,17 +673,6 @@ export default function FeaturesPage() {
           </div>
         </section>
         <section className="page-section page-width">
-          <details className="page-detail">
-            <summary>
-              Explorer les aperçus de l’application
-              <ChevronDown size={20} />
-            </summary>
-            <p className="page-caption">
-              Données fictives. Votre application travaille avec les données de
-              votre entreprise.
-            </p>
-            <ProductShowcase />
-          </details>
           <details className="page-detail">
             <summary>
               Consulter le détail des disponibilités

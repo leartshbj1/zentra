@@ -4,10 +4,7 @@ import {
   SupportMarketingShell,
   SupportPageIntro,
 } from '@/components/support/marketing-shell';
-import {
-  RoutingExample,
-  TimeEstimator,
-} from '@/components/support/presentation';
+import { TimeEstimator } from '@/components/support/presentation';
 import { supportMetadata } from '@/lib/support/marketing';
 
 export const metadata = supportMetadata(
@@ -30,7 +27,7 @@ export default function SupportFeatures() {
         }
         description="De la réception à l’affectation, un parcours clair. Zentra Support prépare chaque demande pour la bonne équipe, selon vos règles."
       />
-      <section className="sp-wrap sp-control sp-section sp-section-first">
+      <section className="sp-wrap sp-control sp-control-text sp-section sp-section-first">
         <div>
           <p className="sp-kicker">01 / COMPRENDRE</p>
           <h2>
@@ -57,10 +54,9 @@ export default function SupportFeatures() {
             </li>
           </ul>
         </div>
-        <RoutingExample />
       </section>
       <section className="sp-section sp-soft">
-        <div className="sp-wrap sp-control">
+        <div className="sp-wrap sp-control sp-control-text">
           <div>
             <p className="sp-kicker">02 / ORIENTER</p>
             <h2>
@@ -76,33 +72,13 @@ export default function SupportFeatures() {
             <a className="sp-text-link" href="/support/connexions">
               Voir les outils compatibles <ArrowRight size={16} />
             </a>
-          </div>
-          <div className="sp-control-card">
-            <h3>Exemple de règle de routage</h3>
-            <dl>
-              <div>
-                <dt>Demande</dt>
-                <dd>Facturation</dd>
-              </div>
-              <div>
-                <dt>Destination</dt>
-                <dd>Comptabilité</dd>
-              </div>
-              <div>
-                <dt>Seuil de confiance</dt>
-                <dd>85 %</dd>
-              </div>
-            </dl>
-            <div className="sp-control-track">
-              <span />
-            </div>
             <p>
               Catégorie et priorité doivent atteindre le seuil. Une destination
               valide et un abonnement actif sont également nécessaires.
             </p>
-            <small>
+            <p>
               Le score de confiance n’est pas un taux de réussite garanti.
-            </small>
+            </p>
           </div>
         </div>
       </section>
