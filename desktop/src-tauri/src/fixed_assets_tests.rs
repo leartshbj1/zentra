@@ -80,7 +80,7 @@ fn fixed_assets_post_balanced_entries_once_and_survive_company_restore() {
         .unwrap()
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(v, 60);
+    assert_eq!(v, crate::schema::SCHEMA_VERSION);
 }
 #[test]
 fn fixed_assets_preserve_value_on_bad_accounts_stale_requests_or_duplicate_reference() {
