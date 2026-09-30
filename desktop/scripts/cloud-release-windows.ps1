@@ -95,6 +95,8 @@ try {
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'interface_workspace_', '--', '--test-threads=1')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/workspacePreferences.test.ts', 'src/workspacePersonalizationLanguage.test.ts', 'src/nativeNavigationSession.test.ts', 'src/companySyncPresentation.test.ts')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/companyAccount.test.ts', 'src/companyRealtime.test.ts', 'src/projectSyncScheduler.test.ts', 'src/automationCompanySession.test.ts', 'src/appReleaseNotes.test.ts', 'src/automationDailySummary.test.tsx', 'src/automationHub.test.tsx', 'src/automationJournal.test.tsx', 'src/automationNavigation.test.tsx', 'src/appearance.test.ts', 'src/supplierInboxReview.test.ts', 'src/supplierInboxBatch.test.ts', 'src/languageCatalogCoverage.test.ts', 'src/projectReport.test.ts')
+    Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/workNotes.test.ts', 'src/workNotesBridge.test.ts')
+    Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'work_notes', '--', '--test-threads=1')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/quoteInterlocutor.test.ts')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'quote_interlocutor', '--', '--test-threads=1')
