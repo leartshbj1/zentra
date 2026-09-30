@@ -28,6 +28,39 @@ parameters:
     default: ""
 
 jobs:
+  windows-package-smoke-1911:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact Notes installer in a disposable Windows profile
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/bootstrap-notes-windows-smoke.ps1 -Job 199 -Source b03d0851b19ab79bffe9c9bc61cd5003ff52ddab
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
+  android-package-smoke-1911:
+    machine:
+      image: android:default
+    resource_class: large
+    environment:
+      ZENTRA_ANDROID_SMOKE_JOB: "201"
+      ZENTRA_ANDROID_SMOKE_SOURCE: "b03d0851b19ab79bffe9c9bc61cd5003ff52ddab"
+      # Independently computed from the exact unsigned APK downloaded from job 201.
+      ZENTRA_ANDROID_SMOKE_SHA256: "6f3769f84189028e3e3de4fe2304862ed5e7431a7c6ac5a99f7ab3182bdb7ce3"
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact Notes Android payload on an emulator
+          command: |
+            [[ "$ZENTRA_ANDROID_SMOKE_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo 'Confirmed APK SHA-256 required before smoke execution.' >&2; exit 1; }
+            timeout 18m bash desktop/scripts/smoke-android-release-candidate.sh
+          no_output_timeout: 5m
+      - store_artifacts:
+          path: desktop/artifacts/android-release-smoke
+          destination: android-release-smoke
   windows-package-volume-1909:
     resource_class: windows.medium
     machine:
@@ -426,6 +459,16 @@ jobs:
           destination: apple
 
 workflows:
+  notes-package-1911:
+    when:
+      and:
+        - equal: [codex/notes-release-1.90.11-smoke-20260930, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - android-package-smoke-1911
+      - windows-package-smoke-1911:
+          requires:
+            - android-package-smoke-1911
   notes-release-1911:
     when:
       and:

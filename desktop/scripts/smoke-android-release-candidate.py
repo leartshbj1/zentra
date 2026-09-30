@@ -26,6 +26,7 @@ REVISION = os.environ.get('ZENTRA_ANDROID_SMOKE_SOURCE', '958787be4e608b89a357f9
 SHA = os.environ.get('ZENTRA_ANDROID_SMOKE_SHA256', '5d0b410c900881d60354293976d4f1d7f52db1cef9381766a724ce69dba075d6')
 PACKAGE = 'ch.zentra.mobile'
 VERSION = json.loads((HERE.parents[1] / 'desktop/package.json').read_text(encoding='utf-8'))['version']
+EXPECTED_SCHEMA = int(re.search(r'SCHEMA_VERSION:\s*i64\s*=\s*(\d+)', (HERE.parents[1] / 'desktop/src-tauri/src/schema.rs').read_text(encoding='utf-8')).group(1))
 PROFILE = '/data/user/0/' + PACKAGE
 INPUT_OBSERVATIONS = {}
 
@@ -303,7 +304,7 @@ def profile_state(temp, label):
         integrity = db.execute('pragma integrity_check').fetchone()[0]
         schema = db.execute('pragma user_version').fetchone()[0]
         foreign_keys = db.execute('pragma foreign_key_check').fetchall()
-    if integrity != 'ok' or foreign_keys or schema != 60:
+    if integrity != 'ok' or foreign_keys or schema != EXPECTED_SCHEMA:
         raise RuntimeError('Native profile failed integrity or schema checks')
     return {'identitySha256': identity_hash, 'schema': schema, 'integrity': integrity, 'foreignKeyErrors': 0}
 
