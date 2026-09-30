@@ -19,7 +19,7 @@ export default function NotesPage() {
         href="#carnet" action="Découvrir les Notes" price="Zentra Gestion" priceHref="/gestion" />
       <section className="quiet-section quiet-width" id="carnet">
         <h2>Un carnet, toujours à portée de main.</h2>
-        <p className="quiet-note">Fonction préparée pour la prochaine mise à jour de Zentra Gestion.</p>
+        <p className="quiet-note">Disponible dans Zentra Gestion 1.90.11.</p>
       </section>
       <ProductDetails title="Pensé pour le terrain.">
         <details open><summary>Écrire, puis continuer votre journée</summary><p>Le texte s’enregistre automatiquement. Sur le téléphone, un éditeur plein écran laisse toute la place à votre note.</p></details>
