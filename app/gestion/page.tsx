@@ -5,6 +5,7 @@ import {
   CalendarDays,
   FileCheck2,
   FolderKanban,
+  NotebookPen,
   Users,
 } from 'lucide-react';
 import { SiteHeader } from '@/components/site-header';
@@ -63,6 +64,12 @@ const modules = [
     title: 'Banque et suivi',
     text: 'Importez vos relevés et vérifiez les paiements proposés avant de les confirmer.',
     href: '/features#banque',
+  },
+  {
+    icon: NotebookPen,
+    title: 'Notes de terrain',
+    text: 'Mesures, observations et listes à cocher. Découvrez le carnet mobile de la prochaine mise à jour.',
+    href: '/gestion/notes',
   },
 ];
 

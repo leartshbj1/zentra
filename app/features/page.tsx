@@ -525,6 +525,7 @@ export default function FeaturesPage() {
                   title="Comprendre ce qui a pris du temps et ce qui a rapporté."
                   text="Chaque projet réunit ses documents, photos, devis et factures. Les calculs utilisent uniquement les données enregistrées."
                 />
+                <p className="mt-6 text-base leading-7"><a className="quiet-link" href="/gestion/notes">À découvrir : le carnet Notes pour vos observations sur le terrain, dans la prochaine mise à jour.</a></p>
                 <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:mt-14 lg:grid-cols-3">
                   <FeatureCard
                     icon={FolderKanban}

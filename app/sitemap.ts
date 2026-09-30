@@ -7,6 +7,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ['/ecosysteme', 0.85, 'monthly'],
     ['/questions', 0.7, 'monthly'],
     ['/gestion', 0.95, 'weekly'],
+    ['/gestion/notes', 0.75, 'monthly'],
     ['/comparatif/bexio', 0.8, 'monthly'],
     ['/complet', 0.95, 'monthly'],
     ['/complet/conditions', 0.5, 'monthly'],

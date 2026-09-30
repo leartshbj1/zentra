@@ -29,6 +29,8 @@
 .quiet-capture picture { display: block; padding: 16px; border-radius: 20px; background: #f0f4f1; }
 .quiet-capture img { display: block; width: 100%; max-height: 530px; object-fit: contain; border-radius: 8px; }
 .quiet-capture figcaption { margin-top: 14px; font-size: 14px; line-height: 1.5; color: #5c6b62; }
+.quiet-notes .quiet-note { font-size:16px; line-height:1.5; color:#5c6b62; }
+.quiet-notes .notes-product-capture img { max-height:620px; }
 .quiet-section { padding-block: 56px; border-top: 1px solid #dce4df; }
 .quiet-section > h2, .quiet-offer h2 { font-size: clamp(28px, 3vw, 38px); font-weight: 550; line-height: 1.15; letter-spacing: -.03em; margin-bottom: 28px; }
 .quiet-details > details { border-top: 1px solid #dce4df; padding-block: 4px; }
