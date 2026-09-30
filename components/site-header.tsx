@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { ArrowRight, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { BrandWordmark } from './brand-mark';
 import { AccountLink } from './account-link';
 
@@ -48,11 +48,9 @@ const productMenus = {
     href: '/gestion',
     action: ['Télécharger', '/download'],
     links: [
-      ['Présentation', '/gestion'],
       ['Fonctionnalités', '/features'],
       ['Tarifs', '/pricing'],
       ['Comparer avec bexio', '/comparatif/bexio'],
-      ['Sécurité', '/security'],
       ['Visite de l’app', '/demo-facture'],
     ],
   },
@@ -61,12 +59,9 @@ const productMenus = {
     href: '/support',
     action: ['Mon espace', '/support/espace'],
     links: [
-      ['Présentation', '/support'],
       ['Fonctionnalités', '/support/fonctionnalites'],
-      ['Cas d’usage', '/support/solutions'],
       ['Connexions', '/support/connexions'],
       ['Tarifs', '/support/tarifs'],
-      ['Sécurité', '/support/securite'],
       ['Démo', '/support/demo'],
     ],
   },
@@ -75,10 +70,7 @@ const productMenus = {
     href: '/automation',
     action: ['Configurer', '/compte/automation'],
     links: [
-      ['Présentation', '/automation'],
-      ['En action', '/automation#parcours'],
       ['Fonctions', '/automation#fonctions'],
-      ['Au quotidien', '/automation#quotidien'],
       ['Activer', '/automation#utilisation'],
       ['Tarif', '/automation#tarif'],
     ],
@@ -86,10 +78,10 @@ const productMenus = {
 } as const;
 
 const essentialLinks = {
-  gestion: [['Fonctionnalités', '/features'], ['Aperçu', '/demo-facture'], ['Tarifs', '/pricing']],
-  support: [['Fonctionnalités', '/support/fonctionnalites'], ['Aperçu', '/support/demo'], ['Tarifs', '/support/tarifs']],
-  automation: [['Fonctionnalités', '/automation#fonctions'], ['En action', '/automation#parcours'], ['Tarif', '/automation#tarif']],
-  complet: [['Inclus', '/complet#inclus'], ['Les packs', '/complet#formules'], ['Questions', '/complet#questions']],
+  gestion: [['Fonctionnalités', '/features'], ['Tarifs', '/pricing']],
+  support: [['Connexions', '/support/connexions'], ['Tarifs', '/support/tarifs']],
+  automation: [['Fonctionnalités', '/automation#fonctions'], ['Tarif', '/automation#tarif']],
+  complet: [['Inclus', '/complet#inclus'], ['Les packs', '/complet#formules']],
 } as const;
 
 export function SiteHeader() {
@@ -217,6 +209,7 @@ export function SiteHeader() {
               <a
                 key={item.key}
                 href={item.href}
+                aria-label={`Découvrir Zentra ${item.name}`}
                 aria-current={product === item.key ? 'page' : undefined}
                 onClick={() => setExploreOpen(false)}
               >
@@ -224,7 +217,6 @@ export function SiteHeader() {
                   <strong>{item.name}</strong>
                   <small>{item.description}</small>
                 </span>
-                <ArrowRight size={20} aria-hidden="true" />
               </a>
             ))}
           </nav>
@@ -232,20 +224,13 @@ export function SiteHeader() {
             {menu && <>
               <p>{menu.name}</p>
               {menu.links.map(([label, href]) => <a key={href} href={href} onClick={() => setExploreOpen(false)}>{label}</a>)}
-              <a href={menu.action[1]} onClick={() => setExploreOpen(false)}>{menu.action[0]} <ArrowRight size={16} aria-hidden="true" /></a>
+              <a href={menu.action[1]} onClick={() => setExploreOpen(false)}>{menu.action[0]}</a>
             </>}
             <p>Pour commencer</p>
-            <a href="/#choisir" onClick={() => setExploreOpen(false)}>
-              Trouver mon outil <ArrowRight size={16} aria-hidden="true" />
-            </a>
+            <a href="/ecosysteme" onClick={() => setExploreOpen(false)}>Comment tout se relie</a>
+            <a href="/questions" onClick={() => setExploreOpen(false)}>Questions fréquentes</a>
             <a href="/complet#formules" onClick={() => setExploreOpen(false)}>
-              Comparer les packs
-            </a>
-            <a href="/demo-facture" onClick={() => setExploreOpen(false)}>
-              Visiter Gestion
-            </a>
-            <a href="/support/demo" onClick={() => setExploreOpen(false)}>
-              Essayer Support
+              Comparer les offres
             </a>
             <a href="/download" onClick={() => setExploreOpen(false)}>
               Télécharger l’application

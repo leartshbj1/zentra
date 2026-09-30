@@ -17,7 +17,7 @@ export function PageDisclosures() {
         target instanceof HTMLDetailsElement
           ? target
           : target?.closest('details');
-      if (detail && detail.matches('[data-page-disclosure]')) {
+      if (detail && (detail.matches('[data-page-disclosure]') || detail.closest('.quiet-site'))) {
         detail.open = true;
         requestAnimationFrame(() => target?.scrollIntoView({ block: 'start' }));
       }

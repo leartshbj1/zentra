@@ -43,9 +43,9 @@ export function identityData() {
   };
 }
 
-export function faqData() {
+export function faqData(path = '/') {
   return {
-    '@context': 'https://schema.org', '@type': 'FAQPage', '@id': absoluteSiteUrl('/#questions'),
+    '@context': 'https://schema.org', '@type': 'FAQPage', '@id': absoluteSiteUrl(`${path}#questions`),
     mainEntity: homeQuestions.map(({ question, answer }) => ({ '@type': 'Question', name: question, acceptedAnswer: { '@type': 'Answer', text: answer } })),
   };
 }

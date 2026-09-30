@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { ArrowRight } from 'lucide-react';
 import { SiteFooter } from '@/components/site-footer';
 import { SupportMarketingHeader } from './marketing-header';
 import '@/app/support/presentation.css';
@@ -44,18 +43,17 @@ export function SupportPageIntro({
 export function SupportCallToAction() {
   return (
     <section className="sp-finish sp-wrap">
-      <h2>Voyez la différence.</h2>
+      <h2>Votre prochain pas.</h2>
       <div className="sp-actions">
-        <a className="sp-button sp-button-dark" href="/support/demo">
-          Essayer la démo <ArrowRight size={17} aria-hidden="true" />
+        <a className="sp-button sp-button-dark" href="/support/tarifs">
+          Voir les formules
         </a>
         <a className="sp-text-link" href="/support/espace">
-          Créer mon espace <ArrowRight size={17} aria-hidden="true" />
+          Ouvrir mon espace
         </a>
       </div>
       <p className="sp-caption">
-        Démo sans compte. Support sur abonnement ; analyse et routage
-        automatique avec l’option Automation à +15 CHF/mois par entreprise.
+        Support dès 29 CHF/mois. Tri automatique avec Automation et Gestion reliés.
       </p>
     </section>
   );

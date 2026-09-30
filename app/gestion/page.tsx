@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import {
-  ArrowRight,
   BookOpenCheck,
   Building2,
   CalendarDays,
@@ -10,8 +9,7 @@ import {
 } from 'lucide-react';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import { GestionExperience } from '@/components/gestion-experience';
-import { AppFirstPreview } from '@/components/app-first-preview';
+import { ProductHero, ProductCapture, ProductDetails } from '@/components/quiet-product';
 
 export const metadata: Metadata = {
   title: {
@@ -68,212 +66,48 @@ const modules = [
   },
 ];
 
+
 export default function GestionPage() {
   return (
-    <>
-      <a href="#contenu" className="site-skip-link">
-        Aller au contenu
-      </a>
+    <div className="quiet-site quiet-gestion">
+      <a href="#contenu" className="site-skip-link">Aller au contenu</a>
       <SiteHeader />
-      <main id="contenu" tabIndex={-1} className="gestion-page polished-page">
-        <section className="page-intro page-width gestion-first-look">
-          <div className="gestion-first-copy">
-          <h1>
-            Votre entreprise.
-            <br />
-            <span>Bien organisée.</span>
-          </h1>
-          <p>
-            Devis, factures et projets. Votre activité au même endroit.
-          </p>
-          <div className="page-actions">
-            <a className="page-primary" href="#fonctionnalites">
-              Les fonctionnalités <ArrowRight size={17} aria-hidden="true" />
-            </a>
-            <a className="page-text-link" href="/pricing">
-              Dès 49 CHF / mois <ArrowRight size={17} aria-hidden="true" />
-            </a>
-          </div>
-          </div>
-          <AppFirstPreview />
-        </section>
-        <div className="product-inclusions page-width">
-          <p><strong>Inclus dans Gestion</strong> Devis, factures, projets, achats, comptabilité et salaires.</p>
-          <p><strong>En option</strong> <a href="/automation">Automation · 15 CHF/mois</a>. Les parcours e-mail nécessitent aussi <a href="/support">Support</a>.</p>
-        </div>
-        <GestionExperience />
-        <section
-          className="page-section page-width"
-          id="fonctionnalites"
-          aria-labelledby="gestion-tools"
-        >
-          <div className="page-section-heading">
-            <h2 id="gestion-tools">
-              Tout votre quotidien.
-              <br />
-              <span>Au même endroit.</span>
-            </h2>
-            <p>
-              Passez d’une tâche à la suivante, avec les mêmes informations.
-            </p>
-          </div>
-          <div className="page-module-list">
-            {modules.map(({ icon: Icon, title, text, href }) => (
-              <a key={title} href={href}>
-                <Icon size={24} strokeWidth={1.5} aria-hidden="true" />
-                <div>
-                  <h3>{title}</h3>
-                  <p>{text}</p>
-                </div>
-                <ArrowRight size={18} aria-hidden="true" />
-              </a>
-            ))}
+      <main id="contenu" tabIndex={-1}>
+        <ProductHero title={<>Votre entreprise.<br /><span>Bien organisée.</span></>}
+          description="Devis, factures, projets et comptabilité. Retrouvez votre activité dans un même espace."
+          href="/download" action="Télécharger Zentra" price="Voir les formules" priceHref="/pricing">
+          <ProductCapture screen="factures" label="Les factures et leurs encaissements dans Zentra Gestion" />
+        </ProductHero>
+        <section className="quiet-section quiet-width" id="fonctionnalites">
+          <h2>Tout ce qui fait votre quotidien.</h2>
+          <div className="quiet-module-links">
+            {modules.map(({ title, text, href }) => <a key={title} href={href}><h3>{title}</h3><p>{text}</p></a>)}
           </div>
         </section>
-        <section className="page-band" id="equipe">
-          <div className="page-width page-split">
-            <div>
-              <h2>
-                Une équipe.
-                <br />
-                <span>Le même espace.</span>
-              </h2>
-              <p>
-                Une facture créée, un paiement enregistré, un document ajouté :
-                les membres autorisés retrouvent les changements dans
-                l’entreprise partagée, avec une connexion Internet.
-              </p>
-              <a className="page-text-link" href="/features#partage">
-                Découvrir le travail en équipe{' '}
-                <ArrowRight size={17} aria-hidden="true" />
-              </a>
-            </div>
-            <div
-              className="gestion-shared-example"
-              aria-label="Exemple fictif de dossier partagé"
-            >
-              <p className="journey-demo-label">Exemple de dossier partagé</p>
-              <h3>Aménagement des bureaux</h3>
-              <ul>
-                <li>
-                  <FileCheck2 size={21} aria-hidden="true" />
-                  <span>
-                    Devis accepté<small>Les prestations convenues</small>
-                  </span>
-                  <CheckMark />
-                </li>
-                <li>
-                  <BookOpenCheck size={21} aria-hidden="true" />
-                  <span>
-                    Facture et encaissement
-                    <small>Le suivi financier du projet</small>
-                  </span>
-                  <CheckMark />
-                </li>
-                <li>
-                  <FolderKanban size={21} aria-hidden="true" />
-                  <span>
-                    Plans et documents
-                    <small>Les pièces utiles à l’équipe</small>
-                  </span>
-                  <CheckMark />
-                </li>
-              </ul>
-            </div>
-          </div>
-        </section>
-        <section
-          className="page-section page-width page-split"
-          id="automatisation"
-        >
-          <div>
-            <h2>
-              Et si la suite
-              <br />
-              <span>se préparait toute seule&nbsp;?</span>
-            </h2>
-            <p>
-              Ajoutez Automation à Gestion. Les factures fournisseurs, les
-              rendez-vous et les tâches trouvent leur place selon les règles que
-              vous activez.
-            </p>
-            <p className="page-caption">
-              Option à 15 CHF/mois par entreprise. Les parcours e-mail
-              nécessitent Support relié. Les informations incertaines restent à
-              vérifier.
-            </p>
-            <a className="page-text-link" href="/automation">
-              Découvrir Automation <ArrowRight size={17} aria-hidden="true" />
-            </a>
-          </div>
-          <div className="gestion-automation-flow">
-            <div>
-              <span>Dans Support</span>
-              <strong>Une facture arrive.</strong>
-            </div>
-            <ArrowRight size={23} aria-hidden="true" />
-            <div>
-              <span>Avec Automation</span>
-              <strong>Les informations sont extraites.</strong>
-            </div>
-            <ArrowRight size={23} aria-hidden="true" />
-            <div>
-              <span>Dans Gestion</span>
-              <strong>Votre achat est préparé.</strong>
-            </div>
-          </div>
-        </section>
-        <section
-          className="page-section page-width page-trust"
-          id="confidentialite"
-        >
-          <h2>
-            Vos données vous suivent.
-            <br />
-            <span>Vous en gardez la maîtrise.</span>
-          </h2>
-          <p>
-            Une copie de travail sur votre appareil, le partage avec votre
-            équipe et des sauvegardes à organiser. Retrouvez les détails en
-            toute transparence.
-          </p>
-          <a className="page-text-link" href="/security">
-            Comprendre les données et la sécurité{' '}
-            <ArrowRight size={17} aria-hidden="true" />
-          </a>
-        </section>
-        <section className="page-finish page-width" id="tarif">
-          <p><a className="page-text-link" href="/comparatif/bexio">Vous utilisez bexio ? Comparer et préparer votre reprise<ArrowRight size={17} aria-hidden="true"/></a></p>
-          <h2>Faites votre premier pas.</h2>
-          <p>Téléchargez Zentra pour votre entreprise.</p>
-          <div className="page-actions">
-            <a className="page-primary" href="/download">
-              Télécharger l’app <ArrowRight size={17} aria-hidden="true" />
-            </a>
-            <a className="page-text-link" href="/demo-facture">
-              Voir la démo <ArrowRight size={17} aria-hidden="true" />
-            </a>
-          </div>
+        <ProductDetails title="Et pour votre entreprise ?" id="equipe">
+          <details><summary>Travailler avec mon équipe</summary>
+            <p>Devis, factures et documents appartiennent à l’entreprise partagée. Les membres autorisés retrouvent les changements en ligne. Choisissez 1, 3 ou 10 personnes, titulaire compris.</p>
+            <a className="quiet-link" href="/features#partage">Le travail en équipe</a>
+          </details>
+          <details id="automatisation"><summary>Ajouter Automation</summary>
+            <p>Factures fournisseurs, rendez-vous et tâches sont préparés selon vos règles. L’option coûte 15 CHF/mois par entreprise. Les parcours e-mail nécessitent aussi un espace Support relié ; les informations incertaines restent à vérifier.</p>
+            <a className="quiet-link" href="/automation">Découvrir Automation</a>
+          </details>
+          <details id="confidentialite"><summary>Garder la maîtrise de mes données</summary>
+            <p>Une copie de travail sur votre appareil, des sauvegardes à organiser et un partage dans votre entreprise.</p>
+            <a className="quiet-link" href="/security">Sécurité et données</a>
+          </details>
+          <details><summary>Passer de bexio à Zentra</summary>
+            <p>Comparez les fonctions et préparez la reprise de vos données.</p>
+            <a className="quiet-link" href="/comparatif/bexio">Comparaison et import</a>
+          </details>
+        </ProductDetails>
+        <section className="quiet-offer quiet-width" id="tarif">
+          <div><h2>Votre prochain pas.</h2><p>Choisissez la formule adaptée à votre équipe.</p></div>
+          <div className="quiet-actions"><a className="quiet-primary" href="/pricing">Voir les formules</a><a className="quiet-link" href="/demo-facture">Visiter l’app</a></div>
         </section>
       </main>
       <SiteFooter />
-    </>
-  );
-}
-function CheckMark() {
-  return (
-    <span className="shared-document-mark" aria-label="Dans le dossier">
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        aria-hidden="true"
-      >
-        <path d="m5 12 4 4L19 6" />
-      </svg>
-    </span>
+    </div>
   );
 }

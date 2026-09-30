@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import { ArrowRight } from 'lucide-react';
 import { PricingPlans } from '@/components/pricing-plans';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
-import { CompleteBanner } from '@/components/complete-banner';
+import { ProductHero, ProductDetails } from '@/components/quiet-product';
 
 export const metadata: Metadata = {
   title: 'Tarifs — Solo, Start et Pro dès 49 CHF par mois',
@@ -38,98 +37,26 @@ const questions = [
   ],
 ] as const;
 
+
 export default function PricingPage() {
   return (
-    <>
-      <a href="#contenu" className="site-skip-link">
-        Aller au contenu
-      </a>
+    <div className="quiet-site quiet-pricing">
+      <a href="#contenu" className="site-skip-link">Aller au contenu</a>
       <SiteHeader />
-      <main id="contenu" tabIndex={-1} className="pricing-page polished-page">
-        <section className="page-intro page-width">
-          <h1>
-            La même gestion.
-            <br />
-            <span>À la taille de votre équipe.</span>
-          </h1>
-          <p>
-            1, 3 ou 10 personnes, titulaire compris.
-            <br />
-            Choisissez votre formule. Toutes les fonctions de Gestion sont
-            incluses.
-          </p>
-          <p className="page-caption">
-            Automation en option à 15 CHF/mois par entreprise.
-          </p>
-        </section>
-
-        <section className="px-5 pb-16 sm:pb-24 lg:px-8" data-reveal>
-          <div className="mx-auto max-w-6xl">
-            <PricingPlans />
-          </div>
-        </section>
-
-        <CompleteBanner />
-        <section
-          className="border-y border-[#dce1de] bg-[#ffffff] px-5 py-16 sm:py-24 lg:px-8"
-          data-reveal
-        >
-          <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[.75fr_1.25fr]">
-            <div>
-              <p className="site-eyebrow">Questions de prix</p>
-              <h2 className="site-section-title mt-4">
-                Aucune petite ligne cachée.
-              </h2>
-              <a
-                href="mailto:info@zentraapp.ch?subject=Zentra%20-%20question%20tarif"
-                className="mt-6 inline-flex min-h-11 items-center gap-2 font-semibold text-[#315f47]"
-              >
-                Poser une question <ArrowRight className="size-4" />
-              </a>
-            </div>
-            <div className="divide-y divide-[#dce1de]">
-              {questions.map(([question, answer]) => (
-                <details key={question} className="group py-3">
-                  <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 py-2 font-semibold">
-                    <span>{question}</span>
-                    <span className="text-xl font-light text-[#225b40] transition-transform group-open:rotate-45">
-                      +
-                    </span>
-                  </summary>
-                  <p className="max-w-3xl pb-3 pt-1 text-sm leading-7 text-[#657068]">
-                    {answer}
-                  </p>
-                </details>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="px-5 py-16 sm:py-24 lg:px-8" data-reveal>
-          <div className="mx-auto flex max-w-6xl flex-col gap-7 rounded-[2rem] bg-[#e9f0ec] p-7 text-[#173d2c] sm:p-10 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-[-.045em]">
-                Découvrez Zentra avant de choisir.
-              </h2>
-            </div>
-            <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
-              <a
-                href="/demo-facture"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#173d2c] px-6 text-sm font-semibold text-white"
-              >
-                Visiter l’app <ArrowRight className="size-4" />
-              </a>
-              <a
-                href="/download"
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#173d2c]/20 px-6 text-sm font-semibold"
-              >
-                Télécharger
-              </a>
-            </div>
-          </div>
+      <main id="contenu" tabIndex={-1}>
+        <ProductHero title={<>La même gestion.<br /><span>À la taille de votre équipe.</span></>}
+          description="Toutes les fonctions de Gestion. Choisissez 1, 3 ou 10 personnes, titulaire compris."
+          href="#formules" action="Choisir ma formule" />
+        <section className="quiet-width" id="formules"><PricingPlans /></section>
+        <ProductDetails title="Les réponses à vos questions." id="questions">
+          {questions.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}
+        </ProductDetails>
+        <section className="quiet-offer quiet-width">
+          <div><h2>Vous voulez les trois produits ?</h2><p>Gestion, Support et Automation sont réunis dans Complet, dès 79 CHF/mois.</p></div>
+          <a className="quiet-primary" href="/complet">Découvrir Complet</a>
         </section>
       </main>
       <SiteFooter />
-    </>
+    </div>
   );
 }
