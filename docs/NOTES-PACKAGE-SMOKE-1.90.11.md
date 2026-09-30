@@ -1,6 +1,6 @@
 # Recettes de paquets Notes 1.90.11
 
-Recettes préparées le 30 septembre 2026, sans lancement ni résultat de réussite à ce stade.
+État au 30 septembre 2026 : recette Android réussie ; recette Windows à relancer après un délai d’attente du build, avant tout essai du paquet Windows.
 
 | Élément | Cible |
 | --- | --- |
@@ -11,13 +11,15 @@ Recettes préparées le 30 septembre 2026, sans lancement ni résultat de réuss
 | APK Android | Job CircleCI `201`, même source native |
 | SHA-256 de l’APK non signé | `6f3769f84189028e3e3de4fe2304862ed5e7431a7c6ac5a99f7ab3182bdb7ce3` |
 
-Le build Android `201` est réussi à `2026-09-30T20:53:37.327Z`. Ses six artefacts ont été téléchargés avec l’outil `outputs/release1911/download-build.ps1` dans le dossier Android du worktree de release. L’APK non signé pèse `39 816 283` octets ; son empreinte ci-dessus a été calculée sur ces nouveaux octets. `download-proof.json` atteste le job, la source et le téléchargement. Cela ne constitue pas encore une recette réussie.
+Le build Android `201` est réussi à `2026-09-30T20:53:37.327Z`. Ses six artefacts ont été téléchargés avec l’outil `outputs/release1911/download-build.ps1` dans le dossier Android du worktree de release. L’APK non signé pèse `39 816 283` octets ; son empreinte ci-dessus a été calculée sur ces nouveaux octets. `download-proof.json` atteste le job, la source et le téléchargement ; la recette distincte est décrite ci-dessous.
 
-Le commit du vérificateur et les jobs de recette devront être consignés après exécution. Ils sont distincts de la source des paquets. Le workflow exige la branche ci-dessus avec `release: false`, comme les recettes existantes. Le parent a autorisé le push après validation de l’APK : il lance Android, puis Windows uniquement après une recette Android réussie. Les jobs de la première tentative ne sont pas utilisés.
+Le workflow `notes-package-1911` exige la branche ci-dessus avec `release: false`. La relance autorisée exécute uniquement Windows, sans dépendance `requires` vers Android, déjà validé. Aucun nouvel identifiant de job n’est connu à ce stade ; le commit du vérificateur et le résultat de cette relance devront être consignés après exécution.
 
 ## Windows
 
-Sur le runner Windows jetable, depuis la racine du dépôt, le bootstrap du vérificateur attend au maximum dix minutes le build `199`, par lecture de l’API publique toutes les 45 secondes. Il vérifie la source à chaque lecture, s’arrête immédiatement sur `failed` ou `canceled`, et n’appelle la recette que sur `success`. Les requêtes et le dernier délai restent bornés par l’échéance.
+La tentative Windows `203` a échoué uniquement parce que le build `199` n’avait pas réussi avant l’échéance de dix minutes. `cloud-package-smoke.py` n’a pas été exécuté : cette tentative ne fournit aucun résultat d’installation ou de démarrage du paquet.
+
+Pour la relance, le bootstrap attend au maximum 45 minutes le build `199`, avec une pause de 45 secondes entre les lectures de l’API publique. Il vérifie la source à chaque lecture, s’arrête immédiatement sur `failed` ou `canceled`, et n’appelle la recette que sur `success`. Les requêtes et le dernier délai restent bornés par l’échéance.
 
 La configuration appelle `desktop/scripts/bootstrap-notes-windows-smoke.ps1 -Job 199 -Source b03d0851b19ab79bffe9c9bc61cd5003ff52ddab`, qui lance alors :
 
@@ -33,6 +35,8 @@ Preuves attendues : `desktop/artifacts/smoke/windows-smoke.json` et `windows-sta
 
 ## Android
 
+La recette `202` a réussi à `2026-09-30T21:07:36.18Z`, depuis le vérificateur `ae7979fc24d35f4e63b1546c2461059cfaef4b52`, sur l’APK `201` de source applicative `b03d0851b19ab79bffe9c9bc61cd5003ff52ddab`. Les 45 artefacts ont été téléchargés dans `outputs/release1911/smoke-android/` du worktree de release. `proof.json`, `download-proof.json`, les captures représentatives et les journaux d’incidents ont été relus.
+
 La configuration épingle le SHA-256 indépendant de l’APK exact du job `201`. Le vérificateur lit désormais `SCHEMA_VERSION` dans `desktop/src-tauri/src/schema.rs` et exige cette valeur dans `profile_state`, soit `61` pour cette source. La version du manifeste est également lue depuis `desktop/package.json`.
 
 Sur le runner Android jetable :
@@ -44,14 +48,14 @@ export ZENTRA_ANDROID_SMOKE_SHA256=6f3769f84189028e3e3de4fe2304862ed5e7431a7c6ac
 timeout 18m bash desktop/scripts/smoke-android-release-candidate.sh
 ```
 
-Les trois variables doivent être fournies explicitement ; les valeurs par défaut du script désignent un ancien candidat. Le placeholder d’empreinte n’est pas exécutable.
+Les trois variables doivent être fournies explicitement ; les valeurs par défaut du script désignent un ancien candidat.
 
 Le wrapper prépare un émulateur Android 35 neuf, sans fenêtre, avec traduction ARM64. Le vérificateur refuse un appareil physique ou une installation Zentra préexistante. Il exige le succès du job, la source exacte et l’empreinte téléchargée, puis contrôle le manifeste, l’architecture ARM64, l’intégrité ZIP et l’alignement ELF/RELRO pour des pages de 16 Ko. Une clé éphémère permet uniquement l’installation de test ; signature, alignement ZIP et identité du contenu avant/après signature sont vérifiés.
 
 Le parcours coupe le réseau de l’émulateur, ouvre l’accueil et la configuration du compte, vérifie l’en-tête, les barres natives dans les thèmes clair/sombre, la saisie d’un brouillon d’identité avec clavier et le retour. Il arrête et relance l’application, compare le profil SQLite et l’identité protégée, puis recherche un crash Android de Zentra. Aucun compte n’est connecté et aucune entreprise n’est créée.
 
-Preuves attendues dans `desktop/artifacts/android-release-smoke/` : `proof.json`, captures, arbres d’accessibilité, diagnostics de fenêtres/clavier, fournisseur WebView et journaux de l’émulateur et de l’application. Une réussite automatique ne remplace pas l’inspection des captures.
+Les preuves CI sont dans `desktop/artifacts/android-release-smoke/` : `proof.json`, captures, arbres d’accessibilité, diagnostics de fenêtres/clavier, fournisseur WebView et journaux de l’émulateur et de l’application. Le profil reste au schéma `61`, intègre, sans erreur de clé étrangère, avec une identité protégée inchangée au relancement. Le délai observé jusqu’à l’accueil accessible est de `54 734 ms`, incluant capture et introspection ; il ne constitue pas une mesure isolée des performances.
 
 ## Portée
 
-Ces recettes attestent les contrôles de paquet et de démarrage ci-dessus dans des profils synthétiques. Elles ne vérifient pas l’édition de Notes, son autosauvegarde, ses appels IPC natifs ou sa synchronisation entre appareils. Elles ne constituent pas une recette sur des appareils physiques, une validation des stores, une signature commerciale ni une publication.
+La réussite Android atteste les contrôles de paquet et de démarrage ci-dessus dans un profil synthétique ; Windows reste sans résultat de recette. Ces contrôles ne vérifient pas l’édition de Notes, son autosauvegarde, ses appels IPC natifs, sa synchronisation entre appareils ou ses performances. Aucun appareil physique n’a été testé. Ils ne constituent pas une validation des stores, une signature commerciale ni une publication.

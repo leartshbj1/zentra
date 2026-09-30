@@ -465,10 +465,7 @@ workflows:
         - equal: [codex/notes-release-1.90.11-smoke-20260930, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
     jobs:
-      - android-package-smoke-1911
-      - windows-package-smoke-1911:
-          requires:
-            - android-package-smoke-1911
+      - windows-package-smoke-1911
   notes-release-1911:
     when:
       and:

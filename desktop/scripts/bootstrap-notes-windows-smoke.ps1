@@ -4,7 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$smokeBuildDeadline = [DateTimeOffset]::UtcNow.AddMinutes(10)
+$smokeBuildDeadline = [DateTimeOffset]::UtcNow.AddMinutes(45)
 $smokeBuildReady = $false
 
 while ([DateTimeOffset]::UtcNow -lt $smokeBuildDeadline) {
@@ -21,6 +21,6 @@ while ([DateTimeOffset]::UtcNow -lt $smokeBuildDeadline) {
     Start-Sleep -Milliseconds ([int][Math]::Min(45000, $smokeRemainingMilliseconds))
 }
 
-if (-not $smokeBuildReady) { throw "Windows build $Job did not succeed within the ten-minute wait." }
+if (-not $smokeBuildReady) { throw "Windows build $Job did not succeed within the forty-five-minute wait." }
 & python desktop/scripts/cloud-package-smoke.py windows $Job $Source
 if ($LASTEXITCODE -ne 0) { throw "Windows package smoke exited with code $LASTEXITCODE." }
