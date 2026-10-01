@@ -14,7 +14,7 @@ async function contrast(){return page.evaluate(()=>{
  const rgba=s=>{const v=s.match(/[\d.]+/g)?.map(Number);return v&&v.length>=3?[v[0],v[1],v[2],v[3]??1]:[0,0,0,0]};
  const blend=(a,b)=>a.slice(0,3).map((v,i)=>v*a[3]+b[i]*(1-a[3]));
  const lum=c=>c.slice(0,3).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4}).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
- const bg=el=>{const c=rgba(getComputedStyle(el).backgroundColor);return c[3]===1?c:blend(c,el.parentElement?bg(el.parentElement):[20,20,22])};
+ const bg=el=>{const c=rgba(getComputedStyle(el).backgroundColor);return c[3]===1?c:blend(c,el.parentElement?bg(el.parentElement):[23,23,25])};
  const seen=new Set(),results=[];
  for(const el of document.querySelectorAll('body *')){
   // Fixture-only navigation is outside the shipped app (native browser button
@@ -45,7 +45,7 @@ try{
   await page.goto(origin+'/tests/touch-team-harness.html?view=appearance');
   await page.getByRole('button',{name:'Sombre',exact:true}).click();await page.reload();
   assert.equal(await page.locator('html').getAttribute('data-app-theme'),'dark');
-  assert.equal(await page.locator('html').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(20, 20, 22)');
+  assert.equal(await page.locator('html').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(23, 23, 25)');
   await page.getByRole('button',{name:'Clair',exact:true}).click();await page.waitForFunction(()=>document.documentElement.dataset.appTheme==='light');await settle();
   assert.equal(await page.locator('html').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(245, 245, 247)');
   await page.getByRole('button',{name:'Automatique',exact:true}).click();
@@ -69,9 +69,10 @@ try{
     await page.getByRole('button',{name:name==='Devis'?'Nouveau devis':'Nouvelle facture',exact:true}).click();await check(name+'-form',true);assert.equal(await page.locator('.document-wizard-footer .button').first().evaluate(el=>{const node=[...el.childNodes].find(n=>n.nodeType===3&&n.textContent.trim());if(!node)return 1;const range=document.createRange();range.selectNodeContents(node);return range.getClientRects().length;}),1,'Cancel label fits on one line');await page.getByRole('dialog').getByRole('button',{name:/^Fermer /}).click();
    }
    if(name==='Comptabilité'){
-    for(const label of ['Résultat','TVA','Dossier de clôture']){const compact=page.getByRole('combobox',{name:'Section comptable',exact:true});if(await compact.isVisible())await compact.selectOption({label});else await page.getByRole('tab',{name:label,exact:true}).click();await check('Accounting-'+label,true);}
-    const picker=page.getByRole('combobox',{name:'Autres outils comptables'});
-    const values=await picker.locator('option').evaluateAll(els=>els.map(e=>e.value).filter(Boolean));
+    for(const label of ['Résultat','TVA','Immobilisations','Dossier de clôture']){const compact=page.getByRole('combobox',{name:'Section comptable',exact:true});if(await compact.isVisible())await compact.selectOption({label});else await page.getByRole('tab',{name:label,exact:true}).click();await check('Accounting-'+label,true);}
+    const compact=page.getByRole('combobox',{name:'Section comptable',exact:true});
+    const picker=await compact.isVisible()?compact:page.getByRole('combobox',{name:'Autres outils comptables'});
+    const values=await picker.locator('option').evaluateAll(els=>els.map(e=>e.value).filter(value=>value&&!['overview','income','vat','assets','closing'].includes(value)));
     for(const value of values){await picker.selectOption(value);await check('Accounting-'+value);}
    }
    if(name==='Paramètres'){
