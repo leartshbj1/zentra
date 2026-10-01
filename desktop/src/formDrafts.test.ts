@@ -39,13 +39,25 @@ describe('local form recovery', () => {
     expect(storage.getItem(formDraftKey(scope))).toBeNull();
     expect(new FormDraftSession(options(storage)).getSnapshot().pending).toBeNull();
   });
-  it('separates companies, members, forms, records and creation contexts', () => {
+  it('separates companies, organizations, members, forms, records and creation contexts', () => {
     const storage = new MemoryStorage();
     new FormDraftSession(options(storage)).capture({ name: 'Privé', note: 'Entreprise A' });
-    for (const different of [{ companyId: 'company-b' }, { memberId: 'member-b' }, { type: 'project' }, { recordId: 'row-b' }, { context: 'from-project' }]) {
+    for (const different of [{ companyId: 'company-b' }, { organizationId: 'organization-b' }, { memberId: 'member-b' }, { type: 'project' }, { recordId: 'row-b' }, { context: 'from-project' }]) {
       expect(new FormDraftSession(options(storage, { scope: { ...scope, ...different } })).getSnapshot().pending).toBeNull();
     }
     expect(formDraftKey({ ...scope, companyId: 'a.b', memberId: 'c' })).not.toBe(formDraftKey({ ...scope, companyId: 'a', memberId: 'b.c' }));
+  });
+  it('keeps drafts and success acknowledgement isolated when the same local workspace and member link another organization', () => {
+    const storage = new MemoryStorage(), organizationA = { ...scope, organizationId: 'organization-a' }, organizationB = { ...scope, organizationId: 'organization-b' };
+    const first = new FormDraftSession(options(storage, { scope: organizationA }));
+    first.capture({ name: 'Entreprise A', note: 'Travail privé A' });
+    const linkedElsewhere = new FormDraftSession(options(storage, { scope: organizationB }));
+    expect(linkedElsewhere.getSnapshot().pending).toBeNull();
+    linkedElsewhere.capture({ name: 'Entreprise B', note: 'Travail privé B' });
+    storage.failRemove = true; first.complete(true);
+    expect(new FormDraftSession(options(storage, { scope: organizationA })).getSnapshot().completedResidual).toBe(true);
+    expect(new FormDraftSession(options(storage, { scope: organizationB })).getSnapshot().pending?.value.note).toBe('Travail privé B');
+    expect(new FormDraftSession(options(storage)).getSnapshot().pending).toBeNull();
   });
   it('leaves current server values untouched until resume and requires another explicit choice on a changed server baseline', () => {
     const storage = new MemoryStorage();

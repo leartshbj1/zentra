@@ -9,13 +9,13 @@ export const FORM_DRAFT_MAX_ENTRY_BYTES = 256_000;
 export const FORM_DRAFT_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 
 export type DraftStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>;
-export type FormDraftScope = { companyId: string; memberId?: string; type: string; recordId?: string; context?: string };
+export type FormDraftScope = { companyId: string; organizationId?: string; memberId?: string; type: string; recordId?: string; context?: string };
 export type FormDraftRecord<T> = { version: number; scope: string; fingerprint: string; savedAt: number; value: T };
 export type FormDraftSnapshot<T> = { value: T; pending: FormDraftRecord<T> | null; dirty: boolean; conflict: boolean; storageError: boolean; invalid: boolean; completedResidual: boolean; completionProtected: boolean; savedAt: number | null };
 export type FormDraftOptions<T> = { scope: FormDraftScope | null; initial: T; fingerprint: string; validate: (value: unknown) => value is T; storage?: () => DraftStorage; now?: () => number };
 
 export function formDraftKey(scope: FormDraftScope): string {
-  return FORM_DRAFT_PREFIX + encodeURIComponent(JSON.stringify([scope.companyId, scope.memberId || 'local', scope.type, scope.recordId || 'new', scope.context || '']));
+  return FORM_DRAFT_PREFIX + encodeURIComponent(JSON.stringify([scope.companyId, scope.organizationId || '', scope.memberId || 'local', scope.type, scope.recordId || 'new', scope.context || '']));
 }
 export function formDraftFingerprint(value: unknown): string {
   const canonical = (v: unknown): string => v && typeof v === 'object'

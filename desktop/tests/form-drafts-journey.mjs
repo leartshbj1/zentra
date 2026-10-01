@@ -63,5 +63,19 @@ try {
     assert.equal(await dialog.locator('[name=name]').inputValue(), 'Saisie locale');
     report.push({ engine, language, resumeCopy: true }); await page.close();
   }
+  {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.goto(`${origin}/tests/form-drafts.html?organization=organization-a`); let dialog = await open(page, 'catalog');
+    await dialog.locator('[name=name]').fill('Saisie privée entreprise A'); await page.keyboard.press('Escape');
+    await page.goto(`${origin}/tests/form-drafts.html?organization=organization-b`); dialog = await open(page, 'catalog');
+    assert.equal(await dialog.getByRole('button', { name: 'Reprendre ma saisie', exact: true }).count(), 0);
+    assert.equal(await dialog.locator('[name=name]').inputValue(), '');
+    await dialog.locator('[name=name]').fill('Saisie privée entreprise B'); await page.keyboard.press('Escape');
+    await page.goto(`${origin}/tests/form-drafts.html?organization=organization-a`); dialog = await resume(page, 'catalog');
+    assert.equal(await dialog.locator('[name=name]').inputValue(), 'Saisie privée entreprise A'); await page.keyboard.press('Escape');
+    await page.goto(`${origin}/tests/form-drafts.html?organization=organization-b`); dialog = await resume(page, 'catalog');
+    assert.equal(await dialog.locator('[name=name]').inputValue(), 'Saisie privée entreprise B');
+    report.push({ engine, organizationRelinkIsolation: true }); await page.close();
+  }
 } catch (error) { report.push({ error: String(error.stack || error) }); process.exitCode = 1; }
 finally { await writeFile(`${folder}/report.json`, JSON.stringify(report, null, 2)); console.log(JSON.stringify(report)); await browser.close(); }

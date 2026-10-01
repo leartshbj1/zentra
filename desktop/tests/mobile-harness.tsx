@@ -41,6 +41,7 @@ import { openAutomationHub } from '../src/automationExperience';
 import { setAppearance } from '../src/appearance';
 import { initializeAppLanguage, setAppLanguage, t } from '../src/language';
 import { createRoot } from 'react-dom/client';
+import { FormDraftIdentityProvider } from '../src/useFormDraft';
 import { WorkspaceApp } from '../src/WorkspaceApp';
 import { desktopApi } from '../src/bridge';
 import { installCompanyRealtimeFixture } from './company-realtime-fixture';
@@ -320,7 +321,8 @@ if (previewQuery.has('runtimePerformance')) data.activeTimer = { projectId: data
 const runtimeCommits: {phase:string;duration:number;time:number}[] = [];
 if (previewQuery.has('runtimePerformance')) Object.assign(window, { __runtimeCommits: runtimeCommits });
 const application = <ZentraAssistantProvider>{previewQuery.has('startupPerformance') ? <App/> : <Harness />}</ZentraAssistantProvider>;
-createRoot(document.getElementById('root')!).render(previewQuery.has('runtimePerformance') ? <Profiler id="workspace" onRender={(_,phase,duration,__,time)=>runtimeCommits.push({phase,duration,time})}>{application}</Profiler> : application);
+const scopedApplication = previewQuery.has('formDrafts') ? <FormDraftIdentityProvider companyId="qa-native-form-company" memberId="qa-native-form-member" ready>{application}</FormDraftIdentityProvider> : application;
+createRoot(document.getElementById('root')!).render(previewQuery.has('runtimePerformance') ? <Profiler id="workspace" onRender={(_,phase,duration,__,time)=>runtimeCommits.push({phase,duration,time})}>{scopedApplication}</Profiler> : scopedApplication);
 
 import '../src/appearance';
 import '../src/dark.generated.css';

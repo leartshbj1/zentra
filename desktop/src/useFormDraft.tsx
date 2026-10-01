@@ -6,13 +6,13 @@ import { FormDraftSession, type FormDraftOptions } from './formDrafts';
 import { formDraftTranslations } from './translationsFormDrafts';
 import './form-drafts.css';
 
-type Identity = { companyId?: string; memberId?: string; ready?: boolean };
+type Identity = { companyId?: string; organizationId?: string; memberId?: string; ready?: boolean };
 const FormDraftIdentity = createContext<Identity>({});
 export function FormDraftIdentityProvider({ children, ...identity }: Identity & { children: ReactNode }) { return <FormDraftIdentity.Provider value={identity}>{children}</FormDraftIdentity.Provider>; }
 export function useFormDraftScope(workspace: Pick<Workspace, 'workNotesScope'> | undefined, type: string, recordId?: string, context?: string) {
   const identity = useContext(FormDraftIdentity);
   const companyId = workspace?.workNotesScope || identity.companyId;
-  return companyId && identity.ready !== false ? { companyId, memberId: identity.memberId || 'local-user', type, recordId, context } : null;
+  return companyId && identity.ready !== false ? { companyId, organizationId: identity.organizationId, memberId: identity.memberId || 'local-user', type, recordId, context } : null;
 }
 export function draftText(source: keyof typeof formDraftTranslations): string {
   const index = { fr: -1, de: 0, it: 1, en: 2 }[getAppLanguage()];

@@ -18,7 +18,7 @@ import '../src/apple-business.css';
 import '../src/apple-operational.css';
 import '../src/apple-secondary.css';
 
-const query = new URLSearchParams(location.search), companyId = query.get('company') || 'qa-drafts-company', memberId = query.get('member') || 'qa-drafts-member';
+const query = new URLSearchParams(location.search), companyId = query.get('company') || 'qa-drafts-company', memberId = query.get('member') || 'qa-drafts-member', organizationId = query.get('organization') || undefined;
 await setAppLanguage((query.get('language') || 'fr') as 'fr' | 'de' | 'it' | 'en');
 const collections = ['clients', 'catalogItems', 'stockMovements', 'suppliers', 'projects', 'projectMilestones', 'projectTasks', 'agendaEvents', 'quotes', 'invoices', 'payments', 'employees', 'timeEntries', 'timeBillingEntries', 'timeBillingBatches', 'accounts', 'expenses'];
 let data = JSON.parse(sessionStorage.getItem(`form-fixture.${companyId}`) || 'null') || {
@@ -45,7 +45,7 @@ function Fixture() {
     try { const next = await action(); setWorkspace(next); if (shouldClose) close(); return true; }
     catch (reason) { onError?.(reason); return false; }
   };
-  return <FormDraftIdentityProvider companyId={companyId} memberId={memberId} ready><main className="desktop-app workspace-app" style={{ padding: 20 }}><h1>Form recovery fixture</h1>{['catalog', 'time', 'document', 'client'].map(kind => <button key={kind} className="button button--secondary" onClick={() => setForm(kind)}>{kind}</button>)}
+  return <FormDraftIdentityProvider companyId={companyId} organizationId={organizationId} memberId={memberId} ready><main className="desktop-app workspace-app" style={{ padding: 20 }}><h1>Form recovery fixture</h1>{['catalog', 'time', 'document', 'client'].map(kind => <button key={kind} className="button button--secondary" onClick={() => setForm(kind)}>{kind}</button>)}
     {form === 'catalog' && <CatalogItemForm workspace={workspace} busy={false} readOnly={false} close={close} act={act} onReadWorkspace={desktopApi.loadWorkspace} />}
     {form === 'time' && <TimeForm workspace={workspace} busy={false} close={close} act={act} />}
     {form === 'document' && <DocumentEditor entity="quotes" workspace={workspace} busy={false} close={close} act={act} />}

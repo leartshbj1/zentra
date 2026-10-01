@@ -268,7 +268,7 @@ export function App() {
 
   return (
     <>
-      <FormDraftIdentityProvider key={`${draftIdentityKey}:${draftIdentity.memberId || 'pending'}`} companyId={workspace.workNotesScope} memberId={draftIdentity.memberId} ready={draftIdentity.key === draftIdentityKey && Boolean(draftIdentity.memberId)}>
+      <FormDraftIdentityProvider key={`${draftIdentityKey}:${draftIdentity.memberId || 'pending'}`} companyId={workspace.workNotesScope} organizationId={cloudAccount && ['connected','inactive'].includes(cloudAccount.status) ? cloudAccount.organizationId || undefined : undefined} memberId={draftIdentity.memberId} ready={draftIdentity.key === draftIdentityKey && Boolean(draftIdentity.memberId)}>
         <CompanyAccountGate account={cloudAccount} workspace={workspace} createdFor={createdFor} onWorkspace={setWorkspace} onAccountChange={handleCloudAccountChange}>{content}</CompanyAccountGate>
       </FormDraftIdentityProvider>
       {!workspaceReady ? <StandaloneUpdaterAccess /> : null}

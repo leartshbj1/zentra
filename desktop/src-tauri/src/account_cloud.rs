@@ -1588,7 +1588,12 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temporary.path().into()).unwrap();
         let connection = store.connect().unwrap();
-        connection.execute("UPDATE settings SET company_name='Preserved Company' WHERE id=1", []).unwrap();
+        let inserted = connection.execute(
+            "INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at)
+             VALUES(1,0,'Preserved Company','2026-10-01T00:00:00Z','2026-10-01T00:00:00Z')",
+            [],
+        ).unwrap();
+        assert_eq!(inserted, 1);
         let scope = crate::work_notes::workspace_scope(&connection).unwrap();
         crate::company_collaboration::set_identity(&store, "org-a", &Uuid::new_v4().to_string(), "Member", "owner").unwrap();
         clear_local_member_identity(&store).unwrap();
