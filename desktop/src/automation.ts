@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import type { BankMovement } from './types';
 export type AutomationFeature =
   | 'transaction_classification'

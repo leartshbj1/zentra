@@ -86,4 +86,4 @@ export function withinAppOpeningDeadline<T>(request: Promise<T>): Promise<T> {
     );
   });
 }
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 
 /** Read verified logo bytes so restored profiles and mobile WebViews do not depend on asset URL scopes. */
 export function CompanyLogo({ path, alt }: { path: string; alt: string }) {

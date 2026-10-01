@@ -1,4 +1,5 @@
-import { Channel, invoke } from '@tauri-apps/api/core';
+import { Channel } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import type { ShortcutId } from './workspacePreferences';
 
 export type NativeDestination = ShortcutId | 'menu';

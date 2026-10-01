@@ -1,0 +1,11 @@
+.form-draft-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-block: 0 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-raised); color: var(--muted); font-size: 0.875rem; overflow-wrap: anywhere; }
+.form-draft-notice strong { color: var(--ink); font-weight: 600; }
+.form-draft-notice p { margin: 5px 0 0; max-width: 68ch; line-height: 1.5; }
+.form-draft-notice__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
+.form-draft-notice--warning { border-color: var(--warning, #967025); }
+.form-draft-notice__comparison { margin-top: 10px; }
+.form-draft-notice__comparison summary { cursor: pointer; }
+.form-draft-notice__comparison dl { display: grid; gap: 8px; }
+.form-draft-notice__comparison dt { font-weight: 600; }
+.form-draft-notice__comparison dd { margin: 2px 0 0; white-space: pre-wrap; }
+@media (max-width: 720px) { .form-draft-notice { align-items: stretch; flex-direction: column; } .form-draft-notice__actions { flex-shrink: 1; } .form-draft-notice__actions .button { white-space: normal; min-height: 44px; } }

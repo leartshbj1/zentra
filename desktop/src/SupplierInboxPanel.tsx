@@ -1,6 +1,6 @@
 import { lazy,Suspense,useEffect,useState } from 'react';
 import { Inbox,ArrowRight,FileText,Check,Link2 } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import { Button,Field,Modal } from './ui';
 import { t,useAppLanguage,getAppLocale } from './language';
 import type { Workspace } from './types';

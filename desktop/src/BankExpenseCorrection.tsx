@@ -1,3 +1,4 @@
+import { ErrorGuidance } from './ErrorGuidance';
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, History, Link2Off } from 'lucide-react';
 import { Button, Field, Modal } from './ui';
@@ -14,7 +15,7 @@ export function BankExpenseCorrection({movement, workspace, busy, onClose, onCon
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const submitting = useRef(false);
-  const errorRef = useRef<HTMLParagraphElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (error) { errorRef.current?.focus({preventScroll:true}); errorRef.current?.scrollIntoView({block:'nearest'}); } },[error]);
   const link = movement.expenseReconciliation;
   const expense = workspace.expenses.find((row) => row.id === link?.expenseId);
@@ -31,7 +32,7 @@ export function BankExpenseCorrection({movement, workspace, busy, onClose, onCon
       <div className="info-strip"><Link2Off size={20} /><span><strong>Le paiement et la TVA restent enregistrés.</strong><br />Seule l’association au débit sera retirée. Le mouvement reviendra dans « À rapprocher » et la dépense restera dans vos achats, avec son justificatif.</span></div>
       <Field label="Motif de la correction" required hint="5 à 500 caractères. Ce motif restera dans l’historique du relevé."><textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={4} required disabled={busy || saving} placeholder="Ex. ce débit correspond à un autre achat" /></Field>
       <label className="bank-expense-correction__ack"><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} disabled={busy || saving} /><span>Je souhaite retirer l’association au relevé en conservant le paiement de cette dépense.</span></label>
-      {error ? <p ref={errorRef} tabIndex={-1} role="alert" className="bank-expense-picker__error">{error}</p> : null}
+      {error ? <div ref={errorRef} tabIndex={-1} className="bank-expense-picker__error"><ErrorGuidance error={error} operation="mutation" compact /></div> : null}
       <div className="form-actions"><Button type="button" variant="secondary" disabled={busy || saving} onClick={onClose}>Conserver l’association</Button><Button type="submit" disabled={busy || saving || !acknowledged || Array.from(reason.trim()).length < 5}>{saving ? 'Enregistrement…' : 'Dissocier du relevé'}</Button></div>
     </form>
   </Modal>;

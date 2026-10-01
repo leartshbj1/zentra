@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import { ScanLine, Check, X } from 'lucide-react';
 import { Button, ErrorPanel } from './ui';
 import { useCompanyAutomation } from './AutomationCompany';

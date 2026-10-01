@@ -17,7 +17,8 @@ import { deliverPdfExport } from './pdfExportDelivery';
 import { documentCompositions } from './documentComposition';
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
 import type { CertificateDraft, CertificateInput } from './salaryCertificate';
-import { Channel, invoke } from '@tauri-apps/api/core';
+import { Channel } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import type { CustomerCreditRecoveryInput, CustomerCreditRecoveryPlan, CustomerCreditRecoveryPreview } from './customerCreditRecoveryState';
 function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
   return {request_id:input.requestId,original_invoice_id:input.originalInvoiceId,source_token:input.sourceToken,reference:input.reference,reason:input.reason,no_prior_refund:input.noPriorRefund,...(input.confirmVatReconciliation?{confirm_vat_reconciliation:true}:{}),
@@ -4807,13 +4808,13 @@ export const desktopApi = {
   async syncProjectDocuments():Promise<ProjectSyncStatus> {
     const local=await invoke<import('./companySync').CompanySyncState>('get_company_sync_state');
     if(!local.enabled)return invoke<ProjectSyncStatus>('sync_project_documents');
-    const {publishCompanySync,companyReceiveAllowed,setCompanyReceiving,refreshReceivedCompany}=await import('./companySync');
+    const {publishCompanySync,companyReceiveAllowed,setCompanyReceiving,refreshReceivedCompany,recordCompanyReceiveFailure}=await import('./companySync');
     const initialFocus=document.activeElement;
     try {
       let result=await invoke<import('./companySync').CompanySyncState>('sync_company_workspace',{receive:false,acceptRemote:false,confirmedDuplicateReceipt:null});
       if(result.ready&&!result.conflict&&companyReceiveAllowed()&&document.activeElement===initialFocus){
         setCompanyReceiving(true);
-        try{result=await invoke('apply_company_update');if(result.changed)await refreshReceivedCompany();}finally{setCompanyReceiving(false);}
+        try{result=await invoke('apply_company_update');if(result.changed)await refreshReceivedCompany();}catch(reason){recordCompanyReceiveFailure(reason);throw reason;}finally{setCompanyReceiving(false);}
       }
       publishCompanySync(result, '', true);
       return {mode:'business',organizationId:result.organizationId,pending:result.pending?1:0,connected:true,syncing:false,changed:result.changed,
@@ -6485,6 +6486,10 @@ export const desktopApi = {
     return cloudAccountStateFromRaw(
       await invoke<RawRecord>('get_cached_cloud_account_state'),
     );
+  },
+  async getFormDraftIdentity(): Promise<{memberId?: string}> {
+    const raw = await invoke<{memberId?: string | null}>('get_form_draft_identity');
+    return {memberId: typeof raw.memberId === 'string' ? raw.memberId : undefined};
   },
   async exportAnnualAccountsPdf(filter: PeriodFilter) {
     const selected = await chooseSaveFile({ title: 'Exporter le bilan et le résultat', defaultPath: `Zentra-bilan-${filter.dateTo || new Date().toISOString().slice(0, 10)}.pdf`, filters: [{ name: 'Bilan et compte de résultat PDF', extensions: ['pdf'] }] });

@@ -1,3 +1,4 @@
+import { ErrorDetails } from './ErrorGuidance';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowDownToLine, ArrowUpToLine, RotateCcw } from 'lucide-react';
 import { desktopApi } from './bridge';
@@ -69,7 +70,7 @@ export function StockMovementForm({itemId,movementType,requestId,workspace,busy,
       {(changed||unavailable||failure)&&<div className="stock-workflow-alert" role="alert" tabIndex={-1} ref={alertRef}>
         <strong>{unavailable?'Vérifiez la fiche du produit':changed?'Les quantités ont changé':'Vérifions ce point'}</strong>
         <p>{unavailable?'Cette référence est absente, archivée ou sans suivi de stock. Revenez au catalogue pour vérifier sa fiche.':changed?`Le stock relu était ${formatCatalogQuantity(expected)} ${item?.unit}. Il est maintenant de ${formatCatalogQuantity(item!.stockQuantityMilli)} ${item?.unit}. Votre comptage est conservé.`:issue?.message||'Votre saisie est conservée. Corrigez le point indiqué ou relisez les quantités.'}</p>
-        {failure&&<details><summary>Détail du message</summary><p>{failure}</p></details>}
+        {failure&&<ErrorDetails error={failure} />}
         <div><Button type="button" variant="secondary" disabled={locked} onClick={()=>void refresh()}>Relire les quantités</Button>{(unavailable||issue?.field==='item')&&<Button type="button" variant="secondary" disabled={locked} onClick={close}>Revenir au catalogue</Button>}{changed&&<Button type="button" disabled={locked||readOnly} onClick={()=>{setExpected(item!.stockQuantityMilli);setReview(false);setIssue(null);setFailure('');}}>Utiliser le stock actuel</Button>}</div>
       </div>}
       <fieldset disabled={locked||readOnly||unavailable||changed} hidden={review} className="stock-workflow-fields">

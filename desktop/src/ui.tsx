@@ -3,7 +3,9 @@ import { t, useAppLanguage } from './language';
 import { createContext, useContext, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { ButtonHTMLAttributes, FormEvent, KeyboardEvent, ReactNode } from 'react';
-import { AlertTriangle, Archive, ChevronRight, Inbox, LoaderCircle, X } from 'lucide-react';
+import { Archive, ChevronRight, Inbox, LoaderCircle, X } from 'lucide-react';
+import { ErrorGuidance } from './ErrorGuidance';
+import type { UserErrorOperation } from './userErrors';
 
 export function Button({
   variant = 'primary',
@@ -372,13 +374,21 @@ export function DangerZone({ label, onArchive }: { label: string; onArchive: () 
 export function ErrorPanel({
   message,
   onRetry,
-  title = 'Action impossible',
+  title,
   reveal = false,
+  fallback,
+  operation,
+  onReconnect,
+  onReview,
 }: {
   message: string;
   onRetry?: () => void;
   title?: string;
   reveal?: boolean;
+  fallback?: string;
+  operation?: UserErrorOperation;
+  onReconnect?: () => void;
+  onReview?: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   useAppLanguage();
@@ -410,20 +420,7 @@ export function ErrorPanel({
     });
     return () => cancelAnimationFrame(frame);
   }, [message, reveal]);
-  return (
-    <div ref={panelRef} className="error-panel" role="alert">
-      <AlertTriangle size={22} />
-      <div>
-        <strong>{t(title)}</strong>
-        <p>{t(message)}</p>
-      </div>
-      {onRetry ? (
-        <Button variant="secondary" size="small" onClick={onRetry}>
-          {t('Réessayer')}
-        </Button>
-      ) : null}
-    </div>
-  );
+  return <ErrorGuidance panelRef={panelRef} error={message} title={title} fallback={fallback} operation={operation ?? (onRetry ? 'read' : 'mutation')} onReload={onRetry} onReconnect={onReconnect} onReview={onReview} />;
 }
 
 export function submitForm(handler: (form: FormData) => void | Promise<void>) {

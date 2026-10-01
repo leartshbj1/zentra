@@ -15,7 +15,7 @@ import { isSalesDate } from './salesFormValidation';
 import { Button, ErrorPanel, Field, Modal, submitForm } from './ui';
 import { changePurchaseDate, newPurchaseLine, purchaseFields, purchaseIssue, purchaseLineField, purchaseLineValue, purchaseTotals, supplierInvoiceLineTotals, type PurchaseFields, type PurchaseIssue, type PurchaseLineFields } from './supplierInvoicePreparation';
 import { t, useAppLanguage, getAppLocale } from './language';
-import { purchaseIssueText, purchaseNativeMessage } from './purchaseLanguage';
+import { purchaseIssueText } from './purchaseLanguage';
 import './purchase-entry.css';
 
 export type SupplierPreparationProps = {
@@ -217,7 +217,7 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
           <p className="info-strip"><ReceiptText size={17} /> {t("Aucune écriture comptable ni aucun paiement n’a été créé par cet enregistrement.")}</p>
         </div>}
       </section>
-      {serverError && <div ref={problem} tabIndex={-1}><ErrorPanel title={t("Vérifions la facture")} message={purchaseNativeMessage(serverError, "Le brouillon n’a pas pu être enregistré. Votre saisie est conservée.")} />{purchaseNativeMessage(serverError, "Le brouillon n’a pas pu être enregistré. Votre saisie est conservée.") !== serverError && <details><summary>{t("Voir le message détaillé")}</summary><p className="supplier-preparation__technical">{serverError}</p></details>}</div>}
+      {serverError && <div ref={problem} tabIndex={-1}><ErrorPanel title={t("Vérifions la facture")} message={serverError} fallback="Le brouillon n’a pas pu être enregistré. Votre saisie est conservée." /></div>}
       {leaving && <div ref={leavePanel} tabIndex={-1} role="alert" className="supplier-preparation__leave"><strong>{t("Garder vos modifications ?")}</strong><p>{t("Votre saisie n’est pas encore enregistrée. Restez ici pour la terminer.")}</p><div><Button type="button" disabled={locked} onClick={() => setLeaving(false)}>{t("Rester sur la facture")}</Button><Button type="button" variant="ghost" disabled={locked} onClick={() => { if (!locked && !inFlight.current) close(); }}>{t("Quitter sans enregistrer")}</Button></div></div>}
       <div className="supplier-preparation__actions">
         <Button type="button" variant="ghost" disabled={locked} onClick={requestClose}>{step === 3 ? t("Terminer") : t("Fermer")}</Button>

@@ -29,5 +29,6 @@ pub enum AppError {
 pub type AppResult<T> = Result<T, AppError>;
 
 pub fn command_error(error: AppError) -> String {
+    crate::diagnostics::record_native_error(&error);
     error.to_string()
 }

@@ -37,6 +37,7 @@ mod customer_credit_attachments;
 mod customer_credit_recovery;
 mod customer_credit_recovery_vat;
 mod database;
+mod diagnostics;
 #[cfg(test)]
 mod customer_credit_tests;
 mod error;
@@ -166,6 +167,7 @@ pub fn run() {
             app_updater::initialize(app)?;
             let data_dir = resolve_data_dir(app.handle())?;
             let store = LocalStore::initialize(data_dir)?;
+            app.manage(diagnostics::initialize(&store.data_dir));
             company_collaboration::install_change_events(&store, app.handle().clone());
             // `HELVICHANTIER_DATA_DIR` peut déplacer le profil hors de
             // `$APPLOCALDATA`. On n'ouvre jamais ce profil entier au protocole
@@ -183,6 +185,11 @@ pub fn run() {
             appearance::set_app_appearance,
             macos_navigation::configure_macos_navigation,
             is_native_ready,
+            diagnostics::append_diagnostic_events,
+            diagnostics::get_diagnostics_summary,
+            diagnostics::export_diagnostics,
+            diagnostics::clear_diagnostics,
+            diagnostics::get_form_draft_identity,
             add_project_document,
             delete_project_document,
             read_project_document,

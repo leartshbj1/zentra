@@ -6,6 +6,7 @@ import { Button, Modal } from './ui';
 import { bankProblemHelp, bankFileName } from './bankWorkflow';
 import { errorMessage } from './utils';
 import './bank-workflow.css';
+import { ErrorDetails } from './ErrorGuidance';
 
 function Problem({ message, busy }: { message: string; busy: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -14,7 +15,7 @@ function Problem({ message, busy }: { message: string; busy: boolean }) {
   }, [message, busy]);
   if (!message) return null;
   const help = bankProblemHelp(message);
-  return <div ref={ref} tabIndex={-1} role="alert" className="bank-workflow-problem"><strong>{help.title}</strong><p>{help.text}</p><details><summary>Voir le message complet</summary><p>{message}</p></details></div>;
+  return <div ref={ref} tabIndex={-1} role="alert" className="bank-workflow-problem"><strong>{help.title}</strong><p>{help.text}</p><ErrorDetails error={message} /></div>;
 }
 
 export function BankActionDialog({ title, description, rows, note, action, disabled, busy, onClose, onConfirm, onAccounting }: {

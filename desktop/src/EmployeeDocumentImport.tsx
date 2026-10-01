@@ -6,6 +6,7 @@ import { Button } from './ui';
 import type { EmployeeDocumentDraft } from './employeeDocumentDraft';
 import type { payrollLocalAi as LocalAi } from './payrollLocalAi';
 import './EmployeeDocumentImport.css';
+import { ErrorDetails } from './ErrorGuidance';
 
 export function EmployeeDocumentImport({ onRead, disabled }: { onRead: (draft: EmployeeDocumentDraft) => void; disabled: boolean }) {
   useAppLanguage();
@@ -65,6 +66,6 @@ export function EmployeeDocumentImport({ onRead, disabled }: { onRead: (draft: E
       : <Button type="button" variant="secondary" disabled={disabled} onClick={() => input.current?.click()}><FileUp size={16} />{t(" Lire une fiche de salaire")}</Button>}
     {!working && !notice && !error ? <small>{t("Qwen · téléchargement initial de 429 Mo, puis lecture locale.")}</small> : null}
     {notice ? <p className="employee-document-import__notice" role="status">{t(notice)}</p> : null}
-    {error ? <div className="employee-document-import__error"><p role="alert">{employeeDocumentErrorMessage(error)}</p><details><summary>{t('Voir le message détaillé')}</summary><p>{error}</p></details></div> : null}
+    {error ? <div className="employee-document-import__error"><p role="alert">{employeeDocumentErrorMessage(error)}</p><ErrorDetails error={error} /></div> : null}
   </section>;
 }

@@ -1,0 +1,46 @@
+/* Operational feedback uses the shared Apple palette and grows with text. */
+.error-panel.error-guidance {
+  display: grid;
+  gap: .75rem;
+  max-width: 100%;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--apple-danger, #a93034);
+  border-radius: var(--apple-radius-control, 10px);
+  background: var(--apple-danger-surface, #fff0ef);
+  color: var(--apple-danger, #a93034);
+  box-shadow: none;
+  animation: none;
+  text-align: start;
+}
+.error-guidance.error-panel div { min-width: 0; }
+.error-guidance .error-guidance__message { display: flex; align-items: flex-start; gap: .75rem; }
+.error-guidance__message > svg { flex: 0 0 auto; margin-top: .125rem; }
+.error-guidance.error-panel strong { font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); line-height: 1.4; letter-spacing: 0; overflow-wrap:anywhere; }
+.error-guidance.error-panel p {
+  margin: .35rem 0 0;
+  font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1));
+  line-height: 1.5;
+  color: inherit;
+  overflow-wrap: anywhere;
+  max-width: 72ch;
+}
+.error-guidance__recovery { font-weight: 500; }
+.error-guidance__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.error-guidance__support { border-top: 1px solid currentColor; padding-block-start: .5rem; }
+.error-guidance__incident { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.error-guidance__incident > span { font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); }
+.error-guidance__incident > code { overflow-wrap: anywhere; font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); user-select: all; }
+.error-guidance__support .button, .error-guidance__actions .button { min-height: 44px; color: inherit; font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); white-space: normal; }
+.error-guidance__support .button:focus-visible, .error-guidance__details > summary:focus-visible { outline: 2px solid var(--apple-focus, #24664f); outline-offset: 3px; }
+.error-guidance__details > summary { min-height: 44px; padding-block: .65rem; cursor: pointer; font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; }
+.error-guidance__details > pre { max-height: 14rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: .75rem; background: var(--apple-paper, #fff); color: var(--apple-ink, #1d1d1f); border-radius: .5rem; font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); line-height: 1.5; }
+.error-guidance--compact { gap: .5rem; }
+@media (max-width: 860px) { .error-guidance.error-panel p { font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); } }
+@media (prefers-reduced-motion: reduce) { .error-guidance, .error-guidance * { animation: none !important; transition: none !important; } }
+@media (forced-colors: active) { .error-panel.error-guidance { border-color: CanvasText; background: Canvas; color: CanvasText; } }
+/* A long error stays readable and dismissible on mobile and at 200% text. */
+.notice--floating.notice--error{max-block-size:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow-y:auto;align-items:flex-start;overscroll-behavior:contain}
+.notice--error > .error-guidance{flex:1;min-width:0;margin:0}
+.desktop-app .notice.notice--floating.notice--error > button{inline-size:44px;min-inline-size:44px;min-block-size:44px;padding:0;flex:none;position:sticky;top:0}
+.notice--error .error-guidance span{display:inline}

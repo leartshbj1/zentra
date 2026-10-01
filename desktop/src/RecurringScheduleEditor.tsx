@@ -4,6 +4,7 @@ import { recurringEndDateIssue, recurringEndDateOutcome } from './recurrenceCale
 import { RecurringCalendarPreview } from './RecurringCalendarPreview';
 import { Button, Field, FormActions, Modal } from './ui';
 import { createId, errorMessage, formatDate } from './utils';
+import { ErrorGuidance } from './ErrorGuidance';
 
 export function RecurringScheduleEditor({ mode, order, schedule, today, busy, readOnly, onClose, onSave }: {
   mode: 'endDate' | 'finish'; order: RecurringDocumentOrder; schedule: RecurringDocumentSchedule; today: string; busy: boolean; readOnly: boolean;
@@ -37,7 +38,7 @@ export function RecurringScheduleEditor({ mode, order, schedule, today, busy, re
   }
   return <Modal title={mode === 'finish' ? 'Terminer cette planification' : 'Modifier la date de fin'} description={`${order.number} · ${order.clientName}`} className="recurring-editor-modal" dismissible={!locked} onClose={onClose}>
     <form className="recurring-editor" onSubmit={submit} noValidate>
-      {error && <div role="alert" tabIndex={-1} ref={errorRef} className="recurring-editor__error"><strong>Vérifions ce point</strong><p>{error}</p></div>}
+      {error && <div tabIndex={-1} ref={errorRef} className="recurring-editor__error"><ErrorGuidance error={error} operation="mutation" compact /></div>}
       <fieldset disabled={locked || readOnly}>
         {mode === 'endDate' && <><Field label="Dernière date autorisée" hint="Laissez vide pour continuer sans date de fin. Les dates sont incluses jusqu’à ce jour." error={showIssue ? issue?.message : undefined}><input ref={inputRef} name="recurringEndDate" type="date" value={endDate} onChange={event => { setEndDate(event.target.value); setShowIssue(false); setError(''); }} /></Field>
           {showIssue && issue?.minimum && <Button variant="secondary" onClick={() => { setEndDate(issue.minimum!); setShowIssue(false); }}>Utiliser le {formatDate(issue.minimum)}</Button>}

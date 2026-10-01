@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { isTauri } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 export type Appearance = 'system' | 'light' | 'dark';
 const key = 'zentra.appearance.v1';
 const media = window.matchMedia('(prefers-color-scheme: dark)');

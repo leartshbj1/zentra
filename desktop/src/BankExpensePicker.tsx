@@ -3,6 +3,7 @@ import { CheckCircle2, ChevronDown, Link2, Receipt, Search } from 'lucide-react'
 import type { BankMovement } from './types';
 import { Button } from './ui';
 import { createId, errorMessage, formatDate, formatMoney, searchText } from './utils';
+import { ErrorGuidance } from './ErrorGuidance';
 
 export function BankExpensePicker({ movement, disabled, onConfirm, onCreate }: {
   movement: BankMovement;
@@ -54,7 +55,7 @@ export function BankExpensePicker({ movement, disabled, onConfirm, onCreate }: {
         {filtered.length > limit ? <Button variant="ghost" onClick={() => setLimit(limit + 25)}>Afficher les dépenses suivantes</Button> : null}
         {selected ? <p className="bank-expense-picker__confirmation"><strong>{selected.reference || selected.category || 'Dépense sélectionnée'}</strong> · {formatMoney(selected.totalCents)}<br />{selected.paymentStatus === 'paid' ? 'Le paiement existant sera relié au relevé sans nouvelle écriture.' : `La dépense sera marquée payée et comptabilisée au ${formatDate(movement.bookingDate || movement.valueDate)}.`}</p> : null}
         {selected?.requiresDateReason ? <label className="field bank-expense-picker__date-reason"><span>Motif de l’écart de dates</span><small>Paiement comptabilisé le {formatDate(selected.paidAt)} ; relevé du {formatDate(movement.bookingDate || movement.valueDate)}. Le journal et sa période TVA sont conservés.</small><textarea value={dateReason} maxLength={500} rows={3} placeholder="Ex. ordre de paiement émis avant son inscription au relevé" onChange={(event) => setDateReasons((current) => ({ ...current, [choice]: event.target.value }))} /><small>Au moins 5 caractères.</small></label> : null}
-        {error ? <p className="bank-expense-picker__error" role="alert">{error}</p> : null}
+        {error ? <ErrorGuidance error={error} operation="mutation" compact /> : null}
         <Button size="small" disabled={disabled || !selected?.confirmable || reasonMissing} onClick={() => void confirm()}><Link2 size={14} /> Confirmer la dépense</Button>
       </> : <p>Aucune dépense existante du même montant n’est proposée.</p>}
       {movement.expenseSuggestion?.canCreate && onCreate ? <Button type="button" variant="secondary" disabled={disabled} onClick={onCreate}>Créer une dépense avec justificatif</Button> : null}

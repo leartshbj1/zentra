@@ -1,6 +1,6 @@
 import { t, useAppLanguage } from './language';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import { CalendarDays, Check, ChevronRight } from 'lucide-react';
 import type { Workspace } from './types';
 import { desktopApi } from './bridge';

@@ -1,3 +1,4 @@
+import { ErrorDetails } from './ErrorGuidance';
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, FileText, LockKeyhole } from 'lucide-react';
 import type { Payslip, Workspace } from './types';
@@ -37,7 +38,7 @@ export function PayslipPostingDialog({ payslip, workspace, busy, readOnly, close
       catch (reason) { setError(errorMessage(reason, 'La finalisation n’a pas pu être confirmée.')); }
       finally { inFlight.current = false; setSaving(false); }
     }}>
-      {problem && <div className="payslip-posting__problem" role="alert" tabIndex={-1} ref={problemRef}><strong>{problem.title}</strong><p>{problem.text}</p><Button type="button" variant="secondary" disabled={locked} onClick={() => onResolve(problem.target)}>{problem.action}</Button>{error && <details><summary>Voir le message complet</summary><p>{error}</p></details>}</div>}
+      {problem && <div className="payslip-posting__problem" role="alert" tabIndex={-1} ref={problemRef}><strong>{problem.title}</strong><p>{problem.text}</p><Button type="button" variant="secondary" disabled={locked} onClick={() => onResolve(problem.target)}>{problem.action}</Button>{error && <ErrorDetails error={error} />}</div>}
       <div className="payslip-posting__net"><span>{payslip.status === 'paid' ? 'Net enregistré comme payé' : 'Net à verser au collaborateur'}</span><strong>{formatMoney(summary.net)}</strong><p>Le brut, moins les retenues, plus les remboursements éventuels.</p></div>
       <dl className="payslip-posting__summary">
         <div><dt>Salaire brut</dt><dd>{formatMoney(summary.earnings)}</dd></div>

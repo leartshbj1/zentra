@@ -1,3 +1,4 @@
+import { ErrorDetails } from './ErrorGuidance';
 import { useId, useRef, useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Banknote, CheckCircle2, FileText, RefreshCw } from 'lucide-react';
 import type { SupplierInvoice, Workspace } from './types';
@@ -29,7 +30,7 @@ export function SupplierInvoiceDetail({ invoice: openedInvoice, workspace, busy,
     finally { flight.current = false; setPending(false); }
   }
   const refreshButton = <Button type="button" variant="secondary" disabled={locked} onClick={() => void refresh()}><RefreshCw size={16} className={pending ? 'spin' : undefined} />{t(pending ? 'Actualisation…' : 'Actualiser les achats')}</Button>;
-  const refreshProblem = readError && <div className="supplier-file__notice" role="alert"><p>{t('La lecture de cette facture est interrompue. Réessayez l’actualisation ; aucun paiement n’a été créé.')}</p><details><summary>{t('Voir le message détaillé')}</summary><p>{readError}</p></details></div>;
+  const refreshProblem = readError && <div className="supplier-file__notice" role="alert"><p>{t('La lecture de cette facture est interrompue. Réessayez l’actualisation ; aucun paiement n’a été créé.')}</p><ErrorDetails error={readError} /></div>;
   if (!invoice) return <Modal title={t('Facture fournisseur indisponible')} onClose={close}><p>{t('Cette facture n’est plus dans les données chargées. Actualisez les achats pour retrouver son état actuel.')}</p>{refreshProblem}{refreshButton}<Button variant="ghost" onClick={close}>{t('Fermer')}</Button></Modal>;
   const state = supplierInvoiceDetailState(invoice, workspace.supplierCreditNotes);
   const project = workspace.projects.find(row => row.id === invoice.projectId);

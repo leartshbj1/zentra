@@ -25,6 +25,9 @@ import { PaymentOutcomeUnknownError, PaymentRefreshError } from './paymentWorkfl
 import { SupplierRefundOutcomeUnknownError, SupplierRefundRefreshError } from './supplierRefundWorkflow';
 import { CreditAllocationOutcomeUnknownError, CreditAllocationRefreshError } from './creditAllocationWorkflow';
 import { TimeForm, TimerForm } from './WorkTimeForms';
+import { FormDraftNotice, draftText } from './useFormDraft';
+import { useNativeFormDraft } from './useNativeFormDraft';
+import { formDraftFingerprint } from './formDrafts';
 import { clientFolderDocuments } from './clientFolder';
 import './contact-forms.css';
 // Employee creation shares these steps with payroll, including before the
@@ -80,6 +83,9 @@ import {
 } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import {DiagnosticsPanel} from './DiagnosticsPanel';
+import { ErrorGuidance } from './ErrorGuidance';
+import {recordDiagnostic} from './diagnostics';
 import {
   Archive,
   ArrowRight,
@@ -522,6 +528,7 @@ function WorkspaceContent({
   onCloudAccountChange?: (account: CloudAccountState) => void;
 }) {
   const [view, setView] = useState<View>('dashboard');
+  useEffect(()=>{recordDiagnostic({area:'navigation',operation:`screen.${view}`,phase:'info'});},[view]);
   const [agendaEventToOpen, setAgendaEventToOpen] = useState<{organizationId:string; id:string} | null>(null);
   const [notesProjectId, setNotesProjectId] = useState<string | null>(null);
   const [notesEditing, setNotesEditing] = useState(false);
@@ -1932,7 +1939,7 @@ function WorkspaceContent({
             role={notice.tone === 'error' ? 'alert' : 'status'}
             aria-live={notice.tone === 'error' ? 'assertive' : 'polite'}
           >
-            <span>
+            {notice.tone === 'error' ? <ErrorGuidance error={notice.text} compact /> : <span>
               {notice.tone === 'success' ? (
                 <CheckCircle2 size={18} />
               ) : notice.tone === 'warning' ? (
@@ -1941,7 +1948,7 @@ function WorkspaceContent({
                 <ShieldCheck size={18} />
               )}
               {t(notice.text)}
-            </span>
+            </span>}
             <button
               type="button"
               onClick={() => setNotice(null)}
@@ -5730,6 +5737,7 @@ function SettingsScreen({
         <BexioImportPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace}/>
       </SettingsCategory>
       <SettingsCategory id="storage" title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>
+      <DiagnosticsPanel/>
       <AppUpdater />
       <ResetAppPanel disabled={operationBusy} />
       <CloudBackupPanel disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
@@ -5931,7 +5939,7 @@ function InvoiceCorrectionModal({
             </p>
           </div>
         </div>
-        {localError ? <p className="form-error" role="alert">{localError}</p> : null}
+        {localError ? <ErrorGuidance error={localError} compact /> : null}
         <FormActions
           onCancel={close}
           busy={busy}
@@ -5986,7 +5994,7 @@ function WorkspaceModal({
   onReadWorkspace: () => Promise<Workspace>;
 }) {
   if (state.type === 'client')
-    return <ClientForm item={state.item} busy={busy} readOnly={readOnly} close={close} act={act} />;
+    return <ClientForm item={state.item} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} />;
   if (state.type === 'clientDetail') {
     const client = workspace.clients.find(row => row.id === state.client.id);
     if (!client) return <Modal title="Client indisponible" onClose={close}><p>Cette fiche n’est plus dans les données chargées. Revenez à la liste des clients.</p><Button onClick={close}>Fermer</Button></Modal>;
@@ -6030,7 +6038,7 @@ function WorkspaceModal({
     );
   if (state.type === 'supplier')
     return (
-      <SupplierForm item={state.item} busy={busy} readOnly={readOnly} close={close} act={act} />
+      <SupplierForm item={state.item} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} />
     );
   if (state.type === 'project')
     return (
@@ -6125,6 +6133,7 @@ function WorkspaceModal({
     });
     return (
       <EmployeeForm
+        workspace={workspace}
         item={state.item}
         busy={busy}
         close={returnToPayslip ? () => resumePayslip() : close}
@@ -6287,7 +6296,7 @@ type ActionRunner = (
 ) => Promise<boolean>;
 
 function ProjectForm({
-  item,
+  item: suppliedItem,
   workspace,
   busy,
   close,
@@ -6299,12 +6308,21 @@ function ProjectForm({
   close: () => void;
   act: ActionRunner;
 }) {
+  const current = suppliedItem ? workspace.projects.find(row => row.id === suppliedItem.id) : undefined;
+  const item = current ?? suppliedItem;
+  const formRef = useRef<HTMLFormElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState('');
   const [formError, setFormError] = useState('');
   const lastSavedData = useRef<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState('');
   const savedProjectId = useRef(item?.id);
+  const persisted = useNativeFormDraft({ workspace, type: 'project', recordId: suppliedItem?.id, fingerprint: current ? formDraftFingerprint(current) : suppliedItem ? 'missing' : 'new', form: formRef,
+    fields: ["name","clientId","status","address","plannedStart","plannedEnd","actualStart","actualEnd","budget","plannedHours","notes","draftSavedRecordId","draftLastSavedData","draftFiles"],
+    onRestore: values => { setFiles([]); savedProjectId.current = values?.draftSavedRecordId || current?.id; lastSavedData.current = values?.draftLastSavedData || null; } });
+  const closeForm = () => persisted.close(close);
+  const draftBlocked = !!persisted.pending || persisted.conflict || persisted.invalid || !!(suppliedItem && !current);
+
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
@@ -6317,12 +6335,14 @@ function ProjectForm({
           : `Nouveau ${terminology.singular}`
       }
       description="Regroupez les informations et les documents de votre projet."
-      onClose={() => { if (!busy) close(); }}
+      onClose={() => { if (!busy) closeForm(); }}
       wide dismissible={!busy}
     >
       <form
+        ref={formRef}
+        onChange={() => { if (!busy && !draftBlocked) persisted.capture(); }}
         onSubmit={submitForm(async (form) => {
-          if (busy) return;
+          if (busy || draftBlocked) return;
           setFormError('');
           try {
           const data = {
@@ -6353,6 +6373,7 @@ function ProjectForm({
             if (lastSavedData.current !== fingerprint) {
               savedProjectId.current = await desktopApi.saveProject(data, savedProjectId.current);
               lastSavedData.current = fingerprint;
+              persisted.capture({ draftSavedRecordId: savedProjectId.current!, draftLastSavedData: fingerprint });
             }
             const failures: string[] = [];
             for (const [index, file] of files.entries()) {
@@ -6364,12 +6385,14 @@ function ProjectForm({
             setFileError(failures.length ? `Le projet est enregistré. Ces fichiers restent à ajouter : ${failures.join(' ')}` : '');
             return refreshWorkspaceAfterMutation(desktopApi.loadWorkspace);
           }, 'Le projet a été enregistré.', false, reason => setFormError(errorMessage(reason, 'Le projet n’a pas pu être enregistré. Vos informations sont conservées.')));
-          if (saved && !remaining.length) close();
+          if (saved && !remaining.length) { persisted.complete(true); close(); }
           } catch (reason) { setFormError(errorMessage(reason, 'Vérifiez les informations du projet.')); }
           finally { setUploadProgress(''); }
         })}
       >
-        <fieldset disabled={busy}><div className="form-grid">
+        <FormDraftNotice draft={persisted} disabled={busy} currentValues={item ? [{ label: "Nom", value: item.name }, { label: "Notes", value: item.notes }, { label: "Adresse", value: item.address }] : undefined} />
+        {(files.length > 0 || !!persisted.value.draftFiles) && <p className="info-strip">{draftText("Les champs sont conservés. Les fichiers choisis devront être sélectionnés à nouveau après fermeture.")}</p>}
+        <fieldset disabled={busy || draftBlocked}><div className="form-grid">
           <Field label={`Nom du ${terminology.singular}`} required wide>
             <input name="name" defaultValue={item?.name} required autoFocus />
           </Field>
@@ -6401,7 +6424,7 @@ function ProjectForm({
         </div>
         <section className="project-create-files">
           <h3>Documents et photos</h3>
-          <ProjectFilesPicker files={files} onChange={setFiles} disabled={busy} />
+          <ProjectFilesPicker files={files} onChange={next => { setFiles(next); persisted.capture({ draftFiles: next.length ? "selected" : "" }); }} disabled={busy || draftBlocked} />
           {fileError ? <ErrorPanel message={fileError} /> : null}
           {uploadProgress ? <p role="status">{uploadProgress}</p> : null}
         </section>
@@ -6466,7 +6489,7 @@ function ProjectForm({
         </details>
         </fieldset>
         {formError ? <ErrorPanel title="Vérifions le projet" message={formError} reveal /> : null}
-        <FormActions onCancel={close} busy={busy} />
+        <FormActions onCancel={closeForm} busy={busy} disabled={draftBlocked} />
       </form>
     </Modal>
   );
@@ -6474,17 +6497,21 @@ function ProjectForm({
 
 
 function EmployeeForm({
-  item,
+  item: suppliedItem,
+  workspace,
   busy,
   close,
   act,
 }: {
   item?: Employee;
+  workspace: Workspace;
   busy: boolean;
   close: () => void;
   act: ActionRunner;
 }) {
   useAppLanguage();
+  const current = suppliedItem ? workspace.employees.find(row => row.id === suppliedItem.id) : undefined;
+  const item = current ?? suppliedItem;
   const [step, setStep] = useState(0);
   const [review, setReview] = useState<Record<string, string>>({});
   const stepHeading = useRef<HTMLDivElement>(null);
@@ -6517,6 +6544,22 @@ function EmployeeForm({
   const savingRef = useRef(false);
   const pending = busy || saving;
   const [salaryDraft, setSalaryDraft] = useState(item ? String(item.grossSalaryCents / 100) : '');
+  const persisted = useNativeFormDraft({ workspace, type: 'employee', recordId: suppliedItem?.id, fingerprint: current ? formDraftFingerprint(current) : suppliedItem ? 'missing' : 'new', form: formElement,
+    fields: ["name","employeeNumber","role","email","phone","addressLine1","addressLine2","postalCode","city","canton","country","employmentRate","contractualWeeklyHours","employmentStart","employmentEnd","employmentContractKind","salaryMode","grossSalary","hourlyCost","status","notes","birthDate","avsNumber","iban","lppAssessmentYear","lppAnnualSalary","lppExceptionCode","lppExceptionEvidenceReference","acOpeningYear","acOpeningBasis","laaOpeningYear","laaOpeningBasis","referenceAgeDate","avsAllowanceWaived","smallSalaryAssessmentYear","smallSalarySector","smallSalaryEmployeeRequestedContributions","smallSalaryDecisionDate","smallSalaryOpeningGross","smallSalaryOpeningContributedBasis","smallSalaryEvidenceReference","draftStep","draftDeferAnnual"],
+    controlled: ['salaryMode', 'grossSalary', 'employmentContractKind', 'lppExceptionCode', 'smallSalarySector', 'smallSalaryAssessmentYear'],
+    extra: () => ({ draftStep: String(step), draftDeferAnnual: String(deferAnnual), grossSalary: salaryDraft }),
+    onRestore: values => {
+      setStep(Math.max(0, Math.min(2, Number(values?.draftStep) || 0))); setReview(values ?? {}); setPrefill(null);
+      setSalaryMode((values?.salaryMode ?? item?.salaryMode ?? '') as Employee['salaryMode'] | '');
+      setSalaryDraft(values?.grossSalary ?? (item ? String(item.grossSalaryCents / 100) : ''));
+      setEmploymentContractKind((values?.employmentContractKind ?? item?.employmentContractKind ?? '') as 'indefinite' | 'fixed' | '');
+      setLppExceptionCode((values?.lppExceptionCode ?? item?.lppExceptionCode ?? '') as '' | 'short_fixed_contract' | 'other_legal');
+      setSmallSalarySector((values?.smallSalarySector ?? item?.smallSalarySector ?? '') as '' | NonNullable<Employee['smallSalarySector']>);
+      setAssessmentYear(values?.smallSalaryAssessmentYear ?? String(item?.smallSalaryAssessmentYear ?? ''));
+      setDeferAnnual(values?.draftDeferAnnual === 'true');
+    } });
+  const closeForm = () => persisted.close(close);
+  const draftBlocked = !!persisted.pending || persisted.conflict || persisted.invalid || !!(suppliedItem && !current);
   useAssistantScreen({screen:'Ajouter ou modifier un collaborateur',scope:`collaborateur:${item?.id ?? 'nouveau'}`, facts:{'Étape':['Identité','Travail et salaire','Vérification'][step],'Nouveau collaborateur':!item,'Année du choix de cotisation':assessmentYear,'Réglage annuel reporté':deferAnnual,'Point à corriger':annualIssue?.message || fieldGuide.message || localError || 'Aucun message affiché'},actions:[]},20);
 
   useEffect(() => {
@@ -6572,6 +6615,7 @@ function EmployeeForm({
       const input = formElement.current.elements.namedItem(name);
       if ((input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) && !input.value.trim()) input.value = value ?? '';
     }
+    persisted.capture();
   }, [prefill]);
   function applyDocument(draft: EmployeeDocumentDraft) {
     if (!salaryMode && draft.fields.salaryMode === 'monthly') setSalaryMode('monthly');
@@ -6584,7 +6628,7 @@ function EmployeeForm({
       title={item ? t("Modifier le collaborateur") : t("Nouvelle fiche de personnel")}
       className="employee-dialog"
       description={t("Enregistrez les informations pour les contrats et la paie. Cette fiche ne crée pas de compte de connexion.")}
-      onClose={() => { if (!busy && !savingRef.current) close(); }}
+      onClose={() => { if (!busy && !savingRef.current) closeForm(); }}
       dismissible={!pending}
       wide
     >
@@ -6592,8 +6636,9 @@ function EmployeeForm({
         className="employee-form employee-wizard"
         noValidate
         ref={formElement}
+        onChange={() => { if (!pending && !draftBlocked) persisted.capture(); }}
         onSubmit={submitForm(async (form) => {
-          if (pending || savingRef.current) return;
+          if (pending || savingRef.current || draftBlocked) return;
           setLocalError('');
           setAnnualIssue(null);
           const scope = step < 2 ? formElement.current?.querySelector<HTMLElement>(`[data-employee-step="${step}"]`) : formElement.current;
@@ -6610,6 +6655,7 @@ function EmployeeForm({
           if (issue && revealEmployeeIssue(issue)) return;
           if (step < 2) {
             setReview(Object.fromEntries(Array.from(form.entries()).map(([key, value]) => [key, String(value)])));
+            persisted.capture({ draftStep: String(step + 1) });
             setStep(step + 1);
             return;
           }
@@ -6717,7 +6763,7 @@ function EmployeeForm({
             };
             savingRef.current = true;
             setSaving(true);
-            await act(
+            const saved = await act(
               () =>
                 item
                   ? desktopApi.updateEntity('employees', item.id, data)
@@ -6728,10 +6774,12 @@ function EmployeeForm({
               true,
               reportEmployeeError,
             );
+            persisted.complete(saved);
           } catch (reason) { reportEmployeeError(reason); }
           finally { savingRef.current = false; setSaving(false); }
         })}
       >
+        <FormDraftNotice draft={persisted} disabled={pending} currentValues={item ? [{ label: t("Nom complet"), value: item.name }, { label: t("Fonction"), value: item.role }, { label: t("Salaire"), value: String(item.grossSalaryCents / 100) }, { label: t("Notes internes"), value: item.notes }] : undefined} />
         <ol className="payroll-steps" aria-label={t("Étapes du collaborateur")}>
           {['La personne', 'Le travail', 'Vérifier'].map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined}><span>{index + 1}</span>{t(label)}</li>)}
         </ol>
@@ -6739,10 +6787,10 @@ function EmployeeForm({
           <h3>{t(['Qui rejoint votre équipe ?', 'Quel travail et quel salaire ?', 'Relisez avant d’enregistrer'][step])}</h3>
           <p>{t(['Commencez par le nom et la fonction. Les coordonnées sont facultatives.', 'Recopiez les informations du contrat. Brut signifie avant les retenues.', 'Les informations principales suffisent pour ajouter la personne. Les réglages de paie se préparent ensuite, avec les documents de vos caisses.'][step])}</p>
         </div>
-        {localError ? <><ErrorPanel title={t("Vérifions ce point ensemble")} message={employeeSaveMessage(localError)} reveal /><details className="employee-save-details"><summary>{t('Voir le message détaillé')}</summary><p>{localError}</p></details></> : null}
+        {localError ? <ErrorGuidance title={t("Vérifions ce point ensemble")} error={localError} fallback={employeeSaveMessage(localError)} compact /> : null}
         {fieldGuide.guide}
-        <fieldset className="employee-step" data-employee-step="0" hidden={step !== 0} disabled={pending}>
-          <details className="payroll-details"><summary>{t("Préremplir avec une fiche de salaire existante")}</summary>        <EmployeeDocumentImport onRead={applyDocument} disabled={pending} />
+        <fieldset className="employee-step" data-employee-step="0" hidden={step !== 0} disabled={pending || draftBlocked}>
+          <details className="payroll-details"><summary>{t("Préremplir avec une fiche de salaire existante")}</summary>        <EmployeeDocumentImport onRead={applyDocument} disabled={pending || draftBlocked} />
         {prefill?.warnings.length ? <div className="employee-prefill-notes" role="status">{prefill.warnings.map(warning => <p key={warning}>{t(warning)}</p>)}</div> : null}
 </details>
           <div className="form-grid">          <Field label={t("Nom complet")} required wide>
@@ -6786,7 +6834,7 @@ function EmployeeForm({
           </Field>
 </div></details>
         </fieldset>
-        <fieldset className="employee-step" data-employee-step="1" hidden={step !== 1} disabled={pending}>
+        <fieldset className="employee-step" data-employee-step="1" hidden={step !== 1} disabled={pending || draftBlocked}>
           <div className="form-grid">          <Field label={t("Taux d’activité (%)")} required>
             <input
               name="employmentRate"
@@ -6888,7 +6936,7 @@ function EmployeeForm({
           </Field>
 </div>
         </fieldset>
-        <fieldset className="employee-step" data-employee-step="2" hidden={step !== 2} disabled={pending}>
+        <fieldset className="employee-step" data-employee-step="2" hidden={step !== 2} disabled={pending || draftBlocked}>
           <dl className="employee-review">
             <div><dt>{t("Collaborateur")}</dt><dd>{review.name} · {review.role}</dd></div>
             <div><dt>{t("Activité")}</dt><dd>{review.employmentRate} %{review.contractualWeeklyHours ? t(" · {v0} h / semaine", { v0: review.contractualWeeklyHours }) : ''}</dd></div>
@@ -7093,7 +7141,7 @@ function EmployeeForm({
               </div>
             </header>
             {!item && <div className="employee-annual-choice">
-              <Button type="button" variant="secondary" disabled={busy} onClick={() => { setDeferAnnual(value => !value); setAnnualIssue(null); }}>
+              <Button type="button" variant="secondary" disabled={busy} onClick={() => { setDeferAnnual(value => !value); persisted.capture({ draftDeferAnnual: String(!deferAnnual) }); setAnnualIssue(null); }}>
                 {deferAnnual ? t("Reprendre ce réglage maintenant") : t("Compléter ce réglage plus tard")}
               </Button>
               <p>{deferAnnual ? t("Vous pouvez ajouter le collaborateur. Ce réglage restera à compléter pour la paie. Vos réponses restent disponibles ici jusqu’à la fermeture du formulaire.") : t("Vous n’avez pas encore ce document ? Vous pouvez ajouter la personne et préparer ce réglage plus tard.")}</p>
@@ -7230,8 +7278,8 @@ function EmployeeForm({
 </div></details>
         </fieldset>
         <div className="payroll-actions">
-          <Button type="button" variant="ghost" disabled={pending} onClick={() => { if (savingRef.current) return; fieldGuide.clear(); setAnnualIssue(null); setLocalError(''); if (step > 0) setStep(step - 1); else close(); }}>{step > 0 ? t("Retour") : t("Annuler")}</Button>
-          <Button type="submit" disabled={pending}>{pending ? t("Enregistrement…") : step < 2 ? t("Continuer") : item ? t("Enregistrer les modifications") : t("Ajouter le collaborateur")}</Button>
+          <Button type="button" variant="ghost" disabled={pending || draftBlocked} onClick={() => { if (savingRef.current) return; fieldGuide.clear(); setAnnualIssue(null); setLocalError(''); if (step > 0) { persisted.capture({ draftStep: String(step - 1) }); setStep(step - 1); } else closeForm(); }}>{step > 0 ? t("Retour") : t("Annuler")}</Button>
+          <Button type="submit" disabled={pending || draftBlocked}>{pending ? t("Enregistrement…") : step < 2 ? t("Continuer") : item ? t("Enregistrer les modifications") : t("Ajouter le collaborateur")}</Button>
         </div>
       </form>
     </Modal>

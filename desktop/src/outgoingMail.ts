@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import { t } from './language';
 
 /** Native error envelopes are interface copy; customer document text is never passed here. */

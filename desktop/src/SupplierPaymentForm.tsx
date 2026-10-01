@@ -1,3 +1,4 @@
+import { ErrorDetails } from './ErrorGuidance';
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { desktopApi } from './bridge';
@@ -104,7 +105,7 @@ export function SupplierPaymentForm({ invoice: initialInvoice, workspace, busy, 
       </dl>
       {review !== null && <div>{draft.reference && <p>{draft.reference}</p>}{draft.notes && <p className="supplier-payment__note">{draft.notes}</p>}</div>}
       <p className="supplier-payment__intro">{t('Zentra enregistre le règlement et l’écriture comptable ensemble. Aucun virement n’est envoyé à la banque.')}</p>
-      {visibleProblem?.field === 'record' && <div className="supplier-payment__problem" role="alert" tabIndex={-1}><strong>{t('Vérifions le paiement')}</strong><p>{t(visibleProblem.message)}</p>{serverError && <details><summary>{t('Voir le message détaillé')}</summary><p>{serverError}</p></details>}{visibleProblem.section && <Button type="button" variant="secondary" disabled={locked} onClick={() => onOpenAccounting(visibleProblem.section!, { requestId, draft: { ...draft } })}>{t(visibleProblem.section === 'periods' ? 'Vérifier l’exercice comptable' : 'Configurer la comptabilité')}</Button>}</div>}
+      {visibleProblem?.field === 'record' && <div className="supplier-payment__problem" role="alert" tabIndex={-1}><strong>{t('Vérifions le paiement')}</strong><p>{t(visibleProblem.message)}</p>{serverError && <ErrorDetails error={serverError} />}{visibleProblem.section && <Button type="button" variant="secondary" disabled={locked} onClick={() => onOpenAccounting(visibleProblem.section!, { requestId, draft: { ...draft } })}>{t(visibleProblem.section === 'periods' ? 'Vérifier l’exercice comptable' : 'Configurer la comptabilité')}</Button>}</div>}
       {readOnly && <p role="status">{t('Mode lecture seule : les modifications ne peuvent pas être enregistrées.')}</p>}
       <Button type="button" variant="ghost" disabled={locked} onClick={() => void refresh()}>{t('Actualiser les achats')}</Button>
       <div className="supplier-payment__actions"><Button type="button" variant="secondary" disabled={locked} onClick={() => review !== null ? setReview(null) : requestClose()}>{t(review !== null ? 'Modifier' : 'Annuler')}</Button><Button type="submit" disabled={disabled || visibleProblem?.field === 'record'}>{t(locked ? 'Vérification…' : review === null ? 'Vérifier le paiement' : changed ? 'Reprendre la vérification' : amount === balance ? 'Enregistrer et solder' : 'Enregistrer le paiement')}</Button></div>

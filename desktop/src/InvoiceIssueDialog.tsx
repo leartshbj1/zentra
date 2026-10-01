@@ -1,3 +1,4 @@
+import { ErrorDetails } from './ErrorGuidance';
 import { useEffect, useRef, useState } from 'react';
 import type { Invoice, Workspace } from './types';
 import { Button, Modal } from './ui';
@@ -33,7 +34,7 @@ export function InvoiceIssueDialog({ invoice, workspace, busy, readOnly, close, 
       catch (reason) { setError(errorMessage(reason, 'L’émission n’a pas pu être terminée.')); }
       finally { inFlight.current = false; setSaving(false); }
     }}>
-      {problem && <div className="invoice-issue__problem" role="alert" tabIndex={-1} ref={problemRef}><strong>{problem.title}</strong><p>{problem.text}</p><Button type="button" variant="secondary" disabled={locked} onClick={() => onResolve(problem.target)}>{problem.action}</Button>{problem.target === 'periods' && <Button type="button" variant="ghost" disabled={locked} onClick={() => onResolve('dates')}>Corriger la date du brouillon</Button>}{error && <details><summary>Voir le message complet</summary><p>{error}</p></details>}</div>}
+      {problem && <div className="invoice-issue__problem" role="alert" tabIndex={-1} ref={problemRef}><strong>{problem.title}</strong><p>{problem.text}</p><Button type="button" variant="secondary" disabled={locked} onClick={() => onResolve(problem.target)}>{problem.action}</Button>{problem.target === 'periods' && <Button type="button" variant="ghost" disabled={locked} onClick={() => onResolve('dates')}>Corriger la date du brouillon</Button>}{error && <ErrorDetails error={error} />}</div>}
       <div className="invoice-issue__total"><span>{invoice.type === 'credit_note' ? 'Montant de l’avoir' : 'Total à facturer'}</span><strong>{formatMoney(total.totalCents, invoice.currency)}</strong><p>La confirmation attribue un numéro et rend ce document non modifiable.</p></div>
       <dl className="invoice-issue__summary">
         <div><dt>Client</dt><dd>{client?.name || 'Client indisponible'}</dd></div>

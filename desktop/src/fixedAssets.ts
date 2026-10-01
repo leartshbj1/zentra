@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 export type FixedAsset = {id:string;name:string;reference:string;date:string;costCents:number;residualCents:number;rateBp:number;method:'linear'|'declining';mode:'purchase'|'reclassify';assetAccountId:string;depreciationAccountId:string;counterpartAccountId:string};
 export type FixedAssetRow = {asset:FixedAsset;depreciatedCents:number;bookValueCents:number;cancelled:boolean;nextYear:number;nextAmountCents:number;blocker:string|null;history:{id:string;entry_date:string;amount_cents:number}[]};
 export const fixedAssetsApi = {

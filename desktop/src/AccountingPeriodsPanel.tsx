@@ -62,7 +62,7 @@ function PeriodEditor({ initial, periods, busy, readOnly, onClose, onRefresh, on
   const knownOverlap = showIssue && issue?.overlappingId ? periods.find(period => period.id === issue.overlappingId) : undefined;
   return <Modal title={saved ? complete ? 'L’exercice est enregistré' : 'Enregistré, affichage à actualiser' : editing ? 'Modifier cet exercice' : 'Créer un exercice'} onClose={() => onClose(saved?.id)} dismissible={!locked && (!saved || complete)} className="accounting-period-editor">
     <form ref={form} noValidate onSubmit={event => { event.preventDefault(); void save(); }} className="accounting-period-editor__form">
-      {error && <ErrorPanel title={saved ? 'Vos dates sont enregistrées' : 'Vérifions ce point'} message={error} reveal />}
+      {error && <ErrorPanel title={saved ? 'Vos dates sont enregistrées' : 'Vérifions ce point'} message={error} operation={saved ? 'read' : 'mutation'} reveal />}
       {!saved ? <>
         {!editing && <div className="accounting-period-editor__presets"><strong>Votre exercice suit l’année civile ?</strong><p>Choisissez une année pour proposer ses dates. Vous pourrez les ajuster ci-dessous.</p><div>{[year - 1, year, year + 1].filter(value => value >= 1 && value <= 9999).map(value => <Button key={value} type="button" variant="secondary" disabled={locked || readOnly} onClick={() => { setDraft(current => calendarYearDraft(current, value)); setShowIssue(false); }}>{value}</Button>)}</div></div>}
         <p>Si votre exercice commence en cours d’année ou couvre une autre durée, saisissez directement ses dates réelles.</p>

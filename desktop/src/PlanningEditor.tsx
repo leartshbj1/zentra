@@ -6,6 +6,7 @@ import { initialPlanningDraft, planningFormIssue, planningSaveError, type Planni
 import { Button, Field, FormActions, Modal } from './ui';
 import { formatDate } from './utils';
 import './planning-editor.css';
+import { ErrorGuidance } from './ErrorGuidance';
 
 export function PlanningEditor({ kind, item, defaultProjectId, workspace, busy, readOnly, onClose, onSave }: {
   kind: 'task' | 'milestone'; item?: ProjectTask | ProjectMilestone; defaultProjectId?: string; workspace: Workspace; busy: boolean; readOnly: boolean;
@@ -55,7 +56,7 @@ export function PlanningEditor({ kind, item, defaultProjectId, workspace, busy, 
   const milestones = workspace.projectMilestones.filter(row => row.projectId === draft.projectId && (['todo', 'in_progress'].includes(row.status) || row.id === draft.milestoneId));
   return <Modal title={item ? (kind === 'task' ? t("Modifier la tâche") : t("Modifier l’étape")) : kind === 'task' ? t("Nouvelle tâche") : t("Nouvelle étape clé")} description={kind === 'task' ? t("Indiquez l’action et son projet. Le reste est facultatif.") : t("Une étape clé regroupe les tâches d’un projet.")} onClose={onClose} dismissible={!locked} className="planning-editor-modal">
     <form ref={formRef} onSubmit={submit} noValidate className="planning-editor">
-      {saveError && <div className="planning-form-error" role="alert" tabIndex={-1} ref={errorRef}><strong>{t("L’enregistrement n’a pas abouti")}</strong><p>{saveError}</p></div>}
+      {saveError && <div className="planning-form-error" tabIndex={-1} ref={errorRef}><ErrorGuidance error={saveError} operation="mutation" compact /></div>}
       <fieldset disabled={locked || readOnly}>
         <div className="form-grid">
           <Field label={kind === 'task' ? t("Que faut-il faire ?") : t("Nom de l’étape")} required wide error={fieldError('title')}><input name="title" value={draft.title} onChange={event => change('title', event.target.value)} maxLength={200} placeholder={kind === 'task' ? t("Ex. Vérifier les mesures") : t("Ex. Livraison au client")} autoFocus /></Field>

@@ -5,7 +5,6 @@ import type { Attachment, SupplierInvoice, Workspace } from './types';
 import { errorMessage } from './utils';
 import { Button, ErrorPanel } from './ui';
 import { t, useAppLanguage, getAppLocale } from './language';
-import { purchaseNativeMessage } from './purchaseLanguage';
 type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
 
 export function formatAttachmentSize(sizeBytes: number): string {
@@ -83,6 +82,6 @@ export function SupplierInvoiceAttachments({ invoice, canEdit, busy, act, onPend
       </div>
     </article>)}</div> : <div className="supplier-attachments__empty"><Paperclip size={20} /><span>{t("Aucun justificatif joint.")}{canEdit ? t(' Vous pourrez valider sans pièce après une confirmation explicite.') : ''}</span></div>}
     {invoice && invoice.attachments.length >= 20 && canEdit ? <div className="info-strip"><ShieldCheck size={16} /><span>{t("La limite de 20 justificatifs pour cette facture est atteinte.")}</span></div> : null}
-    {localError ? <><ErrorPanel title={t("Vérifions le justificatif")} message={purchaseNativeMessage(localError.source, localError.fallback)} reveal />{purchaseNativeMessage(localError.source, localError.fallback) !== localError.source && <details className="supplier-preparation__technical"><summary>{t("Voir le message détaillé")}</summary><p>{localError.source}</p></details>}</> : null}
+    {localError ? <ErrorPanel title={t("Vérifions le justificatif")} message={localError.source} fallback={localError.fallback} reveal /> : null}
   </section>;
 }

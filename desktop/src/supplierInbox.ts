@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import { desktopApi } from './bridge';
 import type { Workspace } from './types';
 import { prepareMailboxBatch, type MailboxBatch } from './supplierInboxBatch';

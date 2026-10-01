@@ -5,11 +5,18 @@ import { Button, Field, FormActions, Modal } from './ui';
 import { errorMessage } from './utils';
 import { contactCountries, contactFormIssue, contactNativeIssue, type ContactIssue, type ContactValues } from './contactFormValidation';
 import './contact-forms.css';
+import { ErrorGuidance } from './ErrorGuidance';
+import { FormDraftNotice } from './useFormDraft';
+import { useNativeFormDraft } from './useNativeFormDraft';
+import { formDraftFingerprint } from './formDrafts';
 
 type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
-type CommonProps = { busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner };
+type CommonProps = { workspace?: Workspace; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner };
+const contactDraftFields = ['name', 'contactPerson', 'company', 'contactName', 'email', 'phone', 'street', 'buildingNumber', 'postalCode', 'city', 'canton', 'country', 'countryCustom', 'address', 'uidNumber', 'iban', 'paymentTermsDays', 'notes'] as const;
 
-function ContactForm({ kind, item, busy, readOnly = false, close, act }: CommonProps & { kind: 'client' | 'supplier'; item?: Client | Supplier }) {
+function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = false, close, act }: CommonProps & { kind: 'client' | 'supplier'; item?: Client | Supplier }) {
+  const current = suppliedItem && workspace ? (kind === 'client' ? workspace.clients : workspace.suppliers).find(row => row.id === suppliedItem.id) : suppliedItem;
+  const item = current ?? suppliedItem;
   const client = kind === 'client' ? item as Client | undefined : undefined;
   const supplier = kind === 'supplier' ? item as Supplier | undefined : undefined;
   const [country, setCountry] = useState(client?.country?.toUpperCase() || (item ? '' : 'CH'));
@@ -17,6 +24,10 @@ function ContactForm({ kind, item, busy, readOnly = false, close, act }: CommonP
   const [issue, setIssue] = useState<ContactIssue | null>(null), [failure, setFailure] = useState('');
   const [saving, setSaving] = useState(false);
   const inFlight = useRef(false), formRef = useRef<HTMLFormElement>(null), alertRef = useRef<HTMLDivElement>(null);
+  const persisted = useNativeFormDraft({ workspace, type: kind, recordId: item?.id, fingerprint: current ? formDraftFingerprint(current) : item ? 'missing' : 'new', form: formRef, fields: contactDraftFields,
+    controlled: ['country', 'paymentTermsDays'], onRestore: values => { setCountry(values?.country ?? client?.country?.toUpperCase() ?? (item ? '' : 'CH')); setTerms(values?.paymentTermsDays ?? String(supplier?.paymentTermsDays ?? 30)); } });
+  const closeForm = () => persisted.close(close);
+  const draftBlocked = !!persisted.pending || persisted.conflict || persisted.invalid || !!(suppliedItem && workspace && !current);
   const locked = busy || saving;
   const title = kind === 'client' ? item ? 'Modifier le client' : 'Nouveau client' : item ? `Modifier ${item.name}` : 'Nouveau fournisseur';
   function reveal(next: ContactIssue | null) {
@@ -33,7 +44,7 @@ function ContactForm({ kind, item, busy, readOnly = false, close, act }: CommonP
   const inputProps = (field: string) => ({ name: field, 'aria-invalid': issue?.field === field || undefined });
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (locked || readOnly || inFlight.current) return;
+    if (locked || readOnly || inFlight.current || draftBlocked) return;
     const values = Object.fromEntries([...new FormData(event.currentTarget)].map(([key, value]) => [key, String(value).trim()])) as ContactValues;
     setFailure('');
     const invalid = contactFormIssue(kind, values);
@@ -54,13 +65,14 @@ function ContactForm({ kind, item, busy, readOnly = false, close, act }: CommonP
       const message = errorMessage(reason, 'L’enregistrement n’a pas abouti. Votre saisie est conservée.');
       setFailure(message); reveal(contactNativeIssue(kind, message));
     };
-    try { await act(() => item ? desktopApi.updateEntity(entity, item.id, data) : desktopApi.createEntity(entity, data), kind === 'client' ? item ? 'Le client a été mis à jour.' : 'Le client a été ajouté.' : item ? 'Le fournisseur a été mis à jour.' : 'Le fournisseur a été ajouté.', true, refused); }
+    try { const saved = await act(() => item ? desktopApi.updateEntity(entity, item.id, data) : desktopApi.createEntity(entity, data), kind === 'client' ? item ? 'Le client a été mis à jour.' : 'Le client a été ajouté.' : item ? 'Le fournisseur a été mis à jour.' : 'Le fournisseur a été ajouté.', true, refused); persisted.complete(saved); }
     catch (reason) { refused(reason); }
     finally { inFlight.current = false; setSaving(false); }
   }
-  return <Modal title={title} description={kind === 'client' ? 'Le destinataire et son adresse de facturation. Le téléphone et l’e-mail sont facultatifs.' : 'Le nom du fournisseur suffit pour commencer. Complétez ses coordonnées quand vous les avez.'} onClose={close} dismissible={!locked} className="contact-form-modal" wide>
-    <form ref={formRef} noValidate onSubmit={submit} onChange={event => { if (event.target.getAttribute('name') === issue?.field) setIssue(null); }}>
-      <fieldset disabled={locked || readOnly}>
+  return <Modal title={title} description={kind === 'client' ? 'Le destinataire et son adresse de facturation. Le téléphone et l’e-mail sont facultatifs.' : 'Le nom du fournisseur suffit pour commencer. Complétez ses coordonnées quand vous les avez.'} onClose={closeForm} dismissible={!locked} className="contact-form-modal" wide>
+    <form ref={formRef} noValidate onSubmit={submit} onChange={event => { if (!readOnly && !locked && !draftBlocked) persisted.capture(); if (event.target.getAttribute('name') === issue?.field) setIssue(null); }}>
+      {!readOnly && <FormDraftNotice draft={persisted} disabled={locked} currentValues={item ? [{ label: 'Nom', value: item.name }, { label: 'E-mail', value: item.email }, { label: 'Téléphone', value: item.phone }, { label: 'Adresse', value: item.address }, { label: 'Notes', value: item.notes }] : undefined} />}
+      <fieldset disabled={locked || readOnly || draftBlocked}>
         <section className="contact-form-section"><h3>{kind === 'client' ? 'Qui est votre client ?' : 'Qui est le fournisseur ?'}</h3>
           <p>{kind === 'client' ? 'Renseignez un contact, une entreprise, ou les deux.' : 'Reprenez les informations de sa facture ou de son devis.'}</p>
           <div className="form-grid">
@@ -85,12 +97,12 @@ function ContactForm({ kind, item, busy, readOnly = false, close, act }: CommonP
         {kind === 'supplier' && <section className="contact-form-section"><h3>Comment régler ses factures ?</h3><p>Ces réglages préremplissent les nouveaux achats. Aucun virement n’est envoyé depuis cette fiche.</p><div className="form-grid">
           <Field label="IBAN CH / LI" wide hint="Facultatif. Vous pouvez le compléter plus tard." error={invalid('iban')}><input {...inputProps('iban')} defaultValue={supplier?.iban} autoCapitalize="characters" spellCheck={false} /></Field>
           <Field label="Délai de paiement (jours)" required error={invalid('paymentTermsDays')} hint="Nombre de jours après la date de facture."><input {...inputProps('paymentTermsDays')} inputMode="numeric" value={terms} onChange={event => setTerms(event.target.value)} /></Field><Field label="Devise"><output className="field-output">CHF · franc suisse</output></Field>
-        </div><div className="contact-form-choices" role="group" aria-label="Délais habituels">{[0, 10, 30, 60].map(days => <Button type="button" variant="secondary" key={days} aria-pressed={terms === String(days)} onClick={() => { setTerms(String(days)); if (issue?.field === 'paymentTermsDays') setIssue(null); }}>{days ? `${days} jours` : 'Immédiat'}</Button>)}</div></section>}
+        </div><div className="contact-form-choices" role="group" aria-label="Délais habituels">{[0, 10, 30, 60].map(days => <Button type="button" variant="secondary" key={days} aria-pressed={terms === String(days)} onClick={() => { setTerms(String(days)); persisted.capture({ paymentTermsDays: String(days) }); if (issue?.field === 'paymentTermsDays') setIssue(null); }}>{days ? `${days} jours` : 'Immédiat'}</Button>)}</div></section>}
         <section className="contact-form-section"><Field label="Notes internes" wide hint="Conservées dans la fiche, sans ajout automatique aux documents." error={invalid('notes')}><textarea {...inputProps('notes')} rows={3} defaultValue={item?.notes} maxLength={10_000} /></Field></section>
         {item?.archivedAt && <p className="info-strip">Cette fiche est archivée. La modifier ne la réactive pas et son historique est conservé.</p>}
       </fieldset>
-      {failure && <div ref={alertRef} className="contact-form-failure" role="alert" tabIndex={-1}><strong>La fiche n’a pas pu être enregistrée.</strong><p>{issue ? 'Le champ à vérifier est signalé dans le formulaire.' : 'Vos informations sont conservées. Vous pouvez réessayer.'}</p><details><summary>Voir le message complet</summary><p>{failure}</p></details></div>}
-      <FormActions onCancel={close} busy={locked} disabled={readOnly} submitLabel={kind === 'client' ? 'Enregistrer' : item ? 'Enregistrer les modifications' : 'Ajouter le fournisseur'} />
+      {failure && <div ref={alertRef} className="contact-form-failure" tabIndex={-1}><ErrorGuidance error={failure} operation="mutation" compact /></div>}
+      <FormActions onCancel={closeForm} busy={locked} disabled={readOnly || draftBlocked} submitLabel={kind === 'client' ? 'Enregistrer' : item ? 'Enregistrer les modifications' : 'Ajouter le fournisseur'} />
     </form>
   </Modal>;
 }

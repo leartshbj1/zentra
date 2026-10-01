@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import { Check, Workflow } from 'lucide-react';
 import { useCompanyAutomation } from './AutomationCompany';
 import { AutomationSetup } from './AutomationControls';

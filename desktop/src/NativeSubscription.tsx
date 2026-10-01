@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import { SubscriptionOverview } from './subscription-overview';
 import { desktopApi } from './bridge';
 export function NativeSubscription({organizationId}:{organizationId:string}){

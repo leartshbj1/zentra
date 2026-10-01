@@ -1,3 +1,4 @@
+import { ErrorDetails as SharedErrorDetails } from './ErrorGuidance';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, PackageCheck, RefreshCw } from 'lucide-react';
 import type { SupplierOrder, SupplierReceipt, Workspace } from './types';
@@ -28,7 +29,7 @@ function focusReceiptProblem(target: HTMLElement | null) {
 function ReceiptSteps({ review }: { review?: boolean }) {
   return <ol className="receipt-steps" aria-label="Étapes de la réception"><li aria-current={!review ? 'step' : undefined}><span>{review ? <CheckCircle2 size={17} /> : '1'}</span>Ce qui est arrivé</li><li aria-current={review ? 'step' : undefined}><span>2</span>Vérifier et valider</li></ol>;
 }
-function ErrorDetails({ message }: { message: string }) { return message ? <details className="receipt-details"><summary>Détail du message</summary><p>{message}</p></details> : null; }
+function ErrorDetails({ message }: { message: string }) { return message ? <SharedErrorDetails error={message} /> : null; }
 
 export function SupplierReceiptForm({ workspace, order: openedOrder, receipt: openedReceipt, busy, readOnly, actionError, onClose, onSave, onReadWorkspace }: Shared & { order: SupplierOrder; receipt?: SupplierReceipt; onSave: (input: Parameters<typeof desktopApi.saveSupplierReceiptDraft>[0]) => Promise<boolean> }) {
   const [id] = useState(() => openedReceipt?.id || createId());

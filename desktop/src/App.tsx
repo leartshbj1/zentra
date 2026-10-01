@@ -39,6 +39,9 @@ import { errorMessage, normalizeLicenseToken } from './utils';
 import { useMobileLayout } from './useMobileLayout';
 import { CloudAccountAccess } from './CloudAccountAccess';
 import { CompanyAccountGate } from './CompanyAccountGate';
+import { FormDraftIdentityProvider } from './useFormDraft';
+import { recordDiagnostic, classifyDiagnosticError } from './diagnostics';
+import { ErrorGuidance } from './ErrorGuidance';
 
 export function App() {
   useAppLanguage();
@@ -51,6 +54,9 @@ export function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [createdFor, setCreatedFor] = useState<string | null>(null);
+  const [draftIdentity, setDraftIdentity] = useState<{key:string; memberId?:string}>({key:''});
+  const [draftIdentityRevision, setDraftIdentityRevision] = useState(0);
+  const draftIdentityKey = `${workspace?.workNotesScope || ''}:${cloudAccount?.status || ''}:${cloudAccount?.organizationId || ''}`;
   const openingAttempt = useRef(0);
   const automaticRefreshStarted = useRef(false);
   const accountEpoch = useRef(0);
@@ -69,6 +75,7 @@ export function App() {
       if (epoch !== accountEpoch.current) return;
       setCloudAccount(next.account);
       setLicense(next.license);
+      setDraftIdentityRevision(value=>value+1);
     } catch {
       // Le backend renvoie le compte mis en cache lors d'une panne réseau. Si
       // une autre erreur survient, ne jamais écraser le bail déjà affiché.
@@ -77,6 +84,8 @@ export function App() {
 
   const load = useCallback(async () => {
     const attempt = ++openingAttempt.current;
+    const started = performance.now();
+    const incident = recordDiagnostic({area:'app',operation:'workspace.open',phase:'start'});
     setLoading(true);
     setError('');
     try {
@@ -92,15 +101,36 @@ export function App() {
       setWorkspace(nextWorkspace);
       setLicense(nextAccess.license);
       setCloudAccount(nextAccess.account);
+      recordDiagnostic({id:incident,area:'app',operation:'workspace.open',phase:'success',durationMs:performance.now()-started});
       // Recheck revocation, role and subscription immediately, off the opening path.
       void revalidateCloudAccess();
     } catch (reason) {
       if (attempt !== openingAttempt.current) return;
       setError(errorMessage(reason, 'L’espace local n’a pas pu être ouvert.'));
+      recordDiagnostic({id:incident,area:'app',operation:'workspace.open',phase:'failure',durationMs:performance.now()-started,errorCode:classifyDiagnosticError(reason)});
     } finally {
       if (attempt === openingAttempt.current) setLoading(false);
     }
   }, [revalidateCloudAccess]);
+
+  useEffect(() => {
+    let active = true;
+    if (!workspace) return;
+    if (cloudAccount?.status !== 'connected' && cloudAccount?.status !== 'inactive') {
+      setDraftIdentity({key:draftIdentityKey,memberId:'local-user'});
+      return;
+    }
+    // Local SQLite identity only: no server request or account opening delay.
+    void desktopApi.getFormDraftIdentity().then(identity => {
+      if (active) setDraftIdentity({key:draftIdentityKey,memberId:identity.memberId});
+    }, () => {
+      // A transient local read error for the same account must not close a form.
+      // Explicit account changes already invalidate the previous identity above.
+      if (active) setDraftIdentity(previous=>previous.key===draftIdentityKey?previous:{key:draftIdentityKey});
+      recordDiagnostic({area:'draft',operation:'identity.read',phase:'failure',errorCode:'STORAGE'});
+    });
+    return () => { active = false; };
+  }, [draftIdentityKey, draftIdentityRevision]);
 
   useEffect(() => {
     void load();
@@ -139,9 +169,11 @@ export function App() {
   }, [cloudAccount?.status, revalidateCloudAccess]);
 
   const handleCloudAccountChange = useCallback(
-    (next: CloudAccountState) => {
+    (next: CloudAccountState, reason?: 'verified' | 'linked' | 'disconnected') => {
       const epoch = ++accountEpoch.current;
       cloudAccessRevalidator.current!.invalidate();
+      if (reason !== 'verified') setDraftIdentity({key:''});
+      setDraftIdentityRevision(value=>value+1);
       setCloudAccount(next);
       if (cloudAccountChangeNeedsLicenseRefresh(next)) {
         // Native approval/account reads already checked the session. Repeating
@@ -236,7 +268,9 @@ export function App() {
 
   return (
     <>
-      <CompanyAccountGate account={cloudAccount} workspace={workspace} createdFor={createdFor} onWorkspace={setWorkspace} onAccountChange={handleCloudAccountChange}>{content}</CompanyAccountGate>
+      <FormDraftIdentityProvider key={`${draftIdentityKey}:${draftIdentity.memberId || 'pending'}`} companyId={workspace.workNotesScope} memberId={draftIdentity.memberId} ready={draftIdentity.key === draftIdentityKey && Boolean(draftIdentity.memberId)}>
+        <CompanyAccountGate account={cloudAccount} workspace={workspace} createdFor={createdFor} onWorkspace={setWorkspace} onAccountChange={handleCloudAccountChange}>{content}</CompanyAccountGate>
+      </FormDraftIdentityProvider>
       {!workspaceReady ? <StandaloneUpdaterAccess /> : null}
       {license && licenseNeedsAttention && workspace.onboardingCompleted && workspace.settings ? (
         <LicenseActivation
@@ -403,7 +437,7 @@ function LicenseActivation({
           required
         />
       </label>
-      {error ? <small className="license-banner__error">{error}</small> : null}
+      {error ? <ErrorGuidance error={error} compact /> : null}
       <Button
         type="submit"
         size="small"

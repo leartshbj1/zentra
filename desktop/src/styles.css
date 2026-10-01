@@ -1525,7 +1525,7 @@ fieldset {
   align-items: center;
   gap: 8px;
 }
-.notice button {
+.notice > button {
   border: 0;
   background: transparent;
   color: inherit;

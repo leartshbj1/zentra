@@ -680,7 +680,24 @@ fn same_account_session(current: Option<&CloudSession>, expected: &CloudSession)
     })
 }
 
+fn clear_local_member_identity(store: &LocalStore) -> AppResult<()> {
+    let _local = store.lock()?;
+    let connection = store.connect()?;
+    let exists: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_identity')",
+        [], |row| row.get(0),
+    )?;
+    if exists {
+        connection.execute("DELETE FROM company_local_identity", [])?;
+    }
+    Ok(())
+}
+
 async fn start_link(store: &LocalStore) -> AppResult<CloudAccountState> {
+    // A new authorization may belong to another person in the same company.
+    // Drafts cannot reuse the previous person's local identity before /me has
+    // verified and installed the member for the new session.
+    clear_local_member_identity(store)?;
     let body = serde_json::to_vec(&json!({ "installationId": store.installation_id }))?;
     let (status, bytes) = account_request(Method::POST, START_PATH, Some(body), None).await?;
     if !status.is_success() {
@@ -849,6 +866,7 @@ async fn disconnect(store: &LocalStore) -> AppResult<()> {
         &exchange_path(store),
         &store.account_protected_cache.exchange,
     )?;
+    clear_local_member_identity(store)?;
     Ok(())
 }
 
@@ -1544,6 +1562,49 @@ pub(crate) async fn disconnect_live_qa_profile(store: &LocalStore) -> AppResult<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn switching_members_in_the_same_company_cannot_reuse_the_old_local_identity() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        let organization = "org_369d3fcf-b05b-4d78-9f2a-3c4141aed7fd";
+        let first = Uuid::new_v4().to_string();
+        let second = Uuid::new_v4().to_string();
+        crate::company_collaboration::set_identity(&store, organization, &first, "First Member", "owner").unwrap();
+        let previous: String = store.connect().unwrap().query_row("SELECT user_id FROM company_local_identity WHERE id=1", [], |row| row.get(0)).unwrap();
+        assert_eq!(previous, first);
+        clear_local_member_identity(&store).unwrap();
+        let remaining: i64 = store.connect().unwrap().query_row("SELECT COUNT(*) FROM company_local_identity", [], |row| row.get(0)).unwrap();
+        assert_eq!(remaining, 0);
+        // Only a newly verified account/member installs the next identity.
+        crate::company_collaboration::set_identity(&store, organization, &second, "Second Member", "owner").unwrap();
+        let current: String = store.connect().unwrap().query_row("SELECT user_id FROM company_local_identity WHERE id=1", [], |row| row.get(0)).unwrap();
+        assert_eq!(current, second);
+        assert_ne!(current, first);
+    }
+
+    #[test]
+    fn clearing_member_identity_preserves_company_data_and_workspace_scope() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        let connection = store.connect().unwrap();
+        connection.execute("UPDATE settings SET company_name='Preserved Company' WHERE id=1", []).unwrap();
+        let scope = crate::work_notes::workspace_scope(&connection).unwrap();
+        crate::company_collaboration::set_identity(&store, "org-a", &Uuid::new_v4().to_string(), "Member", "owner").unwrap();
+        clear_local_member_identity(&store).unwrap();
+        let connection = store.connect().unwrap();
+        assert_eq!(crate::work_notes::workspace_scope(&connection).unwrap(), scope);
+        assert_eq!(connection.query_row("SELECT company_name FROM settings WHERE id=1", [], |row| row.get::<_, String>(0)).unwrap(), "Preserved Company");
+        clear_local_member_identity(&store).unwrap();
+    }
+
+    #[test]
+    fn clearing_member_identity_supports_a_profile_without_the_private_table() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        store.connect().unwrap().execute("DROP TABLE company_local_identity", []).unwrap();
+        clear_local_member_identity(&store).unwrap();
+    }
 
     #[test]
     fn account_settings_links_preserve_the_company_and_reject_arbitrary_destinations() {

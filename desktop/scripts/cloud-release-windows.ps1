@@ -45,6 +45,30 @@ Invoke-Checked rustup @('toolchain', 'install', $env:RUSTUP_TOOLCHAIN, '--profil
 Invoke-Checked pnpm.cmd @('install', '--frozen-lockfile')
 Start-Transcript -Path (Join-Path $artifacts 'validation.log') | Out-Null
 try {
+    if ($env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY -eq 'true') {
+        if ($env:ZENTRA_VERIFY_ONLY -ne 'true') { throw 'Diagnostics validation requires the verification-only guard.' }
+        $diagnosticSource = (& git rev-parse HEAD).Trim()
+        if ($LASTEXITCODE -ne 0 -or $diagnosticSource -notmatch '^[0-9a-f]{40}$') { throw 'The checked-out diagnostics source is invalid.' }
+        if ($env:CIRCLE_SHA1 -cne $diagnosticSource) { throw 'Diagnostics validation must use the exact CircleCI source revision.' }
+        $diagnosticStartedAt = [DateTimeOffset]::UtcNow.ToString('o')
+        $diagnosticNativeSuites = @('diagnostics', 'account_cloud::tests', 'company_collaboration::tests')
+        $diagnosticFrontendSuites = @('src/diagnostics.test.ts', 'src/formDrafts.test.ts', 'src/userErrors.test.ts', 'src/ErrorGuidance.test.tsx', 'src/DiagnosticsPanel.test.tsx')
+        foreach ($suite in $diagnosticNativeSuites) {
+            Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', $suite, '--', '--test-threads=1')
+        }
+        Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + $diagnosticFrontendSuites)
+        Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
+        $diagnosticProof = [ordered]@{
+            source = $diagnosticSource; circleSource = $env:CIRCLE_SHA1; target = 'x86_64-pc-windows-msvc'
+            version = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
+            data = 'synthetic'; nativeSuites = $diagnosticNativeSuites; frontendSuites = $diagnosticFrontendSuites
+            allCheckedSuitesPassed = $true; frontendBuildPassed = $true
+            startedAt = $diagnosticStartedAt; completedAt = [DateTimeOffset]::UtcNow.ToString('o')
+            publishesInstaller = $false; publishesRelease = $false; installsApplication = $false
+        }
+        [IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-validation-proof.json'), ($diagnosticProof | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+        return
+    }
     if ($env:ZENTRA_VERIFY_PDF_ONLY -eq 'true') {
         $env:ZENTRA_DESIGN_SAMPLES = Join-Path $artifacts 'pdf-samples'
         [IO.Directory]::CreateDirectory($env:ZENTRA_DESIGN_SAMPLES) | Out-Null

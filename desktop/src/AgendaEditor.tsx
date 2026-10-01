@@ -4,6 +4,7 @@ import { agendaDuration, agendaFormIssue, agendaGroupText, agendaMerge, agendaNa
 import { Button, Field, FormActions, Modal } from './ui';
 import { errorMessage, formatDate } from './utils';
 import './agenda-editor.css';
+import { ErrorGuidance } from './ErrorGuidance';
 
 export function AgendaEditor({ draft: initial, workspace, busy, readOnly, onClose, onSave }: {
   draft: AgendaEventDraft; workspace: Workspace; busy: boolean; readOnly: boolean; onClose: () => void;
@@ -63,7 +64,7 @@ export function AgendaEditor({ draft: initial, workspace, busy, readOnly, onClos
 
   return <Modal title={base.isNew ? 'Nouveau rendez-vous' : 'Modifier le rendez-vous'} description="Titre, date et horaire. Le reste est facultatif." onClose={onClose} dismissible={!locked} className="agenda-editor-modal">
     <form ref={formRef} className="agenda-guided-editor" onSubmit={submit} noValidate>
-      {(saveError || changed || missing) && <div className="agenda-form-notice" role="alert" tabIndex={-1} ref={errorRef}>
+      {(changed || missing) && <div className="agenda-form-notice" role="alert" tabIndex={-1} ref={errorRef}>
         <strong>{missing ? 'Ce rendez-vous n’existe plus' : changed ? 'Le rendez-vous a changé depuis son ouverture' : 'L’enregistrement n’a pas abouti'}</strong>
         <p>{missing ? 'Vos informations restent affichées. Fermez cette fenêtre pour retrouver l’agenda actualisé.' : changed ? 'Votre saisie reste présente. Pour chaque point modifié des deux côtés, choisissez la valeur à conserver.' : saveError}</p>
         {changed && merge && current && <div className="agenda-merge">
@@ -75,6 +76,7 @@ export function AgendaEditor({ draft: initial, workspace, busy, readOnly, onClos
           <small>Vous pourrez relire le formulaire avant d’enregistrer. Aucun changement n’est envoyé par ce bouton.</small>
         </div>}
       </div>}
+      {saveError && !changed && !missing && <div tabIndex={-1} ref={errorRef}><ErrorGuidance error={saveError} operation="mutation" compact /></div>}
       <fieldset disabled={disabled} className="agenda-editor-fields">
         <section className="agenda-editor-section"><h3>Votre rendez-vous</h3><div className="form-grid">
           <Field label="Titre" required wide error={fieldError('title')}><input name="title" autoFocus maxLength={200} value={draft.title} onChange={event => change('title',event.target.value)} placeholder="Ex. Visite chez le client" /></Field>

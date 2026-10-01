@@ -6,6 +6,9 @@ import { initialTimeEntryDraft, timeEntryInput, timeEntryIssue, workedMinutes, t
 import type { TimeEntry, Workspace } from './types';
 import { Button, Field, FormActions, Modal } from './ui';
 import { errorMessage, formatMinutes, formatMoney, todayIso } from './utils';
+import { FormDraftNotice, useFormDraft, useFormDraftScope } from './useFormDraft';
+import { draftStrings, formDraftFingerprint } from './formDrafts';
+import { ErrorGuidance } from './ErrorGuidance';
 import './work-time-forms.css';
 
 type Props = {
@@ -14,9 +17,15 @@ type Props = {
 };
 export function TimeForm(props: Props) { return <WorkTimeForm {...props} timer={false} />; }
 export function TimerForm(props: Props) { return <WorkTimeForm {...props} timer />; }
+const timeDraftFields = ['projectId', 'taskId', 'employeeId', 'date', 'hours', 'minutes', 'breakMinutes', 'billable', 'billingRate', 'costRate', 'status', 'note'] as const;
+const validTimeDraft = (value: unknown): value is TimeEntryDraft => draftStrings(value, timeDraftFields, 5000) && Object.keys(value).length === timeDraftFields.length && ['', 'yes', 'no'].includes(value.billable);
 
 function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { timer: boolean }) {
-  const [draft, setDraft] = useState(() => ({ ...initialTimeEntryDraft(item), date: item?.date || todayIso() }));
+  const current = item ? workspace.timeEntries.find(row => row.id === item.id) : undefined;
+  const persisted = useFormDraft({ scope: useFormDraftScope(workspace, timer ? 'timer' : 'time', item?.id),
+    initial: { ...initialTimeEntryDraft(current), date: current?.date || todayIso() }, fingerprint: current ? formDraftFingerprint(current) : item ? 'missing' : 'new', validate: validTimeDraft });
+  const draft = persisted.value, setDraft = persisted.setValue;
+  const closeForm = () => persisted.close(close);
   const [issue, setIssue] = useState<TimeEntryIssue>();
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -40,7 +49,7 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
   const tasks = workspace.projectTasks.filter(task => task.projectId === draft.projectId && (!['done', 'cancelled'].includes(task.status) || task.id === item?.taskId));
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (locked || inFlight.current) return;
+    if (locked || inFlight.current || persisted.pending || persisted.conflict || persisted.invalid || (item && !current)) return;
     const problem = timeEntryIssue(draft, workspace, item, timer);
     setIssue(problem); setSaveError('');
     if (problem) return;
@@ -53,16 +62,18 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
       }) : item ? desktopApi.updateEntity('timeEntries', item.id, data) : desktopApi.createEntity('timeEntries', data),
       timer ? 'Le pointage a démarré.' : item ? 'La saisie de temps a été mise à jour.' : 'Les heures ont été enregistrées.', true,
       reason => setSaveError(errorMessage(reason, 'Les heures n’ont pas pu être enregistrées. Vos informations sont conservées.')));
+      persisted.complete(saved);
       if (!saved) setSaveError(current => current || 'L’enregistrement n’est pas disponible pour le moment. Vos informations sont conservées ; réessayez après avoir terminé l’action en cours.');
     } catch (reason) {
       setSaveError(errorMessage(reason, 'L’enregistrement a été interrompu. Vos informations sont conservées.'));
     } finally { inFlight.current = false; setSaving(false); }
   }
-  return <Modal title={timer ? 'Démarrer un pointage' : item ? 'Modifier les heures' : 'Saisir des heures'} description={timer ? 'Le chronomètre mesure le temps. Vous pourrez vérifier les heures après l’arrêt.' : 'Choisissez qui a travaillé, indiquez la durée et vérifiez le montant.'} onClose={close} dismissible={!locked} className="work-time-modal">
+  return <Modal title={timer ? 'Démarrer un pointage' : item ? 'Modifier les heures' : 'Saisir des heures'} description={timer ? 'Le chronomètre mesure le temps. Vous pourrez vérifier les heures après l’arrêt.' : 'Choisissez qui a travaillé, indiquez la durée et vérifiez le montant.'} onClose={closeForm} dismissible={!locked} className="work-time-modal">
     <form ref={formRef} onSubmit={submit} noValidate>
-      {saveError && <div ref={errorRef} tabIndex={-1} className="work-time-error" role="alert"><strong>L’enregistrement n’a pas abouti</strong><p>{saveError}</p><p>Corrigez les informations si nécessaire, puis réessayez avec le bouton ci-dessous.</p></div>}
+      <FormDraftNotice draft={persisted} disabled={locked} currentValues={current ? [{ label: 'Projet', value: workspace.projects.find(row => row.id === current.projectId)?.name || current.projectId }, { label: 'Collaborateur', value: workspace.employees.find(row => row.id === current.employeeId)?.name || current.employeeId }, { label: 'Date', value: current.date }, { label: 'Durée', value: formatMinutes(current.minutes) }, { label: 'Pause', value: String(current.breakMinutes) }, { label: 'Travail effectué', value: current.note }, { label: 'Coût entreprise', value: formatMoney(current.hourlyCostCents) }, { label: 'Prix pour le client', value: formatMoney(current.billingRateCents ?? 0) }, { label: 'Statut', value: current.status }] : undefined} />
+      {saveError && <div ref={errorRef} tabIndex={-1} className="work-time-error"><ErrorGuidance error={saveError} operation="mutation" compact /></div>}
       {issue && <div className="work-time-error" role="alert"><strong>Un point à compléter</strong><p>{issue.message}</p><Button type="button" variant="secondary" size="small" onClick={() => focusIssue(issue.field)}>Corriger ce champ</Button></div>}
-      <fieldset disabled={locked} className="work-time-fields">
+      <fieldset disabled={locked || !!persisted.pending || persisted.conflict || persisted.invalid || !!(item && !current)} className="work-time-fields">
         <section className="work-time-section"><h3>Qui a travaillé ?</h3><div className="form-grid">
           <Field label="Projet" required wide error={fieldError('projectId')}><select name="projectId" value={draft.projectId} onChange={event => setDraft(current => ({ ...current, projectId: event.target.value, taskId: '' }))} required autoFocus><option value="">Choisir un projet</option>{workspace.projects.filter(project => project.status !== 'closed' || project.id === item?.projectId).map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>
           <Field label="Collaborateur" required wide error={fieldError('employeeId')}><select name="employeeId" value={draft.employeeId} onChange={event => {
@@ -86,7 +97,7 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
         </div></section>
       </fieldset>
       {!timer && duration !== undefined && <section className="work-time-summary" aria-label="Résumé des heures" aria-live="polite"><div><Clock3 size={18} /><strong>{formatMinutes(duration)}</strong><span>à enregistrer</span></div>{cost !== undefined && Number.isSafeInteger(duration * cost + 30) && <div><span>Coût entreprise</span><strong>{formatMoney(Math.round(duration * cost / 60))}</strong></div>}{draft.billable === 'yes' && rate !== undefined && Number.isSafeInteger(duration * rate + 30) && <div><span>À facturer hors TVA</span><strong>{formatMoney(Math.round(duration * rate / 60))}</strong></div>}</section>}
-      <FormActions onCancel={close} busy={locked} submitLabel={timer ? 'Démarrer le chronomètre' : 'Enregistrer les heures'} />
+      <FormActions onCancel={closeForm} busy={locked} disabled={!!persisted.pending || persisted.conflict || persisted.invalid || !!(item && !current)} submitLabel={timer ? 'Démarrer le chronomètre' : 'Enregistrer les heures'} />
     </form>
   </Modal>;
 }

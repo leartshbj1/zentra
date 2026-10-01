@@ -10,7 +10,7 @@ import { Button } from './ui';
 import './AutomationHub.css';
 import { AutomationConnectionNotice } from './AutomationConnectionNotice';
 import type { ReactNode } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import { AutomationControlCentre } from './AutomationControlCentre';
 import { automationLabel } from './automationPresentation';
 import './automation-design.css';

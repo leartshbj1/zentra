@@ -54,7 +54,7 @@ export function PayrollSettingsForm({ payroll, busy, onSave, onReload }: { payro
         />
         <form noValidate onSubmit={submit}>
           {fieldGuide.guide}
-          {error && <div className="payroll-settings__error"><ErrorPanel message="Les réglages n’ont pas pu être enregistrés. Votre saisie est conservée. Réessayez." reveal /><details><summary>{t('Voir le message détaillé')}</summary><p>{t(error)}</p></details>{onReload && <><Button type="button" variant="secondary" disabled={busy} onClick={() => void onReload()}>{t('Charger les derniers réglages enregistrés')}</Button><p>{t('En rechargeant, vous remplacez la saisie de ce formulaire par les réglages enregistrés.')}</p></>}</div>}
+          {error && <div className="payroll-settings__error"><ErrorPanel message={error} fallback="Les réglages n’ont pas pu être enregistrés. Votre saisie est conservée." reveal />{onReload && <><Button type="button" variant="secondary" disabled={busy} onClick={() => void onReload()}>{t('Charger les derniers réglages enregistrés')}</Button><p>{t('En rechargeant, vous remplacez la saisie de ce formulaire par les réglages enregistrés.')}</p></>}</div>}
           <div className="form-grid">
             <label className="module-toggle module-toggle--compact">
               <input

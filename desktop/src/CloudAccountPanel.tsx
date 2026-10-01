@@ -19,6 +19,7 @@ import { companyAccountRoleLabels as ROLE_LABEL } from './companyAccount';
 import { errorMessage } from './utils';
 import { Button, SectionHeading } from './ui';
 import './workflow-clarity.css';
+import { ErrorGuidance } from './ErrorGuidance';
 
 export function CloudAccountPanel({
   onAccountChange,
@@ -26,7 +27,7 @@ export function CloudAccountPanel({
   joining = false,
   setup = false,
 }: {
-  onAccountChange?: (account: CloudAccountState) => void;
+  onAccountChange?: (account: CloudAccountState, reason?: 'verified' | 'linked' | 'disconnected') => void;
   settings?: AppSettings | null;
   joining?: boolean;
   setup?: boolean;
@@ -54,7 +55,7 @@ export function CloudAccountPanel({
       verified: value => {
         if (active && revision === operation.current) {
           setAccount(value);
-          changeCallback.current?.(value);
+          changeCallback.current?.(value, 'verified');
         }
       },
       failed: (_reason, hasLocal) => {
@@ -116,7 +117,7 @@ export function CloudAccountPanel({
       const next = await desktopApi.pollCloudAccountLink();
       if (revision !== operation.current) return;
       setAccount(next);
-      if (!previousAccount.current || next.status === 'connected') changeCallback.current?.(next);
+      if (!previousAccount.current || next.status === 'connected') changeCallback.current?.(next, 'linked');
       if (next.status === 'connected') previousAccount.current = null;
       if (showError || next.status === 'connected') setError('');
     } catch (reason) {
@@ -150,7 +151,7 @@ export function CloudAccountPanel({
       await desktopApi.disconnectCloudAccount();
       const disconnected: CloudAccountState = { status: 'disconnected' };
       setAccount(disconnected);
-      onAccountChange?.(disconnected);
+      onAccountChange?.(disconnected, 'disconnected');
     } catch (reason) {
       setError(errorMessage(reason, 'Ce poste n’a pas pu être déconnecté.'));
     } finally {
@@ -178,7 +179,7 @@ export function CloudAccountPanel({
       // The native account lock waits for a poll already in progress. Never
       // pretend the old session is still active if approval just completed.
       const current = await desktopApi.getCloudAccountState();
-      setAccount(current); changeCallback.current?.(current);
+      setAccount(current); changeCallback.current?.(current, 'verified');
       previousAccount.current = null;
     } catch (reason) { setError(errorMessage(reason, 'Le compte n’a pas pu être vérifié. Réessayez.')); }
     finally { setBusy(false); }
@@ -297,9 +298,7 @@ export function CloudAccountPanel({
       ) : null}
       <div className="settings-cloud-privacy"><LockKeyhole size={15}/><p>{t("Connexion protégée sur cet appareil.")}</p></div>
       {error ? (
-        <p className="form-error" role="alert">
-          {t(error)}
-        </p>
+        <ErrorGuidance error={error} onReconnect={() => void begin()} disabled={busy} compact />
       ) : null}
     </section>
   );

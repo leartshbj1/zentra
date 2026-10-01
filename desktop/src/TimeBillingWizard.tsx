@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import './work-time-forms.css';
+import { ErrorGuidance } from './ErrorGuidance';
 import {
   readyTimeEntries,
   summarizeTimeBilling,
@@ -146,7 +147,7 @@ export function TimeBillingWizard({
             finally { inFlight.current = false; setSaving(false); }
           })}
         >
-          {saveError && <div ref={errorRef} tabIndex={-1} className="warning-card" role="alert"><div><strong>La facture n’a pas pu être créée</strong><p>{saveError}</p><p>Vérifiez les informations puis réessayez. Les heures décochées le restent.</p></div></div>}
+          {saveError && <div ref={errorRef} tabIndex={-1}><ErrorGuidance error={saveError} operation="mutation" compact /></div>}
           <fieldset className="work-time-fields" disabled={locked}>
           <div className="form-grid time-billing-config">
             <Field label="Projet à facturer" required wide>

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 
 declare const __ZENTRA_PLATFORM__: string;
 export const isMobileRuntime = () => typeof __ZENTRA_PLATFORM__ !== 'undefined' && ['ios', 'android'].includes(__ZENTRA_PLATFORM__);

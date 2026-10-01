@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { diagnosticInvoke as invoke } from './diagnostics';
 import { FileUp } from 'lucide-react';
 import { Button, ErrorPanel, Field } from './ui';
 import {

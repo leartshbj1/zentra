@@ -7,6 +7,8 @@ import { Button } from './ui';
 import { errorMessage } from './utils';
 import { t, getAppLocale } from './language';
 import './companySync.css';
+import { recordDiagnostic, classifyDiagnosticError } from './diagnostics';
+import { ErrorGuidance } from './ErrorGuidance';
 
 export type DuplicateReceipt={localId:string;remoteId:string;invoiceId:string;invoiceNumber:string;amountCents:number;currency:string;date:string;fingerprint:string};
 export type CompanySyncState={enabled:boolean;organizationId?:string;revision:number;pending:boolean;conflict:boolean;conflictReason?:string|null;duplicateReceipt?:DuplicateReceipt|null;ready?:boolean;lastSyncedAt?:string;changed?:boolean;remoteRevision?:number};
@@ -15,6 +17,11 @@ let error='';let receiving=false;let checkedAt=0;let checkingSince=0;
 let statusSubscribers=0;let statusTimer:number|undefined;
 const notify=()=>window.dispatchEvent(new Event('zentra-company-sync-status'));
 export function publishCompanySync(value:CompanySyncState,message='',verified=false){
+  if (value.enabled !== current.enabled) recordDiagnostic({area:'sync',operation:value.enabled?'company.enabled':'company.disabled',phase:'info'});
+  if (value.pending !== current.pending) recordDiagnostic({area:'sync',operation:value.pending?'company.pending':'company.sent',phase:'info'});
+  if (value.ready !== current.ready) recordDiagnostic({area:'sync',operation:value.ready?'company.received_waiting':'company.received_applied',phase:'info'});
+  if (value.conflict !== current.conflict) recordDiagnostic({area:'sync',operation:value.conflict?'company.conflict':'company.conflict_resolved',phase:value.conflict?'failure':'success',...(value.conflict?{errorCode:'CONFLICT'}:{})});
+  if (message && message !== error) recordDiagnostic({area:'sync',operation:'company.exchange',phase:'failure',errorCode:classifyDiagnosticError(message)});
   if(current.organizationId!==value.organizationId||current.enabled!==value.enabled){checkedAt=0;checkingSince=value.enabled?Date.now():0;}
   current=value;error=message;
   if(verified&&value.enabled&&!message)checkedAt=Date.now();
@@ -30,12 +37,21 @@ export function companyReceiveAllowed(){
     return style.display!=='none'&&style.visibility!=='hidden'&&node.getClientRects().length>0;
   });
 }
-export function setCompanyReceiving(value:boolean){receiving=value;flushSync(notify);}
+let receiveOperation:{id:string;started:number}|undefined;
+export function setCompanyReceiving(value:boolean){
+  if (value && !receiving) receiveOperation={id:recordDiagnostic({area:'sync',operation:'company.apply_received',phase:'start'}),started:performance.now()};
+  if (!value && receiving && receiveOperation) { recordDiagnostic({id:receiveOperation.id,area:'sync',operation:'company.apply_received',phase:'success',durationMs:performance.now()-receiveOperation.started});receiveOperation=undefined; }
+  receiving=value;flushSync(notify);
+}
+export function recordCompanyReceiveFailure(reason:unknown){
+  if(receiveOperation){recordDiagnostic({id:receiveOperation.id,area:'sync',operation:'company.apply_received',phase:'failure',durationMs:performance.now()-receiveOperation.started,errorCode:classifyDiagnosticError(reason)});receiveOperation=undefined;}
+}
 export async function refreshReceivedCompany(){
   try {
     const workspace=await desktopApi.loadWorkspace();
     flushSync(()=>window.dispatchEvent(new CustomEvent('zentra-company-workspace-received',{detail:workspace})));
   } catch(reason) {
+    recordCompanyReceiveFailure(reason);
     // Never leave controls bound to the pre-reception workspace after a swap.
     window.location.reload();
     throw reason;
@@ -139,7 +155,7 @@ export function CompanySyncPanel(){
     </dl>
     {info.kind!=='current'&&<p>{t(info.detail)}</p>}
     {status.pending&&info.kind!=='sending'&&<p>{t('Des modifications sont en attente d’envoi.')}</p>}
-    {(status.conflict||status.error)&&<p role="alert">{t(status.conflictReason||status.error||'Les deux copies sont conservées. Contactez le support pour vérifier ce document.')}</p>}
+    {(status.conflict||status.error)&&<ErrorGuidance error={status.conflictReason||status.error||'Conflit de synchronisation'} fallback={t('Les deux copies sont conservées. Contactez le support pour vérifier ce document.')} compact />}
     {duplicate&&<div className="company-sync__receipt"><strong>{duplicate.invoiceNumber} · {amount}</strong><p>{t('Ce montant a été saisi sur deux appareils. S’agit-il du même paiement ?')}</p><Button disabled={busy} onClick={()=>void resolveReceipt()}>{t(busy?'Vérification…':'Oui, un seul paiement')}</Button></div>}
   </section>;
 }

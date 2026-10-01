@@ -28,6 +28,25 @@ parameters:
     default: ""
 
 jobs:
+  windows-drafts-diagnostics-tests:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"
+      ZENTRA_VERIFY_ONLY: "true"
+    steps:
+      - checkout
+      - run:
+          name: Verify diagnostics, scoped drafts and account isolation without packaging
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/cloud-release-windows.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: diagnostics-validation
   windows-package-volume-1909:
     resource_class: windows.medium
     machine:
@@ -426,6 +445,13 @@ jobs:
           destination: apple
 
 workflows:
+  drafts-errors-diagnostics-verification:
+    when:
+      and:
+        - equal: [codex/drafts-errors-diagnostics-20261001, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-drafts-diagnostics-tests
   apple-design-release-1912:
     when:
       and:

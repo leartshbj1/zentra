@@ -4,6 +4,7 @@ import type { AgendaEvent, Workspace } from './types';
 import { Button, Modal } from './ui';
 import { errorMessage, formatDate } from './utils';
 import './agenda-editor.css';
+import { ErrorGuidance } from './ErrorGuidance';
 
 export function AgendaActionDialog({ event, action, workspace, busy, readOnly, onClose, onSave, onDelete }: {
   event: AgendaEvent; action: 'complete' | 'delete'; workspace: Workspace; busy: boolean; readOnly: boolean;
@@ -29,7 +30,7 @@ export function AgendaActionDialog({ event, action, workspace, busy, readOnly, o
   }
   return <Modal title={action === 'delete' ? 'Supprimer ce rendez-vous ?' : 'Terminer ce rendez-vous ?'} description={action === 'delete' ? 'Le rendez-vous sera retiré de l’agenda. Son projet et ses documents seront conservés.' : 'Il sera classé parmi les rendez-vous terminés. Cette action ne valide ni facture, ni paiement, ni salaire.'} onClose={onClose} dismissible={!locked} className="agenda-action-dialog">
     <div className="agenda-action-summary"><strong>{reviewed.title}</strong><p>{formatDate(reviewed.startDate)}{reviewed.endDate !== reviewed.startDate ? ` – ${formatDate(reviewed.endDate)}` : ''} · {reviewed.allDay ? 'Toute la journée' : `${reviewed.startTime} – ${reviewed.endTime}`}</p>{reviewed.location && <p>{reviewed.location}</p>}{reviewed.notes && <p style={{whiteSpace:'pre-wrap'}}>{reviewed.notes}</p>}</div>
-    {error && <div className="agenda-form-notice" role="alert"><strong>L’action n’a pas abouti</strong><p>{error}</p></div>}
+    {error && <ErrorGuidance error={error} operation="mutation" compact />}
     {!current ? <p role="status">Ce rendez-vous n’est plus dans l’agenda. Vous pouvez fermer cette fenêtre.</p> : changed ? <div className="agenda-form-notice" role="alert"><strong>Le rendez-vous a changé</strong><p>Relisez sa version actuelle avant de confirmer cette action.</p><Button variant="secondary" disabled={locked} onClick={() => {setReviewed(current);setError('');}}>Relire le rendez-vous</Button></div> : done ? <p role="status">Ce rendez-vous est déjà terminé ou annulé. Retrouvez-le avec « Afficher terminés / annulés ».</p> : null}
     {readOnly && <p role="status">Mode lecture seule : cette action n’est pas disponible.</p>}
     <div className="form-actions"><Button variant="secondary" disabled={locked} onClick={onClose}>{!current || done ? 'Fermer' : 'Annuler'}</Button><Button disabled={locked || readOnly || !current || changed || done} onClick={() => void confirm()}>{locked ? 'Traitement…' : action === 'delete' ? 'Supprimer le rendez-vous' : 'Marquer comme terminé'}</Button></div>

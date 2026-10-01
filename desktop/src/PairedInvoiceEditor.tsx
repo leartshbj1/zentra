@@ -7,6 +7,7 @@ import { addDaysIso, documentTotals, errorMessage, formatDate, formatMoney, toda
 import { invoiceDateIssues, isSalesDate, type InvoiceDateIssue } from './salesFormValidation';
 import { changePairedIssueDate, initialPairedInvoiceFields, pairedDateStep, pairedPaymentDays, pairedServiceReference, type PairedInvoiceFields, type PairedInvoiceStep } from './pairedInvoicePreparation';
 import './QuoteInvoiceFolder.css';
+import { ErrorGuidance } from './ErrorGuidance';
 
 type Props = {
   invoice: Invoice; workspace: Workspace; busy: boolean; readOnly?: boolean; correctDates?: boolean;
@@ -126,7 +127,7 @@ function Preparation({ invoice, workspace, busy, readOnly = false, correctDates 
         <div className="paired-preparation__overview"><div><span>{name} · TTC</span><strong>{formatMoney(totals.totalCents, invoice.currency)}</strong></div><p>Les montants viennent du devis. Préparez les dates, puis relisez la facture avant de l’enregistrer.</p></div>
         <nav className="paired-preparation__steps" aria-label="Préparation de la facture">{steps.map(([id, label], index) => <button key={id} type="button" disabled={locked} aria-current={step === id ? 'step' : undefined} onClick={() => go(id)}><span>{index + 1}</span>{label}</button>)}</nav>
         {readOnly && <p className="paired-preparation__hint" role="status">{invoice.status !== 'draft' ? 'Cette facture est déjà émise. Ses dates, ses notes et ses montants restent conservés.' : 'Vous êtes en lecture seule. Vous pouvez parcourir les informations ; leur enregistrement demande un accès en écriture.'}</p>}
-        {serverError && <div className="paired-preparation__problem" role="alert" tabIndex={-1} ref={problem}><strong>Vos modifications sont conservées</strong><p>{serverError}</p><Button type="button" variant="secondary" disabled={locked} onClick={() => go('payment')}>Revoir les dates</Button></div>}
+        {serverError && <div className="paired-preparation__problem" tabIndex={-1} ref={problem}><ErrorGuidance error={serverError} fallback="Les modifications n’ont pas pu être enregistrées. Votre saisie est conservée." operation="mutation" onReview={() => go('payment')} disabled={locked} compact /></div>}
         <section className="paired-preparation__section" aria-labelledby="paired-step-heading">
           <h2 id="paired-step-heading" ref={heading} tabIndex={-1}>{step === 'service' ? 'Quand la prestation a-t-elle lieu ?' : step === 'payment' ? 'Quand cette facture doit-elle être payée ?' : 'Vérifiez les informations'}</h2>
           {step === 'service' && <>

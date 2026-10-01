@@ -1,6 +1,6 @@
 import { getAppLocale, t, useAppLanguage } from './language';
 import { DocumentNumberInput } from './DocumentNumberInput';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode, type SetStateAction } from 'react';
 import {
   Archive,
   Check,
@@ -20,17 +20,18 @@ import {
   addDaysIso,
   createId,
   documentTotals,
-  errorMessage,
   formatDate,
   formatMoney,
   invoicePaid,
-  todayIso,
 } from './utils';
 import { Button, ErrorPanel, Field, FormActions, Modal, submitForm } from './ui';
 import { projectTerminology } from './terminology';
+import { FormDraftNotice, useFormDraft, useFormDraftScope } from './useFormDraft';
+import { formDraftFingerprint } from './formDrafts';
+import { initialDocumentFormDraft, validDocumentFormDraft, type DocumentFormDraft } from './documentFormDraft';
+import { ErrorGuidance } from './ErrorGuidance';
 import {
   buildDepositLines,
-  restoreDepositBaseLines,
   validDepositPercentageBp,
 } from './deposit';
 import {
@@ -53,7 +54,7 @@ type ActionRunner = (
 
 export function DocumentEditor({
   entity,
-  item,
+  item: suppliedItem,
   quoteSource,
   initialProject,
   initialStep = 0,
@@ -84,30 +85,43 @@ export function DocumentEditor({
   const settings = workspace.settings!;
   const unitsId = useId();
   const terminology = projectTerminology(settings.business.nogaSection);
+  const currentRecord = suppliedItem ? workspace[entity].find(row => row.id === suppliedItem.id) : undefined;
+  const item = currentRecord ?? suppliedItem;
   const current = item ?? quoteSource;
   const currentInvoice = entity === 'invoices' ? (item as Invoice | undefined) : undefined;
   const hasCustomerCredit = Boolean(currentInvoice && currentInvoice.status !== 'draft' && workspace.invoices.some((invoice)=>invoice.customerCredit && (invoice.id===currentInvoice.id || invoice.originalInvoiceId===currentInvoice.id || invoice.creditSettlements?.some((event)=>event.invoiceId===currentInvoice.id))));
-  const savedDepositPercentageBp = currentInvoice?.depositPercentageBp ?? null;
-  const [lines, setLines] = useState<DocumentLine[]>(
-    currentInvoice?.type === 'deposit' && savedDepositPercentageBp
-      ? (
-          currentInvoice.depositBasisLines?.length
-            ? currentInvoice.depositBasisLines
-            : restoreDepositBaseLines(currentInvoice.lines, savedDepositPercentageBp)
-        ).map((line) => ({ ...line }))
-      : current?.lines.map((line) => ({ ...line })) ?? [
-      {
-        id: createId(),
-        catalogItemId: null,
-        description: '',
-        quantity: 0,
-        unit: '',
-        unitPriceCents: 0,
-        discountBp: 0,
-        vatRateBp: settings.organization.vatRegistered ? -1 : 0,
-      },
-    ],
-  );
+  const [emptyLineId] = useState(createId);
+  const persisted = useFormDraft({ scope: useFormDraftScope(workspace, entity, suppliedItem?.id, !suppliedItem ? 'quote:' + (quoteSource?.id || '') + ';project:' + (initialProject?.id || '') : ''),
+    initial: initialDocumentFormDraft(entity, settings, emptyLineId, item, quoteSource, initialProject, initialStep),
+    fingerprint: suppliedItem ? currentRecord ? formDraftFingerprint(currentRecord) : 'missing' : quoteSource ? formDraftFingerprint(quoteSource) : 'new', validate: validDocumentFormDraft });
+  const { lines, selectedClientId, selectedProjectId, quickClientOpen, quickClient, issueDate, dueDate, invoiceType, depositPercentage,
+    serviceDateFrom, serviceDateTo, originalInvoiceId, footerText, footerTemplateId, footerTemplateName, step, documentTitle, documentNotes } = persisted.value;
+  function changeDraft<K extends keyof DocumentFormDraft>(field: K, next: SetStateAction<DocumentFormDraft[K]>) {
+    persisted.setValue(previous => ({ ...previous, [field]: typeof next === 'function' ? (next as (value: DocumentFormDraft[K]) => DocumentFormDraft[K])(previous[field]) : next }));
+  }
+  const setLines = (next: SetStateAction<DocumentFormDraft['lines']>) => changeDraft('lines', next);
+  const setSelectedClientId = (next: SetStateAction<DocumentFormDraft['selectedClientId']>) => changeDraft('selectedClientId', next);
+  const setSelectedProjectId = (next: SetStateAction<DocumentFormDraft['selectedProjectId']>) => changeDraft('selectedProjectId', next);
+  const setQuickClientOpen = (next: SetStateAction<DocumentFormDraft['quickClientOpen']>) => changeDraft('quickClientOpen', next);
+  const setQuickClient = (next: SetStateAction<DocumentFormDraft['quickClient']>) => changeDraft('quickClient', next);
+  const setIssueDate = (next: SetStateAction<DocumentFormDraft['issueDate']>) => changeDraft('issueDate', next);
+  const setDueDate = (next: SetStateAction<DocumentFormDraft['dueDate']>) => changeDraft('dueDate', next);
+  const setInvoiceType = (next: SetStateAction<DocumentFormDraft['invoiceType']>) => changeDraft('invoiceType', next);
+  const setDepositPercentage = (next: SetStateAction<DocumentFormDraft['depositPercentage']>) => changeDraft('depositPercentage', next);
+  const setServiceDateFrom = (next: SetStateAction<DocumentFormDraft['serviceDateFrom']>) => changeDraft('serviceDateFrom', next);
+  const setServiceDateTo = (next: SetStateAction<DocumentFormDraft['serviceDateTo']>) => changeDraft('serviceDateTo', next);
+  const setOriginalInvoiceId = (next: SetStateAction<DocumentFormDraft['originalInvoiceId']>) => changeDraft('originalInvoiceId', next);
+  const setFooterText = (next: SetStateAction<DocumentFormDraft['footerText']>) => changeDraft('footerText', next);
+  const setFooterTemplateId = (next: SetStateAction<DocumentFormDraft['footerTemplateId']>) => changeDraft('footerTemplateId', next);
+  const setFooterTemplateName = (next: SetStateAction<DocumentFormDraft['footerTemplateName']>) => changeDraft('footerTemplateName', next);
+  const setStep = (next: SetStateAction<DocumentFormDraft['step']>) => changeDraft('step', next);
+  const setDocumentTitle = (next: SetStateAction<DocumentFormDraft['documentTitle']>) => changeDraft('documentTitle', next);
+  const setDocumentNotes = (next: SetStateAction<DocumentFormDraft['documentNotes']>) => changeDraft('documentNotes', next);
+  const numberDraftProps = (id: string) => ({ rawValue: persisted.value.numberInputs[id], onRawChange: (value: string) => persisted.setValue(previous => ({ ...previous, numberInputs: { ...previous.numberInputs, [id]: value } })) });
+  const closeForm = () => persisted.close(close);
+  const draftBlocked = !!persisted.pending || persisted.conflict || persisted.invalid || !!(suppliedItem && !currentRecord);
+  const [saving, setSaving] = useState(false), submission = useRef(false);
+  const [saveFailure, setSaveFailure] = useState<unknown>(null);
   const [savedLineIds] = useState(() => new Set(current ? lines.map(line => line.id) : []));
   const catalogItems = useMemo(
     () => activeCatalogItems(workspace.catalogItems),
@@ -119,69 +133,17 @@ export function DocumentEditor({
     () => searchableDocumentCatalogItems(catalogItems, catalogQuery),
     [catalogItems, catalogQuery],
   );
-  const [selectedClientId, setSelectedClientId] = useState(
-    item?.clientId ?? quoteSource?.clientId ?? initialProject?.clientId ?? '',
-  );
-  const [selectedProjectId, setSelectedProjectId] = useState(item?.projectId ?? quoteSource?.projectId ?? initialProject?.id ?? '');
-  const [quickClientOpen, setQuickClientOpen] = useState(false);
-  const [quickClient, setQuickClient] = useState({
-    contactPerson: '',
-    company: '',
-    email: '',
-    phone: '',
-    street: '',
-    buildingNumber: '',
-    postalCode: '',
-    city: '',
-    canton: '',
-    country: 'CH',
-  });
-  const [issueDate, setIssueDate] = useState(item?.issueDate || todayIso());
-  const [dueDate, setDueDate] = useState(
-    entity === 'quotes'
-      ? (item as Quote | undefined)?.validUntil ||
-          addDaysIso(issueDate, settings.billing.quoteValidityDays)
-      : (item as Invoice | undefined)?.dueDate ||
-          addDaysIso(issueDate, settings.billing.paymentTermsDays),
-  );
-  const [invoiceType, setInvoiceType] = useState<Invoice['type'] | ''>(
-    entity === 'invoices' ? ((item as Invoice | undefined)?.type ?? '') : '',
-  );
-  const [depositPercentage, setDepositPercentage] = useState(
-    savedDepositPercentageBp
-      ? String(savedDepositPercentageBp / 100)
-      : currentInvoice?.type === 'deposit'
-        ? '100'
-        : '30',
-  );
-  const [serviceDateFrom, setServiceDateFrom] = useState(
-    (item as Invoice | undefined)?.serviceDateFrom ?? '',
-  );
-  const [serviceDateTo, setServiceDateTo] = useState(
-    (item as Invoice | undefined)?.serviceDateTo ?? '',
-  );
-  const [originalInvoiceId, setOriginalInvoiceId] = useState(
-    (item as Invoice | undefined)?.originalInvoiceId ?? '',
-  );
   const creditOriginal = invoiceType === 'credit_note' ? workspace.invoices.find((invoice) => invoice.id === originalInvoiceId) : undefined;
   const documentVatRates = creditOriginal
     ? [...new Set(creditOriginal.lines.map((line) => line.vatRateBp))].filter((rate) => rate >= 0).sort((a, b) => a - b)
     : [...new Set([0, ...settings.billing.vatRatesBp])];
   const currency = creditOriginal?.currency || current?.currency || settings.billing.currency || 'CHF';
-  const [footerText, setFooterText] = useState(
-    item?.terms ?? quoteSource?.terms ?? settings.billing.defaultFooter,
-  );
-  const [footerTemplateId, setFooterTemplateId] = useState('');
-  const [footerTemplateName, setFooterTemplateName] = useState('');
   const [localError, setLocalError] = useState('');
   const [numberErrors, setNumberErrors] = useState<Record<string, string>>({});
   const numberValidity = useCallback((id: string, error: string) => {
     setNumberErrors(previous => { if ((previous[id] || '') === error) return previous; const next = { ...previous }; if (error) next[id] = error; else delete next[id]; return next; });
   }, []);
   const [saveAttempt, setSaveAttempt] = useState(0);
-  const [step, setStep] = useState<number>(initialStep);
-  const [documentTitle, setDocumentTitle] = useState(current?.title ?? '');
-  const [documentNotes, setDocumentNotes] = useState(current?.notes ?? '');
   const formRef = useRef<HTMLFormElement>(null);
   const pendingFocus = useRef<HTMLElement | null>(null);
   const previousStep = useRef(step);
@@ -432,8 +394,8 @@ export function DocumentEditor({
           ? t("Le document émis est verrouillé et ne peut pas être supprimé.")
           : t("Un document clair, en quatre étapes.")
       }
-      onClose={close}
-      dismissible={!busy}
+      onClose={closeForm}
+      dismissible={!busy && !saving}
       className={!isLocked ? "document-editor-dialog" : undefined}
       wide
     >
@@ -445,11 +407,11 @@ export function DocumentEditor({
         noValidate={!isLocked}
         onChange={() => { if (localError) setLocalError(''); }}
         onSubmit={submitForm(async (form) => {
-          if (busy || isLocked || readOnly) return;
+          if (busy || saving || submission.current || isLocked || readOnly || draftBlocked) return;
           if (step < 3) { goToStep(step + 1); return; }
           for (let index = 0; index < 3; index += 1) if (!validateStep(index)) return;
           setSaveAttempt((attempt) => attempt + 1);
-          setLocalError('');
+          setLocalError(''); setSaveFailure(null);
           const lineError = documentLinesValidationError(lines);
           if (lineError) {
             setLocalError(lineError);
@@ -526,24 +488,32 @@ export function DocumentEditor({
               invoiceType === 'deposit' ? depositPercentageBp : null;
             data.depositBasisLines = invoiceType === 'deposit' ? lines : null;
           }
-          await act(
+          submission.current = true; setSaving(true);
+          try {
+            const saved = await act(
             () => desktopApi.saveDocument(entity, data, depositLines, item),
             item
               ? t("Le brouillon a été mis à jour.")
               : entity === 'quotes' ? t('Le devis a été enregistré en brouillon.') : invoiceType === 'credit_note' ? t('L’avoir a été enregistré en brouillon.') : t('La facture a été enregistrée en brouillon.'),
             true,
-            reason => setLocalError(errorMessage(reason, t("Le document n’a pas pu être enregistré. Votre saisie est conservée."))),
+            reason => setSaveFailure(reason),
           );
+            persisted.complete(saved);
+            if (!saved) setSaveFailure((previous: unknown) => previous || new Error(t("Le document n’a pas pu être enregistré. Votre saisie est conservée.")));
+          } catch (reason) { setSaveFailure(reason); }
+          finally { submission.current = false; setSaving(false); }
         })}
       >
+        {!isLocked && <FormDraftNotice draft={persisted} disabled={busy || saving || readOnly} currentValues={item ? [{ label: t('Titre du document'), value: item.title }, { label: t('Client'), value: workspace.clients.find(row => row.id === item.clientId)?.company || workspace.clients.find(row => row.id === item.clientId)?.name || item.clientId }, { label: terminology.singular, value: workspace.projects.find(row => row.id === item.projectId)?.name || item.projectId || '' }, { label: t('Date d’émission'), value: item.issueDate }, { label: t('Conditions'), value: entity === 'quotes' ? (item as Quote).validUntil : (item as Invoice).dueDate }, { label: t('Prestations'), value: item.lines.map(line => `${line.description} · ${line.quantity} ${line.unit} · ${formatMoney(line.unitPriceCents, item.currency)} · ${line.vatRateBp / 100} %`).join('\n') }, { label: t('Notes'), value: item.notes }, { label: t('Texte personnalisé en bas de page'), value: item.terms }] : undefined} />}
+        {saveFailure ? <ErrorGuidance error={saveFailure} operation="mutation" compact /> : null}
         {!isLocked && <nav className="document-stepper" aria-label={t("Étapes de création")}>
           <div className="document-stepper__intro"><span>{t("Votre document")}</span><strong>{documentTitle.trim() || (entity === 'quotes' ? t("Nouveau devis") : invoiceType === 'credit_note' ? t("Nouvel avoir") : t("Nouvelle facture"))}</strong></div>
-          <ol>{steps.map((label, index) => <li key={label}><button type="button" aria-label={`${index + 1}. ${label}`} aria-current={step === index ? 'step' : undefined} disabled={busy} onClick={() => goToStep(index)}><span className="document-stepper__number" aria-hidden="true">{index < step ? <Check size={14} /> : index + 1}</span><span className="document-stepper__label"><strong>{label}</strong><small>{stepDescriptions[index]}</small></span></button></li>)}</ol>
+          <ol>{steps.map((label, index) => <li key={label}><button type="button" aria-label={`${index + 1}. ${label}`} aria-current={step === index ? 'step' : undefined} disabled={busy || saving || draftBlocked} onClick={() => goToStep(index)}><span className="document-stepper__number" aria-hidden="true">{index < step ? <Check size={14} /> : index + 1}</span><span className="document-stepper__label"><strong>{label}</strong><small>{stepDescriptions[index]}</small></span></button></li>)}</ol>
           <div className="document-stepper__track"><span style={{ transform: `scaleX(${(step + 1) / 4})` }} /></div>
           <p className="document-stepper__note">{t("Vous pourrez modifier le brouillon avant de l’émettre.")}</p>
         </nav>}
         {localError ? <ErrorPanel key={saveAttempt} title={t("Encore un détail")} message={localError} reveal /> : null}
-        <fieldset disabled={busy || isLocked} className="document-form">
+        <fieldset disabled={busy || saving || isLocked || readOnly || draftBlocked} className="document-form">
           <section className="document-step" data-document-step="0" hidden={!isLocked && step !== 0}>
             {stepHeading(0)}
           <div className="form-grid">
@@ -818,7 +788,7 @@ export function DocumentEditor({
                 />
                 </label>
                 <label className="document-line-field" data-label={t("Quantité")}>
-                  <DocumentNumberInput id={`${line.id}-quantity`} kind="quantity" label={t("Quantité")} value={line.quantity} startEmpty={line.quantity === 0 && !savedLineIds.has(line.id)} onChange={quantity => updateLine(line.id, { quantity })} onValidityChange={numberValidity} />
+                  <DocumentNumberInput id={`${line.id}-quantity`} {...numberDraftProps(`${line.id}-quantity`)} kind="quantity" label={t("Quantité")} value={line.quantity} startEmpty={line.quantity === 0 && !savedLineIds.has(line.id)} onChange={quantity => updateLine(line.id, { quantity })} onValidityChange={numberValidity} />
                 </label>
                 <label className="document-line-field" data-label={t("Unité")}>
                 <input
@@ -833,11 +803,11 @@ export function DocumentEditor({
                 />
                 </label>
                 <label className="money-input" data-label={t("Prix unitaire")}>
-                  <DocumentNumberInput id={`${line.id}-price`} kind="price" label={t("Prix unitaire")} value={line.unitPriceCents} startEmpty={!line.catalogItemId && !savedLineIds.has(line.id)} onChange={unitPriceCents => updateLine(line.id, { unitPriceCents })} onValidityChange={numberValidity} />
+                  <DocumentNumberInput id={`${line.id}-price`} {...numberDraftProps(`${line.id}-price`)} kind="price" label={t("Prix unitaire")} value={line.unitPriceCents} startEmpty={!line.catalogItemId && !savedLineIds.has(line.id)} onChange={unitPriceCents => updateLine(line.id, { unitPriceCents })} onValidityChange={numberValidity} />
                   <span>{currency}</span>
                 </label>
                 <label className="percent-input" data-label={t("Remise")}>
-                  <DocumentNumberInput id={`${line.id}-discount`} kind="discount" label={t("Remise en pour cent")} value={line.discountBp ?? 0} onChange={discountBp => updateLine(line.id, { discountBp })} onValidityChange={numberValidity} />
+                  <DocumentNumberInput id={`${line.id}-discount`} {...numberDraftProps(`${line.id}-discount`)} kind="discount" label={t("Remise en pour cent")} value={line.discountBp ?? 0} onChange={discountBp => updateLine(line.id, { discountBp })} onValidityChange={numberValidity} />
                   <span>%</span>
                 </label>
                 {settings.organization.vatRegistered ? (
@@ -955,7 +925,7 @@ export function DocumentEditor({
               </div>
               <Field label={t("Pourcentage de l’acompte")} required>
                 <label className="percent-input">
-                  <DocumentNumberInput id="deposit-percentage" kind="deposit" label={t("Pourcentage de l’acompte")} value={depositPercentageBp} onChange={value => setDepositPercentage(String(value / 100))} onValidityChange={numberValidity} />
+                  <DocumentNumberInput id="deposit-percentage" {...numberDraftProps("deposit-percentage")} kind="deposit" label={t("Pourcentage de l’acompte")} value={depositPercentageBp} onChange={value => setDepositPercentage(String(value / 100))} onValidityChange={numberValidity} />
                   <span>%</span>
                 </label>
               </Field>
@@ -1110,10 +1080,10 @@ export function DocumentEditor({
           <div className="document-wizard-footer">
             <div className="document-wizard-footer__total"><span>{invoiceType === 'credit_note' ? t("Montant de l’avoir") : t("Total TTC")}</span><strong>{totalsReady ? formatMoney(totals.totalCents, currency) : t("À compléter")}</strong></div>
             <FormActions
-              onCancel={step ? () => goToStep(step - 1) : close}
+              onCancel={step ? () => goToStep(step - 1) : closeForm}
               cancelLabel={step ? t("Retour") : t("Annuler")}
-              busy={busy}
-              disabled={readOnly}
+              busy={busy || saving}
+              disabled={readOnly || draftBlocked}
               submitLabel={step === 3 ? t("Enregistrer le brouillon") : t("Continuer")}
             />
           </div>
