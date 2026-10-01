@@ -28,6 +28,53 @@ parameters:
     default: ""
 
 jobs:
+  apple-design-verifier-1912:
+    macos:
+      xcode: "26.4.1"
+    resource_class: m4pro.medium
+    environment:
+      RUSTUP_TOOLCHAIN: stable
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - run:
+          name: Freeze application source and apply only the reviewed theme test
+          command: |
+            set -euo pipefail
+            app_source='9c1631ec9516d7807a7ba96ce41ef713c27b9c12'
+            git init .
+            git remote add origin https://github.com/leartshbj1/zentra.git
+            git fetch --depth 1 origin "$CIRCLE_SHA1"
+            git show "$CIRCLE_SHA1:desktop/tests/appearance-journey.mjs" > /tmp/zentra-1912-appearance-verifier.mjs
+            git fetch --depth 1 origin "$app_source"
+            git checkout --detach FETCH_HEAD
+            test "$(git rev-parse HEAD)" = "$app_source"
+            cp /tmp/zentra-1912-appearance-verifier.mjs desktop/tests/appearance-journey.mjs
+            test "$(git diff --name-only)" = 'desktop/tests/appearance-journey.mjs'
+            git diff --exit-code -- desktop/src desktop/src-tauri desktop/plugins desktop/package.json pnpm-lock.yaml
+            mkdir -p desktop/artifacts/validation
+            printf '%s\n' "$CIRCLE_SHA1" > desktop/artifacts/VERIFIER-SOURCE.txt
+            git diff -- desktop/tests/appearance-journey.mjs > desktop/artifacts/validation/appearance-verifier.patch
+      - run:
+          name: Prepare Apple build tools
+          command: bash desktop/scripts/cloud-release-apple.sh prepare
+      - run:
+          name: Verify native synchronization and the updated theme expectations
+          command: bash desktop/scripts/cloud-release-apple.sh test
+          no_output_timeout: 20m
+      - run:
+          name: Build universal Mac from frozen application source
+          command: bash desktop/scripts/codemagic-apple.sh macos
+          no_output_timeout: 20m
+      - run:
+          name: Build physical iPhone IPA and verify touch controls
+          command: bash desktop/scripts/cloud-release-apple.sh iphone
+          no_output_timeout: 20m
+      - run:
+          name: Launch the packaged Mac app in an isolated profile
+          command: python3 desktop/scripts/local-apple-package-smoke.py
+      - store_artifacts:
+          path: desktop/artifacts
+          destination: apple
   windows-package-volume-1909:
     resource_class: windows.medium
     machine:
@@ -426,6 +473,13 @@ jobs:
           destination: apple
 
 workflows:
+  apple-design-verifier-1912:
+    when:
+      and:
+        - equal: [codex/apple-design-apple-verifier-1912, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - apple-design-verifier-1912
   apple-design-release-1912:
     when:
       and:
