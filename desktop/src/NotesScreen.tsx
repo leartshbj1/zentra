@@ -76,8 +76,8 @@ export function NotesScreen({ store, projects, readOnly, initialProjectId, onPro
     return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(getAppLocale(), { day: 'numeric', month: 'short' });
   }
   return <section ref={surface} className={`notes-workspace${selected ? ' notes-workspace--editing' : ''}`} aria-label={t('Notes de l’équipe')}>
-    <div className="notes-index">
-      <header className="notes-index__heading"><h2 ref={listHeading} tabIndex={-1}>{t(projectFilter ? 'Notes du projet' : 'Toutes les notes')}</h2><Button disabled={readOnly} onClick={create}><Plus size={18} aria-hidden="true" />{t('Nouvelle note')}</Button></header>
+    <aside className="notes-index" aria-label={t('Toutes les notes')}>
+      <header className="notes-index__heading"><div><h2 ref={listHeading} tabIndex={-1}>{t(projectFilter ? 'Notes du projet' : 'Toutes les notes')}</h2><span className="notes-index__count" aria-hidden="true">{notes.length}</span></div><Button disabled={readOnly} onClick={create}><Plus size={18} aria-hidden="true" />{t('Nouvelle note')}</Button></header>
       <div className="notes-filters"><label className="notes-search"><Search size={18} aria-hidden="true" /><input type="search" aria-label={t('Rechercher une note')} placeholder={t('Rechercher une note')} value={query} onChange={event => setQuery(event.target.value)} /></label>
         <label className="notes-project-filter"><span className="sr-only">{t('Filtrer par projet')}</span><select value={projectFilter} onChange={event => setProjectFilter(event.target.value)}><option value="">{t('Tous les projets')}</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
       </div>
@@ -87,8 +87,8 @@ export function NotesScreen({ store, projects, readOnly, initialProjectId, onPro
         <span className="notes-list__preview">{notePreview(note.body) || t('Note vide')}</span>
         <span className="notes-list__meta"><time dateTime={note.updatedAt}>{timestamp(note)}</time>{note.projectId && <span>{projects.find(project => project.id === note.projectId)?.name || t('Projet')}</span>}</span>
       </button></li>)}</ul> : <div className="notes-empty"><NotebookPen size={38} strokeWidth={1.4} aria-hidden="true" /><h3>{t(query || projectFilter ? 'Aucune note trouvée' : 'Une idée, une mesure, un détail.')}</h3><p>{t(query || projectFilter ? 'Essayez une autre recherche ou un autre projet.' : 'Gardez vos observations à portée de main.')}</p>{!query && <Button variant="secondary" disabled={readOnly} onClick={create}>{t('Écrire une note')}</Button>}</div>}
-    </div>
-    <div className="notes-sheet">
+    </aside>
+    <section className="notes-sheet" aria-label={t('Texte de la note')}>
       {selected ? <>
         <header className="notes-editor__toolbar"><Button variant="ghost" className="notes-back" onClick={closeEditor} aria-label={t('Retour aux notes')}><ArrowLeft size={20} aria-hidden="true" /><span>{t('Notes')}</span></Button>
           <span className="notes-save-state" role="status" aria-live="polite">{selected.state === 'saved' && <Check size={15} aria-hidden="true" />}{t(selected.state === 'saved' ? 'Enregistrée' : selected.state === 'error' ? 'À enregistrer' : selected.state === 'saving' ? 'Enregistrement…' : 'Modifications en cours')}</span>
@@ -96,13 +96,13 @@ export function NotesScreen({ store, projects, readOnly, initialProjectId, onPro
         </header>
         {deleteOpen && <div className="notes-delete-confirm" role="group" aria-label={t('Confirmer la suppression')}><p>{t('Supprimer cette note pour toute l’équipe ?')}</p><Button variant="secondary" disabled={deleting} onClick={() => setDeleteOpen(false)}>{t('Annuler')}</Button><Button variant="danger" disabled={deleting} onClick={() => void remove()}>{t(deleting ? 'Suppression…' : 'Supprimer')}</Button></div>}
         {(selected.state === 'error' || actionError) && <div className="notes-error" role="alert"><p>{actionError || t('La note n’a pas pu être enregistrée. Votre texte est conservé sur cet appareil. Si un collègue l’a modifiée, gardez une copie pour ne rien écraser.')}</p><Button variant="secondary" onClick={() => void store.flush(selected.note.id)} disabled={readOnly}>{t('Réessayer')}</Button><Button variant="ghost" disabled={readOnly} onClick={() => { const id = store.copy(selected.note.id); if (id) setSelectedId(id); }}><Copy size={16} />{t('Garder une copie')}</Button></div>}
-        <div className="notes-editor__context"><label><span className="sr-only">{t('Projet de la note')}</span><select aria-label={t('Projet de la note')} value={selected.note.projectId || ''} disabled={readOnly || deleting} onChange={event => store.edit(selected.note.id, { projectId: event.target.value || null })}><option value="">{t('Sans projet')}</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>{selected.note.authorName && <span>{selected.note.authorName}</span>}</div>
         <div className="notes-editor__content" data-company-receive-safe="true"><input ref={title} className="notes-editor__title" aria-label={t('Titre de la note')} placeholder={t('Titre')} value={selected.note.title} maxLength={200} readOnly={readOnly || deleting} onChange={event => store.edit(selected.note.id, { title: event.target.value })} />
+          <div className="notes-editor__context"><label><span className="sr-only">{t('Projet de la note')}</span><select aria-label={t('Projet de la note')} value={selected.note.projectId || ''} disabled={readOnly || deleting} onChange={event => store.edit(selected.note.id, { projectId: event.target.value || null })}><option value="">{t('Sans projet')}</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>{selected.note.authorName && <span>{selected.note.authorName}</span>}</div>
           {noteChecklist(selected.note.body).length > 0 && <details className="notes-checklist"><summary>{t('Liste à cocher')} <span>{noteChecklist(selected.note.body).filter(item => item.checked).length}/{noteChecklist(selected.note.body).length}</span></summary>{noteChecklist(selected.note.body).map(item => <label key={item.index}><input type="checkbox" checked={item.checked} disabled={readOnly || deleting} onChange={() => store.edit(selected.note.id, { body: toggleNoteChecklist(selected.note.body, item.index) })} /><span>{item.text}</span></label>)}</details>}
           <textarea ref={body} className="notes-editor__body" aria-label={t('Texte de la note')} placeholder={t('Notez ce que vous avez en tête…')} value={selected.note.body} maxLength={50000} readOnly={readOnly || deleting} onChange={event => store.edit(selected.note.id, { body: event.target.value })} />
         </div>
         <footer className="notes-editor__footer"><Button variant="ghost" disabled={readOnly} onClick={addChecklist}><CheckCheck size={19} aria-hidden="true" />{t('Ajouter une case')}</Button><Button variant="ghost" onClick={closeEditor}><Check size={19} aria-hidden="true" />{t('Terminer')}</Button></footer>
       </> : <div className="notes-sheet__empty"><NotebookPen size={42} strokeWidth={1.2} aria-hidden="true" /><p>{t('Choisissez une note ou écrivez-en une nouvelle.')}</p></div>}
-    </div>
+    </section>
   </section>;
 }

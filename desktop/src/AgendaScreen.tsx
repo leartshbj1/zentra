@@ -175,12 +175,6 @@ export function AgendaScreen({
   return (
     <div className="agenda-layout">
       {missingInitialEvent && <p role="status">{automationLabel('appointmentUnavailable',language)}</p>}
-      {!compact && <section className="agenda-summary" aria-label={t('Résumé de l’agenda')}>
-        <AgendaMetric label="Aujourd’hui" value={todayCount} />
-        <AgendaMetric label="7 prochains jours" value={nextCount} />
-        <AgendaMetric label="À vérifier en retard" value={overdueCount} alert={overdueCount > 0} />
-      </section>}
-
       <section className="agenda-toolbar panel">
         <div className="agenda-month-controls">
           <Button
@@ -192,7 +186,6 @@ export function AgendaScreen({
             <ChevronLeft size={18} />
           </Button>
           <div>
-            <span>{t(display === 'day' ? 'Journée' : display === 'week' ? 'Semaine' : 'Planning réel')}</span>
             <strong>
               {display === 'month'
                 ? monthLabel(month)
@@ -273,6 +266,12 @@ export function AgendaScreen({
           </Button>
       </section>
 
+      {!compact && <section className="agenda-summary" aria-label={t('Résumé de l’agenda')}>
+        <AgendaMetric label="Aujourd’hui" value={todayCount} />
+        <AgendaMetric label="7 prochains jours" value={nextCount} />
+        <AgendaMetric label="À vérifier en retard" value={overdueCount} alert={overdueCount > 0} />
+      </section>}
+
       <div className="agenda-main-grid" data-display={display}>
         <section className={`agenda-calendar agenda-calendar--${display} panel`} aria-label={t('Calendrier {month}', {month:monthLabel(month)})}>
           {display === 'month' ? (
@@ -334,8 +333,8 @@ export function AgendaScreen({
         <section className="agenda-list-panel panel">
           <header>
             <div>
-              <span>{t(display === 'day' ? 'Journée sélectionnée' : display === 'week' ? 'Vue de la semaine' : 'Vue du mois')}</span>
-              <strong>{display === 'day' ? formatDate(selectedDate) : display === 'week' ? `${formatDate(displayedWeek[0])} – ${formatDate(displayedWeek[6])}` : monthLabel(month)}</strong>
+              <h2>{t(display === 'day' ? 'Journée sélectionnée' : display === 'week' ? 'Vue de la semaine' : 'Vue du mois')}</h2>
+              <p>{display === 'day' ? formatDate(selectedDate) : display === 'week' ? `${formatDate(displayedWeek[0])} – ${formatDate(displayedWeek[6])}` : monthLabel(month)}</p>
             </div>
             {display !== 'month' ? (
               <Button variant="ghost" size="small" onClick={() => setDisplay('month')}>{t('Voir le mois')}</Button>
@@ -501,8 +500,8 @@ function AgendaRow({
       </div>
       <div className="agenda-row__content">
         <div>
-          <small>{t(sourceLabels[item.source])}</small>
           <strong>{item.title}</strong>
+          <small>{t(sourceLabels[item.source])}</small>
         </div>
         {item.subtitle ? (
           <p><MapPin size={13} /> {item.subtitle}</p>

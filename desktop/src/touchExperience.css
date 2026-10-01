@@ -1,10 +1,12 @@
 :root { --safe-top: env(safe-area-inset-top, 0px); --safe-right: env(safe-area-inset-right, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); --safe-left: env(safe-area-inset-left, 0px); }
 [data-touch-document] { touch-action: pan-x pan-y; overscroll-behavior: contain; }
 .navigation-scrim--closed { visibility: hidden; opacity: 0; pointer-events: none; }
-html[data-drawer-dragging=true] .navigation-scrim { visibility: visible; opacity: var(--drawer-progress); pointer-events: none; transition: none; }
+html:is([data-drawer-dragging=true],[data-drawer-settling=true]) .navigation-scrim { visibility: visible; opacity: var(--drawer-progress); pointer-events: none; transition: none; }
+.desktop-app .sidebar[aria-hidden=true] { transform: translateX(-100%) !important; }
+.desktop-app .sidebar:is([data-dragging=true],[data-settling=true]) { visibility: visible !important; transform: translate3d(var(--drawer-offset),0,0) !important; transition: none !important; will-change: transform; }
+[data-selection-moving=true] :is(.sidebar__selection,.mobile-navigation__selection,.sales-tabs__selection,.section-navigation__selection) { transition: none !important; will-change: transform; }
 @media screen and (max-width: 860px) {
   .desktop-app .sidebar { padding: max(18px, var(--safe-top)) max(14px, var(--safe-right)) max(16px, var(--safe-bottom)) max(14px, var(--safe-left)); width: min(340px, calc(100vw - 44px)); border-radius: 0 28px 28px 0; transition: transform 320ms cubic-bezier(.22,1,.36,1), visibility 320ms; }
-  .desktop-app .sidebar[data-dragging=true] { visibility: visible !important; transform: translate3d(var(--drawer-offset),0,0) !important; transition: none !important; will-change: transform; }
   .desktop-app[data-view] .topbar { padding-top: max(14px, var(--safe-top)); padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }
   .desktop-app[data-view] .app-content, .desktop-app[data-view] .page-content, .desktop-app[data-view] .page-header { padding-left: max(20px, var(--safe-left)); padding-right: max(20px, var(--safe-right)); }
   .onboarding .onboarding__main > .onboarding__content { padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }

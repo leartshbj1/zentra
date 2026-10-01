@@ -11,7 +11,7 @@ await mkdir('.qa/forms', { recursive: true });
 page.on('pageerror', (error) => report.push({ error: error.message }));
 page.setDefaultTimeout(10000);
 async function go(label) {
-  await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
+  await page.keyboard.press('Control+k');
   await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill(label);
   await page.locator('.navigation-palette__results button').filter({ has: page.getByText(label, { exact: true }) }).click();
   await page.locator('.navigation-palette').waitFor({ state: 'detached' });
@@ -19,25 +19,35 @@ async function go(label) {
   await page.evaluate(() => scrollTo(0, 0));
 }
 async function capture(name) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => {})));
+    await new Promise(requestAnimationFrame);
+  });
   await page.screenshot({ path: `.qa/forms/${name}.png`, fullPage: false });
   const geometry = await page.evaluate(() => ({ width: innerWidth, document: document.documentElement.scrollWidth, dialog: document.querySelector('[role=dialog]')?.getBoundingClientRect().width || 0, dialogScroll: document.querySelector('.modal__body')?.scrollWidth || 0, dialogClient: document.querySelector('.modal__body')?.clientWidth || 0 }));
   assert.ok(geometry.document <= geometry.width && geometry.dialog <= geometry.width && geometry.dialogScroll <= geometry.dialogClient + 1, name + ': no horizontal overflow');
   report.push({ screen: name, ...geometry });
 }
 try {
-  await page.goto('http://127.0.0.1:5175/tests/mobile-harness.html?finance=1');
-  const tour = page.getByRole('button', { name: 'Ne plus afficher automatiquement', exact: true });
+  await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5363'}/tests/mobile-harness.html?finance=1`);
+  const tour = page.getByRole('button', { name: 'Fermer le guide automatique', exact: true });
   if (await tour.isVisible()) await tour.click();
   for (const width of [320, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const [module, button, slug] of [
       ['Clients', 'Nouveau client', 'client'], ['Produits & services', 'Nouvelle référence', 'catalogue'],
-      ['Équipe & salaires', 'Nouvelle fiche de personnel', 'collaborateur'], ['Agenda', 'Ajouter', 'agenda'],
+      ['Équipe & salaires', 'Nouvelle fiche de personnel', 'collaborateur'], ['Agenda', 'Ajouter un rendez-vous', 'agenda'],
       ['Achats & fournisseurs', 'Nouvelle commande', 'commande-achat'], ['Achats & fournisseurs', 'Facture fournisseur', 'facture-achat'],
     ]) {
       await go(module);
+      if (slug === 'commande-achat') {
+        if (width <= 860) await page.getByRole('combobox', { name: 'Section des achats', exact: true }).selectOption('orders');
+        else await page.locator('#purchase-tab-orders').click();
+      }
       await page.getByRole('button', { name: button, exact: true }).first().click();
       await page.getByRole('dialog').waitFor();
+      await page.locator('.modal input:visible, .modal select:visible, .modal textarea:visible').first().waitFor();
       await capture(`${width}-${slug}`);
       // Keyboard users must stay inside the active form, including at its edges.
       await page.getByRole('dialog').focus();

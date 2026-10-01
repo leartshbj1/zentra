@@ -1,0 +1,272 @@
+/* Operational work lists and payroll editors. Screen-only; no print-document rules. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-screen, .purchases-screen, .purchase-workflow, .reminders-screen, .payroll-panel) {
+    min-width: 0;
+    color: var(--apple-ink);
+    font-variant-numeric: tabular-nums;
+    gap: 1.5rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-screen, .purchases-screen, .reminders-screen, .payroll-panel) :is(h2, h3, h4) {
+    color: var(--apple-ink);
+    letter-spacing: -.02em;
+    text-wrap: balance;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-screen, .purchases-screen, .reminders-screen, .payroll-panel) :is(p, small, dt) { line-height: 1.55; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-screen, .purchases-screen, .reminders-screen) :is(.summary-strip, .reminder-command-center__stats) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+    padding: .5rem 0;
+    gap: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-screen, .purchases-screen, .reminders-screen) :is(.summary-strip > div, .reminder-command-center__stats > div) {
+    padding: .75rem 1rem;
+    border: 0;
+    border-inline-end: 1px solid var(--apple-line);
+    background: transparent;
+    border-radius: 0;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-screen, .purchases-screen, .reminders-screen) :is(.summary-strip > div, .reminder-command-center__stats > div):last-child { border: 0; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-screen, .purchases-screen, .reminders-screen) :is(.summary-strip span, .reminder-command-center__stats span) { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-screen, .purchases-screen, .reminders-screen) :is(.summary-strip strong, .reminder-command-center__stats strong) { color: var(--apple-ink); font-size: calc(1.375rem * var(--zentra-ui-text-scale, 1)); line-height: 1.4; overflow-wrap: anywhere; }
+
+  /* Catalogue: product identity, price and stock belong to the same record. */
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-heading-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-list-toolbar { padding-block: .5rem 1rem; gap: 1rem; border-bottom: 1px solid var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-overview { margin-bottom: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-overview > summary { color: var(--apple-secondary); font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); padding-block: .625rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-filters { gap: 1rem; padding: 1.125rem; background: var(--apple-grouped); border: 0; border-radius: var(--apple-radius-control); margin-block: 0 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-list { gap: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item {
+    display: grid;
+    grid-template-columns: 1.5rem minmax(0, 1.4fr) minmax(8rem, .7fr) minmax(9rem, .8fr) auto;
+    align-items: start;
+    gap: 1rem 1.5rem;
+    padding: 1.5rem 0;
+    border: 0;
+    border-bottom: 1px solid var(--apple-line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item:last-child { border-bottom: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__icon { width: 1.5rem; height: 1.5rem; padding: 0; background: transparent; color: var(--apple-secondary); border-radius: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__identity { min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__identity strong { color: var(--apple-ink); font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); line-height: 1.5; font-weight: 600; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__identity code { background: transparent; color: var(--apple-secondary); border: 0; padding: 0; font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__identity p { color: var(--apple-secondary); font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); max-width: 60ch; margin-block: .375rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item :is(.catalog-item__price, .catalog-item__stock) { min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item :is(small, .catalog-item__price > span, .catalog-item__stock > span) { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen :is(.catalog-item__price > strong, .catalog-item__stock > strong) { color: var(--apple-ink); font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-stock-balances { gap: .375rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-stock-balances strong { color: var(--apple-ink); white-space: normal; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__state { grid-column: 2; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__state .status { background: transparent; border: 0; padding: 0; color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__actions { grid-column: 5; grid-row: 1 / 3; display: flex; flex-wrap: wrap; justify-content: end; gap: .5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__movement-actions { grid-column: 3 / -1; display: flex; flex-wrap: wrap; gap: .625rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__movement-actions > span { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); text-transform: none; letter-spacing: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .stock-alert { background: var(--apple-warning-surface); color: var(--apple-warning); border: 0; border-radius: var(--apple-radius-control); }
+
+  /* Purchases and mail intake share the same work-list language. */
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-block: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-toolbar .tab-strip {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: .25rem;
+    padding: .25rem;
+    background: var(--apple-grouped);
+    border: 0;
+    border-radius: var(--apple-radius-control);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-toolbar .tab-strip button { min-height: 2.75rem; padding: .625rem .875rem; background: transparent; color: var(--apple-secondary); border: 0; border-radius: calc(var(--apple-radius-control) - 3px); white-space: normal; font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-toolbar .tab-strip button.is-active { background: var(--apple-paper); color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-toolbar .tab-strip em { background: transparent; color: inherit; font-style: normal; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.purchases-screen, .purchase-workflow) .purchase-search { background: var(--apple-grouped); border: 1px solid transparent; border-radius: var(--apple-radius-control); box-shadow: none; min-height: 2.75rem; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.purchases-screen, .purchase-workflow) .purchase-search:focus-within { border-color: var(--apple-focus); }
+  html[data-app-theme] .desktop-app[data-experience] :is(.purchases-screen, .purchase-workflow) .purchase-search input { background: transparent; color: var(--apple-ink); font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-table { background: var(--apple-paper); border: 0; border-radius: 0; box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-table :is(th, td) { border-color: var(--apple-line); background: transparent; font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); line-height: 1.5; padding: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-table th { font-weight: 500; color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-table td { color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-table td > small { font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .supplier-card { padding: 1.25rem 0; background: transparent; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .supplier-card__icon { background: transparent; color: var(--apple-secondary); width: 1.5rem; height: 1.5rem; border-radius: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .supplier-card__identity strong { font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .supplier-card :is(p, small, .supplier-card__terms span) { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox { background: var(--apple-paper); border: 0; border-radius: var(--apple-radius-group); padding: 1.5rem; box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience] .purchase-workflow .supplier-inbox--embedded { background: transparent; padding-inline: 0; border-radius: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__icon { background: transparent; color: var(--apple-secondary); width: 1.5rem; height: 1.5rem; border-radius: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__count { color: var(--apple-secondary); background: transparent; padding: 0; font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox h2 { color: var(--apple-ink); font-size: calc(1.125rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__status { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__filters { background: var(--apple-grouped); border-radius: var(--apple-radius-control); padding: .25rem; flex-wrap: wrap; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__filters button { font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary); font-weight: 500; min-height: 2.75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__filters button[aria-pressed=true] { color: var(--apple-accent); background: var(--apple-paper); }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__list article { border-color: var(--apple-line); padding-block: 1.25rem; background: transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__list :is(strong, b) { color: var(--apple-ink); font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__list :is(span, small) { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__list b { white-space: normal; overflow-wrap: anywhere; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-email-intake { color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-email-intake__icon { color: var(--apple-secondary); background: transparent; }
+
+  /* Relances: a queue of reviewable decisions with dates and current balance. */
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding: 0 0 1.25rem; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; background: transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-toolbar .tab-strip { display: flex; flex-direction: row; flex-wrap: wrap; gap: .25rem; padding: .25rem; border: 0; background: var(--apple-grouped); border-radius: var(--apple-radius-control); }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-toolbar .tab-strip button { color: var(--apple-secondary); background: transparent; border: 0; border-radius: calc(var(--apple-radius-control) - 3px); min-height: 2.75rem; font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); padding: .625rem 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-toolbar .tab-strip button.is-active { background: var(--apple-paper); color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list { gap: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list article { background: transparent; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; padding: 1.5rem 0; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list article:first-child { padding-top: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list article:last-child { border-bottom: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list article > header { gap: 1rem; flex-wrap: wrap; align-items: start; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list article > header > div { min-width: 0; flex: 1 1 15rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list header strong { font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); line-height: 1.5; color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list header small { font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary); line-height: 1.5; overflow-wrap: anywhere; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-level { border: 0; background: transparent; color: var(--apple-secondary); border-radius: 0; font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); font-weight: 500; text-transform: none; padding: .25rem 0; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; margin-block: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-facts span { background: transparent; padding: 0; border-radius: 0; color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-facts strong { color: var(--apple-ink); font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; line-height: 1.5; margin-top: .375rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list footer { gap: .625rem; margin-top: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen :is(.reminder-balance-alert, .reminder-legal-note) { background: var(--apple-grouped); border: 0; border-radius: var(--apple-radius-control); padding: 1rem; color: var(--apple-ink); font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .template-list article { background: transparent; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; padding: 1.25rem 0; gap: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .template-list strong { font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .template-list :is(p, small) { font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .history-layout { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 1.5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .history-selector { gap: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .history-selector > button { padding: 1rem; border: 0; border-bottom: 1px solid var(--apple-line); background: transparent; border-radius: 0; color: var(--apple-ink); min-height: 3.5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .history-selector > button.is-active { background: var(--apple-selection); border-radius: var(--apple-radius-control); }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .history-selector strong { font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .history-selector small { font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .history-timeline { background: var(--apple-grouped); border-radius: var(--apple-radius-group); padding: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-channel-summary { grid-template-columns: minmax(0, 1fr); gap: 0; background: var(--apple-grouped); border-radius: var(--apple-radius-control); padding: .5rem 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-channel-summary > span { background: transparent; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; padding: .875rem 0; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-channel-summary > span:last-child { border: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-channel-summary > span svg { color: var(--apple-secondary); }
+
+  /* Payroll list: amounts and state remain attached to their employee and period. */
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payroll-heading-actions { flex-wrap: wrap; gap: .75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payroll-review-banner { background: var(--apple-grouped); color: var(--apple-ink); border: 0; border-radius: var(--apple-radius-control); padding: 1rem 1.25rem; font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list { gap: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list article { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(7rem, .65fr) minmax(7rem, .65fr) auto; align-items: start; gap: 1rem 1.5rem; padding: 1.25rem 0; background: transparent; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list article > div { min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list article > div:first-child { align-items: start; gap: .75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list article > div:first-child > svg { color: var(--apple-secondary); margin-top: .125rem; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list strong { color: var(--apple-ink); font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); line-height: 1.5; overflow-wrap: anywhere; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list small { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); line-height: 1.55; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list .row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: start; gap: .5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list article:last-child { border-bottom: 0; }
+
+  /* Payroll dialogs are work forms, independent of payslip print rendering. */
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) :is(.payroll-preparation, .payroll-setup, .payroll-wizard, .payroll-settings, .payroll-definitions) {
+    --payroll-accent: var(--apple-accent);
+    --text-muted: var(--apple-secondary);
+    color: var(--apple-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) :is(.payroll-preparation, .payroll-setup, .payroll-wizard, .payroll-settings, .payroll-definitions) :is(p, small, dt) { color: var(--apple-secondary); line-height: 1.55; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) :is(.payroll-preparation, .payroll-setup, .payroll-wizard, .payroll-settings, .payroll-definitions) :is(h3, h4) { color: var(--apple-ink); letter-spacing: -.025em; line-height: 1.3; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation { margin-inline: 0; max-width: 46rem; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation > header { margin-block: .5rem 1.5rem; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation h3 { font-size: calc(1.625rem * var(--zentra-ui-text-scale, 1)); margin-block: .5rem .75rem; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation__next { background: var(--apple-grouped); border: 0; border-radius: var(--apple-radius-group); padding: 1.5rem; animation: none; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation__next > span { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation__next h4 { font-size: calc(1.25rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) :is(.payroll-preparation__status, .payroll-preparation__saved) { color: var(--apple-accent); font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation__document { border-color: var(--apple-line); padding-block: 1rem; margin-block: 1.25rem; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation__document svg { color: var(--apple-secondary); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation__document strong { font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) :is(.payroll-preparation__remaining, .payroll-question-progress) { border-color: var(--apple-line); color: var(--apple-secondary); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) :is(.payroll-preparation, .payroll-setup, .payroll-wizard, .payroll-settings) summary { min-height: 2.75rem; padding-block: .875rem; color: var(--apple-ink); font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); line-height: 1.5; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) :is(.payroll-person, .payroll-salary, .payroll-net, .payroll-month-overview, .payroll-callout, .payroll-problem, .payroll-directory) { background: var(--apple-grouped); border: 0; border-radius: var(--apple-radius-group); color: var(--apple-ink); padding: 1.25rem; box-shadow: none; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-month-overview__heading { color: var(--apple-ink); font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-month-overview__heading svg { color: var(--apple-secondary); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-wizard .payroll-details,
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-settings__contracts { background: var(--apple-paper); border: 1px solid var(--apple-line); border-radius: var(--apple-radius-control); padding-inline: 1.125rem; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-setup-nav { display: flex; flex-wrap: wrap; gap: .25rem; padding: .25rem; background: var(--apple-grouped); border-radius: var(--apple-radius-control); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-setup-nav button { color: var(--apple-secondary); background: transparent; border: 0; border-radius: calc(var(--apple-radius-control) - 3px); min-height: 2.75rem; padding: .625rem 1rem; font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-setup-nav button[aria-current] { background: var(--apple-paper); color: var(--apple-accent); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) :is(.payroll-text-button, .payroll-directory a) { color: var(--apple-accent); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-directory li + li { border-color: var(--apple-line); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-directory li button { min-height: 2.75rem; color: var(--apple-ink); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) :is(.payroll-definitions .contribution-list article, .payroll-wizard .pay-line-list > article) { background: transparent; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; padding: 1.25rem 0; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-definitions .contribution-facts { background: var(--apple-grouped); border-radius: var(--apple-radius-control); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-setup--guided .payroll-setup-actions { background: var(--apple-paper); border-top: 1px solid var(--apple-line); }
+
+  /* Supplier forms retain protected focus, source documents and confirmations. */
+  html[data-app-theme] .modal-backdrop :is(.supplier-inbox-review, .supplier-file-modal, .supplier-review-modal, .purchase-entry-modal, .catalog-item-modal) { color: var(--apple-ink); }
+  html[data-app-theme] .modal-backdrop :is(.supplier-inbox-review__summary, .supplier-inbox-review__new-supplier, .supplier-file__notice, .catalog-kind-picker) { background: var(--apple-grouped); border-color: var(--apple-line); border-radius: var(--apple-radius-control); box-shadow: none; }
+  html[data-app-theme] .modal-backdrop :is(.supplier-inbox-review__summary strong, .supplier-file__balance > strong) { color: var(--apple-ink); }
+  html[data-app-theme] .modal-backdrop :is(.supplier-inbox-review__summary span, .supplier-file__facts dt, .supplier-file__hint) { color: var(--apple-secondary); }
+  html[data-app-theme] .modal-backdrop .supplier-file__tabs { background: var(--apple-grouped); padding: .25rem; border: 0; border-radius: var(--apple-radius-control); }
+  html[data-app-theme] .modal-backdrop .supplier-file__tabs button { min-height: 2.75rem; color: var(--apple-secondary); border-radius: calc(var(--apple-radius-control) - 3px); font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .modal-backdrop .supplier-file__tabs [aria-selected=true] { color: var(--apple-accent); background: var(--apple-paper); }
+  html[data-app-theme] .modal-backdrop .supplier-file__actions { background: var(--apple-paper); border-color: var(--apple-line); }
+}
+
+@media screen and (max-width: 1200px) {
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item { grid-template-columns: 1.5rem minmax(0, 1fr) minmax(8rem, .7fr); gap: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__stock { grid-column: 2; grid-row: 2; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__state { grid-column: 3; grid-row: 2; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__actions { grid-column: 2 / -1; grid-row: 3; justify-content: start; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__movement-actions { grid-column: 2 / -1; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list article { grid-template-columns: minmax(0, 1fr) minmax(7rem, .65fr); gap: 1rem; }
+}
+
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-heading-actions { display: flex; gap: .625rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-heading-actions .button { flex: 1 1 10rem; width: auto; font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item { grid-template-columns: 1.25rem minmax(0, 1fr); padding: 1.25rem 0; gap: .875rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__identity { grid-column: 2; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__price { grid-column: 2; grid-row: auto; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__stock { grid-column: 2; grid-row: auto; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__state { grid-column: 2; grid-row: auto; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen :is(.catalog-item__actions, .catalog-item__movement-actions) { grid-column: 1 / -1; grid-row: auto; display: flex; flex-wrap: wrap; justify-content: start; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item__actions .button { flex: 1 1 8rem; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-stock-balances { max-width: 22rem; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-screen, .purchases-screen, .reminders-screen) :is(.summary-strip, .reminder-command-center__stats) { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] .desktop-app[data-experience] :is(.catalog-screen, .purchases-screen, .reminders-screen) :is(.summary-strip > div, .reminder-command-center__stats > div) { padding: .875rem 0; border: 0; border-bottom: 1px solid var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-toolbar { align-items: stretch; gap: .75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-toolbar .tab-strip { width: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .purchase-toolbar .tab-strip button { flex: 1 1 6rem; justify-content: center; }
+  html[data-app-theme] .desktop-app[data-experience] .purchases-screen .supplier-card { gap: .875rem; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox { padding: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__list article { grid-template-columns: minmax(0, 1fr); gap: .75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__list article > :is(div, b, .button) { grid-column: 1; grid-row: auto; justify-self: stretch; }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-inbox__list article > b { justify-self: start; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-toolbar { align-items: stretch; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-toolbar > div { max-width: 100%; flex-wrap: wrap; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-toolbar .tab-strip { width: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-toolbar .tab-strip button { flex: 1 1 6rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-facts { grid-template-columns: minmax(0, 1fr); gap: .875rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-facts span { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .375rem .75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-facts strong { margin: 0; overflow-wrap: anywhere; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .history-layout { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list article > header > div { flex-basis: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .reminder-list footer .button { flex: 1 1 10rem; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list article { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list article > div:first-child { grid-column: 1 / -1; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list .status { justify-self: start; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list .row-actions > .button { flex: 1 1 9rem; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation__next { padding: 1.125rem; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) :is(.payroll-person, .payroll-salary, .payroll-net, .payroll-month-overview, .payroll-problem) { padding: 1.125rem; }
+}
+
+@media screen and (max-width: 480px) {
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen :is(.catalog-heading-actions, .catalog-item__actions, .catalog-item__movement-actions) .button { flex-basis: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-filters { padding: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .payroll-panel .payslip-list article { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation__remaining li { align-items: stretch; flex-direction: column; }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-preparation__remaining li > .button { align-self: start; }
+  html[data-app-theme] .modal-backdrop .supplier-file__tabs { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media screen and (hover: hover) and (pointer: fine) {
+  html[data-app-theme] .desktop-app[data-experience] .catalog-screen .catalog-item:hover { background: transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .reminders-screen .history-selector > button:not(.is-active):hover { background: var(--apple-grouped); }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payroll-directory li button:hover { background: var(--apple-paper); }
+}

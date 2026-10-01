@@ -1,0 +1,775 @@
+/* Finance and Automation use the shared Apple palette. This layer is screen-only. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] :is(.accounting-screen, .bank-screen, .automation-hub, .automation-settings, .automation-centre) {
+    min-width: 0;
+    color: var(--apple-ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    font-optical-sizing: auto;
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.accounting-screen, .bank-screen, .automation-hub) {
+    gap: 1.5rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.accounting-screen, .bank-screen, .automation-hub) :is(h2, h3, h4) {
+    color: var(--apple-ink);
+    text-wrap: balance;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.accounting-screen, .bank-screen, .automation-hub) :is(p, small, dt) {
+    line-height: 1.55;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.accounting-screen, .bank-screen, .automation-hub) :is(summary, button, label):focus-visible {
+    outline: 2px solid var(--apple-focus);
+    outline-offset: 3px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.accounting-screen, .bank-screen, .automation-hub) summary {
+    min-height: 2.75rem;
+    padding-block: .75rem;
+    cursor: pointer;
+    color: var(--apple-ink);
+    font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.accounting-screen, .bank-screen, .automation-hub) :is(input, select, textarea) {
+    caret-color: var(--apple-accent);
+  }
+
+  /* Accounting: one navigation strip, a separate and truthful period scope. */
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem 1.5rem;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 1rem;
+    min-width: 0;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation > .section-navigation {
+    flex: 1 1 32rem;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation__more {
+    display: grid;
+    flex: 0 1 15rem;
+    gap: .375rem;
+    max-width: none;
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation__more select {
+    color: var(--apple-ink);
+    background: var(--apple-paper);
+    border: 1px solid var(--apple-line);
+    border-radius: var(--apple-radius-control);
+    min-height: 2.75rem;
+    font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-filters {
+    grid-column: 1;
+    grid-row: 2;
+    gap: 1rem;
+    padding: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-period-bar {
+    grid-column: 2;
+    grid-row: 2;
+    gap: .75rem;
+    padding: 0;
+    border: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-period-toggle {
+    color: var(--apple-ink);
+    background: var(--apple-paper);
+    border-color: var(--apple-line);
+    border-radius: var(--apple-radius-control);
+    min-height: 3rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .report-state {
+    color: var(--apple-secondary);
+    background: var(--apple-grouped);
+    border: 0;
+    border-radius: .375rem;
+    font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1));
+    padding: .375rem .625rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .report-state.is-closed {
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-period-shortcuts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .375rem;
+    margin: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-period-shortcuts button {
+    min-height: 2.75rem;
+    padding: .5rem .875rem;
+    background: var(--apple-grouped);
+    border: 0;
+    border-radius: var(--apple-radius-control);
+    color: var(--apple-ink);
+    font-size: calc(.875rem * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.finance-reading-note, .report-callout, .warning-card, .accounting-setup__starter, .accounting-periods__boundary) {
+    background: var(--apple-grouped);
+    color: var(--apple-ink);
+    border: 0;
+    border-radius: var(--apple-radius-group);
+    padding: 1.125rem 1.25rem;
+    gap: .875rem;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.finance-reading-note, .report-callout, .warning-card, .accounting-setup__starter) > svg {
+    flex: 0 0 auto;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.finance-reading-note, .report-callout, .warning-card, .accounting-setup__starter) :is(p, small) {
+    color: var(--apple-secondary);
+    font-size: calc(.875rem * var(--zentra-ui-text-scale, 1));
+    max-width: 72ch;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.finance-reading-note h2, .report-callout strong, .warning-card strong) {
+    font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-export-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    background: var(--apple-paper);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-export-bar p {
+    color: var(--apple-secondary);
+    font-size: calc(.875rem * var(--zentra-ui-text-scale, 1));
+  }
+
+  /* Figures are a single financial statement, not independent metric cards. */
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview > * { order: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__intro {
+    margin: 0;
+    align-items: center;
+    gap: 1rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__period {
+    color: var(--apple-secondary);
+    font-size: calc(.875rem * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: .5rem 1.5rem;
+    gap: 0;
+    background: var(--apple-paper);
+    border: 0;
+    border-radius: var(--apple-radius-group);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures article {
+    display: grid;
+    align-content: start;
+    gap: .75rem;
+    padding: 1.25rem 1.5rem;
+    border: 0;
+    border-inline-end: 1px solid var(--apple-line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures article:first-child { padding-inline-start: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures article:last-child { border: 0; padding-inline-end: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures article > div { gap: .5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures article > div > svg { color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures h3 {
+    font-size: calc(.875rem * var(--zentra-ui-text-scale, 1));
+    line-height: 1.5;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures strong {
+    font-size: calc(clamp(1.375rem, 2.2vw, 1.875rem) * var(--zentra-ui-text-scale, 1));
+    line-height: 1.25;
+    font-weight: 600;
+    letter-spacing: -.025em;
+    margin: 0;
+    color: var(--apple-ink);
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures p {
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(.875rem * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures button {
+    color: var(--apple-accent);
+    min-height: 2.75rem;
+    font-size: calc(.875rem * var(--zentra-ui-text-scale, 1));
+    background: transparent;
+    padding: .375rem 0;
+    justify-self: start;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__next {
+    margin: 0;
+    padding: 1.25rem;
+    border: 0;
+    border-radius: var(--apple-radius-group);
+    background: var(--apple-grouped);
+    gap: 1.25rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__next h3 { font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__next p { color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__step {
+    background: transparent;
+    color: var(--apple-secondary);
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__paths {
+    gap: 0;
+    padding: 0 1.5rem;
+    border-radius: var(--apple-radius-group);
+    background: var(--apple-paper);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__paths > button {
+    padding: 1.125rem 0;
+    border-color: var(--apple-line);
+    color: var(--apple-ink);
+    gap: 1rem;
+    min-height: 4.25rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__paths small { color: var(--apple-secondary); }
+
+  /* Accounting records and entry editing share one surface with internal rules. */
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-entry-list { gap: 0; margin-top: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-entry-list > article {
+    border: 0;
+    border-bottom: 1px solid var(--apple-line);
+    border-radius: 0;
+    background: var(--apple-paper);
+    padding-block: 1.25rem;
+    overflow: visible;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-entry-list > article:first-child { padding-top: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-entry-list > article:last-child { border-bottom: 0; padding-bottom: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-entry-list > article > header {
+    padding: 1rem;
+    background: var(--apple-grouped);
+    border-radius: var(--apple-radius-control);
+    gap: .75rem 1.25rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-entry-list header > small {
+    border-color: var(--apple-line);
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.accounting-entry-form, .account-inline-form) {
+    border: 0;
+    border-radius: var(--apple-radius-group);
+    background: var(--apple-grouped);
+    padding: 1.25rem;
+    margin-block: 1rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-lines { margin-top: 1.5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-line {
+    border: 0;
+    border-top: 1px solid var(--apple-line);
+    border-radius: 0;
+    background: transparent;
+    padding: 1.25rem 0;
+    margin: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-line legend {
+    padding: 0 .75rem 0 0;
+    color: var(--apple-ink);
+    font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-line__links { border-color: var(--apple-line); margin-top: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-line__links summary { color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-line__actions { margin-top: .5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .entry-balance {
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    border: 1px solid var(--apple-line);
+    border-radius: var(--apple-radius-control);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .entry-balance.is-balanced { color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .summary-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+    border: 0;
+    border-radius: var(--apple-radius-control);
+    background: var(--apple-grouped);
+    margin-block: 1rem 1.5rem;
+    overflow: visible;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .summary-strip > div {
+    padding: 1rem 1.25rem;
+    border-color: var(--apple-line);
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .summary-strip :is(span, small) { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .summary-strip strong { color: var(--apple-ink); font-size: calc(1.25rem * var(--zentra-ui-text-scale, 1)); line-height: 1.5; overflow-wrap: anywhere; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .table-panel {
+    background: var(--apple-paper);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    margin-top: 1rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .table-panel :is(th, td) {
+    color: var(--apple-ink);
+    border-color: var(--apple-line);
+    padding: .875rem 1rem;
+    font-size: calc(.875rem * var(--zentra-ui-text-scale, 1));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .table-panel th { color: var(--apple-secondary); background: var(--apple-paper); font-weight: 500; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .table-panel :is(td, th):not(:first-child) { font-variant-numeric: tabular-nums; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .table-panel td > small { font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.account-list, .period-list, .accounting-periods__list) article {
+    border: 0;
+    border-bottom: 1px solid var(--apple-line);
+    border-radius: 0;
+    background: transparent;
+    padding: 1.125rem 0;
+    gap: 1rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.account-list, .period-list, .accounting-periods__list) article:last-child { border-bottom: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.accounting-setup__group, .accounting-setup__group-toggle) {
+    background: var(--apple-paper);
+    border-color: var(--apple-line);
+    color: var(--apple-ink);
+    border-radius: var(--apple-radius-group);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-setup :is(small, p) { color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.accounting-periods__guide, .vat-overview__totals, .closing-kpis) {
+    background: var(--apple-grouped);
+    border: 0;
+    border-radius: var(--apple-radius-group);
+    gap: 0;
+    padding: .5rem 1rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.accounting-periods__guide > li, .vat-overview__totals > article, .closing-kpis > article) {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 1rem;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.accounting-periods__guide > li, .vat-overview__totals > article, .closing-kpis > article) :is(p, small, span) { color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.vat-overview__totals strong, .closing-kpis strong) { color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.closing-review-card, .closing-workflow, .vat-export-form, .vat-practical-guide) {
+    border-color: var(--apple-line);
+    background: var(--apple-paper);
+    border-radius: var(--apple-radius-group);
+    box-shadow: none;
+  }
+
+  /* Bank: a readable list of movements with the decision directly below each. */
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+    border: 0;
+    padding: 0 0 1.25rem;
+    border-bottom: 1px solid var(--apple-line);
+    gap: 1rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-hero .workspace-disclosure { flex: 1 1 20rem; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-hero__icon { color: var(--apple-secondary); background: none; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-summary {
+    padding: .5rem 0;
+    background: transparent;
+    gap: 0;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-summary article {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .25rem;
+    padding: .75rem 1rem;
+    border: 0;
+    border-inline-end: 1px solid var(--apple-line);
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-summary article:last-child { border: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-summary strong { font-size: calc(1.375rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-ink); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-summary :is(small, span) { font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-accounts { gap: 0; padding-inline: 1.25rem; background: var(--apple-paper); border-radius: var(--apple-radius-group); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-accounts article {
+    padding: 1.125rem 0;
+    background: transparent;
+    color: var(--apple-ink);
+    border: 0;
+    border-bottom: 1px solid var(--apple-line);
+    border-radius: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-accounts article:last-child { border-bottom: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-accounts article > span { color: var(--apple-secondary); background: transparent; width: 1.75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-accounts :is(p, small) { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement-search { max-width: 34rem; margin-bottom: .75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-filter-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem;
+    padding: .25rem;
+    background: var(--apple-grouped);
+    border-radius: var(--apple-radius-control);
+    margin-bottom: 1rem;
+    width: fit-content;
+    max-width: 100%;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-filter-strip button {
+    min-height: 2.75rem;
+    border: 0;
+    border-radius: calc(var(--apple-radius-control) - 3px);
+    background: transparent;
+    color: var(--apple-secondary);
+    padding: .5rem .875rem;
+    font-size: calc(.875rem * var(--zentra-ui-text-scale, 1));
+    box-shadow: none;
+    white-space: normal;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-filter-strip button.is-active { background: var(--apple-paper); color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-filter-strip em { background: transparent; color: inherit; font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); font-style: normal; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement-list { gap: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement {
+    grid-template-columns: 1.5rem minmax(0, 1fr) minmax(7rem, auto);
+    gap: .75rem 1rem;
+    padding: 1.5rem 0;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--apple-line);
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement:last-child { border-bottom: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__direction {
+    color: var(--apple-secondary);
+    background: transparent;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    margin-top: .125rem;
+    border-radius: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__identity > div { gap: .5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__identity strong { color: var(--apple-ink); font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; max-width: none; overflow: visible; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__identity :is(p, small) { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); margin-block: .375rem 0; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-status {
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    color: var(--apple-secondary);
+    font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__amount { min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__amount strong { color: var(--apple-ink); font-size: calc(1.25rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; line-height: 1.4; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__amount small { font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__match {
+    grid-column: 2 / -1;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+    border: 0;
+    padding: .75rem 0 0;
+    gap: 1rem 1.5rem;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen :is(.bank-suggestion, .bank-match-confirmed, .bank-match-warning, .bank-match-muted) {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    color: var(--apple-ink);
+    padding: 0;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-suggestion :is(p, span) { color: var(--apple-secondary); font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-match-confirmed { grid-column: 1 / -1; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-match-confirmed > svg { color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-match-confirmed small { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-search { background: var(--apple-grouped); border: 1px solid transparent; border-radius: var(--apple-radius-control); box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-search:focus-within { border-color: var(--apple-focus); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-search input { background: transparent; color: var(--apple-ink); min-height: 2.75rem; font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-picker__heading { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-options { background: var(--apple-grouped); border-radius: var(--apple-radius-control); gap: 0; padding: .25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option {
+    min-height: 3rem;
+    padding: .875rem;
+    border: 1px solid transparent;
+    border-bottom-color: var(--apple-line);
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-ink);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option:last-child { border-bottom-color: transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option.is-selected { background: var(--apple-selection); border-color: var(--apple-focus); border-radius: calc(var(--apple-radius-control) - 3px); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option.is-blocked { background: transparent; opacity: .7; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option__icon { color: var(--apple-secondary); background: transparent; width: 1.5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option :is(small, .bank-candidate-option__reason) { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen :is(.bank-import-list article, .bank-expense-history article, .bank-customer-pending__list article) {
+    border: 0;
+    border-bottom: 1px solid var(--apple-line);
+    border-radius: 0;
+    background: transparent;
+    padding: 1rem 0;
+    color: var(--apple-ink);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-import-list :is(p, small, time, code) { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-refresh-state {
+    position: static;
+    background: var(--apple-grouped);
+    color: var(--apple-ink);
+    border: 1px solid var(--apple-line);
+    border-radius: var(--apple-radius-group);
+    padding: 1.125rem;
+  }
+
+  /* Automation: complete journal first; a quieter factual briefing alongside. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub { width: 100%; max-width: none; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation {
+    display: flex;
+    flex-wrap: wrap;
+    width: fit-content;
+    max-width: 100%;
+    gap: .25rem;
+    padding: .25rem;
+    margin-bottom: 1.5rem;
+    background: var(--apple-grouped);
+    border: 0;
+    border-radius: var(--apple-radius-control);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation button {
+    min-height: 2.75rem;
+    padding: .625rem 1.5rem;
+    font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    line-height: 1.4;
+    border-radius: calc(var(--apple-radius-control) - 3px);
+    color: var(--apple-secondary);
+    background: transparent;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation button[aria-current] { color: var(--apple-accent); background: var(--apple-paper); box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation button[aria-current]::after { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__count { color: inherit; background: transparent; font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__activity { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 2rem; align-items: start; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__journal { padding: 1.5rem; background: var(--apple-paper); border-radius: var(--apple-radius-group); min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__day { background: transparent; border: 0; padding: .75rem 0; min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__day .automation-brief { background: transparent; border: 0; box-shadow: none; padding: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__day .automation-brief__intro h2 { font-size: calc(1.125rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; letter-spacing: -.02em; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__day .automation-brief__day { border-color: var(--apple-line); padding-top: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub :is(.automation-brief__day small, .automation-brief__intro p, .automation-brief__day h3) { color: var(--apple-secondary); font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__heading h2 { font-size: calc(1.375rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; letter-spacing: -.025em; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__heading p { color: var(--apple-secondary); font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__toolbar { gap: 1rem; margin-block: 1.25rem; flex-direction: column; align-items: stretch; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__filters { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__filters button {
+    min-height: 2.75rem;
+    padding: .625rem 0;
+    color: var(--apple-secondary);
+    background: transparent;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    font-size: calc(.875rem * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__filters button[aria-pressed=true] { border-bottom-color: var(--apple-accent); color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__search { min-height: 2.75rem; background: var(--apple-grouped); color: var(--apple-secondary); border-radius: var(--apple-radius-control); box-shadow: none; border: 1px solid transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__search:focus-within { border-color: var(--apple-focus); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__search input { background: transparent; font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__group h3 { font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); font-weight: 500; color: var(--apple-secondary); margin-top: 1.5rem; padding-bottom: .75rem; border-color: var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__entry { grid-template-columns: 1.25rem minmax(0, 1fr); gap: 1rem; border-color: var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__symbol { width: 1.25rem; height: 1.25rem; background: transparent; color: var(--apple-secondary); border-radius: 0; margin-top: 1.125rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run { background: transparent; border: 0; border-radius: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 1rem; gap: 1rem; padding-block: 1rem; min-height: 3.5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run > summary strong { font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run > summary small { font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-status { max-width: 12rem; color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); font-weight: 500; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-status[data-state=completed] { color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run__detail { padding-bottom: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__facts { padding: 1rem; background: var(--apple-grouped); border-radius: var(--apple-radius-control); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__facts > div { grid-template-columns: minmax(6rem, .65fr) minmax(0, 1fr); gap: .5rem 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__facts dt { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__facts dd { color: var(--apple-ink); font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub :is(.automation-hub__welcome, .automation-hub__empty) { background: var(--apple-paper); border: 0; border-radius: var(--apple-radius-group); padding: 1.5rem; box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup { display: grid; gap: 1.5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup > .automation-centre { background: var(--apple-paper); border: 0; border-radius: var(--apple-radius-group); padding: 1.5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.25rem; border-color: var(--apple-line); padding-block: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-item h3 { font-size: calc(1.0625rem * var(--zentra-ui-text-scale, 1)); letter-spacing: -.015em; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-item__details { margin-top: .75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-source blockquote { border-left: 1px solid var(--apple-line); color: var(--apple-ink); background: transparent; padding-left: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre {
+    --ac-surface: var(--apple-paper);
+    --ac-soft: var(--apple-grouped);
+    --ac-ink: var(--apple-ink);
+    --ac-muted: var(--apple-secondary);
+    --ac-line: var(--apple-line);
+    --ac-accent: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre button { color: var(--work-on-accent); background: var(--apple-accent); border-radius: var(--apple-radius-control); font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); min-height: 2.75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre button.ac-quiet { background: var(--apple-grouped); color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre button.ac-template { background: transparent; color: var(--apple-ink); border-radius: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre .ac-editor { background: var(--apple-paper); padding: 1.5rem; border-radius: var(--apple-radius-group); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre .ac-editor__footer { background: var(--apple-paper); gap: .75rem; position: static; padding-bottom: 0; }
+
+  /* Team settings are grouped rows. Availability and consent stay explicit. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__settings { max-width: 52rem; margin-inline: 0; padding: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings { gap: 1.25rem; color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings > header { padding: 0 0 .25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings h3 { font-size: calc(1.375rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; letter-spacing: -.025em; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings p { color: var(--apple-secondary); font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); max-width: 72ch; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__welcome { margin: 0; gap: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__status { color: var(--apple-secondary); font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); font-weight: 500; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__quickstart { background: var(--apple-grouped); border: 0; border-radius: var(--apple-radius-group); padding: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__functioning { padding: 1rem 1.25rem; background: var(--apple-paper); border-radius: var(--apple-radius-group); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__functioning legend { float: left; width: 100%; font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); font-weight: 500; color: var(--apple-secondary); margin-bottom: .5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__functioning > .automation-settings__toggle { clear: both; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__functioning .automation-settings__current-mode { padding: .625rem 0 0; color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings .workflow-options { margin: 0; padding: 0 1.25rem; background: var(--apple-paper); border: 0; border-radius: var(--apple-radius-group); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings .workflow-options > summary { min-height: 3.5rem; padding: 1rem 0; font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings .workflow-options[open] { padding-bottom: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings .workflow-options fieldset { padding: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings .workflow-options legend { padding-top: .75rem; font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary); font-weight: 500; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__features { gap: 0; border-color: var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings .automation-settings__toggle {
+    border: 0;
+    border-radius: 0;
+    padding: .875rem 0;
+    background: transparent;
+    min-height: 3.5rem;
+    gap: 1rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__features .automation-settings__toggle { border-bottom: 1px solid var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__features .automation-settings__toggle:last-child { border-bottom: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__toggle strong { color: var(--apple-ink); font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__toggle small { color: var(--apple-secondary); font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__toggle:has(input:focus-visible) { outline: 2px solid var(--apple-focus); outline-offset: 3px; border-radius: var(--apple-radius-control); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__toggle input[type=checkbox] { background: var(--apple-grouped); border-color: var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__toggle input[type=checkbox]:checked { background: var(--apple-accent); border-color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__toggle input[type=checkbox]::before { background: var(--work-on-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__consent { padding: 1rem 1.25rem; background: var(--apple-grouped); border-radius: var(--apple-radius-group); color: var(--apple-ink); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__save { justify-self: start; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__workflows { padding-inline: 1.5rem; background: var(--apple-paper); border: 0; border-radius: var(--apple-radius-group); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__workflows article { gap: 1.25rem; padding: 1.25rem 0; border-color: var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__workflows article > svg { color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__workflows h3 { font-size: calc(1rem * var(--zentra-ui-text-scale, 1)); font-weight: 600; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__feature-state { color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub :is(.automation-tools, .automation-tools__expanded) { background: var(--apple-paper); border: 0; border-radius: var(--apple-radius-group); }
+}
+
+@media screen and (max-width: 1200px) {
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__activity { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__day { padding: 1.25rem 0 0; border-top: 1px solid var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-toolbar { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-period-bar { grid-column: 1; grid-row: 2; justify-content: start; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-period-toggle { display: flex; flex: 1 1 20rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-filters { grid-column: 1; grid-row: 3; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-filters:not([data-expanded=true]) { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__match { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__match > :is(.button, .bank-block-reason, .bank-candidate-picker, .bank-suggestion) { grid-column: 1; grid-row: auto; }
+}
+
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] :is(.accounting-screen, .bank-screen) { gap: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation { display: grid; grid-template-columns: minmax(0, 1fr); gap: .875rem; padding-bottom: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen--overview .finance-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation__more--tools { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__picker { background: var(--apple-paper); border-color: var(--apple-line); border-radius: var(--apple-radius-control); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__intro { flex-wrap: wrap; align-items: start; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures { display: grid; grid-template-columns: minmax(0, 1fr); padding: 0 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures article { display: grid; grid-template-columns: minmax(0, 1fr); padding: 1.25rem 0; gap: .625rem; border: 0; border-bottom: 1px solid var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures strong { font-size: calc(1.625rem * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__figures :is(p, button) { grid-column: 1; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-overview__next { flex-direction: column; align-items: stretch; gap: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .summary-strip { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .summary-strip > div { border: 0; border-bottom: 1px solid var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .summary-strip > div:last-child { border: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-entry-list > article > header { grid-template-columns: minmax(0, 1fr); padding: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-entry-list header > :is(div, p, small, .button, .locked-label) { grid-column: 1; grid-row: auto; }
+  /* Only explicitly labelled Accounting tables become records. Print tables stay unchanged. */
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen table[data-apple-records],
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen table[data-apple-records] :is(tbody, tfoot) { display: block; width: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen table[data-apple-records] thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen table[data-apple-records] tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .875rem 1rem; padding: 1rem 0; border-bottom: 1px solid var(--apple-line); background: transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen table[data-apple-records] :is(td, tfoot th) { display: block; min-width: 0; padding: 0; border: 0; background: transparent; font-size: calc(.9375rem * var(--zentra-ui-text-scale, 1)); text-align: start; white-space: normal; overflow-wrap: anywhere; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen table[data-apple-records] :is(td, tfoot th)[data-label]::before { content: attr(data-label); display: block; color: var(--apple-secondary); font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); line-height: 1.5; margin-bottom: .25rem; font-weight: 400; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen table[data-apple-records] td:first-child { grid-column: 1 / -1; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen table[data-apple-records] td > small { display: block; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-hero { flex-direction: column; align-items: stretch; gap: .75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-hero > .button { width: 100%; min-width: 0; white-space: normal; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-hero .workspace-disclosure { flex-basis: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-summary article { padding: .875rem; border: 0; border-bottom: 1px solid var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-summary article:last-child { grid-column: 1 / -1; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement { grid-template-columns: 1.25rem minmax(0, 1fr); gap: .75rem; padding: 1.25rem 0; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__amount { grid-column: 2; text-align: start; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-movement__match { grid-column: 1 / -1; padding: 1rem 0 0; border-top: 1px solid var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option__amount strong { white-space: normal; overflow-wrap: anywhere; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-expense-history { grid-column: 1 / -1; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__navigation button { padding: .625rem .375rem; min-height: 3rem; font-size: calc(.875rem * var(--zentra-ui-text-scale, 1)); white-space: normal; overflow-wrap: normal; word-break: normal; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__journal { padding: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run > summary { grid-template-columns: minmax(0, 1fr) 1rem; gap: .375rem .75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run > summary > span:first-child { grid-column: 1; grid-row: 1; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run > summary > .ac-status { grid-column: 1; grid-row: 2; max-width: none; text-align: start; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-run > summary > svg { grid-column: 2; grid-row: 1 / 3; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .ac-item { grid-template-columns: minmax(0, 1fr); gap: .75rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__facts > div { grid-template-columns: minmax(0, 1fr); gap: .25rem; padding-block: .375rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__welcome { align-items: stretch; flex-direction: column; gap: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup > .automation-centre { padding: 1.25rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre .ac-editor { padding: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__functioning { padding: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings .workflow-options { padding-inline: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__save { justify-self: stretch; width: 100%; }
+}
+
+@media screen and (max-width: 480px) {
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.accounting-entry-form, .account-inline-form) { padding: 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen :is(.journal-line__main, .journal-line__links > div) { grid-template-columns: minmax(0, 1fr); gap: .875rem; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .journal-line__account { grid-column: 1; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-filters,
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen--overview .finance-navigation { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation__more--period { min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen table[data-apple-records] tr { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-export-bar { flex-direction: column; align-items: stretch; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option { grid-template-columns: minmax(0, 1fr); gap: .375rem; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option__amount { text-align: start; }
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option__reason { grid-column: 1; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__entry { grid-template-columns: 1.125rem minmax(0, 1fr); gap: .625rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__journal { padding: 1.125rem 1rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__filters { gap: .875rem; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-journal__filters button { font-size: calc(.8125rem * var(--zentra-ui-text-scale, 1)); }
+}
+
+@media screen and (hover: hover) and (pointer: fine) {
+  html[data-app-theme] .desktop-app[data-experience] .bank-screen .bank-candidate-option:not(.is-blocked):hover { border-color: var(--apple-line); background: var(--apple-paper); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .table-panel tbody tr:hover { background: var(--apple-grouped); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre button:hover:not(:disabled) { filter: none; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre button.ac-quiet:hover:not(:disabled) { background: var(--apple-selection); }
+}
+
+@media screen and (prefers-reduced-motion: reduce) {
+  html[data-app-theme] .desktop-app[data-experience] :is(.accounting-screen, .bank-screen, .automation-hub, .automation-settings, .automation-centre) :is(button, summary, input, summary > svg) { transition: none; }
+}

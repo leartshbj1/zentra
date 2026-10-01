@@ -25,7 +25,7 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  const tour=page.getByRole('button',{name:'Fermer le guide automatique',exact:true});
  await tour.click();
  const nav=async(name)=>{
-  await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();
+  await page.keyboard.press('Control+k');
   await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill(name);
   await page.locator('.navigation-palette__results button').filter({has:page.getByText(name,{exact:true})}).click();
  };
@@ -53,7 +53,7 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  };
  await shot('dashboard');
  await nav('Devis');
- assert.equal(await page.evaluate(()=>window.__qaScreenAnimations.at(-1)?.duration),320);
+ assert.ok(await page.evaluate(()=>{const duration=window.__qaScreenAnimations.at(-1)?.duration;return duration>0&&duration<=260;}),'page feedback stays brief');
  await shot('quotes');
  await page.getByRole('button',{name:'Nouveau devis',exact:true}).click();
  await step(0);await shot('client');

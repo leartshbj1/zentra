@@ -34,3 +34,8 @@ import './workspace-personalization.css';
 import './brand-identity.css';
 
 import './mobile-collections.css';
+import './apple-workspace.css';
+import './apple-business.css';
+import './apple-operational.css';
+import './apple-secondary.css';
+import './apple-access.css';

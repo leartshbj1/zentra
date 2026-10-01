@@ -53,6 +53,7 @@ next-env.d.ts
 # desktop build artifacts and local application data
 /desktop/dist/
 /desktop/artifacts/
+/desktop/outputs/
 /desktop/src-tauri/target/
 /desktop/src-tauri/target-*/
 /desktop/.tauri/

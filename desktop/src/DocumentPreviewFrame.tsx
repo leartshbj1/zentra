@@ -33,7 +33,10 @@ export function DocumentPreviewFrame({ title, number, customer, total, finalDocu
     setActiveSection(selector);
     // Scroll only the paper viewport: scrollIntoView also moves enclosing toolbars
     // and the background on small WebViews, especially after fitting an A4 page.
-    area.scrollTo({ top: area.scrollTop + target.getBoundingClientRect().top - area.getBoundingClientRect().top - 20, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    // Include the invoice's title when jumping to its line items. Otherwise its
+    // final line is cut behind the section bar on a narrow reading surface.
+    const heading = selector === '.print-table' && target.previousElementSibling?.matches('.print-title') ? target.previousElementSibling : target;
+    area.scrollTo({ top: area.scrollTop + heading.getBoundingClientRect().top - area.getBoundingClientRect().top - 20, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   };
 
   useLayoutEffect(() => {

@@ -18,12 +18,12 @@ try {
     await page.goto(`${process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5192'}/tests/mobile-harness.html?browsing=1&design=1&designQr=1`);
     await page.getByRole('button', { name: 'Découvrir plus tard', exact: true }).click();
     const navigate = async name => {
-      await page.getByRole('button', { name: 'Aller à un écran', exact: true }).click();
+      await page.keyboard.press('Control+k');
       await page.getByRole('searchbox', { name: 'Rechercher un écran' }).fill(name);
       await page.locator('.navigation-palette__results button').filter({ has: page.getByText(name, { exact: true }) }).click();
     };
     for (const [shortcut, destination] of [['Devis en préparation', 'quotes'], ['Factures à encaisser', 'invoices'], ['Projets actifs', 'projects']]) {
-      await page.locator('.activity-shortcuts').getByRole('button', { name: new RegExp(shortcut) }).click();
+      await page.locator('.activity-shortcuts, .mobile-home__list').getByRole('button', { name: new RegExp(shortcut) }).first().click();
       await page.locator(`.desktop-app[data-view="${destination}"]`).waitFor();
       await navigate('Tableau de bord');
     }

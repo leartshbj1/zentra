@@ -29,7 +29,7 @@ function syncPresentationTheme() {
   const presentation = [...presentationThemes.values()].at(-1);
   const appearance = presentation ?? preference;
   const dark = appearance === 'dark' || appearance === 'system' && media.matches;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',dark?'#141416':'#f5f5f7');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',dark?'#171719':'#f5f5f7');
   void syncNativeTheme(appearance, dark);
 }
 /** Temporary native bars for a full-screen scene; never writes the user's choice. */
@@ -43,7 +43,7 @@ function apply() {
   const dark=preference==='dark'||preference==='system'&&media.matches;
   document.documentElement.dataset.appTheme=dark?'dark':'light';
   document.documentElement.style.colorScheme=dark?'dark':'light';
-  document.documentElement.style.backgroundColor=dark?'#141416':'#f5f5f7';
+  document.documentElement.style.backgroundColor=dark?'#171719':'#f5f5f7';
   syncPresentationTheme();
   listeners.forEach(notify=>notify());
 }

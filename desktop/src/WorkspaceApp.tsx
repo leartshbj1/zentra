@@ -693,7 +693,7 @@ function WorkspaceContent({
     isNativeMacOS ? undefined : [...shortcuts.map(id => ({ id, label: t(shortcutMeta[id].label) })), { id: 'menu', label: t('Menu') }],
   );
   const sidebarHidden = compactSidebarHidden(compactNavigation || (isNativeMacOS && nativeNavigation), menuOpen);
-  useEdgeDrawer(compactNavigation && !modal && !printTarget && !navigationOpen && !guidedTour.open, menuOpen, setMenuOpen);
+  useEdgeDrawer((compactNavigation || (isNativeMacOS && nativeNavigation)) && !modal && !printTarget && !navigationOpen && !guidedTour.open, menuOpen, setMenuOpen);
   const navigationRef = useRef<HTMLElement>(null);
   const screenArrivalRef = useScreenArrival(view);
   const mobileNavigationRef = useRef<HTMLElement>(null);

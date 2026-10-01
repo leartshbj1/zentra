@@ -17,6 +17,8 @@ import '../src/workspace-design.css';
 import '../src/mobile.css';
 import '../src/dark.generated.css';
 import '../src/dark.css';
+import '../src/apple-workspace.css';
+import '../src/apple-access.css';
 const query = new URLSearchParams(location.search);
 setAppearance(query.get('theme')==='dark'?'dark':'light');
 const company = {continuous:!query.has('missing'),organizationId:'org_fixture',organizationName:'Entreprise de démonstration',role:'member',canManage:true,profile:{company_name:'Entreprise de démonstration'},companyCopy:query.has('missing')?null:{backupId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',publishedAt:'2026-09-14T12:00:00Z',sizeBytes:100},seats:{planName:'Start',limit:3,used:1,reserved:0,available:2,subscriptionActive:true},members:[],invitations:[]};

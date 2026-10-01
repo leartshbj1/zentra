@@ -93,7 +93,7 @@ export function SettingsBrowser({ children, initialCategory, hasDraft = false }:
         aria-controls={`${groupName}-${id}`} onClick={() => openCategory(id)}
       >
         <span className="settings-browser__icon"><Icon size={19} aria-hidden="true" /></span>
-        <span><strong>{t(title)}</strong><small>{t(description)}</small></span><ChevronRight size={16} aria-hidden="true" />
+        <span className="settings-browser__label"><strong>{t(title)}</strong><small>{t(description)}</small></span><ChevronRight size={16} aria-hidden="true" />
       </button>;
   }
 

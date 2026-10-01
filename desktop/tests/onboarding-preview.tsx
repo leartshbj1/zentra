@@ -28,6 +28,8 @@ import '../src/automation-design.css';
 import '../src/workspace-atelier.css';
 import '../src/onboarding-journey.css';
 import '../src/brand-identity.css';
+import '../src/apple-workspace.css';
+import '../src/apple-access.css';
 
 const query = new URLSearchParams(location.search);
 // This reset is confined to the synthetic preview; production never reads this query.

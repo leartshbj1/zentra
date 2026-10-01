@@ -44,6 +44,7 @@ for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,
  }
  assert.deepEqual(errors,[]);report.push({viewport,gestures:true,pinch:['document','image','pdf'],safeAreas:true,errors});await page.close();
 }
+if(process.env.ZENTRA_QA_GESTURES_ONLY!=='1'){
 page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true});await page.goto(origin+'/tests/touch-team-harness.html');
 await page.getByRole('button',{name:'Se connecter dans le navigateur',exact:true}).click();await page.getByText('TEST-1',{exact:true}).waitFor();
 await page.waitForFunction(()=>typeof window.resolvePoll==='function');await page.getByText('La connexion ne se termine pas ?', {exact:true}).click();await page.getByRole('button',{name:'Demander un nouveau code',exact:true}).click();await page.getByText('TEST-2',{exact:true}).waitFor();await page.evaluate(()=>window.resolvePoll());await page.waitForTimeout(100);assert.equal(await page.getByText('TEST-1',{exact:true}).count(),0,'old poll cannot replace renewed code');
@@ -54,4 +55,5 @@ assert.equal(await page.getByRole('button',{name:'Créer le lien d’invitation'
 await page.getByRole('button',{name:'Annuler l’invitation',exact:true}).click();await page.getByRole('button',{name:'join',exact:true}).click();await page.getByText('Entreprise ouverte',{exact:true}).waitFor();assert.equal((await page.evaluate(()=>window.calls)).filter(c=>c==='join').length,1,'shared company opens automatically once');
 report.push({renewCodeRace:true,roleInvitation:true,joinMissingCompanyCopy:true,joinSharedCompanyAutomatically:true});
 for(const lang of ['de','it','en']){await page.goto(`${origin}/tests/touch-team-harness.html?lang=${lang}`);await page.evaluate(()=>window.connect());await page.getByRole('button',{name:'join',exact:true}).click();await page.waitForTimeout(150);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${lang} no overflow`);await page.evaluate(()=>Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))));await page.screenshot({path:`${out}/join-${lang}.png`});}
+}
 }catch(error){if(page){await page.evaluate(()=>Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))));await page.screenshot({path:`${out}/failure.png`});await writeFile(`${out}/failure.json`,JSON.stringify({error:String(error),text:await page.locator('body').innerText()},null,2));}throw error;}finally{await writeFile(`${out}/report.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report));await browser.close();}

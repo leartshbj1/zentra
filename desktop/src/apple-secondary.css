@@ -1,0 +1,540 @@
+/* Local Apple presentation. Screen-only: exported business documents keep their layout. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-workspace,.agenda-layout,.project-reports,.settings-browser--guided) {
+    color: var(--apple-ink);
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-workspace,.agenda-layout,.project-reports,.settings-browser--guided) :is(button,input,select,textarea,summary) {
+    font-family: inherit;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-workspace,.agenda-layout,.project-reports,.settings-browser--guided) :is(button,input,select,textarea,summary):focus-visible {
+    outline: 2px solid var(--apple-focus);
+    outline-offset: 3px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-workspace,.agenda-layout,.project-reports,.settings-browser--guided) :is(input,textarea)::placeholder {
+    color: var(--apple-secondary);
+    opacity: 1;
+  }
+
+  /* Notes: one stable index and a writing sheet. */
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace {
+    grid-template-columns: minmax(264px,312px) minmax(0,1fr);
+    min-height: 640px;
+    background: var(--apple-paper);
+    border-radius: var(--apple-radius-group);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-index {
+    padding: 24px 16px;
+    background: var(--apple-rail);
+    border-inline-end: 1px solid var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-index__heading {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-index__heading > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-index__heading h2 {
+    font-size: calc(17px * var(--zentra-ui-text-scale,1));
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -.015em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-index__count {
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale,1));
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-index__heading .button {
+    width: 100%;
+    min-height: 44px;
+    white-space: normal;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-search {
+    min-height: 44px;
+    background: var(--apple-paper);
+    border: 1px solid var(--apple-line);
+    border-radius: var(--apple-radius-control);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-search input {
+    min-height: 42px;
+    color: var(--apple-ink);
+    font-size: calc(16px * var(--zentra-ui-text-scale,1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-project-filter,.notes-editor__context) select {
+    color: var(--apple-ink);
+    background: var(--apple-paper);
+    border-color: var(--apple-line);
+    font-size: calc(15px * var(--zentra-ui-text-scale,1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-list__entry {
+    padding: 16px 12px;
+    gap: 6px;
+    color: var(--apple-ink);
+    border-radius: var(--apple-radius-control);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-list__entry.is-selected {
+    background: var(--apple-selection);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-list__title strong {
+    font-size: calc(16px * var(--zentra-ui-text-scale,1));
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-list__preview {
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale,1));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-list__meta {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale,1));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-editor__toolbar {
+    gap: 12px;
+    padding: 12px 24px;
+    border-color: var(--apple-line);
+    background: var(--apple-paper);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-save-state {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale,1));
+    line-height: 1.4;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-editor__content {
+    padding: 32px;
+    gap: 20px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-editor__title {
+    color: var(--apple-ink);
+    font-size: calc(30px * var(--zentra-ui-text-scale,1));
+    font-weight: 600;
+    letter-spacing: -.025em;
+    line-height: 1.3;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-editor__context {
+    padding: 0 0 4px;
+    gap: 12px;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale,1));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-editor__context label { flex-basis: 280px; }
+  html[data-app-theme] .desktop-app[data-experience] .notes-editor__body {
+    color: var(--apple-ink);
+    font-size: calc(18px * var(--zentra-ui-text-scale,1));
+    line-height: 1.6;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-editor__footer {
+    padding: 12px 24px;
+    background: var(--apple-paper);
+    border-color: var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-checklist summary {
+    color: var(--apple-accent);
+    font-size: calc(15px * var(--zentra-ui-text-scale,1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-checklist label {
+    font-size: calc(16px * var(--zentra-ui-text-scale,1));
+    min-height: 44px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-empty h3,.notes-sheet__empty p) {
+    font-size: calc(20px * var(--zentra-ui-text-scale,1));
+    line-height: 1.4;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-empty p,.notes-offline,.notes-error p,.notes-delete-confirm p) {
+    font-size: calc(15px * var(--zentra-ui-text-scale,1));
+    line-height: 1.5;
+  }
+
+  /* Agenda: period controls, quiet counts, then the calendar and working list. */
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout { grid-template-columns: minmax(0,1fr); gap: 20px; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    padding: 20px 24px;
+    gap: 20px;
+    align-items: center;
+    background: var(--apple-paper);
+    border: 0;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls > div {
+    min-width: 0;
+    padding-inline: 8px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls strong {
+    font-size: calc(20px * var(--zentra-ui-text-scale,1));
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -.02em;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-create { grid-column: 2; grid-row: 1; margin: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-options { display: block; grid-column: 1 / -1; min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-filters { flex-wrap: wrap; gap: 16px 24px; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar :is(button,input,select) {
+    font-size: calc(15px * var(--zentra-ui-text-scale,1));
+    min-height: 44px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar button { white-space: normal; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-filters label > span {
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale,1));
+    font-weight: 400;
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-display-switch {
+    padding: 3px;
+    background: var(--apple-grouped);
+    border: 0;
+    border-radius: var(--apple-radius-control);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-display-switch button {
+    color: var(--apple-secondary);
+    font-weight: 500;
+    min-height: 44px;
+    padding: 8px 18px;
+    line-height: 1.4;
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-display-switch button.is-active {
+    color: var(--apple-ink);
+    background: var(--apple-paper);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-closed-toggle { min-height: 44px; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-closed-toggle input { min-height: 0; width: 20px; height: 20px; flex-shrink: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary {
+    gap: 0;
+    padding-inline: 24px;
+    border-block-end: 1px solid var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary article {
+    min-height: 54px;
+    gap: 16px;
+    padding: 12px 24px 12px 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    transform: none;
+    transition: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary span {
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale,1));
+    font-weight: 400;
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary strong {
+    color: var(--apple-ink);
+    font-size: calc(20px * var(--zentra-ui-text-scale,1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary article.is-alert strong { color: var(--apple-danger); }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-main-grid {
+    grid-template-columns: minmax(0,1.1fr) minmax(300px,1fr);
+    gap: 24px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-calendar {
+    min-width: 0;
+    padding: 0;
+    background: var(--apple-paper);
+    border: 0;
+    box-shadow: none;
+    overflow-x: auto;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-weekdays { background: var(--apple-grouped); }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-weekdays span {
+    font-size: calc(13px * var(--zentra-ui-text-scale,1));
+    font-weight: 500;
+    text-transform: none;
+    color: var(--apple-secondary);
+    padding: 14px 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day {
+    min-width: 44px;
+    min-height: 84px;
+    padding: 12px 8px;
+    background: var(--apple-paper);
+    border-color: var(--apple-line);
+    color: var(--apple-ink);
+    transform: none;
+    box-shadow: none;
+    transition: background-color 160ms ease;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day > span {
+    font-size: calc(16px * var(--zentra-ui-text-scale,1));
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day.is-outside { color: var(--apple-secondary); background: var(--apple-canvas); }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day.is-today > span { background: var(--apple-accent); color: var(--apple-on-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day.is-today::after { content: none; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day.is-selected { background: var(--apple-selection); box-shadow: inset 0 0 0 2px var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day__label {
+    font-size: calc(13px * var(--zentra-ui-text-scale,1));
+    font-weight: 500;
+    line-height: 1.4;
+    text-transform: none;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day > div small { font-size: calc(12px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-week-view .agenda-day { min-height: 128px; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day-view { min-height: 180px; color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day-view :is(span,small) { color: var(--apple-secondary); font-size: calc(15px * var(--zentra-ui-text-scale,1)); font-weight: 400; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day-view strong { font-size: calc(24px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-list-panel {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: var(--apple-paper);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-list-panel > header { padding: 20px 24px; border-color: var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-list-panel > header h2 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(18px * var(--zentra-ui-text-scale,1));
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -.015em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-list-panel > header p { margin: 4px 0 0; color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 8px 16px;
+    padding: 20px 24px;
+    border-inline: 0;
+    border-bottom: 1px solid var(--apple-line);
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+    opacity: 1;
+    transition: background-color 160ms ease;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row__time { grid-column: 1 / -1; color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row__content strong { color: var(--apple-ink); font-size: calc(16px * var(--zentra-ui-text-scale,1)); line-height: 1.5; font-weight: 600; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row__content :is(small,p) { color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; font-weight: 400; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row__content small { margin-top: 4px; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row__actions { align-self: center; justify-self: end; gap: 2px; opacity: 1; flex-wrap: wrap; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-row__actions .button { min-height: 44px; min-width: 44px; }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-legend { color: var(--apple-secondary); gap: 12px 20px; padding-inline: 4px; font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+
+  /* Reports: the project index is separate from report configuration and content. */
+  html[data-app-theme] .desktop-app[data-experience] .project-reports { max-width: none; margin: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__layout {
+    grid-template-columns: minmax(264px,288px) minmax(0,1fr);
+    gap: 0;
+    min-height: 560px;
+    background: var(--apple-paper);
+    border-radius: var(--apple-radius-group);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__layout--single { grid-template-columns: minmax(0,1fr); max-width: none; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__picker {
+    min-width: 0;
+    padding: 24px 16px;
+    border-inline-end: 1px solid var(--apple-line);
+    border-radius: var(--apple-radius-group) 0 0 var(--apple-radius-group);
+    background: var(--apple-rail);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__picker > label { color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__picker button {
+    min-height: 64px;
+    gap: 12px;
+    padding: 16px 12px;
+    background: transparent;
+    border-bottom-color: var(--apple-line);
+    color: var(--apple-ink);
+    font-size: calc(16px * var(--zentra-ui-text-scale,1));
+    line-height: 1.4;
+    font-weight: 500;
+    border-radius: var(--apple-radius-control);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__picker button[aria-pressed='true'] { color: var(--apple-ink); background: var(--apple-selection); font-weight: 600; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__picker small { color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__sort-note { font-size: calc(13px * var(--zentra-ui-text-scale,1)); margin: 0 12px 8px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__detail { padding: 28px 32px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__title { align-items: flex-start; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__title > div { min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports h2 { color: var(--apple-ink); font-size: calc(24px * var(--zentra-ui-text-scale,1)); line-height: 1.3; letter-spacing: -.025em; font-weight: 600; margin: 0 0 10px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__title .button { max-width: 50%; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__configuration { padding-block: 24px; border-bottom: 1px solid var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__composition { margin: 0; gap: 12px; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.project-reports__composition label,.project-reports__author) { font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__preset-control > span { color: var(--apple-ink); font-size: calc(16px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .desktop-app[data-experience] :is(.project-reports__composition p,.project-reports__scope) { color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.6; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__customize { margin: 16px 0 0; border: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__customize summary { padding-block: 10px; color: var(--apple-accent); font-size: calc(15px * var(--zentra-ui-text-scale,1)); font-weight: 500; line-height: 1.5; min-height: 44px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__sections legend { font-size: calc(16px * var(--zentra-ui-text-scale,1)); line-height: 1.5; font-weight: 600; margin-bottom: 8px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__sections label { color: var(--apple-ink); font-size: calc(15px * var(--zentra-ui-text-scale,1)); min-height: 44px; line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__sections input { width: 20px; height: 20px; min-height: 0; accent-color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__author { margin-bottom: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__figures { gap: 24px; padding-block: 24px 16px; margin: 0; border: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__figures dt { color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__figures dd { color: var(--apple-ink); font-size: calc(21px * var(--zentra-ui-text-scale,1)); line-height: 1.4; font-weight: 600; margin-top: 6px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__preview-heading { margin-top: 28px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__preview-heading h3 { margin: 0; font-size: calc(18px * var(--zentra-ui-text-scale,1)); line-height: 1.4; font-weight: 600; letter-spacing: -.015em; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__preview details { border-bottom-color: var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__preview summary { padding-block: 16px; font-size: calc(16px * var(--zentra-ui-text-scale,1)); line-height: 1.5; min-height: 52px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports table { font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports :is(th,td) { padding: 12px; border-color: var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports th { font-size: calc(13px * var(--zentra-ui-text-scale,1)); font-weight: 600; color: var(--apple-secondary); background: var(--apple-grouped); }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__empty { display: flex; min-height: 420px; flex-direction: column; justify-content: center; align-items: center; gap: 16px; padding: 32px; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__empty h2 { font-size: calc(22px * var(--zentra-ui-text-scale,1)); max-width: 30ch; margin: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .project-reports__empty p { color: var(--apple-secondary); font-size: calc(16px * var(--zentra-ui-text-scale,1)); max-width: 36ch; margin: 0; }
+
+  /* Settings keeps a grouped index and one category's existing form at a time. */
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser.settings-browser--guided {
+    gap: 0;
+    background: var(--apple-paper);
+    border-radius: var(--apple-radius-group);
+    align-items: start;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation {
+    padding: 24px 16px;
+    background: var(--apple-rail);
+    border-inline-end: 1px solid var(--apple-line);
+    border-radius: var(--apple-radius-group) 0 0 var(--apple-radius-group);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__search { background: var(--apple-paper); border-color: var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__search input { font-size: calc(16px * var(--zentra-ui-text-scale,1)); line-height: 1.4; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group { margin-top: 24px; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group h2 { color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; font-weight: 600; margin: 0 12px 8px; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link] { min-height: 48px; padding: 12px; gap: 12px; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation strong { font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.4; font-weight: 500; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation small { font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link][aria-current] { background: var(--apple-selection); color: var(--apple-accent); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link] > svg { color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__icon { flex-basis: 20px; color: inherit; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__detail { padding: 28px 32px; background: transparent; border-radius: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-category { overflow: visible; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-category > summary { padding: 0 0 24px; border-bottom-color: var(--apple-line); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-category > summary strong { font-size: calc(24px * var(--zentra-ui-text-scale,1)); line-height: 1.3; letter-spacing: -.025em; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-category > summary small { font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.5; color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-category__scope { font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided :is(.settings-browser__count,.settings-browser__no-results,.settings-browser__empty) { font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.5; color: var(--apple-secondary); }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__back { color: var(--apple-accent); min-height: 44px; padding-block: 8px 16px; font-size: calc(16px * var(--zentra-ui-text-scale,1)); line-height: 1.4; text-align: start; }
+
+  @media (hover: hover) {
+    html[data-app-theme] .desktop-app[data-experience] :is(.notes-list__entry:not(.is-selected),.project-reports__picker button:not([aria-pressed='true']),.agenda-day:not(.is-selected),.agenda-row):hover { background: var(--apple-grouped); transform: none; box-shadow: none; }
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-list__entry,.project-reports__picker button,.agenda-day,.agenda-display-switch button,.settings-browser--guided [data-settings-link]):active { background: var(--apple-selection); transform: none; }
+  html[data-app-theme] .desktop-app[data-experience] :is(.project-reports__picker button,.settings-browser--guided [data-settings-link]) { transition: background-color 160ms ease; }
+
+  @media (min-width: 1101px) {
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__picker { position: sticky; top: 80px; align-self: start; max-height: max(480px,calc(100dvh - 200px)); overflow-y: auto; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser.settings-browser--guided { display: grid; grid-template-columns: 288px minmax(0,1fr); }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation { top: 72px; max-height: calc(100dvh - 96px); }
+  }
+  @media (max-width: 1100px) {
+    html[data-app-theme] .desktop-app[data-experience] .agenda-main-grid { grid-template-columns: minmax(0,1fr); }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-main-grid[data-display='day'] { grid-template-columns: minmax(0,220px) minmax(0,1fr); }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser.settings-browser--guided { background: transparent; grid-template-columns: minmax(0,1fr); }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation { border: 0; padding: 0; background: transparent; border-radius: 0; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group { padding: 0; background: transparent; margin-top: 28px; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group h2 { margin: 0 16px 8px; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link] { background: var(--apple-paper); min-height: 56px; padding: 16px; border-color: var(--apple-line); }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group h2 + [data-settings-link] { border-radius: var(--apple-radius-group) var(--apple-radius-group) 0 0; border-top: 0; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group [data-settings-link]:last-child { border-radius: 0 0 var(--apple-radius-group) var(--apple-radius-group); }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group h2 + [data-settings-link]:last-child { border-radius: var(--apple-radius-group); }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation strong { font-size: calc(16px * var(--zentra-ui-text-scale,1)); }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__detail { padding: 24px; background: var(--apple-paper); border-radius: var(--apple-radius-group); }
+  }
+  @media (max-width: 860px) {
+    html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar { padding: 16px; gap: 12px; align-items: start; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls { grid-column: 1 / -1; display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; gap: 4px; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls > div { padding-inline: 4px; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls strong { font-size: calc(18px * var(--zentra-ui-text-scale,1)); }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-month-controls > button:last-child { grid-column: 1 / -1; justify-self: center; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-create { grid-column: 2; grid-row: 2; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-options { grid-column: 1; grid-row: 2; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-options:has(details[open]) { grid-column: 1 / -1; grid-row: 3; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-options > .mobile-details { margin: 0; background: transparent; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-options summary { min-height: 44px; font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-options .mobile-details__content { padding: 12px 0 0; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-filters { display: grid; gap: 16px; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-display-switch { width: 100%; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-display-switch button { padding-inline: 8px; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-main-grid[data-display='day'] { grid-template-columns: minmax(0,1fr); }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-day { min-height: 64px; padding: 10px 4px; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-week-view .agenda-day { min-height: 104px; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-row { grid-template-columns: minmax(0,1fr); padding: 20px 16px; gap: 8px; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-row__actions { justify-self: end; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-list-panel .empty-state { min-height: 200px; padding: 24px 16px; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-summary { padding-inline: 0; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-summary article { padding: 12px 0; }
+  }
+  @media (max-width: 760px) {
+    html[data-app-theme] .desktop-app[data-experience][data-notes-editing='true'] :is(.topbar,.page-header,.mobile-navigation) { display: none !important; }
+    html[data-app-theme] .desktop-app[data-experience][data-notes-editing='true'] :is(.app-main,.page-content) { padding: 0; }
+    html[data-app-theme] .desktop-app[data-experience][data-notes-editing='true'] .notes-workspace { border-radius: 0; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-workspace { display: block; min-height: 0; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-index { padding: 20px 16px; background: var(--apple-paper); border: 0; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-index__heading { gap: 12px; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-index__heading h2 { font-size: calc(20px * var(--zentra-ui-text-scale,1)); }
+    html[data-app-theme] .desktop-app[data-experience] .notes-list__entry { padding: 18px 8px; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-list__title strong { white-space: normal; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-list__meta { flex-wrap: wrap; gap: 4px 10px; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__toolbar { padding: max(10px,var(--safe-top,env(safe-area-inset-top))) max(8px,var(--safe-right,env(safe-area-inset-right))) 10px max(8px,var(--safe-left,env(safe-area-inset-left))); gap: 4px; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__content { padding: 24px max(20px,var(--safe-right,env(safe-area-inset-right))) 24px max(20px,var(--safe-left,env(safe-area-inset-left))); gap: 20px; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__title { font-size: calc(28px * var(--zentra-ui-text-scale,1)); }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__context { gap: 8px; padding: 0; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__context label { flex-basis: 100%; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__context select { font-size: calc(16px * var(--zentra-ui-text-scale,1)); }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__footer { padding: 10px max(8px,var(--safe-right,env(safe-area-inset-right))) max(10px,var(--safe-bottom,env(safe-area-inset-bottom))) max(8px,var(--safe-left,env(safe-area-inset-left))); }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__footer .button { white-space: normal; }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__layout { grid-template-columns: minmax(0,1fr); min-height: 0; }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__picker { padding: 20px 16px; border-inline-end: 0; border-bottom: 1px solid var(--apple-line); border-radius: var(--apple-radius-group) var(--apple-radius-group) 0 0; background: var(--apple-paper); }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__detail { padding: 24px 20px; }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__title { gap: 16px; padding-bottom: 20px; }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__title .button { max-width: none; width: 100%; }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__configuration { padding-block: 20px; }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__figures { grid-template-columns: minmax(0,1fr); gap: 16px; padding-block: 20px 12px; }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__figures > div { flex-wrap: wrap; gap: 8px 16px; }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__figures dd { margin: 0; text-align: start; }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports :is(th,td) { padding: 10px 8px; }
+    html[data-app-theme] .desktop-app[data-experience] .project-reports__empty { min-height: 260px; padding: 24px 0; }
+    html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__detail { padding: 20px 16px; }
+  }
+  @media (max-width: 420px) {
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 8px; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-back { grid-column: 1; grid-row: 1; justify-self: start; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__actions { grid-column: 2; grid-row: 1; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-save-state { grid-column: 1 / -1; grid-row: 2; justify-self: end; white-space: normal; }
+  }
+  @media (max-width: 360px) {
+    html[data-app-theme] .desktop-app[data-experience] .agenda-layout .agenda-display-switch { display: grid; grid-template-columns: minmax(0,1fr); }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-layout .agenda-display-switch button { text-align: start; overflow-wrap: anywhere; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-layout :is(.agenda-weekdays,.agenda-days,.agenda-week-view) { min-width: max(308px,calc(196px * var(--zentra-ui-text-scale,1))); }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-layout .agenda-day > span { white-space: nowrap; }
+    html[data-app-theme] .desktop-app[data-experience] .agenda-layout .agenda-day.is-today > span { min-width: calc(24px * var(--zentra-ui-text-scale,1)); width: auto; height: auto; line-height: 1.4; }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__footer { display: grid; grid-template-columns: minmax(0,1fr); }
+    html[data-app-theme] .desktop-app[data-experience] .notes-editor__footer .button { justify-content: start; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html[data-app-theme] .desktop-app[data-experience] :is(.notes-workspace,.agenda-layout,.project-reports,.settings-browser--guided) * { animation: none; transition: none; }
+  }
+}

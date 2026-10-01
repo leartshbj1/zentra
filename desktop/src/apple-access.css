@@ -1,0 +1,236 @@
+/* Native access and setup surfaces. The approved arrival introduction is excluded. */
+@media screen {
+  html[data-app-theme] .first-run:not(.first-run--welcome) {
+    --setup-bg: var(--apple-canvas);
+    --setup-paper: var(--apple-paper);
+    --setup-ink: var(--apple-ink);
+    --setup-muted: var(--apple-secondary);
+    --setup-line: var(--apple-line);
+    --setup-soft: var(--apple-grouped);
+    --setup-accent: var(--apple-accent);
+    --setup-on-accent: var(--apple-on-accent);
+    --setup-selection: var(--apple-selection);
+    --setup-error: var(--apple-danger);
+    grid-template-columns: 244px minmax(0,1fr);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI Variable','Segoe UI',sans-serif;
+    font-size: calc(16px * var(--zentra-ui-text-scale,1));
+    font-optical-sizing: auto;
+    background: var(--apple-canvas);
+  }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__guide {
+    padding: max(32px,var(--safe-top,env(safe-area-inset-top))) 20px 24px;
+    background: var(--apple-rail);
+    border-inline-end: 1px solid var(--apple-line);
+    gap: 24px;
+  }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__guidance { margin: 20px 8px 0; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__guidance p {
+    font-size: calc(22px * var(--zentra-ui-text-scale,1));
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -.025em;
+  }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__guidance > span { font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__index { gap: 4px; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__index button {
+    min-height: 48px;
+    gap: 12px;
+    padding: 12px 8px;
+    border-radius: var(--apple-radius-control);
+    font-size: calc(15px * var(--zentra-ui-text-scale,1));
+    line-height: 1.4;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__index button[aria-current='step'] { color: var(--apple-accent); background: var(--apple-selection); font-weight: 600; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__step-mark { flex: 0 0 24px; height: 24px; font-size: calc(12px * var(--zentra-ui-text-scale,1)); box-shadow: none; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__guide-bottom { padding-inline: 8px; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__company { font-size: calc(15px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__draft { font-size: calc(13px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__main {
+    padding: max(24px,var(--safe-top,env(safe-area-inset-top))) 32px max(32px,var(--safe-bottom,env(safe-area-inset-bottom)));
+    background: var(--apple-canvas);
+  }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__paper {
+    max-width: 760px;
+    padding: 32px;
+    background: var(--apple-paper);
+    border-radius: var(--apple-radius-group);
+  }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__preferences { flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__preferences select { font-size: calc(14px * var(--zentra-ui-text-scale,1)); color: var(--apple-secondary); }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__progress { margin-bottom: 24px; font-size: calc(14px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .setup-header { margin-bottom: 28px; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .setup-header h1 {
+    font-size: calc(32px * var(--zentra-ui-text-scale,1));
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -.025em;
+    text-wrap: pretty;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .setup-header p { font-size: calc(16px * var(--zentra-ui-text-scale,1)); line-height: 1.5; margin-top: 14px; max-width: 54ch; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .field__label { color: var(--apple-ink); font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.4; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .field__label em::after { font-size: calc(14px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .first-run:not(.first-run--welcome) :is(input:not([type='checkbox']),select,textarea) {
+    min-height: 48px;
+    padding: 12px 14px;
+    font-size: calc(16px * var(--zentra-ui-text-scale,1));
+    background: var(--apple-paper);
+    border: 1px solid var(--apple-line);
+    border-radius: var(--apple-radius-control);
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__preferences select { border: 0; background: transparent; min-height: 44px; padding: 8px 28px 8px 10px; font-size: calc(14px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .first-run:not(.first-run--welcome) :is(.field__hint,.field__error,.form-error,.company-logo-setting__copy p) { font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .button {
+    min-height: 44px;
+    font-size: calc(16px * var(--zentra-ui-text-scale,1));
+    line-height: 1.4;
+    padding: 12px 18px;
+    border-radius: var(--apple-radius-control);
+    box-shadow: none;
+    white-space: normal;
+    transition: background-color 160ms ease;
+  }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .button:hover:not(:disabled) { filter: none; transform: none; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__actions { border-top: 1px solid var(--apple-line); padding-top: 20px; margin-top: 28px; flex-wrap: wrap; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) :is(summary,.first-run__recovery > button) { min-height: 44px; font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) :is(.first-run__footnote,.first-run-connect-note,.first-run__draft-message,.setup-checklist,.consent-grid) { font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) :is(.review-card h3,.automation-setup h3,.local-assistant-setup h3) { font-size: calc(18px * var(--zentra-ui-text-scale,1)); line-height: 1.4; font-weight: 600; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) :is(.review-card dt,.review-card dd,.automation-setup p,.local-assistant-setup p) { font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) :is(.review-card button,.automation-setup small,.local-assistant-setup small) { min-height: 44px; font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .review-grid { grid-template-columns: minmax(0,1fr); gap: 0; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .review-card { padding: 24px 0; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; background: transparent; }
+  html[data-app-theme] .first-run:not(.first-run--welcome) .review-card:first-child { padding-top: 0; }
+
+  html[data-app-theme] .first-run.first-run--account {
+    display: block;
+    background: var(--apple-canvas);
+  }
+  html[data-app-theme] .first-run.first-run--account .first-run__guide { background: transparent; padding: 0; border: 0; }
+  html[data-app-theme] .first-run.first-run--account .first-run__paper { max-width: 560px; }
+  html[data-app-theme] .first-run.first-run--account .first-run__preferences { margin-bottom: 40px; }
+  html[data-app-theme] .first-run.first-run--account .setup-header { text-align: start; }
+  html[data-app-theme] .first-run.first-run--account .setup-header p { margin-inline: 0; }
+  html[data-app-theme] .first-run.first-run--account .first-run-connect { min-height: 52px; border-radius: var(--apple-radius-control); font-size: calc(17px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .first-run.first-run--account .first-run__actions { justify-content: space-between; }
+  html[data-app-theme] .first-run.first-run--account .first-run__actions > .button { font-size: calc(15px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .first-run.first-run--account .first-run__footnote { text-align: start; }
+
+  html[data-app-theme] :is(.company-account-opening,.cloud-account-panel,.splash-screen,.fatal-screen) {
+    --ink: var(--apple-ink);
+    --muted: var(--apple-secondary);
+    --paper: var(--apple-paper);
+    --surface-app: var(--apple-canvas);
+    --surface-raised: var(--apple-paper);
+    --surface-subtle: var(--apple-grouped);
+    --line-soft: var(--apple-line);
+    --line: var(--apple-line);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI Variable','Segoe UI',sans-serif;
+    font-size: calc(16px * var(--zentra-ui-text-scale,1));
+    color: var(--apple-ink);
+    min-width: 0;
+    line-height: 1.5;
+  }
+  html[data-app-theme] :is(.company-account-opening,.splash-screen,.fatal-screen) { background: var(--apple-canvas); }
+  html[data-app-theme] .company-account-opening {
+    padding: max(24px,var(--safe-top,env(safe-area-inset-top))) max(20px,var(--safe-right,env(safe-area-inset-right))) max(24px,var(--safe-bottom,env(safe-area-inset-bottom))) max(20px,var(--safe-left,env(safe-area-inset-left)));
+  }
+  html[data-app-theme] .company-account-opening > section { width: min(100%,600px); gap: 24px; padding: 32px; border-radius: var(--apple-radius-group); background: var(--apple-paper); }
+  html[data-app-theme] .company-account-opening h1 { font-size: calc(28px * var(--zentra-ui-text-scale,1)); font-weight: 600; line-height: 1.25; letter-spacing: -.025em; }
+  html[data-app-theme] .company-account-opening__identity { font-size: calc(15px * var(--zentra-ui-text-scale,1)); color: var(--apple-secondary); }
+  html[data-app-theme] .company-account-opening__identity small { font-size: calc(14px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .company-account-choices strong { font-size: calc(18px * var(--zentra-ui-text-scale,1)); line-height: 1.4; font-weight: 600; }
+  html[data-app-theme] .company-account-choices :is(span,small) { font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; color: var(--apple-secondary); }
+  html[data-app-theme] .company-account-choices p { font-size: calc(15px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] :is(.company-account-opening,.cloud-account-panel) .button { min-height: 44px; font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.4; font-weight: 500; border-radius: var(--apple-radius-control); box-shadow: none; white-space: normal; }
+  html[data-app-theme] :is(.company-account-opening,.cloud-account-panel) .button--primary { background: var(--apple-accent); color: var(--apple-on-accent); }
+  html[data-app-theme] :is(.company-account-opening,.cloud-account-panel) .button--secondary { color: var(--apple-ink); background: var(--apple-grouped); border-color: transparent; }
+  html[data-app-theme] :is(.company-account-opening,.cloud-account-panel) .button--ghost { color: var(--apple-accent); background: transparent; }
+  html[data-app-theme] :is(.company-account-opening,.cloud-account-panel) :is(button,input,summary,a):focus-visible { outline: 2px solid var(--apple-focus); outline-offset: 3px; }
+  html[data-app-theme] .cloud-account-panel { background: var(--apple-paper); border-color: var(--apple-line); box-shadow: none; }
+  html[data-app-theme] .cloud-account-panel :is(h2,h3) { font-size: calc(20px * var(--zentra-ui-text-scale,1)); line-height: 1.4; font-weight: 600; letter-spacing: -.015em; }
+  html[data-app-theme] .cloud-account-panel :is(.settings-cloud-status,.settings-cloud-intro p,.settings-cloud-link p,.cloud-team p,.cloud-team__invite-heading p) { font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.5; color: var(--apple-secondary); }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-account.is-connected { padding: 0 0 24px; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; background: transparent; color: var(--apple-ink); }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-account__icon { color: var(--apple-accent); background: transparent; box-shadow: none; }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-account strong { font-size: calc(18px * var(--zentra-ui-text-scale,1)); line-height: 1.4; font-weight: 600; }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-account p { font-size: calc(14px * var(--zentra-ui-text-scale,1)); color: var(--apple-secondary); }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-account > div { min-width: 0; flex-basis: 180px; }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-intro { background: transparent; padding: 0; }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-intro strong { font-size: calc(17px * var(--zentra-ui-text-scale,1)); }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-link { padding: 24px; background: var(--apple-grouped); border: 0; border-radius: var(--apple-radius-group); }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-link__code { flex-wrap: wrap; gap: 12px; }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-link__code span { font-size: calc(15px * var(--zentra-ui-text-scale,1)); color: var(--apple-secondary); }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-link__code strong { color: var(--apple-ink); font-size: calc(24px * var(--zentra-ui-text-scale,1)); line-height: 1.4; letter-spacing: .05em; overflow-wrap: anywhere; }
+  html[data-app-theme] .cloud-account-panel .cloud-account-shortcuts { display: grid; grid-template-columns: minmax(0,1fr); gap: 0; margin-top: 24px; border-block: 1px solid var(--apple-line); }
+  html[data-app-theme] .cloud-account-panel .cloud-account-shortcuts button { width: 100%; min-height: 52px; padding: 16px 0; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; background: transparent; box-shadow: none; color: var(--apple-ink); gap: 12px; font-size: calc(16px * var(--zentra-ui-text-scale,1)); line-height: 1.4; text-align: start; }
+  html[data-app-theme] .cloud-account-panel .cloud-account-shortcuts button:last-child { border-bottom: 0; }
+  html[data-app-theme] .cloud-account-panel .cloud-account-shortcuts button span { min-width: 0; overflow-wrap: anywhere; }
+  html[data-app-theme] .cloud-account-panel .cloud-account-shortcuts svg { flex-shrink: 0; }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-privacy { font-size: calc(13px * var(--zentra-ui-text-scale,1)); color: var(--apple-secondary); gap: 8px; }
+  html[data-app-theme] .cloud-account-panel .settings-cloud-privacy p { font-size: inherit; }
+  html[data-app-theme] .cloud-account-panel :is(.cloud-team__people strong,.cloud-team__invite-heading strong) { font-size: calc(16px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .cloud-account-panel :is(.cloud-team__people small,.cloud-team__link p,.cloud-team__invite-heading small) { color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] .cloud-account-panel :is(input,select) { font-size: calc(16px * var(--zentra-ui-text-scale,1)); min-height: 44px; color: var(--apple-ink); background: var(--apple-paper); border-color: var(--apple-line); border-radius: var(--apple-radius-control); }
+  html[data-app-theme] .cloud-account-panel summary { min-height: 44px; font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-subscription {
+    --sub-text: var(--apple-ink);
+    --sub-muted: var(--apple-secondary);
+    --sub-line: var(--apple-line);
+    --sub-surface: var(--apple-paper);
+    --account-bg: var(--apple-grouped);
+    font-family: inherit;
+    font-size: calc(16px * var(--zentra-ui-text-scale,1));
+    line-height: 1.5;
+    max-width: none;
+  }
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-sub-section { padding: 24px 0; margin: 0; border: 0; border-bottom: 1px solid var(--apple-line); border-radius: 0; background: transparent; }
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-sub-heading h2 { font-size: calc(22px * var(--zentra-ui-text-scale,1)); line-height: 1.3; font-weight: 600; letter-spacing: -.025em; }
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) :is(.zentra-sub-status,.zentra-sub-facts dt,.zentra-sub-facts small,.zentra-product-access span,.zentra-sub-caption,.zentra-quota > p,.zentra-start-steps p,.zentra-step-actions button) { font-size: calc(14px * var(--zentra-ui-text-scale,1)); line-height: 1.5; color: var(--apple-secondary); }
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-sub-facts dd { font-size: calc(17px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-sub-primary { min-height: 44px; border-radius: var(--apple-radius-control); background: var(--apple-accent); color: var(--apple-on-accent); font-weight: 500; }
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) :is(.zentra-sub-link,.zentra-step-actions a,.zentra-subtle) { color: var(--apple-accent); min-height: 44px; }
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-quota progress { accent-color: var(--apple-accent); }
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-quota progress::-webkit-progress-value { background: var(--apple-accent); }
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-quota-notice { background: var(--apple-grouped); }
+  html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-subscription :focus-visible { outline: 2px solid var(--apple-focus); outline-offset: 3px; }
+  @media (hover: hover) {
+    html[data-app-theme] .cloud-account-panel .cloud-account-shortcuts button:not(:disabled):hover { background: var(--apple-grouped); }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__index button:not(:disabled):not([aria-current]):hover { color: var(--apple-ink); background: var(--apple-grouped); }
+  }
+  @media (max-width: 1000px) {
+    html[data-app-theme] .first-run:not(.first-run--welcome) { grid-template-columns: 220px minmax(0,1fr); }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__main { padding-inline: 24px; }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__paper { padding: 28px; }
+  }
+  @media (max-width: 700px) {
+    html[data-app-theme] .first-run:not(.first-run--welcome) { display: block; }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__guide { padding: max(16px,var(--safe-top,env(safe-area-inset-top))) max(20px,var(--safe-right,env(safe-area-inset-right))) 0 max(20px,var(--safe-left,env(safe-area-inset-left))); gap: 12px; border-inline-end: 0; border-bottom: 1px solid var(--apple-line); }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__mobile-index { font-size: calc(15px * var(--zentra-ui-text-scale,1)); line-height: 1.5; }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__mobile-index > span:last-child { font-size: calc(13px * var(--zentra-ui-text-scale,1)); }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__main { padding: 16px max(16px,var(--safe-right,env(safe-area-inset-right))) max(24px,var(--safe-bottom,env(safe-area-inset-bottom))) max(16px,var(--safe-left,env(safe-area-inset-left))); }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__paper { padding: 24px 20px; }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .setup-header h1 { font-size: calc(28px * var(--zentra-ui-text-scale,1)); }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__preferences select { font-size: calc(16px * var(--zentra-ui-text-scale,1)); }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__actions .button--primary { flex: 1 1 140px; }
+    html[data-app-theme] .first-run.first-run--account .first-run__guide { padding: 0; border: 0; }
+    html[data-app-theme] .first-run.first-run--account .first-run__main { padding-top: max(24px,var(--safe-top,env(safe-area-inset-top))); }
+    html[data-app-theme] .first-run.first-run--account .first-run__preferences { padding-top: 56px; margin-bottom: 24px; }
+    html[data-app-theme] .first-run.first-run--account .first-run__paper { max-width: none; }
+    html[data-app-theme] .first-run:not(.first-run--welcome) .review-card dl > div { flex-wrap: wrap; gap: 4px 12px; }
+    html[data-app-theme] .company-account-opening > section { padding: 24px 20px; }
+    html[data-app-theme] .company-account-opening h1 { font-size: calc(26px * var(--zentra-ui-text-scale,1)); }
+    html[data-app-theme] .cloud-account-panel .settings-cloud-link { padding: 20px 16px; }
+    html[data-app-theme] .cloud-account-panel .settings-cloud-account > .button { width: 100%; }
+    html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-sub-facts > div { flex-wrap: wrap; gap: 8px 16px; }
+    html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-sub-facts dd { text-align: start; }
+    html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-product-access li { flex-wrap: wrap; }
+    html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-product-access li > span { white-space: normal; margin-inline-start: 34px; }
+    html[data-app-theme] :is(.desktop-app,.modal-backdrop,.cloud-account-panel) .zentra-step-actions { flex-wrap: wrap; min-width: 0; margin-left: 0; width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html[data-app-theme] .first-run:not(.first-run--welcome) .first-run__stage { animation: none; }
+    html[data-app-theme] :is(.cloud-account-panel,.company-account-opening) :is(button,a) { transition: none; }
+  }
+}

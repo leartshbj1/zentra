@@ -66,10 +66,10 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
       </aside>}
       <section className="project-reports__detail" aria-label={t('Aperçu du rapport')}>
         {project && report && figures ? <>
-          <div className="project-reports__title"><div><h2>{project.name}</h2><StatusBadge status={project.status}/></div>
+          <header className="project-reports__title"><div><h2>{project.name}</h2><StatusBadge status={project.status}/></div>
             <Button disabled={busy || !sections.length} onClick={()=>void exportPdf()}><Download size={17} aria-hidden="true"/>{t(busy?'Création du PDF…':'Exporter le PDF')}</Button>
-          </div>
-          <div className="project-reports__composition">
+          </header>
+          <div className="project-reports__configuration"><div className="project-reports__composition">
             <label>{t('Type de rapport')}
               <span className="project-reports__preset-control">
                 <select aria-label={t('Type de rapport')} value={preset} disabled={busy} onChange={e=>choosePreset(e.target.value as ReportPreset)}>{Object.entries(reportPresets).map(([key,value])=><option key={key} value={key}>{t(value.label)}</option>)}</select>
@@ -78,13 +78,6 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
             </label>
             <p>{t(reportPresets[preset].description)}</p>
           </div>
-          <dl className="project-reports__figures">
-            <div><dt>{t('Facturé hors TVA')}</dt><dd>{figures.invoicedNetLabel}</dd></div>
-            {!forClient && <><div><dt>{t('Coûts enregistrés')}</dt><dd>{formatMoney(figures.laborCost+figures.expenseNet)}</dd></div>
-              <div><dt>{t('Marge de gestion')}</dt><dd>{figures.marginUnavailableReason ? t(figures.marginUnavailableReason) : figures.hasActivity ? formatMoney(figures.margin) : '—'}</dd></div></>}
-          </dl>
-          {!forClient && <p className="project-reports__scope">{t('La marge tient compte des coûts enregistrés, pas des coûts encore inconnus.')}</p>}
-          {!forClient && figures.purchaseCostReviewCount>0 && <Button variant="secondary" onClick={onOpenAccounting}>{t('Contrôler les achats')}</Button>}
           <details className="project-reports__customize"><summary>{t('Personnaliser le contenu')}</summary>
             <fieldset className="project-reports__sections" disabled={busy}><legend>{t('Dans votre rapport')}</legend>
               {Object.entries(reportSections).filter(([key])=>!forClient || reportPresets.client.sections.some(allowed=>allowed===key)).map(([key,label])=><label key={key}>
@@ -92,11 +85,18 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
               </label>)}
             </fieldset>
             <label className="project-reports__author">{t('Préparé par (facultatif)')}<input value={author} maxLength={120} disabled={busy} onChange={e=>{setAuthor(e.target.value);setReceipt(null);}} autoComplete="name"/></label>
-          </details>
+          </details></div>
+          <dl className="project-reports__figures">
+            <div><dt>{t('Facturé hors TVA')}</dt><dd>{figures.invoicedNetLabel}</dd></div>
+            {!forClient && <><div><dt>{t('Coûts enregistrés')}</dt><dd>{formatMoney(figures.laborCost+figures.expenseNet)}</dd></div>
+              <div><dt>{t('Marge de gestion')}</dt><dd>{figures.marginUnavailableReason ? t(figures.marginUnavailableReason) : figures.hasActivity ? formatMoney(figures.margin) : '—'}</dd></div></>}
+          </dl>
+          {!forClient && <p className="project-reports__scope">{t('La marge tient compte des coûts enregistrés, pas des coûts encore inconnus.')}</p>}
+          {!forClient && figures.purchaseCostReviewCount>0 && <Button variant="secondary" onClick={onOpenAccounting}>{t('Contrôler les achats')}</Button>}
           {!sections.length && <p role="status">{t('Choisissez au moins une rubrique pour exporter le rapport.')}</p>}
           {error && <p role="alert">{t(error)}</p>}
           {receipt?.projectId===project.id && <PdfExportReceipt result={receipt.result} disabled={busy} onBusyChange={setBusy}/>}
-          <p className="project-reports__scope">{report.subtitle}</p>
+          <div className="project-reports__preview-heading"><h3>{t('Aperçu du rapport')}</h3><p className="project-reports__scope">{report.subtitle}</p></div>
           <div className="project-reports__preview" key={project.id}>
             {report.sections.map((section,index)=><details key={`${index}-${section.title}`} open={index===0}>
               <summary>{section.title}</summary>

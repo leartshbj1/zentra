@@ -44,7 +44,7 @@ function CompanySettings({ state, embedded }: { state: AutomationState; embedded
       <strong>{t('Un démarrage simple')}</strong><p>{t('Préparez les fonctions disponibles en mode suggestion. Vous relisez les résultats avant toute action.')}</p>
       <Button variant="secondary" disabled={busy || !state.available.length} onClick={() => { setDraft(recommendedAutomationSettings(state)); setMessage('Réglages préparés. Vérifiez votre accord puis enregistrez pour l’équipe.'); }}>{t('Utiliser les réglages conseillés')}</Button>
     </div>}
-    <fieldset disabled={!canManage || busy}>
+    <fieldset className="automation-settings__functioning" disabled={!canManage || busy}>
       <legend>{t('Fonctionnement')}</legend>
       <label className="automation-settings__toggle"><span><strong>{t('Activer les suggestions')}</strong><small>{t('Vous gardez la validation des actions importantes.')}</small></span><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /></label>
       <p className="automation-settings__current-mode">{t(draft.mode === 'shadow' ? 'Observation · sans modifier vos choix' : 'Suggestions · vérifier puis confirmer')}</p>
@@ -65,7 +65,7 @@ function CompanySettings({ state, embedded }: { state: AutomationState; embedded
         <label>{t('Confiance élevée à partir de (%)')}<input type="number" min="51" max="100" step="1" disabled={busy} value={Math.round(draft.thresholds.high * 100)} onChange={e => setDraft({ ...draft, thresholds: { ...draft.thresholds, high: Number(e.target.value) / 100 } })} /></label>
       </div></details>
       {changedElsewhere && <p role="status">{t('Les réglages de l’équipe ont changé. Rechargez-les avant de continuer.')} <Button variant="ghost" disabled={busy} onClick={() => { setDraft(state.settings); setBaseline(current); setConsent(state.settings.consent); }}>{t('Recharger les réglages')}</Button></p>}
-      <Button disabled={busy || !dirty || changedElsewhere || (draft.enabled && !consent)} onClick={async () => {
+      <Button className="automation-settings__save" disabled={busy || !dirty || changedElsewhere || (draft.enabled && !consent)} onClick={async () => {
         if (draft.thresholds.medium < .5 || draft.thresholds.high > 1 || draft.thresholds.medium >= draft.thresholds.high) { setMessage('Le premier seuil doit être inférieur au second, entre 50 et 100 %.'); return; }
         setBusy(true); setMessage('');
         try {
