@@ -1206,6 +1206,7 @@ function WorkspaceContent({
   }
 
   async function reviseQuote(item: Quote) {
+    const initiatingModal = modal;
     if (
       actionInFlight.current ||
       !reserveDocumentAction(quoteRevisionInFlight.current, item.id)
@@ -1255,7 +1256,7 @@ function WorkspaceContent({
           });
           return;
         }
-        setModal({ type: 'document', entity: 'quotes', item: revision });
+        setModal(current => current === initiatingModal ? { type: 'document', entity: 'quotes', item: revision } : current);
       } else if (revised) {
         setNotice({ tone: 'error', text: 'La révision est enregistrée, mais sa nouvelle version n’a pas pu être retrouvée. Consultez la liste des devis ; aucun second devis n’a été créé.' });
       }
@@ -5994,7 +5995,7 @@ function WorkspaceModal({
   onReadWorkspace: () => Promise<Workspace>;
 }) {
   if (state.type === 'client')
-    return <ClientForm item={state.item} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} />;
+    return <ClientForm key={JSON.stringify([workspace.workNotesScope, 'client', state.item?.id || 'new'])} item={state.item} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} />;
   if (state.type === 'clientDetail') {
     const client = workspace.clients.find(row => row.id === state.client.id);
     if (!client) return <Modal title="Client indisponible" onClose={close}><p>Cette fiche n’est plus dans les données chargées. Revenez à la liste des clients.</p><Button onClick={close}>Fermer</Button></Modal>;
@@ -6013,6 +6014,7 @@ function WorkspaceModal({
   if (state.type === 'catalogItem')
     return (
       <CatalogItemForm
+        key={JSON.stringify([workspace.workNotesScope, 'catalog', state.item?.id || 'new'])}
         item={state.item}
         workspace={workspace}
         busy={busy}
@@ -6038,11 +6040,12 @@ function WorkspaceModal({
     );
   if (state.type === 'supplier')
     return (
-      <SupplierForm item={state.item} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} />
+      <SupplierForm key={JSON.stringify([workspace.workNotesScope, 'supplier', state.item?.id || 'new'])} item={state.item} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} />
     );
   if (state.type === 'project')
     return (
       <ProjectForm
+        key={JSON.stringify([workspace.workNotesScope, 'project', state.item?.id || 'new'])}
         item={state.item}
         workspace={workspace}
         busy={busy}
@@ -6062,6 +6065,7 @@ function WorkspaceModal({
   if (state.type === 'document')
     return (
       <DocumentEditor
+        key={JSON.stringify([workspace.workNotesScope, state.entity, state.item?.id || 'new', state.item ? '' : state.quoteSource?.id || '', state.item ? '' : state.initialProject?.id || ''])}
         onReadWorkspace={onReadWorkspace}
         onOpenSettlementHelp={destination=>destination==='bank'?onOpenBank():onOpenAccounting(destination)}
         entity={state.entity}
@@ -6106,6 +6110,7 @@ function WorkspaceModal({
   if (state.type === 'time')
     return (
       <TimeForm
+        key={JSON.stringify([workspace.workNotesScope, 'time', state.item?.id || 'new'])}
         item={state.item}
         workspace={workspace}
         busy={busy}
@@ -6133,6 +6138,7 @@ function WorkspaceModal({
     });
     return (
       <EmployeeForm
+        key={JSON.stringify([workspace.workNotesScope, 'employee', state.item?.id || 'new'])}
         workspace={workspace}
         item={state.item}
         busy={busy}
@@ -6283,7 +6289,7 @@ function WorkspaceModal({
       />
     );
   return (
-    <TimerForm workspace={workspace} busy={busy} close={close} act={act} />
+    <TimerForm key={JSON.stringify([workspace.workNotesScope, 'timer'])} workspace={workspace} busy={busy} close={close} act={act} />
   );
 }
 

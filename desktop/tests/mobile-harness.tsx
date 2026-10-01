@@ -276,6 +276,7 @@ function Harness() {
   Object.assign(window, { __qaDesktopApi: desktopApi });
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(data);
+  if (previewQuery.has('formDrafts')) Object.assign(window, { __qaFormDraftRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   const [readOnly, setReadOnly] = useState(new URLSearchParams(location.search).has('readOnly'));
   if (previewQuery.has('emptyScreens')) Object.assign(window, {
     __emptyScreensTranslate: t,

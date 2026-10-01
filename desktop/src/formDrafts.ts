@@ -62,15 +62,17 @@ export class FormDraftSession<T> {
       let acknowledged = completedRecords.get(this.key) === hash;
       if (marker) try { const data: unknown = JSON.parse(marker); acknowledged ||= draftObject(data) && data.version === FORM_DRAFT_VERSION && data.recordFingerprint === hash; } catch { /* Invalid marker is never treated as acknowledgement. */ }
       if (acknowledged) { this.snapshot.completedResidual = true; log('completed_residual', 'info'); return; }
-      if (raw.length * 2 > FORM_DRAFT_MAX_ENTRY_BYTES) { this.snapshot.invalid = true; return; }
-      const record: unknown = JSON.parse(raw);
+      if (raw.length * 2 > FORM_DRAFT_MAX_ENTRY_BYTES) { this.snapshot.invalid = true; log('invalid_size', 'failure', true); return; }
+      let record: unknown;
+      try { record = JSON.parse(raw); }
+      catch { this.snapshot.invalid = true; log('invalid_format', 'failure'); return; }
       if (draftObject(record) && record.version === FORM_DRAFT_VERSION && record.scope === this.key && record.acknowledged === true) {
         this.snapshot.completedResidual = true; log('completed_residual', 'info'); return;
       }
       if (!draftObject(record) || record.version !== FORM_DRAFT_VERSION || record.scope !== this.key ||
         typeof record.fingerprint !== 'string' || record.fingerprint.length > 120 || typeof record.savedAt !== 'number' ||
         !Number.isFinite(record.savedAt) || record.savedAt > this.now() + 60_000 || this.now() - record.savedAt > FORM_DRAFT_MAX_AGE ||
-        !safeData(record.value) || !options.validate(record.value)) { this.snapshot.invalid = true; return; }
+        !safeData(record.value) || !options.validate(record.value)) { this.snapshot.invalid = true; log('invalid_record', 'failure'); return; }
       this.snapshot.pending = record as FormDraftRecord<T>;
       this.snapshot.conflict = record.fingerprint !== options.fingerprint;
       log('available', 'info');

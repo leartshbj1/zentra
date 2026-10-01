@@ -107,6 +107,19 @@ describe('local form recovery', () => {
     expect(session.needsCloseConfirmation()).toBe(false);
     expect(new FormDraftSession(options(storage)).getSnapshot().pending?.value.note).toBe('Dernier caractère');
   });
+  it('shows a damaged draft as unrecoverable without pretending that storage is unavailable or recording its content', () => {
+    const storage = new MemoryStorage(), key = formDraftKey(scope), damaged = '{"note":"private-damaged-content"';
+    storage.setItem(key, damaged);
+    const session = new FormDraftSession(options(storage));
+    expect(session.getSnapshot().invalid).toBe(true);
+    expect(session.getSnapshot().storageError).toBe(false);
+    expect(session.getSnapshot().pending).toBeNull();
+    expect(session.getSnapshot().value).toEqual(initial);
+    expect(storage.getItem(key)).toBe(damaged);
+    const event = recentDiagnosticEvents().at(-1);
+    expect(event).toMatchObject({ area: 'draft', operation: 'form.invalid_format', phase: 'failure' });
+    expect(JSON.stringify(event)).not.toMatch(/private-damaged-content|company-a|member-a|row-a/);
+  });
   it('refuses storage without a verified company scope', () => {
     const storage = new MemoryStorage(), session = new FormDraftSession(options(storage, { scope: null }));
     session.capture({ name: 'Local', note: '' });
