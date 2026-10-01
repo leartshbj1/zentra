@@ -68,7 +68,7 @@ const modules = [
   {
     icon: NotebookPen,
     title: 'Notes de terrain',
-    text: 'Mesures, observations et listes à cocher. Découvrez le carnet mobile de la prochaine mise à jour.',
+    text: 'Mesures, observations et listes à cocher. Retrouvez vos notes, même sur le terrain.',
     href: '/gestion/notes',
   },
 ];
