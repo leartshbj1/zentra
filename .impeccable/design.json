@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-24T13:55:15.117Z",
-  "title": "Design System: Zentra Studio",
+  "generatedAt": "2026-10-01T00:43:04.2633050Z",
+  "title": "Design System: Zentra Studio et site public Apple",
   "extensions": {
     "colorMeta": {
       "studio-green": {
@@ -157,6 +157,78 @@
           "oklch(84% 0.0170 238.34)",
           "oklch(95% 0.0170 238.34)"
         ]
+      },
+      "apple-ink": {
+        "role": "neutral",
+        "displayName": "Public Apple : ink"
+      },
+      "apple-muted": {
+        "role": "neutral",
+        "displayName": "Public Apple : muted"
+      },
+      "apple-green": {
+        "role": "primary",
+        "displayName": "Public Apple : green"
+      },
+      "apple-green-hover": {
+        "role": "primary",
+        "displayName": "Public Apple : green hover"
+      },
+      "apple-green-active": {
+        "role": "primary",
+        "displayName": "Public Apple : green active"
+      },
+      "apple-paper": {
+        "role": "neutral",
+        "displayName": "Public Apple : paper"
+      },
+      "apple-soft": {
+        "role": "neutral",
+        "displayName": "Public Apple : soft"
+      },
+      "apple-rule": {
+        "role": "neutral",
+        "displayName": "Public Apple : rule"
+      },
+      "apple-focus": {
+        "role": "primary",
+        "displayName": "Public Apple : focus"
+      },
+      "apple-gestion": {
+        "role": "primary",
+        "displayName": "Public Apple : gestion"
+      },
+      "apple-gestion-copy": {
+        "role": "primary",
+        "displayName": "Public Apple : gestion copy"
+      },
+      "apple-complet": {
+        "role": "primary",
+        "displayName": "Public Apple : complet"
+      },
+      "apple-product-active": {
+        "role": "neutral",
+        "displayName": "Public Apple : product active"
+      },
+      "apple-gestion-active": {
+        "role": "primary",
+        "displayName": "Public Apple : gestion active"
+      },
+      "apple-menu-active": {
+        "role": "neutral",
+        "displayName": "Public Apple : menu active"
+      },
+      "apple-selection-paper": {
+        "role": "neutral",
+        "displayName": "Public Apple : selection paper"
+      },
+      "apple-selection-ink": {
+        "role": "neutral",
+        "displayName": "Public Apple : selection ink"
+      },
+      "apple-header": {
+        "role": "neutral",
+        "displayName": "Public Apple : header"
       }
     },
     "typographyMeta": {
@@ -195,6 +267,54 @@
       "footer-title": {
         "displayName": "Rubrique de pied de page",
         "purpose": "Titre compact explicitement contenu."
+      },
+      "apple-display": {
+        "displayName": "Public Apple : display",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-product-display": {
+        "displayName": "Public Apple : product display",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-page-display": {
+        "displayName": "Public Apple : page display",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-headline": {
+        "displayName": "Public Apple : headline",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-product-title": {
+        "displayName": "Public Apple : product title",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-lead": {
+        "displayName": "Public Apple : lead",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-home-lead": {
+        "displayName": "Public Apple : home lead",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-body": {
+        "displayName": "Public Apple : body",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-label": {
+        "displayName": "Public Apple : label",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-text-link": {
+        "displayName": "Public Apple : text link",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-navigation": {
+        "displayName": "Public Apple : navigation",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
+      },
+      "apple-price": {
+        "displayName": "Public Apple : price",
+        "purpose": "Couche publique de app/apple-design.css ; application et adaptations dans DESIGN.md, Typography et Layout."
       }
     },
     "shadows": [
@@ -222,6 +342,26 @@
         "name": "selected-auth-tab",
         "value": "0 2px 5px #173a2a0d",
         "purpose": "Onglet choisi dans le formulaire de compte."
+      },
+      {
+        "name": "apple-public-menu",
+        "value": "0 24px 36px rgb(24 56 44 / .09)",
+        "purpose": "Public Apple : panneau blanc de navigation ouvert."
+      },
+      {
+        "name": "apple-public-card-hover",
+        "value": "0 12px 28px rgb(24 56 44 / .10)",
+        "purpose": "Public Apple : survol des quatre cartes produit sans déplacement ; ombre retirée à la pression."
+      },
+      {
+        "name": "apple-public-action-active",
+        "value": "inset 0 2px 4px rgb(0 0 0 / .12)",
+        "purpose": "Public Apple : retour de pression de l’action pleine."
+      },
+      {
+        "name": "apple-public-auth",
+        "value": "0 16px 48px rgb(24 56 44 / .06)",
+        "purpose": "Public Apple : surface blanche dans studio-auth et studio-recovery, sans extension au compte authentifié."
       }
     ],
     "motion": [
@@ -254,6 +394,36 @@
         "name": "reduced-motion",
         "value": "0.01ms",
         "purpose": "Durées globales réduites ; Support supprime entièrement transitions et animations."
+      },
+      {
+        "name": "apple-ease",
+        "value": "cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Public Apple : variable --apple-ease de app/apple-design.css, utilisée par les cartes produit."
+      },
+      {
+        "name": "apple-public-action-state",
+        "value": "180ms ease",
+        "purpose": "Public Apple : fond et ombre des actions pleines, sans translation."
+      },
+      {
+        "name": "apple-public-card-state",
+        "value": "240ms cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Public Apple : fond et ombre des cartes d’accueil."
+      },
+      {
+        "name": "apple-public-menu-spring",
+        "value": "stiffness=420; damping=41; mass=1",
+        "purpose": "Public Apple : components/apple-menu-motion.ts conserve position et vitesse sur inversion. Accélération 420*(target-position)-41*velocity ; pas maximal 1/120s et frame limitée à 0.05s ; repos si erreur de position <0.001 et vitesse <0.01."
+      },
+      {
+        "name": "apple-public-menu-projection",
+        "value": "translateY(-14px to 0); opacity(0 to 1); clip-path(inset 100% to 0%)",
+        "purpose": "Public Apple : projection du ressort limitée entre 0 et 1 ; hidden seulement après fermeture terminée."
+      },
+      {
+        "name": "apple-public-reduced-motion",
+        "value": "immediate final state; transition: none",
+        "purpose": "Public Apple : menu immédiatement à son état final sans translation ni découpe, même après changement de préférence en cours. Les transitions des liens, boutons et summary concernés sont supprimées ; contenu et commandes conservés."
       }
     ],
     "breakpoints": [
@@ -268,83 +438,118 @@
       {
         "name": "story-inherited-mobile",
         "value": "700px"
+      },
+      {
+        "name": "apple-public-wide-tablet",
+        "value": "1100px"
+      },
+      {
+        "name": "apple-public-stacked-hero",
+        "value": "800px"
+      },
+      {
+        "name": "apple-public-collapsed-navigation",
+        "value": "760px"
+      },
+      {
+        "name": "apple-public-mobile",
+        "value": "600px"
       }
     ]
   },
   "components": [
     {
-      "name": "Action principale",
+      "name": "Action principale (Studio)",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Action de présentation avec son survol et son focus réels.",
+      "description": "Studio conservé : Action de présentation avec son survol et son focus réels.",
       "html": "<a class=\"ds-primary\" href=\"#parcours\">Voir comment tout se relie <svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M5 12h14m-7-7 7 7-7 7\"/></svg></a>",
       "css": ".ds-primary{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:12px 21px;border-radius:10px;background:var(--studio-green,#225b40);color:var(--studio-paper,#fff);font-family:var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:15px;text-decoration:none;box-shadow:none}.ds-primary:hover{background:#163f29}.ds-primary:focus-visible{outline:3px solid #42875e;outline-offset:4px}@media(prefers-reduced-motion:no-preference){.ds-primary{transition:color .18s,background-color .18s,box-shadow .18s}.ds-primary:hover{background:#173e2d}}@media(prefers-reduced-motion:reduce){.ds-primary{transition-duration:.01ms}}"
     },
     {
-      "name": "Lien secondaire",
+      "name": "Lien secondaire (Studio)",
       "kind": "button",
       "refersTo": "button-text",
-      "description": "Lien de découverte sans fond ; vert hérité de la présentation.",
+      "description": "Studio conservé : Lien de découverte sans fond ; vert hérité de la présentation.",
       "html": "<a class=\"ds-text-link\" href=\"#produits\">Découvrir les produits <svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M5 12h14m-7-7 7 7-7 7\"/></svg></a>",
       "css": ".ds-text-link{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;background:transparent;color:#285c40;font-family:var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:15px;text-decoration:none;text-underline-offset:5px}.ds-text-link:hover{text-decoration:underline}.ds-text-link:focus-visible{outline:3px solid #42875e;outline-offset:4px}"
     },
     {
-      "name": "Recherche Support",
+      "name": "Recherche Support (Studio)",
       "kind": "input",
       "refersTo": "input-search",
-      "description": "Champ de ticket, famille système locale et contours de focus issus de Support.",
+      "description": "Studio conservé : Champ de ticket, famille système locale et contours de focus issus de Support.",
       "html": "<label class=\"ds-search\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.35-4.35\"/></svg><input type=\"search\" aria-label=\"Rechercher un ticket\" placeholder=\"Rechercher un sujet ou un numéro…\"></label>",
       "css": ".ds-search{display:flex;align-items:center;gap:10px;min-height:46px;padding:0 12px;border:0;border-radius:9px;background:var(--studio-paper,#fff);color:var(--studio-muted,#626b66);font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif}.ds-search input{width:100%;min-width:0;min-height:44px;height:100%;border:0;border-radius:8px;background:none;color:inherit;outline:none;font:inherit;font-size:15px}.ds-search input::placeholder{color:#696970;opacity:1}.ds-search:focus-within{outline:2px solid var(--studio-green,#225b40);outline-offset:2px}.ds-search input:focus-visible{outline:3px solid #6cacd8;outline-offset:3px}@media(max-width:760px){.ds-search input{font-size:16px}}"
     },
     {
-      "name": "Navigation produit",
+      "name": "Navigation produit (Studio)",
       "kind": "nav",
       "refersTo": "navigation",
-      "description": "Produit courant souligné ; famille système locale conservée.",
+      "description": "Studio conservé : Produit courant souligné ; famille système locale conservée.",
       "html": "<nav class=\"ds-nav\" aria-label=\"Produits Zentra\"><a href=\"/gestion\" aria-current=\"page\">Gestion</a><a href=\"/support\">Support</a><a href=\"/automation\">Automation</a></nav>",
       "css": ".ds-nav{display:flex;align-items:center;justify-content:center;gap:40px;max-width:1360px;min-height:76px;padding:12px 40px;border-bottom:1px solid var(--studio-rule,#dce1de);background:var(--studio-paper,#fff);font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif}.ds-nav a{position:relative;display:flex;align-items:center;min-height:44px;color:#505055;font-size:14px;text-decoration:none}.ds-nav a:hover{color:#173d2c}.ds-nav a[aria-current]{color:var(--studio-green,#225b40)}.ds-nav a[aria-current]::after{content:'';position:absolute;bottom:3px;inset-inline:0;height:2px;background:currentColor;border-radius:2px}.ds-nav a:focus-visible{outline:2px solid var(--studio-green,#225b40);outline-offset:4px}@media(max-width:760px){.ds-nav{justify-content:space-between;gap:8px;min-height:64px;padding:10px 20px}}@media(prefers-reduced-motion:no-preference){.ds-nav a{transition:color .18s,background-color .18s,box-shadow .18s}}"
     },
     {
-      "name": "Catégorie de ticket",
+      "name": "Catégorie de ticket (Studio)",
       "kind": "chip",
       "refersTo": "category-tag",
-      "description": "Métadonnée statique, sans comportement de bouton.",
+      "description": "Studio conservé : Métadonnée statique, sans comportement de bouton.",
       "html": "<span class=\"ds-category\">Facturation</span>",
       "css": ".ds-category{display:inline-flex;max-width:100%;padding:3px 7px;border-radius:5px;background:#eceef0;color:#505a61;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;font-size:11px;line-height:1.5;overflow-wrap:anywhere}"
     },
     {
-      "name": "Surface de lecture Support",
+      "name": "Surface de lecture Support (Studio)",
       "kind": "card",
       "refersTo": "reading-panel",
-      "description": "Extrait du corps d’un ticket fictif. Le titre hérité en police système est exclu de cet échantillon réutilisable.",
+      "description": "Studio conservé : Extrait du corps d’un ticket fictif. Le titre hérité en police système est exclu de cet échantillon réutilisable.",
       "html": "<section class=\"ds-reading\" aria-label=\"Exemple fictif de ticket\"><div class=\"ds-reading-meta\">Ticket #EX-2048 · Données fictives</div><p>La référence du document demande une vérification avant la suite du traitement.</p></section>",
       "css": ".ds-reading{padding:30px;border:0;border-radius:12px;background:var(--studio-paper,#fff);color:var(--studio-ink,#19251f);font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;box-shadow:none}.ds-reading-meta{font-size:12px;color:var(--studio-muted,#626b66);margin-bottom:22px}.ds-reading p{max-width:70ch;margin:0;padding:22px 0 28px;font-size:16px;line-height:1.8;white-space:pre-wrap}@media(max-width:760px){.ds-reading{padding:24px 20px}}"
     },
     {
-      "name": "Sélecteur de scénario",
+      "name": "Sélecteur de scénario (Studio)",
       "kind": "custom",
       "refersTo": "scenario-selector",
-      "description": "État visuel du sélecteur. Le changement de scénario et la lecture sont implémentés dans React.",
+      "description": "Studio conservé : État visuel du sélecteur. Le changement de scénario et la lecture sont implémentés dans React.",
       "html": "<div class=\"ds-scenarios\" aria-label=\"Choisir un exemple\"><button type=\"button\" aria-pressed=\"true\">Une facture</button><button type=\"button\" aria-pressed=\"false\">Un rendez-vous</button><button type=\"button\" aria-pressed=\"false\">Une demande client</button></div>",
       "css": ".ds-scenarios{display:flex;gap:4px;justify-content:stretch;padding:5px;margin:0 0 14px;border-radius:11px;background:var(--studio-canvas,#f5f6f7);font-family:var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif}.ds-scenarios button{flex:1;min-width:0;min-height:44px;padding:10px 8px;border:0;border-radius:7px;background:none;color:var(--studio-muted,#626b66);font:inherit;font-size:13px;cursor:pointer;transition:background .2s,color .2s,border-color .2s}.ds-scenarios button[aria-pressed=true]{background:var(--studio-paper,#fff);color:var(--studio-green,#225b40);box-shadow:0 2px 7px #1836290d}.ds-scenarios button:hover:not([aria-pressed=true]){background:#e5ebe7}.ds-scenarios button:focus-visible{outline:3px solid #42875e;outline-offset:4px}@media(max-width:760px){.ds-scenarios button{font-size:12px;padding-inline:5px;white-space:normal}}@media(prefers-reduced-motion:reduce){.ds-scenarios button{transition-duration:.01ms}}"
     },
     {
-      "name": "Ligne éditoriale",
+      "name": "Ligne éditoriale (Studio)",
       "kind": "custom",
       "refersTo": "editorial-row",
-      "description": "Fonction liée à un parcours : titre et explication dans une ligne ouverte.",
+      "description": "Studio conservé : Fonction liée à un parcours : titre et explication dans une ligne ouverte.",
       "html": "<a class=\"ds-editorial\" href=\"/features\"><span><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z M14 2v6h6 M8 13h8 M8 17h8\"/></svg></span><h3>Projets et documents</h3><p>Regroupez les documents et le travail au même endroit.</p><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M5 12h14m-7-7 7 7-7 7\"/></svg></a>",
       "css": ".ds-editorial{display:grid;grid-template-columns:52px minmax(180px,.75fr) minmax(0,1.25fr) 24px;align-items:center;gap:28px;padding:30px 0;border-bottom:1px solid var(--studio-rule,#dce1de);background:transparent;color:var(--studio-ink,#19251f);font-family:var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;text-decoration:none}.ds-editorial>span{display:grid;place-items:center;width:44px;height:44px;background:transparent;color:var(--studio-green,#225b40)}.ds-editorial h3{margin:0;font-size:24px;font-weight:550;letter-spacing:-.025em}.ds-editorial p{margin:0;font-size:16px;line-height:1.65;color:var(--studio-muted,#626b66)}.ds-editorial:focus-visible{outline:2px solid var(--studio-green,#225b40);outline-offset:4px}@media(max-width:760px){.ds-editorial{grid-template-columns:32px minmax(0,1fr) 20px;gap:12px;padding:24px 0}.ds-editorial>span{width:28px;height:32px}.ds-editorial h3{font-size:23px}.ds-editorial p{grid-column:2/4;grid-row:2}.ds-editorial>svg{grid-column:3;grid-row:1}}"
+    },
+    {
+      "name": "Action principale publique Apple",
+      "kind": "button",
+      "refersTo": "apple-button-primary",
+      "description": "Public Apple : action pleine de 48px minimum ; états issus de app/apple-design.css.",
+      "html": "<a class=\"ds-apple-primary\" href=\"#produits\">Découvrir les produits</a>",
+      "css": ".ds-apple-primary{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:13px 24px;border:0;border-radius:999px;background:var(--apple-green,#216448);color:var(--apple-paper,#ffffff);font-family:var(--font-geist-sans,'Geist Sans'),-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:16px;font-weight:500;line-height:1.4;text-decoration:none;transition:background 180ms ease,box-shadow 180ms ease;transform:none;touch-action:manipulation}.ds-apple-primary:hover{background:#174e36}.ds-apple-primary:active{background:#103b28;box-shadow:inset 0 2px 4px rgb(0 0 0 / .12)}.ds-apple-primary:focus-visible{outline:3px solid var(--apple-focus,#287754);outline-offset:5px}@media(max-width:600px){.ds-apple-primary{padding-inline:22px}}@media(prefers-reduced-motion:reduce){.ds-apple-primary{transition:none}}"
+    },
+    {
+      "name": "Destination produit publique Apple",
+      "kind": "card",
+      "refersTo": "apple-product-card",
+      "description": "Public Apple : lien complet d’accueil, ici Gestion. Quatre destinations dans components/products-home.tsx ; le menu et son ressort restent dans les composants React.",
+      "html": "<a class=\"ds-apple-product ds-apple-product-gestion\" href=\"/gestion\"><svg class=\"ds-apple-product-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" aria-hidden=\"true\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M3 9h18M9 9v12\"/></svg><div class=\"ds-apple-product-copy\"><h2>Gestion</h2><p>Votre activité, au même endroit.</p></div><span class=\"ds-apple-product-open\" aria-hidden=\"true\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\"><path d=\"m9 18 6-6-6-6\"/></svg></span></a>",
+      "css": ".ds-apple-product{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:32px;min-height:266px;padding:34px 36px;overflow:hidden;border:0;border-radius:var(--apple-radius,24px);background:var(--apple-soft,#f2f5f3);color:var(--apple-ink,#18382c);font-family:var(--font-geist-sans,'Geist Sans'),-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;text-decoration:none;transition:box-shadow 240ms var(--apple-ease,cubic-bezier(.16,1,.3,1)),background 240ms var(--apple-ease,cubic-bezier(.16,1,.3,1))}.ds-apple-product-icon{width:42px;height:42px}.ds-apple-product-copy{padding-right:32px}.ds-apple-product h2{margin:0;color:inherit;font-size:40px;font-weight:550;line-height:1.15;letter-spacing:-.03em}.ds-apple-product p{margin:10px 0 0;color:var(--apple-muted,#52665c);font-size:18px;line-height:1.5}.ds-apple-product-open{position:absolute;right:28px;bottom:36px;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#fff;color:var(--apple-green,#216448)}.ds-apple-product-gestion{background:#173f2e;color:#fff}.ds-apple-product-gestion p{color:#d1e3d8}.ds-apple-product-complet{background:#e3efe8}.ds-apple-product:hover{box-shadow:0 12px 28px rgb(24 56 44 / .10)}.ds-apple-product:active{box-shadow:none;background:#e8eee9}.ds-apple-product-gestion:active{background:#103221}.ds-apple-product:focus-visible{outline:3px solid var(--apple-focus,#287754);outline-offset:5px}@media(max-width:800px){.ds-apple-product{min-height:236px;padding:28px}.ds-apple-product h2{font-size:32px}.ds-apple-product p{font-size:16px}.ds-apple-product-open{right:20px;bottom:28px}}@media(max-width:600px){.ds-apple-product{min-height:154px;gap:20px;padding:24px;border-radius:20px;flex-direction:row;align-items:center;justify-content:flex-start}.ds-apple-product-icon{width:32px;height:32px;flex:0 0 32px;align-self:flex-start;margin-top:4px}.ds-apple-product-copy{padding-right:12px}.ds-apple-product h2{font-size:29px}.ds-apple-product p{margin-top:8px;font-size:16px;max-width:21ch}.ds-apple-product-open{width:28px;height:28px;right:16px;bottom:18px}}@media(prefers-reduced-motion:reduce){.ds-apple-product{transition:none;transform:none}}"
     }
   ],
   "narrative": {
     "northStar": "L’instrument de précision",
-    "overview": "Zentra Studio traduit la direction Apple confirmée par une présentation calme, précise et tactile. Le vert forêt reste l’identité de la famille ; le blanc, le gris perle et l’encre charbon structurent la lecture. La typographie, les séparateurs fins et l’espace font le travail de composition.\n\nLes surfaces ont une fonction lisible : les présentations laissent le contenu ouvert, les documents de démonstration se détachent légèrement, et Support distingue index, liste et lecture. Le contenu métier constitue la matière visuelle. Cette direction a été réalisée dans le code, sans image générée ni composition de référence approuvée.",
+    "overview": "Zentra Studio traduit la direction Apple confirmée par une présentation calme, précise et tactile. Le vert forêt reste l’identité de la famille ; le blanc, le gris perle et l’encre charbon structurent la lecture. La typographie, les séparateurs fins et l’espace font le travail de composition.\n\nLes surfaces ont une fonction lisible : les présentations laissent le contenu ouvert, les documents de démonstration se détachent légèrement, et Support distingue index, liste et lecture. Le contenu métier constitue la matière visuelle. Cette direction a été réalisée dans le code, sans image générée ni composition de référence approuvée.\r\n\r\nDans ce clone local, app/apple-design.css ajoute une couche publique Apple : héros ProductHero en deux colonnes, quatre destinations sur l’accueil, actions pilules et en-tête translucide. Les jetons apple-* et les alias Studio sont locaux aux sélecteurs publics. Les règles des espaces de travail Studio restent conservées ; cette documentation n’atteste ni tous les workspaces ni une publication.",
     "keyCharacteristics": [
       "Une identité verte commune, avec des surfaces blanches et gris perle.",
       "Une hiérarchie typographique ample dans la présentation, plus compacte dans les outils.",
       "Des listes éditoriales séparées par des filets, et des contenants réservés aux documents et aux tâches.",
-      "Des exemples explicitement fictifs, des commandes visibles et des états sélectionnés lisibles."
+      "Des exemples explicitement fictifs, des commandes visibles et des états sélectionnés lisibles.",
+      "Public Apple : une composition commune de titre, contexte et action portée par ProductHero.",
+      "Public Apple : quatre destinations produit, grandes surfaces pleines et verre limité à l’en-tête.",
+      "Public Apple : ressort de menu interruptible, focus visible et état final immédiat en mouvement réduit."
     ],
     "rules": [
       {
@@ -361,6 +566,16 @@
         "name": "Document Depth",
         "body": "L’ombre signale surtout un document démontré ou une sélection ; les listes éditoriales et les panneaux Support restent sobres et sans ombre ajoutée.",
         "section": "elevation"
+      },
+      {
+        "name": "Apple Public Palette",
+        "body": "Les jetons apple-* et les alias Studio de app/apple-design.css restent locaux aux enveloppes publiques ; les primitives Studio sont conservées ailleurs.",
+        "section": "colors"
+      },
+      {
+        "name": "Public Chrome Depth",
+        "body": "Le verre translucide appartient à l’en-tête public ; les contenus restent sur des fonds pleins. Le survol des cartes répond sans déplacement.",
+        "section": "elevation"
       }
     ],
     "dos": [
@@ -368,14 +583,18 @@
       "Do séparer le titre, l’explication et l’action par la typographie et l’espace avant d’ajouter un contenant.",
       "Do conserver les libellés de données fictives, les conditions de fonctionnement et les états textuels dans les démonstrations.",
       "Do préserver les commandes clavier, les contours de focus, le retour à la liste et les adaptations de mouvement réduit.",
-      "Do garder les termes Projet et Projets, les liens et le sens du contenu métier."
+      "Do garder les termes Projet et Projets, les liens et le sens du contenu métier.",
+      "Do employer les jetons apple-* dans le périmètre public de ce clone, en conservant les variables Studio des espaces de travail.",
+      "Do garder les actions principales publiques à au moins 48px et le bouton Menu à au moins 44px dans les deux dimensions.",
+      "Do conserver la position et la vitesse du ressort de menu lors d’une inversion, ainsi que son état final immédiat avec mouvement réduit."
     ],
     "donts": [
       "Don't transformer chaque fonctionnalité en carte de même poids ; reprendre les lignes éditoriales quand le contenu forme une liste.",
       "Don't ajouter un surtitre décoratif pour remplir l’espace au-dessus d’un titre.",
       "Don't étendre les accents ambre résiduels ni la police système des titres Support à la nouvelle identité.",
       "Don't utiliser une ombre dure, un halo décoratif ou une image fictive pour remplacer la démonstration du produit.",
-      "Don't présenter une maquette interactive ou un verdict visuel comme preuve de publication, d’authentification, de paiement ou de traitement réel des données."
+      "Don't présenter une maquette interactive ou un verdict visuel comme preuve de publication, d’authentification, de paiement ou de traitement réel des données.",
+      "Don't propager les pilules, le verre d’en-tête ou les grandes cartes publiques aux vues opérationnelles sans une décision propre à leur usage."
     ]
   }
 }

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { BrandWordmark } from './brand-mark';
 import { AccountLink } from './account-link';
+import { useAppleMenuMotion } from './apple-menu-motion';
 
 const products = [
   {
@@ -78,10 +79,22 @@ const productMenus = {
 } as const;
 
 const essentialLinks = {
-  gestion: [['Fonctionnalités', '/features'], ['Tarifs', '/pricing']],
-  support: [['Connexions', '/support/connexions'], ['Tarifs', '/support/tarifs']],
-  automation: [['Fonctionnalités', '/automation#fonctions'], ['Tarif', '/automation#tarif']],
-  complet: [['Inclus', '/complet#inclus'], ['Les packs', '/complet#formules']],
+  gestion: [
+    ['Fonctionnalités', '/features'],
+    ['Tarifs', '/pricing'],
+  ],
+  support: [
+    ['Connexions', '/support/connexions'],
+    ['Tarifs', '/support/tarifs'],
+  ],
+  automation: [
+    ['Fonctionnalités', '/automation#fonctions'],
+    ['Tarif', '/automation#tarif'],
+  ],
+  complet: [
+    ['Inclus', '/complet#inclus'],
+    ['Les packs', '/complet#formules'],
+  ],
 } as const;
 
 export function SiteHeader() {
@@ -110,6 +123,7 @@ export function SiteHeader() {
   const [exploreOpen, setExploreOpen] = useState(false);
   const root = useRef<HTMLElement>(null);
   const exploreToggle = useRef<HTMLButtonElement>(null);
+  const explorePanel = useAppleMenuMotion(exploreOpen);
   const previousPath = useRef(pathname);
   useEffect(() => {
     if (previousPath.current !== pathname) {
@@ -161,20 +175,39 @@ export function SiteHeader() {
         >
           <BrandWordmark />
         </a>
-        {menu && <a className="catalog-current-product" href={menu.href}>{menu.name}</a>}
-        {product ? <nav className="catalog-essentials" aria-label={'Explorer ' + menu?.name}>
-          {essentialLinks[product].map(([label, href]) => <a key={href} href={href} aria-current={pathname === href ? 'page' : undefined}>{label}</a>)}
-        </nav> : <nav className="catalog-products" aria-label="Les produits Zentra">
-          {products.map((item) => (
-            <a
-              key={item.key}
-              href={item.href}
-              aria-current={product === item.key ? 'true' : undefined}
-            >
-              {item.name}
-            </a>
-          ))}
-        </nav>}
+        {menu && (
+          <a className="catalog-current-product" href={menu.href}>
+            {menu.name}
+          </a>
+        )}
+        {product ? (
+          <nav
+            className="catalog-essentials"
+            aria-label={'Explorer ' + menu?.name}
+          >
+            {essentialLinks[product].map(([label, href]) => (
+              <a
+                key={href}
+                href={href}
+                aria-current={pathname === href ? 'page' : undefined}
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+        ) : (
+          <nav className="catalog-products" aria-label="Les produits Zentra">
+            {products.map((item) => (
+              <a
+                key={item.key}
+                href={item.href}
+                aria-current={product === item.key ? 'true' : undefined}
+              >
+                {item.name}
+              </a>
+            ))}
+          </nav>
+        )}
         <AccountLink className="catalog-account" />
         <button
           className="catalog-explore-toggle"
@@ -198,7 +231,10 @@ export function SiteHeader() {
       <div
         className="catalog-explore"
         id="catalog-explore"
-        hidden={!exploreOpen}
+        ref={explorePanel}
+        hidden
+        inert={!exploreOpen}
+        aria-hidden={!exploreOpen}
       >
         <div className="catalog-explore-inner">
           <nav
@@ -221,14 +257,30 @@ export function SiteHeader() {
             ))}
           </nav>
           <nav className="catalog-shortcuts" aria-label="Accès directs">
-            {menu && <>
-              <p>{menu.name}</p>
-              {menu.links.map(([label, href]) => <a key={href} href={href} onClick={() => setExploreOpen(false)}>{label}</a>)}
-              <a href={menu.action[1]} onClick={() => setExploreOpen(false)}>{menu.action[0]}</a>
-            </>}
+            {menu && (
+              <>
+                <p>{menu.name}</p>
+                {menu.links.map(([label, href]) => (
+                  <a
+                    key={href}
+                    href={href}
+                    onClick={() => setExploreOpen(false)}
+                  >
+                    {label}
+                  </a>
+                ))}
+                <a href={menu.action[1]} onClick={() => setExploreOpen(false)}>
+                  {menu.action[0]}
+                </a>
+              </>
+            )}
             <p>Pour commencer</p>
-            <a href="/ecosysteme" onClick={() => setExploreOpen(false)}>Comment tout se relie</a>
-            <a href="/questions" onClick={() => setExploreOpen(false)}>Questions fréquentes</a>
+            <a href="/ecosysteme" onClick={() => setExploreOpen(false)}>
+              Comment tout se relie
+            </a>
+            <a href="/questions" onClick={() => setExploreOpen(false)}>
+              Questions fréquentes
+            </a>
             <a href="/complet#formules" onClick={() => setExploreOpen(false)}>
               Comparer les offres
             </a>
@@ -241,7 +293,6 @@ export function SiteHeader() {
           </nav>
         </div>
       </div>
-
     </header>
   );
 }
