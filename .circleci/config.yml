@@ -51,9 +51,8 @@ jobs:
     environment:
       ZENTRA_ANDROID_SMOKE_JOB: "207"
       ZENTRA_ANDROID_SMOKE_SOURCE: "9c1631ec9516d7807a7ba96ce41ef713c27b9c12"
-      # Supply the independently verified job 207 payload hash before execution.
-      # An empty value is rejected; this recipe never falls back to an old APK.
-      ZENTRA_ANDROID_SMOKE_SHA256: << pipeline.parameters.smoke-android-sha256 >>
+      # Independently computed from the exact frozen-source APK in build 207.
+      ZENTRA_ANDROID_SMOKE_SHA256: "798c61da2441afbf6d767d6e374ab3f2c29c093751bce0bdf86560b1b0146869"
     steps:
       - checkout
       - run:
