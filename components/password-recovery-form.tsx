@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import {
+  ArrowLeft,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -128,7 +129,7 @@ export function PasswordRecoveryForm({ reset = false }: { reset?: boolean }) {
         >
           <BrandWordmark className="w-28" />
         </a>
-        <section className="rounded-[2rem] border border-[#e5e5e9] bg-white p-6 shadow-[0_8px_40px_rgba(29,29,31,.04)] sm:p-9">
+        <section className="apple-recovery-panel rounded-[2rem] border border-[#e5e5e9] bg-white p-6 shadow-[0_8px_40px_rgba(29,29,31,.04)] sm:p-9">
           <div className="mb-6 grid size-12 place-items-center rounded-2xl bg-[#edf5ef]">
             {done ? <CheckCircle2 /> : reset ? <KeyRound /> : <Mail />}
           </div>
@@ -286,9 +287,9 @@ export function PasswordRecoveryForm({ reset = false }: { reset?: boolean }) {
         </section>
         <a
           href="/connexion?autre=1"
-          className="mt-5 flex min-h-11 items-center justify-center text-sm font-semibold"
+          className="mt-5 flex min-h-11 items-center justify-center gap-2 text-sm font-semibold"
         >
-          ← Retour à la connexion
+          <ArrowLeft size={17} aria-hidden="true" /> Retour à la connexion
         </a>
       </div>
     </main>

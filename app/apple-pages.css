@@ -1,0 +1,1122 @@
+/* The public Apple system extends to every reading, comparison and demo surface. */
+body .quiet-site .quiet-home-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+}
+body .apple-start :is(h2, h3, h4) {
+  text-wrap: balance;
+}
+body .apple-start-paths {
+  padding-block: 12px 72px;
+}
+body .apple-start-paths > h2,
+body .apple-start-steps > h2 {
+  font-size: clamp(30px, 3.3vw, 44px);
+  letter-spacing: -0.03em;
+  font-weight: 550;
+  line-height: 1.15;
+  margin: 0 0 36px;
+}
+body .apple-start-path {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) 235px;
+  gap: 32px;
+  align-items: start;
+  padding: 40px 0;
+  border-top: 1px solid var(--apple-rule);
+}
+body .apple-start-product {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+body .apple-start-product h3 {
+  font-size: 28px;
+  font-weight: 550;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+body .apple-start-product svg {
+  color: var(--apple-green);
+}
+body .apple-start-description h4 {
+  font-size: 22px;
+  font-weight: 550;
+  line-height: 1.3;
+  margin-bottom: 14px;
+  letter-spacing: -0.02em;
+}
+body .apple-start-description p {
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--apple-muted);
+  max-width: 65ch;
+}
+body .apple-start-description .apple-start-detail {
+  font-size: 15px;
+  line-height: 1.7;
+  margin-top: 16px;
+}
+body .apple-start-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+body .apple-start-actions .quiet-primary {
+  width: 100%;
+  gap: 12px;
+}
+body .apple-start-actions .quiet-link {
+  font-size: 15px;
+}
+body .apple-start-automation {
+  display: flex;
+  gap: 28px;
+  padding: 36px;
+  border-radius: 24px;
+  background: var(--apple-soft);
+}
+body .apple-start-automation > svg {
+  flex: none;
+  color: var(--apple-green);
+  margin-top: 5px;
+}
+body .apple-start-automation h2 {
+  font-size: 28px;
+  font-weight: 550;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+body .apple-start-automation p {
+  max-width: 74ch;
+  margin: 16px 0;
+  line-height: 1.75;
+  color: var(--apple-muted);
+  font-size: 17px;
+}
+body .apple-start-steps {
+  padding-block: 88px 32px;
+}
+body .apple-start-steps ol {
+  list-style: decimal;
+  margin: 0;
+  padding-left: 28px;
+}
+body .apple-start-steps li {
+  padding: 28px 0 28px 16px;
+  border-top: 1px solid var(--apple-rule);
+}
+body .apple-start-steps li::marker {
+  font-size: 20px;
+  color: var(--apple-green);
+  font-variant-numeric: tabular-nums;
+}
+body .apple-start-steps h3 {
+  font-size: 24px;
+  font-weight: 550;
+  letter-spacing: -0.025em;
+}
+body .apple-start-steps p {
+  max-width: 70ch;
+  line-height: 1.75;
+  font-size: 17px;
+  color: var(--apple-muted);
+  margin: 12px 0;
+}
+body .apple-start-steps li > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 28px;
+}
+body .apple-status-content {
+  min-height: min(680px, 76svh);
+  padding-block: 88px;
+}
+body .apple-status-content > svg {
+  color: var(--apple-green);
+  margin-bottom: 32px;
+}
+body .apple-status-content h1 {
+  font-size: clamp(44px, 5.5vw, 76px);
+  font-weight: 550;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+body .apple-status-content h1 span {
+  color: var(--apple-green);
+}
+body .apple-status-content > p {
+  max-width: 58ch;
+  color: var(--apple-muted);
+  margin: 24px 0;
+  font-size: 19px;
+  line-height: 1.7;
+}
+body .apple-status-content .apple-status-help {
+  font-size: 15px;
+  margin-top: 40px;
+}
+body .apple-status-content .apple-status-help a {
+  color: var(--apple-green);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+body .apple-error-page {
+  min-height: 100svh;
+  display: grid;
+  align-items: center;
+}
+
+/* Read: the document's hierarchy, and an index that stays within reach. */
+body .legal-page {
+  padding: 76px 0 72px;
+}
+body .legal-page .legal-frame {
+  width: min(1120px, calc(100% - 96px));
+  max-width: 1120px;
+  margin-inline: auto;
+}
+body .legal-page .legal-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  align-items: end;
+  gap: 48px;
+  max-width: none;
+}
+body .legal-page .legal-header h1 {
+  margin: 0;
+  font-size: clamp(38px, 4.5vw, 64px);
+  font-weight: 550;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+body .legal-heading > p {
+  max-width: 63ch;
+  font-size: 19px;
+  line-height: 1.7;
+  color: var(--apple-muted);
+  margin-top: 24px;
+}
+body .legal-tools {
+  display: grid;
+  gap: 16px;
+}
+body .legal-tools > p {
+  font-size: 14px;
+  color: var(--apple-muted);
+  line-height: 1.6;
+}
+body .legal-print-button {
+  min-height: 48px;
+  border: 1px solid var(--apple-rule);
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--apple-ink);
+  cursor: pointer;
+  background: var(--apple-paper);
+}
+body .legal-print-button:hover {
+  background: var(--apple-soft);
+}
+body .legal-print-button:active {
+  background: #e3ebe6;
+  transform: translateY(1px);
+}
+body .legal-page .legal-layout {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 64px;
+  align-items: start;
+  margin-top: 64px;
+}
+body .legal-page .legal-toc {
+  position: sticky;
+  top: 112px;
+  max-height: calc(100svh - 144px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #b6c7bb transparent;
+}
+body .legal-page .legal-toc a {
+  display: block;
+  min-height: 44px;
+  padding-block: 12px;
+  font-size: 14px;
+  color: var(--apple-muted);
+  line-height: 1.55;
+}
+body .legal-page .legal-toc a:hover {
+  color: var(--apple-green);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+body .legal-page .legal-sections {
+  min-width: 0;
+}
+body .legal-page .legal-sections > section {
+  padding-block: 32px;
+  scroll-margin-top: 112px;
+}
+body .legal-page .legal-sections h2 {
+  margin: 0 0 20px;
+  font-size: 26px;
+  font-weight: 550;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+body .legal-page .legal-copy {
+  max-width: 74ch;
+  color: var(--apple-muted);
+  font-size: 17px;
+  line-height: 1.85;
+}
+body .legal-copy > * + * {
+  margin-top: 18px;
+}
+body .legal-copy address {
+  font-style: normal;
+}
+body .legal-copy strong {
+  color: var(--apple-ink);
+}
+body .legal-page .legal-related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  border-top: 1px solid var(--apple-rule);
+  padding-top: 28px;
+  margin-top: 36px;
+  font-size: 15px;
+  color: var(--apple-green);
+}
+
+/* Secondary product surfaces share a clear title and useful, readable details. */
+body .polished-page:is(.features-page, .security-page) .page-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  text-align: left;
+  align-items: center;
+  gap: 24px 64px;
+  padding-block: 80px 72px;
+}
+body .polished-page:is(.features-page, .security-page) .page-intro h1 {
+  font-size: clamp(42px, 5vw, 72px);
+  max-width: 19ch;
+  grid-row: span 2;
+}
+body .polished-page:is(.features-page, .security-page) .page-intro > p {
+  margin: 0;
+  max-width: 40ch;
+  font-size: 20px;
+  line-height: 1.65;
+}
+body .features-page .page-jump-links {
+  justify-content: flex-start;
+  margin: 0;
+  gap: 8px;
+}
+body .features-page .page-jump-links a {
+  border-radius: 10px;
+  background: var(--apple-soft);
+  font-size: 14px;
+  min-height: 44px;
+  padding: 10px 14px;
+}
+body .features-page .page-jump-links a:hover {
+  background: #e3ebe6;
+}
+body .features-page .feature-library {
+  padding-bottom: 40px;
+}
+body .features-page .feature-disclosure > summary {
+  padding-block: 32px;
+  gap: 24px;
+}
+body .features-page .feature-disclosure > summary h2 {
+  font-size: clamp(25px, 3vw, 36px);
+  letter-spacing: -0.025em;
+}
+body .features-page .feature-disclosure > summary p {
+  font-size: 17px;
+  line-height: 1.6;
+  margin-top: 8px;
+}
+body .features-page .feature-details {
+  padding-block: 16px 48px;
+}
+body .features-page .feature-detail-heading {
+  max-width: 74ch;
+}
+body .features-page .feature-detail-heading h3 {
+  font-size: 30px;
+  font-weight: 550;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+body .features-page .feature-detail-heading p {
+  font-size: 18px;
+  line-height: 1.75;
+  margin-top: 18px;
+  color: var(--apple-muted);
+}
+body .features-page .feature-detail-item {
+  padding: 24px 12px 24px 0;
+  background: transparent;
+  border-radius: 0;
+  border: 0;
+  border-top: 1px solid var(--apple-rule);
+}
+body .features-page .feature-detail-item h4 {
+  font-size: 20px;
+  font-weight: 550;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  margin: 18px 0 12px;
+}
+body .features-page .feature-detail-item p {
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--apple-muted);
+}
+body .features-page .feature-details [class*='rounded-'] {
+  border-radius: 20px;
+  box-shadow: none;
+}
+body .features-page .feature-details aside {
+  background: #173f2e;
+  color: white;
+}
+body .features-page .feature-details aside :is(p, li) {
+  color: #d1e3d8;
+}
+body .features-page .page-note {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--apple-muted);
+  padding-block: 20px;
+  margin-top: 24px;
+}
+body .features-page .capability-table {
+  font-size: 16px;
+  line-height: 1.65;
+}
+body .security-page .security-overview {
+  gap: 24px;
+  border: 0;
+}
+body .security-page .security-overview > article {
+  padding: 36px;
+  border-radius: 24px;
+  background: var(--apple-soft);
+  border: 0;
+}
+body .security-page .security-overview h2 {
+  font-size: 32px;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  margin-top: 24px;
+}
+body .security-page .security-overview p {
+  font-size: 17px;
+  line-height: 1.75;
+}
+body .security-page .security-overview summary {
+  min-height: 48px;
+  font-size: 16px;
+  margin-top: 20px;
+}
+body .security-page .security-overview ul {
+  font-size: 16px;
+  line-height: 1.75;
+}
+body .security-page .security-details {
+  padding-block: 56px 24px;
+}
+body .security-page .security-details .page-detail > summary {
+  font-size: 21px;
+  padding-block: 28px;
+}
+body .security-page .security-detail-content {
+  padding-block: 20px 40px;
+}
+body .security-page .security-detail-content h2 {
+  font-size: 30px;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+body .security-page .security-detail-content h3 {
+  font-size: 22px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+body .security-page .security-detail-content p {
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--apple-muted);
+}
+body .security-page .security-detail-content [class*='rounded'] {
+  border-radius: 20px;
+}
+body .security-page .security-detail-content .interactive-card {
+  padding: 24px 0;
+  border: 0;
+  border-top: 1px solid var(--apple-rule);
+  border-radius: 0;
+}
+body
+  .security-page
+  .security-details
+  > .page-detail:last-child
+  > .security-detail-content {
+  padding: 36px;
+  background: #173f2e;
+  border-radius: 24px;
+}
+body .security-page .security-details > .page-detail:last-child :is(p, li) {
+  color: #d1e3d8;
+}
+
+/* Comparison is a reading surface: facts, prices and sources stay grouped. */
+body .bexio-comparison .comparison-hero {
+  gap: 56px;
+  align-items: start;
+  padding-block: 80px 72px;
+}
+body .bexio-comparison .comparison-hero h1 {
+  font-size: clamp(42px, 5vw, 68px);
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+body .bexio-comparison .comparison-lead {
+  font-size: 19px;
+  color: var(--apple-muted);
+  line-height: 1.7;
+}
+body .bexio-comparison .comparison-proof {
+  background: var(--apple-soft);
+  padding: 32px;
+  border-radius: 24px;
+}
+body .bexio-comparison .comparison-proof h2 {
+  font-size: 25px;
+  line-height: 1.3;
+}
+body .bexio-comparison .comparison-proof dd {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--apple-muted);
+}
+body .bexio-comparison .comparison-proof .page-text-link {
+  font-size: 15px;
+}
+body .bexio-comparison .comparison-workflow-layout {
+  gap: 56px;
+}
+body .bexio-comparison .comparison-table {
+  font-size: 16px;
+  line-height: 1.75;
+}
+body .bexio-comparison .comparison-table :is(td, th) {
+  padding-block: 28px;
+}
+body .bexio-comparison .comparison-table td:nth-child(2),
+body .bexio-comparison .comparison-table thead th:nth-child(2) {
+  background: #e3efe8;
+  color: var(--apple-ink);
+}
+body .bexio-comparison .comparison-note {
+  color: var(--apple-muted);
+  font-size: 15px;
+  line-height: 1.75;
+}
+body .bexio-comparison .comparison-pricing {
+  gap: 48px;
+}
+body .bexio-comparison .comparison-pricing > article {
+  background: white;
+  border-radius: 24px;
+  padding: 32px;
+}
+body .bexio-comparison .comparison-pricing p {
+  font-size: 16px;
+  color: var(--apple-muted);
+}
+body .bexio-comparison .comparison-pricing dd {
+  font-size: 30px;
+  letter-spacing: -0.025em;
+}
+body .bexio-comparison .comparison-pack {
+  margin-top: 36px;
+  padding: 28px 0 0;
+}
+body .bexio-comparison .comparison-import-steps li {
+  padding-block: 28px;
+}
+body .bexio-comparison .comparison-import-steps p {
+  font-size: 17px;
+  color: var(--apple-muted);
+  line-height: 1.8;
+}
+body .bexio-comparison .comparison-sources p {
+  color: var(--apple-muted);
+  font-size: 15px;
+  line-height: 1.75;
+}
+body .bexio-comparison .comparison-sources a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+
+/* A real application tour gets functional chrome, with the screenshots as content. */
+body .tour-page .tour-intro {
+  width: min(1120px, calc(100% - 96px));
+  max-width: 1120px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+  align-items: center;
+  text-align: left;
+  gap: 64px;
+  padding: 72px 0 56px;
+}
+body .tour-page .tour-intro h1 {
+  font-size: clamp(42px, 5vw, 72px);
+  font-weight: 550;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+body .tour-page .tour-intro p {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.7;
+}
+body .tour-page .app-tour {
+  width: min(1280px, calc(100% - 96px));
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 36px;
+}
+body .tour-page .tour-menu {
+  top: 108px;
+  max-height: calc(100svh - 132px);
+}
+body .tour-page .tour-menu p {
+  font-size: 13px;
+  color: var(--apple-muted);
+}
+body .tour-page .tour-menu button {
+  min-height: 44px;
+  font-size: 15px;
+  border-radius: 10px;
+}
+body .tour-page .tour-menu button[aria-current] {
+  background: #e3efe8;
+  color: var(--apple-green);
+}
+body .tour-page .tour-menu button:active {
+  background: #d6e5dc;
+}
+body .tour-page .tour-toolbar {
+  font-size: 14px;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+body .tour-page .tour-toolbar fieldset {
+  border-radius: 14px;
+  background: var(--apple-soft);
+  padding: 4px;
+}
+body .tour-page .tour-toolbar button {
+  min-height: 44px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+body .tour-page .tour-toolbar button:active {
+  background: #e3ebe6;
+}
+body .tour-page .tour-image-button {
+  border-radius: 16px;
+  overflow: hidden;
+}
+body .tour-page .tour-screen figcaption {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--apple-muted);
+  padding-top: 12px;
+}
+body .tour-page .tour-expand {
+  border-radius: 10px;
+  min-height: 40px;
+  font-size: 14px;
+  background: rgb(255 255 255 / 0.94);
+  color: var(--apple-ink);
+}
+body .tour-page .tour-explanation {
+  max-width: 74ch;
+  margin-top: 28px;
+}
+body .tour-page .tour-explanation h2 {
+  font-size: 30px;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+body .tour-page .tour-explanation > p {
+  font-size: 17px;
+  color: var(--apple-muted);
+  line-height: 1.75;
+}
+body .tour-page .tour-explanation details {
+  font-size: 16px;
+  line-height: 1.75;
+}
+body .tour-page .tour-explanation summary {
+  min-height: 48px;
+}
+body .tour-page .tour-pagination {
+  max-width: none;
+  margin-top: 28px;
+}
+body .tour-page .tour-pagination button {
+  min-height: 48px;
+  font-size: 15px;
+  border-radius: 10px;
+  padding: 6px 12px;
+}
+body .tour-page .tour-pagination button:hover:not(:disabled) {
+  background: var(--apple-soft);
+}
+body .tour-page .tour-pagination button:active:not(:disabled) {
+  background: #e3ebe6;
+}
+body .tour-page .tour-pagination > span {
+  font-size: 14px;
+}
+body .tour-page .tour-finish {
+  width: min(1120px, calc(100% - 96px));
+  max-width: 1120px;
+  border-radius: 24px;
+  background: #173f2e;
+  color: white;
+  padding: 48px;
+  text-align: left;
+  margin-block: 72px;
+}
+body .tour-page .tour-finish > p {
+  color: #d1e3d8;
+}
+body .tour-page .tour-finish > div {
+  justify-content: flex-start;
+}
+body .tour-page .page-primary {
+  min-height: 48px;
+  padding: 12px 22px;
+  font-size: 16px;
+  border-radius: 999px;
+  background: var(--apple-green);
+}
+body .tour-page .tour-finish .page-primary {
+  background: white;
+  color: var(--apple-green);
+}
+body .tour-page .tour-finish .page-text-link {
+  color: #d1e3d8;
+  font-size: 16px;
+}
+body .tour-page .page-primary:active {
+  transform: translateY(1px);
+}
+body .tour-page .tour-lightbox {
+  background: white;
+  color: var(--apple-ink);
+  border-radius: 20px;
+  box-shadow: 0 24px 80px rgb(8 30 20 / 0.28);
+}
+body .tour-page .tour-lightbox::backdrop {
+  background: rgb(8 25 17 / 0.52);
+  backdrop-filter: blur(4px);
+}
+body .tour-page .tour-lightbox-heading {
+  padding: 18px 24px;
+}
+body .tour-page .tour-lightbox-heading button {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+body .tour-page .tour-lightbox-heading button:hover {
+  background: var(--apple-soft);
+}
+body .tour-page :is(button, select):focus-visible {
+  outline: 3px solid var(--apple-focus);
+  outline-offset: 4px;
+}
+body .tour-page .tour-mobile-menu select {
+  min-height: 48px;
+  font-size: 16px;
+  border-radius: 12px;
+  background: white;
+  color: var(--apple-ink);
+  border-color: var(--apple-rule);
+}
+
+@media (max-width: 1000px) {
+  body .apple-start-path {
+    grid-template-columns: 145px minmax(0, 1fr);
+    gap: 24px;
+  }
+  body .apple-start-actions {
+    grid-column: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 20px;
+  }
+  body .apple-start-actions .quiet-primary {
+    width: auto;
+  }
+  body .legal-page .legal-header {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  body .legal-tools {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+  }
+  body .legal-page .legal-layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-top: 36px;
+  }
+  body .legal-page .legal-toc {
+    display: none;
+  }
+  body .legal-page .legal-mobile-toc {
+    display: block;
+    margin-top: 32px;
+    border: 1px solid var(--apple-rule);
+    border-radius: 14px;
+    padding: 0 20px;
+  }
+  body .legal-mobile-toc summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 52px;
+    list-style: none;
+    font-size: 16px;
+    color: var(--apple-ink);
+  }
+  body .legal-mobile-toc summary::-webkit-details-marker {
+    display: none;
+  }
+  body .legal-mobile-toc nav {
+    display: grid;
+    padding-bottom: 16px;
+  }
+  body .legal-mobile-toc a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--apple-muted);
+    padding-block: 8px;
+    border-top: 1px solid var(--apple-rule);
+  }
+  body .polished-page:is(.features-page, .security-page) .page-intro {
+    gap: 24px 40px;
+  }
+  body .tour-page .tour-intro {
+    gap: 40px;
+  }
+  body .tour-page .app-tour {
+    gap: 24px;
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  body .legal-page {
+    padding-block: 48px;
+  }
+  body .legal-page .legal-frame {
+    width: calc(100% - 40px);
+  }
+  body .legal-page .legal-header h1 {
+    font-size: clamp(32px, 8vw, 44px);
+  }
+  body .legal-heading > p {
+    font-size: 17px;
+    line-height: 1.75;
+    margin-top: 20px;
+  }
+  body .legal-tools {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  body .legal-page .legal-sections h2 {
+    font-size: 23px;
+  }
+  body .legal-page .legal-copy {
+    font-size: 16px;
+    line-height: 1.85;
+  }
+  body .legal-page .legal-related {
+    margin-top: 16px;
+    gap: 8px 20px;
+  }
+  body .apple-start-paths {
+    padding-block: 12px 40px;
+  }
+  body .apple-start-paths > h2 {
+    margin-bottom: 24px;
+  }
+  body .apple-start-path {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding-block: 32px;
+  }
+  body .apple-start-product {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+  }
+  body .apple-start-product h3 {
+    font-size: 26px;
+  }
+  body .apple-start-description h4 {
+    font-size: 22px;
+  }
+  body .apple-start-actions {
+    grid-column: auto;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  body .apple-start-automation {
+    padding: 26px 24px;
+    border-radius: 20px;
+    flex-direction: column;
+    gap: 20px;
+  }
+  body .apple-start-automation h2 {
+    font-size: 25px;
+  }
+  body .apple-start-steps {
+    padding-block: 48px 16px;
+  }
+  body .apple-start-steps li {
+    padding: 24px 0 24px 8px;
+  }
+  body .apple-start-steps h3 {
+    font-size: 22px;
+  }
+  body .apple-start-steps li > div {
+    gap: 4px 20px;
+  }
+  body .apple-status-content {
+    padding-block: 56px;
+  }
+  body .apple-status-content h1 {
+    font-size: clamp(36px, 9vw, 50px);
+  }
+  body .apple-status-content > p {
+    font-size: 17px;
+  }
+  body .polished-page:is(.features-page, .security-page) .page-intro {
+    display: block;
+    padding-block: 48px 40px;
+  }
+  body .polished-page:is(.features-page, .security-page) .page-intro h1 {
+    font-size: clamp(36px, 9vw, 52px);
+  }
+  body .polished-page:is(.features-page, .security-page) .page-intro > p {
+    margin-top: 24px;
+    font-size: 17px;
+  }
+  body .features-page .page-jump-links {
+    margin-top: 24px;
+  }
+  body .features-page .feature-disclosure > summary {
+    padding-block: 24px;
+    gap: 14px;
+  }
+  body .features-page .feature-disclosure > summary h2 {
+    font-size: 25px;
+  }
+  body .features-page .feature-disclosure > summary p {
+    font-size: 15px;
+  }
+  body .features-page .feature-detail-heading h3 {
+    font-size: 25px;
+  }
+  body .features-page .feature-detail-heading p {
+    font-size: 17px;
+  }
+  body .features-page .feature-detail-item {
+    padding-block: 20px;
+  }
+  body .security-page .security-overview {
+    gap: 16px;
+  }
+  body .security-page .security-overview > article {
+    padding: 26px 24px;
+    border-radius: 20px;
+  }
+  body .security-page .security-overview h2 {
+    font-size: 27px;
+  }
+  body .security-page .security-details {
+    padding-block: 32px 16px;
+  }
+  body .security-page .security-details .page-detail > summary {
+    font-size: 19px;
+    padding-block: 24px;
+  }
+  body .security-page .security-detail-content h2 {
+    font-size: 25px;
+  }
+  body
+    .security-page
+    .security-details
+    > .page-detail:last-child
+    > .security-detail-content {
+    padding: 26px 22px;
+    border-radius: 20px;
+  }
+  body .bexio-comparison .comparison-hero {
+    padding-block: 48px 40px;
+    gap: 32px;
+  }
+  body .bexio-comparison .comparison-hero h1 {
+    font-size: clamp(36px, 9vw, 48px);
+  }
+  body .bexio-comparison .comparison-lead {
+    font-size: 17px;
+  }
+  body .bexio-comparison .comparison-proof {
+    padding: 26px 24px;
+    border-radius: 20px;
+  }
+  body .bexio-comparison .comparison-workflow-layout {
+    gap: 32px;
+  }
+  body .bexio-comparison .comparison-pricing {
+    gap: 20px;
+  }
+  body .bexio-comparison .comparison-pricing > article {
+    padding: 26px 24px;
+    border-radius: 20px;
+  }
+  body .bexio-comparison .comparison-pack {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  body .bexio-comparison .comparison-table :is(td, th) {
+    padding-block: 18px;
+  }
+  body .bexio-comparison .comparison-import-steps li {
+    padding-left: 10px;
+  }
+  body .tour-page .tour-intro {
+    display: block;
+    width: calc(100% - 40px);
+    padding-block: 48px 32px;
+  }
+  body .tour-page .tour-intro h1 {
+    font-size: clamp(36px, 9vw, 48px);
+  }
+  body .tour-page .tour-intro p {
+    margin-top: 24px;
+    font-size: 17px;
+  }
+  body .tour-page .app-tour {
+    width: calc(100% - 40px);
+    display: block;
+  }
+  body .tour-page .tour-menu {
+    display: none;
+  }
+  body .tour-page .tour-toolbar {
+    gap: 12px;
+  }
+  body .tour-page .tour-toolbar fieldset {
+    align-self: flex-start;
+  }
+  body .tour-page .tour-toolbar button {
+    padding: 8px 10px;
+  }
+  body .tour-page .tour-explanation h2 {
+    font-size: 26px;
+  }
+  body .tour-page .tour-pagination {
+    gap: 4px;
+  }
+  body .tour-page .tour-pagination button {
+    padding-inline: 4px;
+    gap: 6px;
+  }
+  body .tour-page .tour-finish {
+    width: calc(100% - 40px);
+    margin-block: 48px;
+    padding: 30px 26px;
+    border-radius: 20px;
+  }
+  body .tour-page .tour-lightbox-heading {
+    padding: 12px 16px;
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  body .catalog-header.intuitive-header {
+    background: white;
+    backdrop-filter: none;
+    border-bottom: 1px solid #93aa9a;
+  }
+  body .tour-page .tour-expand {
+    background: white;
+  }
+  body .tour-page .tour-lightbox::backdrop {
+    backdrop-filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body .apple-start *,
+  body .apple-status-page *,
+  body .tour-page * {
+    scroll-behavior: auto;
+  }
+  body .tour-page .page-primary:active {
+    transform: none;
+  }
+}
+@media print {
+  body .legal-tools,
+  body .legal-mobile-toc {
+    display: none !important;
+  }
+  body .legal-page .legal-frame {
+    width: 100%;
+    max-width: none;
+  }
+  body .legal-page .legal-layout,
+  body .legal-page .legal-header {
+    display: block !important;
+  }
+  body .legal-page .legal-header h1 {
+    font-size: 26px;
+    color: black;
+  }
+  body .legal-page .legal-copy {
+    color: black;
+    font-size: 11pt;
+  }
+}

@@ -15,7 +15,7 @@ export const metadata = supportMetadata(
 
 export default function SupportFeatures() {
   return (
-    <SupportMarketingShell>
+    <SupportMarketingShell current="/support/fonctionnalites">
       <SupportPageIntro
         eyebrow="FONCTIONNALITÉS"
         title={
@@ -29,7 +29,6 @@ export default function SupportFeatures() {
       />
       <section className="sp-wrap sp-control sp-control-text sp-section sp-section-first">
         <div>
-          <p className="sp-kicker">01 / COMPRENDRE</p>
           <h2>
             Lire entre les lignes.
             <br />
@@ -58,7 +57,6 @@ export default function SupportFeatures() {
       <section className="sp-section sp-soft">
         <div className="sp-wrap sp-control sp-control-text">
           <div>
-            <p className="sp-kicker">02 / ORIENTER</p>
             <h2>
               Vos équipes.
               <br />
@@ -84,7 +82,6 @@ export default function SupportFeatures() {
       </section>
       <section className="sp-section sp-wrap">
         <div className="sp-section-title">
-          <p className="sp-kicker">03 / GARDER LA MAIN</p>
           <h2>
             Les exceptions
             <br />
@@ -130,7 +127,6 @@ export default function SupportFeatures() {
       <section className="sp-section sp-dark">
         <div className="sp-wrap sp-time">
           <div>
-            <p className="sp-kicker">VOTRE TEMPS COMPTE</p>
             <h2>
               Que représente
               <br />
@@ -150,7 +146,6 @@ export default function SupportFeatures() {
       </section>
       <section className="sp-section sp-wrap sp-faq">
         <div>
-          <p className="sp-kicker">BON À SAVOIR</p>
           <h2>
             Un rôle précis.
             <br />

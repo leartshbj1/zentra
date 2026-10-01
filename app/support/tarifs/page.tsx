@@ -16,7 +16,7 @@ export const metadata = supportMetadata(
 
 export default function SupportPricing() {
   return (
-    <SupportMarketingShell>
+    <SupportMarketingShell current="/support/tarifs">
       <SupportPageIntro
         eyebrow="TARIFS"
         title={
@@ -54,7 +54,6 @@ export default function SupportPricing() {
       <section className="sp-section sp-soft">
         <div className="sp-wrap sp-faq">
           <div>
-            <p className="sp-kicker">AVANT DE CHOISIR</p>
             <h2>
               Les réponses
               <br />

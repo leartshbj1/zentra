@@ -523,12 +523,14 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         </div>
       )}
       {loading ? (
-        <div className="support-welcome" aria-live="polite">
+        <div className="support-welcome support-welcome-loading" aria-live="polite">
           <Inbox size={32} />
           <h1>Ouverture de votre espace…</h1>
+          <div className="support-loading-lines" aria-hidden="true"><span /><span /><span /></div>
         </div>
       ) : signedOut ? (
-        <main className="support-welcome">
+        <main className="support-welcome support-welcome-entry">
+          <span className="support-welcome-icon"><Inbox size={28} aria-hidden="true" /></span>
           <h1>Votre espace Support.</h1>
           <p>
             Retrouvez vos messages et les demandes de votre équipe.
@@ -557,11 +559,16 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
           <p className="support-small">
             <a href="/support/connexions">Voir les connexions disponibles</a>
           </p>
+          <div className="support-entry-guide">
+            <div><Inbox size={20} aria-hidden="true" /><p><strong>Vos demandes rassemblées.</strong> Les messages et tickets de votre équipe, dans un espace partagé.</p></div>
+            <div><Folder size={20} aria-hidden="true" /><p><strong>Des dossiers internes.</strong> Le classement dans Support conserve votre courrier chez le fournisseur.</p></div>
+            <div><ShieldCheck size={20} aria-hidden="true" /><p><strong>Des décisions à votre main.</strong> Les demandes incertaines restent à vérifier par votre équipe.</p></div>
+          </div>
         </main>
       ) : !data.workspace ? (
-        <main className="support-welcome">
+        <main className="support-welcome support-welcome-create">
           {noticeView}
-          <p className="support-eyebrow">BIENVENUE</p>
+          <span className="support-welcome-icon"><Users size={28} aria-hidden="true" /></span>
           <h1>Votre support commence ici.</h1>
           <p>
             Créez votre espace, connectez votre outil, puis choisissez vos

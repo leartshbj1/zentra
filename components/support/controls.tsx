@@ -36,7 +36,7 @@ export function Choice({
         <SelectTrigger aria-label={label} className="support-select">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="support-choice-popup">
           {options.map((o) => (
             <SelectItem key={o.value || '__none'} value={o.value || '__none'}>
               {o.label}

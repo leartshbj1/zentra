@@ -520,7 +520,12 @@ export default function FeaturesPage() {
                   title="Comprendre ce qui a pris du temps et ce qui a rapporté."
                   text="Chaque projet réunit ses documents, photos, devis et factures. Les calculs utilisent uniquement les données enregistrées."
                 />
-                <p className="mt-6 text-base leading-7"><a className="quiet-link" href="/gestion/notes">À découvrir : le carnet Notes pour vos observations sur le terrain, dans la prochaine mise à jour.</a></p>
+                <p className="mt-6 text-base leading-7">
+                  <a className="quiet-link" href="/gestion/notes">
+                    Le carnet Notes pour vos observations sur le terrain.
+                    Disponible dans Zentra Gestion 1.90.11.
+                  </a>
+                </p>
                 <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:mt-14 lg:grid-cols-3">
                   <FeatureCard
                     icon={FolderKanban}
@@ -691,7 +696,10 @@ export default function FeaturesPage() {
         </section>
         <section className="page-finish page-width">
           <h2>Essayez, tout simplement.</h2>
-          <p>Découvrez les vrais écrans de Zentra, avec une entreprise de démonstration.</p>
+          <p>
+            Découvrez les vrais écrans de Zentra, avec une entreprise de
+            démonstration.
+          </p>
           <div className="page-actions">
             <a className="page-primary" href="/demo-facture">
               Ouvrir la démo <ArrowRight size={17} />

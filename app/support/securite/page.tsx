@@ -14,7 +14,7 @@ export const metadata = supportMetadata(
 
 export default function SupportSecurity() {
   return (
-    <SupportMarketingShell>
+    <SupportMarketingShell current="/support/securite">
       <SupportPageIntro
         eyebrow="SÉCURITÉ & DONNÉES"
         title={
@@ -69,7 +69,6 @@ export default function SupportSecurity() {
       <section className="sp-section sp-soft">
         <div className="sp-wrap sp-control">
           <div>
-            <p className="sp-kicker">LE PARCOURS DES DONNÉES</p>
             <h2>
               Du texte du ticket
               <br />
@@ -112,7 +111,6 @@ export default function SupportSecurity() {
       </section>
       <section className="sp-section sp-wrap sp-faq">
         <div>
-          <p className="sp-kicker">VOS CHOIX</p>
           <h2>
             Une relation
             <br />

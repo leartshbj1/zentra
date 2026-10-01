@@ -3,6 +3,7 @@ import { completePlan } from '@/lib/complete/plans';
 import { CompleteCheckout } from '@/components/complete-checkout';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
+import { ArrowLeft } from 'lucide-react';
 import '@/components/zentra-presentation.css';
 import '../complet.css';
 export const dynamic = 'force-dynamic';
@@ -21,8 +22,8 @@ export default async function Page({
   return (
     <div className="zentra-presentation complete-page">
       <SiteHeader />
-      <main className="complete-checkout">
-        <a href="/complet#formules">← Les packs</a>
+      <main className="complete-checkout apple-complete-checkout">
+        <a href="/complet#formules"><ArrowLeft size={17} aria-hidden="true" /> Les packs</a>
         <h1>{plan ? 'Tout commence ici.' : 'Choisissez votre pack.'}</h1>
         {plan ? (
           <CompleteCheckout planId={plan.id} signedIn={!!user} />

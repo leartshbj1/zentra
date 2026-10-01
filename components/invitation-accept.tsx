@@ -48,7 +48,7 @@ export function InvitationAccept({ token }: { token: string }) {
 
   if (organization) {
     return (
-      <div className="rounded-3xl border border-[#bcd4c3] bg-[#edf5ef] p-7">
+      <div className="apple-task-panel apple-task-success" aria-live="polite">
         <CheckCircle2 className="size-10 text-[#24593d]" />
         <h2 className="mt-4 text-2xl font-semibold">Bienvenue dans l’équipe</h2>
         <p className="mt-2 leading-7 text-[#52645a]">
@@ -67,7 +67,7 @@ export function InvitationAccept({ token }: { token: string }) {
   }
 
   return (
-    <form onSubmit={event => { event.preventDefault(); void accept(); }} className="rounded-2xl border border-[#d9d4c9] bg-white p-6">
+    <form onSubmit={event => { event.preventDefault(); void accept(); }} className="apple-task-panel" aria-busy={busy}>
       <UsersRound className="size-9 text-[#a66b1f]" />
       <h2 className="mt-4 text-xl font-semibold">Rejoindre cette entreprise</h2>
       <p className="mt-2 text-sm leading-6 text-[#5f6962]">

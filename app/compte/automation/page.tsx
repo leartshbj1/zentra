@@ -6,6 +6,7 @@ import { membershipsForUser } from '@/lib/account';
 import { ReferralPanel } from '@/components/automation/referral-panel';
 import '@/components/automation/automation.css';
 import { notFound } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 export const dynamic = 'force-dynamic';
 export const metadata = {
   title: 'Zentra Automation · Mon compte',
@@ -22,9 +23,9 @@ export default async function Page({
   const selected = typeof query.organizationId === 'string' ? query.organizationId : typeof query.entreprise === 'string' ? query.entreprise : '';
   if(user && selected && !organizations.some(org=>org.organizationId===selected))notFound();
   return (
-    <div className="automation-page">
+    <div className="automation-page apple-account-automation">
       <div className="automation-wrap">
-        <a href="/compte">← Mon compte</a>
+        <a className="apple-task-return" href="/compte"><ArrowLeft size={17} aria-hidden="true" /> Mon compte</a>
         <h1>Zentra Automation</h1>
 
         {!user ? (

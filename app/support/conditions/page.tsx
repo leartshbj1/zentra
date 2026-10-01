@@ -8,7 +8,7 @@ export const metadata = {
 };
 export default function SupportTerms() {
   return (
-    <LegalPage
+    <div className="support-terms-page"><LegalPage
       header={
         <div className="support-presentation">
           <SupportMarketingHeader />
@@ -165,6 +165,6 @@ export default function SupportTerms() {
           ),
         },
       ]}
-    />
+    /></div>
   );
 }

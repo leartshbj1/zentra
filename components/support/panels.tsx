@@ -226,9 +226,9 @@ export function ConnectionsPanel({
           <div className="support-card-heading">
             <div>
               <ConnectorLogo provider={c.provider} />
-              <p className="support-eyebrow">{PROVIDERS[c.provider]}</p>
               <h3>{c.label}</h3>
               <p>
+                {PROVIDERS[c.provider]} ·{' '}
                 {c.domain || 'Connexion API personnalisée'} ·{' '}
                 {c.directory.teams.length} équipe(s)
               </p>
@@ -317,7 +317,6 @@ export function ConnectionsPanel({
             })()}
           {guide === c.id && c.provider !== 'infomaniak' && (
             <div className="support-integration-guide">
-              <p className="support-eyebrow">3 · DERNIÈRE ÉTAPE</p>
               <h4>Recevoir les tickets automatiquement</h4>
               <p>
                 La connexion est vérifiée. Activez maintenant l’envoi des

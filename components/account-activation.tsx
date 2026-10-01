@@ -33,7 +33,7 @@ export function AccountActivation({ sessionId }: { sessionId: string }) {
     return()=>{controller.abort();clearTimeout(timer);};
   },[sessionId,attempt]);
   const returnTo=`/paiement/succes?session_id=${encodeURIComponent(sessionId)}`;
-  return <section className="rounded-3xl border border-[#e5e5e9] bg-white p-6 shadow-sm sm:p-9" aria-live="polite">
+  return <section className="apple-task-panel apple-activation-panel" aria-live="polite" aria-busy={busy}>
     {busy?<><LoaderCircle className="size-7 animate-spin text-[#315d47]"/><h2 className="mt-4 text-xl font-semibold">Confirmation de votre abonnement…</h2><p className="mt-2 text-sm leading-6 text-[#5f6962]">Votre accès s’active automatiquement après la confirmation du paiement.</p></>:company?<>
       <CheckCircle2 className="size-8 text-[#315d47]"/>
       <h2 className="mt-4 text-2xl font-semibold">Votre abonnement est actif</h2>

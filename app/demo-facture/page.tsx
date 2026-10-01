@@ -27,8 +27,11 @@ export const metadata: Metadata = {
 export default function AppTourPage() {
   return (
     <>
+      <a href="#contenu" className="site-skip-link">
+        Aller au contenu
+      </a>
       <SiteHeader />
-      <main className="tour-page">
+      <main className="tour-page" id="contenu" tabIndex={-1}>
         <header className="tour-intro">
           <h1>
             Entrez dans <span>Zentra.</span>

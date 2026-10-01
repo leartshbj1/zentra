@@ -95,7 +95,7 @@ export function TeamInvite({
       : '';
 
   return (
-    <div className="rounded-3xl border border-[var(--ac-line,#d9d4c9)] bg-[var(--ac-panel,#fff)] p-5 sm:p-6">
+    <div className="account-team-invite rounded-3xl border border-[var(--ac-line,#d9d4c9)] bg-[var(--ac-panel,#fff)] p-5 sm:p-6">
       <div className="flex items-center gap-3">
         <span className="grid size-10 place-items-center rounded-2xl bg-[var(--ac-tint,#edf5ef)] text-[var(--ac-accent,#24593d)]">
           <UserPlus className="size-5" />

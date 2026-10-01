@@ -4,13 +4,39 @@ import { SupportMarketingHeader } from './marketing-header';
 import '@/app/support/presentation.css';
 import '@/app/support/support.css';
 
-export function SupportMarketingShell({ children }: { children: ReactNode }) {
+const supportPages = [
+  ['/support', 'Présentation'],
+  ['/support/fonctionnalites', 'Fonctionnalités'],
+  ['/support/connexions', 'Connexions'],
+  ['/support/solutions', 'Cas d’usage'],
+  ['/support/securite', 'Sécurité'],
+  ['/support/tarifs', 'Tarifs'],
+] as const;
+
+export function SupportProductNavigation({ current = '/support' }: { current?: string }) {
+  return (
+    <div className="sp-product-navigation">
+      <div className="sp-wrap">
+        <a className="sp-product-name" href="/support">Zentra Support</a>
+        <nav aria-label="Découvrir Zentra Support">
+          {supportPages.map(([href, label]) => (
+            <a key={href} href={href} aria-current={current === href ? 'page' : undefined}>{label}</a>
+          ))}
+        </nav>
+        <a className="sp-product-demo" href="/support/demo">Essayer la démo</a>
+      </div>
+    </div>
+  );
+}
+
+export function SupportMarketingShell({ children, current = '/support' }: { children: ReactNode; current?: string }) {
   return (
     <div className="support-presentation">
       <a href="#support-content" className="site-skip-link">
         Aller au contenu
       </a>
       <SupportMarketingHeader />
+      <SupportProductNavigation current={current} />
       <main id="support-content" tabIndex={-1}>
         {children}
       </main>
@@ -31,7 +57,7 @@ export function SupportPageIntro({
     <section className="sp-page-intro sp-wrap">
       <h1>{title}</h1>
       <p className="sp-lead">{description}</p>
-      <p className="sp-caption">
+      <p className="sp-caption sp-dependency-note">
         Le classement intelligent et le routage automatique nécessitent l’option{' '}
         <a href="/automation">Zentra Automation</a> : +15 CHF/mois pour
         l’entreprise reliée à Zentra Gestion.

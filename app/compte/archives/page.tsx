@@ -64,8 +64,8 @@ export default async function AccountArchivesPage({
   const user = await getZentraUser();
   if (!user) {
     return (
-      <main className="site-task-page grid min-h-screen place-items-center bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
-        <div className="w-full max-w-xl rounded-[2rem] border border-[#dedee3] bg-white p-8 shadow-[0_30px_90px_rgba(29,45,35,.1)] sm:p-10">
+      <main className="site-task-page apple-task-page apple-task-centered">
+        <div className="apple-task-panel apple-task-wrap">
           <ShieldCheck className="size-11 text-[#a66b1f]" />
           <h1 className="mt-5 text-4xl font-semibold tracking-[-.04em]">
             Archives Zentra
@@ -94,8 +94,8 @@ export default async function AccountArchivesPage({
 
   if (!organization) {
     return (
-      <main className="site-task-page grid min-h-screen place-items-center bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
-        <div className="w-full max-w-xl rounded-[2rem] border border-[#e2c98e] bg-[#fff8e9] p-8">
+      <section className="site-task-page apple-task-page apple-task-centered">
+        <div className="apple-task-panel apple-task-wrap apple-task-unavailable">
           <Archive className="size-10 text-[#a66b1f]" />
           <h1 className="mt-5 text-3xl font-semibold">Archive inaccessible</h1>
           <p className="mt-3 leading-7 text-[#6e6044]">
@@ -108,7 +108,7 @@ export default async function AccountArchivesPage({
             Retour à mon compte
           </a>
         </div>
-      </main>
+      </section>
     );
   }
 
@@ -142,20 +142,18 @@ export default async function AccountArchivesPage({
     .all<ArchiveRow>();
 
   return (
-    <main className="site-task-page min-h-screen bg-[#f6f4ee] px-5 py-10 text-[#173d2c] sm:py-14">
-      <div className="mx-auto max-w-5xl">
+    <section className="site-task-page apple-task-page apple-archive-page">
+      <div className="apple-task-wrap apple-task-wrap-wide">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <a href="/compte" className="text-sm font-semibold text-[#52645a]">
               ← Mon compte
             </a>
-            <p className="mt-6 text-xs font-semibold uppercase tracking-[.18em] text-[#a66b1f]">
-              {organization.organizationName}
-            </p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-[-.04em] sm:text-5xl">
+            <h1 className="apple-task-title">
               Coffre de factures
             </h1>
-            <p className="mt-3 max-w-2xl leading-7 text-[#5f6962]">
+            <p className="apple-archive-company">{organization.organizationName}</p>
+            <p className="apple-task-lead">
               Ces PDF restent téléchargeables jusqu’à leur date de conservation,
               même après la fin de l’abonnement. Chaque ouverture revérifie leur
               empreinte.
@@ -193,7 +191,7 @@ export default async function AccountArchivesPage({
 
         <form
           method="get"
-          className="mt-8 flex flex-col gap-3 rounded-3xl border border-[#dedee3] bg-white p-4 sm:flex-row"
+          className="apple-archive-search"
         >
           <input
             type="hidden"
@@ -231,7 +229,7 @@ export default async function AccountArchivesPage({
         </div>
 
         {rows.results.length === 0 ? (
-          <section className="mt-5 rounded-[2rem] border border-[#dedee3] bg-white p-8 text-center">
+          <section className="apple-task-panel apple-archive-empty">
             <Archive className="mx-auto size-10 text-[#a66b1f]" />
             <h2 className="mt-4 text-2xl font-semibold">Aucun résultat</h2>
             <p className="mt-2 text-[#667168]">
@@ -239,7 +237,7 @@ export default async function AccountArchivesPage({
             </p>
           </section>
         ) : (
-          <ul className="mt-5 overflow-hidden rounded-[2rem] border border-[#dedee3] bg-white px-5 sm:px-7">
+          <ul className="apple-archive-list">
             {rows.results.map((archive) => (
               <li
                 key={archive.archive_id}
@@ -300,6 +298,6 @@ export default async function AccountArchivesPage({
           ) : null}
         </nav>
       </div>
-    </main>
+    </section>
   );
 }

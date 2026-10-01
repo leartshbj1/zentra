@@ -80,16 +80,15 @@ export function SupportAdministration() {
     void load();
   }, [load]);
   return (
-    <div className="support-app">
+    <div className="support-app support-admin-app">
       <header className="support-topbar">
         <a href="/support">
           <BrandWordmark className="support-wordmark" />
         </a>
         <span className="support-product">Administration Support</span>
       </header>
-      <main className="support-welcome">
+      <main className={`support-welcome support-admin-main ${status ? 'support-admin-ready' : ''}`}>
         <ShieldCheck size={32} />
-        <p className="support-eyebrow">ESPACE PROPRIÉTAIRE</p>
         <h1>L’analyse, pour tous vos clients.</h1>
         {error && (
           <p className="support-notice support-error" role="alert">

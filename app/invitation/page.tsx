@@ -1,5 +1,6 @@
 import { requireZentraUser } from '@/app/zentra-auth';
 import { InvitationAccept } from '@/components/invitation-accept';
+import { ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,25 +17,22 @@ export default async function InvitationPage({
   const user = await requireZentraUser(returnTo);
 
   return (
-    <main className="site-task-page min-h-screen bg-[#f6f4ee] px-5 py-14 text-[#173d2c]">
-      <div className="mx-auto max-w-xl">
-        <a href="/" className="text-sm font-semibold text-[#52645a]">
-          ← Zentra
+    <main className="site-task-page apple-task-page">
+      <div className="apple-task-wrap">
+        <a href="/" className="apple-task-return">
+          <ArrowLeft size={17} aria-hidden="true" /> Zentra
         </a>
-        <p className="mt-10 text-xs font-semibold uppercase tracking-[.24em] text-[#a66b1f]">
-          Équipe Zentra
-        </p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] sm:text-5xl">
+        <h1 className="apple-task-title">
           Invitation d’entreprise
         </h1>
-        <p className="mt-4 leading-7 text-[#5f6962]">
+        <p className="apple-task-lead">
           Connecté comme <strong>{user.email}</strong>.
         </p>
         <div className="mt-8">
           {token ? (
             <InvitationAccept token={token} />
           ) : (
-            <p className="rounded-3xl bg-[#fff1ed] p-6 text-sm text-[#8b3f2e]">
+            <p className="apple-task-notice" role="alert">
               Le jeton d’invitation manque. Ouvrez le lien complet envoyé par
               votre administrateur.
             </p>

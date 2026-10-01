@@ -1,6 +1,6 @@
 ---
-name: Zentra Studio et site public Apple
-description: "Règles Studio conservées et couche publique Apple extraite du clone local."
+name: Zentra Apple — site, lecture et espaces de travail
+description: "Une identité Apple verte commune, adaptée à la présentation, à la lecture et aux tâches."
 colors:
   studio-green: "#225b40"
   studio-green-hover: "#173e2d"
@@ -21,6 +21,9 @@ colors:
   apple-paper: "#ffffff"
   apple-soft: "#f2f5f3"
   apple-rule: "#d9e2dd"
+  s-control-line: "#71877a"
+  ac-control-line: "#748a7a"
+  ac-control-line-dark: "#829c8b"
   apple-focus: "#287754"
   apple-gestion: "#173f2e"
   apple-gestion-copy: "#d1e3d8"
@@ -136,6 +139,20 @@ typography:
     fontWeight: 550
     lineHeight: 1.1
     letterSpacing: "-.035em"
+  apple-account-title:
+    fontFamily: "var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontSize: "2rem"
+    fontWeight: 560
+    lineHeight: 1.2
+    letterSpacing: "-.03em"
+  apple-work-label:
+    fontFamily: "var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontSize: ".9375rem"
+    fontWeight: 550
+  apple-support-reading:
+    fontFamily: "var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontSize: "16px"
+    lineHeight: 1.8
 rounded:
   tag: "5px"
   segment: "7px"
@@ -152,6 +169,8 @@ rounded:
   apple-menu: "10px"
   apple-action: "999px"
   apple-circle: "50%"
+  apple-work-panel: "16px"
+  apple-category: "6px"
 spacing:
   compact: "8px"
   control: "12px"
@@ -257,9 +276,56 @@ components:
     textColor: "{colors.apple-ink}"
     rounded: "{rounded.apple-menu}"
     padding: "10px"
+  apple-account-field:
+    backgroundColor: "{colors.apple-paper}"
+    textColor: "{colors.apple-ink}"
+    rounded: "{rounded.apple-field}"
+    height: "52px"
+  apple-account-panel:
+    backgroundColor: "{colors.apple-paper}"
+    textColor: "{colors.apple-ink}"
+    rounded: "{rounded.apple-work-panel}"
+    padding: "1.75rem"
+  apple-account-navigation:
+    textColor: "{colors.apple-ink}"
+    padding: ".875rem .75rem"
+    height: "48px"
+  apple-support-button:
+    backgroundColor: "{colors.apple-green}"
+    textColor: "{colors.apple-paper}"
+    rounded: "{rounded.apple-field}"
+    padding: "11px 16px"
+    height: "48px"
+  apple-support-search:
+    backgroundColor: "{colors.apple-soft}"
+    textColor: "{colors.apple-ink}"
+    rounded: "{rounded.apple-field}"
+    height: "48px"
+  apple-support-category:
+    backgroundColor: "#edf1ee"
+    textColor: "#40574a"
+    rounded: "{rounded.apple-category}"
+    padding: "4px 8px"
+  apple-support-reading-panel:
+    backgroundColor: "{colors.apple-paper}"
+    textColor: "{colors.apple-ink}"
+    typography: "{typography.apple-support-reading}"
+    padding: "30px"
+  apple-start-row:
+    backgroundColor: "transparent"
+    textColor: "{colors.apple-ink}"
+    padding: "40px 0"
+  apple-reading-index:
+    textColor: "{colors.apple-muted}"
+    padding: "12px 0"
+    height: "44px"
+  apple-status:
+    backgroundColor: "{colors.apple-paper}"
+    textColor: "{colors.apple-ink}"
+    padding: "88px 0"
 ---
 
-# Design System: Zentra Studio et site public Apple
+# Design System: Zentra Apple — site, lecture et espaces de travail
 
 ## Overview
 
@@ -267,7 +333,7 @@ components:
 
 Zentra Studio traduit la direction Apple confirmée par une présentation calme, précise et tactile. Le vert forêt reste l’identité de la famille ; le blanc, le gris perle et l’encre charbon structurent la lecture. La typographie, les séparateurs fins et l’espace font le travail de composition.
 
-Les surfaces ont une fonction lisible : les présentations laissent le contenu ouvert, les documents de démonstration se détachent légèrement, et Support distingue index, liste et lecture. Le contenu métier constitue la matière visuelle. Cette direction a été réalisée dans le code, sans image générée ni composition de référence approuvée.
+Les surfaces ont une fonction lisible : les présentations laissent le contenu ouvert, les documents de démonstration se détachent légèrement, et Support distingue index, liste et lecture. Le contenu métier constitue la matière visuelle. La même identité se décline selon la tâche, avec des titres amples pour choisir, une mesure confortable pour lire et des commandes compactes pour agir.
 
 **Key Characteristics:**
 
@@ -275,12 +341,12 @@ Les surfaces ont une fonction lisible : les présentations laissent le contenu o
 - Une hiérarchie typographique ample dans la présentation, plus compacte dans les outils.
 - Des listes éditoriales séparées par des filets, et des contenants réservés aux documents et aux tâches.
 - Des exemples explicitement fictifs, des commandes visibles et des états sélectionnés lisibles.
+- Une palette et une famille typographique communes aux pages publiques, au compte et à Support.
+- Des formulaires stables, des états textuels explicites et des retours disponibles dans les vues de travail.
 
-Les règles Studio héritées sont conservées ici pour les surfaces opérationnelles. Leurs valeurs viennent de `app/studio.css`, de l’ordre d’import de `app/layout.tsx` et des règles de composants qui continuent à participer à la cascade. `PRODUCT.md` fixe l’identité, l’accessibilité et la vérité produit ; `.impeccable/surfaces/studio.md` conserve la stratégie antérieure des surfaces Studio.
+Les règles Studio héritées restent la base de cascade. L’extension Apple est portée par `app/apple-design.css`, puis `app/apple-pages.css`, `app/apple-account.css` et `app/support/apple-support.css` dans `app/layout.tsx`. Les variantes locales adaptent cette identité aux surfaces existantes ; `PRODUCT.md` reste l’autorité métier.
 
-La couche **publique Apple** de ce clone est définie par `app/apple-design.css`, importé après `app/quiet-site.css` dans `app/layout.tsx`. Elle apporte les jetons préfixés `apple-*`, un héros commun `ProductHero`, quatre destinations produit sur l’accueil et une navigation à mouvement physique. Le titre, l’explication et l’action forment une composition stable ; le verre léger appartient à l’en-tête, les grandes surfaces arrondies au choix d’un produit ou d’une offre.
-
-Les règles Studio conservées ci-dessous restent la référence des espaces de travail qui ne portent pas ces sélecteurs publics. La couche Apple cible les classes `.quiet-site`, `.polished-page`, `.support-presentation`, `.simple-download`, `.legal-page`, `.studio-auth`, `.studio-recovery`, `.tour-page`, `.catalog-header` et `.quiet-footer` ; chaque règle n’agit que sur son sélecteur effectif. Les pages de connexion reçoivent quelques traitements publics de surface et de champs, sans redéfinir le compte authentifié ou l’espace Support. Cette documentation décrit ce clone local, sans attester tous les workspaces ni une publication.
+Les pages de présentation emploient le héros commun `ProductHero`, les destinations produit et une navigation à mouvement physique. Le mode **Lire (Read)** organise les documents juridiques, les comparaisons, les fonctions détaillées et les explications : un titre, une mesure de lecture, un index ou des accordéons et des sources accessibles. Le mode **Opérer (Operate)** organise le compte, l’authentification, les confirmations, les réglages et Support : la tâche, l’entreprise sélectionnée, les champs et les états guident la composition. Ces usages ne changent pas le monde visuel et n’imposent pas les dimensions du marketing aux outils.
 
 ## Colors
 
@@ -315,7 +381,11 @@ Les couleurs locales d’erreur ou d’urgence conservent leur sens fonctionnel.
 - **Destinations produit** — `apple-gestion` et `apple-gestion-copy` distinguent Gestion ; `apple-complet` donne un fond vert pâle à Complet. Support et Automation utilisent `apple-soft`. Les états pressés sont `apple-product-active` et `apple-gestion-active`.
 - **Chrome et sélection** — `apple-header` garde le contenu visible sous l’en-tête ; `apple-selection-paper` et `apple-selection-ink` servent la sélection de texte.
 
-Les alias `--studio-paper`, `--studio-ink`, `--studio-muted`, `--studio-green` et `--studio-rule` reprennent localement les valeurs Apple sur les enveloppes publiques déclarées dans `app/apple-design.css`. Ils ne remplacent pas les primitives Studio pour les autres surfaces.
+Les alias Studio reprennent localement les valeurs Apple sur les enveloppes publiques. Les espaces de travail utilisent les alias de compte `--ac-*` et Support `--s-*` / `--sp-*`, avec la même palette claire. Le compte conserve sa préférence clair, sombre ou système : les fonds, textes, filets et accents changent ensemble dans ce périmètre. Les couleurs d’erreur restent fonctionnelles et locales.
+
+Les bordures de champs et de sélecteurs ont un rôle distinct des séparateurs décoratifs. Support utilise `s-control-line` via `--s-control-line` ; le compte et l’authentification utilisent `ac-control-line` via `--ac-control-line`, remplacé par `ac-control-line-dark` dans le thème sombre et le thème système sombre. Les filets `apple-rule`, `--s-line` et `--ac-line` restent doux pour les lignes, sections et panneaux. Les préférences de contraste renforcé peuvent adapter ces alias localement.
+
+**The Control Boundary Rule.** Une bordure qui permet de repérer un champ ou un sélecteur utilise le jeton de contrôle de sa famille ; un séparateur décoratif utilise le filet doux. Le contour de focus reste un état distinct.
 
 ## Typography
 
@@ -336,7 +406,7 @@ Les alias `--studio-paper`, `--studio-ink`, `--studio-muted`, `--studio-green` e
 - **Label / Metadata** — `label` et `metadata` : action ou information factuelle, en casse normale.
 - **Footer title** — `footer-title` : hiérarchie compacte du pied de page, distincte des grands titres de section.
 
-La navigation globale et `app/support/support.css` conservent une famille système explicite. C’est une différence effective de cascade, pas une nouvelle police d’affichage à prescrire. Geist Mono est chargé, mais aucun rôle typographique global n’est déduit de son seul chargement.
+Les couches Apple reprennent Geist Sans dans la navigation, le compte et Support, y compris les dialogues et menus portés. Geist Mono reste réservé aux contenus techniques qui l’emploient, notamment le code d’approbation d’un appareil.
 
 **The One Typographic Lead Rule.** Un titre conduit chaque groupe ; les métadonnées restent discrètes et factuelles, sans surtitre décoratif à reproduire.
 
@@ -347,6 +417,8 @@ Geist Sans conduit aussi la couche publique, y compris l’en-tête. `apple-disp
 `apple-home-lead` décrit l’introduction courte d’accueil ; `apple-lead` les explications produit (40ch). `apple-headline` et `apple-product-title` distinguent titres de section et cartes produit. `apple-body` décrit les développements d’accordéon (67ch), `apple-label` les actions pleines et `apple-navigation` les liens d’en-tête. Les prix emploient `apple-price` et des chiffres tabulaires. Le frontmatter donne les valeurs desktop ; les ajustements effectifs sont dans Layout.
 
 ## Layout
+
+Les paragraphes Studio décrivent la base héritée ; les variantes Apple ci-dessous fixent la composition des familles étendues.
 
 Le système Studio juxtapose de grandes zones de lecture puis resserre les tâches. Les principales sections réemploient l’espacement `section`, réduit à `section-mobile`. La marge horizontale mobile utilise `mobile-gutter`. Les espacements du frontmatter sont un vocabulaire extrait, pas une obligation de faire entrer chaque dimension dans une grille unique.
 
@@ -369,7 +441,19 @@ L’accueil regroupe les quatre cartes en une grille `1.1fr 1fr`, avec 20px entr
 - **760px maximum** : les liens produits ou essentiels de la barre sont masqués au profit du menu. Le menu et les formules Complet passent en une colonne ; la marque conserve sa place dans la barre.
 - **600px maximum** : le conteneur passe à `calc(100% - 40px)` et la barre à 68px de hauteur minimale, avec 20px de marge interne. Le titre `ProductHero` utilise `clamp(38px, 10.7vw, 58px)`, une hauteur de ligne de 1.09 et une approche de -.035em. Les introductions secondaires utilisent `clamp(36px, 9.6vw, 50px)` / 1.12. Les sections passent à 40px. Les quatre cartes deviennent une colonne avec 14px d’intervalle ; leur composition passe en ligne, avec une hauteur minimale de 154px, 24px de marge interne et des titres de 29px. Les prix passent à 50px.
 
-Ces seuils décrivent la couche publique finale ; les règles de largeur et les adaptations opérationnelles Studio restent applicables aux espaces de travail.
+### Lire et choisir un parcours
+
+Les documents juridiques reprennent le conteneur public, avec un index de 236px et un intervalle de 64px. Jusqu’à 1000px, cet index devient un sommaire ouvrable dans le flux. La copie garde une mesure de 74ch et une hauteur de ligne de 1.85 ; les sections restent ouvertes, séparées par des filets. Les fonctions détaillées, la sécurité et le comparatif conservent leurs tableaux, sources et accordéons, avec la même hiérarchie de lecture.
+
+Le guide `/commencer` présente les destinations dans des lignes ouvertes : identité du produit, explication et actions. Les trois colonnes sont 180px, une colonne flexible et 235px ; jusqu’à 1000px, les actions passent sous l’explication ; jusqu’à 760px, toute la ligne s’empile. Les étapes suivantes utilisent une liste ordonnée, sans transformer le guide en formulaire.
+
+La visite Gestion garde les captures comme contenu principal. Son cadre peut atteindre 1280px ; le menu latéral de 220px est remplacé par le sélecteur existant jusqu’à 760px. L’explication demeure lisible sous l’écran et l’agrandissement dispose d’un dialogue dédié.
+
+### Opérer dans le compte et Support
+
+Le compte utilise un cadre de 1200px, un index de 264px et 72px d’intervalle ; jusqu’à 1023px, l’index passe à 235px avec 40px d’intervalle et la connexion devient une colonne. Jusqu’à 760px, la navigation et le contenu se suivent dans le flux. Le titre de tâche emploie `apple-account-title`, réduit à 1.75rem sur mobile ; les sous-titres courants restent à 1.25rem. Les tâches isolées, invitations, appareils et états de paiement sont limitées à 36rem, ou 46rem pour les listes ; leur intégration dans le compte reprend le thème et retire l’enveloppe supplémentaire.
+
+Support utilise un index de dossiers de 256px, puis une liste de 38% (minimum 300px) et la lecture restante. Jusqu’à 1120px, liste et détail se relaient avec le retour existant ; l’index passe à 226px. Jusqu’à 760px, les dossiers deviennent un sélecteur au-dessus du contenu. Les titres courants passent de 30px à 28px ; le corps du message reste à 16px avec une hauteur de ligne de 1.8 et une mesure de 70ch. Les zones sûres de l’appareil sont prises en compte.
 
 ## Elevation & Depth
 
@@ -394,7 +478,9 @@ L’en-tête public emploie `apple-header` avec `saturate(160%) blur(20px)` et u
 - **Menu public** (`0 24px 36px rgb(24 56 44 / .09)`) : détache le panneau de navigation ouvert.
 - **Carte produit au survol** (`0 12px 28px rgb(24 56 44 / .10)`) : répond au pointeur, sans déplacement ni agrandissement de la carte ; l’état pressé retire l’ombre.
 - **Action publique pressée** (`inset 0 2px 4px rgb(0 0 0 / .12)`) : retour de pression de l’action pleine.
-- **Connexion publique** (`0 16px 48px rgb(24 56 44 / .06)`) : détache la surface blanche `.auth-surface` sur son fond doux, sans étendre cette règle aux panneaux du compte authentifié.
+- **Connexion publique** (`0 16px 48px rgb(24 56 44 / .06)`) : détache le panneau blanc de connexion ou de récupération sur son fond doux ; l’enveloppe du formulaire reste transparente, sans étendre cette ombre aux panneaux du compte authentifié.
+
+Les panneaux du compte et les listes Support restent plats au repos. La profondeur forte appartient aux dialogues : agrandissement de la visite (`0 24px 80px rgb(8 30 20 / .28)`), compte (`0 24px 70px rgb(0 0 0 / .2)`) et Support (`0 28px 80px #122f2733`). Support conserve un flou de barre supérieur local ; les préférences de transparence réduite rendent les barres concernées opaques. Le verre ne devient pas un fond de formulaire ou de lecture.
 
 ## Shapes
 
@@ -404,6 +490,8 @@ Les cercles du parcours servent les numéros d’étape et l’état terminé. I
 
 La couche publique Apple emploie `apple-surface` (24px) pour les cartes produit, tarifs, offres et surfaces de connexion ; les cartes produit, tarifs, offres et téléchargements passent à `apple-surface-mobile` (20px) au seuil 600px. Les actions pleines utilisent `apple-action` (999px), le bouton de menu `apple-menu` (10px), les champs de connexion `apple-field` (12px) et les notices `apple-notice` (16px). Les flèches de carte sont dans un cercle `apple-circle`, de 34px desktop et 28px mobile. Les accordéons publics conservent une forme ouverte et des séparateurs fins.
 
+Le compte utilise `apple-work-panel` pour les groupes de réglages. Les tâches isolées emploient 20px puis 16px jusqu’à 600px. Support conserve des commandes à rayon de champ (12px), une liste et des dialogues à 24px puis 20px ; les étiquettes utilisent `apple-category`. Les documents juridiques et les lignes du guide restent ouverts. Les pilules correspondent aux actions de présentation ou d’authentification ; leur forme ne remplace pas les commandes opératoires Support.
+
 ## Components
 
 ### Buttons
@@ -412,8 +500,8 @@ Des actions calmes, identifiables et assez grandes pour le toucher.
 
 - **Studio primary:** le bouton de présentation Studio emploie `button-primary`, une hauteur minimale (48px), une flèche SVG et aucun effet de relief.
 - **Studio text:** `button-text` hérite encore d’un vert local ; sa hauteur minimale est conservée (44px) et son survol souligne le lien.
-- **Support:** l’action pleine conserve son format opératoire local, avec un rayon de champ, une hauteur minimale (44px) et une marge interne (10px 17px).
-- **Hover / Focus:** le bouton principal change de fond ; les présentations utilisent le contour `product-focus` (3px, décalage 4px). Le contour générique Studio est plus fin (2px, décalage 4px). Support conserve un contour bleu local et un focus de recherche vert ; ne pas prétendre que tous les contrôles utilisent un contour identique.
+- **Support:** l’action pleine utilise `apple-support-button` (48px minimum), et les commandes secondaires gardent au moins 44px. Le rayon de champ et la marge interne évitent le format de grande action marketing.
+- **Hover / Focus:** le bouton principal change de fond ; les règles Studio héritées restent locales. Support emploie `apple-focus` (3px, décalage 4px), tandis que le compte utilise son accent de thème ; la recherche conserve aussi un focus de groupe visible.
 - **Disabled:** les boutons Support passent à une opacité réduite (0.5) et gardent le curseur d’indisponibilité. La présence d’un état visuel ne prouve aucune action serveur.
 - **Public Apple:** `apple-button-primary` est une pilule pleine, avec une hauteur minimale de 48px, 13px / 24px de marge interne et une zone de toucher stable. Le survol change le fond vers `apple-green-hover` ; la pression emploie `apple-green-active` et l’ombre interne définie dans Elevation. Les états ne déplacent pas le bouton. `apple-link` distingue les liens textuels, avec un soulignement fin décalé de 5px. Le focus public utilise `apple-focus` (3px, décalage 5px).
 
@@ -421,14 +509,14 @@ Des actions calmes, identifiables et assez grandes pour le toucher.
 
 Des métadonnées discrètes, sans surcharge.
 
-- **Category:** `category-tag` identifie une catégorie ou un état ; son texte compact (11px) n’est pas une taille de texte principal.
+- **Category:** `apple-support-category` identifie une catégorie ou un état, avec du texte compact (12px), distinct du texte principal. `category-tag` conserve la valeur Studio héritée.
 - **State:** ces étiquettes ne sont pas des commandes. La sélection d’un ticket se lit sur toute sa ligne, avec un fond teinté et un état `aria-pressed`.
 
 ### Cards / Containers
 
 Des surfaces utilisées pour lire ou agir.
 
-- **Reading:** `reading-panel` forme la surface blanche de détail Support. Le contenu interne emploie des filets et une hiérarchie, sans empiler des cartes.
+- **Reading:** `apple-support-reading-panel` forme la surface blanche de détail Support. Le contenu interne emploie des filets et une hiérarchie, sans empiler des cartes ; `reading-panel` conserve la base Studio héritée.
 - **Demonstration:** un support teinté contient une fenêtre blanche ; son ombre appartient au document, pas à chaque contrôle.
 - **Editorial rows:** `editorial-row` associe une icône utile, un titre, une explication et une flèche. Sur mobile, l’explication passe sous le titre ; les liens et les fonctions restent accessibles.
 - **Authentication:** le formulaire tient sur une surface gris perle, avec un rayon de surface et une marge interne de panneau, réduite sur mobile (26px 20px).
@@ -439,16 +527,20 @@ Des surfaces utilisées pour lire ou agir.
 
 Des champs explicites avec une zone de saisie blanche.
 
-- **Search:** `input-search` garde l’icône SVG de recherche, le libellé accessible et une hauteur minimale (46px). Le texte passe de la taille d’action à une taille mobile lisible (16px). Le parent reçoit un contour vert au focus interne (2px, décalage 2px).
+- **Search:** `apple-support-search` garde l’icône, le libellé accessible et 48px minimum. Le texte passe de 15px à 16px jusqu’à 760px. Le parent reçoit le contour vert au focus interne ; les contrôles conservent leur focus visible.
 - **Authentication:** les champs ont un rayon de champ, une bordure grise locale et des labels persistants. Les placeholders restent secondaires ; le focus interne du groupe reste visible.
 - **Errors:** les messages d’échec sont du contenu textuel existant. Cette documentation ne crée ni nouvelle validation ni nouvelle règle d’authentification.
-- **Public authentication:** les champs email, mot de passe et texte des enveloppes `.studio-auth` / `.studio-recovery` ont une hauteur minimale de 48px, un rayon de 12px, une bordure `#c5d3cb` et un texte de 16px. Les labels restent visibles en 14px. Ces traitements n’établissent aucune règle nouvelle pour l’authentification.
+- **Public authentication:** les champs email, mot de passe et texte des enveloppes `.studio-auth` / `.studio-recovery` ont une hauteur minimale de 48px, un rayon de 12px, la bordure `--ac-control-line` et un texte de 16px. Les labels restent visibles en 14px. Ces traitements n’établissent aucune règle nouvelle pour l’authentification.
+- **Account and recovery:** les champs de compte et de récupération ont 52px minimum et un rayon de 12px. Le groupe du formulaire de connexion atteint 52px, avec la commande de visibilité du mot de passe à 44px minimum. Labels, erreurs, consentements et commandes de reprise restent du contenu explicite.
+- **Support:** les champs, la recherche et les sélecteurs ont 48px minimum et utilisent `--s-control-line` pour leur bordure ; les zones de texte gardent 16px et une hauteur de ligne de 1.7. Menus de choix et dialogues portés utilisent leur propre périmètre Apple.
 
 ### Navigation
 
 La navigation Studio historique est blanche, continue et collée en haut de page. Ses liens compacts (14px) conservent une zone minimale (44px). Le produit courant est vert et souligné par un filet (2px). Son adaptation mobile place les produits sur une rangée entière, tandis que la marque et le compte restent au-dessus ; la couche publique ci-dessous définit le traitement final du site public.
 
 Support possède un index de dossiers, puis ses vues d’administration. Un dossier choisi est plein vert ; les vues utilisent un fond plus léger. Le retour du détail restaure le focus sur le ticket d’origine. Les dossiers représentent des vues internes : leur apparence ne doit pas suggérer un déplacement du courrier fournisseur.
+
+Les liens de la navigation de présentation Support conservent leur largeur naturelle (`flex: 0 0 auto`). La rangée peut défiler horizontalement sur écran étroit ; le texte et sa zone de commande ne se compriment pas pour tenir dans la largeur disponible.
 
 La navigation **publique Apple** est un en-tête translucide. Ses liens produits ou essentiels ont une hauteur minimale de 48px et le produit ou lien courant devient vert ; les classes héritées continuent à participer à la cascade. Le compte et le bouton Menu conservent au moins 44px ; Menu possède aussi une largeur minimale de 44px. Le panneau blanc est limité à `calc(100dvh - 76px)`, puis `calc(100dvh - 68px)` jusqu’à 600px, pour laisser ses liens accessibles par défilement. Son contenu utilise deux colonnes `1.1fr 1fr` avec 96px d’intervalle, puis une colonne jusqu’à 760px.
 
@@ -466,12 +558,29 @@ La scène compacte utilise une arrivée courte (380ms) avec `--studio-ease`, une
 
 Les mentions de fiction et conditions métier font partie de l’artefact. La démonstration reste illustrative : elle ne simule pas une preuve d’exécution sur des données client. Le panneau interactif du sidecar est un échantillon visuel autonome ; les états métier et la lecture restent implémentés dans React.
 
+### Reading, account and workspace patterns
+
+L’index juridique donne accès aux sections et à l’impression ; sur écran étroit, son accordéon garde la même liste de liens. Le comparatif garde les prix et leurs sources dans des groupes lisibles. Les fonctions détaillées emploient des lignes ouvertes et des panneaux seulement lorsqu’un document ou une étape le justifie.
+
+Le guide de démarrage conserve les trois destinations Gestion, Support et Complet, puis des liens vers les parcours existants. L’information de dépendance Automation reste une explication distincte. La navigation générale, le pied de page et les retours de tâche doivent garder ces destinations accessibles.
+
+Le compte sépare identité, entreprise sélectionnée et rubrique. Les formulaires restent stables pendant leur attente ; les vues d’abonnement, archives, sauvegardes et Automation gardent leurs consentements, filtres, pagination et états existants. Support distingue dossiers internes, vues administratives, liste et lecture ; la sélection utilise la ligne entière et un état accessible. Un retour restaure le contexte de lecture.
+
+### Empty, loading and error states
+
+Les états vides expliquent le contenu attendu et proposent l’action existante. Le chargement utilise des lignes ou surfaces discrètes, sans animation imposée. Les erreurs sont écrites, associées à la tâche et accompagnées des commandes disponibles. La page 404 reprend l’identité publique, avec retour à l’accueil et guide de démarrage ; l’erreur de page propose Réessayer et un retour. Ces surfaces n’exposent pas les détails techniques de l’exception.
+
+Les préférences de mouvement réduit suppriment les transitions des familles concernées. Le contraste renforcé adapte les filets et textes secondaires ; la transparence réduite rend les barres opaques. Les thèmes du compte restent propres à son espace, y compris les tâches intégrées.
+
 ## Do's and Don'ts
 
 ### Do:
 
 - **Do** reprendre les variables Studio pour les nouvelles surfaces de cette famille et conserver l’identité verte Zentra.
-- **Do** employer les jetons `apple-*` dans le périmètre public de ce clone, en conservant les variables Studio des espaces de travail.
+- **Do** reprendre la palette et la famille Apple dans chaque périmètre, avec les alias locaux du compte et de Support.
+- **Do** adapter la mesure, la densité et la navigation à la lecture ou à la tâche, en conservant la même identité.
+- **Do** préserver la préférence de thème, l’entreprise choisie, les consentements et les états des parcours existants.
+- **Do** utiliser les bordures de contrôle pour les champs et sélecteurs, et les filets doux pour les séparateurs décoratifs.
 - **Do** garder les actions principales publiques à au moins 48px et le bouton Menu à au moins 44px dans les deux dimensions.
 - **Do** conserver la position et la vitesse du ressort de menu lors d’une inversion, ainsi que son état final immédiat avec mouvement réduit.
 - **Do** séparer le titre, l’explication et l’action par la typographie et l’espace avant d’ajouter un contenant.
@@ -482,10 +591,10 @@ Les mentions de fiction et conditions métier font partie de l’artefact. La d�
 ### Don't:
 
 - **Don't** transformer chaque fonctionnalité en carte de même poids ; reprendre les lignes éditoriales quand le contenu forme une liste.
-- **Don't** propager les pilules, le verre d’en-tête ou les grandes cartes publiques aux vues opérationnelles sans une décision propre à leur usage.
+- **Don't** imposer les dimensions et les contenants marketing à une liste de tickets, un formulaire ou un document juridique.
 - **Don't** ajouter un surtitre décoratif pour remplir l’espace au-dessus d’un titre.
 - **Don't** étendre les accents ambre résiduels ni la police système des titres Support à la nouvelle identité.
 - **Don't** utiliser une ombre dure, un halo décoratif ou une image fictive pour remplacer la démonstration du produit.
 - **Don't** présenter une maquette interactive ou un verdict visuel comme preuve de publication, d’authentification, de paiement ou de traitement réel des données.
 
-Écarts non canonisés : la base ambre du composant partagé de téléchargement subsiste hors des règles locales vertes de `/download` ; des surtitres Support existent encore dans des branches de bienvenue ou de réglages ; les titres Support héritent d’une police système explicite. Ils restent documentés comme héritages locaux, sans réparation globale dans cette passe et sans promotion en règle du nouveau monde.
+Les variantes et valeurs Studio conservées servent la base héritée ; les composants Apple ci-dessus décrivent leur application actuelle par famille. Les exemples du sidecar représentent les états visuels, sans implémenter les opérations React ou serveur.

@@ -115,7 +115,6 @@ export function BillingPanel({
     <div className="support-panels">
       <div className="support-section-heading">
         <div>
-          <p className="support-eyebrow">ABONNEMENT</p>
           <h2>Un prix pour toute votre équipe.</h2>
           <p>
             Le volume qui vous convient. Vérifiez la disponibilité de votre

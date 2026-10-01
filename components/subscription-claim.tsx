@@ -39,7 +39,7 @@ export function SubscriptionClaim({ sessionId }: { sessionId: string }) {
 
   if (status === 'done') {
     return (
-      <div className="rounded-3xl border border-[#bcd4c3] bg-[#edf5ef] p-6">
+      <div className="apple-task-panel apple-task-success" aria-live="polite">
         <CheckCircle2 className="size-8 text-[#24593d]" />
         <h2 className="mt-4 text-xl font-semibold">Compte associé</h2>
         <p className="mt-2 text-sm leading-6 text-[#52645a]">
@@ -58,7 +58,7 @@ export function SubscriptionClaim({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <div className="rounded-3xl border border-[#d9d4c9] bg-white p-6 shadow-[0_20px_60px_rgba(29,45,35,.08)]">
+    <div className="apple-task-panel" aria-busy={status === 'busy'}>
       <h2 className="text-xl font-semibold">Créer le compte de l’entreprise</h2>
       <p className="mt-2 text-sm leading-6 text-[#5f6962]">
         L’abonnement restera facturé par Stripe. Le compte Zentra servira à

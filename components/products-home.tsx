@@ -92,6 +92,9 @@ export function ProductsHome() {
           ))}
         </section>
         <div className="quiet-width quiet-home-more" id="questions">
+          <a className="quiet-link" href="/commencer">
+            Par où commencer ?
+          </a>
           <a className="quiet-link" href="/questions">
             Les réponses à vos questions
           </a>

@@ -15,6 +15,9 @@ import './brand-identity.css';
 import './product-clarity.css';
 import './quiet-site.css';
 import './apple-design.css';
+import './apple-pages.css';
+import './apple-account.css';
+import './support/apple-support.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

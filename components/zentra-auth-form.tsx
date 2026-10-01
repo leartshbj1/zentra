@@ -159,7 +159,7 @@ export function ZentraAuthForm({
 
   return (
     <div className="auth-surface w-full min-w-0 max-w-md">
-      <div className="rounded-[2rem] border border-[#e5e5e9] bg-white p-6 shadow-[0_8px_40px_rgba(29,29,31,.04)] sm:p-8">
+      <div className="apple-auth-panel rounded-[2rem] border border-[#e5e5e9] bg-white p-6 shadow-[0_8px_40px_rgba(29,29,31,.04)] sm:p-8">
         <div
           className="grid grid-cols-2 rounded-full bg-[#eeeef0] p-1"
           role="tablist"
@@ -298,7 +298,7 @@ export function ZentraAuthForm({
               <button
                 type="button"
                 onClick={() => setShowPassword((value) => !value)}
-                className="grid size-10 shrink-0 place-items-center rounded-full text-[#607067] hover:bg-[#e9eee9]"
+                className="apple-password-toggle grid size-10 shrink-0 place-items-center rounded-full text-[#607067] hover:bg-[#e9eee9]"
                 aria-label={
                   showPassword
                     ? 'Masquer le mot de passe'
@@ -354,7 +354,7 @@ export function ZentraAuthForm({
           <button
             type="submit"
             disabled={busy}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white shadow-none transition hover:-translate-y-0.5 hover:bg-[#204d38] disabled:translate-y-0 disabled:cursor-wait disabled:opacity-65"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#173d2c] px-5 text-sm font-semibold text-white shadow-none transition hover:bg-[#204d38] disabled:cursor-wait disabled:opacity-65"
           >
             {busy ? <LoaderCircle className="size-4 animate-spin" /> : null}
             {busy

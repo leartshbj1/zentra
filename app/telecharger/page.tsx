@@ -4,6 +4,7 @@ import {
   MacDownloadButton,
 } from '@/components/download-button';
 import { SiteHeader } from '@/components/site-header';
+import { SiteFooter } from '@/components/site-footer';
 import {
   ZENTRA_ANDROID_PREVIEW_PATH,
   ZENTRA_ANDROID_VERSION,
@@ -201,15 +202,7 @@ export default function DownloadPage() {
           </a>
         </section>
       </main>
-      <footer className="download-footer">
-        <span>Zentra</span>
-        <nav aria-label="Liens utiles">
-          <a href="mailto:info@zentraapp.ch">Besoin d’aide ?</a>
-          <a href="/mentions-legales">Mentions légales</a>
-          <a href="/confidentialite">Confidentialité</a>
-          <a href="/conditions">Conditions</a>
-        </nav>
-      </footer>
+      <SiteFooter />
     </>
   );
 }

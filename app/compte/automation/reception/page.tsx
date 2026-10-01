@@ -3,6 +3,7 @@ import { requireBrowserMembership } from '@/lib/account';
 import { inboxState } from '@/lib/supplier-inbox/service';
 import { notFound, redirect } from 'next/navigation';
 import { SupplierReceipts } from '@/components/automation/supplier-receipts';
+import { ArrowLeft } from 'lucide-react';
 import '@/components/automation/automation.css';
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -35,10 +36,10 @@ export default async function Page({
     founder: false,
   });
   return (
-    <main className="automation-page">
+    <section className="automation-page apple-account-automation">
       <div className="automation-wrap">
-        <a href={`/compte/automation?entreprise=${encodeURIComponent(org)}`}>
-          ← Zentra Automation
+        <a className="apple-task-return" href={`/compte/automation?entreprise=${encodeURIComponent(org)}`}>
+          <ArrowLeft size={17} aria-hidden="true" /> Zentra Automation
         </a>
         <h1>Vos factures reçues</h1>
         <p>
@@ -47,6 +48,6 @@ export default async function Page({
         </p>
         <SupplierReceipts key={org} organizationId={org} initialState={state} />
       </div>
-    </main>
+    </section>
   );
 }

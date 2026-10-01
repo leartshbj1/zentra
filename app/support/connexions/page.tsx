@@ -66,7 +66,7 @@ export default async function SupportConnections() {
     },
   ];
   return (
-    <SupportMarketingShell>
+    <SupportMarketingShell current="/support/connexions">
       <SupportPageIntro
         eyebrow="CONNEXIONS"
         title={
@@ -85,12 +85,15 @@ export default async function SupportConnections() {
               <div className="sp-integration-icon" aria-hidden="true">
                 <ConnectorLogo provider={item.provider} />
               </div>
+              <div className="sp-connection-name">
+                <h2>{item.name}</h2>
               <span
                 className={`sp-status ${item.ready ? 'sp-status-ready' : ''}`}
               >
                 {item.status}
               </span>
-              <h2>{item.name}</h2>
+              </div>
+              <div className="sp-connection-description">
               <p>{item.text}</p>
               <small>{item.detail}</small>
               {item.ready ? (
@@ -105,6 +108,7 @@ export default async function SupportConnections() {
                   Nous contacter <ArrowRight size={16} />
                 </a>
               )}
+              </div>
             </article>
           ))}
         </div>
@@ -117,7 +121,6 @@ export default async function SupportConnections() {
       <section className="sp-section sp-soft">
         <div className="sp-wrap">
           <div className="sp-section-title">
-            <p className="sp-kicker">UNE CONNEXION, TROIS ÉTAPES</p>
             <h2>Un départ organisé.</h2>
           </div>
           <div className="sp-steps">

@@ -139,7 +139,6 @@ export default function SecurityPage() {
             <div className="security-detail-content">
               <div className="mx-auto max-w-7xl">
                 <div className="max-w-3xl">
-                  <p className="site-eyebrow">Protections présentes</p>
                   <h2 className="site-section-title mt-4">
                     Des protections concrètes et vérifiables.
                   </h2>
@@ -173,7 +172,6 @@ export default function SecurityPage() {
             <div className="security-detail-content">
               <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.76fr_1.24fr]">
                 <div>
-                  <p className="site-eyebrow">Sauvegarde & conservation</p>
                   <h2 className="site-section-title mt-4">
                     Votre sauvegarde reste entre vos mains.
                   </h2>
@@ -240,7 +238,6 @@ export default function SecurityPage() {
               <div className="mx-auto max-w-7xl">
                 <div className="grid gap-8 lg:grid-cols-[.8fr_1.2fr]">
                   <div>
-                    <p className="site-eyebrow">Prestataires et localisation</p>
                     <h2 className="site-section-title mt-4">
                       La chaîne technique actuelle.
                     </h2>

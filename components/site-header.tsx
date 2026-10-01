@@ -275,6 +275,9 @@ export function SiteHeader() {
               </>
             )}
             <p>Pour commencer</p>
+            <a href="/commencer" onClick={() => setExploreOpen(false)}>
+              Trouver mon parcours
+            </a>
             <a href="/ecosysteme" onClick={() => setExploreOpen(false)}>
               Comment tout se relie
             </a>

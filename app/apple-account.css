@@ -1,0 +1,1290 @@
+/* Account tasks continue the public Apple vocabulary with a calmer UI scale. */
+:is(.apple-task-page, .apple-account-automation, .apple-complete-checkout) {
+  --ac-bg: #f2f5f3;
+  --ac-panel: #fff;
+  --ac-ink: #18382c;
+  --ac-muted: #52665c;
+  --ac-line: #d9e2dd;
+  --ac-control-line: #748a7a;
+  --ac-accent: #216448;
+  --ac-tint: #e8f1eb;
+  --ac-input: #fff;
+  --ac-danger: #963c2b;
+  font-family:
+    var(--font-geist-sans),
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: var(--ac-ink);
+  -webkit-font-smoothing: antialiased;
+  font-optical-sizing: auto;
+}
+:is(
+    .account-experience,
+    .apple-task-page,
+    .apple-account-automation,
+    .apple-complete-checkout
+  )
+  ::selection {
+  background: #cee5d7;
+  color: #153d2a;
+}
+:is(
+    .account-experience,
+    .apple-task-page,
+    .apple-account-automation,
+    .apple-complete-checkout
+  )
+  :is(input, textarea) {
+  caret-color: var(--ac-accent);
+}
+:is(.apple-task-page, .apple-account-automation, .apple-complete-checkout)
+  :is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--ac-accent);
+  outline-offset: 4px;
+}
+:is(.apple-task-page, .apple-account-automation, .apple-complete-checkout)
+  :is(a, button) {
+  touch-action: manipulation;
+}
+:is(.apple-task-page, .apple-account-automation, .apple-complete-checkout)
+  :is(button, input, textarea, select) {
+  font: inherit;
+}
+:is(.apple-task-page, .apple-account-automation, .apple-complete-checkout)
+  button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Sign in and recovery are focused tasks, with a stable form footprint. */
+body :is(.studio-auth, .studio-recovery) {
+  --ac-control-line: #748a7a;
+  background: #f2f5f3;
+  padding: 3rem 1.5rem;
+}
+body .studio-auth > .apple-auth-layout {
+  max-width: 1056px;
+  gap: 5rem;
+}
+body .studio-auth .apple-auth-intro > h2 {
+  max-width: 11ch;
+  font-size: 2.75rem;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  margin-top: 2.5rem;
+}
+body .studio-auth .apple-auth-intro > .apple-auth-intro-copy {
+  display: block;
+  max-width: 35ch;
+  color: #52665c;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+body .studio-auth .auth-surface {
+  max-width: 28rem;
+  background: transparent;
+  box-shadow: none;
+}
+body .studio-auth .auth-surface > .apple-auth-panel,
+body .studio-recovery .apple-recovery-panel {
+  background: #fff;
+  border: 0;
+  border-radius: 24px;
+  padding: 2.25rem;
+  box-shadow: 0 16px 48px rgb(24 56 44 / 0.06);
+}
+body :is(.studio-auth, .studio-recovery) h1 {
+  color: #18382c;
+  font-size: 1.875rem;
+  font-weight: 560;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+body .studio-auth [role='tablist'] {
+  border-radius: 12px;
+  padding: 4px;
+  background: #edf1ee;
+}
+body .studio-auth [role='tab'] {
+  min-height: 44px;
+  border-radius: 9px;
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: #52665c;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+body .studio-auth [role='tab'][aria-selected='true'] {
+  background: #fff;
+  color: #18382c;
+  box-shadow: 0 2px 5px rgb(24 56 44 / 0.08);
+}
+body :is(.studio-auth, .studio-recovery) label {
+  color: #18382c;
+  font-size: 0.875rem;
+  font-weight: 550;
+}
+body .studio-auth form label > span:has(input) {
+  min-height: 52px;
+  border: 1px solid var(--ac-control-line);
+  border-radius: 12px;
+  background: #fff;
+}
+body .studio-auth form label > span:focus-within {
+  border-color: #287754;
+  box-shadow: 0 0 0 3px rgb(40 119 84 / 0.13);
+}
+body
+  .studio-auth
+  form
+  :is(input[type='text'], input[type='email'], input[type='password']) {
+  min-height: 50px;
+  border-color: var(--ac-control-line);
+  border-radius: 0;
+}
+body .studio-auth .apple-password-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  margin-right: -0.5rem;
+}
+body
+  .studio-recovery
+  :is(input[type='text'], input[type='email'], input[type='password']) {
+  min-height: 52px;
+  border: 1px solid var(--ac-control-line);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 1rem;
+}
+body :is(.studio-auth, .studio-recovery) input::placeholder {
+  color: #617368;
+}
+body :is(.studio-auth, .studio-recovery) input[type='checkbox'] {
+  accent-color: #216448;
+}
+body .studio-auth form button[type='submit'],
+body .studio-recovery :is(button, a)[class*='bg-[#173d2c]'] {
+  min-height: 50px;
+  border-radius: 999px;
+  background: #216448;
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  transform: none;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+body .studio-auth form button[type='submit']:hover,
+body .studio-recovery :is(button, a)[class*='bg-[#173d2c]']:hover {
+  background: #174e36;
+}
+body .studio-auth form button[type='submit']:active,
+body .studio-recovery :is(button, a)[class*='bg-[#173d2c]']:active {
+  background: #103b28;
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.12);
+  transition-duration: 0ms;
+}
+body .studio-auth .auth-surface > p {
+  color: #52665c;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+body .studio-auth-assurances > div > div > span {
+  background: #e8f1eb;
+  color: #216448;
+}
+body .studio-auth-assurances > div > div p:last-child {
+  color: #52665c;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+body .studio-recovery :is(p, output)[class*='text-xs'] {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+body :is(.studio-auth, .studio-recovery) [role='alert'] {
+  background: #fff2ed;
+  color: #963c2b;
+  border-radius: 12px;
+}
+
+/* Standalone invitations, device approvals, and payment states. */
+body .apple-task-page {
+  min-height: 100dvh;
+  background: var(--ac-bg);
+  color: var(--ac-ink);
+  padding: 2rem max(1.5rem, env(safe-area-inset-left))
+    max(4rem, env(safe-area-inset-bottom));
+}
+body .apple-task-wrap {
+  width: 100%;
+  max-width: 36rem;
+  min-width: 0;
+  margin: auto;
+  overflow-wrap: anywhere;
+}
+body .apple-task-wrap-wide {
+  max-width: 46rem;
+}
+body .apple-task-centered {
+  display: grid;
+  align-items: center;
+}
+body .apple-task-return,
+body .apple-task-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 44px;
+  color: var(--ac-accent);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+body .apple-task-return:hover {
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+body .apple-task-heading {
+  margin: 2.5rem 0 2rem;
+}
+body .apple-task-title,
+body .apple-task-page h1 {
+  margin: 2.25rem 0 0.875rem;
+  font-size: 2rem;
+  font-weight: 560;
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  color: var(--ac-ink);
+}
+body .apple-task-heading > .apple-task-title {
+  margin-top: 0;
+}
+body .apple-task-lead {
+  margin: 0;
+  max-width: 65ch;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--ac-muted);
+}
+body .apple-task-page :is(h2, h3) {
+  font-weight: 550;
+  color: var(--ac-ink);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+body .apple-task-page h2 {
+  font-size: 1.375rem;
+}
+body .apple-task-panel {
+  background: var(--ac-panel);
+  border: 1px solid var(--ac-line);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: none;
+  margin-top: 2rem;
+}
+body .apple-task-panel > svg {
+  color: var(--ac-accent);
+}
+body .apple-task-page p:not([role='alert']) {
+  color: var(--ac-muted);
+}
+body .apple-task-page p strong {
+  color: var(--ac-ink);
+  font-weight: 550;
+}
+body .apple-task-panel p {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+body
+  .apple-task-panel
+  :is(input, select):not([type='radio'], [type='checkbox'], [type='hidden']),
+body .apple-backup-list select,
+body .apple-archive-search input[type='search'] {
+  min-height: 52px;
+  border: 1px solid var(--ac-control-line);
+  border-radius: 12px;
+  background: var(--ac-input);
+  color: var(--ac-ink);
+  font-size: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+body .apple-task-page input::placeholder {
+  color: var(--ac-muted);
+}
+body
+  .apple-task-page
+  :is(a, button)[class~='border']:not([aria-current='page']) {
+  border-color: var(--ac-control-line);
+}
+body .apple-task-page :is(input[type='radio'], input[type='checkbox']) {
+  accent-color: var(--ac-accent);
+}
+body .apple-task-panel :is(a, button)[class*='bg-[#173d2c]'],
+body .apple-archive-search > button {
+  min-height: 50px;
+  background: var(--ac-accent);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+body .apple-task-panel :is(a, button)[class*='bg-[#173d2c]']:hover,
+body .apple-archive-search > button:hover {
+  background: #174e36;
+}
+body .apple-task-panel :is(a, button)[class*='bg-[#173d2c]']:active,
+body .apple-archive-search > button:active {
+  background: #103b28;
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.12);
+  transition-duration: 0ms;
+}
+body .apple-task-notice,
+body .apple-task-page [role='alert'] {
+  border: 1px solid #e6c6ba;
+  background: #fff2ed;
+  color: var(--ac-danger);
+  padding: 1rem;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+body .apple-task-success {
+  background: var(--ac-tint);
+}
+body .apple-task-unavailable {
+  background: var(--ac-panel);
+}
+body .apple-task-guidance {
+  background: var(--ac-tint);
+  border-color: transparent;
+}
+body .apple-task-help {
+  margin-top: 2rem;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--ac-muted);
+}
+body .apple-device-panel #device-code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.1em;
+}
+body .apple-device-panel fieldset label {
+  padding-inline: 0.75rem;
+  border-radius: 10px;
+}
+body .apple-device-panel fieldset label:has(input:checked) {
+  background: var(--ac-tint);
+}
+body .apple-device-panel > p:not([role='alert']) {
+  background: var(--ac-tint);
+  border-radius: 12px;
+}
+body .apple-task-page li {
+  font-variant-numeric: tabular-nums;
+}
+body .apple-backup-list {
+  margin-top: 2rem;
+}
+body .apple-backup-list > ul {
+  background: var(--ac-panel);
+  border-radius: 16px;
+  padding: 0 1.25rem;
+  margin-top: 1rem;
+}
+body .apple-backup-list > div:first-of-type {
+  border-color: var(--ac-line);
+}
+body .apple-backup-list li {
+  border-color: var(--ac-line);
+}
+body .apple-archive-company {
+  font-size: 0.9375rem;
+  font-weight: 550;
+  margin: 0 0 1rem;
+}
+body .apple-archive-search {
+  margin-top: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+body .apple-archive-search label {
+  min-width: 0;
+  flex: 1;
+}
+body .apple-archive-search > button {
+  padding: 0.875rem 1.5rem;
+}
+body .apple-archive-list {
+  list-style: none;
+  background: var(--ac-panel);
+  border: 1px solid var(--ac-line);
+  border-radius: 16px;
+  padding: 0 1.5rem;
+  margin-top: 1rem;
+}
+body .apple-archive-list > li {
+  border-color: var(--ac-line);
+}
+body .apple-archive-list p[class*='font-mono'] {
+  font-size: 0.75rem;
+  color: var(--ac-muted);
+}
+body .apple-archive-list a,
+body .apple-archive-page nav[aria-label='Pagination'] a {
+  min-height: 48px;
+  border-color: var(--ac-control-line);
+  color: var(--ac-accent);
+}
+body .apple-archive-empty {
+  text-align: center;
+}
+
+/* The account keeps its selected theme, while sharing the Zentra type and accent. */
+body .account-experience {
+  --ac-bg: #f2f5f3;
+  --ac-panel: #fff;
+  --ac-ink: #18382c;
+  --ac-muted: #52665c;
+  --ac-line: #d9e2dd;
+  --ac-control-line: #748a7a;
+  --ac-accent: #216448;
+  --ac-tint: #e8f1eb;
+  --ac-input: #fff;
+  --ac-danger: #963c2b;
+  --account-ink: var(--ac-ink);
+  --account-muted: var(--ac-muted);
+  --account-line: var(--ac-line);
+  --account-surface: var(--ac-panel);
+  --account-bg: var(--ac-bg);
+  font-family:
+    var(--font-geist-sans),
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+body .account-experience[data-theme='dark'] {
+  --ac-bg: #121a16;
+  --ac-panel: #1b2720;
+  --ac-ink: #eff5f1;
+  --ac-muted: #b0c1b6;
+  --ac-line: #3c5143;
+  --ac-control-line: #829c8b;
+  --ac-accent: #aad7bd;
+  --ac-tint: #2a4033;
+  --ac-input: #16221b;
+  --ac-danger: #ffb4a9;
+}
+body .account-topbar {
+  max-width: none;
+  padding-inline: max(2rem, calc((100vw - 1200px) / 2));
+  min-height: 76px;
+  background: var(--ac-panel);
+}
+body .account-brand {
+  letter-spacing: -0.035em;
+  font-weight: 600;
+}
+body .account-workspace {
+  max-width: 1200px;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 4.5rem;
+  margin-top: 3rem;
+}
+body .account-sidebar {
+  top: 2rem;
+}
+body .account-identity p {
+  font-size: 0.8125rem;
+}
+body .account-sidebar nav a {
+  min-height: 48px;
+  padding: 0.875rem 0.75rem;
+}
+body .account-sidebar nav strong {
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+body .account-sidebar nav a:active {
+  background: var(--ac-tint);
+  transition-duration: 0ms;
+}
+body .account-signout button {
+  min-height: 44px;
+  padding-inline: 0;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+body .account-content {
+  animation: none;
+  max-width: 48rem;
+}
+body .account-content h1 {
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  font-weight: 560;
+  margin-bottom: 0.75rem;
+}
+body .account-lead {
+  font-size: 1rem;
+  line-height: 1.7;
+  margin-bottom: 2rem;
+}
+body .account-card {
+  border-radius: 16px;
+  padding: 1.75rem;
+  margin: 1.5rem 0;
+}
+body .account-card h2 {
+  font-size: 1.25rem;
+  font-weight: 550;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+body .account-caption {
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+body .account-form {
+  gap: 1.5rem;
+}
+body
+  .account-experience
+  :is(input, select, textarea):not(
+    [type='checkbox'],
+    [type='radio'],
+    [type='hidden']
+  ) {
+  border-color: var(--ac-control-line);
+}
+body .account-experience :is(a, button)[class~='border'] {
+  border-color: var(--ac-control-line);
+}
+body .account-form :is(input, select):not([type='checkbox']) {
+  min-height: 52px;
+  border-radius: 12px;
+  font-size: 1rem;
+}
+body .account-company-switch {
+  font-size: 0.8125rem;
+}
+body .account-company-switch select {
+  min-height: 48px;
+  font-size: 0.9375rem;
+}
+body .account-button {
+  min-height: 48px;
+  font-size: 0.9375rem;
+  background: #216448;
+  color: #fff !important;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+body .account-button:hover {
+  background: #174e36;
+}
+body .account-button:active {
+  background: #103b28;
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.12);
+  transition-duration: 0ms;
+}
+body .account-button.secondary {
+  background: var(--ac-panel);
+  border-color: var(--ac-control-line);
+  color: var(--ac-ink) !important;
+}
+body .account-button.secondary:hover {
+  background: var(--ac-tint);
+}
+body .account-button.danger {
+  background: transparent;
+  border-color: var(--ac-control-line);
+  color: var(--ac-danger) !important;
+}
+body .account-link-row {
+  padding: 1.125rem 0;
+  min-height: 76px;
+}
+body .account-link-row > svg:first-child {
+  color: var(--ac-accent);
+  flex-shrink: 0;
+}
+body .account-link-row > svg:last-child {
+  color: var(--ac-muted);
+  flex-shrink: 0;
+}
+body .account-link-row small {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+body .account-link-row:hover span {
+  color: var(--ac-accent);
+}
+body .account-row dd {
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+body .account-content details {
+  border-radius: 16px;
+  padding: 0 1.5rem;
+}
+body .account-content details > summary {
+  min-height: 56px;
+  padding-block: 1rem;
+  line-height: 1.5;
+}
+body .account-content details[open] > summary {
+  margin-bottom: 1rem;
+}
+body .account-content details[open] {
+  padding-bottom: 1.5rem;
+}
+body .account-skip {
+  position: absolute;
+  z-index: 20;
+  top: 0.5rem;
+  left: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--ac-panel);
+  color: var(--ac-accent);
+  border-radius: 10px;
+  transform: translateY(-200%);
+}
+body .account-skip:focus {
+  transform: none;
+}
+body .account-team-list > section {
+  border: 0;
+  border-radius: 0;
+  padding: 1rem 0;
+  background: transparent;
+}
+body .account-team-list > section + section {
+  border-top: 1px solid var(--ac-line);
+}
+body .account-card .account-team-invite {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+body .account-team-invite :is(input, select) {
+  min-height: 52px;
+  font-size: 1rem;
+  border-radius: 12px;
+}
+body .account-team-invite :is(button, a)[class*='bg-[#173d2c]'] {
+  min-height: 48px;
+  background: #216448;
+}
+body .account-team-invite button[class*='bg-[#173d2c]']:hover {
+  background: #174e36;
+}
+body .account-team-list .truncate {
+  white-space: normal;
+  text-overflow: clip;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+body .account-team-list p[class*='text-xs'] {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+body .account-team-list [class*='bg-[var(--ac-input'] {
+  background: var(--ac-bg);
+  border-radius: 12px;
+  padding: 1rem;
+}
+body .account-experience dialog {
+  background: var(--ac-panel);
+  border: 0;
+  border-radius: 20px;
+  padding: 1.75rem;
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.2);
+}
+body .account-experience dialog::backdrop {
+  background: rgb(10 24 17 / 0.45);
+}
+body .account-experience .zentra-subscription {
+  --sub-text: var(--ac-ink);
+  --sub-muted: var(--ac-muted);
+  --sub-line: var(--ac-line);
+  --sub-surface: var(--ac-panel);
+}
+body .account-experience .zentra-sub-section {
+  padding: 1.75rem;
+  border-radius: 16px;
+  margin-bottom: 1.5rem;
+}
+body .account-experience .zentra-sub-heading h2 {
+  font-size: 1.25rem;
+  font-weight: 550;
+}
+body .account-experience .zentra-sub-facts {
+  gap: 1rem;
+}
+body .account-experience .zentra-sub-facts dd {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+body .account-experience .zentra-sub-primary {
+  min-height: 48px;
+  border-radius: 999px;
+  background: #216448;
+  color: #fff;
+}
+body .account-experience .zentra-sub-primary:hover {
+  background: #174e36;
+}
+body .account-experience .zentra-sub-primary:active {
+  background: #103b28;
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.12);
+}
+body
+  .account-experience
+  :is(.zentra-sub-link, .zentra-subtle, .zentra-step-actions a) {
+  color: var(--ac-accent);
+  min-height: 44px;
+}
+body .account-experience .zentra-start-steps li {
+  gap: 1rem;
+}
+body .account-experience .zentra-step-mark {
+  border-color: var(--ac-line);
+}
+body .account-experience [data-complete='true'] .zentra-step-mark {
+  color: var(--ac-accent);
+  background: var(--ac-tint);
+  border-color: transparent;
+}
+body .account-experience .zentra-plan-change select {
+  background: var(--ac-input);
+  border-color: var(--ac-control-line);
+  border-radius: 12px;
+  min-height: 52px;
+  font-size: 1rem;
+}
+body .account-experience :is(.zentra-sub-consent, .account-consent) {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+body .account-experience .account-skeleton {
+  background: var(--ac-line);
+  animation: none;
+  border-radius: 16px;
+}
+
+/* Embedded recovery pages use their surrounding account shell. */
+body .account-content .apple-task-page {
+  --ac-bg: inherit;
+  --ac-panel: inherit;
+  --ac-ink: inherit;
+  --ac-muted: inherit;
+  --ac-line: inherit;
+  --ac-accent: inherit;
+  --ac-tint: inherit;
+  --ac-input: inherit;
+  --ac-danger: inherit;
+  --ac-control-line: inherit;
+  padding: 0;
+  min-height: 0;
+  background: transparent;
+}
+body .account-content .apple-task-wrap {
+  max-width: none;
+}
+body .account-content .apple-task-page > .apple-task-wrap > .apple-task-return {
+  display: none;
+}
+body .account-content .apple-task-heading {
+  margin-top: 0;
+}
+body .account-content .apple-task-title {
+  margin-top: 0;
+}
+body .account-content .apple-archive-page header > div > a {
+  display: none;
+}
+body .account-content .apple-task-page :is(input, select, textarea) {
+  border-color: var(--ac-control-line);
+}
+body .account-content .apple-task-page [role='alert'] {
+  color: var(--ac-danger);
+  background: var(--ac-panel);
+  border-color: var(--ac-danger);
+}
+
+/* Automation remains a work surface: grouped settings and open activity rows. */
+body .apple-account-automation {
+  background: var(--ac-bg);
+  min-height: 70vh;
+  padding: 2rem 1.5rem;
+}
+body .account-content .apple-account-automation {
+  --ac-bg: inherit;
+  --ac-panel: inherit;
+  --ac-ink: inherit;
+  --ac-muted: inherit;
+  --ac-line: inherit;
+  --ac-accent: inherit;
+  --ac-tint: inherit;
+  --ac-input: inherit;
+  --ac-danger: inherit;
+  --ac-control-line: inherit;
+  background: transparent;
+  padding: 0;
+  min-height: 0;
+}
+body .apple-account-automation h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  margin: 0 0 2rem;
+  font-weight: 560;
+}
+body .apple-account-automation h2 {
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  font-weight: 550;
+}
+body .apple-account-automation p {
+  color: var(--ac-muted);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+body .apple-account-automation .automation-panel {
+  border-color: var(--ac-line);
+  border-radius: 16px;
+  background: var(--ac-panel);
+  padding: 1.75rem;
+  margin: 1.5rem 0;
+}
+body
+  .apple-account-automation
+  :is(input, select, textarea):not([type='checkbox']) {
+  min-height: 52px;
+  border-radius: 12px;
+  font-size: 1rem;
+  background: var(--ac-input);
+  border-color: var(--ac-control-line);
+  color: var(--ac-ink);
+}
+body
+  .apple-account-automation
+  .supplier-receipts__search
+  input:not([type='checkbox']) {
+  border-color: var(--ac-control-line);
+}
+body .apple-account-automation :is(button, .automation-button) {
+  min-height: 48px;
+  background: #216448;
+  color: #fff;
+  font-weight: 550;
+  font-size: 0.9375rem;
+  transition: background 180ms ease;
+}
+body .apple-account-automation :is(button, .automation-button):hover {
+  background: #174e36;
+}
+body .apple-account-automation :is(button, .automation-button):active {
+  transition-duration: 0ms;
+}
+body .apple-account-automation .automation-checks {
+  gap: 0;
+}
+body .apple-account-automation .automation-checks label {
+  padding: 0.875rem 0;
+  border-bottom: 1px solid var(--ac-line);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+body .apple-account-automation .automation-checks input {
+  accent-color: var(--ac-accent);
+}
+body .apple-account-automation .automation-workspace {
+  --aw-ink: var(--ac-ink);
+  --aw-muted: var(--ac-muted);
+  --aw-line: var(--ac-line);
+  --aw-soft: var(--ac-tint);
+}
+body .apple-account-automation .automation-centre {
+  --ac-surface: var(--ac-panel);
+  --ac-soft: var(--ac-tint);
+  --ac-button-ink: var(--ac-bg);
+  --ac-ink: inherit;
+  --ac-muted: inherit;
+  --ac-line: inherit;
+  --ac-accent: inherit;
+  --ac-control-line: inherit;
+}
+body
+  .apple-account-automation
+  .automation-centre
+  :is(input, select, textarea):not([type='checkbox']) {
+  border-color: var(--ac-control-line);
+}
+body
+  .account-experience
+  .apple-account-automation
+  .ac-status:is([data-state='review'], [data-state='failed']) {
+  color: #865013;
+}
+body
+  .account-experience[data-theme='dark']
+  .apple-account-automation
+  .ac-status:is([data-state='review'], [data-state='failed']) {
+  color: #f3c883;
+}
+body .apple-account-automation .automation-workspace__nav {
+  overflow-x: auto;
+}
+body .apple-account-automation .automation-workspace__nav button {
+  white-space: nowrap;
+  padding-inline: 0.75rem;
+}
+body .apple-account-automation .automation-metrics {
+  gap: 0;
+  border-block: 1px solid var(--ac-line);
+}
+body .apple-account-automation .automation-metrics > div {
+  background: transparent;
+  border-radius: 0;
+  padding: 1rem 0.5rem;
+}
+body .apple-account-automation .automation-metrics dd {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+body .apple-account-automation .automation-account-extra {
+  border: 0;
+  border-top: 1px solid var(--ac-line);
+  border-radius: 0;
+  background: transparent;
+  padding-inline: 0;
+}
+body .apple-account-automation .automation-account-extra .automation-panel {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+}
+body .apple-account-automation .automation-eyebrow {
+  display: none;
+}
+body .apple-account-automation .supplier-receipts__list summary {
+  grid-template-columns: minmax(0, 1fr) auto 145px;
+}
+body .apple-account-automation .supplier-receipts__list dl {
+  border-radius: 12px;
+  font-size: 0.9375rem;
+}
+body .apple-account-automation .supplier-receipts__list details {
+  padding: 0;
+}
+body
+  .apple-account-automation
+  .supplier-receipts__list
+  details[open]
+  > summary {
+  margin-bottom: 0;
+}
+
+/* Checkout presents the chosen pack without changing billing behavior. */
+body .apple-complete-checkout {
+  max-width: 44rem;
+  padding: 3rem 1.5rem 4.5rem;
+  margin-inline: auto;
+}
+body .apple-complete-checkout > a:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  color: var(--ac-accent);
+  font-size: 0.9375rem;
+}
+body .apple-complete-checkout h1 {
+  margin: 2rem 0;
+  font-size: 2rem;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  font-weight: 560;
+}
+body .apple-complete-checkout .complete-checkout-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2rem;
+  padding: 1.75rem 0;
+  border-block: 1px solid var(--ac-line);
+  background: transparent;
+  border-radius: 0;
+  margin-bottom: 2rem;
+}
+body .apple-complete-checkout .complete-checkout-summary strong {
+  font-size: 1.125rem;
+  font-weight: 550;
+}
+body .apple-complete-checkout .complete-checkout-summary > strong {
+  white-space: nowrap;
+  color: var(--ac-accent);
+  font-variant-numeric: tabular-nums;
+}
+body .apple-complete-checkout .complete-checkout-summary p {
+  margin: 0.75rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--ac-muted);
+}
+body .apple-complete-checkout .complete-consent {
+  padding: 0;
+  margin: 0 0 1.75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--ac-ink);
+}
+body .apple-complete-checkout .complete-consent input {
+  width: 20px;
+  height: 20px;
+  margin-top: 0.25rem;
+  flex: 0 0 20px;
+  accent-color: var(--ac-accent);
+}
+body .apple-complete-checkout .zentra-primary {
+  min-height: 50px;
+  border-radius: 999px;
+  background: var(--ac-accent);
+  color: #fff;
+  padding: 0.875rem 1.5rem;
+  font-weight: 550;
+  font-size: 0.9375rem;
+}
+body .apple-complete-checkout .zentra-primary:hover {
+  background: #174e36;
+}
+body .apple-complete-checkout .zentra-primary:active {
+  background: #103b28;
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.12);
+}
+body .apple-complete-checkout .complete-terms-note {
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--ac-muted);
+  line-height: 1.65;
+}
+body .apple-complete-checkout .complete-checkout-error {
+  border: 1px solid #e6c6ba;
+  background: #fff2ed;
+  color: var(--ac-danger);
+  padding: 1rem;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+}
+body .apple-complete-checkout .complete-checkout-error button {
+  min-height: 44px;
+  margin-top: 0.5rem;
+  color: var(--ac-danger);
+}
+
+@media (prefers-color-scheme: dark) {
+  body .account-experience[data-theme='system'] {
+    --ac-bg: #121a16;
+    --ac-panel: #1b2720;
+    --ac-ink: #eff5f1;
+    --ac-muted: #b0c1b6;
+    --ac-line: #3c5143;
+    --ac-control-line: #829c8b;
+    --ac-accent: #aad7bd;
+    --ac-tint: #2a4033;
+    --ac-input: #16221b;
+    --ac-danger: #ffb4a9;
+  }
+  body
+    .account-experience[data-theme='system']
+    .apple-account-automation
+    .ac-status:is([data-state='review'], [data-state='failed']) {
+    color: #f3c883;
+  }
+}
+@media (max-width: 1023px) {
+  body .studio-auth > .apple-auth-layout {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+    max-width: 28rem;
+  }
+  body .studio-auth .apple-auth-intro {
+    padding: 0;
+  }
+  body .studio-auth .apple-auth-intro > h2,
+  body .studio-auth .apple-auth-intro > .apple-auth-intro-copy {
+    display: none;
+  }
+  body .studio-auth-assurances {
+    margin-top: 0.75rem;
+  }
+  body .account-workspace {
+    gap: 2.5rem;
+    grid-template-columns: 235px minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  body .account-topbar {
+    min-height: 68px;
+    padding-inline: max(1.25rem, env(safe-area-inset-left));
+  }
+  body .account-workspace {
+    display: block;
+    margin-top: 1.5rem;
+    padding-inline: max(1.25rem, env(safe-area-inset-left));
+  }
+  body .account-content h1 {
+    font-size: 1.75rem;
+  }
+  body .account-card,
+  body .account-experience .zentra-sub-section {
+    padding: 1.5rem 1.25rem;
+  }
+  body .account-sidebar nav {
+    border-radius: 16px;
+  }
+  body .account-sidebar nav a {
+    padding: 1rem;
+  }
+  body .account-sidebar nav small {
+    font-size: 0.8125rem;
+  }
+  body .account-content details {
+    padding-inline: 1.25rem;
+  }
+  body .account-experience .zentra-sub-facts {
+    grid-template-columns: 1fr;
+  }
+  body .account-experience .zentra-sub-facts > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  body .account-experience .zentra-sub-facts dd {
+    text-align: right;
+  }
+}
+@media (max-width: 600px) {
+  body :is(.studio-auth, .studio-recovery) {
+    padding: 1.75rem 1.25rem;
+  }
+  body .studio-auth .auth-surface > .apple-auth-panel,
+  body .studio-recovery .apple-recovery-panel {
+    padding: 1.75rem 1.25rem;
+    border-radius: 20px;
+  }
+  body :is(.studio-auth, .studio-recovery) h1 {
+    font-size: 1.75rem;
+  }
+  body .apple-task-page {
+    padding: 1.5rem max(1.25rem, env(safe-area-inset-left)) 3rem;
+  }
+  body .apple-task-title,
+  body .apple-task-page h1,
+  body .apple-account-automation h1,
+  body .apple-complete-checkout h1 {
+    font-size: 1.75rem;
+  }
+  body .apple-task-panel {
+    padding: 1.5rem 1.25rem;
+    border-radius: 16px;
+  }
+  body .apple-task-heading {
+    margin-top: 1.75rem;
+  }
+  body .apple-archive-search {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  body .apple-archive-list {
+    padding-inline: 1.25rem;
+  }
+  body .apple-archive-list > li {
+    align-items: stretch;
+  }
+  body .apple-task-panel :is(a, button)[class*='bg-[#173d2c]'] {
+    justify-content: center;
+  }
+  body .apple-account-automation .automation-panel {
+    padding: 1.5rem 1.25rem;
+  }
+  body .apple-account-automation .supplier-receipts__list summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  body .apple-account-automation .automation-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  body .apple-complete-checkout {
+    padding: 2rem 1.25rem 3rem;
+  }
+  body .apple-complete-checkout .complete-checkout-summary {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  body .apple-complete-checkout .zentra-primary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body
+    :is(
+      .account-experience,
+      .studio-auth,
+      .studio-recovery,
+      .apple-task-page,
+      .apple-account-automation,
+      .apple-complete-checkout
+    )
+    :is(a, button, input, summary) {
+    transition: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  body .account-topbar {
+    background: var(--ac-panel);
+    backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  body
+    :is(.apple-task-page, .apple-account-automation, .apple-complete-checkout) {
+    --ac-line: #7c9283;
+  }
+  body .account-experience {
+    --ac-line: #7c9283;
+  }
+  body .account-experience[data-theme='dark'] {
+    --ac-line: #8fa697;
+  }
+  body :is(.studio-auth, .studio-recovery) {
+    --ac-control-line: #52665c;
+  }
+}

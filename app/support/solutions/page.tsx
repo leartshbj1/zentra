@@ -67,7 +67,7 @@ const cases = [
 ];
 export default function SupportSolutions() {
   return (
-    <SupportMarketingShell>
+    <SupportMarketingShell current="/support/solutions">
       <SupportPageIntro
         eyebrow="CAS D’USAGE"
         title={
@@ -79,6 +79,9 @@ export default function SupportSolutions() {
         }
         description="Un outil pour les entreprises qui reçoivent des demandes clients, avec des règles adaptées à leur propre organisation."
       />
+      <nav className="sp-case-navigation sp-wrap" aria-label="Cas d’usage par activité">
+        {cases.map(item => <a key={item.id} href={`#${item.id}`}>{item.label}</a>)}
+      </nav>
       {cases.map((item, index) => (
         <section
           id={item.id}
@@ -87,7 +90,6 @@ export default function SupportSolutions() {
         >
           <div className="sp-wrap sp-control">
             <div>
-              <p className="sp-kicker">{item.label}</p>
               <h2>{item.title}</h2>
               <p>{item.description}</p>
               <a href="/support/connexions" className="sp-text-link">
@@ -95,7 +97,7 @@ export default function SupportSolutions() {
               </a>
             </div>
             <div className="sp-scenario">
-              <p className="sp-kicker">EXEMPLES DE DEMANDES</p>
+              <h3>Exemples fictifs de demandes</h3>
               {item.examples.map(([message, category, team]) => (
                 <div key={message}>
                   <p>« {message} »</p>

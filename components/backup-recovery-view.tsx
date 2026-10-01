@@ -25,29 +25,27 @@ export function BackupRecoveryView({
   const organization = organizations.find(
     (item) => item.organizationId === organizationId,
   );
+  const PageContainer = signInPath ? 'main' : 'section';
   return (
-    <main className="site-task-page min-h-screen bg-[#f6f4ee] px-5 py-10 text-[#173d2c] sm:py-16">
-      <div className="mx-auto max-w-3xl">
+    <PageContainer className="site-task-page apple-task-page apple-backup-page">
+      <div className="apple-task-wrap apple-task-wrap-wide">
         <a
           href="/compte"
-          className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold"
+          className="apple-task-return"
         >
           <ArrowLeft className="size-4" aria-hidden="true" /> Mon compte
         </a>
-        <header className="mt-7">
-          <p className="text-sm font-semibold text-[#81612e]">
-            Récupération de l’entreprise
-          </p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] sm:text-5xl">
+        <header className="apple-task-heading">
+          <h1 className="apple-task-title">
             Mes sauvegardes
           </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-[#5f6962]">
+          <p className="apple-task-lead">
             Retrouvez une copie de vos données et documents, même si votre
             ordinateur ne démarre plus ou si votre abonnement est terminé.
           </p>
         </header>
         {signInPath ? (
-          <section className="mt-8 rounded-3xl border border-[#d9d4c9] bg-white p-6 sm:p-8">
+          <section className="apple-task-panel">
             <ShieldCheck className="size-8 text-[#9b7534]" aria-hidden="true" />
             <h2 className="mt-4 text-xl font-semibold">
               Retrouver mon entreprise
@@ -64,7 +62,7 @@ export function BackupRecoveryView({
             </a>
           </section>
         ) : error || !organization ? (
-          <section className="mt-8 rounded-3xl border border-[#dfd3b9] bg-[#fffaf0] p-6">
+          <section className="apple-task-panel apple-task-unavailable">
             <h2 className="text-xl font-semibold">Sauvegardes indisponibles</h2>
             <p className="mt-3 leading-7 text-[#68624f]">
               {error ??
@@ -79,7 +77,7 @@ export function BackupRecoveryView({
           </section>
         ) : (
           <>
-            <section className="mt-8" aria-label="Entreprise et sauvegardes">
+            <section className="apple-backup-list" aria-label="Entreprise et sauvegardes">
               {organizations.length > 1 ? (
                 <form
                   method="get"
@@ -176,7 +174,7 @@ export function BackupRecoveryView({
                 </p>
               ) : null}
             </section>
-            <section className="mt-8 rounded-3xl bg-[#e8eee4] p-6">
+            <section className="apple-task-panel apple-task-guidance">
               <h2 className="text-lg font-semibold">Après le téléchargement</h2>
               <p className="mt-3 leading-7 text-[#52624f]">
                 Conservez le fichier .zentra dans un emplacement privé. Il
@@ -192,7 +190,7 @@ export function BackupRecoveryView({
             </section>
           </>
         )}
-        <p className="mt-8 text-sm leading-6 text-[#5f6962]">
+        <p className="apple-task-help">
           Besoin d’aide ?{' '}
           <a
             href="mailto:info@zentraapp.ch"
@@ -202,6 +200,6 @@ export function BackupRecoveryView({
           </a>
         </p>
       </div>
-    </main>
+    </PageContainer>
   );
 }

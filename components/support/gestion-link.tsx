@@ -30,7 +30,6 @@ export function GestionLink({
           <Building2 size={22} />
         </span>
         <div>
-          <p className="support-eyebrow">SUPPORT → GESTION</p>
           <h3>Relier votre entreprise</h3>
           <p>
             Avec Automation actif dans cet espace, les justificatifs arrivent dans Achats → Boîte de réception pour toute votre équipe.

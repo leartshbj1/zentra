@@ -26,6 +26,7 @@ export function AccountShell({ children, displayName, email, organizations, them
   const query = organization ? `?organizationId=${encodeURIComponent(organization.organizationId)}` : '';
   const isIndex = pathname === '/compte' || pathname === '/compte/';
   return <div className={`account-experience ${isIndex ? 'account-index' : 'account-detail'} ${!organizations.length ? 'account-onboarding' : ''}`} data-theme={theme}>
+    <a className="account-skip" href="#account-content">Aller aux réglages</a>
     <header className="account-topbar"><a href="/" className="account-brand">Zentra<span>Mon espace</span></a><a className="account-download" href="/download"><Download size={17} />L’application</a></header>
     <div className="account-workspace">
       <aside className="account-sidebar" aria-label="Paramètres du compte">

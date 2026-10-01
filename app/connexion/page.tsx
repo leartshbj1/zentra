@@ -34,8 +34,8 @@ export default async function ConnexionPage({
 
   return (
     <main className="studio-auth relative min-h-screen overflow-hidden bg-[#f5f5f7] px-5 py-8 text-[#173d2c] sm:grid sm:place-items-center sm:py-14">
-      <div className="relative mx-auto grid w-full min-w-0 max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-center lg:gap-16">
-        <section className="pt-3 lg:pt-0">
+      <div className="apple-auth-layout relative mx-auto grid w-full min-w-0 max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-center lg:gap-16">
+        <section className="apple-auth-intro pt-3 lg:pt-0">
           <a
             href="/"
             className="inline-flex min-h-11 items-center"
@@ -43,11 +43,11 @@ export default async function ConnexionPage({
           >
             <BrandWordmark className="w-28" />
           </a>
-          <h2 className="mt-4 hidden max-w-xl text-4xl font-semibold tracking-[-.05em] sm:text-5xl lg:block">
+          <h2 className="mt-4 hidden max-w-xl text-4xl font-semibold sm:text-5xl lg:block">
             Votre entreprise.
             <br />À portée de main.
           </h2>
-          <p className="mt-5 hidden max-w-lg text-base leading-7 text-[#5f6d64] lg:block">
+          <p className="apple-auth-intro-copy mt-5 hidden max-w-lg text-base leading-7 text-[#5f6d64] lg:block">
             Gestion, Support et Automation se retrouvent ici. Un compte
             personnel, les accès de votre entreprise.
           </p>
