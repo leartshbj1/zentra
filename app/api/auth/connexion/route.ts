@@ -11,6 +11,7 @@ import {
 } from '@/lib/supabase-auth-http';
 import { supabaseAuthClient } from '@/lib/supabase-auth-runtime';
 import { enforceAccountRateLimit } from '@/lib/account';
+import { signInWithSessionPolicy } from '@/lib/password-session-admission';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
       enforceAccountRateLimit(request, 'auth-login-email', email, 12),
       enforceAccountRateLimit(request, 'auth-login-address', 'all', 50),
     ]);
-    const session = await supabaseAuthClient().signIn(email, password);
+    const session = await signInWithSessionPolicy(supabaseAuthClient(), email, password);
     await writeSupabaseAuthCookies(session, true);
     await clearSupabasePkceCookie();
     return Response.json(
