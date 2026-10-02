@@ -1692,3 +1692,732 @@ mod fixed_asset_account_preparation {
         );
     }
 }
+
+// Worker and origin guards for offline note writes and payroll setup mutations.
+// The actual handlers below run only in native CI, with synthetic local data.
+mod notes_and_setup_workers {
+    use super::*;
+
+    #[derive(Clone, Copy, Debug)]
+    enum Operation {
+        SaveNote,
+        DeleteNote,
+        UpdateSettings,
+        UpdateEmployee,
+        ConfigureAccounting,
+    }
+
+    const OPERATIONS: [Operation; 5] = [
+        Operation::SaveNote,
+        Operation::DeleteNote,
+        Operation::UpdateSettings,
+        Operation::UpdateEmployee,
+        Operation::ConfigureAccounting,
+    ];
+
+    #[derive(Clone)]
+    struct Inputs {
+        note: crate::work_notes::SaveWorkNoteInput,
+        employee_id: String,
+        settings: Value,
+        employee: Value,
+        accounting: AccountingSettingsInput,
+    }
+
+    fn inputs(store: &LocalStore) -> Inputs {
+        let accounts = crate::tests::enable_accounting(store);
+        let bank = store
+            .upsert_account(AccountInput {
+                id: None,
+                code: "1021".into(),
+                name: "Synthetic replacement bank".into(),
+                account_type: "asset".into(),
+                normal_balance: "debit".into(),
+                report_section: "current_assets".into(),
+                active: true,
+            })
+            .unwrap();
+        let employee = store
+            .create_record("employees", json!({"name":"Synthetic employee"}))
+            .unwrap();
+        let original = store
+            .save_work_note(crate::work_notes::SaveWorkNoteInput {
+                id: Some(uuid::Uuid::new_v4().to_string()),
+                title: "Synthetic original note".into(),
+                body: "Original synthetic text".into(),
+                project_id: None,
+                pinned: false,
+                expected_updated_at: None,
+                expected_workspace_scope: None,
+            })
+            .unwrap();
+        Inputs {
+            note: crate::work_notes::SaveWorkNoteInput {
+                id: Some(original["id"].as_str().unwrap().into()),
+                title: "Synthetic edited note".into(),
+                body: "Edited synthetic text".into(),
+                project_id: None,
+                pinned: true,
+                expected_updated_at: Some(original["updated_at"].as_str().unwrap().into()),
+                expected_workspace_scope: None,
+            },
+            employee_id: employee["id"].as_str().unwrap().into(),
+            settings: json!({"company_name":"Synthetic updated company"}),
+            employee: json!({"name":"Synthetic updated employee"}),
+            accounting: AccountingSettingsInput {
+                enabled: true,
+                ar_account_id: Some(accounts["ar"].clone()),
+                revenue_account_id: Some(accounts["revenue"].clone()),
+                vat_payable_account_id: Some(accounts["vat_payable"].clone()),
+                vat_deferred_payable_account_id: Some(accounts["vat_deferred_payable"].clone()),
+                bank_account_id: Some(bank["id"].as_str().unwrap().into()),
+                expense_account_id: Some(accounts["expense"].clone()),
+                vat_receivable_account_id: Some(accounts["vat_receivable"].clone()),
+                wages_expense_account_id: Some(accounts["wages_expense"].clone()),
+                wages_payable_account_id: Some(accounts["wages_payable"].clone()),
+                social_expense_account_id: Some(accounts["social_expense"].clone()),
+                social_payable_account_id: Some(accounts["social_payable"].clone()),
+                supplier_payable_account_id: Some(accounts["supplier_payable"].clone()),
+            },
+        }
+    }
+
+    fn snapshot(store: &LocalStore) -> Value {
+        let connection = store.connect().unwrap();
+        let mut result = serde_json::Map::new();
+        for table in [
+            "settings",
+            "employees",
+            "work_notes",
+            "accounts",
+            "accounting_settings",
+            "journal_entries",
+            "journal_lines",
+            "audit_log",
+            "company_local_clock",
+        ] {
+            result.insert(
+                table.into(),
+                Value::Array(
+                    crate::database::query_all(
+                        &connection,
+                        &format!("SELECT * FROM {table} ORDER BY rowid"),
+                        [],
+                    )
+                    .unwrap(),
+                ),
+            );
+        }
+        Value::Object(result)
+    }
+
+    async fn run(
+        state: State<'_, LocalStore>,
+        operation: Operation,
+        mut input: Inputs,
+        expected: Option<String>,
+    ) -> Result<Value, String> {
+        match operation {
+            Operation::SaveNote => {
+                input.note.expected_workspace_scope = expected;
+                save_work_note(state, input.note).await
+            }
+            Operation::DeleteNote => {
+                let result = delete_work_note(
+                    state,
+                    input.note.id.unwrap(),
+                    input.note.expected_updated_at,
+                    expected,
+                )
+                .await?;
+                Ok(json!({"deleted":result.deleted,"id":result.id}))
+            }
+            Operation::UpdateSettings => update_settings(state, input.settings, expected).await,
+            Operation::UpdateEmployee => {
+                update_record(
+                    state,
+                    "employees".into(),
+                    input.employee_id,
+                    input.employee,
+                    expected,
+                )
+                .await
+            }
+            Operation::ConfigureAccounting => {
+                configure_accounting(state, input.accounting, expected).await
+            }
+        }
+    }
+
+    fn receipt_matches(store: &LocalStore, operation: Operation, input: &Inputs, receipt: &Value) {
+        match operation {
+            Operation::SaveNote => {
+                assert_eq!(receipt["id"].as_str(), input.note.id.as_deref());
+                assert_eq!(receipt["title"], input.note.title);
+                assert_eq!(receipt["body"], input.note.body);
+                assert_eq!(receipt["pinned"], true);
+                assert!(receipt.get("deleted_at").is_none());
+                assert_ne!(
+                    receipt["updated_at"].as_str(),
+                    input.note.expected_updated_at.as_deref()
+                );
+            }
+            Operation::DeleteNote => {
+                assert_eq!(receipt, &json!({"deleted":true,"id":input.note.id}));
+                assert_eq!(
+                    store
+                        .connect()
+                        .unwrap()
+                        .query_row::<i64, _, _>(
+                            "SELECT COUNT(*) FROM work_notes WHERE id=? AND deleted_at IS NOT NULL",
+                            [input.note.id.as_deref().unwrap()],
+                            |row| row.get(0),
+                        )
+                        .unwrap(),
+                    1
+                );
+            }
+            Operation::UpdateSettings => {
+                assert_eq!(receipt["company_name"], input.settings["company_name"])
+            }
+            Operation::UpdateEmployee => {
+                assert_eq!(receipt["id"], input.employee_id);
+                assert_eq!(receipt["name"], input.employee["name"]);
+            }
+            Operation::ConfigureAccounting => {
+                assert_eq!(
+                    receipt["settings"],
+                    store.get_accounting_settings().unwrap()
+                );
+                assert_eq!(
+                    receipt["settings"]["bank_account_id"].as_str(),
+                    input.accounting.bank_account_id.as_deref()
+                );
+                assert_eq!(receipt["settings"]["enabled"], true);
+                assert_eq!(receipt["synchronization"]["created_total"], 0);
+            }
+        }
+        assert!(store.verify_audit_log().is_ok());
+    }
+
+    #[test]
+    fn all_five_actual_handlers_yield_while_the_real_store_mutex_is_held() {
+        for operation in OPERATIONS {
+            let (_temporary, store) = fixture();
+            let input = inputs(&store);
+            let before = snapshot(&store);
+            let app = tauri::test::mock_builder()
+                .manage(store.clone())
+                .build(tauri::test::mock_context(tauri::test::noop_assets()))
+                .unwrap();
+            let receipt = responsive(
+                &store,
+                run(app.state(), operation, input.clone(), Some(scope(&store))),
+            )
+            .unwrap();
+            receipt_matches(&store, operation, &input, &receipt);
+            let after = snapshot(&store);
+            assert_eq!(
+                after["audit_log"].as_array().unwrap().len(),
+                before["audit_log"].as_array().unwrap().len() + 1,
+                "{operation:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn queued_actual_handlers_reject_old_scope_after_real_restore_preserving_all_record_ids() {
+        let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK
+            .lock()
+            .unwrap();
+        let (temporary, store) = fixture();
+        let input = inputs(&store);
+        let evidence = temporary.path().join("synthetic-evidence.bin");
+        std::fs::write(&evidence, b"unchanged synthetic evidence").unwrap();
+        let backup = store
+            .create_backup(None, "notes-setup-worker-test")
+            .unwrap();
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        for operation in OPERATIONS {
+            let origin = scope(&store);
+            let replacing = store.clone();
+            let archive = backup.clone();
+            let (ready_tx, ready_rx) = mpsc::channel();
+            let (replace_tx, replace_rx) = mpsc::channel();
+            let holder = thread::spawn(move || {
+                let _guard = replacing.lock().unwrap();
+                ready_tx.send(()).unwrap();
+                let released = replace_rx.recv_timeout(Duration::from_secs(5)).is_ok();
+                replacing
+                    .restore_backup(&archive, "notes-setup-worker-test")
+                    .unwrap();
+                (released, snapshot(&replacing))
+            });
+            ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            let (result, ()) = tauri::async_runtime::block_on(join(
+                run(app.state(), operation, input.clone(), Some(origin.clone())),
+                async move {
+                    replace_tx.send(()).unwrap();
+                },
+            ));
+            let (released, restored) = holder.join().unwrap();
+            assert!(
+                released,
+                "{operation:?} blocked the executor before restore"
+            );
+            let error = result.unwrap_err();
+            assert!(
+                error.contains("L’entreprise ouverte a changé"),
+                "{operation:?}: {error}"
+            );
+            assert_ne!(scope(&store), origin);
+            assert_eq!(
+                snapshot(&store),
+                restored,
+                "{operation:?} mutated the replacement space"
+            );
+            assert_eq!(
+                restored["work_notes"][0]["id"].as_str(),
+                input.note.id.as_deref()
+            );
+            assert_eq!(restored["employees"][0]["id"], input.employee_id);
+            assert!(restored["accounts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|row| row["id"].as_str() == input.accounting.bank_account_id.as_deref()));
+            assert_eq!(
+                std::fs::read(&evidence).unwrap(),
+                b"unchanged synthetic evidence"
+            );
+        }
+    }
+
+    #[test]
+    fn current_scope_and_legacy_none_keep_all_five_success_receipts_after_restore() {
+        let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK
+            .lock()
+            .unwrap();
+        for operation in OPERATIONS {
+            for scoped in [true, false] {
+                let (_temporary, store) = fixture();
+                let input = inputs(&store);
+                let backup = store
+                    .create_backup(None, "notes-setup-worker-test")
+                    .unwrap();
+                let origin = scope(&store);
+                {
+                    let _guard = store.lock().unwrap();
+                    store
+                        .restore_backup(&backup, "notes-setup-worker-test")
+                        .unwrap();
+                }
+                assert_ne!(scope(&store), origin);
+                let app = tauri::test::mock_builder()
+                    .manage(store.clone())
+                    .build(tauri::test::mock_context(tauri::test::noop_assets()))
+                    .unwrap();
+                let expected = scoped.then(|| scope(&store));
+                let receipt =
+                    responsive(&store, run(app.state(), operation, input.clone(), expected))
+                        .unwrap();
+                receipt_matches(&store, operation, &input, &receipt);
+            }
+        }
+    }
+
+    #[test]
+    fn all_five_handlers_keep_real_license_role_and_foreign_installation_rejections() {
+        for access in ["missing", "read_only", "foreign"] {
+            let (_temporary, store) = unlicensed_fixture();
+            let input = inputs(&store);
+            if access == "read_only" {
+                store
+                    .install_server_issued_license(&signed_fixture_token(&store, access))
+                    .unwrap();
+            } else if access == "foreign" {
+                let (_other_temporary, other) = fixture();
+                let error = store
+                    .install_server_issued_license(&signed_fixture_token(&other, "owner"))
+                    .unwrap_err();
+                assert!(error.to_string().contains("installation"), "{error}");
+            }
+            let before = snapshot(&store);
+            let app = tauri::test::mock_builder()
+                .manage(store.clone())
+                .build(tauri::test::mock_context(tauri::test::noop_assets()))
+                .unwrap();
+            for operation in OPERATIONS {
+                for expected in [Some(scope(&store)), None] {
+                    let error = tauri::async_runtime::block_on(run(
+                        app.state(),
+                        operation,
+                        input.clone(),
+                        expected,
+                    ))
+                    .unwrap_err();
+                    assert!(
+                        error.contains("Licence requise") || error.contains("limité à la lecture"),
+                        "{operation:?}/{access}: {error}"
+                    );
+                    assert_eq!(snapshot(&store), before);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn origin_guard_precedes_invalid_inputs_and_real_missing_license() {
+        let (_temporary, store) = unlicensed_fixture();
+        let mut input = inputs(&store);
+        input.note.id = Some("invalid-note-id".into());
+        input.note.title = "invalid\ntitle".into();
+        input.employee_id = "missing-employee".into();
+        input.employee = json!({"unknown_field":true});
+        input.settings = json!({"unknown_field":true});
+        input.accounting.bank_account_id = Some("missing-bank".into());
+        let before = snapshot(&store);
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        for operation in OPERATIONS {
+            let error = tauri::async_runtime::block_on(run(
+                app.state(),
+                operation,
+                input.clone(),
+                Some("synthetic-old-scope".into()),
+            ))
+            .unwrap_err();
+            assert!(
+                error.contains("L’entreprise ouverte a changé"),
+                "{operation:?}: {error}"
+            );
+            assert!(!error.contains("Licence requise"));
+            assert_eq!(snapshot(&store), before);
+        }
+    }
+
+    #[test]
+    fn all_five_handlers_keep_onboarding_required_without_mutation() {
+        let (_temporary, store) = fixture();
+        let input = inputs(&store);
+        store
+            .connect()
+            .unwrap()
+            .execute("UPDATE settings SET onboarding_completed=0 WHERE id=1", [])
+            .unwrap();
+        let before = snapshot(&store);
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        for operation in OPERATIONS {
+            for expected in [Some(scope(&store)), None] {
+                let error = tauri::async_runtime::block_on(run(
+                    app.state(),
+                    operation,
+                    input.clone(),
+                    expected,
+                ))
+                .unwrap_err();
+                assert!(
+                    error.contains("Le questionnaire initial doit être terminé"),
+                    "{operation:?}: {error}"
+                );
+                assert_eq!(snapshot(&store), before);
+            }
+        }
+    }
+
+    #[test]
+    fn real_note_handlers_preserve_cas_author_tombstone_idempotence_and_member_role() {
+        let (_temporary, store) = fixture();
+        crate::company_collaboration::set_identity(
+            &store,
+            "synthetic-company",
+            "synthetic-author",
+            "Synthetic author",
+            "member",
+        )
+        .unwrap();
+        let input = inputs(&store);
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let saved = tauri::async_runtime::block_on(run(
+            app.state(),
+            Operation::SaveNote,
+            input.clone(),
+            Some(scope(&store)),
+        ))
+        .unwrap();
+        assert_eq!(saved["author_name"], "Synthetic author");
+        assert_eq!(saved["created_by_member_id"], "synthetic-author");
+        let before = snapshot(&store);
+        for operation in [Operation::SaveNote, Operation::DeleteNote] {
+            let error = tauri::async_runtime::block_on(run(
+                app.state(),
+                operation,
+                input.clone(),
+                Some(scope(&store)),
+            ))
+            .unwrap_err();
+            assert!(error.contains("modifiée"), "{error}");
+            assert_eq!(snapshot(&store), before);
+        }
+        let mut current = input.clone();
+        current.note.expected_updated_at = Some(saved["updated_at"].as_str().unwrap().into());
+        assert_eq!(
+            tauri::async_runtime::block_on(run(
+                app.state(),
+                Operation::SaveNote,
+                current.clone(),
+                None
+            ))
+            .unwrap(),
+            saved
+        );
+        assert_eq!(
+            snapshot(&store),
+            before,
+            "unchanged save must not dirty the clock or audit"
+        );
+        crate::company_collaboration::set_identity(
+            &store,
+            "synthetic-company",
+            "synthetic-reader",
+            "Synthetic reader",
+            "read_only",
+        )
+        .unwrap();
+        let before = snapshot(&store);
+        for operation in [Operation::SaveNote, Operation::DeleteNote] {
+            let error = tauri::async_runtime::block_on(run(
+                app.state(),
+                operation,
+                current.clone(),
+                Some(scope(&store)),
+            ))
+            .unwrap_err();
+            assert!(error.contains("consulter les notes"), "{error}");
+            assert_eq!(snapshot(&store), before);
+        }
+        crate::company_collaboration::set_identity(
+            &store,
+            "synthetic-company",
+            "synthetic-author",
+            "Synthetic author",
+            "member",
+        )
+        .unwrap();
+        let deleted = tauri::async_runtime::block_on(run(
+            app.state(),
+            Operation::DeleteNote,
+            current.clone(),
+            None,
+        ))
+        .unwrap();
+        assert_eq!(deleted, json!({"deleted":true,"id":current.note.id}));
+        let before = snapshot(&store);
+        assert_eq!(
+            tauri::async_runtime::block_on(run(
+                app.state(),
+                Operation::DeleteNote,
+                current.clone(),
+                None
+            ))
+            .unwrap()["deleted"],
+            false
+        );
+        let error = tauri::async_runtime::block_on(run(
+            app.state(),
+            Operation::SaveNote,
+            current,
+            Some(scope(&store)),
+        ))
+        .unwrap_err();
+        assert!(error.contains("supprimée"), "{error}");
+        assert_eq!(snapshot(&store), before);
+        let mut creation = input;
+        creation.note.id = Some(uuid::Uuid::new_v4().to_string());
+        creation.note.expected_updated_at = None;
+        let first = tauri::async_runtime::block_on(run(
+            app.state(),
+            Operation::SaveNote,
+            creation.clone(),
+            Some(scope(&store)),
+        ))
+        .unwrap();
+        let before = snapshot(&store);
+        assert_eq!(
+            tauri::async_runtime::block_on(run(app.state(), Operation::SaveNote, creation, None))
+                .unwrap(),
+            first
+        );
+        assert_eq!(
+            snapshot(&store),
+            before,
+            "retried creation must not repeat the mutation or audit"
+        );
+    }
+
+    #[test]
+    fn business_validation_and_audit_failure_still_roll_back_all_five_mutations() {
+        for operation in OPERATIONS {
+            let (_temporary, store) = fixture();
+            let input = inputs(&store);
+            let app = tauri::test::mock_builder()
+                .manage(store.clone())
+                .build(tauri::test::mock_context(tauri::test::noop_assets()))
+                .unwrap();
+            let mut invalid = input.clone();
+            invalid.note.expected_updated_at = Some("stale-revision".into());
+            invalid.settings = json!({"unknown_field":true});
+            invalid.employee = json!({"unknown_field":true});
+            invalid.accounting.bank_account_id = invalid.accounting.revenue_account_id.clone();
+            let before = snapshot(&store);
+            let error = tauri::async_runtime::block_on(run(
+                app.state(),
+                operation,
+                invalid,
+                Some(scope(&store)),
+            ))
+            .unwrap_err();
+            assert!(
+                error.starts_with("Champ invalide :"),
+                "{operation:?}: {error}"
+            );
+            assert_eq!(snapshot(&store), before);
+            store.connect().unwrap().execute_batch("CREATE TRIGGER synthetic_worker_audit_failure BEFORE INSERT ON audit_log BEGIN SELECT RAISE(ABORT,'synthetic audit failure'); END;").unwrap();
+            let error = tauri::async_runtime::block_on(run(
+                app.state(),
+                operation,
+                input.clone(),
+                Some(scope(&store)),
+            ))
+            .unwrap_err();
+            assert!(
+                error.contains("synthetic audit failure"),
+                "{operation:?}: {error}"
+            );
+            assert_eq!(
+                snapshot(&store),
+                before,
+                "{operation:?} leaked a partial mutation"
+            );
+            store
+                .connect()
+                .unwrap()
+                .execute_batch("DROP TRIGGER synthetic_worker_audit_failure;")
+                .unwrap();
+            let receipt = tauri::async_runtime::block_on(run(
+                app.state(),
+                operation,
+                input.clone(),
+                Some(scope(&store)),
+            ))
+            .unwrap();
+            receipt_matches(&store, operation, &input, &receipt);
+        }
+    }
+
+    // Exact baseline handler bodies (b57b2d03), only their names change.
+    fn historical_update_record(
+        state: State<'_, LocalStore>,
+        entity: String,
+        id: String,
+        data: Value,
+    ) -> Result<Value, String> {
+        let _guard = state.lock().map_err(command_error)?;
+        require_write(&state)?;
+        state
+            .update_record(&entity, &id, data)
+            .map_err(command_error)
+    }
+    fn historical_update_settings(
+        state: State<'_, LocalStore>,
+        data: Value,
+    ) -> Result<Value, String> {
+        let _guard = state.lock().map_err(command_error)?;
+        require_write(&state)?;
+        state.update_settings(data).map_err(command_error)
+    }
+    fn historical_configure_accounting(
+        state: State<'_, LocalStore>,
+        input: AccountingSettingsInput,
+    ) -> Result<Value, String> {
+        let _guard = state.lock().map_err(command_error)?;
+        require_write(&state)?;
+        state.configure_accounting(input).map_err(command_error)
+    }
+
+    #[test]
+    fn baseline_setup_handlers_apply_old_inputs_to_same_ids_after_restore_but_scoped_handlers_refuse(
+    ) {
+        let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK
+            .lock()
+            .unwrap();
+        for operation in [
+            Operation::UpdateSettings,
+            Operation::UpdateEmployee,
+            Operation::ConfigureAccounting,
+        ] {
+            let (_temporary, store) = fixture();
+            let input = inputs(&store);
+            let origin = scope(&store);
+            let backup = store
+                .create_backup(None, "notes-setup-worker-test")
+                .unwrap();
+            {
+                let _guard = store.lock().unwrap();
+                store
+                    .restore_backup(&backup, "notes-setup-worker-test")
+                    .unwrap();
+            }
+            let app = tauri::test::mock_builder()
+                .manage(store.clone())
+                .build(tauri::test::mock_context(tauri::test::noop_assets()))
+                .unwrap();
+            let before = snapshot(&store);
+            let error = tauri::async_runtime::block_on(run(
+                app.state(),
+                operation,
+                input.clone(),
+                Some(origin),
+            ))
+            .unwrap_err();
+            assert!(
+                error.contains("L’entreprise ouverte a changé"),
+                "{operation:?}: {error}"
+            );
+            assert_eq!(snapshot(&store), before);
+            let historical = match operation {
+                Operation::UpdateSettings => {
+                    historical_update_settings(app.state(), input.settings.clone())
+                }
+                Operation::UpdateEmployee => historical_update_record(
+                    app.state(),
+                    "employees".into(),
+                    input.employee_id.clone(),
+                    input.employee.clone(),
+                ),
+                Operation::ConfigureAccounting => {
+                    historical_configure_accounting(app.state(), input.accounting.clone())
+                }
+                _ => unreachable!(),
+            }
+            .unwrap();
+            receipt_matches(&store, operation, &input, &historical);
+            assert_ne!(
+                snapshot(&store),
+                before,
+                "baseline witness must really modify the replacement space"
+            );
+        }
+    }
+}

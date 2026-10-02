@@ -4959,10 +4959,13 @@ export const desktopApi = {
     }
     return normalizeWorkspace(workspace as RawWorkspace, appState);
   },
-  async saveSettings(settings: AppSettings) {
-    await invoke('update_settings', { data: settingsToBackend(settings) });
+  async saveSettings(settings: AppSettings, expectedWorkspaceScope?: string) {
+    await invoke('update_settings', { data: settingsToBackend(settings),
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
     return refreshWorkspaceAfterMutation(async () => {
       const next = await loadWorkspace();
+      if (expectedWorkspaceScope !== undefined && next.workNotesScope !== expectedWorkspaceScope)
+        throw new Error('L’espace de travail a changé pendant l’actualisation des réglages enregistrés.');
       if (!next.onboardingCompleted || !next.settings) throw new Error('Les réglages enregistrés de votre entreprise doivent être accessibles pour continuer.');
       return next;
     });
@@ -5031,13 +5034,20 @@ export const desktopApi = {
     entity: EntityKind,
     id: string,
     data: T,
+    expectedWorkspaceScope?: string,
   ) {
     await invoke('update_record', {
       entity: entityToBackend[entity],
       id,
       data: toBackendData(data),
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
     });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    return refreshWorkspaceAfterMutation(async () => {
+      const next = await loadWorkspace();
+      if (expectedWorkspaceScope !== undefined && next.workNotesScope !== expectedWorkspaceScope)
+        throw new Error('L’espace de travail a changé pendant l’actualisation de la fiche enregistrée.');
+      return next;
+    });
   },
   async saveCatalogItem(id: string, data: CatalogData, expectedUpdatedAt?: string) {
     return runCatalogSave(id, data, () => expectedUpdatedAt !== undefined
@@ -6393,9 +6403,10 @@ export const desktopApi = {
   async shareExistingExport(path: string): Promise<void> {
     await shareMobileExport(path);
   },
-  async configureAccounting(settings: AccountingSettings) {
+  async configureAccounting(settings: AccountingSettings, expectedWorkspaceScope?: string) {
     return accountingConfigurationFromRaw(
       await invoke<unknown>('configure_accounting', {
+        ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
         input: {
           enabled: settings.enabled,
           ar_account_id: settings.arAccountId || null,

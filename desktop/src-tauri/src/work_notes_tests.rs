@@ -493,3 +493,72 @@ fn work_note_company_merge_carries_independent_edits_and_rejects_delete_edit_con
         .unwrap();
     assert!(tombstone);
 }
+
+#[test]
+fn work_note_active_project_link_blocks_empty_project_deletion_without_partial_changes() {
+    let (_dir, store) = fixture();
+    let project = store
+        .create_record("projects", json!({"name":"Observation terrain"}))
+        .unwrap();
+    let project_id = project["id"].as_str().unwrap();
+    let mut draft = note(None);
+    draft.project_id = Some(project_id.into());
+    let saved = store.save_work_note(draft).unwrap();
+    let before = clock(&store);
+    let refusal = store.delete_record("projects", project_id).unwrap_err();
+    assert!(refusal.to_string().contains("notes (1)"));
+    assert_eq!(clock(&store), before);
+    let workspace = store.get_interface_workspace().unwrap();
+    assert_eq!(workspace["work_notes"], json!([saved]));
+    assert!(workspace["projects"].as_array().unwrap().iter().any(|row| row["id"] == project_id));
+    assert!(store.verify_audit_log().is_ok());
+}
+
+#[test]
+fn work_note_explicit_project_unlink_allows_project_deletion_and_keeps_note_revision() {
+    let (_dir, store) = fixture();
+    let project = store.create_record("projects", json!({"name":"Mesures"})).unwrap();
+    let project_id = project["id"].as_str().unwrap();
+    let mut draft = note(None);
+    draft.project_id = Some(project_id.into());
+    let saved = store.save_work_note(draft).unwrap();
+    let mut unlink = update(&saved);
+    unlink.project_id = None;
+    let unlinked = store.save_work_note(unlink).unwrap();
+    assert_ne!(unlinked["updated_at"], saved["updated_at"]);
+    assert_eq!(unlinked["author_name"], saved["author_name"]);
+    assert_eq!(unlinked["body"], saved["body"]);
+    assert!(store.delete_record("projects", project_id).unwrap().deleted);
+    assert_eq!(store.get_interface_workspace().unwrap()["work_notes"], json!([unlinked]));
+    assert!(store.verify_audit_log().is_ok());
+}
+
+#[test]
+fn work_note_project_tombstone_does_not_block_deletion_or_resurrect_the_note() {
+    let (_dir, store) = fixture();
+    let project = store.create_record("projects", json!({"name":"Clôturé"})).unwrap();
+    let project_id = project["id"].as_str().unwrap();
+    let mut draft = note(None);
+    draft.project_id = Some(project_id.into());
+    let saved = store.save_work_note(draft).unwrap();
+    store.delete_work_note(saved["id"].as_str().unwrap(), saved["updated_at"].as_str()).unwrap();
+    assert!(store.delete_record("projects", project_id).unwrap().deleted);
+    assert_eq!(store.get_interface_workspace().unwrap()["work_notes"], json!([]));
+    let connection = store.connect().unwrap();
+    let tombstone: (Option<String>, String, Option<String>) = connection.query_row(
+        "SELECT project_id,body,deleted_at FROM work_notes WHERE id=?",
+        [saved["id"].as_str().unwrap()],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    ).unwrap();
+    assert!(tombstone.0.is_none());
+    assert_eq!(tombstone.1, saved["body"].as_str().unwrap());
+    assert!(tombstone.2.is_some());
+    let before = clock(&store);
+    let mut old_edit = update(&saved);
+    old_edit.project_id = None;
+    let refusal = store.save_work_note(old_edit).unwrap_err();
+    assert!(refusal.to_string().contains("supprimée"));
+    assert_eq!(clock(&store), before);
+    assert_eq!(store.get_interface_workspace().unwrap()["work_notes"], json!([]));
+    assert!(store.verify_audit_log().is_ok());
+}

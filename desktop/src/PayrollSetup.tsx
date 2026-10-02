@@ -22,6 +22,7 @@ import { Button, Field, submitForm } from './ui';
 import { centsFromInput, errorMessage } from './utils';
 import type { Account, AccountingSettings, Workspace } from './types';
 import type { PayrollHelpTarget } from './payrollHelp';
+import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import './payroll-simple.css';
 
 type Section = PayrollSetupSection;
@@ -73,6 +74,14 @@ export function PayrollSetup({
   returnToPreparation?: boolean;
 }) {
   useAppLanguage();
+  const lifetime = useRef({ active: true, generation: 0 });
+  useEffect(() => {
+    lifetime.current.active = true;
+    return () => {
+      lifetime.current.active = false;
+      lifetime.current.generation++;
+    };
+  }, []);
   const [section, setSection] = useState<Section>(
     payrollDestination(initial).section,
   );
@@ -93,10 +102,10 @@ export function PayrollSetup({
   const [advancedBusy, setAdvancedBusy] = useState(false);
   const disabled = busy || advancedBusy;
   function navigate(target: PayrollHelpTarget, selector?: string) {
-    if (disabled) return;
+    if (!isEditorCurrent() || currentEditor.current.disabled) return;
     fieldGuide.clear();
     if (['review', 'salary', 'period'].includes(target)) {
-      onClose();
+      currentEditor.current.onClose();
       return;
     }
     setSection(payrollDestination(target).section);
@@ -158,9 +167,29 @@ export function PayrollSetup({
     return () => {
       active = false;
     };
-  }, [section]);
+  }, [section, workspace.workNotesScope, employeeId, period]);
   // Capture the edited context once; re-read before mutation and reject changed records.
   const [original] = useState(() => structuredClone(workspace));
+  const editedIdentity = useRef({
+    scope: original.workNotesScope, employeeId, period, initial, initialSelector,
+  });
+  const currentEditor = useRef({
+    workspace, employeeId, period, initial, initialSelector, section, destination,
+    disabled, loadingAccounts, onSaved, onClose,
+  });
+  currentEditor.current = {
+    workspace, employeeId, period, initial, initialSelector, section, destination,
+    disabled, loadingAccounts, onSaved, onClose,
+  };
+  function isEditorCurrent(expectedSection = section, expectedDestination = destination) {
+    const identity = editedIdentity.current;
+    const current = currentEditor.current;
+    return lifetime.current.active && typeof identity.scope === 'string' && identity.scope.length > 0 &&
+      current.workspace.workNotesScope === identity.scope &&
+      current.employeeId === identity.employeeId && current.period === identity.period &&
+      current.initial === identity.initial && current.initialSelector === identity.initialSelector &&
+      current.section === expectedSection && current.destination === expectedDestination;
+  }
   const employee = original.employees.find((item) => item.id === employeeId);
   const settings = original.settings!;
   const year = Number(period.slice(0, 4));
@@ -225,7 +254,17 @@ export function PayrollSetup({
     area?.scrollIntoView({ block: 'start', behavior: 'instant' });
   }, [question, section, guided]);
   async function save(form: FormData) {
-    if (disabled || loadingAccounts || lock.current) return;
+    const origin = { ...editedIdentity.current, section, destination, generation: lifetime.current.generation };
+    const isCurrent = () => lifetime.current.generation === origin.generation &&
+      isEditorCurrent(origin.section, origin.destination);
+    const requireCurrent = () => {
+      if (!isCurrent()) throw new Error('Cette préparation de paie n’est plus ouverte dans son espace d’origine.');
+    };
+    const requireScope = (next: Workspace) => {
+      if (next.workNotesScope !== origin.scope)
+        throw new Error('L’espace de travail a changé. Rouvrez la préparation de paie dans l’entreprise concernée.');
+    };
+    if (!isCurrent() || currentEditor.current.disabled || currentEditor.current.loadingAccounts || lock.current) return;
     lock.current = true;
     setError('');
     setNotice('');
@@ -329,12 +368,16 @@ export function PayrollSetup({
       }
       const ok = await act(
         async () => {
+          requireCurrent();
           const fresh = await desktopApi.loadWorkspace();
+          requireCurrent();
+          requireScope(fresh);
           if (section === 'accounts') {
             const [choices, current] = await Promise.all([
               desktopApi.listAccounts(),
               desktopApi.getAccountingSettings(),
             ]);
+            requireCurrent();
             if (
               !accounting ||
               JSON.stringify(current) !== JSON.stringify(accounting)
@@ -357,8 +400,15 @@ export function PayrollSetup({
                 );
               next[name] = selected.id;
             }
-            await desktopApi.configureAccounting(next);
-            return desktopApi.loadWorkspace();
+            requireCurrent();
+            await desktopApi.configureAccounting(next, origin.scope);
+            return refreshWorkspaceAfterMutation(async () => {
+              requireCurrent();
+              const refreshed = await desktopApi.loadWorkspace();
+              requireCurrent();
+              requireScope(refreshed);
+              return refreshed;
+            });
           }
           if (section === 'insurance') {
             if (
@@ -394,7 +444,10 @@ export function PayrollSetup({
               JSON.stringify(payroll) !== JSON.stringify(fresh.settings.payroll)
             )
               payroll.fiduciaryValidated = false;
-            return desktopApi.saveSettings({ ...fresh.settings, payroll });
+            requireCurrent();
+            const refreshed = await desktopApi.saveSettings({ ...fresh.settings, payroll }, origin.scope);
+            requireCurrent();
+            return refreshed;
           }
           const current = fresh.employees.find(
             (item) => item.id === employeeId,
@@ -407,18 +460,23 @@ export function PayrollSetup({
             throw new Error(
               'La fiche collaborateur a changé. Revenez au salaire puis rouvrez le contrat pour retrouver les dernières informations.',
             );
-          return desktopApi.updateEntity('employees', employeeId, data);
+          requireCurrent();
+          const refreshed = await desktopApi.updateEntity('employees', employeeId, data, origin.scope);
+          requireCurrent();
+          return refreshed;
         },
         'Les informations de paie ont été enregistrées.',
         false,
-        (reason) =>
-          setError(errorMessage(reason, 'L’enregistrement n’a pas abouti.')),
+        (reason) => {
+          if (isCurrent()) setError(errorMessage(reason, 'L’enregistrement n’a pas abouti.'));
+        },
       );
-      if (ok) {
-        onSaved();
-        onClose();
+      if (ok && isCurrent()) {
+        currentEditor.current.onSaved();
+        if (isCurrent()) currentEditor.current.onClose();
       }
     } catch (reason) {
+      if (!isCurrent()) return;
       if (reason instanceof SmallSalaryFormError) {
         const names: Record<string, string> = {
           smallSalarySector: 'sector',
@@ -453,7 +511,7 @@ export function PayrollSetup({
           type="button"
           variant="ghost"
           disabled={disabled}
-          onClick={onClose}
+          onClick={() => { if (isEditorCurrent()) currentEditor.current.onClose(); }}
         >
           {returnToPreparation ? t("← Revenir à ma préparation") : t("← Revenir au salaire")}
         </Button>
@@ -471,6 +529,7 @@ export function PayrollSetup({
             aria-current={section === id ? 'step' : undefined}
             disabled={disabled}
             onClick={() => {
+              if (!isEditorCurrent()) return;
               navigate(id);
               setError('');
             }}
@@ -505,7 +564,7 @@ export function PayrollSetup({
             type="button"
             variant="secondary"
             disabled={disabled}
-            onClick={onClose}
+            onClick={() => { if (isEditorCurrent()) currentEditor.current.onClose(); }}
           >{t("Revenir à ma fiche de salaire")}</Button>
         </output>
       )}
@@ -515,6 +574,10 @@ export function PayrollSetup({
           section === 'contributions' || section === 'advanced-contributions'
         }
         onSubmit={(event) => {
+          if (!isEditorCurrent() || currentEditor.current.disabled || lock.current) {
+            event.preventDefault();
+            return;
+          }
           if (guided && question < questionCount - 1) {
             event.preventDefault();
             const area = event.currentTarget.querySelector<HTMLElement>(
@@ -1094,9 +1157,11 @@ export function PayrollSetup({
           guided={guided}
           onFix={navigate}
           onSaved={(definitionIds) => {
-            onSaved(definitionIds);
+            if (!isEditorCurrent()) return;
+            currentEditor.current.onSaved(definitionIds);
+            if (!isEditorCurrent()) return;
             if (guided) {
-              onClose();
+              currentEditor.current.onClose();
               return;
             }
             setNotice(
@@ -1108,8 +1173,8 @@ export function PayrollSetup({
       <div hidden={section !== 'advanced-contributions'}>
         {advancedOpened && (
           <PayrollContributionsPanel
-            onChanged={onSaved}
-            onBusyChange={setAdvancedBusy}
+            onChanged={() => { if (isEditorCurrent()) currentEditor.current.onSaved(); }}
+            onBusyChange={(next) => { if (isEditorCurrent()) setAdvancedBusy(next); }}
             onFix={navigate}
           />
         )}

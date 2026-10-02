@@ -51,25 +51,28 @@ fn app_version(app: &AppHandle) -> String {
 }
 
 #[tauri::command]
-pub fn save_work_note(
+pub async fn save_work_note(
     state: State<'_, LocalStore>,
     input: crate::work_notes::SaveWorkNoteInput,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.save_work_note(input).map_err(command_error)
+    let expected_workspace_scope = input.expected_workspace_scope.clone();
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.save_work_note(input).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
-pub fn delete_work_note(
+pub async fn delete_work_note(
     state: State<'_, LocalStore>,
     id: String,
     expected_updated_at: Option<String>,
     expected_workspace_scope: Option<String>,
 ) -> Result<DeleteResult, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.delete_work_note_scoped(&id, expected_updated_at.as_deref(), expected_workspace_scope.as_deref()).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope.clone(), move |store| {
+        require_write(store)?;
+        store.delete_work_note_scoped(&id, expected_updated_at.as_deref(), expected_workspace_scope.as_deref()).map_err(command_error)
+    }).await
 }
 
 fn require_write(state: &LocalStore) -> Result<(), String> {
@@ -321,17 +324,17 @@ pub fn create_record(
 }
 
 #[tauri::command]
-pub fn update_record(
+pub async fn update_record(
     state: State<'_, LocalStore>,
     entity: String,
     id: String,
     data: Value,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .update_record(&entity, &id, data)
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.update_record(&entity, &id, data).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
@@ -789,10 +792,11 @@ pub fn reclassify_supplier_invoice_expense(
 }
 
 #[tauri::command]
-pub fn update_settings(state: State<'_, LocalStore>, data: Value) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.update_settings(data).map_err(command_error)
+pub async fn update_settings(state: State<'_, LocalStore>, data: Value, expected_workspace_scope: Option<String>) -> Result<Value, String> {
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.update_settings(data).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
@@ -1106,13 +1110,15 @@ pub fn install_swiss_accounting_starter(state: State<'_, LocalStore>) -> Result<
         .map_err(command_error)
 }
 #[tauri::command]
-pub fn configure_accounting(
+pub async fn configure_accounting(
     state: State<'_, LocalStore>,
     input: AccountingSettingsInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.configure_accounting(input).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.configure_accounting(input).map_err(command_error)
+    }).await
 }
 #[tauri::command]
 pub fn list_accounting_periods(state: State<'_, LocalStore>) -> Result<Value, String> {

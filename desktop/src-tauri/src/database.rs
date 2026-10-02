@@ -5591,6 +5591,17 @@ fn ensure_project_empty_before_delete(
             linked.push(format!("{label} ({count})"));
         }
     }
+    // An active note is project data too. Letting its FK detach silently would
+    // change its project without advancing the note's optimistic revision.
+    // Tombstones are deliberately excluded: they cannot be edited or revived.
+    let notes: i64 = transaction.query_row(
+        "SELECT COUNT(*) FROM work_notes WHERE project_id=? AND deleted_at IS NULL",
+        params![project_id],
+        |row| row.get(0),
+    )?;
+    if notes > 0 {
+        linked.push(format!("notes ({notes})"));
+    }
     if linked.is_empty() {
         Ok(())
     } else {

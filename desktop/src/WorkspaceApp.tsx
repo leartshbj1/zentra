@@ -639,6 +639,11 @@ function WorkspaceContent({
   const recurrenceRequestIds = useRef(new Map<string, string>());
   const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
+  const actionLifetime = useRef(false);
+  useLayoutEffect(() => {
+    actionLifetime.current = true;
+    return () => { actionLifetime.current = false; };
+  }, []);
   const inboxOrganization = cloudAccount?.status === 'connected' ? cloudAccount.organizationId ?? null : null;
   const receptionScope = JSON.stringify([inboxOrganization, workspace.workNotesScope ?? null]);
   const inboxBlocked = () => actionInFlight.current || busy || !!modal || !!document.querySelector('[role="dialog"]');
@@ -1089,6 +1094,9 @@ function WorkspaceContent({
     onError?: (reason: unknown) => void,
     validateRead?: (workspace: Workspace) => void,
   ) {
+    const originWorkspaceScope = workspace.workNotesScope;
+    const isOriginWorkspace = () => actionLifetime.current && workspaceRef.current.workNotesScope === originWorkspaceScope;
+    if (!isOriginWorkspace()) return false;
     if (readOnly) {
       setNotice({
         tone: 'error',
@@ -1102,19 +1110,23 @@ function WorkspaceContent({
     setNotice(null);
     try {
       const nextWorkspace = await action();
+      if (!isOriginWorkspace()) return false;
       workspaceRef.current = nextWorkspace;
       setWorkspace(nextWorkspace);
       setNotice({ tone: 'success', text: message });
       if (close) setModal(null);
       return true;
     } catch (reason) {
+      if (!isOriginWorkspace()) return false;
       const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError || reason instanceof PaymentOutcomeUnknownError || reason instanceof SupplierPaymentOutcomeUnknownError || reason instanceof SupplierInvoiceValidationOutcomeUnknownError || reason instanceof CustomerSettlementOutcomeUnknownError ? reason : null;
       const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError || reason instanceof SupplierPaymentRefreshError || reason instanceof SupplierInvoiceValidationRefreshError || reason instanceof CustomerSettlementRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
+        if (!isOriginWorkspace()) return false;
         validateCreationRead(refreshedWorkspace);
       } catch (refreshCause) {
+        if (!isOriginWorkspace()) return false;
         refreshedWorkspace = null;
         // Hold the action until its outcome can be established. Recovery only
         // reads; it never resends the creation, even after a lost response.
@@ -1122,6 +1134,7 @@ function WorkspaceContent({
           refreshedWorkspace = await waitForRefresh(refreshCause, !!uncertainCreation, validateCreationRead);
         }
       }
+      if (!isOriginWorkspace()) return false;
       if (refreshedWorkspace) {
         workspaceRef.current = refreshedWorkspace;
         setWorkspace(refreshedWorkspace);
@@ -1140,7 +1153,7 @@ function WorkspaceContent({
       return false;
     } finally {
       actionInFlight.current = false;
-      setBusy(false);
+      if (isOriginWorkspace()) setBusy(false);
     }
   }
 
@@ -1486,6 +1499,7 @@ function WorkspaceContent({
         workspace.supplierInvoices.filter((row) => row.projectId === item.id)
           .length,
       ],
+      ['note', workspace.workNotes.filter((row) => row.projectId === item.id).length],
     ];
     const used = linked.filter(([, count]) => count > 0);
     if (workspace.activeTimer?.projectId === item.id)
