@@ -330,20 +330,16 @@ pub async fn supplier_inbox_request(
     data: Option<Value>,
 ) -> Result<Value, String> {
     let store = state.inner().clone();
+    let data = data.unwrap_or(Value::Null);
+    if data.is_null() {
+        return crate::account_cloud::bound_inbox_get(&store, PATH).await.map_err(command_error);
+    }
     let _account = store.account_protected_cache.operation_lock.lock().await;
     let session = project_sync_session(&store)
         .await
         .map_err(command_error)?
         .ok_or("Connectez votre compte dans les paramètres.")?;
     crate::automation::bound(&store, &session.organization_id).map_err(command_error)?;
-    let data = data.unwrap_or(Value::Null);
-    if data.is_null() {
-        let (_, bytes) = session
-            .request(Method::GET, PATH, &[], &[], None, false)
-            .await
-            .map_err(command_error)?;
-        return serde_json::from_slice(&bytes).map_err(|_| "La réception est indisponible.".into());
-    }
     let action = data["action"].as_str().unwrap_or("");
     if session.role == "read_only" && action != "document" {
         return Err("Votre rôle permet la consultation uniquement.".into());

@@ -111,7 +111,7 @@ struct PendingAuthorization {
     interval_seconds: u64,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct CloudSession {
     version: u8,
@@ -131,6 +131,93 @@ struct PendingExchange {
     installation_id: String,
     session: CloudSession,
     license_token: String,
+}
+
+// A private, in-memory admission stamp. None of its credentials, references or
+// workspace identity are serialized or written to the diagnostic journal.
+#[derive(PartialEq, Eq)]
+struct InboxReadStamp {
+    session: CloudSession,
+    references: [Option<Vec<u8>>; 3],
+    workspace_scope: String,
+}
+
+fn optional_account_reference(path: &Path) -> AppResult<Option<Vec<u8>>> {
+    match read_protected_reference(path) {
+        Ok(reference) => Ok(Some(reference)),
+        Err(AppError::Io(error)) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+// The caller holds account -> LocalStore in that order. A same-organization
+// restore still changes its private workspace scope. Pending/exchange reference
+// changes also matter when the previous active session remains on disk.
+fn inbox_read_stamp(store: &LocalStore) -> AppResult<InboxReadStamp> {
+    let session = read_session_secret(store)?.ok_or_else(|| {
+        AppError::Remote("Connectez votre compte dans les paramètres.".into())
+    })?;
+    if CloudAccountState::from_session(&session)?.status != "connected" {
+        return Err(AppError::Remote("Connectez votre compte dans les paramètres.".into()));
+    }
+    crate::automation::bound(store, &session.organization_id)?;
+    let workspace_scope = crate::work_notes::workspace_scope(&store.connect()?)?;
+    let references = [
+        optional_account_reference(&session_path(store))?,
+        optional_account_reference(&pending_path(store))?,
+        optional_account_reference(&exchange_path(store))?,
+    ];
+    Ok(InboxReadStamp { session, references, workspace_scope })
+}
+
+fn inbox_read_context_changed() -> AppError {
+    AppError::Validation("La connexion ou l’entreprise ouverte a changé. Rouvrez la réception.".into())
+}
+
+/// Only the two passive inbox lists use this path. Writes and document actions
+/// keep their existing guards; this helper never refreshes the account, retries
+/// a request, changes a license or turns an obsolete response into an empty list.
+pub(crate) async fn bound_inbox_get(store: &LocalStore, path: &'static str) -> AppResult<serde_json::Value> {
+    if ![crate::supplier_inbox::PATH, crate::appointment_inbox::PATH].contains(&path) {
+        return Err(AppError::Validation("Cette réception n’est pas disponible.".into()));
+    }
+    bound_inbox_get_with(store, |session| async move {
+        session.request(Method::GET, path, &[], &[], None, false).await
+    }).await
+}
+
+async fn bound_inbox_get_with<F, Fut>(store: &LocalStore, request: F) -> AppResult<serde_json::Value>
+where
+    F: FnOnce(ProjectSyncSession) -> Fut,
+    Fut: std::future::Future<Output = AppResult<(StatusCode, Vec<u8>)>>,
+{
+    let original = {
+        let _account = store.account_protected_cache.operation_lock.lock().await;
+        let owned = store.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let _local = owned.lock()?;
+            inbox_read_stamp(&owned)
+        }).await.map_err(|_| AppError::Remote("La réception est indisponible.".into()))??
+    };
+    let response = request(ProjectSyncSession {
+        organization_id: original.session.organization_id.clone(),
+        role: original.session.role.clone(),
+        token: original.session.session_token.clone(),
+    }).await;
+    // Neither shared lock survives the original network/header/body wait.
+    // Revalidate success AND failure before letting them reach the caller.
+    let _account = store.account_protected_cache.operation_lock.lock().await;
+    let owned = store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _local = owned.lock()?;
+        let current = inbox_read_stamp(&owned).map_err(|_| inbox_read_context_changed())?;
+        if current != original {
+            return Err(inbox_read_context_changed());
+        }
+        let (_, bytes) = response?;
+        serde_json::from_slice(&bytes)
+            .map_err(|_| AppError::Remote("La réception est indisponible.".into()))
+    }).await.map_err(|_| AppError::Remote("La réception est indisponible.".into()))?
 }
 
 #[derive(Clone, Debug, Default)]
@@ -1558,6 +1645,10 @@ pub(crate) async fn connect_live_qa_profile(store: &LocalStore, label: &str) -> 
 pub(crate) async fn disconnect_live_qa_profile(store: &LocalStore) -> AppResult<()> {
     disconnect(store).await
 }
+
+#[cfg(test)]
+#[path = "account_inbox_read_tests.rs"]
+mod inbox_read_tests;
 
 #[cfg(test)]
 mod tests {
