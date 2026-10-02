@@ -2,7 +2,7 @@
 //! payload, exception message, document, address or account-token fields.
 use std::{
     fs::{self, OpenOptions},
-    io::{ErrorKind, Read, Write},
+    io::{ErrorKind, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock},
 };
@@ -271,9 +271,41 @@ impl DiagnosticLog {
         }
     }
 
+    #[cfg(windows)]
+    fn reserve_rotation_files(&self) -> Result<[Option<fs::File>; MAX_FILES], DiagnosticError> {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        // CreateFile DELETE access fails before mutation when a reader omits
+        // FILE_SHARE_DELETE. Keeping these handles also prevents a later
+        // reader from introducing that incompatible sharing mode.
+        const DELETE_ACCESS: u32 = 0x0001_0000;
+        const SHARE_READ_WRITE_DELETE: u32 = 0x0000_0007;
+        let mut handles = std::array::from_fn(|_| None);
+        for (index, name) in FILE_NAMES.iter().enumerate() {
+            let path = self.0.directory.join(name);
+            if self.file_size(&path)?.is_some() {
+                handles[index] = Some(
+                    OpenOptions::new()
+                        .access_mode(DELETE_ACCESS)
+                        .share_mode(SHARE_READ_WRITE_DELETE)
+                        .open(path)
+                        .map_err(storage_error)?,
+                );
+            }
+        }
+        Ok(handles)
+    }
+
     fn rotate(&self) -> Result<(), DiagnosticError> {
+        #[cfg(windows)]
+        let mut rotation_handles = self.reserve_rotation_files()?;
         let oldest = self.0.directory.join(FILE_NAMES[2]);
         if self.file_size(&oldest)?.is_some() {
+            // Do not keep the removed destination delete-pending while the
+            // previous file is renamed to it. A new incompatible reader here
+            // can only refuse this first removal, before any file changes.
+            #[cfg(windows)]
+            drop(rotation_handles[2].take());
             fs::remove_file(&oldest).map_err(storage_error)?;
         }
         for index in (0..MAX_FILES - 1).rev() {
@@ -283,6 +315,8 @@ impl DiagnosticLog {
                     .map_err(storage_error)?;
             }
         }
+        #[cfg(windows)]
+        drop(rotation_handles);
         Ok(())
     }
 
@@ -317,9 +351,20 @@ impl DiagnosticLog {
         self.ensure_directory(&self.0.directory)?;
         let current = self.0.directory.join(FILE_NAMES[0]);
         let mut size = self.file_size(&current)?.unwrap_or(0);
+        let mut needs_separator = false;
+        if size > 0 {
+            // A prior partial write can leave an unterminated last record.
+            // Inspect only its final byte so a following complete record is
+            // never swallowed by the same invalid JSONL line on recovery.
+            let mut file = fs::File::open(&current).map_err(storage_error)?;
+            file.seek(SeekFrom::End(-1)).map_err(storage_error)?;
+            let mut last_byte = [0];
+            file.read_exact(&mut last_byte).map_err(storage_error)?;
+            needs_separator = last_byte[0] != b'\n';
+        }
         let mut open_file: Option<fs::File> = None;
         for line in lines {
-            if size + line.len() as u64 > self.0.max_file_bytes {
+            if size + u64::from(needs_separator) + line.len() as u64 > self.0.max_file_bytes {
                 // Windows cannot rename an open file. Close before rotation,
                 // otherwise reuse the same handle for the complete batch.
                 if let Some(mut file) = open_file.take() {
@@ -327,6 +372,7 @@ impl DiagnosticLog {
                 }
                 self.rotate()?;
                 size = 0;
+                needs_separator = false;
             }
             if open_file.is_none() {
                 let mut options = OpenOptions::new();
@@ -337,6 +383,15 @@ impl DiagnosticLog {
                     options.mode(0o600);
                 }
                 open_file = Some(options.open(&current).map_err(storage_error)?);
+            }
+            if needs_separator {
+                open_file
+                    .as_mut()
+                    .ok_or(DiagnosticError::StorageUnavailable)?
+                    .write_all(b"\n")
+                    .map_err(storage_error)?;
+                size += 1;
+                needs_separator = false;
             }
             open_file
                 .as_mut()
@@ -703,6 +758,14 @@ mod async_error_tests;
 #[cfg(test)]
 #[path = "diagnostics_summary_tests.rs"]
 mod summary_tests;
+
+#[cfg(all(test, windows))]
+#[path = "diagnostics_rotation_windows_tests.rs"]
+mod rotation_windows_tests;
+
+#[cfg(test)]
+#[path = "diagnostics_jsonl_recovery_tests.rs"]
+mod jsonl_recovery_tests;
 
 #[cfg(test)]
 mod tests {
