@@ -7,8 +7,9 @@ const uuid = () => globalThis.crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx
 const sessionId=uuid();
 const queue:DiagnosticEvent[]=[];
 const recent:DiagnosticEvent[]=[];
-const incidentObjects=new WeakMap<object,string>();
-const incidentStrings=new Map<string,string>();
+let incidentObjects=new WeakMap<object,string>();
+type StringIncident={sourceId:string;ambiguous:boolean;presentationId?:string};
+const incidentStrings=new Map<string,StringIncident>();
 let timer:ReturnType<typeof setTimeout>|undefined;
 let flight:Promise<void>|undefined;
 let suppressedUntil=0;
@@ -42,13 +43,26 @@ export function recordDiagnostic(input:Omit<DiagnosticEvent,'id'|'sessionId'|'ti
 function rememberIncident(error:unknown,id:string){
   if(error&&typeof error==='object')incidentObjects.set(error,id);
   const message=typeof error==='string'?error:error instanceof Error?error.message:undefined;
-  if(message!==undefined){incidentStrings.set(incidentKey(message),id);if(incidentStrings.size>40)incidentStrings.delete(incidentStrings.keys().next().value!);}
+  if(message!==undefined){
+    const key=incidentKey(message),previous=incidentStrings.get(key);
+    // Native rejections are often strings. Equal messages from different
+    // operations do not identify which failure an eventual UI message came from.
+    if(previous){if(previous.sourceId!==id)previous.ambiguous=true;}
+    else incidentStrings.set(key,{sourceId:id,ambiguous:false});
+    if(incidentStrings.size>40)incidentStrings.delete(incidentStrings.keys().next().value!);
+  }
 }
 function incidentKey(message:string){let hash=2166136261;for(let i=0;i<message.length;i++)hash=Math.imul(hash^message.charCodeAt(i),16777619);return `${message.length}:${hash>>>0}`;}
 export function resolveErrorIncident(error:unknown):{code:string}{
-  const previous=error&&typeof error==='object'?incidentObjects.get(error):typeof error==='string'?incidentStrings.get(incidentKey(error)):undefined;
-  if(previous)return {code:`ZT-${previous}`};
+  const objectId=error&&typeof error==='object'?incidentObjects.get(error):undefined;
+  if(objectId)return {code:`ZT-${objectId}`};
+  const association=typeof error==='string'?incidentStrings.get(incidentKey(error)):undefined;
+  if(association&&!association.ambiguous)return {code:`ZT-${association.sourceId}`};
+  if(association?.presentationId)return {code:`ZT-${association.presentationId}`};
   const id=recordDiagnostic({area:'error',operation:'client.present_error',phase:'failure',errorCode:classifyDiagnosticError(error)});
+  // A presentation incident honestly identifies the displayed error without
+  // pretending an ambiguous string identifies one of the source operations.
+  if(association){association.presentationId=id;return {code:`ZT-${id}`};}
   rememberIncident(error,id);return {code:`ZT-${id}`};
 }
 
@@ -94,6 +108,6 @@ export function installDiagnosticCapture(){
 export const diagnosticsApi={
   async summary(){await flushDiagnostics(true);return nativeInvoke<DiagnosticsSummary>('get_diagnostics_summary');},
   async export(){await flushDiagnostics(true);if(queue.length)throw new Error('Le diagnostic récent ne peut pas être conservé. Vérifiez le stockage de cet appareil puis réessayez l’export.');return nativeInvoke<string>('export_diagnostics');},
-  async clear(){await flushDiagnostics();await nativeInvoke('clear_diagnostics');queue.length=0;recent.length=0;incidentStrings.clear();},
+  async clear(){await flushDiagnostics();await nativeInvoke('clear_diagnostics');queue.length=0;recent.length=0;incidentObjects=new WeakMap<object,string>();incidentStrings.clear();},
 };
 export function recentDiagnosticEvents():readonly DiagnosticEvent[]{return recent.map(event=>({...event}));}

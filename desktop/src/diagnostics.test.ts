@@ -41,6 +41,49 @@ describe('safe diagnostics',()=>{
     expect(d.resolveErrorIncident(error).code).toBe(`ZT-${events[1].id}`);expect(d.resolveErrorIncident(error.message).code).toBe(`ZT-${events[1].id}`);
     expect(d.recentDiagnosticEvents()).toHaveLength(2);expect(JSON.stringify(events)).not.toMatch(/customer|example|password|secret/);
   });
+  it('does not associate equal strings from concurrent failures with either source arbitrarily',async()=>{
+    const d=await api(), reason='network failure for customer@example.ch password=secret';
+    let rejectQuote!:(reason:unknown)=>void,rejectInvoice!:(reason:unknown)=>void;
+    const quote=d.diagnosticOperation('command','save_quote',()=>new Promise<never>((_,reject)=>{rejectQuote=reject;})).catch(error=>error);
+    const invoice=d.diagnosticOperation('command','save_invoice',()=>new Promise<never>((_,reject)=>{rejectInvoice=reject;})).catch(error=>error);
+    rejectQuote(reason);expect(await quote).toBe(reason);
+    rejectInvoice(reason);expect(await invoice).toBe(reason);
+    const failures=d.recentDiagnosticEvents().filter(event=>event.phase==='failure');
+    expect(failures).toHaveLength(2);
+    expect(failures[0].id).not.toBe(failures[1].id);
+    const presented=d.resolveErrorIncident(reason).code;
+    expect(failures.map(event=>`ZT-${event.id}`)).not.toContain(presented);
+    expect(d.recentDiagnosticEvents().at(-1)).toMatchObject({operation:'client.present_error',phase:'failure',errorCode:'NETWORK'});
+    expect(presented).toBe(`ZT-${d.recentDiagnosticEvents().at(-1)?.id}`);
+    const count=d.recentDiagnosticEvents().length;
+    expect(d.resolveErrorIncident(reason).code).toBe(presented);
+    expect(d.resolveErrorIncident(reason).code).toBe(presented);
+    expect(d.recentDiagnosticEvents()).toHaveLength(count);
+    expect(JSON.stringify(d.recentDiagnosticEvents())).not.toMatch(/customer|example|password|secret/);
+  });
+  it('keeps object identities precise when their equal messages have an ambiguous association',async()=>{
+    const d=await api(), first=new Error('Failed to fetch'),second=new Error('Failed to fetch');
+    await expect(d.diagnosticOperation('command','save_quote',async()=>{throw first;})).rejects.toBe(first);
+    await expect(d.diagnosticOperation('command','save_invoice',async()=>{throw second;})).rejects.toBe(second);
+    const failures=d.recentDiagnosticEvents().filter(event=>event.phase==='failure');
+    expect(d.resolveErrorIncident(first).code).toBe(`ZT-${failures[0].id}`);
+    expect(d.resolveErrorIncident(second).code).toBe(`ZT-${failures[1].id}`);
+    const messageIncident=d.resolveErrorIncident(first.message).code;
+    expect(failures.map(event=>`ZT-${event.id}`)).not.toContain(messageIncident);
+    expect(d.resolveErrorIncident(second.message).code).toBe(messageIncident);
+    expect(d.resolveErrorIncident(first).code).toBe(`ZT-${failures[0].id}`);
+    expect(d.resolveErrorIncident(second).code).toBe(`ZT-${failures[1].id}`);
+    expect(d.recentDiagnosticEvents()).toHaveLength(5);
+  });
+  it('keeps a presentation reference stable if another matching failure arrives later',async()=>{
+    const d=await api(),reason='Failed to fetch';
+    for(const command of ['save_quote','save_invoice'])await expect(d.diagnosticOperation('command',command,async()=>{throw reason;})).rejects.toBe(reason);
+    const presented=d.resolveErrorIncident(reason).code;
+    await expect(d.diagnosticOperation('command','get_workspace',async()=>{throw reason;})).rejects.toBe(reason);
+    const count=d.recentDiagnosticEvents().length;
+    expect(d.resolveErrorIncident(reason).code).toBe(presented);
+    expect(d.recentDiagnosticEvents()).toHaveLength(count);
+  });
   it('ignores arbitrary payload fields and malformed operation names',async()=>{
     const d=await api();d.recordDiagnostic({area:'draft',operation:'form.capture',phase:'info',durationMs:Infinity,errorCode:'secret',payload:{password:'secret'}} as never);
     d.recordDiagnostic({area:'command',operation:'customer@example.ch',phase:'start'});
@@ -70,6 +113,25 @@ describe('safe diagnostics',()=>{
     invoke.mockImplementation(async(command:string)=>{if(command==='clear_diagnostics')throw new Error('disk');});
     await expect(d.diagnosticsApi.clear()).rejects.toThrow('disk');expect(d.recentDiagnosticEvents()).toHaveLength(1);
     invoke.mockResolvedValue(undefined);await d.diagnosticsApi.clear();expect(d.recentDiagnosticEvents()).toHaveLength(0);
+  });
+  it('resets object and string incident associations only after a successful native clear',async()=>{
+    vi.stubGlobal('window',{__TAURI_INTERNALS__:{}});const d=await api(),error=new Error('network failure');
+    invoke.mockResolvedValue(undefined);
+    await expect(d.diagnosticOperation('command','get_workspace',async()=>{throw error;})).rejects.toBe(error);
+    const original=d.resolveErrorIncident(error).code;
+    expect(d.resolveErrorIncident(error.message).code).toBe(original);
+    invoke.mockImplementation(async(command:string)=>{if(command==='clear_diagnostics')throw new Error('disk');});
+    await expect(d.diagnosticsApi.clear()).rejects.toThrow('disk');
+    expect(d.resolveErrorIncident(error).code).toBe(original);
+    expect(d.resolveErrorIncident(error.message).code).toBe(original);
+    expect(d.recentDiagnosticEvents()).toHaveLength(2);
+    invoke.mockResolvedValue(undefined);
+    await d.diagnosticsApi.clear();expect(d.recentDiagnosticEvents()).toHaveLength(0);
+    const renewed=d.resolveErrorIncident(error).code;
+    expect(renewed).not.toBe(original);
+    expect(d.resolveErrorIncident(error.message).code).toBe(renewed);
+    expect(d.recentDiagnosticEvents()).toHaveLength(1);
+    expect(d.recentDiagnosticEvents()[0]).toMatchObject({operation:'client.present_error',phase:'failure',errorCode:'NETWORK'});
   });
   it.each([['network timeout','NETWORK'],['401 unauthorized','SESSION'],['403 forbidden','PERMISSION'],['409 conflict','CONFLICT'],['Champ invalide','VALIDATION'],['sqlite locked','STORAGE'],['not found','NOT_FOUND'],['unknown failure','INTERNAL']])('categorises %s without retaining its text',async(message,code)=>{
     expect((await api()).classifyDiagnosticError(message)).toBe(code);
