@@ -33,6 +33,7 @@ vi.mock('./bridge', () => ({ desktopApi: { openDataFolder: api.openFolder } }));
 vi.mock('./mobileRuntime', () => ({ isMobileRuntime: () => api.mobile, shareMobileExport: api.share }));
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { Button } from './ui';
+import { ErrorGuidance } from './ErrorGuidance';
 import type { DiagnosticsSummary } from './diagnostics';
 
 const summary: DiagnosticsSummary = {
@@ -178,6 +179,25 @@ describe('diagnostic local et actions de récupération', () => {
     const tree = render(); click(tree, 'Partager le diagnostic'); await settle();
     expect(api.export).toHaveBeenCalledOnce();
     expect(api.share).toHaveBeenCalledTimes(2);
+    expect(textOf(render())).toContain('Diagnostic exporté.');
+  });
+
+  it.each([false, true])('garde l’export confirmé si seule la relecture échoue, mobile=%s', async mobile => {
+    api.mobile = mobile;
+    api.summary.mockResolvedValueOnce(summary).mockRejectedValueOnce(new Error('synthetic unrecognized failure'));
+    render(); await settle(); click(render(), 'Exporter le diagnostic'); await settle();
+    const tree = render();
+    const guidance = children(tree).find(element => element.type === ErrorGuidance);
+    expect(guidance).toBeDefined();
+    expect(guidance!.props).toMatchObject({ operation: 'read', fallback: 'Le journal ne peut pas être lu pour le moment.' });
+    expect(textOf(tree)).toContain('Diagnostic exporté.');
+    expect(api.export).toHaveBeenCalledOnce();
+    expect(api.share).toHaveBeenCalledTimes(mobile ? 1 : 0);
+    api.summary.mockResolvedValue(summary);
+    (guidance!.props as { onReload: () => void }).onReload(); await settle();
+    expect(api.summary).toHaveBeenCalledTimes(3);
+    expect(api.export).toHaveBeenCalledOnce();
+    expect(api.share).toHaveBeenCalledTimes(mobile ? 1 : 0);
     expect(textOf(render())).toContain('Diagnostic exporté.');
   });
 

@@ -26,7 +26,7 @@ export function DiagnosticsPanel(){
   async function action(kind:'export'|'clear'){
     if(flight.current||(kind==='clear'&&!confirm))return;flight.current=true;++revision.current;setBusy(true);setError(null);setNotice('');
     let recorded=false,created=false;
-    try{if(kind==='export'){const file=await diagnosticsApi.export();created=true;setPath(file);if(isMobileRuntime())await shareMobileExport(file);setNotice('exported');}else{await diagnosticsApi.clear();recorded=true;setConfirm(false);setPath('');setNotice('cleared');}setSummary(await diagnosticsApi.summary());}
+    try{if(kind==='export'){const file=await diagnosticsApi.export();created=true;setPath(file);if(isMobileRuntime())await shareMobileExport(file);recorded=true;setNotice('exported');}else{await diagnosticsApi.clear();recorded=true;setConfirm(false);setPath('');setNotice('cleared');}setSummary(await diagnosticsApi.summary());}
     catch(reason){setErrorContext({operation:recorded?'read':'mutation',fallbackKey:recorded?'failed':created?'shareFailed':kind==='export'?'exportFailed':'clearFailed'});setError(reason);}finally{flight.current=false;setBusy(false);}
   }
   async function copyReference(){try{if(!navigator.clipboard?.writeText)throw new Error('clipboard unavailable');await navigator.clipboard.writeText(incident);setNotice('copied');}catch{setNotice('copyFail');}}
