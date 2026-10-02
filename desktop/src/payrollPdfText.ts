@@ -2,6 +2,7 @@
 
 import { getDocument } from './pdfRuntime';
 import { normalizePayrollPdfTextItems } from './payrollPdfTextUtils';
+import { diagnosticOperation } from './diagnostics';
 
 
 export type PayrollPdfTextByPage = {
@@ -15,8 +16,9 @@ export async function extractPayrollPdfTextByPage(
   maxPages = 12,
 ): Promise<PayrollPdfTextByPage> {
   const loadingTask = getDocument({ data: source });
-  const pdfDocument = await loadingTask.promise;
+  let failed = false;
   try {
+    const pdfDocument = await loadingTask.promise;
     if (pdfDocument.numPages < 1) throw new Error('Le PDF ne contient aucune page lisible.');
     const pages: string[] = [];
     const limit = Math.min(pdfDocument.numPages, Math.max(1, maxPages));
@@ -31,7 +33,15 @@ export async function extractPayrollPdfTextByPage(
       page.cleanup();
     }
     return { pageCount: pdfDocument.numPages, pages };
+  } catch (reason) {
+    failed = true;
+    throw reason;
   } finally {
-    await loadingTask.destroy();
+    try {
+      await diagnosticOperation('app', 'pdf.text_cleanup', () => loadingTask.destroy());
+    } catch (reason) {
+      // A cleanup failure is traced, but must not replace the parsing failure.
+      if (!failed) throw reason;
+    }
   }
 }

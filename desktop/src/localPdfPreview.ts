@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import { getDocument } from './pdfRuntime';
+import { diagnosticOperation } from './diagnostics';
 
 export type LocalPdfPreview = { pages: string[]; pageCount: number };
 
@@ -8,27 +9,44 @@ export async function renderPdfPages(source: string | Uint8Array, maxPages = 3):
   const loadingTask = typeof source === 'string'
     ? getDocument({ url: source })
     : getDocument({ data: source });
-  const pdfDocument = await loadingTask.promise;
-  if (pdfDocument.numPages < 1) throw new Error('Le PDF ne contient aucune page lisible.');
-  const pageCount = pdfDocument.numPages;
-  const pages: string[] = [];
-  for (let pageNumber = 1; pageNumber <= Math.min(pdfDocument.numPages, Math.max(1, maxPages)); pageNumber += 1) {
-    const page = await pdfDocument.getPage(pageNumber);
-    const initial = page.getViewport({ scale: 1 });
-    const scale = Math.min(3, Math.max(1.4, 1800 / Math.max(initial.width, initial.height)));
-    const viewport = page.getViewport({ scale });
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    const context = canvas.getContext('2d', { alpha: false });
-    if (!context) throw new Error("L'aperçu local du PDF n'a pas pu être préparé.");
-    context.fillStyle = '#fff';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvas, canvasContext: context, viewport }).promise;
-    pages.push(canvas.toDataURL('image/jpeg', 0.94));
+  let failed = false;
+  try {
+    const pdfDocument = await loadingTask.promise;
+    if (pdfDocument.numPages < 1) throw new Error('Le PDF ne contient aucune page lisible.');
+    const pageCount = pdfDocument.numPages;
+    const pages: string[] = [];
+    for (let pageNumber = 1; pageNumber <= Math.min(pdfDocument.numPages, Math.max(1, maxPages)); pageNumber += 1) {
+      const page = await pdfDocument.getPage(pageNumber);
+      const initial = page.getViewport({ scale: 1 });
+      const scale = Math.min(3, Math.max(1.4, 1800 / Math.max(initial.width, initial.height)));
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      try {
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        const context = canvas.getContext('2d', { alpha: false });
+        if (!context) throw new Error("L'aperçu local du PDF n'a pas pu être préparé.");
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvas, canvasContext: context, viewport }).promise;
+        pages.push(canvas.toDataURL('image/jpeg', 0.94));
+      } finally {
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+    }
+    return { pages, pageCount };
+  } catch (reason) {
+    failed = true;
+    throw reason;
+  } finally {
+    try {
+      await diagnosticOperation('app', 'pdf.preview_cleanup', () => loadingTask.destroy());
+    } catch (reason) {
+      // A cleanup failure is traced, but must not replace the rendering failure.
+      if (!failed) throw reason;
+    }
   }
-  await pdfDocument.loadingTask.destroy();
-  return { pages, pageCount };
 }
 
 export async function prepareImageForAnalysis(source: string, maxDimension = 2000): Promise<string> {
