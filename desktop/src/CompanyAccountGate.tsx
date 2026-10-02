@@ -21,41 +21,59 @@ export function CompanyAccountGate({ account, workspace, createdFor, onWorkspace
   children: ReactNode;
 }) {
   useAppLanguage();
-  const organization = account?.status === 'connected' ? account.organizationId : undefined;
-  const [resolution, setResolution] = useState<CompanyAccountResolution | null>(null);
+  const workspaceKey = JSON.stringify([workspace.workNotesScope ?? null, workspace.onboardingCompleted]);
+  const [resolved, setResolved] = useState<{value: CompanyAccountResolution; workspaceKey: string} | null>(null);
+  const resolution = resolved?.workspaceKey === workspaceKey ? resolved.value : null;
+  // Subscription status does not undo admission of this exact local company.
+  // A different company or local scope still needs its own fresh resolution.
+  const organization = account?.status === 'connected' ? account.organizationId
+    : account?.status === 'inactive' && resolution && resolution.organizationId === account.organizationId && ['ready', 'create'].includes(resolution.status)
+      ? account.organizationId : undefined;
   const [failure, setFailure] = useState<{ organization: string; message: string } | null>(null);
   const error = failure && failure.organization === organization ? failure.message : '';
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
-  const current = useRef(organization); current.current = organization;
+  const requestKey = JSON.stringify([organization, workspaceKey]);
+  const current = useRef(requestKey); current.current = requestKey;
   const onWorkspaceRef = useRef(onWorkspace); onWorkspaceRef.current = onWorkspace;
   const epoch = useRef(0);
+  const admitted = useRef<string | null>(null);
   async function run(choice: CompanyAccountChoice) {
     if (!organization) return;
     const attempt = ++epoch.current;
     setBusy(true); setFailure(null);
     try {
       const result = await resolve(organization, choice);
-      if (attempt !== epoch.current || current.current !== organization) return;
+      if (attempt !== epoch.current || current.current !== requestKey) return;
       if (result.organizationId !== organization) throw new Error(t('Le compte a changé. Recommencez la connexion.'));
+      let nextWorkspaceKey = workspaceKey;
+      let receivedWorkspace: Workspace | undefined;
       if (result.changed) {
         const next = await desktopApi.loadWorkspace();
-        if (attempt !== epoch.current || current.current !== organization) return;
-        onWorkspaceRef.current(next);
+        if (attempt !== epoch.current || current.current !== requestKey) return;
+        nextWorkspaceKey = JSON.stringify([next.workNotesScope ?? null, next.onboardingCompleted]);
+        receivedWorkspace = next;
+      }
+      admitted.current = ['ready', 'create'].includes(result.status) ? JSON.stringify([organization, nextWorkspaceKey, createdFor, retry]) : null;
+      setResolved({value: result, workspaceKey: nextWorkspaceKey});
+      if (receivedWorkspace) {
+        onWorkspaceRef.current(receivedWorkspace);
         window.dispatchEvent(new Event('zentra-project-documents-changed'));
       }
-      setResolution(result);
     } catch (reason) {
-      if (attempt === epoch.current && current.current === organization) {
+      if (attempt === epoch.current && current.current === requestKey) {
         setFailure({ organization, message: errorMessage(reason, 'Votre entreprise n’a pas pu être récupérée. Vos données sont conservées.') });
       }
     } finally { if (attempt === epoch.current) setBusy(false); }
   }
   useEffect(() => {
-    setResolution(null);
+    // A received workspace is published by run() itself; it is already admitted.
+    if (resolution && ['ready', 'create'].includes(resolution.status) && admitted.current === JSON.stringify([organization, workspaceKey, createdFor, retry])) return;
+    admitted.current = null;
+    setResolved(null);
     if (organization) void run(createdFor === organization ? 'publish' : 'auto');
     return () => { ++epoch.current; };
-  }, [organization, workspace.onboardingCompleted, createdFor, retry]);
+  }, [organization, workspaceKey, createdFor, retry]);
   useEffect(() => {
     if (!organization || (!error && resolution?.status !== 'waiting')) return;
     const retryConnection = () => setRetry(value => value + 1);

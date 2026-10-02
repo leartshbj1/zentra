@@ -3,11 +3,13 @@ import { useAppLanguage } from './language';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   lazy,
   Suspense,
   type FormEvent,
+  type ReactNode,
 } from 'react';
 import {
   Copy,
@@ -43,8 +45,24 @@ import { FormDraftIdentityProvider } from './useFormDraft';
 import { recordDiagnostic, classifyDiagnosticError } from './diagnostics';
 import { ErrorGuidance } from './ErrorGuidance';
 
+const FORM_DRAFT_IDENTITY_TIMEOUT_MS = 15_000;
+const draftIdentityMessages = {
+  fr: { loading: 'Vérification de votre compte sur cet appareil…', failure: 'Votre compte ne peut pas être vérifié sur cet appareil. Vos données sont conservées.', timeout: 'Cette vérification prend trop de temps. Vos données sont conservées.', scope: 'Votre espace local n’a pas pu être identifié. Vos données sont conservées.', retry: 'Réessayer la vérification' },
+  de: { loading: 'Ihr Konto wird auf diesem Gerät geprüft…', failure: 'Ihr Konto kann auf diesem Gerät nicht geprüft werden. Ihre Daten bleiben erhalten.', timeout: 'Diese Prüfung dauert zu lange. Ihre Daten bleiben erhalten.', scope: 'Ihr lokaler Arbeitsbereich konnte nicht identifiziert werden. Ihre Daten bleiben erhalten.', retry: 'Prüfung erneut versuchen' },
+  it: { loading: 'Verifica del tuo account su questo dispositivo…', failure: 'Non è possibile verificare il tuo account su questo dispositivo. I tuoi dati sono conservati.', timeout: 'Questa verifica richiede troppo tempo. I tuoi dati sono conservati.', scope: 'Non è stato possibile identificare il tuo spazio locale. I tuoi dati sono conservati.', retry: 'Riprova la verifica' },
+  en: { loading: 'Checking your account on this device…', failure: 'Your account cannot be verified on this device. Your data is preserved.', timeout: 'This check is taking too long. Your data is preserved.', scope: 'Your local workspace could not be identified. Your data is preserved.', retry: 'Retry account check' },
+};
+
+type DraftCompanyAdmission = {key:string;epoch:number};
+function DraftCompanyAdmissionMarker({identityKey,epoch,onAdmission,children}:{identityKey:string;epoch:number;onAdmission:(value:DraftCompanyAdmission)=>void;children:ReactNode}) {
+  // This child mounts only after the company gate has finished binding or
+  // receiving its workspace. Do not start a local identity deadline before it.
+  useLayoutEffect(() => { onAdmission({key:identityKey,epoch}); }, [identityKey,epoch,onAdmission]);
+  return <>{children}</>;
+}
+
 export function App() {
-  useAppLanguage();
+  const language = useAppLanguage();
   useMobileLayout();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [license, setLicense] = useState<LicenseState | null>(null);
@@ -56,7 +74,13 @@ export function App() {
   const [createdFor, setCreatedFor] = useState<string | null>(null);
   const [draftIdentity, setDraftIdentity] = useState<{key:string; memberId?:string}>({key:''});
   const [draftIdentityRevision, setDraftIdentityRevision] = useState(0);
-  const draftIdentityKey = `${workspace?.workNotesScope || ''}:${cloudAccount?.status || ''}:${cloudAccount?.organizationId || ''}`;
+  const [companyAdmission, setCompanyAdmission] = useState<DraftCompanyAdmission | null>(null);
+  const [draftIdentityFailure, setDraftIdentityFailure] = useState<{key:string; reason:'failure'|'timeout'|'scope'} | null>(null);
+  const cloudDraftIdentity = cloudAccount?.status === 'connected' || cloudAccount?.status === 'inactive';
+  const draftOrganizationId = cloudDraftIdentity ? cloudAccount?.organizationId || '' : '';
+  // Access status can change without changing the owner of the local drafts.
+  const draftIdentityKey = JSON.stringify([workspace?.workNotesScope || '', draftOrganizationId, cloudDraftIdentity ? 'cloud' : 'local']);
+  const draftIdentityReady = Boolean(workspace?.workNotesScope) && draftIdentity.key === draftIdentityKey && Boolean(draftIdentity.memberId);
   const openingAttempt = useRef(0);
   const automaticRefreshStarted = useRef(false);
   const accountEpoch = useRef(0);
@@ -115,22 +139,44 @@ export function App() {
 
   useEffect(() => {
     let active = true;
-    if (!workspace) return;
-    if (cloudAccount?.status !== 'connected' && cloudAccount?.status !== 'inactive') {
+    if (!workspace || companyAdmission?.key !== draftIdentityKey || companyAdmission.epoch !== accountEpoch.current) return;
+    setDraftIdentityFailure(null);
+    if (!workspace.workNotesScope) {
+      setDraftIdentity({key:draftIdentityKey});
+      setDraftIdentityFailure({key:draftIdentityKey,reason:'scope'});
+      recordDiagnostic({area:'draft',operation:'identity.scope',phase:'failure',errorCode:'STORAGE'});
+      return;
+    }
+    if (!cloudDraftIdentity) {
       setDraftIdentity({key:draftIdentityKey,memberId:'local-user'});
       return;
     }
-    // Local SQLite identity only: no server request or account opening delay.
-    void desktopApi.getFormDraftIdentity().then(identity => {
-      if (active) setDraftIdentity({key:draftIdentityKey,memberId:identity.memberId});
-    }, () => {
+    const epoch = accountEpoch.current;
+    const started = performance.now();
+    const incident = recordDiagnostic({area:'draft',operation:'identity.read',phase:'start'});
+    const failed = (reason: 'failure'|'timeout') => {
+      if (!active || epoch !== accountEpoch.current) return;
+      active = false;
+      clearTimeout(timer);
       // A transient local read error for the same account must not close a form.
-      // Explicit account changes already invalidate the previous identity above.
-      if (active) setDraftIdentity(previous=>previous.key===draftIdentityKey?previous:{key:draftIdentityKey});
-      recordDiagnostic({area:'draft',operation:'identity.read',phase:'failure',errorCode:'STORAGE'});
-    });
-    return () => { active = false; };
-  }, [draftIdentityKey, draftIdentityRevision]);
+      // Explicit account changes synchronously invalidate the previous identity.
+      setDraftIdentity(previous=>previous.key===draftIdentityKey?previous:{key:draftIdentityKey});
+      setDraftIdentityFailure({key:draftIdentityKey,reason});
+      recordDiagnostic({id:incident,area:'draft',operation:'identity.read',phase:'failure',durationMs:performance.now()-started,errorCode:'STORAGE'});
+    };
+    const timer = window.setTimeout(() => failed('timeout'), FORM_DRAFT_IDENTITY_TIMEOUT_MS);
+    // This trusted member id comes from protected local storage, never a server
+    // request or editable account metadata. Only the initial admission waits.
+    void Promise.resolve().then(() => desktopApi.getFormDraftIdentity()).then(identity => {
+      if (!active || epoch !== accountEpoch.current) return;
+      if (!identity.memberId?.trim()) { failed('failure'); return; }
+      active = false;
+      clearTimeout(timer);
+      setDraftIdentity({key:draftIdentityKey,memberId:identity.memberId});
+      recordDiagnostic({id:incident,area:'draft',operation:'identity.read',phase:'success',durationMs:performance.now()-started});
+    }, () => failed('failure'));
+    return () => { if (active) recordDiagnostic({id:incident,area:'draft',operation:'identity.read',phase:'info',durationMs:performance.now()-started}); active = false; clearTimeout(timer); };
+  }, [Boolean(workspace), draftIdentityKey, draftIdentityRevision, companyAdmission?.key, companyAdmission?.epoch]);
 
   useEffect(() => {
     void load();
@@ -172,7 +218,7 @@ export function App() {
     (next: CloudAccountState, reason?: 'verified' | 'linked' | 'disconnected') => {
       const epoch = ++accountEpoch.current;
       cloudAccessRevalidator.current!.invalidate();
-      if (reason !== 'verified') setDraftIdentity({key:''});
+      if (reason !== 'verified') { setDraftIdentity({key:''}); setDraftIdentityFailure(null); }
       setDraftIdentityRevision(value=>value+1);
       setCloudAccount(next);
       if (cloudAccountChangeNeedsLicenseRefresh(next)) {
@@ -253,24 +299,33 @@ export function App() {
       /></Suspense>
     ) : workspace.activityProfileRequired || activityProfileMissing ? (
       <BusinessProfileGate workspace={workspace} onSaved={setWorkspace} />
+    ) : !draftIdentityReady ? (
+      <main className="splash-screen" aria-busy={draftIdentityFailure?.key !== draftIdentityKey}>
+        <BrandMark size={58} />
+        <h1>Zentra</h1>
+        {draftIdentityFailure?.key === draftIdentityKey ? <>
+          <ErrorPanel title={t('Espace indisponible')} message={draftIdentityMessages[language][draftIdentityFailure.reason]} fallback={draftIdentityMessages[language][draftIdentityFailure.reason]} operation="read" />
+          <Button autoFocus onClick={() => { if (!workspace.workNotesScope) { void load(); return; } setDraftIdentityFailure(null); setDraftIdentityRevision(value=>value+1); }}>{draftIdentityMessages[language].retry}</Button>
+        </> : <><p role="status">{draftIdentityMessages[language].loading}</p><LoaderCircle className="spin" size={22} aria-hidden="true" /></>}
+      </main>
     ) : (
-      <Suspense fallback={<main className="splash-screen"><LoaderCircle className="spin" size={24} /><p>{t("Ouverture de votre espace…")}</p></main>}><WorkspaceApp
+      <Suspense fallback={<main className="splash-screen"><LoaderCircle className="spin" size={24} /><p>{t("Ouverture de votre espace…")}</p></main>}><FormDraftIdentityProvider key={`${draftIdentityKey}:${draftIdentity.memberId}`} companyId={workspace.workNotesScope} organizationId={draftOrganizationId || undefined} memberId={draftIdentity.memberId} ready><WorkspaceApp
         workspace={workspace}
         setWorkspace={setWorkspace}
         readOnly={Boolean(license?.readOnly || cloudRoleReadOnly)}
         readOnlySource={cloudRoleReadOnly ? 'cloud' : 'license'}
         cloudAccount={cloudAccount}
         onCloudAccountChange={handleCloudAccountChange}
-      /></Suspense>
+      /></FormDraftIdentityProvider></Suspense>
     );
 
   const licenseNeedsAttention = Boolean(license && license.status !== 'valid');
 
   return (
     <>
-      <FormDraftIdentityProvider key={`${draftIdentityKey}:${draftIdentity.memberId || 'pending'}`} companyId={workspace.workNotesScope} organizationId={cloudAccount && ['connected','inactive'].includes(cloudAccount.status) ? cloudAccount.organizationId || undefined : undefined} memberId={draftIdentity.memberId} ready={draftIdentity.key === draftIdentityKey && Boolean(draftIdentity.memberId)}>
-        <CompanyAccountGate account={cloudAccount} workspace={workspace} createdFor={createdFor} onWorkspace={setWorkspace} onAccountChange={handleCloudAccountChange}>{content}</CompanyAccountGate>
-      </FormDraftIdentityProvider>
+      <CompanyAccountGate account={cloudAccount} workspace={workspace} createdFor={createdFor} onWorkspace={setWorkspace} onAccountChange={handleCloudAccountChange}>
+        <DraftCompanyAdmissionMarker identityKey={draftIdentityKey} epoch={accountEpoch.current} onAdmission={setCompanyAdmission}>{content}</DraftCompanyAdmissionMarker>
+      </CompanyAccountGate>
       {!workspaceReady ? <StandaloneUpdaterAccess /> : null}
       {license && licenseNeedsAttention && workspace.onboardingCompleted && workspace.settings ? (
         <LicenseActivation

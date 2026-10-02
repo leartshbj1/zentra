@@ -36,7 +36,7 @@ import { installProjectCostFixture } from './project-cost-fixture';
 import { installExpenseRefundFixture } from './expense-refund-fixture';
 import { installReadOnlyFixture } from './read-only-fixture';
 // Development-only UI fixture. This entry is excluded from the production Vite build.
-import { Profiler, Suspense, lazy, useEffect, useState } from 'react';
+import { Profiler, StrictMode, Suspense, lazy, useEffect, useState } from 'react';
 import { openAutomationHub } from '../src/automationExperience';
 import { setAppearance } from '../src/appearance';
 import { initializeAppLanguage, setAppLanguage, t } from '../src/language';
@@ -64,6 +64,7 @@ import { installRecurrenceFixture } from './recurrence-fixture';
 import { DevelopmentNotice } from '../src/DevelopmentNotice';
 import { App, StandaloneUpdaterAccess } from '../src/App';
 import { installStartupPerformanceFixture } from './startup-performance-fixture';
+import { installAppDraftIdentityFixture } from './app-draft-identity-fixture';
 import { installUpdaterFixture } from './updater-fixture';
 import { installCreditSettlementFixture } from './credit-settlement-fixture';
 import { installContactFolderFixture } from './contact-folder-fixture';
@@ -269,6 +270,7 @@ if (new URLSearchParams(location.search).has('customerSettlementGuided')) instal
 if (new URLSearchParams(location.search).has('companyRealtime')) installCompanyRealtimeFixture(data, productionCompanySynchronize);
 if (new URLSearchParams(location.search).has('automation')) installAutomationCompanyFixture(data);
 if (previewQuery.has('startupPerformance')) installStartupPerformanceFixture();
+if (previewQuery.has('appDraftIdentity')) installAppDraftIdentityFixture(data);
 if (previewQuery.has('emptyScreens')) data.clients = [];
 function Harness() {
   useEffect(() => { if (previewQuery.has('automationDesign')) openAutomationHub(); }, []);
@@ -321,9 +323,9 @@ function Harness() {
 if (previewQuery.has('runtimePerformance')) data.activeTimer = { projectId: data.projects[0]?.id ?? '', taskId: null, employeeId: '', startedAt: new Date(Date.now()-60_000).toISOString(), note: '', billable: false, billingRateCents: 0, hourlyCostCents: 0 };
 const runtimeCommits: {phase:string;duration:number;time:number}[] = [];
 if (previewQuery.has('runtimePerformance')) Object.assign(window, { __runtimeCommits: runtimeCommits });
-const application = <ZentraAssistantProvider>{previewQuery.has('startupPerformance') ? <App/> : <Harness />}</ZentraAssistantProvider>;
+const application = <ZentraAssistantProvider>{previewQuery.has('startupPerformance') || previewQuery.has('appDraftIdentity') ? <App/> : <Harness />}</ZentraAssistantProvider>;
 const scopedApplication = previewQuery.has('formDrafts') ? <FormDraftIdentityProvider companyId="qa-native-form-company" memberId="qa-native-form-member" ready>{application}</FormDraftIdentityProvider> : application;
-createRoot(document.getElementById('root')!).render(previewQuery.has('runtimePerformance') ? <Profiler id="workspace" onRender={(_,phase,duration,__,time)=>runtimeCommits.push({phase,duration,time})}>{scopedApplication}</Profiler> : scopedApplication);
+createRoot(document.getElementById('root')!).render(previewQuery.has('appDraftIdentity') ? <StrictMode>{scopedApplication}</StrictMode> : previewQuery.has('runtimePerformance') ? <Profiler id="workspace" onRender={(_,phase,duration,__,time)=>runtimeCommits.push({phase,duration,time})}>{scopedApplication}</Profiler> : scopedApplication);
 
 import '../src/appearance';
 import '../src/dark.generated.css';
