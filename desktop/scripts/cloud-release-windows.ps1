@@ -60,6 +60,8 @@ try {
         $diagnosticNativeSuites += @('outgoing_mail::')
         $diagnosticFrontendSuites += @('src/payrollPdfText.test.ts', 'src/localPdfPreview.test.ts', 'src/DocumentPreviewFrame.test.tsx')
         $diagnosticMobileSuites += @('src/payrollPdfText.test.ts', 'src/localPdfPreview.test.ts', 'src/DocumentPreviewFrame.test.tsx')
+        $diagnosticFrontendSuites += @('src/workNotes.test.ts', 'src/workNotesBridge.test.ts', 'src/FixedAssetsPanel.test.tsx')
+        $diagnosticMobileSuites += @('src/workNotes.test.ts', 'src/workNotesBridge.test.ts', 'src/FixedAssetsPanel.test.tsx')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

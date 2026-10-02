@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkNote, WorkNoteDraft } from './types';
 import { filterWorkNotes, noteChecklist, notePreview, noteTitle, persistNoteDrafts, readNoteDrafts, sortWorkNotes, toggleNoteChecklist, WorkNotesStore } from './workNotes';
+import { recentDiagnosticEvents } from './diagnostics';
 
 const originalTime = '2026-09-30T08:00:00.000Z';
 const savedTime = '2026-09-30T08:01:00.000Z';
@@ -222,6 +223,166 @@ describe('work note autosave and recovery', () => {
     expect(deps.save).not.toHaveBeenCalled();
     expect(store.getSnapshot()).toEqual([]);
     expect(deps.persist).toHaveBeenLastCalledWith([]);
+  });
+
+  it('keeps an erased new draft while its first save is pending and then saves the empty update', async () => {
+    const first = deferred<WorkNote>(), second = deferred<WorkNote>();
+    const save = vi.fn<(draft: WorkNoteDraft) => Promise<WorkNote>>()
+      .mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const { store, deps } = setup({ save });
+    const id = store.create();
+    store.edit(id, { title: 'À effacer', body: 'Texte avant effacement' });
+    const saving = store.flush(id);
+    store.edit(id, { title: '', body: '' });
+    // Exact editor-close order: flush is started without awaiting it.
+    const closing = store.flush(id);
+    store.discardBlank(id);
+    expect(store.getSnapshot()).toHaveLength(1);
+    expect(deps.persist).toHaveBeenLastCalledWith([{ note: expect.objectContaining({ id, title: '', body: '' }), baseline: null }]);
+
+    first.resolve(result(save.mock.calls[0][0]));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save.mock.calls[1][0]).toMatchObject({ id, title: '', body: '', expectedUpdatedAt: savedTime });
+    store.merge([result(save.mock.calls[0][0])]);
+    expect(store.getSnapshot()[0]).toMatchObject({ state: 'saving', note: { title: '', body: '' } });
+    second.resolve(result(save.mock.calls[1][0], finalTime));
+    expect(await Promise.all([saving, closing])).toEqual([true, true]);
+    expect(store.getSnapshot()[0]).toMatchObject({ state: 'saved', note: { id, title: '', body: '', updatedAt: finalTime } });
+    expect(deps.remove).not.toHaveBeenCalled();
+    expect(deps.persist).toHaveBeenLastCalledWith([]);
+  });
+
+  it('retains an erased new draft when the first pending save fails after the editor closes', async () => {
+    const pending = deferred<WorkNote>();
+    const save = vi.fn((_draft: WorkNoteDraft) => pending.promise);
+    const { store, deps } = setup({ save });
+    const id = store.create();
+    store.edit(id, { title: 'À effacer', body: 'Texte avant effacement' });
+    const saving = store.flush(id);
+    store.edit(id, { title: '', body: '' });
+    const closing = store.flush(id);
+    store.discardBlank(id);
+    pending.reject(new Error('Résultat de l’écriture non confirmé'));
+    expect(await Promise.all([saving, closing])).toEqual([false, false]);
+    expect(store.getSnapshot()[0]).toMatchObject({ state: 'error', note: { id, title: '', body: '' } });
+    expect(deps.persist).toHaveBeenLastCalledWith([{ note: expect.objectContaining({ id, title: '', body: '' }), baseline: null }]);
+    // A fresh read cannot override this unresolved edit with the older text.
+    store.merge([result(save.mock.calls[0][0])]);
+    expect(store.getSnapshot()[0]).toMatchObject({ state: 'error', note: { title: '', body: '' } });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(deps.saved).not.toHaveBeenCalled();
+  });
+
+  it('does not discard or retry an empty new draft after a completed first-save refusal', async () => {
+    const save = vi.fn(async (draft: WorkNoteDraft) => result(draft)).mockRejectedValueOnce(new Error('Résultat non confirmé'));
+    const { store, deps } = setup({ save });
+    const id = store.create();
+    store.edit(id, { body: 'Texte avant effacement' });
+    expect(await store.flush(id)).toBe(false);
+    store.edit(id, { title: '', body: '' });
+    const closing = store.flush(id);
+    store.discardBlank(id);
+    expect(await closing).toBe(false);
+    expect(store.getSnapshot()[0]).toMatchObject({ state: 'error', note: { id, title: '', body: '' } });
+    await expect(store.remove(id)).rejects.toThrow('Enregistrez');
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(deps.remove).not.toHaveBeenCalled();
+    expect(deps.removed).not.toHaveBeenCalled();
+  });
+
+  it('round-trips an empty unconfirmed draft without new metadata or an automatic write on recovery', async () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => { storage.set(key, value); },
+      removeItem: (key: string) => { storage.delete(key); } });
+    const scope = 'workspace-empty-unconfirmed';
+    const persist = (drafts: DraftRecord[]) => persistNoteDrafts(scope, drafts);
+    const { store } = setup({ save: vi.fn(async () => { throw new Error('Résultat non confirmé'); }), persist });
+    const id = store.create();
+    store.edit(id, { body: 'Texte avant effacement' });
+    expect(await store.flush(id)).toBe(false);
+    store.edit(id, { body: '' });
+    const closing = store.flush(id);
+    store.discardBlank(id);
+    expect(await closing).toBe(false);
+    const drafts = readNoteDrafts(scope);
+    expect(drafts).toHaveLength(1);
+    expect(Object.keys(drafts[0]).sort()).toEqual(['baseline', 'note']);
+    expect(drafts[0]).toMatchObject({ note: { id, body: '' }, baseline: null });
+    store.stop();
+
+    const recovered = setup({ persist });
+    recovered.store.restore(drafts);
+    await vi.advanceTimersByTimeAsync(650);
+    recovered.store.discardBlank(id);
+    expect(recovered.deps.save).not.toHaveBeenCalled();
+    expect(recovered.store.getSnapshot()[0]).toMatchObject({ state: 'error', note: { id, body: '' } });
+    expect(readNoteDrafts(scope)).toEqual(drafts);
+  });
+
+  it('traces each unconfirmed empty draft transition once through the real logger without private values or another write', async () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => { storage.set(key, value); },
+      removeItem: (key: string) => { storage.delete(key); } });
+    const before = recentDiagnosticEvents().length;
+    const scope = 'PRIVATE_WORKSPACE_SCOPE';
+    const privateTitle = 'PRIVATE_NOTE_TITLE', privateBody = 'customer@example.invalid document=PRIVATE_DOCUMENT';
+    const rawFailure = 'password=PRIVATE_PASSWORD token=PRIVATE_TOKEN';
+    const persist = (drafts: DraftRecord[]) => persistNoteDrafts(scope, drafts);
+    const { store, deps } = setup({ save: vi.fn(async () => { throw new Error(rawFailure); }), persist });
+    const id = store.create();
+    store.edit(id, { title: privateTitle, body: privateBody });
+    expect(await store.flush(id)).toBe(false);
+    store.edit(id, { title: '', body: '' });
+    expect(await store.flush(id)).toBe(false);
+    const firstEvents = recentDiagnosticEvents().slice(before);
+    expect(firstEvents).toHaveLength(1);
+    for (let retry = 0; retry < 3; retry++) expect(await store.flush(id)).toBe(false);
+    await expect(store.remove(id)).rejects.toThrow('Enregistrez');
+    expect(recentDiagnosticEvents().slice(before)).toEqual(firstEvents);
+    expect(deps.save).toHaveBeenCalledTimes(1);
+    expect(deps.remove).not.toHaveBeenCalled();
+    store.stop();
+
+    const recovered = setup({ persist });
+    recovered.store.restore(readNoteDrafts(scope));
+    await vi.advanceTimersByTimeAsync(650);
+    expect(await recovered.store.flush(id)).toBe(false);
+    expect(await recovered.store.flush(id)).toBe(false);
+    expect(recovered.deps.save).not.toHaveBeenCalled();
+    const events = recentDiagnosticEvents().slice(before);
+    expect(events).toHaveLength(2);
+    for (const event of events) {
+      expect(event).toMatchObject({ area: 'app', operation: 'notes.unconfirmed_blank', phase: 'failure', errorCode: 'CONFLICT' });
+      expect(Object.keys(event).sort()).toEqual(['area', 'errorCode', 'id', 'operation', 'phase', 'sessionId', 'timestamp']);
+    }
+    for (const value of [id, scope, privateTitle, privateBody, rawFailure, 'PRIVATE_DOCUMENT', 'PRIVATE_PASSWORD', 'PRIVATE_TOKEN']) expect(JSON.stringify(events)).not.toContain(value);
+  });
+
+  it('keeps a cleared new edit through workspace stop and saves it only after restarting with its confirmed baseline', async () => {
+    const pending = deferred<WorkNote>();
+    const save = vi.fn<(draft: WorkNoteDraft) => Promise<WorkNote>>()
+      .mockReturnValueOnce(pending.promise).mockImplementation(async draft => result(draft, finalTime));
+    const { store, deps } = setup({ save });
+    const id = store.create();
+    store.edit(id, { body: 'Texte avant effacement' });
+    const saving = store.flush(id);
+    store.edit(id, { body: '' });
+    store.stop();
+    pending.resolve(result(save.mock.calls[0][0]));
+    expect(await saving).toBe(false);
+    expect(deps.saved).not.toHaveBeenCalled();
+    expect(deps.persist).toHaveBeenLastCalledWith([{ note: expect.objectContaining({ id, body: '' }), baseline: expect.objectContaining({ body: 'Texte avant effacement', updatedAt: savedTime }) }]);
+    store.start();
+    await vi.advanceTimersByTimeAsync(650);
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save.mock.calls[1][0]).toMatchObject({ id, body: '', expectedUpdatedAt: savedTime });
+    expect(store.getSnapshot()[0]).toMatchObject({ state: 'saved', note: { body: '' } });
+    expect(deps.saved).toHaveBeenCalledTimes(1);
   });
 
   it('saves pending text before deleting with the saved version', async () => {

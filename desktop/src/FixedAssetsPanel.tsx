@@ -14,14 +14,33 @@ export function FixedAssetsPanel({workspace,readOnly,onChanged,onSetup}:{workspa
   const [draft,setDraft]=useState<FixedAsset>(()=>blank()), [cost,setCost]=useState(''), [residual,setResidual]=useState('0'),[rate,setRate]=useState('20'),[confirmed,setConfirmed]=useState(false);
   const [review,setReview]=useState<{kind:'depreciate'|'cancel';row:FixedAssetRow}|null>(null);
   const running=useRef(false), generation=useRef(0),heading=useRef<HTMLHeadingElement>(null);
+  const mounted=useRef(false),current=useRef({workspace,onChanged});
+  current.current={workspace,onChanged};
+  const refreshWarning='L’écriture est enregistrée. Fermez puis rouvrez la comptabilité pour actualiser les autres écrans.';
   function blank():FixedAsset{return {id:createId(),name:'',reference:'',date:todayIso(),costCents:0,residualCents:0,rateBp:2000,method:'linear',mode:'reclassify',assetAccountId:'',depreciationAccountId:'',counterpartAccountId:''};}
-  useEffect(()=>{const ticket=++generation.current;void fixedAssetsApi.list().then(value=>{if(ticket===generation.current){setItems(value.items);setLoaded(true);}}).catch(reason=>{if(ticket===generation.current)setError(errorMessage(reason,'Le registre n’a pas pu être chargé.'));});return()=>{generation.current++;};},[workspace]);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;generation.current++;};},[]);
+  async function readItems(confirmedWrite=false){
+    const ticket=++generation.current,scope=current.current.workspace.workNotesScope;
+    const isCurrent=()=>mounted.current&&ticket===generation.current&&scope===current.current.workspace.workNotesScope;
+    try{const value=await fixedAssetsApi.list();if(isCurrent()){setItems(value.items);setLoaded(true);}}
+    catch(reason){if(isCurrent())setError(confirmedWrite?refreshWarning:errorMessage(reason,'Le registre n’a pas pu être chargé.'));}
+  }
+  useEffect(()=>{void readItems();return()=>{generation.current++;};},[workspace]);
   useEffect(()=>{setAccounts(workspace.accounts);},[workspace.accounts]);
   async function run(action:()=>Promise<{items:FixedAssetRow[]}>){
     if(running.current||readOnly)return;running.current=true;setBusy(true);setError('');
-    try{const result=await action();setItems(result.items);setLoaded(true);setEditing(false);setReview(null);try{await onChanged();}catch{setError('L’écriture est enregistrée. Fermez puis rouvrez la comptabilité pour actualiser les autres écrans.');}}
-    catch(reason){setError(errorMessage(reason,'L’opération n’a pas abouti. Votre saisie est conservée.'));}
-    finally{running.current=false;setBusy(false);}
+    const origin=workspace,scope=workspace.workNotesScope;
+    const isCurrent=()=>mounted.current&&scope===current.current.workspace.workNotesScope;
+    try{
+      const result=await action();if(!isCurrent())return;
+      generation.current++;
+      if(current.current.workspace===origin){setItems(result.items);setLoaded(true);}
+      else await readItems(true);
+      if(!isCurrent())return;setEditing(false);setReview(null);
+      try{await current.current.onChanged();}catch{if(isCurrent())setError(refreshWarning);}
+    }
+    catch(reason){if(isCurrent())setError(errorMessage(reason,'L’opération n’a pas abouti. Votre saisie est conservée.'));}
+    finally{running.current=false;if(isCurrent())setBusy(false);}
   }
   const assets=accounts.filter(a=>a.active&&a.reportSection==='fixed_assets'&&a.accountType==='asset');
   const depreciation=accounts.filter(a=>a.active&&a.reportSection==='depreciation'&&a.accountType==='expense');

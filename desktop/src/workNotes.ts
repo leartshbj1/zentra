@@ -1,8 +1,9 @@
 import type { WorkNote, WorkNoteDraft } from './types';
+import { recordDiagnostic } from './diagnostics';
 
 export type NoteSaveState = 'saved' | 'pending' | 'saving' | 'error';
 export type NoteSession = { note: WorkNote; state: NoteSaveState; error: string | null; isNew: boolean };
-type Entry = { snapshot: NoteSession; baseline: WorkNote | null; generation: number; timer?: ReturnType<typeof setTimeout>; task?: Promise<void> };
+type Entry = { snapshot: NoteSession; baseline: WorkNote | null; generation: number; attempted: boolean; timer?: ReturnType<typeof setTimeout>; task?: Promise<void> };
 type Dependencies = {
   save: (draft: WorkNoteDraft) => Promise<WorkNote>;
   remove: (id: string, expectedUpdatedAt: string) => Promise<unknown>;
@@ -57,7 +58,7 @@ export class WorkNotesStore {
     const ids = new Set(notes.map(note => note.id));
     for (const note of notes) {
       const entry = this.entries.get(note.id);
-      if (!entry) { this.entries.set(note.id, { snapshot: { note, state: 'saved', error: null, isNew: false }, baseline: note, generation: 0 }); changed = true; }
+      if (!entry) { this.entries.set(note.id, { snapshot: { note, state: 'saved', error: null, isNew: false }, baseline: note, generation: 0, attempted: true }); changed = true; }
       else if (entry.snapshot.state === 'saved' && note.updatedAt !== entry.baseline?.updatedAt) {
         entry.baseline = note; entry.snapshot = { note, state: 'saved', error: null, isNew: false }; changed = true;
       }
@@ -68,7 +69,8 @@ export class WorkNotesStore {
   restore(drafts: Array<{ note: WorkNote; baseline: WorkNote | null }>) {
     for (const draft of drafts) {
       if (this.entries.get(draft.note.id)?.snapshot.state !== 'saved' && this.entries.has(draft.note.id)) continue;
-      this.entries.set(draft.note.id, { snapshot: { note: draft.note, state: 'pending', error: null, isNew: !draft.baseline }, baseline: draft.baseline, generation: 0 });
+      // Recovery cannot prove that a baseline-less draft never reached storage.
+      this.entries.set(draft.note.id, { snapshot: { note: draft.note, state: 'pending', error: null, isNew: !draft.baseline }, baseline: draft.baseline, generation: 0, attempted: true });
       this.schedule(draft.note.id);
     }
     this.publish();
@@ -80,7 +82,7 @@ export class WorkNotesStore {
     if (!this.writable) throw new Error('Les notes sont en lecture seule.');
     const id = crypto.randomUUID(), now = new Date().toISOString();
     const note: WorkNote = { id, title: '', body: '', projectId, pinned: false, authorName: '', createdByMemberId: null, createdAt: now, updatedAt: now };
-    this.entries.set(id, { snapshot: { note, state: 'pending', error: null, isNew: true }, baseline: null, generation: 0 });
+    this.entries.set(id, { snapshot: { note, state: 'pending', error: null, isNew: true }, baseline: null, generation: 0, attempted: false });
     this.publish(); return id;
   }
   edit(id: string, patch: Partial<Pick<WorkNote, 'title' | 'body' | 'projectId' | 'pinned'>>) {
@@ -100,9 +102,15 @@ export class WorkNotesStore {
     if (entry.task) { await entry.task; return entry.snapshot.state === 'error' ? false : this.flush(id); }
     if (entry.snapshot.state === 'saved') return true;
     if (!this.active || !this.writable) return false;
-    // A blank new editor is not an empty company record.
-    if (!entry.baseline && !entry.snapshot.note.title.trim() && !entry.snapshot.note.body.trim()) return true;
+    // A never-submitted blank editor is not an empty company record. A previous
+    // unconfirmed attempt must stay recoverable without silently being retried.
+    if (!entry.baseline && !entry.snapshot.note.title.trim() && !entry.snapshot.note.body.trim()) {
+      if (!entry.attempted) return true;
+      if (entry.snapshot.state !== 'error') recordDiagnostic({ area: 'app', operation: 'notes.unconfirmed_blank', phase: 'failure', errorCode: 'CONFLICT' });
+      entry.snapshot = { ...entry.snapshot, state: 'error' }; this.publish(); return false;
+    }
     const generation = entry.generation, note = entry.snapshot.note;
+    entry.attempted = true;
     entry.snapshot = { ...entry.snapshot, state: 'saving', error: null }; this.publish();
     entry.task = (async () => {
       try {
@@ -120,7 +128,7 @@ export class WorkNotesStore {
   }
   discardBlank(id: string) {
     const entry = this.entries.get(id);
-    if (entry && !entry.baseline && !entry.snapshot.note.title.trim() && !entry.snapshot.note.body.trim()) { clearTimeout(entry.timer); this.entries.delete(id); this.publish(); }
+    if (entry && !entry.task && !entry.attempted && !entry.baseline && !entry.snapshot.note.title.trim() && !entry.snapshot.note.body.trim()) { clearTimeout(entry.timer); this.entries.delete(id); this.publish(); }
   }
   async remove(id: string) {
     if (!this.writable) throw new Error('Les notes sont en lecture seule.');
