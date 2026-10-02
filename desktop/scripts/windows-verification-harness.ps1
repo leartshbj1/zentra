@@ -225,6 +225,16 @@ function Get-ZentraCommonControlsImports {
     return @([regex]::Matches($Imports, '\b(GetWindowSubclass|SetWindowSubclass|RemoveWindowSubclass|DefSubclassProc|TaskDialogIndirect)\b') | ForEach-Object { $_.Value } | Sort-Object -Unique)
 }
 
+function Test-ZentraAbsentHarnessManifest {
+    param([string]$ToolOutput)
+    $absentResource = $ToolOutput -match 'resource (type|name|data|language).*(cannot be found|not found)|resource.*(does not exist|cannot be found)'
+    # SDK 10.0.26100 reports a different absence when the PE has no resource
+    # section at all. Require the exact SDK code and message on one error line;
+    # permissions, invalid PE and missing files must remain failures.
+    $absentSection = [regex]::IsMatch($ToolOutput, '(?m)^mt\.exe : general error c101008c: [^\r\n]*The specified image file did not contain a resource section\.[\r]*$')
+    return $absentResource -or $absentSection
+}
+
 function Find-ZentraHarnessTools {
     $programFiles = [Environment]::GetFolderPath('ProgramFilesX86')
     $dumpbin = Get-Command dumpbin.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -310,6 +320,7 @@ function Initialize-ZentraVerificationHarness {
         $beforeManifestPath = Join-Path $Artifacts 'windows-test-harness-manifest-before.xml'
         $manifestErrorPath = Join-Path $Artifacts 'windows-test-harness-manifest-before-errors.txt'
         $extractExit = Invoke-ZentraHarnessTool $tools.Manifest @("-inputresource:$executable;#1","-out:$beforeManifestPath") $Repository (Join-Path $Artifacts 'windows-test-harness-manifest-before-tool.txt') $manifestErrorPath
+        $proof.manifestExtractionExit = $extractExit
         $existingManifest = $null
         if ($extractExit -eq 0) {
             $existingManifest = [IO.File]::ReadAllText($beforeManifestPath)
@@ -317,9 +328,8 @@ function Initialize-ZentraVerificationHarness {
             $proof.embeddedV6Before = Test-ZentraCommonControlsV6 $existingManifest
         } else {
             $extractError = [IO.File]::ReadAllText($manifestErrorPath) + [IO.File]::ReadAllText((Join-Path $Artifacts 'windows-test-harness-manifest-before-tool.txt'))
-            if ($extractError -notmatch 'resource (type|name|data|language).*(cannot be found|not found)|resource.*(does not exist|cannot be found)') { throw 'The manifest extraction failed without proving an absent embedded manifest.' }
+            if (-not (Test-ZentraAbsentHarnessManifest $extractError)) { throw 'The manifest extraction failed without proving an absent embedded manifest.' }
         }
-        $proof.manifestExtractionExit = $extractExit
         $listPath = Join-Path $Artifacts 'windows-test-harness-list-before.txt'
         $proof.loaderExitBefore = Invoke-ZentraHarnessTool $executable @('--list') $Repository $listPath (Join-Path $Artifacts 'windows-test-harness-list-before-errors.txt')
         if ($proof.loaderExitBefore -eq -1073741511) {

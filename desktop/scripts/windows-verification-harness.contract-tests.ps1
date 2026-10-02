@@ -68,6 +68,22 @@ try {
     Assert-Contract ((ConvertTo-ZentraWindowsArgument '') -ceq '""') 'quote empty argument'
     Assert-Contract ((ConvertTo-ZentraWindowsArgument 'a"b') -ceq '"a\"b"') 'quote embedded literal quote'
     Assert-Contract ((ConvertTo-ZentraWindowsArgument 'C:\folder with space\') -ceq '"C:\folder with space\\"') 'preserve trailing slash in quoted argument'
+    $sdk219=@'
+Microsoft (R) Manifest Tool
+Copyright (c) Microsoft Corporation.
+All rights reserved.
+
+mt.exe : general error c101008c: Failed to read the manifest from the resource of file "\\?\C:\Users\circleci\project\desktop\src-tauri\target\release\deps\helvichantier_lib-c10df31880137f13.exe". The specified image file did not contain a resource section.
+'@
+    Assert-Contract (Test-ZentraAbsentHarnessManifest $sdk219) 'accept exact stdout SDK 219 absent resource section message'
+    Assert-Contract (Test-ZentraAbsentHarnessManifest 'mt.exe : general error c101008c: The specified resource type cannot be found in the image file.') 'preserve existing absent resource type classification'
+    Assert-Contract (-not (Test-ZentraAbsentHarnessManifest 'mt.exe : general error c101008c: Access is denied.')) 'reject permissions failure from same SDK error code'
+    Assert-Contract (-not (Test-ZentraAbsentHarnessManifest 'mt.exe : general error c101008c: The system cannot find the file specified.')) 'reject missing file failure'
+    Assert-Contract (-not (Test-ZentraAbsentHarnessManifest 'mt.exe : general error c101008c: The file is not a valid PE image.')) 'reject non-PE image failure'
+    Assert-Contract (-not (Test-ZentraAbsentHarnessManifest 'mt.exe : general error c101008c: Failed to read the manifest because its resource section is invalid.')) 'reject other c101008c reason'
+    Assert-Contract (-not (Test-ZentraAbsentHarnessManifest ($sdk219.Replace('c101008c','c101008d')))) 'require exact absent-section SDK error code'
+    Assert-Contract (-not (Test-ZentraAbsentHarnessManifest ($sdk219.Replace('The specified image file','the specified image file')))) 'require exact absent-section message'
+    Assert-Contract (-not (Test-ZentraAbsentHarnessManifest "mt.exe : general error c101008c: Access is denied.`r`nThe specified image file did not contain a resource section.")) 'do not combine SDK code and unrelated lines into absence proof'
 
     if (-not [string]::IsNullOrWhiteSpace($NativeNodePath)) {
         $nodeFixture=Join-Path $testRoot 'argument fixture.cjs'
