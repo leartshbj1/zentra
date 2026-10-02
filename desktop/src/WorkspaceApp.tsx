@@ -6453,6 +6453,8 @@ function ProjectForm({
           };
           setFileError('');
           let remaining: File[] = [];
+          let finalReadFailedAfterCommit = false;
+          let confirmedFallbackRead = false;
           const saved = await act(async () => {
             requireProjectFormWorkspace();
             const fingerprint = JSON.stringify(data);
@@ -6479,13 +6481,24 @@ function ProjectForm({
               return next;
             } catch (reason) {
               requireProjectFormWorkspace();
+              finalReadFailedAfterCommit = true;
               setProjectReadPending(true);
               // This form keeps its confirmed ID and remaining files. A bounded
               // read can be retried without handing an expired form to recovery.
               throw new Error('Le projet et les fichiers confirmés sont enregistrés. Actualisez la liste ou reprenez ce formulaire ; ils ne seront pas ajoutés une deuxième fois.', { cause: reason });
             }
-          }, 'Le projet a été enregistré.', false, reason => setFormError(errorMessage(reason, 'Le projet n’a pas pu être enregistré. Vos informations sont conservées.')), requireProjectFormWorkspace);
-          if (saved && !remaining.length) { persisted.complete(true); close(); }
+          }, 'Le projet a été enregistré.', false, reason => setFormError(errorMessage(reason, 'Le projet n’a pas pu être enregistré. Vos informations sont conservées.')), next => {
+            requireProjectFormWorkspace(next);
+            // act can publish its bounded fallback read while retaining false
+            // for an ordinary error. Only this confirmed-read phase counts.
+            if (finalReadFailedAfterCommit) confirmedFallbackRead = true;
+          });
+          if (saved || confirmedFallbackRead) {
+            requireProjectFormWorkspace();
+            setProjectReadPending(false);
+            setFormError('');
+            if (!remaining.length) { persisted.complete(true); close(); }
+          }
           } catch (reason) { setFormError(errorMessage(reason, 'Vérifiez les informations du projet.')); }
           finally { setUploadProgress(''); }
         })}
