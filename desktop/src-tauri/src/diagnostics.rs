@@ -756,6 +756,10 @@ mod startup_diagnostics_tests;
 mod async_error_tests;
 
 #[cfg(test)]
+#[path = "account_automation_diagnostics_tests.rs"]
+mod account_automation_diagnostics_tests;
+
+#[cfg(test)]
 #[path = "diagnostics_summary_tests.rs"]
 mod summary_tests;
 

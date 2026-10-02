@@ -524,30 +524,90 @@ pub async fn cloud_team_request(state: State<'_, LocalStore>, data: Option<serde
 #[tauri::command]
 pub async fn automation_request(state: State<'_, LocalStore>, data: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
     let store = state.inner().clone();
-    let session = {
-        let _guard = store.account_protected_cache.operation_lock.lock().await;
-        let session = read_session_secret(&store).map_err(command_error)?.ok_or("Connectez votre compte dans Paramètres → Compte et accès.")?;
-        validate_session_for_installation(&session,&store.installation_id).map_err(command_error)?;
-        if parse_future_or_past_date(&session.session_expires_at,"session").map_err(command_error)? <= Utc::now() {
-            return Err("Reconnectez votre compte Zentra pour obtenir des suggestions.".into());
+    automation_request_with(
+        &store,
+        data,
+        |method, url, body, bearer| async move {
+            account_request_url(method, url, body, Some(&bearer), Duration::from_secs(20)).await
+        },
+        finish_async_command::<serde_json::Value>,
+    ).await
+}
+
+// Preserve the direct, already formatted refusal strings: they did not pass
+// through command_error and must not acquire a new prefix or native event.
+enum AutomationCommandError {
+    Native(AppError),
+    Message(String),
+}
+
+impl From<AppError> for AutomationCommandError {
+    fn from(error: AppError) -> Self {
+        Self::Native(error)
+    }
+}
+
+pub(super) async fn automation_request_with<Request, RequestFuture, Finish, FinishFuture>(
+    store: &LocalStore,
+    data: Option<serde_json::Value>,
+    request: Request,
+    finish: Finish,
+) -> Result<serde_json::Value, String>
+where
+    Request: FnOnce(Method, Url, Option<Vec<u8>>, String) -> RequestFuture,
+    RequestFuture: std::future::Future<Output = AppResult<(StatusCode, Vec<u8>)>>,
+    Finish: FnOnce(AppResult<serde_json::Value>) -> FinishFuture,
+    FinishFuture: std::future::Future<Output = Result<serde_json::Value, String>>,
+{
+    let result: Result<serde_json::Value, AutomationCommandError> = async {
+        let session = {
+            let _guard = store.account_protected_cache.operation_lock.lock().await;
+            let session = read_session_secret(store)?.ok_or_else(|| AutomationCommandError::Message(
+                "Connectez votre compte dans Paramètres → Compte et accès.".into(),
+            ))?;
+            validate_session_for_installation(&session, &store.installation_id)?;
+            if parse_future_or_past_date(&session.session_expires_at, "session")? <= Utc::now() {
+                return Err(AutomationCommandError::Message(
+                    "Reconnectez votre compte Zentra pour obtenir des suggestions.".into(),
+                ));
+            }
+            session
+        };
+        // Even read-only summaries must belong to the company opened locally.
+        crate::automation::bound(store, &session.organization_id)?;
+        let body = data
+            .map(|value| crate::automation::prepare_request(store, &session.organization_id, &session.role, value))
+            .transpose()?
+            .map(|value| serde_json::to_vec(&value))
+            .transpose()
+            .map_err(|_| AutomationCommandError::Message("La demande est invalide.".into()))?;
+        let method = if body.is_some() { Method::POST } else { Method::GET };
+        let (status, bytes) = request(method, endpoint(AUTOMATION_PATH)?, body, session.session_token.clone()).await?;
+        if !status.is_success() {
+            return Err(server_response_error(status, &bytes).into());
         }
-        session
-    };
-    // Even read-only summaries must belong to the company opened locally.
-    crate::automation::bound(&store, &session.organization_id).map_err(command_error)?;
-    let body = data.map(|value| crate::automation::prepare_request(&store,&session.organization_id,&session.role,value))
-        .transpose().map_err(command_error)?.map(|value|serde_json::to_vec(&value)).transpose().map_err(|_|"La demande est invalide.".to_string())?;
-    let method=if body.is_some(){Method::POST}else{Method::GET};
-    let (status,bytes)=account_request_url(method,endpoint(AUTOMATION_PATH).map_err(command_error)?,body,Some(&session.session_token),Duration::from_secs(20)).await.map_err(command_error)?;
-    if !status.is_success(){return Err(command_error(server_response_error(status,&bytes)));}
-    let value:serde_json::Value=parse_json(&bytes,"suggestion").map_err(command_error)?;
-    // An account change during the request invalidates the response.
-    let _guard=store.account_protected_cache.operation_lock.lock().await;
-    let current=read_session_secret(&store).map_err(command_error)?.ok_or("La connexion a changé.")?;
-    if current.organization_id!=session.organization_id || current.session_token!=session.session_token {return Err("La connexion a changé. Relancez la suggestion.".into());}
-    crate::automation::bound(&store, &session.organization_id).map_err(command_error)?;
-    crate::automation::validate_response(&store,&session.organization_id,&value).map_err(command_error)?;
-    Ok(value)
+        let value: serde_json::Value = parse_json(&bytes, "suggestion")?;
+        // Preserve the atomic postflight session/company/resource checks.
+        let _guard = store.account_protected_cache.operation_lock.lock().await;
+        let current = read_session_secret(store)?.ok_or_else(|| AutomationCommandError::Message(
+            "La connexion a changé.".into(),
+        ))?;
+        if current.organization_id != session.organization_id || current.session_token != session.session_token {
+            return Err(AutomationCommandError::Message(
+                "La connexion a changé. Relancez la suggestion.".into(),
+            ));
+        }
+        crate::automation::bound(store, &session.organization_id)?;
+        crate::automation::validate_response(store, &session.organization_id, &value)?;
+        Ok(value)
+    }.await;
+    // The inner future has ended, so neither account guard survives into the
+    // awaited, best-effort log worker. No detached task or result substitution.
+    match result {
+        Ok(value) => Ok(value),
+        Err(AutomationCommandError::Message(message)) => Err(message),
+        Err(AutomationCommandError::Native(error)) => finish(Err(error)).await,
+    }
 }
 
 #[tauri::command]
