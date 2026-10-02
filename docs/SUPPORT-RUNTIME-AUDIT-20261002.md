@@ -83,3 +83,19 @@ git diff --check
 | `lib/appointments/service.ts` | chemins ciblés | `a61faf3ff1a4bf2227978edbc650a611ce34f108e12aa0896a045447a9d4c7a8` |
 | `lib/appointments/service.test.ts` | chemins ciblés | `fbfc7c65ff99ba1e627e1ed7593c4a51783cb210c1ba6162526d272bca66b368` |
 | `lib/supabase-server.ts` | chemins ciblés | `4845bbc30eb64236c2d7251dae03fa3b2e04f135981241b5b52e1c037cbb3175` |
+
+## Complément : limiter le calcul des places aux entreprises du compte
+
+Source : `64cb23cd4099f3934ba03d66d725558cc0bf14fc`, commit local non poussé et non déployé. L'ancienne requête classait les membres actifs de toutes les entreprises avant de chercher les espaces de l'utilisateur. La requête exportée limite désormais les entreprises candidates, tout en classant chaque membre actif de ces entreprises : les autres collaborateurs continuent à occuper leurs places. Les quatre paramètres, les rôles, les conditions commerciales et l'ordre des résultats sont conservés. `service.ts`, les index et les migrations ne changent pas.
+
+La comparaison utilise les 69 migrations réelles, leurs contraintes et leurs triggers, avec 12 membres actifs et deux révoqués par entreprise. **657 comparaisons de résultats identiques** et 48 assertions passent ; un filtrage volontairement erroné des personnes avant le classement diverge pour 69 comptes à chaque volume. Les nouveaux tests vérifient aussi les quatre paramètres indépendants, les limites 1/3/10 et illimitée, le titulaire prioritaire, les rôles directs de Support et les comptes révoqués.
+
+| Entreprises | Médiane avant → après | p95 avant → après |
+|---:|---:|---:|
+| 50 | 0,96 → 0,41 ms | 1,11 → 0,58 ms |
+| 150 | 2,70 → 0,49 ms | 2,82 → 0,69 ms |
+| 1 000 | 23,42 → 2,12 ms | 24,27 → 2,47 ms |
+
+Ces mesures concernent la requête préparée dans SQLite local 3.53.3, après échauffement, sur 240 paires alternées. Les huit entreprises candidates comptent 96 membres actifs. La recherche des candidats et des espaces conserve des scans globaux : ce résultat ne mesure ni la latence D1, ni la concurrence, ni les coûts ou la capacité de production.
+
+Validation du source : huit nouveaux cas ciblés ; **615 tests réussis dans 40 fichiers** Support / Automation / achats reçus / rendez-vous / e-mails d'entreprise ; TypeScript et `git diff --check` réussis. Les preuves, plans SQL et empreintes sont dans `C:/Users/alb/AppData/Local/Temp/zentra-support-workspace-sql-audit-20261002/report.json`. Le registre de lecture distingue les fichiers intégralement lus des seules plages examinées.
