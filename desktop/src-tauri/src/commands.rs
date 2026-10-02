@@ -1294,15 +1294,14 @@ pub fn get_balance_sheet(
 }
 
 #[tauri::command]
-pub fn export_annual_accounts_pdf(
+pub async fn export_annual_accounts_pdf(
     state: State<'_, LocalStore>,
     filter: PeriodFilter,
     destination_path: String,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state
-        .export_annual_accounts_pdf(filter, &destination_path)
-        .map_err(command_error)
+    run_locked_local_operation(state.inner().clone(), move |store| {
+        store.export_annual_accounts_pdf(filter, &destination_path)
+    }).await
 }
 #[tauri::command]
 pub fn get_income_statement(
@@ -1553,12 +1552,11 @@ pub fn pay_payslip(state: State<'_, LocalStore>, input: PayPayslipInput) -> Resu
 }
 
 #[tauri::command]
-pub fn generate_payslip_pdf(
+pub async fn generate_payslip_pdf(
     state: State<'_, LocalStore>,
     input: GeneratePayslipPdfInput,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.generate_payslip_pdf(input).map_err(command_error)
+    run_locked_local_operation(state.inner().clone(), move |store| store.generate_payslip_pdf(input)).await
 }
 
 #[tauri::command]
@@ -1567,25 +1565,20 @@ pub fn salary_certificate_draft(state: State<'_, LocalStore>, employee_id: Strin
     state.salary_certificate_draft(&employee_id, year).map_err(command_error)
 }
 #[tauri::command]
-pub fn salary_certificate_preview(state: State<'_, LocalStore>, input: crate::salary_certificate::CertificateInput) -> Result<Vec<u8>, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.salary_certificate_preview(&input).map_err(command_error)
+pub async fn salary_certificate_preview(state: State<'_, LocalStore>, input: crate::salary_certificate::CertificateInput) -> Result<Vec<u8>, String> {
+    run_locked_local_operation(state.inner().clone(), move |store| store.salary_certificate_preview(&input)).await
 }
 #[tauri::command]
-pub fn export_salary_certificate(state: State<'_, LocalStore>, input: crate::salary_certificate::CertificateInput, destination: String) -> Result<String, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.export_salary_certificate(&input, &destination).map_err(command_error)
+pub async fn export_salary_certificate(state: State<'_, LocalStore>, input: crate::salary_certificate::CertificateInput, destination: String) -> Result<String, String> {
+    run_locked_local_operation(state.inner().clone(), move |store| store.export_salary_certificate(&input, &destination)).await
 }
 
 #[tauri::command]
-pub fn generate_sales_document_pdf(
+pub async fn generate_sales_document_pdf(
     state: State<'_, LocalStore>,
     input: GenerateSalesDocumentPdfInput,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state
-        .generate_sales_document_pdf(input)
-        .map_err(command_error)
+    run_locked_local_operation(state.inner().clone(), move |store| store.generate_sales_document_pdf(input)).await
 }
 
 #[tauri::command]
@@ -1764,9 +1757,9 @@ pub fn get_active_timer(state: State<'_, LocalStore>) -> Result<Value, String> {
     state.get_active_timer().map_err(command_error)
 }
 
-// These operations can compress many attachments or serialize the complete
-// company. Keep both the local lock wait and the work off the invoke thread.
-async fn run_locked_local_operation<T, F>(store: LocalStore, operation: F) -> Result<T, String>
+// Exports can compress attachments, serialize the company or render PDFs.
+// Keep both the local lock wait and the work off the invoke thread.
+pub(crate) async fn run_locked_local_operation<T, F>(store: LocalStore, operation: F) -> Result<T, String>
 where
     T: Send + 'static,
     F: FnOnce(&LocalStore) -> crate::error::AppResult<T> + Send + 'static,
@@ -1841,6 +1834,10 @@ pub async fn export_csv_archive(
 #[cfg(test)]
 #[path = "commands_worker_tests.rs"]
 mod worker_tests;
+
+#[cfg(test)]
+#[path = "commands_pdf_worker_tests.rs"]
+mod pdf_worker_tests;
 
 #[tauri::command]
 pub fn add_scanned_supplier_attachment(state: State<'_, LocalStore>, invoice_id: String, original_name: String, content_base64: String) -> Result<Value, String> {
@@ -1999,17 +1996,14 @@ pub fn company_logo_preview(state: State<'_, LocalStore>, path: String) -> Resul
     state.company_logo_preview(&path).map_err(command_error)
 }
 #[tauri::command]
-pub fn document_design_example(state: State<'_, LocalStore>, kind: String, style: Value, issuer: Value) -> Result<Vec<u8>, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.document_design_example(&kind, style, issuer).map_err(command_error)
+pub async fn document_design_example(state: State<'_, LocalStore>, kind: String, style: Value, issuer: Value) -> Result<Vec<u8>, String> {
+    run_locked_local_operation(state.inner().clone(), move |store| store.document_design_example(&kind, style, issuer)).await
 }
 #[tauri::command]
-pub fn document_pdf_preview(state: State<'_, LocalStore>, kind: String, id: String) -> Result<Vec<u8>, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.document_pdf_preview(&kind, &id).map_err(command_error)
+pub async fn document_pdf_preview(state: State<'_, LocalStore>, kind: String, id: String) -> Result<Vec<u8>, String> {
+    run_locked_local_operation(state.inner().clone(), move |store| store.document_pdf_preview(&kind, &id)).await
 }
 #[tauri::command]
-pub fn export_document_design_example(state: State<'_, LocalStore>, kind: String, style: Value, issuer: Value, destination: String) -> Result<String, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.export_document_design_example(&kind, style, issuer, &destination).map_err(command_error)
+pub async fn export_document_design_example(state: State<'_, LocalStore>, kind: String, style: Value, issuer: Value, destination: String) -> Result<String, String> {
+    run_locked_local_operation(state.inner().clone(), move |store| store.export_document_design_example(&kind, style, issuer, &destination)).await
 }

@@ -51,8 +51,8 @@ try {
         if ($LASTEXITCODE -ne 0 -or $diagnosticSource -notmatch '^[0-9a-f]{40}$') { throw 'The checked-out diagnostics source is invalid.' }
         if ($env:CIRCLE_SHA1 -cne $diagnosticSource) { throw 'Diagnostics validation must use the exact CircleCI source revision.' }
         $diagnosticStartedAt = [DateTimeOffset]::UtcNow.ToString('o')
-        $diagnosticNativeSuites = @('diagnostics', 'account_cloud::tests', 'company_collaboration::tests', 'commands::worker_tests', 'backup::', 'tests::backup_restore_round_trip_recovers_local_rows', 'project_sync::tests', 'database::workspace_payment_projection_tests', 'accounting::historical_payment_guard_tests', 'customer_credit_tests::', 'tests::received_vat_is_deferred_then_reclassified_on_each_payment_and_credit_note')
-        $diagnosticFrontendSuites = @('src/diagnostics.test.ts', 'src/formDrafts.test.ts', 'src/userErrors.test.ts', 'src/ErrorGuidance.test.tsx', 'src/DiagnosticsPanel.test.tsx', 'src/companyReceiveRefresh.test.ts', 'src/projectSyncScheduler.test.ts', 'src/companySyncDiagnostics.test.ts', 'src/companyRealtime.test.ts', 'src/nativePluginDiagnostics.test.ts', 'src/mobileFileDiagnostics.test.ts', 'src/projectDocumentRead.test.ts')
+        $diagnosticNativeSuites = @('diagnostics', 'account_cloud::tests', 'company_collaboration::tests', 'commands::worker_tests', 'commands::pdf_worker_tests', 'document_design::tests', 'financial_pdf::layout_tests', 'sales_pdf::tests', 'payroll_pdf::tests', 'salary_certificate::tests', 'project_report::tests', 'tests::annual_accounts_pdf_reads_the_ledger_and_keeps_the_existing_file_on_currency_error', 'tests::document_design_settings_are_validated_and_issued_sales_keep_their_original_pdf', 'backup::', 'tests::backup_restore_round_trip_recovers_local_rows', 'project_sync::tests', 'database::workspace_payment_projection_tests', 'accounting::historical_payment_guard_tests', 'customer_credit_tests::', 'tests::received_vat_is_deferred_then_reclassified_on_each_payment_and_credit_note')
+        $diagnosticFrontendSuites = @('src/diagnostics.test.ts', 'src/formDrafts.test.ts', 'src/userErrors.test.ts', 'src/ErrorGuidance.test.tsx', 'src/DiagnosticsPanel.test.tsx', 'src/companyReceiveRefresh.test.ts', 'src/projectSyncScheduler.test.ts', 'src/companySyncDiagnostics.test.ts', 'src/companyRealtime.test.ts', 'src/nativePluginDiagnostics.test.ts', 'src/mobileFileDiagnostics.test.ts', 'src/projectDocumentRead.test.ts', 'src/documentExportBridge.test.ts', 'src/salesPdfExport.test.ts', 'src/bank.test.ts', 'src/bankRefunds.test.tsx', 'src/bankRefundCreate.test.tsx', 'src/bankCustomerRefundBridge.test.ts')
         $diagnosticMobileSuites = @('src/diagnostics.test.ts', 'src/nativePluginDiagnostics.test.ts', 'src/mobileFileDiagnostics.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--release', '--lib', $suite, '--', '--test-threads=1')
@@ -65,6 +65,15 @@ try {
         if ($paymentBenchmarkProof.synthetic -ne $true -or $paymentBenchmarkProof.optimized -ne $true -or $paymentBenchmarkProof.densities.Count -ne 3) { throw 'Payment benchmark proof does not cover the synthetic optimized fixtures.' }
         foreach ($density in $paymentBenchmarkProof.densities) {
             if ($density.allRetainedValuesEqual -ne $true -or $density.payments -ne 1024 -or $density.runs.Count -ne 12) { throw 'Payment benchmark parity or required density is incomplete.' }
+        }
+        $env:ZENTRA_PUBLIC_PAYMENT_BENCHMARK_JSON = Join-Path $artifacts 'public-payment-workspace-benchmark.json'
+        $publicPaymentBenchmark = 'database::workspace_payment_projection_tests::payment_read_projection_tests::benchmark_public_payment_workspace_densities'
+        Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--release', '--lib', $publicPaymentBenchmark, '--', '--ignored', '--exact', '--nocapture', '--test-threads=1')
+        if (-not (Test-Path -LiteralPath $env:ZENTRA_PUBLIC_PAYMENT_BENCHMARK_JSON -PathType Leaf)) { throw 'Public-getter benchmark proof was not created.' }
+        $publicPaymentProof = Get-Content -LiteralPath $env:ZENTRA_PUBLIC_PAYMENT_BENCHMARK_JSON -Raw | ConvertFrom-Json
+        if ($publicPaymentProof.synthetic -ne $true -or $publicPaymentProof.optimized -ne $true -or $publicPaymentProof.densities.Count -ne 3) { throw 'Public-getter benchmark fixtures are incomplete.' }
+        foreach ($density in $publicPaymentProof.densities) {
+            if ($density.allRetainedValuesEqual -ne $true -or $density.publicGetters -ne $true -or $density.payments -ne 1024 -or $density.runs.Count -ne 6 -or $density.individualPaymentProofsChecked -ne $true) { throw 'Public-getter benchmark parity or required density is incomplete.' }
         }
         $diagnosticPreviousPlatform = $env:TAURI_ENV_PLATFORM
         try {
@@ -90,6 +99,7 @@ try {
             allCheckedSuitesPassed = $true; frontendBuildPassed = $true; nativeProfile = 'release'
             paymentBenchmark = $paymentBenchmark; paymentBenchmarkProof = 'payment-workspace-benchmark.json'
             paymentWorkspaceParityPassed = $true; paymentBenchmarkPassed = $true
+            publicPaymentBenchmark = $publicPaymentBenchmark; publicPaymentBenchmarkProof = 'public-payment-workspace-benchmark.json'; publicPaymentBenchmarkPassed = $true
             startedAt = $diagnosticStartedAt; completedAt = [DateTimeOffset]::UtcNow.ToString('o')
             publishesInstaller = $false; publishesRelease = $false; installsApplication = $false
         }

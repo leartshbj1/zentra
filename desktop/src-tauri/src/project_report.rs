@@ -3,7 +3,7 @@ use crate::{
     database::{build_issuer_snapshot, now_iso, LocalStore},
     document_composition::{write_pdf, Composer, Composition},
     document_design::DocumentStyle,
-    error::{command_error, AppError, AppResult},
+    error::{AppError, AppResult},
     sales_pdf::validate_pdf_destination,
 };
 use serde::Deserialize;
@@ -141,24 +141,23 @@ fn render(issuer: &Value, report: &ProjectReport) -> AppResult<(Vec<u8>, usize)>
 }
 
 #[tauri::command]
-pub fn export_project_report_pdf(
+pub async fn export_project_report_pdf(
     state: State<'_, LocalStore>,
     report: ProjectReport,
     destination_path: String,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    let result = (|| -> AppResult<Value> {
+    crate::commands::run_locked_local_operation(state.inner().clone(), move |store| {
         let path = validate_pdf_destination(&destination_path)?;
-        let mut db = state.connect()?;
-        state.require_onboarding(&db)?;
+        let mut db = store.connect()?;
+        store.require_onboarding(&db)?;
         let tx = db.transaction()?;
         let issuer = build_issuer_snapshot(&tx)?;
         tx.commit()?;
         let (bytes, pages) = render(&issuer, &report)?;
         write_pdf(&path, &bytes)?;
         Ok(json!({"path":path.to_string_lossy(),"pages":pages}))
-    })();
-    result.map_err(command_error)
+    })
+    .await
 }
 
 #[cfg(test)]

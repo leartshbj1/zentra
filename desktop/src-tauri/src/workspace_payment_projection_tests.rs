@@ -7,6 +7,9 @@ use crate::{
 };
 use std::time::Instant;
 
+#[path = "payment_read_projection_tests.rs"]
+mod payment_read_projection_tests;
+
 struct Fixture {
     _temporary: tempfile::TempDir,
     store: LocalStore,

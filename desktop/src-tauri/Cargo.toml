@@ -84,6 +84,7 @@ security-framework-sys = "2.17"
 
 [dev-dependencies]
 pretty_assertions = "1"
+tauri = { version = "2", features = ["test"] }
 
 [profile.release]
 codegen-units = 1

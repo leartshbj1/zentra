@@ -3748,7 +3748,9 @@ pub(crate) fn cash_vat_invoice_is_consistent(
             .map(|line| line.account_id.as_str())
     });
     let reclassification_count: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM journal_entries entry JOIN payments payment ON payment.id=entry.source_id WHERE entry.source_type='vat_cash_reclassification' AND entry.reversal_of IS NULL AND payment.invoice_id=?",
+        // Fix the invoice-filtered side first: otherwise SQLite can visit all
+        // cash-VAT entries once for every distinct invoice in the workspace.
+        "SELECT COUNT(*) FROM payments payment CROSS JOIN journal_entries entry ON payment.id=entry.source_id WHERE entry.source_type='vat_cash_reclassification' AND entry.reversal_of IS NULL AND payment.invoice_id=?",
         params![invoice_id],
         |row| row.get(0),
     )?;
@@ -3779,8 +3781,8 @@ pub(crate) fn cash_vat_invoice_is_consistent(
         "SELECT invoice.total_cents,invoice.vat_cents,
                 (SELECT COALESCE(SUM(payment.amount_cents),0) FROM payments payment WHERE payment.invoice_id=invoice.id),
                 (SELECT COALESCE(SUM(-credit.total_cents),0) FROM invoices credit WHERE credit.type='avoir' AND credit.original_invoice_id=invoice.id AND credit.number IS NOT NULL AND credit.status<>'annulee'),
-                (SELECT COALESCE(SUM(line.debit_cents),0) FROM journal_entries entry JOIN payments payment ON payment.id=entry.source_id JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?2 WHERE entry.source_type='vat_cash_reclassification' AND entry.reversal_of IS NULL AND payment.invoice_id=invoice.id),
-                (SELECT COALESCE(SUM(line.credit_cents),0) FROM journal_entries entry JOIN payments payment ON payment.id=entry.source_id JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?3 WHERE entry.source_type='vat_cash_reclassification' AND entry.reversal_of IS NULL AND payment.invoice_id=invoice.id),
+                (SELECT COALESCE(SUM(line.debit_cents),0) FROM payments payment CROSS JOIN journal_entries entry ON payment.id=entry.source_id CROSS JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?2 WHERE entry.source_type='vat_cash_reclassification' AND entry.reversal_of IS NULL AND payment.invoice_id=invoice.id),
+                (SELECT COALESCE(SUM(line.credit_cents),0) FROM payments payment CROSS JOIN journal_entries entry ON payment.id=entry.source_id CROSS JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?3 WHERE entry.source_type='vat_cash_reclassification' AND entry.reversal_of IS NULL AND payment.invoice_id=invoice.id),
                 (SELECT COALESCE(SUM(line.debit_cents),0) FROM invoices credit JOIN journal_entries entry ON entry.source_type='invoice' AND entry.source_id=credit.id AND entry.source_event='issue' AND entry.reversal_of IS NULL JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?4 WHERE credit.type='avoir' AND credit.original_invoice_id=invoice.id AND credit.number IS NOT NULL AND credit.status<>'annulee'),
                 (SELECT COALESCE(SUM(line.debit_cents),0) FROM invoices credit JOIN journal_entries entry ON entry.source_type='invoice' AND entry.source_id=credit.id AND entry.source_event='issue' AND entry.reversal_of IS NULL JOIN journal_lines line ON line.journal_entry_id=entry.id AND line.memo=?5 WHERE credit.type='avoir' AND credit.original_invoice_id=invoice.id AND credit.number IS NOT NULL AND credit.status<>'annulee')
            FROM invoices invoice WHERE invoice.id=?1",
