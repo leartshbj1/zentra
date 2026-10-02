@@ -41,7 +41,9 @@ function pair(diagnostics: Diagnostics, operation: string, phase: 'success' | 'f
 async function privateJournal(diagnostics: Diagnostics) {
   await diagnostics.flushDiagnostics(true);
   const journal = JSON.stringify({ recent: diagnostics.recentDiagnosticEvents(), native: controls.invoke.mock.calls });
-  expect(journal).not.toMatch(/PRIVATE_|customer@example|password|\/private\/|model\.bin|429|Préparation|Téléchargement|"enabled"|"later"|Qwen/);
+  // Status digits can occur in UUIDs, timestamps and durations. The strict
+  // event-key check below excludes a raw status field without random failures.
+  expect(journal).not.toMatch(/PRIVATE_|customer@example|password|\/private\/|model\.bin|Préparation|Téléchargement|"enabled"|"later"|Qwen/);
   for (const event of diagnostics.recentDiagnosticEvents()) expect(Object.keys(event).sort()).toEqual(
     ['id', 'sessionId', 'timestamp', 'area', 'operation', 'phase', ...(event.durationMs === undefined ? [] : ['durationMs']), ...(event.errorCode === undefined ? [] : ['errorCode'])].sort());
 }
@@ -62,6 +64,14 @@ afterEach(async () => {
 });
 
 describe('private diagnostics of the admitted local model operations', () => {
+  it('accepts a valid diagnostic identifier containing digits from an HTTP status', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('00000429-0000-4000-8000-000000000001');
+    const { model, diagnostics } = await api();
+    await model.inspect();
+    expect(events(diagnostics, 'local_ai.model_inspect')[0].id).toBe('00000429-0000-4000-8000-000000000001');
+    await privateJournal(diagnostics);
+  });
+
   it('records a single inspection, including the existing cached result', async () => {
     controls.inspect.mockResolvedValue(true);
     const { model, diagnostics } = await api();

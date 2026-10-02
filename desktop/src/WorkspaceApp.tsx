@@ -5248,7 +5248,7 @@ function SettingsScreen({
       </SettingsCategory>
       <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings showHubLink embedded /></SettingsCategory>
       <SettingsCategory id="mail" lazy title="E-mails" description="Messagerie, devis, factures et textes personnalisés" icon={Mail}>
-        <MailSettings embedded companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { const next = await desktopApi.loadWorkspace(); onWorkspace(next); if (next.settings) setSettings(next.settings); }} />
+        <MailSettings embedded companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { await execute(() => refreshWorkspaceAfterMutation(() => desktopApi.loadWorkspace()), 'Modèles enregistrés pour l’entreprise.'); }} />
       </SettingsCategory>
       <SettingsCategory id="company" title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
       <section
@@ -5858,10 +5858,14 @@ function SettingsScreen({
         </div>
       </section>
 
-      <PayrollSettingsForm key={payrollSettingsRevision} payroll={settings.payroll} busy={busy} onSave={async payroll => execute(async () => {
+      <PayrollSettingsForm key={payrollSettingsRevision} payroll={settings.payroll} busy={busy} onSave={async payroll => execute(async originScope => {
+        const generation = settingsActionLifetime.current.generation;
         const fresh = await desktopApi.loadWorkspace();
+        if (!settingsActionLifetime.current.active || settingsActionLifetime.current.generation !== generation || settingsActionContext.current.workspaceScope !== originScope) throw pickerCancelled.current;
+        if (settingsActionContext.current.readOnly) throw new Error('Accès « Lecture seule » : consultation et exports autorisés, modifications bloquées sur ce poste.');
+        if (originScope !== undefined && fresh.workNotesScope !== originScope) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
         if (!fresh.settings || JSON.stringify(fresh.settings.payroll) !== JSON.stringify(settings.payroll)) throw new Error('Les réglages de paie ont changé. Rechargez les paramètres avant d’enregistrer pour retrouver les dernières informations.');
-        return desktopApi.saveSettings({ ...fresh.settings, payroll });
+        return desktopApi.saveSettings({ ...fresh.settings, payroll }, originScope);
       }, 'La configuration de paie a été enregistrée.', true, true)} onReload={async () => {
         const loaded = await execute(() => desktopApi.loadWorkspace(), 'Les derniers réglages de paie ont été chargés.');
         if (loaded) setPayrollSettingsRevision(value => value + 1);

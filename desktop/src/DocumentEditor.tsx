@@ -50,6 +50,7 @@ type ActionRunner = (
   message: string,
   close?: boolean,
   onError?: (reason: unknown) => void,
+  validateRead?: (workspace: Workspace) => void,
 ) => Promise<boolean>;
 
 export function DocumentEditor({
@@ -308,7 +309,7 @@ export function DocumentEditor({
   }
 
   async function saveFooterTemplate() {
-    setLocalError('');
+    setLocalError(''); setSaveFailure(null);
     const name = footerTemplateName.trim();
     const text = footerText.trim();
     if (!name || !text) {
@@ -342,11 +343,16 @@ export function DocumentEditor({
         desktopApi.saveSettings({
           ...settings,
           billing: { ...settings.billing, footerTemplates: update.templates },
-        }),
+        }, workspace.workNotesScope),
       existing
         ? t('Le modèle « {name} » a été mis à jour.', {name: update.name})
         : t('Le modèle « {name} » a été enregistré.', {name: update.name}),
       false,
+      reason => { setSaveFailure(reason); setSaveAttempt(attempt => attempt + 1); },
+      next => {
+        if (workspace.workNotesScope !== undefined && next.workNotesScope !== workspace.workNotesScope)
+          throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+      },
     );
     if (saved) {
       setFooterTemplateId(update.id);
@@ -360,6 +366,7 @@ export function DocumentEditor({
       (candidate) => candidate.id === footerTemplateId,
     );
     if (!template) return;
+    setSaveFailure(null);
     const saved = await act(
       () =>
         desktopApi.saveSettings({
@@ -370,9 +377,14 @@ export function DocumentEditor({
               (candidate) => candidate.id !== template.id,
             ),
           },
-        }),
+        }, workspace.workNotesScope),
       t('Le modèle « {name} » a été supprimé.', {name: template.name}),
       false,
+      reason => { setSaveFailure(reason); setSaveAttempt(attempt => attempt + 1); },
+      next => {
+        if (workspace.workNotesScope !== undefined && next.workNotesScope !== workspace.workNotesScope)
+          throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+      },
     );
     if (saved) {
       setFooterTemplateId('');

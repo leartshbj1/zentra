@@ -78,6 +78,8 @@ try {
         $diagnosticNativeSuites += @('app_reset::tests')
         $diagnosticFrontendSuites += @('src/EmployeeDocumentImportAdmission.test.tsx', 'src/InvoiceScanPanelLifecycle.test.tsx', 'src/PayrollImportWizardAdmission.test.tsx', 'src/ResetActionsLifecycle.test.tsx', 'src/resetApp.test.ts')
         $diagnosticMobileSuites += @('src/EmployeeDocumentImportAdmission.test.tsx', 'src/InvoiceScanPanelLifecycle.test.tsx', 'src/PayrollImportWizardAdmission.test.tsx', 'src/ResetActionsLifecycle.test.tsx', 'src/resetApp.test.ts')
+        $diagnosticFrontendSuites += @('src/payrollAnalysisDiagnostics.test.ts')
+        $diagnosticMobileSuites += @('src/payrollAnalysisDiagnostics.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

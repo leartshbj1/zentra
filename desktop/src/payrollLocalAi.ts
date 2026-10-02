@@ -249,7 +249,23 @@ class PayrollLocalAi {
     this.rejectAll(error);
   }
 
+  private documentDiagnostic(operation: 'local_ai.engine_check' | 'local_ai.document_analysis') {
+    let started: number | undefined, id: string | undefined, finished = false;
+    try { started = performance.now(); id = recordDiagnostic({ area: 'app', operation, phase: 'start' }); }
+    catch { /* A journal failure must not prevent local document processing. */ }
+    return (phase: 'success' | 'failure' | 'info', error?: unknown) => {
+      if (finished) return;
+      finished = true;
+      try {
+        recordDiagnostic({ id, area: 'app', operation, phase,
+          durationMs: started === undefined ? undefined : performance.now() - started,
+          errorCode: phase === 'failure' ? classifyDiagnosticError(error) : undefined });
+      } catch { /* Preserve the original result, rejection and cancellation. */ }
+    };
+  }
+
   check(): Promise<PayrollAiMode> {
+    const finish = this.documentDiagnostic('local_ai.engine_check');
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         const worker = this.worker;
@@ -257,7 +273,12 @@ class PayrollLocalAi {
         worker?.terminate();
         this.rejectAll(new Error('La vérification du moteur IA local a expiré.'));
       }, PAYROLL_ENGINE_CHECK_TIMEOUT_MS);
-      const waiter = { resolve, timeout };
+      const waiter = { resolve: (mode: PayrollAiMode) => {
+        // Unavailable is an existing non-throwing result, including cancellation
+        // and check timeout. Do not turn it into a failure or invent its cause.
+        finish(mode === 'unavailable' ? 'info' : 'success');
+        resolve(mode);
+      }, timeout };
       this.checkWaiters.push(waiter);
       try {
         this.ensureWorker().postMessage({ type: 'check' });
@@ -292,10 +313,19 @@ class PayrollLocalAi {
   }
 
   analyze(input: { imageUrls?: string[]; extractedText?: string; pageStart?: number; pageEnd?: number }): Promise<PayrollAiAnalysis> {
-    if (this.isBusy()) return Promise.reject(new Error('Qwen est déjà utilisé. Attendez la fin de la réponse ou de la lecture en cours.'));
+    const finish = this.documentDiagnostic('local_ai.document_analysis');
+    if (this.isBusy()) {
+      const error = new Error('Qwen est déjà utilisé. Attendez la fin de la réponse ou de la lecture en cours.');
+      finish('failure', error);
+      return Promise.reject(error);
+    }
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
-      this.analyses.set(requestId, { resolve, reject, timeout: null });
+      const fail = (error: Error) => {
+        finish(this.cancelledErrors.has(error) ? 'info' : 'failure', error);
+        reject(error);
+      };
+      this.analyses.set(requestId, { resolve: value => { finish('success'); resolve(value); }, reject: fail, timeout: null });
       this.refreshAnalysisTimeout(requestId);
       try {
         this.ensureWorker().postMessage({
@@ -311,7 +341,7 @@ class PayrollLocalAi {
         const pending = this.analyses.get(requestId);
         if (pending?.timeout) clearTimeout(pending.timeout);
         this.analyses.delete(requestId);
-        reject(reason instanceof Error ? reason : new Error("L'analyse locale n'a pas pu démarrer."));
+        fail(reason instanceof Error ? reason : new Error("L'analyse locale n'a pas pu démarrer."));
       }
     });
   }
