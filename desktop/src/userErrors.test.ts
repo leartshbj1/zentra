@@ -34,6 +34,18 @@ describe('messages humains et données brutes des erreurs', () => {
     expect(getUserError('Failed to fetch', { language, operation: 'read' }).action).not.toContain(userErrorCopy(language).uncertain);
   });
 
+  it.each(appLanguages)('distingue une lecture inconnue et un résultat de mutation incertain en %s', language => {
+    const labels = userErrorCopy(language);
+    const read = getUserError('unexpected internal state', { language, operation: 'read' });
+    expect(read).toMatchObject({ kind: 'unknown', ...labels.unknownRead });
+    expect(read.action).not.toContain(labels.unknown.action);
+    expect(read.action).not.toContain(labels.uncertain);
+    const mutation = getUserError('unexpected internal state', { language, operation: 'mutation' });
+    expect(mutation).toMatchObject({ kind: 'unknown', title: labels.unknown.title, message: labels.unknown.message, action: `${labels.unknown.action} ${labels.uncertain}` });
+    expect(getUserError('unexpected internal state', { language })).toEqual(mutation);
+    expect(getUserError('unexpected internal state', { language, operation: 'read', fallback: 'Une lecture ciblée est indisponible.' }).message).toBe('Une lecture ciblée est indisponible.');
+  });
+
   it('ne transforme pas un message interne inconnu en explication principale', () => {
     const raw = 'panic internal::billing customer="Alice" password=unsafe';
     const error = getUserError(raw, { fallback: 'Le brouillon reste ouvert.' });

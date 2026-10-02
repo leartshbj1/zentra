@@ -75,7 +75,7 @@ export function App() {
   const [draftIdentity, setDraftIdentity] = useState<{key:string; memberId?:string}>({key:''});
   const [draftIdentityRevision, setDraftIdentityRevision] = useState(0);
   const [companyAdmission, setCompanyAdmission] = useState<DraftCompanyAdmission | null>(null);
-  const [draftIdentityFailure, setDraftIdentityFailure] = useState<{key:string; reason:'failure'|'timeout'|'scope'} | null>(null);
+  const [draftIdentityFailure, setDraftIdentityFailure] = useState<{key:string; reason:'failure'|'timeout'|'scope'; incidentCode:string} | null>(null);
   const cloudDraftIdentity = cloudAccount?.status === 'connected' || cloudAccount?.status === 'inactive';
   const draftOrganizationId = cloudDraftIdentity ? cloudAccount?.organizationId || '' : '';
   // Access status can change without changing the owner of the local drafts.
@@ -143,8 +143,8 @@ export function App() {
     setDraftIdentityFailure(null);
     if (!workspace.workNotesScope) {
       setDraftIdentity({key:draftIdentityKey});
-      setDraftIdentityFailure({key:draftIdentityKey,reason:'scope'});
-      recordDiagnostic({area:'draft',operation:'identity.scope',phase:'failure',errorCode:'STORAGE'});
+      const incident = recordDiagnostic({area:'draft',operation:'identity.scope',phase:'failure',errorCode:'STORAGE'});
+      setDraftIdentityFailure({key:draftIdentityKey,reason:'scope',incidentCode:`ZT-${incident}`});
       return;
     }
     if (!cloudDraftIdentity) {
@@ -161,7 +161,7 @@ export function App() {
       // A transient local read error for the same account must not close a form.
       // Explicit account changes synchronously invalidate the previous identity.
       setDraftIdentity(previous=>previous.key===draftIdentityKey?previous:{key:draftIdentityKey});
-      setDraftIdentityFailure({key:draftIdentityKey,reason});
+      setDraftIdentityFailure({key:draftIdentityKey,reason,incidentCode:`ZT-${incident}`});
       recordDiagnostic({id:incident,area:'draft',operation:'identity.read',phase:'failure',durationMs:performance.now()-started,errorCode:'STORAGE'});
     };
     const timer = window.setTimeout(() => failed('timeout'), FORM_DRAFT_IDENTITY_TIMEOUT_MS);
@@ -300,11 +300,11 @@ export function App() {
     ) : workspace.activityProfileRequired || activityProfileMissing ? (
       <BusinessProfileGate workspace={workspace} onSaved={setWorkspace} />
     ) : !draftIdentityReady ? (
-      <main className="splash-screen" aria-busy={draftIdentityFailure?.key !== draftIdentityKey}>
+      <main className="splash-screen draft-identity-splash" aria-busy={draftIdentityFailure?.key !== draftIdentityKey}>
         <BrandMark size={58} />
         <h1>Zentra</h1>
         {draftIdentityFailure?.key === draftIdentityKey ? <>
-          <ErrorPanel title={t('Espace indisponible')} message={draftIdentityMessages[language][draftIdentityFailure.reason]} fallback={draftIdentityMessages[language][draftIdentityFailure.reason]} operation="read" />
+          <ErrorGuidance title={t('Espace indisponible')} error={draftIdentityMessages[language][draftIdentityFailure.reason]} fallback={draftIdentityMessages[language][draftIdentityFailure.reason]} operation="read" incidentCode={draftIdentityFailure.incidentCode} />
           <Button autoFocus onClick={() => { if (!workspace.workNotesScope) { void load(); return; } setDraftIdentityFailure(null); setDraftIdentityRevision(value=>value+1); }}>{draftIdentityMessages[language].retry}</Button>
         </> : <><p role="status">{draftIdentityMessages[language].loading}</p><LoaderCircle className="spin" size={22} aria-hidden="true" /></>}
       </main>

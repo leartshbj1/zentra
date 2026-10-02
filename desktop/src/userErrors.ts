@@ -5,7 +5,7 @@ import { interfaceKeys } from 'virtual:zentra-language-keys';
 export type UserErrorKind = 'network' | 'session' | 'permission' | 'conflict' | 'validation' | 'file' | 'unknown';
 export type UserErrorOperation = 'read' | 'mutation';
 type Copy = { title: string; message: string; action: string };
-type ErrorCopy = Record<UserErrorKind, Copy> & { uncertain: string; reload: string; reconnect: string; review: string; details: string; incident: string; copy: string; copied: string; copyFailed: string };
+type ErrorCopy = Record<UserErrorKind, Copy> & { unknownRead: Copy; uncertain: string; reload: string; reconnect: string; review: string; details: string; incident: string; copy: string; copied: string; copyFailed: string };
 
 // Kept together so the recovery wording is available even when a language asset
 // cannot be loaded. Raw native messages remain untouched for business guards.
@@ -18,6 +18,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     validation: { title: 'Informations à corriger', message: 'Certaines informations ne sont pas acceptées.', action: 'Vérifiez les champs indiqués, les dates et les montants.' },
     file: { title: 'Fichier à vérifier', message: 'Le fichier n’a pas pu être lu ou créé.', action: 'Vérifiez son format et l’accès au dossier, puis choisissez le fichier ou le dossier à nouveau.' },
     unknown: { title: 'Action à vérifier', message: 'Le résultat de cette action n’a pas pu être confirmé.', action: 'Vérifiez le résultat. Si le problème persiste, communiquez le code d’incident au support.' },
+    unknownRead: { title: 'Lecture indisponible', message: 'Les informations n’ont pas pu être chargées.', action: 'Réessayez le chargement. Si le problème persiste, communiquez le code d’incident au support.' },
     uncertain: 'Avant un nouvel enregistrement, vérifiez si l’action apparaît déjà dans Zentra.',
     reload: 'Actualiser l’affichage', reconnect: 'Ouvrir la connexion', review: 'Vérifier les informations', details: 'Détails techniques', incident: 'Code d’incident', copy: 'Copier le code', copied: 'Code copié', copyFailed: 'La copie n’est pas disponible. Sélectionnez le code pour le copier.',
   },
@@ -29,6 +30,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     validation: { title: 'Angaben korrigieren', message: 'Einige Angaben werden nicht akzeptiert.', action: 'Prüfen Sie die markierten Felder, Daten und Beträge.' },
     file: { title: 'Datei prüfen', message: 'Die Datei konnte nicht gelesen oder erstellt werden.', action: 'Prüfen Sie das Format und den Ordnerzugriff. Wählen Sie die Datei oder den Ordner erneut.' },
     unknown: { title: 'Aktion prüfen', message: 'Das Ergebnis dieser Aktion konnte nicht bestätigt werden.', action: 'Prüfen Sie das Ergebnis. Falls das Problem bleibt, geben Sie dem Support den Vorfallcode.' },
+    unknownRead: { title: 'Informationen nicht verfügbar', message: 'Die Informationen konnten nicht geladen werden.', action: 'Laden Sie die Informationen erneut. Falls das Problem bleibt, geben Sie dem Support den Vorfallcode.' },
     uncertain: 'Prüfen Sie vor einer erneuten Speicherung, ob die Aktion bereits in Zentra erscheint.',
     reload: 'Anzeige aktualisieren', reconnect: 'Anmeldung öffnen', review: 'Angaben prüfen', details: 'Technische Details', incident: 'Vorfallcode', copy: 'Code kopieren', copied: 'Code kopiert', copyFailed: 'Kopieren ist nicht verfügbar. Markieren Sie den Code, um ihn zu kopieren.',
   },
@@ -40,6 +42,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     validation: { title: 'Correggi le informazioni', message: 'Alcune informazioni non sono accettate.', action: 'Controlla i campi indicati, le date e gli importi.' },
     file: { title: 'Verifica il file', message: 'Il file non ha potuto essere letto o creato.', action: 'Controlla il formato e l’accesso alla cartella, poi scegli nuovamente il file o la cartella.' },
     unknown: { title: 'Verifica l’azione', message: 'Il risultato di questa azione non ha potuto essere confermato.', action: 'Controlla il risultato. Se il problema persiste, comunica il codice incidente all’assistenza.' },
+    unknownRead: { title: 'Informazioni non disponibili', message: 'Le informazioni non sono state caricate.', action: 'Riprova a caricare le informazioni. Se il problema persiste, comunica il codice incidente all’assistenza.' },
     uncertain: 'Prima di salvare di nuovo, verifica se l’azione appare già in Zentra.',
     reload: 'Aggiorna la vista', reconnect: 'Apri l’accesso', review: 'Verifica le informazioni', details: 'Dettagli tecnici', incident: 'Codice incidente', copy: 'Copia il codice', copied: 'Codice copiato', copyFailed: 'La copia non è disponibile. Seleziona il codice per copiarlo.',
   },
@@ -51,6 +54,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     validation: { title: 'Correct the information', message: 'Some information was not accepted.', action: 'Check the indicated fields, dates and amounts.' },
     file: { title: 'Check the file', message: 'The file could not be read or created.', action: 'Check its format and folder access, then select the file or folder again.' },
     unknown: { title: 'Check the action', message: 'The result of this action could not be confirmed.', action: 'Check the result. If the problem continues, give the incident code to support.' },
+    unknownRead: { title: 'Information unavailable', message: 'The information could not be loaded.', action: 'Try loading the information again. If the problem continues, give the incident code to support.' },
     uncertain: 'Before saving again, check whether the action already appears in Zentra.',
     reload: 'Refresh the view', reconnect: 'Open sign-in', review: 'Check the information', details: 'Technical details', incident: 'Incident code', copy: 'Copy the code', copied: 'Code copied', copyFailed: 'Copying is unavailable. Select the code to copy it.',
   },
@@ -115,7 +119,7 @@ export function getUserError(reason: unknown, options: { fallback?: string; lang
   const language = options.language ?? getAppLanguage();
   const labels = copy[language];
   const kind = classifyUserError(reason);
-  const selected = labels[kind];
+  const selected = kind === 'unknown' && options.operation === 'read' ? labels.unknownRead : labels[kind];
   const uncertain = (options.operation ?? 'mutation') === 'mutation' && ['network', 'conflict', 'unknown', 'session'].includes(kind);
   // Fallbacks are authored UI context, never server text. Do not make an
   // uncertain mutation invite another blind save through old retry wording.

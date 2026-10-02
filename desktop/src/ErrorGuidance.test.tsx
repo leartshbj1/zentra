@@ -1,7 +1,16 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AppLanguage } from './language';
+const locale = vi.hoisted(() => ({ language: 'fr' as AppLanguage }));
+// SSR's language snapshot intentionally defaults to French. Inject only the
+// selected locale to exercise the real ErrorGuidance and its translated copy.
+vi.mock('./language', async importOriginal => ({ ...await importOriginal<typeof import('./language')>(), useAppLanguage: () => locale.language }));
 vi.mock('./diagnostics', () => ({ resolveErrorIncident: () => ({ code: 'ZEN-TEST-0001' }) }));
 import { ErrorGuidance } from './ErrorGuidance';
+import { appLanguages } from './language';
+import { userErrorCopy } from './userErrors';
+
+afterEach(() => { locale.language = 'fr'; });
 
 describe('guide commun des erreurs', () => {
   it('affiche une correction puis des détails fermés et un code copiable', () => {
@@ -24,6 +33,24 @@ describe('guide commun des erreurs', () => {
     expect(html).not.toContain('Actualiser l’affichage');
     expect(html).not.toContain('Réessayer');
     expect(html).toContain('vérifiez si l’action apparaît déjà');
+  });
+
+  it.each(appLanguages)('rend le guide de lecture et préserve la vérification avant mutation en %s', language => {
+    locale.language = language;
+    const labels = userErrorCopy(language);
+    const reload = vi.fn();
+    const read = renderToStaticMarkup(<ErrorGuidance error="unexpected internal state" operation="read" onReload={reload} />);
+    const mutation = renderToStaticMarkup(<ErrorGuidance error="unexpected internal state" operation="mutation" onReload={reload} />);
+    // Decode HTML punctuation while asserting the copy visible to the user.
+    const text = (html: string) => html.replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, '&').replace(/<[^>]+>/g, ' ');
+    for (const expected of Object.values(labels.unknownRead)) expect(text(read)).toContain(expected);
+    expect(text(read)).toContain(labels.reload);
+    expect(text(read)).not.toContain(labels.uncertain);
+    expect(text(read)).not.toContain(labels.unknown.action);
+    expect(text(mutation)).toContain(`${labels.unknown.action} ${labels.uncertain}`);
+    expect(text(mutation)).not.toContain(labels.reload);
+    expect(text(mutation)).not.toContain(labels.unknownRead.action);
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it('réserve les actions à leur catégorie', () => {

@@ -89,6 +89,9 @@ async function failureRetry(page,mode,language='fr') {
   else await page.evaluate(id=>window.__qaAppDraftIdentity.releaseIdentity(id,''),first);
   await page.getByRole('alert').getByText(mode==='timeout'?copy[language].timeout:copy[language].failure,{exact:true}).waitFor();
   assert.equal(await page.locator('.desktop-app').count(),0);
+  const failedRead = await page.evaluate(()=>window.__qaAppDraftIdentity.diagnostics().filter(event=>event.phase==='failure').at(-1));
+  const incidentCode = await page.locator('.error-guidance__incident code').textContent();
+  assert.equal(incidentCode,`ZT-${failedRead.id}`,'The visible incident identifies the failed local read, without a separate presentation incident');
   await page.evaluate(()=>window.__qaAppDraftIdentity.identityMode('hold'));
   await page.getByRole('button',{name:copy[language].retry,exact:true}).click();
   const retry=await latestIdentity(page);
@@ -100,7 +103,7 @@ async function failureRetry(page,mode,language='fr') {
     await page.clock.fastForward(30);
     assert.equal(await page.locator('.desktop-app').isVisible(),true);
   }
-  return {mode,language,reads:(await proof(page)).identityReads.length,diagnostics:await checkDiagnostics(page)};
+  return {mode,language,incidentCode,reads:(await proof(page)).identityReads.length,diagnostics:await checkDiagnostics(page)};
 }
 async function companyFirst(page) {
   await page.waitForFunction(()=>window.__qaAppDraftIdentity.companyPending().length===1);
@@ -210,6 +213,8 @@ async function switchAccount(page,newOrganization) {
 }
 async function missingLocalScope(page) {
   await page.getByRole('alert').getByText('Votre espace local n’a pas pu être identifié. Vos données sont conservées.',{exact:true}).waitFor();
+  const failure=await page.evaluate(async()=>{const module=await import('/src/diagnostics.ts');return module.recentDiagnosticEvents().filter(event=>event.operation==='identity.scope'&&event.phase==='failure').at(-1);});
+  const incidentCode=await page.locator('.error-guidance__incident code').textContent();assert.equal(incidentCode,`ZT-${failure.id}`);
   assert.equal(await page.locator('.desktop-app').count(),0);
   assert.equal((await proof(page)).identityReads.length,0);
   await page.evaluate(()=>window.__qaAppDraftIdentity.setScope('synthetic-recovered-local-scope'));
@@ -218,7 +223,7 @@ async function missingLocalScope(page) {
   const form=await openForm(page);await form.locator('[name=company]').fill('SCOPED LOCAL DRAFT');
   const retained=await drafts(page);assert.equal(retained.length,1);
   assert.match(decodeURIComponent(retained[0].key),/synthetic-recovered-local-scope/);
-  return {missingScopeBlocked:true,localScopeReRead:true,identityReads:0};
+  return {missingScopeBlocked:true,localScopeReRead:true,incidentCode,identityReads:0};
 }
 
 const scenarios=[

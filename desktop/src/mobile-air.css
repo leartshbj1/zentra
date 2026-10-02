@@ -201,6 +201,8 @@
   html[data-app-theme] .payroll-dialog .payroll-preparation__document { margin: 0; padding: 4px 0; background: transparent; }
   html[data-app-theme] .payroll-dialog .payroll-preparation__document strong { display: none; }
   html[data-app-theme] .assistant-launcher { width: 46px; min-width: 46px; height: 46px; min-height: 46px; padding: 0; right: max(20px, var(--safe-right, env(safe-area-inset-right))); bottom: calc(88px + var(--safe-bottom, env(safe-area-inset-bottom))); background: var(--paper); border-color: var(--line); color: var(--ink); box-shadow: 0 3px 14px #00000014; }
+  /* Identity admission has no dock; keep help clear of its retry control. */
+  html[data-app-theme] body:has(.draft-identity-splash) .assistant-launcher { top: calc(20px + var(--safe-top, env(safe-area-inset-top))); bottom: auto; }
   .assistant-launcher > span { display: none; }
   html[data-app-theme] .desktop-app[data-experience] .mobile-navigation { background: var(--shell-glass, var(--paper)); border-color: var(--line-soft); box-shadow: 0 4px 22px #00000012; }
   html[data-app-theme] .desktop-app[data-experience] .mobile-navigation button { min-height: 52px; }
