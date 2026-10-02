@@ -684,6 +684,27 @@ fn send_using(
     input: SendMailInput,
     submit: impl FnOnce(&SmtpTransport, &Message) -> Result<(), SubmissionFailure>,
 ) -> AppResult<Value> {
+    send_using_with_history_reporter(store, input, submit, crate::diagnostics::record_native_error)
+}
+fn report_mail_history_result<T>(
+    result: AppResult<T>,
+    report: &mut impl FnMut(&AppError),
+) -> bool {
+    match result {
+        Ok(_) => true,
+        Err(error) => {
+            // The existing reporter retains only a closed error category.
+            report(&error);
+            false
+        }
+    }
+}
+fn send_using_with_history_reporter(
+    store: &LocalStore,
+    input: SendMailInput,
+    submit: impl FnOnce(&SmtpTransport, &Message) -> Result<(), SubmissionFailure>,
+    mut report: impl FnMut(&AppError),
+) -> AppResult<Value> {
     let _mail = MailGuard::take()?;
     uuid::Uuid::parse_str(&input.request_id)
         .map_err(|_| invalid("Rouvrez l’e-mail pour préparer un nouvel envoi."))?;
@@ -707,7 +728,10 @@ fn send_using(
                 return Err(invalid("Cette tentative existe déjà. Fermez puis rouvrez le message avant de préparer un autre envoi."));
             }
             if status == "accepted" {
-                let recorded = record_receipt(store, &input).is_ok();
+                let receipt = record_receipt(store, &input);
+                drop(_local);
+                drop(_mail);
+                let recorded = report_mail_history_result(receipt, &mut report);
                 return Ok(json!({"status":"accepted","replayed":true,"historyWarning":!recorded}));
             }
             return Err(invalid("L’envoi précédent n’a pas de confirmation certaine. Vérifiez auprès du destinataire ou de votre messagerie avant de préparer un nouvel envoi : réessayer pourrait créer un doublon."));
@@ -779,17 +803,26 @@ fn send_using(
                 "UPDATE submissions SET status=? WHERE request_id=?",
                 params![status, input.request_id],
             )?)
-        })
-        .is_ok();
+        });
     if result.is_err() {
-        return Err(invalid(if status == "rejected" {
+        let error = invalid(if status == "rejected" {
             "Le serveur a refusé l’e-mail. Vérifiez le destinataire, l’expéditeur autorisé et les réglages de votre messagerie avant de préparer un nouvel envoi."
         } else {
             "La connexion a été interrompue. L’e-mail a peut-être été envoyé : vérifiez auprès du destinataire avant de préparer un nouvel envoi. Aucun renvoi automatique n’aura lieu."
-        }));
+        });
+        drop(_mail);
+        report_mail_history_result(persisted, &mut report);
+        return Err(error);
     }
-    let _local = store.lock()?;
-    let recorded = record_receipt(store, &input).is_ok();
+    // SMTP acceptance is already confirmed. Local receipt failures cannot
+    // turn it into an unconfirmed send or authorize a second submission.
+    let receipt = (|| {
+        let _local = store.lock()?;
+        record_receipt(store, &input)
+    })();
+    drop(_mail);
+    let persisted = report_mail_history_result(persisted, &mut report);
+    let recorded = report_mail_history_result(receipt, &mut report);
     Ok(json!({"status":"accepted","replayed":false,"historyWarning":!persisted||!recorded}))
 }
 fn record_receipt(store: &LocalStore, input: &SendMailInput) -> AppResult<()> {

@@ -190,10 +190,18 @@ fn mail_connection_ipc_accepts_only_writable_connection_fields() {
 }
 fn fixture(entity: &str) -> (tempfile::TempDir, LocalStore, MailTarget) {
     let temporary = tempfile::tempdir().unwrap();
-    let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+    let mut store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+    // Native CI executes the release-profile licence guard. Only this fixture
+    // gets a public synthetic authority; no guard or production key is skipped.
+    store.configure_test_license_key(
+        ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+            .verifying_key()
+            .to_bytes(),
+    );
     store
         .complete_onboarding(crate::tests::test_onboarding(), "1.0.0")
         .unwrap();
+    install_synthetic_mail_license(&store);
     crate::tests::enable_accounting(&store);
     let client=store.create_record("clients",json!({"name":"Client Exemple","email":"client@example.invalid","address_line1":"Rue Exemple 1","postal_code":"1000","city":"Lausanne","country":"CH"})).unwrap();
     let mut fields = json!({"client_id":client["id"],"title":"Prestation test"});
@@ -246,6 +254,39 @@ fn fixture(entity: &str) -> (tempfile::TempDir, LocalStore, MailTarget) {
             id,
         },
     )
+}
+fn install_synthetic_mail_license(store: &LocalStore) {
+    use ed25519_dalek::Signer;
+    let now = chrono::Utc::now();
+    let today = chrono::Local::now().date_naive();
+    let payload = crate::models::LicenseTokenPayload {
+        token_version: 2,
+        license_id: uuid::Uuid::new_v4().to_string(),
+        installation_id: store.installation_id.clone(),
+        jti: uuid::Uuid::new_v4().to_string(),
+        kid: "hc-prod-v1".into(),
+        customer_name: Some("Synthetic SMTP receipt company".into()),
+        access_role: "owner".into(),
+        account_user_id: None,
+        account_session_id: None,
+        plan: crate::license::LICENSE_PLAN.into(),
+        price_chf_cents: crate::license::LICENSE_PRICE_CHF_CENTS,
+        issued_at: now.to_rfc3339(),
+        valid_from: (today - chrono::Duration::days(1)).to_string(),
+        valid_until: (today + chrono::Duration::days(30)).to_string(),
+    };
+    let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .encode(serde_json::to_vec(&payload).unwrap());
+    let signature = ed25519_dalek::SigningKey::from_bytes(&[29; 32]).sign(encoded.as_bytes());
+    let token = format!(
+        "{encoded}.{}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(signature.to_bytes())
+    );
+    let state = store.install_server_issued_license(&token).unwrap();
+    assert_eq!(state["status"], "valid");
+    assert_eq!(state["read_only"], false);
+    store.require_write_access().unwrap();
+    store.clone().require_write_access().unwrap();
 }
 fn input(store: &LocalStore, target: MailTarget) -> SendMailInput {
     let p = preview(store, &target).unwrap();
@@ -589,4 +630,439 @@ fn mail_reminder_rechecks_payment_and_closes_only_after_smtp_acceptance() {
         "paid invoice must not be reminded"
     ))
     .is_err());
+}
+
+// Exact prior send_using body retained only as a synthetic regression witness.
+fn send_using_before_confirmed_receipt(
+    store: &LocalStore,
+    input: SendMailInput,
+    submit: impl FnOnce(&SmtpTransport, &Message) -> Result<(), SubmissionFailure>,
+) -> AppResult<Value> {
+    let _mail = MailGuard::take()?;
+    uuid::Uuid::parse_str(&input.request_id)
+        .map_err(|_| invalid("Rouvrez l’e-mail pour préparer un nouvel envoi."))?;
+    address(&input.recipient)?;
+    validate_message(&input.subject, &input.body)?;
+    let payload_hash = hash(&serde_json::to_vec(&input)?);
+    let (transport, message) = {
+        let _local = store.lock()?;
+        check_scope(store, &input.scope)?;
+        require_sender(store)?;
+        let db = history_db(store, &input.scope)?;
+        let previous: Option<(String, String)> = db
+            .query_row(
+                "SELECT payload_hash,status FROM submissions WHERE request_id=?",
+                params![input.request_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        if let Some((old, status)) = previous {
+            if old != payload_hash {
+                return Err(invalid("Cette tentative existe déjà. Fermez puis rouvrez le message avant de préparer un autre envoi."));
+            }
+            if status == "accepted" {
+                let recorded = record_receipt(store, &input).is_ok();
+                return Ok(json!({"status":"accepted","replayed":true,"historyWarning":!recorded}));
+            }
+            return Err(invalid("L’envoi précédent n’a pas de confirmation certaine. Vérifiez auprès du destinataire ou de votre messagerie avant de préparer un nouvel envoi : réessayer pourrait créer un doublon."));
+        }
+        let current = preview(store, &input.target)?;
+        if text(&current, "sourceRevision") != input.source_revision {
+            return Err(invalid("Le document ou son solde a changé. Fermez puis rouvrez l’e-mail pour utiliser les informations à jour."));
+        }
+        let connection = read_connection(store, &input.scope)?;
+        let logo = selected_mail_logo(store)?;
+        let pdf = store.document_pdf_preview(
+            &text(&current, "documentEntity"),
+            &text(&current, "documentId"),
+        )?;
+        let message_id = format!(
+            "<{}@{}>",
+            input.request_id,
+            connection
+                .from_email
+                .split('@')
+                .next_back()
+                .unwrap_or("zentra.local")
+        );
+        let pdf_sha256 = hash(&pdf);
+        let reminder = if input.target.entity == "reminders" {
+            Some(store.preview_reminder_delivery(ReminderPreviewInput {
+                id: input.target.id.clone(),
+                prepared_on: None,
+            })?)
+        } else {
+            None
+        };
+        let payload = json!({"schema":"zentra.smtp_submission.v1","request_id":input.request_id,"channel":"smtp","recipient":input.recipient,"subject":input.subject,"body":input.body,"from_email":connection.from_email,"from_name":connection.from_name,"attachment_name":current["attachmentName"],"attachment_sha256":pdf_sha256,"reminder":reminder,"message_id":message_id});
+        let message = build_message(
+            &connection,
+            &input,
+            pdf,
+            &text(&current, "attachmentName"),
+            &message_id,
+            logo.as_ref(),
+        )?;
+        let transport = connection.transport()?;
+        db.execute(
+            "INSERT INTO submissions VALUES(?,?,?,?,?,?,'pending',?,?,?)",
+            params![
+                input.request_id,
+                payload_hash,
+                input.target.entity,
+                input.target.id,
+                input.recipient,
+                input.subject,
+                now_iso(),
+                message_id,
+                payload.to_string()
+            ],
+        )?;
+        (transport, message)
+    };
+    // Network I/O never holds the company lock or the GUI thread.
+    let result = submit(&transport, &message);
+    let status = match result {
+        Ok(()) => "accepted",
+        Err(SubmissionFailure::Rejected) => "rejected",
+        Err(SubmissionFailure::Uncertain) => "uncertain",
+    };
+    let persisted = history_db(store, &input.scope)
+        .and_then(|db| {
+            Ok(db.execute(
+                "UPDATE submissions SET status=? WHERE request_id=?",
+                params![status, input.request_id],
+            )?)
+        })
+        .is_ok();
+    if result.is_err() {
+        return Err(invalid(if status == "rejected" {
+            "Le serveur a refusé l’e-mail. Vérifiez le destinataire, l’expéditeur autorisé et les réglages de votre messagerie avant de préparer un nouvel envoi."
+        } else {
+            "La connexion a été interrompue. L’e-mail a peut-être été envoyé : vérifiez auprès du destinataire avant de préparer un nouvel envoi. Aucun renvoi automatique n’aura lieu."
+        }));
+    }
+    let _local = store.lock()?;
+    let recorded = record_receipt(store, &input).is_ok();
+    Ok(json!({"status":"accepted","replayed":false,"historyWarning":!persisted||!recorded}))
+}
+
+fn history_reporter_guard_checkpoint(
+    store: &LocalStore,
+    checks: &mut Vec<(bool, bool)>,
+    readers: &mut Vec<(std::thread::JoinHandle<()>, std::sync::mpsc::Receiver<bool>)>,
+) {
+    let mail_available = MailGuard::take().is_ok();
+    let reader = store.clone();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let thread = std::thread::spawn(move || {
+        tx.send(reader.lock().is_ok()).unwrap();
+    });
+    let store_available = rx.recv_timeout(Duration::from_secs(1)).ok() == Some(true);
+    checks.push((mail_available, store_available));
+    // Retain the receiver through thread completion even when a negative
+    // guard oracle times out; do not introduce a SendError fixture cascade.
+    readers.push((thread, rx));
+}
+fn finish_history_reporter_checks(
+    checks: Vec<(bool, bool)>,
+    readers: Vec<(std::thread::JoinHandle<()>, std::sync::mpsc::Receiver<bool>)>,
+) {
+    for (thread, _receiver) in readers {
+        thread.join().unwrap();
+    }
+    assert!(!checks.is_empty());
+    assert!(checks.iter().all(|&(mail, store)| mail && store));
+}
+fn submission_status(store: &LocalStore, scope: &str, request_id: &str) -> String {
+    history_db(store, scope)
+        .unwrap()
+        .query_row(
+            "SELECT status FROM submissions WHERE request_id=?",
+            params![request_id],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+fn smtp_receipt_count(store: &LocalStore) -> i64 {
+    store
+        .connect()
+        .unwrap()
+        .query_row(
+            "SELECT COUNT(*) FROM audit_log WHERE action='smtp_accepted'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+
+#[test]
+fn mail_confirmed_acceptance_survives_poisoned_store_and_replay_submits_once() {
+    let _serial = TEST_MAIL.lock().unwrap_or_else(|p| p.into_inner());
+    for before in [true, false] {
+        let (temporary, store, target) = fixture("quotes");
+        let draft = input(&store, target);
+        let replay = copy(&draft);
+        let key = draft.scope.clone();
+        let request = draft.request_id.clone();
+        let mut submissions = 0;
+        let mut reports = Vec::new();
+        let submit = |_: &SmtpTransport, _: &Message| {
+            submissions += 1;
+            let poisoned = store.clone();
+            assert!(std::thread::spawn(move || {
+                let _guard = poisoned.lock().unwrap();
+                panic!("Synthetic local-store poison after SMTP acceptance");
+            })
+            .join()
+            .is_err());
+            Ok(())
+        };
+        let result = if before {
+            send_using_before_confirmed_receipt(&store, draft, submit)
+        } else {
+            send_using_with_history_reporter(&store, draft, submit, |error| {
+                assert!(matches!(error, AppError::Validation(_)));
+                assert!(MailGuard::take().is_ok());
+                reports.push("input.validation");
+            })
+        };
+        assert_eq!(submissions, 1);
+        assert_eq!(submission_status(&store, &key, &request), "accepted");
+        assert_eq!(smtp_receipt_count(&store), 0);
+        if before {
+            assert_eq!(
+                result.unwrap_err().to_string(),
+                "Champ invalide : Le verrou de la base locale est indisponible."
+            );
+            assert!(reports.is_empty());
+        } else {
+            let receipt = result.unwrap();
+            assert_eq!(receipt["status"], "accepted");
+            assert_eq!(receipt["historyWarning"], true);
+            assert_eq!(receipt["replayed"], false);
+            assert_eq!(reports, ["input.validation"]);
+        }
+        // Reopening restores the per-instance mutex, not by clearing poison
+        // in product code. The same persisted attempt can only be recovered.
+        let mut reopened = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        reopened.configure_test_license_key(
+            ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+                .verifying_key()
+                .to_bytes(),
+        );
+        reopened.require_write_access().unwrap();
+        let recovered = send_using_with_history_reporter(
+            &reopened,
+            replay,
+            |_, _| panic!("A confirmed request must never be submitted again"),
+            |_| panic!("The recovered receipt should succeed"),
+        )
+        .unwrap();
+        assert_eq!(recovered["status"], "accepted");
+        assert_eq!(recovered["replayed"], true);
+        assert_eq!(recovered["historyWarning"], false);
+        assert_eq!(smtp_receipt_count(&reopened), 1);
+        assert_eq!(submissions, 1);
+    }
+}
+
+#[test]
+fn mail_confirmed_history_failures_are_reported_after_both_guards_without_retry() {
+    let _serial = TEST_MAIL.lock().unwrap_or_else(|p| p.into_inner());
+    let (_temporary, store, target) = fixture("quotes");
+    let draft = input(&store, target);
+    let replay = copy(&draft);
+    let key = draft.scope.clone();
+    let request = draft.request_id.clone();
+    let history_path = folder(&store, &key).join("submissions.sqlite3");
+    let mut saved_history = None;
+    let mut submissions = 0;
+    let mut categories = Vec::new();
+    let mut checks = Vec::new();
+    let mut readers = Vec::new();
+    let result = send_using_with_history_reporter(
+        &store,
+        draft,
+        |_, _| {
+            submissions += 1;
+            saved_history = Some(std::fs::read(&history_path).unwrap());
+            std::fs::write(&history_path, b"SYNTHETIC INVALID SMTP HISTORY").unwrap();
+            Ok(())
+        },
+        |error| {
+            assert!(matches!(error, AppError::Database(_)));
+            categories.push("storage.database");
+            history_reporter_guard_checkpoint(&store, &mut checks, &mut readers);
+        },
+    )
+    .unwrap();
+    finish_history_reporter_checks(checks, readers);
+    assert_eq!(result["status"], "accepted");
+    assert_eq!(result["historyWarning"], true);
+    assert_eq!(categories, ["storage.database", "storage.database"]);
+    assert_eq!(submissions, 1);
+    std::fs::write(&history_path, saved_history.unwrap()).unwrap();
+    assert_eq!(submission_status(&store, &key, &request), "pending");
+    assert_eq!(smtp_receipt_count(&store), 0);
+    assert!(send_using_with_history_reporter(
+        &store,
+        replay,
+        |_, _| panic!("An uncertain persisted receipt cannot authorize retry"),
+        |_| panic!("No best-effort history failure on this refusal"),
+    )
+    .is_err());
+    assert_eq!(submissions, 1);
+}
+
+#[test]
+fn mail_confirmed_replay_preserves_acceptance_and_reports_receipt_failure_without_payload() {
+    let _serial = TEST_MAIL.lock().unwrap_or_else(|p| p.into_inner());
+    let (_temporary, store, target) = fixture("quotes");
+    let draft = input(&store, target);
+    let replay = copy(&draft);
+    let recovered = copy(&draft);
+    let key = draft.scope.clone();
+    let request = draft.request_id.clone();
+    store.connect().unwrap().execute_batch(
+        "CREATE TRIGGER refuse_smtp_fixture_receipt BEFORE INSERT ON audit_log WHEN NEW.action='smtp_accepted' BEGIN SELECT RAISE(FAIL,'PRIVATE-FIXTURE-RECIPIENT-SUBJECT-BODY'); END;"
+    ).unwrap();
+    let mut submissions = 0;
+    let mut categories = Vec::new();
+    let mut checks = Vec::new();
+    let mut readers = Vec::new();
+    let mut reporter = |error: &AppError| {
+        // Only the closed category is retained by this fixture reporter.
+        assert!(matches!(error, AppError::Database(_)));
+        categories.push("storage.database");
+        history_reporter_guard_checkpoint(&store, &mut checks, &mut readers);
+    };
+    let accepted = send_using_with_history_reporter(
+        &store,
+        draft,
+        |_, _| {
+            submissions += 1;
+            Ok(())
+        },
+        &mut reporter,
+    )
+    .unwrap();
+    assert_eq!(accepted["status"], "accepted");
+    assert_eq!(accepted["historyWarning"], true);
+    let accepted_again = send_using_with_history_reporter(
+        &store,
+        replay,
+        |_, _| panic!("Accepted replay is a receipt recovery only"),
+        &mut reporter,
+    )
+    .unwrap();
+    assert_eq!(accepted_again["status"], "accepted");
+    assert_eq!(accepted_again["replayed"], true);
+    assert_eq!(accepted_again["historyWarning"], true);
+    drop(reporter);
+    finish_history_reporter_checks(checks, readers);
+    assert_eq!(categories, ["storage.database", "storage.database"]);
+    assert_eq!(submissions, 1);
+    assert_eq!(submission_status(&store, &key, &request), "accepted");
+    assert_eq!(smtp_receipt_count(&store), 0);
+    store
+        .connect()
+        .unwrap()
+        .execute_batch("DROP TRIGGER refuse_smtp_fixture_receipt")
+        .unwrap();
+    let accepted_final = send_using_with_history_reporter(
+        &store,
+        recovered,
+        |_, _| panic!("Recovery after history repair must not resend"),
+        |_| panic!("History repair must not report an error"),
+    )
+    .unwrap();
+    assert_eq!(accepted_final["status"], "accepted");
+    assert_eq!(accepted_final["historyWarning"], false);
+    assert_eq!(smtp_receipt_count(&store), 1);
+}
+
+#[test]
+fn mail_rejected_and_uncertain_keep_original_errors_when_history_fails() {
+    let _serial = TEST_MAIL.lock().unwrap_or_else(|p| p.into_inner());
+    for failure in [SubmissionFailure::Rejected, SubmissionFailure::Uncertain] {
+        let (_temporary, store, target) = fixture("quotes");
+        let draft = input(&store, target);
+        let replay = copy(&draft);
+        let key = draft.scope.clone();
+        let request = draft.request_id.clone();
+        let history_path = folder(&store, &key).join("submissions.sqlite3");
+        let mut saved_history = None;
+        let mut submissions = 0;
+        let mut reports = 0;
+        let mut checks = Vec::new();
+        let mut readers = Vec::new();
+        let error = send_using_with_history_reporter(
+            &store,
+            draft,
+            |_, _| {
+                submissions += 1;
+                saved_history = Some(std::fs::read(&history_path).unwrap());
+                std::fs::write(&history_path, b"SYNTHETIC INVALID SMTP HISTORY").unwrap();
+                Err(failure)
+            },
+            |error| {
+                assert!(matches!(error, AppError::Database(_)));
+                reports += 1;
+                history_reporter_guard_checkpoint(&store, &mut checks, &mut readers);
+            },
+        )
+        .unwrap_err();
+        finish_history_reporter_checks(checks, readers);
+        let original = match failure {
+            SubmissionFailure::Rejected => "Champ invalide : Le serveur a refusé l’e-mail. Vérifiez le destinataire, l’expéditeur autorisé et les réglages de votre messagerie avant de préparer un nouvel envoi.",
+            SubmissionFailure::Uncertain => "Champ invalide : La connexion a été interrompue. L’e-mail a peut-être été envoyé : vérifiez auprès du destinataire avant de préparer un nouvel envoi. Aucun renvoi automatique n’aura lieu.",
+        };
+        assert_eq!(error.to_string(), original);
+        assert_eq!(reports, 1);
+        assert_eq!(submissions, 1);
+        std::fs::write(&history_path, saved_history.unwrap()).unwrap();
+        assert_eq!(submission_status(&store, &key, &request), "pending");
+        assert_eq!(smtp_receipt_count(&store), 0);
+        assert!(send_using_with_history_reporter(
+            &store,
+            replay,
+            |_, _| panic!("No automatic retry after refused or uncertain SMTP"),
+            |_| panic!("No best-effort history failure on this refusal"),
+        )
+        .is_err());
+    }
+}
+
+#[test]
+fn mail_success_and_replay_do_not_report_native_history_errors() {
+    let _serial = TEST_MAIL.lock().unwrap_or_else(|p| p.into_inner());
+    let (_temporary, store, target) = fixture("quotes");
+    let draft = input(&store, target);
+    let replay = copy(&draft);
+    let mut submissions = 0;
+    let result = send_using_with_history_reporter(
+        &store,
+        draft,
+        |_, _| {
+            submissions += 1;
+            Ok(())
+        },
+        |_| panic!("A successful receipt must not create an error event"),
+    )
+    .unwrap();
+    assert_eq!(result["status"], "accepted");
+    assert_eq!(result["historyWarning"], false);
+    let repeated = send_using_with_history_reporter(
+        &store,
+        replay,
+        |_, _| panic!("Accepted replay must not submit"),
+        |_| panic!("Successful replay must not create an error event"),
+    )
+    .unwrap();
+    assert_eq!(repeated["status"], "accepted");
+    assert_eq!(repeated["replayed"], true);
+    assert_eq!(repeated["historyWarning"], false);
+    assert_eq!(submissions, 1);
+    assert_eq!(smtp_receipt_count(&store), 1);
 }
