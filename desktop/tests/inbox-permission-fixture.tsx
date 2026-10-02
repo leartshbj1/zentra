@@ -10,6 +10,7 @@ const query = new URLSearchParams(location.search);
 const supplier = query.get('type') !== 'appointment';
 const step = query.get('step') || 'get';
 const scenario = query.get('scenario') || 'prepare';
+const manual = query.has('manual');
 const proof = {
   calls: [] as { command: string; action: string|null; id?: string }[],
   workspaceReads: 0, publications: 0, renderReadOnly: false,
@@ -26,7 +27,7 @@ const mailItem = {
     supplierName: 'Supplier fictional', reference: 'SYNTHETIC',
     invoiceDate: '2026-10-02', dueDate: '2026-11-01', currency: 'CHF',
     netCents: 10000, vatCents: 810, totalCents: 10810, vatBp: 810,
-    category: 'materials', confidence: .99, fieldConfidence: {supplierName:.99}, issues: [], evidence: {},
+    category: 'materials', confidence: manual ? .5 : .99, fieldConfidence: {supplierName:manual ? .5 : .99}, issues: [], evidence: {},
   },
 };
 const appointment = {
@@ -55,7 +56,7 @@ Object.assign(window, {__TAURI_INTERNALS__: {invoke: async (command: string, arg
     : action === 'import' ? {id:args?.data?.id,saved:true} : structuredClone(state);
   const isFirstGet = !action && first;
   if (isFirstGet) first = false;
-  if (!held && (step === 'get' && isFirstGet || step === 'prepare' && action === 'prepareSuppliers' || step === 'import' && action === 'import')) {
+  if (!held && (step === 'get' && (manual ? proof.calls.filter(row => !row.action).length === 2 : isFirstGet) || step === 'prepare' && action === 'prepareSuppliers' || step === 'import' && action === 'import')) {
     held = true; proof.pending = true; proof.pendingStage = step;
     return new Promise(resolve=>{finish=()=>{proof.pending=false;resolve(value);};});
   }
@@ -63,10 +64,11 @@ Object.assign(window, {__TAURI_INTERNALS__: {invoke: async (command: string, arg
 }}});
 desktopApi.loadWorkspace = async () => {
   proof.workspaceReads++;
-  return {supplierInvoices:[],agendaEvents:[]} as never;
+  return {supplierInvoices:[],agendaEvents:[],accounts:[],suppliers:[{id:'synthetic-supplier',name:'Supplier fictional',email:'supplier@example.invalid',archivedAt:null}]} as never;
 };
 let setReadOnly = (_value: boolean) => {};
 let blocked = false;
+let prepare = async () => {};
 function Fixture() {
   const [readOnly,setValue] = useState(query.has('initialReadOnly'));
   setReadOnly = value => flushSync(()=>setValue(value));
@@ -76,7 +78,8 @@ function Fixture() {
   const inbox = supplier
     ? useSupplierInbox('synthetic-org',readOnly,()=>blocked,onWorkspace)
     : useAppointmentInbox('synthetic-org',readOnly,()=>blocked,onWorkspace);
-  return <output data-ready="true" data-items={inbox.state?.items.length ?? -1}>{readOnly ? 'read-only' : 'editable'} {inbox.error}</output>;
+  if (supplier) prepare = () => (inbox as ReturnType<typeof useSupplierInbox>).prepareAll();
+  return <output data-ready="true" data-items={inbox.state?.items.length ?? -1} data-busy={inbox.busy}>{readOnly ? 'read-only' : 'editable'} {inbox.error}</output>;
 }
-Object.assign(window, {__qaInbox: {proof,makeReadOnly:()=>setReadOnly(true),block:()=>{blocked=true;},release:()=>finish()}});
+Object.assign(window, {__qaInbox: {proof,makeReadOnly:()=>setReadOnly(true),block:()=>{blocked=true;},release:()=>finish(),prepare:()=>prepare()}});
 createRoot(document.getElementById('root')!).render(<Fixture/>);

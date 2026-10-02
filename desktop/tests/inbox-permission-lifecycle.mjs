@@ -25,6 +25,10 @@ const cases = [
   {name:'appointment-between-imports',type:'appointment',step:'import',scenario:'import',alter:'permission'},
   {name:'supplier-editable-control',type:'supplier',step:'get',scenario:'both',alter:'none'},
   {name:'supplier-blocked-control',type:'supplier',step:'import',scenario:'import',alter:'blocked'},
+  {name:'supplier-manual-get',type:'supplier',step:'get',scenario:'prepare',alter:'permission',manual:true},
+  {name:'supplier-manual-prepare',type:'supplier',step:'prepare',scenario:'prepare',alter:'permission',manual:true},
+  {name:'supplier-manual-import',type:'supplier',step:'import',scenario:'prepare',alter:'permission',manual:true},
+  {name:'supplier-manual-editable',type:'supplier',step:'get',scenario:'prepare',alter:'none',manual:true},
 ];
 for (const [engine,kind] of [['Edge',pw.chromium],['WebKit',pw.webkit]]) {
   const browser = await kind.launch(engine==='Edge' ? {channel:'msedge',headless:true} : {headless:true});
@@ -39,8 +43,12 @@ for (const [engine,kind] of [['Edge',pw.chromium],['WebKit',pw.webkit]]) {
         return route.continue();
       });
       try {
-        await page.goto(`${origin}/tests/inbox-permission-fixture.html?type=${c.type}&step=${c.step}&scenario=${c.scenario}`);
+        await page.goto(`${origin}/tests/inbox-permission-fixture.html?type=${c.type}&step=${c.step}&scenario=${c.scenario}${c.manual ? '&manual=1' : ''}`);
         await page.locator('[data-ready]').waitFor();
+        if (c.manual) {
+          await page.waitForFunction(() => document.querySelector('[data-ready]')?.getAttribute('data-items') === '2');
+          await page.evaluate(() => { window.__qaInbox.manualDone = false; void window.__qaInbox.prepare().finally(() => { window.__qaInbox.manualDone = true; }); });
+        }
         await page.waitForFunction(()=>window.__qaInbox.proof.pending);
         const before = await page.evaluate(()=>window.__qaInbox.proof.calls.length);
         if (c.alter === 'permission') {
@@ -49,7 +57,8 @@ for (const [engine,kind] of [['Edge',pw.chromium],['WebKit',pw.webkit]]) {
         } else if (c.alter==='blocked') await page.evaluate(()=>window.__qaInbox.block());
         await page.evaluate(()=>window.__qaInbox.release());
         await page.waitForFunction(() => document.querySelector('[data-ready]')?.getAttribute('data-items') === '2');
-        if (!(c.step === 'get' && c.alter === 'permission')) {
+        if (c.manual) await page.waitForFunction(() => window.__qaInbox.manualDone);
+        else if (!(c.step === 'get' && c.alter === 'permission')) {
           await page.waitForFunction(() => window.__qaInbox.proof.workspaceReads === 1 && window.__qaInbox.proof.calls.at(-1)?.action === null);
         }
         const proof = await page.evaluate(()=>structuredClone(window.__qaInbox.proof));
@@ -61,13 +70,17 @@ for (const [engine,kind] of [['Edge',pw.chromium],['WebKit',pw.webkit]]) {
         assert.deepEqual(errors,[],c.name);
         assert.deepEqual(external,[],c.name);
         if (c.alter!=='none') assert.deepEqual(newMutations,[],`${engine} ${c.name}: no new write after permission or editor changes`);
-        if (c.step==='get' && c.alter==='permission') {
+        if (!c.manual && c.step==='get' && c.alter==='permission') {
           assert.equal(proof.workspaceReads,0,c.name);
           assert.equal(proof.publications,0,c.name);
         } else {
           // The request already sent before the change is allowed to complete;
           // its successful supplier creation/import remains visible, without replay.
-          assert.equal(proof.workspaceReads,1,c.name);
+          const expectedReads = c.manual
+            ? c.alter === 'permission' && c.step === 'get' ? 1
+              : c.alter === 'permission' && c.step === 'prepare' ? 2 : 3
+            : 1;
+          assert.equal(proof.workspaceReads,expectedReads,c.name);
           assert.equal(proof.publications,1,c.name);
         }
         if (c.alter==='none') assert.deepEqual(newMutations.map(call=>call.action),['prepareSuppliers','import','import']);
@@ -77,4 +90,3 @@ for (const [engine,kind] of [['Edge',pw.chromium],['WebKit',pw.webkit]]) {
   } finally { await browser.close(); }
 }
 console.log(JSON.stringify({cases:report.cases.length,sourceSha256:report.supplierSourceSha256,errors:0,external:0,output:join(out,'report.json')}));
-

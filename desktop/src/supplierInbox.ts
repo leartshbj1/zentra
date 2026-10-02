@@ -214,7 +214,7 @@ export function useSupplierInbox(
   const [batch, setBatch] = useState<MailboxBatch | null>(null);
   useEffect(() => { setBatch(null); }, [org]);
   const prepareAll = async (_workspace?: Workspace) => {
-    if (!org || readOnly || !state?.prepareEnabled) return;
+    if (!org || current.current.readOnly || !state?.prepareEnabled) return;
     if (running.current) {
       setError('La réception s’actualise. Réessayez dans un instant.');
       return;
@@ -222,7 +222,7 @@ export function useSupplierInbox(
     setError('');
     running.current = true;
     setBusy(true);
-    const isCurrent = () => current.current.org === org && !current.current.blocked();
+    const isCurrent = () => current.current.org === org && !current.current.readOnly && !current.current.blocked();
     try {
       const latest = await inboxRequest<SupplierInboxState>();
       if (!isCurrent() || latest.organizationId !== org) return;
