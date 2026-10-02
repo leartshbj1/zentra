@@ -65,13 +65,19 @@ export async function flushDiagnostics(force=false):Promise<void>{
   try{await flight;}finally{flight=undefined;}
 }
 
+// The caller supplies a fixed operation name. This wrapper receives neither
+// arguments nor results for logging, including for native plugin operations.
+export async function diagnosticOperation<T>(area:DiagnosticArea,operation:string,call:()=>Promise<T>):Promise<T>{
+  const started=performance.now();const id=recordDiagnostic({area,operation,phase:'start'});
+  try{const value=await call();recordDiagnostic({id,area,operation,phase:'success',durationMs:performance.now()-started});return value;}
+  catch(error){recordDiagnostic({id,area,operation,phase:'failure',durationMs:performance.now()-started,errorCode:classifyDiagnosticError(error)});rememberIncident(error,id);throw error;}
+}
+
 export async function diagnosticInvoke<T>(command:string,args?:InvokeArgs,options?:InvokeOptions):Promise<T>{
   const call = () => options !== undefined ? nativeInvoke<T>(command,args,options) : args !== undefined ? nativeInvoke<T>(command,args) : nativeInvoke<T>(command);
   // Diagnostics commands are never recursively diagnosed. Do not add args/result here.
   if(['append_diagnostic_events','get_diagnostics_summary','export_diagnostics','clear_diagnostics','get_form_draft_identity'].includes(command))return call();
-  const started=performance.now();const id=recordDiagnostic({area:'command',operation:command,phase:'start'});
-  try{const value=await call();recordDiagnostic({id,area:'command',operation:command,phase:'success',durationMs:performance.now()-started});return value;}
-  catch(error){recordDiagnostic({id,area:'command',operation:command,phase:'failure',durationMs:performance.now()-started,errorCode:classifyDiagnosticError(error)});rememberIncident(error,id);throw error;}
+  return diagnosticOperation('command',command,call);
 }
 
 let installed=false;

@@ -18,7 +18,7 @@ import { documentCompositions } from './documentComposition';
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
 import type { CertificateDraft, CertificateInput } from './salaryCertificate';
 import { Channel } from '@tauri-apps/api/core';
-import { diagnosticInvoke as invoke } from './diagnostics';
+import { diagnosticInvoke as invoke, diagnosticOperation } from './diagnostics';
 import type { CustomerCreditRecoveryInput, CustomerCreditRecoveryPlan, CustomerCreditRecoveryPreview } from './customerCreditRecoveryState';
 function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
   return {request_id:input.requestId,original_invoice_id:input.originalInvoiceId,source_token:input.sourceToken,reference:input.reference,reason:input.reason,no_prior_refund:input.noPriorRefund,...(input.confirmVatReconciliation?{confirm_vat_reconciliation:true}:{}),
@@ -3508,16 +3508,20 @@ async function saveDocument(
 async function chooseFile(
   options: OpenDialogOptions & { multiple?: false },
 ): Promise<string | null> {
-  const dialog = await import('@tauri-apps/plugin-dialog');
-  const selected = await dialog.open(options);
+  const selected = await diagnosticOperation('command', options.directory ? 'dialog.open_directory' : 'dialog.open_file', async () => {
+    const dialog = await import('@tauri-apps/plugin-dialog');
+    return dialog.open(options);
+  });
   return selected && !options.directory ? materializeMobileFile(selected) : selected;
 }
 
 async function chooseFiles(
   options: OpenDialogOptions & { multiple: true },
 ): Promise<string[]> {
-  const dialog = await import('@tauri-apps/plugin-dialog');
-  const result = await dialog.open(options);
+  const result = await diagnosticOperation('command', 'dialog.open_files', async () => {
+    const dialog = await import('@tauri-apps/plugin-dialog');
+    return dialog.open(options);
+  });
   const files: string[] = [];
   for (const path of result ?? []) files.push(await materializeMobileFile(path));
   return files;
@@ -3527,8 +3531,10 @@ async function chooseSaveFile(
   options: SaveDialogOptions,
 ): Promise<string | null> {
   if (isMobileRuntime()) return invoke<string>('prepare_mobile_export', { name: options.defaultPath || 'document.pdf' });
-  const dialog = await import('@tauri-apps/plugin-dialog');
-  return dialog.save(options);
+  return diagnosticOperation('command', 'dialog.save_file', async () => {
+    const dialog = await import('@tauri-apps/plugin-dialog');
+    return dialog.save(options);
+  });
 }
 
 function payrollImportDraftToRaw(draft: PayrollImportDraft): RawRecord {

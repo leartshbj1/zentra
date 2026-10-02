@@ -51,18 +51,45 @@ try {
         if ($LASTEXITCODE -ne 0 -or $diagnosticSource -notmatch '^[0-9a-f]{40}$') { throw 'The checked-out diagnostics source is invalid.' }
         if ($env:CIRCLE_SHA1 -cne $diagnosticSource) { throw 'Diagnostics validation must use the exact CircleCI source revision.' }
         $diagnosticStartedAt = [DateTimeOffset]::UtcNow.ToString('o')
-        $diagnosticNativeSuites = @('diagnostics', 'account_cloud::tests', 'company_collaboration::tests', 'commands::worker_tests', 'backup::', 'tests::backup_restore_round_trip_recovers_local_rows', 'project_sync::tests')
-        $diagnosticFrontendSuites = @('src/diagnostics.test.ts', 'src/formDrafts.test.ts', 'src/userErrors.test.ts', 'src/ErrorGuidance.test.tsx', 'src/DiagnosticsPanel.test.tsx', 'src/companyReceiveRefresh.test.ts', 'src/projectSyncScheduler.test.ts', 'src/companySyncDiagnostics.test.ts', 'src/companyRealtime.test.ts')
+        $diagnosticNativeSuites = @('diagnostics', 'account_cloud::tests', 'company_collaboration::tests', 'commands::worker_tests', 'backup::', 'tests::backup_restore_round_trip_recovers_local_rows', 'project_sync::tests', 'database::workspace_payment_projection_tests', 'accounting::historical_payment_guard_tests', 'customer_credit_tests::', 'tests::received_vat_is_deferred_then_reclassified_on_each_payment_and_credit_note')
+        $diagnosticFrontendSuites = @('src/diagnostics.test.ts', 'src/formDrafts.test.ts', 'src/userErrors.test.ts', 'src/ErrorGuidance.test.tsx', 'src/DiagnosticsPanel.test.tsx', 'src/companyReceiveRefresh.test.ts', 'src/projectSyncScheduler.test.ts', 'src/companySyncDiagnostics.test.ts', 'src/companyRealtime.test.ts', 'src/nativePluginDiagnostics.test.ts', 'src/mobileFileDiagnostics.test.ts', 'src/projectDocumentRead.test.ts')
+        $diagnosticMobileSuites = @('src/diagnostics.test.ts', 'src/nativePluginDiagnostics.test.ts', 'src/mobileFileDiagnostics.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
-            Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', $suite, '--', '--test-threads=1')
+            Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--release', '--lib', $suite, '--', '--test-threads=1')
         }
-        Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + $diagnosticFrontendSuites)
+        $env:ZENTRA_PAYMENT_BENCHMARK_JSON = Join-Path $artifacts 'payment-workspace-benchmark.json'
+        $paymentBenchmark = 'database::workspace_payment_projection_tests::benchmark_real_payment_workspace_densities'
+        Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--release', '--lib', $paymentBenchmark, '--', '--ignored', '--exact', '--nocapture', '--test-threads=1')
+        if (-not (Test-Path -LiteralPath $env:ZENTRA_PAYMENT_BENCHMARK_JSON -PathType Leaf)) { throw 'Payment benchmark proof was not created.' }
+        $paymentBenchmarkProof = Get-Content -LiteralPath $env:ZENTRA_PAYMENT_BENCHMARK_JSON -Raw | ConvertFrom-Json
+        if ($paymentBenchmarkProof.synthetic -ne $true -or $paymentBenchmarkProof.optimized -ne $true -or $paymentBenchmarkProof.densities.Count -ne 3) { throw 'Payment benchmark proof does not cover the synthetic optimized fixtures.' }
+        foreach ($density in $paymentBenchmarkProof.densities) {
+            if ($density.allRetainedValuesEqual -ne $true -or $density.payments -ne 1024 -or $density.runs.Count -ne 12) { throw 'Payment benchmark parity or required density is incomplete.' }
+        }
+        $diagnosticPreviousPlatform = $env:TAURI_ENV_PLATFORM
+        try {
+            $env:TAURI_ENV_PLATFORM = 'desktop'
+            Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + $diagnosticFrontendSuites)
+            foreach ($platform in @('ios', 'android')) {
+                $env:TAURI_ENV_PLATFORM = $platform
+                Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + $diagnosticMobileSuites)
+            }
+        } finally {
+            if ($null -eq $diagnosticPreviousPlatform) {
+                Remove-Item Env:TAURI_ENV_PLATFORM -ErrorAction SilentlyContinue
+            } else {
+                $env:TAURI_ENV_PLATFORM = $diagnosticPreviousPlatform
+            }
+        }
         Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
         $diagnosticProof = [ordered]@{
             source = $diagnosticSource; circleSource = $env:CIRCLE_SHA1; target = 'x86_64-pc-windows-msvc'
             version = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
             data = 'synthetic'; nativeSuites = $diagnosticNativeSuites; frontendSuites = $diagnosticFrontendSuites
-            allCheckedSuitesPassed = $true; frontendBuildPassed = $true
+            frontendPlatforms = @('desktop', 'ios', 'android'); mobileSuites = $diagnosticMobileSuites
+            allCheckedSuitesPassed = $true; frontendBuildPassed = $true; nativeProfile = 'release'
+            paymentBenchmark = $paymentBenchmark; paymentBenchmarkProof = 'payment-workspace-benchmark.json'
+            paymentWorkspaceParityPassed = $true; paymentBenchmarkPassed = $true
             startedAt = $diagnosticStartedAt; completedAt = [DateTimeOffset]::UtcNow.ToString('o')
             publishesInstaller = $false; publishesRelease = $false; installsApplication = $false
         }

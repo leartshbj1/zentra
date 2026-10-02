@@ -25,7 +25,7 @@ use crate::{
     accounting::{
         cash_vat_invoice_is_consistent, ensure_accounting_date_open,
         payment_accounting_block_reason, post_expense_if_enabled, post_invoice_if_enabled,
-        post_payment_if_enabled, validate_payment_for_accounting,
+        post_payment_if_enabled, validate_payment_for_accounting, WorkspaceInvoicePaymentChecks,
     },
     audit::{append_audit, verify_audit_chain},
     branding::stage_active_company_logo_for_snapshot,
@@ -85,6 +85,10 @@ pub struct LocalStore {
 #[cfg(test)]
 #[path = "workspace_volume_tests.rs"]
 mod workspace_volume_tests;
+
+#[cfg(test)]
+#[path = "workspace_payment_projection_tests.rs"]
+mod workspace_payment_projection_tests;
 
 #[path = "workspace_read_indexes.rs"]
 mod workspace_read_indexes;
@@ -2079,15 +2083,29 @@ impl LocalStore {
     }
 
     pub fn get_workspace(&self) -> AppResult<Value> {
-        let connection = self.connect()?;
-        self.workspace_from_connection(&connection)
+        let mut connection = self.connect()?;
+        self.workspace_snapshot_from_connection(&mut connection, WorkspaceReadScope::Complete)
     }
 
     pub(crate) fn get_interface_workspace(&self) -> AppResult<Value> {
-        let connection = self.connect()?;
-        self.workspace_from_connection_scoped(&connection, WorkspaceReadScope::Interface)
+        let mut connection = self.connect()?;
+        self.workspace_snapshot_from_connection(&mut connection, WorkspaceReadScope::Interface)
     }
 
+    fn workspace_snapshot_from_connection(
+        &self,
+        connection: &mut Connection,
+        scope: WorkspaceReadScope,
+    ) -> AppResult<Value> {
+        // Une transaction différée garde les lignes et leurs preuves dans le
+        // même snapshot, sans prendre le verrou d'écriture des mutations.
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Deferred)?;
+        let workspace = self.workspace_from_connection_scoped(&transaction, scope)?;
+        transaction.commit()?;
+        Ok(workspace)
+    }
+
+    #[cfg(test)]
     fn workspace_from_connection(&self, connection: &Connection) -> AppResult<Value> {
         self.workspace_from_connection_scoped(connection, WorkspaceReadScope::Complete)
     }
@@ -2096,6 +2114,30 @@ impl LocalStore {
         &self,
         connection: &Connection,
         scope: WorkspaceReadScope,
+    ) -> AppResult<Value> {
+        self.workspace_from_connection_scoped_impl(connection, scope, true)
+    }
+
+    #[cfg(test)]
+    pub(super) fn payment_workspace_for_test(
+        &self,
+        connection: &Connection,
+        interface: bool,
+        memoize_invoice_checks: bool,
+    ) -> AppResult<Value> {
+        let scope = if interface {
+            WorkspaceReadScope::Interface
+        } else {
+            WorkspaceReadScope::Complete
+        };
+        self.workspace_from_connection_scoped_impl(connection, scope, memoize_invoice_checks)
+    }
+
+    fn workspace_from_connection_scoped_impl(
+        &self,
+        connection: &Connection,
+        scope: WorkspaceReadScope,
+        memoize_invoice_checks: bool,
     ) -> AppResult<Value> {
         self.require_onboarding(connection)?;
         let settings = query_optional(connection, "SELECT * FROM settings WHERE id = 1", [])?;
@@ -2492,13 +2534,18 @@ impl LocalStore {
         // encaissements. Une écriture banque/débiteurs correcte ne suffit pas
         // si la reclassification TVA liée manque ou ne correspond plus au
         // cumul de la facture.
+        let mut invoice_checks =
+            memoize_invoice_checks.then(|| WorkspaceInvoicePaymentChecks::new(connection));
         for payment in &mut payments {
             let accounting_block_reason = payment
                 .get("id")
                 .and_then(Value::as_str)
                 .map(|payment_id| {
-                    payment_accounting_block_reason(connection, payment_id)
-                        .unwrap_or_else(|error| Some(error.to_string()))
+                    let reason = match invoice_checks.as_mut() {
+                        Some(checks) => checks.payment_block_reason(payment_id),
+                        None => payment_accounting_block_reason(connection, payment_id),
+                    };
+                    reason.unwrap_or_else(|error| Some(error.to_string()))
                 })
                 .unwrap_or_else(|| Some("Identifiant du paiement invalide.".into()));
             payment["accounting_blocked"] = json!(accounting_block_reason.is_some());
@@ -2517,7 +2564,11 @@ impl LocalStore {
                 .get("invoice_id")
                 .and_then(Value::as_str)
                 .is_some_and(|invoice_id| {
-                    cash_vat_invoice_is_consistent(connection, invoice_id).unwrap_or(false)
+                    let consistent = match invoice_checks.as_mut() {
+                        Some(checks) => checks.cash_vat_is_consistent(invoice_id),
+                        None => cash_vat_invoice_is_consistent(connection, invoice_id),
+                    };
+                    consistent.unwrap_or(false)
                 });
             payment["journal_entry_semantically_valid"] = json!(sql_proof_valid && cash_vat_valid);
         }

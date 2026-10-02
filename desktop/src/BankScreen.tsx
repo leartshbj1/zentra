@@ -245,6 +245,8 @@ export function BankScreen({
   const [refreshPending, setRefreshPending] = useState(false);
   const [query, setQuery] = useState('');
   const [movementLimit, setMovementLimit] = useState(25);
+  const snapshotRequest = useRef(0);
+  const mounted = useRef(false);
   const writesDisabled = busy || readOnly || refreshPending;
   const accountingReady = bankAccountingReady(workspace);
 
@@ -262,17 +264,23 @@ export function BankScreen({
   }, []);
 
   const load = useCallback(async () => {
+    const request = ++snapshotRequest.current;
     setError('');
     try {
-      applyBankSnapshot(await desktopApi.getBankWorkspace());
+      const next = await desktopApi.getBankWorkspace();
+      if (mounted.current && request === snapshotRequest.current) applyBankSnapshot(next);
     } catch (reason) {
-      setError(errorMessage(reason, 'L’espace bancaire local n’a pas pu être chargé.'));
+      if (mounted.current && request === snapshotRequest.current) setError(errorMessage(reason, 'L’espace bancaire local n’a pas pu être chargé.'));
     } finally {
-      setLoading(false);
+      if (mounted.current && request === snapshotRequest.current) setLoading(false);
     }
   }, [applyBankSnapshot]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mounted.current = true;
+    void load();
+    return () => { mounted.current = false; snapshotRequest.current++; };
+  }, [load]);
 
   const movements = useMemo(() => bank ? filterBankMovements(bank.movements, filter, query) : [], [bank, filter, query]);
   const counts = useMemo(() => bank ? {
@@ -289,26 +297,34 @@ export function BankScreen({
   // The mutation has already committed when this is called. A failed read must
   // never turn that success into a refusal or invite another payment attempt.
   async function refreshBoth(): Promise<string[]> {
+    const request = ++snapshotRequest.current;
     setError('');
     const [nextWorkspace, nextBank] = await Promise.allSettled([desktopApi.loadWorkspace(), desktopApi.getBankWorkspace()]);
     const warnings: string[] = [];
-    if (nextWorkspace.status === 'fulfilled') onWorkspaceChange(nextWorkspace.value);
-    else warnings.push(errorMessage(nextWorkspace.reason, 'Les factures n’ont pas pu être actualisées.'));
-    if (nextBank.status === 'fulfilled') applyBankSnapshot(nextBank.value);
-    else warnings.push(errorMessage(nextBank.reason, 'Les mouvements n’ont pas pu être actualisés.'));
-    setRefreshPending(warnings.length > 0);
+    if (nextWorkspace.status === 'rejected') warnings.push(errorMessage(nextWorkspace.reason, 'Les factures n’ont pas pu être actualisées.'));
+    if (nextBank.status === 'rejected') warnings.push(errorMessage(nextBank.reason, 'Les mouvements n’ont pas pu être actualisés.'));
+    // Reads can finish after navigating away or after a newer refresh. The
+    // committed bank operation remains valid; only stale UI publication stops.
+    if (mounted.current && request === snapshotRequest.current) {
+      if (nextWorkspace.status === 'fulfilled') onWorkspaceChange(nextWorkspace.value);
+      if (nextBank.status === 'fulfilled') applyBankSnapshot(nextBank.value);
+      setRefreshPending(warnings.length > 0);
+    }
     return warnings;
   }
 
   async function retryRefresh() {
     if (busy) return;
     setBusy(true);
+    const pending = refreshBoth();
+    const request = snapshotRequest.current;
     try {
-      const warnings = await refreshBoth();
+      const warnings = await pending;
+      if (!mounted.current || request !== snapshotRequest.current) return;
       setFeedback(warnings.length
         ? { tone: 'warning', title: 'Actualisation incomplète', text: 'Réessayez lorsque les données sont accessibles.', warnings }
         : { tone: 'success', title: 'Données actualisées', text: 'Les factures et les mouvements sont à jour.' });
-    } finally { setBusy(false); }
+    } finally { if (mounted.current && request === snapshotRequest.current) setBusy(false); }
   }
 
   async function importStatement(path: string, automaticChoice: boolean): Promise<BankImportOutcome> {

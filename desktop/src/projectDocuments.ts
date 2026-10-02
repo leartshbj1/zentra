@@ -1,5 +1,6 @@
 import type { Attachment, Workspace } from './types';
 import { newestDocumentsFirst } from './documentOrder';
+import { diagnosticOperation } from './diagnostics';
 
 export const PROJECT_FILE_MAX_BYTES = 25 * 1024 * 1024;
 export const PROJECT_FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.txt,.csv,.docx,.xlsx,.pptx,.odt,.ods,.odp';
@@ -35,18 +36,20 @@ export function isProjectFile(file: Attachment) {
 }
 
 export async function fileBase64(file: File, signal?: AbortSignal): Promise<string> {
-  if (signal?.aborted) throw new DOMException('Lecture du fichier interrompue.', 'AbortError');
-  const error = projectFileError(file);
-  if (error) throw new Error(error);
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    const cleanup = () => signal?.removeEventListener('abort', abort);
-    const interrupted = () => { cleanup(); reject(new DOMException('Lecture du fichier interrompue.', 'AbortError')); };
-    const abort = () => { reader.abort(); interrupted(); };
-    reader.onabort = interrupted;
-    reader.onerror = () => { cleanup(); reject(new Error(`Impossible de lire ${file.name}.`)); };
-    reader.onload = () => { cleanup(); resolve(String(reader.result).split(',')[1]); };
-    signal?.addEventListener('abort', abort, { once: true });
-    try { reader.readAsDataURL(file); } catch (reason) { cleanup(); reject(reason); }
+  return diagnosticOperation('command', 'file.read_base64', async () => {
+    if (signal?.aborted) throw new DOMException('Lecture du fichier interrompue.', 'AbortError');
+    const error = projectFileError(file);
+    if (error) throw new Error(error);
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      const cleanup = () => signal?.removeEventListener('abort', abort);
+      const interrupted = () => { cleanup(); reject(new DOMException('Lecture du fichier interrompue.', 'AbortError')); };
+      const abort = () => { reader.abort(); interrupted(); };
+      reader.onabort = interrupted;
+      reader.onerror = () => { cleanup(); reject(new Error(`Impossible de lire ${file.name}.`)); };
+      reader.onload = () => { cleanup(); resolve(String(reader.result).split(',')[1]); };
+      signal?.addEventListener('abort', abort, { once: true });
+      try { reader.readAsDataURL(file); } catch (reason) { cleanup(); reject(reason); }
+    });
   });
 }

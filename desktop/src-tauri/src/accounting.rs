@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use rusqlite::{
     params, params_from_iter, types::Value as SqlValue, Connection, OptionalExtension, Transaction,
@@ -1177,6 +1177,41 @@ fn canonical_accounting_date(value: &str) -> bool {
         .is_ok_and(|date| date.format("%Y-%m-%d").to_string() == value)
 }
 
+/// Résultats communs aux paiements d'une facture pendant une seule lecture
+/// stable du workspace. Les mutations continuent à contrôler toute la chaîne.
+pub(crate) struct WorkspaceInvoicePaymentChecks<'a> {
+    connection: &'a Connection,
+    block_reasons: HashMap<String, Option<String>>,
+    cash_vat_consistency: HashMap<String, bool>,
+}
+
+impl<'a> WorkspaceInvoicePaymentChecks<'a> {
+    pub(crate) fn new(connection: &'a Connection) -> Self {
+        Self {
+            connection,
+            block_reasons: HashMap::new(),
+            cash_vat_consistency: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn payment_block_reason(&mut self, payment_id: &str) -> AppResult<Option<String>> {
+        payment_accounting_block_reason_impl(
+            self.connection,
+            payment_id,
+            Some(&mut self.block_reasons),
+        )
+    }
+
+    pub(crate) fn cash_vat_is_consistent(&mut self, invoice_id: &str) -> AppResult<bool> {
+        if let Some(valid) = self.cash_vat_consistency.get(invoice_id) {
+            return Ok(*valid);
+        }
+        let valid = cash_vat_invoice_is_consistent(self.connection, invoice_id)?;
+        self.cash_vat_consistency.insert(invoice_id.to_owned(), valid);
+        Ok(valid)
+    }
+}
+
 /// Explique pourquoi une ligne de paiement historique ne peut pas devenir une
 /// écriture. Le contrôle porte sur toute la chaîne de règlement de la facture,
 /// car une ligne négative ou un avoir mal signé fausserait aussi le solde des
@@ -1184,6 +1219,14 @@ fn canonical_accounting_date(value: &str) -> bool {
 pub(crate) fn payment_accounting_block_reason(
     connection: &Connection,
     payment_id: &str,
+) -> AppResult<Option<String>> {
+    payment_accounting_block_reason_impl(connection, payment_id, None)
+}
+
+fn payment_accounting_block_reason_impl(
+    connection: &Connection,
+    payment_id: &str,
+    invoice_reasons: Option<&mut HashMap<String, Option<String>>>,
 ) -> AppResult<Option<String>> {
     let linked_invoice_id = connection
         .query_row(
@@ -1217,6 +1260,26 @@ pub(crate) fn payment_accounting_block_reason(
             "la facture liée {linked_invoice_id} est introuvable"
         )));
     };
+    // L'existence du paiement et sa facture liée sont toujours relues avant
+    // de partager le résultat des seules règles communes à cette facture.
+    if let Some(reason) = invoice_reasons
+        .as_deref()
+        .and_then(|reasons| reasons.get(&state.invoice_id))
+    {
+        return Ok(reason.clone());
+    }
+    let invoice_id = state.invoice_id.clone();
+    let reason = invoice_payment_accounting_block_reason(connection, state)?;
+    if let Some(reasons) = invoice_reasons {
+        reasons.insert(invoice_id, reason.clone());
+    }
+    Ok(reason)
+}
+
+fn invoice_payment_accounting_block_reason(
+    connection: &Connection,
+    state: PaymentAccountingState,
+) -> AppResult<Option<String>> {
     if state.invoice_type == "avoir" {
         return Ok(Some("un avoir ne peut recevoir aucun encaissement".into()));
     }

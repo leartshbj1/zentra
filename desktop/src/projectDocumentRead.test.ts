@@ -4,6 +4,7 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: native.invoke, Channel: class {
 import { desktopApi } from './bridge';
 import { createProjectFileSessions } from './projectFileSessions';
 import type { Workspace } from './types';
+import { recentDiagnosticEvents, resolveErrorIncident } from './diagnostics';
 
 const readers: FakeReader[] = [];
 class FakeReader {
@@ -18,6 +19,30 @@ const file = { name: 'plan.txt', size: 3 } as File;
 beforeEach(() => { readers.length = 0; native.invoke.mockReset().mockResolvedValue({ id: 'stored' }); vi.stubGlobal('FileReader', FakeReader); vi.stubGlobal('window', new EventTarget()); });
 afterEach(() => vi.unstubAllGlobals());
 describe('arrêt d’une lecture de document avant la commande native', () => {
+  it('journalise le refus de format avant invocation sans enregistrer le nom privé', async () => {
+    const before = recentDiagnosticEvents().length;
+    await expect(desktopApi.addProjectDocument('project', { name: 'private-customer.exe', size: 3 } as File)).rejects.toThrow('n’est pas pris en charge');
+    expect(readers).toHaveLength(0); expect(native.invoke).not.toHaveBeenCalled();
+    const events = recentDiagnosticEvents().slice(before);
+    expect(events.map(event => [event.operation, event.phase])).toEqual([['file.read_base64', 'start'], ['file.read_base64', 'failure']]);
+    expect(events[0].id).toBe(events[1].id);
+    expect(JSON.stringify(events)).not.toMatch(/private|customer|exe/);
+  });
+  it('journalise un échec FileReader et rattache son code sans contenu de document', async () => {
+    const before = recentDiagnosticEvents().length;
+    const pending = desktopApi.addProjectDocument('project', { name: 'private-customer.txt', size: 3 } as File);
+    readers[0].onerror?.();
+    const error = await pending.catch(reason => reason);
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw new Error('Expected the original file read failure.');
+    expect(error.message).toBe('Impossible de lire private-customer.txt.');
+    expect(native.invoke).not.toHaveBeenCalled();
+    const events = recentDiagnosticEvents().slice(before);
+    expect(events.map(event => event.phase)).toEqual(['start', 'failure']);
+    expect(resolveErrorIncident(error).code).toBe(`ZT-${events[1].id}`);
+    expect(JSON.stringify(events)).not.toMatch(/private|customer|txt|YWJj/);
+  });
+
   it('ne lit ni ne transmet un fichier dont l’espace est déjà fermé', async () => {
     const controller = new AbortController(); controller.abort();
     await expect(desktopApi.addProjectDocument('project', file, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });

@@ -457,12 +457,22 @@ impl DiagnosticLog {
     }
 
     fn append_native_error(&self, error: &AppError) {
-        let _ = self.append(&[DiagnosticEvent::native(
+        self.append_native_failure(DiagnosticArea::Command, "command.native", error);
+    }
+
+    fn append_project_exchange_failure(&self, error: &AppError) {
+        self.append_native_failure(DiagnosticArea::Sync, "project.exchange", error);
+    }
+
+    fn append_native_failure(&self, area: DiagnosticArea, operation: &'static str, error: &AppError) {
+        let mut event = DiagnosticEvent::native(
             &self.0.session_id,
-            "command.native",
+            operation,
             DiagnosticPhase::Failure,
             Some(native_error_code(error)),
-        )]);
+        );
+        event.area = area;
+        let _ = self.append(&[event]);
     }
 }
 
@@ -488,6 +498,15 @@ pub(crate) fn record_native_error(error: &AppError) {
     let active = ACTIVE_LOG.get().and_then(|slot| slot.lock().ok()?.clone());
     if let Some(log) = active {
         log.append_native_error(error);
+    }
+}
+
+/// A failed exchange remains an Ok status for the scheduler. Record only its
+/// static technical category, never the status message or document metadata.
+pub(crate) fn record_project_exchange_failure(error: &AppError) {
+    let active = ACTIVE_LOG.get().and_then(|slot| slot.lock().ok()?.clone());
+    if let Some(log) = active {
+        log.append_project_exchange_failure(error);
     }
 }
 
@@ -823,6 +842,51 @@ mod tests {
             summary.last_incident.unwrap().error_code.as_deref(),
             Some("storage.unsafe_path")
         );
+    }
+
+    #[test]
+    fn failed_project_exchange_keeps_status_contract_and_logs_only_its_category() {
+        let (_temporary, log) = fixture(MAX_FILE_BYTES);
+        let connection = Connection::open_in_memory().unwrap();
+        let database_error = connection
+            .query_row("SELECT * FROM \"private-secret-token\"", [], |_| Ok(()))
+            .unwrap_err();
+        let error = AppError::Database(database_error);
+        let expected_message = error.to_string();
+        let status = crate::project_sync::project_exchange_status(
+            serde_json::json!({"pending":2,"documents":[],"syncing":true}),
+            Err(error),
+            |error| log.append_project_exchange_failure(error),
+        );
+        assert_eq!(status["error"], expected_message);
+        assert_eq!(status["changed"], true);
+        assert_eq!(status["syncing"], false);
+        assert_eq!(status["pending"], 2);
+        let (records, _, _) = log.records().unwrap();
+        assert_eq!(records.len(), 1);
+        let event = &records[0].event;
+        assert_eq!(event.area, DiagnosticArea::Sync);
+        assert_eq!(event.operation, "project.exchange");
+        assert_eq!(event.phase, DiagnosticPhase::Failure);
+        assert_eq!(event.error_code.as_deref(), Some("storage.database"));
+        let text = fs::read_to_string(log.export().unwrap()).unwrap();
+        assert!(!text.contains("private-secret-token"));
+        assert!(!text.contains(&expected_message));
+    }
+
+    #[test]
+    fn successful_project_exchange_does_not_report_a_failure() {
+        let (_temporary, log) = fixture(MAX_FILE_BYTES);
+        let status = crate::project_sync::project_exchange_status(
+            serde_json::json!({"pending":0,"documents":[],"syncing":true}),
+            Ok((true, false)),
+            |error| log.append_project_exchange_failure(error),
+        );
+        assert_eq!(status["connected"], true);
+        assert_eq!(status["changed"], false);
+        assert_eq!(status["syncing"], false);
+        assert!(status.get("error").is_none());
+        assert_eq!(log.summary().unwrap().event_count, 0);
     }
 
     #[test]

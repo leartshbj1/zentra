@@ -5,6 +5,26 @@ async function api(){return import('./diagnostics');}
 beforeEach(()=>{vi.resetModules();invoke.mockReset();vi.useFakeTimers();});
 afterEach(()=>{vi.clearAllTimers();vi.useRealTimers();vi.unstubAllGlobals();});
 describe('safe diagnostics',()=>{
+  it('traces plugin work without retaining its result and rethrows the original failure',async()=>{
+    const d=await api(), result='/Users/private/secret-invoice.pdf';
+    expect(await d.diagnosticOperation('command','dialog.open_file',async()=>result)).toBe(result);
+    const error=new Error('disk full for customer@example.ch password=secret');
+    await expect(d.diagnosticOperation('command','file.materialize_mobile',async()=>{throw error;})).rejects.toBe(error);
+    const events=d.recentDiagnosticEvents();
+    expect(events.map(event=>event.phase)).toEqual(['start','success','start','failure']);
+    expect(events[2].id).toBe(events[3].id);
+    expect(d.resolveErrorIncident(error).code).toBe(`ZT-${events[3].id}`);
+    expect(events[3].errorCode).toBe('STORAGE');
+    expect(JSON.stringify(events)).not.toMatch(/private|invoice.pdf|customer|password|secret/);
+  });
+
+  it('treats an explicitly cancelled file picker as a completed choice without inventing an error',async()=>{
+    const d=await api();
+    expect(await d.diagnosticOperation('command','dialog.open_file',async()=>null)).toBeNull();
+    expect(d.recentDiagnosticEvents().map(event=>event.phase)).toEqual(['start','success']);
+    expect(d.recentDiagnosticEvents()[1].errorCode).toBeUndefined();
+  });
+
   it('preserves command arguments, options, result and paired operation identity',async()=>{
     const d=await api(),result={private:'document data'};invoke.mockResolvedValue(result);
     expect(await d.diagnosticInvoke('save_quote',{password:'secret',notes:'customer text'})).toBe(result);

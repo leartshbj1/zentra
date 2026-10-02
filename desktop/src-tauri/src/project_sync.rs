@@ -72,19 +72,32 @@ pub async fn sync_project_documents(state: State<'_, LocalStore>) -> Result<Valu
     }
     let _guard = SyncGuard;
     let result = synchronize(&store).await;
-    let mut status = store.project_sync_status().map_err(command_error)?;
+    let status = store.project_sync_status().map_err(command_error)?;
+    Ok(project_exchange_status(
+        status,
+        result,
+        crate::diagnostics::record_project_exchange_failure,
+    ))
+}
+
+pub(crate) fn project_exchange_status(
+    mut status: Value,
+    result: AppResult<(bool, bool)>,
+    on_failure: impl FnOnce(&AppError),
+) -> Value {
     match result {
         Ok((connected, changed)) => {
             status["connected"] = json!(connected);
             status["changed"] = json!(changed);
         }
         Err(error) => {
+            on_failure(&error);
             status["error"] = json!(error.to_string());
             status["changed"] = json!(true);
         }
     }
     status["syncing"] = json!(false);
-    Ok(status)
+    status
 }
 
 impl LocalStore {
