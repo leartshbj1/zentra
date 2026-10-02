@@ -9,7 +9,7 @@ function Assert-Contract { param([bool]$Condition, [string]$Name); if (-not $Con
 function Assert-Throws { param([ScriptBlock]$Action, [string]$Name); $threw=$false; try { & $Action | Out-Null } catch { $threw=$true }; Assert-Contract $threw $Name }
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('zentra-harness-contract-' + [Guid]::NewGuid().ToString('D'))
 $savedEnvironment = @{}
-foreach ($name in @('ZENTRA_VERIFY_DIAGNOSTICS_ONLY','ZENTRA_VERIFY_ONLY','CIRCLE_SHA1')) { $savedEnvironment[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
+foreach ($name in @('ZENTRA_VERIFY_DIAGNOSTICS_ONLY','ZENTRA_VERIFY_ONLY','CIRCLE_SHA1','PATH')) { $savedEnvironment[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
 try {
     $source='1111111111111111111111111111111111111111'
     $env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY='false'; $env:ZENTRA_VERIFY_ONLY='true'; $env:CIRCLE_SHA1=$source
@@ -28,6 +28,14 @@ try {
     [IO.File]::WriteAllText($src,'fixture source')
     $exe=Join-Path $deps 'helvichantier_lib-0123456789abcdef.exe'
     [IO.File]::WriteAllText($exe,'inert fixture, never executed')
+    $cmd = Join-Path $deps 'helvichantier_lib.cmd'
+    [IO.File]::WriteAllText($cmd,'inert alternate resolution fixture, never executed')
+    $multiCandidates=@([pscustomobject]@{Source=$exe},[pscustomobject]@{Source=$cmd})
+    Assert-Contract ((Select-ZentraHarnessApplication $multiCandidates) -ceq $exe) 'select only first application rather than concatenate exe/cmd paths'
+    Assert-Contract ((Select-ZentraHarnessApplication @($multiCandidates[1],$multiCandidates[0])) -ceq $cmd) 'preserve application order from PATH'
+    Assert-Throws { Select-ZentraHarnessApplication @() } 'reject absent tool resolution'
+    Assert-Throws { Select-ZentraHarnessApplication @([pscustomobject]@{Source=$deps}) } 'reject directory as verification tool'
+    Assert-Throws { Select-ZentraHarnessApplication @([pscustomobject]@{Source=@($exe,$cmd)}) } 'reject a combined application Source array'
     function Cargo-Artifact { param($Executable=$exe,$ProfileTest=$true,$SourcePath=$src); return ([ordered]@{reason='compiler-artifact';profile=@{test=$ProfileTest};target=@{name='helvichantier_lib';src_path=$SourcePath};executable=$Executable} | ConvertTo-Json -Depth 5 -Compress) }
     $valid=Cargo-Artifact
     Assert-Contract ((Select-ZentraLibraryHarness $testRoot @($valid)) -ceq (Get-Item -LiteralPath $exe).FullName) 'select exact Cargo library test'
@@ -72,6 +80,22 @@ try {
         $seen=[IO.File]::ReadAllText($nodeOut) | ConvertFrom-Json
         if ($seen.Count -ne 3 -or $seen[0] -cne $arguments[1] -or $seen[1] -cne $arguments[2] -or $seen[2] -cne $arguments[3]) { Write-Output ('Inert Node argument diagnostic: ' + ($seen | ConvertTo-Json -Compress)) }
         Assert-Contract ($seen.Count -eq 3 -and $seen[0] -ceq $arguments[1] -and $seen[1] -ceq $arguments[2] -and $seen[2] -ceq $arguments[3]) 'real child receives literal spaced resource path, semicolon/hash, quote and trailing slash'
+        $nodePathDirectory = Join-Path $testRoot 'first PATH application'
+        [IO.Directory]::CreateDirectory($nodePathDirectory) | Out-Null
+        $nodePathCopy = Join-Path $nodePathDirectory 'node.exe'
+        [IO.File]::Copy($NativeNodePath,$nodePathCopy)
+        [IO.File]::WriteAllText((Join-Path $nodePathDirectory 'node.cmd'),'inert alternate resolution fixture, never executed')
+        $env:PATH=$nodePathDirectory+';'+[IO.Path]::GetDirectoryName($NativeNodePath)+';'+$savedEnvironment['PATH']
+        $nodeCandidates=@(Get-Command node -CommandType Application)
+        Assert-Contract ($nodeCandidates.Count -ge 2) 'real PATH lookup has multiple exe/cmd candidates'
+        Assert-Contract ([string]$nodeCandidates.Source -cne $nodePathCopy) 'former Source array cast is not the chosen executable path'
+        $resolvedNode = Select-ZentraHarnessApplication $nodeCandidates
+        Assert-Contract ($resolvedNode -ceq $nodePathCopy) 'choose first existing ordinary Node executable from PATH'
+        $nodeNameExit=Invoke-ZentraHarnessTool $resolvedNode $arguments $testRoot $nodeOut $nodeErr
+        Assert-Contract ($nodeNameExit -eq 37) 'real Node process from multiple PATH candidates retains exit code'
+        $seen=[IO.File]::ReadAllText($nodeOut) | ConvertFrom-Json
+        Assert-Contract ($seen.Count -eq 3 -and $seen[0] -ceq $arguments[1] -and $seen[1] -ceq $arguments[2] -and $seen[2] -ceq $arguments[3]) 'real Node PATH selection preserves literal arguments'
+        $env:PATH=$savedEnvironment['PATH']
     }
 
     $script:toolCalls=0

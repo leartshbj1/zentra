@@ -20,6 +20,23 @@ function ConvertTo-ZentraWindowsArgument {
     return '"' + $escaped + '"'
 }
 
+function Select-ZentraHarnessApplication {
+    param([object[]]$Candidates)
+    $first = @($Candidates | Select-Object -First 1)
+    if ($first.Count -ne 1 -or $first[0].Source -isnot [string] -or [string]::IsNullOrWhiteSpace($first[0].Source)) {
+        throw 'The verification tool must resolve to one application from the PATH.'
+    }
+    $source = $first[0].Source
+    if (-not [IO.Path]::IsPathRooted($source) -or -not (Test-Path -LiteralPath $source -PathType Leaf)) {
+        throw 'The selected verification application path is not an existing file.'
+    }
+    $file = Get-Item -LiteralPath $source
+    if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw 'The selected verification application must be an ordinary file.'
+    }
+    return $file.FullName
+}
+
 function Invoke-ZentraHarnessTool {
     param([string]$Program, [string[]]$Arguments, [string]$Repository,
         [string]$Stdout, [string]$Stderr, [string]$HeartbeatMessage = 'Inspecting the verification-only harness.', [int]$TimeoutSeconds = 300)
@@ -197,7 +214,23 @@ function Initialize-ZentraVerificationHarness {
         embeddedV6Before=$false;embeddedV6After=$false;commonControlsImports=@();missingImportsInSystem32=@();loaderExitBefore=$null;loaderExitAfter=$null;
         suiteExecutions=@();prepared=$false}
     try {
-        $cargo = (Get-Command cargo -CommandType Application).Source
+        # Get-Command may return multiple applications from different PATH
+        # entries. Never cast the entire Source array to a combined file name.
+        $cargoCandidates = @(Get-Command cargo -CommandType Application -ErrorAction SilentlyContinue)
+        $cargoFirst = $cargoCandidates | Select-Object -First 1
+        $cargoSource = if ($null -ne $cargoFirst) { [string]$cargoFirst.Source } else { $null }
+        $cargoExists = -not [string]::IsNullOrWhiteSpace($cargoSource) -and (Test-Path -LiteralPath $cargoSource -PathType Leaf)
+        $cargoOrdinary = $false
+        if ($cargoExists) {
+            $cargoFile = Get-Item -LiteralPath $cargoSource
+            $cargoOrdinary = -not $cargoFile.PSIsContainer -and -not ($cargoFile.Attributes -band [IO.FileAttributes]::ReparsePoint)
+        }
+        $proof.compileTool = [ordered]@{name='cargo';candidates=@($cargoCandidates | Select-Object Name,Source);
+            selected=$cargoSource;exists=$cargoExists;ordinaryFile=$cargoOrdinary;
+            workingDirectory=$Repository;workingDirectoryExists=(Test-Path -LiteralPath $Repository -PathType Container)}
+        Save-ZentraHarnessProof $proof $proofPath
+        $cargo = Select-ZentraHarnessApplication $cargoCandidates
+        if (-not $proof.compileTool.workingDirectoryExists) { throw 'The verification working directory does not exist.' }
         $jsonPath = Join-Path $Artifacts 'windows-test-harness-cargo.jsonl'
         $buildLog = Join-Path $Artifacts 'windows-test-harness-build.log'
         $proof.compileExit = Invoke-ZentraHarnessTool $cargo @('test','--manifest-path','desktop/src-tauri/Cargo.toml','--locked','--release','--lib','--no-run','--message-format=json') $Repository $jsonPath $buildLog -HeartbeatMessage 'Compiling the verification-only library test harness; no packaging or installation.' -TimeoutSeconds 5400
