@@ -82,12 +82,13 @@ export function useSupplierInbox(
   readOnly: boolean,
   blocked: () => boolean,
   onWorkspace: (w: Workspace) => void,
+  refreshWorkspace?: () => Promise<void>,
 ) {
   const [state, setState] = useState<SupplierInboxState | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
-  const current = useRef({ org, readOnly, blocked, onWorkspace });
-  current.current = { org, readOnly, blocked, onWorkspace };
+  const current = useRef({ org, readOnly, blocked, onWorkspace, refreshWorkspace });
+  current.current = { org, readOnly, blocked, onWorkspace, refreshWorkspace };
   const running = useRef(false);
   const preparedSuppliers = useRef(new Set<string>());
   useEffect(() => { preparedSuppliers.current.clear(); }, [org]);
@@ -148,9 +149,11 @@ export function useSupplierInbox(
         }
         if (queue.length || changed) {
           if (changed) {
-            const workspace = await desktopApi.loadWorkspace();
-            if (current.current.org === org)
-              current.current.onWorkspace(workspace);
+            if (current.current.refreshWorkspace) await current.current.refreshWorkspace();
+            else {
+              const workspace = await desktopApi.loadWorkspace();
+              if (current.current.org === org) current.current.onWorkspace(workspace);
+            }
             window.dispatchEvent(new Event('zentra-automation-updated'));
           }
           const updated = await inboxRequest<SupplierInboxState>();
@@ -239,8 +242,11 @@ export function useSupplierInbox(
       // Supplier preparation may succeed even if an invoice needs an amount corrected.
       if (current.current.org === org) {
         try {
-          const workspace = await desktopApi.loadWorkspace();
-          if (current.current.org === org) current.current.onWorkspace(workspace);
+          if (current.current.refreshWorkspace) await current.current.refreshWorkspace();
+          else {
+            const workspace = await desktopApi.loadWorkspace();
+            if (current.current.org === org) current.current.onWorkspace(workspace);
+          }
           window.dispatchEvent(new Event('zentra-automation-updated'));
         } catch (reason) {
           if (current.current.org === org) setError(String(reason instanceof Error ? reason.message : reason));

@@ -46,12 +46,13 @@ export function useAppointmentInbox(
   readOnly: boolean,
   blocked: () => boolean,
   onWorkspace: (w: Workspace) => void,
+  refreshWorkspace?: () => Promise<void>,
 ) {
   const [state, setState] = useState<State | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
-  const context = useRef({ org, readOnly, blocked, onWorkspace });
-  context.current = { org, readOnly, blocked, onWorkspace };
+  const context = useRef({ org, readOnly, blocked, onWorkspace, refreshWorkspace });
+  context.current = { org, readOnly, blocked, onWorkspace, refreshWorkspace };
   const running = useRef(false);
   const refresh = useCallback(async () => {
     if (
@@ -94,9 +95,12 @@ export function useAppointmentInbox(
         }
       }
       if (changed && context.current.org === org) {
-        const w = await desktopApi.loadWorkspace();
+        if (context.current.refreshWorkspace) await context.current.refreshWorkspace();
+        else {
+          const w = await desktopApi.loadWorkspace();
+          if (context.current.org === org) context.current.onWorkspace(w);
+        }
         if (context.current.org === org) {
-          context.current.onWorkspace(w);
           window.dispatchEvent(new Event('zentra-automation-updated'));
           const latest = await request<State>();
           if (context.current.org === org && latest.organizationId === org)

@@ -43,6 +43,7 @@ import { AssistantLauncherSlot, useAssistantScreen } from './assistantContext';
 import { AutomationDailySummary } from './AutomationDailySummary';
 import { SupplierInbox } from './SupplierInboxPanel';
 import { useSupplierInbox } from './supplierInbox';
+import { createWorkspaceReception } from './workspaceReception';
 import { AutomationCompanyProvider, useCompanyAutomation } from './AutomationCompany';
 import { AutomationHub } from './AutomationHub';
 import { AutomationWelcome } from './AutomationWelcomeDialog';
@@ -61,7 +62,7 @@ import { employeeFormIssue, employeeNativeFieldIssue, type EmployeeFieldIssue } 
 import { CompanyLogo } from './CompanyLogo';
 import { quoteInterlocutor } from './quoteInterlocutor';
 import { useProjectSyncBackground } from './projectSync';
-import { CompanyReceivingGuard, CompanySyncIndicator, CompanyAccountShortcut } from './companySync';
+import { CompanyReceivingGuard, CompanySyncIndicator, CompanyAccountShortcut, companyReceiveAllowed } from './companySync';
 import { useCloudBackupBackground } from './cloudBackup';
 import { CloudBackupPanel } from './CloudBackupPanel';
 
@@ -85,7 +86,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import {DiagnosticsPanel} from './DiagnosticsPanel';
 import { ErrorGuidance } from './ErrorGuidance';
-import {recordDiagnostic} from './diagnostics';
+import {recordDiagnostic, classifyDiagnosticError} from './diagnostics';
 import {
   Archive,
   ArrowRight,
@@ -638,8 +639,40 @@ function WorkspaceContent({
   const recurrenceRequestIds = useRef(new Map<string, string>());
   const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
-  const supplierInbox=useSupplierInbox(cloudAccount?.status==='connected'?cloudAccount.organizationId??null:null,readOnly,()=>actionInFlight.current||busy||!!modal||!!document.querySelector('[role="dialog"]'),next=>{workspaceRef.current=next;setWorkspace(next);});
-  const appointmentInbox=useAppointmentInbox(cloudAccount?.status==='connected'?cloudAccount.organizationId??null:null,readOnly,()=>actionInFlight.current||busy||!!modal||!!document.querySelector('[role="dialog"]'),next=>{workspaceRef.current=next;setWorkspace(next);});
+  const inboxOrganization = cloudAccount?.status === 'connected' ? cloudAccount.organizationId ?? null : null;
+  const receptionScope = JSON.stringify([inboxOrganization, workspace.workNotesScope ?? null]);
+  const inboxBlocked = () => actionInFlight.current || busy || !!modal || !!document.querySelector('[role="dialog"]');
+  const receptionContext = useRef({ scope: receptionScope, blocked: inboxBlocked, setWorkspace });
+  receptionContext.current = { scope: receptionScope, blocked: inboxBlocked, setWorkspace };
+  const inboxWorkspaceReception = useMemo(() => createWorkspaceReception<Workspace>({
+    read: () => desktopApi.loadWorkspace(),
+    current: () => workspaceRef.current,
+    scope: () => receptionContext.current.scope,
+    available: () => navigator.onLine !== false && document.visibilityState !== 'hidden',
+    canPublish: () => !receptionContext.current.blocked() && !document.getElementById('root')?.inert && companyReceiveAllowed(),
+    matchesScope: next => next.workNotesScope === workspaceRef.current.workNotesScope,
+    publish: next => { workspaceRef.current = next; receptionContext.current.setWorkspace(next); },
+    onError: reason => recordDiagnostic({ area: 'sync', operation: 'inbox.workspace_refresh', phase: 'failure', errorCode: classifyDiagnosticError(reason) }),
+  }), []);
+  useLayoutEffect(() => {
+    inboxWorkspaceReception.start();
+    const resume = () => {
+      if (navigator.onLine === false || document.visibilityState === 'hidden') inboxWorkspaceReception.suspend();
+      else inboxWorkspaceReception.wake();
+    };
+    const events = ['online', 'offline', 'focus', 'focusout', 'pointerup', 'zentra-company-sync-status'];
+    events.forEach(event => window.addEventListener(event, resume));
+    document.addEventListener('visibilitychange', resume);
+    return () => {
+      inboxWorkspaceReception.stop();
+      events.forEach(event => window.removeEventListener(event, resume));
+      document.removeEventListener('visibilitychange', resume);
+    };
+  }, [inboxWorkspaceReception, receptionScope]);
+  const publishInboxWorkspace = (next: Workspace) => { workspaceRef.current = next; setWorkspace(next); };
+  const refreshInboxWorkspace = () => inboxWorkspaceReception.request();
+  const supplierInbox = useSupplierInbox(inboxOrganization, readOnly, inboxBlocked, publishInboxWorkspace, refreshInboxWorkspace);
+  const appointmentInbox = useAppointmentInbox(inboxOrganization, readOnly, inboxBlocked, publishInboxWorkspace, refreshInboxWorkspace);
   const openAutomationAppointment = (id: string) => {
     const organizationId = cloudAccount?.organizationId;
     if (!organizationId || appointmentInbox.state?.organizationId !== organizationId || !workspaceRef.current.agendaEvents.some(event => event.id === id)) {
@@ -812,7 +845,7 @@ function WorkspaceContent({
     }
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     workspaceRef.current = workspace;
   }, [workspace]);
 
