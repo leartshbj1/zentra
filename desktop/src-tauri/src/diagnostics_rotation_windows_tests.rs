@@ -198,3 +198,52 @@ fn cloned_concurrent_writers_keep_rotation_bounded_and_complete() {
     assert_eq!(retained.len(), MAX_FILES);
     assert!(retained.into_iter().all(|id| written.contains(id)));
 }
+
+#[test]
+fn a_compatible_oldest_reader_retains_its_bytes_while_rotation_and_resume_complete() {
+    let (_temporary, log) = fixture();
+    let before = snapshot(&log);
+    let mut held = OpenOptions::new()
+        .read(true)
+        .share_mode(SHARE_READ_WRITE_DELETE)
+        .open(log.0.directory.join(FILE_NAMES[2]))
+        .unwrap();
+
+    let next = event(&log);
+    log.append(std::slice::from_ref(&next)).unwrap();
+    let (records, files, bytes) = log.records().unwrap();
+    let ids: Vec<_> = records
+        .iter()
+        .map(|record| record.event.id.clone())
+        .collect();
+    assert_eq!(&ids[..2], &before.1[1..]);
+    assert_eq!(ids.last(), Some(&next.id));
+    assert_eq!(files, MAX_FILES);
+    assert_eq!(records.len(), MAX_FILES);
+    assert!(bytes <= log.0.max_file_bytes * MAX_FILES as u64);
+    for name in FILE_NAMES {
+        assert!(fs::metadata(log.0.directory.join(name)).unwrap().len() <= log.0.max_file_bytes);
+    }
+
+    // The old destination is no longer a named diagnostic slot, but the
+    // external compatible handle still refers to its original record.
+    let mut held_bytes = Vec::new();
+    std::io::Read::read_to_end(&mut held, &mut held_bytes).unwrap();
+    assert_eq!(held_bytes, before.0[2]);
+    drop(held);
+
+    let resumed = event(&log);
+    log.clone().append(std::slice::from_ref(&resumed)).unwrap();
+    let (records, files, bytes) = log.records().unwrap();
+    let retained: Vec<_> = records
+        .iter()
+        .map(|record| record.event.id.clone())
+        .collect();
+    assert_eq!(retained, vec![before.1[2].clone(), next.id, resumed.id]);
+    assert_eq!(files, MAX_FILES);
+    assert_eq!(records.len(), MAX_FILES);
+    assert!(bytes <= log.0.max_file_bytes * MAX_FILES as u64);
+    for name in FILE_NAMES {
+        assert!(fs::metadata(log.0.directory.join(name)).unwrap().len() <= log.0.max_file_bytes);
+    }
+}
