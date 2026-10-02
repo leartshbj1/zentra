@@ -4,12 +4,14 @@ import { ArrowUp, BookOpen, Check, FileText, List, Maximize, Minus, Plus, X } fr
 import { Button } from './ui';
 import './DocumentPreviewFrame.css';
 import { useTouchZoom } from './useTouchZoom';
+import { t, useAppLanguage } from './language';
 
 /** A reading surface around the existing document; never changes its financial content. */
 export function DocumentPreviewFrame({ title, number, customer, total, finalDocument, actions, children, onClose }: {
   title: string; number: string; customer: string; total: string; finalDocument: boolean;
   actions: ReactNode; children: ReactNode; onClose: () => void;
 }) {
+  useAppLanguage();
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
@@ -135,35 +137,35 @@ export function DocumentPreviewFrame({ title, number, customer, total, finalDocu
       }}>
       <header className="document-preview__header">
         <span className="document-preview__icon" aria-hidden="true"><FileText size={23} /></span>
-        <div className="document-preview__identity"><h2 id={id}>{title} <span>{number || 'Sans numéro'}</span></h2><p>{customer || 'Destinataire à compléter'}</p></div>
-        <span className={`document-preview__state ${finalDocument ? 'is-final' : ''}`}>{finalDocument ? <Check size={14} aria-hidden="true" /> : <span className="document-preview__draft-dot" aria-hidden="true" />}{finalDocument ? 'Document final' : 'Brouillon'}</span>
-        <Button variant="ghost" size="icon" aria-label="Fermer l’aperçu" title="Fermer l’aperçu (Échap)" onClick={onClose}><X size={21} /></Button>
+        <div className="document-preview__identity"><h2 id={id}>{title} <span>{number || t('Sans numéro')}</span></h2><p>{customer || t('Destinataire à compléter')}</p></div>
+        <span className={`document-preview__state ${finalDocument ? 'is-final' : ''}`}>{finalDocument ? <Check size={14} aria-hidden="true" /> : <span className="document-preview__draft-dot" aria-hidden="true" />}{t(finalDocument ? 'Document final' : 'Brouillon')}</span>
+        <Button variant="ghost" size="icon" aria-label={t('Fermer l’aperçu')} title={t('Fermer l’aperçu (Échap)')} onClick={onClose}><X size={21} /></Button>
       </header>
       <div className="document-preview__controls">
-        <div className="document-preview__modes" role="group" aria-label="Mode d’aperçu">
-          <button type="button" aria-pressed={mode === 'reading'} onClick={() => changeMode('reading')}><BookOpen size={17} /> Lecture</button>
-          <button type="button" aria-pressed={mode === 'page'} onClick={() => changeMode('page')}><FileText size={17} /> Mise en page</button>
+        <div className="document-preview__modes" role="group" aria-label={t('Mode d’aperçu')}>
+          <button type="button" aria-pressed={mode === 'reading'} onClick={() => changeMode('reading')}><BookOpen size={17} /> {t('Lecture')}</button>
+          <button type="button" aria-pressed={mode === 'page'} onClick={() => changeMode('page')}><FileText size={17} /> {t('Mise en page')}</button>
         </div>
-        {mode === 'page' ? <div className="document-preview__zoom" role="group" aria-label="Zoom du document">
-          <Button variant="ghost" size="icon" aria-label="Réduire le zoom" disabled={scale <= .25} onClick={() => setZoom(Math.max(.25, Math.round((scale - .15) * 100) / 100))}><Minus size={17} /></Button>
+        {mode === 'page' ? <div className="document-preview__zoom" role="group" aria-label={t('Zoom du document')}>
+          <Button variant="ghost" size="icon" aria-label={t('Réduire le zoom')} disabled={scale <= .25} onClick={() => setZoom(Math.max(.25, Math.round((scale - .15) * 100) / 100))}><Minus size={17} /></Button>
           <output aria-live="polite">{Math.round(scale * 100)} %</output>
-          <Button variant="ghost" size="icon" aria-label="Agrandir le document" disabled={scale >= 4} onClick={() => setZoom(Math.min(4, Math.round((scale + .25) * 100) / 100))}><Plus size={17} /></Button>
-          <Button variant="ghost" size="icon" aria-label="Ajuster à la largeur" title="Ajuster à la largeur" onClick={() => setZoom(null)}><Maximize size={17} /></Button>
-        </div> : <p className="document-preview__reading-hint">Lecture adaptée à votre écran</p>}
-        <button type="button" className="document-preview__amount" title="Aller au total du document" aria-label={`Aller au total du document : ${total}`} onClick={() => goTo('.print-totals')}><span>Total TTC <span aria-hidden="true">↗</span></span><strong>{total}</strong></button>
+          <Button variant="ghost" size="icon" aria-label={t('Agrandir le document')} disabled={scale >= 4} onClick={() => setZoom(Math.min(4, Math.round((scale + .25) * 100) / 100))}><Plus size={17} /></Button>
+          <Button variant="ghost" size="icon" aria-label={t('Ajuster à la largeur')} title={t('Ajuster à la largeur')} onClick={() => setZoom(null)}><Maximize size={17} /></Button>
+        </div> : <p className="document-preview__reading-hint">{t('Lecture adaptée à votre écran')}</p>}
+        <button type="button" className="document-preview__amount" title={t('Aller au total du document')} aria-label={t('Aller au total du document : {total}', { total })} onClick={() => goTo('.print-totals')}><span>{t('Total TTC')} <span aria-hidden="true">↗</span></span><strong>{total}</strong></button>
       </div>
       <div className="document-preview__body">
         <aside className="document-preview__outline">
-          <div className="document-preview__outline-heading"><List size={16} aria-hidden="true" /><strong>Dans ce document</strong></div>
-          <nav aria-label="Sections du document">
-            {sections.map((section, index) => <button key={section.selector} type="button" aria-current={activeSection === section.selector ? 'location' : undefined} onClick={() => goTo(section.selector)}><span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>{section.label}</button>)}
+          <div className="document-preview__outline-heading"><List size={16} aria-hidden="true" /><strong>{t('Dans ce document')}</strong></div>
+          <nav aria-label={t('Sections du document')}>
+            {sections.map((section, index) => <button key={section.selector} type="button" aria-current={activeSection === section.selector ? 'location' : undefined} onClick={() => goTo(section.selector)}><span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>{t(section.label)}</button>)}
           </nav>
-          <div className="document-preview__document-info"><FileText size={24} aria-hidden="true" /><strong>{lineCount} {lineCount === 1 ? 'prestation' : 'prestations'}</strong><span>{mode === 'reading' ? 'Lecture confortable, adaptée à votre écran.' : 'Format A4. Le PDF final gère les sauts de page.'}</span></div>
-          <button type="button" className="document-preview__back-top" onClick={() => goTo('.print-header')}><ArrowUp size={16} /> Revenir au début</button>
+          <div className="document-preview__document-info"><FileText size={24} aria-hidden="true" /><strong>{t(lineCount === 1 ? '{count} prestation' : '{count} prestations', { count: lineCount })}</strong><span>{t(mode === 'reading' ? 'Lecture confortable, adaptée à votre écran.' : 'Format A4. Le PDF final gère les sauts de page.')}</span></div>
+          <button type="button" className="document-preview__back-top" onClick={() => goTo('.print-header')}><ArrowUp size={16} /> {t('Revenir au début')}</button>
         </aside>
         <div className="document-preview__reading-area">
           <div className="document-preview__progress" aria-hidden="true"><span style={{ transform: `scaleX(${progress / 100})` }} /></div>
-          <div ref={viewport} data-touch-document className="document-preview__viewport" tabIndex={0} aria-label="Contenu du document">
+          <div ref={viewport} data-touch-document className="document-preview__viewport" tabIndex={0} aria-label={t('Contenu du document')}>
             <div className="document-preview__canvas" key={mode} style={mode === 'page' ? { width: 794 * scale, height: measure.height * scale } : undefined}>
               <div ref={paper} className="document-preview__paper" style={mode === 'page' ? { width: 794, transform: `scale(${scale})`, transformOrigin: 'top left' } : undefined}>{children}</div>
             </div>

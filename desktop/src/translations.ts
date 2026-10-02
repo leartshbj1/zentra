@@ -1,5 +1,6 @@
 import { documentSettingsTranslations } from './translationsDocumentSettings';
 import { documentNavigationTranslations } from './translationsDocumentNavigation';
+import { documentPreviewTranslations } from './translationsDocumentPreview';
 import { documentDesignTranslations } from './translationsDocumentDesign';
 import { richTextTranslations } from './translationsRichText';
 import { catalogTranslations } from './translationsCatalog';
@@ -49,6 +50,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   ...catalogTranslations,
   ...documentSettingsTranslations,
   ...documentNavigationTranslations,
+  ...documentPreviewTranslations,
   ...documentDesignTranslations,
   ...richTextTranslations,
   ...emptyScreenTranslations,
