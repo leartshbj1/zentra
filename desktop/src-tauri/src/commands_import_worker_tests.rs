@@ -378,7 +378,7 @@ fn an_acquired_scoped_worker_finishes_before_a_real_restore_can_replace_its_data
     let expected = origin.clone();
     // This is the scoped helper with the real catalog operation, not a direct
     // handler pause: no testing hook is added to a production command.
-    let (result, restore) = tauri::async_runtime::block_on(join(
+    let (result, (restore, completed_rx)) = tauri::async_runtime::block_on(join(
         run_scoped_local_operation(operation_store, Some(origin.clone()), move |store| {
             running_tx.send(()).unwrap();
             release_rx.recv_timeout(Duration::from_secs(5)).unwrap();
@@ -418,10 +418,12 @@ fn an_acquired_scoped_worker_finishes_before_a_real_restore_can_replace_its_data
                 "restore finished while the import still held LocalStore"
             );
             release_tx.send(()).unwrap();
-            restore
+            // Keep the receiver alive until the real restoration confirms completion.
+            (restore, completed_rx)
         },
     ));
     result.unwrap();
+    completed_rx.recv_timeout(Duration::from_secs(5)).unwrap();
     assert_eq!(restore.join().unwrap(), 1);
     assert_ne!(scope(&store), origin);
     assert_eq!(
