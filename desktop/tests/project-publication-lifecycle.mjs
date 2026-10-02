@@ -9,7 +9,9 @@ import { createServer } from 'vite';
 
 const desktop = fileURLToPath(new URL('../', import.meta.url));
 const before = process.argv.includes('--before');
-const output = resolve(desktop, 'artifacts/runtime-audit-20261002', `project-publication-browser-v2-${before ? 'before' : 'after'}`);
+const outputFlag = process.argv.indexOf('--output');
+if (outputFlag >= 0 && !process.argv[outputFlag + 1]) throw new Error('--output needs a directory.');
+const output = resolve(desktop, 'artifacts/runtime-audit-20261002', outputFlag >= 0 ? process.argv[outputFlag + 1] : `project-publication-browser-v2-${before ? 'before' : 'after'}`);
 await mkdir(output, { recursive: true });
 const originals = new Map();
 if (before) for (const name of ['projectFileSessions.ts', 'WorkspaceApp.tsx']) {
