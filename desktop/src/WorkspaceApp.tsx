@@ -180,7 +180,7 @@ import {
 import { assessPayrollPaymentDate } from './payrollPaymentDate';
 
 import { DocumentPreviewFrame } from './DocumentPreviewFrame';
-const StyledDocumentPreview = deferView(() => import('./StyledDocumentPreview'), { label: 'Ouverture du document', close: props => props.onClose });
+const StyledDocumentPreview = deferView(() => import('./StyledDocumentPreview'), { diagnosticName: 'StyledDocumentPreview', label: 'Ouverture du document', close: props => props.onClose });
 
 import { parseSmallSalaryEmployeeForm, SmallSalaryFormError } from './smallSalaryAssessment';
 import { employeeSaveMessage } from './employeeLanguage';
@@ -320,36 +320,36 @@ import {
   prepareQuoteRevisionAttempt,
 } from './quoteRevisionAttempt';
 
-const DetailedPayslipForm = deferView(() => import('./DetailedPayslipForm').then(module => ({ default: module.DetailedPayslipForm })), { label: 'Ouverture de la fiche de salaire…', close: props => props.close });
-const DocumentEditor = deferView(() => import('./DocumentEditor').then(module => ({ default: module.DocumentEditor })), { label: 'Ouverture du document…', close: props => props.close });
-const PairedInvoiceEditor = deferView(() => import('./QuoteInvoiceFolder').then(module => ({ default: module.PairedInvoiceEditor })), { label: 'Ouverture du dossier de facturation…', close: props => props.close });
-const QuoteInvoiceFolder = deferView(() => import('./QuoteInvoiceFolder').then(module => ({ default: module.QuoteInvoiceFolder })), { label: 'Ouverture du dossier de facturation…', close: props => props.close });
-const QuoteConversionModal = deferView(() => import('./QuoteConversionModal').then(module => ({ default: module.QuoteConversionModal })), { label: 'Ouverture de la conversion du devis…', close: props => props.close });
-const InvoiceIssueDialog = deferView(() => import('./InvoiceIssueDialog').then(module => ({ default: module.InvoiceIssueDialog })), { label: 'Préparation de la vérification de facture…', close: props => props.close });
-const PayslipPostingDialog = deferView(() => import('./PayslipPostingDialog').then(module => ({ default: module.PayslipPostingDialog })), { label: 'Vérification du salaire…', close: props => props.close });
-const SupplierInvoiceReviewDialog = deferView(() => import('./SupplierInvoiceReviewDialog').then(module => ({ default: module.SupplierInvoiceReviewDialog })), { label: 'Vérification de la facture fournisseur…', close: props => props.close });
-const CatalogScreen = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogScreen })), { label: 'Ouverture du catalogue…' });
-const CatalogItemForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogItemForm })), { label: 'Ouverture du catalogue…', close: props => props.close });
-const StockMovementForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.StockMovementForm })), { label: 'Ouverture du catalogue…', close: props => props.close });
-const ExpenseForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.ExpenseForm })), { label: 'Ouverture des achats…', close: props => props.close });
-const LegacyExpenseDetail = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.LegacyExpenseDetail })), { label: 'Ouverture des achats…', close: props => props.close });
-const SupplierForm = deferView(() => import('./ContactForms').then(module => ({ default: module.SupplierForm })), { label: 'Ouverture de la fiche fournisseur…', close: props => props.close });
-const ClientForm = deferView(() => import('./ContactForms').then(module => ({ default: module.ClientForm })), { label: 'Ouverture de la fiche client…', close: props => props.close });
-const SupplierInvoiceDetail = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierInvoiceDetail })), { label: 'Ouverture des achats…', close: props => props.close });
-const SupplierInvoiceForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierInvoiceForm })), { label: 'Ouverture des achats…', close: props => props.close });
-const SupplierPaymentForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierPaymentForm })), { label: 'Ouverture des achats…', close: props => props.close });
-const SalesOrdersScreen = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.SalesOrdersScreen })), { label: 'Ouverture des commandes…' });
-const DeliveryNotePrintPreview = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.DeliveryNotePrintPreview })), { label: 'Ouverture des commandes…', close: props => props.onClose });
-const SalesOrderPrintPreview = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.SalesOrderPrintPreview })), { label: 'Ouverture des commandes…', close: props => props.onClose });
-const ProjectPlanningPanel = deferView(() => import('./ProjectPlanningPanel').then(module => ({ default: module.ProjectPlanningPanel })), { label: 'Ouverture du planning…' });
-const ProjectFolder = deferView(() => import('./ProjectFolder').then(module => ({ default: module.ProjectFolder })), { label: 'Ouverture du projet…' });
-const ReportsScreen = deferView(() => import('./ProjectReports').then(module => ({ default: module.ReportsScreen })), { label: 'Ouverture des rapports…' });
-const SalaryCertificates = deferView(() => import('./SalaryCertificates').then(module => ({ default: module.SalaryCertificates })), { label: 'Ouverture des certificats de salaire…' });
-const DocumentDesignStudio = deferView(() => import('./DocumentDesignStudio').then(module => ({ default: module.DocumentDesignStudio })), { label: 'Ouverture de la présentation des documents…' });
-const EmployeeDocumentImport = deferView(() => import('./EmployeeDocumentImport').then(module => ({ default: module.EmployeeDocumentImport })), { label: 'Ouverture de la lecture de fiche…' });
-const PayrollContributionsPanel = deferView(() => import('./PayrollContributionsPanel').then(module => ({ default: module.PayrollContributionsPanel })), { label: 'Ouverture des cotisations…' });
-const SwissPayrollRulesPanel = deferView(() => import('./SwissPayrollRulesPanel').then(module => ({ default: module.SwissPayrollRulesPanel })), { label: 'Ouverture des règles de paie…' });
-const TimeBillingWizard = deferView(() => import('./TimeBillingWizard').then(module => ({ default: module.TimeBillingWizard })), { label: 'Ouverture de la facturation des heures…', close: props => props.close });
+const DetailedPayslipForm = deferView(() => import('./DetailedPayslipForm').then(module => ({ default: module.DetailedPayslipForm })), { diagnosticName: 'DetailedPayslipForm', label: 'Ouverture de la fiche de salaire…', close: props => props.close });
+const DocumentEditor = deferView(() => import('./DocumentEditor').then(module => ({ default: module.DocumentEditor })), { diagnosticName: 'DocumentEditor', label: 'Ouverture du document…', close: props => props.close });
+const PairedInvoiceEditor = deferView(() => import('./QuoteInvoiceFolder').then(module => ({ default: module.PairedInvoiceEditor })), { diagnosticName: 'PairedInvoiceEditor', label: 'Ouverture du dossier de facturation…', close: props => props.close });
+const QuoteInvoiceFolder = deferView(() => import('./QuoteInvoiceFolder').then(module => ({ default: module.QuoteInvoiceFolder })), { diagnosticName: 'QuoteInvoiceFolder', label: 'Ouverture du dossier de facturation…', close: props => props.close });
+const QuoteConversionModal = deferView(() => import('./QuoteConversionModal').then(module => ({ default: module.QuoteConversionModal })), { diagnosticName: 'QuoteConversionModal', label: 'Ouverture de la conversion du devis…', close: props => props.close });
+const InvoiceIssueDialog = deferView(() => import('./InvoiceIssueDialog').then(module => ({ default: module.InvoiceIssueDialog })), { diagnosticName: 'InvoiceIssueDialog', label: 'Préparation de la vérification de facture…', close: props => props.close });
+const PayslipPostingDialog = deferView(() => import('./PayslipPostingDialog').then(module => ({ default: module.PayslipPostingDialog })), { diagnosticName: 'PayslipPostingDialog', label: 'Vérification du salaire…', close: props => props.close });
+const SupplierInvoiceReviewDialog = deferView(() => import('./SupplierInvoiceReviewDialog').then(module => ({ default: module.SupplierInvoiceReviewDialog })), { diagnosticName: 'SupplierInvoiceReviewDialog', label: 'Vérification de la facture fournisseur…', close: props => props.close });
+const CatalogScreen = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogScreen })), { diagnosticName: 'CatalogScreen', label: 'Ouverture du catalogue…' });
+const CatalogItemForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.CatalogItemForm })), { diagnosticName: 'CatalogItemForm', label: 'Ouverture du catalogue…', close: props => props.close });
+const StockMovementForm = deferView(() => import('./CatalogScreen').then(module => ({ default: module.StockMovementForm })), { diagnosticName: 'StockMovementForm', label: 'Ouverture du catalogue…', close: props => props.close });
+const ExpenseForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.ExpenseForm })), { diagnosticName: 'ExpenseForm', label: 'Ouverture des achats…', close: props => props.close });
+const LegacyExpenseDetail = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.LegacyExpenseDetail })), { diagnosticName: 'LegacyExpenseDetail', label: 'Ouverture des achats…', close: props => props.close });
+const SupplierForm = deferView(() => import('./ContactForms').then(module => ({ default: module.SupplierForm })), { diagnosticName: 'SupplierForm', label: 'Ouverture de la fiche fournisseur…', close: props => props.close });
+const ClientForm = deferView(() => import('./ContactForms').then(module => ({ default: module.ClientForm })), { diagnosticName: 'ClientForm', label: 'Ouverture de la fiche client…', close: props => props.close });
+const SupplierInvoiceDetail = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierInvoiceDetail })), { diagnosticName: 'SupplierInvoiceDetail', label: 'Ouverture des achats…', close: props => props.close });
+const SupplierInvoiceForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierInvoiceForm })), { diagnosticName: 'SupplierInvoiceForm', label: 'Ouverture des achats…', close: props => props.close });
+const SupplierPaymentForm = deferView(() => import('./PurchasesScreen').then(module => ({ default: module.SupplierPaymentForm })), { diagnosticName: 'SupplierPaymentForm', label: 'Ouverture des achats…', close: props => props.close });
+const SalesOrdersScreen = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.SalesOrdersScreen })), { diagnosticName: 'SalesOrdersScreen', label: 'Ouverture des commandes…' });
+const DeliveryNotePrintPreview = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.DeliveryNotePrintPreview })), { diagnosticName: 'DeliveryNotePrintPreview', label: 'Ouverture des commandes…', close: props => props.onClose });
+const SalesOrderPrintPreview = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.SalesOrderPrintPreview })), { diagnosticName: 'SalesOrderPrintPreview', label: 'Ouverture des commandes…', close: props => props.onClose });
+const ProjectPlanningPanel = deferView(() => import('./ProjectPlanningPanel').then(module => ({ default: module.ProjectPlanningPanel })), { diagnosticName: 'ProjectPlanningPanel', label: 'Ouverture du planning…' });
+const ProjectFolder = deferView(() => import('./ProjectFolder').then(module => ({ default: module.ProjectFolder })), { diagnosticName: 'ProjectFolder', label: 'Ouverture du projet…' });
+const ReportsScreen = deferView(() => import('./ProjectReports').then(module => ({ default: module.ReportsScreen })), { diagnosticName: 'ReportsScreen', label: 'Ouverture des rapports…' });
+const SalaryCertificates = deferView(() => import('./SalaryCertificates').then(module => ({ default: module.SalaryCertificates })), { diagnosticName: 'SalaryCertificates', label: 'Ouverture des certificats de salaire…' });
+const DocumentDesignStudio = deferView(() => import('./DocumentDesignStudio').then(module => ({ default: module.DocumentDesignStudio })), { diagnosticName: 'DocumentDesignStudio', label: 'Ouverture de la présentation des documents…' });
+const EmployeeDocumentImport = deferView(() => import('./EmployeeDocumentImport').then(module => ({ default: module.EmployeeDocumentImport })), { diagnosticName: 'EmployeeDocumentImport', label: 'Ouverture de la lecture de fiche…' });
+const PayrollContributionsPanel = deferView(() => import('./PayrollContributionsPanel').then(module => ({ default: module.PayrollContributionsPanel })), { diagnosticName: 'PayrollContributionsPanel', label: 'Ouverture des cotisations…' });
+const SwissPayrollRulesPanel = deferView(() => import('./SwissPayrollRulesPanel').then(module => ({ default: module.SwissPayrollRulesPanel })), { diagnosticName: 'SwissPayrollRulesPanel', label: 'Ouverture des règles de paie…' });
+const TimeBillingWizard = deferView(() => import('./TimeBillingWizard').then(module => ({ default: module.TimeBillingWizard })), { diagnosticName: 'TimeBillingWizard', label: 'Ouverture de la facturation des heures…', close: props => props.close });
 
 const PayrollImportWizard = lazy(() =>
   import('./PayrollImportWizard').then((module) => ({

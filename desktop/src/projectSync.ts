@@ -7,6 +7,7 @@ import { startCompanyRealtime } from './companyRealtime';
 import { isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { watchCompanyReceiveOpportunity } from './companySync';
+import { diagnosticOperation } from './diagnostics';
 
 export type ProjectSyncStatus = {
   mode?: 'legacy' | 'preparing' | 'business';
@@ -87,9 +88,15 @@ export function useProjectSyncBackground(
     });
     const stopReceiveWatch=watchCompanyReceiveOpportunity(()=>scheduler.wake());
     let unlisten: UnlistenFn | undefined;
-    if (isTauri()) void listen('zentra-company-data-changed', () => {
+    const stopListening = (stop: UnlistenFn) => {
+      void diagnosticOperation('sync', 'company.event_unlisten', async () => {
+        // The SDK returns a Promise despite its void-typed UnlistenFn.
+        await stop();
+      }).catch(() => { /* Teardown is best effort; its failure is already recorded. */ });
+    };
+    if (isTauri()) void diagnosticOperation('sync', 'company.event_listen', () => listen('zentra-company-data-changed', () => {
       if (active) { scheduler.wake(); realtime.wake(); }
-    }).then(stop => { if (active) unlisten = stop; else stop(); }).catch(() => {
+    })).then(stop => { if (active) unlisten = () => stopListening(stop); else stopListening(stop); }).catch(() => {
       // Periodic reconciliation remains active if event registration fails.
     });
     const wake = (event?: Event) => {
