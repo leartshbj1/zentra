@@ -1,6 +1,7 @@
 import type { Workspace } from './types';
 import { errorMessage } from './utils';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
+import { recordDiagnostic } from './diagnostics';
 
 export type ProjectFileState = {
   files: File[]; saving: boolean; error: string; progress: string; notice: string;
@@ -15,8 +16,18 @@ type Api = {
 export type ProjectFileActivity = { projectId: string; state: ProjectFileState };
 
 /** File selections belong to the open workspace, independently of the current page. */
-export function createProjectFileSessions(api: Api, onWorkspace: (workspace: Workspace) => void) {
+export function createProjectFileSessions(api: Api, onWorkspace: (workspace: Workspace) => void, publication?: {
+  current: () => Workspace;
+  scope: () => string;
+}) {
   let active = true, writable = true, epoch = 0, latestRead = 0;
+  const originScope = publication?.scope();
+  const ownsWorkspace = () => !publication || publication.scope() === originScope;
+  const matchesWorkspace = (next: Workspace) => !publication || next.workNotesScope === publication.current().workNotesScope;
+  const reportConflict = () => {
+    try { recordDiagnostic({ area: 'sync', operation: 'project_files.workspace_refresh', phase: 'failure', errorCode: 'CONFLICT' }); }
+    catch { /* Diagnostics must not replace a confirmed file operation. */ }
+  };
   let controller = new AbortController();
   let activity: ProjectFileActivity[] = [];
   const listeners = new Set<() => void>();
@@ -30,23 +41,35 @@ export function createProjectFileSessions(api: Api, onWorkspace: (workspace: Wor
     let state = emptyState();
     const subscribers = new Set<() => void>();
     const update = (patch: Partial<ProjectFileState>) => {
-      if (!active) return;
+      if (!active || !ownsWorkspace()) return;
       state = { ...state, ...patch };
       subscribers.forEach(listener => listener());
       publish();
     };
-    const current = (token: number) => active && token === epoch;
+    const current = (token: number) => active && token === epoch && ownsWorkspace();
     async function refresh(token: number) {
       if (!current(token)) return;
       update({ progress: 'Actualisation de la liste…' });
-      const read = ++latestRead;
-      try {
-        const workspace = await api.load();
-        if (!current(token)) return;
-        if (read === latestRead) onWorkspace(workspace);
-        update({ refreshPending: false, error: '' });
-      } catch (reason) {
-        if (current(token)) update({ refreshPending: true, error: errorMessage(reason, 'La liste des documents ne peut pas être actualisée pour le moment.') });
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const read = ++latestRead, before = publication?.current();
+        try {
+          const workspace = await api.load();
+          if (!current(token)) return;
+          // Another file-session read already supersedes this one. The shared
+          // receiver owns its publication; this older result cannot replace it.
+          if (read !== latestRead) return;
+          if (publication && (before !== publication.current() || !matchesWorkspace(workspace))) continue;
+          onWorkspace(workspace);
+          update({ refreshPending: false, error: '' });
+          return;
+        } catch (reason) {
+          if (current(token)) update({ refreshPending: true, error: errorMessage(reason, 'La liste des documents ne peut pas être actualisée pour le moment.') });
+          return;
+        }
+      }
+      if (current(token)) {
+        reportConflict();
+        update({ refreshPending: true, error: 'Les données ont changé pendant l’actualisation. Actualisez la liste ; vos fichiers enregistrés sont conservés.' });
       }
     }
     return {
@@ -57,14 +80,14 @@ export function createProjectFileSessions(api: Api, onWorkspace: (workspace: Wor
       setError(error: string) { update({ error }); },
       reset() { state = emptyState(); },
       async refresh() {
-        if (!active || state.saving) return;
+        if (!active || !ownsWorkspace() || state.saving) return;
         const token = epoch;
         update({ saving: true });
         try { await refresh(token); }
         finally { if (current(token)) update({ saving: false, progress: '' }); }
       },
       async upload() {
-        if (!active || !writable || state.saving || state.refreshPending || !state.files.length) return;
+        if (!active || !ownsWorkspace() || !writable || state.saving || state.refreshPending || !state.files.length) return;
         const token = epoch, selected = [...state.files];
         const remaining = [...selected], failures: ProjectFileState['uploadFailures'] = [];
         let added = 0;
@@ -92,9 +115,9 @@ export function createProjectFileSessions(api: Api, onWorkspace: (workspace: Wor
         } finally { if (current(token)) update({ saving: false, progress: '' }); }
       },
       async remove(id: string): Promise<boolean> {
-        if (!active || !writable || state.saving || state.refreshPending) return false;
+        if (!active || !ownsWorkspace() || !writable || state.saving || state.refreshPending) return false;
         const token = epoch;
-        const read = ++latestRead;
+        const read = ++latestRead, before = publication?.current();
         update({ saving: true, error: '', notice: '', progress: 'Suppression du document…' });
         try {
           const workspace = await api.remove(id);
@@ -102,7 +125,7 @@ export function createProjectFileSessions(api: Api, onWorkspace: (workspace: Wor
           update({ notice: 'Le document a été supprimé de ce projet.' });
           // This receipt includes a write. A read begun elsewhere while the write
           // was pending may predate it, so reconcile again instead of discarding it.
-          if (read === latestRead) onWorkspace(workspace);
+          if (read === latestRead && (!publication || before === publication.current()) && matchesWorkspace(workspace)) onWorkspace(workspace);
           else await refresh(token);
           return true;
         } catch (reason) {
@@ -126,7 +149,7 @@ export function createProjectFileSessions(api: Api, onWorkspace: (workspace: Wor
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     getActivity: () => activity,
     moveSelection(fromId: string, toId: string) {
-      if (!active || !writable || !toId || fromId === toId) return false;
+      if (!active || !ownsWorkspace() || !writable || !toId || fromId === toId) return false;
       const from = sessions.get(fromId), to = sessions.get(toId) ?? createSession(toId);
       if (!from) return false;
       const source = from.getSnapshot(), target = to.getSnapshot();

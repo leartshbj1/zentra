@@ -695,10 +695,15 @@ function WorkspaceContent({
               }} onOpen={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}}/>;
   const workspaceMounted = useRef(true);
   const projectWorkspaceReceiver = useRef(setWorkspace);
+  const projectWorkspaceScope = useRef('');
+  projectWorkspaceScope.current = JSON.stringify([cloudAccount?.organizationId ?? null, workspace.workNotesScope ?? null]);
   useLayoutEffect(() => { projectWorkspaceReceiver.current = setWorkspace; }, [setWorkspace]);
   const projectFileSessions = useMemo(() => createProjectFileSessions({
     add: (id, file, signal) => desktopApi.addProjectDocument(id, file, signal), remove: id => desktopApi.deleteProjectDocument(id), load: () => desktopApi.loadWorkspace(),
-  }, next => projectWorkspaceReceiver.current(next)), [cloudAccount?.organizationId]);
+  }, next => { workspaceRef.current = next; projectWorkspaceReceiver.current(next); }, {
+    current: () => workspaceRef.current,
+    scope: () => projectWorkspaceScope.current,
+  }), [cloudAccount?.organizationId, workspace.workNotesScope]);
   useLayoutEffect(() => { projectFileSessions.start(); return () => projectFileSessions.stop(); }, [projectFileSessions]);
   useLayoutEffect(() => { projectFileSessions.setWritable(!readOnly); }, [projectFileSessions, readOnly]);
   const notesScope = workspace.workNotesScope || cloudAccount?.organizationId || 'local';
@@ -2992,7 +2997,7 @@ function ProjectsScreen({
     (client) => !client.archivedAt,
   );
   const folder = workspace.projects.find((project) => project.id === folderId);
-  if (folder) return <ProjectFolder key={folder.id} fileSession={fileSessions.forProject(folder.id)} onOpenNotes={onOpenNotes} onOpenExpense={onOpenExpense} project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => onFolderChange(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
+  if (folder) return <ProjectFolder key={JSON.stringify([folder.id, workspace.workNotesScope ?? null])} fileSession={fileSessions.forProject(folder.id)} onOpenNotes={onOpenNotes} onOpenExpense={onOpenExpense} project={folder} workspace={workspace} busy={busy} readOnly={readOnly} onBack={() => onFolderChange(null)} onOpenDocument={onOpenDocument} onCreateDocument={onCreateDocument} onWorkspaceChange={onWorkspaceChange} />;
   if (!workspace.projects.length)
     return (
       <EmptyState

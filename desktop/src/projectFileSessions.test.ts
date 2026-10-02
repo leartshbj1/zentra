@@ -12,6 +12,70 @@ function fixture() {
   return { api, onWorkspace, sessions: createProjectFileSessions(api, onWorkspace) };
 }
 describe('sélections et ajouts de documents pendant la navigation', () => {
+  function scopedFixture() {
+    let current = { ...workspace, workNotesScope: 'space-a', clients: [] } as Workspace;
+    const api = { add: vi.fn(async () => {}), remove: vi.fn(async () => current), load: vi.fn(async () => current) };
+    const onWorkspace = vi.fn((next: Workspace) => { current = next; });
+    const sessions = createProjectFileSessions(api, onWorkspace, { current: () => current, scope: () => current.workNotesScope || '' });
+    return { api, onWorkspace, sessions, getCurrent: () => current, publishLocal: (next: Workspace) => { current = next; } };
+  }
+  it('relit un ajout confirmé si une publication locale intervient pendant sa lecture', async () => {
+    const f = scopedFixture(), old = f.getCurrent(), hold = deferred<Workspace>();
+    f.api.load.mockImplementationOnce(() => hold.promise);
+    const session = f.sessions.forProject('a'); session.setFiles([file('plan.pdf')]);
+    const job = session.upload(); await vi.waitFor(() => expect(f.api.load).toHaveBeenCalledTimes(1));
+    const newer = { ...old, clients: [{ id: 'new-client' }] } as Workspace;
+    f.publishLocal(newer); hold.resolve(old); await job;
+    expect(f.onWorkspace).toHaveBeenCalledTimes(1);
+    expect(f.onWorkspace).toHaveBeenCalledWith(newer);
+    expect(f.api.load).toHaveBeenCalledTimes(2);
+    expect(f.api.add).toHaveBeenCalledTimes(1);
+    expect(session.getSnapshot().files).toEqual([]);
+  });
+  it('borne les relectures conflictuelles sans rejouer un ajout confirmé', async () => {
+    const f = scopedFixture(), session = f.sessions.forProject('a');
+    f.api.load.mockImplementation(async () => {
+      const before = f.getCurrent(); f.publishLocal({ ...before }); return before;
+    });
+    session.setFiles([file('plan.pdf')]); await session.upload();
+    expect(f.api.load).toHaveBeenCalledTimes(2);
+    expect(f.onWorkspace).not.toHaveBeenCalled();
+    expect(session.getSnapshot().refreshPending).toBe(true);
+    expect(session.getSnapshot().notice).toContain('enregistré');
+    expect(session.getSnapshot().files).toEqual([]);
+    await session.upload(); expect(f.api.add).toHaveBeenCalledTimes(1);
+    f.api.load.mockImplementation(async () => f.getCurrent()); await session.refresh();
+    expect(session.getSnapshot().refreshPending).toBe(false);
+    expect(f.api.add).toHaveBeenCalledTimes(1);
+  });
+  it('ne publie pas la réponse de suppression antérieure à une modification locale', async () => {
+    const f = scopedFixture(), old = f.getCurrent(), hold = deferred<Workspace>();
+    f.api.remove.mockImplementationOnce(() => hold.promise);
+    const job = f.sessions.forProject('a').remove('plan');
+    const newer = { ...old, clients: [{ id: 'new-client' }] } as Workspace;
+    f.publishLocal(newer); hold.resolve(old);
+    expect(await job).toBe(true);
+    expect(f.onWorkspace).toHaveBeenCalledTimes(1);
+    expect(f.onWorkspace).toHaveBeenCalledWith(newer);
+    expect(f.api.remove).toHaveBeenCalledTimes(1);
+    expect(f.api.load).toHaveBeenCalledTimes(1);
+  });
+  it('ignore une lecture terminée dans un autre espace de la même entreprise', async () => {
+    const f = scopedFixture(), old = f.getCurrent(), hold = deferred<Workspace>();
+    f.api.load.mockImplementationOnce(() => hold.promise);
+    const job = f.sessions.forProject('a').refresh();
+    f.publishLocal({ ...old, workNotesScope: 'space-b' }); hold.resolve(old); await job;
+    expect(f.onWorkspace).not.toHaveBeenCalled();
+    expect(f.api.load).toHaveBeenCalledTimes(1);
+  });
+  it('refuse une réponse qui contient une portée différente de l’espace courant', async () => {
+    const f = scopedFixture(), session = f.sessions.forProject('a');
+    f.api.load.mockResolvedValue({ ...f.getCurrent(), workNotesScope: 'space-b' });
+    await session.refresh();
+    expect(f.onWorkspace).not.toHaveBeenCalled();
+    expect(f.api.load).toHaveBeenCalledTimes(2);
+    expect(session.getSnapshot().refreshPending).toBe(true);
+  });
   it('conserve les fichiers par projet après désabonnement et ne lance qu’un ajout', async () => {
     const { api, sessions, onWorkspace } = fixture();
     const a = sessions.forProject('a'), b = sessions.forProject('b');
