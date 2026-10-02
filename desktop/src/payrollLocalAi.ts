@@ -1,6 +1,7 @@
 import type { AssistantFacts, AssistantMessage } from './assistantGuide';
 import { PAYROLL_AI_MODEL_ID, PAYROLL_AI_MODEL_REVISION } from './payrollAiModel';
 import type { EmployeeDocumentDraft } from './employeeDocumentDraft';
+import { classifyDiagnosticError, recordDiagnostic } from './diagnostics';
 
 type WorkerPayload = Record<string, unknown>;
 export const PAYROLL_ANALYSIS_STALL_TIMEOUT_MS = 15 * 60 * 1_000;
@@ -29,6 +30,7 @@ export type PayrollAiMode = 'webgpu' | 'wasm' | 'unavailable';
 
 class PayrollLocalAi {
   private worker: Worker | null = null;
+  private cancelledErrors = new WeakSet<Error>();
   private assistantRequests = new Map<string, {
     resolve: (value: WorkerPayload) => void; reject: (reason: Error) => void;
     onChunk?: (text: string) => void; timeout: ReturnType<typeof setTimeout>;
@@ -52,8 +54,22 @@ class PayrollLocalAi {
   async inspectModel() { return (await this.assistantRequest('assistant_cache')).cached === true; }
   async removeModel() { await this.assistantRequest('assistant_remove'); this.releaseIfIdle(); }
   async chat(input: { question: string; screen: string; facts: AssistantFacts; history: AssistantMessage[] }, onChunk: (text: string) => void) {
-    const result = await this.assistantRequest('assistant_chat', input, onChunk);
-    return {output: String(result.output ?? ''), truncated: result.truncated === true, source: result.source === 'guide' ? 'guide' as const : 'qwen' as const};
+    let started: number | undefined, id: string | undefined;
+    try { started = performance.now(); id = recordDiagnostic({area:'app',operation:'assistant.local_chat',phase:'start'}); }
+    catch { /* A journal failure must never block the local assistant. */ }
+    const finish = (phase: 'success' | 'failure' | 'info', error?: unknown) => {
+      try { recordDiagnostic({id,area:'app',operation:'assistant.local_chat',phase,durationMs:started === undefined ? undefined : performance.now()-started,errorCode:phase === 'failure' ? classifyDiagnosticError(error) : undefined}); }
+      catch { /* Do not replace a worker result, rejection or cancellation. */ }
+    };
+    try {
+      const result = await this.assistantRequest('assistant_chat', input, onChunk);
+      const response = {output: String(result.output ?? ''), truncated: result.truncated === true, source: result.source === 'guide' ? 'guide' as const : 'qwen' as const};
+      finish('success');
+      return response;
+    } catch (error) {
+      finish(this.cancelledErrors.has(error as Error) ? 'info' : 'failure', error);
+      throw error;
+    }
   }
   private checkWaiters: Array<{
     resolve: (mode: PayrollAiMode) => void;
@@ -228,7 +244,9 @@ class PayrollLocalAi {
     const worker = this.worker;
     this.worker = null;
     worker?.terminate();
-    this.rejectAll(new Error('Analyse locale annulée. Aucun brouillon IA incomplet n’a été enregistré.'));
+    const error = new Error('Analyse locale annulée. Aucun brouillon IA incomplet n’a été enregistré.');
+    this.cancelledErrors.add(error);
+    this.rejectAll(error);
   }
 
   check(): Promise<PayrollAiMode> {
