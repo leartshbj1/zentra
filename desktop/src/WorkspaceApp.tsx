@@ -1499,7 +1499,7 @@ function WorkspaceContent({
         workspace.supplierInvoices.filter((row) => row.projectId === item.id)
           .length,
       ],
-      ['note', workspace.workNotes.filter((row) => row.projectId === item.id).length],
+      ['note', (workspace.workNotes ?? []).filter((row) => row.projectId === item.id).length],
     ];
     const used = linked.filter(([, count]) => count > 0);
     if (workspace.activeTimer?.projectId === item.id)
