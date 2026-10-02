@@ -6389,7 +6389,7 @@ function WorkspaceModal({
           </div>
         )}
       >
-        <PayrollImportWizard workspace={workspace} close={close} act={act} />
+        <PayrollImportWizard workspace={workspace} close={close} act={act} readOnly={readOnly} />
       </Suspense>
     );
   if (state.type === 'payslipPayment') {

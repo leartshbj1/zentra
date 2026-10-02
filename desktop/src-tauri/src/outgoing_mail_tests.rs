@@ -1066,3 +1066,204 @@ fn mail_success_and_replay_do_not_report_native_history_errors() {
     assert_eq!(submissions, 1);
     assert_eq!(smtp_receipt_count(&store), 1);
 }
+
+mod settings_signature_preservation_tests {
+    use super::*;
+
+    // No connection, document or SMTP submission is created by these fixtures.
+    fn signature_fixture() -> (tempfile::TempDir, LocalStore) {
+        let temporary = tempfile::tempdir().unwrap();
+        let mut store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        store.configure_test_license_key(
+            ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+                .verifying_key()
+                .to_bytes(),
+        );
+        store
+            .complete_onboarding(crate::tests::test_onboarding(), "1.0.0")
+            .unwrap();
+        install_synthetic_mail_license(&store);
+        (temporary, store)
+    }
+
+    fn stored_extra(store: &LocalStore) -> Value {
+        let raw: String = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT extra_settings_json FROM settings WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        serde_json::from_str(&raw).unwrap()
+    }
+
+    fn settings_snapshot(store: &LocalStore) -> Value {
+        let db = store.connect().unwrap();
+        let settings: Value = db
+            .query_row("SELECT * FROM settings WHERE id=1", [], row_to_json_public)
+            .unwrap();
+        let clock: i64 = db
+            .query_row("SELECT value FROM company_local_clock WHERE id=1", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        json!({"settings":settings,"clock":clock,"audit":crate::audit::verify_audit_chain(&db).unwrap()})
+    }
+
+    #[test]
+    fn unrelated_settings_save_preserves_only_the_omitted_mail_signature() {
+        let (temporary, store) = signature_fixture();
+        enable_logo(&temporary, &store);
+        let old_extra = json!({
+            "mailSignature":{"includeCompanyLogo":true},
+            "billing":{"defaultFooter":"old footer"},
+            "payroll":{"oldPreference":true},
+            "mailTemplates":MailTemplates::default(),
+            "unsupportedOldKey":{"keep":false}
+        });
+        store
+            .update_settings(json!({"extra_settings_json":old_extra}))
+            .unwrap();
+        let mut incoming_templates = MailTemplates::default();
+        incoming_templates.quotes.subject = "Devis {numero}".into();
+        // Like backendExtra, the replacement is a JSON string without mailSignature.
+        let incoming_extra = json!({
+            "mailTemplates":incoming_templates,
+            "billing":{"defaultFooter":"new footer"},
+            "payroll":{"newPreference":true},
+            "backup":{"enabled":false}
+        });
+        let received = store
+            .update_settings(json!({
+                "payment_terms_days":45,
+                "extra_settings_json":incoming_extra.to_string()
+            }))
+            .unwrap();
+        assert_eq!(received["payment_terms_days"], 45);
+        let mut expected = incoming_extra;
+        expected["mailSignature"] = json!({"includeCompanyLogo":true});
+        assert_eq!(stored_extra(&store), expected);
+        let public_state = store.outgoing_mail_state().unwrap();
+        assert_eq!(public_state["signature"]["includeCompanyLogo"], true);
+        assert_eq!(public_state["templates"]["quotes"]["subject"], "Devis {numero}");
+        assert!(public_state["companyLogoDataUrl"].as_str().unwrap().starts_with("data:image/png;base64,"));
+        assert!(crate::audit::verify_audit_chain(&store.connect().unwrap()).unwrap()["valid"].as_bool().unwrap());
+    }
+
+    #[test]
+    fn omitted_and_normalized_empty_extra_keep_signature_without_inventing_one() {
+        let (temporary, store) = signature_fixture();
+        enable_logo(&temporary, &store);
+        let before = stored_extra(&store);
+        store
+            .update_settings(json!({"payment_terms_days":31}))
+            .unwrap();
+        assert_eq!(stored_extra(&store), before);
+        for extra in [json!({}), json!("{}"), Value::Null] {
+            store
+                .update_settings(json!({"extra_settings_json":extra}))
+                .unwrap();
+            assert_eq!(stored_extra(&store), json!({"mailSignature":{"includeCompanyLogo":true}}));
+            assert!(signature(&store).unwrap().include_company_logo);
+        }
+        let (_other_temporary, other) = signature_fixture();
+        assert!(stored_extra(&other).get("mailSignature").is_none());
+        other.update_settings(json!({"extra_settings_json":{}})).unwrap();
+        assert_eq!(stored_extra(&other), json!({}));
+        assert!(!signature(&other).unwrap().include_company_logo);
+    }
+
+    #[test]
+    fn explicit_mail_disable_is_not_resurrected_by_an_older_settings_payload() {
+        let (temporary, store) = signature_fixture();
+        enable_logo(&temporary, &store);
+        let stale_extra_without_signature = json!({"backup":{"enabled":false}}).to_string();
+        let key = scope(&store).unwrap();
+        store
+            .save_mail_templates(&key, MailTemplates::default(), Some(MailSignature {
+                include_company_logo:false
+            }))
+            .unwrap();
+        store
+            .update_settings(json!({"extra_settings_json":stale_extra_without_signature}))
+            .unwrap();
+        assert!(!signature(&store).unwrap().include_company_logo);
+        store.save_mail_templates(&key, MailTemplates::default(), None).unwrap();
+        assert!(!signature(&store).unwrap().include_company_logo);
+        assert_eq!(stored_extra(&store)["mailSignature"], json!({"includeCompanyLogo":false}));
+    }
+
+    #[test]
+    fn invalid_unrelated_settings_leave_signature_settings_clock_and_audit_unchanged() {
+        let (temporary, store) = signature_fixture();
+        enable_logo(&temporary, &store);
+        let before = settings_snapshot(&store);
+        let error = store
+            .update_settings(json!({
+                "vat_registered":false,
+                "default_vat_bp":810,
+                "extra_settings_json":{"backup":{"enabled":false}}
+            }))
+            .unwrap_err();
+        assert!(matches!(error, AppError::Validation(_)));
+        assert_eq!(settings_snapshot(&store), before);
+        assert!(signature(&store).unwrap().include_company_logo);
+    }
+
+    #[test]
+    fn audit_failure_rolls_back_preserved_signature_and_retry_commits_once() {
+        let (temporary, store) = signature_fixture();
+        enable_logo(&temporary, &store);
+        let before = settings_snapshot(&store);
+        store.connect().unwrap().execute_batch(
+            "CREATE TRIGGER refuse_signature_settings_audit BEFORE INSERT ON audit_log WHEN NEW.action='update' AND NEW.entity_type='settings' BEGIN SELECT RAISE(FAIL,'Synthetic settings audit refusal'); END;"
+        ).unwrap();
+        let patch = json!({"payment_terms_days":45,"extra_settings_json":{"backup":{"enabled":false}}});
+        let error = store.update_settings(patch.clone()).unwrap_err();
+        assert!(matches!(error, AppError::Database(_)));
+        assert_eq!(settings_snapshot(&store), before);
+        store.connect().unwrap().execute_batch("DROP TRIGGER refuse_signature_settings_audit").unwrap();
+        store.update_settings(patch).unwrap();
+        assert_eq!(stored_extra(&store), json!({"backup":{"enabled":false},"mailSignature":{"includeCompanyLogo":true}}));
+        let after = settings_snapshot(&store);
+        assert_eq!(after["audit"]["entries"].as_i64().unwrap(), before["audit"]["entries"].as_i64().unwrap()+1);
+        assert_eq!(after["settings"]["payment_terms_days"],45);
+        assert!(after["clock"].as_i64().unwrap()>before["clock"].as_i64().unwrap());
+    }
+
+    #[test]
+    fn mail_signature_configuration_keeps_admin_scope_template_and_logo_guards() {
+        let (temporary, store) = signature_fixture();
+        let key = scope(&store).unwrap();
+        let before = settings_snapshot(&store);
+        assert!(store.save_mail_templates(&key,MailTemplates::default(),Some(MailSignature {
+            include_company_logo:true
+        })).is_err());
+        assert_eq!(settings_snapshot(&store),before);
+        enable_logo(&temporary,&store);
+        let before = settings_snapshot(&store);
+        assert!(store.save_mail_templates("different-company",MailTemplates::default(),Some(MailSignature {
+            include_company_logo:false
+        })).is_err());
+        assert_eq!(settings_snapshot(&store),before);
+        let mut invalid_templates=MailTemplates::default();
+        invalid_templates.quotes.body="{unsupported_variable}".into();
+        assert!(store.save_mail_templates(&key,invalid_templates,Some(MailSignature {
+            include_company_logo:false
+        })).is_err());
+        assert_eq!(settings_snapshot(&store),before);
+        store.connect().unwrap().execute(
+            "INSERT INTO company_local_identity VALUES(1,'signature-fixture','synthetic-user','Synthetic','member')",[]
+        ).unwrap();
+        let key=scope(&store).unwrap();
+        let before=settings_snapshot(&store);
+        let error=store.save_mail_templates(&key,MailTemplates::default(),Some(MailSignature {
+            include_company_logo:false
+        })).unwrap_err();
+        assert!(error.to_string().contains("administrateur"));
+        assert_eq!(settings_snapshot(&store),before);
+        assert!(signature(&store).unwrap().include_company_logo);
+    }
+}

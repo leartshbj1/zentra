@@ -3425,6 +3425,23 @@ impl LocalStore {
                 ))
             },
         )?;
+        if let Some(extra) = object.get("extra_settings_json").cloned() {
+            let mut incoming_extra = parsed_json_object(Some(extra))?;
+            // Mail signatures are saved separately and are not serialized by older
+            // settings clients. Preserve only this omitted key, from this transaction.
+            if incoming_extra.get("mailSignature").is_none() {
+                let current_extra = parsed_json_object(
+                    current_extra_settings_json.clone().map(Value::String),
+                )?;
+                if let Some(signature) = current_extra.get("mailSignature") {
+                    incoming_extra["mailSignature"] = signature.clone();
+                    object.insert(
+                        "extra_settings_json".into(),
+                        Value::String(serde_json::to_string(&incoming_extra)?),
+                    );
+                }
+            }
+        }
         let vat_registered = object
             .get("vat_registered")
             .and_then(Value::as_bool)

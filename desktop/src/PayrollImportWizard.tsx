@@ -56,8 +56,9 @@ import type {
 } from './types';
 import { createId, errorMessage, formatMoney } from './utils';
 import { Button, ErrorPanel, Field, Modal } from './ui';
+import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 
-type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean) => Promise<boolean>;
+type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void, validateRead?: (workspace: Workspace) => void) => Promise<boolean>;
 type AiState = 'idle' | 'checking' | 'available' | 'unavailable' | 'loading' | 'ready' | 'analyzing' | 'error';
 type BatchAnalysisState = {
   status: 'idle' | 'running' | 'complete' | 'cancelled';
@@ -123,7 +124,7 @@ function isExplicitlyConfirmedRecurringLine(
     )));
 }
 
-export function PayrollImportWizard({ workspace, close, act }: { workspace: Workspace; close: () => void; act: ActionRunner }) {
+export function PayrollImportWizard({ workspace, close, act, readOnly = false }: { workspace: Workspace; close: () => void; act: ActionRunner; readOnly?: boolean }) {
   const initial = useMemo(() => workspace.payrollImports.filter((item) => item.status === 'needs_review'), [workspace.payrollImports]);
   const [imports, setImports] = useState<PayrollDocumentImport[]>(initial);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -143,6 +144,10 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   const [confirming, setConfirming] = useState(false);
   const [savingDrafts, setSavingDrafts] = useState(false);
   const dirtyDraftIds = useRef(new Set<string>());
+  const mutationAdmission = useRef<symbol | null>(null);
+  const mountedScope = useRef(workspace.workNotesScope);
+  const context = useRef({ scope: workspace.workNotesScope, readOnly });
+  useLayoutEffect(() => { context.current = { scope: workspace.workNotesScope, readOnly }; }, [workspace.workNotesScope, readOnly]);
   const draftRevisions = useRef<Record<string, number>>({});
   const aiLoadedRef = useRef(false);
   const aiModeRef = useRef<PayrollAiMode>('unavailable');
@@ -186,10 +191,40 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       ownedAnalysis.current = null;
       if (owned) payrollLocalAi.cancel();
     };
-  }, []);
+  }, [workspace.workNotesScope]);
+
+  function isCurrentScope(scope: Workspace['workNotesScope']) {
+    return aiAlive.current && scope === mountedScope.current && context.current.scope === mountedScope.current;
+  }
+
+  function admitMutation() {
+    if (!isCurrentScope(workspace.workNotesScope) || context.current.readOnly || mutationAdmission.current || aiBusy) return null;
+    const token = Symbol();
+    mutationAdmission.current = token;
+    return token;
+  }
+
+  function releaseMutation(token: symbol) {
+    if (mutationAdmission.current === token) mutationAdmission.current = null;
+  }
+
+  function validateScope(next: Workspace, scope: Workspace['workNotesScope']) {
+    if (!isCurrentScope(scope) || (scope !== undefined && next.workNotesScope !== scope)) {
+      throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+    }
+  }
+
+  function requireWritable(scope: Workspace['workNotesScope']) {
+    if (!isCurrentScope(scope)) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+    if (context.current.readOnly) throw new Error('Accès refusé : votre rôle permet la consultation uniquement.');
+  }
+
+  function showLocalFailure(reason: unknown, scope: Workspace['workNotesScope']) {
+    if (isCurrentScope(scope)) setLocalError(errorMessage(reason, 'L’action locale a échoué. Vos corrections ont été conservées.'));
+  }
 
   useEffect(() => {
-    if (!active || employeeLinkSources[active.id] === 'manual') return;
+    if (!active || !isCurrentScope(workspace.workNotesScope) || employeeLinkSources[active.id] === 'manual') return;
     const evidence = aiIdentityEvidence[active.id];
     if (!evidence) return;
     const match = findStrongEmployeeMatch(evidence, workspace.employees);
@@ -206,10 +241,10 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     setPdfPageCount(0);
     setSelectedPdfPage(0);
     setPdfPreviewError('');
-    if (!active) return () => { cancelled = true; };
-    void desktopApi.getPayrollDocumentPreview(active.id)
+    if (!active || !isCurrentScope(workspace.workNotesScope)) return () => { cancelled = true; };
+    void desktopApi.getPayrollDocumentPreview(active.id, workspace.workNotesScope)
       .then(async ({ mimeType, dataBase64 }) => {
-        if (cancelled) return;
+        if (cancelled || !isCurrentScope(workspace.workNotesScope)) return;
         const dataUrl = `data:${mimeType};base64,${dataBase64}`;
         setDocumentDataUrl(dataUrl);
         if (active.mediaKind === 'pdf') {
@@ -218,19 +253,19 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
             extractPayrollPdfTextByPage(base64ToBytes(dataBase64), MAX_VISUAL_PAYROLL_PAGES),
           ]);
           if (previewResult.status === 'rejected') throw previewResult.reason;
-          if (!cancelled) {
+          if (!cancelled && isCurrentScope(workspace.workNotesScope)) {
             setPdfPages(previewResult.value.pages);
             setPdfPageCount(previewResult.value.pageCount);
             setPdfTextPages(textResult.status === 'fulfilled' ? textResult.value.pages : []);
           }
         }
       })
-      .catch((reason) => { if (!cancelled) setPdfPreviewError(errorMessage(reason, "L’aperçu local du PDF n’a pas pu être rendu.")); });
+      .catch((reason) => { if (!cancelled && isCurrentScope(workspace.workNotesScope)) setPdfPreviewError(errorMessage(reason, "L’aperçu local du PDF n’a pas pu être rendu.")); });
     return () => { cancelled = true; };
-  }, [active?.id, active?.mediaKind]);
+  }, [active?.id, active?.mediaKind, workspace.workNotesScope]);
 
   function updateDraft(mutator: (current: PayrollImportDraft) => PayrollImportDraft) {
-    if (!active || !draft || aiBusy || confirming || savingDrafts) return;
+    if (!active || !draft || aiBusy || confirming || savingDrafts || context.current.readOnly || mutationAdmission.current) return;
     const importId = active.id;
     const before = cloneDraft(drafts[importId] ?? draft);
     const edit = recordPayrollManualChanges(before, mutator(cloneDraft(before)));
@@ -264,7 +299,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   }
 
   function patchEmployee(patch: Partial<PayrollImportEmployeeDraft>) {
-    if (!active || !draft || aiBusy || confirming || savingDrafts) return;
+    if (!active || !draft || aiBusy || confirming || savingDrafts || context.current.readOnly || mutationAdmission.current) return;
     const invalidatesAutomaticLink = Boolean(active
       && employeeLinkSources[active.id] === 'auto'
       && ['employeeNumber', 'birthDate', 'avsNumber', 'iban'].some((field) => Object.hasOwn(patch, field)));
@@ -291,18 +326,28 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   }
 
   async function chooseDocuments() {
+    const token = admitMutation();
+    if (!token) return;
+    const originScope = workspace.workNotesScope;
     setLocalError('');
     setBatchAnalysis({ status: 'idle', processed: 0, completed: 0, total: 0, currentName: '', failures: [] });
+    setStaging(true);
     try {
       const paths = await desktopApi.choosePayrollDocuments();
+      if (!isCurrentScope(originScope) || context.current.readOnly) return;
       if (!paths.length) return;
-      setStaging(true);
       let staged: PayrollDocumentImport[] = [];
       const ok = await act(async () => {
-        staged = await desktopApi.stagePayrollDocuments(paths);
-        return desktopApi.loadWorkspace();
-      }, `${paths.length} document(s) préparé(s) localement.`, false);
-      if (!ok) return;
+        requireWritable(originScope);
+        staged = await desktopApi.stagePayrollDocuments(paths, originScope);
+        if (!isCurrentScope(originScope)) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+        return refreshWorkspaceAfterMutation(async () => {
+          const next = await desktopApi.loadWorkspace();
+          validateScope(next, originScope);
+          return next;
+        });
+      }, `${paths.length} document(s) préparé(s) localement.`, false, reason => showLocalFailure(reason, originScope), next => validateScope(next, originScope));
+      if (!ok || !isCurrentScope(originScope)) return;
       setImports((current) => {
         const map = new Map(current.map((item) => [item.id, item]));
         staged.filter((item) => item.status === 'needs_review').forEach((item) => map.set(item.id, item));
@@ -318,18 +363,20 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       }));
       setActiveIndex(0);
     } catch (reason) {
-      setLocalError(errorMessage(reason, "Les fiches n'ont pas pu être préparées localement."));
+      if (isCurrentScope(originScope)) setLocalError(errorMessage(reason, "Les fiches n'ont pas pu être préparées localement."));
     } finally {
-      setStaging(false);
+      releaseMutation(token);
+      if (isCurrentScope(originScope)) setStaging(false);
     }
   }
 
   function isCurrentAiRun(generation: number) {
-    return aiAlive.current && aiGeneration.current === generation;
+    return isCurrentScope(workspace.workNotesScope) && aiGeneration.current === generation;
   }
 
   function requireAiRun(generation: number) {
     if (!isCurrentAiRun(generation) || batchCancelRequested.current) throw new Error('Analyse locale annulée. Aucun brouillon IA incomplet n’a été enregistré.');
+    requireWritable(workspace.workNotesScope);
   }
 
   async function ensureAiLoaded(generation: number) {
@@ -370,7 +417,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     const queuePrefix = queuePosition ? `Fiche ${queuePosition.current}/${queuePosition.total} · ` : '';
     setAiProgress({ label: `${queuePrefix}analyse locale de ${target.sourceName}`, percent: null });
 
-    const { mimeType, dataBase64 } = await desktopApi.getPayrollDocumentPreview(target.id);
+    const { mimeType, dataBase64 } = await desktopApi.getPayrollDocumentPreview(target.id, workspace.workNotesScope);
     requireAiRun(generation);
     let visualPageCount = 1;
     let imageUrls: string[] = [];
@@ -502,7 +549,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     });
     const readingStrategy = analysisPasses === 2 ? 'double-read' : 'single-read';
     requireAiRun(generation);
-    const saved = await desktopApi.updatePayrollImportDraft(target.id, merged, `qwen3-0.6b-${latestResult.mode}-multipage-${readingStrategy}-${analysisPasses}`, latestResult.modelVersion, confidenceBp, analysisManifest);
+    const saved = await desktopApi.updatePayrollImportDraft(target.id, merged, `qwen3-0.6b-${latestResult.mode}-multipage-${readingStrategy}-${analysisPasses}`, latestResult.modelVersion, confidenceBp, analysisManifest, workspace.workNotesScope);
     if (!isCurrentAiRun(generation)) return saved;
     setAiIdentityEvidence((current) => ({ ...current, [saved.id]: aiDraft.identity }));
     setAiProvenance((current) => ({ ...current, [saved.id]: payrollAiProvenanceFromManifest(saved.analysisManifest) ?? finalProvenance }));
@@ -527,7 +574,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   }
 
   async function analyzeCurrent() {
-    if (!active || !draft || !aiAlive.current) return;
+    if (!active || !draft || !isCurrentScope(workspace.workNotesScope) || context.current.readOnly || mutationAdmission.current) return;
     const generation = aiGeneration.current;
     setLocalError('');
     batchCancelRequested.current = false;
@@ -543,7 +590,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   }
 
   async function analyzePendingQueue() {
-    if (!aiAlive.current) return;
+    if (!isCurrentScope(workspace.workNotesScope) || context.current.readOnly || mutationAdmission.current) return;
     const generation = aiGeneration.current;
     const queue = pendingLocalPayrollAiImports(imports);
     if (!queue.length) return;
@@ -601,7 +648,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   }
 
   async function confirmCurrent() {
-    if (!active || !draft || !reviewed[active.id]) return;
+    if (!active || !draft || !reviewed[active.id] || !isCurrentScope(workspace.workNotesScope) || context.current.readOnly || mutationAdmission.current || aiBusy) return;
     setLocalError('');
     const linkedEmployee = employeeLinks[active.id] || undefined;
     const linkedEmployeeRecord = linkedEmployee
@@ -625,6 +672,15 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       setLocalError('Un identifiant fort du document (AVS, numéro employé ou naissance) ne correspond pas au collaborateur sélectionné. Choisissez le bon profil avant de confirmer.');
       return;
     }
+    const token = admitMutation();
+    if (!token) return;
+    const originScope = workspace.workNotesScope;
+    const validateConfirmation = (next: Workspace) => {
+      validateScope(next, originScope);
+      if (next.payrollImports.find(item => item.id === active.id)?.status !== 'confirmed') {
+        throw new Error('La fiche confirmée n’apparaît pas encore dans les données chargées. Actualisez les données sans confirmer une deuxième fois.');
+      }
+    };
     setConfirming(true);
     const hadExistingTemplate = Boolean(linkedEmployee && workspace.employeePayrollTemplates.some((template) => template.employeeId === linkedEmployee));
     const hasReviewedRecurringEarnings = draft.lines.some((line) => (
@@ -636,50 +692,80 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       && replaceTemplates[active.id]
       && hasReviewedRecurringEarnings,
     );
-    const ok = await act(
-      () => desktopApi.confirmPayrollDocumentImport(
-        active.id,
-        draft,
-        linkedEmployee,
-        replaceExistingTemplate,
-        reviewed[active.id] === true,
-      ),
-      linkedEmployee
-        ? replaceExistingTemplate
-          ? 'La fiche a été rattachée et le modèle salarial existant a été remplacé explicitement.'
-          : hadExistingTemplate
-            ? 'La fiche a été rattachée; le modèle salarial existant a été préservé.'
-            : hasReviewedRecurringEarnings
-              ? 'La fiche a été rattachée et un premier modèle salarial contrôlé a été créé.'
-              : 'La fiche a été rattachée sans inventer de modèle salarial; aucun gain récurrent n’était confirmé.'
-        : hasReviewedRecurringEarnings
-          ? 'Le collaborateur, son modèle contrôlé et la fiche à contrôler ont été créés.'
-          : 'Le collaborateur et la fiche à contrôler ont été créés sans déduire un salaire contractuel du brut historique.',
-      false,
-    );
-    if (ok) {
-      const remaining = imports.filter((item) => item.id !== active.id);
-      dirtyDraftIds.current.delete(active.id);
-      setImports(remaining);
-      setActiveIndex((index) => Math.min(index, Math.max(0, remaining.length - 1)));
-      if (!remaining.length) close();
+    try {
+      const ok = await act(
+        async () => {
+          requireWritable(originScope);
+          const next = await desktopApi.confirmPayrollDocumentImport(
+            active.id,
+            draft,
+            linkedEmployee,
+            replaceExistingTemplate,
+            reviewed[active.id] === true,
+            originScope,
+          );
+          return refreshWorkspaceAfterMutation(async () => { validateConfirmation(next); return next; });
+        },
+        linkedEmployee
+          ? replaceExistingTemplate
+            ? 'La fiche a été rattachée et le modèle salarial existant a été remplacé explicitement.'
+            : hadExistingTemplate
+              ? 'La fiche a été rattachée; le modèle salarial existant a été préservé.'
+              : hasReviewedRecurringEarnings
+                ? 'La fiche a été rattachée et un premier modèle salarial contrôlé a été créé.'
+                : 'La fiche a été rattachée sans inventer de modèle salarial; aucun gain récurrent n’était confirmé.'
+          : hasReviewedRecurringEarnings
+            ? 'Le collaborateur, son modèle contrôlé et la fiche à contrôler ont été créés.'
+            : 'Le collaborateur et la fiche à contrôler ont été créés sans déduire un salaire contractuel du brut historique.',
+        false,
+        reason => showLocalFailure(reason, originScope),
+        validateConfirmation,
+      );
+      if (ok && isCurrentScope(originScope)) {
+        const remaining = imports.filter((item) => item.id !== active.id);
+        dirtyDraftIds.current.delete(active.id);
+        setImports(remaining);
+        setActiveIndex((index) => Math.min(index, Math.max(0, remaining.length - 1)));
+        if (!remaining.length) close();
+      }
+    } finally {
+      releaseMutation(token);
+      if (isCurrentScope(originScope)) setConfirming(false);
     }
-    setConfirming(false);
   }
 
   async function rejectCurrent() {
-    if (!active || !window.confirm(`Écarter « ${active.sourceName} » de la file de contrôle ? Le fichier local restera dans la sauvegarde Zentra.`)) return;
-    const ok = await act(() => desktopApi.rejectPayrollDocumentImport(active.id), 'Le document a été écarté de la file de contrôle.', false);
-    if (ok) {
-      const remaining = imports.filter((item) => item.id !== active.id);
-      dirtyDraftIds.current.delete(active.id);
-      setImports(remaining);
-      setActiveIndex((index) => Math.min(index, Math.max(0, remaining.length - 1)));
+    if (!active || !isCurrentScope(workspace.workNotesScope) || context.current.readOnly || mutationAdmission.current || aiBusy || !window.confirm(`Écarter « ${active.sourceName} » de la file de contrôle ? Le fichier local restera dans la sauvegarde Zentra.`)) return;
+    const token = admitMutation();
+    if (!token) return;
+    const originScope = workspace.workNotesScope;
+    const validateRejection = (next: Workspace) => {
+      validateScope(next, originScope);
+      if (next.payrollImports.find(item => item.id === active.id)?.status !== 'rejected') {
+        throw new Error('Le document écarté n’apparaît pas encore dans les données chargées. Actualisez les données sans l’écarter une deuxième fois.');
+      }
+    };
+    setConfirming(true);
+    try {
+      const ok = await act(async () => {
+        requireWritable(originScope);
+        const next = await desktopApi.rejectPayrollDocumentImport(active.id, originScope);
+        return refreshWorkspaceAfterMutation(async () => { validateRejection(next); return next; });
+      }, 'Le document a été écarté de la file de contrôle.', false, reason => showLocalFailure(reason, originScope), validateRejection);
+      if (ok && isCurrentScope(originScope)) {
+        const remaining = imports.filter((item) => item.id !== active.id);
+        dirtyDraftIds.current.delete(active.id);
+        setImports(remaining);
+        setActiveIndex((index) => Math.min(index, Math.max(0, remaining.length - 1)));
+      }
+    } finally {
+      releaseMutation(token);
+      if (isCurrentScope(originScope)) setConfirming(false);
     }
   }
 
   async function persistAndClose() {
-    if (savingDrafts) return;
+    if (!isCurrentScope(workspace.workNotesScope) || savingDrafts || mutationAdmission.current) return;
     const pending = [...dirtyDraftIds.current]
       .map((id) => ({ id, draft: drafts[id], source: imports.find((item) => item.id === id) }))
       .filter((item): item is { id: string; draft: PayrollImportDraft; source: PayrollDocumentImport } => Boolean(item.draft && item.source));
@@ -687,25 +773,42 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       close();
       return;
     }
+    const token = admitMutation();
+    if (!token) {
+      if (context.current.readOnly) setLocalError('Accès refusé : votre rôle permet la consultation uniquement.');
+      return;
+    }
+    const originScope = workspace.workNotesScope;
     setLocalError('');
     setSavingDrafts(true);
-    const ok = await act(async () => {
-      for (const item of pending) {
-        await desktopApi.updatePayrollImportDraft(
-          item.id,
-          item.draft,
-          item.source.extractionEngine || 'manual_review',
-          item.source.engineVersion,
-          assessPayrollDraft(item.draft).scoreBp,
-          item.source.analysisManifest ?? undefined,
-        );
+    try {
+      const ok = await act(async () => {
+        for (const item of pending) {
+          requireWritable(originScope);
+          await desktopApi.updatePayrollImportDraft(
+            item.id,
+            item.draft,
+            item.source.extractionEngine || 'manual_review',
+            item.source.engineVersion,
+            assessPayrollDraft(item.draft).scoreBp,
+            item.source.analysisManifest ?? undefined,
+            originScope,
+          );
+          if (!isCurrentScope(originScope)) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+          dirtyDraftIds.current.delete(item.id);
+        }
+        return refreshWorkspaceAfterMutation(async () => {
+          const next = await desktopApi.loadWorkspace();
+          validateScope(next, originScope);
+          return next;
+        });
+      }, pending.length === 1 ? 'Les corrections ont été enregistrées.' : `${pending.length} brouillons corrigés ont été enregistrés.`, false, reason => showLocalFailure(reason, originScope), next => validateScope(next, originScope));
+      if (ok && isCurrentScope(originScope)) {
+        close();
       }
-      return desktopApi.loadWorkspace();
-    }, pending.length === 1 ? 'Les corrections ont été enregistrées.' : `${pending.length} brouillons corrigés ont été enregistrés.`, false);
-    setSavingDrafts(false);
-    if (ok) {
-      pending.forEach((item) => dirtyDraftIds.current.delete(item.id));
-      close();
+    } finally {
+      releaseMutation(token);
+      if (isCurrentScope(originScope)) setSavingDrafts(false);
     }
   }
 
@@ -745,7 +848,8 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   const hasRecurringEarnings = Boolean(draft?.lines.some((line) => (
     isExplicitlyConfirmedRecurringLine(draft, line)
   )));
-  const interactionBusy = confirming || aiBusy || savingDrafts;
+  const operationBusy = confirming || aiBusy || savingDrafts || staging;
+  const interactionBusy = operationBusy || readOnly;
   const currentProvenance = active ? aiProvenance[active.id] : undefined;
   const currentAnalysisPasses = active?.analysisManifest?.passes ?? 0;
   const provenancePages = currentProvenance
@@ -776,13 +880,18 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     line.label.trim() && evidencePagesForLine(line, lineIndex).length
   )).length ?? 0;
 
-  return <Modal title="Importer des fiches de salaire" description="Zentra adapte la lecture locale à cet ordinateur, affiche des indications de pages puis attend votre validation champ par champ." onClose={() => { if (!interactionBusy) void persistAndClose(); }} wide>
+  if (workspace.workNotesScope !== mountedScope.current) return <Modal title="Importer des fiches de salaire" onClose={close}>
+    <ErrorPanel message="L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace." operation="read" />
+    <Button onClick={close}>Fermer</Button>
+  </Modal>;
+
+  return <Modal title="Importer des fiches de salaire" description="Zentra adapte la lecture locale à cet ordinateur, affiche des indications de pages puis attend votre validation champ par champ." onClose={() => { if (!operationBusy) void persistAndClose(); }} wide>
     <div className="payroll-import-shell">
       <section className="payroll-import-privacy"><ShieldCheck size={21} /><div><strong>Les salaires ne quittent jamais cet ordinateur</strong><p>Seul le modèle public est téléchargé une fois. Le PDF, l’image, la couche texte et le résultat restent dans les données locales Zentra.</p></div><span><HardDrive size={14} /> local</span></section>
       <div className="payroll-import-toolbar">
         <div className="payroll-import-toolbar__actions">
-          <Button type="button" onClick={() => void chooseDocuments()} disabled={staging || aiBusy}>{staging ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />} Ajouter PDF ou images</Button>
-          {imports.length > 1 && pendingAiImports.length ? <Button type="button" variant="secondary" onClick={() => void analyzePendingQueue()} disabled={aiBusy || aiState === 'unavailable'}><Sparkles size={16} /> {batchAnalysis.status === 'cancelled' || batchAnalysis.failures.length ? 'Reprendre la file' : 'Analyser la file'} ({pendingAiImports.length})</Button> : null}
+          <Button type="button" onClick={() => void chooseDocuments()} disabled={interactionBusy}>{staging ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />} Ajouter PDF ou images</Button>
+          {imports.length > 1 && pendingAiImports.length ? <Button type="button" variant="secondary" onClick={() => void analyzePendingQueue()} disabled={interactionBusy || aiState === 'unavailable'}><Sparkles size={16} /> {batchAnalysis.status === 'cancelled' || batchAnalysis.failures.length ? 'Reprendre la file' : 'Analyser la file'} ({pendingAiImports.length})</Button> : null}
         </div>
         <div className={`ai-engine-state ai-engine-state--${aiState}`}><FileSearch size={17} /><span><strong>Lecture locale des documents</strong><small>{aiState === 'unavailable' ? 'Lecture indisponible sur cet appareil' : aiBusy ? 'Lecture en cours · vous pouvez annuler à tout moment' : 'Qwen · vos documents restent sur votre appareil'}</small></span></div>
       </div>
@@ -794,7 +903,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         {batchAnalysis.failures.length ? <ul>{batchAnalysis.failures.map((failure) => <li key={failure.id}><strong>{failure.sourceName}</strong><span>{failure.message}</span></li>)}</ul> : null}
       </section> : null}
       {localError ? <ErrorPanel message={localError} /> : null}
-      {!imports.length ? <section className="payroll-import-empty"><div><Files size={30} /></div><h3>Ajoutez les anciennes fiches de vos employés</h3><p>PDF natifs, scans, PNG, JPG et WEBP. Zentra détecte les doublons, lit d’abord le texte exact puis utilise Qwen pour repérer les informations du collaborateur.</p><Button onClick={() => void chooseDocuments()} disabled={staging}><Upload size={16} /> Choisir les documents</Button></section> : active && draft && calculated ? <>
+      {!imports.length ? <section className="payroll-import-empty"><div><Files size={30} /></div><h3>Ajoutez les anciennes fiches de vos employés</h3><p>PDF natifs, scans, PNG, JPG et WEBP. Zentra détecte les doublons, lit d’abord le texte exact puis utilise Qwen pour repérer les informations du collaborateur.</p><Button onClick={() => void chooseDocuments()} disabled={interactionBusy}><Upload size={16} /> Choisir les documents</Button></section> : active && draft && calculated ? <>
         <div className="payroll-import-queue">
           <Button variant="ghost" size="icon" disabled={interactionBusy || activeIndex === 0} onClick={() => setActiveIndex((index) => Math.max(0, index - 1))}><ArrowLeft size={17} /></Button>
           <div><strong>{activeIndex + 1} / {imports.length} · {active.sourceName}</strong><small>{(active.fileSize / 1024 / 1024).toLocaleString('fr-CH', { maximumFractionDigits: 1 })} Mo · {hasCompletedLocalPayrollAiAnalysis(active) ? 'IA locale terminée · à vérifier' : active.extractionEngine === 'pdf_text' ? 'texte PDF lu localement' : 'analyse visuelle requise'} · qualité des contrôles {payrollControlQualityLabel(assessment?.scoreBp ?? 0)}</small></div>
@@ -807,7 +916,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
             <div className="source-hash">{active.fileSha256.slice(0, 20)}…</div>
           </section>
           <section className="payroll-review-pane">
-            <header><div><span>1</span><div><strong>Identité et période</strong><small>Valeurs proposées, toutes modifiables</small></div></div><Button type="button" variant="secondary" size="small" disabled={aiBusy || aiState === 'unavailable'} onClick={() => void analyzeCurrent()}>{aiBusy ? <LoaderCircle className="spin" size={14} /> : <Sparkles size={14} />} {/^(?:smolvlm|qwen3)/.test(active.extractionEngine) ? 'Relancer l’IA locale' : 'Analyser avec l’IA locale'}</Button></header>
+            <header><div><span>1</span><div><strong>Identité et période</strong><small>Valeurs proposées, toutes modifiables</small></div></div><Button type="button" variant="secondary" size="small" disabled={interactionBusy || aiState === 'unavailable'} onClick={() => void analyzeCurrent()}>{aiBusy ? <LoaderCircle className="spin" size={14} /> : <Sparkles size={14} />} {/^(?:smolvlm|qwen3)/.test(active.extractionEngine) ? 'Relancer l’IA locale' : 'Analyser avec l’IA locale'}</Button></header>
             {aiState === 'unavailable' ? <div className="inline-warning"><AlertTriangle size={16} /><span>Le moteur local n’est pas disponible. Vous pouvez quand même contrôler et compléter les données extraites du PDF.</span></div> : aiMode === 'wasm' ? <div className="inline-warning"><AlertTriangle size={16} /><span>La lecture utilise le mode compatible de cet appareil et peut prendre quelques minutes. Vérifiez les informations proposées sur la fiche originale.</span></div> : null}
             {currentProvenance ? <div className="payroll-evidence-summary"><div><ShieldCheck size={16} /><span><strong>{provenancePages.length} indication{provenancePages.length > 1 ? 's' : ''} de page</strong><small>{currentAnalysisPasses >= 2 ? 'Pages proposées par deux passages du même modèle' : 'Pages proposées par un seul passage JSON exploitable'}</small></span></div><div><FileSearch size={16} /><span><strong>{sourcedLineCount}/{traceableLineCount} rubrique{sourcedLineCount > 1 ? 's' : ''} avec indication</strong><small>Un clic sur « p. » ouvre la page originale à contrôler</small></span></div></div> : null}
             <div className="form-grid payroll-review-fields"><Field label="Collaborateur" required><input value={draft.employee.name} onChange={(event) => patchEmployee({ name: event.target.value })} /></Field><Field label="N° employé"><input value={draft.employee.employeeNumber} onChange={(event) => patchEmployee({ employeeNumber: event.target.value })} /></Field><Field label="Fonction"><input value={draft.employee.role} onChange={(event) => patchEmployee({ role: event.target.value })} /></Field><Field label="Taux d’activité (%)" required><input type="number" min="1" max="100" value={draft.employee.employmentRate} onChange={(event) => { setConfirmedAiFields((current) => ({ ...current, [active.id]: { ...current[active.id], employmentRate: true } })); patchEmployee({ employmentRate: Math.min(100, Math.max(1, event.target.valueAsNumber || 100)) }); }} /></Field><Field label="Période" required><input type="month" value={draft.period} onChange={(event) => updateDraft((current) => ({ ...current, period: event.target.value }))} /></Field><Field label="Date de paiement"><input type="date" value={draft.paymentDate} onChange={(event) => updateDraft((current) => ({ ...current, paymentDate: event.target.value }))} /></Field><Field label="N° AVS"><input value={draft.employee.avsNumber} onChange={(event) => patchEmployee({ avsNumber: event.target.value })} /></Field><Field label="IBAN de l’employé"><input value={draft.employee.iban} onChange={(event) => patchEmployee({ iban: event.target.value })} /></Field><Field label="Rue" wide><input value={draft.employee.addressLine1} onChange={(event) => patchEmployee({ addressLine1: event.target.value })} /></Field><Field label="Complément"><input value={draft.employee.addressLine2} onChange={(event) => patchEmployee({ addressLine2: event.target.value })} /></Field><Field label="NPA"><input value={draft.employee.postalCode} onChange={(event) => patchEmployee({ postalCode: event.target.value })} /></Field><Field label="Localité"><input value={draft.employee.city} onChange={(event) => patchEmployee({ city: event.target.value })} /></Field><Field label="Canton"><input maxLength={2} value={draft.employee.canton} onChange={(event) => patchEmployee({ canton: event.target.value.toUpperCase() })} /></Field><Field label="Mode de salaire"><select value={draft.employee.salaryMode} onChange={(event) => { setConfirmedAiFields((current) => ({ ...current, [active.id]: { ...current[active.id], salaryMode: true } })); patchEmployee({ salaryMode: event.target.value as PayrollImportEmployeeDraft['salaryMode'] }); }}><option value="monthly">Mensuel</option><option value="hourly">Horaire</option></select></Field></div>

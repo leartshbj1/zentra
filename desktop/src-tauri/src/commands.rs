@@ -1650,64 +1650,78 @@ pub fn abandon_invoice_correction(
 }
 
 #[tauri::command]
-pub fn stage_payroll_documents(
+pub async fn stage_payroll_documents(
     state: State<'_, LocalStore>,
     input: StagePayrollDocumentsInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.stage_payroll_documents(input).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.stage_payroll_documents(input).map_err(command_error)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn list_payroll_document_imports(state: State<'_, LocalStore>) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.list_payroll_document_imports().map_err(command_error)
+pub async fn list_payroll_document_imports(
+    state: State<'_, LocalStore>,
+    expected_workspace_scope: Option<String>,
+) -> Result<Value, String> {
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, |store| {
+        store.list_payroll_document_imports().map_err(command_error)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn get_payroll_document_preview(
+pub async fn get_payroll_document_preview(
     state: State<'_, LocalStore>,
     id: String,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.payroll_document_preview(&id).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        store.payroll_document_preview(&id).map_err(command_error)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn update_payroll_import_draft(
+pub async fn update_payroll_import_draft(
     state: State<'_, LocalStore>,
     input: UpdatePayrollImportDraftInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .update_payroll_import_draft(input)
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.update_payroll_import_draft(input).map_err(command_error)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn confirm_payroll_document_import(
+pub async fn confirm_payroll_document_import(
     state: State<'_, LocalStore>,
     input: ConfirmPayrollImportInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .confirm_payroll_document_import(input)
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.confirm_payroll_document_import(input).map_err(command_error)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn reject_payroll_document_import(
+pub async fn reject_payroll_document_import(
     state: State<'_, LocalStore>,
     id: String,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .reject_payroll_document_import(&id)
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.reject_payroll_document_import(&id).map_err(command_error)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -1909,6 +1923,10 @@ mod pdf_worker_tests;
 #[cfg(test)]
 #[path = "commands_import_worker_tests.rs"]
 mod import_worker_tests;
+
+#[cfg(test)]
+#[path = "commands_payroll_import_worker_tests.rs"]
+mod payroll_import_worker_tests;
 
 #[cfg(test)]
 #[path = "commands_project_file_scope_tests.rs"]

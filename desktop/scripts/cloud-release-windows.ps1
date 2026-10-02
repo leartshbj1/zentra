@@ -3,6 +3,18 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+$diagnosticSelection = if ([string]::IsNullOrEmpty($env:ZENTRA_DIAGNOSTICS_NATIVE_SET)) {
+    'full'
+} else {
+    $env:ZENTRA_DIAGNOSTICS_NATIVE_SET
+}
+if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll')) {
+    throw 'Unknown diagnostics native verification set.'
+}
+if ($diagnosticSelection -ceq 'native-mail-payroll' -and
+    ($env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY -cne 'true' -or $env:ZENTRA_VERIFY_ONLY -cne 'true')) {
+    throw 'Targeted native verification requires both diagnostics and verification-only guards.'
+}
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 Set-Location -LiteralPath $repo
 $artifacts = Join-Path $repo 'desktop/artifacts/windows'
@@ -51,9 +63,41 @@ try {
         if ($LASTEXITCODE -ne 0 -or $diagnosticSource -notmatch '^[0-9a-f]{40}$') { throw 'The checked-out diagnostics source is invalid.' }
         if ($env:CIRCLE_SHA1 -cne $diagnosticSource) { throw 'Diagnostics validation must use the exact CircleCI source revision.' }
         $diagnosticStartedAt = [DateTimeOffset]::UtcNow.ToString('o')
+        & (Join-Path $PSScriptRoot 'diagnostics-native-selection.contract-tests.ps1')
         . (Join-Path $PSScriptRoot 'windows-verification-harness.ps1')
         & (Join-Path $PSScriptRoot 'windows-verification-harness.contract-tests.ps1') -NativeNodePath (Join-Path $nodeRoot 'node.exe')
         $diagnosticHarness = Initialize-ZentraVerificationHarness $repo $artifacts $diagnosticSource
+        if ($diagnosticSelection -ceq 'native-mail-payroll') {
+            $targetedFilters = @(
+                [pscustomobject]@{ Name = 'outgoing_mail::integration_tests::settings_signature_preservation_tests::'; Arguments = @() },
+                [pscustomobject]@{ Name = 'commands::payroll_import_worker_tests::'; Arguments = @() },
+                [pscustomobject]@{ Name = 'payroll_import::tests::'; Arguments = @() },
+                [pscustomobject]@{ Name = 'outgoing_mail::integration_tests::mail_templates_roundtrip_and_credentials_stay_out_of_business_data'; Arguments = @('--exact') },
+                [pscustomobject]@{ Name = 'outgoing_mail::integration_tests::mail_logo_'; Arguments = @() }
+            )
+            foreach ($filter in $targetedFilters) {
+                Invoke-ZentraVerificationSuite $diagnosticHarness $filter.Name $filter.Arguments
+            }
+            $targetedProof = [ordered]@{
+                source = $diagnosticSource; circleSource = $env:CIRCLE_SHA1
+                selection = $diagnosticSelection; verificationOnly = $true
+                target = 'x86_64-pc-windows-msvc'; nativeProfile = 'release'
+                data = 'synthetic'; nativeExecution = 'compiled-library-harness'
+                nativeFilters = @($targetedFilters | ForEach-Object { $_.Name })
+                suiteExecutions = $diagnosticHarness.Proof.suiteExecutions
+                nativeHarnessProof = 'windows-test-harness-proof.json'
+                testOnlyManifestTransformation = $diagnosticHarness.Proof.testOnlyManifestTransformation
+                loaderHypothesisConfirmed = $diagnosticHarness.Proof.loaderHypothesisConfirmed
+                harnessManifestRepairValidated = $diagnosticHarness.Proof.harnessManifestRepairValidated
+                selectedNativeSuitesPassed = $true
+                frontendExecuted = $false; mobileExecuted = $false
+                frontendBuildExecuted = $false; benchmarksExecuted = $false
+                publishesInstaller = $false; publishesRelease = $false; installsApplication = $false
+                startedAt = $diagnosticStartedAt; completedAt = [DateTimeOffset]::UtcNow.ToString('o')
+            }
+            [IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-native-targeted-proof.json'), ($targetedProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+            return
+        }
         $diagnosticNativeSuites = @('diagnostics', 'startup_updater_config_tests', 'account_cloud::tests', 'account_cloud::inbox_read_tests', 'account_cloud::archive_worker_tests', 'company_collaboration::tests', 'company_collaboration::account::tests', 'commands::worker_tests', 'commands::pdf_worker_tests', 'commands::import_worker_tests', 'commands::project_file_scope_tests', 'license::tests', 'supplier_inbox::tests', 'appointment_inbox::tests', 'document_design::tests', 'financial_pdf::layout_tests', 'sales_pdf::tests', 'payroll_pdf::tests', 'salary_certificate::tests', 'project_report::tests', 'tests::annual_accounts_pdf_reads_the_ledger_and_keeps_the_existing_file_on_currency_error', 'tests::document_design_settings_are_validated_and_issued_sales_keep_their_original_pdf', 'backup::', 'tests::backup_restore_round_trip_recovers_local_rows', 'project_sync::tests', 'database::workspace_payment_projection_tests', 'accounting::historical_payment_guard_tests', 'customer_credit_tests::', 'tests::received_vat_is_deferred_then_reclassified_on_each_payment_and_credit_note')
         $diagnosticFrontendSuites = @('src/diagnostics.test.ts', 'src/formDrafts.test.ts', 'src/userErrors.test.ts', 'src/ErrorGuidance.test.tsx', 'src/DiagnosticsPanel.test.tsx', 'src/DiagnosticBoundary.test.tsx', 'src/payrollAssistantDiagnostics.test.ts', 'src/payrollLocalAi.test.ts', 'src/companyReceiveRefresh.test.ts', 'src/projectSyncScheduler.test.ts', 'src/companySyncDiagnostics.test.ts', 'src/companyRealtime.test.ts', 'src/nativePluginDiagnostics.test.ts', 'src/mobileFileDiagnostics.test.ts', 'src/projectDocumentRead.test.ts', 'src/projectFileSessions.test.ts', 'src/projectFileScope.test.ts', 'src/refundAttachments.test.tsx', 'src/documentExportBridge.test.ts', 'src/salesPdfExport.test.ts', 'src/bank.test.ts', 'src/bankRefunds.test.tsx', 'src/bankRefundCreate.test.tsx', 'src/bankCustomerRefundBridge.test.ts', 'src/nativeNavigationSession.test.ts', 'src/nativeNavigationContract.test.ts', 'src/importScopeBridge.test.ts', 'src/workspaceReception.test.ts', 'src/supplierInboxQueue.test.ts', 'src/supplierInboxReview.test.ts', 'src/supplierInboxBatch.test.ts', 'src/inboxManualImport.test.tsx', 'src/SupplierHabits.test.tsx', 'src/invoiceArchiveScope.test.ts', 'src/projectSyncDiagnostics.test.tsx', 'src/DeferredViewDiagnostics.test.tsx', 'src/AutomationDocumentDiagnostics.test.tsx')
         $diagnosticMobileSuites = @('src/diagnostics.test.ts', 'src/nativePluginDiagnostics.test.ts', 'src/mobileFileDiagnostics.test.ts', 'src/nativeNavigationSession.test.ts', 'src/nativeNavigationContract.test.ts', 'src/projectSyncDiagnostics.test.tsx', 'src/DeferredViewDiagnostics.test.tsx', 'src/AutomationDocumentDiagnostics.test.tsx')
@@ -80,6 +124,9 @@ try {
         $diagnosticMobileSuites += @('src/EmployeeDocumentImportAdmission.test.tsx', 'src/InvoiceScanPanelLifecycle.test.tsx', 'src/PayrollImportWizardAdmission.test.tsx', 'src/ResetActionsLifecycle.test.tsx', 'src/resetApp.test.ts')
         $diagnosticFrontendSuites += @('src/payrollAnalysisDiagnostics.test.ts')
         $diagnosticMobileSuites += @('src/payrollAnalysisDiagnostics.test.ts')
+        $diagnosticNativeSuites += @('commands::payroll_import_worker_tests::', 'payroll_import::tests::')
+        $diagnosticFrontendSuites += @('src/payrollImportScopeBridge.test.ts', 'src/PayrollImportWizardLifecycle.test.tsx')
+        $diagnosticMobileSuites += @('src/payrollImportScopeBridge.test.ts', 'src/PayrollImportWizardLifecycle.test.tsx')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

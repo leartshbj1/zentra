@@ -3614,6 +3614,7 @@ export function updatePayrollImportDraftMutation(
   engineVersion: string,
   confidenceBp: number,
   analysisManifest?: PayrollAnalysisManifest | null,
+  expectedWorkspaceScope?: string,
 ) {
   const input: RawRecord = {
     id,
@@ -3631,7 +3632,7 @@ export function updatePayrollImportDraftMutation(
   }
   return {
     command: 'update_payroll_import_draft' as const,
-    args: { input },
+    args: { input, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) },
   };
 }
 
@@ -6222,20 +6223,23 @@ export const desktopApi = {
     }),
   async stagePayrollDocuments(
     paths: string[],
+    expectedWorkspaceScope?: string,
   ): Promise<PayrollDocumentImport[]> {
     const raw = await invoke<RawRecord>('stage_payroll_documents', {
       input: { paths },
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
     });
     return rawArray(raw, 'imports').map(payrollImportFromRaw);
   },
-  async listPayrollDocumentImports(): Promise<PayrollDocumentImport[]> {
-    const raw = await invoke<RawRecord>('list_payroll_document_imports');
+  async listPayrollDocumentImports(expectedWorkspaceScope?: string): Promise<PayrollDocumentImport[]> {
+    const raw = await invoke<RawRecord>('list_payroll_document_imports', expectedWorkspaceScope === undefined ? undefined : { expectedWorkspaceScope });
     return rawArray(raw, 'imports').map(payrollImportFromRaw);
   },
   async getPayrollDocumentPreview(
     id: string,
+    expectedWorkspaceScope?: string,
   ): Promise<{ mimeType: string; dataBase64: string }> {
-    const raw = await invoke<RawRecord>('get_payroll_document_preview', { id });
+    const raw = await invoke<RawRecord>('get_payroll_document_preview', { id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
     const mimeType = stringValue(raw.mime_type);
     const dataBase64 = stringValue(raw.data_base64);
     if (!mimeType || !dataBase64)
@@ -6249,6 +6253,7 @@ export const desktopApi = {
     engineVersion: string,
     confidenceBp: number,
     analysisManifest?: PayrollAnalysisManifest | null,
+    expectedWorkspaceScope?: string,
   ): Promise<PayrollDocumentImport> {
     const mutation = updatePayrollImportDraftMutation(
       id,
@@ -6257,6 +6262,7 @@ export const desktopApi = {
       engineVersion,
       confidenceBp,
       analysisManifest,
+      expectedWorkspaceScope,
     );
     const row = await invoke<RawRecord>(mutation.command, mutation.args);
     return payrollImportFromRaw(row);
@@ -6267,6 +6273,7 @@ export const desktopApi = {
     employeeId?: string,
     replaceExistingTemplate = false,
     humanReviewAttested = false,
+    expectedWorkspaceScope?: string,
   ): Promise<Workspace> {
     await invoke('confirm_payroll_document_import', {
       input: {
@@ -6279,12 +6286,23 @@ export const desktopApi = {
           : '',
         draft: payrollImportDraftToRaw(draft),
       },
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
     });
-    return loadWorkspace();
+    return refreshWorkspaceAfterMutation(async () => {
+      const next = await loadWorkspace();
+      if (expectedWorkspaceScope !== undefined && next.workNotesScope !== expectedWorkspaceScope)
+        throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+      return next;
+    });
   },
-  async rejectPayrollDocumentImport(id: string): Promise<Workspace> {
-    await invoke('reject_payroll_document_import', { id });
-    return loadWorkspace();
+  async rejectPayrollDocumentImport(id: string, expectedWorkspaceScope?: string): Promise<Workspace> {
+    await invoke('reject_payroll_document_import', { id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
+    return refreshWorkspaceAfterMutation(async () => {
+      const next = await loadWorkspace();
+      if (expectedWorkspaceScope !== undefined && next.workNotesScope !== expectedWorkspaceScope)
+        throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+      return next;
+    });
   },
   async listAccounts() {
     return rawArray(await invoke<unknown>('list_accounts')).map(accountFromRaw);

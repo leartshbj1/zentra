@@ -7,6 +7,10 @@ parameters:
   verify-only:
     type: boolean
     default: false
+  diagnostics-native-set:
+    type: enum
+    enum: [full, native-mail-payroll]
+    default: full
   release:
     type: boolean
     default: false
@@ -38,6 +42,7 @@ jobs:
       CARGO_PROFILE_TEST_DEBUG: "0"
       ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"
       ZENTRA_VERIFY_ONLY: "true"
+      ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>
     steps:
       - checkout
       - run:
