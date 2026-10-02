@@ -1,0 +1,41 @@
+# Audit de fluidité et de récupération — 2 octobre 2026
+
+Cette étape poursuit le but général d'audit de l'application. Elle ne certifie pas que chaque ligne ou chaque parcours est exempt de défauts. Les corrections portent sur des défauts reproduits ou sur des chemins natifs dont le travail bloquant et l'absence de gardes sont établis par le code.
+
+## Sources et périmètre
+
+- Gestion/native : worktree `zentra-apple-design/chantier`, commit de correction `b21f496d9dae2916602ab936f4f5529639b509bc`.
+- Site/Support/serveur : clone `zentra-apple-design-20261001`, correction `d2d563899609bfa62978050469ca99789c6d0dbf` sur base `c43077abd7b40f3d14cc1fb82e0b70b2fafa1977`, séparée de Gestion. Le site contenu dans le worktree Gestion n'est pas la source actuelle de Support.
+- Le checkout principal `Documents/ChatGPT/chantier`, qui contient de nombreux changements antérieurs, n'a pas été modifié.
+- Inventaire de code conservé localement dans `.qa/runtime-audit-20261002/inventory.json` : 941 fichiers / 280 110 lignes pour Gestion/native, 723 fichiers / 131 306 lignes pour le site/serveur. Il exclut dépendances, assets et sources générées ; les tests Rust intégrés restent comptés dans les fichiers de production. Chaque entrée possède un hash et est marquée `inventory-only` : une lecture d'inventaire ne vaut pas revue de correction.
+
+## Défauts corrigés
+
+| Chemin | Défaut et preuve | Correction |
+| --- | --- | --- |
+| Réception d'entreprise | `refreshReceivedCompany` livrait déjà le workspace, puis le scheduler le relisait. Le nouveau test d'intégration attendait 1 lecture et en observait 2 avant correction. | Le résultat indique qu'il a déjà livré le workspace. Le scheduler garde le signal `changed`, mais évite sa seconde lecture. Les changements de documents legacy continuent à provoquer leur relecture. Une lecture échouée ne prétend pas être livrée et conserve la récupération existante. |
+| Réglages / sélecteurs | Après une réception d'entreprise pendant le choix natif d'un dossier, l'ancienne fermeture sauvegardait le nom d'entreprise précédent. | Les réponses de sélecteurs devenus obsolètes sont ignorées ; une sélection valable fusionne les réglages actuels. Logo, dossier et confirmation de restauration sont protégés. Un stage de logo terminé après navigation n'enregistre rien ; les vrais échecs restent visibles et le verrou est libéré. |
+| Sauvegarde / exports locaux | Les handlers synchrones effectuaient attente de verrou, copie SQLite, compression ou sérialisation complète sur le fil d'invocation. | `create_backup`, `restore_backup`, `export_json` et `export_csv_archive` utilisent un worker bloquant. Les signatures IPC, validations, formats et erreurs métier restent conservés. |
+| Restauration locale et distante | La restauration manuelle n'avait pas toutes les gardes du reset/join ; une réponse projet commencée avant le remplacement pouvait encore appliquer des documents. | Ordre commun : verrou du compte, garde de transfert, pause de synchronisation projet, puis travail local. Les gardes restent actives pendant le téléchargement distant et sont libérées à l'annulation. |
+| Support / réponses tardives | Un ancien corps JSON arrivé après une nouvelle réponse remplaçait les tickets récents. Trois recherches redémarraient la réception mail : 4 POST contre 1 attendu. | Vérification de séquence après le décodage, annulation des lectures remplacées, effet de réception mail stable par espace et référence vers le filtre courant. L'espace quitté ne relance pas une lecture après sa réponse tardive. |
+| Support / lecture lente | Une réponse normale en 20 secondes ne pouvait jamais s'afficher : le polling à 15 secondes la remplaçait. Le scénario observait 5 GET et 4 annulations après 60 secondes. | Les ticks périodiques et de visibilité attendent la lecture active. Recherche, changement d'espace et relecture explicite après mutation peuvent toujours remplacer une lecture obsolète. |
+| Formulaire de connexion web | La vérification initiale GET non bornée pouvait laisser onglets et bouton désactivés indéfiniment. | Délai de 15 secondes couvrant headers et corps, composé avec l'annulation de la page. L'erreur existante apparaît et le formulaire redevient utilisable pour une connexion explicite ; aucun logout implicite n'est ajouté. |
+
+## Vérifications
+
+- Gestion : 2 021 tests frontend réussis, 1 test préexistant ignoré ; TypeScript, branding, palette et build Vite réussis.
+- Réglages : 18 parcours navigateur réussis, 9 Chromium et 9 WebKit. Réception pendant les trois sélecteurs, navigation, sélections concurrentes, fusion des réglages courants, annulation après stage, vrai échec de copie et annulation du dialogue. Données exclusivement synthétiques.
+- Synchronisation : 26 tests ciblés réussis, dont l'intégration du vrai bridge et du vrai scheduler. Aucune relecture supprimée pour les documents legacy ni fausse réussite après erreur.
+- Site : 157 tests ciblés réussis dans 7 fichiers, TypeScript, branding et build Vinext de production réussis. Les reproductions du vrai composant, avec fetch/hooks synthétiques, échouent sur le source avant correction et passent après. Le lint ciblé des helpers/tests passe ; les violations de lint préexistantes du grand composant Support n'ont pas été masquées.
+- Connexion réelle dans le navigateur, API entièrement fictive : quatre scénarios réussis sur Chromium 154 et WebKit 26.5. Après un GET sans réponse, message et formulaire réactivé à 15 008 / 15 057 ms ; connexion synthétique explicite réussie. Un GET session et un POST connexion par parcours, aucun logout/autre API ni accès externe, zéro erreur JavaScript. La CSP du preview HTTP a été adaptée uniquement dans le route handler du test pour WebKit. L'erreur initiale de transition provenait de la page HTML fictive sans opt-in ; le scénario corrigé et une navigation vers la vraie route locale `/conditions` ne la reproduisent pas. Aucun changement de CSP ou de transition en production.
+- [CircleCI 214](https://circleci.com/gh/leartshbj1/zentra/214) réussi sur le commit exact ci-dessus : 84 tests natifs Windows réussis, 1 test préexistant ignoré ; 124 tests frontend ciblés et build web réussis. Données synthétiques, sept filtres natifs. Preuve locale : `desktop/artifacts/runtime-ci-214-proof.json`, sortie réelle des tests : `desktop/artifacts/runtime-ci-214-output.log`. Le script impose la révision exacte et le mode vérification ; il ne construit ni ne publie un installateur et n'installe pas l'application. Les exécutables de test locaux restent bloqués par le contrôle d'application Windows, erreur 4551 ; cette protection n'a pas été contournée.
+
+Les résultats frontend ne constituent pas une validation du binaire macOS/iOS/Android ni une mesure de capacité multi-utilisateur de production. Le détail du lot brouillons/erreurs/journal est conservé dans `DRAFTS_ERRORS_DIAGNOSTICS_20261001.md`. Les commandes restent journalisées par le wrapper existant : nom, phase, durée et code d'incident uniquement, jamais les arguments, documents ou secrets.
+
+## Suite de l'audit général
+
+Les domaines suivants restent ouverts : timings natifs PDF/comptabilité/import bancaire, chemins complets de mutation et de reconnexion, conflits multi-appareils, charge réelle serveur, tests du package des quatre plateformes. L'inventaire de code permet d'en suivre la progression sans confondre tests de fixture et capacité de production.
+
+Une répétition quadratique des contrôles de chaîne de paiements est établie dans `database.rs:2496` / `accounting.rs:1249` et la preuve TVA par facture est également répétée. Elle n'a pas été modifiée dans ce lot : la fixture actuelle crée au plus un paiement par facture et ne couvre pas ce cas. Une future fixture doit utiliser les vraies méthodes d'émission/paiement, comparer toutes les preuves et erreurs (paiement négatif/antidaté, crédit/extourne, journal corrompu), puis mesurer une répartition dense et éparse. Toute mutualisation doit rester limitée à une lecture stable et conserver la preuve SQL propre à chaque paiement, sans cache entre appels.
+
+Ces corrections ne sont pas une nouvelle version distribuée. La version publique demeure 1.90.12 ; une publication des binaires constitue une étape distincte.
