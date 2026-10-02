@@ -1,4 +1,4 @@
-use std::{fs, io::ErrorKind, path::Path, sync::Arc, time::Duration};
+use std::{fs, io::ErrorKind, path::Path, sync::{Arc, atomic::{AtomicU64, Ordering}}, time::Duration};
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use chrono::{DateTime, Utc};
@@ -139,6 +139,7 @@ struct PendingExchange {
 struct InboxReadStamp {
     session: CloudSession,
     references: [Option<Vec<u8>>; 3],
+    revisions: [u64; 3],
     workspace_scope: String,
 }
 
@@ -167,7 +168,12 @@ fn inbox_read_stamp(store: &LocalStore) -> AppResult<InboxReadStamp> {
         optional_account_reference(&pending_path(store))?,
         optional_account_reference(&exchange_path(store))?,
     ];
-    Ok(InboxReadStamp { session, references, workspace_scope })
+    let revisions = [
+        store.account_protected_cache.session.revision.load(Ordering::Relaxed),
+        store.account_protected_cache.pending.revision.load(Ordering::Relaxed),
+        store.account_protected_cache.exchange.revision.load(Ordering::Relaxed),
+    ];
+    Ok(InboxReadStamp { session, references, revisions, workspace_scope })
 }
 
 fn inbox_read_context_changed() -> AppError {
@@ -221,10 +227,24 @@ where
 }
 
 #[derive(Clone, Debug, Default)]
+struct AccountSecretCache {
+    data: ProtectedDataCache,
+    // Shared by LocalStore clones. A Keychain rewrite can preserve its opaque
+    // marker; controlled writes/removals must still invalidate an old read.
+    // Read/cache warm-up never advances this in-memory revision.
+    revision: Arc<AtomicU64>,
+}
+
+impl std::ops::Deref for AccountSecretCache {
+    type Target = ProtectedDataCache;
+    fn deref(&self) -> &Self::Target { &self.data }
+}
+
+#[derive(Clone, Debug, Default)]
 pub(crate) struct AccountProtectedCache {
-    pending: ProtectedDataCache,
-    exchange: ProtectedDataCache,
-    session: ProtectedDataCache,
+    pending: AccountSecretCache,
+    exchange: AccountSecretCache,
+    session: AccountSecretCache,
     pub(crate) operation_lock: Arc<futures_util::lock::Mutex<()>>,
 }
 
@@ -654,10 +674,11 @@ pub async fn archive_invoice_to_cloud(
     state: State<'_, LocalStore>,
     invoice_id: String,
     correction_reason: Option<String>,
+    expected_workspace_scope: Option<String>,
 ) -> Result<InvoiceArchiveResult, String> {
     let store = state.inner().clone();
     let _guard = store.account_protected_cache.operation_lock.lock().await;
-    archive_invoice(&store, &invoice_id, correction_reason.as_deref())
+    archive_invoice(&store, &invoice_id, correction_reason.as_deref(), expected_workspace_scope)
         .await
         .map_err(command_error)
 }
@@ -961,6 +982,7 @@ async fn archive_invoice(
     store: &LocalStore,
     invoice_id: &str,
     correction_reason: Option<&str>,
+    expected_workspace_scope: Option<String>,
 ) -> AppResult<InvoiceArchiveResult> {
     let session = read_session_secret(store)?.ok_or_else(|| {
         AppError::Validation(
@@ -978,8 +1000,9 @@ async fn archive_invoice(
             "Votre rôle est limité à la consultation des archives.".into(),
         ));
     }
-    let local = prepare_invoice_archive(store, invoice_id)?;
-    let content_sha256 = format!("{:x}", Sha256::digest(&local.pdf_bytes));
+    let (local, content_sha256) = prepare_invoice_archive_on_worker(
+        store.clone(), invoice_id.to_owned(), expected_workspace_scope,
+    ).await?;
     let mut list_url = endpoint(ARCHIVE_PATH)?;
     list_url
         .query_pairs_mut()
@@ -1021,22 +1044,7 @@ async fn archive_invoice(
                 .into(),
         ));
     }
-    let body = serde_json::to_vec(&json!({
-        "sourceInvoiceId":local.source_invoice_id,
-        "revision":revision,
-        "invoiceNumber":local.invoice_number,
-        "issueDate":local.issue_date,
-        "paidAt":local.paid_at,
-        "correctionKind":if revision == 1 { "initial" } else { "correction" },
-        "correctionReason":reason,
-        "fiscalYearEnd":local.fiscal_year_end,
-        "pdfBase64":STANDARD.encode(&local.pdf_bytes)
-    }))?;
-    if body.len() > 17 * 1024 * 1024 {
-        return Err(AppError::Validation(
-            "Le PDF encodé dépasse la limite d’archivage de 12 Mo.".into(),
-        ));
-    }
+    let body = encode_invoice_archive_on_worker(local, revision, reason.map(str::to_owned)).await?;
     let (status, bytes) = account_request_url(
         Method::POST,
         endpoint(ARCHIVE_PATH)?,
@@ -1063,12 +1071,62 @@ async fn archive_invoice(
     })
 }
 
-fn prepare_invoice_archive(store: &LocalStore, invoice_id: &str) -> AppResult<LocalInvoiceArchive> {
+async fn prepare_invoice_archive_on_worker(
+    store: LocalStore,
+    invoice_id: String,
+    expected_workspace_scope: Option<String>,
+) -> AppResult<(LocalInvoiceArchive, String)> {
+    // prepare owns the one LocalStore lock. Do not nest the locked command
+    // helper here: its std::Mutex is intentionally not reentrant.
+    tauri::async_runtime::spawn_blocking(move || {
+        let local = prepare_invoice_archive(&store, &invoice_id, expected_workspace_scope.as_deref())?;
+        let content_sha256 = format!("{:x}", Sha256::digest(&local.pdf_bytes));
+        Ok((local, content_sha256))
+    }).await.map_err(|_| AppError::Remote("La préparation de l’archive a été interrompue. Réessayez.".into()))?
+}
+
+async fn encode_invoice_archive_on_worker(
+    local: LocalInvoiceArchive,
+    revision: i64,
+    reason: Option<String>,
+) -> AppResult<Vec<u8>> {
+    // Encoding only uses this immutable, already prepared receipt; it does not
+    // reopen the company or acquire either account or LocalStore again.
+    tauri::async_runtime::spawn_blocking(move || encode_invoice_archive(local, revision, reason))
+        .await.map_err(|_| AppError::Remote("La préparation de l’archive a été interrompue. Réessayez.".into()))?
+}
+
+fn encode_invoice_archive(local: LocalInvoiceArchive, revision: i64, reason: Option<String>) -> AppResult<Vec<u8>> {
+    let body = serde_json::to_vec(&json!({
+        "sourceInvoiceId":local.source_invoice_id,
+        "revision":revision,
+        "invoiceNumber":local.invoice_number,
+        "issueDate":local.issue_date,
+        "paidAt":local.paid_at,
+        "correctionKind":if revision == 1 { "initial" } else { "correction" },
+        "correctionReason":reason,
+        "fiscalYearEnd":local.fiscal_year_end,
+        "pdfBase64":STANDARD.encode(&local.pdf_bytes)
+    }))?;
+    if body.len() > 17 * 1024 * 1024 {
+        return Err(AppError::Validation(
+            "Le PDF encodé dépasse la limite d’archivage de 12 Mo.".into(),
+        ));
+    }
+    Ok(body)
+}
+
+fn prepare_invoice_archive(store: &LocalStore, invoice_id: &str, expected_workspace_scope: Option<&str>) -> AppResult<LocalInvoiceArchive> {
     let invoice_id = invoice_id.trim();
     Uuid::parse_str(invoice_id)
         .map_err(|_| AppError::Validation("La référence locale de facture est invalide.".into()))?;
     let _guard = store.lock()?;
     let connection = store.connect()?;
+    if let Some(expected) = expected_workspace_scope {
+        if crate::work_notes::workspace_scope(&connection)? != expected {
+            return Err(AppError::Validation("L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.".into()));
+        }
+    }
     let invoice = connection
         .query_row(
             "SELECT number,issue_date,status,
@@ -1464,9 +1522,10 @@ fn server_response_error(status: StatusCode, bytes: &[u8]) -> AppError {
 fn write_server_verified_secret<T: Serialize>(
     path: &Path,
     value: &T,
-    cache: &ProtectedDataCache,
+    cache: &AccountSecretCache,
 ) -> AppResult<()> {
     let clear = serde_json::to_vec(value)?;
+    cache.revision.fetch_add(1, Ordering::Relaxed);
     match write_protected_atomically_with_reference_after_server_verification(path, &clear) {
         Ok(protected_reference) => cache.replace(protected_reference, &clear),
         Err(error) => {
@@ -1562,7 +1621,8 @@ pub(crate) fn forget_local_account(store: &LocalStore) -> AppResult<()> {
     remove_secret(&exchange_path(store), &store.account_protected_cache.exchange)
 }
 
-fn remove_secret(path: &Path, cache: &ProtectedDataCache) -> AppResult<()> {
+fn remove_secret(path: &Path, cache: &AccountSecretCache) -> AppResult<()> {
+    cache.revision.fetch_add(1, Ordering::Relaxed);
     remove_protected(path)?;
     cache.clear()
 }
@@ -1649,6 +1709,10 @@ pub(crate) async fn disconnect_live_qa_profile(store: &LocalStore) -> AppResult<
 #[cfg(test)]
 #[path = "account_inbox_read_tests.rs"]
 mod inbox_read_tests;
+
+#[cfg(test)]
+#[path = "account_archive_worker_tests.rs"]
+mod archive_worker_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1941,7 +2005,10 @@ mod tests {
         let path = temporary.path().join("pending.protected");
         let marker = b"synthetic-marker";
         let clear = serde_json::to_vec(&pending_for(TEST_INSTALLATION_ID)).unwrap();
-        let cache = ProtectedDataCache::enabled_for_test();
+        let cache = AccountSecretCache {
+            data: ProtectedDataCache::enabled_for_test(),
+            ..Default::default()
+        };
         fs::write(&path, marker).unwrap();
         cache.replace(marker.to_vec(), &clear).unwrap();
 

@@ -33,6 +33,14 @@ fn refs(store: &LocalStore) -> [Option<Vec<u8>>; 3] {
         .each_ref().map(|path| optional_account_reference(path).unwrap())
 }
 
+fn revisions(store: &LocalStore) -> [u64; 3] {
+    [
+        store.account_protected_cache.session.revision.load(Ordering::Relaxed),
+        store.account_protected_cache.pending.revision.load(Ordering::Relaxed),
+        store.account_protected_cache.exchange.revision.load(Ordering::Relaxed),
+    ]
+}
+
 fn read_with_change(
     store: &LocalStore,
     change: impl FnOnce(),
@@ -137,6 +145,7 @@ fn a_pending_inbox_read_leaves_both_locks_and_cached_account_available() {
 fn unchanged_read_only_session_receives_the_list_without_writing_account_or_license() {
     let (_temporary, store, _) = fixture("read_only");
     let before = refs(&store);
+    let revisions_before = revisions(&store);
     let license_before = store.get_license_state().unwrap();
     let result = tauri::async_runtime::block_on(bound_inbox_get_with(&store, |outgoing| async move {
         assert_eq!(outgoing.role, "read_only");
@@ -144,7 +153,50 @@ fn unchanged_read_only_session_receives_the_list_without_writing_account_or_lice
     })).unwrap();
     assert_eq!(result["items"].as_array().unwrap().len(), 1);
     assert_eq!(refs(&store), before);
+    assert_eq!(revisions(&store), revisions_before, "reading/cache warm-up never advances a write revision");
     assert_eq!(store.get_license_state().unwrap(), license_before);
+}
+
+#[test]
+fn controlled_secret_rewrites_reject_even_identical_restored_references_on_cloned_stores() {
+    for fail in [false, true] {
+        for kind in 0..3 {
+            let (_temporary, store, session) = fixture("owner");
+            let cloned = store.clone();
+            let (path, cache, original) = match kind {
+                0 => (session_path(&store), &cloned.account_protected_cache.session,
+                    serde_json::to_value(&session).unwrap()),
+                1 => (pending_path(&store), &cloned.account_protected_cache.pending,
+                    json!({"version":SECRET_VERSION,"installation_id":store.installation_id,
+                        "device_code":format!("zdv_{}", "P".repeat(43)),"user_code":"ABCD-EFGH",
+                        "verification_uri":"https://zentraapp.ch/appareil?code=ABCD-EFGH",
+                        "expires_at":(Utc::now()+chrono::Duration::minutes(5)).to_rfc3339(),"interval_seconds":3})),
+                _ => (exchange_path(&store), &cloned.account_protected_cache.exchange,
+                    json!({"version":SECRET_VERSION,"installation_id":store.installation_id,
+                        "session":session,"license_token":"synthetic-license-only".repeat(8)})),
+            };
+            write_server_verified_secret(&path, &original, cache).unwrap();
+            let protected = fs::read(&path).unwrap();
+            let references_before = refs(&store);
+            let revisions_before = revisions(&store);
+            changed(read_with_change(&store, || {
+                let mut intermediate = original.clone();
+                match kind {
+                    0 => intermediate["session_token"] = json!(format!("zds_{}", "N".repeat(43))),
+                    1 => intermediate["device_code"] = json!(format!("zdv_{}", "Q".repeat(43))),
+                    _ => intermediate["license_token"] = json!("synthetic-other-license".repeat(8)),
+                }
+                write_server_verified_secret(&path, &intermediate, cache).unwrap();
+                write_server_verified_secret(&path, &original, cache).unwrap();
+                // An identical marker can be retained by Keychain. Replaying
+                // the initial protected bytes makes this witness independent
+                // of a provider's marker/nonce behavior on every platform.
+                fs::write(&path, &protected).unwrap();
+                assert_eq!(refs(&store), references_before);
+                assert_ne!(revisions(&store), revisions_before);
+            }, fail));
+        }
+    }
 }
 
 #[test]

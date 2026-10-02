@@ -4882,10 +4882,12 @@ export const desktopApi = {
   async archiveInvoiceToCloud(
     invoiceId: string,
     correctionReason?: string,
+    expectedWorkspaceScope?: string,
   ): Promise<InvoiceArchiveResult> {
     const raw = await invoke<RawRecord>('archive_invoice_to_cloud', {
       invoiceId,
       correctionReason: correctionReason?.trim() || null,
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
     });
     return {
       archiveId: stringValue(raw.archiveId),

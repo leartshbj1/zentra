@@ -1145,15 +1145,19 @@ function WorkspaceContent({
   }
 
   async function archiveInvoiceToCloud(item: Invoice, issuedNow = false) {
+    const originWorkspaceScope = workspace.workNotesScope;
+    const isOriginWorkspace = () => workspaceRef.current.workNotesScope === originWorkspaceScope;
+    if (!isOriginWorkspace()) return;
     setBusy(true);
     if (!issuedNow) setNotice(null);
     try {
       let result;
       try {
-        result = await desktopApi.archiveInvoiceToCloud(item.id);
+        result = await desktopApi.archiveInvoiceToCloud(item.id, undefined, originWorkspaceScope);
       } catch (reason) {
         const message = errorMessage(reason, 'Le coffre Zentra est indisponible.');
         if (!message.includes('motif de correction')) throw reason;
+        if (!isOriginWorkspace()) return;
         const correctionReason = window.prompt(
           'Le PDF diffère de la version déjà archivée. Indiquez précisément le motif de cette nouvelle version :',
         );
@@ -1161,8 +1165,10 @@ function WorkspaceContent({
         result = await desktopApi.archiveInvoiceToCloud(
           item.id,
           correctionReason,
+          originWorkspaceScope,
         );
       }
+      if (!isOriginWorkspace()) return;
       setNotice({
         tone: 'success',
         text: result.alreadyStored
@@ -1170,6 +1176,7 @@ function WorkspaceContent({
           : `Version ${result.revision} archivée avec empreinte SHA-256 jusqu’au ${formatDate(result.retentionUntil)}.`,
       });
     } catch (reason) {
+      if (!isOriginWorkspace()) return;
       setNotice({
         tone: issuedNow ? 'warning' : 'error',
         text: `${issuedNow ? 'La facture a bien été émise localement, mais ' : ''}${errorMessage(
