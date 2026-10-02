@@ -272,7 +272,7 @@ export function BankScreen({
     const generation = workspaceGeneration.current;
     setError('');
     try {
-      const next = await desktopApi.getBankWorkspace();
+      const next = await desktopApi.getBankWorkspace(currentWorkspace.current.workNotesScope);
       if (mounted.current && request === snapshotRequest.current && generation === workspaceGeneration.current) {
         applyBankSnapshot(next); setRefreshPending(false);
       }
@@ -325,7 +325,7 @@ export function BankScreen({
     const request = ++snapshotRequest.current;
     const generation = workspaceGeneration.current;
     setError('');
-    const [nextWorkspace, nextBank] = await Promise.allSettled([desktopApi.loadWorkspace(), desktopApi.getBankWorkspace()]);
+    const [nextWorkspace, nextBank] = await Promise.allSettled([desktopApi.loadWorkspace(), desktopApi.getBankWorkspace(currentWorkspace.current.workNotesScope)]);
     const warnings: string[] = [];
     if (nextWorkspace.status === 'rejected') warnings.push(errorMessage(nextWorkspace.reason, 'Les factures n’ont pas pu être actualisées.'));
     if (nextBank.status === 'rejected') warnings.push(errorMessage(nextBank.reason, 'Les mouvements n’ont pas pu être actualisés.'));
@@ -363,12 +363,12 @@ export function BankScreen({
     }
   }
 
-  async function importStatement(path: string, automaticChoice: boolean): Promise<BankImportOutcome> {
+  async function importStatement(path: string, automaticChoice: boolean, expectedWorkspaceScope?: string): Promise<BankImportOutcome> {
     if (writesDisabled) throw new Error('Actualisez les données et vérifiez votre accès avant de reprendre l’import.');
     setBusy(true);
     setFeedback(null);
     try {
-      const result = await desktopApi.importCamtFile(path, automaticChoice);
+      const result = await desktopApi.importCamtFile(path, automaticChoice, expectedWorkspaceScope);
       const automatic = result.automaticReconciliation;
       const automaticText = automatic?.enabled
         ? ` ${automatic.paidCount} facture(s) soldée(s), ${automatic.partialCount} paiement(s) partiel(s) enregistré(s) automatiquement. ${automatic.reviewCount} mouvement(s) client à contrôler.`
@@ -617,7 +617,7 @@ export function BankScreen({
   const firstImport = !bank.imports.length && !bank.movements.length && !bank.accounts.length;
 
   return <div className="stack-layout bank-screen">
-    {importOpen && <BankImportWizard automatic={autoReconcile} onAutomaticChange={setAutoReconcile} disabled={writesDisabled} accountingReady={accountingReady} onClose={() => setImportOpen(false)} onImport={importStatement} onReview={() => showImportSection('movements')} onAccounts={() => showImportSection('accounts')} onAccounting={() => { setImportOpen(false); onOpenAccounting('accounts'); }} onRefresh={refreshBoth} />}
+    {importOpen && <BankImportWizard workspaceScope={workspace.workNotesScope} automatic={autoReconcile} onAutomaticChange={setAutoReconcile} disabled={writesDisabled} accountingReady={accountingReady} onClose={() => setImportOpen(false)} onImport={importStatement} onReview={() => showImportSection('movements')} onAccounts={() => showImportSection('accounts')} onAccounting={() => { setImportOpen(false); onOpenAccounting('accounts'); }} onRefresh={refreshBoth} />}
     {bankAction && <BankActionDialog title={bankAction.kind === 'associate' ? 'Associer le compte bancaire' : bankAction.kind === 'dissociate' ? 'Dissocier le compte bancaire' : actionSupplier ? 'Règlement fournisseur' : 'Encaissement client'} description="Relisez ces informations avant de confirmer." rows={actionRows} note={bankAction.kind === 'associate' ? 'Confirmez que ce compte appartient à votre entreprise. Cette association permet de rapprocher ses mouvements ; elle ne donne aucun accès à votre banque.' : bankAction.kind === 'dissociate' ? 'Les mouvements et paiements déjà enregistrés restent conservés. Les nouveaux rapprochements attendront une nouvelle association.' : 'Le paiement sera enregistré sur cette facture à la date du relevé, avec son écriture comptable. Un paiement partiel conserve le solde à recevoir ou à payer.'} action={bankAction.kind === 'associate' ? 'Associer ce compte' : bankAction.kind === 'dissociate' ? 'Dissocier ce compte' : actionSupplier ? 'Enregistrer le règlement' : 'Enregistrer l’encaissement'} disabled={writesDisabled || (!actionMovement && !actionAccount)} busy={busy} onClose={() => setBankAction(null)} onAccounting={(section) => { setBankAction(null); onOpenAccounting(section); }} onConfirm={async () => {
       if (writesDisabled) throw new Error('Actualisez les données avant de poursuivre.');
       if (actionAccount && bankAction.kind === 'associate') await associate(actionAccount, true);

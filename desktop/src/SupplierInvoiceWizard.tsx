@@ -32,6 +32,7 @@ export function SupplierInvoicePreparation(props: SupplierPreparationProps) {
 }
 
 function Preparation({ item, initialTarget, workspace, busy, readOnly = false, close, act, renderAttachments }: SupplierPreparationProps) {
+  const originalWorkspaceScope = useRef(workspace.workNotesScope).current;
   const language = useAppLanguage();
   const settings = workspace.settings!, terminology = projectTerminology(settings.business.nogaSection);
   const [draftId] = useState(() => item?.id ?? createId());
@@ -132,12 +133,12 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
         id: draftId, supplierId: fields.supplierId, projectId: fields.projectId || null, date: fields.date, dueDate: fields.dueDate,
         reference: fields.reference.trim(), note: fields.note.trim(), vatTreatment: fields.vatTreatment || undefined,
         items: fields.lines.map(value => { const line = purchaseLineValue(value)!; return { ...line, expenseAccountId: line.expenseAccountId || null, projectId: line.projectId || null }; }),
-      }), current ? t('Le brouillon fournisseur a été mis à jour.') : t('Le brouillon fournisseur a été enregistré. Ajoutez maintenant son justificatif.'), false, report);
+      }, originalWorkspaceScope), current ? t('Le brouillon fournisseur a été mis à jour.') : t('Le brouillon fournisseur a été enregistré. Ajoutez maintenant son justificatif.'), false, report);
       if (saved) {
         void automationResourceFeedback(automationDecision.current,{supplier:fields.supplierId||null,project:fields.projectId||null,expense_category:fields.lines[0]?.category||null});
         setBaseline(fields); setStep(3);
         if(scanFile){
-          const attached=await act(()=>desktopApi.addScannedSupplierAttachment(draftId,scanFile),t('Le document original est joint à la facture.'),false,report);
+          const attached=await act(()=>desktopApi.addScannedSupplierAttachment(draftId,scanFile,originalWorkspaceScope),t('Le document original est joint à la facture.'),false,report);
           if(attached)setScanFile(null);
           else if(!reported)setServerError('Le brouillon est enregistré, mais le justificatif reste à joindre. Réessayez ci-dessous.');
         }

@@ -166,7 +166,7 @@ export { supplierInvoiceLineTotals } from './supplierInvoicePreparation';
 export type { SupplierInvoiceDraftLine } from './supplierInvoicePreparation';
 
 export function SupplierInvoiceForm(props: { item?: SupplierInvoice; initialTarget?: 'reference' | 'attachments'; workspace: Workspace; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner }) {
-  return <SupplierInvoicePreparation {...props} renderAttachments={(invoice, canEdit, busy, onPending) => <SupplierInvoiceAttachments invoice={invoice} canEdit={canEdit} busy={busy} act={props.act} onPending={onPending} />} />;
+  return <SupplierInvoicePreparation {...props} renderAttachments={(invoice, canEdit, busy, onPending) => <SupplierInvoiceAttachments workspaceScope={props.workspace.workNotesScope} invoice={invoice} canEdit={canEdit} busy={busy} act={props.act} onPending={onPending} />} />;
 }
 
 export { SupplierInvoiceDetail } from './SupplierInvoiceDetail';

@@ -47,11 +47,13 @@ export function BankActionDialog({ title, description, rows, note, action, disab
 
 export type BankImportOutcome = { result: CamtImportResult; refreshWarnings: string[] };
 
-export function BankImportWizard({ automatic, onAutomaticChange, disabled, accountingReady, onClose, onImport, onReview, onAccounts, onAccounting, onRefresh }: {
+export function BankImportWizard({ automatic, onAutomaticChange, disabled, accountingReady, onClose, onImport, onReview, onAccounts, onAccounting, onRefresh, workspaceScope }: {
   automatic: boolean; onAutomaticChange: (value: boolean) => void; disabled: boolean; accountingReady: boolean;
-  onClose: () => void; onImport: (path: string, automatic: boolean) => Promise<BankImportOutcome>;
+  onClose: () => void; onImport: (path: string, automatic: boolean, expectedWorkspaceScope?: string) => Promise<BankImportOutcome>;
+  workspaceScope?: string;
   onReview: () => void; onAccounts: () => void; onAccounting: () => void; onRefresh: () => Promise<string[]>;
 }) {
+  const originalWorkspaceScope = useRef(workspaceScope).current;
   const [path, setPath] = useState(''), [busy, setBusy] = useState(false), [message, setMessage] = useState('');
   const [outcome, setOutcome] = useState<BankImportOutcome>();
   const inFlight = useRef(false), resultRef = useRef<HTMLDivElement>(null);
@@ -73,7 +75,7 @@ export function BankImportWizard({ automatic, onAutomaticChange, disabled, accou
       event.preventDefault();
       if (busy || disabled || !path || outcome || inFlight.current) return;
       inFlight.current = true; setBusy(true); setMessage('');
-      try { setOutcome(await onImport(path, automatic)); }
+      try { setOutcome(await onImport(path, automatic, originalWorkspaceScope)); }
       catch (reason) { setMessage(errorMessage(reason, 'L’import a été interrompu. Vous pouvez reprendre le même fichier ; les mouvements déjà connus sont reconnus.')); }
       finally { inFlight.current = false; setBusy(false); }
     }}>

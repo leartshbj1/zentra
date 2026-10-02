@@ -65,6 +65,7 @@ export function CatalogScreen({
   onArchive,
   onRestore,
   onImport,
+  workspaceScope,
 }: {
   items: CatalogItem[];
   vatRatesBp: number[];
@@ -74,6 +75,7 @@ export function CatalogScreen({
   query: string;
   busy: boolean;
   readOnly: boolean;
+  workspaceScope?: string;
   onQueryChange: (query: string) => void;
   onCreate: () => void;
   onEdit: (item: CatalogItem) => void;
@@ -84,6 +86,7 @@ export function CatalogScreen({
     rows: CatalogImportRow[],
     conflictPolicy: CatalogImportConflictPolicy,
     onError?: (reason: unknown) => void,
+    expectedWorkspaceScope?: string,
   ) => Promise<boolean>;
 }) {
   useAppLanguage();
@@ -382,6 +385,7 @@ export function CatalogScreen({
     </div>
     {importOpen ? (
       <CatalogImportWizard
+        workspaceScope={workspaceScope}
         existingItems={items}
         vatRatesBp={vatRatesBp}
         busy={busy}

@@ -28,6 +28,7 @@ export function CatalogImportWizard({
   readOnly = false,
   close,
   onImport,
+  workspaceScope,
   migration = false,
 }: {
   existingItems: CatalogItem[];
@@ -35,13 +36,16 @@ export function CatalogImportWizard({
   busy: boolean;
   readOnly?: boolean;
   migration?: boolean;
+  workspaceScope?: string;
   close: () => void;
   onImport: (
     rows: CatalogImportRow[],
     conflictPolicy: CatalogImportConflictPolicy,
     onError?: (reason: unknown) => void,
+    expectedWorkspaceScope?: string,
   ) => Promise<boolean>;
 }) {
+  const originalWorkspaceScope = useRef(workspaceScope).current;
   const fileInput = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<CatalogImportPreview | null>(null);
   const [mappingSource,setMappingSource]=useState<CatalogMappingSource|null>(null);
@@ -125,7 +129,7 @@ export function CatalogImportWizard({
       const success = await onImport(importedRows, conflictPolicy, reason => {
         reported = true;
         setError(errorMessage(reason, 'L’import a été refusé. Vos lignes corrigées sont conservées.'));
-      });
+      }, originalWorkspaceScope);
       if (success) {if(mappingAudit.current)void automationFeedback(mappingAudit.current.decision,mappingAudit.current.choices);close();}
       else if (!reported) setError('L’import n’a pas pu être terminé. Votre fichier et vos corrections sont conservés ; réessayez.');
     } catch (reason) {

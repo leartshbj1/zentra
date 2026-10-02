@@ -2152,9 +2152,10 @@ function WorkspaceContent({
               }
               onArchive={(item) => void archiveCatalogItem(item)}
               onRestore={(item) => void restoreCatalogItem(item)}
-              onImport={(rows, conflictPolicy, onError) =>
+              workspaceScope={workspace.workNotesScope}
+              onImport={(rows, conflictPolicy, onError, expectedWorkspaceScope) =>
                 act(
-                  () => desktopApi.importCatalogItems(rows, conflictPolicy),
+                  () => desktopApi.importCatalogItems(rows, conflictPolicy, expectedWorkspaceScope),
                   `Catalogue importé : ${rows.length} référence${rows.length > 1 ? 's contrôlées' : ' contrôlée'}.`,
                   false,
                   onError,

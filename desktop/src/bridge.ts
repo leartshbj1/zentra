@@ -3414,10 +3414,12 @@ export function documentLineToBackend(
 export function importCatalogItemsMutation(
   rows: CatalogImportRow[],
   conflictPolicy: 'update' | 'skip',
+  expectedWorkspaceScope?: string,
 ) {
   return {
     command: 'import_catalog_items' as const,
     args: {
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
       input: {
         conflict_policy: conflictPolicy,
         rows: rows.map((row) => ({
@@ -5206,8 +5208,9 @@ export const desktopApi = {
   async importCatalogItems(
     rows: CatalogImportRow[],
     conflictPolicy: 'update' | 'skip',
+    expectedWorkspaceScope?: string,
   ) {
-    const mutation = importCatalogItemsMutation(rows, conflictPolicy);
+    const mutation = importCatalogItemsMutation(rows, conflictPolicy, expectedWorkspaceScope);
     await invoke(mutation.command, mutation.args);
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
@@ -5482,9 +5485,9 @@ export const desktopApi = {
     });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
-  async saveSupplierInvoiceDraft(input: SupplierInvoiceDraftSaveInput) {
+  async saveSupplierInvoiceDraft(input: SupplierInvoiceDraftSaveInput, expectedWorkspaceScope?: string) {
     await invoke('save_supplier_invoice_draft',
-      { ...supplierInvoiceDraftInvokeArgs(input), vatTreatment: input.vatTreatment ?? null });
+      { ...supplierInvoiceDraftInvokeArgs(input), vatTreatment: input.vatTreatment ?? null, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveSupplierInvoiceDraftFromEmail(
@@ -5494,9 +5497,11 @@ export const desktopApi = {
       sourceSha256: string;
       attachmentSha256: string;
     },
+    expectedWorkspaceScope?: string,
   ) {
     const { input: invoice } = supplierInvoiceDraftInvokeArgs(input);
     await invoke('import_supplier_email_invoice_draft', {
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
       input: {
         invoice,
         source_path: source.sourcePath,
@@ -5551,9 +5556,11 @@ export const desktopApi = {
   },
   async inspectSupplierEmailFile(
     sourcePath: string,
+    expectedWorkspaceScope?: string,
   ): Promise<SupplierEmailInspection> {
     const raw = await invoke<RawRecord>('inspect_supplier_email_file', {
       sourcePath,
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
     });
     return supplierEmailInspectionFromRaw(raw);
   },
@@ -5572,8 +5579,10 @@ export const desktopApi = {
   async addSupplierInvoiceAttachment(
     supplierInvoiceId: string,
     sourcePath: string,
+    expectedWorkspaceScope?: string,
   ) {
     await invoke('add_supplier_invoice_attachment', {
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
       input: {
         supplier_invoice_id: supplierInvoiceId,
         source_path: sourcePath,
@@ -5581,8 +5590,8 @@ export const desktopApi = {
     });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
-  async addScannedSupplierAttachment(invoiceId: string, file: File) {
-    await invoke('add_scanned_supplier_attachment', { invoiceId, originalName: file.name, contentBase64: await fileBase64(file) });
+  async addScannedSupplierAttachment(invoiceId: string, file: File, expectedWorkspaceScope?: string) {
+    await invoke('add_scanned_supplier_attachment', { invoiceId, originalName: file.name, contentBase64: await fileBase64(file), ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async deleteSupplierInvoiceAttachment(id: string) {
@@ -6010,13 +6019,13 @@ export const desktopApi = {
       title: 'Importer un relevé bancaire CAMT',
       filters: [{ name: 'Relevé bancaire ISO 20022', extensions: ['xml'] }],
     }),
-  async importCamtFile(path: string, autoReconcile = true) {
+  async importCamtFile(path: string, autoReconcile = true, expectedWorkspaceScope?: string) {
     return camtImportResultFromRaw(
-      await invoke<RawRecord>('import_camt_file', { path, autoReconcile }),
+      await invoke<RawRecord>('import_camt_file', { path, autoReconcile, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) }),
     );
   },
-  async getBankWorkspace(): Promise<BankWorkspace> {
-    return bankWorkspaceFromRaw(await invoke<RawRecord>('get_bank_workspace'));
+  async getBankWorkspace(expectedWorkspaceScope?: string): Promise<BankWorkspace> {
+    return bankWorkspaceFromRaw(await invoke<RawRecord>('get_bank_workspace', expectedWorkspaceScope === undefined ? undefined : { expectedWorkspaceScope }));
   },
   async associateBankAccount(
     accountId: string,

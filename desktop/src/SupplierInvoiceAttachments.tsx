@@ -17,11 +17,12 @@ function attachmentTypeLabel(attachment: Attachment): string {
   return ({ 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/jpeg': 'JPEG', 'image/webp': 'WebP' } as Record<string, string>)[attachment.mimeType] ?? t('Document');
 }
 
-export function SupplierInvoiceAttachments({ invoice, canEdit, busy, act, onPending }: { invoice?: SupplierInvoice; canEdit: boolean; busy: boolean; act?: ActionRunner; onPending?: (pending: boolean) => void }) {
+export function SupplierInvoiceAttachments({ invoice, canEdit, busy, act, onPending, workspaceScope }: { invoice?: SupplierInvoice; canEdit: boolean; busy: boolean; act?: ActionRunner; onPending?: (pending: boolean) => void; workspaceScope?: string }) {
   useAppLanguage();
   const [localError, setLocalError] = useState<{ source: string; fallback: string } | null>(null);
   const [pending, setPending] = useState(false);
-  const operation = useRef(false), alive = useRef(true), editable = useRef(canEdit);
+  const operation = useRef(false), alive = useRef(true), editable = useRef(canEdit), latestAct = useRef(act);
+  latestAct.current = act;
   editable.current = canEdit && invoice?.documentStatus === 'draft';
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   function markPending(value: boolean) { operation.current = value; setPending(value); onPending?.(value); }
@@ -30,13 +31,14 @@ export function SupplierInvoiceAttachments({ invoice, canEdit, busy, act, onPend
 
   async function addAttachment() {
     if (!invoice || !act || busy || operation.current || !editable.current) return;
+    const originalWorkspaceScope = workspaceScope;
     markPending(true);
     setLocalError(null);
     try {
       const sourcePath = await desktopApi.chooseSupplierInvoiceAttachment();
-      if (!sourcePath || !alive.current || !editable.current) return;
-      await act(
-        () => desktopApi.addSupplierInvoiceAttachment(invoice.id, sourcePath),
+      if (!sourcePath || !alive.current || !editable.current || !latestAct.current) return;
+      await latestAct.current(
+        () => desktopApi.addSupplierInvoiceAttachment(invoice.id, sourcePath, originalWorkspaceScope),
         t("Le justificatif a été copié et vérifié dans les données locales Zentra."),
         false,
         (reason) => reportError(reason, 'Le justificatif n’a pas pu être ajouté. Réessayez avec un PDF ou une image.'),

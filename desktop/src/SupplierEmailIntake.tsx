@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -81,6 +81,7 @@ export function SupplierEmailIntake({
   readOnly: boolean;
   runAction: RunAction;
 }) {
+  const sourceWorkspaceScope = useRef<string | undefined>(undefined);
   const [inspection, setInspection] = useState<SupplierEmailInspection | null>(
     null,
   );
@@ -127,12 +128,14 @@ export function SupplierEmailIntake({
     : null;
 
   async function chooseMessage() {
+    const originalWorkspaceScope = workspace.workNotesScope;
     setError('');
     setLocalBusy(true);
     try {
       const path = await desktopApi.chooseSupplierEmailFile();
       if (!path) return;
-      const result = await desktopApi.inspectSupplierEmailFile(path);
+      const result = await desktopApi.inspectSupplierEmailFile(path, originalWorkspaceScope);
+      sourceWorkspaceScope.current = originalWorkspaceScope;
       setInspection(result);
       setSourcePath(path);
       const preferredAttachment =
@@ -167,6 +170,7 @@ export function SupplierEmailIntake({
   }
 
   async function save() {
+    const originalWorkspaceScope = sourceWorkspaceScope.current;
     if (
       !draft ||
       !effectiveInspection ||
@@ -184,6 +188,7 @@ export function SupplierEmailIntake({
             sourceSha256: effectiveInspection.sha256,
             attachmentSha256: selectedAttachmentSha256,
           },
+          originalWorkspaceScope,
         );
       },
       'Le brouillon et son justificatif ont été enregistrés localement. Contrôlez-les puis validez la facture pour la comptabiliser.',

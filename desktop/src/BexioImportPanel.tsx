@@ -33,6 +33,7 @@ export function BexioImportPanel({
   onWorkspace: (workspace: Workspace) => void;
 }) {
   useAppLanguage();
+  const originalWorkspaceScope = useRef(workspace.workNotesScope).current;
   const [target, setTarget] = useState<ContactTarget | 'catalog'>('clients');
   const [source, setSource] = useState<CatalogMappingSource | null>(null),
     [header, setHeader] = useState(0),
@@ -143,6 +144,7 @@ export function BexioImportPanel({
     setError('');
     try {
       const result = await invoke<BexioReceipt>('import_bexio_contacts', {
+        ...(originalWorkspaceScope === undefined ? {} : { expectedWorkspaceScope: originalWorkspaceScope }),
         input: {
           scope,
           entity: target,
@@ -415,6 +417,7 @@ export function BexioImportPanel({
       >{t("Consulter le guide d’import")}</a>
       {catalog && (
         <CatalogImportWizard
+          workspaceScope={originalWorkspaceScope}
           migration
           existingItems={workspace.catalogItems}
           vatRatesBp={
@@ -422,9 +425,9 @@ export function BexioImportPanel({
           }
           busy={disabled}
           close={() => setCatalog(false)}
-          onImport={async (rows, policy, onError) => {
+          onImport={async (rows, policy, onError, expectedWorkspaceScope) => {
             try {
-              const next = await desktopApi.importCatalogItems(rows, policy);
+              const next = await desktopApi.importCatalogItems(rows, policy, expectedWorkspaceScope);
               onWorkspace(next);
               return true;
             } catch (reason) {

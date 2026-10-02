@@ -182,22 +182,21 @@ pub async fn get_workspace(state: State<'_, LocalStore>) -> Result<Value, String
 }
 
 #[tauri::command]
-pub fn import_camt_file(
+pub async fn import_camt_file(
     state: State<'_, LocalStore>,
     path: String,
     auto_reconcile: Option<bool>,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .import_camt_with_reconciliation(&path, auto_reconcile.unwrap_or(false))
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.import_camt_with_reconciliation(&path, auto_reconcile.unwrap_or(false)).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
-pub fn get_bank_workspace(state: State<'_, LocalStore>) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.get_bank_workspace().map_err(command_error)
+pub async fn get_bank_workspace(state: State<'_, LocalStore>, expected_workspace_scope: Option<String>) -> Result<Value, String> {
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, |store| store.get_bank_workspace().map_err(command_error)).await
 }
 
 #[tauri::command]
@@ -354,13 +353,15 @@ pub fn delete_record(
 }
 
 #[tauri::command]
-pub fn import_catalog_items(
+pub async fn import_catalog_items(
     state: State<'_, LocalStore>,
     input: ImportCatalogItemsInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.import_catalog_items(input).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.import_catalog_items(input).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
@@ -371,10 +372,11 @@ pub fn bexio_import_scope(state: State<'_, LocalStore>) -> Result<String, String
 }
 
 #[tauri::command]
-pub fn import_bexio_contacts(state: State<'_, LocalStore>, input: crate::bexio_import::BexioContactImport) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.import_bexio_contacts(input).map_err(command_error)
+pub async fn import_bexio_contacts(state: State<'_, LocalStore>, input: crate::bexio_import::BexioContactImport, expected_workspace_scope: Option<String>) -> Result<Value, String> {
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.import_bexio_contacts(input).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
@@ -498,8 +500,10 @@ pub fn save_supplier_invoice_draft(
     state: State<'_, LocalStore>,
     input: SaveSupplierInvoiceDraftInput,
     vat_treatment: Option<String>,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_workspace_origin(&state, expected_workspace_scope.as_deref()).map_err(command_error)?;
     require_write(&state)?;
     state
         .save_supplier_invoice_draft_with_vat(input, vat_treatment)
@@ -1421,26 +1425,24 @@ pub fn record_reminder_action(
 }
 
 #[tauri::command]
-pub fn inspect_supplier_email_file(
+pub async fn inspect_supplier_email_file(
     state: State<'_, LocalStore>,
     source_path: String,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state
-        .inspect_supplier_email_file(&source_path)
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| store.inspect_supplier_email_file(&source_path).map_err(command_error)).await
 }
 
 #[tauri::command]
-pub fn import_supplier_email_invoice_draft(
+pub async fn import_supplier_email_invoice_draft(
     state: State<'_, LocalStore>,
     input: ImportSupplierEmailInvoiceDraftInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .import_supplier_email_invoice_draft(input)
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.import_supplier_email_invoice_draft(input).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
@@ -1772,6 +1774,29 @@ where
     .map_err(|error| error.to_string())?
 }
 
+// The store clone shares a mutable database path. Check the caller's original
+// workspace only after taking its lock, before file I/O or any business write.
+// Older callers may omit the optional IPC argument and keep their old contract.
+fn require_workspace_origin(store: &LocalStore, expected_workspace_scope: Option<&str>) -> crate::error::AppResult<()> {
+    if let Some(expected) = expected_workspace_scope {
+        if crate::work_notes::workspace_scope(&store.connect()?)? != expected {
+            return Err(crate::error::AppError::Validation("L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.".into()));
+        }
+    }
+    Ok(())
+}
+
+async fn run_scoped_local_operation<T, F>(store: LocalStore, expected_workspace_scope: Option<String>, operation: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(&LocalStore) -> Result<T, String> + Send + 'static,
+{
+    run_locked_local_operation(store, move |store| {
+        require_workspace_origin(store, expected_workspace_scope.as_deref())?;
+        Ok(operation(store))
+    }).await?
+}
+
 #[tauri::command]
 pub async fn create_backup(
     state: State<'_, LocalStore>,
@@ -1839,26 +1864,31 @@ mod worker_tests;
 #[path = "commands_pdf_worker_tests.rs"]
 mod pdf_worker_tests;
 
+#[cfg(test)]
+#[path = "commands_import_worker_tests.rs"]
+mod import_worker_tests;
+
 #[tauri::command]
-pub fn add_scanned_supplier_attachment(state: State<'_, LocalStore>, invoice_id: String, original_name: String, content_base64: String) -> Result<Value, String> {
+pub async fn add_scanned_supplier_attachment(state: State<'_, LocalStore>, invoice_id: String, original_name: String, content_base64: String, expected_workspace_scope: Option<String>) -> Result<Value, String> {
     use base64::Engine;
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    if content_base64.len() > 28_000_000 { return Err("Choisissez une facture de moins de 20 Mo.".into()); }
-    let bytes = base64::engine::general_purpose::STANDARD.decode(content_base64).map_err(|_| "Le fichier transmis est illisible.")?;
-    state.add_supplier_invoice_attachment_bytes(&invoice_id, &original_name, &bytes).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        if content_base64.len() > 28_000_000 { return Err("Choisissez une facture de moins de 20 Mo.".into()); }
+        let bytes = base64::engine::general_purpose::STANDARD.decode(content_base64).map_err(|_| "Le fichier transmis est illisible.")?;
+        store.add_supplier_invoice_attachment_bytes(&invoice_id, &original_name, &bytes).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
-pub fn add_supplier_invoice_attachment(
+pub async fn add_supplier_invoice_attachment(
     state: State<'_, LocalStore>,
     input: AddSupplierInvoiceAttachmentInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .add_supplier_invoice_attachment(input)
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.add_supplier_invoice_attachment(input).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
