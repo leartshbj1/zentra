@@ -25,13 +25,16 @@ export function ErrorDetails({ error, incidentCode }: { error: unknown; incident
   const labels = userErrorCopy(language);
   const details = safeErrorDetails(error);
   const incident = incidentCode ?? resolveErrorIncident(error).code;
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [copyResult, setCopyResult] = useState<{ incident: string; state: 'pending' | 'copied' | 'failed' } | null>(null);
+  const copyState = copyResult?.incident === incident ? copyResult.state : 'idle';
   async function copyCode() {
+    const attempt = { incident, state: 'pending' } as const;
+    setCopyResult(attempt);
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
       await navigator.clipboard.writeText(incident);
-      setCopyState('copied');
-    } catch { setCopyState('failed'); }
+      setCopyResult(current => current === attempt ? { incident, state: 'copied' } : current);
+    } catch { setCopyResult(current => current === attempt ? { incident, state: 'failed' } : current); }
   }
   return <div className="error-guidance__support">
     <div className="error-guidance__incident">

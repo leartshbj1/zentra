@@ -287,6 +287,71 @@ impl LocalStore {
         Ok(record)
     }
 
+    pub fn prepare_fixed_asset_accounts(&self) -> AppResult<Value> {
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let specs = [
+            (
+                "1500",
+                "Immobilisations corporelles",
+                "asset",
+                "fixed_assets",
+            ),
+            ("6800", "Amortissements", "expense", "depreciation"),
+        ];
+        let mut selections = Vec::with_capacity(specs.len());
+        // Resolve both usages before writing. An occupied default code must not
+        // leave the other account created or silently alter an existing account.
+        for &(code, _, account_type, report_section) in &specs {
+            let compatible: Option<String> = tx
+                .query_row(
+                    "SELECT id FROM accounts WHERE active=1 AND account_type=? AND report_section=? ORDER BY code,name LIMIT 1",
+                    params![account_type, report_section],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if let Some(id) = compatible {
+                selections.push((id, false));
+            } else {
+                let occupied: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM accounts WHERE code=?)",
+                    params![code],
+                    |row| row.get(0),
+                )?;
+                if occupied {
+                    return Err(AppError::Validation(format!(
+                        "Le compte {code} existe avec un autre usage. Choisissez un compte dans Plan et liaisons."
+                    )));
+                }
+                selections.push((Uuid::new_v4().to_string(), true));
+            }
+        }
+        let now = now_iso();
+        for (&(code, name, account_type, report_section), (id, create)) in
+            specs.iter().zip(&selections)
+        {
+            if !*create {
+                continue;
+            }
+            tx.execute(
+                "INSERT INTO accounts(id,code,name,account_type,normal_balance,report_section,active,created_at,updated_at) VALUES(?,?,?,?,'debit',?,1,?,?)",
+                params![id, code, name, account_type, report_section, now, now],
+            )?;
+            let account = one_json(&tx, "SELECT * FROM accounts WHERE id=?", params![id])?;
+            append_audit(&tx, "upsert", "account", id, &account)?;
+        }
+        // Prepare the receipt in the same transaction: nothing fallible reads
+        // the database after the accounts and their audit chain are committed.
+        let result = json!({
+            "accounts": query_all(&tx, "SELECT * FROM accounts ORDER BY code,name", [])?,
+            "assetAccountId": selections[0].0,
+            "depreciationAccountId": selections[1].0,
+        });
+        tx.commit()?;
+        Ok(result)
+    }
+
     pub fn delete_account(&self, id: &str) -> AppResult<Value> {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;

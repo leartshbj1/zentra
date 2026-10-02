@@ -14,8 +14,8 @@ export function FixedAssetsPanel({workspace,readOnly,onChanged,onSetup}:{workspa
   const [draft,setDraft]=useState<FixedAsset>(()=>blank()), [cost,setCost]=useState(''), [residual,setResidual]=useState('0'),[rate,setRate]=useState('20'),[confirmed,setConfirmed]=useState(false);
   const [review,setReview]=useState<{kind:'depreciate'|'cancel';row:FixedAssetRow}|null>(null);
   const running=useRef(false), generation=useRef(0),heading=useRef<HTMLHeadingElement>(null);
-  const mounted=useRef(false),current=useRef({workspace,onChanged});
-  current.current={workspace,onChanged};
+  const mounted=useRef(false),current=useRef({workspace,onChanged,readOnly});
+  current.current={workspace,onChanged,readOnly};
   const refreshWarning='L’écriture est enregistrée. Fermez puis rouvrez la comptabilité pour actualiser les autres écrans.';
   function blank():FixedAsset{return {id:createId(),name:'',reference:'',date:todayIso(),costCents:0,residualCents:0,rateBp:2000,method:'linear',mode:'reclassify',assetAccountId:'',depreciationAccountId:'',counterpartAccountId:''};}
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;generation.current++;};},[]);
@@ -49,16 +49,28 @@ export function FixedAssetsPanel({workspace,readOnly,onChanged,onSetup}:{workspa
   function start(){setDraft({...blank(),assetAccountId:assets[0]?.id||'',depreciationAccountId:depreciation[0]?.id||'',counterpartAccountId:workspace.accountingSettings?.expenseAccountId||''});setCost('');setResidual('0');setRate('20');setConfirmed(false);setEditing(true);setReview(null);setError('');requestAnimationFrame(()=>heading.current?.focus());}
   function update<K extends keyof FixedAsset>(key:K,value:FixedAsset[K]){setDraft(previous=>({...previous,[key]:value}));setConfirmed(false);}
   async function prepareAccounts(){
-    if(running.current||readOnly)return;running.current=true;setBusy(true);setError('');
+    const origin=workspace,scope=origin.workNotesScope;
+    const isCurrent=()=>mounted.current&&scope===current.current.workspace.workNotesScope;
+    if(running.current||readOnly||current.current.readOnly||!isCurrent())return;
+    if(!scope){setError('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');return;}
+    running.current=true;setBusy(true);setError('');
+    const accountsWarning='Les comptes sont enregistrés. Fermez puis rouvrez la comptabilité pour actualiser les comptes.';
+    let recorded=false;
     try{
-      const latest=await desktopApi.listAccounts();
-      for(const specification of [{code:'1500',name:'Immobilisations corporelles',accountType:'asset',reportSection:'fixed_assets'},{code:'6800',name:'Amortissements',accountType:'expense',reportSection:'depreciation'}] as const){
-        if(latest.some(a=>a.active&&a.reportSection===specification.reportSection&&a.accountType===specification.accountType))continue;
-        if(latest.some(a=>a.code===specification.code))throw Error(`Le compte ${specification.code} existe avec un autre usage. Choisissez un compte dans Plan et liaisons.`);
-        await desktopApi.upsertAccount({...specification,normalBalance:'debit',active:true});
+      const result=await desktopApi.prepareFixedAssetAccounts(scope);recorded=true;if(!isCurrent())return;
+      if(current.current.workspace===origin)setAccounts(result.accounts);
+      else{
+        const readOrigin=current.current.workspace;
+        try{
+          const refreshed=await desktopApi.listAccounts();if(!isCurrent())return;
+          if(current.current.workspace===readOrigin)setAccounts(refreshed);
+        }catch{if(!isCurrent())return;setError(accountsWarning);}
       }
-      const refreshed=await desktopApi.listAccounts();setAccounts(refreshed);setDraft(value=>({...value,assetAccountId:refreshed.find(a=>a.active&&a.reportSection==='fixed_assets')?.id||'',depreciationAccountId:refreshed.find(a=>a.active&&a.reportSection==='depreciation')?.id||''}));await onChanged();
-    }catch(reason){setError(errorMessage(reason,'Les comptes n’ont pas pu être préparés.'));}finally{running.current=false;setBusy(false);}
+      if(!isCurrent())return;
+      setDraft(value=>({...value,assetAccountId:result.assetAccountId,depreciationAccountId:result.depreciationAccountId}));
+      if(isCurrent())await current.current.onChanged();
+    }catch(reason){if(isCurrent())setError(recorded?accountsWarning:errorMessage(reason,'Les comptes n’ont pas pu être préparés.'));}
+    finally{running.current=false;if(isCurrent())setBusy(false);}
   }
   const picker=(label:string,key:'assetAccountId'|'depreciationAccountId'|'counterpartAccountId',options:Account[])=><Field label={label} required><select required value={draft[key]} onChange={e=>update(key,e.target.value)}><option value="">Choisir un compte</option>{options.map(a=><option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></Field>;
   const active=items.filter(row=>!row.cancelled);

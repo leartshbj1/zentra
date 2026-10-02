@@ -1366,3 +1366,329 @@ mod attachment_origin_scope {
         assert_eq!(std::fs::read(path).unwrap(), bytes);
     }
 }
+
+mod fixed_asset_account_preparation {
+    use super::*;
+
+    fn account(store: &LocalStore, code: &str, kind: &str, section: &str, active: bool) -> Value {
+        store
+            .upsert_account(AccountInput {
+                id: None,
+                code: code.into(),
+                name: format!("Synthetic account {code}"),
+                account_type: kind.into(),
+                normal_balance: "debit".into(),
+                report_section: section.into(),
+                active,
+            })
+            .unwrap()
+    }
+
+    fn accounts_and_audit(store: &LocalStore) -> (Value, Vec<Value>) {
+        (
+            store.list_accounts().unwrap(),
+            crate::database::query_all(
+                &store.connect().unwrap(),
+                "SELECT * FROM audit_log ORDER BY rowid",
+                [],
+            )
+            .unwrap(),
+        )
+    }
+
+    fn prepare(store: &LocalStore, expected: String) -> Result<Value, String> {
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        tauri::async_runtime::block_on(prepare_fixed_asset_accounts(app.state(), expected))
+    }
+
+    #[test]
+    fn actual_preparation_creates_only_missing_accounts_and_is_idempotent() {
+        for (has_asset, has_depreciation) in
+            [(false, false), (true, false), (false, true), (true, true)]
+        {
+            let (_temporary, store) = fixture();
+            let asset = has_asset.then(|| account(&store, "1500", "asset", "fixed_assets", true));
+            let depreciation =
+                has_depreciation.then(|| account(&store, "6800", "expense", "depreciation", true));
+            let (before_accounts, before_audit) = accounts_and_audit(&store);
+            let receipt = prepare(&store, scope(&store)).unwrap();
+            let created = usize::from(!has_asset) + usize::from(!has_depreciation);
+            assert_eq!(
+                receipt["accounts"].as_array().unwrap().len(),
+                before_accounts.as_array().unwrap().len() + created
+            );
+            let (after_accounts, after_audit) = accounts_and_audit(&store);
+            assert_eq!(receipt["accounts"], after_accounts);
+            assert_eq!(after_audit.len(), before_audit.len() + created);
+            for (field, existing, code, kind, section) in [
+                ("assetAccountId", asset, "1500", "asset", "fixed_assets"),
+                (
+                    "depreciationAccountId",
+                    depreciation,
+                    "6800",
+                    "expense",
+                    "depreciation",
+                ),
+            ] {
+                let selected = receipt["accounts"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|row| row["id"] == receipt[field])
+                    .unwrap();
+                if let Some(existing) = existing {
+                    assert_eq!(selected, &existing);
+                } else {
+                    assert_eq!(selected["code"], code);
+                    assert_eq!(selected["account_type"], kind);
+                    assert_eq!(selected["report_section"], section);
+                    assert_eq!(selected["normal_balance"], "debit");
+                    assert_eq!(selected["active"], true);
+                    let audit = after_audit
+                        .iter()
+                        .find(|row| {
+                            row["entity_type"] == "account" && row["entity_id"] == receipt[field]
+                        })
+                        .unwrap();
+                    assert_eq!(audit["action"], "upsert");
+                    let payload: Value =
+                        serde_json::from_str(audit["payload_json"].as_str().unwrap()).unwrap();
+                    assert_eq!(&payload, selected);
+                }
+            }
+            assert_eq!(prepare(&store, scope(&store)).unwrap(), receipt);
+            assert_eq!(accounts_and_audit(&store), (after_accounts, after_audit));
+            assert_eq!(
+                crate::audit::verify_audit_chain(&store.connect().unwrap()).unwrap()["valid"],
+                true
+            );
+        }
+    }
+
+    #[test]
+    fn actual_preparation_reuses_sorted_custom_usages_without_reclassifying_default_codes() {
+        let (_temporary, store) = fixture();
+        account(&store, "1500", "asset", "current_assets", true);
+        account(&store, "6800", "expense", "other_operating_expense", true);
+        account(&store, "1400", "asset", "fixed_assets", false);
+        account(&store, "1600", "asset", "fixed_assets", true);
+        let asset = account(&store, "1590", "asset", "fixed_assets", true);
+        account(&store, "6890", "expense", "depreciation", true);
+        let depreciation = account(&store, "6810", "expense", "depreciation", true);
+        let before = accounts_and_audit(&store);
+        let receipt = prepare(&store, scope(&store)).unwrap();
+        assert_eq!(receipt["assetAccountId"], asset["id"]);
+        assert_eq!(receipt["depreciationAccountId"], depreciation["id"]);
+        assert_eq!(receipt["accounts"], before.0);
+        assert_eq!(accounts_and_audit(&store), before);
+    }
+
+    #[test]
+    fn two_actual_preparations_share_one_atomic_creation_and_return_the_same_accounts() {
+        let (_temporary, store) = fixture();
+        let before = accounts_and_audit(&store);
+        let expected = scope(&store);
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let (first, second) = tauri::async_runtime::block_on(join(
+            prepare_fixed_asset_accounts(app.state(), expected.clone()),
+            prepare_fixed_asset_accounts(app.state(), expected),
+        ));
+        let first = first.unwrap();
+        assert_eq!(second.unwrap(), first);
+        let after = accounts_and_audit(&store);
+        assert_eq!(first["accounts"], after.0);
+        assert_eq!(
+            after.0.as_array().unwrap().len(),
+            before.0.as_array().unwrap().len() + 2
+        );
+        assert_eq!(after.1.len(), before.1.len() + 2);
+    }
+
+    #[test]
+    fn actual_preparation_refuses_either_occupied_or_inactive_default_before_any_creation() {
+        for (code, kind, section, active) in [
+            ("1500", "asset", "current_assets", true),
+            ("6800", "expense", "other_operating_expense", true),
+            ("1500", "asset", "fixed_assets", false),
+            ("6800", "expense", "depreciation", false),
+        ] {
+            let (_temporary, store) = fixture();
+            account(&store, code, kind, section, active);
+            let before = accounts_and_audit(&store);
+            let error = prepare(&store, scope(&store)).unwrap_err();
+            assert!(
+                error.contains(&format!("Le compte {code} existe avec un autre usage")),
+                "{error}"
+            );
+            assert_eq!(accounts_and_audit(&store), before);
+        }
+    }
+
+    #[test]
+    fn actual_preparation_rolls_back_both_creations_when_the_second_insert_or_audit_fails() {
+        for trigger in [
+            "CREATE TRIGGER synthetic_fail_second_account BEFORE INSERT ON accounts WHEN NEW.code='6800' BEGIN SELECT RAISE(ABORT,'synthetic second account failure'); END",
+            "CREATE TRIGGER synthetic_fail_second_audit BEFORE INSERT ON audit_log WHEN NEW.entity_type='account' AND json_extract(NEW.payload_json,'$.code')='6800' BEGIN SELECT RAISE(ABORT,'synthetic second audit failure'); END",
+        ] {
+            let (_temporary, store) = fixture();
+            store.connect().unwrap().execute_batch(trigger).unwrap();
+            let before = accounts_and_audit(&store);
+            assert!(prepare(&store, scope(&store)).unwrap_err().contains("synthetic second"));
+            assert_eq!(accounts_and_audit(&store), before);
+            assert_eq!(crate::audit::verify_audit_chain(&store.connect().unwrap()).unwrap()["valid"], true);
+            store.connect().unwrap().execute_batch("DROP TRIGGER IF EXISTS synthetic_fail_second_account; DROP TRIGGER IF EXISTS synthetic_fail_second_audit;").unwrap();
+            let receipt = prepare(&store, scope(&store)).unwrap();
+            assert_eq!(receipt["accounts"].as_array().unwrap().len(), before.0.as_array().unwrap().len() + 2);
+            assert_eq!(accounts_and_audit(&store).1.len(), before.1.len() + 2);
+        }
+    }
+
+    #[test]
+    fn actual_preparation_waits_off_executor_and_checks_the_scope_after_real_restore() {
+        let _transfer_test = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK
+            .lock()
+            .unwrap();
+        let (temporary, store) = fixture();
+        let original_account = account(&store, "1700", "asset", "fixed_assets", true);
+        let snapshot = temporary.path().join("account-preparation.zentra");
+        store
+            .create_backup_at(&snapshot, "fixed-asset-account-test")
+            .unwrap();
+        let expected = scope(&store);
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let replacing_store = store.clone();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let holder = thread::spawn(move || {
+            let _guard = replacing_store.lock().unwrap();
+            ready_tx.send(()).unwrap();
+            let released = release_rx.recv_timeout(Duration::from_secs(5)).is_ok();
+            replacing_store
+                .restore_backup(&snapshot.to_string_lossy(), "fixed-asset-account-test")
+                .unwrap();
+            (released, accounts_and_audit(&replacing_store))
+        });
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        let (result, ()) = tauri::async_runtime::block_on(join(
+            prepare_fixed_asset_accounts(app.state(), expected.clone()),
+            async move {
+                release_tx.send(()).unwrap();
+            },
+        ));
+        let (released, restored) = holder.join().unwrap();
+        assert!(
+            released,
+            "the actual preparation handler blocked the waiting executor"
+        );
+        assert!(result
+            .unwrap_err()
+            .contains("L’entreprise ouverte a changé"));
+        assert_ne!(scope(&store), expected);
+        assert_eq!(accounts_and_audit(&store), restored);
+        let preserved = restored
+            .0
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["code"] == "1700")
+            .unwrap();
+        assert_eq!(preserved["id"], original_account["id"]);
+        assert_eq!(
+            restored
+                .0
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|row| row["code"] == "1700")
+                .count(),
+            1
+        );
+        assert!(!restored
+            .0
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["code"] == "6800"));
+        store
+            .install_server_issued_license(&signed_fixture_token(&store, "owner"))
+            .unwrap();
+        let receipt = responsive(
+            &store,
+            prepare_fixed_asset_accounts(app.state(), scope(&store)),
+        )
+        .unwrap();
+        assert_eq!(receipt["accounts"], store.list_accounts().unwrap());
+        assert_eq!(
+            receipt["accounts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|row| row["code"] == "1700")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn actual_preparation_preserves_license_role_foreign_installation_and_onboarding_rejections() {
+        for access in ["missing", "read_only", "foreign"] {
+            let (_temporary, store) = unlicensed_fixture();
+            if access == "read_only" {
+                store
+                    .install_server_issued_license(&signed_fixture_token(&store, access))
+                    .unwrap();
+            } else if access == "foreign" {
+                let (_foreign_temporary, foreign) = fixture();
+                let rejection = store
+                    .install_server_issued_license(&signed_fixture_token(&foreign, "owner"))
+                    .unwrap_err();
+                assert!(rejection.to_string().contains("installation"), "{rejection}");
+            }
+            let before = accounts_and_audit(&store);
+            let error = prepare(&store, scope(&store)).unwrap_err();
+            assert!(
+                error.contains("Licence requise") || error.contains("limité à la lecture"),
+                "{error}"
+            );
+            assert_eq!(accounts_and_audit(&store), before);
+            let error = prepare(&store, uuid::Uuid::new_v4().to_string()).unwrap_err();
+            assert!(error.contains("L’entreprise ouverte a changé"), "{error}");
+            assert_eq!(accounts_and_audit(&store), before);
+        }
+        let (_temporary, store) = fixture();
+        store
+            .connect()
+            .unwrap()
+            .execute("UPDATE settings SET onboarding_completed=0 WHERE id=1", [])
+            .unwrap();
+        let before = crate::database::query_all(
+            &store.connect().unwrap(),
+            "SELECT * FROM accounts ORDER BY code,name",
+            [],
+        )
+        .unwrap();
+        let error = prepare(&store, scope(&store)).unwrap_err();
+        assert!(
+            error.contains("Le questionnaire initial doit être terminé"),
+            "{error}"
+        );
+        assert_eq!(
+            crate::database::query_all(
+                &store.connect().unwrap(),
+                "SELECT * FROM accounts ORDER BY code,name",
+                []
+            )
+            .unwrap(),
+            before
+        );
+    }
+}

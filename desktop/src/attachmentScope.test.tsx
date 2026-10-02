@@ -48,6 +48,7 @@ import { CustomerCreditPanel } from './CustomerCreditPanel';
 import { PurchaseOrdersScreen } from './PurchaseOrdersScreen';
 import { ProjectFilePreview } from './ProjectFilePreview';
 import { ProjectFolder } from './ProjectFolder';
+import { isMobileRuntime } from './mobileRuntime';
 
 const origin = 'synthetic-workspace-a', replacement = 'synthetic-workspace-b';
 const file = { id: 'file-a', projectId: 'project-a', entityType: 'supplier_invoice', entityId: 'invoice-a', originalName: 'SYNTHETIC.pdf', mimeType: 'application/pdf', sizeBytes: 20, createdAt: '2026-10-02', updatedAt: '2026-10-02' } as Attachment;
@@ -173,8 +174,9 @@ describe('attachment origin scope reaches the real native bridge', () => {
     expect(runtime.previews).toHaveLength(1);
     const packet = runtime.previews[0];
     expect(packet.workspaceScope).toBe(origin);
-    render(<ProjectFilePreview {...packet} onClose={vi.fn()} />);
-    click(props => text(props.children).includes('Ouvrir avec une application'))(); await settle();
+    const openLabel = isMobileRuntime() ? 'Enregistrer ou partager' : 'Ouvrir avec une application';
+    expect(render(<ProjectFilePreview {...packet} onClose={vi.fn()} />)).toContain(openLabel);
+    click(props => text(props.children).trim() === openLabel)(); await settle();
     expect(commandCalls('read_project_document')).toEqual([['read_project_document', { id: file.id, expectedWorkspaceScope: origin }]]);
     expect(commandCalls('open_attachment')).toEqual([['open_attachment', { id: file.id, expectedWorkspaceScope: origin }]]);
   });

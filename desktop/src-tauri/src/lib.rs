@@ -326,6 +326,7 @@ pub fn run() {
             record_payment,
             list_accounts,
             upsert_account,
+            prepare_fixed_asset_accounts,
             delete_account,
             get_accounting_settings,
             get_accounting_continuity,

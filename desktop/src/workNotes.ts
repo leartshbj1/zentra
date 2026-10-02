@@ -148,9 +148,19 @@ export class WorkNotesStore {
   }
 }
 
+const noteDraftStorageFailures = { read: false, write: false };
+function recordNoteDraftStorageResult(operation: 'read' | 'write', failed: boolean) {
+  if (noteDraftStorageFailures[operation] === failed) return;
+  noteDraftStorageFailures[operation] = failed;
+  try {
+    recordDiagnostic({ area: 'draft', operation: operation === 'read' ? 'notes.drafts_read' : 'notes.drafts_write', phase: failed ? 'failure' : 'success', ...(failed ? { errorCode: 'STORAGE' } : {}) });
+  } catch { /* Recovery stays best effort even when the journal is unavailable. */ }
+}
+
 export function readNoteDrafts(scope: string): Array<{ note: WorkNote; baseline: WorkNote | null }> {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(`zentra.notes.drafts.${scope}`) || '[]');
+    recordNoteDraftStorageResult('read', false);
     if (!Array.isArray(value)) return [];
     const validNote = (note: unknown): note is WorkNote => {
       if (!note || typeof note !== 'object') return false;
@@ -160,8 +170,11 @@ export function readNoteDrafts(scope: string): Array<{ note: WorkNote; baseline:
         (row.projectId === null || typeof row.projectId === 'string') && (row.createdByMemberId === null || typeof row.createdByMemberId === 'string');
     };
     return value.filter(item => item && validNote(item.note) && (item.baseline === null || validNote(item.baseline) && item.baseline.id === item.note.id));
-  } catch { return []; }
+  } catch { recordNoteDraftStorageResult('read', true); return []; }
 }
 export function persistNoteDrafts(scope: string, drafts: Array<{ note: WorkNote; baseline: WorkNote | null }>) {
-  try { if (drafts.length) localStorage.setItem(`zentra.notes.drafts.${scope}`, JSON.stringify(drafts)); else localStorage.removeItem(`zentra.notes.drafts.${scope}`); } catch { /* SQLite autosave remains the primary persistence. */ }
+  try {
+    if (drafts.length) localStorage.setItem(`zentra.notes.drafts.${scope}`, JSON.stringify(drafts)); else localStorage.removeItem(`zentra.notes.drafts.${scope}`);
+    recordNoteDraftStorageResult('write', false);
+  } catch { recordNoteDraftStorageResult('write', true); /* SQLite autosave remains the primary persistence. */ }
 }

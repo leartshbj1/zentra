@@ -1067,6 +1067,21 @@ pub fn upsert_account(state: State<'_, LocalStore>, input: AccountInput) -> Resu
     state.upsert_account(input).map_err(command_error)
 }
 #[tauri::command]
+pub async fn prepare_fixed_asset_accounts(
+    state: State<'_, LocalStore>,
+    expected_workspace_scope: String,
+) -> Result<Value, String> {
+    run_scoped_local_operation(
+        state.inner().clone(),
+        Some(expected_workspace_scope),
+        move |store| {
+            require_write(store)?;
+            store.prepare_fixed_asset_accounts().map_err(command_error)
+        },
+    )
+    .await
+}
+#[tauri::command]
 pub fn delete_account(state: State<'_, LocalStore>, id: String) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     require_write(&state)?;

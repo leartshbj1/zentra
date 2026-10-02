@@ -575,3 +575,104 @@ describe('persisted work note draft integrity', () => {
     expect(() => persistNoteDrafts('company', [])).not.toThrow();
   });
 });
+
+describe('work note recovery storage diagnostics', () => {
+  let storage: Map<string, string>;
+  let unavailable: { read: boolean; write: boolean };
+  let browserStorage: { getItem: ReturnType<typeof vi.fn>; setItem: ReturnType<typeof vi.fn>; removeItem: ReturnType<typeof vi.fn> };
+  const scope = 'PRIVATE_SCOPE customer@example.invalid';
+  const rawFailure = 'PRIVATE_ERROR password=PRIVATE_PASSWORD token=PRIVATE_TOKEN';
+  const eventsAfter = (offset: number) => recentDiagnosticEvents().slice(offset);
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    storage = new Map(); unavailable = { read: false, write: false };
+    browserStorage = {
+      getItem: vi.fn((key: string) => { if (unavailable.read) throw new Error(rawFailure); return storage.get(key) ?? null; }),
+      setItem: vi.fn((key: string, value: string) => { if (unavailable.write) throw new Error(rawFailure); storage.set(key, value); }),
+      removeItem: vi.fn((key: string) => { if (unavailable.write) throw new Error(rawFailure); storage.delete(key); }),
+    };
+    vi.stubGlobal('localStorage', browserStorage);
+    // Exercise genuine recovery after an earlier test's failure, then observe only this test's transitions.
+    readNoteDrafts(scope); persistNoteDrafts(scope, []);
+    vi.clearAllMocks();
+  });
+  afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('records denied reads and recovery once per transition without changing the empty fallback or reading again', () => {
+    const before = recentDiagnosticEvents().length;
+    unavailable.read = true;
+    for (let attempt = 0; attempt < 10; attempt++) expect(readNoteDrafts(scope)).toEqual([]);
+    expect(browserStorage.getItem).toHaveBeenCalledTimes(10);
+    expect(eventsAfter(before)).toHaveLength(1);
+    expect(eventsAfter(before)[0]).toMatchObject({ area: 'draft', operation: 'notes.drafts_read', phase: 'failure', errorCode: 'STORAGE' });
+
+    const drafts = [{ note: note({ title: 'PRIVATE_TITLE', body: 'PRIVATE_BODY' }), baseline: null }];
+    storage.set(`zentra.notes.drafts.${scope}`, JSON.stringify(drafts));
+    unavailable.read = false;
+    expect(readNoteDrafts(scope)).toEqual(drafts);
+    expect(readNoteDrafts(scope)).toEqual(drafts);
+    expect(eventsAfter(before)).toHaveLength(2);
+    expect(eventsAfter(before)[1]).toMatchObject({ area: 'draft', operation: 'notes.drafts_read', phase: 'success' });
+    expect(eventsAfter(before)[1]).not.toHaveProperty('errorCode');
+    unavailable.read = true;
+    expect(readNoteDrafts(scope)).toEqual([]);
+    expect(eventsAfter(before).map(event => event.phase)).toEqual(['failure', 'success', 'failure']);
+    expect(browserStorage.getItem).toHaveBeenCalledTimes(13);
+    expect(browserStorage.setItem).not.toHaveBeenCalled();
+    expect(browserStorage.removeItem).not.toHaveBeenCalled();
+    for (const event of eventsAfter(before)) {
+      expect(Object.keys(event).every(key => ['area', 'errorCode', 'id', 'operation', 'phase', 'sessionId', 'timestamp'].includes(key))).toBe(true);
+    }
+    for (const value of [scope, 'PRIVATE_TITLE', 'PRIVATE_BODY', rawFailure, 'PRIVATE_PASSWORD', 'PRIVATE_TOKEN', 'customer@example.invalid', 'note-1']) expect(JSON.stringify(eventsAfter(before))).not.toContain(value);
+  });
+
+  it('deduplicates failed recovery writes across keystrokes while the real store still autosaves exactly once', async () => {
+    const persist = (drafts: DraftRecord[]) => persistNoteDrafts(scope, drafts);
+    const { store, deps } = setup({ persist });
+    store.merge([note()]);
+    const before = recentDiagnosticEvents().length;
+    unavailable.write = true;
+    for (let key = 0; key < 20; key++) store.edit('note-1', { body: `PRIVATE_BODY-${key}` });
+    expect(browserStorage.setItem).toHaveBeenCalledTimes(20);
+    expect(eventsAfter(before)).toHaveLength(1);
+    expect(eventsAfter(before)[0]).toMatchObject({ area: 'draft', operation: 'notes.drafts_write', phase: 'failure', errorCode: 'STORAGE' });
+    expect(await store.flush('note-1')).toBe(true);
+    expect(deps.save).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ body: 'PRIVATE_BODY-19', expectedUpdatedAt: originalTime }));
+    expect(browserStorage.setItem).toHaveBeenCalledTimes(21); // Existing publish of the saving snapshot, without a native retry.
+    expect(browserStorage.removeItem).toHaveBeenCalledTimes(2); // Initial clean merge, then confirmed native save.
+    expect(eventsAfter(before)).toHaveLength(1); // Failed removal remains the same write outage.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(deps.save).toHaveBeenCalledTimes(1);
+    expect(deps.remove).not.toHaveBeenCalled();
+
+    unavailable.write = false;
+    store.edit('note-1', { body: 'PRIVATE_NEW_BODY' });
+    store.stop();
+    expect(eventsAfter(before)).toHaveLength(2);
+    expect(eventsAfter(before)[1]).toMatchObject({ area: 'draft', operation: 'notes.drafts_write', phase: 'success' });
+    expect(readNoteDrafts(scope)).toEqual([{ note: expect.objectContaining({ body: 'PRIVATE_NEW_BODY' }), baseline: expect.objectContaining({ body: 'PRIVATE_BODY-19', updatedAt: savedTime }) }]);
+    expect(deps.save).toHaveBeenCalledTimes(1);
+    for (const value of [scope, rawFailure, 'PRIVATE_BODY', 'PRIVATE_NEW_BODY', 'PRIVATE_PASSWORD', 'PRIVATE_TOKEN', 'note-1']) expect(JSON.stringify(eventsAfter(before))).not.toContain(value);
+  });
+
+  it('tracks read and write outages independently and never adds a storage retry or deletion', () => {
+    const before = recentDiagnosticEvents().length;
+    unavailable.read = true; unavailable.write = true;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      expect(readNoteDrafts(scope)).toEqual([]);
+      expect(() => persistNoteDrafts(scope, [])).not.toThrow();
+    }
+    expect(eventsAfter(before).map(event => [event.operation, event.phase])).toEqual([['notes.drafts_read', 'failure'], ['notes.drafts_write', 'failure']]);
+    unavailable.write = false;
+    persistNoteDrafts(scope, []); persistNoteDrafts(scope, []);
+    expect(readNoteDrafts(scope)).toEqual([]);
+    expect(eventsAfter(before).map(event => [event.operation, event.phase])).toEqual([['notes.drafts_read', 'failure'], ['notes.drafts_write', 'failure'], ['notes.drafts_write', 'success']]);
+    unavailable.read = false;
+    expect(readNoteDrafts(scope)).toEqual([]);
+    expect(eventsAfter(before).at(-1)).toMatchObject({ operation: 'notes.drafts_read', phase: 'success' });
+    expect(browserStorage.getItem).toHaveBeenCalledTimes(5);
+    expect(browserStorage.removeItem).toHaveBeenCalledTimes(5);
+    expect(browserStorage.setItem).not.toHaveBeenCalled();
+  });
+});

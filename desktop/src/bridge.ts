@@ -6270,6 +6270,18 @@ export const desktopApi = {
   async listAccounts() {
     return rawArray(await invoke<unknown>('list_accounts')).map(accountFromRaw);
   },
+  async prepareFixedAssetAccounts(expectedWorkspaceScope: string): Promise<{
+    accounts: Account[]; assetAccountId: string; depreciationAccountId: string;
+  }> {
+    const result = await invoke<{
+      accounts: RawRecord[]; assetAccountId: string; depreciationAccountId: string;
+    }>('prepare_fixed_asset_accounts', { expectedWorkspaceScope });
+    return {
+      accounts: rawArray(result.accounts).map(accountFromRaw),
+      assetAccountId: result.assetAccountId,
+      depreciationAccountId: result.depreciationAccountId,
+    };
+  },
   async upsertAccount(input: Omit<Account, 'id'> & { id?: string }) {
     await invoke('upsert_account', {
       input: {
