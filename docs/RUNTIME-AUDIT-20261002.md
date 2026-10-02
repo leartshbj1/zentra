@@ -720,3 +720,11 @@ PayrollLocalAi.check/analyze conservent les payloads, file, timeout, messages et
 Registres : `payroll-analysis-diagnostics/final-manifest.json` et `payroll-analysis-diagnostics-independent/final-manifest.json` sous `desktop/artifacts/runtime-audit-20261002`. La revue inverse AST confirme les méthodes et arguments Worker inchangés ; elle ne remplace pas l'exécution d'un modèle. Le test de panne porte sur l'accesseur du journal, pas sur un crash du disque natif. Le nouveau test est ajouté aux sélecteurs frontend/mobile futurs, sans l'attribuer à la CI 233 déjà démarrée sur 089b5b8e.
 
 Les candidats natifs de confirmation d'import de paie et de conservation mailSignature restent des pistes source-only, sans exécution ni correction revendiquée. L'audit global reste ouvert. Aucune publication, installation, API de production, migration ou donnée client modifiée dans ce complément.
+
+## Validation globale finale des reçus et de l'analyse locale
+
+Le source `e5c5435d5589bb35675ca17a4bb682a322234aaa` passe le 2 octobre de **20:59:05 à 20:59:57 UTC** : **2 662 tests réussis dans 274 fichiers**, zéro échec, un profilage financier optionnel préexistant ignoré. TypeScript, branding, palette, Vite et diff-check réussissent. Les **1 232 sources frontend** et HEAD sont identiques avant/après ; l'arbre est propre aux deux extrémités. Le warning Vite de chunk reste présent, sans promesse de gain de latence ou de capacité.
+
+Les **37 suites extraites du script CI suivi** passent chacune **691 tests** dans les profils frontend iOS et Android, zéro échec/ignoré. Elles ne sont pas des binaires mobiles ni des appareils physiques. Registres : `desktop/artifacts/runtime-audit-20261002/frontend-final-e5c5435d.*` et `mobile-ci-preflight-e5c5435d-summary.json`. Les 46 parcours DOM, 70 tests ciblés et totaux globaux se recoupent et ne sont pas additionnés.
+
+Les sources natives sont identiques à celles du contrôle Windows 233 lancé sur `089b5b8e`; ses sélecteurs et son frontend précèdent ce complément. Son résultat reste à constater, sans le présenter comme une validation frontend de e5c5435d. Ce lot ne publie ni n'installe de mise à jour. Les pistes natives source-only et l'audit global restent ouverts.
