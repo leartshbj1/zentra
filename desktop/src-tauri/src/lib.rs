@@ -124,6 +124,28 @@ fn announce_native_ready(webview: tauri::Webview) {
     });
 }
 
+// The chosen root is admitted before any journal is created. Directory failures
+// remain the original error; never silently open a different company profile.
+fn initialize_profile_diagnostics(
+    data_dir: &std::path::Path,
+) -> error::AppResult<diagnostics::DiagnosticLog> {
+    std::fs::create_dir_all(data_dir)?;
+    Ok(diagnostics::initialize(data_dir))
+}
+
+fn initialize_local_store_with_diagnostics(
+    data_dir: std::path::PathBuf,
+    startup_log: &diagnostics::DiagnosticLog,
+) -> error::AppResult<LocalStore> {
+    LocalStore::initialize(data_dir).map_err(|error| {
+        startup_log.record_startup_failure(diagnostics::StartupOperation::LocalStore);
+        error
+    })
+}
+
+#[cfg(all(test, not(any(target_os = "android", target_os = "ios"))))]
+mod startup_updater_config_tests;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -164,10 +186,14 @@ pub fn run() {
         })
         .setup(|app| {
             use tauri::Manager;
-            app_updater::initialize(app)?;
             let data_dir = resolve_data_dir(app.handle())?;
-            let store = LocalStore::initialize(data_dir)?;
-            app.manage(diagnostics::initialize(&store.data_dir));
+            let startup_log = initialize_profile_diagnostics(&data_dir)?;
+            app.manage(startup_log.clone());
+            app_updater::initialize(app).map_err(|error| {
+                startup_log.record_startup_failure(diagnostics::StartupOperation::Updater);
+                error
+            })?;
+            let store = initialize_local_store_with_diagnostics(data_dir, &startup_log)?;
             company_collaboration::install_change_events(&store, app.handle().clone());
             // `HELVICHANTIER_DATA_DIR` peut déplacer le profil hors de
             // `$APPLOCALDATA`. On n'ouvre jamais ce profil entier au protocole

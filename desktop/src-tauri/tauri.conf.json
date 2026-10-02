@@ -35,6 +35,12 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "INJECTED_BY_ELYKO_UPDATER_PUBLIC_KEY_AT_BUILD_TIME",
+      "endpoints": []
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],

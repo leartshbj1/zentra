@@ -115,6 +115,13 @@ pub struct DiagnosticsSummary {
 #[derive(Clone)]
 pub struct DiagnosticLog(Arc<LogInner>);
 
+/// Closed startup phases: callers cannot supply paths or exception text.
+#[derive(Clone, Copy)]
+pub(crate) enum StartupOperation {
+    Updater,
+    LocalStore,
+}
+
 struct LogInner {
     data_dir: PathBuf,
     directory: PathBuf,
@@ -224,7 +231,7 @@ impl DiagnosticLog {
     }
 
     fn ensure_directory(&self, directory: &Path) -> Result<(), DiagnosticError> {
-        // LocalStore has already initialized the profile. A fixed child path
+        // The chosen profile root has already been created. A fixed child path
         // must not be redirected by a symbolic link into another directory.
         match fs::symlink_metadata(directory) {
             Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
@@ -460,6 +467,22 @@ impl DiagnosticLog {
         self.append_native_failure(DiagnosticArea::Command, "command.native", error);
     }
 
+    pub(crate) fn record_startup_failure(&self, operation: StartupOperation) {
+        let (operation, code) = match operation {
+            StartupOperation::Updater => ("app.updater.initialize", "INTERNAL"),
+            StartupOperation::LocalStore => ("app.local_store.initialize", "STORAGE"),
+        };
+        let mut event = DiagnosticEvent::native(
+            &self.0.session_id,
+            operation,
+            DiagnosticPhase::Failure,
+            Some(code),
+        );
+        event.area = DiagnosticArea::App;
+        // The original startup error is never replaced by a journal failure.
+        let _ = self.append(&[event]);
+    }
+
     fn append_project_exchange_failure(&self, error: &AppError) {
         self.append_native_failure(DiagnosticArea::Sync, "project.exchange", error);
     }
@@ -624,6 +647,10 @@ pub async fn get_form_draft_identity(
     )
     .map_err(command_error)
 }
+
+#[cfg(test)]
+#[path = "startup_diagnostics_tests.rs"]
+mod startup_diagnostics_tests;
 
 #[cfg(test)]
 mod tests {
