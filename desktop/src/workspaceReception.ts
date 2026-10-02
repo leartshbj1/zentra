@@ -8,8 +8,10 @@ export function createWorkspaceReception<T>(options: {
   canPublish: () => boolean;
   matchesScope: (workspace: T) => boolean;
   onError?: (reason: unknown) => void;
+  onScopeMismatch?: () => void;
 }) {
   let active = false, epoch = 0, generation = 0, pending = false;
+  let scopeMismatchReported = false;
   let flight: Promise<void> | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let delay = 300;
@@ -20,7 +22,12 @@ export function createWorkspaceReception<T>(options: {
     if (!active || !pending || !options.available()) return;
     timer = setTimeout(() => {
       timer = undefined;
-      void run().catch(reason => options.onError?.(reason));
+      const token = epoch, scope = options.scope();
+      void run().catch(reason => {
+        if (!current(token, scope)) return;
+        // Diagnostics cannot create an unhandled rejection or stop a retry.
+        try { options.onError?.(reason); } catch { /* best-effort diagnostics */ }
+      });
     }, delay);
     delay = Math.min(3_000, delay * 2);
   }
@@ -39,11 +46,20 @@ export function createWorkspaceReception<T>(options: {
       }
       if (!current(token, scope)) return;
       if (!options.available() || !options.canPublish()) return;
-      if (before !== options.current() || requested !== generation || !options.matchesScope(workspace)) continue;
+      if (before !== options.current() || requested !== generation) continue;
+      if (!options.matchesScope(workspace)) {
+        if (!scopeMismatchReported) {
+          scopeMismatchReported = true;
+          // No snapshot, scope or company data crosses this diagnostic hook.
+          try { options.onScopeMismatch?.(); } catch { /* best-effort diagnostics */ }
+        }
+        continue;
+      }
       // Publication and the current ref update are synchronous at this boundary.
       options.publish(workspace);
       pending = false;
       delay = 300;
+      scopeMismatchReported = false;
       return;
     }
   }
@@ -59,8 +75,8 @@ export function createWorkspaceReception<T>(options: {
     return job;
   }
   return {
-    start() { active = true; epoch++; delay = 300; },
-    stop() { active = false; epoch++; pending = false; clearTimer(); },
+    start() { active = true; epoch++; delay = 300; scopeMismatchReported = false; },
+    stop() { active = false; epoch++; pending = false; scopeMismatchReported = false; clearTimer(); },
     request(): Promise<void> {
       if (!active) return Promise.resolve();
       pending = true; generation++;

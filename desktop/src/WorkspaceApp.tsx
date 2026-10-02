@@ -653,6 +653,7 @@ function WorkspaceContent({
     matchesScope: next => next.workNotesScope === workspaceRef.current.workNotesScope,
     publish: next => { workspaceRef.current = next; receptionContext.current.setWorkspace(next); },
     onError: reason => recordDiagnostic({ area: 'sync', operation: 'inbox.workspace_refresh', phase: 'failure', errorCode: classifyDiagnosticError(reason) }),
+    onScopeMismatch: () => recordDiagnostic({ area: 'sync', operation: 'inbox.workspace_scope_mismatch', phase: 'failure', errorCode: 'CONFLICT' }),
   }), []);
   useLayoutEffect(() => {
     inboxWorkspaceReception.start();

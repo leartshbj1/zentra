@@ -13,13 +13,14 @@ function fixture() {
   const read = vi.fn(async () => ({ scope, revision: 2 }));
   const publish = vi.fn((next: Snapshot) => { value = next; });
   const onError = vi.fn();
-  const reader = createWorkspaceReception({ read, publish, onError,
+  const onScopeMismatch = vi.fn();
+  const reader = createWorkspaceReception({ read, publish, onError, onScopeMismatch,
     current: () => value, scope: () => scope,
     available: () => online && visible, canPublish: () => allowed,
     matchesScope: next => next.scope === scope,
   });
   reader.start();
-  return { reader, read, publish, onError, value: () => value,
+  return { reader, read, publish, onError, onScopeMismatch, value: () => value,
     mutate(revision: number) { value = { scope, revision }; },
     switchTo(next: string) { reader.stop(); scope = next; value = { scope, revision: 1 }; reader.start(); },
     offline() { online = false; reader.suspend(); },
@@ -149,8 +150,9 @@ describe('confirmed inbox writes and bounded workspace reconciliation', () => {
     const old = f.reader.request();
     f.switchTo('b'); void f.reader.request();
     f.switchTo('a'); void f.reader.request();
-    hold.resolve({ scope: 'a', revision: 2 }); await old;
+    hold.resolve({ scope: 'b', revision: 2 }); await old;
     expect(f.publish).not.toHaveBeenCalled();
+    expect(f.onScopeMismatch).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(300);
     expect(f.publish).toHaveBeenCalledExactlyOnceWith({ scope: 'a', revision: 4 });
     expect(maximum).toBe(1);
@@ -166,6 +168,7 @@ describe('confirmed inbox writes and bounded workspace reconciliation', () => {
     expect(f.read).toHaveBeenCalledTimes(1);
     expect(f.publish).not.toHaveBeenCalled();
     expect(f.onError).not.toHaveBeenCalled();
+    expect(f.onScopeMismatch).not.toHaveBeenCalled();
   });
   it('never applies a snapshot from another native workspace', async () => {
     vi.useFakeTimers();
@@ -176,6 +179,94 @@ describe('confirmed inbox writes and bounded workspace reconciliation', () => {
     expect(f.read).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(300);
     expect(f.publish).toHaveBeenCalledExactlyOnceWith({ scope: 'a', revision: 2 });
+    f.reader.stop();
+  });
+
+  it('reports four scope refusals once, then rearms after publication and a new lifetime', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    f.read.mockResolvedValue({ scope: 'b', revision: 2 });
+    await f.reader.request();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(f.read).toHaveBeenCalledTimes(4);
+    expect(f.publish).not.toHaveBeenCalled();
+    expect(f.onScopeMismatch).toHaveBeenCalledExactlyOnceWith();
+    f.read.mockResolvedValue({ scope: 'a', revision: 3 });
+    await vi.advanceTimersByTimeAsync(600);
+    expect(f.read).toHaveBeenCalledTimes(5);
+    expect(f.publish).toHaveBeenCalledExactlyOnceWith({ scope: 'a', revision: 3 });
+    f.read.mockResolvedValue({ scope: 'b', revision: 4 });
+    await f.reader.request();
+    expect(f.onScopeMismatch).toHaveBeenCalledTimes(2);
+    f.reader.stop(); f.reader.start();
+    await f.reader.request();
+    expect(f.onScopeMismatch).toHaveBeenCalledTimes(3);
+    f.reader.stop();
+  });
+
+  it('does not report a mismatched response after unmount', async () => {
+    vi.useFakeTimers();
+    const f = fixture(), hold = deferred<Snapshot>();
+    f.read.mockImplementationOnce(() => hold.promise);
+    const old = f.reader.request(); f.reader.stop();
+    hold.resolve({ scope: 'b', revision: 2 }); await old;
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(f.read).toHaveBeenCalledTimes(1);
+    expect(f.onScopeMismatch).not.toHaveBeenCalled();
+    expect(f.onError).not.toHaveBeenCalled();
+    expect(f.publish).not.toHaveBeenCalled();
+  });
+
+  it('a throwing scope diagnostic never interrupts the bounded reread or later recovery', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    f.onScopeMismatch.mockImplementation(() => { throw Error('Diagnostic unavailable'); });
+    f.read.mockResolvedValueOnce({ scope: 'b', revision: 2 })
+      .mockResolvedValueOnce({ scope: 'b', revision: 2 })
+      .mockResolvedValueOnce({ scope: 'a', revision: 3 });
+    await expect(f.reader.request()).resolves.toBeUndefined();
+    expect(f.read).toHaveBeenCalledTimes(2);
+    expect(f.onScopeMismatch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(f.read).toHaveBeenCalledTimes(3);
+    expect(f.publish).toHaveBeenCalledExactlyOnceWith({ scope: 'a', revision: 3 });
+    f.reader.stop();
+  });
+
+  it('throwing diagnostics preserve the original read error and background retry', async () => {
+    vi.useFakeTimers();
+    const f = fixture(), original = new Error('Actual workspace read failure');
+    f.onScopeMismatch.mockImplementation(() => { throw Error('Scope diagnostic failure'); });
+    f.onError.mockImplementation(() => { throw Error('Read diagnostic failure'); });
+    f.read.mockResolvedValueOnce({ scope: 'b', revision: 2 })
+      .mockRejectedValueOnce(original)
+      .mockRejectedValueOnce(new Error('Next read still unavailable'))
+      .mockResolvedValueOnce({ scope: 'a', revision: 3 });
+    await expect(f.reader.request()).rejects.toBe(original);
+    expect(f.onScopeMismatch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(f.onError).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(f.read).toHaveBeenCalledTimes(4);
+    expect(f.publish).toHaveBeenCalledExactlyOnceWith({ scope: 'a', revision: 3 });
+    f.reader.stop();
+  });
+
+  it('does not journal a background rejection after its old lifetime has ended', async () => {
+    vi.useFakeTimers();
+    const f = fixture(), hold = deferred<Snapshot>();
+    f.read.mockRejectedValueOnce(new Error('First read failed'))
+      .mockImplementationOnce(() => hold.promise);
+    await expect(f.reader.request()).rejects.toThrow('First read failed');
+    await vi.advanceTimersByTimeAsync(300);
+    const background = f.reader.request().catch(() => {});
+    // The read catch runs while A is current, but the later diagnostic catch
+    // runs after the lifecycle changed. It must not report A as a B incident.
+    hold.reject(new Error('Old background read failed'));
+    queueMicrotask(() => f.switchTo('b'));
+    await background;
+    expect(f.onError).not.toHaveBeenCalled();
+    expect(f.onScopeMismatch).not.toHaveBeenCalled();
     f.reader.stop();
   });
 });
