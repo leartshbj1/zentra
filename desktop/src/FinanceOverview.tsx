@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import {
   ArrowDownLeft,
   ArrowRight,
@@ -238,7 +238,7 @@ export function FinanceOverview({
       </>}
       {configuration ? (
         <FinanceConfiguration
-          key={workspace.settings?.organization.legalName}
+          key={JSON.stringify([workspace.workNotesScope ?? null, workspace.settings?.organization.legalName ?? null])}
           workspace={workspace}
           readOnly={readOnly}
           canInstall={continuity.starterAvailable}
@@ -273,10 +273,21 @@ function FinanceConfiguration({
     [error, setError] = useState(''),
     [saved, setSaved] = useState(false);
   const inFlight = useRef(false);
+  const mounted = useRef(true);
+  const originScope = useRef(workspace.workNotesScope);
+  const current = useRef({ scope: workspace.workNotesScope, readOnly, saved, onWorkspaceChange, onInstallStarter });
+  current.current = { scope: workspace.workNotesScope, readOnly, saved, onWorkspaceChange, onInstallStarter };
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  const isOriginCurrent = () => mounted.current && typeof originScope.current === 'string' &&
+    originScope.current.length > 0 && current.current.scope === originScope.current;
+  const mayWrite = () => isOriginCurrent() && !current.current.readOnly;
   const chosen = billingPresets.find((p) => p.id === preset),
     settings = workspace.settings!;
   async function save() {
-    if (readOnly || inFlight.current || !preset || saved) return;
+    if (!mayWrite() || inFlight.current || !preset || current.current.saved) return;
     inFlight.current = true;
     setBusy(true);
     setError('');
@@ -284,15 +295,22 @@ function FinanceConfiguration({
       // Re-read first so a setting changed elsewhere while the review was open
       // is preserved. Only these two commercial defaults are replaced.
       const latest = await desktopApi.loadWorkspace();
+      if (!isOriginCurrent()) return;
+      if (latest.workNotesScope !== originScope.current)
+        throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace. Vos choix sont conservés.');
+      if (!mayWrite())
+        throw new Error('Cet espace est passé en lecture seule. Vos choix sont conservés.');
       if (!latest.settings)
         throw new Error('La configuration de l’entreprise est indisponible.');
       const next = await desktopApi.saveSettings(
         applyBillingPreset(latest.settings, preset),
+        originScope.current,
       );
+      if (!isOriginCurrent()) return;
       setSaved(true);
-      onWorkspaceChange(next);
+      current.current.onWorkspaceChange(next);
     } catch (reason) {
-      setError(
+      if (isOriginCurrent()) setError(
         errorMessage(
           reason,
           'La configuration n’a pas pu être enregistrée. Vos choix sont conservés.',
@@ -300,7 +318,7 @@ function FinanceConfiguration({
       );
     } finally {
       inFlight.current = false;
-      setBusy(false);
+      if (isOriginCurrent()) setBusy(false);
     }
   }
   return (
@@ -434,8 +452,9 @@ function FinanceConfiguration({
                 variant="secondary"
                 disabled={readOnly || busy}
                 onClick={() => {
+                  if (!mayWrite() || inFlight.current) return;
                   setBusy(true);
-                  void onInstallStarter().finally(() => setBusy(false));
+                  void current.current.onInstallStarter().finally(() => { if (isOriginCurrent()) setBusy(false); });
                 }}
               >
                 {t('Préparer les comptes suisses')}

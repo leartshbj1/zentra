@@ -3350,10 +3350,12 @@ export function updateRecurrenceScheduleMutation(
 
 export function generateRecurrenceOccurrencesMutation(
   input: GenerateRecurrenceOccurrencesInput,
+  expectedWorkspaceScope?: string,
 ) {
   return {
     command: 'generate_recurrence_occurrences' as const,
     args: {
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
       input: {
         request_id: input.requestId.trim(),
         schedule_id: input.scheduleId.trim(),
@@ -5740,10 +5742,16 @@ export const desktopApi = {
   },
   async generateRecurrenceOccurrences(
     input: GenerateRecurrenceOccurrencesInput,
+    expectedWorkspaceScope?: string,
   ) {
-    const mutation = generateRecurrenceOccurrencesMutation(input);
+    const mutation = generateRecurrenceOccurrencesMutation(input, expectedWorkspaceScope);
     await invoke(mutation.command, mutation.args);
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    return refreshWorkspaceAfterMutation(async () => {
+      const next = await loadWorkspace();
+      if (expectedWorkspaceScope !== undefined && next.workNotesScope !== expectedWorkspaceScope)
+        throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+      return next;
+    });
   },
   async cancelSalesOrder(
     requestId: string,
@@ -6761,8 +6769,10 @@ export const desktopApi = {
       }),
     ).map(vatExportFromRaw);
   },
-  async getReminderSettings(): Promise<ReminderSettings> {
-    const row = await invoke<RawRecord | null>('get_reminder_settings');
+  async getReminderSettings(expectedWorkspaceScope?: string): Promise<ReminderSettings> {
+    const row = await (expectedWorkspaceScope === undefined
+      ? invoke<RawRecord | null>('get_reminder_settings')
+      : invoke<RawRecord | null>('get_reminder_settings', { expectedWorkspaceScope }));
     return {
       enabled: boolValue(row?.enabled),
       senderName: stringValue(row?.sender_name),
@@ -6830,9 +6840,11 @@ export const desktopApi = {
   async scanDueReminders(
     requestId: string,
     asOf?: string,
+    expectedWorkspaceScope?: string,
   ): Promise<ReminderScanResult> {
     return reminderScanResultFromRaw(
       await invoke<unknown>('scan_due_reminders', {
+        ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
         input: { request_id: requestId, as_of: asOf || null },
       }),
     );

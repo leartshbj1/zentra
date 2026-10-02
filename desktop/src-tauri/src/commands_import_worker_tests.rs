@@ -2421,3 +2421,799 @@ mod notes_and_setup_workers {
         }
     }
 }
+
+// Local reminders and recurrence generation retain their supervised business
+// contracts. These actual IPC fixtures require native CI, never real mail.
+mod reminder_and_recurrence_workers {
+    use super::*;
+
+    #[derive(Clone, Copy, Debug)]
+    enum Operation {
+        Settings,
+        Scan,
+        Generate,
+    }
+
+    const OPERATIONS: [Operation; 3] = [Operation::Settings, Operation::Scan, Operation::Generate];
+
+    #[derive(Clone)]
+    struct Inputs {
+        invoice_id: String,
+        order_id: String,
+        scan: ScanRemindersInput,
+        generate: GenerateRecurrenceOccurrencesInput,
+    }
+
+    fn inputs(store: &LocalStore) -> Inputs {
+        crate::tests::enable_accounting(store);
+        let today = Local::now().date_naive();
+        let issue_date = (today - ChronoDuration::days(60))
+            .format("%Y-%m-%d")
+            .to_string();
+        let due_date = (today - ChronoDuration::days(30))
+            .format("%Y-%m-%d")
+            .to_string();
+        let client = store
+            .create_record(
+                "clients",
+                json!({
+                    "name":"Synthetic reminder client",
+                    "email":"billing@synthetic.example",
+                    "address_line1":"Rue du Test", "address_line2":"1", "postal_code":"1000",
+                    "city":"Lausanne", "country":"CH"
+                }),
+            )
+            .unwrap();
+        let client_id = client["id"].as_str().unwrap().to_owned();
+        let invoice = store
+            .create_record(
+                "invoices",
+                json!({
+                    "client_id":client_id, "title":"Synthetic overdue invoice",
+                    "service_date_from":issue_date, "service_date_to":issue_date
+                }),
+            )
+            .unwrap();
+        let invoice_id = invoice["id"].as_str().unwrap().to_owned();
+        store
+            .create_record(
+                "invoice_items",
+                json!({
+                    "invoice_id":invoice_id, "description":"Synthetic service",
+                    "quantity":1, "unit":"forfait", "unit_price_cents":10000, "vat_bp":0
+                }),
+            )
+            .unwrap();
+        store
+            .issue_invoice(&invoice_id, Some(issue_date), Some(due_date))
+            .unwrap();
+        store
+            .install_reminder_cycle(InstallReminderCycleInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                sender_name: Some("Synthetic reminder company".into()),
+            })
+            .unwrap();
+        let order = store
+            .save_sales_order_draft(crate::models::SaveSalesOrderDraftInput {
+                order: crate::models::SalesOrderDraftInput {
+                    id: None,
+                    client_id,
+                    project_id: None,
+                    title: "Synthetic recurring service".into(),
+                    order_date: "2024-01-01".into(),
+                    currency: "CHF".into(),
+                    notes: None,
+                    terms: None,
+                },
+                lines: vec![crate::models::SalesOrderLineInput {
+                    id: None,
+                    catalog_item_id: None,
+                    position: 0,
+                    description: "Synthetic recurring service".into(),
+                    quantity_milli: 1500,
+                    unit: "heure".into(),
+                    unit_price_cents: 20000,
+                    discount_bp: 500,
+                    vat_bp: 0,
+                    fulfillment_mode: "direct".into(),
+                }],
+            })
+            .unwrap();
+        let order_id = order["order"]["id"].as_str().unwrap().to_owned();
+        store
+            .confirm_sales_order(crate::models::ConfirmSalesOrderInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                sales_order_id: order_id.clone(),
+            })
+            .unwrap();
+        let schedule = store
+            .create_recurrence_schedule(CreateRecurrenceScheduleInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                source_sales_order_id: order_id.clone(),
+                frequency: "monthly".into(),
+                start_date: "2024-01-31".into(),
+                end_date: None,
+                payment_terms_days: 10,
+            })
+            .unwrap();
+        Inputs {
+            invoice_id,
+            order_id,
+            scan: ScanRemindersInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                as_of: Some(today.format("%Y-%m-%d").to_string()),
+            },
+            generate: GenerateRecurrenceOccurrencesInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                schedule_id: schedule["schedule"]["id"].as_str().unwrap().to_owned(),
+                through_date: "2024-03-31".into(),
+            },
+        }
+    }
+
+    fn snapshot(store: &LocalStore) -> Value {
+        let connection = store.connect().unwrap();
+        let mut snapshot = serde_json::Map::new();
+        for table in [
+            "settings",
+            "clients",
+            "invoices",
+            "invoice_items",
+            "invoice_qr_bills",
+            "payments",
+            "customer_invoice_credit_movements",
+            "reminder_settings",
+            "reminder_templates",
+            "reminders",
+            "reminder_history",
+            "reminder_deliveries",
+            "reminder_operation_requests",
+            "sales_orders",
+            "sales_order_lines",
+            "recurrence_schedules",
+            "recurrence_occurrences",
+            "recurrence_operation_requests",
+            "stock_movements",
+            "journal_entries",
+            "journal_lines",
+            "audit_log",
+            "company_local_clock",
+        ] {
+            let order = if table == "customer_invoice_credit_movements" {
+                "id,date,invoice_id"
+            } else {
+                "rowid"
+            };
+            snapshot.insert(
+                table.into(),
+                Value::Array(
+                    crate::database::query_all(
+                        &connection,
+                        &format!("SELECT * FROM {table} ORDER BY {order}"),
+                        [],
+                    )
+                    .unwrap(),
+                ),
+            );
+        }
+        Value::Object(snapshot)
+    }
+
+    async fn run(
+        state: State<'_, LocalStore>,
+        operation: Operation,
+        input: Inputs,
+        expected: Option<String>,
+    ) -> Result<Value, String> {
+        match operation {
+            Operation::Settings => get_reminder_settings(state, expected).await,
+            Operation::Scan => scan_due_reminders(state, input.scan, expected).await,
+            Operation::Generate => {
+                generate_recurrence_occurrences(state, input.generate, expected).await
+            }
+        }
+    }
+
+    fn receipt_matches(operation: Operation, input: &Inputs, receipt: &Value) {
+        match operation {
+            Operation::Settings => {
+                assert_eq!(receipt["enabled"], true);
+                assert_eq!(receipt["sender_name"], "Synthetic reminder company");
+            }
+            Operation::Scan => {
+                assert_eq!(receipt["created"].as_array().unwrap().len(), 1);
+                assert_eq!(receipt["created"][0]["invoice_id"], input.invoice_id);
+                assert_eq!(receipt["created"][0]["level"], 1);
+                assert_eq!(receipt["created"][0]["status"], "due");
+                assert_eq!(receipt["created"][0]["balance_cents"], 10000);
+                assert_eq!(receipt["created"][0]["payment_deadline_days"], 10);
+                assert_eq!(receipt["cancelled"], json!([]));
+                assert_eq!(receipt["promoted"], json!([]));
+            }
+            Operation::Generate => {
+                assert_eq!(receipt["schedule"]["id"], input.generate.schedule_id);
+                assert_eq!(receipt["schedule"]["source_sales_order_id"], input.order_id);
+                assert_eq!(receipt["created_count"], 3);
+                assert_eq!(receipt["remaining_due"], 0);
+                assert_eq!(receipt["backlog_remaining"], false);
+                assert_eq!(receipt["schedule"]["next_scheduled_for"], "2024-04-30");
+                assert_eq!(receipt["schedule"]["status"], "active");
+                assert!(receipt["schedule"].get("source_snapshot_json").is_none());
+            }
+        }
+    }
+
+    fn assert_no_delivery_or_issued_recurrence(store: &LocalStore, before: &Value) {
+        let current = snapshot(store);
+        for table in [
+            "reminder_deliveries",
+            "invoice_qr_bills",
+            "payments",
+            "stock_movements",
+            "journal_entries",
+            "journal_lines",
+        ] {
+            assert_eq!(
+                current[table], before[table],
+                "unexpected side effect in {table}"
+            );
+        }
+        for occurrence in current["recurrence_occurrences"].as_array().unwrap() {
+            let invoice = current["invoices"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|invoice| invoice["id"] == occurrence["invoice_id"])
+                .unwrap();
+            assert_eq!(invoice["status"], "brouillon");
+            assert!(invoice["number"].is_null());
+            assert_eq!(invoice["paid_cents"], 0);
+            assert_eq!(invoice["total_cents"], 28500);
+            assert_eq!(invoice["vat_cents"], 0);
+        }
+    }
+
+    #[test]
+    fn all_three_actual_handlers_yield_under_store_mutex_and_keep_their_receipts() {
+        for operation in OPERATIONS {
+            let (_temporary, store) = fixture();
+            let input = inputs(&store);
+            let before = snapshot(&store);
+            let app = tauri::test::mock_builder()
+                .manage(store.clone())
+                .build(tauri::test::mock_context(tauri::test::noop_assets()))
+                .unwrap();
+            let receipt = responsive(
+                &store,
+                run(app.state(), operation, input.clone(), Some(scope(&store))),
+            )
+            .unwrap();
+            receipt_matches(operation, &input, &receipt);
+            if matches!(operation, Operation::Settings) {
+                assert_eq!(
+                    snapshot(&store),
+                    before,
+                    "a settings read must not mutate business rows"
+                );
+            }
+            assert_no_delivery_or_issued_recurrence(&store, &before);
+        }
+    }
+
+    #[test]
+    fn queued_handlers_refuse_origin_after_real_restore_with_the_same_invoice_and_schedule_ids() {
+        let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK
+            .lock()
+            .unwrap();
+        let (_temporary, store) = fixture();
+        let input = inputs(&store);
+        let backup = store
+            .create_backup(None, "reminder-recurrence-worker-test")
+            .unwrap();
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        for operation in OPERATIONS {
+            let origin = scope(&store);
+            let replacing = store.clone();
+            let archive = backup.clone();
+            let (ready_tx, ready_rx) = mpsc::channel();
+            let (replace_tx, replace_rx) = mpsc::channel();
+            let holder = thread::spawn(move || {
+                let _guard = replacing.lock().unwrap();
+                ready_tx.send(()).unwrap();
+                let continued = replace_rx.recv_timeout(Duration::from_secs(5)).is_ok();
+                replacing
+                    .restore_backup(&archive, "reminder-recurrence-worker-test")
+                    .unwrap();
+                (continued, snapshot(&replacing))
+            });
+            ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            let (result, ()) = tauri::async_runtime::block_on(join(
+                run(app.state(), operation, input.clone(), Some(origin.clone())),
+                async move {
+                    replace_tx.send(()).unwrap();
+                },
+            ));
+            let (continued, restored) = holder.join().unwrap();
+            assert!(continued, "{operation:?} kept the waiting executor blocked");
+            assert!(result
+                .unwrap_err()
+                .contains("L’entreprise ouverte a changé"));
+            assert_ne!(scope(&store), origin);
+            assert_eq!(
+                snapshot(&store),
+                restored,
+                "{operation:?} touched the replacement DB"
+            );
+            assert!(restored["invoices"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|row| row["id"] == input.invoice_id));
+            assert_eq!(
+                restored["recurrence_schedules"][0]["id"],
+                input.generate.schedule_id
+            );
+            assert_eq!(restored["sales_orders"][0]["id"], input.order_id);
+        }
+    }
+
+    #[test]
+    fn current_scope_and_legacy_none_preserve_replay_after_restore_without_duplicate_writes() {
+        let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK
+            .lock()
+            .unwrap();
+        for operation in OPERATIONS {
+            for scoped in [true, false] {
+                let (_temporary, store) = fixture();
+                let input = inputs(&store);
+                let origin = scope(&store);
+                let backup = store
+                    .create_backup(None, "reminder-recurrence-worker-test")
+                    .unwrap();
+                {
+                    let _guard = store.lock().unwrap();
+                    store
+                        .restore_backup(&backup, "reminder-recurrence-worker-test")
+                        .unwrap();
+                }
+                assert_ne!(scope(&store), origin);
+                let app = tauri::test::mock_builder()
+                    .manage(store.clone())
+                    .build(tauri::test::mock_context(tauri::test::noop_assets()))
+                    .unwrap();
+                let expected = scoped.then(|| scope(&store));
+                let before = snapshot(&store);
+                let first = responsive(
+                    &store,
+                    run(app.state(), operation, input.clone(), expected.clone()),
+                )
+                .unwrap();
+                receipt_matches(operation, &input, &first);
+                let confirmed = snapshot(&store);
+                let replay =
+                    responsive(&store, run(app.state(), operation, input.clone(), expected))
+                        .unwrap();
+                receipt_matches(operation, &input, &replay);
+                if !matches!(operation, Operation::Settings) {
+                    assert_eq!(first["idempotent"], false);
+                    assert_eq!(replay["idempotent"], true);
+                }
+                assert_eq!(
+                    snapshot(&store),
+                    confirmed,
+                    "replay changed rows for {operation:?}, scoped={scoped}"
+                );
+                assert_no_delivery_or_issued_recurrence(&store, &before);
+            }
+        }
+    }
+
+    #[test]
+    fn read_access_is_unchanged_and_both_writes_keep_license_role_and_origin_guards() {
+        for access in ["missing", "read_only", "foreign"] {
+            let (_temporary, store) = unlicensed_fixture();
+            let input = inputs(&store);
+            if access == "read_only" {
+                store
+                    .install_server_issued_license(&signed_fixture_token(&store, access))
+                    .unwrap();
+            } else if access == "foreign" {
+                let (_other_temporary, other) = fixture();
+                assert!(store
+                    .install_server_issued_license(&signed_fixture_token(&other, "owner"))
+                    .unwrap_err()
+                    .to_string()
+                    .contains("installation"));
+            }
+            let app = tauri::test::mock_builder()
+                .manage(store.clone())
+                .build(tauri::test::mock_context(tauri::test::noop_assets()))
+                .unwrap();
+            let before = snapshot(&store);
+            for expected in [Some(scope(&store)), None] {
+                let read = responsive(
+                    &store,
+                    run(
+                        app.state(),
+                        Operation::Settings,
+                        input.clone(),
+                        expected.clone(),
+                    ),
+                )
+                .unwrap();
+                receipt_matches(Operation::Settings, &input, &read);
+                for operation in [Operation::Scan, Operation::Generate] {
+                    let error = responsive(
+                        &store,
+                        run(app.state(), operation, input.clone(), expected.clone()),
+                    )
+                    .unwrap_err();
+                    assert!(
+                        error.contains("Licence requise") || error.contains("limité à la lecture"),
+                        "{access}/{operation:?}: {error}"
+                    );
+                    assert_eq!(snapshot(&store), before);
+                }
+            }
+            let mut malformed = input.clone();
+            malformed.scan.request_id = "bad-uuid".into();
+            malformed.generate.schedule_id = "bad-uuid".into();
+            for operation in OPERATIONS {
+                let error = responsive(
+                    &store,
+                    run(
+                        app.state(),
+                        operation,
+                        malformed.clone(),
+                        Some("expired-origin".into()),
+                    ),
+                )
+                .unwrap_err();
+                assert!(
+                    error.contains("L’entreprise ouverte a changé"),
+                    "{operation:?}: {error}"
+                );
+                assert_eq!(snapshot(&store), before);
+            }
+        }
+    }
+
+    #[test]
+    fn generation_and_scan_roll_back_all_rows_on_late_insert_or_audit_failure_then_retry_once() {
+        for operation in [Operation::Scan, Operation::Generate] {
+            for audit_failure in [false, true] {
+                let (_temporary, store) = fixture();
+                let input = inputs(&store);
+                // A second overdue invoice forces a failure after one reminder
+                // has already been written inside the same Immediate transaction.
+                if matches!(operation, Operation::Scan) {
+                    let original = store.connect().unwrap();
+                    let invoice = crate::database::query_all(
+                        &original,
+                        "SELECT * FROM invoices WHERE id=?",
+                        [&input.invoice_id],
+                    )
+                    .unwrap()
+                    .remove(0);
+                    drop(original);
+                    let second = store.create_record("invoices", json!({
+                        "client_id":invoice["client_id"], "title":"Synthetic second overdue",
+                        "service_date_from":invoice["service_date_from"],
+                        "service_date_to":invoice["service_date_to"]
+                    })).unwrap();
+                    let id = second["id"].as_str().unwrap().to_owned();
+                    store
+                        .create_record(
+                            "invoice_items",
+                            json!({
+                                "invoice_id":id, "description":"Synthetic second service",
+                                "quantity":1, "unit":"forfait", "unit_price_cents":10000, "vat_bp":0
+                            }),
+                        )
+                        .unwrap();
+                    store
+                        .issue_invoice(
+                            &id,
+                            Some(invoice["issue_date"].as_str().unwrap().to_owned()),
+                            Some(invoice["due_date"].as_str().unwrap().to_owned()),
+                        )
+                        .unwrap();
+                }
+                let connection = store.connect().unwrap();
+                let trigger = if audit_failure {
+                    "CREATE TRIGGER reminder_recurrence_test_failure BEFORE INSERT ON audit_log BEGIN SELECT RAISE(ABORT,'synthetic late audit failure'); END;"
+                } else if matches!(operation, Operation::Scan) {
+                    "CREATE TRIGGER reminder_recurrence_test_failure BEFORE INSERT ON reminders WHEN (SELECT COUNT(*) FROM reminders)>=1 BEGIN SELECT RAISE(ABORT,'synthetic second reminder failure'); END;"
+                } else {
+                    "CREATE TRIGGER reminder_recurrence_test_failure BEFORE INSERT ON invoices WHEN (SELECT COUNT(*) FROM recurrence_occurrences)>=1 BEGIN SELECT RAISE(ABORT,'synthetic second occurrence failure'); END;"
+                };
+                connection.execute_batch(trigger).unwrap();
+                drop(connection);
+                let before = snapshot(&store);
+                let app = tauri::test::mock_builder()
+                    .manage(store.clone())
+                    .build(tauri::test::mock_context(tauri::test::noop_assets()))
+                    .unwrap();
+                let error = responsive(
+                    &store,
+                    run(app.state(), operation, input.clone(), Some(scope(&store))),
+                )
+                .unwrap_err();
+                assert!(
+                    error.contains("synthetic"),
+                    "{operation:?}/audit={audit_failure}: {error}"
+                );
+                assert_eq!(
+                    snapshot(&store),
+                    before,
+                    "partial {operation:?} transaction survived"
+                );
+                store
+                    .connect()
+                    .unwrap()
+                    .execute_batch("DROP TRIGGER reminder_recurrence_test_failure;")
+                    .unwrap();
+                let first = responsive(
+                    &store,
+                    run(app.state(), operation, input.clone(), Some(scope(&store))),
+                )
+                .unwrap();
+                let confirmed = snapshot(&store);
+                if matches!(operation, Operation::Scan) {
+                    assert_eq!(first["created"].as_array().unwrap().len(), 2);
+                } else {
+                    receipt_matches(operation, &input, &first);
+                }
+                let replay = responsive(
+                    &store,
+                    run(app.state(), operation, input.clone(), Some(scope(&store))),
+                )
+                .unwrap();
+                assert_eq!(replay["idempotent"], true);
+                assert_eq!(snapshot(&store), confirmed);
+                assert_no_delivery_or_issued_recurrence(&store, &before);
+            }
+        }
+    }
+
+    #[test]
+    fn recurrence_stays_capped_supervised_and_month_end_anchored_without_issuing_or_sending() {
+        let (_temporary, store) = fixture();
+        let mut input = inputs(&store);
+        input.generate.through_date = "2025-03-31".into();
+        let before = snapshot(&store);
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let first = responsive(
+            &store,
+            run(
+                app.state(),
+                Operation::Generate,
+                input.clone(),
+                Some(scope(&store)),
+            ),
+        )
+        .unwrap();
+        assert_eq!(first["created_count"], 12);
+        assert_eq!(first["remaining_due"], 3);
+        assert_eq!(first["schedule"]["status"], "review_required");
+        assert_eq!(first["occurrences"][1]["scheduled_for"], "2024-02-29");
+        assert_eq!(first["occurrences"][2]["scheduled_for"], "2024-03-31");
+        let confirmed = snapshot(&store);
+        let replay = responsive(
+            &store,
+            run(
+                app.state(),
+                Operation::Generate,
+                input.clone(),
+                Some(scope(&store)),
+            ),
+        )
+        .unwrap();
+        assert_eq!(replay["idempotent"], true);
+        assert_eq!(snapshot(&store), confirmed);
+        input.generate.request_id = uuid::Uuid::new_v4().to_string();
+        let paused = responsive(
+            &store,
+            run(
+                app.state(),
+                Operation::Generate,
+                input.clone(),
+                Some(scope(&store)),
+            ),
+        )
+        .unwrap();
+        assert_eq!(paused["created_count"], 0);
+        assert_eq!(paused["remaining_due"], 3);
+        assert_eq!(paused["schedule"]["status"], "review_required");
+        store
+            .update_recurrence_schedule(UpdateRecurrenceScheduleInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                schedule_id: input.generate.schedule_id.clone(),
+                status: "active".into(),
+                end_date: None,
+            })
+            .unwrap();
+        input.generate.request_id = uuid::Uuid::new_v4().to_string();
+        let resumed = responsive(
+            &store,
+            run(app.state(), Operation::Generate, input, Some(scope(&store))),
+        )
+        .unwrap();
+        assert_eq!(resumed["created_count"], 3);
+        assert_eq!(resumed["remaining_due"], 0);
+        assert_eq!(resumed["schedule"]["status"], "active");
+        assert_no_delivery_or_issued_recurrence(&store, &before);
+    }
+
+    #[test]
+    fn scans_preserve_open_cycles_future_rejection_and_settlement_priority() {
+        let (_temporary, store) = fixture();
+        let mut input = inputs(&store);
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let first = responsive(
+            &store,
+            run(
+                app.state(),
+                Operation::Scan,
+                input.clone(),
+                Some(scope(&store)),
+            ),
+        )
+        .unwrap();
+        let reminder_id = first["created"][0]["id"].as_str().unwrap().to_owned();
+        let confirmed = snapshot(&store);
+        input.scan.request_id = uuid::Uuid::new_v4().to_string();
+        let second = responsive(
+            &store,
+            run(
+                app.state(),
+                Operation::Scan,
+                input.clone(),
+                Some(scope(&store)),
+            ),
+        )
+        .unwrap();
+        assert_eq!(second["created"], json!([]));
+        assert!(second["review"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["reason"] == "already_open"));
+        assert_eq!(snapshot(&store)["reminders"], confirmed["reminders"]);
+        input.scan.request_id = uuid::Uuid::new_v4().to_string();
+        input.scan.as_of = Some(
+            (Local::now().date_naive() + ChronoDuration::days(1))
+                .format("%Y-%m-%d")
+                .to_string(),
+        );
+        let before_future = snapshot(&store);
+        assert!(responsive(
+            &store,
+            run(
+                app.state(),
+                Operation::Scan,
+                input.clone(),
+                Some(scope(&store))
+            )
+        )
+        .unwrap_err()
+        .contains("futur"));
+        assert_eq!(snapshot(&store), before_future);
+        // Payment is recorded by its normal business method. The later scan
+        // cannot advance this settled cycle or claim a message was sent.
+        input.scan.as_of = Some(Local::now().format("%Y-%m-%d").to_string());
+        store
+            .record_payment(RecordPaymentInput {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                invoice_id: input.invoice_id.clone(),
+                amount_cents: 10000,
+                date: input.scan.as_of.clone(),
+                method: None,
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+        let after_payment = snapshot(&store);
+        input.scan.request_id = uuid::Uuid::new_v4().to_string();
+        let settled = responsive(
+            &store,
+            run(app.state(), Operation::Scan, input, Some(scope(&store))),
+        )
+        .unwrap();
+        assert_eq!(settled["created"], json!([]));
+        let current = snapshot(&store);
+        let reminder = current["reminders"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == reminder_id)
+            .unwrap();
+        assert_eq!(reminder["status"], "cancelled");
+        assert_no_delivery_or_issued_recurrence(&store, &after_payment);
+    }
+
+    // Original bodies from the previous source (only names/formatting differ).
+    // Their tests witness the old admission contract, not local execution here.
+    fn historical_get_reminder_settings(state: State<'_, LocalStore>) -> Result<Value, String> {
+        let _guard = state.lock().map_err(command_error)?;
+        state.get_reminder_settings().map_err(command_error)
+    }
+
+    fn historical_scan_due_reminders(
+        state: State<'_, LocalStore>,
+        input: ScanRemindersInput,
+    ) -> Result<Value, String> {
+        let _guard = state.lock().map_err(command_error)?;
+        require_write(&state)?;
+        state.scan_due_reminders(input).map_err(command_error)
+    }
+
+    fn historical_generate_recurrence_occurrences(
+        state: State<'_, LocalStore>,
+        input: GenerateRecurrenceOccurrencesInput,
+    ) -> Result<Value, String> {
+        let _guard = state.lock().map_err(command_error)?;
+        require_write(&state)?;
+        state
+            .generate_recurrence_occurrences(input)
+            .map_err(command_error)
+    }
+
+    #[test]
+    fn historical_same_id_restore_admits_the_new_space_while_scoped_handlers_refuse_it() {
+        let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK
+            .lock()
+            .unwrap();
+        for operation in OPERATIONS {
+            let (_temporary, store) = fixture();
+            let input = inputs(&store);
+            let origin = scope(&store);
+            let backup = store
+                .create_backup(None, "reminder-recurrence-worker-test")
+                .unwrap();
+            {
+                let _guard = store.lock().unwrap();
+                store
+                    .restore_backup(&backup, "reminder-recurrence-worker-test")
+                    .unwrap();
+            }
+            let app = tauri::test::mock_builder()
+                .manage(store.clone())
+                .build(tauri::test::mock_context(tauri::test::noop_assets()))
+                .unwrap();
+            let before = snapshot(&store);
+            assert!(responsive(
+                &store,
+                run(app.state(), operation, input.clone(), Some(origin))
+            )
+            .unwrap_err()
+            .contains("L’entreprise ouverte a changé"));
+            assert_eq!(snapshot(&store), before);
+            let historical = match operation {
+                Operation::Settings => historical_get_reminder_settings(app.state()),
+                Operation::Scan => historical_scan_due_reminders(app.state(), input.scan.clone()),
+                Operation::Generate => {
+                    historical_generate_recurrence_occurrences(app.state(), input.generate.clone())
+                }
+            }
+            .unwrap();
+            receipt_matches(operation, &input, &historical);
+            if !matches!(operation, Operation::Settings) {
+                assert_ne!(
+                    snapshot(&store),
+                    before,
+                    "the old contract must really mutate the replacement DB"
+                );
+            }
+        }
+    }
+}

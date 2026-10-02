@@ -640,6 +640,8 @@ function WorkspaceContent({
   const workspaceRef = useRef(workspace);
   const actionInFlight = useRef(false);
   const actionLifetime = useRef(false);
+  const backgroundReadOnly = useRef(readOnly);
+  backgroundReadOnly.current = readOnly;
   useLayoutEffect(() => {
     actionLifetime.current = true;
     return () => { actionLifetime.current = false; };
@@ -698,7 +700,6 @@ function WorkspaceContent({
                 if(created.length!==1)throw new Error(t('Sélectionnez le fournisseur ajouté dans la liste.'));
                 return created[0].id;
               }} onOpen={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}}/>;
-  const workspaceMounted = useRef(true);
   const projectWorkspaceReceiver = useRef(setWorkspace);
   const projectWorkspaceScope = useRef('');
   projectWorkspaceScope.current = JSON.stringify([cloudAccount?.organizationId ?? null, workspace.workNotesScope ?? null]);
@@ -887,11 +888,6 @@ function WorkspaceContent({
     };
   }, [settingsFocusTarget, view]);
 
-  useEffect(() => {
-    workspaceMounted.current = true;
-    return () => { workspaceMounted.current = false; };
-  }, []);
-
   const runRecurrenceScan = useCallback(async () => {
     if (readOnly || actionInFlight.current || recurrenceScanInFlight.current || isWorkspaceRecoveryPending()) return;
     if (
@@ -901,6 +897,16 @@ function WorkspaceContent({
       return;
     const throughDate = todayIso();
     const initialWorkspace = workspaceRef.current;
+    const originWorkspaceScope = initialWorkspace.workNotesScope;
+    const isOriginWorkspace = () => actionLifetime.current && workspaceRef.current.workNotesScope === originWorkspaceScope;
+    const mayContinue = () => isOriginWorkspace() && !backgroundReadOnly.current;
+    // Automatic writes need an identified space; legacy unscoped commands are
+    // reserved for explicit callers, never for a delayed background operation.
+    if (!originWorkspaceScope || !mayContinue()) return;
+    const validateOriginWorkspace = (next: Workspace) => {
+      if (next.workNotesScope !== originWorkspaceScope)
+        throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+    };
     const dueSchedules = recurrenceSchedulesDue(
       initialWorkspace.recurrenceSchedules,
       throughDate,
@@ -926,30 +932,38 @@ function WorkspaceContent({
           }
           return requestId;
         },
-        shouldContinue: () => workspaceMounted.current,
+        shouldContinue: mayContinue,
         generate: async (input) => {
           try {
-            return await desktopApi.generateRecurrenceOccurrences(input);
+            return await desktopApi.generateRecurrenceOccurrences(input, originWorkspaceScope);
           } catch (reason) {
-            if (!workspaceMounted.current || !(reason instanceof WorkspaceRefreshAfterMutationError)) throw reason;
+            if (!mayContinue() || !(reason instanceof WorkspaceRefreshAfterMutationError)) throw reason;
             try {
-              return await desktopApi.loadWorkspace();
+              const next = await desktopApi.loadWorkspace();
+              if (!mayContinue()) throw reason;
+              validateOriginWorkspace(next);
+              return next;
             } catch (refreshCause) {
-              if (!workspaceMounted.current) throw reason;
-              const recovered = await waitForRefresh(refreshCause);
-              if (recovered) return recovered;
+              if (!mayContinue()) throw reason;
+              const recovered = await waitForRefresh(refreshCause, false, validateOriginWorkspace);
+              if (!mayContinue()) throw reason;
+              if (recovered) {
+                validateOriginWorkspace(recovered);
+                return recovered;
+              }
               throw reason;
             }
           }
         },
         onSuccess: (nextWorkspace, schedule) => {
-          if (!workspaceMounted.current) return;
+          if (!isOriginWorkspace()) return;
+          validateOriginWorkspace(nextWorkspace);
           workspaceRef.current = nextWorkspace;
           setWorkspace(nextWorkspace);
           recurrenceRequestIds.current.delete(`${schedule.id}:${throughDate}`);
         },
       });
-      if (!workspaceMounted.current) return;
+      if (!isOriginWorkspace()) return;
       const latestWorkspace = batch.latestResult ?? initialWorkspace;
       const createdCount = latestWorkspace.recurrenceOccurrences.filter(
         (item) => !previousOccurrenceIds.has(item.id),
@@ -986,6 +1000,7 @@ function WorkspaceContent({
         });
       }
     } catch (reason) {
+      if (!isOriginWorkspace()) return;
       setNotice({
         tone: 'error',
         text: errorMessage(
@@ -996,7 +1011,7 @@ function WorkspaceContent({
     } finally {
       recurrenceScanInFlight.current = false;
       actionInFlight.current = false;
-      if (workspaceMounted.current) setBusy(false);
+      if (isOriginWorkspace()) setBusy(false);
     }
   }, [readOnly, setWorkspace, isWorkspaceRecoveryPending, waitForRefresh]);
 
@@ -1027,17 +1042,22 @@ function WorkspaceContent({
       document.visibilityState === 'hidden'
     )
       return;
+    const originWorkspaceScope = workspaceRef.current.workNotesScope;
+    const isOriginWorkspace = () => actionLifetime.current && workspaceRef.current.workNotesScope === originWorkspaceScope;
+    const mayContinue = () => isOriginWorkspace() && !backgroundReadOnly.current;
+    if (!originWorkspaceScope || !mayContinue()) return;
     reminderScanInFlight.current = true;
     const asOf = todayIso();
     try {
-      const reminderSettings = await desktopApi.getReminderSettings();
-      if (!reminderSettings.enabled) return;
+      const reminderSettings = await desktopApi.getReminderSettings(originWorkspaceScope);
+      if (!mayContinue() || !reminderSettings.enabled) return;
       let requestId = reminderRequestIds.current.get(asOf);
       if (!requestId) {
         requestId = createId();
         reminderRequestIds.current.set(asOf, requestId);
       }
-      const result = await desktopApi.scanDueReminders(requestId, asOf);
+      const result = await desktopApi.scanDueReminders(requestId, asOf, originWorkspaceScope);
+      if (!isOriginWorkspace()) return;
       reminderRequestIds.current.delete(asOf);
       setReminderRefreshSignal((value) => value + 1);
       const reminderAnomalies = result.review.filter(
@@ -1055,6 +1075,7 @@ function WorkspaceContent({
         });
       }
     } catch (reason) {
+      if (!isOriginWorkspace()) return;
       setNotice({
         tone: 'error',
         text: errorMessage(

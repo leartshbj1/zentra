@@ -1048,15 +1048,22 @@ pub fn update_recurrence_schedule(
 }
 
 #[tauri::command]
-pub fn generate_recurrence_occurrences(
+pub async fn generate_recurrence_occurrences(
     state: State<'_, LocalStore>,
     input: GenerateRecurrenceOccurrencesInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .generate_recurrence_occurrences(input)
-        .map_err(command_error)
+    run_scoped_local_operation(
+        state.inner().clone(),
+        expected_workspace_scope,
+        move |store| {
+            require_write(store)?;
+            store
+                .generate_recurrence_occurrences(input)
+                .map_err(command_error)
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1338,9 +1345,16 @@ pub fn get_income_statement(
 }
 
 #[tauri::command]
-pub fn get_reminder_settings(state: State<'_, LocalStore>) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.get_reminder_settings().map_err(command_error)
+pub async fn get_reminder_settings(
+    state: State<'_, LocalStore>,
+    expected_workspace_scope: Option<String>,
+) -> Result<Value, String> {
+    run_scoped_local_operation(
+        state.inner().clone(),
+        expected_workspace_scope,
+        move |store| store.get_reminder_settings().map_err(command_error),
+    )
+    .await
 }
 #[tauri::command]
 pub fn update_reminder_settings(
@@ -1390,13 +1404,20 @@ pub fn generate_due_reminders(
     state.generate_due_reminders(as_of).map_err(command_error)
 }
 #[tauri::command]
-pub fn scan_due_reminders(
+pub async fn scan_due_reminders(
     state: State<'_, LocalStore>,
     input: ScanRemindersInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.scan_due_reminders(input).map_err(command_error)
+    run_scoped_local_operation(
+        state.inner().clone(),
+        expected_workspace_scope,
+        move |store| {
+            require_write(store)?;
+            store.scan_due_reminders(input).map_err(command_error)
+        },
+    )
+    .await
 }
 #[tauri::command]
 pub fn list_reminders(
