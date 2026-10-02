@@ -672,8 +672,8 @@ function WorkspaceContent({
   }, [inboxWorkspaceReception, receptionScope]);
   const publishInboxWorkspace = (next: Workspace) => { workspaceRef.current = next; setWorkspace(next); };
   const refreshInboxWorkspace = () => inboxWorkspaceReception.request();
-  const supplierInbox = useSupplierInbox(inboxOrganization, readOnly, inboxBlocked, publishInboxWorkspace, refreshInboxWorkspace);
-  const appointmentInbox = useAppointmentInbox(inboxOrganization, readOnly, inboxBlocked, publishInboxWorkspace, refreshInboxWorkspace);
+  const supplierInbox = useSupplierInbox(inboxOrganization, readOnly, inboxBlocked, publishInboxWorkspace, refreshInboxWorkspace, workspace.workNotesScope);
+  const appointmentInbox = useAppointmentInbox(inboxOrganization, readOnly, inboxBlocked, publishInboxWorkspace, refreshInboxWorkspace, workspace.workNotesScope);
   const openAutomationAppointment = (id: string) => {
     const organizationId = cloudAccount?.organizationId;
     if (!organizationId || appointmentInbox.state?.organizationId !== organizationId || !workspaceRef.current.agendaEvents.some(event => event.id === id)) {

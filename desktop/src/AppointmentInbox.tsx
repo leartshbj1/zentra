@@ -1,5 +1,5 @@
 import { t, useAppLanguage } from './language';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { diagnosticInvoke as invoke } from './diagnostics';
 import { CalendarDays, Check, ChevronRight } from 'lucide-react';
 import type { Workspace } from './types';
@@ -47,12 +47,19 @@ export function useAppointmentInbox(
   blocked: () => boolean,
   onWorkspace: (w: Workspace) => void,
   refreshWorkspace?: () => Promise<void>,
+  workspaceScope?: string,
 ) {
   const [state, setState] = useState<State | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
-  const context = useRef({ org, readOnly, blocked, onWorkspace, refreshWorkspace });
-  context.current = { org, readOnly, blocked, onWorkspace, refreshWorkspace };
+  const context = useRef({ org, readOnly, blocked, onWorkspace, refreshWorkspace, workspaceScope });
+  context.current = { org, readOnly, blocked, onWorkspace, refreshWorkspace, workspaceScope };
+  const lifetime = useRef({ active: true, generation: 0 });
+  useLayoutEffect(() => {
+    lifetime.current.active = true;
+    lifetime.current.generation++;
+    return () => { lifetime.current.active = false; lifetime.current.generation++; };
+  }, [org, workspaceScope]);
   const running = useRef(false);
   const refresh = useCallback(async () => {
     if (
@@ -113,6 +120,8 @@ export function useAppointmentInbox(
       running.current = false;
     }
   }, [org]);
+  const latestRefresh = useRef(refresh);
+  latestRefresh.current = refresh;
   useEffect(() => {
     setState(null);
     setError('');
@@ -130,20 +139,29 @@ export function useAppointmentInbox(
     };
   }, [refresh]);
   async function act(data: unknown) {
-    if (!org || running.current || context.current.readOnly)
+    const generation = lifetime.current.generation;
+    const isCurrent = () => lifetime.current.active && lifetime.current.generation === generation
+      && context.current.org === org && context.current.workspaceScope === workspaceScope;
+    if (!org || !isCurrent() || running.current || context.current.readOnly)
       throw Error('Attendez la fin de la réception en cours.');
     running.current = true;
     setBusy(true);
     try {
       await request(data);
-      const w = await desktopApi.loadWorkspace();
-      if (context.current.org !== org) return;
-      context.current.onWorkspace(w);
-      window.dispatchEvent(new Event('zentra-automation-updated'));
+      if (isCurrent()) {
+        const reconcile = async () => {
+          if (context.current.refreshWorkspace) await context.current.refreshWorkspace();
+          else {
+            const w = await desktopApi.loadWorkspace();
+            if (isCurrent() && (!workspaceScope || w.workNotesScope === workspaceScope)) context.current.onWorkspace(w);
+          }
+        };
+        void reconcile().catch(reason => { if (isCurrent()) setError(String(reason)); });
+        window.dispatchEvent(new Event('zentra-automation-updated'));
+      }
     } finally {
       running.current = false;
-      setBusy(false);
-      void refresh();
+      if (lifetime.current.active) { setBusy(false); void latestRefresh.current(); }
     }
   }
   return { state: state?.organizationId === org ? state : null, error: state && state.organizationId !== org ? '' : error, busy, act };
@@ -167,7 +185,7 @@ export function AppointmentInbox({
   useEffect(() => {
     setSelected(null);
     setError('');
-  }, [inbox.state?.organizationId]);
+  }, [inbox.state?.organizationId, workspace.workNotesScope]);
   if (!inbox.state?.active) return null;
   const pending = inbox.state.items.filter(
     (i) => !['imported', 'ignored'].includes(i.state),

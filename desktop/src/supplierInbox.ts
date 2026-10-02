@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { diagnosticInvoke as invoke } from './diagnostics';
 import { desktopApi } from './bridge';
 import type { Workspace } from './types';
@@ -83,12 +83,19 @@ export function useSupplierInbox(
   blocked: () => boolean,
   onWorkspace: (w: Workspace) => void,
   refreshWorkspace?: () => Promise<void>,
+  workspaceScope?: string,
 ) {
   const [state, setState] = useState<SupplierInboxState | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
-  const current = useRef({ org, readOnly, blocked, onWorkspace, refreshWorkspace });
-  current.current = { org, readOnly, blocked, onWorkspace, refreshWorkspace };
+  const current = useRef({ org, readOnly, blocked, onWorkspace, refreshWorkspace, workspaceScope });
+  current.current = { org, readOnly, blocked, onWorkspace, refreshWorkspace, workspaceScope };
+  const lifetime = useRef({ active: true, generation: 0 });
+  useLayoutEffect(() => {
+    lifetime.current.active = true;
+    lifetime.current.generation++;
+    return () => { lifetime.current.active = false; lifetime.current.generation++; };
+  }, [org, workspaceScope]);
   const running = useRef(false);
   const preparedSuppliers = useRef(new Set<string>());
   useEffect(() => { preparedSuppliers.current.clear(); }, [org]);
@@ -168,6 +175,8 @@ export function useSupplierInbox(
       running.current = false;
     }
   }, [org, readOnly]);
+  const latestRefresh = useRef(refresh);
+  latestRefresh.current = refresh;
   useEffect(() => {
     setState(null);
     setError('');
@@ -189,7 +198,10 @@ export function useSupplierInbox(
     invoice: InboxDraft,
     confirm = false,
   ) => {
-    if (readOnly || running.current)
+    const generation = lifetime.current.generation;
+    const isCurrent = () => lifetime.current.active && lifetime.current.generation === generation
+      && current.current.org === org && current.current.workspaceScope === workspaceScope;
+    if (!org || !isCurrent() || item.organizationId !== org || current.current.readOnly || running.current)
       throw Error('Attendez la fin de la réception en cours.');
     running.current = true;
     setBusy(true);
@@ -198,20 +210,25 @@ export function useSupplierInbox(
         saved?: boolean;
         id: string;
         alreadyImported?: boolean;
+        posted?: boolean;
       }>({ action: 'import', id: item.id, invoice, automatic: false, confirm });
-      if (current.current.org !== org) throw Error('L’entreprise a changé.');
-      const workspace = await desktopApi.loadWorkspace();
-      if (current.current.org !== org) throw Error('L’entreprise a changé.');
-      current.current.onWorkspace(workspace);
-      window.dispatchEvent(new Event('zentra-automation-updated'));
-      const posted =
-        workspace.supplierInvoices.find((row) => row.id === result.id)
-          ?.documentStatus === 'validated';
-      return { id: result.id, workspace, posted };
+      if (isCurrent()) {
+        // The native receipt is definitive. A failed/read-delayed UI refresh
+        // must not reopen this mutation or make its confirmation repeatable.
+        const reconcile = async () => {
+          if (current.current.refreshWorkspace) await current.current.refreshWorkspace();
+          else {
+            const workspace = await desktopApi.loadWorkspace();
+            if (isCurrent() && (!workspaceScope || workspace.workNotesScope === workspaceScope)) current.current.onWorkspace(workspace);
+          }
+        };
+        void reconcile().catch(reason => { if (isCurrent()) setError(String(reason)); });
+        window.dispatchEvent(new Event('zentra-automation-updated'));
+      }
+      return { id: result.id, posted: result.posted, current: isCurrent() };
     } finally {
       running.current = false;
-      setBusy(false);
-      void refresh();
+      if (lifetime.current.active) { setBusy(false); void latestRefresh.current(); }
     }
   };
   const [batch, setBatch] = useState<MailboxBatch | null>(null);
