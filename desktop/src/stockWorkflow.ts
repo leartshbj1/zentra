@@ -6,9 +6,10 @@ import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 
 export type StockIssue = { field: 'quantity' | 'reason' | 'reference' | 'date' | 'item'; message: string };
 export type StockDraft = { quantity: string; reason: string; reference: string; date: string };
-export type StockIntent = { requestId: string; catalogItemId: string; movementType: StockMovementType; quantityDeltaMilli: number; reason: string; reference?: string; date?: string; countedQuantityMilli?: number };
+export type StockIntent = { requestId: string; catalogItemId: string; movementType: StockMovementType; quantityDeltaMilli: number; reason: string; reference?: string; date?: string; countedQuantityMilli?: number; expectedWorkspaceScope?: string };
 
-export function requireStockWorkspace(value: Workspace) {
+export function requireStockWorkspace(value: Workspace, expectedWorkspaceScope?: string) {
+  if (expectedWorkspaceScope !== undefined && value.workNotesScope !== expectedWorkspaceScope) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
   if (!value.onboardingCompleted || !value.settings || !Array.isArray(value.catalogItems) || !Array.isArray(value.stockMovements) || !Array.isArray(value.stockReservationEvents) || !Array.isArray(value.stockAvailability)) throw new Error('Le catalogue et ses quantités n’ont pas pu être chargés. Réessayez l’actualisation.');
 }
 
@@ -23,7 +24,7 @@ export class WorkspaceStockOutcomeUnknownError extends Error {
 }
 
 export function stockWasRecorded(workspace: Workspace, intent: StockIntent): boolean {
-  requireStockWorkspace(workspace);
+  requireStockWorkspace(workspace, intent.expectedWorkspaceScope);
   const row = workspace.stockMovements.find(row => row.requestId === intent.requestId);
   return !!row && row.sourceType === 'manual' && row.catalogItemId === intent.catalogItemId
     && row.movementType === intent.movementType && row.quantityDeltaMilli === intent.quantityDeltaMilli

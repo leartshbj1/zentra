@@ -459,43 +459,51 @@ pub fn delete_agenda_event(
 }
 
 #[tauri::command]
-pub fn record_stock_entry(
+pub async fn record_stock_entry(
     state: State<'_, LocalStore>,
     input: StockEntryInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.record_stock_entry(input).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.record_stock_entry(input).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
-pub fn record_stock_exit(
+pub async fn record_stock_exit(
     state: State<'_, LocalStore>,
     input: StockExitInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.record_stock_exit(input).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.record_stock_exit(input).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
-pub fn record_stock_correction(
+pub async fn record_stock_correction(
     state: State<'_, LocalStore>,
     input: StockCorrectionInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.record_stock_correction(input).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.record_stock_correction(input).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
-pub fn record_stock_count(
+pub async fn record_stock_count(
     state: State<'_, LocalStore>,
     input: crate::models::StockCountInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.record_stock_count(input).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.record_stock_count(input).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
@@ -1842,7 +1850,7 @@ fn require_workspace_origin(store: &LocalStore, expected_workspace_scope: Option
     Ok(())
 }
 
-async fn run_scoped_local_operation<T, F>(store: LocalStore, expected_workspace_scope: Option<String>, operation: F) -> Result<T, String>
+pub(crate) async fn run_scoped_local_operation<T, F>(store: LocalStore, expected_workspace_scope: Option<String>, operation: F) -> Result<T, String>
 where
     T: Send + 'static,
     F: FnOnce(&LocalStore) -> Result<T, String> + Send + 'static,
@@ -1927,6 +1935,10 @@ mod import_worker_tests;
 #[cfg(test)]
 #[path = "commands_payroll_import_worker_tests.rs"]
 mod payroll_import_worker_tests;
+
+#[cfg(test)]
+#[path = "commands_stock_report_scope_tests.rs"]
+mod stock_report_scope_tests;
 
 #[cfg(test)]
 #[path = "commands_project_file_scope_tests.rs"]

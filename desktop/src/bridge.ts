@@ -5182,9 +5182,9 @@ export const desktopApi = {
     reason: string;
     reference?: string;
     date?: string;
-  }) {
+  }, expectedWorkspaceScope?: string) {
     const mutation = stockMovementMutation('entry', input);
-    return runStockMutation({...input,movementType:'entry',quantityDeltaMilli:input.quantityMilli},()=>invoke(mutation.command,mutation.args),loadWorkspace);
+    return runStockMutation({...input,expectedWorkspaceScope,movementType:'entry',quantityDeltaMilli:input.quantityMilli},()=>invoke(mutation.command,{...mutation.args,...(expectedWorkspaceScope !== undefined ? {expectedWorkspaceScope} : {})}),loadWorkspace);
   },
   async recordStockExit(input: {
     requestId: string;
@@ -5193,9 +5193,9 @@ export const desktopApi = {
     reason: string;
     reference?: string;
     date?: string;
-  }) {
+  }, expectedWorkspaceScope?: string) {
     const mutation = stockMovementMutation('exit', input);
-    return runStockMutation({...input,movementType:'exit',quantityDeltaMilli:-input.quantityMilli},()=>invoke(mutation.command,mutation.args),loadWorkspace);
+    return runStockMutation({...input,expectedWorkspaceScope,movementType:'exit',quantityDeltaMilli:-input.quantityMilli},()=>invoke(mutation.command,{...mutation.args,...(expectedWorkspaceScope !== undefined ? {expectedWorkspaceScope} : {})}),loadWorkspace);
   },
   async recordStockCorrection(input: {
     requestId: string;
@@ -5204,17 +5204,17 @@ export const desktopApi = {
     reason: string;
     reference?: string;
     date?: string;
-  }) {
+  }, expectedWorkspaceScope?: string) {
     const mutation = stockMovementMutation('correction', {
       ...input,
       quantityMilli: input.deltaQuantityMilli,
     });
-    return runStockMutation({...input,movementType:'correction',quantityDeltaMilli:input.deltaQuantityMilli},()=>invoke(mutation.command,mutation.args),loadWorkspace);
+    return runStockMutation({...input,expectedWorkspaceScope,movementType:'correction',quantityDeltaMilli:input.deltaQuantityMilli},()=>invoke(mutation.command,{...mutation.args,...(expectedWorkspaceScope !== undefined ? {expectedWorkspaceScope} : {})}),loadWorkspace);
   },
   async recordStockCount(input: {
     requestId:string; catalogItemId:string; expectedQuantityMilli:number; countedQuantityMilli:number; reason:string; reference?:string; date?:string;
-  }) {
-    return runStockMutation({...input,movementType:'correction',quantityDeltaMilli:input.countedQuantityMilli-input.expectedQuantityMilli},()=>invoke('record_stock_count',{input:{request_id:input.requestId,catalog_item_id:input.catalogItemId,expected_quantity_milli:input.expectedQuantityMilli,counted_quantity_milli:input.countedQuantityMilli,reason:input.reason.trim(),reference:input.reference?.trim()||null,date:input.date||null}}),loadWorkspace);
+  }, expectedWorkspaceScope?: string) {
+    return runStockMutation({...input,expectedWorkspaceScope,movementType:'correction',quantityDeltaMilli:input.countedQuantityMilli-input.expectedQuantityMilli},()=>invoke('record_stock_count',{...(expectedWorkspaceScope !== undefined ? {expectedWorkspaceScope} : {}),input:{request_id:input.requestId,catalog_item_id:input.catalogItemId,expected_quantity_milli:input.expectedQuantityMilli,counted_quantity_milli:input.countedQuantityMilli,reason:input.reason.trim(),reference:input.reference?.trim()||null,date:input.date||null}}),loadWorkspace);
   },
   async archiveEntity(entity: EntityKind, id: string) {
     const mutation = archiveEntityMutation(entity, id);
@@ -6550,11 +6550,18 @@ export const desktopApi = {
       balanced: boolValue(raw.balanced),
     };
   },
-  async exportProjectReportPdf(report: import('./projectReport').ProjectReport) {
-    const selected = await chooseSaveFile({title:'Exporter le rapport de projet',defaultPath:`Zentra-rapport-${report.title.replace(/[^\p{L}\p{N}-]/gu,'-').slice(0,80)}.pdf`,filters:[{name:'Rapport PDF',extensions:['pdf']}]});
-    if(!selected)return null;
-    const raw=await invoke<RawRecord>('export_project_report_pdf',{report,destinationPath:pdfDestinationPath(selected)});
-    return deliverPdfExport({path:stringValue(raw.path),pages:numberValue(raw.pages)});
+  async exportProjectReportPdf(report: import('./projectReport').ProjectReport, expectedWorkspaceScope?: string, isCurrent?: () => boolean) {
+    return diagnosticOperation('command', 'project_report.export', async () => {
+      const requireCurrent = () => { if (isCurrent && !isCurrent()) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.'); };
+      requireCurrent();
+      const selected = await chooseSaveFile({title:'Exporter le rapport de projet',defaultPath:`Zentra-rapport-${report.title.replace(/[^\p{L}\p{N}-]/gu,'-').slice(0,80)}.pdf`,filters:[{name:'Rapport PDF',extensions:['pdf']}]});
+      if(!selected)return null;
+      requireCurrent();
+      const raw=await invoke<RawRecord>('export_project_report_pdf',{report,destinationPath:pdfDestinationPath(selected),...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope})});
+      const result={path:stringValue(raw.path),pages:numberValue(raw.pages)};
+      if(isCurrent && !isCurrent())return result;
+      return deliverPdfExport(result);
+    });
   },
   async getCachedCloudAccountState(): Promise<CloudAccountState> {
     return cloudAccountStateFromRaw(

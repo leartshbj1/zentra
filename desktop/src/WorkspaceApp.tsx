@@ -86,7 +86,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import {DiagnosticsPanel} from './DiagnosticsPanel';
 import { ErrorGuidance } from './ErrorGuidance';
-import {recordDiagnostic, classifyDiagnosticError} from './diagnostics';
+import {recordDiagnostic, classifyDiagnosticError, diagnosticOperation} from './diagnostics';
 import {
   Archive,
   ArrowRight,
@@ -2593,12 +2593,27 @@ function WorkspaceContent({
           replace={next => setModal(current => { const value = typeof next === 'function' ? next(current) : next; return value && current?.returnToClientId ? { ...value, returnToClientId: current.returnToClientId } : value; })}
           act={act}
           onOpenClientEntry={openClientEntry}
-          onReadWorkspace={async () => {
+          onReadWorkspace={() => diagnosticOperation('app', 'workspace.stock_refresh', async () => {
+            const originWorkspaceScope = workspace.workNotesScope;
+            const isOriginWorkspace = () => actionLifetime.current && workspaceRef.current.workNotesScope === originWorkspaceScope;
+            const requireOriginWorkspace = () => {
+              if (!isOriginWorkspace()) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+            };
+            requireOriginWorkspace();
             if (actionInFlight.current || isWorkspaceRecoveryPending()) throw new Error('Attendez la fin de l’opération en cours.');
             actionInFlight.current=true;setBusy(true);
-            try { const next=await desktopApi.loadWorkspace();requireStockWorkspace(next);workspaceRef.current=next;setWorkspace(next);return next; }
-            finally {actionInFlight.current=false;setBusy(false);}
-          }}
+            try {
+              const next = await desktopApi.loadWorkspace();
+              requireOriginWorkspace();
+              if (next.workNotesScope !== originWorkspaceScope) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+              requireStockWorkspace(next);
+              requireOriginWorkspace();
+              workspaceRef.current=next;setWorkspace(next);return next;
+            } finally {
+              actionInFlight.current=false;
+              if (isOriginWorkspace()) setBusy(false);
+            }
+          })}
           onOpenSupplierCreditFromInvoice={(id, invoiceId) => { setSupplierFileReturnId(invoiceId); setModal(null); setSupplierCreditToOpenId(id); setSearch(''); setView('expenses'); }}
           onSuspendSupplierPayment={(state, section) => {
             if (supplierPaymentReturn && supplierPaymentReturn.resume?.requestId !== state.resume?.requestId && !window.confirm(t('Un autre paiement attend une correction. Remplacer sa saisie conservée par celle-ci ?'))) return;

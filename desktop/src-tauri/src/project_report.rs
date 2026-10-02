@@ -145,18 +145,26 @@ pub async fn export_project_report_pdf(
     state: State<'_, LocalStore>,
     report: ProjectReport,
     destination_path: String,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    crate::commands::run_locked_local_operation(state.inner().clone(), move |store| {
-        let path = validate_pdf_destination(&destination_path)?;
-        let mut db = store.connect()?;
-        store.require_onboarding(&db)?;
-        let tx = db.transaction()?;
-        let issuer = build_issuer_snapshot(&tx)?;
-        tx.commit()?;
-        let (bytes, pages) = render(&issuer, &report)?;
-        write_pdf(&path, &bytes)?;
-        Ok(json!({"path":path.to_string_lossy(),"pages":pages}))
-    })
+    crate::commands::run_scoped_local_operation(
+        state.inner().clone(),
+        expected_workspace_scope,
+        move |store| {
+            (|| -> AppResult<Value> {
+                let path = validate_pdf_destination(&destination_path)?;
+                let mut db = store.connect()?;
+                store.require_onboarding(&db)?;
+                let tx = db.transaction()?;
+                let issuer = build_issuer_snapshot(&tx)?;
+                tx.commit()?;
+                let (bytes, pages) = render(&issuer, &report)?;
+                write_pdf(&path, &bytes)?;
+                Ok(json!({"path":path.to_string_lossy(),"pages":pages}))
+            })()
+            .map_err(crate::error::command_error)
+        },
+    )
     .await
 }
 

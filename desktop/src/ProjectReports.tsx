@@ -1,5 +1,5 @@
 import { t, useAppLanguage } from './language';
-import { useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Download, ChevronRight, ChevronDown } from 'lucide-react';
 import type { Workspace } from './types';
 import { formatMoney, projectFinancials, errorMessage } from './utils';
@@ -24,7 +24,12 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
   const flight=useRef(false);
   const projects=useMemo(()=>recentReportProjects(workspace),[workspace,language]);
   const project=workspace.projects.find(p=>p.id===chosen) ?? (workspace.projects.length===1 ? workspace.projects[0] : undefined);
-  const currentId=useRef(project?.id);currentId.current=project?.id;
+  const lifetime=useRef({mounted:false,generation:0,scope:workspace.workNotesScope,projectId:project?.id});
+  useLayoutEffect(()=>{
+    lifetime.current={mounted:true,generation:lifetime.current.generation+1,scope:workspace.workNotesScope,projectId:project?.id};
+    flight.current=false;setBusy(false);setReceipt(null);setError('');
+    return()=>{lifetime.current={...lifetime.current,mounted:false,generation:lifetime.current.generation+1};};
+  },[workspace.workNotesScope,project?.id]);
   const report=useMemo(()=>project ? buildProjectReport(workspace,project,sections,{preset,author}) : null,[workspace,project,sections,preset,author,language]);
   const figures=useMemo(()=>project ? projectFinancials(project,workspace.invoices,workspace.payments,workspace.timeEntries,workspace.expenses,workspace.supplierInvoices,workspace.supplierCreditNotes) : null,[workspace,project]);
   const matches=projects.filter(p=>p.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
@@ -32,15 +37,17 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
   function choose(id:string) {setChosen(id);setReceipt(null);setError('');}
   function choosePreset(value:ReportPreset) {setPreset(value);setSections([...reportPresets[value].sections] as ReportSectionKey[]);setReceipt(null);setError('');}
   async function exportPdf() {
-    if(!report || !project || !sections.length || flight.current || busy)return;
-    const projectId=project.id;
+    if(!report || !project || !sections.length || flight.current || busy || !lifetime.current.mounted)return;
+    const origin={...lifetime.current},projectId=project.id;
+    const isCurrent=()=>lifetime.current.mounted && lifetime.current.generation===origin.generation && lifetime.current.scope===origin.scope && lifetime.current.projectId===projectId;
+    if(!isCurrent())return;
     flight.current=true;setBusy(true);setError('');setReceipt(null);
     try {
-      const result=await desktopApi.exportProjectReportPdf(report);
-      if(result && currentId.current===projectId)setReceipt({projectId,result});
+      const result=await desktopApi.exportProjectReportPdf(report,origin.scope,isCurrent);
+      if(result && isCurrent())setReceipt({projectId,result});
     } catch(reason) {
-      if(currentId.current===projectId)setError(errorMessage(reason,'Export du rapport impossible.'));
-    } finally {flight.current=false;setBusy(false);}
+      if(isCurrent())setError(errorMessage(reason,'Export du rapport impossible.'));
+    } finally {if(isCurrent()){flight.current=false;setBusy(false);}}
   }
   if(!projects.length)return <EmptyState icon={<BarChart3/>} title={t('Vos rapports de projet')} text={t('Créez un projet pour réunir son activité et ses documents dans un rapport.')} actionLabel={onOpenProjects ? t('Voir les projets') : undefined} onAction={onOpenProjects}/>;
   return <div className={`project-reports${project ? ' project-reports--selected' : ''}`}>

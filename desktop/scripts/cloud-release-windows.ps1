@@ -127,6 +127,9 @@ try {
         $diagnosticNativeSuites += @('commands::payroll_import_worker_tests::', 'payroll_import::tests::')
         $diagnosticFrontendSuites += @('src/payrollImportScopeBridge.test.ts', 'src/PayrollImportWizardLifecycle.test.tsx')
         $diagnosticMobileSuites += @('src/payrollImportScopeBridge.test.ts', 'src/PayrollImportWizardLifecycle.test.tsx')
+        $diagnosticNativeSuites += @('commands::stock_report_scope_tests::', 'stock::tests::')
+        $diagnosticFrontendSuites += @('src/stockMutation.test.ts', 'src/stockWorkflow.test.ts', 'src/stockScopedWorkflow.test.ts')
+        $diagnosticMobileSuites += @('src/stockMutation.test.ts', 'src/stockWorkflow.test.ts', 'src/stockScopedWorkflow.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

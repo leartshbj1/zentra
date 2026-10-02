@@ -188,6 +188,7 @@ fn real_annual_accounts_and_project_report_commands_render_without_blocking() {
             app.state(),
             report,
             destination.to_string_lossy().into_owned(),
+            None,
         ),
     )
     .unwrap();
