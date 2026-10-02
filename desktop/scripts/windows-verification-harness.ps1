@@ -1,0 +1,293 @@
+# Loaded only by the diagnostics verification branch. Production resources,
+# build.rs, DLLs and application executables are never modified here.
+Set-StrictMode -Version Latest
+
+function Assert-ZentraVerificationMode {
+    param([string]$Source)
+    if ($env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY -cne 'true' -or $env:ZENTRA_VERIFY_ONLY -cne 'true') {
+        throw 'The Windows test harness is available only in diagnostics verification-only mode.'
+    }
+    if ($Source -cnotmatch '^[0-9a-f]{40}$' -or $env:CIRCLE_SHA1 -cne $Source) {
+        throw 'The Windows test harness requires the exact CircleCI source.'
+    }
+}
+
+function ConvertTo-ZentraWindowsArgument {
+    param([AllowEmptyString()][string]$Value)
+    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
+    $escaped = $Value -replace '(\\*)"', '$1$1\"'
+    $escaped = $escaped -replace '(\\+)$', '$1$1'
+    return '"' + $escaped + '"'
+}
+
+function Invoke-ZentraHarnessTool {
+    param([string]$Program, [string[]]$Arguments, [string]$Repository,
+        [string]$Stdout, [string]$Stderr, [string]$HeartbeatMessage = 'Inspecting the verification-only harness.', [int]$TimeoutSeconds = 300)
+    Assert-ZentraVerificationMode $env:CIRCLE_SHA1
+    # Inherit the standard noninteractive error mode in disposable CI child
+    # processes. Loader errors still return their real Windows status; this
+    # prevents an error dialog from blocking the runner indefinitely.
+    if (-not ('ZentraVerification.NativeErrors' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace ZentraVerification {
+  public static class NativeErrors {
+    [DllImport("kernel32.dll")]
+    public static extern uint SetErrorMode(uint mode);
+  }
+}
+'@
+    }
+    $argumentLine = (@($Arguments | ForEach-Object { ConvertTo-ZentraWindowsArgument $_ })) -join ' '
+    $previousMode = [ZentraVerification.NativeErrors]::SetErrorMode(0x8003)
+    try {
+        $process = Start-Process -FilePath $Program -ArgumentList $argumentLine -WorkingDirectory $Repository `
+            -WindowStyle Hidden -PassThru -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr
+        # Retain the native process handle before the child exits. Windows
+        # PowerShell 5.1 can otherwise expose a null ExitCode after WaitForExit.
+        [void]$process.Handle
+    } finally {
+        [void][ZentraVerification.NativeErrors]::SetErrorMode($previousMode)
+    }
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    while (-not $process.WaitForExit(25000)) {
+        if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
+            Stop-Process -Id $process.Id -Force
+            throw 'A disposable verification child process exceeded its bounded timeout.'
+        }
+        Write-Host $HeartbeatMessage
+    }
+    $watch.Stop()
+    $process.WaitForExit()
+    $exitCode = $process.ExitCode
+    if ($null -eq $exitCode) { throw 'The verification child exit code is unavailable; do not infer success.' }
+    return [int]$exitCode
+}
+
+function Select-ZentraLibraryHarness {
+    param([string]$Repository, [string[]]$CargoJsonLines)
+    $repositoryPath = [IO.Path]::GetFullPath($Repository).TrimEnd('\', '/')
+    $expectedSource = [IO.Path]::GetFullPath((Join-Path $repositoryPath 'desktop/src-tauri/src/lib.rs'))
+    $deps = [IO.Path]::GetFullPath((Join-Path $repositoryPath 'desktop/src-tauri/target/release/deps')).TrimEnd('\', '/')
+    $selected = @()
+    foreach ($line in $CargoJsonLines) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $item = $line | ConvertFrom-Json
+        if ($item.reason -ne 'compiler-artifact') { continue }
+        if ($item.profile.test -ne $true -or $item.target.name -cne 'helvichantier_lib' -or [string]::IsNullOrWhiteSpace([string]$item.executable)) { continue }
+        if (-not [string]::Equals([IO.Path]::GetFullPath([string]$item.target.src_path), $expectedSource, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Cargo selected a library test from a different source file.'
+        }
+        $executable = [IO.Path]::GetFullPath([string]$item.executable)
+        if (-not [string]::Equals([IO.Path]::GetDirectoryName($executable), $deps, [StringComparison]::OrdinalIgnoreCase) `
+            -or [IO.Path]::GetFileName($executable) -cnotmatch '^helvichantier_lib-[0-9a-f]{16}\.exe$') {
+            throw 'The test executable is outside the exact release/deps harness scope.'
+        }
+        $file = Get-Item -LiteralPath $executable
+        if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw 'The selected test harness must be an ordinary file.'
+        }
+        $selected += $file.FullName
+    }
+    $selected = @($selected | Select-Object -Unique)
+    if ($selected.Count -ne 1) { throw 'Cargo must identify exactly one compiled library test harness.' }
+    return $selected[0]
+}
+
+function Read-ZentraHarnessManifest {
+    param([AllowNull()][string]$Manifest)
+    if ($null -ne $Manifest -and $Manifest.Length -gt 262144) { throw 'The test harness manifest is unexpectedly large.' }
+    if ([string]::IsNullOrWhiteSpace($Manifest)) { return $null }
+    if ($Manifest -match '<!DOCTYPE') { throw 'A test harness manifest must not contain a DTD.' }
+    $document = [Xml.XmlDocument]::new()
+    $document.XmlResolver = $null
+    $document.PreserveWhitespace = $true
+    $document.LoadXml($Manifest)
+    if ($document.DocumentElement.LocalName -cne 'assembly' -or $document.DocumentElement.NamespaceURI -cne 'urn:schemas-microsoft-com:asm.v1') {
+        throw 'The extracted test harness manifest has an unexpected assembly root.'
+    }
+    return ,$document
+}
+
+function Test-ZentraCommonControlsV6 {
+    param([AllowNull()][string]$Manifest)
+    $document = Read-ZentraHarnessManifest $Manifest
+    if ($null -eq $document) { return $false }
+    $manager = [Xml.XmlNamespaceManager]::new($document.NameTable)
+    $manager.AddNamespace('asm', 'urn:schemas-microsoft-com:asm.v1')
+    return $null -ne $document.SelectSingleNode("//asm:dependency/asm:dependentAssembly/asm:assemblyIdentity[@name='Microsoft.Windows.Common-Controls' and @version='6.0.0.0']", $manager)
+}
+
+function New-ZentraCommonControlsManifest {
+    param([AllowNull()][string]$ExistingManifest)
+    $document = Read-ZentraHarnessManifest $ExistingManifest
+    if ($null -eq $document) {
+        $document = Read-ZentraHarnessManifest '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><assemblyIdentity type="win32" name="Zentra.Verification.Harness" version="1.0.0.0" processorArchitecture="amd64" /></assembly>'
+    }
+    # The caller writes UTF-8 bytes, even when mt extracted a UTF-16 manifest.
+    foreach ($node in $document.ChildNodes) {
+        if ($node -is [Xml.XmlDeclaration]) { $node.Encoding = 'utf-8' }
+    }
+    $manager = [Xml.XmlNamespaceManager]::new($document.NameTable)
+    $manager.AddNamespace('asm', 'urn:schemas-microsoft-com:asm.v1')
+    $controls = @($document.SelectNodes("//asm:dependency/asm:dependentAssembly/asm:assemblyIdentity[@name='Microsoft.Windows.Common-Controls']", $manager))
+    if ($controls.Count -gt 0) {
+        if ($controls.Count -ne 1 -or $controls[0].GetAttribute('version') -cne '6.0.0.0') {
+            throw 'Do not overwrite an existing incompatible CommonControls manifest dependency.'
+        }
+        return $document.OuterXml
+    }
+    $dependency = $document.CreateElement('dependency', $document.DocumentElement.NamespaceURI)
+    $dependent = $document.CreateElement('dependentAssembly', $document.DocumentElement.NamespaceURI)
+    $identity = $document.CreateElement('assemblyIdentity', $document.DocumentElement.NamespaceURI)
+    foreach ($attribute in @{type='win32';name='Microsoft.Windows.Common-Controls';version='6.0.0.0';processorArchitecture='*';publicKeyToken='6595b64144ccf1df';language='*'}.GetEnumerator()) {
+        $identity.SetAttribute($attribute.Key, $attribute.Value)
+    }
+    [void]$dependent.AppendChild($identity)
+    [void]$dependency.AppendChild($dependent)
+    [void]$document.DocumentElement.AppendChild($dependency)
+    return $document.OuterXml
+}
+
+function Get-ZentraCommonControlsImports {
+    param([string]$Imports)
+    return @([regex]::Matches($Imports, '\b(GetWindowSubclass|SetWindowSubclass|RemoveWindowSubclass|DefSubclassProc|TaskDialogIndirect)\b') | ForEach-Object { $_.Value } | Sort-Object -Unique)
+}
+
+function Find-ZentraHarnessTools {
+    $programFiles = [Environment]::GetFolderPath('ProgramFilesX86')
+    $dumpbin = Get-Command dumpbin.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    $dumpbinPath = if ($null -ne $dumpbin) { $dumpbin.Source } else { $null }
+    if ($null -eq $dumpbinPath) {
+        $vswhere = Join-Path $programFiles 'Microsoft Visual Studio/Installer/vswhere.exe'
+        if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) { throw 'The installed Microsoft Visual Studio locator is unavailable.' }
+        $dumpbinPath = @(& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe') | Select-Object -First 1
+        if ($LASTEXITCODE -ne 0) { throw 'Could not locate the installed MSVC dumpbin tool.' }
+    }
+    $mt = Get-Command mt.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    $mtPath = if ($null -ne $mt) { $mt.Source } else { $null }
+    if ($null -eq $mtPath) {
+        $sdkBin = Join-Path $programFiles 'Windows Kits/10/bin'
+        foreach ($version in @(Get-ChildItem -LiteralPath $sdkBin -Directory | Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending)) {
+            $candidate = Join-Path $version.FullName 'x64/mt.exe'
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) { $mtPath = $candidate; break }
+        }
+    }
+    foreach ($tool in @($dumpbinPath, $mtPath)) {
+        if ([string]::IsNullOrWhiteSpace([string]$tool) -or -not (Test-Path -LiteralPath $tool -PathType Leaf)) { throw 'The installed Microsoft PE/manifest tools are unavailable.' }
+    }
+    return [pscustomobject]@{Dumpbin=$dumpbinPath;Manifest=$mtPath}
+}
+
+function Save-ZentraHarnessProof {
+    param($Proof, [string]$Path)
+    [IO.File]::WriteAllText($Path, ($Proof | ConvertTo-Json -Depth 9), [Text.UTF8Encoding]::new($false))
+}
+
+function Initialize-ZentraVerificationHarness {
+    param([string]$Repository, [string]$Artifacts, [string]$Source)
+    Assert-ZentraVerificationMode $Source
+    $proofPath = Join-Path $Artifacts 'windows-test-harness-proof.json'
+    $proof = [ordered]@{source=$Source;verificationOnly=$true;nativeProfile='release';target='x86_64-pc-windows-msvc';
+        compileNoRun=$true;applicationManifestModified=$false;dllModified=$false;publishesInstaller=$false;publishesRelease=$false;installsApplication=$false;
+        testOnlyManifestTransformation=$false;loaderHypothesis='CommonControls v6 activation missing from the library test harness';loaderHypothesisConfirmed=$false;
+        harnessManifestRepairValidated=$false;specificMissingDllOrSymbolConfirmed=$false;
+        compileExit=$null;executable=$null;binarySha256Before=$null;binarySha256After=$null;manifestSha256Before=$null;manifestSha256After=$null;
+        embeddedV6Before=$false;embeddedV6After=$false;commonControlsImports=@();missingImportsInSystem32=@();loaderExitBefore=$null;loaderExitAfter=$null;
+        suiteExecutions=@();prepared=$false}
+    try {
+        $cargo = (Get-Command cargo -CommandType Application).Source
+        $jsonPath = Join-Path $Artifacts 'windows-test-harness-cargo.jsonl'
+        $buildLog = Join-Path $Artifacts 'windows-test-harness-build.log'
+        $proof.compileExit = Invoke-ZentraHarnessTool $cargo @('test','--manifest-path','desktop/src-tauri/Cargo.toml','--locked','--release','--lib','--no-run','--message-format=json') $Repository $jsonPath $buildLog -HeartbeatMessage 'Compiling the verification-only library test harness; no packaging or installation.' -TimeoutSeconds 5400
+        Get-Content -LiteralPath $buildLog | ForEach-Object { Write-Host $_ }
+        if ($proof.compileExit -ne 0) { throw 'The verification-only library harness did not compile.' }
+        $executable = Select-ZentraLibraryHarness $Repository (Get-Content -LiteralPath $jsonPath)
+        $proof.executable = $executable
+        $proof.binarySha256Before = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()
+        $tools = Find-ZentraHarnessTools
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber,OSArchitecture
+        $proof.os = $os
+        $proof.tools = @($tools.Dumpbin, $tools.Manifest) | ForEach-Object { $file=Get-Item -LiteralPath $_; [ordered]@{path=$file.FullName;version=$file.VersionInfo.FileVersion;sha256=(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()} }
+        $importsPath = Join-Path $Artifacts 'windows-test-harness-imports.txt'
+        if ((Invoke-ZentraHarnessTool $tools.Dumpbin @('/IMPORTS',$executable) $Repository $importsPath (Join-Path $Artifacts 'windows-test-harness-imports-errors.txt')) -ne 0) { throw 'Could not inspect the exact library harness PE imports.' }
+        if ((Invoke-ZentraHarnessTool $tools.Dumpbin @('/DEPENDENTS',$executable) $Repository (Join-Path $Artifacts 'windows-test-harness-dependents.txt') (Join-Path $Artifacts 'windows-test-harness-dependents-errors.txt')) -ne 0) { throw 'Could not inspect the exact library harness PE dependencies.' }
+        $proof.commonControlsImports = @(Get-ZentraCommonControlsImports ([IO.File]::ReadAllText($importsPath)))
+        $systemDll = Join-Path $env:SystemRoot 'System32/comctl32.dll'
+        $dll = Get-Item -LiteralPath $systemDll
+        $proof.systemCommonControls = [ordered]@{path=$dll.FullName;version=$dll.VersionInfo.FileVersion;sha256=(Get-FileHash -LiteralPath $systemDll -Algorithm SHA256).Hash.ToLowerInvariant()}
+        $exportsPath = Join-Path $Artifacts 'windows-system-common-controls-exports.txt'
+        if ((Invoke-ZentraHarnessTool $tools.Dumpbin @('/EXPORTS',$systemDll) $Repository $exportsPath (Join-Path $Artifacts 'windows-system-common-controls-errors.txt')) -ne 0) { throw 'Could not inspect the system CommonControls export table.' }
+        $exports = [IO.File]::ReadAllText($exportsPath)
+        $proof.missingImportsInSystem32 = @($proof.commonControlsImports | Where-Object { $exports -notmatch ('\b' + [regex]::Escape($_) + '\b') })
+        $beforeManifestPath = Join-Path $Artifacts 'windows-test-harness-manifest-before.xml'
+        $manifestErrorPath = Join-Path $Artifacts 'windows-test-harness-manifest-before-errors.txt'
+        $extractExit = Invoke-ZentraHarnessTool $tools.Manifest @("-inputresource:$executable;#1","-out:$beforeManifestPath") $Repository (Join-Path $Artifacts 'windows-test-harness-manifest-before-tool.txt') $manifestErrorPath
+        $existingManifest = $null
+        if ($extractExit -eq 0) {
+            $existingManifest = [IO.File]::ReadAllText($beforeManifestPath)
+            $proof.manifestSha256Before = (Get-FileHash -LiteralPath $beforeManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            $proof.embeddedV6Before = Test-ZentraCommonControlsV6 $existingManifest
+        } else {
+            $extractError = [IO.File]::ReadAllText($manifestErrorPath) + [IO.File]::ReadAllText((Join-Path $Artifacts 'windows-test-harness-manifest-before-tool.txt'))
+            if ($extractError -notmatch 'resource (type|name|data|language).*(cannot be found|not found)|resource.*(does not exist|cannot be found)') { throw 'The manifest extraction failed without proving an absent embedded manifest.' }
+        }
+        $proof.manifestExtractionExit = $extractExit
+        $listPath = Join-Path $Artifacts 'windows-test-harness-list-before.txt'
+        $proof.loaderExitBefore = Invoke-ZentraHarnessTool $executable @('--list') $Repository $listPath (Join-Path $Artifacts 'windows-test-harness-list-before-errors.txt')
+        if ($proof.loaderExitBefore -eq -1073741511) {
+            if ($proof.embeddedV6Before -or $proof.commonControlsImports.Count -eq 0) { throw 'The loader failure does not match a missing v6 harness manifest with retained CommonControls imports.' }
+            $mergedPath = Join-Path $Artifacts 'windows-test-harness-manifest-merged.xml'
+            [IO.File]::WriteAllText($mergedPath, (New-ZentraCommonControlsManifest $existingManifest), [Text.UTF8Encoding]::new($false))
+            Assert-ZentraVerificationMode $Source
+            if ((Invoke-ZentraHarnessTool $tools.Manifest @('-manifest',$mergedPath,"-outputresource:$executable;#1") $Repository (Join-Path $Artifacts 'windows-test-harness-manifest-embed-tool.txt') (Join-Path $Artifacts 'windows-test-harness-manifest-embed-errors.txt')) -ne 0) { throw 'Could not embed the v6 dependency into the disposable library harness.' }
+            $proof.testOnlyManifestTransformation = $true
+        } elseif ($proof.loaderExitBefore -ne 0) { throw 'The original library harness failed with a different loader or process status.' }
+        $afterManifestPath = Join-Path $Artifacts 'windows-test-harness-manifest-after.xml'
+        $afterExit = Invoke-ZentraHarnessTool $tools.Manifest @("-inputresource:$executable;#1","-out:$afterManifestPath") $Repository (Join-Path $Artifacts 'windows-test-harness-manifest-after-tool.txt') (Join-Path $Artifacts 'windows-test-harness-manifest-after-errors.txt')
+        if ($afterExit -eq 0) {
+            $proof.manifestSha256After = (Get-FileHash -LiteralPath $afterManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            $proof.embeddedV6After = Test-ZentraCommonControlsV6 ([IO.File]::ReadAllText($afterManifestPath))
+        } elseif ($proof.testOnlyManifestTransformation) { throw 'The transformed harness manifest could not be re-extracted.' }
+        if ($proof.testOnlyManifestTransformation -and -not $proof.embeddedV6After) { throw 'The transformed harness did not retain its v6 dependency.' }
+        $proof.binarySha256After = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()
+        $afterListPath = Join-Path $Artifacts 'windows-test-harness-list-after.txt'
+        $proof.loaderExitAfter = Invoke-ZentraHarnessTool $executable @('--list') $Repository $afterListPath (Join-Path $Artifacts 'windows-test-harness-list-after-errors.txt')
+        if ($proof.loaderExitAfter -ne 0) { throw 'The prepared library harness still cannot load; the hypothesis remains unconfirmed.' }
+        $testNames = @(Get-Content -LiteralPath $afterListPath | ForEach-Object { if ($_ -match '^([A-Za-z_][A-Za-z0-9_:]*): test$') { $Matches[1] } })
+        if ($testNames.Count -eq 0 -or @($testNames | Where-Object { $_.StartsWith('diagnostics::') }).Count -eq 0) { throw 'The prepared library harness did not list the expected native tests.' }
+        $proof.loaderHypothesisConfirmed = $proof.testOnlyManifestTransformation -and $proof.loaderExitBefore -eq -1073741511 -and $proof.loaderExitAfter -eq 0
+        $proof.harnessManifestRepairValidated = $proof.loaderHypothesisConfirmed
+        $proof.loaderDiagnosisLimit = 'A successful resource-only repair supports the activation cause; static imports/exports do not identify the exact failing loaded DLL/symbol.'
+        $proof.prepared = $true
+        return [pscustomobject]@{Executable=$executable;ExpectedSha256=$proof.binarySha256After;Source=$Source;TestNames=$testNames;Proof=$proof;ProofPath=$proofPath;Repository=$Repository;Artifacts=$Artifacts}
+    } finally {
+        Save-ZentraHarnessProof $proof $proofPath
+    }
+}
+
+function Invoke-ZentraVerificationSuite {
+    param($Harness, [string]$Suite, [string[]]$ExtraArguments = @())
+    Assert-ZentraVerificationMode $Harness.Source
+    $actualHash = (Get-FileHash -LiteralPath $Harness.Executable -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -cne $Harness.ExpectedSha256) { throw 'The prepared test harness changed after its manifest and source checks.' }
+    $names = @($Harness.TestNames | Where-Object { if ($ExtraArguments -contains '--exact') { $_ -ceq $Suite } else { $_.Contains($Suite) } })
+    if ($names.Count -eq 0) { throw 'A native verification suite filter would select no tests.' }
+    Write-Host "Running verified library harness filter: $Suite"
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    $index = $Harness.Proof.suiteExecutions.Count + 1
+    $stdout = Join-Path $Harness.Artifacts ("windows-test-suite-{0:D2}.log" -f $index)
+    $stderr = Join-Path $Harness.Artifacts ("windows-test-suite-{0:D2}-errors.log" -f $index)
+    $exitCode = Invoke-ZentraHarnessTool $Harness.Executable (@($Suite, '--test-threads=1') + $ExtraArguments) $Harness.Repository $stdout $stderr -HeartbeatMessage "Native verification-only filter is running: $Suite" -TimeoutSeconds 3600
+    Get-Content -LiteralPath $stdout | ForEach-Object { Write-Host $_ }
+    Get-Content -LiteralPath $stderr | ForEach-Object { Write-Host $_ }
+    $watch.Stop()
+    $result = [regex]::Match([IO.File]::ReadAllText($stdout), 'test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored;')
+    $passed = if ($result.Success) { [int]$result.Groups[2].Value } else { 0 }
+    $failed = if ($result.Success) { [int]$result.Groups[3].Value } else { 0 }
+    $ignored = if ($result.Success) { [int]$result.Groups[4].Value } else { 0 }
+    $Harness.Proof.suiteExecutions += [ordered]@{filter=$Suite;selectedNames=$names.Count;extraArguments=$ExtraArguments;exit=$exitCode;durationMs=$watch.ElapsedMilliseconds;passed=$passed;failed=$failed;ignored=$ignored;stdout=[IO.Path]::GetFileName($stdout);stderr=[IO.Path]::GetFileName($stderr)}
+    Save-ZentraHarnessProof $Harness.Proof $Harness.ProofPath
+    if ($exitCode -ne 0 -or -not $result.Success -or $passed -eq 0 -or $failed -ne 0 -or $result.Groups[1].Value -cne 'ok') { throw "The native verification harness failed or selected no executable tests for $Suite ($exitCode)." }
+}
