@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Download, FileCheck2, LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { Button, Field } from './ui';
+import { PdfExportReceipt } from './PdfExportReceipt';
+import type { PdfExportReceipt as Receipt } from './pdfExportDelivery';
 import type { Workspace } from './types';
 import { formatMoney } from './utils';
 import { certificateAllowedBoxes, certificateBoxes, certificateCents, certificateInput, certificateRows, type CertificateDraft, type CertificateIdentity, type CertificateInput } from './salaryCertificate';
@@ -18,6 +20,10 @@ function CertificateAmount({ value, label, onChange }: { value: number; label: s
   }} />;
 }
 
+function certificatePreviewKey(input: CertificateInput) {
+  return JSON.stringify({ ...input, reviewed: false });
+}
+
 export function SalaryCertificates({ workspace, disabled }: { workspace: Workspace; disabled: boolean }) {
   const [employeeId, setEmployeeId] = useState(workspace.employees[0]?.id ?? '');
   const [year, setYear] = useState(new Date().getFullYear());
@@ -30,6 +36,12 @@ export function SalaryCertificates({ workspace, disabled }: { workspace: Workspa
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [pages, setPages] = useState<string[]>([]);
+  const [previewKey, setPreviewKey] = useState('');
+  const [receipt, setReceipt] = useState<{ key: string; result: Receipt } | null>(null);
+  const inFlight = useRef(false), operation = useRef(0), mounted = useRef(true);
+  const currentInput = useRef(input);
+  currentInput.current = input;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; operation.current++; }; }, []);
   const stepHeading = useRef<HTMLOListElement>(null);
   const previousStep = useRef(0);
   useEffect(() => {
@@ -47,7 +59,8 @@ export function SalaryCertificates({ workspace, disabled }: { workspace: Workspa
   }
   useEffect(() => {
     let active = true;
-    setDraft(null); setInput(null); setStep(0); setPages([]); setError(''); setNotice('');
+    operation.current++; inFlight.current = false; setBusy(false);
+    setDraft(null); setInput(null); setStep(0); setPages([]); setPreviewKey(''); setReceipt(null); setError(''); setNotice('');
     if (!employeeId || !Number.isInteger(year) || year < 2000 || year > 2099) { setLoading(false); return; }
     setLoading(true);
     void desktopApi.salaryCertificateDraft(employeeId, year).then(value => {
@@ -55,25 +68,39 @@ export function SalaryCertificates({ workspace, disabled }: { workspace: Workspa
     }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : String(reason)); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [employeeId, year, reload]);
-  function patch(update: Partial<CertificateInput>) { setInput(value => value ? { ...value, ...update, reviewed: false } : value); setNotice(''); }
+  function patch(update: Partial<CertificateInput>) { if (busy || disabled || inFlight.current) return; setInput(value => value ? { ...value, ...update, reviewed: false } : value); setPreviewKey(''); setReceipt(null); setNotice(''); }
   function identity(key: keyof CertificateIdentity, value: string) { if (input) patch({ identity: { ...input.identity, [key]: value } }); }
   async function next() {
-    if (!input) return;
+    if (!input || loading || busy || disabled || inFlight.current) return;
     if (step === 0) { setStep(1); setError(''); return; }
+    const captured = structuredClone(input), key = certificatePreviewKey(captured), request = ++operation.current;
+    inFlight.current = true;
     setBusy(true); setError('');
     try {
-      const bytes = await desktopApi.salaryCertificatePreview(input);
+      const bytes = await desktopApi.salaryCertificatePreview(captured);
+      if (!mounted.current || request !== operation.current) return;
       const { renderPdfPages } = await import('./localPdfPreview');
-      setPages((await renderPdfPages(new Uint8Array(bytes), 20)).pages); setStep(2);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setBusy(false); }
+      if (!mounted.current || request !== operation.current) return;
+      const rendered = await renderPdfPages(new Uint8Array(bytes), 20);
+      if (!mounted.current || request !== operation.current || !currentInput.current || certificatePreviewKey(currentInput.current) !== key) return;
+      setPages(rendered.pages); setPreviewKey(key); setStep(2);
+    } catch (reason) { if (mounted.current && request === operation.current) setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { if (mounted.current && request === operation.current) { inFlight.current = false; setBusy(false); } }
   }
   async function exportPdf() {
-    if (!input) return;
-    setBusy(true); setError('');
-    try { if (await desktopApi.exportSalaryCertificate(input)) setNotice('Certificat de salaire exporté. Une trace de l’édition est conservée dans le journal local.'); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setBusy(false); }
+    if (!input || !input.reviewed || previewKey !== certificatePreviewKey(input) || loading || busy || disabled || inFlight.current) return;
+    const captured = structuredClone(input), request = ++operation.current;
+    inFlight.current = true;
+    setBusy(true); setError(''); setReceipt(null);
+    try {
+      const result = await desktopApi.exportSalaryCertificate(captured);
+      if (result && mounted.current && request === operation.current) {
+        setReceipt({ key: previewKey, result });
+        setNotice('Certificat de salaire exporté. Une trace de l’édition est conservée dans le journal local.');
+      }
+    }
+    catch (reason) { if (mounted.current && request === operation.current) setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { if (mounted.current && request === operation.current) { inFlight.current = false; setBusy(false); } }
   }
   return <section className="salary-certificates" aria-label="Certificats de salaire annuels">
     <header><div><h2>Certificats de salaire</h2><p>Le récapitulatif annuel de chaque collaborateur, sur le formulaire officiel suisse.</p></div><FileCheck2 size={25} aria-hidden="true" /></header>
@@ -85,7 +112,9 @@ export function SalaryCertificates({ workspace, disabled }: { workspace: Workspa
     {loading ? <p role="status"><LoaderCircle className="spin" size={16} /> Lecture des fiches de l’année…</p> : null}
     {error ? <p className="salary-certificates__error" role="alert">{error}</p> : null}
     {notice ? <p className="salary-certificates__notice" role="status">{notice}</p> : null}
+    {receipt && input && input.employeeId === employeeId && input.year === year && receipt.key === certificatePreviewKey(input) ? <PdfExportReceipt result={receipt.result} disabled={busy || disabled} onBusyChange={value => { inFlight.current = value; setBusy(value); }} /> : null}
     {draft && input ? <form onSubmit={event => { event.preventDefault(); void next(); }}>
+      <fieldset disabled={busy || disabled} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <ol ref={stepHeading} className="salary-certificates__steps" aria-label="Étapes du certificat">{['Identité','Montants','Aperçu'].map((label,index) => <li key={label} aria-current={index === step ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}</ol>
       {step === 0 ? <div className="form-grid">
         <Field label="Nom complet" required><input required value={input.identity.name} onChange={event => identity('name', event.target.value)} /></Field>
@@ -114,7 +143,8 @@ export function SalaryCertificates({ workspace, disabled }: { workspace: Workspa
         {pages.map((page,index) => <img key={index} src={page} alt={`Certificat de salaire ${year} · aperçu page ${index+1}`} />)}
         <label className="salary-certificates__check"><input type="checkbox" checked={input.reviewed} disabled={busy || disabled} onChange={event => setInput({ ...input, reviewed: event.target.checked })} /> Je confirme les coordonnées du responsable, les rubriques, le rattachement fiscal et l’intégralité des prestations de l’année, y compris celles saisies hors Zentra.</label><p>À remettre au collaborateur après contrôle et signature de l’employeur.</p>
       </div>}
-      <footer className="salary-certificates__actions">{step > 0 ? <Button type="button" variant="ghost" disabled={busy || disabled} onClick={() => { setStep(value => value - 1); patch({}); setError(''); }}><ArrowLeft size={16} /> Retour</Button> : <span />}{step < 2 ? <Button type="submit" disabled={busy || disabled}>{busy ? <LoaderCircle className="spin" size={16} /> : null}{step === 0 ? 'Vérifier les montants' : 'Voir le certificat'}<ArrowRight size={16} /></Button> : <Button type="button" disabled={!input.reviewed || busy || disabled} onClick={() => void exportPdf()}>{busy ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />} Exporter le certificat PDF</Button>}</footer>
+      <footer className="salary-certificates__actions">{step > 0 ? <Button type="button" variant="ghost" disabled={busy || disabled} onClick={() => { setStep(value => value - 1); patch({}); setError(''); }}><ArrowLeft size={16} /> Retour</Button> : <span />}{step < 2 ? <Button type="submit" disabled={busy || disabled}>{busy ? <LoaderCircle className="spin" size={16} /> : null}{step === 0 ? 'Vérifier les montants' : 'Voir le certificat'}<ArrowRight size={16} /></Button> : <Button type="button" disabled={!input.reviewed || previewKey !== certificatePreviewKey(input) || busy || disabled} onClick={() => void exportPdf()}>{busy ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />} Exporter le certificat PDF</Button>}</footer>
+      </fieldset>
     </form> : null}
     <p className="salary-certificates__source"><a href="https://www.estv.admin.ch/fr/certificat-de-salaire-et-attestation-de-rentes" target="_blank" rel="noreferrer">Formulaire et instructions officiels AFC / CSI</a> · L’export reste local ; aucun envoi à l’administration n’est effectué.</p>
   </section>;

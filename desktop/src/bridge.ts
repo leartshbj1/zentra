@@ -4987,8 +4987,7 @@ export const desktopApi = {
     const selected = await chooseSaveFile({ title: 'Exporter le certificat de salaire', defaultPath: `Certificat-salaire-${input.year}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
     if (!selected) return null;
     const path = await invoke<string>('export_salary_certificate', { input, destination: pdfDestinationPath(selected) });
-    await shareMobileExport(path);
-    return path;
+    return deliverPdfExport({ path });
   },
   async stageCompanyLogo(sourcePath: string) {
     return invoke<string>('stage_company_logo', { sourcePath });
