@@ -17,6 +17,8 @@ export type ProjectSyncStatus = {
   connected?: boolean;
   syncing: boolean;
   changed?: boolean;
+  /** The receive path already loaded and delivered this workspace under its UI guard. */
+  workspaceRefreshed?: boolean;
   error?: string;
   documents: {
     document_id: string;

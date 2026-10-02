@@ -48,7 +48,7 @@ export function startProjectSyncScheduler(options: {
       options.onRunning?.(true);
       const status = await options.synchronize();
       if (!active) return;
-      refreshPending ||= Boolean(status.changed);
+      refreshPending ||= Boolean(status.changed && !status.workspaceRefreshed);
       await refresh();
       if (!active) return;
       options.onStatus(status);

@@ -1764,55 +1764,83 @@ pub fn get_active_timer(state: State<'_, LocalStore>) -> Result<Value, String> {
     state.get_active_timer().map_err(command_error)
 }
 
+// These operations can compress many attachments or serialize the complete
+// company. Keep both the local lock wait and the work off the invoke thread.
+async fn run_locked_local_operation<T, F>(store: LocalStore, operation: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(&LocalStore) -> crate::error::AppResult<T> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = store.lock().map_err(command_error)?;
+        operation(&store).map_err(command_error)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 #[tauri::command]
-pub fn create_backup(
+pub async fn create_backup(
     state: State<'_, LocalStore>,
     app: AppHandle,
     destination: Option<String>,
 ) -> Result<String, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state
-        .create_backup(destination, &app_version(&app))
-        .map_err(command_error)
+    let store = state.inner().clone();
+    let version = app_version(&app);
+    run_locked_local_operation(store, move |store| store.create_backup(destination, &version)).await
+}
+
+async fn restore_local_backup(
+    store: LocalStore,
+    source: String,
+    version: String,
+) -> Result<AppStateInfo, String> {
+    // Match reset/join's lock order. A transfer started against the previous
+    // workspace must finish before replacing its database and attachment tree.
+    let _account = store.account_protected_cache.operation_lock.lock().await;
+    let _transfer = crate::cloud_backup::TransferGuard::take().map_err(command_error)?;
+    let _sync = crate::project_sync::pause_for_workspace_change().map_err(command_error)?;
+    run_locked_local_operation(store.clone(), move |store| {
+        store.require_backup_restore_access()?;
+        store.restore_backup(&source, &version)?;
+        store.app_state(&version)
+    }).await
 }
 
 #[tauri::command]
-pub fn restore_backup(
+pub async fn restore_backup(
     state: State<'_, LocalStore>,
     app: AppHandle,
     source: String,
 ) -> Result<AppStateInfo, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.require_backup_restore_access().map_err(command_error)?;
-    state
-        .restore_backup(&source, &app_version(&app))
-        .map_err(command_error)?;
-    state.app_state(&app_version(&app)).map_err(command_error)
+    restore_local_backup(state.inner().clone(), source, app_version(&app)).await
 }
 
 #[tauri::command]
-pub fn export_json(
+pub async fn export_json(
     state: State<'_, LocalStore>,
     app: AppHandle,
     destination: Option<String>,
 ) -> Result<String, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state
-        .export_json(destination, &app_version(&app))
-        .map_err(command_error)
+    let store = state.inner().clone();
+    let version = app_version(&app);
+    run_locked_local_operation(store, move |store| store.export_json(destination, &version)).await
 }
 
 #[tauri::command]
-pub fn export_csv_archive(
+pub async fn export_csv_archive(
     state: State<'_, LocalStore>,
     app: AppHandle,
     destination: Option<String>,
 ) -> Result<String, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state
-        .export_csv_archive(destination, &app_version(&app))
-        .map_err(command_error)
+    let store = state.inner().clone();
+    let version = app_version(&app);
+    run_locked_local_operation(store, move |store| store.export_csv_archive(destination, &version)).await
 }
+
+#[cfg(test)]
+#[path = "commands_worker_tests.rs"]
+mod worker_tests;
 
 #[tauri::command]
 pub fn add_scanned_supplier_attachment(state: State<'_, LocalStore>, invoice_id: String, original_name: String, content_base64: String) -> Result<Value, String> {

@@ -4893,6 +4893,16 @@ function SettingsScreen({
   const settingsRecovery = useWorkspaceRecovery(() => desktopApi.loadWorkspace());
   const settingsActionInFlight = useRef(false);
   const choosingRestoreFile = useRef(false);
+  const pickerContext = useRef({ settings, busy, readOnly });
+  pickerContext.current = { settings, busy, readOnly };
+  const pickerLifecycle = useRef({ active: true, request: 0 });
+  const pickerCancelled = useRef(Symbol('obsolete-settings-picker'));
+  useEffect(() => {
+    pickerLifecycle.current.active = true;
+    return () => { pickerLifecycle.current.active = false; pickerLifecycle.current.request++; };
+  }, []);
+  const pickerCurrent = (request: number) => pickerLifecycle.current.active && pickerLifecycle.current.request === request;
+  const pickerAvailable = (request: number) => pickerCurrent(request) && !pickerContext.current.busy && !settingsActionInFlight.current && !settingsRecovery.isPending();
   const org = settings.organization;
   const billing = settings.billing;
   const accountingReadiness = buildSetupReadiness(workspace, settings).steps.find(
@@ -4936,6 +4946,7 @@ function SettingsScreen({
       onNotice({ tone: 'success', text: success });
       return true;
     } catch (reason) {
+      if (reason === pickerCancelled.current) return false;
       if (!quietFailure) onNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') });
       if (rethrow) throw reason;
       return false;
@@ -4966,15 +4977,16 @@ function SettingsScreen({
 
   async function restore() {
     if (busy || choosingRestoreFile.current) return;
+    const request = ++pickerLifecycle.current.request;
     choosingRestoreFile.current = true;
     try {
       const source = await desktopApi.chooseRestoreFile();
-      if (!source) return;
+      if (!source || !pickerAvailable(request)) return;
       const file = source.split(/[\\/]/).pop() || source;
       if (!window.confirm(t('Restaurer « {file} » ? Les données de cet appareil seront remplacées. Une copie de sécurité sera conservée avant le remplacement.', { file }))) return;
       await execute(() => desktopApi.restoreBackup(source), t('La sauvegarde a été restaurée et contrôlée.'));
     } catch (reason) {
-      onNotice({ tone: 'error', text: errorMessage(reason, t('Le fichier n’a pas pu être ouvert. Choisissez à nouveau votre sauvegarde .zentra.')) });
+      if (pickerCurrent(request)) onNotice({ tone: 'error', text: errorMessage(reason, t('Le fichier n’a pas pu être ouvert. Choisissez à nouveau votre sauvegarde .zentra.')) });
     } finally {
       choosingRestoreFile.current = false;
     }
@@ -5005,33 +5017,44 @@ function SettingsScreen({
   }
 
   async function chooseBackupFolder() {
-    const folder = await desktopApi.chooseBackupFolder();
-    if (!folder) return;
-    const next = { ...settings, backup: { ...settings.backup, folder } };
-    setSettings(next);
-    await execute(
-      () => desktopApi.saveSettings(next),
-      'Le dossier de sauvegarde manuelle a été enregistré.',
-    );
+    if (busy || settingsActionInFlight.current || settingsRecovery.isPending()) return;
+    const request = ++pickerLifecycle.current.request;
+    try {
+      const folder = await desktopApi.chooseBackupFolder();
+      if (!folder || !pickerAvailable(request)) return;
+      const current = pickerContext.current.settings;
+      const next = { ...current, backup: { ...current.backup, folder } };
+      setSettings(next);
+      await execute(
+        () => desktopApi.saveSettings(next),
+        'Le dossier de sauvegarde manuelle a été enregistré.',
+      );
+    } catch (reason) {
+      if (pickerCurrent(request)) onNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') });
+    }
   }
 
   async function chooseLogo() {
+    if (busy || settingsActionInFlight.current || settingsRecovery.isPending()) return;
+    const request = ++pickerLifecycle.current.request;
     let sourcePath: string | null;
     try {
       sourcePath = await desktopApi.chooseLogo();
     } catch (reason) {
-      onNotice({
+      if (pickerCurrent(request)) onNotice({
         tone: 'error',
         text: errorMessage(reason, 'Le sélecteur du logo n’a pas pu être ouvert.'),
       });
       return;
     }
-    if (!sourcePath) return;
+    if (!sourcePath || !pickerAvailable(request)) return;
     await execute(async () => {
       const logoPath = await desktopApi.stageCompanyLogo(sourcePath);
+      if (!pickerCurrent(request) || pickerContext.current.readOnly) throw pickerCancelled.current;
+      const current = pickerContext.current.settings;
       const next = {
-        ...settings,
-        organization: { ...settings.organization, logoPath },
+        ...current,
+        organization: { ...current.organization, logoPath },
       };
       return desktopApi.saveSettings(next);
     }, 'Le logo a été vérifié, copié dans les données locales et enregistré pour les documents.');

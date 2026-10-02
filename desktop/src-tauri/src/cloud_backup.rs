@@ -23,6 +23,8 @@ const MAX_CHUNKS: usize = 64;
 const CONFIG_FILE: &str = "cloud-backup-state.json";
 static RUNNING: AtomicBool = AtomicBool::new(false);
 static RESTORING: AtomicBool = AtomicBool::new(false);
+#[cfg(test)]
+pub(crate) static WORKSPACE_TRANSFER_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 pub(crate) fn is_restoring() -> bool {
     RESTORING.load(Ordering::Acquire)
 }
@@ -517,11 +519,22 @@ pub async fn restore_cloud_backup(
     state: State<'_, LocalStore>,
     backup_id: String,
 ) -> Result<(), String> {
-    let _operation = TransferGuard::take().map_err(command_error)?;
+    let store = state.inner().clone();
+    guarded_restore(&store, restore(&store, &backup_id)).await.map_err(command_error)
+}
+
+async fn guarded_restore<F>(store: &LocalStore, operation: F) -> AppResult<()>
+where
+    F: std::future::Future<Output = AppResult<()>>,
+{
+    // Stabilize the account and block project responses before their workspace
+    // can be replaced. Keep all three guards throughout the pending download.
+    let _account = store.account_protected_cache.operation_lock.lock().await;
+    let _operation = TransferGuard::take()?;
+    let _sync = crate::project_sync::pause_for_workspace_change()?;
     RESTORING.store(true, Ordering::Release);
     let _restore = RestoreGuard;
-    let store = state.inner().clone();
-    restore(&store, &backup_id).await.map_err(command_error)
+    operation.await
 }
 async fn restore(store: &LocalStore, id: &str) -> AppResult<()> {
     receive_copy(store,id,false).await
@@ -653,6 +666,29 @@ async fn receive_copy(store: &LocalStore, id: &str, joining: bool) -> AppResult<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloud_restore_holds_workspace_guards_while_download_is_pending_and_releases_them_on_cancel() {
+        use std::{future::Future, task::{Context, Poll}};
+        let _test_guard = WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(directory.path().join("profile")).unwrap();
+        let before = store.app_state("guard-test").unwrap();
+        let mut waiting = Box::pin(guarded_restore(&store, std::future::pending::<AppResult<()>>()));
+        let waker = futures_util::task::noop_waker();
+        let mut context = Context::from_waker(&waker);
+        assert!(matches!(waiting.as_mut().poll(&mut context), Poll::Pending));
+        assert!(store.account_protected_cache.operation_lock.try_lock().is_none());
+        assert!(TransferGuard::take().is_err());
+        assert!(crate::project_sync::pause_for_workspace_change().is_err());
+        assert!(is_restoring());
+        assert_eq!(store.app_state("guard-test").unwrap().onboarding_completed, before.onboarding_completed);
+        drop(waiting);
+        assert!(!is_restoring());
+        assert!(store.account_protected_cache.operation_lock.try_lock().is_some());
+        let _released_transfer = TransferGuard::take().unwrap();
+        let _released_sync = crate::project_sync::pause_for_workspace_change().unwrap();
+    }
     #[test]
     fn joining_never_replaces_an_existing_or_partially_configured_company() {
         let dir=tempfile::tempdir().unwrap();

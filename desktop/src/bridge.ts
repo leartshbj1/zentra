@@ -4811,13 +4811,21 @@ export const desktopApi = {
     const {publishCompanySync,companyReceiveAllowed,setCompanyReceiving,refreshReceivedCompany,recordCompanyReceiveFailure}=await import('./companySync');
     const initialFocus=document.activeElement;
     try {
+      let workspaceRefreshed = false;
       let result=await invoke<import('./companySync').CompanySyncState>('sync_company_workspace',{receive:false,acceptRemote:false,confirmedDuplicateReceipt:null});
       if(result.ready&&!result.conflict&&companyReceiveAllowed()&&document.activeElement===initialFocus){
         setCompanyReceiving(true);
-        try{result=await invoke('apply_company_update');if(result.changed)await refreshReceivedCompany();}catch(reason){recordCompanyReceiveFailure(reason);throw reason;}finally{setCompanyReceiving(false);}
+        try{
+          result=await invoke('apply_company_update');
+          if(result.changed){
+            await refreshReceivedCompany();
+            workspaceRefreshed = true;
+          }
+        }catch(reason){recordCompanyReceiveFailure(reason);throw reason;}finally{setCompanyReceiving(false);}
       }
       publishCompanySync(result, '', true);
       return {mode:'business',organizationId:result.organizationId,pending:result.pending?1:0,connected:true,syncing:false,changed:result.changed,
+        workspaceRefreshed,
         lastSyncedAt:result.lastSyncedAt,documents:[],...(result.conflict?{error:result.conflictReason||'Un document a été modifié sur deux appareils. Les deux copies sont conservées. Consultez Paramètres → Compte pour le détail.'}:{})};
     }catch(reason){publishCompanySync(local,errorMessage(reason,'La synchronisation reprendra automatiquement.'));throw reason;}
   },

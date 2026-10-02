@@ -26,6 +26,20 @@ describe('project document synchronization lifecycle', () => {
     const {scheduler}=setup({synchronize});scheduler.setRealtimeHealthy(true);
     await vi.advanceTimersByTimeAsync(9300);expect(synchronize).toHaveBeenCalledTimes(4);scheduler.stop();
   });
+  it('keeps the changed status without rereading a workspace already delivered by company reception', async () => {
+    const { options, scheduler } = setup({ synchronize: vi.fn(async () => ({ ...status, mode: 'business' as const,
+      changed: true, workspaceRefreshed: true })) });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(options.onWorkspaceChanged).not.toHaveBeenCalled();
+    expect(options.onStatus).toHaveBeenLastCalledWith(expect.objectContaining({ changed: true, workspaceRefreshed: true }));
+    scheduler.stop();
+  });
+  it('still reloads legacy document changes when no company workspace was delivered', async () => {
+    const { options, scheduler } = setup({ synchronize: vi.fn(async () => ({ ...status, changed: true })) });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(options.onWorkspaceChanged).toHaveBeenCalledTimes(1);
+    scheduler.stop();
+  });
   it('keeps slow offline reads single-flight and resumes after connectivity returns', async () => {
     let online = false, finish!: (status: ProjectSyncStatus) => void;
     const local = vi.fn(() => new Promise<ProjectSyncStatus>(r => { finish = r; }));

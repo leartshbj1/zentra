@@ -51,8 +51,8 @@ try {
         if ($LASTEXITCODE -ne 0 -or $diagnosticSource -notmatch '^[0-9a-f]{40}$') { throw 'The checked-out diagnostics source is invalid.' }
         if ($env:CIRCLE_SHA1 -cne $diagnosticSource) { throw 'Diagnostics validation must use the exact CircleCI source revision.' }
         $diagnosticStartedAt = [DateTimeOffset]::UtcNow.ToString('o')
-        $diagnosticNativeSuites = @('diagnostics', 'account_cloud::tests', 'company_collaboration::tests')
-        $diagnosticFrontendSuites = @('src/diagnostics.test.ts', 'src/formDrafts.test.ts', 'src/userErrors.test.ts', 'src/ErrorGuidance.test.tsx', 'src/DiagnosticsPanel.test.tsx')
+        $diagnosticNativeSuites = @('diagnostics', 'account_cloud::tests', 'company_collaboration::tests', 'commands::worker_tests', 'backup::', 'tests::backup_restore_round_trip_recovers_local_rows', 'project_sync::tests')
+        $diagnosticFrontendSuites = @('src/diagnostics.test.ts', 'src/formDrafts.test.ts', 'src/userErrors.test.ts', 'src/ErrorGuidance.test.tsx', 'src/DiagnosticsPanel.test.tsx', 'src/companyReceiveRefresh.test.ts', 'src/projectSyncScheduler.test.ts', 'src/companySyncDiagnostics.test.ts', 'src/companyRealtime.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', $suite, '--', '--test-threads=1')
         }

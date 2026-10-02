@@ -41,7 +41,7 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Verify diagnostics, scoped drafts and account isolation without packaging
+          name: Verify workspace workers, transfers, scoped drafts and account isolation without packaging
           command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/cloud-release-windows.ps1
           no_output_timeout: 20m
       - store_artifacts:
