@@ -4977,6 +4977,17 @@ function SettingsScreen({
   const [payrollDefinitionsRevision, setPayrollDefinitionsRevision] = useState(0);
   const settingsRecovery = useWorkspaceRecovery(() => desktopApi.loadWorkspace());
   const settingsActionInFlight = useRef(false);
+  const settingsActionContext = useRef({ workspaceScope: workspace.workNotesScope, busy, readOnly, setBusy, onWorkspace, onNotice });
+  settingsActionContext.current = { workspaceScope: workspace.workNotesScope, busy, readOnly, setBusy, onWorkspace, onNotice };
+  const settingsActionLifetime = useRef({ active: false, generation: 0 });
+  useLayoutEffect(() => {
+    settingsActionLifetime.current.active = true;
+    settingsActionLifetime.current.generation++;
+    return () => {
+      settingsActionLifetime.current.active = false;
+      settingsActionLifetime.current.generation++;
+    };
+  }, [workspace.workNotesScope]);
   const choosingRestoreFile = useRef(false);
   const pickerContext = useRef({ settings, busy, readOnly });
   pickerContext.current = { settings, busy, readOnly };
@@ -5009,35 +5020,55 @@ function SettingsScreen({
     target.focus({ preventScroll: true });
   }
 
-  async function execute(action: () => Promise<Workspace>, success: string, rethrow = false, quietFailure = false) {
-    if (busy || settingsActionInFlight.current || settingsRecovery.isPending()) return false;
+  async function execute(action: (workspaceScope: string | undefined) => Promise<Workspace>, success: string, rethrow = false, quietFailure = false, allowWorkspaceChange = false) {
+    const originWorkspaceScope = workspace.workNotesScope;
+    const generation = settingsActionLifetime.current.generation;
+    const isCurrent = () => settingsActionLifetime.current.active && settingsActionLifetime.current.generation === generation && settingsActionContext.current.workspaceScope === originWorkspaceScope;
+    const validateScope = (value: Workspace) => {
+      if (!allowWorkspaceChange && originWorkspaceScope !== undefined && value.workNotesScope !== originWorkspaceScope) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+    };
+    if (!isCurrent() || settingsActionContext.current.busy || settingsActionInFlight.current || settingsRecovery.isPending()) return false;
     settingsActionInFlight.current = true;
-    setBusy(true);
-    onNotice(null);
+    // This setter belongs to the parent that admitted the action. It must be
+    // released even when navigation removes only the settings screen.
+    const releaseBusy = settingsActionContext.current.setBusy;
+    settingsActionContext.current.setBusy(true);
+    settingsActionContext.current.onNotice(null);
     try {
       let next: Workspace | null;
-      try { next = await action(); }
+      try { next = await action(originWorkspaceScope); }
       catch (reason) {
+        if (!isCurrent()) return false;
         if (!(reason instanceof WorkspaceRefreshAfterMutationError)) throw reason;
         const validate = (value: Workspace) => {
           if (!value.onboardingCompleted || !value.settings) throw new Error('Les réglages enregistrés de votre entreprise doivent être accessibles pour continuer.');
+          validateScope(value);
         };
-        try { next = await desktopApi.loadWorkspace(); validate(next); }
-        catch (cause) { next = await settingsRecovery.waitForRefresh(cause, false, validate); }
+        try {
+          next = await desktopApi.loadWorkspace();
+          if (!isCurrent()) return false;
+          validate(next);
+        } catch (cause) {
+          if (!isCurrent()) return false;
+          next = await settingsRecovery.waitForRefresh(cause, false, validate);
+        }
         if (!next) return false;
       }
-      onWorkspace(next);
+      if (!isCurrent()) return false;
+      validateScope(next);
+      settingsActionContext.current.onWorkspace(next);
       setSettings(next.settings!);
-      onNotice({ tone: 'success', text: success });
+      settingsActionContext.current.onNotice({ tone: 'success', text: success });
       return true;
     } catch (reason) {
+      if (!isCurrent()) return false;
       if (reason === pickerCancelled.current) return false;
-      if (!quietFailure) onNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') });
+      if (!quietFailure) settingsActionContext.current.onNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') });
       if (rethrow) throw reason;
       return false;
     } finally {
       settingsActionInFlight.current = false;
-      setBusy(false);
+      releaseBusy(false);
     }
   }
 
@@ -5069,7 +5100,7 @@ function SettingsScreen({
       if (!source || !pickerAvailable(request)) return;
       const file = source.split(/[\\/]/).pop() || source;
       if (!window.confirm(t('Restaurer « {file} » ? Les données de cet appareil seront remplacées. Une copie de sécurité sera conservée avant le remplacement.', { file }))) return;
-      await execute(() => desktopApi.restoreBackup(source), t('La sauvegarde a été restaurée et contrôlée.'));
+      await execute(() => desktopApi.restoreBackup(source), t('La sauvegarde a été restaurée et contrôlée.'), false, false, true);
     } catch (reason) {
       if (pickerCurrent(request)) onNotice({ tone: 'error', text: errorMessage(reason, t('Le fichier n’a pas pu être ouvert. Choisissez à nouveau votre sauvegarde .zentra.')) });
     } finally {
@@ -5111,7 +5142,7 @@ function SettingsScreen({
       const next = { ...current, backup: { ...current.backup, folder } };
       setSettings(next);
       await execute(
-        () => desktopApi.saveSettings(next),
+        scope => desktopApi.saveSettings(next, scope),
         'Le dossier de sauvegarde manuelle a été enregistré.',
       );
     } catch (reason) {
@@ -5133,15 +5164,15 @@ function SettingsScreen({
       return;
     }
     if (!sourcePath || !pickerAvailable(request)) return;
-    await execute(async () => {
+    await execute(async scope => {
       const logoPath = await desktopApi.stageCompanyLogo(sourcePath);
-      if (!pickerCurrent(request) || pickerContext.current.readOnly) throw pickerCancelled.current;
+      if (!pickerCurrent(request) || !settingsActionLifetime.current.active || settingsActionContext.current.workspaceScope !== scope || pickerContext.current.readOnly) throw pickerCancelled.current;
       const current = pickerContext.current.settings;
       const next = {
         ...current,
         organization: { ...current.organization, logoPath },
       };
-      return desktopApi.saveSettings(next);
+      return desktopApi.saveSettings(next, scope);
     }, 'Le logo a été vérifié, copié dans les données locales et enregistré pour les documents.');
   }
 
@@ -5151,7 +5182,7 @@ function SettingsScreen({
       organization: { ...settings.organization, logoPath: undefined },
     };
     await execute(
-      () => desktopApi.saveSettings(next),
+      scope => desktopApi.saveSettings(next, scope),
       'Le logo a été retiré des prochains documents. Les documents déjà émis restent figés.',
     );
   }
@@ -5280,7 +5311,7 @@ function SettingsScreen({
               },
             }, 'billing');
             await execute(
-              () => desktopApi.saveSettings(next),
+              scope => desktopApi.saveSettings(next, scope),
               'Les paramètres ont été enregistrés localement.',
             );
           })}
@@ -5507,7 +5538,7 @@ function SettingsScreen({
             };
             setSettings(next);
             await execute(
-              () => desktopApi.saveSettings(next),
+              scope => desktopApi.saveSettings(next, scope),
               'Le numéro de bâtiment a été enregistré pour les QR-factures.',
             );
           })}
@@ -5594,7 +5625,7 @@ function SettingsScreen({
           disabled={busy}
           onClick={() =>
             void execute(
-              () => desktopApi.saveSettings(settings),
+              scope => desktopApi.saveSettings(settings, scope),
               'Les taux TVA ont été enregistrés.',
             )
           }
@@ -5625,7 +5656,7 @@ function SettingsScreen({
             }
             onClick={() =>
               void execute(
-                () => desktopApi.saveSettings(settings),
+                scope => desktopApi.saveSettings(settings, scope),
                 'Le profil d’activité et la terminologie ont été enregistrés.',
               )
             }
@@ -5640,7 +5671,7 @@ function SettingsScreen({
       <SettingsCategory id="language" title={t('Langue et région')} description={t('Français, allemand, italien ou anglais')} icon={Languages}><LanguageSetting embedded /></SettingsCategory>
       <SettingsCategory id="assistant" lazy title="Assistant local" description="Installer Qwen et obtenir de l’aide dans Zentra" icon={MessageCircle}><LocalAssistantSetup /></SettingsCategory>
       <SettingsCategory id="documents" lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
-        <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={next => execute(() => desktopApi.saveSettings(next), 'Les présentations des documents ont été enregistrées.', true)} onRequestCompany={field => {
+        <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={next => execute(scope => desktopApi.saveSettings(next, scope), 'Les présentations des documents ont été enregistrées.', true)} onRequestCompany={field => {
           const category = document.querySelector<HTMLElement>('[data-settings-id="company"]');
           revealSettingsTarget(category?.querySelector('section') ?? null);
           const target = category?.querySelector<HTMLElement>(field === 'logo' ? '.company-logo-setting button' : 'input[name="legalName"]');
@@ -5718,7 +5749,7 @@ function SettingsScreen({
               },
             }, 'work');
             await execute(
-              () => desktopApi.saveSettings(next),
+              scope => desktopApi.saveSettings(next, scope),
               'Les règles de temps et de coûts ont été enregistrées.',
             );
           })}
@@ -5850,7 +5881,7 @@ function SettingsScreen({
       <AppUpdater />
       <ResetAppPanel disabled={operationBusy} />
       <CloudBackupPanel disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
-        await execute(() => desktopApi.restoreCloudBackup(id), t('La sauvegarde a été restaurée et contrôlée.'), true);
+        await execute(() => desktopApi.restoreCloudBackup(id), t('La sauvegarde a été restaurée et contrôlée.'), true, false, true);
       }} />
       <section
         id={SETTINGS_READINESS_TARGETS.backup}
@@ -5910,7 +5941,7 @@ function SettingsScreen({
             onClick={() => {
               const next = confirmDeferredSetup(settings, 'backup');
               void execute(
-                () => desktopApi.saveSettings(next),
+                scope => desktopApi.saveSettings(next, scope),
                 t('Les options de sauvegarde sont enregistrées.'),
               );
             }}

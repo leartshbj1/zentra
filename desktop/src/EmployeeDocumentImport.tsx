@@ -17,13 +17,14 @@ export function EmployeeDocumentImport({ onRead, disabled }: { onRead: (draft: E
   const [progress, setProgress] = useState({ label: '', percent: null as number | null });
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
-  useEffect(() => () => { generation.current++; engine.current?.cancel(); }, []);
+  useEffect(() => () => { generation.current++; const owned = engine.current; engine.current = null; owned?.cancel(); }, []);
   function cancel() {
-    generation.current++; engine.current?.cancel(); setWorking(false); setNotice('Lecture annulée. Vous pouvez compléter le formulaire.');
+    generation.current++; const owned = engine.current; engine.current = null; owned?.cancel(); setWorking(false); setNotice('Lecture annulée. Vous pouvez compléter le formulaire.');
   }
   async function read(file: File) {
     const current = ++generation.current;
     let unsubscribe: (() => void) | undefined;
+    let ownedEngine: typeof LocalAi | null = null;
     setWorking(true); setError(''); setNotice(''); setProgress({ label: 'Ouverture du document', percent: null });
     try {
       if (file.size === 0 || file.size > 20 * 1024 * 1024) throw new Error('Choisissez un PDF ou une image de moins de 20 Mo.');
@@ -45,18 +46,27 @@ export function EmployeeDocumentImport({ onRead, disabled }: { onRead: (draft: E
       if (generation.current !== current) return;
       const { payrollLocalAi } = await import('./payrollLocalAi');
       if (generation.current !== current) return;
-      engine.current = payrollLocalAi;
-      unsubscribe = payrollLocalAi.onProgress(value => { if (generation.current === current) setProgress(value); });
+      if (!payrollLocalAi.isBusy()) {
+        ownedEngine = payrollLocalAi;
+        engine.current = payrollLocalAi;
+        unsubscribe = payrollLocalAi.onProgress(value => { if (generation.current === current) setProgress(value); });
+      }
       const result = await payrollLocalAi.analyze({ imageUrls, extractedText });
       if (generation.current !== current) return;
       if (!result.employeeDraft || !Object.keys(result.employeeDraft.fields).length) throw new Error('Aucune information exploitable n’a été retrouvée. Essayez une photo plus nette ou remplissez le formulaire.');
+      if (engine.current === ownedEngine) engine.current = null;
       onRead(result.employeeDraft);
+      if (generation.current !== current) return;
       setNotice('Lecture terminée. Vérifiez les champs préremplis, puis complétez les informations manquantes.');
     } catch (reason) {
       if (generation.current === current) setError(reason instanceof Error ? reason.message : 'La lecture a échoué. Réessayez avec une autre fiche.');
     } finally {
       unsubscribe?.();
-      if (generation.current === current) { engine.current?.cancel(); engine.current = null; setWorking(false); }
+      ownedEngine?.releaseIfIdle();
+      if (generation.current === current) {
+        if (engine.current === ownedEngine) engine.current = null;
+        setWorking(false);
+      }
     }
   }
   return <section className="employee-document-import" aria-label={t("Remplir depuis une fiche de salaire")}>

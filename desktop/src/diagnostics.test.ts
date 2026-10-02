@@ -225,6 +225,7 @@ describe('safe diagnostics',()=>{
   it.each([
     'La connexion ou l’entreprise ouverte a changé. Rouvrez la réception.',
     'L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.',
+    'L’espace de travail a changé pendant l’actualisation des réglages enregistrés.',
   ])('records a fixed workspace rejection as CONFLICT without retaining its text: %s', async message => {
     const d = await api(), reason = new Error(`Champ invalide : ${message} token=private-secret synthetic-org synthetic-scope`);
     expect(d.classifyDiagnosticError(message)).toBe('CONFLICT');
@@ -236,7 +237,7 @@ describe('safe diagnostics',()=>{
     expect(events[1].errorCode).toBe('CONFLICT');
     expect(events[0].id).toBe(events[1].id);
     expect(d.resolveErrorIncident(reason).code).toBe(`ZT-${events[1].id}`);
-    expect(JSON.stringify(events)).not.toMatch(/Champ invalide|entreprise ouverte|private-secret|synthetic-org|synthetic-scope|token/);
+    expect(JSON.stringify(events)).not.toMatch(/Champ invalide|entreprise ouverte|espace de travail|private-secret|synthetic-org|synthetic-scope|token/);
   });
   it.each([[401, 'SESSION'], [403, 'PERMISSION']])('keeps auth code %s ahead of a fixed workspace rejection', async (status, code) => {
     const message = `${status} Champ invalide : La connexion ou l’entreprise ouverte a changé. Rouvrez la réception.`;

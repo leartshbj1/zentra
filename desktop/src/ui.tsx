@@ -186,8 +186,14 @@ export function Modal({
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     modalLayers.push(layer);
     restoreModalIsolation(layer);
+    const observer = new MutationObserver(() => {
+      if (modalLayers.at(-1) === layer && layer.isConnected) isolateModalLayer(layer);
+    });
     const focusFrame = window.requestAnimationFrame(() => {
-      if (modalLayers.at(-1) !== layer) return;
+      if (modalLayers.at(-1) !== layer) {
+        observer.observe(document.body, { childList: true });
+        return;
+      }
       if (!dialog.contains(document.activeElement)) {
         const focusableElements = modalFocusableElements(dialog);
         const preferredFocus = dialog.querySelector<HTMLElement>(
@@ -198,9 +204,11 @@ export function Modal({
       }
       // Move focus first: aria-hidden must never enclose the active control.
       isolateModalLayer(layer);
+      observer.observe(document.body, { childList: true });
     });
 
     return () => {
+      observer.disconnect();
       window.cancelAnimationFrame(focusFrame);
       const wasTop = modalLayers.at(-1) === layer;
       const index = modalLayers.indexOf(layer);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -146,6 +146,9 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   const draftRevisions = useRef<Record<string, number>>({});
   const aiLoadedRef = useRef(false);
   const aiModeRef = useRef<PayrollAiMode>('unavailable');
+  const aiAlive = useRef(true);
+  const aiGeneration = useRef(0);
+  const ownedAnalysis = useRef<symbol | null>(null);
   const batchCancelRequested = useRef(false);
   const [aiState, setAiState] = useState<AiState>('idle');
   const [aiMode, setAiMode] = useState<PayrollAiMode>('unavailable');
@@ -168,14 +171,20 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     activeIdRef.current = active?.id ?? '';
   }, [active?.id]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    aiAlive.current = true;
     let alive = true;
     const unsubscribe = payrollLocalAi.onProgress((progress) => { if (alive) setAiProgress(progress); });
     return () => {
       alive = false;
+      aiAlive.current = false;
+      aiGeneration.current++;
+      batchCancelRequested.current = true;
       unsubscribe();
       aiLoadedRef.current = false;
-      payrollLocalAi.cancel();
+      const owned = ownedAnalysis.current;
+      ownedAnalysis.current = null;
+      if (owned) payrollLocalAi.cancel();
     };
   }, []);
 
@@ -315,11 +324,21 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     }
   }
 
-  async function ensureAiLoaded() {
+  function isCurrentAiRun(generation: number) {
+    return aiAlive.current && aiGeneration.current === generation;
+  }
+
+  function requireAiRun(generation: number) {
+    if (!isCurrentAiRun(generation) || batchCancelRequested.current) throw new Error('Analyse locale annulée. Aucun brouillon IA incomplet n’a été enregistré.');
+  }
+
+  async function ensureAiLoaded(generation: number) {
+    requireAiRun(generation);
     if (aiLoadedRef.current) return;
     setAiState('checking');
     setAiProgress({ label: 'Vérification locale du moteur…', percent: null });
     const detectedMode = await payrollLocalAi.check();
+    requireAiRun(generation);
     aiModeRef.current = detectedMode;
     setAiMode(detectedMode);
     if (detectedMode === 'unavailable') {
@@ -335,7 +354,9 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     target: PayrollDocumentImport,
     targetDraft: PayrollImportDraft,
     queuePosition?: { current: number; total: number },
+    generation = aiGeneration.current,
   ) {
+    requireAiRun(generation);
     const analysisSnapshot = payrollAnalysisDraftSnapshot(
       target.id,
       draftRevisions.current[target.id] ?? 0,
@@ -343,12 +364,14 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     const mergeBase = /^(?:smolvlm-500m-|qwen3-0.6b-)/.test(target.extractionEngine)
       ? preparePayrollDraftForAiRerun(targetDraft)
       : cloneDraft(targetDraft);
-    await ensureAiLoaded();
+    await ensureAiLoaded(generation);
+    requireAiRun(generation);
     setAiState('analyzing');
     const queuePrefix = queuePosition ? `Fiche ${queuePosition.current}/${queuePosition.total} · ` : '';
     setAiProgress({ label: `${queuePrefix}analyse locale de ${target.sourceName}`, percent: null });
 
     const { mimeType, dataBase64 } = await desktopApi.getPayrollDocumentPreview(target.id);
+    requireAiRun(generation);
     let visualPageCount = 1;
     let imageUrls: string[] = [];
     let textPages: string[] = [];
@@ -358,6 +381,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         extractPayrollPdfTextByPage(base64ToBytes(dataBase64), MAX_VISUAL_PAYROLL_PAGES)
           .catch(() => ({ pageCount: 0, pages: [] as string[] })),
       ]);
+      requireAiRun(generation);
       imageUrls = preview.pages;
       visualPageCount = preview.pageCount;
       textPages = pageText.pages;
@@ -369,6 +393,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     } else {
       const sourceDataUrl = `data:${mimeType};base64,${dataBase64}`;
       imageUrls = [await prepareImageForAnalysis(sourceDataUrl)];
+      requireAiRun(generation);
       if (activeIdRef.current === target.id) setDocumentDataUrl(sourceDataUrl);
     }
     if (target.mediaKind === 'pdf' && visualPageCount > imageUrls.length) {
@@ -392,16 +417,24 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       const batchNumber = Math.floor(offset / pageBatchSize) + 1;
       const readingLabel = 'lecture locale · Qwen';
       setAiProgress({ label: `${queuePrefix}lot ${batchNumber}/${totalBatches} · pages ${pageStart}–${pageEnd} · ${readingLabel}`, percent: Math.round(((batchNumber - 1) / totalBatches) * 100) });
-      latestResult = await payrollLocalAi.analyze({
-        imageUrls: batchImages,
-        // PDF.js restitue la couche texte page par page : chaque lot ne voit
-        // que ses pages et ne peut donc attribuer une valeur lointaine au lot.
-        extractedText: target.mediaKind === 'pdf'
-          ? payrollTextForPageBatch(textPages, pageStart, pageEnd) || (imageUrls.length === 1 ? target.extractedText : '')
-          : target.extractedText,
-        pageStart,
-        pageEnd,
-      });
+      requireAiRun(generation);
+      const owner = payrollLocalAi.isBusy() ? null : Symbol();
+      if (owner) ownedAnalysis.current = owner;
+      try {
+        latestResult = await payrollLocalAi.analyze({
+          imageUrls: batchImages,
+          // PDF.js restitue la couche texte page par page : chaque lot ne voit
+          // que ses pages et ne peut donc attribuer une valeur lointaine au lot.
+          extractedText: target.mediaKind === 'pdf'
+            ? payrollTextForPageBatch(textPages, pageStart, pageEnd) || (imageUrls.length === 1 ? target.extractedText : '')
+            : target.extractedText,
+          pageStart,
+          pageEnd,
+        });
+      } finally {
+        if (owner && ownedAnalysis.current === owner) ownedAnalysis.current = null;
+      }
+      requireAiRun(generation);
       aiModeRef.current = latestResult.mode;
       setAiMode(latestResult.mode);
       pageBatches.push({
@@ -468,7 +501,9 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       hasTextLayer: corroboratedAiDraft.hasTextLayer,
     });
     const readingStrategy = analysisPasses === 2 ? 'double-read' : 'single-read';
+    requireAiRun(generation);
     const saved = await desktopApi.updatePayrollImportDraft(target.id, merged, `qwen3-0.6b-${latestResult.mode}-multipage-${readingStrategy}-${analysisPasses}`, latestResult.modelVersion, confidenceBp, analysisManifest);
+    if (!isCurrentAiRun(generation)) return saved;
     setAiIdentityEvidence((current) => ({ ...current, [saved.id]: aiDraft.identity }));
     setAiProvenance((current) => ({ ...current, [saved.id]: payrollAiProvenanceFromManifest(saved.analysisManifest) ?? finalProvenance }));
     setEmployeeLinks((current) => ({ ...current, [saved.id]: employeeId }));
@@ -486,17 +521,21 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   function cancelAiAnalysis() {
     batchCancelRequested.current = true;
     aiLoadedRef.current = false;
-    payrollLocalAi.cancel();
+    const owned = ownedAnalysis.current;
+    ownedAnalysis.current = null;
+    if (owned) payrollLocalAi.cancel();
   }
 
   async function analyzeCurrent() {
-    if (!active || !draft) return;
+    if (!active || !draft || !aiAlive.current) return;
+    const generation = aiGeneration.current;
     setLocalError('');
     batchCancelRequested.current = false;
     setReviewed((current) => ({ ...current, [active.id]: false }));
     try {
-      await analyzeImport(active, draft);
+      await analyzeImport(active, draft, undefined, generation);
     } catch (reason) {
+      if (!isCurrentAiRun(generation)) return;
       aiLoadedRef.current = false;
       setAiState(aiModeRef.current === 'unavailable' ? 'unavailable' : 'error');
       setLocalError(errorMessage(reason, "L'analyse Qwen locale a échoué."));
@@ -504,6 +543,8 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
   }
 
   async function analyzePendingQueue() {
+    if (!aiAlive.current) return;
+    const generation = aiGeneration.current;
     const queue = pendingLocalPayrollAiImports(imports);
     if (!queue.length) return;
     setLocalError('');
@@ -514,9 +555,9 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
     const failures: BatchAnalysisState['failures'] = [];
 
     try {
-      await ensureAiLoaded();
+      await ensureAiLoaded(generation);
       for (let index = 0; index < queue.length; index += 1) {
-        if (batchCancelRequested.current) break;
+        if (!isCurrentAiRun(generation) || batchCancelRequested.current) break;
         const target = queue[index];
         const queueIndex = imports.findIndex((item) => item.id === target.id);
         if (queueIndex >= 0) {
@@ -525,9 +566,11 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         }
         setBatchAnalysis({ status: 'running', processed, completed, total: queue.length, currentName: target.sourceName, failures: [...failures] });
         try {
-          await analyzeImport(target, cloneDraft(drafts[target.id] ?? target.draft), { current: index + 1, total: queue.length });
+          await analyzeImport(target, cloneDraft(drafts[target.id] ?? target.draft), { current: index + 1, total: queue.length }, generation);
+          if (!isCurrentAiRun(generation)) return;
           completed += 1;
         } catch (reason) {
+          if (!isCurrentAiRun(generation)) return;
           if (batchCancelRequested.current) break;
           aiLoadedRef.current = false;
           failures.push({ id: target.id, sourceName: target.sourceName, message: errorMessage(reason, "L'analyse locale a échoué.") });
@@ -537,6 +580,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
         setBatchAnalysis({ status: 'running', processed, completed, total: queue.length, currentName: queue[index + 1]?.sourceName ?? '', failures: [...failures] });
       }
     } catch (reason) {
+      if (!isCurrentAiRun(generation)) return;
       aiLoadedRef.current = false;
       setAiState(aiModeRef.current === 'unavailable' ? 'unavailable' : 'error');
       const message = errorMessage(reason, "La file d'analyse locale n'a pas pu démarrer.");
@@ -544,6 +588,7 @@ export function PayrollImportWizard({ workspace, close, act }: { workspace: Work
       setLocalError(message);
     }
 
+    if (!isCurrentAiRun(generation)) return;
     const cancelled = batchCancelRequested.current;
     setBatchAnalysis({ status: cancelled ? 'cancelled' : 'complete', processed, completed, total: queue.length, currentName: '', failures });
     if (cancelled) {

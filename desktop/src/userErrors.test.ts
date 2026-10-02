@@ -71,6 +71,7 @@ describe('messages humains et données brutes des erreurs', () => {
   it.each([
     'La connexion ou l’entreprise ouverte a changé. Rouvrez la réception.',
     'L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.',
+    'L’espace de travail a changé pendant l’actualisation des réglages enregistrés.',
   ])('reconnaît le changement d’espace derrière le préfixe natif : %s', message => {
     const reason = `Champ invalide : ${message}`;
     expect(classifyUserError(reason)).toBe('workspace');

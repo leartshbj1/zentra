@@ -4881,7 +4881,7 @@ export const desktopApi = {
   resetLocalApp: (confirmation: string) => cloudAccountReader.mutate(() => invoke<{reset:boolean}>('reset_local_app', {confirmation})),
   publishCompanyCopy: () => invoke('enable_company_sync', {confirmFullAccess:true}),
   getResetRecovery: () => invoke<{available:boolean;createdAt?:string}>('get_reset_recovery'),
-  async restoreResetRecovery() { await invoke('restore_reset_recovery'); return loadWorkspace(); },
+  async restoreResetRecovery() { await invoke('restore_reset_recovery'); return refreshWorkspaceAfterMutation(loadWorkspace); },
   async archiveInvoiceToCloud(
     invoiceId: string,
     correctionReason?: string,

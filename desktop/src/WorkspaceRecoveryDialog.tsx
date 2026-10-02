@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { CheckCircle2, Search, RefreshCw } from 'lucide-react';
 import { Button, ErrorPanel, Modal } from './ui';
 import { errorMessage } from './utils';
@@ -8,36 +8,11 @@ import { ErrorDetails } from './ErrorGuidance';
 
 export function WorkspaceRecoveryDialog({ reason, checkingCreation = false, onReload }: { reason: string; checkingCreation?: boolean; onReload: () => Promise<void> }) {
   useAppLanguage();
-  const contentRef = useRef<HTMLFormElement>(null);
   const inFlight = useRef(false);
   const [busy, setBusy] = useState(false);
   const [retryError, setRetryError] = useState('');
-  useEffect(() => {
-    const backdrop = contentRef.current?.closest('.modal-backdrop');
-    if (!backdrop) return;
-    const previous = new Map<Element, { inert: boolean; hidden: string | null }>();
-    const protectBackground = () => {
-      for (const element of document.body.children) {
-        if (element === backdrop || ['SCRIPT', 'STYLE'].includes(element.tagName) || previous.has(element)) continue;
-        previous.set(element, { inert: element.hasAttribute('inert'), hidden: element.getAttribute('aria-hidden') });
-        element.setAttribute('inert', '');
-        element.setAttribute('aria-hidden', 'true');
-      }
-    };
-    protectBackground();
-    const observer = new MutationObserver(protectBackground);
-    observer.observe(document.body, { childList: true });
-    return () => {
-      observer.disconnect();
-      for (const [element, attributes] of previous) {
-        if (!attributes.inert) element.removeAttribute('inert');
-        if (attributes.hidden === null) element.removeAttribute('aria-hidden');
-        else element.setAttribute('aria-hidden', attributes.hidden);
-      }
-    };
-  }, []);
   return <Modal title={t(checkingCreation ? 'Vérifier l’enregistrement' : 'Enregistrement effectué')} description={t(checkingCreation ? 'La réponse a été interrompue. Votre saisie est conservée dans cette fenêtre.' : 'Les données doivent être actualisées avant de continuer.')} dismissible={false} onClose={() => {}}>
-    <form ref={contentRef} className="workspace-recovery" onSubmit={async (event) => {
+    <form className="workspace-recovery" onSubmit={async (event) => {
       event.preventDefault();
       if (inFlight.current) return;
       inFlight.current = true;
