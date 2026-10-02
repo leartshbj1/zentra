@@ -52,7 +52,7 @@ async function navigate(page,label){
   await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill(label);
   await page.locator('.navigation-palette__results button').filter({has:page.getByText(label,{exact:true})}).click();
 }
-const scenarios=(process.env.ZENTRA_QA_CASES||'scope-resolve,scope-reject,unmount-resolve,unmount-reject,read-failure-retry,retry-scope-change').split(',');
+const scenarios=(process.env.ZENTRA_QA_CASES||'scope-resolve,scope-reject,unmount-resolve,unmount-reject,read-failure-retry,retry-scope-change,read-failure-fallback-success').split(',');
 try{
   await server.listen();
   for(const engine of ['chromium','webkit']){
@@ -78,6 +78,7 @@ try{
           };
           api.loadWorkspace=async()=>{
             const index=++reads,snapshot=structuredClone(stored);
+            if(scenario==='read-failure-fallback-success'&&index===1)throw Error('Synthetic first read failure; next read succeeds');
             if(['read-failure-retry','retry-scope-change'].includes(scenario)){
               if(index<=2)throw Error('Synthetic read interruption after confirmed project/files');
               if(scenario==='read-failure-retry')return snapshot;
@@ -100,7 +101,9 @@ try{
         await form.locator('input[type=file]').first().setInputFiles(['synthetic-plan.txt','synthetic-notes.txt'].map(name=>({name,mimeType:'text/plain',buffer:Buffer.from('Synthetic fixture')})));
         await form.getByRole('button',{name:'Enregistrer',exact:true}).click();
         await page.waitForFunction(()=>window.__qaProjectForm.proof().saves===1&&window.__qaProjectForm.proof().adds===2);
-        if(['read-failure-retry','retry-scope-change'].includes(scenario)){
+        if(scenario==='read-failure-fallback-success'){
+          await page.waitForFunction(()=>window.__qaProjectForm.proof().reads===2&&window.__qaProjectForm.proof().settled===1);
+        }else if(['read-failure-retry','retry-scope-change'].includes(scenario)){
           await page.waitForFunction(()=>window.__qaProjectForm.proof().reads===2);
           const recovery=page.getByRole('dialog',{name:'Enregistrement effectué',exact:true});
           // The old implementation retained the original submit inside global
@@ -141,9 +144,10 @@ try{
         await page.waitForTimeout(300);
         const proof=await page.evaluate(()=>window.__qaProjectForm.proof());
         const body=await page.locator('body').innerText(),recoveryPending=await page.locator('.workspace-recovery').count()>0;
+        const normalScope=['read-failure-retry','read-failure-fallback-success'].includes(scenario);
         const checks={oneSavedProject:proof.saves===1,filesNeverReplayed:proof.adds===2,handlerSettled:proof.settled===expectedSettled,
-          noInfiniteRecovery:!recoveryPending,noStalePublication:scenario==='read-failure-retry'||!proof.publications.some(row=>row.scope==='synthetic-project-scope-a'),
-          currentScopePreserved:scenario==='read-failure-retry'||proof.storedScope==='synthetic-project-scope-b',
+          noInfiniteRecovery:!recoveryPending,noStalePublication:normalScope||!proof.publications.some(row=>row.scope==='synthetic-project-scope-a'),
+          currentScopePreserved:normalScope||proof.storedScope==='synthetic-project-scope-b',
           noPageErrors:errors.length===0,noExternalRequests:external.length===0};
         if(!revision)checks.originalScopeForwarded=proof.scopes.length===2&&proof.scopes.every(scope=>scope==='synthetic-project-scope-a');
         if(retryMode==='confirmed-form-read-retry'){
@@ -158,6 +162,16 @@ try{
           checks.recoveryReadOnly=proof.reads===3&&proof.storedProjects===1&&proof.storedFiles===2;
           checks.visibleConfirmedProject=body.includes('Synthetic confirmed project A');
         }else checks.boundedReads=proof.reads===(scenario==='retry-scope-change'?4:2);
+        if(scenario==='read-failure-fallback-success'){
+          checks.confirmedFormClosed=await form.count()===0;
+          checks.noResidualReadReceipt=!body.includes('Le projet est enregistré. Reprenez pour actualiser la liste');
+          // A closed form and the confirmed project in the refreshed real list
+          // are the success contract; no additional global toast is required.
+          checks.visibleConfirmedProject=await page.getByText('Synthetic confirmed project A',{exact:true}).isVisible();
+          checks.noResidualReadError=await page.locator('.error-guidance__message').filter({hasText:'Les informations n’ont pas pu être chargées.'}).count()===0;
+          checks.confirmedWorkspacePublished=proof.publications.length===1&&proof.publications[0].projects?.includes('Synthetic confirmed project A');
+          checks.onlyConfirmedRecords=proof.storedProjects===1&&proof.storedFiles===2;
+        }
         result={engine,scenario,passed:Object.values(checks).every(Boolean),checks,proof,retryMode,expectedSettled,confirmedReceiptVisible,receiptStayedDuringRead,readGuidanceVisible,body,errors,external};
       }catch(reason){result={engine,scenario,passed:false,error:String(reason),proof:await page.evaluate(()=>window.__qaProjectForm?.proof()).catch(()=>null),body:await page.locator('body').innerText().catch(()=>''),errors,external};}
       report.cases.push(result);await writeFile(join(out,'report.json'),JSON.stringify(report,null,2));
