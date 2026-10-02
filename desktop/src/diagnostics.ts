@@ -91,7 +91,10 @@ export async function diagnosticInvoke<T>(command:string,args?:InvokeArgs,option
   const call = () => options !== undefined ? nativeInvoke<T>(command,args,options) : args !== undefined ? nativeInvoke<T>(command,args) : nativeInvoke<T>(command);
   // Diagnostics commands are never recursively diagnosed. Do not add args/result here.
   if(['append_diagnostic_events','get_diagnostics_summary','export_diagnostics','clear_diagnostics','get_form_draft_identity'].includes(command))return call();
-  return diagnosticOperation('command',command,call);
+  // Only this registered plugin command gets a fixed log name. Its transport
+  // name and input remain unchanged; arbitrary plugin strings stay rejected.
+  const operation=command==='plugin:zentra-mobile|configure_navigation'?'plugin.zentra_mobile.configure_navigation':command;
+  return diagnosticOperation('command',operation,call);
 }
 
 let installed=false;

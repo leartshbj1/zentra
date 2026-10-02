@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { createNativeNavigationSession, type NativeDestination, type NativeNavigationItem } from './nativeNavigationSession';
+import { recentDiagnosticEvents, resolveErrorIncident } from './diagnostics';
 
 const callbacks = new Map<number, (value: unknown) => void>();
 let counter = 0, subscription: { id: number; index: number } | undefined;
@@ -28,6 +29,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('native Apple navigation subscription', () => {
   it('updates personalized items and translations without closing the channel, and rejects removed items', async () => {
+    const before = recentDiagnosticEvents().length;
     const navigate = vi.fn();
     const state = { selected: 'agenda' as NativeDestination, visible: true, onNavigate: navigate, items: [{id:'agenda',label:'Agenda'},{id:'clients',label:'Clients'},{id:'invoices',label:'Factures'},{id:'automation',label:'Automation'},{id:'menu',label:'Menu'}] as NativeNavigationItem[] };
     const session = createNativeNavigationSession('plugin:zentra-mobile|configure_navigation', () => state, vi.fn());
@@ -39,6 +41,44 @@ describe('native Apple navigation subscription', () => {
     expect(configure.mock.calls.filter(([,args])=>args.onNavigate)).toHaveLength(1);
     expect(configure.mock.calls.at(-1)?.[1]).toHaveProperty('items',state.items);
     await session.dispose();
+    const events = recentDiagnosticEvents().slice(before);
+    expect(events.map(event => [event.operation, event.phase])).toEqual([
+      ['plugin.zentra_mobile.configure_navigation', 'start'], ['plugin.zentra_mobile.configure_navigation', 'success'],
+      ['plugin.zentra_mobile.configure_navigation', 'start'], ['plugin.zentra_mobile.configure_navigation', 'success'],
+      ['plugin.zentra_mobile.configure_navigation', 'start'], ['plugin.zentra_mobile.configure_navigation', 'success'],
+    ]);
+    expect(configure.mock.calls.every(([command]) => command === 'plugin:zentra-mobile|configure_navigation')).toBe(true);
+    expect(configure.mock.calls.at(-1)?.[1]).toEqual({ selected: 'agenda', visible: false });
+    expect(JSON.stringify(events)).not.toMatch(/selected|visible|items|onNavigate|agenda|Clients|Projekte|automation/);
+  });
+  it('logs an iOS configuration failure and teardown without changing the Channel fallback', async () => {
+    const before = recentDiagnosticEvents().length, navigate = vi.fn(), available = vi.fn();
+    const state = { selected: 'dashboard' as NativeDestination, visible: true, onNavigate: navigate, items: [
+      { id: 'dashboard', label: 'Private company home' }, { id: 'agenda', label: 'Agenda' },
+      { id: 'projects', label: 'Projects' }, { id: 'quotes', label: 'Quotes' }, { id: 'menu', label: 'Private company menu' },
+    ] as NativeNavigationItem[] };
+    const command = 'plugin:zentra-mobile|configure_navigation';
+    const session = createNativeNavigationSession(command, () => state, available);
+    await session.update(); tap('menu'); expect(navigate).toHaveBeenCalledOnce();
+    const error = new Error('native unavailable for private@example.ch password=secret');
+    configure.mockRejectedValueOnce(error);
+    await session.update(); tap('menu');
+    expect(navigate).toHaveBeenCalledOnce(); expect(available).toHaveBeenLastCalledWith(false);
+    expect(configure.mock.calls.filter(([, args]) => args.onNavigate)).toHaveLength(1);
+    expect(configure.mock.calls.at(-1)?.[1]).toEqual({ selected: 'dashboard', visible: false });
+    const events = recentDiagnosticEvents().slice(before);
+    expect(events.map(event => [event.operation, event.phase])).toEqual([
+      ['plugin.zentra_mobile.configure_navigation', 'start'], ['plugin.zentra_mobile.configure_navigation', 'success'],
+      ['plugin.zentra_mobile.configure_navigation', 'start'], ['plugin.zentra_mobile.configure_navigation', 'failure'],
+      ['plugin.zentra_mobile.configure_navigation', 'start'], ['plugin.zentra_mobile.configure_navigation', 'success'],
+    ]);
+    expect(events[2].id).toBe(events[3].id);
+    expect(resolveErrorIncident(error).code).toBe(`ZT-${events[3].id}`);
+    expect(JSON.stringify(events)).not.toMatch(/selected|visible|items|onNavigate|dashboard|Private|company menu|private|password|secret/);
+    const calls = configure.mock.calls.length;
+    await session.update(); expect(configure).toHaveBeenCalledTimes(calls);
+    await session.dispose(); tap('menu'); expect(navigate).toHaveBeenCalledOnce();
+    expect(configure.mock.calls.at(-1)?.[1]).toEqual({ selected: 'dashboard', visible: false });
   });
   it('reproduces the old failure with the actual Tauri Channel', async () => {
     const receive = vi.fn(); const channel = new Channel(receive);

@@ -34,6 +34,29 @@ describe('safe diagnostics',()=>{
     await d.diagnosticInvoke('load_workspace');expect(invoke.mock.calls[1]).toEqual(['load_workspace']);
     await d.diagnosticInvoke('watch_workspace',{}, {headers:{foo:'bar'}});expect(invoke.mock.calls[2]).toEqual(['watch_workspace',{}, {headers:{foo:'bar'}}]);
   });
+  it('logs the known iOS navigation command with a fixed slug while forwarding its exact transport input',async()=>{
+    const d=await api(),command='plugin:zentra-mobile|configure_navigation';
+    const args={selected:'agenda',visible:true,items:[{id:'agenda',label:'Private company navigation'}],onNavigate:{privateChannel:'callback-id'}};
+    const options={headers:{privateHeader:'private-value'}},result={available:true};invoke.mockResolvedValue(result);
+    expect(await d.diagnosticInvoke(command,args,options)).toBe(result);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(command,args,options);
+    const events=d.recentDiagnosticEvents();
+    expect(events.map(event=>[event.operation,event.phase])).toEqual([['plugin.zentra_mobile.configure_navigation','start'],['plugin.zentra_mobile.configure_navigation','success']]);
+    expect(events[0].id).toBe(events[1].id);
+    expect(JSON.stringify(events)).not.toMatch(/selected|visible|agenda|Private|private|items|onNavigate|callback|available/);
+  });
+  it('records an iOS navigation failure and keeps the original rejection without allowing arbitrary plugin names',async()=>{
+    const d=await api(),reason='native navigation unavailable for customer@example.ch password=secret';invoke.mockRejectedValue(reason);
+    await expect(d.diagnosticInvoke('plugin:zentra-mobile|configure_navigation',{selected:'invoices',visible:true})).rejects.toBe(reason);
+    const events=d.recentDiagnosticEvents();
+    expect(events.map(event=>[event.operation,event.phase])).toEqual([['plugin.zentra_mobile.configure_navigation','start'],['plugin.zentra_mobile.configure_navigation','failure']]);
+    expect(events[0].id).toBe(events[1].id);
+    expect(d.resolveErrorIncident(reason).code).toBe(`ZT-${events[1].id}`);
+    expect(JSON.stringify(events)).not.toMatch(/invoices|selected|visible|customer|password|secret/);
+    invoke.mockResolvedValue('unchanged');
+    expect(await d.diagnosticInvoke('plugin:private-customer|secret-command',{password:'secret'})).toBe('unchanged');
+    expect(d.recentDiagnosticEvents()).toHaveLength(2);
+  });
   it('rethrows the original error and correlates both object and displayed string',async()=>{
     const d=await api(),error=new Error('network failure for customer@example.ch password=secret');invoke.mockRejectedValue(error);
     await expect(d.diagnosticInvoke('get_account')).rejects.toBe(error);
