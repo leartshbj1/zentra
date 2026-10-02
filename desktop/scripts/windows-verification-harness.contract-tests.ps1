@@ -9,7 +9,7 @@ function Assert-Contract { param([bool]$Condition, [string]$Name); if (-not $Con
 function Assert-Throws { param([ScriptBlock]$Action, [string]$Name); $threw=$false; try { & $Action | Out-Null } catch { $threw=$true }; Assert-Contract $threw $Name }
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('zentra-harness-contract-' + [Guid]::NewGuid().ToString('D'))
 $savedEnvironment = @{}
-foreach ($name in @('ZENTRA_VERIFY_DIAGNOSTICS_ONLY','ZENTRA_VERIFY_ONLY','CIRCLE_SHA1','PATH')) { $savedEnvironment[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
+foreach ($name in @('ZENTRA_VERIFY_DIAGNOSTICS_ONLY','ZENTRA_VERIFY_ONLY','CIRCLE_SHA1','PATH','RUSTUP_TOOLCHAIN')) { $savedEnvironment[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
 try {
     $source='1111111111111111111111111111111111111111'
     $env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY='false'; $env:ZENTRA_VERIFY_ONLY='true'; $env:CIRCLE_SHA1=$source
@@ -100,13 +100,71 @@ try {
 
     $script:toolCalls=0
     $script:mockSummary='test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s'
+    $script:mockExit=0
+    $script:lastToolArguments=@()
     function Invoke-ZentraHarnessTool {
         param([string]$Program,[string[]]$Arguments,[string]$Repository,[string]$Stdout,[string]$Stderr,[string]$HeartbeatMessage,[int]$TimeoutSeconds)
         $script:toolCalls++
+        $script:lastToolArguments=$Arguments
         [IO.File]::WriteAllText($Stdout,$script:mockSummary)
         [IO.File]::WriteAllText($Stderr,'')
-        return 0
+        return $script:mockExit
     }
+    $script:mockReparsePath=$null
+    function Get-Item {
+        param([string]$LiteralPath)
+        if ($LiteralPath -ceq $script:mockReparsePath) {
+            return [pscustomobject]@{FullName=$LiteralPath;PSIsContainer=$false;Attributes=[IO.FileAttributes]::ReparsePoint;LinkType='SymbolicLink';Target=@('C:\fixture\rustup.exe')}
+        }
+        return Microsoft.PowerShell.Management\Get-Item -LiteralPath $LiteralPath
+    }
+    $vendorDirectory=Join-Path $testRoot 'installed vendor'
+    $toolchainDirectory=Join-Path $testRoot 'selected toolchain'
+    [IO.Directory]::CreateDirectory($vendorDirectory) | Out-Null
+    [IO.Directory]::CreateDirectory($toolchainDirectory) | Out-Null
+    $rustupFixture=Join-Path $vendorDirectory 'rustup.exe'
+    $cargoFixture=Join-Path $toolchainDirectory 'cargo.exe'
+    [IO.File]::WriteAllText($rustupFixture,'inert vendor fixture, never executed')
+    [IO.File]::WriteAllText($cargoFixture,'inert toolchain fixture, never executed')
+    $vendorCandidates=@([pscustomobject]@{Name='rustup.exe';Source=$rustupFixture},[pscustomobject]@{Name='rustup.exe';Source=$exe})
+    $vendorProof=[ordered]@{source=$source;compileTool=[ordered]@{selected=$null;exists=$false;ordinaryFile=$false}}
+    $vendorProofPath=Join-Path $testRoot 'vendor-proof.json'
+    $env:RUSTUP_TOOLCHAIN='fixture-x86_64-pc-windows-msvc'
+    $script:mockSummary=$cargoFixture+"`r`n"
+    $resolvedCargo=Resolve-ZentraToolchainCargo $vendorCandidates $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath
+    Assert-Contract ($resolvedCargo -ceq $cargoFixture) 'resolve exact toolchain cargo from vendor rather than proxy target'
+    Assert-Contract (($script:lastToolArguments -join '|') -ceq ('which|cargo|--toolchain|'+$env:RUSTUP_TOOLCHAIN)) 'vendor resolver receives exact existing toolchain without installation'
+    Assert-Contract ($vendorProof.compileTool.resolver.selected -ceq $rustupFixture -and $vendorProof.compileTool.resolver.candidates.Count -eq 2) 'record resolver first candidate and all applications without concatenation'
+    Assert-Contract ($vendorProof.compileTool.exists -and $vendorProof.compileTool.ordinaryFile -and $vendorProof.compileTool.resolver.exit -eq 0) 'capture successful real-file resolution before compile'
+    $beforeResolverFailures=$script:toolCalls
+    Assert-Throws { Resolve-ZentraToolchainCargo $vendorCandidates 'other-toolchain' $testRoot $testRoot $vendorProof $vendorProofPath } 'do not change toolchain or fall back to stable'
+    Assert-Throws { Resolve-ZentraToolchainCargo @() $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath } 'do not fall back when vendor is absent'
+    Assert-Throws { Resolve-ZentraToolchainCargo @($vendorCandidates[1],$vendorCandidates[0]) $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath } 'do not skip an invalid first vendor application to arbitrary later candidate'
+    Assert-Throws { Resolve-ZentraToolchainCargo $vendorCandidates $env:RUSTUP_TOOLCHAIN (Join-Path $testRoot 'missing directory') $testRoot $vendorProof $vendorProofPath } 'reject absent working directory before resolver'
+    Assert-Contract ($script:toolCalls -eq $beforeResolverFailures) 'invalid toolchain/vendor/cwd launches no processes'
+    $script:mockExit=23
+    Assert-Throws { Resolve-ZentraToolchainCargo $vendorCandidates $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath } 'nonzero vendor resolver status cannot imply success'
+    $script:mockExit=0
+    $script:mockSummary=''
+    Assert-Throws { Resolve-ZentraToolchainCargo $vendorCandidates $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath } 'empty vendor output is not a cargo path'
+    $script:mockSummary=$cargoFixture+"`r`n"+$exe
+    Assert-Throws { Resolve-ZentraToolchainCargo $vendorCandidates $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath } 'multiple vendor output lines cannot select arbitrary cargo'
+    $script:mockSummary='cargo.exe'
+    Assert-Throws { Resolve-ZentraToolchainCargo $vendorCandidates $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath } 'relative vendor cargo path is rejected'
+    $script:mockSummary=$rustupFixture
+    Assert-Throws { Resolve-ZentraToolchainCargo $vendorCandidates $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath } 'resolved rustup executable cannot run with cargo argv0'
+    $script:mockSummary=Join-Path $testRoot 'missing/cargo.exe'
+    Assert-Throws { Resolve-ZentraToolchainCargo $vendorCandidates $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath } 'resolved cargo must exist as a file'
+    $script:mockSummary=$cargoFixture
+    $script:mockReparsePath=$cargoFixture
+    Assert-Throws { Resolve-ZentraToolchainCargo $vendorCandidates $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath } 'resolved toolchain cargo reparse is rejected without global guard relaxation'
+    $metadata=@(Get-ZentraHarnessApplicationMetadata @([pscustomobject]@{Name='cargo.exe';Source=$cargoFixture}))
+    Assert-Contract ($metadata.Count -eq 1 -and $metadata[0].linkType -ceq 'SymbolicLink' -and $metadata[0].target[0] -ceq 'C:\fixture\rustup.exe' -and -not $metadata[0].ordinaryFile) 'record proxy link metadata without launching its target'
+    $script:mockReparsePath=$rustupFixture
+    Assert-Throws { Resolve-ZentraToolchainCargo $vendorCandidates $env:RUSTUP_TOOLCHAIN $testRoot $testRoot $vendorProof $vendorProofPath } 'vendor resolver itself must remain an ordinary file'
+    $script:mockReparsePath=$null
+    $script:toolCalls=0
+    $script:mockSummary='test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s'
     $env:ZENTRA_VERIFY_ONLY='false'
     Assert-Throws { Initialize-ZentraVerificationHarness $testRoot $testRoot $source } 'initializer stops before any tool outside verification-only mode'
     Assert-Contract ($script:toolCalls -eq 0) 'mode failure launches no child processes'

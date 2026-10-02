@@ -37,6 +37,59 @@ function Select-ZentraHarnessApplication {
     return $file.FullName
 }
 
+function Get-ZentraHarnessApplicationMetadata {
+    param([object[]]$Candidates)
+    return @($Candidates | ForEach-Object {
+        $source = [string]$_.Source
+        $exists = -not [string]::IsNullOrWhiteSpace($source) -and (Test-Path -LiteralPath $source -PathType Leaf)
+        $file = if ($exists) { Get-Item -LiteralPath $source } else { $null }
+        $linkType = if ($null -ne $file -and $null -ne $file.PSObject.Properties['LinkType']) { $file.LinkType } else { $null }
+        $target = @()
+        if ($null -ne $file -and $null -ne $file.PSObject.Properties['Target']) { $target = @($file.Target) }
+        [ordered]@{Name=$_.Name;Source=$source;exists=$exists;
+            ordinaryFile=($exists -and -not $file.PSIsContainer -and -not ($file.Attributes -band [IO.FileAttributes]::ReparsePoint));
+            linkType=$linkType;target=$target}
+    })
+}
+
+function Resolve-ZentraToolchainCargo {
+    param([object[]]$RustupCandidates, [string]$Toolchain, [string]$Repository, [string]$Artifacts, $Proof, [string]$ProofPath)
+    Assert-ZentraVerificationMode $Proof.source
+    $Proof.compileTool.resolutionMethod = 'rustup.which'
+    $Proof.compileTool.toolchain = $Toolchain
+    $Proof.compileTool.resolver = [ordered]@{candidates=@(Get-ZentraHarnessApplicationMetadata $RustupCandidates);selected=$null;exit=$null}
+    try {
+        if ($Toolchain -cne $env:RUSTUP_TOOLCHAIN -or $Toolchain -cnotmatch '^[A-Za-z0-9_.-]{1,120}$') {
+            throw 'Cargo resolution requires the exact toolchain already selected by the verification script.'
+        }
+        if (-not (Test-Path -LiteralPath $Repository -PathType Container)) { throw 'The verification working directory does not exist.' }
+        $rustup = Select-ZentraHarnessApplication $RustupCandidates
+        if (-not [string]::Equals([IO.Path]::GetFileName($rustup),'rustup.exe',[StringComparison]::OrdinalIgnoreCase)) {
+            throw 'The selected vendor resolver must be rustup.exe; do not fall back to another application.'
+        }
+        $Proof.compileTool.resolver.selected = $rustup
+        Save-ZentraHarnessProof $Proof $ProofPath
+        $stdout = Join-Path $Artifacts 'windows-test-harness-cargo-resolution.txt'
+        $stderr = Join-Path $Artifacts 'windows-test-harness-cargo-resolution-errors.txt'
+        $Proof.compileTool.resolver.exit = Invoke-ZentraHarnessTool $rustup @('which','cargo','--toolchain',$Toolchain) $Repository $stdout $stderr
+        if ($Proof.compileTool.resolver.exit -ne 0) { throw 'The installed vendor could not resolve cargo for the selected toolchain.' }
+        $lines = @(Get-Content -LiteralPath $stdout | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        if ($lines.Count -ne 1) { throw 'The vendor must return exactly one nonempty cargo path.' }
+        $resolved = $lines[0].Trim()
+        $Proof.compileTool.resolvedOutput = $resolved
+        if (-not [IO.Path]::IsPathRooted($resolved) -or -not [string]::Equals([IO.Path]::GetFileName($resolved),'cargo.exe',[StringComparison]::OrdinalIgnoreCase)) {
+            throw 'The vendor cargo result must be an absolute cargo.exe path.'
+        }
+        $cargo = Select-ZentraHarnessApplication @([pscustomobject]@{Source=$resolved})
+        $Proof.compileTool.selected = $cargo
+        $Proof.compileTool.exists = $true
+        $Proof.compileTool.ordinaryFile = $true
+        return $cargo
+    } finally {
+        Save-ZentraHarnessProof $Proof $ProofPath
+    }
+}
+
 function Invoke-ZentraHarnessTool {
     param([string]$Program, [string[]]$Arguments, [string]$Repository,
         [string]$Stdout, [string]$Stderr, [string]$HeartbeatMessage = 'Inspecting the verification-only harness.', [int]$TimeoutSeconds = 300)
@@ -194,6 +247,8 @@ function Find-ZentraHarnessTools {
     foreach ($tool in @($dumpbinPath, $mtPath)) {
         if ([string]::IsNullOrWhiteSpace([string]$tool) -or -not (Test-Path -LiteralPath $tool -PathType Leaf)) { throw 'The installed Microsoft PE/manifest tools are unavailable.' }
     }
+    $dumpbinPath = Select-ZentraHarnessApplication @([pscustomobject]@{Source=$dumpbinPath})
+    $mtPath = Select-ZentraHarnessApplication @([pscustomobject]@{Source=$mtPath})
     return [pscustomobject]@{Dumpbin=$dumpbinPath;Manifest=$mtPath}
 }
 
@@ -217,20 +272,18 @@ function Initialize-ZentraVerificationHarness {
         # Get-Command may return multiple applications from different PATH
         # entries. Never cast the entire Source array to a combined file name.
         $cargoCandidates = @(Get-Command cargo -CommandType Application -ErrorAction SilentlyContinue)
-        $cargoFirst = $cargoCandidates | Select-Object -First 1
-        $cargoSource = if ($null -ne $cargoFirst) { [string]$cargoFirst.Source } else { $null }
-        $cargoExists = -not [string]::IsNullOrWhiteSpace($cargoSource) -and (Test-Path -LiteralPath $cargoSource -PathType Leaf)
-        $cargoOrdinary = $false
-        if ($cargoExists) {
-            $cargoFile = Get-Item -LiteralPath $cargoSource
-            $cargoOrdinary = -not $cargoFile.PSIsContainer -and -not ($cargoFile.Attributes -band [IO.FileAttributes]::ReparsePoint)
-        }
-        $proof.compileTool = [ordered]@{name='cargo';candidates=@($cargoCandidates | Select-Object Name,Source);
-            selected=$cargoSource;exists=$cargoExists;ordinaryFile=$cargoOrdinary;
+        $cargoMetadata = @(Get-ZentraHarnessApplicationMetadata $cargoCandidates)
+        $cargoCandidate = if ($cargoMetadata.Count -gt 0) { $cargoMetadata[0].Source } else { $null }
+        $proof.compileTool = [ordered]@{name='cargo';candidates=$cargoMetadata;selectedCandidate=$cargoCandidate;
+            selected=$null;exists=$false;ordinaryFile=$false;
             workingDirectory=$Repository;workingDirectoryExists=(Test-Path -LiteralPath $Repository -PathType Container)}
         Save-ZentraHarnessProof $proof $proofPath
-        $cargo = Select-ZentraHarnessApplication $cargoCandidates
         if (-not $proof.compileTool.workingDirectoryExists) { throw 'The verification working directory does not exist.' }
+        # Rustup proxy links depend on argv0. Ask the installed vendor for the
+        # real cargo belonging to the exact toolchain used above; never execute
+        # a renamed/resolved rustup target as if it were cargo.
+        $rustupCandidates = @(Get-Command rustup -CommandType Application -ErrorAction SilentlyContinue)
+        $cargo = Resolve-ZentraToolchainCargo $rustupCandidates $env:RUSTUP_TOOLCHAIN $Repository $Artifacts $proof $proofPath
         $jsonPath = Join-Path $Artifacts 'windows-test-harness-cargo.jsonl'
         $buildLog = Join-Path $Artifacts 'windows-test-harness-build.log'
         $proof.compileExit = Invoke-ZentraHarnessTool $cargo @('test','--manifest-path','desktop/src-tauri/Cargo.toml','--locked','--release','--lib','--no-run','--message-format=json') $Repository $jsonPath $buildLog -HeartbeatMessage 'Compiling the verification-only library test harness; no packaging or installation.' -TimeoutSeconds 5400
