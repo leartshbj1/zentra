@@ -1868,6 +1868,10 @@ mod pdf_worker_tests;
 #[path = "commands_import_worker_tests.rs"]
 mod import_worker_tests;
 
+#[cfg(test)]
+#[path = "commands_project_file_scope_tests.rs"]
+mod project_file_scope_tests;
+
 #[tauri::command]
 pub async fn add_scanned_supplier_attachment(state: State<'_, LocalStore>, invoice_id: String, original_name: String, content_base64: String, expected_workspace_scope: Option<String>) -> Result<Value, String> {
     use base64::Engine;
@@ -1970,36 +1974,31 @@ pub async fn share_mobile_export(state: State<'_, LocalStore>, path: String) -> 
 pub async fn add_project_document(
     state: State<'_, LocalStore>,
     input: crate::project_documents::AddProjectDocumentInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let store = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let _guard = store.lock().map_err(command_error)?;
-        require_write(&store)?;
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
         store.add_project_document(input).map_err(command_error)
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    }).await
 }
 
 #[tauri::command]
-pub fn delete_project_document(state: State<'_, LocalStore>, id: String) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.delete_project_document(&id).map_err(command_error)
+pub async fn delete_project_document(state: State<'_, LocalStore>, id: String, expected_workspace_scope: Option<String>) -> Result<Value, String> {
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.delete_project_document(&id).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
 pub async fn read_project_document(
     state: State<'_, LocalStore>,
     id: String,
+    expected_workspace_scope: Option<String>,
 ) -> Result<String, String> {
-    let store = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let _guard = store.lock().map_err(command_error)?;
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
         store.read_project_document(&id).map_err(command_error)
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    }).await
 }
 
 #[tauri::command]

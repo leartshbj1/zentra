@@ -5008,22 +5008,22 @@ export const desktopApi = {
     const record = await createRecord('projects', toBackendData(data));
     return stringValue(record.id);
   },
-  async addProjectDocument(projectId: string, file: File, signal?: AbortSignal) {
+  async addProjectDocument(projectId: string, file: File, signal?: AbortSignal, expectedWorkspaceScope?: string) {
     const encoded = await fileBase64(file, signal);
     if (signal?.aborted) throw new DOMException('Ajout du fichier interrompu.', 'AbortError');
-    const document = await invoke('add_project_document', { input: {
+    const document = await invoke('add_project_document', { ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }), input: {
       project_id: projectId, original_name: file.name, content_base64: encoded,
     } });
     window.dispatchEvent(new Event('zentra-project-documents-changed'));
     return document;
   },
-  async deleteProjectDocument(id: string) {
-    await invoke('delete_project_document', { id });
+  async deleteProjectDocument(id: string, expectedWorkspaceScope?: string) {
+    await invoke('delete_project_document', { id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
     window.dispatchEvent(new Event('zentra-project-documents-changed'));
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
-  async readProjectDocument(id: string) {
-    return invoke<string>('read_project_document', { id });
+  async readProjectDocument(id: string, expectedWorkspaceScope?: string) {
+    return invoke<string>('read_project_document', { id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
   },
   async updateEntity<T extends Record<string, unknown>>(
     entity: EntityKind,

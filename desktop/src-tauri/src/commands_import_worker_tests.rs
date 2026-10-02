@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 use std::{future::Future, sync::mpsc, thread, time::Duration};
 use tauri::Manager;
 
-fn unlicensed_fixture() -> (tempfile::TempDir, LocalStore) {
+pub(super) fn unlicensed_fixture() -> (tempfile::TempDir, LocalStore) {
     let temporary = tempfile::tempdir().unwrap();
     let mut store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
     // CI runs the real release-profile guards. Give only this synthetic store
@@ -25,7 +25,7 @@ fn unlicensed_fixture() -> (tempfile::TempDir, LocalStore) {
     (temporary, store)
 }
 
-fn signed_fixture_token(store: &LocalStore, access_role: &str) -> String {
+pub(super) fn signed_fixture_token(store: &LocalStore, access_role: &str) -> String {
     let signing = SigningKey::from_bytes(&[31; 32]);
     let now = Utc::now();
     let today = Local::now().date_naive();
@@ -56,7 +56,7 @@ fn signed_fixture_token(store: &LocalStore, access_role: &str) -> String {
     )
 }
 
-fn fixture() -> (tempfile::TempDir, LocalStore) {
+pub(super) fn fixture() -> (tempfile::TempDir, LocalStore) {
     let (temporary, store) = unlicensed_fixture();
     let state = store
         .install_server_issued_license(&signed_fixture_token(&store, "owner"))
@@ -70,7 +70,7 @@ fn fixture() -> (tempfile::TempDir, LocalStore) {
     (temporary, store)
 }
 
-fn scope(store: &LocalStore) -> String {
+pub(super) fn scope(store: &LocalStore) -> String {
     crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap()
 }
 

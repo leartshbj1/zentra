@@ -698,12 +698,15 @@ function WorkspaceContent({
   const projectWorkspaceScope = useRef('');
   projectWorkspaceScope.current = JSON.stringify([cloudAccount?.organizationId ?? null, workspace.workNotesScope ?? null]);
   useLayoutEffect(() => { projectWorkspaceReceiver.current = setWorkspace; }, [setWorkspace]);
-  const projectFileSessions = useMemo(() => createProjectFileSessions({
-    add: (id, file, signal) => desktopApi.addProjectDocument(id, file, signal), remove: id => desktopApi.deleteProjectDocument(id), load: () => desktopApi.loadWorkspace(),
-  }, next => { workspaceRef.current = next; projectWorkspaceReceiver.current(next); }, {
-    current: () => workspaceRef.current,
-    scope: () => projectWorkspaceScope.current,
-  }), [cloudAccount?.organizationId, workspace.workNotesScope]);
+  const projectFileSessions = useMemo(() => {
+    const originWorkspaceScope = workspace.workNotesScope;
+    return createProjectFileSessions({
+      add: (id, file, signal) => desktopApi.addProjectDocument(id, file, signal, originWorkspaceScope), remove: id => desktopApi.deleteProjectDocument(id, originWorkspaceScope), load: () => desktopApi.loadWorkspace(),
+    }, next => { workspaceRef.current = next; projectWorkspaceReceiver.current(next); }, {
+      current: () => workspaceRef.current,
+      scope: () => projectWorkspaceScope.current,
+    });
+  }, [cloudAccount?.organizationId, workspace.workNotesScope]);
   useLayoutEffect(() => { projectFileSessions.start(); return () => projectFileSessions.stop(); }, [projectFileSessions]);
   useLayoutEffect(() => { projectFileSessions.setWritable(!readOnly); }, [projectFileSessions, readOnly]);
   const notesScope = workspace.workNotesScope || cloudAccount?.organizationId || 'local';
@@ -6383,9 +6386,15 @@ function ProjectForm({
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState('');
   const [formError, setFormError] = useState('');
+  const [projectReadPending, setProjectReadPending] = useState(false);
   const lastSavedData = useRef<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState('');
   const savedProjectId = useRef(item?.id);
+  const projectFormMounted = useRef(true);
+  const projectFormScope = useRef(workspace.workNotesScope);
+  projectFormScope.current = workspace.workNotesScope;
+  useLayoutEffect(() => { projectFormMounted.current = true; return () => { projectFormMounted.current = false; }; }, []);
+  useLayoutEffect(() => { setProjectReadPending(false); }, [workspace.workNotesScope]);
   const persisted = useNativeFormDraft({ workspace, type: 'project', recordId: suppliedItem?.id, fingerprint: current ? formDraftFingerprint(current) : suppliedItem ? 'missing' : 'new', form: formRef,
     fields: ["name","clientId","status","address","plannedStart","plannedEnd","actualStart","actualEnd","budget","plannedHours","notes","draftSavedRecordId","draftLastSavedData","draftFiles"],
     onRestore: values => { setFiles([]); savedProjectId.current = values?.draftSavedRecordId || current?.id; lastSavedData.current = values?.draftLastSavedData || null; } });
@@ -6412,8 +6421,15 @@ function ProjectForm({
         onChange={() => { if (!busy && !draftBlocked) persisted.capture(); }}
         onSubmit={submitForm(async (form) => {
           if (busy || draftBlocked) return;
+          const originWorkspaceScope = workspace.workNotesScope;
+          const requireProjectFormWorkspace = (next?: Workspace) => {
+            if (!projectFormMounted.current || projectFormScope.current !== originWorkspaceScope || next && next.workNotesScope !== originWorkspaceScope) {
+              throw new Error('L’entreprise ouverte a changé ou le formulaire a été fermé. Rouvrez le projet dans le bon espace.');
+            }
+          };
           setFormError('');
           try {
+          requireProjectFormWorkspace();
           const data = {
             clientId: String(form.get('clientId')),
             code: '',
@@ -6438,27 +6454,48 @@ function ProjectForm({
           setFileError('');
           let remaining: File[] = [];
           const saved = await act(async () => {
+            requireProjectFormWorkspace();
             const fingerprint = JSON.stringify(data);
             if (lastSavedData.current !== fingerprint) {
               savedProjectId.current = await desktopApi.saveProject(data, savedProjectId.current);
+              requireProjectFormWorkspace();
               lastSavedData.current = fingerprint;
               persisted.capture({ draftSavedRecordId: savedProjectId.current!, draftLastSavedData: fingerprint });
             }
             const failures: string[] = [];
             for (const [index, file] of files.entries()) {
+              requireProjectFormWorkspace();
               setUploadProgress(`Document ${index + 1}/${files.length} : ${file.name}`);
-              try { await desktopApi.addProjectDocument(savedProjectId.current!, file); }
+              try { await desktopApi.addProjectDocument(savedProjectId.current!, file, undefined, originWorkspaceScope); }
               catch (reason) { remaining.push(file); failures.push(`${file.name} : ${errorMessage(reason, 'ajout impossible')}`); }
             }
             setFiles(remaining);
             setFileError(failures.length ? `Le projet est enregistré. Ces fichiers restent à ajouter : ${failures.join(' ')}` : '');
-            return refreshWorkspaceAfterMutation(desktopApi.loadWorkspace);
-          }, 'Le projet a été enregistré.', false, reason => setFormError(errorMessage(reason, 'Le projet n’a pas pu être enregistré. Vos informations sont conservées.')));
+            requireProjectFormWorkspace();
+            try {
+              const next = await desktopApi.loadWorkspace();
+              requireProjectFormWorkspace(next);
+              setProjectReadPending(false);
+              return next;
+            } catch (reason) {
+              requireProjectFormWorkspace();
+              setProjectReadPending(true);
+              // This form keeps its confirmed ID and remaining files. A bounded
+              // read can be retried without handing an expired form to recovery.
+              throw new Error('Le projet et les fichiers confirmés sont enregistrés. Actualisez la liste ou reprenez ce formulaire ; ils ne seront pas ajoutés une deuxième fois.', { cause: reason });
+            }
+          }, 'Le projet a été enregistré.', false, reason => setFormError(errorMessage(reason, 'Le projet n’a pas pu être enregistré. Vos informations sont conservées.')), requireProjectFormWorkspace);
           if (saved && !remaining.length) { persisted.complete(true); close(); }
           } catch (reason) { setFormError(errorMessage(reason, 'Vérifiez les informations du projet.')); }
           finally { setUploadProgress(''); }
         })}
       >
+        {projectReadPending && <p className="info-strip" role="status">{{
+          fr: 'Le projet est enregistré. Reprenez pour actualiser la liste, sans réajouter les fichiers confirmés.',
+          de: 'Das Projekt ist gespeichert. Fahren Sie fort, um die Liste zu aktualisieren, ohne bestätigte Dateien erneut hinzuzufügen.',
+          it: 'Il progetto è salvato. Riprendi per aggiornare l’elenco, senza aggiungere di nuovo i file confermati.',
+          en: 'The project is saved. Continue to refresh the list without adding confirmed files again.',
+        }[getAppLanguage()]}</p>}
         <FormDraftNotice draft={persisted} disabled={busy} currentValues={item ? [{ label: "Nom", value: item.name }, { label: "Notes", value: item.notes }, { label: "Adresse", value: item.address }] : undefined} />
         {(files.length > 0 || !!persisted.value.draftFiles) && <p className="info-strip">{draftText("Les champs sont conservés. Les fichiers choisis devront être sélectionnés à nouveau après fermeture.")}</p>}
         <fieldset disabled={busy || draftBlocked}><div className="form-grid">
@@ -6557,7 +6594,10 @@ function ProjectForm({
         </div>
         </details>
         </fieldset>
-        {formError ? <ErrorPanel title="Vérifions le projet" message={formError} reveal /> : null}
+        {formError ? <ErrorPanel title={projectReadPending ? {
+          fr: 'Actualiser la liste des projets', de: 'Projektliste aktualisieren',
+          it: 'Aggiorna l’elenco dei progetti', en: 'Refresh the project list',
+        }[getAppLanguage()] : 'Vérifions le projet'} operation={projectReadPending ? 'read' : 'mutation'} message={formError} reveal /> : null}
         <FormActions onCancel={closeForm} busy={busy} disabled={draftBlocked} />
       </form>
     </Modal>

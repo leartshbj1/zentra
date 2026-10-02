@@ -224,10 +224,9 @@ impl LocalStore {
             &json!({"attachment_id":id}),
         )?;
         tx.commit()?;
-        // Une copie orpheline après une erreur disque est préférable à une référence cassée.
-        if path.exists() {
-            let _ = fs::remove_file(path);
-        }
+        // SQL is confirmed. Record a failed physical cleanup without claiming
+        // the business deletion failed or introducing a second mutation.
+        crate::attachments::cleanup_committed_attachment_files(std::slice::from_ref(&path));
         Ok(json!({"deleted":true}))
     }
 

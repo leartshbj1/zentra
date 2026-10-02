@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowLeft, FileText, Image, Plus, Trash2 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { ProjectFilePreview } from './ProjectFilePreview';
@@ -25,9 +25,19 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
   onOpenNotes?: (projectId: string) => void;
 }) {
   const [tab, setTab] = useState<'all' | 'files' | 'quotes' | 'invoices'>('all');
-  const [ownSessions] = useState(() => createProjectFileSessions({
-    add: (id, file, signal) => desktopApi.addProjectDocument(id, file, signal), remove: id => desktopApi.deleteProjectDocument(id), load: () => desktopApi.loadWorkspace(),
-  }, onWorkspaceChange));
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+  const receiver = useRef(onWorkspaceChange);
+  receiver.current = onWorkspaceChange;
+  const ownSessions = useMemo(() => {
+    const originWorkspaceScope = workspace.workNotesScope;
+    return createProjectFileSessions({
+      add: (id, file, signal) => desktopApi.addProjectDocument(id, file, signal, originWorkspaceScope), remove: id => desktopApi.deleteProjectDocument(id, originWorkspaceScope), load: () => desktopApi.loadWorkspace(),
+    }, next => { workspaceRef.current = next; receiver.current(next); }, {
+      current: () => workspaceRef.current,
+      scope: () => workspaceRef.current.workNotesScope ?? 'local',
+    });
+  }, [workspace.workNotesScope]);
   useLayoutEffect(() => { if (!fileSession) { ownSessions.start(); return () => ownSessions.stop(); } }, [fileSession, ownSessions]);
   useLayoutEffect(() => { ownSessions.setWritable(!readOnly); }, [ownSessions, readOnly]);
   const session = fileSession ?? ownSessions.forProject(project.id);
@@ -84,12 +94,13 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
     previewTrigger.current = trigger;
     setOpening(true); session.setError('');
     setOpeningProgress(`Ouverture de ${file.originalName}…`);
+    const originWorkspaceScope = workspace.workNotesScope;
     try {
-      const encoded = await desktopApi.readProjectDocument(file.id);
-      if (!mounted.current) return;
+      const encoded = await desktopApi.readProjectDocument(file.id, originWorkspaceScope);
+      if (!mounted.current || workspaceRef.current.workNotesScope !== originWorkspaceScope) return;
       const bytes = Uint8Array.from(atob(encoded), (value) => value.charCodeAt(0));
       setPreview({ file, bytes, url: URL.createObjectURL(new Blob([bytes], { type: file.mimeType })) });
-    } catch (reason) { if (mounted.current) session.setError(errorMessage(reason, 'Impossible d’ouvrir ce fichier.')); }
+    } catch (reason) { if (mounted.current && workspaceRef.current.workNotesScope === originWorkspaceScope) session.setError(errorMessage(reason, 'Impossible d’ouvrir ce fichier.')); }
     finally { inFlight.current = false; if (mounted.current) { setOpening(false); setOpeningProgress(''); } }
   }
   function closePreview() {
