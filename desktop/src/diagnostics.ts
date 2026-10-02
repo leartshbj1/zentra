@@ -41,16 +41,19 @@ export function recordDiagnostic(input:Omit<DiagnosticEvent,'id'|'sessionId'|'ti
 }
 
 function rememberIncident(error:unknown,id:string){
-  if(error&&typeof error==='object')incidentObjects.set(error,id);
-  const message=typeof error==='string'?error:error instanceof Error?error.message:undefined;
-  if(message!==undefined){
-    const key=incidentKey(message),previous=incidentStrings.get(key);
-    // Native rejections are often strings. Equal messages from different
-    // operations do not identify which failure an eventual UI message came from.
-    if(previous){if(previous.sourceId!==id)previous.ambiguous=true;}
-    else incidentStrings.set(key,{sourceId:id,ambiguous:false});
-    if(incidentStrings.size>40)incidentStrings.delete(incidentStrings.keys().next().value!);
-  }
+  try{
+    // Keep object identity before inspecting unknown JavaScript properties.
+    if(error&&typeof error==='object')incidentObjects.set(error,id);
+    const message=typeof error==='string'?error:error instanceof Error?error.message:undefined;
+    if(message!==undefined){
+      const key=incidentKey(message),previous=incidentStrings.get(key);
+      // Native rejections are often strings. Equal messages from different
+      // operations do not identify which failure an eventual UI message came from.
+      if(previous){if(previous.sourceId!==id)previous.ambiguous=true;}
+      else incidentStrings.set(key,{sourceId:id,ambiguous:false});
+      if(incidentStrings.size>40)incidentStrings.delete(incidentStrings.keys().next().value!);
+    }
+  }catch{/* Best effort: an accessor or proxy must not replace the original error. */}
 }
 function incidentKey(message:string){let hash=2166136261;for(let i=0;i<message.length;i++)hash=Math.imul(hash^message.charCodeAt(i),16777619);return `${message.length}:${hash>>>0}`;}
 export function resolveErrorIncident(error:unknown):{code:string}{

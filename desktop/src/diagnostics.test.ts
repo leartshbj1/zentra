@@ -2,9 +2,43 @@ import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 const invoke = vi.hoisted(()=>vi.fn());
 vi.mock('@tauri-apps/api/core',()=>({invoke}));
 async function api(){return import('./diagnostics');}
+const hostileErrors = [
+  ['message getter', () => {
+    const original=new Error(''),accessFailure=new Error('');
+    Object.defineProperty(original,'message',{get(){throw accessFailure;}});
+    return {original,accessFailure};
+  }],
+  ['prototype trap', () => {
+    const accessFailure=new Error('');
+    const original=new Proxy(new Error(''),{getPrototypeOf(){throw accessFailure;}});
+    return {original,accessFailure};
+  }],
+] as const;
 beforeEach(()=>{vi.resetModules();invoke.mockReset();vi.useFakeTimers();});
 afterEach(()=>{vi.clearAllTimers();vi.useRealTimers();vi.unstubAllGlobals();});
 describe('safe diagnostics',()=>{
+  it.each(hostileErrors)('keeps an operation rejection when its %s throws',async(_label,create)=>{
+    const d=await api(),{original}=create();
+    const preserved=await d.diagnosticOperation('command','read_workspace',async()=>{throw original;}).catch(reason=>reason===original);
+    expect(preserved).toBe(true);
+    const events=d.recentDiagnosticEvents();
+    expect(events.map(event=>event.phase)).toEqual(['start','failure']);
+    expect(events[1].errorCode).toBe('INTERNAL');
+    expect(d.resolveErrorIncident(original).code).toBe(`ZT-${events[1].id}`);
+    expect(d.resolveErrorIncident(original).code).toBe(`ZT-${events[1].id}`);
+    expect(d.recentDiagnosticEvents()).toHaveLength(2);
+  });
+  it.each(hostileErrors)('keeps the native rejection when its %s throws',async(_label,create)=>{
+    const d=await api(),{original}=create();
+    invoke.mockRejectedValue(original);
+    const preserved=await d.diagnosticInvoke('read_workspace',{scope:'synthetic-scope'}).catch(reason=>reason===original);
+    expect(preserved).toBe(true);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith('read_workspace',{scope:'synthetic-scope'});
+    const events=d.recentDiagnosticEvents();
+    expect(events.map(event=>event.phase)).toEqual(['start','failure']);
+    expect(d.resolveErrorIncident(original).code).toBe(`ZT-${events[1].id}`);
+    expect(JSON.stringify(events)).not.toContain('synthetic-scope');
+  });
   it('traces plugin work without retaining its result and rethrows the original failure',async()=>{
     const d=await api(), result='/Users/private/secret-invoice.pdf';
     expect(await d.diagnosticOperation('command','dialog.open_file',async()=>result)).toBe(result);
