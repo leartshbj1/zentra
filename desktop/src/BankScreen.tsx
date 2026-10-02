@@ -1,5 +1,5 @@
 import { t } from './language';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDownLeft,
@@ -247,7 +247,11 @@ export function BankScreen({
   const [movementLimit, setMovementLimit] = useState(25);
   const snapshotRequest = useRef(0);
   const mounted = useRef(false);
-  const writesDisabled = busy || readOnly || refreshPending;
+  const currentWorkspace = useRef(workspace);
+  const workspaceGeneration = useRef(0);
+  const publishedWorkspace = useRef<Workspace | null>(null);
+  const refreshReadPending = useRef(false);
+  const writesDisabled = loading || busy || readOnly || refreshPending;
   const accountingReady = bankAccountingReady(workspace);
 
   const applyBankSnapshot = useCallback((next: BankWorkspace) => {
@@ -265,16 +269,37 @@ export function BankScreen({
 
   const load = useCallback(async () => {
     const request = ++snapshotRequest.current;
+    const generation = workspaceGeneration.current;
     setError('');
     try {
       const next = await desktopApi.getBankWorkspace();
-      if (mounted.current && request === snapshotRequest.current) applyBankSnapshot(next);
+      if (mounted.current && request === snapshotRequest.current && generation === workspaceGeneration.current) {
+        applyBankSnapshot(next); setRefreshPending(false);
+      }
     } catch (reason) {
-      if (mounted.current && request === snapshotRequest.current) setError(errorMessage(reason, 'L’espace bancaire local n’a pas pu être chargé.'));
+      if (mounted.current && request === snapshotRequest.current && generation === workspaceGeneration.current) {
+        setError(errorMessage(reason, 'L’espace bancaire local n’a pas pu être chargé.')); setRefreshPending(true);
+      }
     } finally {
-      if (mounted.current && request === snapshotRequest.current) setLoading(false);
+      if (mounted.current && request === snapshotRequest.current && generation === workspaceGeneration.current) setLoading(false);
     }
   }, [applyBankSnapshot]);
+
+  useLayoutEffect(() => {
+    if (currentWorkspace.current === workspace) return;
+    currentWorkspace.current = workspace;
+    const ownPublication = publishedWorkspace.current === workspace;
+    publishedWorkspace.current = null;
+    if (ownPublication) return;
+    workspaceGeneration.current++;
+    if (!mounted.current) return;
+    // Reception replaces the company data without leaving this screen. Read
+    // the received movements before enabling writes. Keep the current
+    // snapshot visible while this background read completes.
+    setChoices({}); setFeedback(null); setRefreshPending(false); setLoading(true);
+    if (refreshReadPending.current) { refreshReadPending.current = false; setBusy(false); }
+    void load();
+  }, [workspace, load]);
 
   useEffect(() => {
     mounted.current = true;
@@ -298,6 +323,7 @@ export function BankScreen({
   // never turn that success into a refusal or invite another payment attempt.
   async function refreshBoth(): Promise<string[]> {
     const request = ++snapshotRequest.current;
+    const generation = workspaceGeneration.current;
     setError('');
     const [nextWorkspace, nextBank] = await Promise.allSettled([desktopApi.loadWorkspace(), desktopApi.getBankWorkspace()]);
     const warnings: string[] = [];
@@ -305,30 +331,40 @@ export function BankScreen({
     if (nextBank.status === 'rejected') warnings.push(errorMessage(nextBank.reason, 'Les mouvements n’ont pas pu être actualisés.'));
     // Reads can finish after navigating away or after a newer refresh. The
     // committed bank operation remains valid; only stale UI publication stops.
-    if (mounted.current && request === snapshotRequest.current) {
-      if (nextWorkspace.status === 'fulfilled') onWorkspaceChange(nextWorkspace.value);
+    if (mounted.current && request === snapshotRequest.current && generation === workspaceGeneration.current) {
+      if (nextWorkspace.status === 'fulfilled') {
+        publishedWorkspace.current = nextWorkspace.value;
+        onWorkspaceChange(nextWorkspace.value);
+      }
       if (nextBank.status === 'fulfilled') applyBankSnapshot(nextBank.value);
       setRefreshPending(warnings.length > 0);
+      setLoading(false);
     }
     return warnings;
   }
 
   async function retryRefresh() {
-    if (busy) return;
+    if (busy || loading) return;
+    refreshReadPending.current = true;
     setBusy(true);
     const pending = refreshBoth();
     const request = snapshotRequest.current;
+    const generation = workspaceGeneration.current;
     try {
       const warnings = await pending;
-      if (!mounted.current || request !== snapshotRequest.current) return;
+      if (!mounted.current || request !== snapshotRequest.current || generation !== workspaceGeneration.current) return;
       setFeedback(warnings.length
         ? { tone: 'warning', title: 'Actualisation incomplète', text: 'Réessayez lorsque les données sont accessibles.', warnings }
         : { tone: 'success', title: 'Données actualisées', text: 'Les factures et les mouvements sont à jour.' });
-    } finally { if (mounted.current && request === snapshotRequest.current) setBusy(false); }
+    } finally {
+      if (mounted.current && request === snapshotRequest.current && generation === workspaceGeneration.current) {
+        refreshReadPending.current = false; setBusy(false);
+      }
+    }
   }
 
   async function importStatement(path: string, automaticChoice: boolean): Promise<BankImportOutcome> {
-    if (busy || refreshPending || readOnly) throw new Error('Actualisez les données et vérifiez votre accès avant de reprendre l’import.');
+    if (writesDisabled) throw new Error('Actualisez les données et vérifiez votre accès avant de reprendre l’import.');
     setBusy(true);
     setFeedback(null);
     try {
@@ -575,14 +611,14 @@ export function BankScreen({
     if (section === 'movements') { setFilter('unreconciled'); setQuery(''); setMovementLimit(25); }
     requestAnimationFrame(() => { const target = section === 'accounts' ? accountsRef.current : movementsRef.current; target?.focus(); target?.scrollIntoView({ block: 'start' }); });
   }
-  if (loading) return <div className="bank-loading" role="status"><LoaderCircle className="spin" size={19} /> Chargement de l’espace bancaire local…</div>;
+  if (loading && !bank) return <div className="bank-loading" role="status"><LoaderCircle className="spin" size={19} /> Chargement de l’espace bancaire local…</div>;
   if (error && !bank) return <ErrorPanel title="Banque indisponible" message={error} onRetry={() => { setLoading(true); void load(); }} />;
   if (!bank) return null;
   const firstImport = !bank.imports.length && !bank.movements.length && !bank.accounts.length;
 
   return <div className="stack-layout bank-screen">
     {importOpen && <BankImportWizard automatic={autoReconcile} onAutomaticChange={setAutoReconcile} disabled={writesDisabled} accountingReady={accountingReady} onClose={() => setImportOpen(false)} onImport={importStatement} onReview={() => showImportSection('movements')} onAccounts={() => showImportSection('accounts')} onAccounting={() => { setImportOpen(false); onOpenAccounting('accounts'); }} onRefresh={refreshBoth} />}
-    {bankAction && <BankActionDialog title={bankAction.kind === 'associate' ? 'Associer le compte bancaire' : bankAction.kind === 'dissociate' ? 'Dissocier le compte bancaire' : actionSupplier ? 'Règlement fournisseur' : 'Encaissement client'} description="Relisez ces informations avant de confirmer." rows={actionRows} note={bankAction.kind === 'associate' ? 'Confirmez que ce compte appartient à votre entreprise. Cette association permet de rapprocher ses mouvements ; elle ne donne aucun accès à votre banque.' : bankAction.kind === 'dissociate' ? 'Les mouvements et paiements déjà enregistrés restent conservés. Les nouveaux rapprochements attendront une nouvelle association.' : 'Le paiement sera enregistré sur cette facture à la date du relevé, avec son écriture comptable. Un paiement partiel conserve le solde à recevoir ou à payer.'} action={bankAction.kind === 'associate' ? 'Associer ce compte' : bankAction.kind === 'dissociate' ? 'Dissocier ce compte' : actionSupplier ? 'Enregistrer le règlement' : 'Enregistrer l’encaissement'} disabled={readOnly || refreshPending || (!actionMovement && !actionAccount)} busy={busy} onClose={() => setBankAction(null)} onAccounting={(section) => { setBankAction(null); onOpenAccounting(section); }} onConfirm={async () => {
+    {bankAction && <BankActionDialog title={bankAction.kind === 'associate' ? 'Associer le compte bancaire' : bankAction.kind === 'dissociate' ? 'Dissocier le compte bancaire' : actionSupplier ? 'Règlement fournisseur' : 'Encaissement client'} description="Relisez ces informations avant de confirmer." rows={actionRows} note={bankAction.kind === 'associate' ? 'Confirmez que ce compte appartient à votre entreprise. Cette association permet de rapprocher ses mouvements ; elle ne donne aucun accès à votre banque.' : bankAction.kind === 'dissociate' ? 'Les mouvements et paiements déjà enregistrés restent conservés. Les nouveaux rapprochements attendront une nouvelle association.' : 'Le paiement sera enregistré sur cette facture à la date du relevé, avec son écriture comptable. Un paiement partiel conserve le solde à recevoir ou à payer.'} action={bankAction.kind === 'associate' ? 'Associer ce compte' : bankAction.kind === 'dissociate' ? 'Dissocier ce compte' : actionSupplier ? 'Enregistrer le règlement' : 'Enregistrer l’encaissement'} disabled={writesDisabled || (!actionMovement && !actionAccount)} busy={busy} onClose={() => setBankAction(null)} onAccounting={(section) => { setBankAction(null); onOpenAccounting(section); }} onConfirm={async () => {
       if (writesDisabled) throw new Error('Actualisez les données avant de poursuivre.');
       if (actionAccount && bankAction.kind === 'associate') await associate(actionAccount, true);
       else if (actionAccount && bankAction.kind === 'dissociate') await dissociate(actionAccount, true);
@@ -591,11 +627,11 @@ export function BankScreen({
       else throw new Error('Ce mouvement ou ce compte n’est plus disponible. Revenez aux mouvements pour actualiser les données.');
     }} />}
 
-    {newCustomerRefundMovement ? <BankCustomerRefundCreate movement={newCustomerRefundMovement} workspace={workspace} busy={busy} readOnly={readOnly || refreshPending} close={() => setNewCustomerRefundMovement(null)} onSave={customerRequest} /> : null}
+    {newCustomerRefundMovement ? <BankCustomerRefundCreate movement={newCustomerRefundMovement} workspace={workspace} busy={busy} readOnly={loading || readOnly || refreshPending} close={() => setNewCustomerRefundMovement(null)} onSave={customerRequest} /> : null}
     {customerRequests.error ? <ErrorPanel title="Demandes de remboursement indisponibles" message={customerRequests.error} onRetry={customerRequests.retry} /> : null}
     <BankCustomerPending requests={customerRequests.requests} disabled={writesDisabled} onRun={customerRequest} onRemove={removeCustomerRequest} />
-    {newCreditRefundMovement?<BankCreditRefundCreate movement={newCreditRefundMovement} workspace={workspace} busy={busy} readOnly={readOnly||refreshPending} close={()=>setNewCreditRefundMovement(null)} onSave={createCreditRefund}/>:null}
-    {newRefundMovement ? <BankRefundCreate movement={newRefundMovement} workspace={workspace} busy={busy} readOnly={readOnly || refreshPending} close={() => setNewRefundMovement(null)} onSave={createRefund} /> : null}
+    {newCreditRefundMovement?<BankCreditRefundCreate movement={newCreditRefundMovement} workspace={workspace} busy={busy} readOnly={loading||readOnly||refreshPending} close={()=>setNewCreditRefundMovement(null)} onSave={createCreditRefund}/>:null}
+    {newRefundMovement ? <BankRefundCreate movement={newRefundMovement} workspace={workspace} busy={busy} readOnly={loading || readOnly || refreshPending} close={() => setNewRefundMovement(null)} onSave={createRefund} /> : null}
     {refundToUnlink ? <BankRefundUnlink movement={refundToUnlink} busy={writesDisabled} close={() => setRefundToUnlink(null)} onConfirm={unlinkRefund} /> : null}
     {correctionMovement ? <BankExpenseCorrection movement={correctionMovement} workspace={workspace} busy={writesDisabled} onClose={() => setCorrectionMovement(null)} onConfirm={unlinkExpense} /> : null}
     {newExpenseMovement ? <BankExpenseForm movement={newExpenseMovement} workspace={workspace} busy={writesDisabled} onClose={() => setNewExpenseMovement(null)} onSave={createExpense} /> : null}
@@ -619,7 +655,7 @@ export function BankScreen({
       {feedback.tone === 'success' ? <CheckCircle2 size={19} /> : <AlertTriangle size={19} />}
       <div><strong>{feedback.title}</strong><p>{feedback.text}</p>{feedback.warnings?.length ? <ul>{feedback.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}</div>
     </div> : null}
-    {refreshPending ? <div className="bank-refresh-state" role="alert"><div><strong>Données à actualiser</strong><p>Actualisez les données pour poursuivre les rapprochements.</p></div><Button disabled={busy} onClick={() => void retryRefresh()}>Actualiser les données</Button></div> : null}
+    {refreshPending ? <div className="bank-refresh-state" role="alert"><div><strong>Données à actualiser</strong><p>Actualisez les données pour poursuivre les rapprochements.</p></div><Button disabled={busy || loading} onClick={() => void retryRefresh()}>Actualiser les données</Button></div> : null}
 
     {!accountingReady && !firstImport ? <div className="warning-card"><ShieldCheck size={18} /><div><strong>Comptabilité requise pour rapprocher</strong><p>Les relevés restent consultables, mais un encaissement ou règlement n’est confirmé que si le paiement et son écriture bancaire peuvent être créés ensemble.</p></div><Button variant="secondary" size="small" onClick={() => onOpenAccounting('accounts')}>{t('Configurer la comptabilité')}</Button></div> : null}
 
@@ -640,7 +676,7 @@ export function BankScreen({
     </section> : null}
 
     {!firstImport ? <section ref={movementsRef} tabIndex={-1} className="panel bank-movements-panel">
-      <SectionHeading eyebrow="Suivi des paiements" title="Mouvements bancaires" description="Retrouvez un règlement et vérifiez la facture correspondante." action={<Button variant="ghost" size="small" disabled={busy} onClick={() => void retryRefresh()}><RefreshCw size={14} /> Actualiser</Button>} />
+      <SectionHeading eyebrow="Suivi des paiements" title="Mouvements bancaires" description="Retrouvez un règlement et vérifiez la facture correspondante." action={<Button variant="ghost" size="small" disabled={busy || loading} onClick={() => void retryRefresh()}><RefreshCw size={14} /> Actualiser</Button>} />
       {bank.movements.length ? <><label className="field bank-movement-search"><span>Rechercher un mouvement</span><input type="search" value={query} placeholder="Nom, référence, IBAN ou montant" onChange={(event) => { setQuery(event.target.value); setMovementLimit(25); }} /></label>
       <div className="bank-filter-strip" role="tablist" aria-label="Filtrer les mouvements">
         {(Object.keys(filterLabels) as BankMovementFilter[]).map((item) => <button type="button" role="tab" aria-selected={filter === item} className={filter === item ? 'is-active' : ''} key={item} onClick={() => { setFilter(item); setMovementLimit(25); }}>{filterLabels[item]} <em>{counts[item]}</em></button>)}

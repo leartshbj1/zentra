@@ -8,7 +8,8 @@ import { join } from 'node:path';
 const { chromium, webkit } = createRequire(import.meta.url)(process.env.ZENTRA_PLAYWRIGHT_MODULE || 'playwright');
 const origin = process.env.ZENTRA_QA_ORIGIN || 'http://127.0.0.1:5401';
 const before = process.argv.includes('--before');
-const output = process.env.ZENTRA_QA_OUTPUT || join(tmpdir(), `zentra-bank-read-lifecycle-${before ? 'before' : 'after'}`);
+const beforeReceive = before || process.argv.includes('--before-receive');
+const output = process.env.ZENTRA_QA_OUTPUT || join(tmpdir(), `zentra-bank-read-lifecycle-${before ? 'before' : beforeReceive ? 'before-receive' : 'after'}`);
 await mkdir(output, { recursive: true });
 
 async function navigate(page, screen) {
@@ -18,7 +19,7 @@ async function navigate(page, screen) {
   await page.locator('.navigation-palette').waitFor({ state: 'detached' });
 }
 
-async function fixture(browser, result) {
+async function fixture(browser, result, options = {}) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
   page.on('pageerror', error => result.errors.push(error.message));
   await page.route('**/*', route => {
@@ -57,8 +58,9 @@ async function fixture(browser, result) {
       return structuredClone(window.__bankAuditStore);
     };
   });
+  if (options.beforeBank) await options.beforeBank(page);
   await navigate(page, 'Banque');
-  await page.locator('.bank-movements-panel').getByRole('button', { name: 'Actualiser', exact: true }).waitFor();
+  if (!options.initialReadHeld) await page.locator('.bank-movements-panel').getByRole('button', { name: 'Actualiser', exact: true }).waitFor();
   return page;
 }
 
@@ -140,6 +142,11 @@ async function concurrentReads(browser, result, latestFails) {
 
 async function committedImportRecovery(browser, result) {
   const page = await fixture(browser, result);
+  await page.evaluate(() => {
+    const api = window.__qaDesktopApi, read = api.getBankWorkspace;
+    window.__bankReadCount = 0;
+    api.getBankWorkspace = (...args) => { window.__bankReadCount++; return read(...args); };
+  });
   await page.locator('.bank-hero').getByRole('button', { name: 'Importer un relevé XML', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Importer un relevé bancaire', exact: true });
   await dialog.getByRole('button', { name: 'Choisir le relevé XML', exact: true }).click();
@@ -157,7 +164,246 @@ async function committedImportRecovery(browser, result) {
   assert.equal(await page.evaluate(() => Number(sessionStorage.getItem('qa-bank-import-attempts'))), attempts, 'Refresh must not replay the committed import');
   assert.equal(await page.locator('.bank-refresh-state').count(), 0);
   assert.equal(await page.locator('.bank-hero').getByRole('button', { name: 'Importer un relevé XML', exact: true }).isEnabled(), true);
-  result.cases.push({ name: 'committed-import-incomplete-read-and-read-only-recovery', attempts, refreshOnly: true });
+  const bankReads = await page.evaluate(() => window.__bankReadCount);
+  assert.equal(bankReads, 2, 'Own workspace publications must not duplicate their bank read');
+  result.cases.push({ name: 'committed-import-incomplete-read-and-read-only-recovery', attempts, bankReads, refreshOnly: true });
+  await page.close();
+}
+
+async function receivedWorkspaceDuringRead(browser, result, initial) {
+  const setup = async page => page.evaluate(async initial => {
+    const api = window.__qaDesktopApi;
+    const bank = await api.getBankWorkspace();
+    window.__receivedBank = structuredClone(bank);
+    window.__receivedEvents = [];
+    window.__receivedBankReads = 0;
+    window.__receivedHoldBank = initial;
+    api.getBankWorkspace = async () => {
+      window.__receivedBankReads++;
+      const snapshot = structuredClone(window.__receivedBank);
+      if (window.__receivedHoldBank) {
+        window.__receivedHoldBank = false;
+        window.__receivedEvents.push('old-bank-read-started');
+        return new Promise(resolve => { window.__receivedReleaseBank = () => { window.__receivedEvents.push('old-bank-read-resolved'); resolve(snapshot); }; });
+      }
+      window.__receivedEvents.push('fresh-bank-read');
+      if (window.__receivedHoldFresh) {
+        window.__receivedHoldFresh = false;
+        return new Promise(resolve => { window.__receivedReleaseFresh = () => resolve(snapshot); });
+      }
+      return snapshot;
+    };
+    window.addEventListener('zentra-company-workspace-received', () => window.__receivedEvents.push('company-workspace-received'));
+  }, initial);
+  const page = await fixture(browser, result, { beforeBank: setup, initialReadHeld: initial });
+  if (!initial) {
+    await page.evaluate(() => { window.__bankAuditHold = true; window.__receivedHoldBank = true; });
+    await page.locator('.bank-movements-panel').getByRole('button', { name: 'Actualiser', exact: true }).click();
+    await page.waitForFunction(() => typeof window.__bankAuditRelease === 'function');
+  }
+  await page.waitForFunction(() => typeof window.__receivedReleaseBank === 'function');
+  if (!initial) await page.evaluate(() => { window.__receivedHoldFresh = true; window.__receivedPanel = document.querySelector('.bank-movements-panel'); });
+  await page.evaluate(() => {
+    const next = structuredClone(window.__bankAuditStore);
+    next.settings.organization.legalName = 'Entreprise reçue plus récente';
+    next.clients.push({ ...next.clients[0], id: 'received-client', name: 'Client reçu plus récent', company: 'Client reçu plus récent' });
+    window.__bankAuditStore = next;
+    const bank = window.__receivedBank;
+    bank.movements.unshift({ ...structuredClone(bank.movements[0]), id: 'received-movement', counterpartyName: 'Mouvement bancaire reçu', reconciliation: null, supplierReconciliation: null, expenseReconciliation: null, refundMatch: null });
+    bank.summary.movementCount++; bank.summary.unreconciledCount++;
+    window.dispatchEvent(new CustomEvent('zentra-company-workspace-received', { detail: next }));
+  });
+  const receivedCompany = page.getByText('Entreprise reçue plus récente', { exact: true });
+  await receivedCompany.first().waitFor();
+  const movement = page.getByText('Mouvement bancaire reçu', { exact: true });
+  let busyReleasedBeforeOld = false;
+  if (!beforeReceive) {
+    if (!initial) {
+      await page.waitForFunction(() => typeof window.__receivedReleaseFresh === 'function');
+      assert.equal(await page.evaluate(() => window.__receivedPanel === document.querySelector('.bank-movements-panel')), true, 'A background reception must keep the bank screen mounted');
+      assert.equal(await page.locator('.bank-loading').count(), 0);
+      assert.equal(await page.locator('.bank-hero').getByRole('button', { name: 'Importer un relevé XML', exact: true }).isEnabled(), false, 'Fresh bank data is required before writing');
+      assert.equal(await page.locator('.bank-movements-panel').getByRole('button', { name: 'Actualiser', exact: true }).isEnabled(), false, 'The fresh read must not be restarted while pending');
+      await page.evaluate(() => window.__receivedReleaseFresh());
+    }
+    await movement.waitFor();
+    busyReleasedBeforeOld = await page.locator('.bank-movements-panel').getByRole('button', { name: 'Actualiser', exact: true }).isEnabled();
+    assert.equal(busyReleasedBeforeOld, true, 'Fresh received movements must unlock reads before the superseded read finishes');
+  }
+  await page.evaluate(initial => { if (!initial) window.__bankAuditRelease(); window.__receivedReleaseBank(); }, initial);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const receivedCompanyRemains = await receivedCompany.count() > 0;
+  const receivedMovementRemains = await movement.count() > 0;
+  const bankReads = await page.evaluate(() => window.__receivedBankReads);
+  assert.equal(receivedCompanyRemains, initial || !beforeReceive, 'An old bank refresh must not replace the received global workspace');
+  assert.equal(receivedMovementRemains, !beforeReceive, 'A received workspace needs a fresh bank read, including during initial loading');
+  assert.equal(bankReads, (initial ? 1 : 2) + (beforeReceive ? 0 : 1), 'Reception reloads only the bank snapshot once');
+  assert.equal(await page.locator('.bank-movements-panel').getByRole('button', { name: 'Actualiser', exact: true }).isEnabled(), true, 'Loading and busy must both finish');
+  result.cases.push({ name: initial ? 'workspace-received-during-initial-bank-read' : 'workspace-received-during-bank-refresh', receivedCompanyRemains, receivedMovementRemains, busyReleasedBeforeOld, bankReads, events: await page.evaluate(() => window.__receivedEvents) });
+  await page.close();
+}
+
+async function receivedWorkspaceAfterCommittedAssociation(browser, result) {
+  const page = await fixture(browser, result, { beforeBank: async page => page.evaluate(async () => {
+    const api = window.__qaDesktopApi;
+    window.__associationBank = structuredClone(await api.getBankWorkspace());
+    window.__associationBank.accounts[0].linked = false;
+    window.__associationBank.accounts[0].linkSource = 'none';
+    window.__associationAttempts = 0; window.__associationReads = 0;
+    api.associateBankAccount = async () => {
+      window.__associationAttempts++;
+      window.__associationBank.accounts[0].linked = true;
+      window.__associationBank.accounts[0].linkSource = 'explicit';
+    };
+    api.getBankWorkspace = async () => {
+      window.__associationReads++;
+      const snapshot = structuredClone(window.__associationBank);
+      if (window.__associationHoldBank) {
+        window.__associationHoldBank = false;
+        return new Promise(resolve => { window.__associationReleaseBank = () => resolve(snapshot); });
+      }
+      return snapshot;
+    };
+  }) });
+  await page.locator('.bank-accounts').getByRole('button', { name: 'Associer ce compte', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Associer le compte bancaire', exact: true });
+  await page.evaluate(() => { window.__bankAuditHold = true; window.__associationHoldBank = true; });
+  await dialog.getByRole('button', { name: 'Associer ce compte', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  await page.waitForFunction(() => typeof window.__associationReleaseBank === 'function' && typeof window.__bankAuditRelease === 'function');
+  const receiveAllowed = await page.evaluate(async () => (await import('/src/companySync.tsx')).companyReceiveAllowed());
+  assert.equal(receiveAllowed, true, 'Reception is tested after the actual mutation dialog has closed');
+  await page.evaluate(() => {
+    const next = structuredClone(window.__bankAuditStore);
+    next.settings.organization.legalName = 'Entreprise reçue après association';
+    window.__bankAuditStore = next;
+    const bank = window.__associationBank;
+    bank.movements.unshift({ ...structuredClone(bank.movements[0]), id: 'association-received-movement', counterpartyName: 'Mouvement reçu après association', reconciliation: null, supplierReconciliation: null, expenseReconciliation: null, refundMatch: null });
+    bank.summary.movementCount++; bank.summary.unreconciledCount++;
+    window.dispatchEvent(new CustomEvent('zentra-company-workspace-received', { detail: next }));
+  });
+  const company = page.getByText('Entreprise reçue après association', { exact: true });
+  const movement = page.getByText('Mouvement reçu après association', { exact: true });
+  await company.first().waitFor();
+  if (!beforeReceive) await movement.waitFor();
+  assert.equal(await page.locator('.bank-movements-panel').getByRole('button', { name: 'Actualiser', exact: true }).isEnabled(), false, 'A received read must not release the committed mutation lock');
+  assert.equal(await page.locator('.bank-hero').getByRole('button', { name: 'Importer un relevé XML', exact: true }).isEnabled(), false);
+  await page.evaluate(() => { window.__bankAuditRelease(); window.__associationReleaseBank(); });
+  await page.getByText('Compte associé', { exact: true }).waitFor();
+  assert.equal(await company.count() > 0, !beforeReceive, 'The old post-mutation read must not replace the received workspace');
+  assert.equal(await movement.count() > 0, !beforeReceive);
+  assert.equal(await page.locator('.bank-movements-panel').getByRole('button', { name: 'Actualiser', exact: true }).isEnabled(), true);
+  const state = await page.evaluate(() => ({ attempts: window.__associationAttempts, bankReads: window.__associationReads }));
+  assert.equal(state.attempts, 1, 'Reception must never replay the committed association');
+  assert.equal(state.bankReads, beforeReceive ? 2 : 3);
+  result.cases.push({ name: 'workspace-received-after-committed-association-during-refresh', ...state, receiveAllowed, successPreserved: true, mutationLockPreserved: true });
+  await page.close();
+}
+
+async function receivedBackgroundReadFailure(browser, result) {
+  if (beforeReceive) return; // The pre-fix source does not start this received bank read.
+  const page = await fixture(browser, result, { beforeBank: async page => page.evaluate(async () => {
+    const api = window.__qaDesktopApi;
+    window.__failureBank = structuredClone(await api.getBankWorkspace());
+    window.__failureReads = 0;
+    api.getBankWorkspace = async () => {
+      window.__failureReads++;
+      const snapshot = structuredClone(window.__failureBank);
+      if (window.__failureHoldOld) {
+        window.__failureHoldOld = false;
+        return new Promise((resolve, reject) => { window.__failureRejectOld = () => reject(new Error('Ancienne lecture fictive rejetée.')); });
+      }
+      if (window.__failureNextRead) { window.__failureNextRead = false; throw new Error('Lecture reçue fictive indisponible.'); }
+      return snapshot;
+    };
+  }) });
+  await page.evaluate(() => { window.__bankAuditHold = true; window.__failureHoldOld = true; });
+  await page.locator('.bank-movements-panel').getByRole('button', { name: 'Actualiser', exact: true }).click();
+  await page.waitForFunction(() => typeof window.__failureRejectOld === 'function' && typeof window.__bankAuditRelease === 'function');
+  await page.evaluate(() => {
+    const next = structuredClone(window.__bankAuditStore);
+    next.settings.organization.legalName = 'Entreprise reçue avec reprise'; window.__bankAuditStore = next;
+    const bank = window.__failureBank;
+    bank.movements.unshift({ ...structuredClone(bank.movements[0]), id: 'failure-received-movement', counterpartyName: 'Mouvement reçu après reprise', reconciliation: null, supplierReconciliation: null, expenseReconciliation: null, refundMatch: null });
+    bank.summary.movementCount++; bank.summary.unreconciledCount++;
+    window.__failureNextRead = true;
+    window.dispatchEvent(new CustomEvent('zentra-company-workspace-received', { detail: next }));
+  });
+  await page.locator('.bank-refresh-state').getByText('Données à actualiser', { exact: true }).waitFor();
+  assert.equal(await page.locator('.bank-screen').isVisible(), true, 'A background failure keeps the existing movements visible');
+  assert.equal(await page.locator('.bank-loading').count(), 0);
+  assert.equal(await page.locator('.bank-hero').getByRole('button', { name: 'Importer un relevé XML', exact: true }).isEnabled(), false, 'Stale movements cannot be changed after a received read fails');
+  await page.locator('.bank-refresh-state').getByRole('button', { name: 'Actualiser les données', exact: true }).click();
+  await page.getByText('Mouvement reçu après reprise', { exact: true }).waitFor();
+  await page.getByText('Données actualisées', { exact: true }).waitFor();
+  await page.evaluate(() => { window.__bankAuditRelease(); window.__failureRejectOld(); });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await page.getByText('Entreprise reçue avec reprise', { exact: true }).count() > 0, true);
+  assert.equal(await page.getByText('Mouvement reçu après reprise', { exact: true }).count(), 1);
+  assert.equal(await page.locator('.bank-refresh-state').count(), 0, 'An old failure must not reintroduce the warning after a successful retry');
+  assert.equal(await page.locator('.bank-hero').getByRole('button', { name: 'Importer un relevé XML', exact: true }).isEnabled(), true);
+  const bankReads = await page.evaluate(() => window.__failureReads);
+  assert.equal(bankReads, 4, 'Initial, superseded, received and explicit retry reads only');
+  result.cases.push({ name: 'received-background-read-failure-and-retry-ignore-old-error', bankReads, screenPreserved: true, writesBlockedUntilRecovery: true });
+  await page.close();
+}
+
+async function mutationRefreshAfterReceivedRead(browser, result) {
+  if (beforeReceive) return;
+  const page = await fixture(browser, result, { beforeBank: async page => page.evaluate(async () => {
+    const api = window.__qaDesktopApi;
+    const bank = structuredClone(await api.getBankWorkspace());
+    bank.accounts[0].linked = true;
+    const movement = { ...structuredClone(bank.movements[0]), id: 'inline-expense-movement', counterpartyName: 'Dépense synthétique en cours', creditDebit: 'DBIT', amountCents: 10810, reconciliation: null, supplierReconciliation: null, expenseReconciliation: null, refundMatch: null,
+      supplierSuggestion: { kind: 'none', candidates: [], confirmable: false, reason: 'Pièce synthétique.' },
+      expenseSuggestion: { reason: 'Pièce synthétique.', candidates: [{ expenseId: 'inline-expense', reference: 'DEPENSE-SYNTHETIQUE', supplier: 'Fournisseur fictif', category: 'Marchandises', date: '2026-08-31', paymentStatus: 'pending', paidAt: null, totalCents: 10810, confirmable: true, requiresDateReason: false, reason: 'Paiement synthétique.' }] } };
+    bank.movements.unshift(movement); bank.summary.movementCount++; bank.summary.unreconciledCount++;
+    window.__inlineBank = bank; window.__inlineReads = 0; window.__inlineAttempts = 0;
+    api.getBankWorkspace = async () => {
+      window.__inlineReads++;
+      const snapshot = structuredClone(window.__inlineBank);
+      if (window.__inlineHoldReceived) {
+        window.__inlineHoldReceived = false;
+        return new Promise(resolve => { window.__inlineReleaseReceived = () => resolve(snapshot); });
+      }
+      return snapshot;
+    };
+    api.confirmExpenseBankReconciliation = async () => {
+      window.__inlineAttempts++;
+      await new Promise(resolve => { window.__inlineCommit = resolve; });
+      const row = window.__inlineBank.movements.find(row => row.id === 'inline-expense-movement');
+      row.expenseReconciliation = { id: 'inline-expense-reconciliation', expenseId: 'inline-expense', journalEntryId: 'inline-journal', confirmedAt: '2026-10-02T08:00:00Z' };
+      row.expenseSuggestion.candidates = [];
+    };
+  }) });
+  const picker = page.locator('.bank-movement').filter({ has: page.getByText('Dépense synthétique en cours', { exact: true }) }).locator('.bank-expense-picker').filter({ has: page.locator('summary').filter({ hasText: 'Rapprocher une dépense' }) });
+  await picker.locator('summary').click();
+  await picker.locator('.bank-candidate-option').click();
+  assert.equal(await picker.getByRole('radio').isChecked(), true);
+  await picker.getByRole('button', { name: 'Confirmer la dépense', exact: true }).click();
+  await page.waitForFunction(() => typeof window.__inlineCommit === 'function');
+  const receiveAllowed = await page.evaluate(async () => (await import('/src/companySync.tsx')).companyReceiveAllowed());
+  assert.equal(receiveAllowed, true, 'The inline expense operation permits reception while awaiting its synthetic mutation');
+  await page.evaluate(() => {
+    const next = structuredClone(window.__bankAuditStore);
+    next.settings.organization.legalName = 'Entreprise reçue pendant dépense'; window.__bankAuditStore = next;
+    window.__inlineHoldReceived = true;
+    window.dispatchEvent(new CustomEvent('zentra-company-workspace-received', { detail: next }));
+  });
+  await page.waitForFunction(() => typeof window.__inlineReleaseReceived === 'function');
+  assert.equal(await page.locator('.bank-screen').isVisible(), true);
+  assert.equal(await page.locator('.bank-hero').getByRole('button', { name: 'Importer un relevé XML', exact: true }).isEnabled(), false);
+  await page.evaluate(() => window.__inlineCommit());
+  await page.getByText('Dépense rapprochée', { exact: true }).waitFor();
+  const importButton = page.locator('.bank-hero').getByRole('button', { name: 'Importer un relevé XML', exact: true });
+  assert.equal(await importButton.isEnabled(), true, 'The current post-mutation refresh must release loading without awaiting the superseded received read');
+  await page.evaluate(() => window.__inlineReleaseReceived());
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await page.getByText('Entreprise reçue pendant dépense', { exact: true }).count() > 0, true);
+  assert.equal(await importButton.isEnabled(), true);
+  const state = await page.evaluate(() => ({ attempts: window.__inlineAttempts, bankReads: window.__inlineReads }));
+  assert.equal(state.attempts, 1); assert.equal(state.bankReads, 3);
+  result.cases.push({ name: 'post-mutation-refresh-supersedes-pending-received-read-without-loading-deadlock', ...state, receiveAllowed, unlockedBeforeOldRead: true });
   await page.close();
 }
 
@@ -169,6 +415,11 @@ async function run(engine) {
     await concurrentReads(browser, result, false);
     await concurrentReads(browser, result, true);
     await committedImportRecovery(browser, result);
+    await receivedWorkspaceDuringRead(browser, result, true);
+    await receivedWorkspaceDuringRead(browser, result, false);
+    await receivedWorkspaceAfterCommittedAssociation(browser, result);
+    await receivedBackgroundReadFailure(browser, result);
+    await mutationRefreshAfterReceivedRead(browser, result);
     assert.deepEqual(result.errors, []);
     assert.deepEqual(result.blocked, []);
     result.passed = true;
@@ -178,6 +429,6 @@ async function run(engine) {
 }
 
 const results = await Promise.all(['chromium', 'webkit'].map(run));
-await writeFile(join(output, 'report.json'), JSON.stringify({ origin, before, results }, null, 2));
+await writeFile(join(output, 'report.json'), JSON.stringify({ origin, before, beforeReceive, results }, null, 2));
 console.log(JSON.stringify({ output, results }, null, 2));
 if (results.some(result => !result.passed)) process.exitCode = 1;
