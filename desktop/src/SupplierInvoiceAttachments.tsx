@@ -65,7 +65,7 @@ export function SupplierInvoiceAttachments({ invoice, canEdit, busy, act, onPend
     setLocalError(null);
     try { await act(
       () => desktopApi.deleteSupplierInvoiceAttachment(attachment.id),
-      t("Le justificatif a été supprimé du stockage local."),
+      t("Le justificatif a été retiré de la facture."),
       false,
       (reason) => reportError(reason, 'Le justificatif n’a pas pu être supprimé.'),
     ); } catch (reason) { reportError(reason, 'Le justificatif n’a pas pu être supprimé.'); }

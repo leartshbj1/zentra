@@ -734,3 +734,293 @@ fn actual_import_guard_refuses_missing_read_only_and_foreign_installation_licens
     let (_owner_temporary, owner) = fixture();
     owner.clone().require_write_access().unwrap();
 }
+
+fn deletion_fixture(
+    store: &LocalStore,
+    count: usize,
+) -> (String, Vec<(String, std::path::PathBuf)>) {
+    let input = invoice(store);
+    let invoice_id = input.id.clone().unwrap();
+    store.save_supplier_invoice_draft(input).unwrap();
+    for index in 0..count {
+        let mut bytes = crate::attachments::test_pdf_bytes();
+        bytes.extend_from_slice(format!("\n% synthetic attachment {index}\n").as_bytes());
+        store
+            .add_supplier_invoice_attachment_bytes(&invoice_id, "synthetic.pdf", &bytes)
+            .unwrap();
+    }
+    let records = crate::database::query_all(
+        &store.connect().unwrap(),
+        "SELECT id,stored_name FROM attachments WHERE entity_type='supplier_invoice' AND entity_id=? ORDER BY created_at,id",
+        [&invoice_id],
+    )
+    .unwrap();
+    let files = records
+        .iter()
+        .map(|record| {
+            (
+                record["id"].as_str().unwrap().to_owned(),
+                store
+                    .safe_attachment_path(record["stored_name"].as_str().unwrap())
+                    .unwrap(),
+            )
+        })
+        .collect();
+    (invoice_id, files)
+}
+
+fn deletion_counts(store: &LocalStore) -> (i64, i64, i64, i64, i64) {
+    store.connect().unwrap().query_row(
+        "SELECT (SELECT COUNT(*) FROM supplier_invoices),(SELECT COUNT(*) FROM supplier_invoice_items),(SELECT COUNT(*) FROM attachments),(SELECT COUNT(*) FROM supplier_email_invoice_imports),(SELECT COUNT(*) FROM audit_log)",
+        [], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?)),
+    ).unwrap()
+}
+
+#[cfg(windows)]
+#[test]
+fn actual_attachment_delete_confirms_committed_metadata_when_windows_file_is_locked() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let (_temporary, store) = fixture();
+    let (_invoice_id, files) = deletion_fixture(&store, 1);
+    let (attachment_id, path) = &files[0];
+    let before = deletion_counts(&store);
+    // Permit read/write, but deliberately omit FILE_SHARE_DELETE. The control
+    // proves the real OS refuses remove_file before the actual IPC call.
+    let locked = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(3)
+        .open(path)
+        .unwrap();
+    assert_eq!(
+        std::fs::remove_file(path).unwrap_err().raw_os_error(),
+        Some(32)
+    );
+    let app = tauri::test::mock_builder()
+        .manage(store.clone())
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    assert_eq!(
+        delete_supplier_invoice_attachment(app.state(), attachment_id.clone()).unwrap(),
+        json!({"deleted":true,"id":attachment_id})
+    );
+    assert_eq!(
+        deletion_counts(&store),
+        (before.0, before.1, before.2 - 1, before.3, before.4 + 1)
+    );
+    assert!(
+        path.is_file(),
+        "confirmed metadata deletion is not a physical-erasure promise"
+    );
+    assert!(
+        delete_supplier_invoice_attachment(app.state(), attachment_id.clone())
+            .unwrap_err()
+            .contains("Enregistrement introuvable")
+    );
+    assert_eq!(
+        deletion_counts(&store),
+        (before.0, before.1, before.2 - 1, before.3, before.4 + 1)
+    );
+    drop(locked);
+}
+
+#[cfg(windows)]
+#[test]
+fn actual_draft_delete_continues_other_file_cleanup_after_a_locked_first_file() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let (_temporary, store) = fixture();
+    let (invoice_id, files) = deletion_fixture(&store, 3);
+    let before = deletion_counts(&store);
+    let locked = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(3)
+        .open(&files[0].1)
+        .unwrap();
+    assert_eq!(
+        std::fs::remove_file(&files[0].1)
+            .unwrap_err()
+            .raw_os_error(),
+        Some(32)
+    );
+    let app = tauri::test::mock_builder()
+        .manage(store.clone())
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    assert_eq!(
+        delete_supplier_invoice_draft(app.state(), invoice_id.clone()).unwrap(),
+        json!({"deleted":true,"id":invoice_id})
+    );
+    assert_eq!(
+        deletion_counts(&store),
+        (
+            before.0 - 1,
+            before.1 - 1,
+            before.2 - 3,
+            before.3,
+            before.4 + 4
+        )
+    );
+    assert!(files[0].1.is_file());
+    assert!(files[1..].iter().all(|(_, path)| !path.exists()));
+    drop(locked);
+}
+
+#[test]
+fn actual_deletions_accept_missing_files_but_remove_remaining_draft_files() {
+    let (_temporary, store) = fixture();
+    let (invoice_id, files) = deletion_fixture(&store, 3);
+    let app = tauri::test::mock_builder()
+        .manage(store.clone())
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    std::fs::remove_file(&files[0].1).unwrap();
+    delete_supplier_invoice_attachment(app.state(), files[0].0.clone()).unwrap();
+    std::fs::remove_file(&files[1].1).unwrap();
+    delete_supplier_invoice_draft(app.state(), invoice_id).unwrap();
+    assert!(files.iter().all(|(_, path)| !path.exists()));
+    assert_eq!(deletion_counts(&store).0, 0);
+    assert_eq!(deletion_counts(&store).2, 0);
+}
+
+#[test]
+fn actual_delete_sql_failure_rolls_back_metadata_audit_and_preserves_every_file() {
+    for delete_draft in [false, true] {
+        let (_temporary, store) = fixture();
+        let (invoice_id, files) = deletion_fixture(&store, 2);
+        let bytes: Vec<_> = files
+            .iter()
+            .map(|(_, path)| std::fs::read(path).unwrap())
+            .collect();
+        let before = deletion_counts(&store);
+        store.connect().unwrap().execute_batch(
+            "CREATE TRIGGER synthetic_delete_audit_failure BEFORE INSERT ON audit_log WHEN NEW.action='attachment_delete' BEGIN SELECT RAISE(ABORT,'synthetic delete audit failure'); END;",
+        ).unwrap();
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let error = if delete_draft {
+            delete_supplier_invoice_draft(app.state(), invoice_id)
+        } else {
+            delete_supplier_invoice_attachment(app.state(), files[0].0.clone())
+        }
+        .unwrap_err();
+        assert!(error.contains("synthetic delete audit failure"), "{error}");
+        assert_eq!(deletion_counts(&store), before);
+        for ((_, path), original) in files.iter().zip(bytes) {
+            assert_eq!(std::fs::read(path).unwrap(), original);
+        }
+    }
+}
+
+#[test]
+fn actual_delete_rejects_unsafe_stored_paths_before_committing_any_metadata() {
+    for delete_draft in [false, true] {
+        let (_temporary, store) = fixture();
+        let (invoice_id, files) = deletion_fixture(&store, 2);
+        // Simulate corrupt legacy metadata; only this temporary test database
+        // drops its immutable-update guard to construct the negative fixture.
+        store
+            .connect()
+            .unwrap()
+            .execute_batch("DROP TRIGGER attachments_no_update;")
+            .unwrap();
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE attachments SET stored_name='../../synthetic-outside.pdf' WHERE id=?",
+                [&files[1].0],
+            )
+            .unwrap();
+        let before = deletion_counts(&store);
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let error = if delete_draft {
+            delete_supplier_invoice_draft(app.state(), invoice_id)
+        } else {
+            delete_supplier_invoice_attachment(app.state(), files[1].0.clone())
+        }
+        .unwrap_err();
+        assert!(error.contains("Chemin refusé"), "{error}");
+        assert_eq!(deletion_counts(&store), before);
+        assert!(files.iter().all(|(_, path)| path.is_file()));
+    }
+}
+
+#[test]
+fn actual_deletion_handlers_keep_missing_and_read_only_license_guards() {
+    let (_temporary, store) = unlicensed_fixture();
+    let (invoice_id, files) = deletion_fixture(&store, 1);
+    let app = tauri::test::mock_builder()
+        .manage(store.clone())
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    for expected in [
+        "Licence requise",
+        "Votre rôle Zentra est limité à la lecture",
+    ] {
+        let before = deletion_counts(&store);
+        for error in [
+            delete_supplier_invoice_attachment(app.state(), files[0].0.clone()).unwrap_err(),
+            delete_supplier_invoice_draft(app.state(), invoice_id.clone()).unwrap_err(),
+        ] {
+            assert!(error.contains(expected), "{error}");
+        }
+        assert_eq!(deletion_counts(&store), before);
+        assert!(files[0].1.is_file());
+        if expected == "Licence requise" {
+            store
+                .install_server_issued_license(&signed_fixture_token(&store, "read_only"))
+                .unwrap();
+        }
+    }
+}
+
+#[test]
+fn actual_deletion_handlers_preserve_validated_documents_and_email_evidence() {
+    let (temporary, store) = fixture();
+    crate::tests::enable_accounting(&store);
+    let (invoice_id, files) = deletion_fixture(&store, 1);
+    store.validate_supplier_invoice(&invoice_id).unwrap();
+    let app = tauri::test::mock_builder()
+        .manage(store.clone())
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    let before = deletion_counts(&store);
+    assert!(
+        delete_supplier_invoice_attachment(app.state(), files[0].0.clone())
+            .unwrap_err()
+            .contains("Un justificatif validé est immuable")
+    );
+    assert!(delete_supplier_invoice_draft(app.state(), invoice_id)
+        .unwrap_err()
+        .contains("Seul un brouillon fournisseur"));
+    assert_eq!(deletion_counts(&store), before);
+    assert!(files[0].1.is_file());
+
+    let input = invoice(&store);
+    let email = email_input(&temporary.path().join("delete-evidence.eml"), input);
+    let email_invoice = email.invoice.id.clone().unwrap();
+    store.import_supplier_email_invoice_draft(email).unwrap();
+    let attachment: String = store
+        .connect()
+        .unwrap()
+        .query_row(
+            "SELECT attachment_id FROM supplier_email_invoice_imports WHERE supplier_invoice_id=?",
+            [&email_invoice],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let path = store.verified_attachment_path(&attachment).unwrap();
+    let before = deletion_counts(&store);
+    assert!(delete_supplier_invoice_attachment(app.state(), attachment)
+        .unwrap_err()
+        .contains("Cette pièce prouve l'import"));
+    assert_eq!(deletion_counts(&store), before);
+    assert!(path.is_file());
+    delete_supplier_invoice_draft(app.state(), email_invoice).unwrap();
+    assert!(!path.exists());
+    assert_eq!(deletion_counts(&store).3, before.3 - 1);
+}

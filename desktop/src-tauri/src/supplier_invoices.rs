@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::{
     accounting::{ensure_accounting_date_open, post_entry, EntryLine},
-    attachments::{delete_draft_attachments_in_transaction, supplier_invoice_attachment_snapshot},
+    attachments::{cleanup_committed_attachment_files, delete_draft_attachments_in_transaction, supplier_invoice_attachment_snapshot},
     audit::append_audit,
     database::{now_iso, query_all, LocalStore},
     error::{AppError, AppResult},
@@ -412,6 +412,7 @@ impl LocalStore {
             params![id],
         )?;
         let attachment_files = delete_draft_attachments_in_transaction(&tx, &id)?;
+        let attachment_paths = self.prepare_stored_attachment_cleanup(&attachment_files)?;
         // Supprimer les lignes tant que le parent est encore visible comme
         // brouillon : leur garde SQL interdit toute suppression après validation.
         tx.execute(
@@ -421,7 +422,7 @@ impl LocalStore {
         tx.execute("DELETE FROM supplier_invoices WHERE id=?", params![id])?;
         append_audit(&tx, "delete", "supplier_invoice_draft", &id, &before)?;
         tx.commit()?;
-        self.remove_stored_attachment_files(&attachment_files)?;
+        cleanup_committed_attachment_files(&attachment_paths);
         Ok(json!({"deleted":true,"id":id}))
     }
 }

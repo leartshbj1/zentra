@@ -500,11 +500,10 @@ impl LocalStore {
                 AppError::Validation("Le stockage du justificatif est invalide.".into())
             })?
             .to_owned();
-        tx.commit()?;
+        // An unsafe stored path is still a transaction failure, not deferred cleanup.
         let path = self.safe_attachment_path(&stored_name)?;
-        if path.is_file() {
-            fs::remove_file(&path)?;
-        }
+        tx.commit()?;
+        cleanup_committed_attachment_files(std::slice::from_ref(&path));
         Ok(json!({"deleted":true,"id":id}))
     }
 
@@ -548,14 +547,27 @@ impl LocalStore {
         Ok(path)
     }
 
-    pub(crate) fn remove_stored_attachment_files(&self, stored_names: &[String]) -> AppResult<()> {
-        for stored_name in stored_names {
-            let path = self.safe_attachment_path(stored_name)?;
-            if path.is_file() {
-                fs::remove_file(path)?;
+    pub(crate) fn prepare_stored_attachment_cleanup(
+        &self,
+        stored_names: &[String],
+    ) -> AppResult<Vec<PathBuf>> {
+        stored_names
+            .iter()
+            .map(|name| self.safe_attachment_path(name))
+            .collect()
+    }
+}
+
+/// SQL and its audit are already committed. A failed physical cleanup must not
+/// report an uncommitted deletion or stop cleanup of the other deleted files.
+/// Failed files remain on disk; this is not a durable retry queue.
+pub(crate) fn cleanup_committed_attachment_files(paths: &[PathBuf]) {
+    for path in paths {
+        if let Err(error) = fs::remove_file(path) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                crate::diagnostics::record_attachment_cleanup_failure(&error.into());
             }
         }
-        Ok(())
     }
 }
 

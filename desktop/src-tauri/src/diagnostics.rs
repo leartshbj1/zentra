@@ -464,6 +464,10 @@ impl DiagnosticLog {
         self.append_native_failure(DiagnosticArea::Sync, "project.exchange", error);
     }
 
+    fn append_attachment_cleanup_failure(&self, error: &AppError) {
+        self.append_native_failure(DiagnosticArea::Command, "attachment.cleanup_failure", error);
+    }
+
     fn append_native_failure(&self, area: DiagnosticArea, operation: &'static str, error: &AppError) {
         let mut event = DiagnosticEvent::native(
             &self.0.session_id,
@@ -507,6 +511,15 @@ pub(crate) fn record_project_exchange_failure(error: &AppError) {
     let active = ACTIVE_LOG.get().and_then(|slot| slot.lock().ok()?.clone());
     if let Some(log) = active {
         log.append_project_exchange_failure(error);
+    }
+}
+
+/// The document deletion is committed. Report physical cleanup separately,
+/// without storing a path, attachment identity, file hash or raw error text.
+pub(crate) fn record_attachment_cleanup_failure(error: &AppError) {
+    let active = ACTIVE_LOG.get().and_then(|slot| slot.lock().ok()?.clone());
+    if let Some(log) = active {
+        log.append_attachment_cleanup_failure(error);
     }
 }
 
@@ -842,6 +855,36 @@ mod tests {
             summary.last_incident.unwrap().error_code.as_deref(),
             Some("storage.unsafe_path")
         );
+    }
+
+    #[test]
+    fn committed_attachment_cleanup_failure_logs_only_static_operation_and_category() {
+        let (_temporary, log) = fixture(MAX_FILE_BYTES);
+        let error = AppError::Io(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "private/company-invoice.pdf sha256=private-hash id=private-attachment",
+        ));
+        log.append_attachment_cleanup_failure(&error);
+        let (records, _, _) = log.records().unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].event.operation, "attachment.cleanup_failure");
+        assert_eq!(records[0].event.phase, DiagnosticPhase::Failure);
+        assert_eq!(records[0].event.error_code.as_deref(), Some("storage.io"));
+        let text = fs::read_to_string(log.export().unwrap()).unwrap();
+        for secret in [
+            "company-invoice.pdf",
+            "private-hash",
+            "private-attachment",
+            &error.to_string(),
+        ] {
+            assert!(!text.contains(secret));
+        }
+        // An unwritable diagnostic path remains best effort and cannot turn
+        // this already-committed business outcome into a new command failure.
+        log.clear().unwrap();
+        fs::remove_dir(&log.0.directory).unwrap();
+        fs::write(&log.0.directory, b"synthetic blocked journal").unwrap();
+        log.append_attachment_cleanup_failure(&error);
     }
 
     #[test]
