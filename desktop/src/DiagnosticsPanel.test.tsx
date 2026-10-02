@@ -133,6 +133,43 @@ describe('diagnostic local et actions de récupération', () => {
     expect(html).toContain('Détails techniques');
   });
 
+  it.each([
+    ['de', 'Das Protokoll kann derzeit nicht gelesen werden.'],
+    ['it', 'Il registro non può essere letto al momento.'],
+    ['en', 'The log cannot be read right now.'],
+  ])('traduit aussi une erreur de lecture déjà affichée après passage à %s', async (language, expected) => {
+    api.summary.mockRejectedValue(new Error('synthetic unrecognized failure'));
+    render(); await settle();
+    host.language = language as AppLanguage;
+    const html = renderToStaticMarkup(render());
+    expect(html).toContain(expected);
+    expect(html).not.toContain('Le journal ne peut pas être lu pour le moment.');
+  });
+
+  it('traduit les échecs d’export et de partage déjà reçus sans relancer les actions', async () => {
+    api.export.mockRejectedValueOnce(new Error('synthetic unrecognized failure'));
+    render(); await settle(); click(render(), 'Exporter le diagnostic'); await settle();
+    host.language = 'de';
+    expect(renderToStaticMarkup(render())).toContain('Die Diagnose konnte nicht exportiert werden.');
+    expect(api.export).toHaveBeenCalledOnce();
+    host.language = 'fr'; api.mobile = true;
+    api.export.mockResolvedValue('/exports/diagnostics.zip');
+    api.share.mockRejectedValueOnce(new Error('synthetic unrecognized failure'));
+    click(render(), 'Exporter le diagnostic'); await settle();
+    host.language = 'en';
+    expect(renderToStaticMarkup(render())).toContain('Diagnostics were created, but sharing did not complete.');
+    expect(api.export).toHaveBeenCalledTimes(2);
+    expect(api.share).toHaveBeenCalledOnce();
+  });
+
+  it('traduit la confirmation de copie en cours sans recopier la référence', async () => {
+    render(); await settle(); click(render(), 'Copier la référence'); await settle();
+    host.language = 'en';
+    expect(textOf(render())).toContain('Reference copied.');
+    expect(textOf(render())).not.toContain('Référence copiée.');
+    expect(api.clipboard).toHaveBeenCalledOnce();
+  });
+
   it('partage le fichier exporté sur mobile et reprend le partage sans réexporter', async () => {
     api.mobile = true; api.share.mockRejectedValueOnce(new Error('network error'));
     render(); await settle(); click(render(), 'Exporter le diagnostic'); await settle();

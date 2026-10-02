@@ -17,30 +17,30 @@ export function DiagnosticsPanel(){
   const lang=useAppLanguage(),c=copy[lang];
   const [summary,setSummary]=useState<DiagnosticsSummary|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState<unknown>(null),[notice,setNotice]=useState(''),[path,setPath]=useState(''),[confirm,setConfirm]=useState(false);
   const flight=useRef(false),revision=useRef(0);
-  const [errorContext,setErrorContext]=useState({operation:'read' as 'read'|'mutation',fallback:c.failed});
+  const [errorContext,setErrorContext]=useState({operation:'read' as 'read'|'mutation',fallbackKey:'failed'});
   async function refresh(){
-    if(flight.current)return;flight.current=true;const ticket=++revision.current;setBusy(true);setError(null);setErrorContext({operation:'read',fallback:c.failed});
+    if(flight.current)return;flight.current=true;const ticket=++revision.current;setBusy(true);setError(null);setErrorContext({operation:'read',fallbackKey:'failed'});
     try{const value=await diagnosticsApi.summary();if(ticket===revision.current)setSummary(value);}catch(reason){if(ticket===revision.current)setError(reason);}finally{flight.current=false;setBusy(false);}
   }
   useEffect(()=>{let active=true;const ticket=++revision.current;diagnosticsApi.summary().then(value=>{if(active&&ticket===revision.current)setSummary(value);},reason=>{if(active&&ticket===revision.current)setError(reason);});return()=>{active=false;};},[]);
   async function action(kind:'export'|'clear'){
     if(flight.current||(kind==='clear'&&!confirm))return;flight.current=true;++revision.current;setBusy(true);setError(null);setNotice('');
     let recorded=false,created=false;
-    try{if(kind==='export'){const file=await diagnosticsApi.export();created=true;setPath(file);if(isMobileRuntime())await shareMobileExport(file);setNotice(c.exported);}else{await diagnosticsApi.clear();recorded=true;setConfirm(false);setPath('');setNotice(c.cleared);}setSummary(await diagnosticsApi.summary());}
-    catch(reason){setErrorContext({operation:recorded?'read':'mutation',fallback:recorded?c.failed:created?c.shareFailed:kind==='export'?c.exportFailed:c.clearFailed});setError(reason);}finally{flight.current=false;setBusy(false);}
+    try{if(kind==='export'){const file=await diagnosticsApi.export();created=true;setPath(file);if(isMobileRuntime())await shareMobileExport(file);setNotice('exported');}else{await diagnosticsApi.clear();recorded=true;setConfirm(false);setPath('');setNotice('cleared');}setSummary(await diagnosticsApi.summary());}
+    catch(reason){setErrorContext({operation:recorded?'read':'mutation',fallbackKey:recorded?'failed':created?'shareFailed':kind==='export'?'exportFailed':'clearFailed'});setError(reason);}finally{flight.current=false;setBusy(false);}
   }
-  async function copyReference(){try{if(!navigator.clipboard?.writeText)throw new Error('clipboard unavailable');await navigator.clipboard.writeText(incident);setNotice(c.copied);}catch{setNotice(c.copyFail);}}
-  async function shareExport(){if(flight.current||!path)return;flight.current=true;setBusy(true);setError(null);try{await shareMobileExport(path);setNotice(c.exported);}catch(reason){setErrorContext({operation:'mutation',fallback:c.shareFailed});setError(reason);}finally{flight.current=false;setBusy(false);}}
+  async function copyReference(){try{if(!navigator.clipboard?.writeText)throw new Error('clipboard unavailable');await navigator.clipboard.writeText(incident);setNotice('copied');}catch{setNotice('copyFail');}}
+  async function shareExport(){if(flight.current||!path)return;flight.current=true;setBusy(true);setError(null);try{await shareMobileExport(path);setNotice('exported');}catch(reason){setErrorContext({operation:'mutation',fallbackKey:'shareFailed'});setError(reason);}finally{flight.current=false;setBusy(false);}}
 
   const incident=summary?.lastIncident?`ZT-${summary.lastIncident.id}`:'';
   return <section className="panel settings-card diagnostics-panel" data-diagnostics-panel>
     <SectionHeading title={c.title} description={c.intro}/>
     {summary?<div className="diagnostics-meta"><span>Zentra {summary.appVersion} · {summary.platform}</span><span>{summary.eventCount} {c.events} · {(summary.sizeBytes/1024).toFixed(0)} Ko</span></div>:!error?<p role="status">{c.loading}</p>:null}
-    {error?<ErrorGuidance title={c.title} error={error} fallback={errorContext.fallback} operation={errorContext.operation} onReload={()=>void refresh()} disabled={busy}/>:null}
+    {error?<ErrorGuidance title={c.title} error={error} fallback={c[errorContext.fallbackKey]} operation={errorContext.operation} onReload={()=>void refresh()} disabled={busy}/>:null}
     <p className="diagnostics-incident">{incident?<><strong>{c.incident}</strong><code>{incident}</code><Button size="small" variant="ghost" disabled={busy} onClick={()=>void copyReference()}><Copy size={15}/>{c.copy}</Button></>:c.empty}</p>
     <div className="settings-actions"><Button variant="secondary" disabled={busy||!summary} onClick={()=>void action('export')}><Download size={16}/>{c.export}</Button><Button variant="ghost" disabled={busy} onClick={()=>void refresh()}><RefreshCw size={16}/>{c.refresh}</Button><Button variant="ghost" disabled={busy||!summary} onClick={()=>setConfirm(true)}><Trash2 size={16}/>{c.clear}</Button></div>
     {confirm?<div className="diagnostics-confirm" role="group" aria-label={c.confirm}><p>{c.confirm}</p><Button variant="danger" disabled={busy} onClick={()=>void action('clear')}>{c.clear}</Button><Button variant="ghost" disabled={busy} onClick={()=>setConfirm(false)}>{c.cancel}</Button></div>:null}
-    {notice?<p role="status">{notice}</p>:null}
+    {notice?<p role="status">{c[notice]}</p>:null}
     {path&&isMobileRuntime()?<Button variant="secondary" disabled={busy} onClick={()=>void shareExport()}>{c.share}</Button>:null}
     {path&&!isMobileRuntime()?<div className="diagnostics-export"><code>{path}</code><Button variant="ghost" disabled={busy} onClick={()=>{void desktopApi.openDataFolder().catch(reason=>{resolveErrorIncident(reason);setError(reason);});}}>{c.folder}</Button></div>:null}
     <p className="diagnostics-privacy">{c.privacy}</p>
