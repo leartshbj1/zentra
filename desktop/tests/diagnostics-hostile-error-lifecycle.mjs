@@ -44,6 +44,13 @@ for (const engine of ['chromium', 'webkit']) {
       let nativeReason;
       window.__TAURI_INTERNALS__ = { invoke: async command => { if (command === 'read_workspace') throw nativeReason; } };
       const d = await import(moduleUrl);
+      const coercionError = (accessor, method) => {
+        const original = new Error(''), accessFault = new Error('');
+        const message = method === 'primitive' ? { [Symbol.toPrimitive]() { throw accessFault; } }
+          : { toString() { throw accessFault; } };
+        Object.defineProperty(original, 'message', accessor ? { get() { return message; } } : { value: message });
+        return { kind: `${method}_message_${accessor ? 'accessor' : 'value'}`, original, accessFault };
+      };
       const fixtures = () => [
         { kind: 'normal_error', original: new Error('') },
         (() => {
@@ -60,6 +67,12 @@ for (const engine of ['chromium', 'webkit']) {
           const accessFault = new Error(''), original = { get message() { throw accessFault; } };
           return { kind: 'plain_object_message_getter_throws', original, accessFault };
         })(),
+        coercionError(false, 'primitive'), coercionError(true, 'primitive'),
+        coercionError(false, 'string'), coercionError(true, 'string'),
+        { kind: 'numeric_message', expectedCode: 'SESSION', original: Object.defineProperty(new Error(''), 'message', { value: 401 }) },
+        { kind: 'coercible_message', expectedCode: 'NETWORK', original: Object.defineProperty(new Error(''), 'message', {
+          value: { toString() { return 'network timeout'; } },
+        }) },
       ];
       const operations = [], invocations = [];
       for (const fixture of fixtures()) {
@@ -68,7 +81,10 @@ for (const engine of ['chromium', 'webkit']) {
         try { await d.diagnosticOperation('command', 'read_workspace', async () => { throw fixture.original; }); }
         catch (reason) { caught = reason; }
         const events = d.recentDiagnosticEvents();
-        operations.push({ kind: fixture.kind, classifier: d.classifyDiagnosticError(fixture.original),
+        let classifier, classificationEscaped = false;
+        try { classifier = d.classifyDiagnosticError(fixture.original); }
+        catch (reason) { classificationEscaped = fixture.accessFault !== undefined && reason === fixture.accessFault; }
+        operations.push({ kind: fixture.kind, classifier, classificationEscaped, expectedCode: fixture.expectedCode || 'INTERNAL',
           originalPreserved: caught === fixture.original,
           replacedByAccessFault: fixture.accessFault !== undefined && caught === fixture.accessFault,
           phases: events.map(event => event.phase), codes: events.filter(event => event.errorCode).map(event => event.errorCode) });
@@ -115,8 +131,10 @@ for (const result of report.results) {
     assert.equal(row.replacedByAccessFault, false);
   }
   for (const row of result.operations) {
+    assert.equal(row.classificationEscaped, false);
+    assert.equal(row.classifier, row.expectedCode);
     assert.deepEqual(row.phases, ['start', 'failure']);
-    assert.deepEqual(row.codes, ['INTERNAL']);
+    assert.deepEqual(row.codes, [row.expectedCode]);
   }
   for (const row of result.captures) {
     assert.equal(row.originalReasonObserved, true);

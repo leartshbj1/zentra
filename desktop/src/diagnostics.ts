@@ -18,7 +18,7 @@ const codes=['NETWORK','SESSION','PERMISSION','CONFLICT','VALIDATION','STORAGE',
 
 // Categorise in memory only. Neither messages, arguments nor responses enter the journal.
 export function classifyDiagnosticError(error:unknown):string {
-  let text='';try { text=typeof error==='string'?error:error instanceof Error?error.message:typeof error==='object'&&error&&'message' in error?String(error.message):''; }catch{/* hostile object */}
+  let text='';try { text=typeof error==='string'?error:error instanceof Error?String(error.message):typeof error==='object'&&error&&'message' in error?String(error.message):''; }catch{/* hostile object */}
   if(/(?:network|fetch|offline|internet|réseau|timeout|timed out|connexion.*(?:perdue|impossible))/i.test(text))return 'NETWORK';
   if(/(?:401|unauth|session.*(?:expir|invalid)|connectez.*compte)/i.test(text))return 'SESSION';
   if(/(?:403|forbidden|permission|lecture seule|autorisé|accès refusé)/i.test(text))return 'PERMISSION';

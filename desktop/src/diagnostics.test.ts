@@ -14,10 +14,22 @@ const hostileErrors = [
     return {original,accessFailure};
   }],
 ] as const;
+function coercionError(accessor:boolean,method:'primitive'|'string'){
+  const original=new Error(''),accessFailure=new Error('');
+  const message:object=method==='primitive'?{[Symbol.toPrimitive](){throw accessFailure;}}:{toString(){throw accessFailure;}};
+  Object.defineProperty(original,'message',accessor?{get(){return message;}}:{value:message});
+  return {original,accessFailure};
+}
+const coercionErrors = [
+  ['primitive message value',()=>coercionError(false,'primitive')],
+  ['primitive message accessor',()=>coercionError(true,'primitive')],
+  ['string message value',()=>coercionError(false,'string')],
+  ['string message accessor',()=>coercionError(true,'string')],
+] as const;
 beforeEach(()=>{vi.resetModules();invoke.mockReset();vi.useFakeTimers();});
 afterEach(()=>{vi.clearAllTimers();vi.useRealTimers();vi.unstubAllGlobals();});
 describe('safe diagnostics',()=>{
-  it.each(hostileErrors)('keeps an operation rejection when its %s throws',async(_label,create)=>{
+  it.each([...hostileErrors,...coercionErrors])('keeps an operation rejection when its %s throws',async(_label,create)=>{
     const d=await api(),{original}=create();
     const preserved=await d.diagnosticOperation('command','read_workspace',async()=>{throw original;}).catch(reason=>reason===original);
     expect(preserved).toBe(true);
@@ -28,7 +40,7 @@ describe('safe diagnostics',()=>{
     expect(d.resolveErrorIncident(original).code).toBe(`ZT-${events[1].id}`);
     expect(d.recentDiagnosticEvents()).toHaveLength(2);
   });
-  it.each(hostileErrors)('keeps the native rejection when its %s throws',async(_label,create)=>{
+  it.each([...hostileErrors,...coercionErrors])('keeps the native rejection when its %s throws',async(_label,create)=>{
     const d=await api(),{original}=create();
     invoke.mockRejectedValue(original);
     const preserved=await d.diagnosticInvoke('read_workspace',{scope:'synthetic-scope'}).catch(reason=>reason===original);
@@ -38,6 +50,23 @@ describe('safe diagnostics',()=>{
     expect(events.map(event=>event.phase)).toEqual(['start','failure']);
     expect(d.resolveErrorIncident(original).code).toBe(`ZT-${events[1].id}`);
     expect(JSON.stringify(events)).not.toContain('synthetic-scope');
+  });
+  it.each(coercionErrors)('classifies a hostile %s without propagating its coercion failure',async(_label,create)=>{
+    const d=await api(),{original,accessFailure}=create();
+    let code:string|undefined,accessFailureEscaped=false;
+    try{code=d.classifyDiagnosticError(original);}catch(reason){accessFailureEscaped=reason===accessFailure;}
+    expect({code,accessFailureEscaped}).toEqual({code:'INTERNAL',accessFailureEscaped:false});
+  });
+  it.each([
+    ['numeric message',401,'SESSION'],
+    ['coercible message',{toString(){return 'network timeout';}},'NETWORK'],
+  ] as const)('keeps classification for a %s',async(_label,message,expected)=>{
+    const d=await api(),original=new Error('');
+    Object.defineProperty(original,'message',{value:message});
+    expect(d.classifyDiagnosticError(original)).toBe(expected);
+    const preserved=await d.diagnosticOperation('command','read_workspace',async()=>{throw original;}).catch(reason=>reason===original);
+    expect(preserved).toBe(true);
+    expect(d.recentDiagnosticEvents()[1].errorCode).toBe(expected);
   });
   it('traces plugin work without retaining its result and rethrows the original failure',async()=>{
     const d=await api(), result='/Users/private/secret-invoice.pdf';
