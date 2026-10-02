@@ -1,4 +1,5 @@
 'use client';
+import { withDiagnosticIntent } from './diagnosticIntent';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Check,
@@ -155,9 +156,9 @@ export function AutomationControlCentre({
     const requestNumber = ++sequence.current;
     inflight.current = true;
     try {
-      const next = (await api.current({
+      const next = (await api.current(withDiagnosticIntent({
         action: 'centre',
-      })) as AutomationCentreState;
+      }, 'automation_request', 'centre'))) as AutomationCentreState;
       if (alive.current && requestNumber === sequence.current && next.organizationId === organizationId) {
         setData(next);
         setError('');
@@ -331,12 +332,12 @@ export function AutomationControlCentre({
                   <button
                     type="button"
                     onClick={() =>
-                      void action({
+                      void action(withDiagnosticIntent({
                         action: 'work_item_update',
                         id: item.id,
                         revision: item.revision,
                         state: 'done',
-                      })
+                      }, 'automation_request', 'work_item_update'))
                     }
                     disabled={busy || !data.canWork}
                   >
@@ -349,12 +350,12 @@ export function AutomationControlCentre({
                     aria-label={`Écarter · ${item.title}`}
                     disabled={busy || !data.canWork}
                     onClick={() =>
-                      void action({
+                      void action(withDiagnosticIntent({
                         action: 'work_item_update',
                         id: item.id,
                         revision: item.revision,
                         state: 'dismissed',
-                      })
+                      }, 'automation_request', 'work_item_update'))
                     }
                   >
                     <X size={16} />
@@ -402,7 +403,7 @@ export function AutomationControlCentre({
               setBusy(true);
               setError('');
               try {
-                await api.current({ action: 'workflow_save', ...value });
+                await api.current(withDiagnosticIntent({ action: 'workflow_save', ...value }, 'automation_request', 'workflow_save'));
                 if (alive.current) {
                   setEditing(null);
                   setNotice(
@@ -536,12 +537,12 @@ function ReplyDraft({
           disabled={busy || !changed || conflict}
           onClick={() => {
             setProblem('');
-            void save({
+            void save(withDiagnosticIntent({
               action: 'work_item_update',
               id: item.id,
               revision: base.current.revision,
               body: value,
-            })
+            }, 'automation_request', 'work_item_update'))
               .then((saved) => {
                 if (saved === false) {
                   setProblem(
@@ -699,12 +700,12 @@ export function AutomationRunRow({
                 }
                 type="button"
                 onClick={() =>
-                  void act({
+                  void act(withDiagnosticIntent({
                     action: 'workflow_confirm',
                     id: run.id,
                     revision: run.revision,
                     choice: choice || undefined,
-                  })
+                  }, 'automation_request', 'workflow_confirm'))
                 }
               >
                 {label('confirmActions')}
@@ -715,11 +716,11 @@ export function AutomationRunRow({
                 disabled={busy || run.attempts >= 5}
                 type="button"
                 onClick={() =>
-                  void act({
+                  void act(withDiagnosticIntent({
                     action: 'workflow_retry',
                     id: run.id,
                     revision: run.revision,
-                  })
+                  }, 'automation_request', 'workflow_retry'))
                 }
               >
                 {label('retry')}
@@ -731,11 +732,11 @@ export function AutomationRunRow({
                 className="ac-quiet"
                 type="button"
                 onClick={() =>
-                  void act({
+                  void act(withDiagnosticIntent({
                     action: 'workflow_cancel',
                     id: run.id,
                     revision: run.revision,
-                  })
+                  }, 'automation_request', 'workflow_cancel'))
                 }
               >
                 {label('cancelNext')}
@@ -747,11 +748,11 @@ export function AutomationRunRow({
                 className="ac-quiet"
                 type="button"
                 onClick={() =>
-                  void act({
+                  void act(withDiagnosticIntent({
                     action: 'workflow_undo',
                     id: run.id,
                     revision: run.revision,
-                  })
+                  }, 'automation_request', 'workflow_undo'))
                 }
               >
                 {label('undoUnused')}
@@ -1143,7 +1144,7 @@ function RuleEditor({
           onClick={() => {
             setTesting(true);
             setProblem('');
-            void request({
+            void request(withDiagnosticIntent({
               action: 'workflow_preview',
               definition: d,
               sample: {
@@ -1153,7 +1154,7 @@ function RuleEditor({
                 priority: d.conditions.priority || 'normal',
                 attachments: d.conditions.attachment ? ['document.pdf'] : [],
               },
-            })
+            }, 'automation_request', 'workflow_preview'))
               .then((v) => setPreview(v as typeof preview))
               .catch((e) =>
                 setProblem(

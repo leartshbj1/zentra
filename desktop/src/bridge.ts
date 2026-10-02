@@ -1,3 +1,4 @@
+import { withDiagnosticIntent } from './diagnosticIntent';
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
 import type { WorkNote, WorkNoteDraft } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
@@ -5528,7 +5529,7 @@ export const desktopApi = {
   async validateSupplierInvoice(id: string) {
     const workspace = await runSupplierInvoiceValidation(id, () => invoke('validate_supplier_invoice', { id }), loadWorkspace);
     // Learning must never turn a successfully posted invoice into an apparent failure.
-    void invoke('supplier_inbox_request', {data:{action:'remember',id}}).then(()=>window.dispatchEvent(new Event('zentra-automation-updated'))).catch(()=>{});
+    void invoke('supplier_inbox_request', withDiagnosticIntent({data:{action:'remember',id}}, 'supplier_inbox_request', 'remember')).then(()=>window.dispatchEvent(new Event('zentra-automation-updated'))).catch(()=>{});
     return workspace;
   },
   async recordSupplierPayment(input: {

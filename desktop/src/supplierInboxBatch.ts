@@ -1,3 +1,4 @@
+import { withDiagnosticIntent } from './diagnosticIntent';
 import type { InboxDraft, MailInvoice, SupplierInboxState } from './supplierInbox';
 import type { Workspace } from './types';
 import { mailboxInvoiceDefaults } from './supplierInboxReview';
@@ -55,7 +56,7 @@ export async function prepareMailboxBatch(inbox: SupplierInboxState, dependencie
     const items = queue.slice(offset, offset + 10);
     let prepared: Prepared[];
     try {
-      prepared = (await request<{ results: Prepared[] }>({ action: 'prepareSuppliers', ids: items.map(item => item.id) })).results;
+      prepared = (await request<{ results: Prepared[] }>(withDiagnosticIntent({ action: 'prepareSuppliers', ids: items.map(item => item.id) }, 'supplier_inbox_request', 'prepareSuppliers'))).results;
     } catch (error) {
       prepared = items.map(item => ({ id: item.id, error: errorMessage(error) }));
     }
@@ -75,13 +76,13 @@ export async function prepareMailboxBatch(inbox: SupplierInboxState, dependencie
         if (!supplierId) throw Error(resolution?.error || 'Le nom du fournisseur doit être confirmé.');
         let saved: Saved | undefined;
         if (inbox.autoPost && item.state === 'ready') {
-          try { saved = await request<Saved>({ action: 'import', id: item.id, automatic: true }); }
+          try { saved = await request<Saved>(withDiagnosticIntent({ action: 'import', id: item.id, automatic: true }, 'supplier_inbox_request', 'import')); }
           catch { /* The native posting guard may require a first confirmed classification. */ }
         }
         if (!isCurrent()) break;
         if (!saved?.saved && !saved?.alreadyImported) {
-          saved = await request<Saved>({ action: 'import', id: item.id, automatic: false, confirm: false,
-            invoice: draft(item, supplierId, workspace, inbox) });
+          saved = await request<Saved>(withDiagnosticIntent({ action: 'import', id: item.id, automatic: false, confirm: false,
+            invoice: draft(item, supplierId, workspace, inbox) }, 'supplier_inbox_request', 'import'));
         }
         if (!isCurrent()) break;
         result.invoiceId = saved.id;

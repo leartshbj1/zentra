@@ -1,3 +1,4 @@
+import { withDiagnosticIntent } from './diagnosticIntent';
 import { diagnosticInvoke as invoke } from './diagnostics';
 import type { BankMovement } from './types';
 export type AutomationFeature =
@@ -124,7 +125,7 @@ export function loadAutomationState(organizationId = ''): Promise<AutomationStat
   if (pending) return pending;
   // Never make a newly selected company wait for the previous company's
   // request. Native session/binding checks still authorize every response.
-  const request = invoke<AutomationState>('automation_request', { data: null })
+  const request = invoke<AutomationState>('automation_request', withDiagnosticIntent({ data: null }, 'automation_request', 'state'))
     .finally(() => {
       if (stateRequests.get(organizationId) === request) stateRequests.delete(organizationId);
     });
@@ -165,9 +166,9 @@ export async function automationRequest(
     v.toString(16).padStart(2, '0'),
   ).join('');
   try {
-    return await invoke('automation_request', {
+    return await invoke('automation_request', withDiagnosticIntent({
       data: { action: 'decide', feature, context, requestId },
-    });
+    }, 'automation_request', 'decide'));
   } catch {
     return {
       status: 'manual',
@@ -186,14 +187,14 @@ export async function automationFeedback(
   )
     return false;
   try {
-    await invoke('automation_request', {
+    await invoke('automation_request', withDiagnosticIntent({
       data: {
         action: 'feedback',
         id: decision.id,
         feedback: rejected ? 'rejected' : 'modified',
         choices,
       },
-    });
+    }, 'automation_request', 'feedback'));
     if (typeof window !== 'undefined') window.dispatchEvent(new Event('zentra-automation-updated'));
     return true;
   } catch {
@@ -203,10 +204,10 @@ export async function automationFeedback(
 export const openAutomationSettings = () =>
   invoke<string>('open_automation_settings');
 export async function saveAutomationSettings(settings: AutomationState['settings'], consent = false) {
-  const result = await invoke<AutomationState['settings']>('automation_request', { data: {
+  const result = await invoke<AutomationState['settings']>('automation_request', withDiagnosticIntent({ data: {
     action: 'settings', ...settings,
     ...(consent ? { consentVersion: 'automation-2026-09-20' } : {}),
-  } });
+  } }, 'automation_request', 'settings'));
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('zentra-automation-updated'));
   return result;
 }
@@ -216,7 +217,7 @@ export async function automationResourceFeedback(
 ) {
   if (!decision?.id) return false;
   try {
-    await invoke('automation_request', {
+    await invoke('automation_request', withDiagnosticIntent({
       data: {
         action: 'feedback',
         id: decision.id,
@@ -224,7 +225,7 @@ export async function automationResourceFeedback(
         choices: {},
         resourceIds,
       },
-    });
+    }, 'automation_request', 'feedback'));
     if (typeof window !== 'undefined') window.dispatchEvent(new Event('zentra-automation-updated'));
     return true;
   } catch {

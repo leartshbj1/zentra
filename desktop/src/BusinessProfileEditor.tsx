@@ -1,6 +1,6 @@
 import { t, useAppLanguage } from './language';
 import { nogaLabel } from './nogaLanguage';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { BriefcaseBusiness, ExternalLink, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { desktopApi } from './bridge';
 import type { AppSettings, BusinessProfile, NogaCatalog, NogaSectionCode, Workspace } from './types';
@@ -47,20 +47,34 @@ function validProfile(profile: BusinessProfile): boolean {
   return [3, 4, 6].includes(profile.nogaDetailedCode.length) && /^\d+$/.test(profile.nogaDetailedCode) && profile.nogaDetailedCode.startsWith(profile.nogaDivision);
 }
 
-export function BusinessProfileGate({ workspace, onSaved }: { workspace: Workspace; onSaved: (workspace: Workspace) => void }) {
+export function BusinessProfileGate({ workspace, onSaved, readOnly = false }: { workspace: Workspace; onSaved: (workspace: Workspace) => void; readOnly?: boolean }) {
   useAppLanguage();
   const [profile, setProfile] = useState(workspace.settings!.business);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const originScope = useRef(workspace.workNotesScope).current;
+  const mounted = useRef(false);
+  const inFlight = useRef(false);
+  const current = useRef({ workspace, profile, readOnly, onSaved });
+  current.current = { workspace, profile, readOnly, onSaved };
+  useLayoutEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const isOriginCurrent = () => mounted.current && Boolean(originScope) && current.current.workspace.workNotesScope === originScope;
+  const mayWrite = () => isOriginCurrent() && !current.current.readOnly;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!validProfile(profile)) { setError('Choisissez une section et une division officielles, puis décrivez précisément votre activité.'); return; }
+    if (inFlight.current || !mayWrite() || !current.current.workspace.settings) return;
+    const choice = current.current.profile;
+    if (!validProfile(choice)) { setError('Choisissez une section et une division officielles, puis décrivez précisément votre activité.'); return; }
+    inFlight.current = true;
     setBusy(true); setError('');
-    try { onSaved(await desktopApi.saveSettings({ ...workspace.settings!, business: { ...profile, activityDescription: profile.activityDescription.trim() } })); }
-    catch (reason) { setError(errorMessage(reason, 'Le profil d’activité n’a pas pu être enregistré localement.')); }
-    finally { setBusy(false); }
+    try {
+      const next = await desktopApi.saveSettings({ ...current.current.workspace.settings, business: { ...choice, activityDescription: choice.activityDescription.trim() } }, originScope);
+      if (isOriginCurrent()) current.current.onSaved(next);
+    }
+    catch (reason) { if (isOriginCurrent()) setError(errorMessage(reason, 'Le profil d’activité n’a pas pu être enregistré localement.')); }
+    finally { inFlight.current = false; if (isOriginCurrent()) setBusy(false); }
   }
 
-  return <main className="business-profile-gate"><form className="panel business-profile-gate__card" onSubmit={(event) => void submit(event)}><header><span><BriefcaseBusiness size={25} /></span><div><p className="eyebrow">{t("Mise à niveau locale")}</p><h1>{t("Choisissez votre secteur d’activité")}</h1><p>{t("Vos données existantes sont conservées. Ce choix précise votre activité et conserve vos projets et documents.")}</p></div></header><div className="info-strip"><ShieldCheck size={17} /><span>{t("Les 22 sections et 87 divisions proviennent du catalogue officiel NOGA 2025 embarqué dans l’application.")}</span></div><BusinessProfileFields profile={profile} onChange={setProfile} disabled={busy} />{error ? <ErrorPanel message={error} /> : null}<div className="form-actions"><Button type="submit" size="large" disabled={busy || !validProfile(profile)}>{busy ? <LoaderCircle className="spin" size={17} /> : <BriefcaseBusiness size={17} />}{busy ? t("Enregistrement…") : t("Enregistrer et ouvrir mon espace")}</Button></div></form></main>;
+  return <main className="business-profile-gate"><form className="panel business-profile-gate__card" onSubmit={(event) => void submit(event)}><header><span><BriefcaseBusiness size={25} /></span><div><p className="eyebrow">{t("Mise à niveau locale")}</p><h1>{t("Choisissez votre secteur d’activité")}</h1><p>{t("Vos données existantes sont conservées. Ce choix précise votre activité et conserve vos projets et documents.")}</p></div></header><div className="info-strip"><ShieldCheck size={17} /><span>{t("Les 22 sections et 87 divisions proviennent du catalogue officiel NOGA 2025 embarqué dans l’application.")}</span></div><BusinessProfileFields profile={profile} onChange={setProfile} disabled={busy || readOnly} />{readOnly ? <p role="status">{t('Mode lecture seule : les modifications ne peuvent pas être enregistrées.')}</p> : null}{!originScope || workspace.workNotesScope !== originScope ? <ErrorPanel message={t('L’espace local n’a pas pu être ouvert.')} /> : null}{error ? <ErrorPanel message={error} /> : null}<div className="form-actions"><Button type="submit" size="large" disabled={busy || readOnly || !originScope || workspace.workNotesScope !== originScope || !validProfile(profile)}>{busy ? <LoaderCircle className="spin" size={17} /> : <BriefcaseBusiness size={17} />}{busy ? t("Enregistrement…") : t("Enregistrer et ouvrir mon espace")}</Button></div></form></main>;
 }

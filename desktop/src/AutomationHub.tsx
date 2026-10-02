@@ -1,3 +1,4 @@
+import { copyDiagnosticIntent } from './diagnosticIntent';
 import { ArrowLeft, ArrowRight, Banknote, FileText, Package, Receipt, Workflow } from 'lucide-react';
 import { useCompanyAutomation } from './AutomationCompany';
 import { AutomationBrief, type BriefDestination } from './AutomationBrief';
@@ -55,7 +56,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
         <Button onClick={() => onPage('settings')}>{t(canManage ? 'Configurer mon équipe' : 'Voir les réglages')}<ArrowRight size={17} aria-hidden="true" /></Button>
       </div>}
     {activityPage && <div className="automation-hub__activity">
-      <div className="automation-hub__journal"><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} onOpenAppointment={onOpenAppointment} initialTab="history" activity={state.activity} onOpen={open} onOpenInvoice={onOpenInvoice} embedded hideNavigation hideRules request={data=>invoke('automation_request',{data})}/></div>
+      <div className="automation-hub__journal"><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} onOpenAppointment={onOpenAppointment} initialTab="history" activity={state.activity} onOpen={open} onOpenInvoice={onOpenInvoice} embedded hideNavigation hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></div>
       <aside className="automation-hub__day"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} activityFirst hideAttention/><div className="automation-hub__more"><Button variant="ghost" onClick={()=>onPage('tools')}>{t('Les outils de cet écran')}<ArrowRight size={16}/></Button></div></aside>
     </div>}
     {(page === 'invoices' || page === 'appointments') && <section className="automation-hub__focused"><Button variant="ghost" onClick={()=>onPage('overview')}><ArrowLeft size={16}/>{t('Aujourd’hui')}</Button>{page==='invoices'?inboxPanel:appointmentPanel}</section>}
@@ -74,8 +75,8 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
       })}</div>
       {ready ? <AutomationTools screen="automation" workspace={workspace} expanded /> : <div className="automation-hub__welcome"><p>{t('Terminez les réglages pour retrouver les outils de votre équipe.')}</p><Button onClick={() => onPage('settings')}>{t('Voir les réglages')}</Button></div>}
     </section>}
-    {followup && <div className="automation-hub__followup"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} attentionOnly/><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab={page==='work'?'work':'review'} embedded hideRules request={data=>invoke('automation_request',{data})} /></div>}
+    {followup && <div className="automation-hub__followup"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} attentionOnly/><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab={page==='work'?'work':'review'} embedded hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))} /></div>}
     {page === 'settings' && <section aria-label={t('Réglages')} className="automation-hub__settings"><Button variant="secondary" onClick={()=>onPage('rules')}>{t('Règles de l’équipe')}<ArrowRight size={16}/></Button><AutomationSettings /></section>}
-    {page === 'rules' && <><Button variant="ghost" onClick={()=>onPage('settings')}><ArrowLeft size={16}/>{t('Réglages')}</Button><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab="rules" embedded hideNavigation request={data=>invoke('automation_request',{data})}/></>}
+    {page === 'rules' && <><Button variant="ghost" onClick={()=>onPage('settings')}><ArrowLeft size={16}/>{t('Réglages')}</Button><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab="rules" embedded hideNavigation request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></>}
   </div>;
 }

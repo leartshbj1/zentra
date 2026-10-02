@@ -298,7 +298,7 @@ export function App() {
         onCloudRestore={async (id: string) => setWorkspace(await desktopApi.restoreCloudBackup(id))}
       /></Suspense>
     ) : workspace.activityProfileRequired || activityProfileMissing ? (
-      <BusinessProfileGate workspace={workspace} onSaved={setWorkspace} />
+      <BusinessProfileGate key={workspace.workNotesScope} workspace={workspace} readOnly={Boolean(license?.readOnly || cloudRoleReadOnly)} onSaved={setWorkspace} />
     ) : !draftIdentityReady ? (
       <main className="splash-screen draft-identity-splash" aria-busy={draftIdentityFailure?.key !== draftIdentityKey}>
         <BrandMark size={58} />

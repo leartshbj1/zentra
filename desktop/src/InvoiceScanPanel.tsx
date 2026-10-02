@@ -1,3 +1,4 @@
+import { withDiagnosticIntent } from './diagnosticIntent';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { diagnosticInvoke as invoke } from './diagnostics';
 import { ScanLine, Check, X } from 'lucide-react';
@@ -34,7 +35,7 @@ export function InvoiceScanPanel({disabled,onApply,onBusy}:{disabled:boolean;onA
       const text=await readInvoiceText(file,value=>{if(ticket===generation.current)setProgress(value);});
       if(ticket!==generation.current)return;
       setProgress('Préparation de la facture…');
-      const response=await invoke<{status:string;message?:string;extraction?:InvoiceScan}>('automation_request',{data:{action:'invoice_scan',requestId:crypto.randomUUID(),text}});
+      const response=await invoke<{status:string;message?:string;extraction?:InvoiceScan}>('automation_request',withDiagnosticIntent({data:{action:'invoice_scan',requestId:crypto.randomUUID(),text}}, 'automation_request', 'invoice_scan'));
       if(ticket!==generation.current)return;
       if(response.status!=='suggestion'||!response.extraction)throw Error(response.message||'La lecture est indisponible. Vous pouvez remplir la facture.');
       setResult({scan:response.extraction,file,text});

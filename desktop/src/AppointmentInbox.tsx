@@ -1,3 +1,4 @@
+import { copyDiagnosticIntent, withDiagnosticIntent } from './diagnosticIntent';
 import { t, useAppLanguage } from './language';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { diagnosticInvoke as invoke } from './diagnostics';
@@ -40,7 +41,9 @@ export type AppointmentInboxState = {
 };
 type State = AppointmentInboxState;
 const request = <T,>(data: unknown = null) =>
-  invoke<T>('appointment_inbox_request', { data });
+  invoke<T>('appointment_inbox_request', data === null
+    ? withDiagnosticIntent({ data }, 'appointment_inbox_request', 'state')
+    : copyDiagnosticIntent(data, { data }, 'appointment_inbox_request'));
 export function useAppointmentInbox(
   org: string | null,
   readOnly: boolean,
@@ -95,11 +98,11 @@ export function useAppointmentInbox(
         )
           break;
         try {
-          const r = await request<{ saved?: boolean }>({
+          const r = await request<{ saved?: boolean }>(withDiagnosticIntent({
             action: 'import',
             id: item.id,
             automatic: item.state === 'ready',
-          });
+          }, 'appointment_inbox_request', 'import'));
           if (!isCurrent()) return;
           changed = changed || !!r.saved;
         } catch (e) {
@@ -272,12 +275,12 @@ export function AppointmentInbox({
           onClose={() => setSelected(null)}
           onSave={async (event) => {
             try {
-              await inbox.act({
+              await inbox.act(withDiagnosticIntent({
                 action: 'import',
                 id: selected.id,
                 event,
                 automatic: false,
-              });
+              }, 'appointment_inbox_request', 'import'));
               setSelected(null);
             } catch (e) {
               setError(String(e));
@@ -285,7 +288,7 @@ export function AppointmentInbox({
           }}
           onIgnore={async () => {
             try {
-              await inbox.act({ action: 'ignore', id: selected.id });
+              await inbox.act(withDiagnosticIntent({ action: 'ignore', id: selected.id }, 'appointment_inbox_request', 'ignore'));
               setSelected(null);
             } catch (e) {
               setError(String(e));

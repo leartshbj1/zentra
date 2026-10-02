@@ -1,3 +1,4 @@
+import { withDiagnosticIntent } from './diagnosticIntent';
 import { t, useAppLanguage } from './language';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -100,7 +101,7 @@ export function SupplierHabits({
                   setBusy(true);
                   setError('');
                   try {
-                    await inboxRequest({ action: 'forgetHabit', id: r.id });
+                    await inboxRequest(withDiagnosticIntent({ action: 'forgetHabit', id: r.id }, 'supplier_inbox_request', 'forgetHabit'));
                     if (admission.isCurrent()) {
                       setRows((current) => current.filter((h) => h.id !== r.id));
                       // A list captured before this confirmed deletion cannot

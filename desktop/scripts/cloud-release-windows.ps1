@@ -71,6 +71,8 @@ try {
         $diagnosticMobileSuites += @('src/NotesScreenLifecycle.test.tsx', 'src/PayrollSetupLifecycle.test.tsx')
         $diagnosticFrontendSuites += @('src/backgroundScanBridge.test.ts', 'src/FinanceConfigurationLifecycle.test.tsx')
         $diagnosticMobileSuites += @('src/backgroundScanBridge.test.ts', 'src/FinanceConfigurationLifecycle.test.tsx')
+        $diagnosticFrontendSuites += @('src/BusinessProfileGateLifecycle.test.tsx', 'src/diagnosticIntent.test.ts', 'src/languageDiagnostics.test.ts', 'src/languageLoading.test.ts')
+        $diagnosticMobileSuites += @('src/BusinessProfileGateLifecycle.test.tsx', 'src/diagnosticIntent.test.ts', 'src/languageDiagnostics.test.ts', 'src/languageLoading.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

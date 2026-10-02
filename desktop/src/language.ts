@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { languageAssets } from 'virtual:zentra-language-assets';
+import { diagnosticOperation, recordDiagnostic } from './diagnostics';
 
 export const appLanguages = ['fr', 'de', 'it', 'en'] as const;
 export type AppLanguage = typeof appLanguages[number];
@@ -29,7 +30,7 @@ async function loadLanguage(language: AppLanguage): Promise<void> {
   if (language === 'fr' || packs.has(language)) return;
   const existing = loading.get(language);
   if (existing) return existing;
-  const task = (async () => {
+  const task = diagnosticOperation('app', 'language.pack_read', async () => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12_000);
     try {
@@ -41,7 +42,7 @@ async function loadLanguage(language: AppLanguage): Promise<void> {
         Object.values(data).some(value => typeof value !== 'string' || !value.trim())) throw new Error('Invalid language asset');
       packs.set(language, Object.freeze(data as Record<string, string>));
     } finally { clearTimeout(timeout); }
-  })();
+  });
   loading.set(language, task);
   try { await task; } finally { if (loading.get(language) === task) loading.delete(language); }
 }
@@ -58,7 +59,16 @@ async function selectLanguage(language: AppLanguage, persist: boolean): Promise<
   // A slower previous choice must never overwrite the most recent one or its saved preference.
   if (id !== request) return false;
   let persisted = true;
-  if (persist) try { localStorage.setItem(languageStorageKey, language); } catch { persisted = false; }
+  if (persist) {
+    const incident = recordDiagnostic({ area: 'app', operation: 'language.preference_write', phase: 'start' });
+    try {
+      localStorage.setItem(languageStorageKey, language);
+      recordDiagnostic({ id: incident, area: 'app', operation: 'language.preference_write', phase: 'success' });
+    } catch {
+      persisted = false;
+      recordDiagnostic({ id: incident, area: 'app', operation: 'language.preference_write', phase: 'failure', errorCode: 'STORAGE' });
+    }
+  }
   publish({ language, pending: null, failed: null, persisted: persist ? persisted : null, ready: true });
   return persisted;
 }

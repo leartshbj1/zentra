@@ -1,3 +1,4 @@
+import { copyDiagnosticIntent, withDiagnosticIntent } from './diagnosticIntent';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { diagnosticInvoke as invoke } from './diagnostics';
 import { desktopApi } from './bridge';
@@ -71,7 +72,9 @@ export type InboxDraft = {
   }[];
 };
 export const inboxRequest = <T>(data: unknown = null) =>
-  invoke<T>('supplier_inbox_request', { data });
+  invoke<T>('supplier_inbox_request', data === null
+    ? withDiagnosticIntent({ data }, 'supplier_inbox_request', 'state')
+    : copyDiagnosticIntent(data, { data }, 'supplier_inbox_request'));
 export function pendingMailInvoices(state: SupplierInboxState | null) {
   return (
     state?.items.filter((i) => !['imported', 'ignored'].includes(i.state)) || []
@@ -119,7 +122,7 @@ export function useSupplierInbox(
           const preparationKey = (i: MailInvoice) => JSON.stringify([org, i.id, i.extraction.supplierName, i.extraction.fieldConfidence, i.extraction.confidence, value.habits]);
           const candidates = pendingMailInvoices(value).filter(i => !i.otherDevice && canPrepareMailboxSupplier(i) && !preparedSuppliers.current.has(preparationKey(i))).slice(0, 10);
           if (candidates.length) {
-            const result = await inboxRequest<{results: {id: string; supplierId?: string; created?: boolean; error?: string}[]}>({action:'prepareSuppliers', ids:candidates.map(i=>i.id)});
+            const result = await inboxRequest<{results: {id: string; supplierId?: string; created?: boolean; error?: string}[]}>(withDiagnosticIntent({action:'prepareSuppliers', ids:candidates.map(i=>i.id)}, 'supplier_inbox_request', 'prepareSuppliers'));
             if (current.current.org !== org) return;
             for (const row of result.results) {
               const item = candidates.find(i=>i.id === row.id);
@@ -143,11 +146,11 @@ export function useSupplierInbox(
               saved?: boolean;
               id: string;
               alreadyImported?: boolean;
-            }>({
+            }>(withDiagnosticIntent({
               action: 'import',
               id: next.id,
               automatic: next.state === 'ready',
-            });
+            }, 'supplier_inbox_request', 'import'));
             if (current.current.org !== org) return;
             changed = changed || !!saved.saved;
           } catch (reason) {
@@ -211,7 +214,7 @@ export function useSupplierInbox(
         id: string;
         alreadyImported?: boolean;
         posted?: boolean;
-      }>({ action: 'import', id: item.id, invoice, automatic: false, confirm });
+      }>(withDiagnosticIntent({ action: 'import', id: item.id, invoice, automatic: false, confirm }, 'supplier_inbox_request', 'import'));
       if (isCurrent()) {
         // The native receipt is definitive. A failed/read-delayed UI refresh
         // must not reopen this mutation or make its confirmation repeatable.
