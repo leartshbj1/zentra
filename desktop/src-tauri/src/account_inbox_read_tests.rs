@@ -1,7 +1,8 @@
 //! Real account locks, protected references, SQLite scopes and restores.
 //! Only the single HTTP future is synthetic; native CI must execute these tests.
 use super::*;
-use futures_util::{channel::oneshot, future::join};
+use futures_util::future::join;
+use tauri::async_runtime::channel;
 use std::{cell::{Cell, RefCell}, sync::mpsc, thread, time::Duration};
 
 fn fixture(role: &str) -> (tempfile::TempDir, LocalStore, CloudSession) {
@@ -93,15 +94,15 @@ fn local_lock_waits_yield_the_executor_during_capture_and_admission() {
     assert!(result.is_ok());
 
     let holder = RefCell::new(None);
-    let (release_tx, release_rx) = oneshot::channel();
+    let (release_tx, mut release_rx) = channel(1);
     let (result, ()) = tauri::async_runtime::block_on(join(
         bound_inbox_get_with(&store, |_| async {
             let (release, waiting) = held_local_lock(&store);
             holder.replace(Some(waiting));
-            release_tx.send(release).unwrap();
+            release_tx.send(release).await.unwrap();
             reply()
         }),
-        async { release_rx.await.unwrap().send(()).unwrap(); },
+        async { release_rx.recv().await.unwrap().send(()).unwrap(); },
     ));
     assert!(holder.into_inner().unwrap().join().unwrap(), "admitting the receipt must not block the releasing future");
     assert!(result.is_ok());
@@ -113,17 +114,17 @@ fn a_pending_inbox_read_leaves_both_locks_and_cached_account_available() {
     let before = refs(&store);
     let scope = crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap();
     let expected_organization = session.organization_id.clone();
-    let (started_tx, started_rx) = oneshot::channel();
-    let (reply_tx, reply_rx) = oneshot::channel();
+    let (started_tx, mut started_rx) = channel(1);
+    let (reply_tx, mut reply_rx) = channel(1);
     let (result, ()) = tauri::async_runtime::block_on(join(
         bound_inbox_get_with(&store, |outgoing| async move {
             assert_eq!(outgoing.organization_id, expected_organization);
             assert_eq!(outgoing.role, "owner");
-            started_tx.send(()).unwrap();
-            reply_rx.await.expect("the concurrent probe must finish before the HTTP future")
+            started_tx.send(()).await.unwrap();
+            reply_rx.recv().await.expect("the concurrent probe must finish before the HTTP future")
         }),
         async {
-            started_rx.await.unwrap();
+            started_rx.recv().await.unwrap();
             {
                 let _account = store.account_protected_cache.operation_lock.try_lock()
                     .expect("a slow inbox must not block account/Automation operations");
@@ -132,7 +133,7 @@ fn a_pending_inbox_read_leaves_both_locks_and_cached_account_available() {
                 store.connect().unwrap().execute("UPDATE settings SET company_name='Synthetic local edit' WHERE id=1", []).unwrap();
                 crate::automation::bound(&store, &session.organization_id).unwrap();
             }
-            reply_tx.send(reply()).unwrap();
+            reply_tx.send(reply()).await.unwrap();
         },
     ));
     assert_eq!(result.unwrap()["items"][0]["id"], "synthetic-receipt");
