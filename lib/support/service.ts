@@ -554,12 +554,18 @@ export async function mutateWorkspace(request: Request) {
       .first<{ id: string }>();
     if (existing) return supportJson({ workspaceId: existing.id });
     const id = crypto.randomUUID();
-    await db
+    const created = await db
       .prepare(
-        "INSERT INTO support_workspaces(id,owner_id,name,mode,created_at,updated_at) VALUES(?,?,?,'automatic',?,?)",
+        "INSERT INTO support_workspaces(id,owner_id,name,mode,created_at,updated_at) VALUES(?,?,?,'automatic',?,?) ON CONFLICT(owner_id) DO NOTHING",
       )
       .bind(id, user.userId, name, now(), now())
       .run();
+    if (!created.meta.changes) {
+      const concurrent = await db.prepare('SELECT id FROM support_workspaces WHERE owner_id=?')
+        .bind(user.userId).first<{id:string}>();
+      if (!concurrent) throw new SupportError('Votre espace n’a pas pu être retrouvé. Réessayez.',503);
+      return supportJson({workspaceId:concurrent.id});
+    }
     await event(id, null, 'workspace', 'Espace support créé.', user.email);
     return supportJson({ workspaceId: id }, 201);
   }
@@ -1176,6 +1182,24 @@ export async function processTicket(
     return;
   }
   let reservation: string | null = null;
+  let leaseFailure: SupportError | null = null;
+  const leaseLost = () => new SupportError(
+    'Ce ticket est repris par un autre traitement. Actualisez-le avant de continuer.',
+    409,
+  );
+  // A resumed request must never act after the lease expired or another worker
+  // claimed it. Renew only a still-valid claim; never reacquire a lost lease.
+  const retainLease = async () => {
+    const time = now();
+    const owned = await db.prepare(
+      "UPDATE support_tickets SET lease_until=? WHERE id=? AND workspace_id=? AND lease=? AND lease_until>? AND state='processing'",
+    ).bind(time + 180, id, workspace.id, lease, time).run();
+    if (!owned.meta.changes) throw (leaseFailure = leaseLost());
+  };
+  const ownedFetch: typeof fetch = async (...args) => {
+    await retainLease();
+    return fetch(...args);
+  };
   try {
     const active = await connectionFor(workspace.id, connection.id);
     const currentWorkspace = await db
@@ -1223,11 +1247,12 @@ export async function processTicket(
         mailAnalysisBody(source),
         JSON.parse(active.routes_json) as Rules,
         currentWorkspace.threshold,
-        supportAutomationFetch(currentWorkspace.id,'email_classification'),
+        supportAutomationFetch(currentWorkspace.id,'email_classification',ownedFetch),
         currentWorkspace.triage_context || '',
       ));
     await finishAnalysis(reservation, true);
     reservation = null;
+    await retainLease();
     if(!manual) decision=applySenderPolicies(decision,source,await senderPolicies(workspace.id),JSON.parse(active.routes_json) as Rules);
     const localSolicitation = manual?.category === 'solicitation' || (!manual && currentWorkspace.mode === 'automatic' &&
       confirmedSolicitation(decision,currentWorkspace.threshold) && !source.incomplete && !source.closed && !source.agentId);
@@ -1277,12 +1302,13 @@ export async function processTicket(
       );
     if (!manual) await requireSupportAutomation(currentWorkspace.id);
     const shouldRoute = !!manual || auto;
-    await db
+    const prepared = await db
       .prepare(
-        'UPDATE support_tickets SET decision_json=?,error=NULL,updated_at=? WHERE id=? AND workspace_id=? AND lease=?',
+        "UPDATE support_tickets SET decision_json=?,error=NULL,updated_at=? WHERE id=? AND workspace_id=? AND lease=? AND lease_until>? AND state='processing'",
       )
-      .bind(JSON.stringify(decision), now(), id, workspace.id, lease)
+      .bind(JSON.stringify(decision), now(), id, workspace.id, lease, now())
       .run();
+    if (!prepared.meta.changes) throw leaseLost();
     let state = localSolicitation ? 'quiet' : 'review';
     if (shouldRoute && decision.destination) {
       if (active.provider === 'api') state = 'ready';
@@ -1294,16 +1320,20 @@ export async function processTicket(
           source,
           decision.destination,
           decision.priority,
+          ownedFetch,
         );
         state = 'routed';
       }
     }
-    if(decision.category==='appointment' && source.mail) await captureAppointment(currentWorkspace,source);
+    if(decision.category==='appointment' && source.mail) {
+      await retainLease();
+      await captureAppointment(currentWorkspace,source);
+    }
     const corrected =
       manual && ticket.routed_at !== null ? 1 : ticket.corrected;
-    await db
+    const completed = await db
       .prepare(
-        'UPDATE support_tickets SET state=?,decision_json=?,source_json=?,revision=revision+1,automatic=?,corrected=?,routed_at=?,error=NULL,lease=NULL,lease_until=NULL,updated_at=? WHERE id=? AND workspace_id=? AND lease=?',
+        "UPDATE support_tickets SET state=?,decision_json=?,source_json=?,revision=revision+1,automatic=?,corrected=?,routed_at=?,error=NULL,lease=NULL,lease_until=NULL,updated_at=? WHERE id=? AND workspace_id=? AND lease=? AND lease_until>? AND state='processing'",
       )
       .bind(
         state,
@@ -1316,8 +1346,10 @@ export async function processTicket(
         id,
         workspace.id,
         lease,
+        now(),
       )
       .run();
+    if (!completed.meta.changes) throw leaseLost();
     await event(
       workspace.id,
       id,
@@ -1334,18 +1366,21 @@ export async function processTicket(
     // A failed optional workflow must not undo the successfully received/routed ticket.
     await dispatchMailWorkflows(workspace.id,id).catch(()=>{});
   } catch (error) {
+    // Transport wrappers intentionally hide provider exceptions. Preserve our
+    // own safe conflict instead of reporting a lost claim as a network outage.
+    if (leaseFailure) error = leaseFailure;
     await finishAnalysis(reservation, false);
     const message =
       error instanceof SupportError || error instanceof AccountPublicError
         ? error.message
         : 'Le traitement a été interrompu. Le ticket est conservé ; réessayez.';
-    await db
+    const failed = await db
       .prepare(
-        "UPDATE support_tickets SET state='error',error=?,lease=NULL,lease_until=NULL,updated_at=? WHERE id=? AND workspace_id=? AND lease=?",
+        "UPDATE support_tickets SET state='error',error=?,lease=NULL,lease_until=NULL,updated_at=? WHERE id=? AND workspace_id=? AND lease=? AND lease_until>?",
       )
-      .bind(message, now(), id, workspace.id, lease)
+      .bind(message, now(), id, workspace.id, lease, now())
       .run();
-    await event(workspace.id, id, 'error', message, actor);
+    if (failed.meta.changes) await event(workspace.id, id, 'error', message, actor);
     throw error;
   }
 }

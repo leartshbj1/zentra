@@ -24,7 +24,7 @@ import {
   assignProviderTicket,
   readProviderTicket,
 } from './connectors';
-import { CATEGORIES, PRIORITIES, LANGUAGES, type Connection } from './types';
+import { CATEGORIES, PRIORITIES, LANGUAGES, type Connection, type Workspace } from './types';
 import { runMailSync } from './mail-sync';
 import * as invoiceCapture from '@/lib/supplier-inbox/capture';
 import * as imapConnector from './infomaniak-imap';
@@ -63,6 +63,7 @@ import {
   getPlatformState,
   mutateWorkspace,
   receiveHook,
+  processTicket,
 } from './service';
 
 const choice = (keys: string[], winner: string, confidence = 0.98) => ({
@@ -642,6 +643,16 @@ describe('Parcours complet dans une vraie base SQLite', () => {
   afterEach(() => {
     sql.close();
     vi.unstubAllGlobals();
+  });
+  it('retrouve le même espace lors de deux créations simultanées depuis deux appareils', async () => {
+    state.user={...state.user,userId:'first-connection-owner',email:'first-connection@example.test'};
+    const responses=await Promise.all([
+      post({action:'createWorkspace',name:'Même entreprise'}).then(json),
+      post({action:'createWorkspace',name:'Même entreprise'}).then(json),
+    ]);
+    expect(responses[0].workspaceId).toBe(responses[1].workspaceId);
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM support_workspaces WHERE owner_id=?').get(state.user.userId)?.n).toBe(1);
+    expect(sql.prepare("SELECT COUNT(*) AS n FROM support_events WHERE workspace_id=? AND kind='workspace'").get(responses[0].workspaceId)?.n).toBe(1);
   });
   it('classe le démarchage fiable localement, sans notification ni affectation externe', async () => {
     await post({action:'settings',name:'Support',mode:'automatic',threshold:85,baselineSeconds:60});
@@ -1737,6 +1748,53 @@ describe('Parcours complet dans une vraie base SQLite', () => {
       await json(await hook({ ticketId: 'a', subject: 'a', body: 'changed' }))
     ).ticket;
     expect(changed.revision).toBeGreaterThan(r.revision);
+  });
+  it.each(['analysis', 'provider-read', 'expired-analysis'])('arrête un ancien traitement qui perd sa réservation pendant %s, avant toute écriture externe', async phase => {
+    sql.prepare("UPDATE support_workspaces SET mode='paused' WHERE id=?").run(workspace);
+    const received=await json(await hook({ticketId:'123',subject:'A',body:'Bug'}));
+    const sealed=await encryptSecret(state.env.SUPPORT_ENCRYPTION_KEY,'fixture-provider-secret',`connection:${workspace}:${connection}`);
+    sql.prepare("UPDATE support_connections SET provider='freshdesk',domain='fixture.freshdesk.com',login='',secret=?,directory_json=?,routes_json=? WHERE id=?")
+      .run(sealed,JSON.stringify({teams:[{id:'42',name:'Support'}],agents:[]}),JSON.stringify({bug:{teamId:'42'}}),connection);
+    await post({action:'settings',name:'QA Support',mode:'automatic',threshold:85,baselineSeconds:60});
+    let release!:(response:Response)=>void;
+    const pending=new Promise<Response>(resolve=>{release=resolve;});
+    const replacement=()=>phase==='expired-analysis'
+      ? sql.prepare('UPDATE support_tickets SET lease_until=? WHERE id=?').run(Math.floor(Date.now()/1000),received.ticket.id)
+      : sql.prepare("UPDATE support_tickets SET lease='new-worker',lease_until=?,decision_json='{}' WHERE id=?")
+        .run(Math.floor(Date.now()/1000)+180,received.ticket.id);
+    let afterLoss:unknown;
+    let writes=0,remoteGroup:number|null=null;
+    vi.mocked(fetch).mockImplementation(async (url,init)=>{
+      if(String(url).includes('typesafe')) return phase==='provider-read'?Response.json(answer()):(await pending).clone();
+      if(init?.method==='PUT') {writes++;remoteGroup=42;return Response.json({});}
+      if(String(url).includes('/conversations'))return Response.json([]);
+      if(phase==='provider-read'){
+        replacement();
+        afterLoss=sql.prepare('SELECT lease,state,decision_json FROM support_tickets WHERE id=?').get(received.ticket.id);
+      }
+      return Response.json({id:123,subject:'A',description_text:'Bug',priority:remoteGroup===42?3:2,group_id:remoteGroup,responder_id:null,status:2,updated_at:'fixture-version'});
+    });
+    const run=processTicket(received.ticket.id,sql.prepare('SELECT * FROM support_workspaces WHERE id=?').get(workspace) as unknown as Workspace,
+      sql.prepare('SELECT * FROM support_connections WHERE id=?').get(connection) as unknown as Connection,state.user.email)
+      .then(()=>({resolved:true}),error=>({error}));
+    if(phase!=='provider-read'){
+      await vi.waitFor(()=>expect(fetch).toHaveBeenCalledTimes(1));
+      replacement();
+      afterLoss=sql.prepare('SELECT lease,state,decision_json FROM support_tickets WHERE id=?').get(received.ticket.id);
+      release(Response.json(answer()));
+    }
+    const result=await run;
+    expect(writes).toBe(0);
+    expect(result).toMatchObject({error:{status:409}});
+    expect(sql.prepare('SELECT lease,state,decision_json FROM support_tickets WHERE id=?').get(received.ticket.id))
+      .toEqual(afterLoss);
+    expect(sql.prepare("SELECT COUNT(*) AS n FROM support_events WHERE ticket_id=? AND kind IN ('routed','error')").get(received.ticket.id)?.n).toBe(0);
+    if(phase==='expired-analysis'){
+      await processTicket(received.ticket.id,sql.prepare('SELECT * FROM support_workspaces WHERE id=?').get(workspace) as unknown as Workspace,
+        sql.prepare('SELECT * FROM support_connections WHERE id=?').get(connection) as unknown as Connection,state.user.email);
+      expect(writes).toBe(1);
+      expect(sql.prepare('SELECT state,lease FROM support_tickets WHERE id=?').get(received.ticket.id)).toEqual({state:'routed',lease:null});
+    }
   });
   it('ne fait qu’une analyse concurrente et libère le verrou ensuite', async () => {
     let resolve!: (value: Response) => void;
