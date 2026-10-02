@@ -10,38 +10,41 @@ import {
 import { DocumentClassification, useAutomation } from './AutomationControls';
 import type { Workspace } from './types';
 import { useCompanyAutomation } from './AutomationCompany';
+import { diagnosticOperation } from './diagnostics';
 
 export async function localDocumentExcerpt(file: File) {
-  if (!file.size || file.size > 20 * 1024 * 1024)
-    throw Error('Choisissez un document de moins de 20 Mo.');
-  if (/\.(txt|csv)$/i.test(file.name))
-    return (await file.slice(0, 12000).text()).slice(0, 1800);
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const { prepareImageForAnalysis, renderPdfPages } =
-    await import('./localPdfPreview');
-  let images: string[] = [];
-  if (/\.pdf$/i.test(file.name)) {
-    const { extractPayrollPdfTextByPage } = await import('./payrollPdfText');
-    const text = await extractPayrollPdfTextByPage(bytes.slice(), 2);
-    const excerpt = text.pages.join('\n');
-    if (excerpt.replace(/\s/g, '').length >= 60) return excerpt.slice(0, 1800);
-    images = (await renderPdfPages(bytes.slice(), 2)).pages;
-  } else if (/\.(png|jpe?g|webp)$/i.test(file.name)) {
-    const url = URL.createObjectURL(file);
-    try {
-      images = [await prepareImageForAnalysis(url)];
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  } else throw Error('Lecture disponible pour PDF, images, TXT et CSV.');
-  const { readPayslipImages } = await import('./payrollOcr');
-  return (
-    await readPayslipImages(
-      images,
-      new URL('.', document.baseURI).href,
-      () => {},
-    )
-  ).text.slice(0, 1800);
+  return diagnosticOperation('app', 'automation.document_read', async () => {
+    if (!file.size || file.size > 20 * 1024 * 1024)
+      throw Error('Choisissez un document de moins de 20 Mo.');
+    if (/\.(txt|csv)$/i.test(file.name))
+      return (await file.slice(0, 12000).text()).slice(0, 1800);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const { prepareImageForAnalysis, renderPdfPages } =
+      await import('./localPdfPreview');
+    let images: string[] = [];
+    if (/\.pdf$/i.test(file.name)) {
+      const { extractPayrollPdfTextByPage } = await import('./payrollPdfText');
+      const text = await extractPayrollPdfTextByPage(bytes.slice(), 2);
+      const excerpt = text.pages.join('\n');
+      if (excerpt.replace(/\s/g, '').length >= 60) return excerpt.slice(0, 1800);
+      images = (await renderPdfPages(bytes.slice(), 2)).pages;
+    } else if (/\.(png|jpe?g|webp)$/i.test(file.name)) {
+      const url = URL.createObjectURL(file);
+      try {
+        images = [await prepareImageForAnalysis(url)];
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    } else throw Error('Lecture disponible pour PDF, images, TXT et CSV.');
+    const { readPayslipImages } = await import('./payrollOcr');
+    return (
+      await readPayslipImages(
+        images,
+        new URL('.', document.baseURI).href,
+        () => {},
+      )
+    ).text.slice(0, 1800);
+  });
 }
 export function AutomationDocumentReader({
   onRead,
