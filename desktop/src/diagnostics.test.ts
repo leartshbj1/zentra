@@ -222,4 +222,27 @@ describe('safe diagnostics',()=>{
   it.each([['network timeout','NETWORK'],['401 unauthorized','SESSION'],['403 forbidden','PERMISSION'],['409 conflict','CONFLICT'],['Champ invalide','VALIDATION'],['sqlite locked','STORAGE'],['not found','NOT_FOUND'],['unknown failure','INTERNAL']])('categorises %s without retaining its text',async(message,code)=>{
     expect((await api()).classifyDiagnosticError(message)).toBe(code);
   });
+  it.each([
+    'La connexion ou l’entreprise ouverte a changé. Rouvrez la réception.',
+    'L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.',
+  ])('records a fixed workspace rejection as CONFLICT without retaining its text: %s', async message => {
+    const d = await api(), reason = new Error(`Champ invalide : ${message} token=private-secret synthetic-org synthetic-scope`);
+    expect(d.classifyDiagnosticError(message)).toBe('CONFLICT');
+    expect(d.classifyDiagnosticError(reason)).toBe('CONFLICT');
+    expect(d.classifyDiagnosticError(reason.message.replaceAll('’', "'"))).toBe('CONFLICT');
+    await expect(d.diagnosticOperation('command', 'supplier_inbox_request', async () => { throw reason; })).rejects.toBe(reason);
+    const events = d.recentDiagnosticEvents();
+    expect(events.map(event => event.phase)).toEqual(['start', 'failure']);
+    expect(events[1].errorCode).toBe('CONFLICT');
+    expect(events[0].id).toBe(events[1].id);
+    expect(d.resolveErrorIncident(reason).code).toBe(`ZT-${events[1].id}`);
+    expect(JSON.stringify(events)).not.toMatch(/Champ invalide|entreprise ouverte|private-secret|synthetic-org|synthetic-scope|token/);
+  });
+  it.each([[401, 'SESSION'], [403, 'PERMISSION']])('keeps auth code %s ahead of a fixed workspace rejection', async (status, code) => {
+    const message = `${status} Champ invalide : La connexion ou l’entreprise ouverte a changé. Rouvrez la réception.`;
+    expect((await api()).classifyDiagnosticError(message)).toBe(code);
+  });
+  it('does not mark unrelated company field validation as a workspace conflict', async () => {
+    expect((await api()).classifyDiagnosticError('Champ invalide : Le nom de l’entreprise doit être complété.')).toBe('VALIDATION');
+  });
 });

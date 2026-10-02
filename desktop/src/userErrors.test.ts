@@ -20,7 +20,7 @@ describe('messages humains et données brutes des erreurs', () => {
 
   it.each(appLanguages)('donne une explication et une correction pour toutes les familles en %s', language => {
     const labels = userErrorCopy(language);
-    for (const kind of ['network', 'session', 'permission', 'conflict', 'validation', 'file', 'unknown'] as const) {
+    for (const kind of ['network', 'session', 'permission', 'workspace', 'conflict', 'validation', 'file', 'unknown'] as const) {
       expect(labels[kind].title.length).toBeGreaterThan(8);
       expect(labels[kind].message.length).toBeGreaterThan(20);
       expect(labels[kind].action.length).toBeGreaterThan(20);
@@ -66,6 +66,50 @@ describe('messages humains et données brutes des erreurs', () => {
     getUserError(original);
     expect(errorMessage(original, 'Erreur')).toBe('UNIQUE constraint failed: invoices.number');
     expect(original.message).toBe('UNIQUE constraint failed: invoices.number');
+  });
+
+  it.each([
+    'La connexion ou l’entreprise ouverte a changé. Rouvrez la réception.',
+    'L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.',
+  ])('reconnaît le changement d’espace derrière le préfixe natif : %s', message => {
+    const reason = `Champ invalide : ${message}`;
+    expect(classifyUserError(reason)).toBe('workspace');
+    expect(classifyUserError(message)).toBe('workspace');
+    expect(classifyUserError(reason.replaceAll('’', "'"))).toBe('workspace');
+    expect(errorMessage(reason, '')).toBe(reason);
+  });
+
+  it.each([401, 403])('conserve la priorité HTTP %s sur le changement d’espace', status => {
+    const message = 'Champ invalide : La connexion ou l’entreprise ouverte a changé. Rouvrez la réception.';
+    expect(classifyUserError({ status, message })).toBe(status === 401 ? 'session' : 'permission');
+    expect(classifyUserError(`${status} ${message}`)).toBe(status === 401 ? 'session' : 'permission');
+  });
+
+  it.each(appLanguages)('oriente vers l’entreprise et distingue lecture/mutation en %s', language => {
+    const reason = 'Champ invalide : L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.';
+    const read = getUserError(reason, { language, operation: 'read' });
+    const mutation = getUserError(reason, { language, operation: 'mutation' });
+    expect(read.kind).toBe('workspace'); expect(mutation.kind).toBe('workspace');
+    expect(read.title).not.toBe(userErrorCopy(language).validation.title);
+    expect(read.action).not.toBe(userErrorCopy(language).validation.action);
+    expect(read.action).not.toContain(userErrorCopy(language).uncertain);
+    expect(mutation.action).not.toBe(read.action);
+    expect(mutation.action).not.toBe(userErrorCopy(language).validation.action);
+    expect(getUserError(reason, { language })).toEqual(mutation);
+  });
+
+  it('ne transforme pas une autre validation d’entreprise en changement d’espace', () => {
+    expect(classifyUserError('Champ invalide : Le nom de l’entreprise doit être complété.')).toBe('validation');
+    expect(classifyUserError('Champ invalide : L’entreprise ouverte a changé. Vérifiez la date.')).toBe('validation');
+  });
+
+  it('garde les détails masqués et la raison métier intacte pour un changement d’espace', () => {
+    const reason = new Error('Champ invalide : La connexion ou l’entreprise ouverte a changé. Rouvrez la réception. token=private-workspace-secret alice@example.ch C:\\Users\\Alice\\company.db');
+    const message = reason.message, error = getUserError(reason, { operation: 'read' });
+    expect(error.kind).toBe('workspace');
+    expect(error.message).not.toContain('private-workspace-secret');
+    expect(error.technicalDetails).not.toMatch(/private-workspace-secret|alice@example.ch|Alice/);
+    expect(errorMessage(reason, '')).toBe(message);
   });
 });
 

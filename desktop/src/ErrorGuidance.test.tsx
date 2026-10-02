@@ -62,4 +62,46 @@ describe('guide commun des erreurs', () => {
     expect(validation).toContain('Vérifier les informations');
     expect(validation).not.toContain('Ouvrir la connexion');
   });
+
+  it.each(appLanguages)('rend le changement d’espace natif avec uniquement une reprise de lecture en %s', language => {
+    locale.language = language;
+    const titles = { fr: 'Entreprise ouverte à vérifier', de: 'Geöffnetes Unternehmen prüfen', it: 'Verifica l’azienda aperta', en: 'Check the open company' };
+    const verification = { fr: 'Vérifiez ce qui est déjà enregistré', de: 'Prüfen Sie vor einer Wiederholung', it: 'Prima di ripeterla, verifica', en: 'Check what was already saved' };
+    const labels = userErrorCopy(language), reload = vi.fn(), review = vi.fn(), reconnect = vi.fn();
+    for (const message of [
+      'La connexion ou l’entreprise ouverte a changé. Rouvrez la réception.',
+      'L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.',
+    ]) {
+      const error = `Champ invalide : ${message} token=private-workspace-secret alice@example.ch`;
+      const read = renderToStaticMarkup(<ErrorGuidance error={error} operation="read" onReload={reload} onReview={review} onReconnect={reconnect} incidentCode="ZT-workspace-incident" />);
+      const mutation = renderToStaticMarkup(<ErrorGuidance error={error} operation="mutation" onReload={reload} onReview={review} onReconnect={reconnect} incidentCode="ZT-workspace-incident" />);
+      const text = (html: string) => html.replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, '&').replace(/<[^>]+>/g, ' ');
+      expect(text(read)).toContain(titles[language]);
+      expect(text(read)).toContain(labels.reload);
+      expect(text(read)).not.toContain(labels.validation.action);
+      expect(text(read)).not.toContain(verification[language]);
+      expect(text(mutation)).toContain(titles[language]);
+      expect(text(mutation)).toContain(verification[language]);
+      expect(mutation).not.toContain('error-guidance__actions');
+      for (const html of [read, mutation]) {
+        expect(text(html)).not.toContain(labels.review);
+        expect(text(html)).not.toContain(labels.reconnect);
+        expect(html).toContain('ZT-workspace-incident');
+        expect(html).toContain('<details'); expect(html).not.toContain('<details open');
+        expect(html).not.toMatch(/private-workspace-secret|alice@example.ch/);
+      }
+    }
+    expect(reload).not.toHaveBeenCalled(); expect(review).not.toHaveBeenCalled(); expect(reconnect).not.toHaveBeenCalled();
+  });
+
+  it('ne crée pas de reprise sans callback autorisé et respecte son indisponibilité', () => {
+    const error = 'Champ invalide : La connexion ou l’entreprise ouverte a changé. Rouvrez la réception.';
+    const noRead = renderToStaticMarkup(<ErrorGuidance error={error} operation="read" onReview={vi.fn()} />);
+    expect(noRead).not.toContain('error-guidance__actions');
+    const disabled = renderToStaticMarkup(<ErrorGuidance error={error} operation="read" onReload={vi.fn()} disabled />);
+    expect(disabled).toContain('disabled=""');
+    expect(disabled).toContain('Actualiser l’affichage');
+    const defaultMutation = renderToStaticMarkup(<ErrorGuidance error={error} onReload={vi.fn()} />);
+    expect(defaultMutation).not.toContain('error-guidance__actions');
+  });
 });

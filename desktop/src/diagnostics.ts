@@ -22,6 +22,7 @@ export function classifyDiagnosticError(error:unknown):string {
   if(/(?:network|fetch|offline|internet|réseau|timeout|timed out|connexion.*(?:perdue|impossible))/i.test(text))return 'NETWORK';
   if(/(?:401|unauth|session.*(?:expir|invalid)|connectez.*compte)/i.test(text))return 'SESSION';
   if(/(?:403|forbidden|permission|lecture seule|autorisé|accès refusé)/i.test(text))return 'PERMISSION';
+  if(/(?:la connexion ou l[’']entreprise ouverte a changé\. rouvrez la réception\.|l[’']entreprise ouverte a changé\. rouvrez cette action dans le bon espace\.)/i.test(text))return 'CONFLICT';
   if(/(?:409|conflict|conflit|entre.temps|déjà.*enregistr|révision)/i.test(text))return 'CONFLICT';
   if(/(?:introuvable|not found|404)/i.test(text))return 'NOT_FOUND';
   if(/(?:database|sqlite|disk|quota|storage|stockage|fichier local|base de données|enospc)/i.test(text))return 'STORAGE';

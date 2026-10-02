@@ -2,10 +2,10 @@ import { getAppLanguage, t, type AppLanguage } from './language';
 import { errorMessage } from './utils';
 import { interfaceKeys } from 'virtual:zentra-language-keys';
 
-export type UserErrorKind = 'network' | 'session' | 'permission' | 'conflict' | 'validation' | 'file' | 'unknown';
+export type UserErrorKind = 'network' | 'session' | 'permission' | 'workspace' | 'conflict' | 'validation' | 'file' | 'unknown';
 export type UserErrorOperation = 'read' | 'mutation';
 type Copy = { title: string; message: string; action: string };
-type ErrorCopy = Record<UserErrorKind, Copy> & { unknownRead: Copy; uncertain: string; reload: string; reconnect: string; review: string; details: string; incident: string; copy: string; copied: string; copyFailed: string };
+type ErrorCopy = Record<UserErrorKind, Copy> & { unknownRead: Copy; workspaceRead: Copy; uncertain: string; reload: string; reconnect: string; review: string; details: string; incident: string; copy: string; copied: string; copyFailed: string };
 
 // Kept together so the recovery wording is available even when a language asset
 // cannot be loaded. Raw native messages remain untouched for business guards.
@@ -14,6 +14,8 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     network: { title: 'Connexion indisponible', message: 'Zentra n’a pas pu joindre le service.', action: 'Vérifiez votre connexion Internet.' },
     session: { title: 'Connexion au compte à renouveler', message: 'Votre session n’est plus disponible.', action: 'Reconnectez ce poste depuis Compte et équipe.' },
     permission: { title: 'Accès à vérifier', message: 'Votre accès ne permet pas cette action.', action: 'Vérifiez vos droits d’accès avec la personne qui gère l’entreprise.' },
+    workspace: { title: 'Entreprise ouverte à vérifier', message: 'La demande ne correspond plus au compte ou à l’entreprise ouverte.', action: 'Rouvrez cette action dans la bonne entreprise. Vérifiez ce qui est déjà enregistré avant de la recommencer.' },
+    workspaceRead: { title: 'Entreprise ouverte à vérifier', message: 'Cette lecture ne concerne plus le compte ou l’entreprise ouverte.', action: 'Vérifiez l’entreprise ouverte, puis actualisez l’affichage ou rouvrez la réception.' },
     conflict: { title: 'Enregistrement à vérifier', message: 'Les données ont changé ou sont utilisées ailleurs.', action: 'Consultez la version enregistrée avant de choisir les modifications à conserver.' },
     validation: { title: 'Informations à corriger', message: 'Certaines informations ne sont pas acceptées.', action: 'Vérifiez les champs indiqués, les dates et les montants.' },
     file: { title: 'Fichier à vérifier', message: 'Le fichier n’a pas pu être lu ou créé.', action: 'Vérifiez son format et l’accès au dossier, puis choisissez le fichier ou le dossier à nouveau.' },
@@ -26,6 +28,8 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     network: { title: 'Verbindung nicht verfügbar', message: 'Zentra konnte den Dienst nicht erreichen.', action: 'Prüfen Sie Ihre Internetverbindung.' },
     session: { title: 'Erneut am Konto anmelden', message: 'Ihre Sitzung ist nicht mehr verfügbar.', action: 'Verbinden Sie dieses Gerät unter Konto und Team erneut.' },
     permission: { title: 'Zugriff prüfen', message: 'Ihr Zugriff erlaubt diese Aktion nicht.', action: 'Prüfen Sie Ihre Zugriffsrechte mit der Person, die das Unternehmen verwaltet.' },
+    workspace: { title: 'Geöffnetes Unternehmen prüfen', message: 'Diese Anfrage gehört nicht mehr zum geöffneten Konto oder Unternehmen.', action: 'Öffnen Sie diese Aktion im richtigen Unternehmen. Prüfen Sie vor einer Wiederholung, was bereits gespeichert wurde.' },
+    workspaceRead: { title: 'Geöffnetes Unternehmen prüfen', message: 'Diese Abfrage betrifft nicht mehr das geöffnete Konto oder Unternehmen.', action: 'Prüfen Sie das geöffnete Unternehmen. Aktualisieren Sie dann die Anzeige oder öffnen Sie den Eingang erneut.' },
     conflict: { title: 'Speicherung prüfen', message: 'Die Daten wurden geändert oder werden anderweitig verwendet.', action: 'Prüfen Sie die gespeicherte Version und wählen Sie die Änderungen, die Sie behalten möchten.' },
     validation: { title: 'Angaben korrigieren', message: 'Einige Angaben werden nicht akzeptiert.', action: 'Prüfen Sie die markierten Felder, Daten und Beträge.' },
     file: { title: 'Datei prüfen', message: 'Die Datei konnte nicht gelesen oder erstellt werden.', action: 'Prüfen Sie das Format und den Ordnerzugriff. Wählen Sie die Datei oder den Ordner erneut.' },
@@ -38,6 +42,8 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     network: { title: 'Connessione non disponibile', message: 'Zentra non ha potuto raggiungere il servizio.', action: 'Controlla la connessione Internet.' },
     session: { title: 'Accedi di nuovo al conto', message: 'La sessione non è più disponibile.', action: 'Ricollega questo dispositivo da Conto e team.' },
     permission: { title: 'Verifica l’accesso', message: 'Il tuo accesso non permette questa azione.', action: 'Verifica i diritti di accesso con chi gestisce l’azienda.' },
+    workspace: { title: 'Verifica l’azienda aperta', message: 'La richiesta non corrisponde più al conto o all’azienda aperta.', action: 'Riapri questa azione nell’azienda corretta. Prima di ripeterla, verifica cosa è già stato salvato.' },
+    workspaceRead: { title: 'Verifica l’azienda aperta', message: 'Questa lettura non riguarda più il conto o l’azienda aperta.', action: 'Verifica l’azienda aperta, poi aggiorna la vista o riapri la ricezione.' },
     conflict: { title: 'Verifica il salvataggio', message: 'I dati sono cambiati o sono utilizzati altrove.', action: 'Controlla la versione salvata prima di scegliere le modifiche da mantenere.' },
     validation: { title: 'Correggi le informazioni', message: 'Alcune informazioni non sono accettate.', action: 'Controlla i campi indicati, le date e gli importi.' },
     file: { title: 'Verifica il file', message: 'Il file non ha potuto essere letto o creato.', action: 'Controlla il formato e l’accesso alla cartella, poi scegli nuovamente il file o la cartella.' },
@@ -50,6 +56,8 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     network: { title: 'Connection unavailable', message: 'Zentra could not reach the service.', action: 'Check your Internet connection.' },
     session: { title: 'Sign in to your account again', message: 'Your session is no longer available.', action: 'Reconnect this device from Account and team.' },
     permission: { title: 'Check your access', message: 'Your access does not allow this action.', action: 'Check your access rights with the person who manages the company.' },
+    workspace: { title: 'Check the open company', message: 'This request no longer matches the open account or company.', action: 'Reopen this action in the correct company. Check what was already saved before repeating it.' },
+    workspaceRead: { title: 'Check the open company', message: 'This read no longer applies to the open account or company.', action: 'Check the open company, then refresh the view or reopen the inbox.' },
     conflict: { title: 'Check the saved record', message: 'The data changed or is being used elsewhere.', action: 'Review the saved version before choosing which changes to keep.' },
     validation: { title: 'Correct the information', message: 'Some information was not accepted.', action: 'Check the indicated fields, dates and amounts.' },
     file: { title: 'Check the file', message: 'The file could not be read or created.', action: 'Check its format and folder access, then select the file or folder again.' },
@@ -83,6 +91,8 @@ export function classifyUserError(reason: unknown): UserErrorKind {
   const text = `${code} ${message}`;
   if (status === 401 || /\b401\b|jwt.*expir|session.*expir|session.*invalid|refresh.?token|not authenticated|unauthenticated|auth.*required|reconnectez|connexion.*expir/.test(text)) return 'session';
   if (status === 403 || /\b403\b|forbidden|row.level.security|\brls\b|insufficient.privilege|permission denied|access denied|droits?.*(insuffisant|requis)|accès.*(refus|interdit)|read.only|lecture seule/.test(text)) return 'permission';
+  // Only authored native context rejections override the validation prefix.
+  if (/(?:la connexion ou l[’']entreprise ouverte a changé\. rouvrez la réception\.|l[’']entreprise ouverte a changé\. rouvrez cette action dans le bon espace\.)/.test(message)) return 'workspace';
   if (status === 409 || /\b409\b|\b23505\b|unique constraint|duplicate key|already exists|conflict|conflit|sqlite_busy|database is locked|updated_at|version.*(changed|modifi)|modifi.*autre|déjà (utilisé|enregistré|existe)/.test(text)) return 'conflict';
   if (status === 400 || status === 422 || /\b(400|422|23502|23503|23514)\b|validation|invalid (input|value|date|amount)|not.null.constraint|check.constraint|obligatoire|doit être|doivent être|date.*(invalide|antérieur)|montant.*(invalide|positif)|champ.*(requis|invalide)/.test(text)) return 'validation';
   if (/\benoent\b|\beacces\b|\benospc\b|no space left|disk full|file not found|no such file|fichier.*(introuvable|invalide|illisible|format)|invalid.*(pdf|file)|unsupported.*(file|format)|cannot.*(file|directory)|unable.*(file|directory)|format.*non.*pris/.test(text)) return 'file';
@@ -119,7 +129,8 @@ export function getUserError(reason: unknown, options: { fallback?: string; lang
   const language = options.language ?? getAppLanguage();
   const labels = copy[language];
   const kind = classifyUserError(reason);
-  const selected = kind === 'unknown' && options.operation === 'read' ? labels.unknownRead : labels[kind];
+  const selected = kind === 'unknown' && options.operation === 'read' ? labels.unknownRead
+    : kind === 'workspace' && options.operation === 'read' ? labels.workspaceRead : labels[kind];
   const uncertain = (options.operation ?? 'mutation') === 'mutation' && ['network', 'conflict', 'unknown', 'session'].includes(kind);
   // Fallbacks are authored UI context, never server text. Do not make an
   // uncertain mutation invite another blind save through old retry wording.

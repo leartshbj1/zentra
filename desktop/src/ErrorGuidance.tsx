@@ -54,7 +54,7 @@ export function ErrorGuidance({ error, fallback, title, operation = 'mutation', 
   // review callbacks open a corrective path; neither repeats the failed save.
   const action = guidance.kind === 'session' && onReconnect ? { label: labels.reconnect, run: onReconnect }
     : ['validation', 'conflict'].includes(guidance.kind) && onReview ? { label: labels.review, run: onReview }
-    : operation === 'read' && onReload && ['network', 'file', 'conflict', 'unknown'].includes(guidance.kind) ? { label: labels.reload, run: onReload } : null;
+    : operation === 'read' && onReload && ['network', 'file', 'conflict', 'unknown', 'workspace'].includes(guidance.kind) ? { label: labels.reload, run: onReload } : null;
   return <div ref={panelRef} className={`error-panel error-guidance${compact ? ' error-guidance--compact' : ''}`}>
     <div className="error-guidance__message" role="alert">
       <AlertTriangle size={22} aria-hidden="true" />
