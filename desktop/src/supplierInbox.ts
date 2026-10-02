@@ -86,8 +86,8 @@ export function useSupplierInbox(
   const [state, setState] = useState<SupplierInboxState | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
-  const current = useRef({ org, blocked, onWorkspace });
-  current.current = { org, blocked, onWorkspace };
+  const current = useRef({ org, readOnly, blocked, onWorkspace });
+  current.current = { org, readOnly, blocked, onWorkspace };
   const running = useRef(false);
   const preparedSuppliers = useRef(new Set<string>());
   useEffect(() => { preparedSuppliers.current.clear(); }, [org]);
@@ -105,7 +105,7 @@ export function useSupplierInbox(
       if (current.current.org !== org || value.organizationId !== org) return;
       setState(value);
       setError('');
-      if (!readOnly && !current.current.blocked()) {
+      if (!current.current.readOnly && !current.current.blocked()) {
         let changed = false;
         if (value.prepareEnabled && value.linked) {
           const preparationKey = (i: MailInvoice) => JSON.stringify([org, i.id, i.extraction.supplierName, i.extraction.fieldConfidence, i.extraction.confidence, value.habits]);
@@ -129,7 +129,7 @@ export function useSupplierInbox(
           )
           .slice(0, 10);
         for (const next of queue) {
-          if (current.current.org !== org || current.current.blocked()) break;
+          if (current.current.org !== org || current.current.readOnly || current.current.blocked()) break;
           try {
             const saved = await inboxRequest<{
               saved?: boolean;
