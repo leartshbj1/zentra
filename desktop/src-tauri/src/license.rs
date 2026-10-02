@@ -151,6 +151,10 @@ pub(crate) struct LicenseProtectedCache {
     pending_clock_anchor: ProtectedDataCache,
     installation_proof: ProtectedDataCache,
     refresh_attempt: ProtectedDataCache,
+    // Per-store authority for signed synthetic IPC fixtures only. A normal
+    // application cannot construct or read this field.
+    #[cfg(test)]
+    verification_key: Option<[u8; 32]>,
 }
 
 #[derive(Deserialize)]
@@ -185,8 +189,21 @@ const EMBEDDED_PUBLIC_KEY: Option<&str> = Some(env!(
 ));
 
 impl LocalStore {
+    #[cfg(test)]
+    pub(crate) fn configure_test_license_key(&mut self, key: [u8; 32]) {
+        self.license_protected_cache.verification_key = Some(key);
+    }
+
+    fn license_verification_key(&self) -> AppResult<Option<[u8; 32]>> {
+        #[cfg(test)]
+        if let Some(key) = self.license_protected_cache.verification_key {
+            return Ok(Some(key));
+        }
+        embedded_key()
+    }
+
     pub(crate) fn install_server_issued_license(&self, token: &str) -> AppResult<Value> {
-        let key=embedded_key()?.ok_or_else(||AppError::Validation("Cette installation de Zentra ne contient pas les informations de vérification de licence attendues. Réinstallez Zentra depuis le site officiel ou contactez l’assistance.".into()))?;
+        let key=self.license_verification_key()?.ok_or_else(||AppError::Validation("Cette installation de Zentra ne contient pas les informations de vérification de licence attendues. Réinstallez Zentra depuis le site officiel ou contactez l’assistance.".into()))?;
         let _guard = self.lock()?;
         let snapshot = self.prepare_license_install_snapshot(token, &key)?;
         self.finish_online_license_installation(
@@ -431,7 +448,7 @@ impl LocalStore {
     }
 
     pub fn get_license_state(&self) -> AppResult<Value> {
-        let Some(key) = embedded_key()? else {
+        let Some(key) = self.license_verification_key()? else {
             return Ok(
                 json!({"enforcement_configured":false,"status":"not_configured","read_only":false,"can_refresh":false,"plan":LICENSE_PLAN,"price_chf_cents":LICENSE_PRICE_CHF_CENTS,"installation_id":self.installation_id,"token_version":TOKEN_VERSION,"reason":"Build de développement non soumis au contrôle de licence"}),
             );
@@ -1277,7 +1294,7 @@ impl LocalStore {
     }
 
     pub(crate) fn require_write_access(&self) -> AppResult<()> {
-        let Some(key) = embedded_key()? else {
+        let Some(key) = self.license_verification_key()? else {
             return Ok(());
         };
         self.require_write_access_with_key(&key)

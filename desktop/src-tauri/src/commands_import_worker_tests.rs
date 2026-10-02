@@ -1,19 +1,72 @@
 //! Actual IPC handlers with synthetic files and a held LocalStore lock.
 //! These tests run in native CI; browser fixtures do not prove native execution.
 use super::*;
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{
+    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
+    Engine,
+};
+use chrono::{Duration as ChronoDuration, Local, Utc};
+use ed25519_dalek::{Signer, SigningKey};
 use futures_util::future::join;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{future::Future, sync::mpsc, thread, time::Duration};
 use tauri::Manager;
 
-fn fixture() -> (tempfile::TempDir, LocalStore) {
+fn unlicensed_fixture() -> (tempfile::TempDir, LocalStore) {
     let temporary = tempfile::tempdir().unwrap();
-    let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+    let mut store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
+    // CI runs the real release-profile guards. Give only this synthetic store
+    // an authority whose private key is public test data, never a paid licence.
+    store.configure_test_license_key(SigningKey::from_bytes(&[31; 32]).verifying_key().to_bytes());
     store
         .complete_onboarding(crate::tests::test_onboarding(), "import-worker-test")
         .unwrap();
+    (temporary, store)
+}
+
+fn signed_fixture_token(store: &LocalStore, access_role: &str) -> String {
+    let signing = SigningKey::from_bytes(&[31; 32]);
+    let now = Utc::now();
+    let today = Local::now().date_naive();
+    let payload = crate::models::LicenseTokenPayload {
+        token_version: 2,
+        license_id: uuid::Uuid::new_v4().to_string(),
+        installation_id: store.installation_id.clone(),
+        jti: uuid::Uuid::new_v4().to_string(),
+        kid: "hc-prod-v1".into(),
+        customer_name: Some("Synthetic IPC company".into()),
+        access_role: access_role.into(),
+        account_user_id: None,
+        account_session_id: None,
+        plan: crate::license::LICENSE_PLAN.into(),
+        price_chf_cents: crate::license::LICENSE_PRICE_CHF_CENTS,
+        issued_at: now.to_rfc3339(),
+        valid_from: (today - ChronoDuration::days(1))
+            .format("%Y-%m-%d")
+            .to_string(),
+        valid_until: (today + ChronoDuration::days(30))
+            .format("%Y-%m-%d")
+            .to_string(),
+    };
+    let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
+    format!(
+        "{encoded}.{}",
+        URL_SAFE_NO_PAD.encode(signing.sign(encoded.as_bytes()).to_bytes())
+    )
+}
+
+fn fixture() -> (tempfile::TempDir, LocalStore) {
+    let (temporary, store) = unlicensed_fixture();
+    let state = store
+        .install_server_issued_license(&signed_fixture_token(&store, "owner"))
+        .unwrap();
+    assert_eq!(state["status"], "valid");
+    assert_eq!(state["read_only"], false);
+    // The exact handler guard still validates signature, installation, role
+    // and protected clock state; the fixture does not skip require_write.
+    store.require_write_access().unwrap();
+    store.clone().require_write_access().unwrap();
     (temporary, store)
 }
 
@@ -538,11 +591,15 @@ fn real_batch_handlers_roll_back_and_email_proof_failure_has_no_partial_draft() 
     let mut failing = catalog("FAIL").rows.remove(0);
     failing.row_number = 3;
     batch.rows.push(failing);
-    assert!(responsive(
+    let catalog_error = responsive(
         &store,
-        import_catalog_items(app.state(), batch, origin.clone())
+        import_catalog_items(app.state(), batch, origin.clone()),
     )
-    .is_err());
+    .unwrap_err();
+    assert!(
+        catalog_error.contains("synthetic SQL failure"),
+        "{catalog_error}"
+    );
     assert_eq!(
         store
             .connect()
@@ -556,11 +613,15 @@ fn real_batch_handlers_roll_back_and_email_proof_failure_has_no_partial_draft() 
         line: 3,
         data: json!({"name":"Invalid client", "not_a_field":"rejected"}),
     });
-    assert!(responsive(
+    let contact_error = responsive(
         &store,
-        import_bexio_contacts(app.state(), batch, origin.clone())
+        import_bexio_contacts(app.state(), batch, origin.clone()),
     )
-    .is_err());
+    .unwrap_err();
+    assert!(
+        contact_error.contains("Champ non autorisé : not_a_field"),
+        "{contact_error}"
+    );
     assert_eq!(
         store
             .connect()
@@ -572,11 +633,15 @@ fn real_batch_handlers_roll_back_and_email_proof_failure_has_no_partial_draft() 
     let mut email = email_input(&temporary.path().join("changed.eml"), invoice(&store));
     email.source_sha256 = "0".repeat(64);
     let before = store.get_workspace().unwrap();
-    assert!(responsive(
+    let email_error = responsive(
         &store,
-        import_supplier_email_invoice_draft(app.state(), email, origin.clone())
+        import_supplier_email_invoice_draft(app.state(), email, origin.clone()),
     )
-    .is_err());
+    .unwrap_err();
+    assert!(
+        email_error.contains("Le message e-mail a changé depuis votre contrôle"),
+        "{email_error}"
+    );
     assert_eq!(store.get_workspace().unwrap(), before);
     // The raw legacy scan errors remain unchanged by the worker migration.
     assert_eq!(
@@ -593,4 +658,77 @@ fn real_batch_handlers_roll_back_and_email_proof_failure_has_no_partial_draft() 
         .unwrap_err(),
         "Le fichier transmis est illisible."
     );
+}
+
+#[test]
+fn actual_import_guard_refuses_missing_read_only_and_foreign_installation_licenses() {
+    let (_temporary, store) = unlicensed_fixture();
+    let app = tauri::test::mock_builder()
+        .manage(store.clone())
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    let before = store.get_workspace().unwrap();
+    let missing = responsive(
+        &store,
+        import_catalog_items(app.state(), catalog("NO-LICENSE"), Some(scope(&store))),
+    )
+    .unwrap_err();
+    assert!(missing.contains("Licence requise"), "{missing}");
+    assert_eq!(store.get_workspace().unwrap(), before);
+    let state = store
+        .install_server_issued_license(&signed_fixture_token(&store, "read_only"))
+        .unwrap();
+    assert_eq!(state["status"], "valid");
+    assert_eq!(state["read_only"], true);
+    assert_eq!(
+        store.get_license_state().unwrap()["access_role"],
+        "read_only"
+    );
+    let before = store.get_workspace().unwrap();
+    let limited = responsive(
+        &store,
+        import_catalog_items(app.state(), catalog("READ-ONLY"), Some(scope(&store))),
+    )
+    .unwrap_err();
+    assert!(
+        limited.contains("Votre rôle Zentra est limité à la lecture"),
+        "{limited}"
+    );
+    assert_eq!(store.get_workspace().unwrap(), before);
+    let (_foreign_temporary, foreign) = unlicensed_fixture();
+    let error = store
+        .install_server_issued_license(&signed_fixture_token(&foreign, "owner"))
+        .unwrap_err();
+    assert!(error.to_string().contains("installation"), "{error}");
+    assert_eq!(
+        store.get_license_state().unwrap()["access_role"],
+        "read_only"
+    );
+    assert_eq!(store.get_workspace().unwrap(), before);
+    let fresh_temporary = tempfile::tempdir().unwrap();
+    let fresh = LocalStore::initialize(fresh_temporary.path().join("profile")).unwrap();
+    fresh
+        .complete_onboarding(crate::tests::test_onboarding(), "import-worker-test")
+        .unwrap();
+    // A separately constructed store keeps its normal embedded authority. The
+    // fixture key cannot validate even a correctly bound token in that store.
+    let no_inheritance = fresh
+        .install_server_issued_license(&signed_fixture_token(&fresh, "owner"))
+        .unwrap_err()
+        .to_string();
+    assert!(
+        no_inheritance.contains("Signature de licence invalide")
+            || no_inheritance.contains("ne contient pas les informations de vérification"),
+        "{no_inheritance}"
+    );
+    assert_eq!(
+        fresh.get_license_state().unwrap()["status"],
+        if option_env!("HELVICHANTIER_LICENSE_PUBLIC_KEY_B64URL").is_some() {
+            "missing"
+        } else {
+            "not_configured"
+        }
+    );
+    let (_owner_temporary, owner) = fixture();
+    owner.clone().require_write_access().unwrap();
 }
