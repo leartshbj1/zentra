@@ -64,7 +64,7 @@ export function ExpenseRefundForm({ expense, reverse, busy, readOnly = false, cl
   </Modal>;
 }
 
-export function ExpenseRefundHistory({ expense, disabled, onReverse, attachments = [], onAttach }: { expense: Expense; disabled: boolean; onReverse: (refund: ExpenseRefund) => void; attachments?: Attachment[]; onAttach?: (refund: ExpenseRefund) => void }) {
+export function ExpenseRefundHistory({ expense, disabled, onReverse, attachments = [], onAttach, workspaceScope }: { expense: Expense; disabled: boolean; onReverse: (refund: ExpenseRefund) => void; attachments?: Attachment[]; onAttach?: (refund: ExpenseRefund) => void; workspaceScope?: string }) {
   const refunds = expense.refunds ?? [];
   if (!refunds.length) return null;
   return <section className="expense-refund-history" aria-label="Historique des remboursements"><h3>Remboursements et corrections</h3>{refunds.map((refund) => {
@@ -74,7 +74,7 @@ export function ExpenseRefundHistory({ expense, disabled, onReverse, attachments
       <header><strong>{refund.eventType === 'reverse' ? 'Correction' : corrected ? 'Remboursement corrigé' : 'Remboursement reçu'} · {refund.reference}</strong><strong>{formatMoney(refund.totalCents)}</strong></header>
       <p>Avoir : {formatDate(refund.creditDate)} · Banque : {formatDate(refund.paymentDate)}</p><p>{refund.reason}</p>
       {refund.bankMatchId ? <p>Rapprochement bancaire actif. Dissociez ce remboursement dans Banque avant de corriger une saisie erronée.</p> : null}
-      <RefundAttachmentList attachments={files} />
+      <RefundAttachmentList attachments={files} workspaceScope={workspaceScope} />
       {files.length ? <p className="field__hint">Pièces conservées avec l’historique.</p> : <p className="field__hint">Aucun justificatif joint à ce remboursement.</p>}
       <div className="expense-refund-history__actions">
         {onAttach ? <Button type="button" variant="secondary" size="small" disabled={disabled || files.length >= 20} onClick={() => onAttach(refund)}>Joindre un justificatif</Button> : null}

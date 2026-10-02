@@ -12,7 +12,7 @@ import {
   shiftMonth,
   weekDates,
 } from './agenda';
-import type { Workspace } from './types';
+import type { AgendaEvent, Workspace } from './types';
 
 function workspace(overrides: Partial<Workspace> = {}): Workspace {
   return {
@@ -77,6 +77,48 @@ function workspace(overrides: Partial<Workspace> = {}): Workspace {
 }
 
 describe('agenda', () => {
+  it('garde le tri historique suisse, les priorités de date et heure et les égalités stables', () => {
+    const titles = ['Zoé', 'Zoe', 'École', 'Ecole', 'œuvre', 'Oeuvre', 'À créer', 'A créer', '20', '100', 'Réunion 🤝', 'Même titre', 'Autre titre', 'Même titre'];
+    const events: AgendaEvent[] = titles.flatMap((title, index) => [null, '09:00', '08:30'].map((time, offset) => ({
+      id: `event-${index}-${offset}`, title, startDate: index % 2 ? '2026-10-03' : '2026-10-02',
+      endDate: index % 2 ? '2026-10-03' : '2026-10-02', allDay: time === null, startTime: time,
+      endTime: time === null ? null : '10:00', kind: 'appointment', status: 'scheduled',
+      location: '', notes: '', projectId: null, employeeId: null, createdAt: 'a', updatedAt: 'a',
+    })));
+    const expected = [...events].sort((left, right) => left.startDate.localeCompare(right.startDate)
+      || Number(left.startTime !== null) - Number(right.startTime !== null)
+      || (left.startTime || '').localeCompare(right.startTime || '')
+      || left.title.localeCompare(right.title, 'fr-CH')).map(event => event.id);
+    expect(buildAgendaItems(workspace({ agendaEvents: events })).map(item => item.sourceId)).toEqual(expected);
+  });
+
+  it('garde les premiers liens, les valeurs de secours et relit les données reçues sans cache de personnes', () => {
+    const source = workspace();
+    Object.assign(source, {
+      projects: [{ id: 'p', name: 'Premier projet' }, { id: 'p', name: 'Autre projet' }],
+      employees: [{ id: 'e', name: '' }, { id: 'e', name: 'Autre personne' }],
+      clients: [{ id: 'c', company: '', name: 'Premier client' }, { id: 'c', company: 'Autre client', name: '' }],
+      agendaEvents: [{ id: 'event', title: 'Visite', startDate: '2026-10-02', endDate: '2026-10-02', allDay: true, location: 'Genève', status: 'scheduled', projectId: 'p', employeeId: 'e' }],
+      projectTasks: [{ id: 'task', title: 'Tâche', dueDate: '2026-10-02', status: 'open', projectId: 'p', employeeId: 'missing' }],
+      projectMilestones: [{ id: 'milestone', title: 'Jalon', dueDate: '2026-10-02', status: 'open', projectId: 'p' }],
+      invoices: [{ id: 'invoice', number: 'F-1', dueDate: '2026-10-02', status: 'issued', type: 'standard', clientId: 'c' }],
+      quotes: [{ id: 'quote', number: 'D-1', validUntil: '2026-10-02', status: 'issued', clientId: 'missing' }],
+      payslips: [{ id: 'payslip', paymentDate: '2026-10-02', status: 'paid', employeeId: 'e', period: '2026-09' }],
+    });
+    const items = buildAgendaItems(source);
+    const find = (id: string) => items.find(item => item.sourceId === id)!;
+    expect(find('event').subtitle).toBe('Genève · Premier projet');
+    expect(find('event').event).toBe(source.agendaEvents[0]);
+    expect(find('task').subtitle).toBe('Premier projet');
+    expect(find('milestone').subtitle).toBe('Premier projet');
+    expect(find('invoice').subtitle).toBe('Premier client');
+    expect(find('quote').subtitle).toBe('');
+    expect(find('payslip').title).toBe('Salaire · 2026-09');
+    const next = { ...source, clients: source.clients.map(row => ({ ...row, company: 'Client reçu' })) };
+    expect(buildAgendaItems(next).find(item => item.sourceId === 'invoice')?.subtitle).toBe('Client reçu');
+    expect(source.clients[0].company).toBe('');
+  });
+
   it('compose les objets réels et ignore les brouillons sans échéance utile', () => {
     const source = workspace({
         clients: [

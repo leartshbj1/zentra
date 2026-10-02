@@ -29,7 +29,7 @@ export function RefundReceiptPicker({ receipt, onChange, disabled, onError, supp
   </div>;
 }
 
-export function RefundAttachmentList({ attachments, label = 'Justificatifs du remboursement' }: { attachments: Attachment[]; label?: string }) {
+export function RefundAttachmentList({ attachments, label = 'Justificatifs du remboursement', workspaceScope }: { attachments: Attachment[]; label?: string; workspaceScope?: string }) {
   const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState('');
   if (!attachments.length) return null;
@@ -38,7 +38,7 @@ export function RefundAttachmentList({ attachments, label = 'Justificatifs du re
       <Paperclip size={16} /><span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)}</small></span>
       <Button type="button" variant="secondary" size="small" disabled={opening !== null} aria-label={`Ouvrir ${file.originalName}`} onClick={async () => {
         setOpening(file.id); setError('');
-        try { await desktopApi.openAttachment(file.id); }
+        try { await desktopApi.openAttachment(file.id, workspaceScope); }
         catch (failure) { setError(errorMessage(failure, 'Le justificatif ne peut pas être ouvert.')); }
         finally { setOpening(null); }
       }}><FolderOpen size={14} /> {opening === file.id ? 'Ouverture…' : 'Ouvrir'}</Button>

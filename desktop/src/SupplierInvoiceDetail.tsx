@@ -56,7 +56,7 @@ export function SupplierInvoiceDetail({ invoice: openedInvoice, workspace, busy,
         {invoice.note && <section className="supplier-file__note"><h3>{t('Note de la facture')}</h3><p>{invoice.note}</p></section>}
       </>}
       {section === panel && panel === 1 && <>
-        <SupplierInvoiceAttachments invoice={invoice} canEdit={false} busy={locked} />
+        <SupplierInvoiceAttachments invoice={invoice} workspaceScope={workspace.workNotesScope} canEdit={false} busy={locked} />
         <section className="supplier-file__lines"><h3>{t('Achats de cette facture')}</h3><p>{t('Les montants ci-dessous sont ceux du document enregistré.')}</p>
           {invoice.lines.length ? <><ul>{invoice.lines.slice(0, lineLimit).map(line => <li key={line.id}><div className="supplier-file__line-heading"><strong>{line.description}</strong><strong>{formatMoney(line.totalCents)}</strong></div><p>{(line.quantityMilli / 1000).toLocaleString(getAppLocale())} {line.unit} · {line.category}</p><dl><div><dt>{t('Hors TVA')}</dt><dd>{formatMoney(line.netCents)}</dd></div><div><dt>{t('TVA facturée')}</dt><dd>{formatMoney(line.vatCents)}</dd></div></dl></li>)}</ul>{invoice.lines.length > lineLimit && <Button variant="secondary" onClick={() => setLineLimit(limit => limit + 20)}>{t('Afficher les achats suivants')}</Button>}</> : <p>{t('Les lignes de cette facture ne sont pas disponibles. Actualisez les achats.')}</p>}
         </section>

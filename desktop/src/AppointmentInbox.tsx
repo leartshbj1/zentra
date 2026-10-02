@@ -62,8 +62,12 @@ export function useAppointmentInbox(
   }, [org, workspaceScope]);
   const running = useRef(false);
   const refresh = useCallback(async () => {
+    const generation = lifetime.current.generation;
+    const isCurrent = () => lifetime.current.active && lifetime.current.generation === generation
+      && context.current.org === org && context.current.workspaceScope === workspaceScope;
     if (
       !org ||
+      !isCurrent() ||
       running.current ||
       !navigator.onLine ||
       document.visibilityState === 'hidden'
@@ -72,7 +76,7 @@ export function useAppointmentInbox(
     running.current = true;
     try {
       const next = await request<State>();
-      if (context.current.org !== org || next.organizationId !== org) return;
+      if (!isCurrent() || next.organizationId !== org) return;
       setState(next);
       setError('');
       let changed = false;
@@ -85,7 +89,7 @@ export function useAppointmentInbox(
         )
         .slice(0, 10)) {
         if (
-          context.current.org !== org ||
+          !isCurrent() ||
           context.current.readOnly ||
           context.current.blocked()
         )
@@ -96,30 +100,34 @@ export function useAppointmentInbox(
             id: item.id,
             automatic: item.state === 'ready',
           });
+          if (!isCurrent()) return;
           changed = changed || !!r.saved;
         } catch (e) {
-          if (context.current.org === org) setError(String(e));
+          if (isCurrent()) setError(String(e));
         }
       }
-      if (changed && context.current.org === org) {
+      if (changed && isCurrent()) {
         if (context.current.refreshWorkspace) await context.current.refreshWorkspace();
         else {
           const w = await desktopApi.loadWorkspace();
-          if (context.current.org === org) context.current.onWorkspace(w);
+          if (!isCurrent() || (workspaceScope && w.workNotesScope !== workspaceScope)) return;
+          context.current.onWorkspace(w);
         }
-        if (context.current.org === org) {
+        if (isCurrent()) {
           window.dispatchEvent(new Event('zentra-automation-updated'));
+          if (!isCurrent()) return;
           const latest = await request<State>();
-          if (context.current.org === org && latest.organizationId === org)
+          if (isCurrent() && latest.organizationId === org)
             setState(latest);
         }
       }
     } catch (e) {
-      if (context.current.org === org) setError(String(e));
+      if (isCurrent()) setError(String(e));
     } finally {
       running.current = false;
+      if (lifetime.current.active && !isCurrent()) void latestRefresh.current();
     }
-  }, [org]);
+  }, [org, workspaceScope]);
   const latestRefresh = useRef(refresh);
   latestRefresh.current = refresh;
   useEffect(() => {

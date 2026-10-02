@@ -800,7 +800,7 @@ fn actual_attachment_delete_confirms_committed_metadata_when_windows_file_is_loc
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .unwrap();
     assert_eq!(
-        delete_supplier_invoice_attachment(app.state(), attachment_id.clone()).unwrap(),
+        tauri::async_runtime::block_on(delete_supplier_invoice_attachment(app.state(), attachment_id.clone(), None)).unwrap(),
         json!({"deleted":true,"id":attachment_id})
     );
     assert_eq!(
@@ -812,7 +812,7 @@ fn actual_attachment_delete_confirms_committed_metadata_when_windows_file_is_loc
         "confirmed metadata deletion is not a physical-erasure promise"
     );
     assert!(
-        delete_supplier_invoice_attachment(app.state(), attachment_id.clone())
+        tauri::async_runtime::block_on(delete_supplier_invoice_attachment(app.state(), attachment_id.clone(), None))
             .unwrap_err()
             .contains("Enregistrement introuvable")
     );
@@ -873,7 +873,7 @@ fn actual_deletions_accept_missing_files_but_remove_remaining_draft_files() {
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .unwrap();
     std::fs::remove_file(&files[0].1).unwrap();
-    delete_supplier_invoice_attachment(app.state(), files[0].0.clone()).unwrap();
+    tauri::async_runtime::block_on(delete_supplier_invoice_attachment(app.state(), files[0].0.clone(), None)).unwrap();
     std::fs::remove_file(&files[1].1).unwrap();
     delete_supplier_invoice_draft(app.state(), invoice_id).unwrap();
     assert!(files.iter().all(|(_, path)| !path.exists()));
@@ -901,7 +901,7 @@ fn actual_delete_sql_failure_rolls_back_metadata_audit_and_preserves_every_file(
         let error = if delete_draft {
             delete_supplier_invoice_draft(app.state(), invoice_id)
         } else {
-            delete_supplier_invoice_attachment(app.state(), files[0].0.clone())
+            tauri::async_runtime::block_on(delete_supplier_invoice_attachment(app.state(), files[0].0.clone(), None))
         }
         .unwrap_err();
         assert!(error.contains("synthetic delete audit failure"), "{error}");
@@ -940,7 +940,7 @@ fn actual_delete_rejects_unsafe_stored_paths_before_committing_any_metadata() {
         let error = if delete_draft {
             delete_supplier_invoice_draft(app.state(), invoice_id)
         } else {
-            delete_supplier_invoice_attachment(app.state(), files[1].0.clone())
+            tauri::async_runtime::block_on(delete_supplier_invoice_attachment(app.state(), files[1].0.clone(), None))
         }
         .unwrap_err();
         assert!(error.contains("Chemin refusé"), "{error}");
@@ -963,7 +963,7 @@ fn actual_deletion_handlers_keep_missing_and_read_only_license_guards() {
     ] {
         let before = deletion_counts(&store);
         for error in [
-            delete_supplier_invoice_attachment(app.state(), files[0].0.clone()).unwrap_err(),
+            tauri::async_runtime::block_on(delete_supplier_invoice_attachment(app.state(), files[0].0.clone(), None)).unwrap_err(),
             delete_supplier_invoice_draft(app.state(), invoice_id.clone()).unwrap_err(),
         ] {
             assert!(error.contains(expected), "{error}");
@@ -990,7 +990,7 @@ fn actual_deletion_handlers_preserve_validated_documents_and_email_evidence() {
         .unwrap();
     let before = deletion_counts(&store);
     assert!(
-        delete_supplier_invoice_attachment(app.state(), files[0].0.clone())
+        tauri::async_runtime::block_on(delete_supplier_invoice_attachment(app.state(), files[0].0.clone(), None))
             .unwrap_err()
             .contains("Un justificatif validé est immuable")
     );
@@ -1015,7 +1015,7 @@ fn actual_deletion_handlers_preserve_validated_documents_and_email_evidence() {
         .unwrap();
     let path = store.verified_attachment_path(&attachment).unwrap();
     let before = deletion_counts(&store);
-    assert!(delete_supplier_invoice_attachment(app.state(), attachment)
+    assert!(tauri::async_runtime::block_on(delete_supplier_invoice_attachment(app.state(), attachment, None))
         .unwrap_err()
         .contains("Cette pièce prouve l'import"));
     assert_eq!(deletion_counts(&store), before);
@@ -1023,4 +1023,346 @@ fn actual_deletion_handlers_preserve_validated_documents_and_email_evidence() {
     delete_supplier_invoice_draft(app.state(), email_invoice).unwrap();
     assert!(!path.exists());
     assert_eq!(deletion_counts(&store).3, before.3 - 1);
+}
+
+// Origin-scoped attachment IPC. No test invokes an external file viewer: open
+// witnesses deliberately remove the synthetic file before the actual handler.
+mod attachment_origin_scope {
+    use super::*;
+
+    #[derive(Clone, Copy, Debug)]
+    enum Operation {
+        Open,
+        Delete,
+    }
+
+    async fn run(
+        state: State<'_, LocalStore>,
+        operation: Operation,
+        id: String,
+        expected: Option<String>,
+    ) -> Result<Value, String> {
+        match operation {
+            Operation::Open => open_attachment(state, id, expected)
+                .await
+                .map(Value::String),
+            Operation::Delete => delete_supplier_invoice_attachment(state, id, expected).await,
+        }
+    }
+
+    // Exact 8efa71c9 handler bodies, renamed only. This source witness retains
+    // the former contract without changing the current production handlers.
+    fn historical_delete_supplier_invoice_attachment(
+        state: State<'_, LocalStore>,
+        id: String,
+    ) -> Result<Value, String> {
+        let _guard = state.lock().map_err(command_error)?;
+        require_write(&state)?;
+        state
+            .delete_supplier_invoice_attachment(&id)
+            .map_err(command_error)
+    }
+
+    async fn historical_open_attachment(
+        state: State<'_, LocalStore>,
+        id: String,
+    ) -> Result<String, String> {
+        let store = state.inner().clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let _guard = store.lock().map_err(command_error)?;
+            store.open_attachment(&id).map_err(command_error)
+        })
+        .await
+        .map_err(|error| error.to_string())?
+    }
+
+    #[test]
+    fn historical_handlers_reach_restored_same_uuid_instead_of_refusing_original_scope() {
+        let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK
+            .lock()
+            .unwrap();
+        let (_temporary, store) = fixture();
+        let (_invoice, files) = deletion_fixture(&store, 1);
+        let (id, path) = &files[0];
+        let bytes = std::fs::read(path).unwrap();
+        let origin = scope(&store);
+        let backup = store.create_backup(None, "attachment-origin-test").unwrap();
+        {
+            let _guard = store.lock().unwrap();
+            store
+                .restore_backup(&backup, "attachment-origin-test")
+                .unwrap();
+        }
+        assert_ne!(scope(&store), origin);
+        assert_eq!(
+            store.get_workspace().unwrap()["attachments"][0]["id"],
+            id.as_str()
+        );
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        std::fs::remove_file(path).unwrap();
+        let error =
+            tauri::async_runtime::block_on(historical_open_attachment(app.state(), id.clone()))
+                .unwrap_err();
+        assert!(
+            error.contains("Le justificatif local est absent"),
+            "{error}"
+        );
+        std::fs::write(path, bytes).unwrap();
+        let before = deletion_counts(&store);
+        assert_eq!(
+            historical_delete_supplier_invoice_attachment(app.state(), id.clone()).unwrap(),
+            json!({"deleted":true,"id":id})
+        );
+        let after = deletion_counts(&store);
+        assert_eq!(
+            after,
+            (before.0, before.1, before.2 - 1, before.3, before.4 + 1)
+        );
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn queued_actual_handlers_refuse_original_scope_after_real_restore_with_same_uuid() {
+        let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK
+            .lock()
+            .unwrap();
+        let (_temporary, store) = fixture();
+        let (_invoice, files) = deletion_fixture(&store, 1);
+        let (id, path) = &files[0];
+        let original_bytes = std::fs::read(path).unwrap();
+        let backup = store.create_backup(None, "attachment-origin-test").unwrap();
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        for operation in [Operation::Open, Operation::Delete] {
+            let origin = scope(&store);
+            let replacing = store.clone();
+            let backup = backup.clone();
+            let path_for_restore = path.clone();
+            let (ready_tx, ready_rx) = mpsc::channel();
+            let (replace_tx, replace_rx) = mpsc::channel();
+            let holder = thread::spawn(move || {
+                let _guard = replacing.lock().unwrap();
+                ready_tx.send(()).unwrap();
+                let released = replace_rx.recv_timeout(Duration::from_secs(5)).is_ok();
+                replacing
+                    .restore_backup(&backup, "attachment-origin-test")
+                    .unwrap();
+                let bytes = std::fs::read(&path_for_restore).unwrap();
+                if matches!(operation, Operation::Open) {
+                    // Even a regressed scope guard cannot launch a real viewer.
+                    std::fs::remove_file(&path_for_restore).unwrap();
+                }
+                (
+                    released,
+                    replacing.get_workspace().unwrap(),
+                    deletion_counts(&replacing),
+                    bytes,
+                )
+            });
+            ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            let (result, ()) = tauri::async_runtime::block_on(join(
+                run(app.state(), operation, id.clone(), Some(origin.clone())),
+                async move {
+                    replace_tx.send(()).unwrap();
+                },
+            ));
+            let (released, restored, counts, bytes) = holder.join().unwrap();
+            assert!(
+                released,
+                "{operation:?} blocked the executor waiting for LocalStore"
+            );
+            let error = result.unwrap_err();
+            assert!(
+                error.contains("L’entreprise ouverte a changé"),
+                "{operation:?}: {error}"
+            );
+            assert_ne!(scope(&store), origin);
+            assert_eq!(store.get_workspace().unwrap(), restored);
+            assert_eq!(deletion_counts(&store), counts);
+            assert_eq!(restored["attachments"][0]["id"], id.as_str());
+            assert_eq!(bytes, original_bytes);
+            if matches!(operation, Operation::Open) {
+                assert!(!path.exists());
+                std::fs::write(path, &original_bytes).unwrap();
+            } else {
+                assert_eq!(std::fs::read(path).unwrap(), original_bytes);
+            }
+        }
+    }
+
+    #[test]
+    fn current_scope_and_legacy_none_preserve_missing_file_errors_and_delete_receipts() {
+        let (_temporary, store) = fixture();
+        let (_invoice, files) = deletion_fixture(&store, 2);
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        for ((id, path), expected) in files.iter().zip([Some(scope(&store)), None]) {
+            let bytes = std::fs::read(path).unwrap();
+            let before = deletion_counts(&store);
+            std::fs::remove_file(path).unwrap();
+            let error = responsive(
+                &store,
+                run(app.state(), Operation::Open, id.clone(), expected.clone()),
+            )
+            .unwrap_err();
+            assert!(
+                error.contains("Le justificatif local est absent"),
+                "{error}"
+            );
+            assert_eq!(deletion_counts(&store), before);
+            std::fs::write(path, bytes).unwrap();
+            let receipt = responsive(
+                &store,
+                run(app.state(), Operation::Delete, id.clone(), expected.clone()),
+            )
+            .unwrap();
+            assert_eq!(receipt, json!({"deleted":true,"id":id}));
+            let after = (before.0, before.1, before.2 - 1, before.3, before.4 + 1);
+            assert_eq!(deletion_counts(&store), after);
+            assert!(!path.exists());
+            let error = tauri::async_runtime::block_on(run(
+                app.state(),
+                Operation::Delete,
+                id.clone(),
+                expected,
+            ))
+            .unwrap_err();
+            assert!(error.contains("Enregistrement introuvable"), "{error}");
+            assert_eq!(deletion_counts(&store), after);
+        }
+    }
+
+    #[test]
+    fn stale_scope_precedes_uuid_validation_license_and_file_lookup() {
+        let (_temporary, store) = unlicensed_fixture();
+        let (_invoice, files) = deletion_fixture(&store, 1);
+        let (id, path) = &files[0];
+        let before = store.get_workspace().unwrap();
+        let bytes = std::fs::read(path).unwrap();
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        std::fs::remove_file(path).unwrap();
+        for operation in [Operation::Open, Operation::Delete] {
+            for old_id in ["invalid-uuid".to_owned(), id.clone()] {
+                let error = tauri::async_runtime::block_on(run(
+                    app.state(),
+                    operation,
+                    old_id,
+                    Some("synthetic-old-scope".into()),
+                ))
+                .unwrap_err();
+                assert!(
+                    error.contains("L’entreprise ouverte a changé"),
+                    "{operation:?}: {error}"
+                );
+            }
+        }
+        assert_eq!(store.get_workspace().unwrap(), before);
+        assert!(!path.exists());
+        std::fs::write(path, bytes).unwrap();
+    }
+
+    #[test]
+    fn scoped_delete_keeps_license_guards_and_open_keeps_its_read_only_contract() {
+        let (_temporary, store) = unlicensed_fixture();
+        let (_invoice, files) = deletion_fixture(&store, 1);
+        let (id, path) = &files[0];
+        let bytes = std::fs::read(path).unwrap();
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        for refusal in [
+            "Licence requise",
+            "Votre rôle Zentra est limité à la lecture",
+        ] {
+            let before = deletion_counts(&store);
+            std::fs::remove_file(path).unwrap();
+            for expected in [Some(scope(&store)), None] {
+                let error = tauri::async_runtime::block_on(run(
+                    app.state(),
+                    Operation::Delete,
+                    id.clone(),
+                    expected.clone(),
+                ))
+                .unwrap_err();
+                assert!(error.contains(refusal), "{error}");
+                let error = tauri::async_runtime::block_on(run(
+                    app.state(),
+                    Operation::Open,
+                    id.clone(),
+                    expected,
+                ))
+                .unwrap_err();
+                assert!(
+                    error.contains("Le justificatif local est absent"),
+                    "{error}"
+                );
+            }
+            assert_eq!(deletion_counts(&store), before);
+            std::fs::write(path, &bytes).unwrap();
+            if refusal == "Licence requise" {
+                store
+                    .install_server_issued_license(&signed_fixture_token(&store, "read_only"))
+                    .unwrap();
+            }
+        }
+        assert_eq!(std::fs::read(path).unwrap(), bytes);
+    }
+
+    #[test]
+    fn scoped_delete_preserves_validated_invoice_and_email_import_evidence() {
+        let (temporary, store) = fixture();
+        crate::tests::enable_accounting(&store);
+        let (invoice_id, files) = deletion_fixture(&store, 1);
+        store.validate_supplier_invoice(&invoice_id).unwrap();
+        let app = tauri::test::mock_builder()
+            .manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let before = deletion_counts(&store);
+        let error = tauri::async_runtime::block_on(run(
+            app.state(),
+            Operation::Delete,
+            files[0].0.clone(),
+            Some(scope(&store)),
+        ))
+        .unwrap_err();
+        assert!(
+            error.contains("Un justificatif validé est immuable"),
+            "{error}"
+        );
+        assert_eq!(deletion_counts(&store), before);
+        assert!(files[0].1.is_file());
+        let input = invoice(&store);
+        let email = email_input(&temporary.path().join("scoped-evidence.eml"), input);
+        let invoice_id = email.invoice.id.clone().unwrap();
+        store.import_supplier_email_invoice_draft(email).unwrap();
+        let attachment: String = store.connect().unwrap().query_row(
+            "SELECT attachment_id FROM supplier_email_invoice_imports WHERE supplier_invoice_id=?",
+            [&invoice_id], |row| row.get(0),
+        ).unwrap();
+        let path = store.verified_attachment_path(&attachment).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        let before = deletion_counts(&store);
+        let error = tauri::async_runtime::block_on(run(
+            app.state(),
+            Operation::Delete,
+            attachment,
+            Some(scope(&store)),
+        ))
+        .unwrap_err();
+        assert!(error.contains("Cette pièce prouve l'import"), "{error}");
+        assert_eq!(deletion_counts(&store), before);
+        assert_eq!(std::fs::read(path).unwrap(), bytes);
+    }
 }

@@ -62,31 +62,25 @@ function localDate(value: string) {
   return new Date(year, month - 1, day, 12);
 }
 
-function projectLabel(workspace: Workspace, projectId: string | null) {
-  return workspace.projects.find((item) => item.id === projectId)?.name ?? '';
-}
-
-function employeeLabel(workspace: Workspace, employeeId: string | null) {
-  return workspace.employees.find((item) => item.id === employeeId)?.name ?? '';
-}
-
-function clientLabel(workspace: Workspace, clientId: string) {
-  const client = workspace.clients.find((item) => item.id === clientId);
-  return client?.company || client?.name || '';
-}
-
-function agendaEventSubtitle(workspace: Workspace, event: AgendaEvent) {
-  return [
-    event.location,
-    projectLabel(workspace, event.projectId),
-    employeeLabel(workspace, event.employeeId),
-  ]
-    .filter(Boolean)
-    .join(' · ');
+function firstById<T extends { id: string }>(records: readonly T[]) {
+  const index = new Map<string, T>();
+  for (const record of records) {
+    if (!index.has(record.id)) index.set(record.id, record);
+  }
+  return index;
 }
 
 export function buildAgendaItems(workspace: Workspace): AgendaItem[] {
   const items: AgendaItem[] = [];
+  const projects = firstById(workspace.projects);
+  const employees = firstById(workspace.employees);
+  const clients = firstById(workspace.clients);
+  const projectLabel = (id: string | null) => id === null ? '' : projects.get(id)?.name ?? '';
+  const employeeLabel = (id: string | null) => id === null ? '' : employees.get(id)?.name ?? '';
+  const clientLabel = (id: string) => {
+    const client = clients.get(id);
+    return client?.company || client?.name || '';
+  };
   for (const event of workspace.agendaEvents) {
     items.push({
       id: `event:${event.id}`,
@@ -98,7 +92,7 @@ export function buildAgendaItems(workspace: Workspace): AgendaItem[] {
       time: event.allDay ? null : event.startTime,
       endTime: event.allDay ? null : event.endTime,
       title: event.title,
-      subtitle: agendaEventSubtitle(workspace, event),
+      subtitle: [event.location, projectLabel(event.projectId), employeeLabel(event.employeeId)].filter(Boolean).join(' · '),
       status:
         event.status === 'completed'
           ? 'done'
@@ -122,8 +116,8 @@ export function buildAgendaItems(workspace: Workspace): AgendaItem[] {
       endTime: null,
       title: task.title,
       subtitle: [
-        projectLabel(workspace, task.projectId),
-        employeeLabel(workspace, task.employeeId),
+        projectLabel(task.projectId),
+        employeeLabel(task.employeeId),
       ]
         .filter(Boolean)
         .join(' · '),
@@ -149,7 +143,7 @@ export function buildAgendaItems(workspace: Workspace): AgendaItem[] {
       time: null,
       endTime: null,
       title: `Jalon · ${milestone.title}`,
-      subtitle: projectLabel(workspace, milestone.projectId),
+      subtitle: projectLabel(milestone.projectId),
       status:
         milestone.status === 'done'
           ? 'done'
@@ -212,7 +206,7 @@ export function buildAgendaItems(workspace: Workspace): AgendaItem[] {
       time: null,
       endTime: null,
       title: `Facture à encaisser · ${invoice.number || invoice.title}`,
-      subtitle: clientLabel(workspace, invoice.clientId),
+      subtitle: clientLabel(invoice.clientId),
       status: 'active',
       route: 'invoices',
     });
@@ -231,7 +225,7 @@ export function buildAgendaItems(workspace: Workspace): AgendaItem[] {
       time: null,
       endTime: null,
       title: `Validité du devis · ${quote.number || quote.title}`,
-      subtitle: clientLabel(workspace, quote.clientId),
+      subtitle: clientLabel(quote.clientId),
       status: quote.status === 'accepted' ? 'done' : 'active',
       route: 'quotes',
     });
@@ -262,9 +256,7 @@ export function buildAgendaItems(workspace: Workspace): AgendaItem[] {
 
   for (const payslip of workspace.payslips) {
     if (!payslip.paymentDate || payslip.status === 'incomplete') continue;
-    const employee = workspace.employees.find(
-      (item) => item.id === payslip.employeeId,
-    );
+    const employee = employees.get(payslip.employeeId);
     items.push({
       id: `payslip:${payslip.id}`,
       source: 'payslip',
@@ -281,12 +273,13 @@ export function buildAgendaItems(workspace: Workspace): AgendaItem[] {
     });
   }
 
+  const compareTitles = new Intl.Collator('fr-CH').compare;
   return items.sort(
     (left, right) =>
       left.date.localeCompare(right.date) ||
       Number(left.time !== null) - Number(right.time !== null) ||
       (left.time || '').localeCompare(right.time || '') ||
-      left.title.localeCompare(right.title, 'fr-CH'),
+      compareTitles(left.title, right.title),
   );
 }
 

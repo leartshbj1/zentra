@@ -5596,12 +5596,12 @@ export const desktopApi = {
     await invoke('add_scanned_supplier_attachment', { invoiceId, originalName: file.name, contentBase64: await fileBase64(file), ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
-  async deleteSupplierInvoiceAttachment(id: string) {
-    await invoke('delete_supplier_invoice_attachment', { id });
+  async deleteSupplierInvoiceAttachment(id: string, expectedWorkspaceScope?: string) {
+    await invoke('delete_supplier_invoice_attachment', { id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
-  async openAttachment(id: string) {
-    return invoke<string>('open_attachment', { id });
+  async openAttachment(id: string, expectedWorkspaceScope?: string) {
+    return invoke<string>('open_attachment', { id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
   },
   saveDocument,
   async createInvoiceCorrection(originalInvoiceId: string, reason: string) {

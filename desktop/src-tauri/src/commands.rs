@@ -1896,26 +1896,22 @@ pub async fn add_supplier_invoice_attachment(
 }
 
 #[tauri::command]
-pub fn delete_supplier_invoice_attachment(
+pub async fn delete_supplier_invoice_attachment(
     state: State<'_, LocalStore>,
     id: String,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .delete_supplier_invoice_attachment(&id)
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.delete_supplier_invoice_attachment(&id).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
-pub async fn open_attachment(state: State<'_, LocalStore>, id: String) -> Result<String, String> {
-    let store = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let _guard = store.lock().map_err(command_error)?;
+pub async fn open_attachment(state: State<'_, LocalStore>, id: String, expected_workspace_scope: Option<String>) -> Result<String, String> {
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
         store.open_attachment(&id).map_err(command_error)
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    }).await
 }
 
 #[tauri::command]

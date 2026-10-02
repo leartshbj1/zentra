@@ -2339,7 +2339,7 @@ function SupplierCreditDocumentCard({
           <ol>{[...credit.refunds].sort((left, right) => right.date.localeCompare(left.date) || right.sequence - left.sequence).map((refund) => <li key={refund.id}>
             <strong>{refund.eventType === 'reverse' ? 'Correction' : 'Remboursement reçu'} · {formatMoney(refund.amountCents, credit.currency)}</strong>
             <span>{formatDate(refund.date)} · {refund.reference}</span><span>{refund.reason}</span>
-            <RefundAttachmentList attachments={(workspace.attachments ?? []).filter(file=>file.entityType==='supplier_credit_refund'&&file.entityId===refund.id)}/>
+            <RefundAttachmentList workspaceScope={workspace.workNotesScope} attachments={(workspace.attachments ?? []).filter(file=>file.entityType==='supplier_credit_refund'&&file.entityId===refund.id)}/>
             <Button variant="ghost" size="small" disabled={busy} onClick={()=>onAttach(refund)}>Joindre un justificatif</Button>
             {refund.eventType === 'refund' && !credit.refunds.some((row) => row.reversesId === refund.id) ? <Button variant="ghost" size="small" disabled={busy} onClick={() => onRefund(refund)}>Corriger ce remboursement</Button> : null}
           </li>)}</ol>

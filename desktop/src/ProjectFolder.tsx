@@ -68,7 +68,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
       return () => cancelAnimationFrame(frame);
     }
   }, [refreshPending, saving]);
-  const [preview, setPreview] = useState<{ file: Attachment; bytes: Uint8Array; url: string } | null>(null);
+  const [preview, setPreview] = useState<{ file: Attachment; bytes: Uint8Array; url: string; workspaceScope?: string } | null>(null);
   const [removing, setRemoving] = useState<Attachment | null>(null);
   const previewTrigger = useRef<HTMLElement | null>(null);
   const mounted = useRef(true);
@@ -99,7 +99,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
       const encoded = await desktopApi.readProjectDocument(file.id, originWorkspaceScope);
       if (!mounted.current || workspaceRef.current.workNotesScope !== originWorkspaceScope) return;
       const bytes = Uint8Array.from(atob(encoded), (value) => value.charCodeAt(0));
-      setPreview({ file, bytes, url: URL.createObjectURL(new Blob([bytes], { type: file.mimeType })) });
+      setPreview({ file, bytes, url: URL.createObjectURL(new Blob([bytes], { type: file.mimeType })), workspaceScope: originWorkspaceScope });
     } catch (reason) { if (mounted.current && workspaceRef.current.workNotesScope === originWorkspaceScope) session.setError(errorMessage(reason, 'Impossible d’ouvrir ce fichier.')); }
     finally { inFlight.current = false; if (mounted.current) { setOpening(false); setOpeningProgress(''); } }
   }

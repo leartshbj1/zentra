@@ -53,18 +53,19 @@ export function SupplierInvoiceAttachments({ invoice, canEdit, busy, act, onPend
   async function openAttachment(attachment: Attachment) {
     setLocalError(null);
     try {
-      await desktopApi.openAttachment(attachment.id);
+      await desktopApi.openAttachment(attachment.id, workspaceScope);
     } catch (reason) {
       reportError(reason, 'Le justificatif local n’a pas pu être ouvert.');
     }
   }
 
   async function deleteAttachment(attachment: Attachment) {
+    const originalWorkspaceScope = workspaceScope;
     if (!invoice || !act || busy || operation.current || !editable.current || !window.confirm(t("Supprimer le justificatif « {name} » ?", { name: attachment.originalName }))) return;
     markPending(true);
     setLocalError(null);
     try { await act(
-      () => desktopApi.deleteSupplierInvoiceAttachment(attachment.id),
+      () => desktopApi.deleteSupplierInvoiceAttachment(attachment.id, originalWorkspaceScope),
       t("Le justificatif a été retiré de la facture."),
       false,
       (reason) => reportError(reason, 'Le justificatif n’a pas pu être supprimé.'),

@@ -11,8 +11,8 @@ import { TouchImagePreview } from './TouchImagePreview';
 
 const PdfAttachmentPreview = lazy(() => import('./PdfAttachmentPreview'));
 
-export function ProjectFilePreview({ file, bytes, url, onClose }: {
-  file: Attachment; bytes: Uint8Array; url: string; onClose: () => void;
+export function ProjectFilePreview({ file, bytes, url, onClose, workspaceScope }: {
+  file: Attachment; bytes: Uint8Array; url: string; onClose: () => void; workspaceScope?: string;
 }) {
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState('');
@@ -20,7 +20,7 @@ export function ProjectFilePreview({ file, bytes, url, onClose }: {
   async function openExternal() {
     if (opening) return;
     setOpening(true); setError('');
-    try { await desktopApi.openAttachment(file.id); }
+    try { await desktopApi.openAttachment(file.id, workspaceScope); }
     catch (reason) { setError(errorMessage(reason, 'Ouverture impossible. Réessayez.')); }
     finally { setOpening(false); }
   }
