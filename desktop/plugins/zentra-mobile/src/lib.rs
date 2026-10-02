@@ -36,7 +36,7 @@ async fn configure_navigation(
 ) -> Result<Value, String> {
     #[cfg(target_os = "ios")]
     {
-        if !["dashboard", "agenda", "projects", "clients", "catalog", "quotes", "invoices", "reminders", "time", "team", "expenses", "bank", "reports", "accounting", "automation", "settings", "menu"].contains(&selected.as_str()) {
+        if !["dashboard", "agenda", "notes", "projects", "clients", "catalog", "quotes", "invoices", "reminders", "time", "team", "expenses", "bank", "reports", "accounting", "automation", "settings", "menu"].contains(&selected.as_str()) {
             return Err("Navigation inconnue".into());
         }
         let on_navigate: Option<tauri::ipc::Channel<Value>> = on_navigate.map(|id| id.channel_on(webview));
