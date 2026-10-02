@@ -396,13 +396,31 @@ impl DiagnosticLog {
     fn summary(&self) -> Result<DiagnosticsSummary, DiagnosticError> {
         let _guard = self.0.operation_lock.lock().map_err(storage_error)?;
         let (records, file_count, size_bytes) = self.records()?;
-        let first_event_at = records.first().map(|record| record.event.timestamp.clone());
-        let last_event_at = records.last().map(|record| record.event.timestamp.clone());
-        let last_incident = records
-            .iter()
-            .rev()
-            .find(|record| record.event.phase == DiagnosticPhase::Failure)
-            .map(|record| record.event.clone());
+        let mut first_event: Option<(DateTime<chrono::FixedOffset>, usize)> = None;
+        let mut last_event: Option<(DateTime<chrono::FixedOffset>, usize)> = None;
+        let mut last_failure: Option<(DateTime<chrono::FixedOffset>, usize)> = None;
+        for (index, record) in records.iter().enumerate() {
+            // A frontend batch can arrive after a newer native event. Compare
+            // real instants, retaining the original timestamp/reference. For
+            // equal instants the first/last physical record is deterministic.
+            let timestamp = DateTime::parse_from_rfc3339(&record.event.timestamp)
+                .map_err(|_| DiagnosticError::InvalidEvent)?;
+            let key = (timestamp, index);
+            if first_event.as_ref().is_none_or(|current| &key < current) {
+                first_event = Some(key.clone());
+            }
+            if last_event.as_ref().is_none_or(|current| &key > current) {
+                last_event = Some(key.clone());
+            }
+            if record.event.phase == DiagnosticPhase::Failure
+                && last_failure.as_ref().is_none_or(|current| &key > current)
+            {
+                last_failure = Some(key);
+            }
+        }
+        let first_event_at = first_event.map(|(_, index)| records[index].event.timestamp.clone());
+        let last_event_at = last_event.map(|(_, index)| records[index].event.timestamp.clone());
+        let last_incident = last_failure.map(|(_, index)| records[index].event.clone());
         Ok(DiagnosticsSummary {
             session_id: self.0.session_id.clone(),
             app_version: self.0.app_version.clone(),
@@ -525,6 +543,32 @@ pub(crate) fn record_native_error(error: &AppError) {
     let active = ACTIVE_LOG.get().and_then(|slot| slot.lock().ok()?.clone());
     if let Some(log) = active {
         log.append_native_error(error);
+    }
+}
+
+pub(crate) struct PreparedNativeError {
+    log: DiagnosticLog,
+    event: DiagnosticEvent,
+}
+
+/// Capture the failure instant and a closed category before waiting for I/O.
+/// This owned receipt deliberately retains no exception or business payload.
+pub(crate) fn prepare_native_error(error: &AppError) -> Option<PreparedNativeError> {
+    let log = ACTIVE_LOG.get().and_then(|slot| slot.lock().ok()?.clone())?;
+    let event = DiagnosticEvent::native(
+        &log.0.session_id,
+        "command.native",
+        DiagnosticPhase::Failure,
+        Some(native_error_code(error)),
+    );
+    Some(PreparedNativeError { log, event })
+}
+
+pub(crate) async fn record_prepared_native_error(prepared: Option<PreparedNativeError>) {
+    if let Some(PreparedNativeError { log, event }) = prepared {
+        // Await the best-effort journal receipt, without detaching a task or
+        // keeping the account lock while the log/export mutex is occupied.
+        let _ = tauri::async_runtime::spawn_blocking(move || log.append(&[event])).await;
     }
 }
 
@@ -651,6 +695,14 @@ pub async fn get_form_draft_identity(
 #[cfg(test)]
 #[path = "startup_diagnostics_tests.rs"]
 mod startup_diagnostics_tests;
+
+#[cfg(test)]
+#[path = "diagnostics_async_error_tests.rs"]
+mod async_error_tests;
+
+#[cfg(test)]
+#[path = "diagnostics_summary_tests.rs"]
+mod summary_tests;
 
 #[cfg(test)]
 mod tests {

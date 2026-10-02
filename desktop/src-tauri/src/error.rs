@@ -32,3 +32,19 @@ pub fn command_error(error: AppError) -> String {
     crate::diagnostics::record_native_error(&error);
     error.to_string()
 }
+
+/// Called only after the asynchronous command has finished and released its
+/// business guards. Log persistence must not block its async executor or
+/// replace the original command result if the journal is unavailable.
+pub(crate) async fn finish_async_command<T>(result: AppResult<T>) -> Result<T, String> {
+    match result {
+        Ok(value) => Ok(value),
+        Err(error) => {
+            let message = error.to_string();
+            let prepared = crate::diagnostics::prepare_native_error(&error);
+            drop(error);
+            crate::diagnostics::record_prepared_native_error(prepared).await;
+            Err(message)
+        }
+    }
+}

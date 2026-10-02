@@ -13,6 +13,7 @@ const incidentStrings=new Map<string,StringIncident>();
 let timer:ReturnType<typeof setTimeout>|undefined;
 let flight:Promise<void>|undefined;
 let suppressedUntil=0;
+let clearing=0;
 const isNative = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const codes=['NETWORK','SESSION','PERMISSION','CONFLICT','VALIDATION','STORAGE','NOT_FOUND','INTERNAL','UNHANDLED','RENDER','LOG_WRITE_FAILED'];
 
@@ -37,8 +38,14 @@ export function recordDiagnostic(input:Omit<DiagnosticEvent,'id'|'sessionId'|'ti
   if(Number.isFinite(input.durationMs)&&input.durationMs!>=0)event.durationMs=Math.min(86400000,Math.round(input.durationMs!));
   if(input.errorCode&&codes.includes(input.errorCode))event.errorCode=input.errorCode;
   recent.push(event);if(recent.length>300)recent.shift();
-  if(isNative()){queue.push(event);if(queue.length>500)queue.shift();if(!timer&&Date.now()>=suppressedUntil)timer=setTimeout(()=>{timer=undefined;void flushDiagnostics();},300);}
+  if(isNative()){queue.push(event);if(queue.length>500)queue.shift();scheduleDiagnostics();}
   return id;
+}
+
+function cancelDiagnosticTimer(){if(timer!==undefined)clearTimeout(timer);timer=undefined;}
+function scheduleDiagnostics(){
+  if(timer!==undefined||flight||clearing||!queue.length||!isNative())return;
+  timer=setTimeout(()=>{timer=undefined;void flushDiagnostics();},Math.max(300,suppressedUntil-Date.now()));
 }
 
 function rememberIncident(error:unknown,id:string){
@@ -71,16 +78,19 @@ export function resolveErrorIncident(error:unknown):{code:string}{
 }
 
 export async function flushDiagnostics(force=false):Promise<void>{
-  if(!isNative()||(!force&&Date.now()<suppressedUntil))return;
+  if(!isNative())return;
   if(flight)return flight;
+  if(clearing)return;
+  if(!force&&Date.now()<suppressedUntil){scheduleDiagnostics();return;}
+  cancelDiagnosticTimer();
   flight=(async()=>{
     while(queue.length){
       const batch=queue.splice(0,100);
-      try{await nativeInvoke('append_diagnostic_events',{events:batch});}
+      try{await nativeInvoke('append_diagnostic_events',{events:batch});suppressedUntil=0;}
       catch{queue.unshift(...batch);if(queue.length>500)queue.splice(0,queue.length-500);suppressedUntil=Date.now()+30000;break;}
     }
   })();
-  try{await flight;}finally{flight=undefined;}
+  try{await flight;}finally{flight=undefined;scheduleDiagnostics();}
 }
 
 // The caller supplies a fixed operation name. This wrapper receives neither
@@ -115,6 +125,14 @@ export function installDiagnosticCapture(){
 export const diagnosticsApi={
   async summary(){await flushDiagnostics(true);return nativeInvoke<DiagnosticsSummary>('get_diagnostics_summary');},
   async export(){await flushDiagnostics(true);if(queue.length)throw new Error('Le diagnostic récent ne peut pas être conservé. Vérifiez le stockage de cet appareil puis réessayez l’export.');return nativeInvoke<string>('export_diagnostics');},
-  async clear(){await flushDiagnostics();await nativeInvoke('clear_diagnostics');queue.length=0;recent.length=0;incidentObjects=new WeakMap<object,string>();incidentStrings.clear();},
+  async clear(){
+    clearing++;cancelDiagnosticTimer();
+    try{
+      // Wait for writes already admitted, then pause retries until clearing ends.
+      if(flight)await flight;
+      await nativeInvoke('clear_diagnostics');
+      queue.length=0;recent.length=0;suppressedUntil=0;incidentObjects=new WeakMap<object,string>();incidentStrings.clear();
+    }finally{clearing--;scheduleDiagnostics();}
+  },
 };
 export function recentDiagnosticEvents():readonly DiagnosticEvent[]{return recent.map(event=>({...event}));}

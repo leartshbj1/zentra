@@ -332,7 +332,7 @@ pub async fn supplier_inbox_request(
     let store = state.inner().clone();
     let data = data.unwrap_or(Value::Null);
     if data.is_null() {
-        return crate::account_cloud::bound_inbox_get(&store, PATH).await.map_err(command_error);
+        return crate::error::finish_async_command(crate::account_cloud::bound_inbox_get(&store, PATH).await).await;
     }
     let _account = store.account_protected_cache.operation_lock.lock().await;
     let session = project_sync_session(&store)

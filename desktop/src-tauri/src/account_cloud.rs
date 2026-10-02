@@ -17,7 +17,7 @@ use uuid::{Uuid, Version};
 
 use crate::{
     database::LocalStore,
-    error::{command_error, AppError, AppResult},
+    error::{command_error, finish_async_command, AppError, AppResult},
     installation::{
         read_protected_reference, remove_protected, unprotect_protected_reference,
         write_protected_atomically_with_reference_after_server_verification, ProtectedDataCache,
@@ -424,7 +424,7 @@ pub async fn get_cloud_account_state(
     state: State<'_, LocalStore>,
 ) -> Result<CloudAccountState, String> {
     let store = state.inner().clone();
-    cloud_account_state(&store).await.map_err(command_error)
+    finish_async_command(cloud_account_state(&store).await).await
 }
 
 pub(crate) struct CompanyMailSession(CloudSession);
@@ -470,8 +470,11 @@ pub async fn get_cached_cloud_account_state(
     state: State<'_, LocalStore>,
 ) -> Result<CloudAccountState, String> {
     let store = state.inner().clone();
-    let _guard = store.account_protected_cache.operation_lock.lock().await;
-    cached_cloud_account_state(&store).map_err(command_error)
+    let result = {
+        let _guard = store.account_protected_cache.operation_lock.lock().await;
+        cached_cloud_account_state(&store)
+    };
+    finish_async_command(result).await
 }
 
 fn cached_cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState> {
@@ -511,8 +514,11 @@ pub(crate) async fn team_response(store: &LocalStore, data: Option<serde_json::V
 #[tauri::command]
 pub async fn cloud_team_request(state: State<'_, LocalStore>, data: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
     let store = state.inner().clone();
-    let _guard = store.account_protected_cache.operation_lock.lock().await;
-    team_response(&store, data).await.map_err(command_error)
+    let result = {
+        let _guard = store.account_protected_cache.operation_lock.lock().await;
+        team_response(&store, data).await
+    };
+    finish_async_command(result).await
 }
 
 #[tauri::command]
@@ -612,8 +618,11 @@ pub async fn start_cloud_account_link(
     state: State<'_, LocalStore>,
 ) -> Result<CloudAccountState, String> {
     let store = state.inner().clone();
-    let _guard = store.account_protected_cache.operation_lock.lock().await;
-    start_link(&store).await.map_err(command_error)
+    let result = {
+        let _guard = store.account_protected_cache.operation_lock.lock().await;
+        start_link(&store).await
+    };
+    finish_async_command(result).await
 }
 
 #[tauri::command]
@@ -621,8 +630,11 @@ pub async fn poll_cloud_account_link(
     state: State<'_, LocalStore>,
 ) -> Result<CloudAccountState, String> {
     let store = state.inner().clone();
-    let _guard = store.account_protected_cache.operation_lock.lock().await;
-    poll_link(&store).await.map_err(command_error)
+    let result = {
+        let _guard = store.account_protected_cache.operation_lock.lock().await;
+        poll_link(&store).await
+    };
+    finish_async_command(result).await
 }
 
 #[tauri::command]
@@ -665,8 +677,11 @@ fn account_portal_uri(section: Option<&str>, organization: Option<&str>) -> AppR
 #[tauri::command]
 pub async fn disconnect_cloud_account(state: State<'_, LocalStore>) -> Result<(), String> {
     let store = state.inner().clone();
-    let _guard = store.account_protected_cache.operation_lock.lock().await;
-    disconnect(&store).await.map_err(command_error)
+    let result = {
+        let _guard = store.account_protected_cache.operation_lock.lock().await;
+        disconnect(&store).await
+    };
+    finish_async_command(result).await
 }
 
 #[tauri::command]
@@ -677,10 +692,11 @@ pub async fn archive_invoice_to_cloud(
     expected_workspace_scope: Option<String>,
 ) -> Result<InvoiceArchiveResult, String> {
     let store = state.inner().clone();
-    let _guard = store.account_protected_cache.operation_lock.lock().await;
-    archive_invoice(&store, &invoice_id, correction_reason.as_deref(), expected_workspace_scope)
-        .await
-        .map_err(command_error)
+    let result = {
+        let _guard = store.account_protected_cache.operation_lock.lock().await;
+        archive_invoice(&store, &invoice_id, correction_reason.as_deref(), expected_workspace_scope).await
+    };
+    finish_async_command(result).await
 }
 
 async fn cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState> {

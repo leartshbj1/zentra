@@ -246,3 +246,120 @@ describe('safe diagnostics',()=>{
     expect((await api()).classifyDiagnosticError('Champ invalide : Le nom de l’entreprise doit être complété.')).toBe('VALIDATION');
   });
 });
+
+describe('diagnostic transport retry', () => {
+  function pending<T>() {
+    let resolve!: (value: T) => void, reject!: (reason: unknown) => void;
+    const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+    return { promise, resolve, reject };
+  }
+  const appends = () => invoke.mock.calls.filter(call => call[0] === 'append_diagnostic_events');
+  beforeEach(() => {
+    vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
+    vi.setSystemTime(new Date('2026-10-02T12:00:00Z'));
+  });
+  it.each([false, true])('recovers in silence after backoff, event during backoff=%s', async addEvent => {
+    const d = await api();
+    invoke.mockRejectedValueOnce(new Error('synthetic log storage failure')).mockResolvedValue(undefined);
+    const id = d.recordDiagnostic({ area: 'app', operation: 'client.startup', phase: 'info' });
+    await vi.advanceTimersByTimeAsync(300); expect(appends()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    if (addEvent) d.recordDiagnostic({ area: 'navigation', operation: 'screen.settings', phase: 'info' });
+    await vi.advanceTimersByTimeAsync(28999); expect(appends()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1); expect(appends()).toHaveLength(2);
+    expect(appends()[1][1].events.map((event: { id: string }) => event.id)).toContain(id);
+    expect(appends()[1][1].events).toHaveLength(addEvent ? 2 : 1); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('bounds repeated failures, event storms and retry frequency without retaining private input', async () => {
+    const d = await api(), times: number[] = []; let fail = true;
+    invoke.mockImplementation(async () => { times.push(Date.now()); if (fail) throw new Error('password=synthetic-secret'); });
+    d.recordDiagnostic({ area: 'app', operation: 'client.startup', phase: 'info' });
+    await vi.advanceTimersByTimeAsync(300);
+    for (let index = 0; index < 650; index++) d.recordDiagnostic({ area: 'sync', operation: 'company.checked', phase: 'info', payload: { password: 'synthetic-secret' } } as never);
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(29999); expect(appends()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1); expect(appends()).toHaveLength(2);
+    expect(times[1] - times[0]).toBe(30000); expect(vi.getTimerCount()).toBe(1);
+    fail = false; await vi.advanceTimersByTimeAsync(30000);
+    expect(appends()).toHaveLength(7); expect(vi.getTimerCount()).toBe(0);
+    expect(appends().slice(2).flatMap(call => call[1].events)).toHaveLength(500);
+    expect(appends().every(call => call[1].events.length <= 100)).toBe(true);
+    expect(d.recentDiagnosticEvents()).toHaveLength(300);
+    expect(JSON.stringify(appends())).not.toMatch(/password|synthetic-secret|payload/);
+  });
+  it('shares a forced flush with concurrent callers and replaces obsolete backoff after recovery', async () => {
+    const d = await api(), held = pending<void>(); let attempt = 0, active = 0, maximum = 0;
+    invoke.mockImplementation(async (command: string) => {
+      if (command === 'export_diagnostics') return '/synthetic/diagnostics.jsonl';
+      if (command !== 'append_diagnostic_events') return;
+      attempt++; active++; maximum = Math.max(maximum, active);
+      try { if (attempt === 1) throw new Error('synthetic storage failure'); if (attempt === 2) await held.promise; }
+      finally { active--; }
+    });
+    d.recordDiagnostic({ area: 'app', operation: 'client.startup', phase: 'info' });
+    await vi.advanceTimersByTimeAsync(300);
+    const exported = d.diagnosticsApi.export(), forced = d.flushDiagnostics(true), ordinary = d.flushDiagnostics();
+    d.recordDiagnostic({ area: 'navigation', operation: 'screen.settings', phase: 'info' });
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1000); expect(appends()).toHaveLength(2); expect(maximum).toBe(1);
+    held.resolve(undefined); await Promise.all([forced, ordinary]);
+    expect(await exported).toBe('/synthetic/diagnostics.jsonl');
+    expect(appends()).toHaveLength(3); expect(maximum).toBe(1); expect(vi.getTimerCount()).toBe(0);
+    d.recordDiagnostic({ area: 'navigation', operation: 'screen.home', phase: 'info' });
+    await vi.advanceTimersByTimeAsync(300); expect(appends()).toHaveLength(4);
+    expect(invoke.mock.calls.filter(call => call[0] === 'export_diagnostics')).toHaveLength(1);
+  });
+  it('pauses retries throughout clearing and never sends a successfully erased lot', async () => {
+    const d = await api(), cleared = pending<void>(); let attempt = 0;
+    invoke.mockImplementation(async (command: string) => {
+      if (command === 'append_diagnostic_events' && ++attempt === 1) throw new Error('synthetic storage failure');
+      if (command === 'clear_diagnostics') await cleared.promise;
+    });
+    d.recordDiagnostic({ area: 'app', operation: 'client.startup', phase: 'info' });
+    await vi.advanceTimersByTimeAsync(300);
+    const clearing = d.diagnosticsApi.clear(); await Promise.resolve();
+    d.recordDiagnostic({ area: 'navigation', operation: 'screen.settings', phase: 'info' });
+    await d.flushDiagnostics(true); await vi.advanceTimersByTimeAsync(31000);
+    expect(appends()).toHaveLength(1); expect(vi.getTimerCount()).toBe(0);
+    cleared.resolve(undefined); await clearing;
+    expect(d.recentDiagnosticEvents()).toHaveLength(0); expect(vi.getTimerCount()).toBe(0);
+    d.recordDiagnostic({ area: 'navigation', operation: 'screen.home', phase: 'info' });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(appends()).toHaveLength(2); expect(appends()[1][1].events.map((event: { operation: string }) => event.operation)).toEqual(['screen.home']);
+  });
+  it('keeps the original clear failure and resumes pending incidents without replaying business work', async () => {
+    const d = await api(), cleared = pending<void>(), clearFailure = new Error('synthetic clear failure'), original = new Error('network password=synthetic-secret');
+    let attempt = 0, businessCalls = 0;
+    invoke.mockImplementation(async (command: string) => {
+      if (command === 'append_diagnostic_events' && ++attempt === 1) throw new Error('synthetic storage failure');
+      if (command === 'clear_diagnostics') await cleared.promise;
+    });
+    await expect(d.diagnosticOperation('command', 'save_quote', async () => { businessCalls++; throw original; })).rejects.toBe(original);
+    const incident = d.resolveErrorIncident(original).code;
+    await vi.advanceTimersByTimeAsync(300);
+    const clearing = d.diagnosticsApi.clear().catch(reason => reason); await vi.advanceTimersByTimeAsync(31000);
+    expect(appends()).toHaveLength(1); expect(vi.getTimerCount()).toBe(0);
+    cleared.reject(clearFailure); expect(await clearing).toBe(clearFailure);
+    expect(vi.getTimerCount()).toBe(1); await vi.advanceTimersByTimeAsync(300);
+    expect(appends()).toHaveLength(2); expect(businessCalls).toBe(1);
+    const events = appends()[1][1].events;
+    expect(events.map((event: { phase: string }) => event.phase)).toEqual(['start', 'failure']);
+    expect(incident).toBe('ZT-' + events[1].id); expect(d.resolveErrorIncident(original).code).toBe(incident);
+    expect(JSON.stringify(events)).not.toMatch(/password|synthetic-secret/); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('waits for an active forced append before clearing even during backoff', async () => {
+    const d = await api(), held = pending<void>(); let attempt = 0;
+    invoke.mockImplementation(async (command: string) => {
+      if (command !== 'append_diagnostic_events') return;
+      if (++attempt === 1) throw new Error('synthetic storage failure'); await held.promise;
+    });
+    d.recordDiagnostic({ area: 'app', operation: 'client.startup', phase: 'info' });
+    await vi.advanceTimersByTimeAsync(300);
+    const forced = d.flushDiagnostics(true), clearing = d.diagnosticsApi.clear();
+    await Promise.resolve(); await Promise.resolve();
+    expect(invoke.mock.calls.some(call => call[0] === 'clear_diagnostics')).toBe(false);
+    held.resolve(undefined); await Promise.all([forced, clearing]);
+    expect(invoke.mock.calls.filter(call => call[0] === 'clear_diagnostics')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(31000); expect(appends()).toHaveLength(2); expect(vi.getTimerCount()).toBe(0);
+  });
+});
