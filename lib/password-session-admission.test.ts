@@ -153,6 +153,9 @@ describe('Password-session admission through real routes, client and migrations'
       browser.set(SUPABASE_RECOVERY_COOKIE, old.access_token);
       expect((await call(recoverPassword, request('/api/auth/mot-de-passe', { expectedEmail: 'account-a@example.test', password: 'fictional-password-123' }, 'PUT'))).response.status).toBe(200);
     } else {
+      grantIat = now - 1;
+      expect((await call(signIn, loginRequest())).response.status).toBe(200);
+      grantIat = now;
       browser.set(SUPABASE_ACCESS_COOKIE, old.access_token); browser.set(SUPABASE_REFRESH_COOKIE, old.refresh_token);
       expect((await call(profile, request('/api/account/profile', { expectedUserId: 'account-a', action, currentPassword: 'fictional-password-123', password: 'fictional-new-password-123' }, 'PUT'))).response.status).toBe(200);
     }
@@ -202,7 +205,9 @@ describe('Password-session admission through real routes, client and migrations'
   });
 
   it('never promotes old cookies and refreshes only this request’s password-grant session', async () => {
-    const old = payload('account-a', now - 1); policy();
+    grantIat = now - 1;
+    expect((await call(signIn, loginRequest())).response.status).toBe(200);
+    const old = passwordSession; grantIat = now; policy();
     browser.set(SUPABASE_ACCESS_COOKIE, old.access_token); browser.set(SUPABASE_REFRESH_COOKIE, old.refresh_token);
     const refused = await call(session, request('/api/auth/session'));
     expect(await refused.response.json()).toEqual({ authenticated: false });

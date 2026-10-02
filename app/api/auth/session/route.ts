@@ -19,9 +19,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     requireAuthSameOrigin(request);
-    const { accessToken, refreshToken, signedOut } =
+    const { accessToken, refreshToken, signedOut, sessionOwnerId } =
       await readSupabaseAuthCookies();
-    if (signedOut || (!accessToken && !refreshToken)) {
+    if (signedOut || !sessionOwnerId || (!accessToken && !refreshToken)) {
       return Response.json(
         { authenticated: false },
         { headers: authNoStoreHeaders() },
@@ -43,16 +43,17 @@ export async function GET(request: Request) {
     if (!user && refreshToken) {
       try {
         const renewed = await client.refresh(refreshToken);
-        await writeSupabaseAuthCookies(renewed);
         user = renewed.user;
         verifiedToken = renewed.accessToken;
+        if (user.id === sessionOwnerId && user.emailConfirmed && await accountSessionAllowed(user.id, verifiedToken))
+          await writeSupabaseAuthCookies(renewed);
       } catch (error) {
         if (!isRejectedAuthCredential(error)) throw error;
         await clearSupabaseAuthCookies();
       }
     }
 
-    if (!user?.emailConfirmed || !(await accountSessionAllowed(user.id, verifiedToken))) {
+    if (!user?.emailConfirmed || user.id !== sessionOwnerId || !(await accountSessionAllowed(user.id, verifiedToken))) {
       if (accessToken || refreshToken) await clearSupabaseAuthCookies();
       return Response.json(
         { authenticated: false },

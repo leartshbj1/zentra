@@ -57,14 +57,16 @@ function fromSupabaseUser(user: SupabaseAuthUser): ZentraUser | null {
 export async function getZentraUser(
   options: ZentraUserOptions = {},
 ): Promise<ZentraUser | null> {
-  const { accessToken, refreshToken, signedOut } =
+  const { accessToken, refreshToken, signedOut, sessionOwnerId } =
     await readSupabaseAuthCookies();
-  if (signedOut) return null;
+  // Missing/expired legacy bindings require explicit authentication, never repair.
+  if (signedOut || !sessionOwnerId) return null;
   const client = optionalSupabaseAuthClient();
   if (accessToken) {
     if (!client) return null;
     try {
       const user = await client.getUser(accessToken);
+      if (user.id !== sessionOwnerId) return null;
       if (await accountSessionAllowed(user.id, accessToken)) return withOfferedAccess(fromSupabaseUser(user));
       return null;
     } catch (error) {
@@ -76,6 +78,7 @@ export async function getZentraUser(
     if (!client) return null;
     try {
       const renewed = await client.refresh(refreshToken);
+      if (renewed.user.id !== sessionOwnerId) return null;
       if (!(await accountSessionAllowed(renewed.user.id, renewed.accessToken))) return null;
       await writeSupabaseAuthCookies(renewed);
       return withOfferedAccess(fromSupabaseUser(renewed.user));

@@ -144,6 +144,7 @@ describe('Account authentication routes and cookie flow', () => {
   });
 
   it('shows a confirmed personal account in navigation and renews its expired session', async () => {
+    await writeSupabaseAuthCookies(session, true);
     stubs.jar.set(SUPABASE_ACCESS_COOKIE, 'expired');
     stubs.jar.set(SUPABASE_REFRESH_COOKIE, 'old-refresh');
     stubs.getUser.mockRejectedValue(
@@ -158,6 +159,7 @@ describe('Account authentication routes and cookie flow', () => {
   });
 
   it('does not replace rejected personal credentials with the Sites identity in navigation', async () => {
+    await writeSupabaseAuthCookies(session, true);
     stubs.jar.set(SUPABASE_ACCESS_COOKIE, 'expired');
     stubs.jar.set(SUPABASE_REFRESH_COOKIE, 'revoked');
     stubs.getUser.mockRejectedValue(
@@ -307,6 +309,7 @@ describe('Account authentication routes and cookie flow', () => {
     );
     expect(response.status).toBe(403);
     expect(stubs.jar.get(SUPABASE_ACCESS_COOKIE)).toBeUndefined();
+    await writeSupabaseAuthCookies(session, true);
     stubs.jar.set(SUPABASE_ACCESS_COOKIE, 'unconfirmed');
     stubs.getUser.mockResolvedValue({ ...user, emailConfirmed: false });
     expect(await getZentraUser()).toBeNull();
@@ -319,6 +322,7 @@ describe('Account authentication routes and cookie flow', () => {
   });
 
   it('rotates an expired session without switching to another account provider', async () => {
+    await writeSupabaseAuthCookies(session, true);
     stubs.jar.set(SUPABASE_ACCESS_COOKIE, 'expired');
     stubs.jar.set(SUPABASE_REFRESH_COOKIE, 'old-refresh');
     stubs.getUser.mockRejectedValue(
@@ -424,6 +428,7 @@ describe('Account authentication routes and cookie flow', () => {
   });
 
   it('actually signs out legacy identities and cannot be undone by a late refresh', async () => {
+    await writeSupabaseAuthCookies(session, true);
     stubs.sitesUser.mockResolvedValue({ userId: 'legacy', email: user.email });
     const response = await signOut(
       new Request(

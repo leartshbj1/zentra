@@ -10,6 +10,9 @@ import {
   SUPABASE_PKCE_COOKIE,
   SUPABASE_AUTH_RETURN_COOKIE,
   SUPABASE_SIGNED_OUT_COOKIE,
+  SUPABASE_SESSION_OWNER_COOKIE,
+  SESSION_OWNER_COOKIE_MAX_AGE,
+  validSessionOwner,
   SUPABASE_RECOVERY_COOKIE,
   RECOVERY_COOKIE_MAX_AGE,
 } from './supabase-auth-cookie-policy';
@@ -17,10 +20,12 @@ import { isValidPkceVerifier } from './supabase-auth-pkce';
 
 export async function readSupabaseAuthCookies() {
   const jar = await cookies();
+  const owner = jar.get(SUPABASE_SESSION_OWNER_COOKIE)?.value ?? '';
   return {
     accessToken: jar.get(SUPABASE_ACCESS_COOKIE)?.value ?? '',
     refreshToken: jar.get(SUPABASE_REFRESH_COOKIE)?.value ?? '',
     signedOut: jar.get(SUPABASE_SIGNED_OUT_COOKIE)?.value === '1',
+    sessionOwnerId: validSessionOwner(owner) ? owner : '',
   };
 }
 
@@ -36,8 +41,14 @@ export async function writeSupabaseAuthCookies(
     );
   const jar = await cookies();
   if (explicitSignIn) {
+    if (!validSessionOwner(session.user.id))
+      throw new SupabaseAuthError('L’identité de la session est invalide. Reconnectez-vous.', 502, 'invalid_user_response');
+    // This binding only narrows a provider-verified identity; it never grants access.
+    jar.set(SUPABASE_SESSION_OWNER_COOKIE, session.user.id, authCookieOptions(SESSION_OWNER_COOKIE_MAX_AGE));
     jar.set(SUPABASE_SIGNED_OUT_COOKIE, '', authCookieOptions(0));
     jar.set(SUPABASE_RECOVERY_COOKIE, '', authCookieOptions(0));
+  } else if (jar.get(SUPABASE_SESSION_OWNER_COOKIE)?.value !== session.user.id || !validSessionOwner(session.user.id)) {
+    throw new SupabaseAuthError('Reconnectez-vous pour vérifier la session.', 401, 'session_owner_mismatch');
   }
   jar.set(
     SUPABASE_ACCESS_COOKIE,
@@ -53,6 +64,8 @@ export async function writeSupabaseAuthCookies(
 
 export async function clearSupabaseAuthCookies() {
   const jar = await cookies();
+  // Keep the fixed owner barrier: an old automatic response must not erase
+  // a later explicit login's binding. signed_out still takes precedence.
   jar.set(SUPABASE_ACCESS_COOKIE, '', authCookieOptions(0));
   jar.set(SUPABASE_REFRESH_COOKIE, '', authCookieOptions(0));
   jar.set(SUPABASE_PKCE_COOKIE, '', authCookieOptions(0));
