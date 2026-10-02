@@ -118,6 +118,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     solicitationSeen.current={workspace:id,enabled,ids};
   },[data.workspace?.id,data.workspace?.solicitationNotifications,data.solicitationFeed]);
   const sequence = useRef(0),
+    readController = useRef<AbortController | null>(null),
     busyRef = useRef(false),
     dataRef = useRef(data),
     workspaceRef = useRef(workspaceId);
@@ -162,6 +163,9 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
       } = {},
     ) => {
       if (demo) return;
+      const controller = new AbortController();
+      readController.current?.abort();
+      readController.current = controller;
       const request = ++sequence.current,
         params = new URLSearchParams(),
         id = options.workspace ?? workspaceRef.current;
@@ -185,17 +189,22 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
       try {
         let response = await fetch(`/api/support?${params}`, {
           cache: 'no-store',
+          signal: controller.signal,
         });
+        if (controller.signal.aborted || request !== sequence.current) return;
         if (response.status === 401) {
           const refresh = await fetch('/api/auth/session', {
             cache: 'no-store',
+            signal: controller.signal,
           });
+          if (controller.signal.aborted || request !== sequence.current) return;
           if (refresh.ok)
             response = await fetch(`/api/support?${params}`, {
               cache: 'no-store',
+              signal: controller.signal,
             });
         }
-        if (request !== sequence.current) return;
+        if (controller.signal.aborted || request !== sequence.current) return;
         if (response.status === 401) {
           setSignedOut(true);
           return;
@@ -207,6 +216,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         })) as SupportState & {
           error?: string;
         };
+        if (controller.signal.aborted || request !== sequence.current) return;
         if (!response.ok)
           throw new Error(
             result.error || 'Impossible de charger les tickets. Réessayez.',
@@ -228,7 +238,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         }));
         if (!options.quiet) setError('');
       } catch (e) {
-        if (request === sequence.current)
+        if (!controller.signal.aborted && request === sequence.current)
           setError(
             e instanceof Error
               ? e.message
@@ -239,6 +249,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
           setLoading(false);
           setFetching(false);
         }
+        if (readController.current === controller) readController.current = null;
       }
     },
     [demo, query, filter, category],
@@ -246,10 +257,15 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
   useEffect(() => {
     void load();
   }, [load, workspaceId]);
+  useEffect(() => () => {
+    sequence.current++;
+    readController.current?.abort();
+    readController.current = null;
+  }, []);
   useEffect(() => {
     if (demo) return;
     const refresh = () => {
-      if (!document.hidden && !busyRef.current) void load({ quiet: true });
+      if (!document.hidden && !busyRef.current && !readController.current) void load({ quiet: true });
     };
     const timer = setInterval(refresh, 15000);
     document.addEventListener('visibilitychange', refresh);
@@ -261,11 +277,15 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
   const mailWorkspace =
     !demo &&
     data.workspace?.canManage &&
+    (!workspaceId || workspaceId === data.workspace.id) &&
     data.connections.some((c) => c.provider === 'infomaniak')
       ? data.workspace.id
       : '';
+  const currentLoad = useRef(load);
+  useEffect(() => { currentLoad.current = load; }, [load]);
   useEffect(() => {
     if (!mailWorkspace) return;
+    const controller = new AbortController();
     let cancelled = false,
       inFlight = false;
     const receiveMail = async () => {
@@ -275,12 +295,13 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         await fetch('/api/support', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({
             action: 'syncMailboxes',
             workspaceId: mailWorkspace,
           }),
         });
-        if (!cancelled) await load({ quiet: true });
+        if (!cancelled) await currentLoad.current({ quiet: true });
       } catch {
         /* Keep the last successful sync visible; retry at the next tick. */
       } finally {
@@ -291,9 +312,10 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     const timer = setInterval(receiveMail, 60000);
     return () => {
       cancelled = true;
+      controller.abort();
       clearInterval(timer);
     };
-  }, [mailWorkspace, load]);
+  }, [mailWorkspace]);
   const mutate: Mutate = async (body) => {
     if (busyRef.current) return null;
     busyRef.current = true;
