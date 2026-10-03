@@ -6832,8 +6832,8 @@ function EmployeeForm({
     persisted.capture();
   }, [prefill]);
   function applyDocument(draft: EmployeeDocumentDraft) {
-    if (!salaryMode && draft.fields.salaryMode === 'monthly') setSalaryMode('monthly');
-    if (!salaryDraft && draft.fields.grossSalary) setSalaryDraft(draft.fields.grossSalary);
+    if (draft.fields.salaryMode === 'monthly') setSalaryMode(current => current || 'monthly');
+    if (draft.fields.grossSalary) setSalaryDraft(current => current || draft.fields.grossSalary || '');
     setPrefill(draft);
   }
 

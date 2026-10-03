@@ -36,7 +36,7 @@ const Onboarding = lazy(() => import('./Onboarding').then(module => ({ default: 
 const loadWorkspaceModule = () => import('./WorkspaceApp').then((module) => ({ default: module.WorkspaceApp }));
 const WorkspaceApp = lazy(loadWorkspaceModule);
 import type { AppSettings, LicenseState, Workspace } from './types';
-import { Button, ErrorPanel, Modal } from './ui';
+import { Button, Modal } from './ui';
 import { errorMessage, normalizeLicenseToken } from './utils';
 import { useMobileLayout } from './useMobileLayout';
 import { CloudAccountAccess } from './CloudAccountAccess';
@@ -70,6 +70,7 @@ export function App() {
     null,
   );
   const [error, setError] = useState('');
+  const [openingErrorIncident, setOpeningErrorIncident] = useState<{attempt:number;code:string} | null>(null);
   const [loading, setLoading] = useState(true);
   const [createdFor, setCreatedFor] = useState<string | null>(null);
   const [draftIdentity, setDraftIdentity] = useState<{key:string; memberId?:string}>({key:''});
@@ -112,6 +113,7 @@ export function App() {
     const incident = recordDiagnostic({area:'app',operation:'workspace.open',phase:'start'});
     setLoading(true);
     setError('');
+    setOpeningErrorIncident(null);
     try {
       await waitForNativeStartup();
       if (attempt !== openingAttempt.current) return;
@@ -131,6 +133,7 @@ export function App() {
     } catch (reason) {
       if (attempt !== openingAttempt.current) return;
       setError(errorMessage(reason, 'L’espace local n’a pas pu être ouvert.'));
+      setOpeningErrorIncident({attempt,code:`ZT-${incident}`});
       recordDiagnostic({id:incident,area:'app',operation:'workspace.open',phase:'failure',durationMs:performance.now()-started,errorCode:classifyDiagnosticError(reason)});
     } finally {
       if (attempt === openingAttempt.current) setLoading(false);
@@ -251,9 +254,11 @@ export function App() {
         <div className="splash-logo">
           <BrandMark size={58} />
         </div>
-        <ErrorPanel
+        <ErrorGuidance
           title={t("Espace indisponible")}
-          message={error || 'Aucune donnée locale n’a été retournée.'}
+          error={error || 'Aucune donnée locale n’a été retournée.'}
+          operation="read"
+          incidentCode={openingErrorIncident?.attempt === openingAttempt.current ? openingErrorIncident.code : undefined}
         />
         <Button autoFocus onClick={() => void load()}>{t("Réessayer")}</Button>
         <StandaloneUpdaterAccess />

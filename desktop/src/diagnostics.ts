@@ -21,12 +21,15 @@ const codes=['NETWORK','SESSION','PERMISSION','CONFLICT','VALIDATION','STORAGE',
 // Categorise in memory only. Neither messages, arguments nor responses enter the journal.
 export function classifyDiagnosticError(error:unknown):string {
   let text='';try { text=typeof error==='string'?error:error instanceof Error?String(error.message):typeof error==='object'&&error&&'message' in error?String(error.message):''; }catch{/* hostile object */}
+  // Do not treat a native invoice reference as an HTTP/session status.
+  const nativeMessage=/^(?:erreur de base de données locale|erreur de fichier local|données json invalides|formulaire pdf invalide|archive zentra invalide|champ invalide|enregistrement introuvable|chemin refusé car il sort du dossier local autorisé)\s*:/i.test(text.trimStart());
+  const statusText=nativeMessage?text.match(/\b(?:http(?:\/[\d.]+)?|status(?:\s+code)?)\s*[:=]?\s*(\d{3})\b/i)?.[1]||'':text;
   if(/(?:network|fetch|offline|internet|réseau|timeout|timed out|connexion.*(?:perdue|impossible))/i.test(text))return 'NETWORK';
-  if(/(?:401|unauth|session.*(?:expir|invalid)|connectez.*compte)/i.test(text))return 'SESSION';
-  if(/(?:403|forbidden|permission|lecture seule|autorisé|accès refusé)/i.test(text))return 'PERMISSION';
+  if(/401/.test(statusText)||/(?:unauth|session.*(?:expir|invalid)|connectez.*compte)/i.test(text))return 'SESSION';
+  if(/403/.test(statusText)||/(?:forbidden|permission|lecture seule|autorisé|accès refusé)/i.test(text))return 'PERMISSION';
   if(/(?:la connexion ou l[’']entreprise ouverte a changé\. rouvrez la réception\.|l[’']entreprise ouverte a changé\. rouvrez cette action dans le bon espace\.|l[’']espace de travail a changé pendant l[’']actualisation des réglages enregistrés\.)/i.test(text))return 'CONFLICT';
-  if(/(?:409|conflict|conflit|entre.temps|déjà.*enregistr|révision)/i.test(text))return 'CONFLICT';
-  if(/(?:introuvable|not found|404)/i.test(text))return 'NOT_FOUND';
+  if(/409/.test(statusText)||/(?:conflict|conflit|entre.temps|déjà.*enregistr|révision)/i.test(text))return 'CONFLICT';
+  if(/404/.test(statusText)||/(?:introuvable|not found)/i.test(text))return 'NOT_FOUND';
   if(/(?:database|sqlite|disk|quota|storage|stockage|fichier local|base de données|enospc)/i.test(text))return 'STORAGE';
   if(/(?:invalide|invalid|obligatoire|required|renseignez|choisissez)/i.test(text))return 'VALIDATION';
   return 'INTERNAL';

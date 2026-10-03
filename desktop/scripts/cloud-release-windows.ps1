@@ -130,6 +130,8 @@ try {
         $diagnosticNativeSuites += @('commands::stock_report_scope_tests::', 'stock::tests::')
         $diagnosticFrontendSuites += @('src/stockMutation.test.ts', 'src/stockWorkflow.test.ts', 'src/stockScopedWorkflow.test.ts')
         $diagnosticMobileSuites += @('src/stockMutation.test.ts', 'src/stockWorkflow.test.ts', 'src/stockScopedWorkflow.test.ts')
+        $diagnosticFrontendSuites += @('src/businessStatusNumbers.test.ts')
+        $diagnosticMobileSuites += @('src/businessStatusNumbers.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

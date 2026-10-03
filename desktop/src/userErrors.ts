@@ -89,14 +89,19 @@ export function classifyUserError(reason: unknown): UserErrorKind {
   const status = errorStatus(reason);
   const code = errorCode(reason);
   const text = `${code} ${message}`;
-  if (status === 401 || /\b401\b|jwt.*expir|session.*expir|session.*invalid|refresh.?token|not authenticated|unauthenticated|auth.*required|reconnectez|connexion.*expir/.test(text)) return 'session';
-  if (status === 403 || /\b403\b|forbidden|row.level.security|\brls\b|insufficient.privilege|permission denied|access denied|droits?.*(insuffisant|requis)|accès.*(refus|interdit)|read.only|lecture seule/.test(text)) return 'permission';
+  // Native validation/not-found bodies can contain invoice references such as FA-401.
+  // Only explicit status metadata or HTTP labels override that authored context.
+  const nativeMessage = /^(?:erreur de base de données locale|erreur de fichier local|données json invalides|formulaire pdf invalide|archive zentra invalide|champ invalide|enregistrement introuvable|chemin refusé car il sort du dossier local autorisé)\s*:/.test(message.trimStart());
+  const reportedHttpStatus = nativeMessage ? message.match(/\b(?:http(?:\/[\d.]+)?|status(?:\s+code)?)\s*[:=]?\s*(\d{3})\b/)?.[1] || '' : '';
+  const statusText = nativeMessage ? `${code} ${reportedHttpStatus}` : text;
+  if (status === 401 || /\b401\b/.test(statusText) || /jwt.*expir|session.*expir|session.*invalid|refresh.?token|not authenticated|unauthenticated|auth.*required|reconnectez|connexion.*expir/.test(text)) return 'session';
+  if (status === 403 || /\b403\b/.test(statusText) || /forbidden|row.level.security|\brls\b|insufficient.privilege|permission denied|access denied|droits?.*(insuffisant|requis)|accès.*(refus|interdit)|read.only|lecture seule/.test(text)) return 'permission';
   // Only authored native context rejections override the validation prefix.
   if (/(?:la connexion ou l[’']entreprise ouverte a changé\. rouvrez la réception\.|l[’']entreprise ouverte a changé\. rouvrez cette action dans le bon espace\.|l[’']espace de travail a changé pendant l[’']actualisation des réglages enregistrés\.)/.test(message)) return 'workspace';
-  if (status === 409 || /\b409\b|\b23505\b|unique constraint|duplicate key|already exists|conflict|conflit|sqlite_busy|database is locked|updated_at|version.*(changed|modifi)|modifi.*autre|déjà (utilisé|enregistré|existe)/.test(text)) return 'conflict';
-  if (status === 400 || status === 422 || /\b(400|422|23502|23503|23514)\b|validation|invalid (input|value|date|amount)|not.null.constraint|check.constraint|obligatoire|doit être|doivent être|date.*(invalide|antérieur)|montant.*(invalide|positif)|champ.*(requis|invalide)/.test(text)) return 'validation';
+  if (status === 409 || /\b409\b|\b23505\b/.test(statusText) || /unique constraint|duplicate key|already exists|conflict|conflit|sqlite_busy|database is locked|updated_at|version.*(changed|modifi)|modifi.*autre|déjà (utilisé|enregistré|existe)/.test(text)) return 'conflict';
+  if (status === 400 || status === 422 || /\b(400|422|23502|23503|23514)\b/.test(statusText) || /validation|invalid (input|value|date|amount)|not.null.constraint|check.constraint|obligatoire|doit être|doivent être|date.*(invalide|antérieur)|montant.*(invalide|positif)|champ.*(requis|invalide)/.test(text)) return 'validation';
   if (/\benoent\b|\beacces\b|\benospc\b|no space left|disk full|file not found|no such file|fichier.*(introuvable|invalide|illisible|format)|invalid.*(pdf|file)|unsupported.*(file|format)|cannot.*(file|directory)|unable.*(file|directory)|format.*non.*pris/.test(text)) return 'file';
-  if (status === 408 || status === 429 || (status !== undefined && status >= 500) || /\b(408|429|5\d\d)\b|failed to fetch|network.*(error|request|unavailable)|load failed|fetch failed|offline|timed? ?out|timeout|econn|enotfound|dns|connexion.*(internet|réseau)|service.*indisponible|connection.*(refused|reset|closed)|too many requests|rate.?limit/.test(text)) return 'network';
+  if (status === 408 || status === 429 || (status !== undefined && status >= 500) || /\b(408|429|5\d\d)\b/.test(statusText) || /failed to fetch|network.*(error|request|unavailable)|load failed|fetch failed|offline|timed? ?out|timeout|econn|enotfound|dns|connexion.*(internet|réseau)|service.*indisponible|connection.*(refused|reset|closed)|too many requests|rate.?limit/.test(text)) return 'network';
   return 'unknown';
 }
 
