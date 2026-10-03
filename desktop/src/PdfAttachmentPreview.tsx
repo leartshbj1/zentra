@@ -1,13 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Scan, ZoomIn, ZoomOut } from 'lucide-react';
 import { getDocument, type PDFDocumentLoadingTask, type PDFDocumentProxy, type RenderTask } from './pdfRuntime';
-import { Button, ErrorPanel } from './ui';
+import { Button } from './ui';
+import { ErrorGuidance } from './ErrorGuidance';
+import { diagnosticOperation, resolveErrorIncident } from './diagnostics';
 import { useTouchZoom } from './useTouchZoom';
 import { t, useAppLanguage } from './language';
 
+type PreviewOperation = 'pdf.attachment_load' | 'pdf.attachment_render' | 'pdf.attachment_cleanup';
+function isPdfCancellation(reason: unknown): boolean {
+  try {
+    return reason !== null && typeof reason === 'object' && 'name' in reason
+      && (reason.name === 'RenderingCancelledException' || reason.name === 'AbortException');
+  } catch { return false; }
+}
+function tracePreview(operation: PreviewOperation, cancelled: () => boolean, call: () => Promise<void>): Promise<void> {
+  return diagnosticOperation('app', operation, async () => {
+    try { await call(); }
+    catch (reason) {
+      // A superseded load/page settles normally. A failed worker teardown is
+      // still actionable; only PDF.js's normal cancellation is suppressed.
+      if (cancelled() || (operation === 'pdf.attachment_cleanup' && isPdfCancellation(reason))) return;
+      throw reason;
+    }
+  });
+}
+
 function previewError(reason: unknown) {
   const protectedPdf = reason instanceof Error && reason.name === 'PasswordException';
-  return { retryable: !protectedPdf, message: protectedPdf
+  return { retryable: !protectedPdf, incidentCode: resolveErrorIncident(reason).code, message: protectedPdf
     ? 'Ce PDF est protégé par un mot de passe. Ouvrez-le avec une application compatible.'
     : 'Ce PDF ne peut pas être affiché. Réessayez, ou ouvrez-le avec une application compatible.' };
 }
@@ -33,14 +54,15 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
     // PDF.js transfers its data buffer to the worker. Keep the original bytes for
     // retry/download and destroy the worker when the reader is closed.
     let task: PDFDocumentLoadingTask | undefined;
-    try {
+    void tracePreview('pdf.attachment_load', () => cancelled, async () => {
       task = getDocument({ data: bytes.slice() });
-      void task.promise.then(pdf => { if (!cancelled) setDocument(pdf); })
-        .catch(reason => { if (!cancelled) { setError(previewError(reason)); setLoading(false); } });
-    } catch (reason) {
-      setError(previewError(reason)); setLoading(false);
-    }
-    return () => { cancelled = true; void task?.destroy().catch(() => {}); };
+      const pdf = await task.promise;
+      if (!cancelled) setDocument(pdf);
+    }).catch(reason => { if (!cancelled) { setError(previewError(reason)); setLoading(false); } });
+    return () => {
+      cancelled = true;
+      if (task) void tracePreview('pdf.attachment_cleanup', () => false, () => task!.destroy()).catch(() => {});
+    };
   }, [bytes, attempt]);
 
   useEffect(() => {
@@ -58,7 +80,7 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
     const canvas = window.document.createElement('canvas');
     setLoading(true); setError(null); setText('');
     surface.current!.replaceChildren();
-    void (async () => {
+    void tracePreview('pdf.attachment_render', () => cancelled, async () => {
       const pdfPage = await document.getPage(page);
       if (cancelled) { pdfPage.cleanup(); return; }
       try {
@@ -89,7 +111,7 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
           if (!cancelled) setText(content.items.map(item => 'str' in item ? `${item.str}${item.hasEOL ? '\n' : ' '}` : '').join(''));
         } catch { /* A missing text layer does not invalidate a rendered page. */ }
       } finally { pdfPage.cleanup(); }
-    })().catch(reason => { if (!cancelled) { setError(previewError(reason)); setLoading(false); } })
+    }).catch(reason => { if (!cancelled) { setError(previewError(reason)); setLoading(false); } })
       .finally(() => { if (cancelled) { canvas.width = 0; canvas.height = 0; } });
     return () => {
       cancelled = true; renderTask?.cancel(); canvas.remove();
@@ -117,7 +139,7 @@ export default function PdfAttachmentPreview({ bytes, name }: { bytes: Uint8Arra
     </div> : null}
     <div ref={viewport} data-touch-document className="pdf-attachment-preview__viewport" tabIndex={0} role="region" aria-label={t('Page du PDF')} aria-busy={loading}>
       {loading ? <p className="attachment-preview__status" role="status">{t('Chargement de la page…')}</p> : null}
-      {error ? <ErrorPanel title={t('Aperçu indisponible')} message={t(error.message)} onRetry={error.retryable ? () => { viewport.current?.focus({ preventScroll: true }); setAttempt(value => value + 1); } : undefined} /> : null}
+      {error ? <ErrorGuidance title={t('Aperçu indisponible')} error={t(error.message)} incidentCode={error.incidentCode} operation={error.retryable ? 'read' : 'mutation'} onReload={error.retryable ? () => { viewport.current?.focus({ preventScroll: true }); setAttempt(value => value + 1); } : undefined} /> : null}
       <div className="pdf-attachment-preview__sizing" style={{width: Math.min(width, 1100) * zoom, height: height * zoom}} hidden={!!error}><div ref={surface} className="pdf-attachment-preview__page" style={{width: Math.min(width, 1100), transform: `scale(${zoom})`, transformOrigin: 'top left'}} /></div>
       {text.trim() ? <details className="pdf-attachment-preview__text" key={page}><summary>{t('Texte de la page')}</summary><p>{text}</p></details> : null}
     </div>

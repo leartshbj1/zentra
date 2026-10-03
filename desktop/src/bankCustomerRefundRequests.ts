@@ -1,4 +1,18 @@
 import { desktopApi } from './bridge';
+import { recordDiagnostic } from './diagnostics';
+
+type RequestCleanupTrace = { id?: string; started?: number };
+function recordRequestCleanup(phase: 'start' | 'success' | 'failure', trace: RequestCleanupTrace = {}): RequestCleanupTrace {
+  try {
+    if (phase === 'start') trace.started = performance.now();
+    trace.id = recordDiagnostic({
+      id: trace.id, area: 'draft', operation: 'bank.customer_request_cleanup', phase,
+      ...(phase === 'start' || trace.started === undefined ? {} : { durationMs: performance.now() - trace.started }),
+      ...(phase === 'failure' ? { errorCode: 'STORAGE' } : {}),
+    });
+  } catch { /* A journal failure must not replace the committed financial result. */ }
+  return trace;
+}
 
 type RequestContext = { requestId: string; movementId: string; description: string; amountCents: number; currency: string; date: string };
 export type BankCustomerRequest = RequestContext & (
@@ -147,6 +161,7 @@ export async function runBankCustomerRequest(request: BankCustomerRequest, expec
   if (saved.kind === 'create') await desktopApi.createBankCustomerCreditRefund(saved, verified.companyId, signal);
   else if (saved.kind === 'match') await desktopApi.matchBankCustomerCreditRefund(saved.requestId, saved.movementId, saved.refundId, saved.dateDifferenceReason, verified.companyId);
   else await desktopApi.unmatchBankCustomerCreditRefund(saved.requestId, saved.matchId, saved.reason, verified.companyId);
-  try { await removeBankCustomerRequest(saved, verified); return null; }
-  catch { return 'L’opération est enregistrée, mais sa demande locale reste à vérifier. Une nouvelle vérification ne créera aucun doublon.'; }
+  const cleanupTrace = recordRequestCleanup('start');
+  try { await removeBankCustomerRequest(saved, verified); recordRequestCleanup('success', cleanupTrace); return null; }
+  catch { recordRequestCleanup('failure', cleanupTrace); return 'L’opération est enregistrée, mais sa demande locale reste à vérifier. Une nouvelle vérification ne créera aucun doublon.'; }
 }
