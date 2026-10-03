@@ -1,0 +1,35 @@
+import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
+const invokeMock=vi.hoisted(()=>vi.fn());
+vi.mock('@tauri-apps/api/core',()=>({Channel:class{},invoke:invokeMock}));
+import {desktopApi} from './bridge';
+
+class HeldReader {
+  static instances:HeldReader[]=[];
+  static automatic=false;
+  result='';onload:(()=>void)|null=null;onabort:(()=>void)|null=null;onerror:(()=>void)|null=null;
+  readAsDataURL(){HeldReader.instances.push(this);if(HeldReader.automatic)queueMicrotask(()=>this.complete());}
+  abort(){this.onabort?.();}
+  complete(){this.result='data:application/pdf;base64,AQID';this.onload?.();}
+}
+const receipt=()=>new File([new Uint8Array([1,2,3])],'bank-proof.pdf',{type:'application/pdf'});
+const operations=[
+  {name:'expense',command:'create_bank_expense',run:(scope?:string,signal?:AbortSignal)=>desktopApi.createBankExpense({requestId:'same-request',movementId:'movement',date:'2026-09-01',supplier:'Fournisseur A',reference:'ORIGINAL-REF',category:'Matériel',projectId:'project',vatCents:81,vatTreatment:'input_materials',note:'Même note',receipt:receipt()},scope,signal),input:{request_id:'same-request',movement_id:'movement',date:'2026-09-01',supplier:'Fournisseur A',reference:'ORIGINAL-REF',category:'Matériel',project_id:'project',vat_cents:81,vat_treatment:'input_materials',note:'Même note',original_name:'bank-proof.pdf',content_base64:'AQID'}},
+  {name:'expense refund',command:'create_bank_expense_refund',run:(scope?:string,signal?:AbortSignal)=>desktopApi.createBankExpenseRefund('movement',{requestId:'same-request',expenseId:'expense',creditDate:'2026-09-01',paymentDate:'2026-09-02',reference:'ORIGINAL-REF',reason:'Retour fournisseur',netCents:1000,vatCents:81,reversesId:null,receipt:receipt()},scope,signal),input:{request_id:'same-request',expense_id:'expense',credit_date:'2026-09-01',payment_date:'2026-09-02',reference:'ORIGINAL-REF',reason:'Retour fournisseur',net_cents:1000,vat_cents:81,reverses_id:null},extra:{movementId:'movement',attachment:{original_name:'bank-proof.pdf',content_base64:'AQID'}}},
+  {name:'supplier credit refund',command:'create_bank_supplier_credit_refund',run:(scope?:string,signal?:AbortSignal)=>desktopApi.createBankSupplierCreditRefund({requestId:'same-request',movementId:'movement',supplierCreditNoteId:'supplier-credit',reference:'ORIGINAL-REF',reason:'Retour fournisseur',receipt:receipt()},scope,signal),input:{request_id:'same-request',movement_id:'movement',supplier_credit_note_id:'supplier-credit',reference:'ORIGINAL-REF',reason:'Retour fournisseur',attachment:{original_name:'bank-proof.pdf',content_base64:'AQID'}}},
+  {name:'customer credit refund',command:'create_bank_customer_credit_refund',run:(scope?:string,signal?:AbortSignal)=>desktopApi.createBankCustomerCreditRefund({requestId:'same-request',movementId:'movement',customerCreditNoteId:'customer-credit',amountCents:1081,date:'2026-09-02',reference:'ORIGINAL-REF',reason:'Retour client',receipt:receipt()},scope,signal),input:{request_id:'same-request',movement_id:'movement',customer_credit_note_id:'customer-credit',expected_amount_cents:1081,expected_date:'2026-09-02',reference:'ORIGINAL-REF',reason:'Retour client',attachment:{original_name:'bank-proof.pdf',content_base64:'AQID'}}},
+];
+const calls=()=>invokeMock.mock.calls.filter(([command])=>operations.some(op=>op.command===command));
+describe('four bank file creation admissions',()=>{
+ beforeEach(()=>{invokeMock.mockReset();invokeMock.mockResolvedValue({});HeldReader.instances=[];HeldReader.automatic=false;vi.stubGlobal('FileReader',HeldReader);});
+ afterEach(()=>{vi.unstubAllGlobals();});
+ for(const operation of operations){
+  it(operation.name+' preserves the legacy None contract, original bytes/input and void receipt',async()=>{HeldReader.automatic=true;expect(await operation.run()).toBeUndefined();expect(calls()).toEqual([[operation.command,{input:operation.input,...operation.extra}]]);});
+  it(operation.name+' forwards the exact caller scope with unchanged UUID and financial input',async()=>{HeldReader.automatic=true;expect(await operation.run('company-A')).toBeUndefined();expect(calls()).toEqual([[operation.command,{expectedWorkspaceScope:'company-A',input:operation.input,...operation.extra}]]);});
+  it(operation.name+' refuses an already aborted request before a reader or IPC',async()=>{HeldReader.automatic=true;const controller=new AbortController();controller.abort();await expect(operation.run('company-A',controller.signal)).rejects.toMatchObject({name:'AbortError'});expect(HeldReader.instances).toHaveLength(0);expect(calls()).toEqual([]);});
+  it(operation.name+' refuses a held reader released after its origin was cancelled',async()=>{const controller=new AbortController();const pending=operation.run('company-A',controller.signal);expect(HeldReader.instances).toHaveLength(1);controller.abort();HeldReader.instances[0].complete();await expect(pending).rejects.toMatchObject({name:'AbortError'});expect(calls()).toEqual([]);});
+  it(operation.name+' rechecks cancellation after read completion before IPC',async()=>{const controller=new AbortController();const pending=operation.run('company-A',controller.signal);HeldReader.instances[0].complete();controller.abort();await expect(pending).rejects.toMatchObject({name:'AbortError'});expect(calls()).toEqual([]);});
+  it(operation.name+' preserves original native refusal and never reloads/replays',async()=>{HeldReader.automatic=true;const reason=new Error('Original refusal');invokeMock.mockRejectedValue(reason);await expect(operation.run('company-A')).rejects.toBe(reason);expect(calls()).toHaveLength(1);expect(invokeMock.mock.calls.some(([command])=>command==='get_workspace'||command==='get_bank_workspace')).toBe(false);});
+ }
+ it('keeps an absent optional customer proof null without invoking FileReader',async()=>{expect(await desktopApi.createBankCustomerCreditRefund({requestId:'same-request',movementId:'movement',customerCreditNoteId:'credit',amountCents:1081,date:'2026-09-02',reference:'REF',reason:'Retour client',receipt:null},'company-A')).toBeUndefined();expect(HeldReader.instances).toEqual([]);expect(calls()).toEqual([['create_bank_customer_credit_refund',{expectedWorkspaceScope:'company-A',input:{request_id:'same-request',movement_id:'movement',customer_credit_note_id:'credit',expected_amount_cents:1081,expected_date:'2026-09-02',reference:'REF',reason:'Retour client',attachment:null}}]]);});
+ it('omits absent optional expense proof without invoking FileReader',async()=>{expect(await desktopApi.createBankExpenseRefund('movement',{requestId:'same-request',expenseId:'expense',creditDate:'2026-09-01',paymentDate:'2026-09-02',reference:'REF',reason:'Retour fournisseur',netCents:1000,vatCents:81,reversesId:null},'company-A')).toBeUndefined();expect(HeldReader.instances).toEqual([]);expect(calls()).toEqual([['create_bank_expense_refund',{expectedWorkspaceScope:'company-A',movementId:'movement',input:{request_id:'same-request',expense_id:'expense',credit_date:'2026-09-01',payment_date:'2026-09-02',reference:'REF',reason:'Retour fournisseur',net_cents:1000,vat_cents:81,reverses_id:null}}]]);});
+});

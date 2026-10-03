@@ -6112,25 +6112,28 @@ export const desktopApi = {
     await invoke('record_expense_refund', { ...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}), input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: input.reversesId }, ...(attachment ? { attachment } : {}) });
     return refreshWorkspaceAfterMutation(()=>loadPaymentFormWorkspace(expectedWorkspaceScope));
   },
-  async addCustomerCreditSettlementAttachment(settlementId: string, receipt: File): Promise<Workspace> {
-    await invoke('add_customer_credit_settlement_attachment',{settlementId,attachment:{original_name:receipt.name,content_base64:await fileBase64(receipt)}});
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async addCustomerCreditSettlementAttachment(settlementId: string, receipt: File, expectedWorkspaceScope?: string, signal?: AbortSignal): Promise<Workspace> {
+    if(signal?.aborted)throw new DOMException('Lecture du justificatif interrompue.','AbortError');
+    const contentBase64=await fileBase64(receipt,signal);
+    if(signal?.aborted)throw new DOMException('Lecture du justificatif interrompue.','AbortError');
+    await invoke('add_customer_credit_settlement_attachment',{settlementId,attachment:{original_name:receipt.name,content_base64:contentBase64},...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope})});
+    return refreshWorkspaceAfterMutation(()=>loadPaymentFormWorkspace(expectedWorkspaceScope));
   },
-  async getCustomerCreditRecovery(originalInvoiceId:string):Promise<CustomerCreditRecoveryPlan> {
-    const row=recordValue(await invoke('get_customer_credit_recovery',{originalInvoiceId}));
+  async getCustomerCreditRecovery(originalInvoiceId:string,expectedWorkspaceScope?:string):Promise<CustomerCreditRecoveryPlan> {
+    const row=recordValue(await invoke('get_customer_credit_recovery',{originalInvoiceId,...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope})}));
     return {receivedVat:row.received_vat===true,sourceToken:stringValue(row.source_token),originalInvoiceId:stringValue(row.original_invoice_id),number:stringValue(row.number),currency:stringValue(row.currency),invoiceTotalCents:numberValue(row.invoice_total_cents),paidCents:numberValue(row.paid_cents),blocker:nullableString(row.blocker),credits:rawArray(row.credits).map(value=>{
       const c=recordValue(value);return {id:stringValue(c.id),number:stringValue(c.number),totalCents:numberValue(c.total_cents),issueDate:stringValue(c.issue_date),earliestApplicationDate:stringValue(c.earliest_application_date)};
     })};
   },
-  async previewCustomerCreditRecovery(input:CustomerCreditRecoveryInput):Promise<CustomerCreditRecoveryPreview> {
-    const row=recordValue(await invoke('preview_customer_credit_recovery',{input:customerRecoveryNativeInput(input)}));
+  async previewCustomerCreditRecovery(input:CustomerCreditRecoveryInput,expectedWorkspaceScope?:string):Promise<CustomerCreditRecoveryPreview> {
+    const row=recordValue(await invoke('preview_customer_credit_recovery',{input:customerRecoveryNativeInput(input),...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope})}));
     return {...(row.received_vat===true?{receivedVat:true,vatAdjustments:rawArray(row.vat_adjustments).map(value=>{const a=recordValue(value);return {sourceType:stringValue(a.source_type),sourceId:stringValue(a.source_id),date:stringValue(a.date),reference:stringValue(a.reference),expectedVatCents:numberValue(a.expected_vat_cents),dueChangeCents:numberValue(a.due_change_cents)};})}:{}),originalInvoiceId:stringValue(row.original_invoice_id),number:stringValue(row.number),currency:stringValue(row.currency),invoiceRemainingCents:numberValue(row.invoice_remaining_cents),credits:rawArray(row.credits).map(value=>{
       const c=recordValue(value);return {creditNoteId:stringValue(c.credit_note_id),number:stringValue(c.number),allocatedCents:numberValue(c.allocated_cents),remainingCents:numberValue(c.remaining_cents)};
     })};
   },
-  async adoptCustomerCreditRecovery(input:CustomerCreditRecoveryInput):Promise<Workspace> {
-    await invoke('adopt_customer_credit_recovery',{input:customerRecoveryNativeInput(input)});
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async adoptCustomerCreditRecovery(input:CustomerCreditRecoveryInput,expectedWorkspaceScope?:string):Promise<Workspace> {
+    await invoke('adopt_customer_credit_recovery',{input:customerRecoveryNativeInput(input),...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope})});
+    return refreshWorkspaceAfterMutation(()=>loadPaymentFormWorkspace(expectedWorkspaceScope));
   },
   async recordCustomerCreditSettlement(input:CustomerSettlementInput,expectedWorkspaceScope?:string):Promise<Workspace> {
     return runCustomerSettlementMutation({input},()=>invoke('record_customer_credit_settlement',{...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}),input:{request_id:input.requestId,credit_note_id:input.creditNoteId,event_type:input.eventType,invoice_id:input.invoiceId,date:input.date,amount_cents:input.amountCents,bank_account_id:input.bankAccountId,reference:input.reference.trim(),reason:input.reason.trim()},...(input.expectedReview?{expectedReview:input.expectedReview}:{})}),()=>loadPaymentFormWorkspace(expectedWorkspaceScope));
@@ -6147,25 +6150,37 @@ export const desktopApi = {
   async reverseSupplierCreditRefund(input: {requestId: string; refundId: string; date: string; reason: string; expectedReview?: SupplierRefundReview}) {
     return runSupplierRefundMutation({kind:'reverse',requestId:input.requestId,refundId:input.refundId,date:input.date,reason:input.reason.trim()}, () => invoke('reverse_supplier_credit_refund',{input:{request_id:input.requestId,refund_id:input.refundId,date:input.date,reason:input.reason.trim()},...(input.expectedReview?{expectedReview:input.expectedReview}:{})}),loadWorkspace);
   },
-  async addExpenseRefundAttachment(refundId: string, receipt: File): Promise<Workspace> {
-    await invoke('add_expense_refund_attachment', { refundId, attachment: { original_name: receipt.name, content_base64: await fileBase64(receipt) } });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async addExpenseRefundAttachment(refundId: string, receipt: File, expectedWorkspaceScope?: string, signal?: AbortSignal): Promise<Workspace> {
+    if(signal?.aborted)throw new DOMException('Lecture du justificatif interrompue.','AbortError');
+    const contentBase64=await fileBase64(receipt,signal);
+    if(signal?.aborted)throw new DOMException('Lecture du justificatif interrompue.','AbortError');
+    await invoke('add_expense_refund_attachment',{refundId,attachment:{original_name:receipt.name,content_base64:contentBase64},...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope})});
+    return refreshWorkspaceAfterMutation(()=>loadPaymentFormWorkspace(expectedWorkspaceScope));
   },
-  async addSupplierCreditRefundAttachment(refundId: string, receipt: File): Promise<Workspace> {
-    await invoke('add_supplier_credit_refund_attachment',{refundId,attachment:{original_name:receipt.name,content_base64:await fileBase64(receipt)}});
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async addSupplierCreditRefundAttachment(refundId: string, receipt: File, expectedWorkspaceScope?: string, signal?: AbortSignal): Promise<Workspace> {
+    if(signal?.aborted)throw new DOMException('Lecture du justificatif interrompue.','AbortError');
+    const contentBase64=await fileBase64(receipt,signal);
+    if(signal?.aborted)throw new DOMException('Lecture du justificatif interrompue.','AbortError');
+    await invoke('add_supplier_credit_refund_attachment',{refundId,attachment:{original_name:receipt.name,content_base64:contentBase64},...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope})});
+    return refreshWorkspaceAfterMutation(()=>loadPaymentFormWorkspace(expectedWorkspaceScope));
   },
-  async createBankSupplierCreditRefund(input: {requestId:string; movementId:string; supplierCreditNoteId:string; reference:string; reason:string; receipt:File}): Promise<void> {
-    await invoke('create_bank_supplier_credit_refund',{input:{request_id:input.requestId,movement_id:input.movementId,supplier_credit_note_id:input.supplierCreditNoteId,reference:input.reference,reason:input.reason,attachment:{original_name:input.receipt.name,content_base64:await fileBase64(input.receipt)}}});
+  async createBankSupplierCreditRefund(input: {requestId:string; movementId:string; supplierCreditNoteId:string; reference:string; reason:string; receipt:File}, expectedWorkspaceScope?:string, signal?:AbortSignal): Promise<void> {
+    if(signal?.aborted)throw new DOMException('Lecture bancaire interrompue.','AbortError');
+    const contentBase64=await fileBase64(input.receipt,signal);
+    if(signal?.aborted)throw new DOMException('Lecture bancaire interrompue.','AbortError');
+    await invoke('create_bank_supplier_credit_refund',{...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}),input:{request_id:input.requestId,movement_id:input.movementId,supplier_credit_note_id:input.supplierCreditNoteId,reference:input.reference,reason:input.reason,attachment:{original_name:input.receipt.name,content_base64:contentBase64}}});
   },
-  async createBankCustomerCreditRefund(input: {requestId:string; movementId:string; customerCreditNoteId:string; amountCents:number; date:string; reference:string; reason:string; receipt:File|null}): Promise<void> {
-    await invoke('create_bank_customer_credit_refund',{input:{request_id:input.requestId,movement_id:input.movementId,customer_credit_note_id:input.customerCreditNoteId,expected_amount_cents:input.amountCents,expected_date:input.date,reference:input.reference,reason:input.reason,attachment:input.receipt?{original_name:input.receipt.name,content_base64:await fileBase64(input.receipt)}:null}});
+  async createBankCustomerCreditRefund(input: {requestId:string; movementId:string; customerCreditNoteId:string; amountCents:number; date:string; reference:string; reason:string; receipt:File|null}, expectedWorkspaceScope?:string, signal?:AbortSignal): Promise<void> {
+    if(signal?.aborted)throw new DOMException('Lecture bancaire interrompue.','AbortError');
+    const attachment=input.receipt?{original_name:input.receipt.name,content_base64:await fileBase64(input.receipt,signal)}:null;
+    if(signal?.aborted)throw new DOMException('Lecture bancaire interrompue.','AbortError');
+    await invoke('create_bank_customer_credit_refund',{...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}),input:{request_id:input.requestId,movement_id:input.movementId,customer_credit_note_id:input.customerCreditNoteId,expected_amount_cents:input.amountCents,expected_date:input.date,reference:input.reference,reason:input.reason,attachment}});
   },
-  async matchBankCustomerCreditRefund(requestId:string,movementId:string,refundId:string,dateDifferenceReason?:string): Promise<void> {
-    await invoke('match_bank_customer_credit_refund',{input:{request_id:requestId,movement_id:movementId,refund_id:refundId,date_difference_reason:dateDifferenceReason??null}});
+  async matchBankCustomerCreditRefund(requestId:string,movementId:string,refundId:string,dateDifferenceReason?:string,expectedWorkspaceScope?:string): Promise<void> {
+    await invoke('match_bank_customer_credit_refund',{...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}),input:{request_id:requestId,movement_id:movementId,refund_id:refundId,date_difference_reason:dateDifferenceReason??null}});
   },
-  async unmatchBankCustomerCreditRefund(requestId:string,matchId:string,reason:string): Promise<void> {
-    await invoke('unmatch_bank_customer_credit_refund',{input:{request_id:requestId,match_id:matchId,reason}});
+  async unmatchBankCustomerCreditRefund(requestId:string,matchId:string,reason:string,expectedWorkspaceScope?:string): Promise<void> {
+    await invoke('unmatch_bank_customer_credit_refund',{...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}),input:{request_id:requestId,match_id:matchId,reason}});
   },
   async matchBankSupplierCreditRefund(requestId:string,movementId:string,refundId:string,dateDifferenceReason?:string): Promise<void> {
     await invoke('match_bank_supplier_credit_refund',{input:{request_id:requestId,movement_id:movementId,refund_id:refundId,date_difference_reason:dateDifferenceReason??null}});
@@ -6173,9 +6188,11 @@ export const desktopApi = {
   async unmatchBankSupplierCreditRefund(requestId:string,matchId:string,reason:string): Promise<void> {
     await invoke('unmatch_bank_supplier_credit_refund',{input:{request_id:requestId,match_id:matchId,reason}});
   },
-  async createBankExpenseRefund(movementId: string, input: ExpenseRefundInput): Promise<void> {
-    const attachment = input.receipt ? { original_name: input.receipt.name, content_base64: await fileBase64(input.receipt) } : null;
-    await invoke('create_bank_expense_refund', { movementId, input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: null }, ...(attachment ? { attachment } : {}) });
+  async createBankExpenseRefund(movementId: string, input: ExpenseRefundInput, expectedWorkspaceScope?:string, signal?:AbortSignal): Promise<void> {
+    if(signal?.aborted)throw new DOMException('Lecture bancaire interrompue.','AbortError');
+    const attachment = input.receipt ? { original_name: input.receipt.name, content_base64: await fileBase64(input.receipt,signal) } : null;
+    if(signal?.aborted)throw new DOMException('Lecture bancaire interrompue.','AbortError');
+    await invoke('create_bank_expense_refund', { ...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}), movementId, input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: null }, ...(attachment ? { attachment } : {}) });
   },
   async matchBankExpenseRefund(requestId: string, movementId: string, refundId: string, dateDifferenceReason?: string): Promise<void> {
     await invoke('match_bank_expense_refund', { input: { request_id: requestId, movement_id: movementId, refund_id: refundId, date_difference_reason: dateDifferenceReason ?? null } });
@@ -6183,8 +6200,11 @@ export const desktopApi = {
   async unmatchBankExpenseRefund(requestId: string, matchId: string, reason: string): Promise<void> {
     await invoke('unmatch_bank_expense_refund', { input: { request_id: requestId, match_id: matchId, reason } });
   },
-  async createBankExpense(draft: import('./BankExpenseForm').BankExpenseDraft): Promise<void> {
-    await invoke('create_bank_expense', { input: { request_id: draft.requestId, movement_id: draft.movementId, date: draft.date, supplier: draft.supplier, reference: draft.reference, category: draft.category, project_id: draft.projectId, vat_cents: draft.vatCents, vat_treatment: draft.vatTreatment, note: draft.note, original_name: draft.receipt.name, content_base64: await fileBase64(draft.receipt) } });
+  async createBankExpense(draft: import('./BankExpenseForm').BankExpenseDraft, expectedWorkspaceScope?:string, signal?:AbortSignal): Promise<void> {
+    if(signal?.aborted)throw new DOMException('Lecture bancaire interrompue.','AbortError');
+    const contentBase64=await fileBase64(draft.receipt,signal);
+    if(signal?.aborted)throw new DOMException('Lecture bancaire interrompue.','AbortError');
+    await invoke('create_bank_expense', { ...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}), input: { request_id: draft.requestId, movement_id: draft.movementId, date: draft.date, supplier: draft.supplier, reference: draft.reference, category: draft.category, project_id: draft.projectId, vat_cents: draft.vatCents, vat_treatment: draft.vatTreatment, note: draft.note, original_name: draft.receipt.name, content_base64: contentBase64 } });
   },
   chooseRestoreFile: () =>
     chooseFile({

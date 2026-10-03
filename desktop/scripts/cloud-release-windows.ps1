@@ -8,10 +8,10 @@ $diagnosticSelection = if ([string]::IsNullOrEmpty($env:ZENTRA_DIAGNOSTICS_NATIV
 } else {
     $env:ZENTRA_DIAGNOSTICS_NATIVE_SET
 }
-if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll')) {
+if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll', 'benchmark-payment', 'benchmark-public-payment')) {
     throw 'Unknown diagnostics native verification set.'
 }
-if ($diagnosticSelection -ceq 'native-mail-payroll' -and
+if ($diagnosticSelection -cne 'full' -and
     ($env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY -cne 'true' -or $env:ZENTRA_VERIFY_ONLY -cne 'true')) {
     throw 'Targeted native verification requires both diagnostics and verification-only guards.'
 }
@@ -98,6 +98,64 @@ try {
             [IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-native-targeted-proof.json'), ($targetedProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
             return
         }
+        if ($diagnosticSelection -ceq 'benchmark-payment') {
+            $env:ZENTRA_PAYMENT_BENCHMARK_JSON = Join-Path $artifacts 'payment-workspace-benchmark.json'
+            $paymentBenchmark = 'database::workspace_payment_projection_tests::benchmark_real_payment_workspace_densities'
+            Invoke-ZentraVerificationSuite $diagnosticHarness $paymentBenchmark @('--ignored','--exact','--nocapture')
+            if (-not (Test-Path -LiteralPath $env:ZENTRA_PAYMENT_BENCHMARK_JSON -PathType Leaf)) { throw 'Payment benchmark proof was not created.' }
+            $paymentBenchmarkProof = Get-Content -LiteralPath $env:ZENTRA_PAYMENT_BENCHMARK_JSON -Raw | ConvertFrom-Json
+            if ($paymentBenchmarkProof.synthetic -ne $true -or $paymentBenchmarkProof.optimized -ne $true -or $paymentBenchmarkProof.densities.Count -ne 3) { throw 'Payment benchmark proof does not cover the synthetic optimized fixtures.' }
+            foreach ($density in $paymentBenchmarkProof.densities) {
+                if ($density.allRetainedValuesEqual -ne $true -or $density.payments -ne 1024 -or $density.runs.Count -ne 12) { throw 'Payment benchmark parity or required density is incomplete.' }
+            }
+            $benchmarkOnlyProof = [ordered]@{
+                source = $diagnosticSource; circleSource = $env:CIRCLE_SHA1
+                selection = $diagnosticSelection; verificationOnly = $true
+                target = 'x86_64-pc-windows-msvc'; nativeProfile = 'release'
+                data = 'synthetic'; nativeExecution = 'compiled-library-harness'
+                nativeFilters = @($paymentBenchmark); suiteExecutions = $diagnosticHarness.Proof.suiteExecutions
+                nativeHarnessProof = 'windows-test-harness-proof.json'
+                benchmarkProof = 'payment-workspace-benchmark.json'; selectedBenchmarkPassed = $true
+                testOnlyManifestTransformation = $diagnosticHarness.Proof.testOnlyManifestTransformation
+                loaderHypothesisConfirmed = $diagnosticHarness.Proof.loaderHypothesisConfirmed
+                harnessManifestRepairValidated = $diagnosticHarness.Proof.harnessManifestRepairValidated
+                fullFunctionalExecuted = $false; frontendExecuted = $false; mobileExecuted = $false
+                frontendBuildExecuted = $false; benchmarksExecuted = $true
+                publishesInstaller = $false; publishesRelease = $false; installsApplication = $false
+                startedAt = $diagnosticStartedAt; completedAt = [DateTimeOffset]::UtcNow.ToString('o')
+            }
+            [IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-benchmark-payment-proof.json'), ($benchmarkOnlyProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+            return
+        }
+        if ($diagnosticSelection -ceq 'benchmark-public-payment') {
+            $env:ZENTRA_PUBLIC_PAYMENT_BENCHMARK_JSON = Join-Path $artifacts 'public-payment-workspace-benchmark.json'
+            $publicPaymentBenchmark = 'database::workspace_payment_projection_tests::payment_read_projection_tests::benchmark_public_payment_workspace_densities'
+            Invoke-ZentraVerificationSuite $diagnosticHarness $publicPaymentBenchmark @('--ignored','--exact','--nocapture')
+            if (-not (Test-Path -LiteralPath $env:ZENTRA_PUBLIC_PAYMENT_BENCHMARK_JSON -PathType Leaf)) { throw 'Public-getter benchmark proof was not created.' }
+            $publicPaymentProof = Get-Content -LiteralPath $env:ZENTRA_PUBLIC_PAYMENT_BENCHMARK_JSON -Raw | ConvertFrom-Json
+            if ($publicPaymentProof.synthetic -ne $true -or $publicPaymentProof.optimized -ne $true -or $publicPaymentProof.densities.Count -ne 3) { throw 'Public-getter benchmark fixtures are incomplete.' }
+            foreach ($density in $publicPaymentProof.densities) {
+                if ($density.allRetainedValuesEqual -ne $true -or $density.publicGetters -ne $true -or $density.payments -ne 1024 -or $density.runs.Count -ne 6 -or $density.individualPaymentProofsChecked -ne $true) { throw 'Public-getter benchmark parity or required density is incomplete.' }
+            }
+            $benchmarkOnlyProof = [ordered]@{
+                source = $diagnosticSource; circleSource = $env:CIRCLE_SHA1
+                selection = $diagnosticSelection; verificationOnly = $true
+                target = 'x86_64-pc-windows-msvc'; nativeProfile = 'release'
+                data = 'synthetic'; nativeExecution = 'compiled-library-harness'
+                nativeFilters = @($publicPaymentBenchmark); suiteExecutions = $diagnosticHarness.Proof.suiteExecutions
+                nativeHarnessProof = 'windows-test-harness-proof.json'
+                benchmarkProof = 'public-payment-workspace-benchmark.json'; selectedBenchmarkPassed = $true
+                testOnlyManifestTransformation = $diagnosticHarness.Proof.testOnlyManifestTransformation
+                loaderHypothesisConfirmed = $diagnosticHarness.Proof.loaderHypothesisConfirmed
+                harnessManifestRepairValidated = $diagnosticHarness.Proof.harnessManifestRepairValidated
+                fullFunctionalExecuted = $false; frontendExecuted = $false; mobileExecuted = $false
+                frontendBuildExecuted = $false; benchmarksExecuted = $true
+                publishesInstaller = $false; publishesRelease = $false; installsApplication = $false
+                startedAt = $diagnosticStartedAt; completedAt = [DateTimeOffset]::UtcNow.ToString('o')
+            }
+            [IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-benchmark-public-payment-proof.json'), ($benchmarkOnlyProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+            return
+        }
         $diagnosticNativeSuites = @('diagnostics', 'startup_updater_config_tests', 'account_cloud::tests', 'account_cloud::inbox_read_tests', 'account_cloud::archive_worker_tests', 'company_collaboration::tests', 'company_collaboration::account::tests', 'commands::worker_tests', 'commands::pdf_worker_tests', 'commands::import_worker_tests', 'commands::project_file_scope_tests', 'license::tests', 'supplier_inbox::tests', 'appointment_inbox::tests', 'document_design::tests', 'financial_pdf::layout_tests', 'sales_pdf::tests', 'payroll_pdf::tests', 'salary_certificate::tests', 'project_report::tests', 'tests::annual_accounts_pdf_reads_the_ledger_and_keeps_the_existing_file_on_currency_error', 'tests::document_design_settings_are_validated_and_issued_sales_keep_their_original_pdf', 'backup::', 'tests::backup_restore_round_trip_recovers_local_rows', 'project_sync::tests', 'database::workspace_payment_projection_tests', 'accounting::historical_payment_guard_tests', 'customer_credit_tests::', 'tests::received_vat_is_deferred_then_reclassified_on_each_payment_and_credit_note')
         $diagnosticFrontendSuites = @('src/diagnostics.test.ts', 'src/formDrafts.test.ts', 'src/userErrors.test.ts', 'src/ErrorGuidance.test.tsx', 'src/DiagnosticsPanel.test.tsx', 'src/DiagnosticBoundary.test.tsx', 'src/payrollAssistantDiagnostics.test.ts', 'src/payrollLocalAi.test.ts', 'src/companyReceiveRefresh.test.ts', 'src/projectSyncScheduler.test.ts', 'src/companySyncDiagnostics.test.ts', 'src/companyRealtime.test.ts', 'src/nativePluginDiagnostics.test.ts', 'src/mobileFileDiagnostics.test.ts', 'src/projectDocumentRead.test.ts', 'src/projectFileSessions.test.ts', 'src/projectFileScope.test.ts', 'src/refundAttachments.test.tsx', 'src/documentExportBridge.test.ts', 'src/salesPdfExport.test.ts', 'src/bank.test.ts', 'src/bankRefunds.test.tsx', 'src/bankRefundCreate.test.tsx', 'src/bankCustomerRefundBridge.test.ts', 'src/nativeNavigationSession.test.ts', 'src/nativeNavigationContract.test.ts', 'src/importScopeBridge.test.ts', 'src/workspaceReception.test.ts', 'src/supplierInboxQueue.test.ts', 'src/supplierInboxReview.test.ts', 'src/supplierInboxBatch.test.ts', 'src/inboxManualImport.test.tsx', 'src/SupplierHabits.test.tsx', 'src/invoiceArchiveScope.test.ts', 'src/projectSyncDiagnostics.test.tsx', 'src/DeferredViewDiagnostics.test.tsx', 'src/AutomationDocumentDiagnostics.test.tsx')
         $diagnosticMobileSuites = @('src/diagnostics.test.ts', 'src/nativePluginDiagnostics.test.ts', 'src/mobileFileDiagnostics.test.ts', 'src/nativeNavigationSession.test.ts', 'src/nativeNavigationContract.test.ts', 'src/projectSyncDiagnostics.test.tsx', 'src/DeferredViewDiagnostics.test.tsx', 'src/AutomationDocumentDiagnostics.test.tsx')
@@ -141,26 +199,14 @@ try {
         $diagnosticNativeSuites += @('fixed_assets::tests::', 'commands::payment_forms_scope_tests::')
         $diagnosticFrontendSuites += @('src/customerCreditRequestScope.test.ts', 'src/paymentFormsScopeBridge.test.ts')
         $diagnosticMobileSuites += @('src/customerCreditRequestScope.test.ts', 'src/paymentFormsScopeBridge.test.ts')
+        $diagnosticNativeSuites += @('commands::attachment_mutation_scope_tests::', 'commands::bank_file_scope_tests::')
+        $diagnosticFrontendSuites += @('src/attachmentMutationScope.test.ts', 'src/bankFileMutationBridge.test.ts')
+        $diagnosticMobileSuites += @('src/attachmentMutationScope.test.ts', 'src/bankFileMutationBridge.test.ts')
+        $diagnosticNativeSuites += @('commands::bank_pending_scope_tests::')
+        $diagnosticFrontendSuites += @('src/customerCreditRecoveryScope.test.ts', 'src/customerCreditRecoveryScopeBridge.test.ts', 'src/customerCreditRecoveryState.test.tsx', 'src/bankPendingScope.test.ts')
+        $diagnosticMobileSuites += @('src/customerCreditRecoveryScope.test.ts', 'src/customerCreditRecoveryScopeBridge.test.ts', 'src/customerCreditRecoveryState.test.tsx', 'src/bankPendingScope.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
-        }
-        $env:ZENTRA_PAYMENT_BENCHMARK_JSON = Join-Path $artifacts 'payment-workspace-benchmark.json'
-        $paymentBenchmark = 'database::workspace_payment_projection_tests::benchmark_real_payment_workspace_densities'
-        Invoke-ZentraVerificationSuite $diagnosticHarness $paymentBenchmark @('--ignored','--exact','--nocapture')
-        if (-not (Test-Path -LiteralPath $env:ZENTRA_PAYMENT_BENCHMARK_JSON -PathType Leaf)) { throw 'Payment benchmark proof was not created.' }
-        $paymentBenchmarkProof = Get-Content -LiteralPath $env:ZENTRA_PAYMENT_BENCHMARK_JSON -Raw | ConvertFrom-Json
-        if ($paymentBenchmarkProof.synthetic -ne $true -or $paymentBenchmarkProof.optimized -ne $true -or $paymentBenchmarkProof.densities.Count -ne 3) { throw 'Payment benchmark proof does not cover the synthetic optimized fixtures.' }
-        foreach ($density in $paymentBenchmarkProof.densities) {
-            if ($density.allRetainedValuesEqual -ne $true -or $density.payments -ne 1024 -or $density.runs.Count -ne 12) { throw 'Payment benchmark parity or required density is incomplete.' }
-        }
-        $env:ZENTRA_PUBLIC_PAYMENT_BENCHMARK_JSON = Join-Path $artifacts 'public-payment-workspace-benchmark.json'
-        $publicPaymentBenchmark = 'database::workspace_payment_projection_tests::payment_read_projection_tests::benchmark_public_payment_workspace_densities'
-        Invoke-ZentraVerificationSuite $diagnosticHarness $publicPaymentBenchmark @('--ignored','--exact','--nocapture')
-        if (-not (Test-Path -LiteralPath $env:ZENTRA_PUBLIC_PAYMENT_BENCHMARK_JSON -PathType Leaf)) { throw 'Public-getter benchmark proof was not created.' }
-        $publicPaymentProof = Get-Content -LiteralPath $env:ZENTRA_PUBLIC_PAYMENT_BENCHMARK_JSON -Raw | ConvertFrom-Json
-        if ($publicPaymentProof.synthetic -ne $true -or $publicPaymentProof.optimized -ne $true -or $publicPaymentProof.densities.Count -ne 3) { throw 'Public-getter benchmark fixtures are incomplete.' }
-        foreach ($density in $publicPaymentProof.densities) {
-            if ($density.allRetainedValuesEqual -ne $true -or $density.publicGetters -ne $true -or $density.payments -ne 1024 -or $density.runs.Count -ne 6 -or $density.individualPaymentProofsChecked -ne $true) { throw 'Public-getter benchmark parity or required density is incomplete.' }
         }
         $diagnosticPreviousPlatform = $env:TAURI_ENV_PLATFORM
         try {
@@ -189,9 +235,8 @@ try {
             loaderHypothesisConfirmed = $diagnosticHarness.Proof.loaderHypothesisConfirmed
             harnessManifestRepairValidated = $diagnosticHarness.Proof.harnessManifestRepairValidated
             specificMissingDllOrSymbolConfirmed = $false
-            paymentBenchmark = $paymentBenchmark; paymentBenchmarkProof = 'payment-workspace-benchmark.json'
-            paymentWorkspaceParityPassed = $true; paymentBenchmarkPassed = $true
-            publicPaymentBenchmark = $publicPaymentBenchmark; publicPaymentBenchmarkProof = 'public-payment-workspace-benchmark.json'; publicPaymentBenchmarkPassed = $true
+            selection = $diagnosticSelection; functionalValidationPassed = $true; benchmarksExecuted = $false
+            requiredBenchmarkSelections = @('benchmark-payment', 'benchmark-public-payment')
             startedAt = $diagnosticStartedAt; completedAt = [DateTimeOffset]::UtcNow.ToString('o')
             publishesInstaller = $false; publishesRelease = $false; installsApplication = $false
         }

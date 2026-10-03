@@ -262,8 +262,10 @@ pub fn confirm_expense_bank_reconciliation(
 pub fn create_bank_expense(
     state: State<'_, LocalStore>,
     input: crate::models::CreateBankExpenseInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_workspace_origin(&state, expected_workspace_scope.as_deref()).map_err(command_error)?;
     require_write(&state)?;
     state.create_bank_expense(input).map_err(command_error)
 }
@@ -300,15 +302,17 @@ pub fn record_expense_refund(state: State<'_, LocalStore>, input: crate::expense
 }
 
 #[tauri::command]
-pub fn create_bank_expense_refund(state: State<'_, LocalStore>, input: crate::expense_refunds::ExpenseRefundInput, movement_id: String, attachment: Option<crate::expense_refund_attachments::RefundAttachmentInput>) -> Result<Value, String> {
+pub fn create_bank_expense_refund(state: State<'_, LocalStore>, input: crate::expense_refunds::ExpenseRefundInput, movement_id: String, attachment: Option<crate::expense_refund_attachments::RefundAttachmentInput>, expected_workspace_scope: Option<String>) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_workspace_origin(&state, expected_workspace_scope.as_deref()).map_err(command_error)?;
     require_write(&state)?;
     state.create_bank_expense_refund(input, attachment, &movement_id).map_err(command_error)
 }
 
 #[tauri::command]
-pub fn add_expense_refund_attachment(state: State<'_, LocalStore>, refund_id: String, attachment: crate::expense_refund_attachments::RefundAttachmentInput) -> Result<Value, String> {
+pub fn add_expense_refund_attachment(state: State<'_, LocalStore>, refund_id: String, attachment: crate::expense_refund_attachments::RefundAttachmentInput, expected_workspace_scope: Option<String>) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_workspace_origin(&state, expected_workspace_scope.as_deref()).map_err(command_error)?;
     require_write(&state)?;
     state.add_expense_refund_attachment(&refund_id, attachment).map_err(command_error)
 }
@@ -694,18 +698,20 @@ pub fn record_supplier_credit_refund(
 }
 
 #[tauri::command]
-pub fn get_customer_credit_recovery(state:State<'_,LocalStore>,original_invoice_id:String)->Result<Value,String> {
+pub fn get_customer_credit_recovery(state:State<'_,LocalStore>,original_invoice_id:String,expected_workspace_scope:Option<String>)->Result<Value,String> {
     let _guard=state.lock().map_err(command_error)?;
+    require_workspace_origin(&state,expected_workspace_scope.as_deref()).map_err(command_error)?;
     state.get_customer_credit_recovery(&original_invoice_id).map_err(command_error)
 }
 #[tauri::command]
-pub fn preview_customer_credit_recovery(state:State<'_,LocalStore>,input:crate::customer_credit_recovery::RecoveryInput)->Result<Value,String> {
+pub fn preview_customer_credit_recovery(state:State<'_,LocalStore>,input:crate::customer_credit_recovery::RecoveryInput,expected_workspace_scope:Option<String>)->Result<Value,String> {
     let _guard=state.lock().map_err(command_error)?;
+    require_workspace_origin(&state,expected_workspace_scope.as_deref()).map_err(command_error)?;
     state.preview_customer_credit_recovery(input).map_err(command_error)
 }
 #[tauri::command]
-pub fn adopt_customer_credit_recovery(state:State<'_,LocalStore>,input:crate::customer_credit_recovery::RecoveryInput)->Result<Value,String> {
-    let _guard=state.lock().map_err(command_error)?; require_write(&state)?;
+pub fn adopt_customer_credit_recovery(state:State<'_,LocalStore>,input:crate::customer_credit_recovery::RecoveryInput,expected_workspace_scope:Option<String>)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?; require_workspace_origin(&state,expected_workspace_scope.as_deref()).map_err(command_error)?; require_write(&state)?;
     state.adopt_customer_credit_recovery(input).map_err(command_error)
 }
 #[tauri::command]
@@ -725,8 +731,10 @@ pub fn reverse_customer_credit_settlement(state: State<'_,LocalStore>,input:crat
 }
 
 #[tauri::command]
-pub fn add_customer_credit_settlement_attachment(state:State<'_,LocalStore>,settlement_id:String,attachment:crate::expense_refund_attachments::RefundAttachmentInput)->Result<Value,String> {
-    let _guard=state.lock().map_err(command_error)?; require_write(&state)?;
+pub fn add_customer_credit_settlement_attachment(state:State<'_,LocalStore>,settlement_id:String,attachment:crate::expense_refund_attachments::RefundAttachmentInput,expected_workspace_scope:Option<String>)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;
+    require_workspace_origin(&state,expected_workspace_scope.as_deref()).map_err(command_error)?;
+    require_write(&state)?;
     state.add_customer_credit_settlement_attachment(&settlement_id,attachment).map_err(command_error)
 }
 
@@ -741,29 +749,35 @@ pub fn unmatch_bank_supplier_credit_refund(state:State<'_,LocalStore>,input:crat
     state.unmatch_bank_supplier_credit_refund(input).map_err(command_error)
 }
 #[tauri::command]
-pub fn create_bank_supplier_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::credit_refunds::CreateInput)->Result<Value,String> {
-    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+pub fn create_bank_supplier_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::credit_refunds::CreateInput,expected_workspace_scope:Option<String>)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;
+    require_workspace_origin(&state,expected_workspace_scope.as_deref()).map_err(command_error)?;
+    require_write(&state)?;
     state.create_bank_supplier_credit_refund(input).map_err(command_error)
 }
 #[tauri::command]
-pub fn add_supplier_credit_refund_attachment(state:State<'_,LocalStore>,refund_id:String,attachment:crate::expense_refund_attachments::RefundAttachmentInput)->Result<Value,String> {
-    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+pub fn add_supplier_credit_refund_attachment(state:State<'_,LocalStore>,refund_id:String,attachment:crate::expense_refund_attachments::RefundAttachmentInput,expected_workspace_scope:Option<String>)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;
+    require_workspace_origin(&state,expected_workspace_scope.as_deref()).map_err(command_error)?;
+    require_write(&state)?;
     state.add_supplier_credit_refund_attachment(&refund_id,attachment).map_err(command_error)
 }
 
 #[tauri::command]
-pub fn match_bank_customer_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::customer_refunds::MatchInput)->Result<Value,String> {
-    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+pub fn match_bank_customer_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::customer_refunds::MatchInput,expected_workspace_scope:Option<String>)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;require_workspace_origin(&state,expected_workspace_scope.as_deref()).map_err(command_error)?;require_write(&state)?;
     state.match_bank_customer_credit_refund(input).map_err(command_error)
 }
 #[tauri::command]
-pub fn unmatch_bank_customer_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::customer_refunds::UnmatchInput)->Result<Value,String> {
-    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+pub fn unmatch_bank_customer_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::customer_refunds::UnmatchInput,expected_workspace_scope:Option<String>)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;require_workspace_origin(&state,expected_workspace_scope.as_deref()).map_err(command_error)?;require_write(&state)?;
     state.unmatch_bank_customer_credit_refund(input).map_err(command_error)
 }
 #[tauri::command]
-pub fn create_bank_customer_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::customer_refunds::CreateInput)->Result<Value,String> {
-    let _guard=state.lock().map_err(command_error)?;require_write(&state)?;
+pub fn create_bank_customer_credit_refund(state:State<'_,LocalStore>,input:crate::bank_import::customer_refunds::CreateInput,expected_workspace_scope:Option<String>)->Result<Value,String> {
+    let _guard=state.lock().map_err(command_error)?;
+    require_workspace_origin(&state,expected_workspace_scope.as_deref()).map_err(command_error)?;
+    require_write(&state)?;
     state.create_bank_customer_credit_refund(input).map_err(command_error)
 }
 
@@ -2127,3 +2141,15 @@ pub async fn export_document_design_example(state: State<'_, LocalStore>, kind: 
 #[cfg(test)]
 #[path = "commands_payment_forms_scope_tests.rs"]
 mod payment_forms_scope_tests;
+
+#[cfg(test)]
+#[path = "commands_bank_file_scope_tests.rs"]
+mod bank_file_scope_tests;
+
+#[cfg(test)]
+#[path = "commands_attachment_mutation_scope_tests.rs"]
+mod attachment_mutation_scope_tests;
+
+#[cfg(test)]
+#[path = "commands_bank_pending_scope_tests.rs"]
+mod bank_pending_scope_tests;

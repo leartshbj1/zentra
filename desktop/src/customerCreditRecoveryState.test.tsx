@@ -6,6 +6,10 @@ import { desktopApi } from './bridge';
 import { CustomerCreditRecovery } from './CustomerCreditRecovery';
 import { clearCreditRecovery,readCreditRecovery,saveCreditRecovery } from './customerCreditRecoveryState';
 import type { PendingCreditRecovery } from './customerCreditRecoveryState';
+import {FormDraftIdentityProvider} from './useFormDraft';
+import type {Workspace} from './types';
+const recoveryScope={companyId:'synthetic-recovery-scope',organizationId:'synthetic-recovery-org',memberId:'synthetic-recovery-member'};
+const recoveryWorkspace={workNotesScope:recoveryScope.companyId} as Workspace;
 const pending:PendingCreditRecovery={input:{requestId:'12211111-1111-4111-8111-111111111111',originalInvoiceId:'invoice',sourceToken:'a'.repeat(64),reference:'Accord client',reason:'Déduction confirmée',noPriorRefund:true,credits:[{creditNoteId:'credit',appliedCents:2703,applicationDate:'2026-03-15'}]},preview:{originalInvoiceId:'invoice',number:'FAC-1',currency:'CHF',invoiceRemainingCents:8107,credits:[{creditNoteId:'credit',number:'AVO-1',allocatedCents:2703,remainingCents:2702}]}};
 function storage(){const map=new Map<string,string>();vi.stubGlobal('localStorage',{getItem:(key:string)=>map.get(key)??null,setItem:(key:string,value:string)=>map.set(key,value),removeItem:(key:string)=>map.delete(key)});return map;}
 afterEach(()=>{invokeMock.mockReset();vi.unstubAllGlobals();});
@@ -17,7 +21,8 @@ describe('reprise documentée des avoirs',()=>{
   it('conserve les corrections reçues et exige leur confirmation pour reprendre une demande',()=>{
     storage();const received={...pending,input:{...pending.input,confirmVatReconciliation:true},preview:{...pending.preview,receivedVat:true,vatAdjustments:[{sourceType:'payment',sourceId:'p1',date:'2026-04-01',reference:'Encaissement',expectedVatCents:224,dueChangeCents:-1}]}};
     saveCreditRecovery(received);expect(readCreditRecovery('invoice')).toEqual(received);
-    const html=renderToStaticMarkup(<CustomerCreditRecovery originalInvoiceId="invoice" busy={false} readOnly act={vi.fn()}/>);
+    saveCreditRecovery(received,recoveryScope);
+    const html=renderToStaticMarkup(<FormDraftIdentityProvider {...recoveryScope} ready><CustomerCreditRecovery workspace={recoveryWorkspace} originalInvoiceId="invoice" busy={false} readOnly act={vi.fn()}/></FormDraftIdentityProvider>);
     expect(html).toContain('TVA sur encaissements');expect(html).toContain('checked');expect(html).toContain('décompte rectificatif');expect(html).toContain('Encaissement');
     saveCreditRecovery({...received,input:{...received.input,confirmVatReconciliation:false}});expect(readCreditRecovery('invoice')).toBeUndefined();
   });
@@ -50,9 +55,18 @@ describe('reprise documentée des avoirs',()=>{
   });
   it('retrouve une demande interrompue après réouverture sans nouvelle identité',()=>{
     storage();saveCreditRecovery(pending);expect(readCreditRecovery('invoice')).toEqual(pending);expect(readCreditRecovery('another')).toBeUndefined();
-    const html=renderToStaticMarkup(<CustomerCreditRecovery originalInvoiceId="invoice" busy={false} readOnly act={vi.fn()}/>);
+    saveCreditRecovery(pending,recoveryScope);
+    const html=renderToStaticMarkup(<FormDraftIdentityProvider {...recoveryScope} ready><CustomerCreditRecovery workspace={recoveryWorkspace} originalInvoiceId="invoice" busy={false} readOnly act={vi.fn()}/></FormDraftIdentityProvider>);
     expect(html).toContain('Vérifier la même reprise');expect(html).toContain('Accord client');expect(html).not.toContain('>Modifier<');expect(html).toContain('disabled');
     clearCreditRecovery('invoice');expect(readCreditRecovery('invoice')).toBeUndefined();
+    clearCreditRecovery('invoice',recoveryScope,pending);expect(readCreditRecovery('invoice',recoveryScope)).toBeUndefined();
+  });
+  it('quarantaine une ancienne demande sans exposer son contenu ni écrire au montage',()=>{
+    const map=storage();saveCreditRecovery(pending);const retained=[...map.entries()];
+    const html=renderToStaticMarkup(<FormDraftIdentityProvider {...recoveryScope} ready><CustomerCreditRecovery workspace={recoveryWorkspace} originalInvoiceId="invoice" busy={false} readOnly={false} act={vi.fn()}/></FormDraftIdentityProvider>);
+    expect(html).toContain('Une ancienne reprise doit être vérifiée');expect(html).toContain('Vérifier l’historique');
+    expect(html).not.toContain(pending.input.reference);expect(html).not.toContain(pending.input.reason);expect(html).not.toContain('Reprendre la même reprise');
+    expect([...map.entries()]).toEqual(retained);expect(invokeMock).not.toHaveBeenCalled();
   });
   it('ignore une sauvegarde partielle ou des montants non entiers',()=>{
     const map=storage();saveCreditRecovery(pending);const key=Array.from(map.keys())[0];

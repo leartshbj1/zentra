@@ -1341,7 +1341,7 @@ export function PurchaseOrdersScreen({
           : desktopApi.recordSupplierCreditRefund({...input,requestId:modal.requestId,supplierCreditNoteId:modal.credit.id}),
           modal.reverse ? 'La correction a rétabli le disponible sur l’avoir et corrigé l’écriture bancaire.' : 'Le remboursement reçu est enregistré dans l’avoir et la comptabilité.')}
       /> : null}
-      {modal?.type==='refund_attachment'?<RefundAttachmentForm supplierCredit refund={modal.refund} busy={busy} readOnly={readOnly} close={()=>setModal(null)} act={runAction}/>:null}
+      {modal?.type==='refund_attachment'?<RefundAttachmentForm workspaceScope={workspace.workNotesScope} supplierCredit refund={modal.refund} busy={busy} readOnly={readOnly} close={()=>setModal(null)} act={runAction}/>:null}
       {modal?.type === 'reverse_credit' ? <SupplierCreditAllocationModal
         creditId={modal.credit.id} allocationId={modal.allocation.id} workspace={workspace} busy={busy} readOnly={readOnly} actionError={modalError}
         onClose={() => setModal(null)} onRefresh={onReadWorkspace} onOpenAccounting={receiptLinks.onOpenAccounting}

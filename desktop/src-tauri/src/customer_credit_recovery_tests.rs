@@ -470,3 +470,84 @@ fn recovery_v54_migration_preserves_legacy_rows_and_exports_retain_the_proof() {
         true
     );
 }
+
+// PREPARED ONLY. Not compiled or executed. Append inside the existing
+// customer_credit_recovery_tests.rs module to reuse its real legacy()/input()/
+// financial_snapshot() helpers. No fixture launches the app or contacts an API.
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use chrono::{Duration as ChronoDuration, Local, Utc};
+use ed25519_dalek::{Signer, SigningKey};
+use tauri::Manager;
+
+fn licensed_recovery_fixture() -> (tempfile::TempDir, LocalStore, String, Vec<String>) {
+    let (temporary, mut store, invoice, credits) = legacy();
+    // Public, synthetic signing authority scoped to this test store only.
+    let signing = SigningKey::from_bytes(&[31; 32]);
+    store.configure_test_license_key(signing.verifying_key().to_bytes());
+    let now = Utc::now();
+    let today = Local::now().date_naive();
+    let payload = crate::models::LicenseTokenPayload {
+        token_version: 2,
+        license_id: Uuid::new_v4().to_string(),
+        installation_id: store.installation_id.clone(),
+        jti: Uuid::new_v4().to_string(),
+        kid: "hc-prod-v1".into(),
+        customer_name: Some("Synthetic recovery company".into()),
+        access_role: "owner".into(),
+        account_user_id: None,
+        account_session_id: None,
+        plan: crate::license::LICENSE_PLAN.into(),
+        price_chf_cents: crate::license::LICENSE_PRICE_CHF_CENTS,
+        issued_at: now.to_rfc3339(),
+        valid_from: (today-ChronoDuration::days(1)).format("%Y-%m-%d").to_string(),
+        valid_until: (today+ChronoDuration::days(30)).format("%Y-%m-%d").to_string(),
+    };
+    let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
+    let token = format!("{encoded}.{}",URL_SAFE_NO_PAD.encode(signing.sign(encoded.as_bytes()).to_bytes()));
+    assert_eq!(store.install_server_issued_license(&token).unwrap()["status"],"valid");
+    store.require_write_access().unwrap();
+    (temporary, store, invoice, credits)
+}
+
+#[test]
+fn scoped_recovery_and_legacy_none_keep_exact_request_and_idempotent_ledger() {
+    for scoped in [true,false] {
+        let (_temporary,store,invoice,credits)=licensed_recovery_fixture();
+        let request=input(&store,&invoice,&credits);
+        let expected=scoped.then(||crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap());
+        let app=tauri::test::mock_builder().manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets())).unwrap();
+        let before=financial_snapshot(&store);
+        let plan=crate::commands::get_customer_credit_recovery(app.state(),invoice.clone(),expected.clone()).unwrap();
+        assert_eq!(plan["source_token"],request.source_token);
+        crate::commands::preview_customer_credit_recovery(app.state(),request.clone(),expected.clone()).unwrap();
+        assert_eq!(financial_snapshot(&store),before,"preview must roll back all financial changes");
+        let first=crate::commands::adopt_customer_credit_recovery(app.state(),request.clone(),expected.clone()).unwrap();
+        assert_eq!(first["idempotent"],false);
+        let recorded=financial_snapshot(&store);
+        let second=crate::commands::adopt_customer_credit_recovery(app.state(),request,expected).unwrap();
+        assert_eq!(second["idempotent"],true);
+        assert_eq!(financial_snapshot(&store),recorded,"same UUID/payload must not create a second ledger event");
+    }
+}
+
+#[test]
+fn restored_same_invoice_and_credit_uuids_do_not_admit_old_recovery_scope() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    let (_temporary,store,invoice,credits)=licensed_recovery_fixture();
+    let request=input(&store,&invoice,&credits);
+    let original_scope=crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap();
+    let backup=store.create_backup(None,"recovery-scope-fixture").unwrap();
+    {let _guard=store.lock().unwrap();store.restore_backup(&backup,"recovery-scope-fixture").unwrap();}
+    let received_scope=crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap();
+    assert_ne!(original_scope,received_scope);
+    let restored=financial_snapshot(&store);
+    let invoices=restored["invoices"].as_array().unwrap();
+    for id in std::iter::once(&invoice).chain(&credits) {
+        assert!(invoices.iter().any(|row|row["id"]==*id),"real backup/restore must retain the same document UUID");
+    }
+    let app=tauri::test::mock_builder().manage(store.clone())
+        .build(tauri::test::mock_context(tauri::test::noop_assets())).unwrap();
+    assert!(crate::commands::adopt_customer_credit_recovery(app.state(),request,Some(original_scope)).unwrap_err().contains("L’entreprise ouverte a changé"));
+    assert_eq!(financial_snapshot(&store),restored);
+}

@@ -22,8 +22,9 @@ import {
 import { desktopApi } from './bridge';
 import { BankClassification,AttentionSuggestion } from './AutomationControls';
 import { bankContext,anomalyContext } from './automation';
-import { BankCustomerPending, BankCustomerRefundCreate, useBankCustomerRequests } from './BankCustomerRefunds';
-import { removeBankCustomerRequest, runBankCustomerRequest, type BankCustomerRequest } from './bankCustomerRefundRequests';
+import { BankCustomerPending, BankCustomerLegacyPending, BankCustomerRefundCreate, useBankCustomerRequests } from './BankCustomerRefunds';
+import { useVerifiedFormDraftScope } from './useFormDraft';
+import { adoptLegacyBankCustomerRequest, removeBankCustomerRequest, runBankCustomerRequest, sameBankCustomerOrigin, type BankCustomerRequest, type BankCustomerRequestOrigin } from './bankCustomerRefundRequests';
 import {
   bankAccountingReady,
   canConfirmBankReconciliation,
@@ -225,8 +226,10 @@ export function BankScreen({
   const [newRefundMovement, setNewRefundMovement] = useState<BankMovement | null>(null);
   const [newCreditRefundMovement,setNewCreditRefundMovement]=useState<BankMovement|null>(null);
   const [newCustomerRefundMovement,setNewCustomerRefundMovement]=useState<BankMovement|null>(null);
-  const customerRequests = useBankCustomerRequests(bank?.movements ?? []);
-  const pendingCustomerIds = new Set(customerRequests.requests.map(request => request.movementId));
+  const verifiedCustomerOrigin = useVerifiedFormDraftScope(workspace, 'bank-customer-request');
+  const customerOrigin = useRef(verifiedCustomerOrigin); customerOrigin.current = verifiedCustomerOrigin;
+  const customerRequests = useBankCustomerRequests(bank?.movements ?? [], verifiedCustomerOrigin);
+  const pendingCustomerIds = new Set([...customerRequests.requests.map(row => row.request.movementId), ...customerRequests.legacy.map(request => request.movementId)]);
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [candidateQueries, setCandidateQueries] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -251,6 +254,14 @@ export function BankScreen({
   const workspaceGeneration = useRef(0);
   const publishedWorkspace = useRef<Workspace | null>(null);
   const refreshReadPending = useRef(false);
+  const fileMutations = useRef(new Set<AbortController>());
+  useLayoutEffect(() => () => { for(const controller of fileMutations.current)controller.abort();fileMutations.current.clear(); },[workspace.workNotesScope]);
+  function bankFileOrigin() {
+    const scope=currentWorkspace.current.workNotesScope;
+    if(!mounted.current||!scope?.trim())throw new Error('Rouvrez cette action dans votre entreprise avant de joindre un fichier.');
+    const controller=new AbortController();fileMutations.current.add(controller);
+    return {scope,signal:controller.signal,current:()=>mounted.current&&!controller.signal.aborted&&currentWorkspace.current.workNotesScope===scope,release:()=>fileMutations.current.delete(controller)};
+  }
   const writesDisabled = loading || busy || readOnly || refreshPending;
   const accountingReady = bankAccountingReady(workspace);
 
@@ -287,12 +298,14 @@ export function BankScreen({
 
   useLayoutEffect(() => {
     if (currentWorkspace.current === workspace) return;
+    const physicalScopeChanged=currentWorkspace.current.workNotesScope!==workspace.workNotesScope;
     currentWorkspace.current = workspace;
     const ownPublication = publishedWorkspace.current === workspace;
     publishedWorkspace.current = null;
-    if (ownPublication) return;
+    if (ownPublication && !physicalScopeChanged) return;
     workspaceGeneration.current++;
     if (!mounted.current) return;
+    if(physicalScopeChanged){setBusy(false);setNewExpenseMovement(null);setNewRefundMovement(null);setNewCreditRefundMovement(null);setNewCustomerRefundMovement(null);}
     // Reception replaces the company data without leaving this screen. Read
     // the received movements before enabling writes. Keep the current
     // snapshot visible while this background read completes.
@@ -504,13 +517,16 @@ export function BankScreen({
   }
   async function createExpense(draft: BankExpenseDraft) {
     if (writesDisabled) throw new Error('Actualisez les données avant de créer une dépense.');
+    const origin=bankFileOrigin();
     setBusy(true); setFeedback(null);
     try {
-      await desktopApi.createBankExpense(draft);
+      await desktopApi.createBankExpense(draft,origin.scope,origin.signal);
+      if(!origin.current())return;
       setNewExpenseMovement(null);
       const warnings = await refreshBoth();
+      if(!origin.current())return;
       setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Dépense créée et rapprochée', text: 'Le justificatif, la dépense et son paiement sont enregistrés.' + (warnings.length ? ' Actualisation incomplète : rechargez les données.' : ''), warnings });
-    } finally { setBusy(false); }
+    } finally { if(origin.current())setBusy(false);origin.release(); }
   }
 
   async function confirmExpenseMovement(movement: BankMovement, expenseId: string, dateDifferenceReason: string | undefined, requestId: string) {
@@ -526,23 +542,29 @@ export function BankScreen({
 
   async function createRefund(input: ExpenseRefundInput) {
     if (writesDisabled || !newRefundMovement) throw new Error('Actualisez les données avant de créer le remboursement.');
+    const origin=bankFileOrigin();
     setBusy(true); setFeedback(null);
     try {
-      await desktopApi.createBankExpenseRefund(newRefundMovement.id, input);
+      await desktopApi.createBankExpenseRefund(newRefundMovement.id,input,origin.scope,origin.signal);
+      if(!origin.current())return;
       setNewRefundMovement(null);
       const warnings = await refreshBoth();
+      if(!origin.current())return;
       setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Remboursement créé et rapproché', text: 'Le remboursement, ses justificatifs et ses écritures sont enregistrés avec le crédit bancaire.' + (warnings.length ? ' Actualisez les données pour afficher le résultat.' : ''), warnings });
-    } finally { setBusy(false); }
+    } finally { if(origin.current())setBusy(false);origin.release(); }
   }
 
   async function createCreditRefund(input:Parameters<typeof desktopApi.createBankSupplierCreditRefund>[0]) {
     if(writesDisabled||!newCreditRefundMovement||input.movementId!==newCreditRefundMovement.id)throw new Error('Actualisez les données avant cette création.');
+    const origin=bankFileOrigin();
     setBusy(true);setFeedback(null);
     try {
-      await desktopApi.createBankSupplierCreditRefund(input);setNewCreditRefundMovement(null);
+      await desktopApi.createBankSupplierCreditRefund(input,origin.scope,origin.signal);
+      if(!origin.current())return;setNewCreditRefundMovement(null);
       const warnings=await refreshBoth();
+      if(!origin.current())return;
       setFeedback({tone:warnings.length?'warning':'success',title:'Avoir remboursé et rapproché',text:'Le virement, le remboursement et son justificatif sont enregistrés ensemble.'+(warnings.length?' Actualisez les données pour afficher le résultat.':''),warnings});
-    }finally{setBusy(false);}
+    } finally { if(origin.current())setBusy(false);origin.release(); }
   }
 
   async function confirmRefund(movement: BankMovement, requestId: string, refundId: string, dateReason?: string) {
@@ -577,22 +599,43 @@ export function BankScreen({
     } finally { setBusy(false); }
   }
 
-  async function customerRequest(request: BankCustomerRequest) {
+  function requireCustomerOrigin(origin: BankCustomerRequestOrigin | null | undefined) {
+    if (!mounted.current || !origin || !sameBankCustomerOrigin(origin, customerOrigin.current) || currentWorkspace.current.workNotesScope !== origin.companyId) throw new Error('L’entreprise ouverte a changé. Rouvrez la demande dans son espace d’origine.');
+    return origin;
+  }
+  async function customerRequest(request: BankCustomerRequest, requestOrigin: BankCustomerRequestOrigin | null = verifiedCustomerOrigin) {
+    const verified = requireCustomerOrigin(requestOrigin);
     if (writesDisabled || !bank?.movements.some(row => row.id === request.movementId)) throw new Error('Actualisez le relevé avant de vérifier ce remboursement.');
+    const origin=bankFileOrigin();
     setBusy(true); setFeedback(null);
     try {
-      const cleanupWarning = await runBankCustomerRequest(request);
+      const cleanupWarning = await runBankCustomerRequest(request,verified.companyId,origin.signal,verified);
+      if(origin&&!origin.current())return;
       setNewCustomerRefundMovement(null); setRefundToUnlink(null);
       const warnings = await refreshBoth();
+      if(origin&&!origin.current())return;
       if (cleanupWarning) warnings.push(cleanupWarning);
       setFeedback({ tone: warnings.length ? 'warning' : 'success', title: request.kind === 'create' ? 'Remboursement client enregistré et rapproché' : request.kind === 'unlink' ? 'Remboursement dissocié du relevé' : 'Remboursement client rapproché', text: request.kind === 'create' ? 'Le remboursement réel et sa preuve bancaire sont enregistrés avec l’avoir.' : request.kind === 'unlink' ? 'Le remboursement, son écriture et sa TVA sont conservés.' : 'Le débit est relié au remboursement déjà comptabilisé.', warnings });
-    } finally { setBusy(false); }
+    } finally { if(!origin||origin.current())setBusy(false);origin?.release(); }
   }
-  async function removeCustomerRequest(request: BankCustomerRequest) {
+  async function removeCustomerRequest(request: BankCustomerRequest, requestOrigin: BankCustomerRequestOrigin) {
+    const verified = requireCustomerOrigin(requestOrigin);
     if (writesDisabled) throw new Error('Actualisez les données avant de retirer cette demande.');
-    setBusy(true);
-    try { await removeBankCustomerRequest(request); const warnings = await refreshBoth(); setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Copie de reprise retirée', text: 'Les opérations déjà enregistrées sont conservées.', warnings }); }
-    finally { setBusy(false); }
+    const origin=bankFileOrigin(); setBusy(true);
+    try { await removeBankCustomerRequest(request,verified); if (!origin.current()) return; const warnings = await refreshBoth(); if (!origin.current()) return; setFeedback({ tone: warnings.length ? 'warning' : 'success', title: 'Copie de reprise retirée', text: 'Les opérations déjà enregistrées sont conservées.', warnings }); }
+    finally { if(origin.current())setBusy(false);origin.release(); }
+  }
+  async function reviewLegacyCustomerRequest(request: BankCustomerRequest) {
+    const verified = requireCustomerOrigin(verifiedCustomerOrigin), origin=bankFileOrigin();
+    try { const fresh=await desktopApi.getBankWorkspace(verified.companyId); if (!origin.current()) throw new DOMException('Cette lecture a été annulée.', 'AbortError'); requireCustomerOrigin(verified); return fresh.movements.find(row=>row.id===request.movementId) ?? null; }
+    finally { origin.release(); }
+  }
+  async function adoptLegacyCustomerRequest(request: BankCustomerRequest) {
+    const verified=requireCustomerOrigin(verifiedCustomerOrigin);
+    if (writesDisabled) throw new Error('Actualisez les données avant de choisir l’entreprise de cette demande.');
+    const origin=bankFileOrigin();setBusy(true);
+    try { await adoptLegacyBankCustomerRequest(request,verified,origin.signal);if(!origin.current())return;setFeedback({tone:'success',title:'Copie liée à cet espace',text:'La demande conserve son identifiant et son justificatif. Vérifiez-la séparément dans « Demandes à vérifier ». Aucun remboursement n’a été envoyé.'}); }
+    finally { if(origin.current())setBusy(false);origin.release(); }
   }
   const actionMovement = bankAction && 'movementId' in bankAction ? bank?.movements.find(row => row.id === bankAction.movementId) : undefined;
   const actionAccount = bankAction && 'accountId' in bankAction ? bank?.accounts.find(row => row.accountId === bankAction.accountId && row.currency === bankAction.currency) : undefined;
@@ -629,7 +672,8 @@ export function BankScreen({
 
     {newCustomerRefundMovement ? <BankCustomerRefundCreate movement={newCustomerRefundMovement} workspace={workspace} busy={busy} readOnly={loading || readOnly || refreshPending} close={() => setNewCustomerRefundMovement(null)} onSave={customerRequest} /> : null}
     {customerRequests.error ? <ErrorPanel title="Demandes de remboursement indisponibles" message={customerRequests.error} onRetry={customerRequests.retry} /> : null}
-    <BankCustomerPending requests={customerRequests.requests} disabled={writesDisabled} onRun={customerRequest} onRemove={removeCustomerRequest} />
+    <BankCustomerPending key={"customer-pending:"+JSON.stringify([verifiedCustomerOrigin?.companyId,verifiedCustomerOrigin?.organizationId,verifiedCustomerOrigin?.memberId])} requests={customerRequests.requests} disabled={writesDisabled || !verifiedCustomerOrigin} onRun={row=>customerRequest(row.request,row.origin)} onRemove={row=>removeCustomerRequest(row.request,row.origin)} />
+    <BankCustomerLegacyPending key={JSON.stringify([verifiedCustomerOrigin?.companyId,verifiedCustomerOrigin?.organizationId,verifiedCustomerOrigin?.memberId])} requests={customerRequests.legacy} companyName={workspace.settings?.organization.legalName || 'cet espace'} disabled={writesDisabled || !verifiedCustomerOrigin} onReview={reviewLegacyCustomerRequest} onAdopt={adoptLegacyCustomerRequest} />
     {newCreditRefundMovement?<BankCreditRefundCreate movement={newCreditRefundMovement} workspace={workspace} busy={busy} readOnly={loading||readOnly||refreshPending} close={()=>setNewCreditRefundMovement(null)} onSave={createCreditRefund}/>:null}
     {newRefundMovement ? <BankRefundCreate movement={newRefundMovement} workspace={workspace} busy={busy} readOnly={loading || readOnly || refreshPending} close={() => setNewRefundMovement(null)} onSave={createRefund} /> : null}
     {refundToUnlink ? <BankRefundUnlink movement={refundToUnlink} busy={writesDisabled} close={() => setRefundToUnlink(null)} onConfirm={unlinkRefund} /> : null}

@@ -9,7 +9,7 @@ parameters:
     default: false
   diagnostics-native-set:
     type: enum
-    enum: [full, native-mail-payroll]
+    enum: [full, native-mail-payroll, benchmark-payment, benchmark-public-payment]
     default: full
   release:
     type: boolean

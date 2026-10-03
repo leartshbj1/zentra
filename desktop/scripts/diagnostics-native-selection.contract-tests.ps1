@@ -57,22 +57,22 @@ Assert-Contract ($statements[3] -eq $selection) 'selection precedes repository/t
 # execution of extracted PowerShell or a second implementation of the guard.
 $unknownGuard = $statements[4]
 $expectedUnknownGuard = @'
-if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll')) {
+if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll', 'benchmark-payment', 'benchmark-public-payment')) {
     throw 'Unknown diagnostics native verification set.'
 }
 '@
 Assert-Contract ((Normalize-ContractText $unknownGuard.Extent.Text) -ceq (Normalize-ContractText $expectedUnknownGuard)) 'unknown selector is rejected before bootstrap'
-Assert-Contract ($unknownGuard -is [System.Management.Automation.Language.IfStatementAst] -and $unknownGuard.Clauses[0].Item1.PipelineElements[0].Expression.Operator -eq [System.Management.Automation.Language.TokenKind]::Cnotin) 'case variants cannot opt into either allowlisted selector'
+Assert-Contract ($unknownGuard -is [System.Management.Automation.Language.IfStatementAst] -and $unknownGuard.Clauses[0].Item1.PipelineElements[0].Expression.Operator -eq [System.Management.Automation.Language.TokenKind]::Cnotin) 'case variants cannot opt into any allowlisted selector'
 Assert-Contract ($unknownGuard.Clauses[0].Item2.Statements.Count -eq 1 -and $unknownGuard.Clauses[0].Item2.Statements[0] -is [System.Management.Automation.Language.ThrowStatementAst]) 'invalid selector has no fallback or child command'
 
 $modeGuard = $statements[5]
 $expectedModeGuard = @'
-if ($diagnosticSelection -ceq 'native-mail-payroll' -and
+if ($diagnosticSelection -cne 'full' -and
     ($env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY -cne 'true' -or $env:ZENTRA_VERIFY_ONLY -cne 'true')) {
     throw 'Targeted native verification requires both diagnostics and verification-only guards.'
 }
 '@
-Assert-Contract ((Normalize-ContractText $modeGuard.Extent.Text) -ceq (Normalize-ContractText $expectedModeGuard)) 'targeted selector requires both guards exactly true; full preserves the existing mode'
+Assert-Contract ((Normalize-ContractText $modeGuard.Extent.Text) -ceq (Normalize-ContractText $expectedModeGuard)) 'all nonfull selectors require both guards exactly true; full preserves the existing mode'
 Assert-Contract ($modeGuard.Clauses[0].Item2.Statements.Count -eq 1 -and $modeGuard.Clauses[0].Item2.Statements[0] -is [System.Management.Automation.Language.ThrowStatementAst]) 'missing, false or differently cased guard fails before bootstrap'
 Assert-Contract ($statements[6] -is [System.Management.Automation.Language.AssignmentStatementAst] -and $statements[6].Left.VariablePath.UserPath -ceq 'repo') 'both refusal guards precede even repository setup'
 
@@ -144,8 +144,73 @@ foreach ($appendix in @(
     Assert-Contract ($releaseText.Contains($appendix)) 'full mode retains the new payroll coverage appendix'
 }
 
-$parameter = [regex]::Match($circleText, '(?m)^  diagnostics-native-set:\r?\n    type: enum\r?\n    enum: \[full, native-mail-payroll\]\r?\n    default: full\r?$')
-Assert-Contract ($parameter.Success -and [regex]::Matches($circleText, '(?m)^  diagnostics-native-set:').Count -eq 1) 'pipeline enum admits only full or explicit targeted opt-in and defaults full'
+# Separate fixed benchmark selectors; inspect AST only, never execute the script.
+$benchmarkBranches = @()
+foreach ($spec in @(
+    @{ Selection = 'benchmark-payment'; Variable = 'paymentBenchmark'; Filter = 'database::workspace_payment_projection_tests::benchmark_real_payment_workspace_densities'; DataFile = 'payment-workspace-benchmark.json'; ProofFile = 'diagnostics-benchmark-payment-proof.json'; Runs = 12 },
+    @{ Selection = 'benchmark-public-payment'; Variable = 'publicPaymentBenchmark'; Filter = 'database::workspace_payment_projection_tests::payment_read_projection_tests::benchmark_public_payment_workspace_densities'; DataFile = 'public-payment-workspace-benchmark.json'; ProofFile = 'diagnostics-benchmark-public-payment-proof.json'; Runs = 6 }
+)) {
+    $condition = "`$diagnosticSelection -ceq '$($spec.Selection)'"
+    $branches = @($releaseAst.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.IfStatementAst] -and
+        (Normalize-ContractText $node.Clauses[0].Item1.Extent.Text) -ceq $condition
+    }, $true))
+    Assert-Contract ($branches.Count -eq 1) "one fixed branch for $($spec.Selection)"
+    $branch = $branches[0]; $body = $branch.Clauses[0].Item2
+    $benchmarkBranches += $branch
+    Assert-Contract ($harnessInit.Extent.EndOffset -lt $branch.Extent.StartOffset -and $branch.Extent.EndOffset -lt $fullSuites.Extent.StartOffset) 'benchmark uses the verified harness and returns before functional suites'
+    $filter = Find-Assignment $body $spec.Variable
+    Assert-Contract ((Normalize-ContractText $filter.Right.Extent.Text) -ceq "'$($spec.Filter)'") 'benchmark filter is fixed in source, never supplied by a pipeline'
+    $invocations = @($body.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'Invoke-ZentraVerificationSuite' }, $true))
+    $expectedInvocation = 'Invoke-ZentraVerificationSuite $diagnosticHarness $' + $spec.Variable + " @('--ignored','--exact','--nocapture')"
+    Assert-Contract ($invocations.Count -eq 1 -and (Normalize-ContractText $invocations[0].Extent.Text) -ceq $expectedInvocation) 'exactly one unchanged ignored/exact/nocapture benchmark dispatch'
+    $benchmarkProofAssignment = Find-Assignment $body 'benchmarkOnlyProof'
+    $benchmarkProofTables = @($benchmarkProofAssignment.FindAll({ param($node) $node -is [System.Management.Automation.Language.HashtableAst] }, $true))
+    Assert-Contract ($benchmarkProofTables.Count -eq 1) 'one separate benchmark proof'
+    $benchmarkProof = $benchmarkProofTables[0]
+    foreach ($entry in @(
+        @{ Name = 'source'; Value = '$diagnosticSource' },
+        @{ Name = 'circleSource'; Value = '$env:CIRCLE_SHA1' },
+        @{ Name = 'selection'; Value = '$diagnosticSelection' },
+        @{ Name = 'verificationOnly'; Value = '$true' },
+        @{ Name = 'suiteExecutions'; Value = '$diagnosticHarness.Proof.suiteExecutions' },
+        @{ Name = 'nativeHarnessProof'; Value = "'windows-test-harness-proof.json'" },
+        @{ Name = 'benchmarkProof'; Value = "'$($spec.DataFile)'" },
+        @{ Name = 'selectedBenchmarkPassed'; Value = '$true' },
+        @{ Name = 'benchmarksExecuted'; Value = '$true' }
+    )) { Assert-Contract ((Read-StaticHashEntry $benchmarkProof $entry.Name) -ceq $entry.Value) "benchmark proof retains $($entry.Name)" }
+    foreach ($name in @('fullFunctionalExecuted', 'frontendExecuted', 'mobileExecuted', 'frontendBuildExecuted', 'publishesInstaller', 'publishesRelease', 'installsApplication')) {
+        Assert-Contract ((Read-StaticHashEntry $benchmarkProof $name) -ceq '$false') "benchmark proof does not claim $name"
+    }
+    Assert-Contract (@($benchmarkProof.KeyValuePairs | Where-Object { $_.Item1.Value -cin @('allCheckedSuitesPassed', 'frontendBuildPassed', 'functionalValidationPassed', 'paymentBenchmarkPassed', 'publicPaymentBenchmarkPassed') }).Count -eq 0) 'benchmark-only proof cannot masquerade as functional or combined success'
+    $bodyText = Normalize-ContractText $body.Extent.Text
+    Assert-Contract ($bodyText.Contains("`$density.allRetainedValuesEqual -ne `$true") -and $bodyText.Contains("`$density.payments -ne 1024") -and $bodyText.Contains("`$density.runs.Count -ne $($spec.Runs)")) 'benchmark retains parity, payment count and original run count'
+    Assert-Contract ($bodyText.Contains('.densities.Count -ne 3') -and $bodyText.Contains('.synthetic -ne $true') -and $bodyText.Contains('.optimized -ne $true')) 'benchmark retains three synthetic optimized densities'
+    if ($spec.Selection -ceq 'benchmark-public-payment') {
+        Assert-Contract ($bodyText.Contains('$density.publicGetters -ne $true') -and $bodyText.Contains('$density.individualPaymentProofsChecked -ne $true')) 'public benchmark retains public-getter and individual-payment controls'
+    }
+    $benchmarkCommands = @($body.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true))
+    Assert-Contract (@($benchmarkCommands | Where-Object { $_.GetCommandName() -cnotin @('Invoke-ZentraVerificationSuite','Join-Path','Test-Path','Get-Content','ConvertFrom-Json','ConvertTo-Json') }).Count -eq 0) 'benchmark branch has no frontend, build, bootstrap, packaging or arbitrary command'
+    $bodyStatements = @($body.Statements)
+    Assert-Contract ($bodyStatements[-1] -is [System.Management.Automation.Language.ReturnStatementAst] -and $null -eq $bodyStatements[-1].Pipeline) 'benchmark returns unconditionally before the functional path'
+    Assert-Contract ($bodyStatements[-2].Extent.Text.Contains($spec.ProofFile) -and $bodyStatements[-2].Extent.Text.Contains('WriteAllText')) 'benchmark writes its distinct proof only after all controls'
+}
+Assert-Contract ($benchmarkBranches.Count -eq 2) 'both original benchmarks remain, in two separate explicit selections'
+$functionalProofAssignment = Find-Assignment $releaseAst 'diagnosticProof'
+$functionalProofTable = @($functionalProofAssignment.FindAll({param($node) $node -is [System.Management.Automation.Language.HashtableAst]},$true))[0]
+Assert-Contract ((Read-StaticHashEntry $functionalProofTable 'benchmarksExecuted') -ceq '$false') 'functional full proof explicitly excludes benchmark execution'
+Assert-Contract ((Read-StaticHashEntry $functionalProofTable 'functionalValidationPassed') -ceq '$true') 'full functional proof retains native, frontend, mobile and build success'
+Assert-Contract ((Read-StaticHashEntry $functionalProofTable 'requiredBenchmarkSelections') -ceq "@('benchmark-payment', 'benchmark-public-payment')") 'functional proof names both separately required benchmarks'
+Assert-Contract (@($functionalProofTable.KeyValuePairs | Where-Object {$_.Item1.Value -cin @('paymentBenchmarkPassed','publicPaymentBenchmarkPassed','paymentWorkspaceParityPassed','publicPaymentBenchmark')}).Count -eq 0) 'functional proof cannot claim benchmark parity or execution'
+foreach ($appendix in @(
+    "`$diagnosticNativeSuites += @('commands::attachment_mutation_scope_tests::', 'commands::bank_file_scope_tests::')",
+    "`$diagnosticFrontendSuites += @('src/attachmentMutationScope.test.ts', 'src/bankFileMutationBridge.test.ts')",
+    "`$diagnosticMobileSuites += @('src/attachmentMutationScope.test.ts', 'src/bankFileMutationBridge.test.ts')"
+)) { Assert-Contract ($releaseText.Contains($appendix)) 'functional full retains both new scoped-mutation test appendices' }
+
+$parameter = [regex]::Match($circleText, '(?m)^  diagnostics-native-set:\r?\n    type: enum\r?\n    enum: \[full, native-mail-payroll, benchmark-payment, benchmark-public-payment\]\r?\n    default: full\r?$')
+Assert-Contract ($parameter.Success -and [regex]::Matches($circleText, '(?m)^  diagnostics-native-set:').Count -eq 1) 'pipeline enum admits full or three explicit allowlisted opt-ins and defaults full'
 $job = [regex]::Match($circleText, '(?ms)^  windows-drafts-diagnostics-tests:\r?\n.*?(?=^  [^ ].*:\r?\n|^workflows:\r?\n|\z)')
 Assert-Contract ($job.Success -and $job.Value.Contains('ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"') -and $job.Value.Contains('ZENTRA_VERIFY_ONLY: "true"')) 'only diagnostic job supplies both hardcoded guards'
 Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq 1 -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 1) 'selector is not transmitted to release or installer jobs'

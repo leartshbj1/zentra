@@ -1,54 +1,98 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { CheckCircle2, FileClock, RefreshCw } from 'lucide-react';
-import { BANK_CUSTOMER_REQUEST_EVENT, listBankCustomerRequests, type BankCustomerRequest } from './bankCustomerRefundRequests';
+import { BANK_CUSTOMER_REQUEST_EVENT, listBankCustomerRequests, listLegacyBankCustomerRequests, type BankCustomerRequest, type BankCustomerRequestOrigin, type ScopedBankCustomerRequest } from './bankCustomerRefundRequests';
 import { RefundReceiptPicker } from './RefundAttachments';
 import type { BankMovement, Workspace } from './types';
 import { Button, ErrorPanel, Field, Modal, SectionHeading } from './ui';
 import { createId, errorMessage, formatDate, formatMoney } from './utils';
 
-export function useBankCustomerRequests(movements: BankMovement[]) {
-  const ids = movements.map(row => row.id).sort().join('|');
-  const [requests, setRequests] = useState<BankCustomerRequest[]>([]);
+export function useBankCustomerRequests(movements: BankMovement[], origin: BankCustomerRequestOrigin | null) {
+  const ids = movements.map(row => row.id).sort().join('|'), identity=JSON.stringify(origin ? [origin.companyId,origin.organizationId ?? '',origin.memberId] : null);
+  const [requests, setRequests] = useState<ScopedBankCustomerRequest[]>([]);
+  const [legacy, setLegacy] = useState<BankCustomerRequest[]>([]);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    let live = true;
+  useLayoutEffect(() => {
+    let live = true, generation=0;
+    setRequests([]);setLegacy([]);setError('');
     const refresh = () => {
-      void listBankCustomerRequests().then(rows => { if (live) { const current = new Set(ids.split('|')); setRequests(rows.filter(row => current.has(row.movementId))); setError(''); } }).catch(cause => { if (live) setError(errorMessage(cause, 'Les demandes conservées ne sont pas accessibles.')); });
+      const read=++generation;
+      if (!origin) return;
+      void Promise.all([listBankCustomerRequests(origin),listLegacyBankCustomerRequests()]).then(([rows,old]) => { if (live && read===generation) { const current = new Set(ids.split('|')); setRequests(rows.filter(row => current.has(row.request.movementId)));setLegacy(old); setError(''); } }).catch(cause => { if (live && read===generation) setError(errorMessage(cause, 'Les demandes conservées ne sont pas accessibles.')); });
     };
     refresh(); window.addEventListener(BANK_CUSTOMER_REQUEST_EVENT, refresh);
-    return () => { live = false; window.removeEventListener(BANK_CUSTOMER_REQUEST_EVENT, refresh); };
-  }, [ids, attempt]);
-  return { requests, error, retry: () => setAttempt(value => value + 1) };
+    return () => { live = false;generation++; window.removeEventListener(BANK_CUSTOMER_REQUEST_EVENT, refresh); };
+  }, [ids, identity, attempt]);
+  return { requests, legacy, error, retry: () => setAttempt(value => value + 1) };
 }
 
 export function BankCustomerPending({ requests, disabled, onRun, onRemove }: {
-  requests: BankCustomerRequest[]; disabled: boolean;
-  onRun: (request: BankCustomerRequest) => Promise<void>;
-  onRemove: (request: BankCustomerRequest) => Promise<void>;
+  requests: ScopedBankCustomerRequest[]; disabled: boolean;
+  onRun: (request: ScopedBankCustomerRequest) => Promise<void>;
+  onRemove: (request: ScopedBankCustomerRequest) => Promise<void>;
 }) {
   const [working, setWorking] = useState('');
   const [error, setError] = useState('');
   const [toRemove, setToRemove] = useState('');
   const inFlight = useRef(false);
   if (!requests.length) return null;
-  const run = async (request: BankCustomerRequest, remove = false) => {
+  const run = async (row: ScopedBankCustomerRequest, remove = false) => {
+    const request=row.request;
     if (disabled || inFlight.current) return;
     inFlight.current = true; setWorking(request.requestId); setError('');
-    try { await (remove ? onRemove(request) : onRun(request)); setToRemove(''); }
+    try { await (remove ? onRemove(row) : onRun(row)); setToRemove(''); }
     catch (cause) { setError(errorMessage(cause, 'Le résultat n’a pas pu être confirmé. La demande est conservée.')); }
     finally { setWorking(''); inFlight.current = false; }
   };
   return <section className="panel bank-customer-pending" aria-label="Demandes bancaires à vérifier">
     <SectionHeading eyebrow="Reprise" title="Demandes à vérifier" description="Une réponse n’a pas été confirmée. La vérification reprend exactement la même demande, sans second remboursement." />
-    <div className="bank-customer-pending__list">{requests.map(request => <article key={request.requestId}>
+    <div className="bank-customer-pending__list">{requests.map(row => {const request=row.request;return <article key={request.requestId}>
       <div><strong><FileClock size={17} />{request.kind === 'create' ? 'Remboursement client' : request.kind === 'match' ? 'Rapprochement client' : 'Dissociation du relevé'}</strong><p>{request.description}</p><small>{formatDate(request.date)} · {formatMoney(request.amountCents, request.currency)}{request.kind === 'create' && request.receipt ? ` · ${request.receipt.name}` : ''}</small>
         {request.kind === 'match' && request.dateDifferenceReason ? <p>Écart de dates : {request.dateDifferenceReason}</p> : request.kind !== 'match' ? <p>{request.reason}</p> : null}
       </div>
-      <div className="bank-customer-pending__actions"><Button disabled={disabled || Boolean(working)} onClick={() => void run(request)}><RefreshCw size={15} />{working === request.requestId ? 'Vérification…' : 'Vérifier la demande'}</Button><Button variant="ghost" disabled={disabled || Boolean(working)} onClick={() => setToRemove(request.requestId)}>Retirer de cette liste</Button></div>
-      {toRemove === request.requestId ? <div className="bank-customer-pending__remove"><p>Retirer la copie de reprise ne supprime aucun remboursement ni rapprochement déjà enregistré. Le relevé sera actualisé avant une nouvelle action.</p><Button variant="secondary" disabled={disabled || Boolean(working)} onClick={() => void run(request, true)}>Retirer la demande locale</Button><Button variant="ghost" disabled={Boolean(working)} onClick={() => setToRemove('')}>Conserver la demande</Button></div> : null}
-    </article>)}</div>
+      <div className="bank-customer-pending__actions"><Button disabled={disabled || Boolean(working)} onClick={() => void run(row)}><RefreshCw size={15} />{working === request.requestId ? 'Vérification…' : 'Vérifier la demande'}</Button><Button variant="ghost" disabled={disabled || Boolean(working)} onClick={() => setToRemove(request.requestId)}>Retirer de cette liste</Button></div>
+      {toRemove === request.requestId ? <div className="bank-customer-pending__remove"><p>Retirer la copie de reprise ne supprime aucun remboursement ni rapprochement déjà enregistré. Le relevé sera actualisé avant une nouvelle action.</p><Button variant="secondary" disabled={disabled || Boolean(working)} onClick={() => void run(row, true)}>Retirer la demande locale</Button><Button variant="ghost" disabled={Boolean(working)} onClick={() => setToRemove('')}>Conserver la demande</Button></div> : null}
+    </article>;})}</div>
     {error ? <ErrorPanel title="Vérification à reprendre" message={error} /> : null}
+  </section>;
+}
+
+export function BankCustomerLegacyPending({ requests, companyName, disabled, onReview, onAdopt }: {
+  requests: BankCustomerRequest[]; companyName: string; disabled: boolean;
+  onReview: (request: BankCustomerRequest) => Promise<BankMovement | null>;
+  onAdopt: (request: BankCustomerRequest) => Promise<void>;
+}) {
+  const [review, setReview] = useState<{ request: BankCustomerRequest; movement: BankMovement | null } | null>(null);
+  const [chosen, setChosen] = useState(false), [working, setWorking] = useState(false), [error, setError] = useState('');
+  const live=useRef(false),inFlight=useRef(false);
+  useLayoutEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
+  if (!requests.length) return null;
+  async function examine(request: BankCustomerRequest) {
+    if(disabled||inFlight.current)return;inFlight.current=true;setWorking(true);setError('');setReview(null);setChosen(false);
+    try {const movement=await onReview(request);if(live.current)setReview({request,movement});}
+    catch(cause){if(live.current)setError(errorMessage(cause,'Le relevé n’a pas pu être relu. La copie ancienne reste conservée.'));}
+    finally{inFlight.current=false;if(live.current)setWorking(false);}
+  }
+  async function adopt() {
+    if(disabled||inFlight.current||!chosen||!review?.movement)return;inFlight.current=true;setWorking(true);setError('');
+    try{await onAdopt(review.request);if(live.current){setReview(null);setChosen(false);}}
+    catch(cause){if(live.current)setError(errorMessage(cause,'La demande n’a pas été liée à cet espace. Sa copie est conservée.'));}
+    finally{inFlight.current=false;if(live.current)setWorking(false);}
+  }
+  return <section className="panel bank-customer-legacy" aria-label="Demandes anciennes à vérifier">
+    <SectionHeading eyebrow="Copies anciennes" title="Choisissez leur entreprise" description="Ces demandes ont été conservées avant l’enregistrement de leur origine. Elles ne sont jamais envoyées automatiquement." />
+    <p>{requests.length} copie{requests.length>1?'s':''} conservée{requests.length>1?'s':''} sur cet appareil.</p>
+    {requests.map((request,index)=><Button key={request.requestId} variant="secondary" disabled={disabled||working} onClick={()=>void examine(request)}>Examiner la demande {index+1}</Button>)}
+    {review?<div className="bank-customer-pending__remove">
+      <strong>{review.request.description}</strong><p>{formatDate(review.request.date)} · {formatMoney(review.request.amountCents,review.request.currency)}</p>
+      <p>{review.request.kind==='match'?review.request.dateDifferenceReason:review.request.reason}</p>
+      {review.request.kind==='create'&&review.request.receipt?<p>Justificatif conservé : {review.request.receipt.name}</p>:null}
+      <p>L’origine n’est pas connue. La présence du même mouvement dans cet espace ne prouve pas que cette demande lui appartient.</p>
+      {review.movement?<><p>Relevé relu dans {companyName} : {formatDate(review.movement.bookingDate||review.movement.valueDate)} · {formatMoney(review.movement.amountCents,review.movement.currency)} · {review.movement.refundMatch?'déjà rapproché':'à vérifier'}.</p>
+      <label><input type="checkbox" checked={chosen} disabled={disabled||working} onChange={event=>setChosen(event.target.checked)} /> Je confirme que cette demande appartient à l’entreprise {companyName}.</label>
+      <Button disabled={disabled||working||!chosen} onClick={()=>void adopt()}>Lier la copie à cet espace</Button><p>Ce choix conserve le même identifiant, contenu et justificatif. La vérification financière demandera un clic séparé.</p></>:<p>Ce mouvement n’est pas présent dans le relevé relu. Ouvrez son entreprise d’origine. La demande reste conservée.</p>}
+    </div>:null}
+    {error?<ErrorPanel title="Copie ancienne conservée" message={error}/>:null}
   </section>;
 }
 

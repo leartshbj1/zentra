@@ -1,5 +1,5 @@
 import {CustomerSettlementForm} from './CustomerSettlementForm';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowDownLeft, ArrowRightLeft, History, Receipt, RotateCcw } from 'lucide-react';
 import { desktopApi } from './bridge';
 import type { CustomerCreditSettlement, Invoice, Workspace } from './types';
@@ -10,23 +10,24 @@ import { readCustomerCreditRequest } from './customerCreditRequest';
 import {useVerifiedFormDraftScope} from './useFormDraft';
 import { RefundAttachmentList,RefundReceiptPicker } from './RefundAttachments';
 import { CustomerCreditRecovery } from './CustomerCreditRecovery';
-import { readCreditRecovery } from './customerCreditRecoveryState';
+import { readCreditRecovery,legacyCreditRecoveryReviewRequired,creditRecoveryScopeKey } from './customerCreditRecoveryState';
 import { revealInDialog } from './dialogFocus';
 
-type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (cause:unknown)=>void) => Promise<boolean>;
+type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (cause:unknown)=>void, validateRead?: (workspace:Workspace)=>void) => Promise<boolean>;
 const labels = {apply:'Déduit d’une facture', refund:'Remboursé au client', reverse_apply:'Déduction annulée', reverse_refund:'Remboursement annulé'};
 
 export function CustomerCreditPanel({ invoice, workspace, busy, readOnly = false, act, onReadWorkspace, onOpenHelp }: {
   invoice: Invoice; workspace: Workspace; busy: boolean; readOnly?: boolean; act: ActionRunner; onReadWorkspace:()=>Promise<Workspace>; onOpenHelp:(destination:'accounts'|'periods'|'bank')=>void;
 }) {
+  const recoveryScope=useVerifiedFormDraftScope(workspace,'customer-credit-recovery',invoice.originalInvoiceId||invoice.id);
   const credits=invoice.type==='credit_note' ? workspace.invoices.filter(item=>item.id===invoice.id)
     : workspace.invoices.filter((item)=>item.type==='credit_note' && (item.originalInvoiceId===invoice.id || item.creditSettlements?.some((event)=>event.invoiceId===invoice.id)) && item.status!=='draft' && item.status!=='cancelled');
   if (!credits.length) return null;
-  const recoveryOriginals=[...new Set(credits.filter(credit=>!credit.customerCredit||readCreditRecovery(credit.originalInvoiceId||'')).map(credit=>credit.originalInvoiceId).filter((id):id is string=>Boolean(id)))];
+  const recoveryOriginals=[...new Set(credits.filter(credit=>!credit.customerCredit||readCreditRecovery(credit.originalInvoiceId||'',recoveryScope)||legacyCreditRecoveryReviewRequired(credit.originalInvoiceId||'',recoveryScope)).map(credit=>credit.originalInvoiceId).filter((id):id is string=>Boolean(id)))];
   return <section className="customer-credit-panel" aria-label="Avoirs et règlements liés">
     <header><Receipt size={20}/><div><h3>Avoirs et règlements</h3><p>Les montants déduits et remboursés restent reliés aux documents.</p></div></header>
-    {recoveryOriginals.map(id=><CustomerCreditRecovery key={id} originalInvoiceId={id} busy={busy} readOnly={readOnly} act={act}/>)}
-    {credits.map((credit)=><CreditCard key={credit.id} credit={credit} workspace={workspace} busy={busy} readOnly={readOnly} act={act} onReadWorkspace={onReadWorkspace} onOpenHelp={onOpenHelp}/>)}
+    {recoveryOriginals.map(id=><CustomerCreditRecovery key={`${creditRecoveryScopeKey(recoveryScope)}:${id}`} originalInvoiceId={id} workspace={workspace} busy={busy} readOnly={readOnly} act={act} onReadWorkspace={onReadWorkspace}/>)}
+    {credits.map((credit)=><CreditCard key={`${workspace.workNotesScope}:${credit.id}`} credit={credit} workspace={workspace} busy={busy} readOnly={readOnly} act={act} onReadWorkspace={onReadWorkspace} onOpenHelp={onOpenHelp}/>)}
   </section>;
 }
 
@@ -40,6 +41,13 @@ function CreditCard({credit,workspace,busy,readOnly,act,onReadWorkspace,onOpenHe
   const [attachmentError,setAttachmentError]=useState('');
   const attachmentHeading=useRef<HTMLHeadingElement>(null);
   const attachmentSaving=useRef(false);
+  const attachmentOriginScope=useRef(workspace.workNotesScope).current;
+  const attachmentContext=useRef({scope:workspace.workNotesScope,busy,readOnly});attachmentContext.current={scope:workspace.workNotesScope,busy,readOnly};
+  const attachmentAlive=useRef(false),attachmentFlight=useRef<AbortController|null>(null);
+  useLayoutEffect(()=>{attachmentAlive.current=true;return()=>{attachmentAlive.current=false;attachmentFlight.current?.abort();};},[]);
+  useLayoutEffect(()=>{if(workspace.workNotesScope!==attachmentOriginScope||readOnly)attachmentFlight.current?.abort();},[workspace.workNotesScope,attachmentOriginScope,readOnly]);
+  const isAttachmentCurrent=()=>attachmentAlive.current&&attachmentContext.current.scope===attachmentOriginScope;
+  const validateAttachmentRead=(next:Workspace)=>{if(!isAttachmentCurrent()||(attachmentOriginScope!==undefined&&next.workNotesScope!==attachmentOriginScope))throw Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');};
   useEffect(()=>{if(attachmentEventId)revealInDialog(attachmentHeading.current);},[attachmentEventId]);
   const heading=useRef<HTMLDivElement>(null);
   const balance=credit.customerCredit;
@@ -61,15 +69,16 @@ function CreditCard({credit,workspace,busy,readOnly,act,onReadWorkspace,onOpenHe
       return <li key={event.id}><div><strong>{labels[event.eventType]}</strong><span>{formatDate(event.date)} · {counterpart}</span><span>{event.reference} · {event.reason}</span><small>{event.journalValid?'Comptabilisé':event.journalEntryId?'Écriture à vérifier':'À comptabiliser'}</small><RefundAttachmentList attachments={files} workspaceScope={workspace.workNotesScope} label="Justificatifs du règlement"/></div><div className="customer-credit-card__event-amount"><strong>{formatMoney(event.amountCents,credit.currency)}</strong>{!event.reversesId && !event.bankMatchId && !reversed.has(event.id) && !mode && !attachmentEventId && <Button size="small" variant="ghost" disabled={busy||readOnly} onClick={()=>begin(event.eventType==='apply'?'apply':'refund',event)}><RotateCcw size={14}/>Corriger</Button>}{event.bankMatchId&&<><small>Rapproché au relevé. Dissociez-le dans Banque avant de corriger le remboursement.</small><Button type="button" size="small" variant="ghost" disabled={busy} onClick={()=>onOpenHelp('bank')}>Vérifier dans Banque</Button></>}{reversed.has(event.id)&&<small>Annulé par une correction</small>}<Button size="small" variant="secondary" disabled={busy||readOnly||Boolean(mode)||Boolean(attachmentEventId)||files.length>=20} onClick={()=>{setAttachmentEventId(event.id);setReceipt(null);setAttachmentError('');}}>Joindre une pièce</Button></div></li>;
     })}</ol></details>}
     {attachmentEventId && <form className="customer-credit-form" onSubmit={async(event)=>{
-      event.preventDefault();if(busy||readOnly||!receipt||attachmentSaving.current)return;
+      event.preventDefault();if(!isAttachmentCurrent()||attachmentContext.current.busy||attachmentContext.current.readOnly||!receipt||attachmentSaving.current)return;
       attachmentSaving.current=true;setAttachmentError('');
+      const controller=new AbortController();attachmentFlight.current=controller;
       try {
         const success=await act(async()=>{
-          try{return await desktopApi.addCustomerCreditSettlementAttachment(attachmentEventId,receipt);}
-          catch(cause){setAttachmentError(errorMessage(cause,'Le justificatif n’a pas pu être confirmé. Réessayez le même fichier.'));throw cause;}
-        },'Le justificatif est lié au règlement.',false);
-        if(success){setAttachmentEventId(null);setReceipt(null);requestAnimationFrame(()=>revealInDialog(heading.current));}
-      } finally{attachmentSaving.current=false;}
+          try{return await desktopApi.addCustomerCreditSettlementAttachment(attachmentEventId,receipt,attachmentOriginScope,controller.signal);}
+          catch(cause){if(isAttachmentCurrent())setAttachmentError(errorMessage(cause,'Le justificatif n’a pas pu être confirmé. Réessayez le même fichier.'));throw cause;}
+        },'Le justificatif est lié au règlement.',false,undefined,validateAttachmentRead);
+        if(success&&isAttachmentCurrent()){setAttachmentEventId(null);setReceipt(null);requestAnimationFrame(()=>{if(isAttachmentCurrent())revealInDialog(heading.current);});}
+      } finally{attachmentSaving.current=false;if(attachmentFlight.current===controller)attachmentFlight.current=null;}
     }}>
       <h4 ref={attachmentHeading} tabIndex={-1}>Justificatif du règlement</h4>
       <p>{events.find((event)=>event.id===attachmentEventId)?.reference} · La pièce restera conservée avec l’historique, y compris après une correction.</p>

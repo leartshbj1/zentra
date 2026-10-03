@@ -182,7 +182,7 @@ export function LegacyExpenseDetail({ expense: initialExpense, workspace, close,
   const attachments = (workspace.attachments ?? []).filter((file) => file.entityType === 'expense' && file.entityId === expense.id);
   const terminology = projectTerminology(workspace.settings!.business.nogaSection);
   const project = workspace.projects.find((candidate) => candidate.id === expense.projectId);
-  if (attachmentTarget) return <RefundAttachmentForm refund={attachmentTarget} busy={busy} readOnly={readOnly} close={() => setAttachmentTarget(null)} act={act} />;
+  if (attachmentTarget) return <RefundAttachmentForm workspaceScope={workspace.workNotesScope} refund={attachmentTarget} busy={busy} readOnly={readOnly} close={() => setAttachmentTarget(null)} act={act} />;
   if (refundForm) return <ExpenseRefundForm expense={expense} reverse={refundForm === 'new' ? undefined : refundForm} busy={busy} readOnly={readOnly} close={() => setRefundForm(null)} act={act} workspaceScope={workspace.workNotesScope} />;
   return <Modal title="Dépense" description="Achat comptabilisé, conservé en lecture seule." onClose={close}>
     <div className="supplier-document-summary expense-detail-summary">

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FolderOpen, Paperclip, X } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { fileSizeLabel, PROJECT_FILE_MAX_BYTES } from './projectDocuments';
@@ -7,7 +7,7 @@ import { Button, ErrorPanel, Field, FormActions, Modal } from './ui';
 import { errorMessage } from './utils';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 
-type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (error: unknown) => void) => Promise<boolean>;
+type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (error: unknown) => void, validateRead?: (workspace:Workspace)=>void) => Promise<boolean>;
 
 export function RefundReceiptPicker({ receipt, onChange, disabled, onError, supplierCredit = false, label = 'Justificatif de l’avoir', hint }: {
   receipt: File | null; onChange: (file: File | null) => void; disabled: boolean; onError: (message: string) => void;
@@ -47,7 +47,14 @@ export function RefundAttachmentList({ attachments, label = 'Justificatifs du re
   </div>;
 }
 
-export function RefundAttachmentForm({ refund, busy, readOnly = false, close, act, supplierCredit = false }: { refund: Pick<ExpenseRefund,'id'|'reference'>; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner; supplierCredit?: boolean }) {
+export function RefundAttachmentForm({ refund, busy, readOnly = false, close, act, supplierCredit = false, workspaceScope }: { refund: Pick<ExpenseRefund,'id'|'reference'>; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner; supplierCredit?: boolean; workspaceScope?:string }) {
+  const originScope=useRef(workspaceScope).current;
+  const context=useRef({scope:workspaceScope,busy,readOnly});context.current={scope:workspaceScope,busy,readOnly};
+  const alive=useRef(false),flight=useRef<AbortController|null>(null);
+  useLayoutEffect(()=>{alive.current=true;return()=>{alive.current=false;flight.current?.abort();};},[]);
+  useLayoutEffect(()=>{if(workspaceScope!==originScope||readOnly)flight.current?.abort();},[workspaceScope,originScope,readOnly]);
+  const isCurrent=()=>alive.current&&context.current.scope===originScope;
+  const validateRead=(next:Workspace)=>{if(!isCurrent()||(originScope!==undefined&&next.workNotesScope!==originScope))throw Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');};
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (!readOnly) return;
@@ -60,15 +67,16 @@ export function RefundAttachmentForm({ refund, busy, readOnly = false, close, ac
   return <Modal title="Joindre un justificatif au remboursement" description={refund.reference} onClose={close} dismissible={!busy}>
     <form ref={form} onSubmit={async (event) => {
       event.preventDefault();
-      if (!receipt || busy || readOnly || saving.current) return;
+      if (!isCurrent() || !receipt || context.current.busy || context.current.readOnly || saving.current) return;
       saving.current = true; setError('');
+      const controller=new AbortController();flight.current=controller;
       try {
         const saved = await act(async () => {
-          try { return await (supplierCredit ? desktopApi.addSupplierCreditRefundAttachment(refund.id, receipt) : desktopApi.addExpenseRefundAttachment(refund.id, receipt)); }
-          catch (failure) { if (!(failure instanceof WorkspaceRefreshAfterMutationError)) setError(errorMessage(failure, 'Le justificatif n’a pas pu être ajouté.')); throw failure; }
-        }, 'Le justificatif est lié au remboursement.', false, () => {});
-        if (saved) close();
-      } finally { saving.current = false; }
+          try { return await (supplierCredit ? desktopApi.addSupplierCreditRefundAttachment(refund.id, receipt,originScope,controller.signal) : desktopApi.addExpenseRefundAttachment(refund.id, receipt,originScope,controller.signal)); }
+          catch (failure) { if (isCurrent() && !(failure instanceof WorkspaceRefreshAfterMutationError)) setError(errorMessage(failure, 'Le justificatif n’a pas pu être ajouté.')); throw failure; }
+        }, 'Le justificatif est lié au remboursement.', false, () => {},validateRead);
+        if (saved && isCurrent()) close();
+      } finally { saving.current = false;if(flight.current===controller)flight.current=null; }
     }}>
       <p className="field__hint">Cette pièce complète l’historique conservé. Les dates, montants et écritures du remboursement restent inchangés.</p>
       <RefundReceiptPicker receipt={receipt} onChange={setReceipt} disabled={busy || readOnly} onError={setError} supplierCredit={supplierCredit} />
