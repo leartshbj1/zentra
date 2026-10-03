@@ -12,11 +12,15 @@ export function installAppDraftIdentityFixture(workspace: Workspace) {
   workspace.workNotesScope = params.has('identityMissingScope') ? undefined : 'synthetic-company-a';
   let account: CloudAccountState = params.has('identityLocalAccount') ? {status:'disconnected'} : {status:'connected',organizationId:'automation-qa',organizationName:'Entreprise fictive A',role:'owner'};
   if (params.has('identityInitiallyInactive')) account.status = 'inactive';
-  let memberId = 'synthetic-member-a';
+  let memberId = 'synthetic-member-a', nonceRevision=1;
+  const nonce=()=>nonceRevision.toString(16).padStart(32,'0');
+  const contextKey=(value:CloudAccountState,member:string)=>JSON.stringify([value.status,value.organizationId??'',value.role??'',member]);
+  const identityValue=()=>account.status==='disconnected'?{memberContextNonce:nonce()}:{memberId,memberContextNonce:nonce()};
+  const updateAccount=(next:CloudAccountState,nextMember:string)=>{if(contextKey(next,nextMember)!==contextKey(account,memberId))nonceRevision++;account=structuredClone(next);memberId=nextMember;};
   let identityMode:ReadMode = 'hold', accountMode:ReadMode = 'hold';
   let holdCompany = params.has('identityCompanyHold');
   let linkTarget = {...account}, linkMember = memberId, linkScope = workspace.workNotesScope;
-  const identities = new Map<number, {resolve:(value:{memberId?:string})=>void; reject:(reason:Error)=>void}>();
+  const identities = new Map<number, {value:{memberId?:string;memberContextNonce:string};resolve:(value:{memberId?:string;memberContextNonce:string})=>void; reject:(reason:Error)=>void}>();
   const accounts = new Map<number, {resolve:(value:CloudAccountState)=>void; reject:(reason:Error)=>void}>();
   const companies = new Map<number, ()=>void>();
   const proof = { identityReads:[] as IdentityRead[], accountReads:0, companyResolutions:[] as {organizationId:string;changed:boolean}[], nativeCalls:[] as string[] };
@@ -52,13 +56,13 @@ export function installAppDraftIdentityFixture(workspace: Workspace) {
       proof.identityReads.push(read);
       if (identityMode === 'failure') throw new Error('SYNTHETIC_PRIVATE_IDENTITY_FAILURE');
       if (identityMode === 'missing') return {};
-      if (identityMode === 'hold') return new Promise<{memberId?:string}>((resolve,reject) => identities.set(id,{resolve,reject}));
-      return {memberId};
+      if (identityMode === 'hold') {const value=identityValue();return new Promise<{memberId?:string;memberContextNonce:string}>((resolve,reject) => identities.set(id,{value,resolve,reject}));}
+      return identityValue();
     }
     if (command === 'append_diagnostic_events') return;
     if (command === 'start_cloud_account_link') return {status:'pending',userCode:'SYNTHETIC-CODE',verificationUri:'https://example.invalid',authorizationExpiresAt:'2099-01-01T00:00:00Z',intervalSeconds:3};
     if (command === 'open_cloud_account_link') return 'https://example.invalid';
-    if (command === 'poll_cloud_account_link') { account = structuredClone(linkTarget); memberId = linkMember; return structuredClone(account); }
+    if (command === 'poll_cloud_account_link') { updateAccount(linkTarget,linkMember); return structuredClone(account); }
     // Existing Automation handlers accept read-only activity; never forward any
     // business/account mutation outside the small synthetic link above.
     if (['automation_request','supplier_inbox_request','appointment_inbox_request'].includes(command)) {
@@ -72,13 +76,13 @@ export function installAppDraftIdentityFixture(workspace: Workspace) {
     identityMode(mode:ReadMode) { identityMode=mode; },
     accountMode(mode:ReadMode) { accountMode=mode; },
     companyMode(mode:'hold'|'ready') { holdCompany=mode==='hold'; },
-    setAccount(next:CloudAccountState, nextMember = memberId) { account=structuredClone(next); memberId=nextMember; },
+    setAccount(next:CloudAccountState, nextMember = memberId) { updateAccount(next,nextMember); },
     setScope(scope:string) { workspace.workNotesScope=scope; },
     async receiveScope(scope:string) { workspace.workNotesScope=scope;linkScope=scope;await refreshReceivedCompany(); },
     releaseCompany(id:number) { const release=companies.get(id);if(!release)throw Error('No held company resolution');release();companies.delete(id); },
     companyPending() { return [...companies.keys()]; },
     link(next:CloudAccountState, nextMember:string, scope=workspace.workNotesScope) { linkTarget=structuredClone(next);linkMember=nextMember;linkScope=scope; },
-    releaseIdentity(id:number,nextMember?:string) { const pending=identities.get(id); if(!pending)throw Error('No held identity read'); const read=proof.identityReads.find(item=>item.id===id)!;read.pending=false;pending.resolve({memberId:nextMember??read.memberId});identities.delete(id); },
+    releaseIdentity(id:number,nextMember?:string) { const pending=identities.get(id); if(!pending)throw Error('No held identity read'); const read=proof.identityReads.find(item=>item.id===id)!;read.pending=false;pending.resolve({...pending.value,...nextMember?{memberId:nextMember}:{}});identities.delete(id); },
     rejectIdentity(id:number) { const pending=identities.get(id);if(!pending)throw Error('No held identity read');proof.identityReads.find(item=>item.id===id)!.pending=false;pending.reject(Error('SYNTHETIC_PRIVATE_LATE_IDENTITY_FAILURE'));identities.delete(id); },
     releaseAccount(id:number) { const pending=accounts.get(id);if(!pending)throw Error('No held account read');pending.resolve(structuredClone(account));accounts.delete(id); },
     diagnostics() { return recentDiagnosticEvents().filter(event=>event.operation==='identity.read'); },

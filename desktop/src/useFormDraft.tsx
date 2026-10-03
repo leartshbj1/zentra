@@ -6,9 +6,12 @@ import { FormDraftSession, type FormDraftOptions } from './formDrafts';
 import { formDraftTranslations } from './translationsFormDrafts';
 import './form-drafts.css';
 
-type Identity = { companyId?: string; organizationId?: string; memberId?: string; ready?: boolean };
+export type FormDraftIdentityValue = { companyId?: string; organizationId?: string; memberId?: string; memberContextNonce?: string; ready?: boolean };
+type Identity = FormDraftIdentityValue;
 const FormDraftIdentity = createContext<Identity>({});
 export function FormDraftIdentityProvider({ children, ...identity }: Identity & { children: ReactNode }) { return <FormDraftIdentity.Provider value={identity}>{children}</FormDraftIdentity.Provider>; }
+/** Uses the already-admitted local context, never a later native/network identity. */
+export function useFormDraftIdentity(): Readonly<FormDraftIdentityValue> { return useContext(FormDraftIdentity); }
 export function useFormDraftScope(workspace: Pick<Workspace, 'workNotesScope'> | undefined, type: string, recordId?: string, context?: string) {
   const identity = useContext(FormDraftIdentity);
   const companyId = workspace?.workNotesScope || identity.companyId;

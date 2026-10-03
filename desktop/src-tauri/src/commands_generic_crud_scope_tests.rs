@@ -26,12 +26,12 @@ async fn call_handler(
 ) -> Result<Value, String> {
     match operation {
         Operation::Create => create_record(
-            state, "clients".into(), json!({"id":id,"name":name}), expected,
+            state, "clients".into(), json!({"id":id,"name":name}), expected, None,
         ).await,
         Operation::Update => update_record(
-            state, "clients".into(), id, json!({"name":name}), expected,
+            state, "clients".into(), id, json!({"name":name}), expected, None,
         ).await,
-        Operation::Delete => delete_record(state, "clients".into(), id, expected)
+        Operation::Delete => delete_record(state, "clients".into(), id, expected, None)
             .await.map(|result| json!({"deleted":result.deleted,"id":result.id})),
     }
 }
@@ -179,7 +179,7 @@ fn queued_create_cannot_insert_a_new_origin_record_into_the_restored_company() {
     });
     ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
     let (result, ()) = tauri::async_runtime::block_on(join(
-        create_record(app.state(), "clients".into(), json!({"id":id,"name":"MUST NOT ENTER COMPANY B"}), Some(original_scope)),
+        create_record(app.state(), "clients".into(), json!({"id":id,"name":"MUST NOT ENTER COMPANY B"}), Some(original_scope), None),
         async move { let _ = replace_tx.send(()); },
     ));
     let (continued, destination) = holder.join().unwrap();
@@ -304,7 +304,7 @@ fn queued_catalog_editor_refuses_restored_same_uuid_and_matching_revision_before
     });
     ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
     let (result, ()) = tauri::async_runtime::block_on(join(
-        update_catalog_item(app.state(), id.clone(), json!({"name":"MUST NOT RENAME COMPANY B"}), revision.clone(), Some(original_scope)),
+        update_catalog_item(app.state(), id.clone(), json!({"name":"MUST NOT RENAME COMPANY B"}), revision.clone(), Some(original_scope), None),
         async move { let _ = replace_tx.send(()); },
     ));
     let (continued, destination) = holder.join().unwrap();
@@ -326,11 +326,11 @@ fn actual_catalog_editor_yields_and_preserves_current_scope_legacy_and_cas_contr
         let expected = if legacy { None } else { Some(scope(&store)) };
         let app = tauri::test::mock_builder().manage(store.clone())
             .build(tauri::test::mock_context(tauri::test::noop_assets())).unwrap();
-        let saved = responsive(&store, update_catalog_item(app.state(), id.clone(), json!({"name":"Edited service"}), initial_revision, expected.clone())).unwrap();
+        let saved = responsive(&store, update_catalog_item(app.state(), id.clone(), json!({"name":"Edited service"}), initial_revision, expected.clone(), None)).unwrap();
         assert_eq!(saved["name"], "Edited service");
         let before = snapshot(&store);
         // Deliberately unequal CAS value: no wall-clock assumption or timing sleep.
-        let refused = responsive(&store, update_catalog_item(app.state(), id, json!({"name":"STALE MUST NOT SAVE"}), "synthetic-stale-revision".into(), expected));
+        let refused = responsive(&store, update_catalog_item(app.state(), id, json!({"name":"STALE MUST NOT SAVE"}), "synthetic-stale-revision".into(), expected, None));
         assert!(refused.unwrap_err().contains("a changé"));
         assert_eq!(snapshot(&store), before);
         assert!(store.verify_audit_log().unwrap()["valid"].as_bool().unwrap());

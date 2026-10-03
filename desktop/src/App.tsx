@@ -43,14 +43,22 @@ import { CloudAccountAccess } from './CloudAccountAccess';
 import { CompanyAccountGate } from './CompanyAccountGate';
 import { FormDraftIdentityProvider } from './useFormDraft';
 import { recordDiagnostic, classifyDiagnosticError } from './diagnostics';
-import { ErrorGuidance } from './ErrorGuidance';
+import { ErrorDetails, ErrorGuidance } from './ErrorGuidance';
+import { classifyMemberNonceCompatibility } from './memberOriginBridge';
+import { WorkspaceMemberOriginChangedError } from './workspaceMemberOrigin';
 
 const FORM_DRAFT_IDENTITY_TIMEOUT_MS = 15_000;
 const draftIdentityMessages = {
-  fr: { loading: 'Vérification de votre compte sur cet appareil…', failure: 'Votre compte ne peut pas être vérifié sur cet appareil. Vos données sont conservées.', timeout: 'Cette vérification prend trop de temps. Vos données sont conservées.', scope: 'Votre espace local n’a pas pu être identifié. Vos données sont conservées.', retry: 'Réessayer la vérification' },
-  de: { loading: 'Ihr Konto wird auf diesem Gerät geprüft…', failure: 'Ihr Konto kann auf diesem Gerät nicht geprüft werden. Ihre Daten bleiben erhalten.', timeout: 'Diese Prüfung dauert zu lange. Ihre Daten bleiben erhalten.', scope: 'Ihr lokaler Arbeitsbereich konnte nicht identifiziert werden. Ihre Daten bleiben erhalten.', retry: 'Prüfung erneut versuchen' },
-  it: { loading: 'Verifica del tuo account su questo dispositivo…', failure: 'Non è possibile verificare il tuo account su questo dispositivo. I tuoi dati sono conservati.', timeout: 'Questa verifica richiede troppo tempo. I tuoi dati sono conservati.', scope: 'Non è stato possibile identificare il tuo spazio locale. I tuoi dati sono conservati.', retry: 'Riprova la verifica' },
-  en: { loading: 'Checking your account on this device…', failure: 'Your account cannot be verified on this device. Your data is preserved.', timeout: 'This check is taking too long. Your data is preserved.', scope: 'Your local workspace could not be identified. Your data is preserved.', retry: 'Retry account check' },
+  fr: { loading: 'Vérification de votre compte sur cet appareil…', failure: 'Votre compte ne peut pas être vérifié sur cet appareil. Vos données sont conservées.', timeout: 'Cette vérification prend trop de temps. Vos données sont conservées.', scope: 'Votre espace local n’a pas pu être identifié. Vos données sont conservées.', context: 'Le contexte local du compte doit être vérifié. Rouvrez votre espace.', retry: 'Réessayer la vérification' },
+  de: { loading: 'Ihr Konto wird auf diesem Gerät geprüft…', failure: 'Ihr Konto kann auf diesem Gerät nicht geprüft werden. Ihre Daten bleiben erhalten.', timeout: 'Diese Prüfung dauert zu lange. Ihre Daten bleiben erhalten.', scope: 'Ihr lokaler Arbeitsbereich konnte nicht identifiziert werden. Ihre Daten bleiben erhalten.', context: 'Der lokale Kontokontext muss geprüft werden. Öffnen Sie Ihren Arbeitsbereich erneut.', retry: 'Prüfung erneut versuchen' },
+  it: { loading: 'Verifica del tuo account su questo dispositivo…', failure: 'Non è possibile verificare il tuo account su questo dispositivo. I tuoi dati sono conservati.', timeout: 'Questa verifica richiede troppo tempo. I tuoi dati sono conservati.', scope: 'Non è stato possibile identificare il tuo spazio locale. I tuoi dati sono conservati.', context: 'Il contesto locale dell’account deve essere verificato. Riapri il tuo spazio.', retry: 'Riprova la verifica' },
+  en: { loading: 'Checking your account on this device…', failure: 'Your account cannot be verified on this device. Your data is preserved.', timeout: 'This check is taking too long. Your data is preserved.', scope: 'Your local workspace could not be identified. Your data is preserved.', context: 'The local account context must be verified. Reopen your workspace.', retry: 'Retry account check' },
+};
+const memberNonceCompatibilityCopy = {
+  fr: { title:'Mettre Zentra à jour', message:'Cette version de Zentra ne prend pas encore en charge la vérification locale du compte.', action:'Installez la dernière mise à jour, puis rouvrez Zentra. Vos données sont conservées.' },
+  de: { title:'Zentra aktualisieren', message:'Diese Zentra-Version unterstützt die lokale Kontoprüfung noch nicht.', action:'Installieren Sie das neueste Update und öffnen Sie Zentra erneut. Ihre Daten bleiben erhalten.' },
+  it: { title:'Aggiorna Zentra', message:'Questa versione di Zentra non supporta ancora la verifica locale dell’account.', action:'Installa l’ultimo aggiornamento, poi riapri Zentra. I tuoi dati sono conservati.' },
+  en: { title:'Update Zentra', message:'This version of Zentra does not yet support local account verification.', action:'Install the latest update, then reopen Zentra. Your data is preserved.' },
 };
 
 type DraftCompanyAdmission = {key:string;epoch:number};
@@ -73,15 +81,15 @@ export function App() {
   const [openingErrorIncident, setOpeningErrorIncident] = useState<{attempt:number;code:string} | null>(null);
   const [loading, setLoading] = useState(true);
   const [createdFor, setCreatedFor] = useState<string | null>(null);
-  const [draftIdentity, setDraftIdentity] = useState<{key:string; memberId?:string}>({key:''});
+  const [draftIdentity, setDraftIdentity] = useState<{key:string; memberId?:string; memberContextNonce?:string}>({key:''});
   const [draftIdentityRevision, setDraftIdentityRevision] = useState(0);
   const [companyAdmission, setCompanyAdmission] = useState<DraftCompanyAdmission | null>(null);
-  const [draftIdentityFailure, setDraftIdentityFailure] = useState<{key:string; reason:'failure'|'timeout'|'scope'; incidentCode:string} | null>(null);
+  const [draftIdentityFailure, setDraftIdentityFailure] = useState<{key:string; reason:'failure'|'timeout'|'scope'|'context'|'compatibility'; incidentCode:string} | null>(null);
   const cloudDraftIdentity = cloudAccount?.status === 'connected' || cloudAccount?.status === 'inactive';
   const draftOrganizationId = cloudDraftIdentity ? cloudAccount?.organizationId || '' : '';
   // Access status can change without changing the owner of the local drafts.
   const draftIdentityKey = JSON.stringify([workspace?.workNotesScope || '', draftOrganizationId, cloudDraftIdentity ? 'cloud' : 'local']);
-  const draftIdentityReady = Boolean(workspace?.workNotesScope) && draftIdentity.key === draftIdentityKey && Boolean(draftIdentity.memberId);
+  const draftIdentityReady = Boolean(workspace?.workNotesScope) && draftIdentity.key === draftIdentityKey && Boolean(draftIdentity.memberId) && /^[0-9a-f]{32}$/.test(draftIdentity.memberContextNonce ?? '');
   const openingAttempt = useRef(0);
   const automaticRefreshStarted = useRef(false);
   const accountEpoch = useRef(0);
@@ -150,14 +158,10 @@ export function App() {
       setDraftIdentityFailure({key:draftIdentityKey,reason:'scope',incidentCode:`ZT-${incident}`});
       return;
     }
-    if (!cloudDraftIdentity) {
-      setDraftIdentity({key:draftIdentityKey,memberId:'local-user'});
-      return;
-    }
     const epoch = accountEpoch.current;
     const started = performance.now();
     const incident = recordDiagnostic({area:'draft',operation:'identity.read',phase:'start'});
-    const failed = (reason: 'failure'|'timeout') => {
+    const failed = (reason: 'failure'|'timeout'|'context'|'compatibility') => {
       if (!active || epoch !== accountEpoch.current) return;
       active = false;
       clearTimeout(timer);
@@ -165,19 +169,22 @@ export function App() {
       // Explicit account changes synchronously invalidate the previous identity.
       setDraftIdentity(previous=>previous.key===draftIdentityKey?previous:{key:draftIdentityKey});
       setDraftIdentityFailure({key:draftIdentityKey,reason,incidentCode:`ZT-${incident}`});
-      recordDiagnostic({id:incident,area:'draft',operation:'identity.read',phase:'failure',durationMs:performance.now()-started,errorCode:'STORAGE'});
+      recordDiagnostic({id:incident,area:'draft',operation:'identity.read',phase:'failure',durationMs:performance.now()-started,errorCode:reason === 'context' || reason === 'compatibility' ? 'CONFLICT' : 'STORAGE'});
     };
     const timer = window.setTimeout(() => failed('timeout'), FORM_DRAFT_IDENTITY_TIMEOUT_MS);
     // This trusted member id comes from protected local storage, never a server
     // request or editable account metadata. Only the initial admission waits.
     void Promise.resolve().then(() => desktopApi.getFormDraftIdentity()).then(identity => {
       if (!active || epoch !== accountEpoch.current) return;
-      if (!identity.memberId?.trim()) { failed('failure'); return; }
+      const memberId = cloudDraftIdentity ? identity.memberId?.trim() : 'local-user';
+      if (!memberId) { failed('failure'); return; }
+      if (identity.memberContextNonce === undefined) { failed('compatibility'); return; }
+      if (classifyMemberNonceCompatibility(identity.memberContextNonce) !== 'guarded-member-origin') { failed('context'); return; }
       active = false;
       clearTimeout(timer);
-      setDraftIdentity({key:draftIdentityKey,memberId:identity.memberId});
+      setDraftIdentity({key:draftIdentityKey,memberId,memberContextNonce:identity.memberContextNonce});
       recordDiagnostic({id:incident,area:'draft',operation:'identity.read',phase:'success',durationMs:performance.now()-started});
-    }, () => failed('failure'));
+    }, reason => failed(reason instanceof WorkspaceMemberOriginChangedError ? 'context' : 'failure'));
     return () => { if (active) recordDiagnostic({id:incident,area:'draft',operation:'identity.read',phase:'info',durationMs:performance.now()-started}); active = false; clearTimeout(timer); };
   }, [Boolean(workspace), draftIdentityKey, draftIdentityRevision, companyAdmission?.key, companyAdmission?.epoch]);
 
@@ -305,16 +312,18 @@ export function App() {
     ) : workspace.activityProfileRequired || activityProfileMissing ? (
       <BusinessProfileGate key={workspace.workNotesScope} workspace={workspace} readOnly={Boolean(license?.readOnly || cloudRoleReadOnly)} onSaved={setWorkspace} />
     ) : !draftIdentityReady ? (
-      <main className="splash-screen draft-identity-splash" aria-busy={draftIdentityFailure?.key !== draftIdentityKey}>
+      <main className="splash-screen draft-identity-splash" data-draft-identity-failure={draftIdentityFailure?.key === draftIdentityKey ? draftIdentityFailure.reason : undefined} aria-busy={draftIdentityFailure?.key !== draftIdentityKey}>
         <BrandMark size={58} />
         <h1>Zentra</h1>
         {draftIdentityFailure?.key === draftIdentityKey ? <>
-          <ErrorGuidance title={t('Espace indisponible')} error={draftIdentityMessages[language][draftIdentityFailure.reason]} fallback={draftIdentityMessages[language][draftIdentityFailure.reason]} operation="read" incidentCode={draftIdentityFailure.incidentCode} />
-          <Button autoFocus onClick={() => { if (!workspace.workNotesScope) { void load(); return; } setDraftIdentityFailure(null); setDraftIdentityRevision(value=>value+1); }}>{draftIdentityMessages[language].retry}</Button>
+          {draftIdentityFailure.reason === 'compatibility' ? <div className="error-panel error-guidance"><div className="error-guidance__message" role="alert"><div><strong>{memberNonceCompatibilityCopy[language].title}</strong><p>{memberNonceCompatibilityCopy[language].message}</p><p className="error-guidance__recovery">{memberNonceCompatibilityCopy[language].action}</p></div></div><ErrorDetails error={memberNonceCompatibilityCopy[language].message} incidentCode={draftIdentityFailure.incidentCode}/></div> : <>
+            <ErrorGuidance title={t('Espace indisponible')} error={draftIdentityFailure.reason === 'context' ? new WorkspaceMemberOriginChangedError('Le contexte local du compte doit être vérifié. Rouvrez votre espace.') : draftIdentityMessages[language][draftIdentityFailure.reason]} fallback={draftIdentityMessages[language][draftIdentityFailure.reason]} operation="read" incidentCode={draftIdentityFailure.incidentCode} />
+            <Button autoFocus onClick={() => { if (!workspace.workNotesScope) { void load(); return; } setDraftIdentityFailure(null); setDraftIdentityRevision(value=>value+1); }}>{draftIdentityMessages[language].retry}</Button>
+          </>}
         </> : <><p role="status">{draftIdentityMessages[language].loading}</p><LoaderCircle className="spin" size={22} aria-hidden="true" /></>}
       </main>
     ) : (
-      <Suspense fallback={<main className="splash-screen"><LoaderCircle className="spin" size={24} /><p>{t("Ouverture de votre espace…")}</p></main>}><FormDraftIdentityProvider key={`${draftIdentityKey}:${draftIdentity.memberId}`} companyId={workspace.workNotesScope} organizationId={draftOrganizationId || undefined} memberId={draftIdentity.memberId} ready><WorkspaceApp
+      <Suspense fallback={<main className="splash-screen"><LoaderCircle className="spin" size={24} /><p>{t("Ouverture de votre espace…")}</p></main>}><FormDraftIdentityProvider key={`${draftIdentityKey}:${draftIdentity.memberId}:${draftIdentity.memberContextNonce}`} companyId={workspace.workNotesScope} organizationId={draftOrganizationId || undefined} memberId={draftIdentity.memberId} memberContextNonce={draftIdentity.memberContextNonce} ready><WorkspaceApp
         workspace={workspace}
         setWorkspace={setWorkspace}
         readOnly={Boolean(license?.readOnly || cloudRoleReadOnly)}
@@ -331,7 +340,7 @@ export function App() {
       <CompanyAccountGate account={cloudAccount} workspace={workspace} createdFor={createdFor} onWorkspace={setWorkspace} onAccountChange={handleCloudAccountChange}>
         <DraftCompanyAdmissionMarker identityKey={draftIdentityKey} epoch={accountEpoch.current} onAdmission={setCompanyAdmission}>{content}</DraftCompanyAdmissionMarker>
       </CompanyAccountGate>
-      {!workspaceReady ? <StandaloneUpdaterAccess /> : null}
+      {!workspaceReady || draftIdentityFailure?.key === draftIdentityKey && draftIdentityFailure.reason === 'compatibility' ? <StandaloneUpdaterAccess /> : null}
       {license && licenseNeedsAttention && workspace.onboardingCompleted && workspace.settings ? (
         <LicenseActivation
           license={license}

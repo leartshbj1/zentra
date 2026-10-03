@@ -2,7 +2,7 @@ import { getAppLanguage, t, type AppLanguage } from './language';
 import { errorMessage } from './utils';
 import { interfaceKeys } from 'virtual:zentra-language-keys';
 
-export type UserErrorKind = 'network' | 'session' | 'permission' | 'workspace' | 'conflict' | 'validation' | 'file' | 'unknown';
+export type UserErrorKind = 'network' | 'session' | 'permission' | 'member' | 'workspace' | 'conflict' | 'validation' | 'file' | 'unknown';
 export type UserErrorOperation = 'read' | 'mutation';
 type Copy = { title: string; message: string; action: string };
 type ErrorCopy = Record<UserErrorKind, Copy> & { unknownRead: Copy; workspaceRead: Copy; uncertain: string; reload: string; reconnect: string; review: string; details: string; incident: string; copy: string; copied: string; copyFailed: string };
@@ -14,6 +14,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     network: { title: 'Connexion indisponible', message: 'Zentra n’a pas pu joindre le service.', action: 'Vérifiez votre connexion Internet.' },
     session: { title: 'Connexion au compte à renouveler', message: 'Votre session n’est plus disponible.', action: 'Reconnectez ce poste depuis Compte et équipe.' },
     permission: { title: 'Accès à vérifier', message: 'Votre accès ne permet pas cette action.', action: 'Vérifiez vos droits d’accès avec la personne qui gère l’entreprise.' },
+    member: { title: 'Compte ouvert à vérifier', message: 'Le compte utilisé pour cette action n’est plus disponible sur cet appareil.', action: 'Ouvrez le bon compte, puis rouvrez cette action. Vérifiez ce qui est déjà enregistré avant de la recommencer.' },
     workspace: { title: 'Entreprise ouverte à vérifier', message: 'La demande ne correspond plus au compte ou à l’entreprise ouverte.', action: 'Rouvrez cette action dans la bonne entreprise. Vérifiez ce qui est déjà enregistré avant de la recommencer.' },
     workspaceRead: { title: 'Entreprise ouverte à vérifier', message: 'Cette lecture ne concerne plus le compte ou l’entreprise ouverte.', action: 'Vérifiez l’entreprise ouverte, puis actualisez l’affichage ou rouvrez la réception.' },
     conflict: { title: 'Enregistrement à vérifier', message: 'Les données ont changé ou sont utilisées ailleurs.', action: 'Consultez la version enregistrée avant de choisir les modifications à conserver.' },
@@ -28,6 +29,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     network: { title: 'Verbindung nicht verfügbar', message: 'Zentra konnte den Dienst nicht erreichen.', action: 'Prüfen Sie Ihre Internetverbindung.' },
     session: { title: 'Erneut am Konto anmelden', message: 'Ihre Sitzung ist nicht mehr verfügbar.', action: 'Verbinden Sie dieses Gerät unter Konto und Team erneut.' },
     permission: { title: 'Zugriff prüfen', message: 'Ihr Zugriff erlaubt diese Aktion nicht.', action: 'Prüfen Sie Ihre Zugriffsrechte mit der Person, die das Unternehmen verwaltet.' },
+    member: { title: 'Geöffnetes Konto prüfen', message: 'Das Konto dieser Aktion ist auf diesem Gerät nicht mehr verfügbar.', action: 'Öffnen Sie das richtige Konto und danach diese Aktion. Prüfen Sie vor einer Wiederholung, was bereits gespeichert wurde.' },
     workspace: { title: 'Geöffnetes Unternehmen prüfen', message: 'Diese Anfrage gehört nicht mehr zum geöffneten Konto oder Unternehmen.', action: 'Öffnen Sie diese Aktion im richtigen Unternehmen. Prüfen Sie vor einer Wiederholung, was bereits gespeichert wurde.' },
     workspaceRead: { title: 'Geöffnetes Unternehmen prüfen', message: 'Diese Abfrage betrifft nicht mehr das geöffnete Konto oder Unternehmen.', action: 'Prüfen Sie das geöffnete Unternehmen. Aktualisieren Sie dann die Anzeige oder öffnen Sie den Eingang erneut.' },
     conflict: { title: 'Speicherung prüfen', message: 'Die Daten wurden geändert oder werden anderweitig verwendet.', action: 'Prüfen Sie die gespeicherte Version und wählen Sie die Änderungen, die Sie behalten möchten.' },
@@ -42,6 +44,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     network: { title: 'Connessione non disponibile', message: 'Zentra non ha potuto raggiungere il servizio.', action: 'Controlla la connessione Internet.' },
     session: { title: 'Accedi di nuovo al conto', message: 'La sessione non è più disponibile.', action: 'Ricollega questo dispositivo da Conto e team.' },
     permission: { title: 'Verifica l’accesso', message: 'Il tuo accesso non permette questa azione.', action: 'Verifica i diritti di accesso con chi gestisce l’azienda.' },
+    member: { title: 'Verifica il conto aperto', message: 'Il conto usato per questa azione non è più disponibile su questo dispositivo.', action: 'Apri il conto corretto, poi riapri questa azione. Prima di ripeterla, verifica cosa è già stato salvato.' },
     workspace: { title: 'Verifica l’azienda aperta', message: 'La richiesta non corrisponde più al conto o all’azienda aperta.', action: 'Riapri questa azione nell’azienda corretta. Prima di ripeterla, verifica cosa è già stato salvato.' },
     workspaceRead: { title: 'Verifica l’azienda aperta', message: 'Questa lettura non riguarda più il conto o l’azienda aperta.', action: 'Verifica l’azienda aperta, poi aggiorna la vista o riapri la ricezione.' },
     conflict: { title: 'Verifica il salvataggio', message: 'I dati sono cambiati o sono utilizzati altrove.', action: 'Controlla la versione salvata prima di scegliere le modifiche da mantenere.' },
@@ -56,6 +59,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     network: { title: 'Connection unavailable', message: 'Zentra could not reach the service.', action: 'Check your Internet connection.' },
     session: { title: 'Sign in to your account again', message: 'Your session is no longer available.', action: 'Reconnect this device from Account and team.' },
     permission: { title: 'Check your access', message: 'Your access does not allow this action.', action: 'Check your access rights with the person who manages the company.' },
+    member: { title: 'Check the open account', message: 'The account used for this action is no longer available on this device.', action: 'Open the correct account, then reopen this action. Check what was already saved before repeating it.' },
     workspace: { title: 'Check the open company', message: 'This request no longer matches the open account or company.', action: 'Reopen this action in the correct company. Check what was already saved before repeating it.' },
     workspaceRead: { title: 'Check the open company', message: 'This read no longer applies to the open account or company.', action: 'Check the open company, then refresh the view or reopen the inbox.' },
     conflict: { title: 'Check the saved record', message: 'The data changed or is being used elsewhere.', action: 'Review the saved version before choosing which changes to keep.' },
@@ -96,6 +100,8 @@ export function classifyUserError(reason: unknown): UserErrorKind {
   const statusText = nativeMessage ? `${code} ${reportedHttpStatus}` : text;
   if (status === 401 || /\b401\b/.test(statusText) || /jwt.*expir|session.*expir|session.*invalid|refresh.?token|not authenticated|unauthenticated|auth.*required|reconnectez|connexion.*expir/.test(text)) return 'session';
   if (status === 403 || /\b403\b/.test(statusText) || /forbidden|row.level.security|\brls\b|insufficient.privilege|permission denied|access denied|droits?.*(insuffisant|requis)|accès.*(refus|interdit)|read.only|lecture seule/.test(text)) return 'permission';
+  const nativeContextMessage = message.trim().replace(/^champ invalide\s*:\s*/, '');
+  if (nativeContextMessage === 'le compte connecté a changé. rouvrez cette action avec le bon compte.' || nativeContextMessage === 'le contexte local du compte doit être vérifié. rouvrez votre espace.') return 'member';
   // Only authored native context rejections override the validation prefix.
   if (/(?:la connexion ou l[’']entreprise ouverte a changé\. rouvrez la réception\.|l[’']entreprise ouverte a changé\. rouvrez cette action dans le bon espace\.|l[’']espace de travail a changé pendant l[’']actualisation des réglages enregistrés\.)/.test(message)) return 'workspace';
   if (status === 409 || /\b409\b|\b23505\b/.test(statusText) || /unique constraint|duplicate key|already exists|conflict|conflit|sqlite_busy|database is locked|updated_at|version.*(changed|modifi)|modifi.*autre|déjà (utilisé|enregistré|existe)/.test(text)) return 'conflict';

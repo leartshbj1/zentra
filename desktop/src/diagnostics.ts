@@ -27,6 +27,8 @@ export function classifyDiagnosticError(error:unknown):string {
   if(/(?:network|fetch|offline|internet|réseau|timeout|timed out|connexion.*(?:perdue|impossible))/i.test(text))return 'NETWORK';
   if(/401/.test(statusText)||/(?:unauth|session.*(?:expir|invalid)|connectez.*compte)/i.test(text))return 'SESSION';
   if(/403/.test(statusText)||/(?:forbidden|permission|lecture seule|autorisé|accès refusé)/i.test(text))return 'PERMISSION';
+  const nativeContextMessage=text.trim().replace(/^champ invalide\s*:\s*/i,'').toLowerCase();
+  if(nativeContextMessage==='le compte connecté a changé. rouvrez cette action avec le bon compte.'||nativeContextMessage==='le contexte local du compte doit être vérifié. rouvrez votre espace.')return 'CONFLICT';
   if(/(?:la connexion ou l[’']entreprise ouverte a changé\. rouvrez la réception\.|l[’']entreprise ouverte a changé\. rouvrez cette action dans le bon espace\.|l[’']espace de travail a changé pendant l[’']actualisation des réglages enregistrés\.)/i.test(text))return 'CONFLICT';
   if(/409/.test(statusText)||/(?:conflict|conflit|entre.temps|déjà.*enregistr|révision)/i.test(text))return 'CONFLICT';
   if(/404/.test(statusText)||/(?:introuvable|not found)/i.test(text))return 'NOT_FOUND';

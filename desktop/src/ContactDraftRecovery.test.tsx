@@ -1,3 +1,4 @@
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 // @vitest-environment jsdom
 // @vitest-environment-options {"url":"http://localhost","pretendToBeVisual":true}
 /** Actual ContactForms, uncontrolled-field adapter, FormDraftSession, bridge and
@@ -12,6 +13,7 @@ const nativeInvoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ Channel: class {}, invoke: nativeInvoke }));
 const companyId = 'synthetic-contact-workspace';
 const memberId = 'synthetic-contact-member';
+const memberContextNonce = '0123456789abcdef0123456789abcdef';
 const uuid = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
 type Kind = 'client' | 'supplier';
 const fields: Record<Kind, Record<string, string>> = {
@@ -104,9 +106,9 @@ async function click(label: string) { await runtime.react.act(async () => { expe
 function executor() {
   const failures: unknown[] = [], outcomes: boolean[] = [];
   let pending: Promise<boolean> | undefined;
-  const act = (action: () => Promise<Workspace>, _message: string, _close?: boolean, onError?: (error: unknown) => void) => {
+  const act = (action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>, _message: string, _close?: boolean, onError?: (error: unknown) => void) => {
     pending = (async () => {
-      try { await action(); outcomes.push(true); return true; }
+      try { await action({workspaceScope:companyId,memberContextNonce}); outcomes.push(true); return true; }
       catch (reason) {
         failures.push(reason);
         // An unsafe generic error would return true merely because an older
@@ -129,7 +131,7 @@ async function submit(run: ReturnType<typeof executor>, expectedAction = true) {
     else expect(run.latest()).toBeUndefined();
   });
 }
-async function mount(kind: Kind, workspace: Workspace, run: ReturnType<typeof executor>, item?: Client | Supplier, identity = { memberId, ready: true }, readOnly = false, onClose: () => void = () => {}) {
+async function mount(kind: Kind, workspace: Workspace, run: ReturnType<typeof executor>, item?: Client | Supplier, identity: { memberId: string; ready: boolean; memberContextNonce?: string } = { memberId, memberContextNonce, ready: true }, readOnly = false, onClose: () => void = () => {}) {
   const host = document.createElement('div'); document.body.append(host);
   const root = runtime.dom.createRoot(host);
   const common = { workspace, busy: false, readOnly, close: onClose, act: run.act };
@@ -137,7 +139,7 @@ async function mount(kind: Kind, workspace: Workspace, run: ReturnType<typeof ex
     ? runtime.react.createElement(runtime.forms.ClientForm, { ...common, item: item as Client | undefined })
     : runtime.react.createElement(runtime.forms.SupplierForm, { ...common, item: item as Supplier | undefined });
   await runtime.react.act(async () => root.render(runtime.react.createElement(runtime.draftHook.FormDraftIdentityProvider, {
-    ...identity, children: content,
+    companyId, ...identity, children: content,
   })));
   const view = { root, host, runtime }; views.push(view); return view;
 }
@@ -150,6 +152,7 @@ beforeEach(async () => {
   scrollDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: () => {} });
   nativeInvoke.mockImplementation(async (command: string, args?: Record<string, unknown>) => {
+    if (args?.expectedMemberContextNonce !== undefined) expect(args.expectedMemberContextNonce).toBe(memberContextNonce);
     if (command === 'get_app_state') return { onboarding_completed: true, data_dir: 'synthetic-only', database_path: 'synthetic-only', app_version: 'candidate' };
     if (command === 'get_workspace') return { work_notes_scope: readScope, clients: [...rows.client.values()], suppliers: [...rows.supplier.values()] };
     if (command === 'create_record') {

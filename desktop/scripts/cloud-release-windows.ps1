@@ -213,6 +213,10 @@ try {
         $diagnosticNativeSuites += @('commands::generic_crud_scope_tests::')
         $diagnosticFrontendSuites += @('src/genericCrudScope.test.ts', 'src/useWorkspaceRecoveryOrigin.test.tsx')
         $diagnosticMobileSuites += @('src/genericCrudScope.test.ts', 'src/useWorkspaceRecoveryOrigin.test.tsx')
+        # Local member-origin admission and recovery, with the real payroll handler.
+        $diagnosticNativeSuites += @('member_context::tests', 'company_collaboration::member_context_private_tests', 'commands::member_context_tests', 'account_cloud::member_context_clear_tests', 'account_cloud::nonblocking_state_tests', 'commands::payslip_member_origin_tests')
+        $diagnosticFrontendSuites += @('src/ContactDraftRecovery.test.tsx', 'src/workspaceMemberOrigin.test.ts', 'src/member-origin-reactdom.test.tsx', 'src/app-member-admission.test.tsx', 'src/payroll-member-origin.test.tsx')
+        $diagnosticMobileSuites += @('src/ContactDraftRecovery.test.tsx', 'src/workspaceMemberOrigin.test.ts', 'src/member-origin-reactdom.test.tsx', 'src/app-member-admission.test.tsx', 'src/payroll-member-origin.test.tsx')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

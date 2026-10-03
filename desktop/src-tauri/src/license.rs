@@ -816,7 +816,7 @@ impl LocalStore {
         access: LicenseServerAccess,
         server_verified: bool,
     ) -> AppResult<()> {
-        let Some(key) = embedded_key()? else {
+        let Some(key) = self.license_verification_key()? else {
             return Ok(());
         };
         let _guard = self.lock()?;

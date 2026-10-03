@@ -115,15 +115,17 @@ pub async fn refresh_license(
 }
 
 #[tauri::command]
-pub async fn get_app_state(state: State<'_, LocalStore>, app: AppHandle) -> Result<AppStateInfo, String> {
-    let store = state.inner().clone();
+pub async fn get_app_state(
+    state: State<'_, LocalStore>, app: AppHandle,
+    expected_workspace_scope: Option<String>,
+    expected_member_context_nonce: Option<String>,
+) -> Result<AppStateInfo, String> {
     let version = app_version(&app);
-    tauri::async_runtime::spawn_blocking(move || {
-        let _guard = store.lock().map_err(command_error)?;
-        store.app_state(&version).map_err(command_error)
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    // The unconfigured-company branch is a contextual recovery read too.
+    run_member_scoped_local_operation(
+        state.inner().clone(), expected_workspace_scope, expected_member_context_nonce,
+        move |store| store.app_state(&version).map_err(command_error),
+    ).await
 }
 
 #[tauri::command]
@@ -172,16 +174,17 @@ fn onboarding_validation_scope(value: Option<&str>) -> Result<OnboardingValidati
 }
 
 #[tauri::command]
-pub async fn get_workspace(state: State<'_, LocalStore>) -> Result<Value, String> {
-    // SQLite reads and JSON assembly may be large. Keep them off both the
-    // window thread and the network runtime; retain the shared company lock.
-    let store = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let _guard = store.lock().map_err(command_error)?;
-        store.get_interface_workspace().map_err(command_error)
-    })
-    .await
-    .map_err(|error| error.to_string())?
+pub async fn get_workspace(
+    state: State<'_, LocalStore>,
+    expected_workspace_scope: Option<String>,
+    expected_member_context_nonce: Option<String>,
+) -> Result<Value, String> {
+    // A recovery read belongs to its originally admitted workspace and account.
+    // Ordinary legacy reads may omit both optional arguments.
+    run_member_scoped_local_operation(
+        state.inner().clone(), expected_workspace_scope, expected_member_context_nonce,
+        |store| store.get_interface_workspace().map_err(command_error),
+    ).await
 }
 
 #[tauri::command]
@@ -323,8 +326,9 @@ pub async fn create_record(
     entity: String,
     data: Value,
     expected_workspace_scope: Option<String>,
+    expected_member_context_nonce: Option<String>,
 ) -> Result<Value, String> {
-    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+    run_member_scoped_local_operation(state.inner().clone(), expected_workspace_scope, expected_member_context_nonce, move |store| {
         require_write(store)?;
         store.create_record(&entity, data).map_err(command_error)
     }).await
@@ -337,16 +341,17 @@ pub async fn update_record(
     id: String,
     data: Value,
     expected_workspace_scope: Option<String>,
+    expected_member_context_nonce: Option<String>,
 ) -> Result<Value, String> {
-    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+    run_member_scoped_local_operation(state.inner().clone(), expected_workspace_scope, expected_member_context_nonce, move |store| {
         require_write(store)?;
         store.update_record(&entity, &id, data).map_err(command_error)
     }).await
 }
 
 #[tauri::command]
-pub async fn update_catalog_item(state: State<'_, LocalStore>, id: String, data: Value, expected_updated_at: String, expected_workspace_scope: Option<String>) -> Result<Value, String> {
-    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+pub async fn update_catalog_item(state: State<'_, LocalStore>, id: String, data: Value, expected_updated_at: String, expected_workspace_scope: Option<String>, expected_member_context_nonce: Option<String>) -> Result<Value, String> {
+    run_member_scoped_local_operation(state.inner().clone(), expected_workspace_scope, expected_member_context_nonce, move |store| {
         require_write(store)?;
         store.update_catalog_item(&id, data, &expected_updated_at).map_err(command_error)
     }).await
@@ -358,8 +363,9 @@ pub async fn delete_record(
     entity: String,
     id: String,
     expected_workspace_scope: Option<String>,
+    expected_member_context_nonce: Option<String>,
 ) -> Result<DeleteResult, String> {
-    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+    run_member_scoped_local_operation(state.inner().clone(), expected_workspace_scope, expected_member_context_nonce, move |store| {
         require_write(store)?;
         store.delete_record(&entity, &id).map_err(command_error)
     }).await
@@ -1602,15 +1608,21 @@ pub fn apply_payroll_contributions(
         .map_err(command_error)
 }
 #[tauri::command]
-pub fn save_payslip_with_contributions(
+pub async fn save_payslip_with_contributions(
     state: State<'_, LocalStore>,
     input: SavePayslipWithContributionsInput,
+    expected_workspace_scope: Option<String>,
+    expected_member_context_nonce: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .save_payslip_with_contributions(input)
-        .map_err(command_error)
+    // Origin admission and the unchanged payroll transaction share one local
+    // mutex. A later account/company cannot authorize an earlier payload.
+    run_member_scoped_local_operation(
+        state.inner().clone(), expected_workspace_scope, expected_member_context_nonce,
+        move |store| {
+            require_write(store)?;
+            store.save_payslip_with_contributions(input).map_err(command_error)
+        },
+    ).await
 }
 #[tauri::command]
 pub fn post_payslip(
@@ -1904,6 +1916,29 @@ where
     }).await?
 }
 
+
+// Local account context is deliberately distinct from the persistent draft key.
+// The existing scoped worker owns the one LocalStore mutex across both origin
+// checks, licence/permissions, and the business operation through its commit.
+// This guard proves no remote authority; None retains legacy IPC compatibility.
+pub(crate) async fn run_member_scoped_local_operation<T, F>(
+    store: LocalStore,
+    expected_workspace_scope: Option<String>,
+    expected_member_context_nonce: Option<String>,
+    operation: F,
+) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(&LocalStore) -> Result<T, String> + Send + 'static,
+{
+    run_scoped_local_operation(store, expected_workspace_scope, move |store| {
+        crate::member_context::require_unchanged(
+            &store.connect().map_err(command_error)?, expected_member_context_nonce.as_deref(),
+        ).map_err(command_error)?;
+        operation(store)
+    }).await
+}
+
 #[tauri::command]
 pub async fn create_backup(
     state: State<'_, LocalStore>,
@@ -1986,6 +2021,10 @@ mod import_worker_tests;
 #[cfg(test)]
 #[path = "commands_generic_crud_scope_tests.rs"]
 mod generic_crud_scope_tests;
+
+#[cfg(test)]
+#[path = "commands_member_context_tests.rs"]
+mod member_context_tests;
 
 #[cfg(test)]
 #[path = "commands_payroll_import_worker_tests.rs"]
@@ -2183,3 +2222,8 @@ mod attachment_mutation_scope_tests;
 #[cfg(test)]
 #[path = "commands_bank_pending_scope_tests.rs"]
 mod bank_pending_scope_tests;
+
+// Explicit additional payroll guard; generic CRUD tests do not cover it.
+#[cfg(test)]
+#[path = "commands_payslip_member_origin_tests.rs"]
+mod payslip_member_origin_tests;

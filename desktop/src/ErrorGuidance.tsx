@@ -55,7 +55,7 @@ export function ErrorGuidance({ error, fallback, title, operation = 'mutation', 
   const labels = userErrorCopy(language);
   // Only an explicitly provided read operation may refresh. Reconnect and
   // review callbacks open a corrective path; neither repeats the failed save.
-  const action = guidance.kind === 'session' && onReconnect ? { label: labels.reconnect, run: onReconnect }
+  const action = ['session', 'member'].includes(guidance.kind) && onReconnect ? { label: labels.reconnect, run: onReconnect }
     : ['validation', 'conflict'].includes(guidance.kind) && onReview ? { label: labels.review, run: onReview }
     : operation === 'read' && onReload && ['network', 'file', 'conflict', 'unknown', 'workspace'].includes(guidance.kind) ? { label: labels.reload, run: onReload } : null;
   return <div ref={panelRef} className={`error-panel error-guidance${compact ? ' error-guidance--compact' : ''}`}>

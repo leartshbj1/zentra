@@ -1,3 +1,6 @@
+import { useWorkspaceMutationOrigin } from './useWorkspaceMutationOrigin';
+import { bindWorkspaceMutationRead } from './memberOriginBridge';
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import './first-client-clarity.css';
 import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
 import './workspace-navigation.css';
@@ -640,6 +643,7 @@ function WorkspaceContent({
   const recurrenceScanInFlight = useRef(false);
   const recurrenceRequestIds = useRef(new Map<string, string>());
   const workspaceRef = useRef(workspace);
+  const captureMutationOrigin = useWorkspaceMutationOrigin(workspace);
   const actionInFlight = useRef(false);
   const actionLifetime = useRef(false);
   const backgroundReadOnly = useRef(readOnly);
@@ -696,7 +700,7 @@ function WorkspaceContent({
                 if(existing.length===1)return existing[0].id;
                 const previous=new Set(workspaceRef.current.suppliers.map(s=>s.id));
                 let failure:unknown;
-                const saved=await act(()=>desktopApi.createEntity('suppliers',{name,email,currency:'CHF',paymentTermsDays:30},workspace.workNotesScope),t('Le fournisseur a été ajouté.'),false,reason=>{failure=reason;});
+                const saved=await act((mutationOrigin)=>desktopApi.createEntity('suppliers',{name,email,currency:'CHF',paymentTermsDays:30},workspace.workNotesScope, mutationOrigin.memberContextNonce),t('Le fournisseur a été ajouté.'),false,reason=>{failure=reason;});
                 if(!saved)throw new Error(errorMessage(failure,t('Le fournisseur n’a pas pu être ajouté. Votre facture reste ouverte.')));
                 const created=workspaceRef.current.suppliers.filter(s=>!previous.has(s.id)&&s.name===name&&s.email.toLowerCase()===email.toLowerCase());
                 if(created.length!==1)throw new Error(t('Sélectionnez le fournisseur ajouté dans la liste.'));
@@ -1112,14 +1116,24 @@ function WorkspaceContent({
   }, [readOnly, runReminderScan]);
 
   async function act(
-    action: () => Promise<Workspace>,
+    action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>,
     message: string,
     close = true,
     onError?: (reason: unknown) => void,
     validateRead?: (workspace: Workspace) => void,
     acceptWorkspaceChange = false,
   ) {
-    const originWorkspaceScope = workspace.workNotesScope;
+    let mutationOrigin: WorkspaceMutationOrigin;
+    try { mutationOrigin = captureMutationOrigin(); }
+    catch (reason) {
+      onError?.(reason);
+      if (!onError) setNotice({ tone: 'error', text: errorMessage(reason, 'Le compte doit être vérifié avant cette action.') });
+      return false;
+    }
+    const originWorkspaceScope = mutationOrigin.workspaceScope;
+    // Restore is an explicit exception only. Ordinary mutations retain nonce A.
+    const readOriginalWorkspace = acceptWorkspaceChange ? () => desktopApi.loadWorkspace()
+      : bindWorkspaceMutationRead(mutationOrigin, (scope, nonce) => desktopApi.loadWorkspace(scope, nonce));
     const isOriginWorkspace = () => actionLifetime.current && workspaceRef.current.workNotesScope === originWorkspaceScope;
     if (!isOriginWorkspace()) return false;
     if (readOnly) {
@@ -1134,7 +1148,7 @@ function WorkspaceContent({
     setBusy(true);
     setNotice(null);
     try {
-      const nextWorkspace = await action();
+      const nextWorkspace = await action(mutationOrigin);
       if (!isOriginWorkspace()) return false;
       if (!acceptWorkspaceChange) assertWorkspaceOrigin(nextWorkspace, originWorkspaceScope);
       validateRead?.(nextWorkspace);
@@ -1155,7 +1169,7 @@ function WorkspaceContent({
       const validateCreationRead = (value: Workspace) => { if (!acceptWorkspaceChange) assertWorkspaceOrigin(value, originWorkspaceScope); uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError || reason instanceof SupplierPaymentRefreshError || reason instanceof SupplierInvoiceValidationRefreshError || reason instanceof CustomerSettlementRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
-        refreshedWorkspace = await desktopApi.loadWorkspace();
+        refreshedWorkspace = await readOriginalWorkspace();
         if (!isOriginWorkspace()) return false;
         validateCreationRead(refreshedWorkspace);
       } catch (refreshCause) {
@@ -1170,7 +1184,7 @@ function WorkspaceContent({
         // Hold the action until its outcome can be established. Recovery only
         // reads; it never resends the creation, even after a lost response.
         if (reason instanceof WorkspaceRefreshAfterMutationError || uncertainCreation) {
-          try { refreshedWorkspace = await waitForRefresh(refreshCause, !!uncertainCreation, validateCreationRead); }
+          try { refreshedWorkspace = await waitForRefresh(refreshCause, !!uncertainCreation, validateCreationRead, readOriginalWorkspace); }
           catch (terminalFailure) {
             const changedOrigin = workspaceOriginFailure(terminalFailure);
             if (!changedOrigin) throw terminalFailure;
@@ -1204,7 +1218,7 @@ function WorkspaceContent({
     }
   }
 
-  async function restoreWorkspace(action: () => Promise<Workspace>): Promise<void> {
+  async function restoreWorkspace(action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>): Promise<void> {
     const originScope = workspace.workNotesScope;
     let failed = false;
     let failure: unknown;
@@ -1492,7 +1506,7 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () => desktopApi.archiveEntity(entity, id, workspace.workNotesScope),
+      (mutationOrigin) => desktopApi.archiveEntity(entity, id, workspace.workNotesScope, mutationOrigin.memberContextNonce),
       `${label} a été supprimé.`,
       false,
     );
@@ -1585,7 +1599,7 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () => desktopApi.archiveEntity('projects', item.id, workspace.workNotesScope),
+      (mutationOrigin) => desktopApi.archiveEntity('projects', item.id, workspace.workNotesScope, mutationOrigin.memberContextNonce),
       `${item.name} a été supprimé.`,
       false,
     );
@@ -1599,7 +1613,7 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () => desktopApi.archiveEntity('catalogItems', item.id, workspace.workNotesScope),
+      (mutationOrigin) => desktopApi.archiveEntity('catalogItems', item.id, workspace.workNotesScope, mutationOrigin.memberContextNonce),
       `${item.name} a été archivé.`,
       false,
     );
@@ -1607,8 +1621,8 @@ function WorkspaceContent({
 
   async function restoreCatalogItem(item: CatalogItem) {
     await act(
-      () =>
-        desktopApi.updateEntity('catalogItems', item.id, { archivedAt: null }, workspace.workNotesScope),
+      (mutationOrigin) =>
+        desktopApi.updateEntity('catalogItems', item.id, { archivedAt: null }, workspace.workNotesScope, mutationOrigin.memberContextNonce),
       `${item.name} est de nouveau disponible.`,
       false,
     );
@@ -1647,7 +1661,7 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () => desktopApi.archiveEntity('clients', item.id, workspace.workNotesScope),
+      (mutationOrigin) => desktopApi.archiveEntity('clients', item.id, workspace.workNotesScope, mutationOrigin.memberContextNonce),
       `${item.company || item.name} a été archivé sans supprimer son historique.`,
       false,
     );
@@ -1655,7 +1669,7 @@ function WorkspaceContent({
 
   async function restoreClient(item: Client) {
     await act(
-      () => desktopApi.updateEntity('clients', item.id, { archivedAt: null }, workspace.workNotesScope),
+      (mutationOrigin) => desktopApi.updateEntity('clients', item.id, { archivedAt: null }, workspace.workNotesScope, mutationOrigin.memberContextNonce),
       `${item.company || item.name} est de nouveau actif.`,
       false,
     );
@@ -1669,7 +1683,7 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () => desktopApi.archiveEntity('suppliers', item.id, workspace.workNotesScope),
+      (mutationOrigin) => desktopApi.archiveEntity('suppliers', item.id, workspace.workNotesScope, mutationOrigin.memberContextNonce),
       `${item.name} a été archivé.`,
       false,
     );
@@ -1677,7 +1691,7 @@ function WorkspaceContent({
 
   async function restoreSupplier(item: Supplier) {
     await act(
-      () => desktopApi.updateEntity('suppliers', item.id, { archivedAt: null }, workspace.workNotesScope),
+      (mutationOrigin) => desktopApi.updateEntity('suppliers', item.id, { archivedAt: null }, workspace.workNotesScope, mutationOrigin.memberContextNonce),
       `${item.name} est de nouveau disponible.`,
       false,
     );
@@ -1692,11 +1706,11 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () =>
+      (mutationOrigin) =>
         desktopApi.updateEntity('expenses', item.id, {
           paymentStatus: 'paid',
           paidAt,
-        }, workspace.workNotesScope),
+        }, workspace.workNotesScope, mutationOrigin.memberContextNonce),
       'L’achat est marqué payé et son écriture comptable a été créée dans la même transaction.',
       false,
     );
@@ -6351,8 +6365,8 @@ function WorkspaceModal({
         close={returnToPayslip ? () => resumePayslip() : close}
         act={returnToPayslip ? async (action, message, _close, onError) => {
           let employeeId: string | undefined;
-          const success = await act(async () => {
-            const next = await action();
+          const success = await act(async (mutationOrigin) => {
+            const next = await action(mutationOrigin);
             employeeId = next.employees.find(employee =>
               !workspace.employees.some(previous => previous.id === employee.id),
             )?.id;
@@ -6500,7 +6514,7 @@ function WorkspaceModal({
 }
 
 type ActionRunner = (
-  action: () => Promise<Workspace>,
+  action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>,
   message: string,
   close?: boolean,
   onError?: (reason: unknown) => void,
@@ -6595,11 +6609,11 @@ function ProjectForm({
           let remaining: File[] = [];
           let finalReadFailedAfterCommit = false;
           let confirmedFallbackRead = false;
-          const saved = await act(async () => {
+          const saved = await act(async (mutationOrigin) => {
             requireProjectFormWorkspace();
             const fingerprint = JSON.stringify(data);
             if (lastSavedData.current !== fingerprint) {
-              savedProjectId.current = await desktopApi.saveProject(data, savedProjectId.current, originWorkspaceScope);
+              savedProjectId.current = await desktopApi.saveProject(data, savedProjectId.current, originWorkspaceScope, mutationOrigin.memberContextNonce);
               requireProjectFormWorkspace();
               lastSavedData.current = fingerprint;
               persisted.capture({ draftSavedRecordId: savedProjectId.current!, draftLastSavedData: fingerprint });
@@ -6615,7 +6629,7 @@ function ProjectForm({
             setFileError(failures.length ? `Le projet est enregistré. Ces fichiers restent à ajouter : ${failures.join(' ')}` : '');
             requireProjectFormWorkspace();
             try {
-              const next = await desktopApi.loadWorkspace();
+              const next = await desktopApi.loadWorkspace(mutationOrigin.workspaceScope, mutationOrigin.memberContextNonce);
               requireProjectFormWorkspace(next);
               setProjectReadPending(false);
               return next;
@@ -7026,10 +7040,10 @@ function EmployeeForm({
             savingRef.current = true;
             setSaving(true);
             const saved = await act(
-              () =>
+              (mutationOrigin) =>
                 item
-                  ? desktopApi.updateEntity('employees', item.id, data, workspace.workNotesScope)
-                  : desktopApi.createEntity('employees', data, workspace.workNotesScope),
+                  ? desktopApi.updateEntity('employees', item.id, data, workspace.workNotesScope, mutationOrigin.memberContextNonce)
+                  : desktopApi.createEntity('employees', data, workspace.workNotesScope, mutationOrigin.memberContextNonce),
               item
                 ? 'Le collaborateur a été mis à jour.'
                 : 'Le collaborateur a été ajouté.',
@@ -7616,7 +7630,7 @@ function PayslipForm({
             notes: String(form.get('notes')),
           };
           await act(
-            () => desktopApi.savePayslip(data, lines, item, workspace.workNotesScope),
+            (mutationOrigin) => desktopApi.savePayslip(data, lines, item, workspace.workNotesScope, mutationOrigin.memberContextNonce),
             item
               ? 'La fiche a été mise à jour.'
               : 'La fiche a été créée avec les lignes saisies.',

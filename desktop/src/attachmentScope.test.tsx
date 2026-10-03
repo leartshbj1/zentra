@@ -1,3 +1,4 @@
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -72,7 +73,7 @@ function click(predicate: (props: any) => boolean) {
 }
 const settle = async () => { for (let count = 0; count < 20; count++) await Promise.resolve(); };
 const commandCalls = (command: string) => runtime.invoke.mock.calls.filter(([name]) => name === command);
-const act = async (action: () => Promise<Workspace>) => { await action(); return true; };
+const act = async (action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>) => { await action({workspaceScope:origin,memberContextNonce:'0123456789abcdef0123456789abcdef'}); return true; };
 beforeEach(() => {
   runtime.clicks = []; runtime.previews = []; runtime.documents = false;
   runtime.invoke.mockReset();

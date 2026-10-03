@@ -122,6 +122,7 @@ pub(crate) fn migrate(connection: &Connection) -> AppResult<()> {
       CREATE TRIGGER IF NOT EXISTS document_creators_immutable_update BEFORE UPDATE ON document_creators BEGIN SELECT RAISE(ABORT,'Le créateur original du document ne peut pas être remplacé.'); END;
       CREATE TRIGGER IF NOT EXISTS document_creators_immutable_delete BEFORE DELETE ON document_creators BEGIN SELECT RAISE(ABORT,'Le créateur original du document doit être conservé.'); END;
     "#)?;
+    crate::member_context::migrate(connection)?;
     for table in ["quotes", "invoices"] {
         let exists: bool = connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)",
@@ -169,6 +170,10 @@ pub(crate) fn migrate(connection: &Connection) -> AppResult<()> {
     connection.pragma_update(None, "user_version", 60)?;
     Ok(())
 }
+#[cfg(test)]
+#[path = "member_context_private_tests.rs"]
+mod member_context_private_tests;
+
 pub(crate) fn local_table(table: &str) -> bool {
     table.starts_with("sqlite_")
         || table.starts_with("company_local_")
@@ -442,6 +447,7 @@ pub(crate) fn strip_private(connection: &Connection) -> AppResult<()> {
     if exists {
         connection.execute("DELETE FROM company_local_identity", [])?;
     }
+    crate::member_context::strip(connection)?;
     let has_notes_scope:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_notes_scope')",[],|r|r.get(0))?;
     if has_notes_scope {
         connection.execute("DELETE FROM company_local_notes_scope", [])?;
@@ -460,6 +466,7 @@ pub(crate) fn set_identity(
             "Reconnectez votre compte pour identifier le créateur des documents.",
         ));
     }
+    let _local = store.lock()?;
     store.connect()?.execute("INSERT INTO company_local_identity VALUES(1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET organization_id=excluded.organization_id,user_id=excluded.user_id,display_name=excluded.display_name,role=excluded.role",params![organization,user_id,name,role])?;
     Ok(())
 }
@@ -1066,6 +1073,8 @@ async fn download_content(
 }
 const PRIVATE_ROWS: &[&str] = &[
     "company_local_identity",
+    // Restore this AFTER identity: its insert/delete triggers rotate the nonce.
+    "company_local_member_context",
     "company_local_notes_scope",
     "device_number_ranges",
     "active_timers",
@@ -1120,6 +1129,9 @@ fn restore_private(store: &LocalStore, rows: &[(String, Vec<Value>)]) -> AppResu
         }
     }
     crate::work_notes::ensure_workspace_scope(&tx)?;
+    // Ordinary receives restore the saved nonce after identity. Opening another
+    // company intentionally restores no nonce row and starts a fresh context.
+    crate::member_context::ensure(&tx)?;
     tx.commit()?;
     Ok(())
 }

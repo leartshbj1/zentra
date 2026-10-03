@@ -1543,6 +1543,9 @@ impl LocalStore {
         if current == SCHEMA_VERSION {
             let transaction=connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
             crate::work_notes::ensure_workspace_scope(&transaction)?;
+            // A schema-61 installation predates this private connection context.
+            // Repair it in the same migration transaction, including after restore.
+            crate::member_context::migrate(&transaction)?;
             crate::company_collaboration::upgrade_tracking(&transaction)?;
             workspace_read_indexes::ensure(&transaction)?;
             transaction.commit()?;

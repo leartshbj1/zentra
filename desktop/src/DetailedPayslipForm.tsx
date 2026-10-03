@@ -1,3 +1,4 @@
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { t, getAppLocale, useAppLanguage } from './language';
 import { useAssistantScreen } from './assistantContext';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -60,7 +61,7 @@ import { createId, errorMessage, formatMoney, payslipTotals } from './utils';
 import { Button, Field, FormActions, Modal, submitForm } from './ui';
 
 type ActionRunner = (
-  action: () => Promise<Workspace>,
+  action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>,
   message: string,
   close?: boolean,
   onError?: (reason: unknown) => void,
@@ -1030,13 +1031,15 @@ export function DetailedPayslipForm({
     draftSaveInProgress.current = true;
     try {
       await act(
-        () =>
+        (mutationOrigin) =>
           desktopApi.savePayslipWithContributions(
             { employeeId, period, paymentDate, notes, status: 'draft' },
             lines,
             item,
             period,
             [],
+            mutationOrigin.workspaceScope,
+            mutationOrigin.memberContextNonce,
           ),
         'Brouillon enregistré. Retrouvez-le dans les fiches de salaire pour continuer.',
         true,
@@ -1231,13 +1234,15 @@ export function DetailedPayslipForm({
                   : '',
             };
             await act(
-              () =>
+              (mutationOrigin) =>
                 desktopApi.savePayslipWithContributions(
                   data,
                   lines,
                   item,
                   period,
                   selectedItems,
+                  mutationOrigin.workspaceScope,
+                  mutationOrigin.memberContextNonce,
                 ),
               item
                 ? 'La fiche et ses cotisations ont été mises à jour.'

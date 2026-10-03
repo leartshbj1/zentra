@@ -1,3 +1,4 @@
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { useRef, useState, type FormEvent } from 'react';
 import type { Client, Supplier, Workspace } from './types';
 import { desktopApi } from './bridge';
@@ -12,7 +13,7 @@ import { draftText, FormDraftNotice } from './useFormDraft';
 import { useNativeFormDraft } from './useNativeFormDraft';
 import { formDraftFingerprint } from './formDrafts';
 
-type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
+type ActionRunner = (action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
 type CommonProps = { workspace?: Workspace; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner };
 const contactDraftFields = ['name', 'contactPerson', 'company', 'contactName', 'email', 'phone', 'street', 'buildingNumber', 'postalCode', 'city', 'canton', 'country', 'countryCustom', 'address', 'uidNumber', 'iban', 'paymentTermsDays', 'notes'] as const;
 
@@ -124,7 +125,7 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
       const message = errorMessage(reason, 'L’enregistrement n’a pas abouti. Votre saisie est conservée.');
       setFailure(message); reveal(contactNativeIssue(kind, message));
     };
-    try { const saved = await act(() => item ? desktopApi.updateEntity(entity, item.id, data, originWorkspaceScope) : desktopApi.createEntity(entity, { ...data, id: captured!.value.creationId }, originWorkspaceScope).catch(reason => {
+    try { const saved = await act((mutationOrigin) => item ? desktopApi.updateEntity(entity, item.id, data, originWorkspaceScope, mutationOrigin.memberContextNonce) : desktopApi.createEntity(entity, { ...data, id: captured!.value.creationId }, originWorkspaceScope, mutationOrigin.memberContextNonce).catch(reason => {
       if (reason instanceof WorkspaceCreationOutcomeUnknownError) {
         // A row sharing the UUID may belong to an older corrected attempt.
         // Ordinary unknown errors retain the draft; they cannot use act's ID-only confirmation.

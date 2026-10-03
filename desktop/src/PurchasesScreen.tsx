@@ -1,3 +1,4 @@
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { t } from './language';
 import { useMemo, useState } from 'react';
 import './workflow-clarity.css';
@@ -30,7 +31,7 @@ import { SupplierInvoiceAttachments, formatAttachmentSize } from './SupplierInvo
 export { formatAttachmentSize } from './SupplierInvoiceAttachments';
 import './purchase-entry.css';
 
-type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
+type ActionRunner = (action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
 
 export function PurchasesScreen({
   workspace,
@@ -270,7 +271,7 @@ export function ExpenseForm({ item, workspace, busy, close, act, onOpenAccountin
         note: String(form.get('note')).trim(),
       };
       await act(
-        () => item ? desktopApi.updateEntity('expenses', item.id, data, originWorkspaceScope) : desktopApi.createEntity('expenses', data, originWorkspaceScope),
+        (mutationOrigin) => item ? desktopApi.updateEntity('expenses', item.id, data, originWorkspaceScope, mutationOrigin.memberContextNonce) : desktopApi.createEntity('expenses', data, originWorkspaceScope, mutationOrigin.memberContextNonce),
         item ? 'L’achat a été mis à jour.' : 'L’achat a été enregistré.',
         true,
         (reason) => setFormError(errorMessage(reason, 'L’achat n’a pas pu être enregistré. Votre saisie est conservée.')),

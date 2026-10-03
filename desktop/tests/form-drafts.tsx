@@ -7,6 +7,7 @@ import { DocumentEditor } from '../src/DocumentEditor';
 import { ClientForm } from '../src/ContactForms';
 import { FormDraftIdentityProvider } from '../src/useFormDraft';
 import { desktopApi } from '../src/bridge';
+import type { WorkspaceMutationOrigin } from '../src/workspaceMemberOrigin';
 import { initialOnboardingSettings } from '../src/onboardingDraft';
 import { setAppLanguage } from '../src/language';
 import type { Workspace } from '../src/types';
@@ -30,22 +31,24 @@ let data = JSON.parse(sessionStorage.getItem(`form-fixture.${companyId}`) || 'nu
 data.settings!.organization.legalName = 'Entreprise de test';
 const fixture = { attempts: 0, writes: 0, fail: false, patch: (_patch: Partial<Workspace>) => {} };
 Object.assign(window, { formDraftsFixture: fixture });
+const fakeNonce='0123456789abcdef0123456789abcdef';
+const guard=(scope?:string,context?:string)=>{if(scope!==undefined&&scope!==companyId)throw Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');if(context!==undefined&&context!==fakeNonce)throw Error('Le compte connecté a changé. Rouvrez cette action avec le bon compte.');};
 const persist = () => sessionStorage.setItem(`form-fixture.${companyId}`, JSON.stringify(data));
 const save = () => { fixture.attempts++; if (fixture.fail) throw new Error('Network connection lost'); fixture.writes++; persist(); return structuredClone(data); };
-desktopApi.saveCatalogItem = async (id, input) => { if (!fixture.fail) data.catalogItems.push({ id, ...input, archivedAt: null, stockQuantityMilli: 0, createdAt: '2026-10-01', updatedAt: '2026-10-01' } as never); return save(); };
+desktopApi.saveCatalogItem = async (id, input, _updatedAt, scope, context) => { guard(scope,context);if (!fixture.fail) data.catalogItems.push({ id, ...input, archivedAt: null, stockQuantityMilli: 0, createdAt: '2026-10-01', updatedAt: '2026-10-01' } as never); return save(); };
 desktopApi.saveDocument = async (entity, input, lines, item) => { if (!fixture.fail) data[entity].push({ id: item?.id || crypto.randomUUID(), ...input, lines, number: '', createdAt: '2026-10-01' } as never); return save(); };
-desktopApi.createEntity = async (entity, input) => { if (!fixture.fail) (data[entity as keyof Workspace] as unknown[]).push({ id: crypto.randomUUID(), ...input }); return save(); };
-desktopApi.loadWorkspace = async () => structuredClone(data);
+desktopApi.createEntity = async (entity, input, scope, context) => { guard(scope,context);if (!fixture.fail) (data[entity as keyof Workspace] as unknown[]).push({ id: crypto.randomUUID(), ...input }); return save(); };
+desktopApi.loadWorkspace = async (scope,context) => {guard(scope,context);return structuredClone(data);};
 
 function Fixture() {
   const [workspace, setWorkspace] = useState<Workspace>(data), [form, setForm] = useState('');
   fixture.patch = patch => { data = { ...data, ...patch }; persist(); setWorkspace(structuredClone(data)); };
   const close = () => setForm('');
-  const act = async (action: () => Promise<Workspace>, _message: string, shouldClose?: boolean, onError?: (reason: unknown) => void) => {
-    try { const next = await action(); setWorkspace(next); if (shouldClose) close(); return true; }
+  const act = async (action: (origin:WorkspaceMutationOrigin) => Promise<Workspace>, _message: string, shouldClose?: boolean, onError?: (reason: unknown) => void) => {
+    try { const next = await action(Object.freeze({workspaceScope:workspace.workNotesScope!,memberContextNonce:fakeNonce})); setWorkspace(next); if (shouldClose) close(); return true; }
     catch (reason) { onError?.(reason); return false; }
   };
-  return <FormDraftIdentityProvider companyId={companyId} organizationId={organizationId} memberId={memberId} ready><main className="desktop-app workspace-app" style={{ padding: 20 }}><h1>Form recovery fixture</h1>{['catalog', 'time', 'document', 'client'].map(kind => <button key={kind} className="button button--secondary" onClick={() => setForm(kind)}>{kind}</button>)}
+  return <FormDraftIdentityProvider companyId={companyId} organizationId={organizationId} memberId={memberId} memberContextNonce={fakeNonce} ready><main className="desktop-app workspace-app" style={{ padding: 20 }}><h1>Form recovery fixture</h1>{['catalog', 'time', 'document', 'client'].map(kind => <button key={kind} className="button button--secondary" onClick={() => setForm(kind)}>{kind}</button>)}
     {form === 'catalog' && <CatalogItemForm workspace={workspace} busy={false} readOnly={false} close={close} act={act} onReadWorkspace={desktopApi.loadWorkspace} />}
     {form === 'time' && <TimeForm workspace={workspace} busy={false} close={close} act={act} />}
     {form === 'document' && <DocumentEditor entity="quotes" workspace={workspace} busy={false} close={close} act={act} />}

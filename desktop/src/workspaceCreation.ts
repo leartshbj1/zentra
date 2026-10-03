@@ -1,6 +1,6 @@
 import type { EntityKind, Workspace } from './types';
 import { createId } from './utils';
-import { assertWorkspaceOrigin, refreshWorkspaceInOrigin } from './workspaceOrigin';
+import { assertWorkspaceOrigin, refreshWorkspaceInOrigin, workspaceOriginFailure } from './workspaceOrigin';
 
 function containsCreation(workspace: Workspace, entity: EntityKind, id: string, expectedWorkspaceScope?: string): boolean {
   assertWorkspaceOrigin(workspace, expectedWorkspaceScope);
@@ -39,6 +39,10 @@ export async function createWorkspaceEntity(
   try {
     await create({ ...data, id });
   } catch (cause) {
+    // A native context guard rejects before writing. It is a terminal origin
+    // failure, not a lost response requiring an indefinite read-only retry.
+    const originFailure = workspaceOriginFailure(cause);
+    if (originFailure) throw originFailure;
     throw new WorkspaceCreationOutcomeUnknownError(entity, id, cause, expectedWorkspaceScope);
   }
   return refreshWorkspaceInOrigin(load, expectedWorkspaceScope);

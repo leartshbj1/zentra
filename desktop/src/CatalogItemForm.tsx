@@ -1,3 +1,4 @@
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Box, Wrench } from 'lucide-react';
 import { desktopApi } from './bridge';
@@ -11,7 +12,7 @@ import { draftObject, draftStrings, formDraftFingerprint } from './formDrafts';
 import { ErrorGuidance } from './ErrorGuidance';
 import './catalog-form.css';
 
-type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void, validateRead?: (workspace: Workspace) => void) => Promise<boolean>;
+type ActionRunner = (action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void, validateRead?: (workspace: Workspace) => void) => Promise<boolean>;
 const labels: Record<keyof CatalogDraft, string> = { kind: 'Type', name: 'Nom', sku: 'Référence', description: 'Description', unit: 'Unité', salesPrice: 'Prix de vente', purchaseCost: 'Coût d’achat', vatBp: 'TVA', trackStock: 'Suivi du stock', reorderLevel: 'Seuil d’alerte' };
 const display = (field: keyof CatalogDraft, value: string | boolean) => field === 'kind' ? value === 'product' ? 'Produit' : 'Service' : typeof value === 'boolean' ? value ? 'Activé' : 'Désactivé' : field === 'vatBp' ? `${Number(value) / 100} %` : value || 'Non renseigné';
 type SavedCatalogDraft = CatalogDraft & { recordId: string };
@@ -76,7 +77,7 @@ export function CatalogItemForm({ item, workspace, busy, readOnly, close, act, o
     if (invalid) { setIssue(invalid); return; }
     setIssue(null); setFailure(''); inFlight.current = true; setSaving(true);
     try {
-      const saved = await act(() => desktopApi.saveCatalogItem(id, catalogFormData(draft, !!item), item ? baseline?.updatedAt ?? '' : undefined, originWorkspaceScope), item ? 'La référence a été enregistrée. Les documents existants et le stock sont conservés.' : draft.kind === 'product' && draft.trackStock ? 'Le produit a été ajouté. Utilisez Entrée sur sa fiche pour renseigner le stock de départ.' : 'La référence a été ajoutée au catalogue.', true, refused, requireCatalogWorkspace);
+      const saved = await act((mutationOrigin) => desktopApi.saveCatalogItem(id, catalogFormData(draft, !!item), item ? baseline?.updatedAt ?? '' : undefined, originWorkspaceScope, mutationOrigin.memberContextNonce), item ? 'La référence a été enregistrée. Les documents existants et le stock sont conservés.' : draft.kind === 'product' && draft.trackStock ? 'Le produit a été ajouté. Utilisez Entrée sur sa fiche pour renseigner le stock de départ.' : 'La référence a été ajoutée au catalogue.', true, refused, requireCatalogWorkspace);
       persisted.complete(saved);
     } catch (reason) { refused(reason); } finally { inFlight.current = false; setSaving(false); }
   }

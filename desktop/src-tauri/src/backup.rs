@@ -1164,6 +1164,7 @@ pub(crate) fn validate_database(path: &Path) -> AppResult<()> {
 
 fn strip_restored_license(path: &Path) -> AppResult<()> {
     let connection = Connection::open(path)?;
+    crate::member_context::strip(&connection)?;
     let has_notes_scope: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_notes_scope')",
         [], |r| r.get(0),

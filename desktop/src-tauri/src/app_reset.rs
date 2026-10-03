@@ -103,6 +103,41 @@ impl LocalStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tauri::Manager;
+
+    #[test]
+    fn actual_failed_reset_recovery_forgets_old_member_context_without_nested_lock_or_company_replacement() {
+        let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(dir.path().into()).unwrap();
+        // Private identity is permitted in an otherwise empty company. The
+        // real command must reach account removal, then fail on the archive.
+        crate::company_collaboration::set_identity(&store, "synthetic-org", &uuid::Uuid::new_v4().to_string(), "Alice", "owner").unwrap();
+        let original_nonce = crate::member_context::read(&store.connect().unwrap()).unwrap();
+        let original_scope = crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap();
+        let original_company = store.get_workspace().unwrap();
+        let recovery_name = "avant-reinitialisation-synthetic-invalid.zentra";
+        std::fs::write(store.backups_dir.join(recovery_name), b"synthetic invalid archive").unwrap();
+        std::fs::write(store.data_dir.join("app-reset-recovery.json"), serde_json::to_vec(&json!({"file":recovery_name,"createdAt":"2026-10-03T00:00:00Z"})).unwrap()).unwrap();
+        // Synthetic references are never decrypted: forget removes them before
+        // archive validation, as the production command does after logout.
+        for name in ["cloud-account-session.protected", "cloud-account-link.protected", "cloud-account-exchange.protected"] {
+            std::fs::write(store.data_dir.join(name), b"synthetic protected reference").unwrap();
+        }
+        let app = tauri::test::mock_builder().manage(store.clone())
+            .build(tauri::test::mock_context(tauri::test::noop_assets())).unwrap();
+        let error = tauri::async_runtime::block_on(restore_reset_recovery(app.state())).unwrap_err();
+        assert!(error.contains("Archive Zentra invalide"), "the failure must happen after account removal, during archive validation: {error}");
+        assert!(crate::member_context::require_unchanged(&store.connect().unwrap(), Some(&original_nonce)).is_err());
+        assert_eq!(store.connect().unwrap().query_row::<i64, _, _>("SELECT COUNT(*) FROM company_local_identity", [], |row| row.get(0)).unwrap(), 0);
+        assert_eq!(crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap(), original_scope, "the failed restore does not replace the company");
+        assert_eq!(store.get_workspace().unwrap(), original_company);
+        for name in ["cloud-account-session.protected", "cloud-account-link.protected", "cloud-account-exchange.protected"] {
+            assert!(!store.data_dir.join(name).exists());
+        }
+        assert!(store.backups_dir.join(recovery_name).is_file());
+    }
+
     #[test]
     fn reset_removes_local_company_files_and_preferences_but_preserves_device_and_backups() {
         let dir = tempfile::tempdir().unwrap();

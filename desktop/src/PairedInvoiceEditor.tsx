@@ -1,3 +1,4 @@
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, FolderOpen } from 'lucide-react';
 import { desktopApi } from './bridge';
@@ -12,7 +13,7 @@ import { ErrorGuidance } from './ErrorGuidance';
 type Props = {
   invoice: Invoice; workspace: Workspace; busy: boolean; readOnly?: boolean; correctDates?: boolean;
   close: () => void; onFolder: () => void;
-  act: (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
+  act: (action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
 };
 const steps = [['service', 'Prestation'], ['payment', 'Paiement'], ['review', 'Vérifier']] as const;
 
@@ -106,7 +107,7 @@ function Preparation({ invoice, workspace, busy, readOnly = false, correctDates 
     let reported = false;
     const report = (reason: unknown) => { reported = true; setServerError(errorMessage(reason, 'Les modifications n’ont pas pu être enregistrées. Votre saisie est conservée.')); };
     try {
-      const saved = await act(() => desktopApi.updateEntity('invoices', invoice.id, { ...fields }, originWorkspaceScope), 'Les dates et les notes de la facture ont été enregistrées.', false, report);
+      const saved = await act((mutationOrigin) => desktopApi.updateEntity('invoices', invoice.id, { ...fields }, originWorkspaceScope, mutationOrigin.memberContextNonce), 'Les dates et les notes de la facture ont été enregistrées.', false, report);
       if (saved) onFolder();
       else if (!reported) setServerError('L’enregistrement n’a pas encore été confirmé. Si une fenêtre d’actualisation est ouverte, terminez cette vérification avant de réessayer.');
     } catch (reason) { report(reason); }

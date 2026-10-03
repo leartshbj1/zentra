@@ -1,3 +1,5 @@
+import { memberOriginNativeFailure } from './memberOriginBridge';
+import { mutationOriginInvokeArgs, WorkspaceMemberOriginChangedError } from './workspaceMemberOrigin';
 import { withDiagnosticIntent } from './diagnosticIntent';
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
 import type { WorkNote, WorkNoteDraft } from './types';
@@ -3161,11 +3163,27 @@ function emptyWorkspace(): Workspace {
   };
 }
 
-async function loadWorkspace(): Promise<Workspace> {
-  const appState = appStateFromRaw(await invoke<RawRecord>('get_app_state'));
+// Optional arguments preserve named legacy callers; targeted actions supply both.
+// This local context guard grants no server rights and performs no auth request.
+async function invokeExpectedOrigin<T = unknown>(command: string, args: Record<string, unknown>, expectedWorkspaceScope?: string, expectedMemberContextNonce?: string): Promise<T> {
+  if (expectedMemberContextNonce !== undefined)
+    mutationOriginInvokeArgs({ workspaceScope: expectedWorkspaceScope ?? '', memberContextNonce: expectedMemberContextNonce });
+  try {
+    // Preserve the historic no-argument IPC shape for unguarded legacy reads.
+    if (expectedWorkspaceScope === undefined && expectedMemberContextNonce === undefined && Object.keys(args).length === 0)
+      return await invoke<T>(command);
+    return await invoke<T>(command, { ...args,
+    ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
+    ...(expectedMemberContextNonce === undefined ? {} : { expectedMemberContextNonce }),
+  }); }
+  catch (reason) { throw memberOriginNativeFailure(reason) ?? reason; }
+}
+
+async function loadWorkspace(expectedWorkspaceScope?: string, expectedMemberContextNonce?: string): Promise<Workspace> {
+  const appState = appStateFromRaw(await invokeExpectedOrigin<RawRecord>('get_app_state', {}, expectedWorkspaceScope, expectedMemberContextNonce));
   if (!appState.onboarding_completed) return emptyWorkspace();
   return normalizeWorkspace(
-    await invoke<RawWorkspace>('get_workspace'),
+    await invokeExpectedOrigin<RawWorkspace>('get_workspace', {}, expectedWorkspaceScope, expectedMemberContextNonce),
     appState,
   );
 }
@@ -3469,8 +3487,8 @@ export function convertQuoteMutation(
     },
   };
 }
-const createRecord = (entity: string, data: RawRecord, expectedWorkspaceScope?: string) =>
-  invoke<RawRecord>('create_record', { entity, data, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
+const createRecord = (entity: string, data: RawRecord, expectedWorkspaceScope?: string, expectedMemberContextNonce?: string) =>
+  invokeExpectedOrigin<RawRecord>('create_record', { entity, data }, expectedWorkspaceScope, expectedMemberContextNonce);
 
 async function saveDocument(
   entity: 'quotes' | 'invoices',
@@ -5012,15 +5030,16 @@ export const desktopApi = {
     entity: EntityKind,
     data: T,
     expectedWorkspaceScope?: string,
+    expectedMemberContextNonce?: string,
   ) {
-    return createWorkspaceEntity(entity, data, input => createRecord(entityToBackend[entity], toBackendData(input), expectedWorkspaceScope), loadWorkspace, expectedWorkspaceScope);
+    return createWorkspaceEntity(entity, data, input => createRecord(entityToBackend[entity], toBackendData(input), expectedWorkspaceScope, expectedMemberContextNonce), () => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
   },
-  async saveProject(data: Record<string, unknown>, id?: string, expectedWorkspaceScope?: string): Promise<string> {
+  async saveProject(data: Record<string, unknown>, id?: string, expectedWorkspaceScope?: string, expectedMemberContextNonce?: string): Promise<string> {
     if (id) {
-      await invoke('update_record', { entity: 'projects', id, data: toBackendData(data), ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
+      await invokeExpectedOrigin('update_record', { entity: 'projects', id, data: toBackendData(data) }, expectedWorkspaceScope, expectedMemberContextNonce);
       return id;
     }
-    const record = await createRecord('projects', toBackendData(data), expectedWorkspaceScope);
+    const record = await createRecord('projects', toBackendData(data), expectedWorkspaceScope, expectedMemberContextNonce);
     return stringValue(record.id);
   },
   async addProjectDocument(projectId: string, file: File, signal?: AbortSignal, expectedWorkspaceScope?: string) {
@@ -5045,19 +5064,19 @@ export const desktopApi = {
     id: string,
     data: T,
     expectedWorkspaceScope?: string,
+    expectedMemberContextNonce?: string,
   ) {
-    await invoke('update_record', {
+    await invokeExpectedOrigin('update_record', {
       entity: entityToBackend[entity],
       id,
       data: toBackendData(data),
-      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
-    });
-    return refreshWorkspaceInOrigin(loadWorkspace, expectedWorkspaceScope);
+    }, expectedWorkspaceScope, expectedMemberContextNonce);
+    return refreshWorkspaceInOrigin(() => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
   },
-  async saveCatalogItem(id: string, data: CatalogData, expectedUpdatedAt?: string, expectedWorkspaceScope?: string) {
+  async saveCatalogItem(id: string, data: CatalogData, expectedUpdatedAt?: string, expectedWorkspaceScope?: string, expectedMemberContextNonce?: string) {
     return runCatalogSave(id, data, () => expectedUpdatedAt !== undefined
-      ? invoke('update_catalog_item', { id, data: toBackendData(data), expectedUpdatedAt, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) })
-      : createRecord('catalog_items', toBackendData({ ...data, id }), expectedWorkspaceScope), loadWorkspace, expectedUpdatedAt === undefined, expectedWorkspaceScope);
+      ? invokeExpectedOrigin('update_catalog_item', { id, data: toBackendData(data), expectedUpdatedAt }, expectedWorkspaceScope, expectedMemberContextNonce)
+      : createRecord('catalog_items', toBackendData({ ...data, id }), expectedWorkspaceScope, expectedMemberContextNonce), () => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedUpdatedAt === undefined, expectedWorkspaceScope);
   },
   async saveProjectMilestone(input: {
     id?: string;
@@ -5217,10 +5236,10 @@ export const desktopApi = {
   }, expectedWorkspaceScope?: string) {
     return runStockMutation({...input,expectedWorkspaceScope,movementType:'correction',quantityDeltaMilli:input.countedQuantityMilli-input.expectedQuantityMilli},()=>invoke('record_stock_count',{...(expectedWorkspaceScope !== undefined ? {expectedWorkspaceScope} : {}),input:{request_id:input.requestId,catalog_item_id:input.catalogItemId,expected_quantity_milli:input.expectedQuantityMilli,counted_quantity_milli:input.countedQuantityMilli,reason:input.reason.trim(),reference:input.reference?.trim()||null,date:input.date||null}}),loadWorkspace);
   },
-  async archiveEntity(entity: EntityKind, id: string, expectedWorkspaceScope?: string) {
+  async archiveEntity(entity: EntityKind, id: string, expectedWorkspaceScope?: string, expectedMemberContextNonce?: string) {
     const mutation = archiveEntityMutation(entity, id);
-    await invoke(mutation.command, { ...mutation.args, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
-    return refreshWorkspaceInOrigin(loadWorkspace, expectedWorkspaceScope);
+    await invokeExpectedOrigin(mutation.command, { ...mutation.args }, expectedWorkspaceScope, expectedMemberContextNonce);
+    return refreshWorkspaceInOrigin(() => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
   },
   async importCatalogItems(
     rows: CatalogImportRow[],
@@ -5940,18 +5959,18 @@ export const desktopApi = {
     lines: PayslipLine[],
     existing?: Payslip,
     expectedWorkspaceScope?: string,
+    expectedMemberContextNonce?: string,
   ) {
     let payslipId = existing?.id;
     if (payslipId)
-      await invoke('update_record', {
+      await invokeExpectedOrigin('update_record', {
         entity: 'payslips',
         id: payslipId,
         data: toBackendData(data),
-        ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
-      });
+      }, expectedWorkspaceScope, expectedMemberContextNonce);
     else
       payslipId = stringValue(
-        (await createRecord('payslips', toBackendData(data), expectedWorkspaceScope)).id,
+        (await createRecord('payslips', toBackendData(data), expectedWorkspaceScope, expectedMemberContextNonce)).id,
       );
     if (!payslipId)
       throw new Error('La fiche de salaire locale n’a pas pu être identifiée.');
@@ -5963,7 +5982,7 @@ export const desktopApi = {
     );
     for (const old of previous)
       if (!retained.has(old.id))
-        await invoke('delete_record', { entity: 'payslip_items', id: old.id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
+        await invokeExpectedOrigin('delete_record', { entity: 'payslip_items', id: old.id }, expectedWorkspaceScope, expectedMemberContextNonce);
     for (const [position, line] of lines.entries()) {
       const lineData = {
         payslip_id: payslipId,
@@ -5975,15 +5994,14 @@ export const desktopApi = {
         expense_account_id: line.expenseAccountId || null,
       };
       if (previous.some((old) => old.id === line.id))
-        await invoke('update_record', {
+        await invokeExpectedOrigin('update_record', {
           entity: 'payslip_items',
           id: line.id,
           data: lineData,
-          ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
-        });
-      else await createRecord('payslip_items', lineData, expectedWorkspaceScope);
+        }, expectedWorkspaceScope, expectedMemberContextNonce);
+      else await createRecord('payslip_items', lineData, expectedWorkspaceScope, expectedMemberContextNonce);
     }
-    return refreshWorkspaceInOrigin(loadWorkspace, expectedWorkspaceScope);
+    return refreshWorkspaceInOrigin(() => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
   },
   async savePayslipWithContributions(
     data: Record<string, unknown>,
@@ -5991,8 +6009,10 @@ export const desktopApi = {
     existing: Payslip | undefined,
     period: string,
     selections: PayrollContributionSelection[],
+    expectedWorkspaceScope?: string,
+    expectedMemberContextNonce?: string,
   ) {
-    await invoke('save_payslip_with_contributions', {
+    await invokeExpectedOrigin('save_payslip_with_contributions', {
       input: {
         id: existing?.id ?? null,
         employee_id: String(data.employeeId ?? ''),
@@ -6017,8 +6037,8 @@ export const desktopApi = {
           year_to_date_basis_cents: item.yearToDateBasisCents ?? null,
         })),
       },
-    });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    }, expectedWorkspaceScope, expectedMemberContextNonce);
+    return refreshWorkspaceInOrigin(() => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
   },
   async startTimer(data: Record<string, unknown>) {
     await invoke('start_timer', { input: toBackendData(data) });
@@ -6628,9 +6648,11 @@ export const desktopApi = {
       await invoke<RawRecord>('get_cached_cloud_account_state'),
     );
   },
-  async getFormDraftIdentity(): Promise<{memberId?: string}> {
-    const raw = await invoke<{memberId?: string | null}>('get_form_draft_identity');
-    return {memberId: typeof raw.memberId === 'string' ? raw.memberId : undefined};
+  async getFormDraftIdentity(): Promise<{memberId?: string; memberContextNonce?: string}> {
+    const raw = await invoke<{memberId?: string | null; memberContextNonce?: string | null}>('get_form_draft_identity').catch(reason => { throw memberOriginNativeFailure(reason) ?? reason; });
+    if (raw.memberContextNonce !== undefined && (typeof raw.memberContextNonce !== 'string' || !/^[0-9a-f]{32}$/.test(raw.memberContextNonce)))
+      throw new WorkspaceMemberOriginChangedError('Le contexte local du compte doit être vérifié. Rouvrez votre espace.');
+    return {memberId: typeof raw.memberId === 'string' ? raw.memberId : undefined, memberContextNonce: raw.memberContextNonce};
   },
   async exportAnnualAccountsPdf(filter: PeriodFilter, expectedWorkspaceScope?: string, isCurrent?: () => boolean) {
     return diagnosticOperation('command', 'annual_accounts.export', async () => {

@@ -19,6 +19,7 @@ import '../src/payroll-guided.css';
 const original = { settings: structuredClone(initialOnboardingSettings), employees: [], payslips: [], employeePayrollTemplates: [] } as unknown as Workspace;
 desktopApi.getAccountingSettings = async () => ({ enabled: true, wagesExpenseAccountId: 'expense-qa', wagesPayableAccountId: 'social-qa' } as AccountingSettings);
 installPayrollFixture(original);
+original.workNotesScope='qa-payroll-company';
 original.employees[0].contractualWeeklyMinutes = 2395;
 original.employees[0].smallSalaryOpeningGrossCents = 123456;
 original.employees[0].smallSalaryOpeningContributedBasisCents = 12345;
@@ -38,6 +39,6 @@ function Journey() {
     window.addEventListener('qa-eligibility-scenario', scenario);
     return () => window.removeEventListener('qa-eligibility-scenario', scenario);
   }, []);
-  return closed ? <output>Saved</output> : <DetailedPayslipForm workspace={workspace} initialEmployeeId="elodie" initialPeriod="2026-09" initialPaymentDate="2026-09-30" busy={busy} close={() => setClosed(true)} act={async (action, _message, _close, onError) => { setBusy(true); try { setWorkspace(await action()); return true; } catch (error) { onError?.(error); return false; } finally { setBusy(false); } }} />;
+  return closed ? <output>Saved</output> : <DetailedPayslipForm workspace={workspace} initialEmployeeId="elodie" initialPeriod="2026-09" initialPaymentDate="2026-09-30" busy={busy} close={() => setClosed(true)} act={async (action, _message, _close, onError) => { setBusy(true); try { setWorkspace(await action(Object.freeze({workspaceScope:workspace.workNotesScope!,memberContextNonce:'0123456789abcdef0123456789abcdef'}))); return true; } catch (error) { onError?.(error); return false; } finally { setBusy(false); } }} />;
 }
 createRoot(document.getElementById('root')!).render(<Journey />);

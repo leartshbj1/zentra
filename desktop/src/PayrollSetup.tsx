@@ -1,3 +1,4 @@
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { t, useAppLanguage, type InterfaceMessage } from './language';
 import { PayrollSelect } from './PayrollSelect';
 import { useEffect, useRef, useState } from 'react';
@@ -27,7 +28,7 @@ import './payroll-simple.css';
 
 type Section = PayrollSetupSection;
 type Runner = (
-  action: () => Promise<Workspace>,
+  action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>,
   message: string,
   close?: boolean,
   onError?: (reason: unknown) => void,
@@ -367,9 +368,9 @@ export function PayrollSetup({
           );
       }
       const ok = await act(
-        async () => {
+        async (mutationOrigin) => {
           requireCurrent();
-          const fresh = await desktopApi.loadWorkspace();
+          const fresh = await desktopApi.loadWorkspace(mutationOrigin.workspaceScope, mutationOrigin.memberContextNonce);
           requireCurrent();
           requireScope(fresh);
           if (section === 'accounts') {
@@ -404,7 +405,7 @@ export function PayrollSetup({
             await desktopApi.configureAccounting(next, origin.scope);
             return refreshWorkspaceAfterMutation(async () => {
               requireCurrent();
-              const refreshed = await desktopApi.loadWorkspace();
+              const refreshed = await desktopApi.loadWorkspace(mutationOrigin.workspaceScope, mutationOrigin.memberContextNonce);
               requireCurrent();
               requireScope(refreshed);
               return refreshed;
@@ -461,7 +462,7 @@ export function PayrollSetup({
               'La fiche collaborateur a changé. Revenez au salaire puis rouvrez le contrat pour retrouver les dernières informations.',
             );
           requireCurrent();
-          const refreshed = await desktopApi.updateEntity('employees', employeeId, data, origin.scope);
+          const refreshed = await desktopApi.updateEntity('employees', employeeId, data, origin.scope, mutationOrigin.memberContextNonce);
           requireCurrent();
           return refreshed;
         },

@@ -691,6 +691,8 @@ pub async fn clear_diagnostics(state: State<'_, DiagnosticLog>) -> Result<(), St
 #[serde(rename_all = "camelCase")]
 pub struct FormDraftIdentity {
     member_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    member_context_nonce: Option<String>,
 }
 
 fn draft_identity(
@@ -698,9 +700,11 @@ fn draft_identity(
     organization: Option<&str>,
     role: Option<&str>,
 ) -> AppResult<FormDraftIdentity> {
-    let none = || FormDraftIdentity { member_id: None };
+    let none = || FormDraftIdentity { member_id: None, member_context_nonce: None };
     let Some(organization) = organization else {
-        return Ok(none());
+        // The frontend retains local-user as its draft owner. The nonce is a
+        // separate action-context generation, captured before any business await.
+        return Ok(FormDraftIdentity { member_id: None, member_context_nonce: Some(crate::member_context::read(connection)?) });
     };
     let has_identity: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_identity')", [], |row| row.get(0),
@@ -721,9 +725,9 @@ fn draft_identity(
     if current_organization != organization || role != Some(current_role.as_str()) {
         return Ok(none());
     }
-    Ok(FormDraftIdentity {
-        member_id: Uuid::parse_str(&user_id).ok().map(|id| id.to_string()),
-    })
+    let member_id = Uuid::parse_str(&user_id).ok().map(|id| id.to_string());
+    let member_context_nonce = if member_id.is_some() { Some(crate::member_context::read(connection)?) } else { None };
+    Ok(FormDraftIdentity { member_id, member_context_nonce })
 }
 
 /// A local account/workspace identity, never a name, email or session token.
@@ -737,14 +741,14 @@ pub async fn get_form_draft_identity(
     let session = crate::account_cloud::project_sync_session(&store)
         .await
         .map_err(command_error)?;
-    let _guard = store.lock().map_err(command_error)?;
-    let connection = store.connect().map_err(command_error)?;
-    draft_identity(
-        &connection,
-        session.as_ref().map(|value| value.organization_id.as_str()),
-        session.as_ref().map(|value| value.role.as_str()),
-    )
-    .map_err(command_error)
+    let organization = session.as_ref().map(|value| value.organization_id.clone());
+    let role = session.as_ref().map(|value| value.role.clone());
+    let owned = store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = owned.lock()?;
+        let connection = owned.connect()?;
+        draft_identity(&connection, organization.as_deref(), role.as_deref())
+    }).await.map_err(|_| "La vérification du contexte local a été interrompue.".to_owned())?.map_err(command_error)
 }
 
 #[cfg(test)]
@@ -1144,6 +1148,7 @@ mod tests {
     fn identity_fixture() -> Connection {
         let connection = Connection::open_in_memory().unwrap();
         connection.execute_batch("CREATE TABLE company_local_identity(id INTEGER PRIMARY KEY,organization_id TEXT NOT NULL,user_id TEXT NOT NULL,display_name TEXT NOT NULL,role TEXT NOT NULL);").unwrap();
+        crate::member_context::migrate(&connection).unwrap();
         connection
     }
 
@@ -1207,6 +1212,7 @@ mod tests {
         );
         let serialized = serde_json::to_value(FormDraftIdentity {
             member_id: Some(Uuid::new_v4().to_string()),
+            member_context_nonce: None,
         })
         .unwrap();
         assert_eq!(serialized.as_object().unwrap().len(), 1);

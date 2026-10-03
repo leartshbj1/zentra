@@ -114,7 +114,7 @@ async function setup(target: Target = 'insurance') {
   const workspace = await desktopApi.loadWorkspace();
   const saved = vi.fn(), closed = vi.fn(), reasons: unknown[] = [], results: Workspace[] = [];
   const act: Props['act'] = async (action, _message, _close, onError) => {
-    try { results.push(await action()); return true; }
+    try { results.push(await action({workspaceScope:host.props.workspace.workNotesScope!,memberContextNonce:'0123456789abcdef0123456789abcdef'})); return true; }
     catch (reason) { reasons.push(reason); onError?.(reason); return false; }
   };
   const host = new Host({ workspace, initial: target, initialSelector: target === 'insurance' ? '[name=accidentInsurer]' : undefined,
@@ -278,7 +278,7 @@ describe('payroll correction lifecycle through the actual component and bridge',
 
   it.each(['unmount', 'scope'] as const)('guards the delayed act result after %s', async kind => {
     const fixture = await setup(), { host, reads, saved, closed } = fixture; const completion = deferred<boolean>();
-    host.render({ ...host.props, act: async action => { await action(); return completion.promise; } });
+    host.render({ ...host.props, act: async action => { await action({workspaceScope:host.props.workspace.workNotesScope!,memberContextNonce:'0123456789abcdef0123456789abcdef'}); return completion.promise; } });
     const task = submit(host); await settle(host); await reachMutation(fixture, 'insurance'); acknowledge(fixture); await settle(host);
     reads[1].resolve(rawWorkspace()); await settle(host); leave(host, kind); const writes = host.writes.length;
     completion.resolve(true); await task; await settle(host);
@@ -295,7 +295,7 @@ describe('payroll correction lifecycle through the actual component and bridge',
   it('checks admission again when the runner delays starting the action', async () => {
     const fixture = await setup(), { host, reads, mutations } = fixture; const start = deferred<void>();
     host.render({ ...host.props, act: async (action, _message, _close, onError) => {
-      await start.promise; try { await action(); return true; } catch (reason) { onError?.(reason); return false; }
+      await start.promise; try { await action({workspaceScope:host.props.workspace.workNotesScope!,memberContextNonce:'0123456789abcdef0123456789abcdef'}); return true; } catch (reason) { onError?.(reason); return false; }
     } });
     const task = submit(host); await settle(host); host.unmount(); const writes = host.writes.length;
     start.resolve(); await settle(host); expect(reads).toHaveLength(0); expect(mutations).toHaveLength(0); expect(host.writes).toHaveLength(writes); await task;

@@ -11,6 +11,7 @@ export function installTimeDraftRecoveryFixture(data:Workspace){
  saved.dbs[company]??=seed();
  const state:any={...saved,company,mode:'',blockRead:false,hold:false,waiting:false,release:()=>{},oldPayload:null,pendingReadSwitch:'',scopeRefusals:[],publications:[]};
  const db=()=>state.dbs[state.company];
+ const guard=(args:any)=>{if(args?.expectedWorkspaceScope!==undefined&&args.expectedWorkspaceScope!==state.company)throw Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');if(args?.expectedMemberContextNonce!==undefined&&args.expectedMemberContextNonce!=='0123456789abcdef0123456789abcdef')throw Error('Le compte connecté a changé. Rouvrez cette action avec le bon compte.');};
  const persist=()=>sessionStorage.setItem(storeKey,JSON.stringify({dbs:state.dbs,attempts:state.attempts,reads:state.reads,writes:state.writes}));
  const commit=(row:any)=>{if(db().time_entries.some((prior:any)=>prior.id===row.id))throw Error('Cet identifiant existe déjà ; aucune nouvelle création.');db().time_entries.push({...structuredClone(row),created_at:'2026-10-03T10:00:00Z',billing_status:'unbilled'});state.writes++;persist();};
  data.workNotesScope=company;data.projects=[{id:'project-time',name:'Projet témoin',clientId:'client-qa',status:'in_progress',address:'',plannedStart:'',plannedEnd:'',actualStart:'',actualEnd:'',budgetCents:0,plannedMinutes:0,notes:''}];data.employees=[{id:'employee-time',name:'Collaborateur témoin',active:true,hourlyCostCents:4500,salaryMode:'hourly',grossSalaryCents:0}] as Workspace['employees'];data.projectTasks=[];
@@ -20,7 +21,7 @@ export function installTimeDraftRecoveryFixture(data:Workspace){
  (window as any).__TAURI_INTERNALS__={invoke:async(command:string,args:any)=>{
   if(command==='get_app_state'||command==='get_workspace'){
    if(command==='get_workspace'&&state.pendingReadSwitch){const next=state.pendingReadSwitch;state.pendingReadSwitch='';switchCompany(next);}
-   state.reads.push({command,scope:state.company});persist();if(state.blockRead)throw Error('Lecture native de recette interrompue.');
+   guard(args);state.reads.push({command,scope:state.company});persist();if(state.blockRead)throw Error('Lecture native de recette interrompue.');
    return command==='get_app_state'?{onboarding_completed:true}:structuredClone(db());
   }
   if(command!=='create_record'||args?.entity!=='time_entries')throw Error(`Native command outside this closed time-entry fixture: ${command}`);
@@ -29,6 +30,7 @@ export function installTimeDraftRecoveryFixture(data:Workspace){
   // Explicit simulation of the native scope check after a queued write acquires its lock.
   // This supplies no evidence for the real native command; its tests are separate.
   if(args.expectedWorkspaceScope!==undefined&&args.expectedWorkspaceScope!==state.company){state.scopeRefusals.push({expected:args.expectedWorkspaceScope,actual:state.company});throw Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');}
+  guard(args);
   if(mode==='refuse')throw Error('Création de recette refusée sans commit.');
   if(mode==='old-arrives-refuse'){if(!state.oldPayload)throw Error('Missing explicit old payload');commit(state.oldPayload);throw Error('Nouvelle variante refusée après l’arrivée de l’ancienne.');}
   commit(args.data);if(mode==='ack-unreadable')state.blockRead=true;

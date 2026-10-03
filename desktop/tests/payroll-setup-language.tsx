@@ -21,12 +21,13 @@ import '../src/payroll-guided.css';
 const original={settings:structuredClone(initialOnboardingSettings),employees:[],payslips:[]} as unknown as Workspace;
 desktopApi.getAccountingSettings=async()=>({enabled:true,wagesExpenseAccountId:'expense-qa',wagesPayableAccountId:'social-qa'} as AccountingSettings);
 installPayrollFixture(original);
+original.workNotesScope='qa-payroll-company';
 function Journey() {
   useAppLanguage();
   const [workspace,setWorkspace]=useState(original),[target,setTarget]=useState<PayrollHelpTarget>('insurance'),[revision,setRevision]=useState(0),[busy,setBusy]=useState(false),[closed,setClosed]=useState(false);
   return <Modal title={t('Préparer la paie')} className="payroll-dialog" onClose={()=>{}} assistantHelp={false}>
     <nav style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:12}} aria-label="QA scenarios">{['insurance','history','person','accounts','contributions','advanced-contributions'].map(value=><Button key={value} type="button" data-scenario={value} onClick={()=>{setTarget(value as PayrollHelpTarget);setRevision(value=>value+1);setClosed(false);}}>{value}</Button>)}</nav>
-    {closed?<output data-closed>saved or returned</output>:<PayrollSetup key={`${target}-${revision}`} initial={target} employeeId="elodie" period="2026-09" contributionDate="2026-09-30" workspace={workspace} busy={busy} onSaved={()=>{}} onClose={()=>setClosed(true)} act={async(action,_message,_close,onError)=>{setBusy(true);try{setWorkspace(await action());return true;}catch(error){onError?.(error);return false;}finally{setBusy(false);}}}/>}
+    {closed?<output data-closed>saved or returned</output>:<PayrollSetup key={`${target}-${revision}`} initial={target} employeeId="elodie" period="2026-09" contributionDate="2026-09-30" workspace={workspace} busy={busy} onSaved={()=>{}} onClose={()=>setClosed(true)} act={async(action,_message,_close,onError)=>{setBusy(true);try{setWorkspace(await action(Object.freeze({workspaceScope:workspace.workNotesScope!,memberContextNonce:'0123456789abcdef0123456789abcdef'})));return true;}catch(error){onError?.(error);return false;}finally{setBusy(false);}}}/>}
   </Modal>;
 }
 createRoot(document.getElementById('root')!).render(<Journey/>);

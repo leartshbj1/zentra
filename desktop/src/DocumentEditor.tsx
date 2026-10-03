@@ -1,3 +1,4 @@
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { getAppLocale, t, useAppLanguage } from './language';
 import { DocumentNumberInput } from './DocumentNumberInput';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode, type SetStateAction } from 'react';
@@ -46,7 +47,7 @@ import {
 } from './documentUi';
 
 type ActionRunner = (
-  action: () => Promise<Workspace>,
+  action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>,
   message: string,
   close?: boolean,
   onError?: (reason: unknown) => void,
@@ -294,7 +295,7 @@ export function DocumentEditor({
       return;
     }
     const saved = await act(
-      () => desktopApi.createEntity('clients', client, originWorkspaceScope),
+      (mutationOrigin) => desktopApi.createEntity('clients', client, originWorkspaceScope, mutationOrigin.memberContextNonce),
       t('Le client {client} a été ajouté et sélectionné.', {client: client.company || client.contactPerson}),
       false,
     );
@@ -516,10 +517,10 @@ export function DocumentEditor({
           submission.current = true; setSaving(true);
           try {
             const saved = await act(
-            () => reservedTime && currentInvoice
+            (mutationOrigin) => reservedTime && currentInvoice
               ? desktopApi.updateEntity('invoices', currentInvoice.id, {
                   title: data.title, notes: data.notes, terms: data.terms, issueDate, dueDate,
-                }, originWorkspaceScope)
+                }, originWorkspaceScope, mutationOrigin.memberContextNonce)
               : desktopApi.saveDocument(entity, data, depositLines, item),
             item
               ? t("Le brouillon a été mis à jour.")

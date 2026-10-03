@@ -10,6 +10,7 @@ import { SupplierInvoiceAttachments } from '../src/SupplierInvoiceAttachments';
 import { SupplierInvoicePreparation } from '../src/SupplierInvoiceWizard';
 import { AutomationCompanyProvider } from '../src/AutomationCompany';
 import { desktopApi } from '../src/bridge';
+import type { WorkspaceMutationOrigin } from '../src/workspaceMemberOrigin';
 import { initialOnboardingSettings } from '../src/onboardingDraft';
 import type { Workspace, SupplierInvoice } from '../src/types';
 import type { SupplierEmailInspection } from '../src/supplierEmail';
@@ -62,7 +63,7 @@ function Fixture() {
   const [scope, setScope] = useState('scope-A'), [readOnly, setReadOnly] = useState(false), [version, setVersion] = useState(0);
   const current = { ...workspace, workNotesScope: scope };
   Object.assign(window, { __qaImport: { calls, release: () => releaseSelection?.('synthetic-file'), releaseRead: () => releaseRead?.(), pendingSelection: () => Boolean(releaseSelection), pendingRead: () => Boolean(releaseRead), change: (next='scope-B', restricted=false) => { liveScope=next; setScope(next);setReadOnly(restricted);setVersion(value=>value+1); } } });
-  const runAction = async (action: () => Promise<Workspace>) => { calls.push({command:'current-action',args:{scope},callbackVersion:version}); await action(); return true; };
+  const runAction = async (action: (origin:WorkspaceMutationOrigin) => Promise<Workspace>) => { calls.push({command:'current-action',args:{scope},callbackVersion:version}); await action(Object.freeze({workspaceScope:scope,memberContextNonce:'0123456789abcdef0123456789abcdef'})); return true; };
   return <main style={{padding:24}} data-version={version}>
     {kind==='bank'&&<BankImportWizard workspaceScope={scope} automatic={false} onAutomaticChange={()=>{}} disabled={readOnly} accountingReady={true} onClose={()=>{}} onImport={async(path,automatic,expectedWorkspaceScope)=>{calls.push({command:'bank',args:{path,automatic,expectedWorkspaceScope},callbackVersion:version});return {result:{duplicate:false,import:{sourceName:path},importedCount:1,skippedDuplicateCount:0,ignoredCount:0,warnings:[]} as never,refreshWarnings:[]};}} onReview={()=>{}} onAccounts={()=>{}} onAccounting={()=>{}} onRefresh={async()=>[]}/>}
     {kind==='catalog'&&<CatalogImportWizard workspaceScope={scope} existingItems={[]} vatRatesBp={[0]} busy={false} readOnly={readOnly} close={()=>{}} onImport={async(rows,policy,_error,expectedWorkspaceScope)=>{calls.push({command:'catalog',args:{rows,policy,expectedWorkspaceScope},callbackVersion:version});return true;}}/>}

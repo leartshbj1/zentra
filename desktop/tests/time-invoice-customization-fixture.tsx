@@ -2,6 +2,8 @@ import {useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {DocumentEditor} from '/src/DocumentEditor';
 import {desktopApi} from '/src/bridge';
+import type {WorkspaceMutationOrigin} from '/src/workspaceMemberOrigin';
+import {FormDraftIdentityProvider} from '/src/useFormDraft';
 import {initialOnboardingSettings} from '/src/onboardingDraft';
 import {initialDocumentFormDraft,validDocumentFormDraft} from '/src/documentFormDraft';
 import {FormDraftSession,formDraftFingerprint} from '/src/formDrafts';
@@ -50,11 +52,11 @@ if(scenario==='old-financial'){
 }
 function Host(){
  const [state,setState]=useState(workspace),[closed,setClosed]=useState(false);
- const act=async(action:()=>Promise<any>,_message:string,close=false,onError?:(reason:unknown)=>void)=>{
-  try{const next=await action();proof.publications.push(next.workNotesScope);setState(next);if(close){proof.closed=true;setClosed(true);}return true;}
+ const act=async(action:(origin:WorkspaceMutationOrigin)=>Promise<any>,_message:string,close=false,onError?:(reason:unknown)=>void)=>{
+  try{const next=await action(Object.freeze({workspaceScope:state.workNotesScope!,memberContextNonce:'0123456789abcdef0123456789abcdef'}));proof.publications.push(next.workNotesScope);setState(next);if(close){proof.closed=true;setClosed(true);}return true;}
   catch(reason){onError?.(reason);return false;}
  };
  Object.assign(window,{__timeEditProof:{proof,state:()=>structuredClone(state),number:()=>documentNumberEntry(String(quantity),'quantity'),diagnostics:()=>recentDiagnosticEvents(),chooseLanguage:setAppLanguage,translate:t}});
  return closed?<p>CONFIRMED SAVED</p>:<DocumentEditor entity="invoices" item={item} initialStep={3} workspace={state} busy={false} readOnly={scenario==='readonly'} close={()=>{proof.closed=true;setClosed(true);}} act={act}/>;
 }
-createRoot(document.getElementById('root')!).render(<Host/>);
+createRoot(document.getElementById('root')!).render(<FormDraftIdentityProvider companyId="fictive-scope-a" memberId="local-user" memberContextNonce="0123456789abcdef0123456789abcdef" ready><Host/></FormDraftIdentityProvider>);

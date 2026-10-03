@@ -20,6 +20,7 @@ export function installStartupPerformanceFixture() {
   // Exercise the production bridge (including concurrent request sharing).
   desktopApi.getCloudAccountState = nativeAccountRead;
   native.invoke = async (command, args) => {
+    if (command === 'get_form_draft_identity') return fresh?{memberContextNonce:'0123456789abcdef0123456789abcdef'}:{memberId:'startup-synthetic-member',memberContextNonce:'0123456789abcdef0123456789abcdef'};
     if (command !== 'get_cloud_account_state') return previousInvoke(command, args);
     document.body.dataset.accountNetworkCalls = String(Number(document.body.dataset.accountNetworkCalls || 0) + 1);
     document.body.dataset.accountNetwork = 'pending';

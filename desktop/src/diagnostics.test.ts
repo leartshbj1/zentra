@@ -364,3 +364,82 @@ describe('diagnostic transport retry', () => {
     await vi.advanceTimersByTimeAsync(31000); expect(appends()).toHaveLength(2); expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+
+// Exact native local-context messages are recoverable conflicts, not opaque
+// internal incidents. Keep the original rejection and sanitized paired events.
+describe('member-context diagnostic classification', () => {
+  const messages = [
+    'Le compte connecté a changé. Rouvrez cette action avec le bon compte.',
+    'Le contexte local du compte doit être vérifié. Rouvrez votre espace.',
+  ] as const;
+  const cases = messages.flatMap(message => [message, 'Champ invalide : ' + message]);
+  it.each(cases)('classifies the exact native member context with or without its prefix: %s', async message => {
+    const d = await api();
+    expect(d.classifyDiagnosticError(message)).toBe('CONFLICT');
+    expect(d.classifyDiagnosticError(new Error(message))).toBe('CONFLICT');
+    expect(d.recentDiagnosticEvents()).toHaveLength(0);
+  });
+  it.each(messages)('accepts surrounding whitespace without generalizing the native text: %s', async message => {
+    const d = await api();
+    expect(d.classifyDiagnosticError('  Champ invalide : ' + message + '  ')).toBe('CONFLICT');
+    expect(d.classifyDiagnosticError(message + ' Un autre texte.')).toBe('INTERNAL');
+    expect(d.classifyDiagnosticError('Champ invalide : ' + message + ' Un autre texte.')).toBe('VALIDATION');
+  });
+  it.each(cases.flatMap(message => ['operation', 'native'].map(wrapper => ({ message, wrapper }))))(
+    'preserves a $wrapper rejection and journals only its member-conflict category: $message',
+    async ({ message, wrapper }) => {
+      vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
+      const d = await api(), reason = new Error(message);
+      const args = { table: 'clients', expectedMemberContextNonce: 'a'.repeat(32),
+        expectedWorkspaceScope: 'synthetic-private-space',
+        data: { notes: 'synthetic-private-body', email: 'private@example.invalid' } };
+      invoke.mockImplementation(async (command: string) => {
+        if (command === 'create_record') throw reason;
+        return undefined;
+      });
+      let businessCalls = 0;
+      const operation = wrapper === 'native'
+        ? d.diagnosticInvoke('create_record', args)
+        : d.diagnosticOperation('command', 'create_record', async () => {
+          businessCalls++;
+          void args;
+          throw reason;
+        });
+      await expect(operation).rejects.toBe(reason);
+      if (wrapper === 'native') expect(invoke).toHaveBeenCalledExactlyOnceWith('create_record', args);
+      else expect(businessCalls).toBe(1);
+      const events = d.recentDiagnosticEvents();
+      expect(events.map(event => event.phase)).toEqual(['start', 'failure']);
+      expect(events[1].errorCode).toBe('CONFLICT');
+      expect(events[0].id).toBe(events[1].id);
+      expect(d.resolveErrorIncident(reason).code).toBe('ZT-' + events[1].id);
+      expect(d.recentDiagnosticEvents()).toHaveLength(2);
+      await d.flushDiagnostics(true);
+      const batches = invoke.mock.calls.filter(call => call[0] === 'append_diagnostic_events');
+      expect(batches).toHaveLength(1);
+      expect(batches[0][1].events).toEqual(events);
+      const journal = JSON.stringify([events, batches]);
+      for (const privateValue of [args.expectedMemberContextNonce, args.expectedWorkspaceScope, args.data.notes, args.data.email, message]) {
+        expect(journal).not.toContain(privateValue);
+      }
+      expect(journal).not.toMatch(/expectedMemberContextNonce|expectedWorkspaceScope|payload|notes|email/);
+      expect(events.every(event => Object.keys(event).every(key => [
+        'id', 'sessionId', 'timestamp', 'area', 'operation', 'phase', 'durationMs', 'errorCode',
+      ].includes(key)))).toBe(true);
+      expect(businessCalls).toBe(wrapper === 'native' ? 0 : 1);
+    },
+  );
+  it.each(messages.flatMap(message => [[401, 'SESSION'], [403, 'PERMISSION']].map(([status, code]) => ({ message, status, code }))))(
+    'keeps genuine HTTP $status precedence over a canonical context message: $message',
+    async ({ message, status, code }) => {
+      expect((await api()).classifyDiagnosticError('HTTP ' + status + ' Champ invalide : ' + message)).toBe(code);
+    },
+  );
+  it.each([
+    ['Champ invalide : Le compte connecté doit être complété.', 'VALIDATION'],
+    ['Le contexte local du compte est en cours de vérification.', 'INTERNAL'],
+  ])('does not generalize unrelated account text into a conflict: %s', async (message, code) => {
+    expect((await api()).classifyDiagnosticError(message)).toBe(code);
+  });
+});

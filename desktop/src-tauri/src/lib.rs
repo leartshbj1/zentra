@@ -38,6 +38,7 @@ mod customer_credit_recovery;
 mod customer_credit_recovery_vat;
 mod database;
 mod diagnostics;
+mod member_context;
 #[cfg(test)]
 mod customer_credit_tests;
 mod error;

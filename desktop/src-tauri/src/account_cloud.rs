@@ -472,23 +472,58 @@ pub async fn get_cached_cloud_account_state(
     let store = state.inner().clone();
     let result = {
         let _guard = store.account_protected_cache.operation_lock.lock().await;
-        cached_cloud_account_state(&store)
+        cached_cloud_account_state_worker(&store).await
     };
     finish_async_command(result).await
 }
 
-fn cached_cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState> {
+// Reading the protected account cache does not acquire LocalStore.lock.
+// Keep this step separate from the licence mutation which may need to wait for
+// an admitted local write. Callers serialize the session with the account mutex.
+fn read_cached_cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState> {
     if let Some(session) = read_session_secret(store)? {
-        let state = CloudAccountState::from_session(&session)?;
-        if state.status == "expired" {
-            store.mark_current_license_unrecognized_locally()?;
-        }
-        return Ok(state);
+        return CloudAccountState::from_session(&session);
     }
     if let Some(pending) = read_pending_secret(store)? {
         return CloudAccountState::from_pending(&pending);
     }
     Ok(CloudAccountState::disconnected())
+}
+
+// Synchronous callers retain the established expiry/licence behavior.
+fn cached_cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState> {
+    let state = read_cached_cloud_account_state(store)?;
+    if state.status == "expired" {
+        store.mark_current_license_unrecognized_locally()?;
+    }
+    Ok(state)
+}
+
+#[derive(Clone, Copy)]
+enum AccountLicenseMark {
+    LocalUnrecognized,
+    ServerUnrecognized,
+    ServerInactive,
+}
+
+// The caller retains the account operation guard while the existing licence
+// guard waits on the worker. Never add a local guard around these methods: they
+// acquire it themselves and validate the installed token and protected clock.
+async fn mark_account_license_worker(store: &LocalStore, mark: AccountLicenseMark) -> AppResult<()> {
+    let owned = store.clone();
+    tauri::async_runtime::spawn_blocking(move || match mark {
+        AccountLicenseMark::LocalUnrecognized => owned.mark_current_license_unrecognized_locally(),
+        AccountLicenseMark::ServerUnrecognized => owned.mark_current_license_unrecognized_after_server_verification(),
+        AccountLicenseMark::ServerInactive => owned.mark_current_license_inactive_after_server_verification(),
+    }).await.map_err(|_| AppError::Validation("La vérification de l’accès au compte a été interrompue.".into()))?
+}
+
+async fn cached_cloud_account_state_worker(store: &LocalStore) -> AppResult<CloudAccountState> {
+    let state = read_cached_cloud_account_state(store)?;
+    if state.status == "expired" {
+        mark_account_license_worker(store, AccountLicenseMark::LocalUnrecognized).await?;
+    }
+    Ok(state)
 }
 
 pub(crate) async fn team_response(store: &LocalStore, data: Option<serde_json::Value>) -> AppResult<serde_json::Value> {
@@ -772,15 +807,23 @@ where
 {
     let original = {
         let _guard = store.account_protected_cache.operation_lock.lock().await;
-        let cached = cached_cloud_account_state(store)?;
+        let cached = cached_cloud_account_state_worker(store).await?;
         if cached.status != "connected" { return Ok(cached); }
         read_session_secret(store)?
     };
     if let Some(mut session) = original {
         let cached = CloudAccountState::from_session(&session)?;
         if cached.status != "connected" {
+            // Expiry may cross the boundary after the first account guard was
+            // released. Recheck the original session under that guard before
+            // invalidating the current licence, just as for a late /me result.
+            let _guard = store.account_protected_cache.operation_lock.lock().await;
+            let current = read_session_secret(store)?;
+            if !same_account_session(current.as_ref(), &session) {
+                return cached_cloud_account_state_worker(store).await;
+            }
             if cached.status == "expired" {
-                store.mark_current_license_unrecognized_locally()?;
+                mark_account_license_worker(store, AccountLicenseMark::LocalUnrecognized).await?;
             }
             return Ok(cached);
         }
@@ -790,9 +833,9 @@ where
         let _guard = store.account_protected_cache.operation_lock.lock().await;
         let current = read_session_secret(store)?;
         if !same_account_session(current.as_ref(), &session) {
-            return cached_cloud_account_state(store);
+            return cached_cloud_account_state_worker(store).await;
         }
-        let cached = cached_cloud_account_state(store)?;
+        let cached = cached_cloud_account_state_worker(store).await?;
         if cached.status != "connected" { return Ok(cached); }
         let (status, bytes) = match response {
             Ok(value) => value,
@@ -806,8 +849,7 @@ where
             if me.installation_id != store.installation_id
                 || me.organization.id != session.organization_id
             {
-                store.mark_current_license_unrecognized_after_server_verification()?;
-                remove_secret(&session_path(store), &store.account_protected_cache.session)?;
+                invalidate_current_account_context_worker(store).await?;
                 return Ok(CloudAccountState::disconnected());
             }
             let (profile_changed, role_changed) =
@@ -820,7 +862,7 @@ where
             if role_changed {
                 // La licence actuelle porte encore l'ancien rôle signé. Elle
                 // reste bloquée jusqu'à sa réémission immédiate par App.tsx.
-                store.mark_current_license_unrecognized_after_server_verification()?;
+                mark_account_license_worker(store, AccountLicenseMark::ServerUnrecognized).await?;
             }
             if profile_changed {
                 write_server_verified_secret(
@@ -830,18 +872,25 @@ where
                 )?;
             }
             if !me.user_id.is_empty() && !me.email.is_empty() {
-                let name = if me.display_name.trim().is_empty() { &me.email } else { me.display_name.trim() };
-                crate::company_collaboration::set_identity(store,&session.organization_id,&me.user_id,name,&session.role)?;
+                let name = if me.display_name.trim().is_empty() { me.email.clone() } else { me.display_name.trim().to_owned() };
+                let owned = store.clone();
+                let organization = session.organization_id.clone();
+                let user_id = me.user_id.clone();
+                let role = session.role.clone();
+                // Keep the account -> local lock order while allowing the
+                // executor to continue if an admitted local write owns its lock.
+                tauri::async_runtime::spawn_blocking(move || {
+                    crate::company_collaboration::set_identity(&owned, &organization, &user_id, &name, &role)
+                }).await.map_err(|_| AppError::Validation("La vérification de votre identité locale a été interrompue.".into()))??;
             }
             return CloudAccountState::from_session(&session);
         }
         if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
-            store.mark_current_license_unrecognized_after_server_verification()?;
-            remove_secret(&session_path(store), &store.account_protected_cache.session)?;
+            invalidate_current_account_context_worker(store).await?;
             return Ok(CloudAccountState::disconnected());
         }
         if status == StatusCode::PAYMENT_REQUIRED {
-            store.mark_current_license_inactive_after_server_verification()?;
+            mark_account_license_worker(store, AccountLicenseMark::ServerInactive).await?;
             return CloudAccountState::inactive(&session);
         }
         if status.is_server_error() {
@@ -866,6 +915,12 @@ fn same_account_session(current: Option<&CloudSession>, expected: &CloudSession)
 
 fn clear_local_member_identity(store: &LocalStore) -> AppResult<()> {
     let _local = store.lock()?;
+    clear_local_member_identity_already_locked(store)
+}
+
+// Only for callers which already hold LocalStore.lock, such as reset/recovery.
+// Do not reacquire the non-reentrant mutex while forgetting their account.
+fn clear_local_member_identity_already_locked(store: &LocalStore) -> AppResult<()> {
     let connection = store.connect()?;
     let exists: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_identity')",
@@ -874,14 +929,37 @@ fn clear_local_member_identity(store: &LocalStore) -> AppResult<()> {
     if exists {
         connection.execute("DELETE FROM company_local_identity", [])?;
     }
+    // A new authorization must invalidate a local action even when there was
+    // no cloud identity row yet. Do not rotate the persistent draft workspace.
+    crate::member_context::rotate(&connection)?;
     Ok(())
+}
+
+async fn clear_local_member_identity_worker(store: &LocalStore) -> AppResult<()> {
+    let owned = store.clone();
+    tauri::async_runtime::spawn_blocking(move || clear_local_member_identity(&owned))
+        .await.map_err(|_| AppError::Validation("Le changement de compte local a été interrompu.".into()))?
+}
+
+
+// The caller retains the account operation mutex after confirming this is still
+// the original session. Both licence invalidation and identity clearing acquire
+// the local mutex themselves, sequentially; do not surround them with another
+// local guard. Keep their lock waits off the async executor.
+async fn invalidate_current_account_context_worker(store: &LocalStore) -> AppResult<()> {
+    let owned = store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        owned.mark_current_license_unrecognized_after_server_verification()?;
+        remove_secret(&session_path(&owned), &owned.account_protected_cache.session)?;
+        clear_local_member_identity(&owned)
+    }).await.map_err(|_| AppError::Validation("La déconnexion du contexte local a été interrompue.".into()))?
 }
 
 async fn start_link(store: &LocalStore) -> AppResult<CloudAccountState> {
     // A new authorization may belong to another person in the same company.
     // Drafts cannot reuse the previous person's local identity before /me has
     // verified and installed the member for the new session.
-    clear_local_member_identity(store)?;
+    clear_local_member_identity_worker(store).await?;
     let body = serde_json::to_vec(&json!({ "installationId": store.installation_id }))?;
     let (status, bytes) = account_request(Method::POST, START_PATH, Some(body), None).await?;
     if !status.is_success() {
@@ -1040,9 +1118,9 @@ async fn disconnect(store: &LocalStore) -> AppResult<()> {
     // données restent lisibles, mais une nouvelle autorisation serveur est
     // requise pour modifier ce profil.
     if revocation_confirmed_by_server {
-        store.mark_current_license_unrecognized_after_server_verification()?;
+        mark_account_license_worker(store, AccountLicenseMark::ServerUnrecognized).await?;
     } else {
-        store.mark_current_license_unrecognized_locally()?;
+        mark_account_license_worker(store, AccountLicenseMark::LocalUnrecognized).await?;
     }
     remove_secret(&session_path(store), &store.account_protected_cache.session)?;
     remove_secret(&pending_path(store), &store.account_protected_cache.pending)?;
@@ -1050,7 +1128,7 @@ async fn disconnect(store: &LocalStore) -> AppResult<()> {
         &exchange_path(store),
         &store.account_protected_cache.exchange,
     )?;
-    clear_local_member_identity(store)?;
+    clear_local_member_identity_worker(store).await?;
     Ok(())
 }
 
@@ -1691,7 +1769,10 @@ where
     Ok(value)
 }
 
+// Reset/recovery callers hold account operation mutex then LocalStore.lock.
+// Invalidate the local context before secret removal or replacement can fail.
 pub(crate) fn forget_local_account(store: &LocalStore) -> AppResult<()> {
+    clear_local_member_identity_already_locked(store)?;
     remove_secret(&session_path(store), &store.account_protected_cache.session)?;
     remove_secret(&pending_path(store), &store.account_protected_cache.pending)?;
     remove_secret(&exchange_path(store), &store.account_protected_cache.exchange)
@@ -2192,6 +2273,117 @@ mod tests {
     }
 
     #[test]
+    fn actual_me_revocation_clears_identity_and_nonce_before_reporting_disconnected() {
+        for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
+            let temporary = tempfile::tempdir().unwrap();
+            let store = LocalStore::initialize(temporary.path().into()).unwrap();
+            let mut session = session_for(&store.installation_id);
+            session.session_expires_at = (Utc::now() + chrono::Duration::days(1)).to_rfc3339();
+            write_server_verified_secret(&session_path(&store), &session, &store.account_protected_cache.session).unwrap();
+            crate::company_collaboration::set_identity(&store, &session.organization_id, &Uuid::new_v4().to_string(), "Alice", "owner").unwrap();
+            let original = crate::member_context::read(&store.connect().unwrap()).unwrap();
+            let scope = crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap();
+            // Exercise the real /me response handler with a synthetic response;
+            // no remote call and no bypass of its current-session comparison.
+            let state = tauri::async_runtime::block_on(cloud_account_state_with(&store, |_| async move {
+                Ok((status, br#"{"error":"revoked"}"#.to_vec()))
+            })).unwrap();
+            assert_eq!(state.status, "disconnected");
+            assert!(read_session_secret(&store).unwrap().is_none());
+            assert_eq!(store.connect().unwrap().query_row::<i64, _, _>("SELECT COUNT(*) FROM company_local_identity", [], |row| row.get(0)).unwrap(), 0);
+            assert!(crate::member_context::require_unchanged(&store.connect().unwrap(), Some(&original)).is_err());
+            assert_eq!(crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap(), scope);
+        }
+    }
+
+    #[test]
+    fn actual_me_installation_or_organization_mismatch_invalidates_previous_read_context() {
+        for wrong_installation in [false, true] {
+            let temporary = tempfile::tempdir().unwrap();
+            let store = LocalStore::initialize(temporary.path().into()).unwrap();
+            let mut session = session_for(&store.installation_id);
+            session.session_expires_at = (Utc::now() + chrono::Duration::days(1)).to_rfc3339();
+            write_server_verified_secret(&session_path(&store), &session, &store.account_protected_cache.session).unwrap();
+            let member = Uuid::new_v4().to_string();
+            crate::company_collaboration::set_identity(&store, &session.organization_id, &member, "Alice", "owner").unwrap();
+            let original = crate::member_context::read(&store.connect().unwrap()).unwrap();
+            let scope = crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap();
+            let response = serde_json::to_vec(&json!({
+                "userId":member,"email":"synthetic@example.invalid","displayName":"Alice",
+                "installationId":if wrong_installation { Uuid::new_v4().to_string() } else { store.installation_id.clone() },
+                "organization":{"id":if wrong_installation { session.organization_id.clone() } else { format!("org_{}", Uuid::new_v4()) },"name":"Synthetic company","role":"owner"},
+                "entitlementValidUntil":(Utc::now() + chrono::Duration::days(30)).to_rfc3339(),
+            })).unwrap();
+            let state = tauri::async_runtime::block_on(cloud_account_state_with(&store, |_| async move {
+                Ok((StatusCode::OK, response))
+            })).unwrap();
+            assert_eq!(state.status, "disconnected");
+            assert!(read_session_secret(&store).unwrap().is_none());
+            assert_eq!(store.connect().unwrap().query_row::<i64, _, _>("SELECT COUNT(*) FROM company_local_identity", [], |row| row.get(0)).unwrap(), 0);
+            assert!(crate::member_context::require_unchanged(&store.connect().unwrap(), Some(&original)).is_err());
+            assert_eq!(crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap(), scope);
+        }
+    }
+
+    #[test]
+    fn actual_late_me_revocation_preserves_the_newer_members_context() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        let mut session = session_for(&store.installation_id);
+        session.session_expires_at = (Utc::now() + chrono::Duration::days(1)).to_rfc3339();
+        write_server_verified_secret(&session_path(&store), &session, &store.account_protected_cache.session).unwrap();
+        crate::company_collaboration::set_identity(&store, &session.organization_id, &Uuid::new_v4().to_string(), "Alice", "owner").unwrap();
+        let bob = Uuid::new_v4().to_string();
+        let state = tauri::async_runtime::block_on(cloud_account_state_with(&store, |_| async {
+            let _account = store.account_protected_cache.operation_lock.try_lock().unwrap();
+            let mut newer = session.clone();
+            newer.session_token = format!("zds_{}", "C".repeat(43));
+            write_server_verified_secret(&session_path(&store), &newer, &store.account_protected_cache.session).unwrap();
+            crate::company_collaboration::set_identity(&store, &session.organization_id, &bob, "Bob", "owner").unwrap();
+            Ok((StatusCode::UNAUTHORIZED, br#"{"error":"late alice rejection"}"#.to_vec()))
+        })).unwrap();
+        assert_eq!(state.status, "connected");
+        assert_eq!(store.connect().unwrap().query_row::<String, _, _>("SELECT user_id FROM company_local_identity", [], |row| row.get(0)).unwrap(), bob);
+        let installed = crate::member_context::read(&store.connect().unwrap()).unwrap();
+        assert!(read_session_secret(&store).unwrap().is_some());
+        // A second identical cached verification must not rotate this context.
+        let next = tauri::async_runtime::block_on(cloud_account_state_with(&store, |_| async {
+            Err(AppError::Remote("synthetic network outage".into()))
+        })).unwrap();
+        assert_eq!(next.status, "connected");
+        assert_eq!(crate::member_context::read(&store.connect().unwrap()).unwrap(), installed);
+    }
+
+    #[test]
+    fn actual_me_revocation_waits_off_executor_for_local_lock_before_clearing_context() {
+        use futures_util::future::join;
+        use std::{sync::mpsc, thread, time::Duration};
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        let mut session = session_for(&store.installation_id);
+        session.session_expires_at = (Utc::now() + chrono::Duration::days(1)).to_rfc3339();
+        write_server_verified_secret(&session_path(&store), &session, &store.account_protected_cache.session).unwrap();
+        crate::company_collaboration::set_identity(&store, &session.organization_id, &Uuid::new_v4().to_string(), "Alice", "owner").unwrap();
+        let original = crate::member_context::read(&store.connect().unwrap()).unwrap();
+        let locked = store.clone();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let holder = thread::spawn(move || {
+            let _guard = locked.lock().unwrap();
+            ready_tx.send(()).unwrap();
+            release_rx.recv_timeout(Duration::from_secs(5)).is_ok()
+        });
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        let (result, ()) = tauri::async_runtime::block_on(join(
+            cloud_account_state_with(&store, |_| async { Ok((StatusCode::UNAUTHORIZED, br#"{"error":"revoked"}"#.to_vec())) }),
+            async move { let _ = release_tx.send(()); },
+        ));
+        assert!(holder.join().unwrap(), "revocation must not block the releasing executor");
+        assert_eq!(result.unwrap().status, "disconnected");
+        assert!(crate::member_context::require_unchanged(&store.connect().unwrap(), Some(&original)).is_err());
+    }
+
+    #[test]
     fn unchanged_server_profile_does_not_require_a_session_write() {
         let session = session_for(TEST_INSTALLATION_ID);
         let unchanged = PollOrganization {
@@ -2214,3 +2406,63 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod member_context_clear_tests {
+    use super::*;
+    use futures_util::future::join;
+    use std::{sync::mpsc, thread, time::Duration};
+
+    fn fixture() -> (tempfile::TempDir, LocalStore) {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = LocalStore::initialize(temporary.path().into()).unwrap();
+        (temporary, store)
+    }
+    fn nonce(store: &LocalStore) -> String { crate::member_context::read(&store.connect().unwrap()).unwrap() }
+
+    #[test]
+    fn actual_clear_invalidates_member_context_without_rotating_draft_workspace() {
+        let (_temporary, store) = fixture();
+        let scope = crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap();
+        crate::company_collaboration::set_identity(&store, "org-a", &Uuid::new_v4().to_string(), "Alice", "owner").unwrap();
+        let original = nonce(&store);
+        clear_local_member_identity(&store).unwrap();
+        assert_ne!(nonce(&store), original);
+        assert_eq!(crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap(), scope);
+        assert_eq!(store.connect().unwrap().query_row::<i64,_,_>("SELECT COUNT(*) FROM company_local_identity", [], |row|row.get(0)).unwrap(), 0);
+    }
+
+    #[test]
+    fn actual_clear_rotates_each_new_authorization_even_when_identity_already_empty() {
+        let (_temporary, store) = fixture();
+        let first = nonce(&store);
+        clear_local_member_identity(&store).unwrap();
+        let second = nonce(&store);
+        clear_local_member_identity(&store).unwrap();
+        assert_ne!(second, first);
+        assert_ne!(nonce(&store), second);
+    }
+
+    #[test]
+    fn actual_clear_worker_leaves_executor_responsive_while_local_write_lock_is_held() {
+        let (_temporary, store) = fixture();
+        let locked = store.clone();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let holder = thread::spawn(move || {
+            let _guard = locked.lock().unwrap();
+            ready_tx.send(()).unwrap();
+            release_rx.recv_timeout(Duration::from_secs(5)).is_ok()
+        });
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        let (result, ()) = tauri::async_runtime::block_on(join(
+            clear_local_member_identity_worker(&store), async move { let _ = release_tx.send(()); },
+        ));
+        assert!(holder.join().unwrap(), "member clearing blocked the releasing executor");
+        result.unwrap();
+    }
+}
+
+#[cfg(test)]
+#[path = "account_cloud_nonblocking_state_tests.rs"]
+mod nonblocking_state_tests;

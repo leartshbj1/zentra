@@ -1,3 +1,4 @@
+import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Clock3 } from 'lucide-react';
 import { desktopApi } from './bridge';
@@ -15,7 +16,7 @@ import './work-time-forms.css';
 
 type Props = {
   item?: TimeEntry; workspace: Workspace; busy: boolean; close: () => void;
-  act: (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
+  act: (action: (origin: WorkspaceMutationOrigin) => Promise<Workspace>, message: string, close?: boolean, onError?: (reason: unknown) => void) => Promise<boolean>;
 };
 export function TimeForm(props: Props) { return <WorkTimeForm {...props} timer={false} />; }
 export function TimerForm(props: Props) { return <WorkTimeForm {...props} timer />; }
@@ -105,10 +106,10 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
     inFlight.current = true; setSaving(true);
     try {
       const data = timeEntryInput(draft);
-      const saved = await act(() => timer ? desktopApi.startTimer({
+      const saved = await act((mutationOrigin) => timer ? desktopApi.startTimer({
         projectId: data.projectId, taskId: data.taskId, employeeId: data.employeeId,
         billable: data.billable, billingRateCents: data.billingRateCents, costRateCents: data.costRateCents, note: data.note,
-      }) : item ? desktopApi.updateEntity('timeEntries', item.id, data, originWorkspaceScope) : desktopApi.createEntity('timeEntries', { ...data, id: draft.creationId! }, originWorkspaceScope).catch(reason => {
+      }) : item ? desktopApi.updateEntity('timeEntries', item.id, data, originWorkspaceScope, mutationOrigin.memberContextNonce) : desktopApi.createEntity('timeEntries', { ...data, id: draft.creationId! }, originWorkspaceScope, mutationOrigin.memberContextNonce).catch(reason => {
         if (reason instanceof WorkspaceCreationOutcomeUnknownError) {
           // WorkspaceApp can resolve this generic error by ID alone. A delayed
           // attempt may have different fields, so keep this manual draft intact.

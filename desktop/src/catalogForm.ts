@@ -2,7 +2,7 @@ import type { AppSettings, CatalogItem, Workspace } from './types';
 import { MAX_STOCK_QUANTITY_MILLI, stockQuantityFromInput } from './catalog';
 import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
-import { assertWorkspaceOrigin } from './workspaceOrigin';
+import { assertWorkspaceOrigin, workspaceOriginFailure } from './workspaceOrigin';
 import { errorMessage } from './utils';
 
 export type CatalogDraft = { kind: CatalogItem['kind']; name: string; sku: string; description: string; unit: string; salesPrice: string; purchaseCost: string; vatBp: string; trackStock: boolean; reorderLevel: string };
@@ -115,7 +115,11 @@ export class CatalogSaveRefreshError extends WorkspaceRefreshAfterMutationError 
   }
 }
 export async function runCatalogSave(id: string, data: CatalogData, write: () => Promise<unknown>, load: () => Promise<Workspace>, creating: boolean, expectedWorkspaceScope?: string) {
-  try { await write(); } catch (cause) { throw new CatalogSaveUnknownError(id, data, cause, creating, expectedWorkspaceScope); }
+  try { await write(); } catch (cause) {
+    const originFailure = workspaceOriginFailure(cause);
+    if (originFailure) throw originFailure;
+    throw new CatalogSaveUnknownError(id, data, cause, creating, expectedWorkspaceScope);
+  }
   try { const result = await load(); new CatalogSaveRefreshError(id, data, null, expectedWorkspaceScope).validateRead(result); return result; }
   catch (cause) { throw new CatalogSaveRefreshError(id, data, cause, expectedWorkspaceScope); }
 }

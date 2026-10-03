@@ -156,7 +156,7 @@ function actBelow() {
   let pending: Promise<boolean> | undefined;
   const act: FormProps['act'] = (action, _message, _close, onError) => {
     pending = (async () => {
-      try { await action(); outcomes.push(true); return true; }
+      try { await action({workspaceScope:companyId,memberContextNonce:'0123456789abcdef0123456789abcdef'}); outcomes.push(true); return true; }
       catch (reason) { failures.push(reason); onError?.(reason); outcomes.push(false); return false; }
     })();
     return pending;
