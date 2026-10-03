@@ -132,6 +132,9 @@ try {
         $diagnosticMobileSuites += @('src/stockMutation.test.ts', 'src/stockWorkflow.test.ts', 'src/stockScopedWorkflow.test.ts')
         $diagnosticFrontendSuites += @('src/businessStatusNumbers.test.ts')
         $diagnosticMobileSuites += @('src/businessStatusNumbers.test.ts')
+        $diagnosticNativeSuites += @('commands::closure_worker_tests::', 'commands::annual_export_scope_tests::')
+        $diagnosticFrontendSuites += @('src/closingScopeBridge.test.ts', 'src/closingExportBridge.test.ts', 'src/bexioContactRouting.test.ts', 'src/catalogImport.test.ts', 'src/bexioImport.test.ts')
+        $diagnosticMobileSuites += @('src/closingScopeBridge.test.ts', 'src/closingExportBridge.test.ts', 'src/bexioContactRouting.test.ts', 'src/catalogImport.test.ts', 'src/bexioImport.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

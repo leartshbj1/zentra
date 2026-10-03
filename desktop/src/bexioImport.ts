@@ -88,6 +88,11 @@ export function defaultContactMapping(headers: string[]): string[] {
     return match ?? 'ignore';
   });
 }
+export function contactHeaderScore(headers: string[]): number {
+  const mapping = defaultContactMapping(headers);
+  if (!mapping.includes('company') && !mapping.includes('lastName')) return 0;
+  return mapping.filter(field => field !== 'ignore').length;
+}
 export function contactHeaderIndex(source: CatalogMappingSource) {
   let best = 0,
     score = 0;

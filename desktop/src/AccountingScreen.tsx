@@ -7,7 +7,7 @@ import { accountingMappingFields, accountingMappingIssues } from './accountingSe
 import type { AccountingConfigurationResult } from './types';
 import { PdfExportReceipt } from './PdfExportReceipt';
 import type { PdfExportReceipt as Receipt } from './pdfExportDelivery';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Archive, BookOpen, CheckCircle2, ChevronDown, FileCheck2, Landmark, ListChecks, LockKeyhole, Plus, ReceiptText, RefreshCw, RotateCcw, Scale, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { SectionTabs } from './SectionTabs';
@@ -146,6 +146,12 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const actionRequest = useRef(0);
   const blockingActions = useRef(0);
   const pdfSharePending = useRef(false);
+  const closingContext = useRef({ mounted: false, scope: workspace.workNotesScope });
+  useLayoutEffect(() => {
+    const current = { mounted: true, scope: workspace.workNotesScope };
+    closingContext.current = current;
+    return () => { current.mounted = false; };
+  }, [workspace.workNotesScope]);
   const latestActionPending = useRef(false);
   const baseReady = useRef(false);
   const selection = useRef<ReportSelection>({ tab, filter, accountId: selectedAccountId });
@@ -173,7 +179,8 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
       ),
   );
 
-  async function run(action: () => Promise<void>, success?: string, rethrow = false, reading = false) {
+  async function run(action: () => Promise<void>, success?: string, rethrow = false, reading = false, isCurrent?: () => boolean) {
+    if (isCurrent && !isCurrent()) return;
     const request = ++actionRequest.current;
     latestActionPending.current = true;
     if (!reading) blockingActions.current++;
@@ -182,14 +189,15 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     setNotice('');
     try {
       await action();
-      if (request === actionRequest.current && success) setNotice(success);
+      if ((!isCurrent || isCurrent()) && request === actionRequest.current && success) setNotice(success);
     } catch (reason) {
+      if (isCurrent && !isCurrent()) return;
       if ((!reading || request === actionRequest.current) && !rethrow) setError(errorMessage(reason, 'La commande comptable locale a échoué.'));
       if (rethrow) throw reason;
     } finally {
       if (!reading) blockingActions.current--;
       if (request === actionRequest.current) latestActionPending.current = false;
-      setBusy(latestActionPending.current || blockingActions.current > 0);
+      if (!isCurrent || isCurrent()) setBusy(latestActionPending.current || blockingActions.current > 0);
     }
   }
 
@@ -224,8 +232,10 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     if (baseReady.current) void runRead(() => refreshReports());
   }
 
-  async function loadBase(keepMappingDraft = false) {
+  async function loadBase(keepMappingDraft = false, isCurrent?: () => boolean) {
+    if (isCurrent && !isCurrent()) return;
     const [nextAccounts, nextSettings, nextPeriods, nextContinuity] = await Promise.all([desktopApi.listAccounts(), desktopApi.getAccountingSettings(), desktopApi.listAccountingPeriods(), desktopApi.getAccountingContinuity()]);
+    if (isCurrent && !isCurrent()) return;
     setAccounts(nextAccounts);
     if (!keepMappingDraft) setSettings(nextSettings);
     setSavedSettings(nextSettings);
@@ -241,11 +251,12 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     return accountId;
   }
 
-  async function refreshReports() {
+  async function refreshReports(isCurrent?: () => boolean) {
+    if (isCurrent && !isCurrent()) return;
     const request = ++reportRequest.current;
     applyReports(emptyReports());
     const { reports, failures } = await readAccountingReports(selection.current);
-    if (request !== reportRequest.current) return;
+    if (request !== reportRequest.current || (isCurrent && !isCurrent())) return;
     applyReports(reports);
     if (failures.length) {
       const labels = failures.map((failure) => failure.label).join(', ');
@@ -342,7 +353,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     };
   }, [activeEntryFocus, focusedEntryAvailable, onFocusHandled, tab]);
 
-  async function reloadAll(success?: string, rethrow = false) { await run(async () => { await loadBase(); await refreshReports(); }, success, rethrow); }
+  async function reloadAll(success?: string, rethrow = false, isCurrent?: () => boolean) { await run(async () => { await loadBase(false, isCurrent); await refreshReports(isCurrent); }, success, rethrow, false, isCurrent); }
 
   async function retryReversalReports() {
     await run(async () => {
@@ -493,11 +504,14 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   if(advancedTab)primaryTabs.push(advancedTab);
 
   async function exportAccounts() {
+    const origin = closingContext.current;
+    const isCurrent = () => origin.mounted && closingContext.current === origin;
     await run(async () => {
-      const result = await desktopApi.exportAnnualAccountsPdf({ dateFrom: balance?.scope.dateFrom || filter.dateFrom, dateTo: balance?.scope.dateTo || filter.dateTo });
+      const result = await desktopApi.exportAnnualAccountsPdf({ dateFrom: balance?.scope.dateFrom || filter.dateFrom, dateTo: balance?.scope.dateTo || filter.dateTo }, origin.scope, isCurrent);
+      if (!isCurrent()) return;
       if (result) setExportedPdf(result);
       if (result) setNotice(`Bilan et résultat exportés en PDF (${result.pages} pages). ${result.closed ? 'Exercice clôturé.' : 'Document provisoire : l’exercice reste ouvert.'}`);
-    });
+    }, undefined, false, false, isCurrent);
   }
 
   return <div className={`stack-layout accounting-screen ${tab==='overview'?'accounting-screen--overview':''}`}>
@@ -549,7 +563,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     {tab === 'assets' ? <FixedAssetsPanel workspace={workspace} readOnly={Boolean(readOnly)} onChanged={()=>reloadAll()} onSetup={()=>setTab('accounts')}/> : null}
     {tab === 'vat' ? <VatCenter filter={filter} workspace={workspace} readOnly={readOnly} onAccountingChanged={reloadAll} onOpenJournal={(id)=>void openLinkedJournal(id)} /> : null}
     {returnToClosing && tab !== 'closing' && <div className="report-callout"><FileCheck2 size={20} /><div><strong>Reprendre le contrôle de l’exercice</strong><p>Après vos corrections, préparez un nouveau contrôle avant toute clôture.</p></div><Button disabled={busy} onClick={() => { setReturnToClosing(false); setTab('closing'); }}>Revenir au dossier de clôture</Button></div>}
-    {tab === 'closing' ? <ClosingFolder readOnly={readOnly} onNavigate={target => { setReturnToClosing(target !== 'periods'); setTab(target); }} filter={filter} period={selectedPeriod} loading={busy} trial={busy ? null : trial} balance={busy ? null : balance} income={busy ? null : income} onAccountingChanged={() => reloadAll('Les états et le statut de l’exercice ont été actualisés.', true)} /> : null}
+    {tab === 'closing' ? <ClosingFolder workspaceScope={workspace.workNotesScope} readOnly={readOnly} onNavigate={target => { setReturnToClosing(target !== 'periods'); setTab(target); }} filter={filter} period={selectedPeriod} loading={busy} trial={busy ? null : trial} balance={busy ? null : balance} income={busy ? null : income} onAccountingChanged={() => { const origin = closingContext.current; return reloadAll('Les états et le statut de l’exercice ont été actualisés.', true, () => origin.mounted && closingContext.current === origin); }} /> : null}
 
     {tab === 'accounts' ? <div className="stack-layout">
       <CustomerCreditAccountingIssues issues={continuity.customerCreditIssues} busy={busy} onOpenJournal={(id)=>void openLinkedJournal(id)}/>

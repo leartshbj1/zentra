@@ -18,8 +18,19 @@ export async function renderPdfPages(source: string | Uint8Array, maxPages = 3):
     for (let pageNumber = 1; pageNumber <= Math.min(pdfDocument.numPages, Math.max(1, maxPages)); pageNumber += 1) {
       const page = await pdfDocument.getPage(pageNumber);
       const initial = page.getViewport({ scale: 1 });
-      const scale = Math.min(3, Math.max(1.4, 1800 / Math.max(initial.width, initial.height)));
+      if (!Number.isFinite(initial.width) || !Number.isFinite(initial.height) || initial.width <= 0 || initial.height <= 0) {
+        throw new Error('Le fichier PDF contient une page de taille invalide.');
+      }
+      const preferredScale = Math.min(3, Math.max(1.4, 1800 / Math.max(initial.width, initial.height)));
+      // Keep ordinary document quality and the complete page. Large plans must
+      // fit the reader's existing 4 MP / 4096 px budget, including ceil rounding.
+      const scale = Math.min(preferredScale,
+        Math.sqrt(4_000_000 - 2 * 4096 - 1) / Math.sqrt(initial.width) / Math.sqrt(initial.height),
+        (4096 - 1) / Math.max(initial.width, initial.height));
       const viewport = page.getViewport({ scale });
+      if (!Number.isFinite(viewport.width) || !Number.isFinite(viewport.height) || viewport.width <= 0 || viewport.height <= 0) {
+        throw new Error('Le fichier PDF contient une page de taille invalide.');
+      }
       const canvas = document.createElement('canvas');
       try {
         canvas.width = Math.ceil(viewport.width);

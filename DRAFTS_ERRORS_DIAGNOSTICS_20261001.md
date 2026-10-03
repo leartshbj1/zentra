@@ -113,3 +113,10 @@ Une analyse de fiche de salaire ne remplace plus le salaire ou le mode que l'uti
 Le source frontend `2ef04c06` passe **2 795 tests**, TypeScript et le build web. Les profils frontend iOS/Android passent chacun **818 tests** ; dix parcours des vrais composants sur Edge/WebKit passent avec transports fictifs. Le natif Windows identique à `8055a9e7` est validé par la [CI 235](https://circleci.com/gh/leartshbj1/zentra/235) : **468 noms de tests distincts réussis, deux benchmarks inclus**, trois anciens tests ignorés et artefacts vérifiés. Les détails et limites sont dans `docs/RUNTIME-AUDIT-20261002.md`.
 
 Les points 1/2 et le diagnostic restent dans le code préparé, sans publication ou installation dans cette étape. Le journal suit les opérations, durées, résultats et incidents avec une référence exportable depuis Paramètres → Sauvegardes et mises à jour → Diagnostic. Aucun document, texte de mail, salaire, mot de passe ou clé n'y est enregistré ; les traces locales bornées ne garantissent pas tous les crashes ou incidents serveur.
+
+
+## Complément exports et imports du 3 octobre
+
+Les exports du bilan et du dossier de clôture gardent maintenant leur entreprise d'origine, même après un sélecteur de fichier ou un acquittement tardif. Le reçu confirmé est conservé sans nouvelle création. Le journal trace ces opérations avec leur durée et résultat, sans contenu ni chemin de document. Les CSV et classeurs de contacts trouvent les bonnes colonnes et feuilles ; les très grandes pages PDF disposent d'un budget de mémoire borné, sans recadrage.
+
+Les 107 tests ciblés intégrés et le TypeScript complet passent. Les seize nouvelles fixtures Windows restent à compiler et exécuter ; le détail des matrices, variantes avant/après et limites figure dans `docs/RUNTIME-AUDIT-20261002.md`. Cette étape prépare le code et ne distribue pas encore une nouvelle version.

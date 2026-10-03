@@ -11,6 +11,7 @@ import { CatalogImportWizard } from './CatalogImportWizard';
 import {
   contactFields,
   contactHeaderIndex,
+  contactHeaderScore,
   defaultContactMapping,
   previewContacts,
   type ContactTarget,
@@ -104,7 +105,7 @@ export function BexioImportPanel({
     setBusy(true);
     reset();
     try {
-      const next = await catalogMappingSource(file);
+      const next = await catalogMappingSource(file, contactHeaderScore);
       const row = contactHeaderIndex(next);
       setSource(next);
       setHeader(row);

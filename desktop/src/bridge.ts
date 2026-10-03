@@ -14,7 +14,7 @@ import { requireAgendaWorkspace } from './agendaForm';
 import { runStockMutation } from './stockWorkflow';
 import { runCatalogSave, type CatalogData } from './catalogForm';
 import { runReceiptMutation } from './receiptWorkflow';
-import { deliverPdfExport } from './pdfExportDelivery';
+import { deliverPdfExport, type PdfExportReceipt } from './pdfExportDelivery';
 import { documentCompositions } from './documentComposition';
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
 import type { CertificateDraft, CertificateInput } from './salaryCertificate';
@@ -6374,21 +6374,25 @@ export const desktopApi = {
   },
   async prepareFiduciaryPreClosing(
     filter: PeriodFilter,
+    expectedWorkspaceScope?: string,
   ): Promise<FiduciaryClosingReview> {
     return fiduciaryReviewFromRaw(
       await invoke('prepare_fiduciary_pre_closing', {
         filter: periodFilterToRaw(filter),
+        ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
       }),
     );
   },
   async finalizeAccountingPeriodWithReview(
     periodId: string,
     reviewId: string,
+    expectedWorkspaceScope?: string,
   ): Promise<FiduciaryPeriodFinalization> {
     const row = recordValue(
       await invoke('finalize_accounting_period_with_review', {
         periodId,
         reviewId,
+        ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
       }),
     );
     return {
@@ -6400,32 +6404,38 @@ export const desktopApi = {
   },
   async exportFiduciaryClosingZip(
     reviewId: string,
+    expectedWorkspaceScope?: string,
+    isCurrent?: () => boolean,
   ): Promise<FiduciaryPackageExport> {
-    const row = recordValue(
-      await invoke('export_fiduciary_closing_zip', { reviewId }),
-    );
-    const result: FiduciaryPackageExport = {
-      schema: 'elyko.fiduciary-package-export.v1',
-      exportId: stringValue(row.export_id),
-      reviewId: stringValue(row.review_id),
-      createdAt: stringValue(row.created_at),
-      period: accountingPeriodFromRaw(recordValue(row.period)),
-      packageStatus: stringValue(
-        row.package_status,
-      ) as FiduciaryPackageExport['packageStatus'],
-      sourceSha256: stringValue(row.source_sha256),
-      manifestSha256: stringValue(row.manifest_sha256),
-      fileName: stringValue(row.file_name),
-      path: stringValue(row.path),
-      fileCount: numberValue(row.file_count),
-      disclaimer: stringValue(row.disclaimer),
-    };
-    try {
-      await shareMobileExport(result.path);
-    } catch {
-      result.deliveryWarning = 'Le dossier a été créé, mais le partage n’a pas abouti. Utilisez « Partager le dossier » pour réessayer.';
-    }
-    return result;
+    return diagnosticOperation('command', 'fiduciary_closing.export', async () => {
+      if (isCurrent && !isCurrent()) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+      const row = recordValue(
+        await invoke('export_fiduciary_closing_zip', { reviewId, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) }),
+      );
+      const result: FiduciaryPackageExport = {
+        schema: 'elyko.fiduciary-package-export.v1',
+        exportId: stringValue(row.export_id),
+        reviewId: stringValue(row.review_id),
+        createdAt: stringValue(row.created_at),
+        period: accountingPeriodFromRaw(recordValue(row.period)),
+        packageStatus: stringValue(
+          row.package_status,
+        ) as FiduciaryPackageExport['packageStatus'],
+        sourceSha256: stringValue(row.source_sha256),
+        manifestSha256: stringValue(row.manifest_sha256),
+        fileName: stringValue(row.file_name),
+        path: stringValue(row.path),
+        fileCount: numberValue(row.file_count),
+        disclaimer: stringValue(row.disclaimer),
+      };
+      if (isCurrent && !isCurrent()) return result;
+      try {
+        await shareMobileExport(result.path);
+      } catch {
+        result.deliveryWarning = 'Le dossier a été créé, mais le partage n’a pas abouti. Utilisez « Partager le dossier » pour réessayer.';
+      }
+      return result;
+    });
   },
   async shareExistingExport(path: string): Promise<void> {
     await shareMobileExport(path);
@@ -6572,11 +6582,18 @@ export const desktopApi = {
     const raw = await invoke<{memberId?: string | null}>('get_form_draft_identity');
     return {memberId: typeof raw.memberId === 'string' ? raw.memberId : undefined};
   },
-  async exportAnnualAccountsPdf(filter: PeriodFilter) {
-    const selected = await chooseSaveFile({ title: 'Exporter le bilan et le résultat', defaultPath: `Zentra-bilan-${filter.dateTo || new Date().toISOString().slice(0, 10)}.pdf`, filters: [{ name: 'Bilan et compte de résultat PDF', extensions: ['pdf'] }] });
-    if (!selected) return null;
-    const raw = await invoke<RawRecord>('export_annual_accounts_pdf', { filter: periodFilterToRaw(filter), destinationPath: pdfDestinationPath(selected) });
-    return deliverPdfExport({ path: stringValue(raw.path), pages: numberValue(raw.pages), closed: boolValue(raw.closed), balanced: boolValue(raw.balanced) });
+  async exportAnnualAccountsPdf(filter: PeriodFilter, expectedWorkspaceScope?: string, isCurrent?: () => boolean) {
+    return diagnosticOperation('command', 'annual_accounts.export', async () => {
+      const requireCurrent = () => { if (isCurrent && !isCurrent()) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.'); };
+      requireCurrent();
+      const selected = await chooseSaveFile({ title: 'Exporter le bilan et le résultat', defaultPath: `Zentra-bilan-${filter.dateTo || new Date().toISOString().slice(0, 10)}.pdf`, filters: [{ name: 'Bilan et compte de résultat PDF', extensions: ['pdf'] }] });
+      if (!selected) return null;
+      requireCurrent();
+      const raw = await invoke<RawRecord>('export_annual_accounts_pdf', { filter: periodFilterToRaw(filter), destinationPath: pdfDestinationPath(selected), ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
+      const result: PdfExportReceipt & { pages: number; closed: boolean; balanced: boolean } = { path: stringValue(raw.path), pages: numberValue(raw.pages), closed: boolValue(raw.closed), balanced: boolValue(raw.balanced) };
+      if (isCurrent && !isCurrent()) return result;
+      return deliverPdfExport(result);
+    });
   },
   async getBalanceSheet(filter: PeriodFilter): Promise<BalanceSheetReport> {
     const raw = await invoke<RawRecord>('get_balance_sheet', {

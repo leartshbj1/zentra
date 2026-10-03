@@ -402,7 +402,9 @@ export function previewCatalogGrid(
   };
 }
 
-function csvSeparator(text: string): ',' | ';' | '\t' {
+export type ImportHeaderScore = (headers: string[]) => number;
+
+function csvSeparator(text: string, headerScore?: ImportHeaderScore): ',' | ';' | '\t' {
   const candidates = [',', ';', '\t'] as const;
   let best: (typeof candidates)[number] = ',';
   let bestScore = -1;
@@ -421,7 +423,8 @@ function csvSeparator(text: string): ',' | ';' | '\t' {
       // in a title or description line.
       score = Math.max(
         score,
-        requiredColumns * 10_000 + columns.size * 100 + Math.max(0, cells.length - 1),
+        (headerScore ? headerScore(sample) * 10_000 : requiredColumns * 10_000 + columns.size * 100)
+          + Math.max(0, cells.length - 1),
       );
     }
     if (score > bestScore) {
@@ -498,14 +501,14 @@ async function delimitedFileText(file: File): Promise<string> {
   }
 }
 
-async function workbookRows(file: File): Promise<{ sheetName: string; rows: GridRow[] }> {
+async function workbookRows(file: File, headerScore?: ImportHeaderScore): Promise<{ sheetName: string; rows: GridRow[] }> {
   if (file.size > CATALOG_IMPORT_MAX_BYTES) {
     throw new Error('Le fichier dépasse 20 Mo. Réduisez le catalogue avant de recommencer.');
   }
   const extension = file.name.split('.').pop()?.toLowerCase();
   if (extension === 'csv' || extension === 'tsv') {
     const text = await delimitedFileText(file);
-    const separator = extension === 'tsv' ? '\t' : csvSeparator(text);
+    const separator = extension === 'tsv' ? '\t' : csvSeparator(text, headerScore);
     return {
       sheetName: extension.toUpperCase(),
       rows: parseCsvRecords(text, separator).map((row) =>
@@ -516,16 +519,17 @@ async function workbookRows(file: File): Promise<{ sheetName: string; rows: Grid
   if (extension !== 'xlsx') {
     throw new Error('Format non pris en charge. Choisissez un fichier .xlsx, .csv ou .tsv.');
   }
-  return xlsxRows(await file.arrayBuffer());
+  return xlsxRows(await file.arrayBuffer(), headerScore);
 }
 
-async function xlsxRows(data: ArrayBuffer): Promise<{ sheetName: string; rows: GridRow[] }> {
+async function xlsxRows(data: ArrayBuffer, headerScore?: ImportHeaderScore): Promise<{ sheetName: string; rows: GridRow[] }> {
   const { Workbook } = await import('exceljs');
   const workbook = new Workbook();
   await workbook.xlsx.load(data);
   const worksheets = workbook.worksheets.filter((candidate) => candidate.actualRowCount > 0);
   if (!worksheets.length) throw new Error('Le classeur Excel ne contient aucune feuille lisible.');
   let fallback: { sheetName: string; rows: GridRow[] } | null = null;
+  let bestMatch: { score: number; candidate: { sheetName: string; rows: GridRow[] } } | null = null;
   for (const worksheet of worksheets) {
     if (worksheet.actualRowCount > CATALOG_IMPORT_MAX_ROWS + 20) {
       throw new Error(
@@ -553,13 +557,18 @@ async function xlsxRows(data: ArrayBuffer): Promise<{ sheetName: string; rows: G
     const candidate = { sheetName: worksheet.name, rows };
     fallback ??= candidate;
     try {
-      findHeader(rows);
-      return candidate;
+      if (headerScore) {
+        const score = Math.max(0, ...rows.slice(0, 20).map(row => headerScore(row.map(visibleCellText))));
+        if (score > 0 && (!bestMatch || score > bestMatch.score)) bestMatch = { score, candidate };
+      } else {
+        findHeader(rows);
+        return candidate;
+      }
     } catch {
       // Les catalogues fournisseurs contiennent souvent une feuille de garde.
     }
   }
-  return fallback!;
+  return bestMatch?.candidate ?? fallback!;
 }
 
 export async function previewCatalogXlsxBuffer(
@@ -580,7 +589,7 @@ export async function previewCatalogFile(file: File): Promise<CatalogImportPrevi
 
 export type CatalogMappingSource={fileName:string;sheetName:string;rows:GridRow[];headerIndex:number};
 export const catalogMappingFields:Record<CatalogImportColumn,string>={sku:'Référence',name:'Désignation',description:'Description',unit:'Unité',purchaseCostCents:'Prix achat',salesPriceCents:'Prix de vente',vatBp:'TVA',kind:'Type'};
-export async function catalogMappingSource(file:File):Promise<CatalogMappingSource>{const source=await workbookRows(file);let headerIndex=source.rows.findIndex(row=>row.some(cell=>cellText(cell.value)));try{headerIndex=findHeader(source.rows).rowIndex;}catch{/* The user chooses the header and its mapping. */}return {...source,fileName:file.name,headerIndex:Math.max(0,headerIndex)};}
+export async function catalogMappingSource(file:File,headerScore?:ImportHeaderScore):Promise<CatalogMappingSource>{const source=await workbookRows(file,headerScore);let headerIndex=source.rows.findIndex(row=>row.some(cell=>cellText(cell.value)));try{headerIndex=findHeader(source.rows).rowIndex;}catch{/* The user chooses the header and its mapping. */}return {...source,fileName:file.name,headerIndex:Math.max(0,headerIndex)};}
 export function catalogHeaders(source:CatalogMappingSource,headerIndex:number){if(!Number.isInteger(headerIndex)||headerIndex<0||headerIndex>=Math.min(source.rows.length,20))throw Error('Choisissez une ligne d’en-tête valide.');const row=source.rows[headerIndex];if(row.length>100)throw Error('Conservez au maximum 100 colonnes dans ce fichier.');return row.map(visibleCellText);}
 export function defaultCatalogMapping(source:CatalogMappingSource,headerIndex:number){return catalogHeaders(source,headerIndex).map(value=>headerKey(value)||'ignore');}
 export function previewMappedCatalog(source:CatalogMappingSource,headerIndex:number,mapping:string[]){

@@ -1157,38 +1157,40 @@ pub fn close_accounting_period(state: State<'_, LocalStore>, id: String) -> Resu
     Err("La clôture directe est désactivée. Préparez un contrôle dans le dossier de clôture, puis confirmez le verrouillage avec son empreinte encore valide.".into())
 }
 #[tauri::command]
-pub fn prepare_fiduciary_pre_closing(
+pub async fn prepare_fiduciary_pre_closing(
     state: State<'_, LocalStore>,
     filter: PeriodFilter,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .prepare_fiduciary_pre_closing(filter)
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.prepare_fiduciary_pre_closing(filter).map_err(command_error)
+    }).await
 }
 #[tauri::command]
-pub fn finalize_accounting_period_with_review(
+pub async fn finalize_accounting_period_with_review(
     state: State<'_, LocalStore>,
     period_id: String,
     review_id: String,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .finalize_accounting_period_with_review(&period_id, &review_id)
-        .map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.finalize_accounting_period_with_review(&period_id, &review_id).map_err(command_error)
+    }).await
 }
 #[tauri::command]
-pub fn export_fiduciary_closing_zip(
+pub async fn export_fiduciary_closing_zip(
     state: State<'_, LocalStore>,
     app: AppHandle,
     review_id: String,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state
-        .export_fiduciary_closing_zip(&review_id, &app_version(&app))
-        .map_err(command_error)
+    let store = state.inner().clone();
+    let version = app_version(&app);
+    run_scoped_local_operation(store, expected_workspace_scope, move |store| {
+        store.export_fiduciary_closing_zip(&review_id, &version).map_err(command_error)
+    }).await
 }
 #[tauri::command]
 pub fn create_vat_profile(
@@ -1338,9 +1340,10 @@ pub async fn export_annual_accounts_pdf(
     state: State<'_, LocalStore>,
     filter: PeriodFilter,
     destination_path: String,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    run_locked_local_operation(state.inner().clone(), move |store| {
-        store.export_annual_accounts_pdf(filter, &destination_path)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        store.export_annual_accounts_pdf(filter, &destination_path).map_err(command_error)
     }).await
 }
 #[tauri::command]
@@ -1929,6 +1932,10 @@ mod worker_tests;
 mod pdf_worker_tests;
 
 #[cfg(test)]
+#[path = "commands_annual_export_scope_tests.rs"]
+mod annual_export_scope_tests;
+
+#[cfg(test)]
 #[path = "commands_import_worker_tests.rs"]
 mod import_worker_tests;
 
@@ -1939,6 +1946,10 @@ mod payroll_import_worker_tests;
 #[cfg(test)]
 #[path = "commands_stock_report_scope_tests.rs"]
 mod stock_report_scope_tests;
+
+#[cfg(test)]
+#[path = "commands_closure_worker_tests.rs"]
+mod closure_worker_tests;
 
 #[cfg(test)]
 #[path = "commands_project_file_scope_tests.rs"]

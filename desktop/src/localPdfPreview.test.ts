@@ -105,3 +105,87 @@ describe('renderPdfPages resource lifetime', () => {
     expect(task.destroy).toHaveBeenCalledOnce();
   });
 });
+
+describe('renderPdfPages bounded page allocations', () => {
+  it.each([
+    ['square plan', 10_000, 10_000, 1],
+    ['tall plan', 100, 10_000, 1],
+    ['wide plan', 10_000, 100, 1],
+    ['finite dimensions whose area overflows', 1e200, 2e200, 1],
+    ['extreme finite userUnit', 595, 842, 1e300],
+    ['tiny finite userUnit with a large view box', 1e200, 2e200, 1e-200],
+    ['extreme finite width with a nonzero scaled height', Number.MAX_VALUE, 1e294, 1],
+  ] as const)('keeps %s complete within 4 MP and 4096 px', async (_, width, height, userUnit) => {
+    const {task,page,canvas} = previewFixture(1);
+    // PDF.js PageViewport multiplies scale by userUnit before each view-box
+    // dimension. These test doubles never allocate an actual bitmap.
+    page.getViewport.mockImplementation(({scale}) => ({width:width*(scale*userUnit),height:height*(scale*userUnit)}));
+    let encoded = false;
+    canvas.toDataURL.mockImplementation(() => {
+      encoded = true;
+      expect(Number.isInteger(canvas.width) && Number.isInteger(canvas.height)).toBe(true);
+      expect(canvas.width).toBeGreaterThan(0);
+      expect(canvas.height).toBeGreaterThan(0);
+      expect(canvas.width).toBeLessThanOrEqual(4096);
+      expect(canvas.height).toBeLessThanOrEqual(4096);
+      expect(canvas.width * canvas.height).toBeLessThanOrEqual(4_000_000);
+      return 'data:image/jpeg;base64,synthetic';
+    });
+    await expect(renderPdfPages(bytes,1)).resolves.toEqual({pageCount:1,pages:['data:image/jpeg;base64,synthetic']});
+    expect(encoded).toBe(true);
+    expect(page.render).toHaveBeenCalledOnce();
+    const viewport=page.render.mock.calls[0][0].viewport;
+    const originalRatio=width/height;
+    expect(Math.abs((viewport.width/viewport.height)/originalRatio-1)).toBeLessThan(1e-12);
+    expect([canvas.width,canvas.height]).toEqual([0,0]);
+    expect(task.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('preserves the exact ordinary A4 dimensions and JPEG contract', async () => {
+    const {task,page,canvas} = previewFixture(1);
+    page.getViewport.mockImplementation(({scale}) => ({width:595*scale,height:842*scale}));
+    canvas.toDataURL.mockImplementation(() => {
+      expect([canvas.width,canvas.height]).toEqual([1272,1800]);
+      return 'data:image/jpeg;base64,synthetic';
+    });
+    await expect(renderPdfPages(bytes,1)).resolves.toMatchObject({pageCount:1});
+    expect(canvas.toDataURL).toHaveBeenCalledExactlyOnceWith('image/jpeg',0.94);
+    expect(task.destroy).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['zero width',0,240],['zero height',300,0],
+    ['negative width',-300,240],['negative height',300,-240],
+    ['NaN width',Number.NaN,240],['NaN height',300,Number.NaN],
+    ['infinite width',Number.POSITIVE_INFINITY,240],['infinite height',300,Number.POSITIVE_INFINITY],
+  ] as const)('refuses an invalid initial viewport (%s) before creating a canvas', async (_, width, height) => {
+    const {task,page} = previewFixture(1);
+    page.getViewport.mockReturnValue({width,height});
+    await expect(renderPdfPages(bytes,1)).rejects.toThrow('Le fichier PDF contient une page de taille invalide.');
+    expect(globalThis.document.createElement).not.toHaveBeenCalled();
+    expect(page.render).not.toHaveBeenCalled();
+    expect(task.destroy).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['zero width',0,240],['zero height',300,0],
+    ['negative width',-300,240],['negative height',300,-240],
+    ['NaN width',Number.NaN,240],['NaN height',300,Number.NaN],
+    ['infinite width',Number.POSITIVE_INFINITY,240],['infinite height',300,Number.POSITIVE_INFINITY],
+  ] as const)('refuses an invalid scaled viewport (%s) before creating a canvas', async (_, width, height) => {
+    const {task,page} = previewFixture(1);
+    page.getViewport.mockReturnValueOnce({width:300,height:240}).mockReturnValueOnce({width,height});
+    await expect(renderPdfPages(bytes,1)).rejects.toThrow('Le fichier PDF contient une page de taille invalide.');
+    expect(globalThis.document.createElement).not.toHaveBeenCalled();
+    expect(page.render).not.toHaveBeenCalled();
+    expect(task.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('refuses final underflow from a finite extreme aspect ratio without allocating', async () => {
+    const {task,page} = previewFixture(1);
+    page.getViewport.mockImplementation(({scale}) => ({width:Number.MAX_VALUE*scale,height:Number.MIN_VALUE*scale}));
+    await expect(renderPdfPages(bytes,1)).rejects.toThrow('Le fichier PDF contient une page de taille invalide.');
+    expect(globalThis.document.createElement).not.toHaveBeenCalled();
+    expect(task.destroy).toHaveBeenCalledOnce();
+  });
+});

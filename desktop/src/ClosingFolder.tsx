@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, CircleDashed, Download, FileCheck2, Fingerprint, LockKeyhole, PackageCheck, Scale } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { isMobileRuntime } from './mobileRuntime';
@@ -10,6 +10,7 @@ import './ClosingFolder.css';
 
 export function ClosingFolder({
   filter,
+  workspaceScope,
   period,
   trial,
   balance,
@@ -20,6 +21,7 @@ export function ClosingFolder({
   onAccountingChanged,
 }: {
   filter: PeriodFilter;
+  workspaceScope?: string;
   period?: AccountingPeriod;
   trial: TrialBalanceReport | null;
   balance: ComparativeBalanceSheet | null;
@@ -37,13 +39,13 @@ export function ClosingFolder({
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState('');
   const [needsRefresh, setNeedsRefresh] = useState(false);
-  const operation = useRef({ id: 0, busy: false });
+  const operation = useRef({ id: 0, busy: false, mounted: false });
   const checks = buildClosingChecks({ filter, period, trial, balance, income });
   const readiness = loading ? 'warning' : review && !review.checks.readyForFinal ? 'blocked' : closingReadiness(checks);
   const scope = balance?.scope ?? income?.scope;
 
-  useEffect(() => {
-    operation.current = { id: operation.current.id + 1, busy: false };
+  useLayoutEffect(() => {
+    operation.current = { id: operation.current.id + 1, busy: false, mounted: true };
     setBusy(false);
     setReview(null);
     setExported(null);
@@ -52,13 +54,13 @@ export function ClosingFolder({
     setError('');
     setNotice('');
     setNeedsRefresh(false);
-    return () => { operation.current = { id: operation.current.id + 1, busy: false }; };
-  }, [filter.dateFrom, filter.dateTo, period?.id]);
+    return () => { operation.current = { id: operation.current.id + 1, busy: false, mounted: false }; };
+  }, [workspaceScope, filter.dateFrom, filter.dateTo, period?.id]);
 
   function startOperation() {
-    if (loading || operation.current.busy) return null;
+    if (!operation.current.mounted || loading || operation.current.busy) return null;
     const id = operation.current.id + 1;
-    operation.current = { id, busy: true };
+    operation.current = { id, busy: true, mounted: true };
     setBusy(true);
     setError('');
     setNotice('');
@@ -79,7 +81,7 @@ export function ClosingFolder({
     setConfirming(false);
     setConfirmation('');
     try {
-      const next = await desktopApi.prepareFiduciaryPreClosing(filter);
+      const next = await desktopApi.prepareFiduciaryPreClosing(filter, workspaceScope);
       if (operation.current.id !== request) return;
       if (next.period.id !== period?.id || next.period.dateFrom !== filter.dateFrom || next.period.dateTo !== filter.dateTo) {
         throw new Error('Le contrôle reçu ne correspond pas à l’exercice sélectionné. Préparez-le à nouveau.');
@@ -109,7 +111,7 @@ export function ClosingFolder({
     const request = startOperation();
     if (request === null) return;
     try {
-      const result = await desktopApi.finalizeAccountingPeriodWithReview(targetPeriod.id, review.reviewId);
+      const result = await desktopApi.finalizeAccountingPeriodWithReview(targetPeriod.id, review.reviewId, workspaceScope);
       if (operation.current.id !== request) return;
       setReview((current) => current ? { ...current, period: result.period, packageStatusIfExported: 'FINAL' } : current);
       setConfirming(false);
@@ -138,7 +140,7 @@ export function ClosingFolder({
     const request = startOperation();
     if (request === null) return;
     try {
-      const result = await desktopApi.exportFiduciaryClosingZip(review.reviewId);
+      const result = await desktopApi.exportFiduciaryClosingZip(review.reviewId, workspaceScope, () => operation.current.mounted && operation.current.id === request);
       if (operation.current.id !== request) return;
       setExported(result);
       setReview(null);
