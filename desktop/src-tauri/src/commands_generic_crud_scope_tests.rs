@@ -3,7 +3,7 @@
 //! .zentra restore and a same-UUID client in both companies, never a scope-only mock.
 //! One acquired-worker ordering witness calls the shared helper/business body;
 //! it is explicitly not a paused Tauri handler or a production testing hook.
-use super::import_worker_tests::{fixture, scope, signed_fixture_token, unlicensed_fixture};
+use super::import_worker_tests::{fixture, scope, unlicensed_fixture};
 use super::*;
 use futures_util::future::join;
 use serde_json::json;
@@ -60,12 +60,23 @@ fn audit_count(store: &LocalStore, id: &str) -> i64 {
 }
 
 fn restore_active_synthetic_company(store: &LocalStore, backup: &str, version: &str) {
+    // The caller already holds LocalStore.lock. Manual restore preserves this
+    // installation's protected licence; installing another token here would
+    // reacquire the same non-reentrant mutex and deadlock the test itself.
+    let original_license: (String, String) = store.connect().unwrap().query_row(
+        "SELECT token_sha256,license_id FROM license_state WHERE id=1", [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ).unwrap();
     store.require_backup_restore_access().unwrap();
+    store.require_write_access().unwrap();
     store.restore_backup(backup, version).unwrap();
-    // Restore intentionally drops its old licence. Install only the existing
-    // public test authority's signed token so an unguarded pending operation
-    // would really write into B instead of merely failing a licence check.
-    store.install_server_issued_license(&signed_fixture_token(store, "owner")).unwrap();
+    let restored_license: (String, String) = store.connect().unwrap().query_row(
+        "SELECT token_sha256,license_id FROM license_state WHERE id=1", [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ).unwrap();
+    assert_eq!(restored_license, original_license, "manual restore must retain this installation's signed licence, not the source company's licence");
+    // Keep the real release guard: without the origin guard, the queued CRUD
+    // operation must truly be allowed to write into B, not fail on a licence.
     store.require_write_access().unwrap();
 }
 
