@@ -24,11 +24,11 @@ const scope='member-origin-company',member='11111111-1111-4111-8111-111111111111
 const guardMessage='Champ invalide : Le compte connecté a changé. Rouvrez cette action avec le bon compte.';
 function deferred<T=void>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(yes=>resolve=yes);return {promise,resolve};}
 let root:Root|undefined,container:HTMLDivElement,workspace:Workspace,exposed:any;
-let nativeNonce=nonceA,mode='',blocked=false,writeHold:ReturnType<typeof deferred>|null=null,readHold:ReturnType<typeof deferred>|null=null;
+let nativeScope=scope,nativeNonce=nonceA,mode='',blocked=false,writeHold:ReturnType<typeof deferred>|null=null,readHold:ReturnType<typeof deferred>|null=null;
 let writeEntered=false,readEntered=false,writes=0,clients:any[]=[],reads:any[]=[],publications:Workspace[]=[],externalRequests=0;
 const settings={...structuredClone(initialOnboardingSettings),organization:{...initialOnboardingSettings.organization,legalName:'Atelier témoin',contactName:'Compte témoin'}};
-function rawWorkspace(){return {work_notes_scope:scope,settings:{company_name:'Atelier témoin',extra_settings_json:JSON.stringify(settings)},clients:structuredClone(clients),projects:[],employees:[],time_entries:[]};}
-function enforce(args:any){if(args?.expectedWorkspaceScope!==undefined&&args.expectedWorkspaceScope!==scope)throw Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');if(args?.expectedMemberContextNonce!==undefined&&args.expectedMemberContextNonce!==nativeNonce)throw guardMessage;}
+function rawWorkspace(){return {work_notes_scope:nativeScope,settings:{company_name:'Atelier témoin',extra_settings_json:JSON.stringify(settings)},clients:structuredClone(clients),projects:[],employees:[],time_entries:[]};}
+function enforce(args:any){if(args?.expectedWorkspaceScope!==undefined&&args.expectedWorkspaceScope!==nativeScope)throw Error('Champ invalide : L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');if(args?.expectedMemberContextNonce!==undefined&&args.expectedMemberContextNonce!==nativeNonce)throw guardMessage;}
 async function settle(){await reactAct(async()=>{for(let i=0;i<25;i++)await Promise.resolve();await new Promise<void>(resolve=>setTimeout(resolve,1));});}
 async function until(check:()=>boolean){for(let i=0;i<40&&!check();i++)await settle();expect(check()).toBe(true);}
 const buttons=(text:string)=>Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter(node=>node.textContent?.trim()===text);
@@ -42,7 +42,7 @@ async function submit(){const form=document.querySelector<HTMLFormElement>('[rol
 function verifyNoRetirement(){expect(draftKeys()).toHaveLength(1);expect(publications).toHaveLength(0);expect(document.body.textContent).not.toContain('Le client a été ajouté.');expect(document.querySelector('[role="dialog"] form')).not.toBeNull();}
 
 beforeEach(async()=>{
-  nativeNonce=nonceA;mode='';blocked=false;writeHold=null;readHold=null;writeEntered=false;readEntered=false;writes=0;clients=[{id:'existing-client',name:'Client existant',company:'Client existant',contact_person:'Personne témoin',address_line1:'Rue de recette',postal_code:'1000',city:'Lausanne',country:'CH',notes:''}];reads=[];publications=[];externalRequests=0;localStorage.clear();sessionStorage.clear();
+  nativeScope=scope;nativeNonce=nonceA;mode='';blocked=false;writeHold=null;readHold=null;writeEntered=false;readEntered=false;writes=0;clients=[{id:'existing-client',name:'Client existant',company:'Client existant',contact_person:'Personne témoin',address_line1:'Rue de recette',postal_code:'1000',city:'Lausanne',country:'CH',notes:''}];reads=[];publications=[];externalRequests=0;localStorage.clear();sessionStorage.clear();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.stubGlobal('fetch',vi.fn(async()=>{externalRequests++;throw Error('External fetch is disabled in this closed fixture.');}));
   Object.defineProperty(window,'matchMedia',{value:vi.fn(()=>({matches:false,addEventListener:()=>{},removeEventListener:()=>{},addListener:()=>{},removeListener:()=>{}})),configurable:true});
   HTMLElement.prototype.scrollIntoView=()=>{};vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}});
@@ -54,6 +54,7 @@ beforeEach(async()=>{
     if(command==='create_record'&&args.entity==='clients'){
       if(writeHold){writeEntered=true;await writeHold.promise;}enforce(args);clients.push({...structuredClone(args.data),created_at:'2026-10-03T10:00:00Z'});writes++;
       if(mode==='ack-member')nativeNonce=nonceB;
+      if(mode==='ack-workspace')nativeScope='other-physical-workspace';
       if(mode==='lost'){blocked=true;throw Error('Réponse de création perdue après commit simulé.');}
       return structuredClone(args.data);
     }
@@ -86,6 +87,20 @@ describe('actual candidate WorkspaceApp.act, guarded bridge and ReactDOM recover
     vi.stubGlobal('fetch',vi.fn(async(input:RequestInfo|URL)=>{if(!allowed.has(String(input))){externalRequests++;throw Error('External language request forbidden.');}return {ok:true,json:async()=>({'QA local pack':'QA local pack'})} as Response;}));
     await reactAct(async()=>{await setAppLanguage(language);root!.render(<ErrorGuidance error={new WorkspaceMemberOriginChangedError()} operation="read" onReload={()=>{throw Error('Terminal member error must not expose reload');}}/>);});
     expect(document.querySelector('[role="alert"]')?.textContent).toContain(title);expect(document.querySelector('[role="alert"]')?.textContent).toContain(action);expect(document.querySelector('.error-guidance__actions')).toBeNull();expect(writes).toBe(0);
+  });
+
+  it('ends a canonical native physical-space refusal after ACK and retains the original draft',async()=>{
+    mode='ack-workspace';await openClient();const saved=draftValue();await submit();expect(writes).toBe(1);verifyNoRetirement();expect(draftValue()).toEqual(saved);
+    expect(document.body.textContent).toContain('Entreprise ouverte à vérifier');expect(buttons('Actualiser les données')).toHaveLength(0);expect(document.querySelector<HTMLInputElement>('[role="dialog"] [name="company"]')!.disabled).toBe(false);
+  });
+  it('ends a read-only recovery when the physical-space guard rejects the original read',async()=>{
+    mode='edit-unreadable';await openEdit();const saved=draftValue();await submit();await until(()=>buttons('Actualiser les données').length>0);
+    nativeScope='other-physical-workspace';blocked=false;await click('Actualiser les données');await until(()=>document.body.textContent?.includes('Entreprise ouverte à vérifier')??false);
+    verifyNoRetirement();expect(draftValue()).toEqual(saved);expect(writes).toBe(1);expect(buttons('Actualiser les données')).toHaveLength(0);expect(reads.every(read=>read.args.expectedWorkspaceScope===scope)).toBe(true);
+  });
+  it('refuses a queued creation for a different physical space before its synthetic commit',async()=>{
+    await openClient();const saved=draftValue();writeHold=deferred();await submit();await until(()=>writeEntered);nativeScope='other-physical-workspace';await reactAct(async()=>writeHold!.resolve(undefined));
+    await until(()=>document.body.textContent?.includes('Entreprise ouverte à vérifier')??false);expect(writes).toBe(0);verifyNoRetirement();expect(draftValue()).toEqual(saved);expect(buttons('Actualiser les données')).toHaveLength(0);
   });
   it('rejects member B after ACK without publishing success or retiring the original draft',async()=>{mode='ack-member';await openClient();await submit();expect(writes).toBe(1);verifyNoRetirement();expect(document.body.textContent).toContain('Compte ouvert à vérifier');expect(document.querySelector<HTMLInputElement>('[role="dialog"] [name="company"]')!.disabled).toBe(false);});
   it('ends unavailable post-update read recovery when B becomes current and keeps the original nonce in retry reads',async()=>{mode='edit-unreadable';await openEdit();await submit();await until(()=>buttons('Actualiser les données').length>0);nativeNonce=nonceB;blocked=false;await click('Actualiser les données');await until(()=>document.body.textContent?.includes('Compte ouvert à vérifier')??false);verifyNoRetirement();expect(writes).toBe(1);expect(reads.every(read=>read.args.expectedMemberContextNonce===nonceA)).toBe(true);expect(buttons('Actualiser les données')).toHaveLength(0);});

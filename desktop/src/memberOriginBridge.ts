@@ -3,14 +3,16 @@ import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { mutationOriginInvokeArgs, WorkspaceMemberOriginChangedError } from './workspaceMemberOrigin';
 import { WorkspaceOriginChangedError } from './workspaceOrigin';
 
+const CHANGED_WORKSPACE = 'L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.';
 const CHANGED_MEMBER = 'Le compte connecté a changé. Rouvrez cette action avec le bon compte.';
 const UNVERIFIED_MEMBER = 'Le contexte local du compte doit être vérifié. Rouvrez votre espace.';
 
-/** Exact native validation messages only; never classify a generic network error. */
+/** Exact native origin validation only; ordinary read failures remain recoverable. */
 export function memberOriginNativeFailure(reason: unknown): WorkspaceOriginChangedError | null {
   const raw = typeof reason === 'string' ? reason : reason instanceof Error ? reason.message : null;
   if (raw === null) return null;
   const message = raw.trim().replace(/^Champ invalide\s*:\s*/, '');
+  if (message === CHANGED_WORKSPACE) return new WorkspaceOriginChangedError();
   return message === CHANGED_MEMBER || message === UNVERIFIED_MEMBER ? new WorkspaceMemberOriginChangedError(message) : null;
 }
 

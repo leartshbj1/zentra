@@ -1840,6 +1840,7 @@ mod notes_and_setup_workers {
                     input.employee_id,
                     input.employee,
                     expected,
+                    None,
                 )
                 .await
             }

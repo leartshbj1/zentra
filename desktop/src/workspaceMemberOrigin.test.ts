@@ -53,3 +53,21 @@ describe('local member mutation origin',()=>{
     expect(memberOriginNativeFailure('Network request failed')).toBeNull();expect(memberOriginNativeFailure(Error('Network request failed'))).toBeNull();
   });
 });
+
+describe('canonical native physical-workspace rejection',()=>{
+  const message='L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.';
+  it.each([message,'Champ invalide : '+message,Error(message),Error('Champ invalide : '+message)])('keeps exact native physical refusal terminal: %s',reason=>{
+    const failure=memberOriginNativeFailure(reason);expect(failure).toBeInstanceOf(WorkspaceOriginChangedError);expect(failure).not.toBeInstanceOf(WorkspaceMemberOriginChangedError);
+  });
+  it('keeps bound read and invocation refusals terminal without replacing their original origin',async()=>{
+    const origin={workspaceScope:'company-A',memberContextNonce:nonceA};
+    const load=vi.fn(async()=>{throw Error('Champ invalide : '+message);});
+    const read=bindWorkspaceMutationRead(origin,load);await expect(read()).rejects.toThrow(WorkspaceOriginChangedError);
+    expect(load).toHaveBeenCalledExactlyOnceWith('company-A',nonceA);
+    const invoke=vi.fn(async()=>{throw 'Champ invalide : '+message;});
+    await expect(invokeInMemberOrigin(invoke,'create_record',{data:{id:'test'}},origin)).rejects.toThrow(WorkspaceOriginChangedError);expect(invoke).toHaveBeenCalledTimes(1);
+  });
+  it.each([message+' Server detail.','Network unavailable: '+message])('does not infer a physical transition from partial or embedded text: %s',reason=>{
+    expect(memberOriginNativeFailure(reason)).toBeNull();
+  });
+});
