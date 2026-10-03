@@ -124,6 +124,40 @@ describe('diagnostic local et actions de récupération', () => {
     expect(textOf(render())).toContain('Journal effacé.');
   });
 
+  it('permet de récupérer un journal illisible sans effacement avant confirmation', async () => {
+    api.summary.mockRejectedValueOnce(new Error('synthetic storage read failure'));
+    render(); await settle();
+    const failed = render();
+    expect((buttons(failed, 'Exporter le diagnostic')[0].props as {disabled:boolean}).disabled).toBe(true);
+    click(failed, 'Effacer le journal');
+    expect(api.clear).not.toHaveBeenCalled();
+    click(render(), 'Annuler');
+    expect(api.clear).not.toHaveBeenCalled();
+    click(render(), 'Effacer le journal');
+    api.summary.mockResolvedValue({...summary, eventCount: 0, lastIncident: null});
+    click(render(), 'Effacer le journal', 1); await settle();
+    expect(api.clear).toHaveBeenCalledOnce();
+    expect(api.summary).toHaveBeenCalledTimes(2);
+    expect(api.export).not.toHaveBeenCalled();
+    expect(textOf(render())).toContain('Journal effacé.');
+    expect(textOf(render())).toContain('0 événements');
+  });
+
+  it('garde l’effacement non confirmé en échec sans le rejouer lors de la relecture', async () => {
+    api.summary.mockRejectedValueOnce(new Error('synthetic storage read failure'));
+    api.clear.mockRejectedValueOnce(new Error('synthetic clear failure'));
+    render(); await settle(); click(render(), 'Effacer le journal');
+    click(render(), 'Effacer le journal', 1); await settle();
+    const failed = render();
+    const guidance = children(failed).find(element => element.type === ErrorGuidance);
+    expect(guidance!.props).toMatchObject({operation: 'mutation', fallback: 'L’effacement du journal n’a pas pu être confirmé.'});
+    expect(textOf(failed)).not.toContain('Journal effacé.');
+    expect(api.clear).toHaveBeenCalledOnce();
+    (guidance!.props as {onReload: () => void}).onReload(); await settle();
+    expect(api.summary).toHaveBeenCalledTimes(2);
+    expect(api.clear).toHaveBeenCalledOnce();
+  });
+
   it('garde une erreur inconnue et ses secrets hors de l’explication principale', async () => {
     api.summary.mockRejectedValue(new Error('internal panic password=secret alice@example.ch'));
     render(); await settle(); const html = renderToStaticMarkup(render());
