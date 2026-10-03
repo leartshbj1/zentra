@@ -33,6 +33,11 @@ parameters:
 
 jobs:
   windows-drafts-diagnostics-tests:
+    parameters:
+      diagnostics-phase:
+        type: enum
+        enum: [all, native, frontend]
+        default: all
     resource_class: windows.medium
     machine:
       image: windows-server-2022-gui:2026.05.1
@@ -43,6 +48,7 @@ jobs:
       ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"
       ZENTRA_VERIFY_ONLY: "true"
       ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>
+      ZENTRA_DIAGNOSTICS_PHASE: << parameters.diagnostics-phase >>
     steps:
       - checkout
       - run:
@@ -455,6 +461,21 @@ workflows:
       and:
         - equal: [codex/drafts-errors-diagnostics-20261001, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - equal: [full, << pipeline.parameters.diagnostics-native-set >>]
+    jobs:
+      - windows-drafts-diagnostics-tests:
+          name: windows-drafts-diagnostics-native-tests
+          diagnostics-phase: native
+      - windows-drafts-diagnostics-tests:
+          name: windows-drafts-diagnostics-frontend-tests
+          diagnostics-phase: frontend
+  drafts-errors-diagnostics-targeted-verification:
+    when:
+      and:
+        - equal: [codex/drafts-errors-diagnostics-20261001, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+        - not:
+            equal: [full, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-drafts-diagnostics-tests
   apple-design-release-1912:

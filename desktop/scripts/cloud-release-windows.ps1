@@ -15,6 +15,23 @@ if ($diagnosticSelection -cne 'full' -and
     ($env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY -cne 'true' -or $env:ZENTRA_VERIFY_ONLY -cne 'true')) {
     throw 'Targeted native verification requires both diagnostics and verification-only guards.'
 }
+# Only the functional full selection can be split. Reject invalid phases before
+# repository setup, downloads, tool installation or any child command.
+$diagnosticPhase = if ([string]::IsNullOrEmpty($env:ZENTRA_DIAGNOSTICS_PHASE)) {
+    'all'
+} else {
+    $env:ZENTRA_DIAGNOSTICS_PHASE
+}
+if ($diagnosticPhase -cnotin @('all', 'native', 'frontend')) {
+    throw 'Unknown diagnostics verification phase.'
+}
+if ($diagnosticPhase -cne 'all' -and
+    ($env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY -cne 'true' -or $env:ZENTRA_VERIFY_ONLY -cne 'true')) {
+    throw 'Split diagnostics phases require both diagnostics and verification-only guards.'
+}
+if ($diagnosticPhase -cne 'all' -and $diagnosticSelection -cne 'full') {
+    throw 'Targeted native and benchmark selections require the all phase.'
+}
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 Set-Location -LiteralPath $repo
 $artifacts = Join-Path $repo 'desktop/artifacts/windows'
@@ -41,19 +58,21 @@ Expand-Archive -LiteralPath $zipPath -DestinationPath $toolsRoot -Force
 $nodeRoot = Join-Path $toolsRoot ([IO.Path]::GetFileNameWithoutExtension($zipName))
 $env:PATH = "$nodeRoot;$env:APPDATA\npm;$env:USERPROFILE\.cargo\bin;$env:PATH"
 Invoke-Checked npm.cmd @('install', '--global', 'pnpm@11.19.0', '--no-audit', '--no-fund')
-if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
-    $installer = Join-Path $toolsRoot 'rustup-init.exe'
-    Invoke-WebRequest -UseBasicParsing 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe' -OutFile $installer
-    $checksumContent = (Invoke-WebRequest -UseBasicParsing 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe.sha256').Content
-    $checksumText = if ($checksumContent -is [byte[]]) { [Text.Encoding]::UTF8.GetString($checksumContent) } else { [string]$checksumContent }
-    $expected = ($checksumText.Trim() -split '\s+')[0]
-    if ($expected -notmatch '^[a-f0-9]{64}$') { throw 'Invalid Rustup checksum document' }
-    if ((Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'Rustup checksum mismatch' }
-    Invoke-Checked $installer @('-y', '--profile', 'minimal', '--default-toolchain', 'stable-x86_64-pc-windows-msvc')
+if ($diagnosticPhase -cne 'frontend') {
+    if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
+        $installer = Join-Path $toolsRoot 'rustup-init.exe'
+        Invoke-WebRequest -UseBasicParsing 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe' -OutFile $installer
+        $checksumContent = (Invoke-WebRequest -UseBasicParsing 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe.sha256').Content
+        $checksumText = if ($checksumContent -is [byte[]]) { [Text.Encoding]::UTF8.GetString($checksumContent) } else { [string]$checksumContent }
+        $expected = ($checksumText.Trim() -split '\s+')[0]
+        if ($expected -notmatch '^[a-f0-9]{64}$') { throw 'Invalid Rustup checksum document' }
+        if ((Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'Rustup checksum mismatch' }
+        Invoke-Checked $installer @('-y', '--profile', 'minimal', '--default-toolchain', 'stable-x86_64-pc-windows-msvc')
+    }
+    $env:RUSTUP_TOOLCHAIN = 'stable-x86_64-pc-windows-msvc'
+    $env:CARGO_PROFILE_TEST_DEBUG = '0'
+    Invoke-Checked rustup @('toolchain', 'install', $env:RUSTUP_TOOLCHAIN, '--profile', 'minimal')
 }
-$env:RUSTUP_TOOLCHAIN = 'stable-x86_64-pc-windows-msvc'
-$env:CARGO_PROFILE_TEST_DEBUG = '0'
-Invoke-Checked rustup @('toolchain', 'install', $env:RUSTUP_TOOLCHAIN, '--profile', 'minimal')
 Invoke-Checked pnpm.cmd @('install', '--frozen-lockfile')
 Start-Transcript -Path (Join-Path $artifacts 'validation.log') | Out-Null
 try {
@@ -64,9 +83,11 @@ try {
         if ($env:CIRCLE_SHA1 -cne $diagnosticSource) { throw 'Diagnostics validation must use the exact CircleCI source revision.' }
         $diagnosticStartedAt = [DateTimeOffset]::UtcNow.ToString('o')
         & (Join-Path $PSScriptRoot 'diagnostics-native-selection.contract-tests.ps1')
-        . (Join-Path $PSScriptRoot 'windows-verification-harness.ps1')
-        & (Join-Path $PSScriptRoot 'windows-verification-harness.contract-tests.ps1') -NativeNodePath (Join-Path $nodeRoot 'node.exe')
-        $diagnosticHarness = Initialize-ZentraVerificationHarness $repo $artifacts $diagnosticSource
+        if ($diagnosticPhase -cne 'frontend') {
+            . (Join-Path $PSScriptRoot 'windows-verification-harness.ps1')
+            & (Join-Path $PSScriptRoot 'windows-verification-harness.contract-tests.ps1') -NativeNodePath (Join-Path $nodeRoot 'node.exe')
+            $diagnosticHarness = Initialize-ZentraVerificationHarness $repo $artifacts $diagnosticSource
+        }
         if ($diagnosticSelection -ceq 'native-mail-payroll') {
             $targetedFilters = @(
                 [pscustomobject]@{ Name = 'outgoing_mail::integration_tests::settings_signature_preservation_tests::'; Arguments = @() },
@@ -224,42 +245,65 @@ try {
         # Unknown local draft reads must be resolved explicitly before a write.
         $diagnosticFrontendSuites += @('src/initialDraftRead.test.ts', 'src/InitialDraftReadRecovery.test.tsx', 'src/EmployeeInitialDraftReadRecovery.test.tsx')
         $diagnosticMobileSuites += @('src/initialDraftRead.test.ts', 'src/InitialDraftReadRecovery.test.tsx', 'src/EmployeeInitialDraftReadRecovery.test.tsx')
-        foreach ($suite in $diagnosticNativeSuites) {
-            Invoke-ZentraVerificationSuite $diagnosticHarness $suite
-        }
-        $diagnosticPreviousPlatform = $env:TAURI_ENV_PLATFORM
-        try {
-            $env:TAURI_ENV_PLATFORM = 'desktop'
-            Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + $diagnosticFrontendSuites)
-            foreach ($platform in @('ios', 'android')) {
-                $env:TAURI_ENV_PLATFORM = $platform
-                Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + $diagnosticMobileSuites)
-            }
-        } finally {
-            if ($null -eq $diagnosticPreviousPlatform) {
-                Remove-Item Env:TAURI_ENV_PLATFORM -ErrorAction SilentlyContinue
-            } else {
-                $env:TAURI_ENV_PLATFORM = $diagnosticPreviousPlatform
+        if ($diagnosticPhase -cne 'frontend') {
+            foreach ($suite in $diagnosticNativeSuites) {
+                Invoke-ZentraVerificationSuite $diagnosticHarness $suite
             }
         }
-        Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
+        if ($diagnosticPhase -cne 'native') {
+            $diagnosticPreviousPlatform = $env:TAURI_ENV_PLATFORM
+            try {
+                $env:TAURI_ENV_PLATFORM = 'desktop'
+                Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + $diagnosticFrontendSuites)
+                foreach ($platform in @('ios', 'android')) {
+                    $env:TAURI_ENV_PLATFORM = $platform
+                    Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + $diagnosticMobileSuites)
+                }
+            } finally {
+                if ($null -eq $diagnosticPreviousPlatform) {
+                    Remove-Item Env:TAURI_ENV_PLATFORM -ErrorAction SilentlyContinue
+                } else {
+                    $env:TAURI_ENV_PLATFORM = $diagnosticPreviousPlatform
+                }
+            }
+            Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
+        }
+        # Reached only after every selected stage has returned successfully.
+        # A phase proof is not a combined functional or performance certificate.
+        $diagnosticAllPhasesSelected = $diagnosticPhase -ceq 'all'
+        $diagnosticNativeExecuted = $diagnosticPhase -cne 'frontend'
+        $diagnosticFrontendExecuted = $diagnosticPhase -cne 'native'
         $diagnosticProof = [ordered]@{
             source = $diagnosticSource; circleSource = $env:CIRCLE_SHA1; target = 'x86_64-pc-windows-msvc'
             version = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
             data = 'synthetic'; nativeSuites = $diagnosticNativeSuites; frontendSuites = $diagnosticFrontendSuites
             frontendPlatforms = @('desktop', 'ios', 'android'); mobileSuites = $diagnosticMobileSuites
-            allCheckedSuitesPassed = $true; frontendBuildPassed = $true; nativeProfile = 'release'
-            nativeExecution = 'compiled-library-harness'; nativeHarnessProof = 'windows-test-harness-proof.json'
-            testOnlyManifestTransformation = $diagnosticHarness.Proof.testOnlyManifestTransformation
-            loaderHypothesisConfirmed = $diagnosticHarness.Proof.loaderHypothesisConfirmed
-            harnessManifestRepairValidated = $diagnosticHarness.Proof.harnessManifestRepairValidated
+            phase = $diagnosticPhase; verificationOnly = $true; selectedPhasePassed = $true
+            nativeExecuted = $diagnosticNativeExecuted; frontendExecuted = $diagnosticFrontendExecuted
+            mobileExecuted = $diagnosticFrontendExecuted; frontendBuildExecuted = $diagnosticFrontendExecuted
+            executedNativeSuites = @(if ($diagnosticNativeExecuted) { $diagnosticNativeSuites })
+            executedFrontendSuites = @(if ($diagnosticFrontendExecuted) { $diagnosticFrontendSuites })
+            executedMobileSuites = @(if ($diagnosticFrontendExecuted) { $diagnosticMobileSuites })
+            executedFrontendPlatforms = @(if ($diagnosticFrontendExecuted) { 'desktop'; 'ios'; 'android' })
+            allCheckedSuitesPassed = $diagnosticAllPhasesSelected; frontendBuildPassed = $diagnosticFrontendExecuted
+            nativeProfile = if ($diagnosticNativeExecuted) { 'release' } else { $null }
+            nativeExecution = if ($diagnosticNativeExecuted) { 'compiled-library-harness' } else { $null }
+            nativeHarnessProof = if ($diagnosticNativeExecuted) { 'windows-test-harness-proof.json' } else { $null }
+            testOnlyManifestTransformation = if ($diagnosticNativeExecuted) { $diagnosticHarness.Proof.testOnlyManifestTransformation } else { $false }
+            loaderHypothesisConfirmed = if ($diagnosticNativeExecuted) { $diagnosticHarness.Proof.loaderHypothesisConfirmed } else { $false }
+            harnessManifestRepairValidated = if ($diagnosticNativeExecuted) { $diagnosticHarness.Proof.harnessManifestRepairValidated } else { $false }
             specificMissingDllOrSymbolConfirmed = $false
-            selection = $diagnosticSelection; functionalValidationPassed = $true; benchmarksExecuted = $false
+            selection = $diagnosticSelection; functionalValidationPassed = $diagnosticAllPhasesSelected; benchmarksExecuted = $false
             requiredBenchmarkSelections = @('benchmark-payment', 'benchmark-public-payment')
             startedAt = $diagnosticStartedAt; completedAt = [DateTimeOffset]::UtcNow.ToString('o')
             publishesInstaller = $false; publishesRelease = $false; installsApplication = $false
         }
-        [IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-validation-proof.json'), ($diagnosticProof | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+        $diagnosticProofFile = switch -CaseSensitive ($diagnosticPhase) {
+            'all' { 'diagnostics-validation-proof.json' }
+            'native' { 'diagnostics-native-phase-proof.json' }
+            'frontend' { 'diagnostics-frontend-phase-proof.json' }
+        }
+        [IO.File]::WriteAllText((Join-Path $artifacts $diagnosticProofFile), ($diagnosticProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
         return
     }
     if ($env:ZENTRA_VERIFY_PDF_ONLY -eq 'true') {

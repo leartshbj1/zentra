@@ -74,7 +74,7 @@ if ($diagnosticSelection -cne 'full' -and
 '@
 Assert-Contract ((Normalize-ContractText $modeGuard.Extent.Text) -ceq (Normalize-ContractText $expectedModeGuard)) 'all nonfull selectors require both guards exactly true; full preserves the existing mode'
 Assert-Contract ($modeGuard.Clauses[0].Item2.Statements.Count -eq 1 -and $modeGuard.Clauses[0].Item2.Statements[0] -is [System.Management.Automation.Language.ThrowStatementAst]) 'missing, false or differently cased guard fails before bootstrap'
-Assert-Contract ($statements[6] -is [System.Management.Automation.Language.AssignmentStatementAst] -and $statements[6].Left.VariablePath.UserPath -ceq 'repo') 'both refusal guards precede even repository setup'
+Assert-Contract ($statements[6].Left.VariablePath.UserPath -ceq 'diagnosticPhase' -and $statements[10] -is [System.Management.Automation.Language.AssignmentStatementAst] -and $statements[10].Left.VariablePath.UserPath -ceq 'repo') 'both refusal guards precede even repository setup'
 
 $targetedBranches = @($releaseAst.FindAll({
     param($node)
@@ -200,7 +200,7 @@ Assert-Contract ($benchmarkBranches.Count -eq 2) 'both original benchmarks remai
 $functionalProofAssignment = Find-Assignment $releaseAst 'diagnosticProof'
 $functionalProofTable = @($functionalProofAssignment.FindAll({param($node) $node -is [System.Management.Automation.Language.HashtableAst]},$true))[0]
 Assert-Contract ((Read-StaticHashEntry $functionalProofTable 'benchmarksExecuted') -ceq '$false') 'functional full proof explicitly excludes benchmark execution'
-Assert-Contract ((Read-StaticHashEntry $functionalProofTable 'functionalValidationPassed') -ceq '$true') 'full functional proof retains native, frontend, mobile and build success'
+Assert-Contract ((Read-StaticHashEntry $functionalProofTable 'functionalValidationPassed') -ceq '$diagnosticAllPhasesSelected') 'only the all phase can claim native, frontend, mobile and build success'
 Assert-Contract ((Read-StaticHashEntry $functionalProofTable 'requiredBenchmarkSelections') -ceq "@('benchmark-payment', 'benchmark-public-payment')") 'functional proof names both separately required benchmarks'
 Assert-Contract (@($functionalProofTable.KeyValuePairs | Where-Object {$_.Item1.Value -cin @('paymentBenchmarkPassed','publicPaymentBenchmarkPassed','paymentWorkspaceParityPassed','publicPaymentBenchmark')}).Count -eq 0) 'functional proof cannot claim benchmark parity or execution'
 foreach ($appendix in @(
@@ -213,7 +213,164 @@ $parameter = [regex]::Match($circleText, '(?m)^  diagnostics-native-set:\r?\n   
 Assert-Contract ($parameter.Success -and [regex]::Matches($circleText, '(?m)^  diagnostics-native-set:').Count -eq 1) 'pipeline enum admits full or three explicit allowlisted opt-ins and defaults full'
 $job = [regex]::Match($circleText, '(?ms)^  windows-drafts-diagnostics-tests:\r?\n.*?(?=^  [^ ].*:\r?\n|^workflows:\r?\n|\z)')
 Assert-Contract ($job.Success -and $job.Value.Contains('ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"') -and $job.Value.Contains('ZENTRA_VERIFY_ONLY: "true"')) 'only diagnostic job supplies both hardcoded guards'
-Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq 1 -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 1) 'selector is not transmitted to release or installer jobs'
-Assert-Contract ([regex]::IsMatch($circleText, '(?ms)^  drafts-errors-diagnostics-verification:\r?\n    when:\r?\n      and:\r?\n        - equal: \[codex/drafts-errors-diagnostics-20261001, << pipeline.git.branch >>\]\r?\n        - not: << pipeline.parameters.release >>\r?\n    jobs:\r?\n      - windows-drafts-diagnostics-tests')) 'targeted selector does not bypass the existing branch and non-release workflow gate'
+Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq 1 -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 3) 'selector is not transmitted to release or installer jobs'
+$expectedFunctionalWorkflow = @'
+  drafts-errors-diagnostics-verification:
+    when:
+      and:
+        - equal: [codex/drafts-errors-diagnostics-20261001, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+        - equal: [full, << pipeline.parameters.diagnostics-native-set >>]
+    jobs:
+      - windows-drafts-diagnostics-tests:
+          name: windows-drafts-diagnostics-native-tests
+          diagnostics-phase: native
+      - windows-drafts-diagnostics-tests:
+          name: windows-drafts-diagnostics-frontend-tests
+          diagnostics-phase: frontend
+'@
+$expectedTargetedWorkflow = @'
+  drafts-errors-diagnostics-targeted-verification:
+    when:
+      and:
+        - equal: [codex/drafts-errors-diagnostics-20261001, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+        - not:
+            equal: [full, << pipeline.parameters.diagnostics-native-set >>]
+    jobs:
+      - windows-drafts-diagnostics-tests
+'@
+Assert-Contract ((Normalize-ContractText $circleText).Contains((Normalize-ContractText $expectedFunctionalWorkflow)) -and (Normalize-ContractText $circleText).Contains((Normalize-ContractText $expectedTargetedWorkflow))) 'full phases and targeted all retain branch and non-release gates with mutually exclusive closed selections'
 Assert-Contract ($releaseText.Contains("& (Join-Path `$PSScriptRoot 'diagnostics-native-selection.contract-tests.ps1')")) 'diagnostic CI invokes these static contracts before harness preparation'
+# Phase policy is verified by AST/text only. Never execute an extracted guard,
+# bootstrap, suite, harness, release script or proof writer in these tests.
+$phaseAssignment = Find-Assignment $releaseAst 'diagnosticPhase'
+$expectedPhaseAssignment = @'
+$diagnosticPhase = if ([string]::IsNullOrEmpty($env:ZENTRA_DIAGNOSTICS_PHASE)) {
+    'all'
+} else {
+    $env:ZENTRA_DIAGNOSTICS_PHASE
+}
+'@
+Assert-Contract ((Normalize-ContractText $phaseAssignment.Extent.Text) -ceq (Normalize-ContractText $expectedPhaseAssignment)) 'phase defaults all only when absent or empty, with no coercion'
+Assert-Contract ($statements[6] -eq $phaseAssignment) 'phase admission occurs before repository or tools'
+foreach ($guard in @(
+    @{ Index = 7; Text = @'
+if ($diagnosticPhase -cnotin @('all', 'native', 'frontend')) {
+    throw 'Unknown diagnostics verification phase.'
+}
+'@ },
+    @{ Index = 8; Text = @'
+if ($diagnosticPhase -cne 'all' -and
+    ($env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY -cne 'true' -or $env:ZENTRA_VERIFY_ONLY -cne 'true')) {
+    throw 'Split diagnostics phases require both diagnostics and verification-only guards.'
+}
+'@ },
+    @{ Index = 9; Text = @'
+if ($diagnosticPhase -cne 'all' -and $diagnosticSelection -cne 'full') {
+    throw 'Targeted native and benchmark selections require the all phase.'
+}
+'@ }
+)) {
+    $phaseGuard = $statements[$guard.Index]
+    Assert-Contract ((Normalize-ContractText $phaseGuard.Extent.Text) -ceq (Normalize-ContractText $guard.Text)) "exact phase admission guard at $($guard.Index)"
+    Assert-Contract ($phaseGuard -is [System.Management.Automation.Language.IfStatementAst] -and $phaseGuard.Clauses[0].Item2.Statements.Count -eq 1 -and $phaseGuard.Clauses[0].Item2.Statements[0] -is [System.Management.Automation.Language.ThrowStatementAst]) 'phase refusal never falls back or runs a command'
+    Assert-Contract ($phaseGuard.Extent.EndOffset -lt $statements[10].Extent.StartOffset) 'phase guard precedes repository and all bootstrap operations'
+}
+function Is-InPhaseGuard {
+    param([System.Management.Automation.Language.Ast]$Node, [string]$Condition)
+    $ancestor = $Node.Parent
+    while ($null -ne $ancestor) {
+        if ($ancestor -is [System.Management.Automation.Language.IfStatementAst] -and
+            (Normalize-ContractText $ancestor.Clauses[0].Item1.Extent.Text) -ceq $Condition) { return $true }
+        $ancestor = $ancestor.Parent
+    }
+    return $false
+}
+$nativeCondition = "`$diagnosticPhase -cne 'frontend'"
+$frontendCondition = "`$diagnosticPhase -cne 'native'"
+$nativeGates = @($releaseAst.FindAll({param($node) $node -is [System.Management.Automation.Language.IfStatementAst] -and (Normalize-ContractText $node.Clauses[0].Item1.Extent.Text) -ceq $nativeCondition}, $true))
+$frontendGates = @($releaseAst.FindAll({param($node) $node -is [System.Management.Automation.Language.IfStatementAst] -and (Normalize-ContractText $node.Clauses[0].Item1.Extent.Text) -ceq $frontendCondition}, $true))
+Assert-Contract ($nativeGates.Count -eq 3 -and $frontendGates.Count -eq 1) 'three native stage gates and one frontend stage gate'
+Assert-Contract (@(@($nativeGates) + @($frontendGates) | Where-Object {$_.Clauses.Count -ne 1 -or $null -ne $_.ElseClause}).Count -eq 0) 'stage gates have no alternate clause that could execute an unselected stage'
+Assert-Contract (Is-InPhaseGuard $harnessInit $nativeCondition) 'frontend phase cannot compile or prepare the native harness'
+$rustInstall = @($releaseAst.FindAll({param($node) $node -is [System.Management.Automation.Language.CommandAst] -and (Normalize-ContractText $node.Extent.Text) -ceq "Invoke-Checked rustup @('toolchain', 'install', `$env:RUSTUP_TOOLCHAIN, '--profile', 'minimal')"}, $true))
+Assert-Contract ($rustInstall.Count -eq 1 -and (Is-InPhaseGuard $rustInstall[0] $nativeCondition)) 'frontend skips rustup installation; all/native retain exact toolchain invocation'
+$rustDownload = @($releaseAst.FindAll({param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'Invoke-WebRequest' -and $node.Extent.Text.Contains('rustup-init.exe')}, $true))
+Assert-Contract ($rustDownload.Count -eq 2 -and @($rustDownload | Where-Object {-not (Is-InPhaseGuard $_ $nativeCondition)}).Count -eq 0) 'frontend cannot download Rustup or its checksum'
+$nativeLoop = @($releaseAst.FindAll({param($node) $node -is [System.Management.Automation.Language.ForEachStatementAst] -and (Normalize-ContractText $node.Condition.Extent.Text) -ceq '$diagnosticNativeSuites'}, $true))
+$expectedNativeLoop = @'
+foreach ($suite in $diagnosticNativeSuites) {
+    Invoke-ZentraVerificationSuite $diagnosticHarness $suite
+}
+'@
+Assert-Contract ($nativeLoop.Count -eq 1 -and (Normalize-ContractText $nativeLoop[0].Extent.Text) -ceq (Normalize-ContractText $expectedNativeLoop) -and (Is-InPhaseGuard $nativeLoop[0] $nativeCondition)) 'native suite order and verified invocation unchanged under native/all only'
+$frontendGateText = Normalize-ContractText $frontendGates[0].Clauses[0].Item2.Extent.Text
+Assert-Contract ($frontendGateText.Contains("`$env:TAURI_ENV_PLATFORM = 'desktop'") -and $frontendGateText.Contains("foreach (`$platform in @('ios', 'android'))")) 'all three frontend platforms execute together under frontend/all'
+Assert-Contract ($frontendGateText.Contains("Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + `$diagnosticFrontendSuites)") -and $frontendGateText.Contains("Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + `$diagnosticMobileSuites)")) 'desktop/mobile suite dispatch and maxWorkers budget retained exactly'
+Assert-Contract ($frontendGateText.Contains("Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')") -and $frontendGateText.Contains('finally') -and $frontendGateText.Contains('Remove-Item Env:TAURI_ENV_PLATFORM -ErrorAction SilentlyContinue') -and $frontendGateText.Contains('$env:TAURI_ENV_PLATFORM = $diagnosticPreviousPlatform')) 'frontend build and platform environment restoration preserved'
+foreach ($spec in @(
+    @{ Name = 'diagnosticNativeSuites'; Count = 58; OrderedSha256 = '06c6c373a27a1a0b5ac8695ee65d5aeb809e8f1de7656dd56d5bb5d3a403db22' },
+    @{ Name = 'diagnosticFrontendSuites'; Count = 112; OrderedSha256 = 'c522463e803189c20c51939179576b82f498b319363561f31772afb49893658a' },
+    @{ Name = 'diagnosticMobileSuites'; Count = 84; OrderedSha256 = 'c6a4afdbaafe04c90f71bc312046b0ce950e034dc96959109efbb80c2dca4478' }
+)) {
+    $assignments = @($releaseAst.FindAll({param($node) $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.Left.VariablePath.UserPath -ceq $spec.Name}, $true))
+    $suiteNames = @($assignments | ForEach-Object { $_.Right.FindAll({param($node) $node -is [System.Management.Automation.Language.StringConstantExpressionAst]}, $true) | ForEach-Object {$_.Value} })
+    Assert-Contract ($suiteNames.Count -eq $spec.Count -and @($suiteNames | Select-Object -Unique).Count -eq $spec.Count) "functional $($spec.Name) retains exact count without duplicates"
+    $suiteHashAlgorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        $orderedSuiteHash = [BitConverter]::ToString($suiteHashAlgorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes([string]::Join("`n", $suiteNames)))).Replace('-', '').ToLowerInvariant()
+    } finally { $suiteHashAlgorithm.Dispose() }
+    Assert-Contract ($orderedSuiteHash -ceq $spec.OrderedSha256) "functional $($spec.Name) retains every ordered suite name exactly"
+}
+foreach ($spec in @(
+    @{Name='diagnosticAllPhasesSelected'; Value="$"+'diagnosticAllPhasesSelected = $diagnosticPhase -ceq '+"'all'"},
+    @{Name='diagnosticNativeExecuted'; Value="$"+'diagnosticNativeExecuted = $diagnosticPhase -cne '+"'frontend'"},
+    @{Name='diagnosticFrontendExecuted'; Value="$"+'diagnosticFrontendExecuted = $diagnosticPhase -cne '+"'native'"}
+)) {
+    $assignment = Find-Assignment $releaseAst $spec.Name
+    Assert-Contract ((Normalize-ContractText $assignment.Extent.Text) -ceq $spec.Value -and $assignment.Extent.StartOffset -gt $frontendGates[0].Extent.EndOffset) 'completion flags computed only after all selected stages return'
+}
+foreach ($entry in @(
+    @{ Name = 'phase'; Value = '$diagnosticPhase' },
+    @{ Name = 'verificationOnly'; Value = '$true' },
+    @{ Name = 'selectedPhasePassed'; Value = '$true' },
+    @{ Name = 'nativeExecuted'; Value = '$diagnosticNativeExecuted' },
+    @{ Name = 'frontendExecuted'; Value = '$diagnosticFrontendExecuted' },
+    @{ Name = 'mobileExecuted'; Value = '$diagnosticFrontendExecuted' },
+    @{ Name = 'frontendBuildExecuted'; Value = '$diagnosticFrontendExecuted' },
+    @{ Name = 'allCheckedSuitesPassed'; Value = '$diagnosticAllPhasesSelected' },
+    @{ Name = 'frontendBuildPassed'; Value = '$diagnosticFrontendExecuted' },
+    @{ Name = 'nativeProfile'; Value = "if (`$diagnosticNativeExecuted) { 'release' } else { `$null }" },
+    @{ Name = 'nativeExecution'; Value = "if (`$diagnosticNativeExecuted) { 'compiled-library-harness' } else { `$null }" },
+    @{ Name = 'nativeHarnessProof'; Value = "if (`$diagnosticNativeExecuted) { 'windows-test-harness-proof.json' } else { `$null }" },
+    @{ Name = 'testOnlyManifestTransformation'; Value = 'if ($diagnosticNativeExecuted) { $diagnosticHarness.Proof.testOnlyManifestTransformation } else { $false }' },
+    @{ Name = 'loaderHypothesisConfirmed'; Value = 'if ($diagnosticNativeExecuted) { $diagnosticHarness.Proof.loaderHypothesisConfirmed } else { $false }' },
+    @{ Name = 'harnessManifestRepairValidated'; Value = 'if ($diagnosticNativeExecuted) { $diagnosticHarness.Proof.harnessManifestRepairValidated } else { $false }' },
+    @{ Name = 'executedNativeSuites'; Value = '@(if ($diagnosticNativeExecuted) { $diagnosticNativeSuites })' },
+    @{ Name = 'executedFrontendSuites'; Value = '@(if ($diagnosticFrontendExecuted) { $diagnosticFrontendSuites })' },
+    @{ Name = 'executedMobileSuites'; Value = '@(if ($diagnosticFrontendExecuted) { $diagnosticMobileSuites })' },
+    @{ Name = 'executedFrontendPlatforms'; Value = "@(if (`$diagnosticFrontendExecuted) { 'desktop'; 'ios'; 'android' })" },
+    @{ Name = 'publishesInstaller'; Value = '$false' },
+    @{ Name = 'publishesRelease'; Value = '$false' },
+    @{ Name = 'installsApplication'; Value = '$false' }
+)) { Assert-Contract ((Read-StaticHashEntry $functionalProofTable $entry.Name) -ceq $entry.Value) "phase proof honestly reports $($entry.Name)" }
+$phaseProofFile = Find-Assignment $releaseAst 'diagnosticProofFile'
+$expectedPhaseProofFile = @'
+$diagnosticProofFile = switch -CaseSensitive ($diagnosticPhase) {
+    'all' { 'diagnostics-validation-proof.json' }
+    'native' { 'diagnostics-native-phase-proof.json' }
+    'frontend' { 'diagnostics-frontend-phase-proof.json' }
+}
+'@
+Assert-Contract ((Normalize-ContractText $phaseProofFile.Extent.Text) -ceq (Normalize-ContractText $expectedPhaseProofFile)) 'each closed phase has a distinct proof; all retains the historical filename'
+$phaseProofWrite = @'
+[IO.File]::WriteAllText((Join-Path $artifacts $diagnosticProofFile), ($diagnosticProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+'@
+Assert-Contract ($releaseText.Contains($phaseProofWrite.Trim()) -and $phaseProofFile.Extent.StartOffset -gt $functionalProofAssignment.Extent.EndOffset) 'terminal phase proof is written only after all selected stages and completion flags'
+Assert-Contract ($job.Value.Contains("enum: [all, native, frontend]") -and $job.Value.Contains('default: all') -and $job.Value.Contains('ZENTRA_DIAGNOSTICS_PHASE: << parameters.diagnostics-phase >>')) 'job uses a closed phase enum with all default'
+Assert-Contract ([regex]::Matches($circleText,'ZENTRA_DIAGNOSTICS_PHASE:').Count -eq 1 -and [regex]::Matches($circleText,'parameters\.diagnostics-phase').Count -eq 1) 'phase is not forwarded to packaging or release jobs'
+Assert-Contract ($job.Value.Contains('resource_class: windows.medium') -and $job.Value.Contains('image: windows-server-2022-gui:2026.05.1') -and $job.Value.Contains('no_output_timeout: 20m')) 'same resource class, image and output timeout budgets'
+Assert-Contract (-not $expectedFunctionalWorkflow.Contains('requires:') -and -not $expectedTargetedWorkflow.Contains('diagnostics-phase:')) 'functional instances run independently; targeted job uses unchanged default all'
+
 Write-Output "Diagnostics native selection: $script:contractsPassed static contracts passed; no release script, native executable or child process executed."
