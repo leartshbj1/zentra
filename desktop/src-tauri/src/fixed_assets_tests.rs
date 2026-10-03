@@ -147,3 +147,7 @@ fn fixed_assets_colliding_device_depreciations_do_not_double_post() {
     assert_eq!(list(&store).unwrap()["items"][0]["bookValueCents"], 80000);
     assert!(!merged.exists());
 }
+
+mod zero_prorata_tests {
+    include!("fixed_assets_zero_prorata_tests.rs");
+}

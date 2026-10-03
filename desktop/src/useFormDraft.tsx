@@ -14,6 +14,10 @@ export function useFormDraftScope(workspace: Pick<Workspace, 'workNotesScope'> |
   const companyId = workspace?.workNotesScope || identity.companyId;
   return companyId && identity.ready !== false ? { companyId, organizationId: identity.organizationId, memberId: identity.memberId || 'local-user', type, recordId, context } : null;
 }
+export function useVerifiedFormDraftScope(workspace:Pick<Workspace,'workNotesScope'>|undefined,type:string,recordId?:string) {
+  const identity=useContext(FormDraftIdentity),companyId=workspace?.workNotesScope||identity.companyId;
+  return companyId && identity.ready===true && typeof identity.memberId==='string' && Boolean(identity.memberId.trim()) ? {companyId,organizationId:identity.organizationId,memberId:identity.memberId,type,recordId} : null;
+}
 export function draftText(source: keyof typeof formDraftTranslations): string {
   const index = { fr: -1, de: 0, it: 1, en: 2 }[getAppLanguage()];
   return index < 0 ? source : formDraftTranslations[source][index];

@@ -7,6 +7,7 @@ import { Button, ErrorPanel } from './ui';
 import { errorMessage, formatDate, formatMoney } from './utils';
 import './CustomerCreditPanel.css';
 import { readCustomerCreditRequest } from './customerCreditRequest';
+import {useVerifiedFormDraftScope} from './useFormDraft';
 import { RefundAttachmentList,RefundReceiptPicker } from './RefundAttachments';
 import { CustomerCreditRecovery } from './CustomerCreditRecovery';
 import { readCreditRecovery } from './customerCreditRecoveryState';
@@ -30,7 +31,8 @@ export function CustomerCreditPanel({ invoice, workspace, busy, readOnly = false
 }
 
 function CreditCard({credit,workspace,busy,readOnly,act,onReadWorkspace,onOpenHelp}: {credit:Invoice;workspace:Workspace;busy:boolean;readOnly:boolean;act:ActionRunner;onReadWorkspace:()=>Promise<Workspace>;onOpenHelp:(destination:'accounts'|'periods'|'bank')=>void}) {
-  const [saved]=useState(()=>readCustomerCreditRequest(credit.id));
+  const requestScope=useVerifiedFormDraftScope(workspace,'customer-credit-request',credit.id);
+  const [saved]=useState(()=>readCustomerCreditRequest(credit.id,requestScope));
   const [action,setAction]=useState<{mode:'apply'|'refund';reverseId?:string}|null>(saved?{mode:saved.input.eventType,reverseId:saved.reverseId}:null);
   const mode=action?.mode;
   const [attachmentEventId,setAttachmentEventId]=useState<string|null>(null);
@@ -75,7 +77,7 @@ function CreditCard({credit,workspace,busy,readOnly,act,onReadWorkspace,onOpenHe
       {attachmentError && <ErrorPanel message={attachmentError} reveal/>}
       <div className="form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={()=>setAttachmentEventId(null)}>Annuler</Button><Button type="submit" disabled={busy||readOnly||!receipt}>Ajouter le justificatif</Button></div>
     </form>}
-    {action && <CustomerSettlementForm key={`${credit.id}:${action.mode}:${action.reverseId||''}`} creditId={credit.id} mode={action.mode} reverseId={action.reverseId} workspace={workspace} busy={busy} readOnly={readOnly} act={act} onReadWorkspace={onReadWorkspace} onOpenHelp={onOpenHelp} onCancel={()=>setAction(null)} onDone={()=>{setAction(null);requestAnimationFrame(()=>revealInDialog(heading.current));}}/>}
+    {action && <CustomerSettlementForm key={`${credit.id}:${action.mode}:${action.reverseId||''}`} creditId={credit.id} mode={action.mode} reverseId={action.reverseId} workspace={workspace} busy={busy} readOnly={readOnly} act={act} onReadWorkspace={onReadWorkspace} onOpenHelp={onOpenHelp} onCancel={()=>setAction(null)} onResumePending={pending=>setAction({mode:pending.input.eventType,reverseId:pending.reverseId})} onDone={()=>{setAction(null);requestAnimationFrame(()=>revealInDialog(heading.current));}}/>}
 
   </article>;
 }

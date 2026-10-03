@@ -4,7 +4,7 @@ import type {Workspace} from '../src/types';
 const native={record:desktopApi.recordCustomerCreditSettlement,reverse:desktopApi.reverseCustomerCreditSettlement};
 const camel=(row:any)=>Object.fromEntries(Object.entries(row).map(([key,value])=>[key.replace(/_([a-z])/g,(_,letter)=>letter.toUpperCase()),value]));
 export function installCustomerSettlementGuidedFixture(data:Workspace){
- installCreditAllocationFixture(data);const fixture=window.creditAllocationFixture,state=fixture.state,stored=state.stored;
+ installCreditAllocationFixture(data);const fixture=window.creditAllocationFixture,state=fixture.state,stored=state.stored;stored.work_notes_scope='qa-customer-settlement-company';data.workNotesScope=stored.work_notes_scope;
  stored.clients=[{id:'client-qa',name:'Client de recette',company:'Client de recette'}];
  stored.invoices??=[{id:'original',client_id:'client-qa',title:'Facture d’origine',number:'F-2026-001',type:'facture',status:'payee',issue_date:'2026-02-01',due_date:'2026-02-28',currency:'CHF',total_cents:10000,credited_cents:0},{id:'target',client_id:'client-qa',title:'Facture à régler',number:'F-2026-002',type:'facture',status:'emise',issue_date:'2026-03-01',due_date:'2026-03-31',currency:'CHF',total_cents:10000,credited_cents:0},{id:'credit',client_id:'client-qa',title:'Avoir à utiliser',number:'AV-2026-001',type:'avoir',status:'emise',original_invoice_id:'original',issue_date:'2026-03-01',due_date:'2026-03-31',currency:'CHF',total_cents:-5405,credited_cents:0}];
  stored.invoice_items??=stored.invoices.map((row:any)=>({id:`line-${row.id}`,invoice_id:row.id,description:row.title,quantity:1,unit:'forfait',unit_price_cents:row.total_cents,vat_bp:0,discount_bp:0}));
@@ -19,7 +19,7 @@ export function installCustomerSettlementGuidedFixture(data:Workspace){
  (window as any).__TAURI_INTERNALS__.invoke=async(command:string,args:any)=>{
   if(command==='get_workspace'){rebalance();const value=await originalInvoke(command,args);if(state.omitCustomerHistory)value.customer_credit_settlements=[];return value;}
   if(!['record_customer_credit_settlement','reverse_customer_credit_settlement'].includes(command))return originalInvoke(command,args);
-  state.attempts.push({command,args:structuredClone(args)});const mode=state.mode;state.mode='';if(state.hold)await new Promise<void>(resolve=>state.release=resolve);
+  if(args.expectedWorkspaceScope!==undefined&&args.expectedWorkspaceScope!==stored.work_notes_scope)throw Error('Champ invalide: L’entreprise ouverte a changé.');state.attempts.push({command,args:structuredClone(args)});const mode=state.mode;state.mode='';if(state.hold)await new Promise<void>(resolve=>state.release=resolve);
   if(mode==='period')throw Error('Champ invalide: La période comptable est fermée.');if(mode==='bank-linked')throw Error('Champ invalide: Dissociez le rapprochement bancaire avant correction.');if(mode==='unknown')throw Error('Réponse interrompue avant confirmation.');
   const input=args.input,key=JSON.stringify({command,input}),prior=stored.operations[input.request_id];if(prior){if(prior!==key)throw Error('Champ invalide: Demande différente');return {};}
   rebalance();const original=command==='reverse_customer_credit_settlement'?stored.customer_credit_settlements.find((row:any)=>row.id===input.settlement_id):undefined;

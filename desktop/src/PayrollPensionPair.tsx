@@ -1,6 +1,7 @@
 import { t, useAppLanguage } from './language';
 import { useState } from 'react';
 import { desktopApi } from './bridge';
+import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import { Button, Field, submitForm } from './ui';
 import { usePayrollFieldGuide } from './PayrollFieldGuide';
 import {
@@ -131,12 +132,17 @@ export function PayrollPensionPair({
                     'Cette cotisation de pension n’existe plus. Rouvrez ce point pour actualiser les informations.',
                   );
               }
+              let written = false;
               for (const item of desired) {
                 const fresh = current.find((d) => d.id === item.id);
-                if (!fresh || !equal(fresh, item))
+                if (!fresh || !equal(fresh, item)) {
                   await desktopApi.upsertPayrollContributionDefinition(item);
+                  written = true;
+                }
               }
-              return desktopApi.loadWorkspace();
+              return written
+                ? refreshWorkspaceAfterMutation(() => desktopApi.loadWorkspace())
+                : desktopApi.loadWorkspace();
             });
           } catch (reason) {
             setError(

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { RotateCcw, WalletCards } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { expenseRefundTotals } from './expenseRefunds';
@@ -8,11 +8,17 @@ import { Button, ErrorPanel, Field, FormActions, Modal } from './ui';
 import { createId, errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 
-type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (error: unknown) => void) => Promise<boolean>;
+type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (error: unknown) => void, validateRead?: (workspace:Workspace)=>void) => Promise<boolean>;
 const amount = (value: string) => Math.round(Number(value.replace(',', '.')) * 100);
 
-export function ExpenseRefundForm({ expense, reverse, busy, readOnly = false, close, act }: { expense: Expense; reverse?: ExpenseRefund; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner }) {
+export function ExpenseRefundForm({ expense, reverse, busy, readOnly = false, close, act, workspaceScope }: { expense: Expense; reverse?: ExpenseRefund; busy: boolean; readOnly?: boolean; close: () => void; act: ActionRunner; workspaceScope?:string }) {
   const form = useRef<HTMLFormElement>(null);
+  const originScope=useRef(workspaceScope).current,currentScope=useRef(workspaceScope);currentScope.current=workspaceScope;
+  const alive=useRef(false),flight=useRef<AbortController|null>(null);
+  useLayoutEffect(()=>{alive.current=true;return()=>{alive.current=false;flight.current?.abort();};},[]);
+  useLayoutEffect(()=>{if(currentScope.current!==originScope)flight.current?.abort();},[workspaceScope,originScope]);
+  const isCurrent=()=>alive.current&&currentScope.current===originScope;
+  const validateRead=(next:Workspace)=>{if(!isCurrent()||(originScope!==undefined&&next.workNotesScope!==originScope))throw Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');};
   useEffect(() => {
     // Disabling a focused field can send focus to the page body. Keep Escape
     // and keyboard navigation inside the open draft after access is revoked.
@@ -37,14 +43,15 @@ export function ExpenseRefundForm({ expense, reverse, busy, readOnly = false, cl
   return <Modal title={reverse ? 'Corriger un remboursement' : 'Enregistrer un remboursement'} description={`${expense.supplier || 'Fournisseur'} · ${expense.reference || 'Dépense sans référence'}`} onClose={busy ? () => {} : close} wide>
     <form ref={form} onSubmit={async (event) => {
       event.preventDefault();
-      if (busy || readOnly) return;
+      if (!isCurrent() || busy || readOnly || flight.current) return;
       setError('');
       if (invalidAmounts || (!reverse && (netCents > expense.netCents - totals.netCents || vatCents > expense.vatCents - totals.vatCents))) { setError('Le remboursement dépasse le solde HT ou TVA de cet achat, ou ses montants sont incohérents.'); return; }
       if (paymentDate < creditDate) { setError('La date du remboursement ne peut pas précéder celle de l’avoir.'); return; }
-      await act(async () => {
-        try { return await desktopApi.recordExpenseRefund({ requestId, expenseId: expense.id, creditDate, paymentDate, reference: reference.trim(), reason: reason.trim(), netCents, vatCents, reversesId: reverse?.id ?? null, ...(receipt ? { receipt } : {}) }); }
-        catch (failure) { if (!(failure instanceof WorkspaceRefreshAfterMutationError)) setError(errorMessage(failure, 'Le remboursement n’a pas pu être confirmé. Réessayez cette même saisie.')); throw failure; }
-      }, reverse ? 'La saisie du remboursement a été corrigée. L’historique est conservé.' : 'Le remboursement reçu a été enregistré et les coûts du projet ont été actualisés.', true, () => {});
+      const controller=new AbortController();flight.current=controller;
+      try { await act(async () => {
+        try { return await desktopApi.recordExpenseRefund({ requestId, expenseId: expense.id, creditDate, paymentDate, reference: reference.trim(), reason: reason.trim(), netCents, vatCents, reversesId: reverse?.id ?? null, ...(receipt ? { receipt } : {}) },originScope,controller.signal); }
+        catch (failure) { if (isCurrent() && !(failure instanceof WorkspaceRefreshAfterMutationError)) setError(errorMessage(failure, 'Le remboursement n’a pas pu être confirmé. Réessayez cette même saisie.')); throw failure; }
+      }, reverse ? 'La saisie du remboursement a été corrigée. L’historique est conservé.' : 'Le remboursement reçu a été enregistré et les coûts du projet ont été actualisés.', true, () => {},validateRead); } finally {if(flight.current===controller)flight.current=null;}
     }}>
       <div className="info-strip"><WalletCards size={18} /><span>{reverse ? 'Utilisez cette correction uniquement pour une saisie erronée. Les écritures inverses rétablissent le coût, la TVA et le montant bancaire aux dates indiquées.' : 'Enregistrez un remboursement effectivement reçu du fournisseur. L’achat initial est conservé et la TVA reprend son traitement historique.'}</span></div>
       <div className="form-grid">

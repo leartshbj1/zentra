@@ -16,7 +16,7 @@ try {
     await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();
     await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Factures');
     await page.locator('.navigation-palette__results button').filter({has:page.getByText('Factures',{exact:true})}).click();
-    await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).click();
+    if(!await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).isVisible())await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByText('Actions du document',{exact:true}).click();await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).click();
     const panel=page.getByRole('region',{name:'Avoirs et règlements liés'});
     await panel.getByRole('button',{name:'Enregistrer un remboursement',exact:true}).click();
     const form=panel.locator('form');
@@ -33,19 +33,19 @@ try {
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Vérifier la même demande'&&!b.disabled));
     // Closing and reopening the dossier must resume the same pending command.
     await page.keyboard.press('Escape');
-    await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).click();
+    if(!await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).isVisible())await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByText('Actions du document',{exact:true}).click();await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).click();
     await form.getByRole('button',{name:'Vérifier la même demande',exact:true}).waitFor();
     await form.getByRole('button',{name:'Vérifier la même demande',exact:true}).click();
     await form.waitFor({state:'detached'});
     const requests=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('customer-settlement-requests')));
     assert.equal(requests.length,1); // Recovery reads the existing event without another write.
     assert.equal(await page.evaluate(()=>sessionStorage.getItem('customer-settlement-count')),'1');
-    assert.equal(await page.evaluate(()=>localStorage.getItem('zentra.customer-credit-request.v1.customer-settlement-credit')),null);
+    assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(key=>key.startsWith('zentra.customer-credit-request.v2.')).map(key=>JSON.parse(localStorage.getItem(key))).filter(value=>value.scope===JSON.stringify(['qa-customer-settlement-company','','qa-customer-settlement-member'])&&value.request.input.creditNoteId==='customer-settlement-credit').length),0);
     await panel.locator('summary').click();
     await panel.getByRole('button',{name:'Joindre une pièce',exact:true}).click();
     await panel.getByLabel('Fichier à joindre').setInputFiles({name:'preuve-client.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlqUAAAAASUVORK5CYII=','base64')});
     await panel.getByRole('button',{name:'Ajouter le justificatif',exact:true}).click();
-    await panel.getByText('Réponse interrompue après archivage de la pièce.',{exact:true}).waitFor();
+    await panel.getByText('Réponse interrompue après archivage de la pièce.',{exact:true}).waitFor({state:'attached'});
     await panel.getByRole('button',{name:'Ajouter le justificatif',exact:true}).click();
     await panel.locator('form').waitFor({state:'detached'});
     assert.equal(await page.evaluate(()=>sessionStorage.getItem('customer-receipt-count')),'1');
@@ -101,7 +101,7 @@ try {
     await page.getByRole('button',{name:'Fermer le guide automatique',exact:true}).click();
     await page.getByRole('button',{name:'Aller à un écran',exact:true}).click();await page.getByRole('searchbox',{name:'Rechercher un écran'}).fill('Factures');
     await page.locator('.navigation-palette__results button').filter({has:page.getByText('Factures',{exact:true})}).click();
-    await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).click();
+    if(!await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).isVisible())await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByText('Actions du document',{exact:true}).click();await page.locator('.sales-documents tbody tr').filter({hasText:'Avoir et remboursements'}).getByRole('button',{name:'Consulter',exact:true}).click();
     const panel=page.getByRole('region',{name:'Avoirs et règlements liés'});
     assert.equal(await panel.getByRole('button',{name:'Enregistrer un remboursement',exact:true}).isDisabled(),true);
     assert.equal(await panel.getByRole('button',{name:'Déduire d’une facture',exact:true}).isDisabled(),true);

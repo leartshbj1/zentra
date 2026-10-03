@@ -289,8 +289,9 @@ pub fn unmatch_bank_expense_refund(state: State<'_, LocalStore>, input: crate::b
 }
 
 #[tauri::command]
-pub fn record_expense_refund(state: State<'_, LocalStore>, input: crate::expense_refunds::ExpenseRefundInput, attachment: Option<crate::expense_refund_attachments::RefundAttachmentInput>) -> Result<Value, String> {
+pub fn record_expense_refund(state: State<'_, LocalStore>, input: crate::expense_refunds::ExpenseRefundInput, attachment: Option<crate::expense_refund_attachments::RefundAttachmentInput>, expected_workspace_scope: Option<String>) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_workspace_origin(&state, expected_workspace_scope.as_deref()).map_err(command_error)?;
     require_write(&state)?;
     match attachment {
         Some(file) => state.record_expense_refund_with_attachment(input, Some(file)),
@@ -708,15 +709,17 @@ pub fn adopt_customer_credit_recovery(state:State<'_,LocalStore>,input:crate::cu
     state.adopt_customer_credit_recovery(input).map_err(command_error)
 }
 #[tauri::command]
-pub fn record_customer_credit_settlement(state: State<'_,LocalStore>,input:crate::customer_credit_settlements::CustomerCreditSettlementInput,expected_review:Option<crate::customer_credit_settlements::CustomerSettlementReview>)->Result<Value,String> {
+pub fn record_customer_credit_settlement(state: State<'_,LocalStore>,input:crate::customer_credit_settlements::CustomerCreditSettlementInput,expected_review:Option<crate::customer_credit_settlements::CustomerSettlementReview>,expected_workspace_scope:Option<String>)->Result<Value,String> {
     let _guard=state.lock().map_err(command_error)?;
+    require_workspace_origin(&state, expected_workspace_scope.as_deref()).map_err(command_error)?;
     require_write(&state)?;
     state.record_customer_credit_settlement_checked(input,expected_review.as_ref()).map_err(command_error)
 }
 
 #[tauri::command]
-pub fn reverse_customer_credit_settlement(state: State<'_,LocalStore>,input:crate::customer_credit_settlements::ReverseCustomerCreditSettlementInput,expected_review:Option<crate::customer_credit_settlements::CustomerSettlementReview>)->Result<Value,String> {
+pub fn reverse_customer_credit_settlement(state: State<'_,LocalStore>,input:crate::customer_credit_settlements::ReverseCustomerCreditSettlementInput,expected_review:Option<crate::customer_credit_settlements::CustomerSettlementReview>,expected_workspace_scope:Option<String>)->Result<Value,String> {
     let _guard=state.lock().map_err(command_error)?;
+    require_workspace_origin(&state, expected_workspace_scope.as_deref()).map_err(command_error)?;
     require_write(&state)?;
     state.reverse_customer_credit_settlement_checked(input,expected_review.as_ref()).map_err(command_error)
 }
@@ -2120,3 +2123,7 @@ pub async fn document_pdf_preview(state: State<'_, LocalStore>, kind: String, id
 pub async fn export_document_design_example(state: State<'_, LocalStore>, kind: String, style: Value, issuer: Value, destination: String) -> Result<String, String> {
     run_locked_local_operation(state.inner().clone(), move |store| store.export_document_design_example(&kind, style, issuer, &destination)).await
 }
+
+#[cfg(test)]
+#[path = "commands_payment_forms_scope_tests.rs"]
+mod payment_forms_scope_tests;

@@ -115,6 +115,28 @@ pub(crate) fn annual_amount(asset: &AssetInput, year: i32, already: i64) -> AppR
     let value = (i128::from(base) * i128::from(asset.rate_bp) * days + divisor / 2) / divisor;
     Ok((value as i64).min(asset.cost_cents - asset.residual_cents - already))
 }
+// For a valid history, derive the next year from the actual recorded periods,
+// then skip only unposted zero amounts. No zero journal entry is created.
+// This helper does not repair or validate missing historical positive periods.
+fn next_depreciation_year(asset: &AssetInput, history: &[Value], already: i64) -> AppResult<i32> {
+    let acquired = NaiveDate::parse_from_str(&asset.date, "%Y-%m-%d")
+        .map_err(|_| invalid("Vérifiez la date d’acquisition."))?;
+    let mut next_year = acquired.year();
+    for row in history {
+        let year = row["source_event"].as_str()
+            .and_then(|event| event.strip_prefix("depreciation:"))
+            .and_then(|year| year.parse::<i32>().ok())
+            .ok_or_else(|| invalid("Vérifiez l’historique des amortissements de ce bien."))?;
+        next_year = next_year.max(year.checked_add(1)
+            .ok_or_else(|| invalid("Vérifiez l’historique des amortissements de ce bien."))?);
+    }
+    while next_year <= chrono::Local::now().year()
+        && annual_amount(asset, next_year, already)? == 0
+    {
+        next_year += 1;
+    }
+    Ok(next_year)
+}
 pub(crate) fn list(store: &LocalStore) -> AppResult<Value> {
     let db = store.connect()?;
     let records=query_all(&db,"SELECT entity_id FROM audit_log WHERE action='fixed_asset_registered' AND entity_type='fixed_asset' ORDER BY occurred_at DESC,rowid DESC",[])?;
@@ -130,8 +152,12 @@ pub(crate) fn list(store: &LocalStore) -> AppResult<Value> {
         let blocker = assert_intact(&db, &asset).err().map(|e| e.to_string());
         let acquired = NaiveDate::parse_from_str(&asset.date, "%Y-%m-%d")
             .map_err(|_| invalid("Date d’immobilisation invalide."))?;
-        let next_year = acquired.year() + history.len() as i32;
         let remaining = (asset.cost_cents - total).max(0);
+        let next_year = if cancelled || blocker.is_some() || remaining <= asset.residual_cents {
+            acquired.year() + history.len() as i32
+        } else {
+            next_depreciation_year(&asset, &history, total)?
+        };
         let next = if cancelled
             || blocker.is_some()
             || remaining <= asset.residual_cents
@@ -275,17 +301,15 @@ pub(crate) fn depreciate(
         tx.commit()?;
         return list(store);
     }
-    let acquired = NaiveDate::parse_from_str(&asset.date, "%Y-%m-%d")
-        .map_err(|_| invalid("Vérifiez la date du bien."))?;
-    if year != acquired.year() + history.len() as i32 || year > chrono::Local::now().year() {
-        return Err(invalid(
-            "Comptabilisez les amortissements dans l’ordre des années.",
-        ));
-    }
     let total = history
         .iter()
         .map(|r| r["amount_cents"].as_i64().unwrap_or(0))
         .sum();
+    if year != next_depreciation_year(&asset, &history, total)? || year > chrono::Local::now().year() {
+        return Err(invalid(
+            "Comptabilisez les amortissements dans l’ordre des années.",
+        ));
+    }
     let amount = annual_amount(&asset, year, total)?;
     if amount <= 0 || amount != expected {
         return Err(invalid(

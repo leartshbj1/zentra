@@ -138,6 +138,9 @@ try {
         $diagnosticNativeSuites += @('bank_import::tests::expense_tests::supplier_credit_refund_tests::', 'time_billing::tests::', 'tests::time_billing_', 'database::timer_work_date_tests::', 'commands::time_billing_scope_tests::', 'tests::time_invoice_customization_tests::')
         $diagnosticFrontendSuites += @('src/bankSupplierRefundHistory.test.tsx', 'src/timeBillingPrecision.test.ts', 'src/monetaryRounding.test.ts', 'src/monetaryLegacyCompatibility.test.ts', 'src/projectReportTimeQuantity.test.ts', 'src/timeBilling.test.ts', 'src/timeEntryForm.test.ts')
         $diagnosticMobileSuites += @('src/bankSupplierRefundHistory.test.tsx', 'src/timeBillingPrecision.test.ts', 'src/monetaryRounding.test.ts', 'src/monetaryLegacyCompatibility.test.ts', 'src/projectReportTimeQuantity.test.ts', 'src/timeBilling.test.ts', 'src/timeEntryForm.test.ts')
+        $diagnosticNativeSuites += @('fixed_assets::tests::', 'commands::payment_forms_scope_tests::')
+        $diagnosticFrontendSuites += @('src/customerCreditRequestScope.test.ts', 'src/paymentFormsScopeBridge.test.ts')
+        $diagnosticMobileSuites += @('src/customerCreditRequestScope.test.ts', 'src/paymentFormsScopeBridge.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

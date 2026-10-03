@@ -2,6 +2,7 @@ import { t, useAppLanguage, getAppLocale } from './language';
 import { PayrollSelect } from './PayrollSelect';
 import { useEffect, useRef, useState } from 'react';
 import { desktopApi } from './bridge';
+import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import { Button, Field, submitForm } from './ui';
 import { createId, centsFromInput, errorMessage } from './utils';
 import { PayrollProblem } from './PayrollProblem';
@@ -248,10 +249,8 @@ export function PayrollContractSetup({
                 throw new Error(
                   'Les taux suisses 2026 ne sont pas disponibles dans cette version.',
                 );
-              for (const definition of missingFederalContributions(
-                profile.definitions,
-                current,
-              )) {
+              const missing = missingFederalContributions(profile.definitions, current);
+              for (const definition of missing) {
                 await desktopApi.upsertPayrollContributionDefinition({
                   ...definition,
                   liabilityAccountId: singlePayrollAccount(
@@ -264,7 +263,9 @@ export function PayrollContractSetup({
                       : '',
                 });
               }
-              return desktopApi.loadWorkspace();
+              return missing.length
+                ? refreshWorkspaceAfterMutation(() => desktopApi.loadWorkspace())
+                : desktopApi.loadWorkspace();
             })
           }
         >{t("Préparer les cotisations suisses 2026")}</Button>
@@ -499,7 +500,7 @@ export function PayrollContractSetup({
                       );
                   }
                   await desktopApi.upsertPayrollContributionDefinition(desired);
-                  return desktopApi.loadWorkspace();
+                  return refreshWorkspaceAfterMutation(() => desktopApi.loadWorkspace());
                 }, [desired.id]);
               } catch (reason) {
                 setError(

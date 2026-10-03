@@ -45,6 +45,7 @@ import { RefundAttachmentList } from './RefundAttachments';
 import { ExpenseRefundHistory } from './ExpenseRefundForm';
 import { LegacyExpenseDetail } from './PurchasesScreen';
 import { CustomerCreditPanel } from './CustomerCreditPanel';
+import { FormDraftIdentityProvider } from './useFormDraft';
 import { PurchaseOrdersScreen } from './PurchaseOrdersScreen';
 import { ProjectFilePreview } from './ProjectFilePreview';
 import { ProjectFolder } from './ProjectFolder';
@@ -147,7 +148,7 @@ describe('attachment origin scope reaches the real native bridge', () => {
 
   it('passes the workspace through the real customer credit event history', async () => {
     const credit = { id: 'credit-a', type: 'credit_note', status: 'sent', customerCredit: { remainingCents: 0 }, creditSettlements: [{ id: 'event-a', eventType: 'refund', date: '2026-10-02', amountCents: 100 }] } as unknown as Invoice;
-    render(<CustomerCreditPanel invoice={credit} workspace={{ ...workspace, invoices: [credit], attachments: [{ ...file, entityType: 'customer_credit_settlement', entityId: 'event-a' }] }} busy={false} readOnly act={act} onReadWorkspace={async () => workspace} onOpenHelp={vi.fn()} />);
+    render(<FormDraftIdentityProvider companyId={origin} memberId="synthetic-attachment-member" ready><CustomerCreditPanel invoice={credit} workspace={{ ...workspace, invoices: [credit], attachments: [{ ...file, entityType: 'customer_credit_settlement', entityId: 'event-a' }] }} busy={false} readOnly act={act} onReadWorkspace={async () => workspace} onOpenHelp={vi.fn()} /></FormDraftIdentityProvider>);
     click(props => props['aria-label'] === `Ouvrir ${file.originalName}`)(); await settle();
     expect(commandCalls('open_attachment')).toEqual([['open_attachment', { id: file.id, expectedWorkspaceScope: origin }]]);
   });

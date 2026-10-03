@@ -21,6 +21,9 @@ import type { CertificateDraft, CertificateInput } from './salaryCertificate';
 import { Channel } from '@tauri-apps/api/core';
 import { diagnosticInvoke as invoke, diagnosticOperation } from './diagnostics';
 import type { CustomerCreditRecoveryInput, CustomerCreditRecoveryPlan, CustomerCreditRecoveryPreview } from './customerCreditRecoveryState';
+async function loadPaymentFormWorkspace(expectedWorkspaceScope?:string):Promise<Workspace> {
+  const next=await loadWorkspace();if(expectedWorkspaceScope!==undefined&&next.workNotesScope!==expectedWorkspaceScope)throw Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');return next;
+}
 function customerRecoveryNativeInput(input:CustomerCreditRecoveryInput) {
   return {request_id:input.requestId,original_invoice_id:input.originalInvoiceId,source_token:input.sourceToken,reference:input.reference,reason:input.reason,no_prior_refund:input.noPriorRefund,...(input.confirmVatReconciliation?{confirm_vat_reconciliation:true}:{}),
     credits:input.credits.map(credit=>({credit_note_id:credit.creditNoteId,applied_cents:credit.appliedCents,application_date:credit.applicationDate}))};
@@ -6102,10 +6105,12 @@ export const desktopApi = {
   async unreconcileBankExpense(requestId: string, reconciliationId: string, reason: string): Promise<void> {
     await invoke('unreconcile_bank_expense', { input: { request_id: requestId, reconciliation_id: reconciliationId, reason } });
   },
-  async recordExpenseRefund(input: ExpenseRefundInput): Promise<Workspace> {
-    const attachment = input.receipt ? { original_name: input.receipt.name, content_base64: await fileBase64(input.receipt) } : null;
-    await invoke('record_expense_refund', { input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: input.reversesId }, ...(attachment ? { attachment } : {}) });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async recordExpenseRefund(input: ExpenseRefundInput,expectedWorkspaceScope?:string,signal?:AbortSignal): Promise<Workspace> {
+    if(signal?.aborted)throw new DOMException('Enregistrement du remboursement interrompu.','AbortError');
+    const attachment = input.receipt ? { original_name: input.receipt.name, content_base64: await fileBase64(input.receipt,signal) } : null;
+    if(signal?.aborted)throw new DOMException('Enregistrement du remboursement interrompu.','AbortError');
+    await invoke('record_expense_refund', { ...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}), input: { request_id: input.requestId, expense_id: input.expenseId, credit_date: input.creditDate, payment_date: input.paymentDate, reference: input.reference, reason: input.reason, net_cents: input.netCents, vat_cents: input.vatCents, reverses_id: input.reversesId }, ...(attachment ? { attachment } : {}) });
+    return refreshWorkspaceAfterMutation(()=>loadPaymentFormWorkspace(expectedWorkspaceScope));
   },
   async addCustomerCreditSettlementAttachment(settlementId: string, receipt: File): Promise<Workspace> {
     await invoke('add_customer_credit_settlement_attachment',{settlementId,attachment:{original_name:receipt.name,content_base64:await fileBase64(receipt)}});
@@ -6127,14 +6132,14 @@ export const desktopApi = {
     await invoke('adopt_customer_credit_recovery',{input:customerRecoveryNativeInput(input)});
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
-  async recordCustomerCreditSettlement(input:CustomerSettlementInput):Promise<Workspace> {
-    return runCustomerSettlementMutation({input},()=>invoke('record_customer_credit_settlement',{input:{request_id:input.requestId,credit_note_id:input.creditNoteId,event_type:input.eventType,invoice_id:input.invoiceId,date:input.date,amount_cents:input.amountCents,bank_account_id:input.bankAccountId,reference:input.reference.trim(),reason:input.reason.trim()},...(input.expectedReview?{expectedReview:input.expectedReview}:{})}),loadWorkspace);
+  async recordCustomerCreditSettlement(input:CustomerSettlementInput,expectedWorkspaceScope?:string):Promise<Workspace> {
+    return runCustomerSettlementMutation({input},()=>invoke('record_customer_credit_settlement',{...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}),input:{request_id:input.requestId,credit_note_id:input.creditNoteId,event_type:input.eventType,invoice_id:input.invoiceId,date:input.date,amount_cents:input.amountCents,bank_account_id:input.bankAccountId,reference:input.reference.trim(),reason:input.reason.trim()},...(input.expectedReview?{expectedReview:input.expectedReview}:{})}),()=>loadPaymentFormWorkspace(expectedWorkspaceScope));
   },
-  async reverseCustomerCreditSettlement(input:{requestId:string;settlementId:string;date:string;reason:string;context?:PendingCustomerCreditRequest}):Promise<Workspace> {
+  async reverseCustomerCreditSettlement(input:{requestId:string;settlementId:string;date:string;reason:string;context?:PendingCustomerCreditRequest},expectedWorkspaceScope?:string):Promise<Workspace> {
     requireCustomerSettlementReverseContext(input);
-    const write=()=>invoke('reverse_customer_credit_settlement',{input:{request_id:input.requestId,settlement_id:input.settlementId,date:input.date,reason:input.reason.trim()},...(input.context?.input.expectedReview?{expectedReview:input.context.input.expectedReview}:{})});
-    if(input.context)return runCustomerSettlementMutation(input.context,write,loadWorkspace);
-    await write();return refreshWorkspaceAfterMutation(loadWorkspace);
+    const write=()=>invoke('reverse_customer_credit_settlement',{...(expectedWorkspaceScope===undefined?{}:{expectedWorkspaceScope}),input:{request_id:input.requestId,settlement_id:input.settlementId,date:input.date,reason:input.reason.trim()},...(input.context?.input.expectedReview?{expectedReview:input.context.input.expectedReview}:{})});
+    if(input.context)return runCustomerSettlementMutation(input.context,write,()=>loadPaymentFormWorkspace(expectedWorkspaceScope));
+    await write();return refreshWorkspaceAfterMutation(()=>loadPaymentFormWorkspace(expectedWorkspaceScope));
   },
   async recordSupplierCreditRefund(input: { requestId: string; supplierCreditNoteId: string; date: string; amountCents: number; reference: string; reason: string; expectedReview?: SupplierRefundReview }) {
     return runSupplierRefundMutation({kind:'refund',requestId:input.requestId,creditId:input.supplierCreditNoteId,date:input.date,amountCents:input.amountCents,reference:input.reference.trim(),reason:input.reason.trim()}, () => invoke('record_supplier_credit_refund',{input:{request_id:input.requestId,supplier_credit_note_id:input.supplierCreditNoteId,date:input.date,amount_cents:input.amountCents,reference:input.reference.trim(),reason:input.reason.trim()},...(input.expectedReview?{expectedReview:input.expectedReview}:{})}),loadWorkspace);

@@ -932,6 +932,7 @@ function QueuePanel({
                     <strong>
                       {formatMoney(
                         reminder.liveBalanceCents ?? reminder.balanceCents,
+                        reminder.currency,
                       )}
                     </strong>
                   </span>
@@ -1463,7 +1464,7 @@ function ReminderDeliveryPreview({
             {preview.snapshotStale ? (
               <p>
                 Le solde a changé. Ce document utilise le montant actuel de{' '}
-                {formatMoney(preview.currentBalanceCents)}.
+                {formatMoney(preview.currentBalanceCents, preview.currency)}.
               </p>
             ) : null}
             {preview.templateReviewRequired ? (
@@ -1572,7 +1573,7 @@ function ReminderDeliveryPreview({
           <span>
             Solde actuel{' '}
             <strong>
-              {formatMoney(preview.currentBalanceCents)}
+              {formatMoney(preview.currentBalanceCents, preview.currency)}
             </strong>
           </span>
           <span>
