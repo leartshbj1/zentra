@@ -1,3 +1,4 @@
+import { withKnownErrorIncident } from './diagnostics';
 import type { EntityKind, Workspace } from './types';
 import { createId } from './utils';
 import { assertWorkspaceOrigin, refreshWorkspaceInOrigin, workspaceOriginFailure } from './workspaceOrigin';
@@ -16,6 +17,7 @@ export class WorkspaceCreationOutcomeUnknownError extends Error {
   constructor(readonly entity: EntityKind, readonly recordId: string, readonly mutationCause: unknown, readonly expectedWorkspaceScope?: string) {
     super('La réponse de l’enregistrement n’a pas été reçue. Vérifions les données avant de réessayer.');
     this.name = 'WorkspaceCreationOutcomeUnknownError';
+    withKnownErrorIncident(this, mutationCause);
   }
   wasRecorded(workspace: Workspace): boolean {
     return containsCreation(workspace, this.entity, this.recordId, this.expectedWorkspaceScope);

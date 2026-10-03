@@ -1,6 +1,7 @@
 // Interface copy only. Client names, document text and stored line units stay verbatim.
 // Order: German (Switzerland), Italian, English.
 export const documentEditorTranslations: Record<string, readonly [string, string, string]> = {
+  'Document enregistré': ['Gespeichertes Dokument', 'Documento registrato', 'Saved document'],
   'Chiffre d’affaires': ['Umsatz', 'Fatturato', 'Revenue'],
   'la quantité': ['Menge', 'la quantità', 'the quantity'],
   'le prix unitaire': ['Einzelpreis', 'il prezzo unitario', 'the unit price'],

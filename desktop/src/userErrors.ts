@@ -1,16 +1,19 @@
 import { getAppLanguage, t, type AppLanguage } from './language';
 import { errorMessage } from './utils';
+import { localValidationDetails } from './localValidation';
+import { isDocumentCreationUnconfirmedError } from './documentCreationRequest';
 import { interfaceKeys } from 'virtual:zentra-language-keys';
 
 export type UserErrorKind = 'network' | 'session' | 'permission' | 'member' | 'workspace' | 'conflict' | 'validation' | 'file' | 'unknown';
 export type UserErrorOperation = 'read' | 'mutation';
 type Copy = { title: string; message: string; action: string };
-type ErrorCopy = Record<UserErrorKind, Copy> & { unknownRead: Copy; workspaceRead: Copy; uncertain: string; reload: string; reconnect: string; review: string; details: string; incident: string; copy: string; copied: string; copyFailed: string };
+type ErrorCopy = Record<UserErrorKind, Copy> & { unknownRead: Copy; workspaceRead: Copy; documentCreationUnknown: Copy; uncertain: string; reload: string; reconnect: string; review: string; details: string; incident: string; copy: string; copied: string; copyFailed: string };
 
 // Kept together so the recovery wording is available even when a language asset
 // cannot be loaded. Raw native messages remain untouched for business guards.
 const copy: Record<AppLanguage, ErrorCopy> = {
   fr: {
+    documentCreationUnknown: { title: 'Vérifions la création', message: 'Le document a peut-être déjà été enregistré. Votre saisie est conservée.', action: 'Utilisez « Vérifier cette création » avant tout nouvel envoi.' },
     network: { title: 'Connexion indisponible', message: 'Zentra n’a pas pu joindre le service.', action: 'Vérifiez votre connexion Internet.' },
     session: { title: 'Connexion au compte à renouveler', message: 'Votre session n’est plus disponible.', action: 'Reconnectez ce poste depuis Compte et équipe.' },
     permission: { title: 'Accès à vérifier', message: 'Votre accès ne permet pas cette action.', action: 'Vérifiez vos droits d’accès avec la personne qui gère l’entreprise.' },
@@ -26,6 +29,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     reload: 'Actualiser l’affichage', reconnect: 'Ouvrir la connexion', review: 'Vérifier les informations', details: 'Détails techniques', incident: 'Code d’incident', copy: 'Copier le code', copied: 'Code copié', copyFailed: 'La copie n’est pas disponible. Sélectionnez le code pour le copier.',
   },
   de: {
+    documentCreationUnknown: { title: 'Erstellung prüfen', message: 'Das Dokument wurde möglicherweise bereits gespeichert. Ihre Eingaben bleiben erhalten.', action: 'Verwenden Sie vor einem erneuten Senden « Diese Erstellung prüfen ».' },
     network: { title: 'Verbindung nicht verfügbar', message: 'Zentra konnte den Dienst nicht erreichen.', action: 'Prüfen Sie Ihre Internetverbindung.' },
     session: { title: 'Erneut am Konto anmelden', message: 'Ihre Sitzung ist nicht mehr verfügbar.', action: 'Verbinden Sie dieses Gerät unter Konto und Team erneut.' },
     permission: { title: 'Zugriff prüfen', message: 'Ihr Zugriff erlaubt diese Aktion nicht.', action: 'Prüfen Sie Ihre Zugriffsrechte mit der Person, die das Unternehmen verwaltet.' },
@@ -41,6 +45,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     reload: 'Anzeige aktualisieren', reconnect: 'Anmeldung öffnen', review: 'Angaben prüfen', details: 'Technische Details', incident: 'Vorfallcode', copy: 'Code kopieren', copied: 'Code kopiert', copyFailed: 'Kopieren ist nicht verfügbar. Markieren Sie den Code, um ihn zu kopieren.',
   },
   it: {
+    documentCreationUnknown: { title: 'Verifichiamo la creazione', message: 'Il documento potrebbe essere già stato salvato. I dati inseriti sono conservati.', action: 'Usa « Verifica questa creazione » prima di un nuovo invio.' },
     network: { title: 'Connessione non disponibile', message: 'Zentra non ha potuto raggiungere il servizio.', action: 'Controlla la connessione Internet.' },
     session: { title: 'Accedi di nuovo al conto', message: 'La sessione non è più disponibile.', action: 'Ricollega questo dispositivo da Conto e team.' },
     permission: { title: 'Verifica l’accesso', message: 'Il tuo accesso non permette questa azione.', action: 'Verifica i diritti di accesso con chi gestisce l’azienda.' },
@@ -56,6 +61,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     reload: 'Aggiorna la vista', reconnect: 'Apri l’accesso', review: 'Verifica le informazioni', details: 'Dettagli tecnici', incident: 'Codice incidente', copy: 'Copia il codice', copied: 'Codice copiato', copyFailed: 'La copia non è disponibile. Seleziona il codice per copiarlo.',
   },
   en: {
+    documentCreationUnknown: { title: 'Check the creation', message: 'The document may already have been saved. Your entered information is retained.', action: 'Use “Check this creation” before sending again.' },
     network: { title: 'Connection unavailable', message: 'Zentra could not reach the service.', action: 'Check your Internet connection.' },
     session: { title: 'Sign in to your account again', message: 'Your session is no longer available.', action: 'Reconnect this device from Account and team.' },
     permission: { title: 'Check your access', message: 'Your access does not allow this action.', action: 'Check your access rights with the person who manages the company.' },
@@ -89,6 +95,8 @@ function errorCode(reason: unknown): string {
 }
 
 export function classifyUserError(reason: unknown): UserErrorKind {
+  if (isDocumentCreationUnconfirmedError(reason)) return 'unknown';
+  if (localValidationDetails(reason)) return 'validation';
   const message = displayErrorMessage(reason).toLowerCase();
   const status = errorStatus(reason);
   const code = errorCode(reason);
@@ -139,6 +147,10 @@ export function userErrorCopy(language: AppLanguage = getAppLanguage()) { return
 export function getUserError(reason: unknown, options: { fallback?: string; language?: AppLanguage; operation?: UserErrorOperation } = {}) {
   const language = options.language ?? getAppLanguage();
   const labels = copy[language];
+  // A real uncertain creation is never a field correction or a prompt to resend.
+  if (isDocumentCreationUnconfirmedError(reason)) return { kind: 'unknown' as const, ...labels.documentCreationUnknown, technicalDetails: safeErrorDetails(reason) };
+  const local = localValidationDetails(reason);
+  if (local) return { kind: 'validation' as const, title: labels.validation.title, message: local.language === language ? local.message : labels.validation.message, action: labels.validation.action, technicalDetails: '' };
   const kind = classifyUserError(reason);
   const selected = kind === 'unknown' && options.operation === 'read' ? labels.unknownRead
     : kind === 'workspace' && options.operation === 'read' ? labels.workspaceRead : labels[kind];

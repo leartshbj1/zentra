@@ -1,3 +1,4 @@
+import { knownErrorIncident, withKnownErrorIncident } from './diagnostics';
 import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { useRef, useState, type FormEvent } from 'react';
 import type { Client, Supplier, Workspace } from './types';
@@ -68,6 +69,7 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
   const [country, setCountry] = useState(client?.country?.toUpperCase() || (item ? '' : 'CH'));
   const [terms, setTerms] = useState(String(supplier?.paymentTermsDays ?? 30));
   const [issue, setIssue] = useState<ContactIssue | null>(null), [failure, setFailure] = useState('');
+  const failureReference = useRef<unknown>(undefined);
   const [saving, setSaving] = useState(false);
   const inFlight = useRef(false), formRef = useRef<HTMLFormElement>(null), alertRef = useRef<HTMLDivElement>(null);
   const persisted = useNativeFormDraft({ workspace, type: kind, recordId: item?.id, fingerprint: current ? formDraftFingerprint(current) : item ? 'missing' : 'new', form: formRef, fields: item ? contactDraftFields : creationDraftFields, initial: creationId ? { creationId } : {}, validateValue: item ? undefined : validCreationContactDraft,
@@ -80,7 +82,7 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
     if (!legacyCreation || !creationId || locked || readOnly || draftBlocked) return;
     // Preserve the restored fields. Attaching a fresh identity requires this explicit choice.
     persisted.capture({ creationId });
-    setFailure(''); setIssue(null);
+    failureReference.current = undefined; setFailure(''); setIssue(null);
   };
   const title = kind === 'client' ? item ? 'Modifier le client' : 'Nouveau client' : item ? `Modifier ${item.name}` : 'Nouveau fournisseur';
   function reveal(next: ContactIssue | null) {
@@ -100,14 +102,14 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
     if (locked || readOnly || inFlight.current || draftBlocked || legacyCreation) return;
     const originWorkspaceScope = workspace?.workNotesScope;
     const values = Object.fromEntries([...new FormData(event.currentTarget)].map(([key, value]) => [key, String(value).trim()])) as ContactValues;
-    setFailure('');
+    failureReference.current = undefined; setFailure('');
     const invalid = contactFormIssue(kind, values);
     if (invalid) { reveal(invalid); return; }
     // Persist the exact current form and creation UUID, including a final unrendered keystroke.
     // A failed write or readback must stop native creation before any invocation.
     const captured = !item ? persisted.capture() : undefined;
     if (captured && (captured.storageError || captured.pending || captured.invalid || captured.conflict || !creationUuid.test(captured.value.creationId || ''))) {
-      setFailure(CONTACT_LOCAL_DRAFT_UNSAVED); reveal(null); return;
+      failureReference.current = undefined; setFailure(CONTACT_LOCAL_DRAFT_UNSAVED); reveal(null); return;
     }
     setIssue(null); inFlight.current = true; setSaving(true);
     const data = kind === 'client' ? {
@@ -123,13 +125,13 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
     const entity = kind === 'client' ? 'clients' : 'suppliers';
     const refused = (reason: unknown) => {
       const message = errorMessage(reason, 'L’enregistrement n’a pas abouti. Votre saisie est conservée.');
-      setFailure(message); reveal(contactNativeIssue(kind, message));
+      failureReference.current = reason; setFailure(message); reveal(contactNativeIssue(kind, message));
     };
     try { const saved = await act((mutationOrigin) => item ? desktopApi.updateEntity(entity, item.id, data, originWorkspaceScope, mutationOrigin.memberContextNonce) : desktopApi.createEntity(entity, { ...data, id: captured!.value.creationId }, originWorkspaceScope, mutationOrigin.memberContextNonce).catch(reason => {
       if (reason instanceof WorkspaceCreationOutcomeUnknownError) {
         // A row sharing the UUID may belong to an older corrected attempt.
         // Ordinary unknown errors retain the draft; they cannot use act's ID-only confirmation.
-        throw new Error(CONTACT_CREATION_UNCONFIRMED, { cause: reason });
+        throw withKnownErrorIncident(new Error(CONTACT_CREATION_UNCONFIRMED, { cause: reason }), reason);
       }
       throw reason;
     }), kind === 'client' ? item ? 'Le client a été mis à jour.' : 'Le client a été ajouté.' : item ? 'Le fournisseur a été mis à jour.' : 'Le fournisseur a été ajouté.', true, refused); persisted.complete(saved); }
@@ -170,10 +172,10 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
         {item?.archivedAt && <p className="info-strip">Cette fiche est archivée. La modifier ne la réactive pas et son historique est conservé.</p>}
       </fieldset>
       {failure && <div ref={alertRef} className="contact-form-failure" tabIndex={-1}><>{failure === CONTACT_CREATION_UNCONFIRMED
-        ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-contact-creation-recovery><strong>{recovery.title}</strong><p>{recovery.message}</p><p className="error-guidance__recovery">{recovery.instruction}</p></div><ErrorDetails error={failure} /></div>
+        ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-contact-creation-recovery><strong>{recovery.title}</strong><p>{recovery.message}</p><p className="error-guidance__recovery">{recovery.instruction}</p></div><ErrorDetails error={failureReference.current ?? failure} /></div>
         : failure === CONTACT_LOCAL_DRAFT_UNSAVED
-          ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-contact-storage-recovery><strong>{draftText('La saisie locale ne peut pas être conservée')}</strong><p>{recovery.storage}</p></div><div className="error-guidance__actions"><Button type="button" variant="secondary" size="small" disabled={locked || readOnly} onClick={() => { const captured = persisted.capture(); if (!captured.storageError && !captured.pending && !captured.invalid && !captured.conflict) { setFailure(''); setIssue(null); } }}>{draftText('Réessayer la sauvegarde locale')}</Button></div></div>
-          : <ErrorGuidance error={failure} operation="mutation" compact />}</></div>}
+          ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-contact-storage-recovery><strong>{draftText('La saisie locale ne peut pas être conservée')}</strong><p>{recovery.storage}</p></div><div className="error-guidance__actions"><Button type="button" variant="secondary" size="small" disabled={locked || readOnly} onClick={() => { const captured = persisted.capture(); if (!captured.storageError && !captured.pending && !captured.invalid && !captured.conflict) { failureReference.current = undefined; setFailure(''); setIssue(null); } }}>{draftText('Réessayer la sauvegarde locale')}</Button></div></div>
+          : <ErrorGuidance error={failure} incidentCode={knownErrorIncident(failureReference.current)?.code} operation="mutation" compact />}</></div>}
       <FormActions onCancel={closeForm} busy={locked} disabled={readOnly || draftBlocked || legacyCreation || !item && persisted.storageError} submitLabel={kind === 'client' ? 'Enregistrer' : item ? 'Enregistrer les modifications' : 'Ajouter le fournisseur'} />
     </form>
   </Modal>;

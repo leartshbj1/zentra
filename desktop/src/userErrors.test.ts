@@ -145,3 +145,43 @@ describe('détails techniques sans secrets', () => {
     expect(safeErrorDetails(error)).toBe('');
   });
 });
+
+import {DocumentCreationUnconfirmedError,isDocumentCreationUnconfirmedError} from './documentCreationRequest';
+import {diagnosticOperation,knownErrorIncident,recentDiagnosticEvents,resolveErrorIncident} from './diagnostics';
+import {createLocalValidationError} from './localValidation';
+describe('uncertain document creation guidance',()=>{
+ it.each(appLanguages)('shows explicit creation guidance in %s without fields or blind retry',language=>{
+   const reason=new DocumentCreationUnconfirmedError(new Error('Champ invalide : Réponse perdue.'));
+   const expected=userErrorCopy(language).documentCreationUnknown;
+   expect(classifyUserError(reason)).toBe('unknown');
+   expect(getUserError(reason,{language,operation:'mutation',fallback:'Corrigez les champs.'})).toEqual({kind:'unknown',...expected,technicalDetails:reason.message});
+   expect(getUserError(reason,{language,operation:'read',fallback:'Réessayez de créer.'})).toEqual({kind:'unknown',...expected,technicalDetails:reason.message});
+   expect(expected.title).not.toBe(userErrorCopy(language).validation.title);expect(expected.action).not.toBe(userErrorCopy(language).validation.action);
+   expect(expected.action).not.toMatch(/réessay|retry|try again|erneut erstellen|riprova/i);
+   if(language!=='fr')expect(expected).not.toEqual(userErrorCopy('fr').documentCreationUnknown);
+ });
+ it('classifies genuine identity before reading message, status, code, name, prototype or cause',()=>{
+   const reason=new DocumentCreationUnconfirmedError(null);let accesses=0;
+   for(const key of ['message','status','statusCode','code','name','cause'])Object.defineProperty(reason,key,{configurable:true,get(){accesses++;throw Error('not classification input');}});
+   expect(classifyUserError(reason)).toBe('unknown');expect(accesses).toBe(0);
+ });
+ it.each([
+   ['native string','Champ invalide : La création du document doit être vérifiée avant tout nouvel envoi.'],
+   ['ordinary native error',new Error('Champ invalide : Le montant doit être positif.')],
+   ['same name',Object.assign(new Error('Champ invalide : Le montant doit être positif.'),{name:'DocumentCreationUnconfirmedError'})],
+   ['borrowed prototype',Object.assign(Object.create(DocumentCreationUnconfirmedError.prototype),{message:'Champ invalide : Le montant doit être positif.'})],
+   ['message alone',new DocumentCreationUnconfirmedError(null).message],
+ ] as const)('preserves real validation for %s',(_name,reason)=>{expect(isDocumentCreationUnconfirmedError(reason)).toBe(false);expect(classifyUserError(reason)).toBe('validation');expect(getUserError(reason,{language:'fr'}).title).toBe(userErrorCopy('fr').validation.title);});
+ it('preserves an explicit local validation and its 900-unit limit',()=>{
+   const reason=createLocalValidationError('N'.repeat(1800),'fr');
+   expect(getUserError(reason,{language:'fr'})).toMatchObject({kind:'validation',message:'N'.repeat(899)+'…',technicalDetails:''});expect(reason.message.length).toBe(900);
+ });
+ it('retains the known source incident without logging reasons, arguments or another presentation',async()=>{
+   const source=new Error('Failed to fetch password=private-example');
+   await expect(diagnosticOperation('command','native.save_document_with_items',async()=>{throw source;})).rejects.toBe(source);
+   const known=knownErrorIncident(source);expect(known).toBeDefined();
+   const wrapper=new DocumentCreationUnconfirmedError(source),count=recentDiagnosticEvents().length;
+   expect(knownErrorIncident(wrapper)).toEqual(known);getUserError(wrapper,{language:'en'});expect(resolveErrorIncident(wrapper)).toEqual(known);
+   expect(recentDiagnosticEvents()).toHaveLength(count);expect(JSON.stringify(recentDiagnosticEvents())).not.toContain('private-example');
+ });
+});

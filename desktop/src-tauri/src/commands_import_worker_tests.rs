@@ -1832,7 +1832,7 @@ mod notes_and_setup_workers {
                 .await?;
                 Ok(json!({"deleted":result.deleted,"id":result.id}))
             }
-            Operation::UpdateSettings => update_settings(state, input.settings, expected).await,
+            Operation::UpdateSettings => update_settings(state, input.settings, expected, None).await,
             Operation::UpdateEmployee => {
                 update_record(
                     state,

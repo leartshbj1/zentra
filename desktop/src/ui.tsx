@@ -381,6 +381,7 @@ export function DangerZone({ label, onArchive }: { label: string; onArchive: () 
 
 export function ErrorPanel({
   message,
+  incidentCode,
   onRetry,
   title,
   reveal = false,
@@ -389,7 +390,8 @@ export function ErrorPanel({
   onReconnect,
   onReview,
 }: {
-  message: string;
+  message: unknown;
+  incidentCode?: string;
   onRetry?: () => void;
   title?: string;
   reveal?: boolean;
@@ -428,7 +430,7 @@ export function ErrorPanel({
     });
     return () => cancelAnimationFrame(frame);
   }, [message, reveal]);
-  return <ErrorGuidance panelRef={panelRef} error={message} title={title} fallback={fallback} operation={operation ?? (onRetry ? 'read' : 'mutation')} onReload={onRetry} onReconnect={onReconnect} onReview={onReview} />;
+  return <ErrorGuidance panelRef={panelRef} error={message} incidentCode={incidentCode} title={title} fallback={fallback} operation={operation ?? (onRetry ? 'read' : 'mutation')} onReload={onRetry} onReconnect={onReconnect} onReview={onReview} />;
 }
 
 export function submitForm(handler: (form: FormData) => void | Promise<void>) {

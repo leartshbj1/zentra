@@ -2956,7 +2956,36 @@ impl LocalStore {
         Ok(record)
     }
 
+    /// Pure local evidence about one frozen creation, not a write-authority check.
+    /// Command callers separately hold the physical/member origin guard.
+    pub(crate) fn get_document_creation_receipt(
+        &self,
+        input: SaveDocumentWithItemsInput,
+        creation_request_id: String,
+    ) -> AppResult<Value> {
+        let request = document_creation_request(&input, &creation_request_id)?;
+        let mut connection = self.connect()?;
+        let transaction = connection.transaction()?;
+        let result = read_document_creation_receipt(&transaction, &request)?;
+        transaction.commit()?;
+        Ok(result)
+    }
+
     pub fn save_document_with_items(&self, input: SaveDocumentWithItemsInput) -> AppResult<Value> {
+        self.save_document_with_items_once(input, None)
+    }
+
+    /// Commit the new document and its immutable receipt in the same transaction.
+    /// This request never changes UPDATE semantics or the legacy None path.
+    pub(crate) fn save_document_with_items_once(
+        &self,
+        input: SaveDocumentWithItemsInput,
+        creation_request_id: Option<String>,
+    ) -> AppResult<Value> {
+        let request = creation_request_id
+            .as_deref()
+            .map(|raw| document_creation_request(&input, raw))
+            .transpose()?;
         let (entity, item_entity, parent_column) = match input.entity.as_str() {
             "quotes" => ("quotes", "quote_items", "quote_id"),
             "invoices" => ("invoices", "invoice_items", "invoice_id"),
@@ -2981,6 +3010,21 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if let Some(request) = &request {
+            let probe = read_document_creation_receipt(&transaction, request)?;
+            match probe["status"].as_str() {
+                Some("confirmed") => {
+                    let response = probe["originalResponse"].clone();
+                    transaction.commit()?;
+                    return Ok(response);
+                }
+                Some("deleted") => return Err(AppError::Validation(
+                    "Le document de cette tentative a été supprimé. Cette tentative ne sera pas renvoyée.".into(),
+                )),
+                Some("missing") => {}
+                _ => return Err(document_creation_receipt_inconsistent()),
+            }
+        }
         let (document_id, previous) = match input.id.filter(|value| !value.trim().is_empty()) {
             Some(id) => {
                 let previous = query_record_tx(&transaction, document_spec.table, &id)?;
@@ -3012,7 +3056,8 @@ impl LocalStore {
             None => {
                 normalize_record(entity, &mut document_data, true)?;
                 validate_required(&document_data, document_spec.required)?;
-                let id = Uuid::new_v4().to_string();
+                let id = request.as_ref().map(|request| request.id.clone())
+                    .unwrap_or_else(|| Uuid::new_v4().to_string());
                 let now = now_iso();
                 let mut columns = vec!["id".to_owned()];
                 let mut values = vec![SqlValue::Text(id.clone())];
@@ -3090,7 +3135,10 @@ impl LocalStore {
             ),
             params![document_id],
         )?;
-        let result = json!({"document":document,"items":items});
+        let mut result = json!({"document":document,"items":items});
+        if let Some(request) = &request {
+            result["creationRequestId"] = json!(request.id);
+        }
         append_audit(
             &transaction,
             if previous.is_null() {
@@ -3102,6 +3150,13 @@ impl LocalStore {
             &document_id,
             &json!({"entity":entity,"before":previous,"after":result.clone()}),
         )?;
+        if let Some(request) = &request {
+            append_audit(&transaction, "complete", DOCUMENT_CREATION_REQUEST_ENTITY, &request.id,
+                &json!({"receipt_version":DOCUMENT_CREATION_RECEIPT_VERSION,
+                    "operation":DOCUMENT_CREATION_OPERATION,"request_id":request.id,
+                    "entity":request.entity,"payload_sha256":request.payload_sha256,
+                    "document_id":document_id,"response":result.clone()}))?;
+        }
         transaction.commit()?;
         Ok(result)
     }
@@ -5669,6 +5724,110 @@ fn ensure_catalog_sales_empty_before_delete(
         )));
     }
     Ok(())
+}
+
+const DOCUMENT_CREATION_RECEIPT_VERSION: u64 = 1;
+const DOCUMENT_CREATION_REQUEST_ENTITY: &str = "document_creation_request";
+const DOCUMENT_CREATION_OPERATION: &str = "create_document_with_items";
+
+struct DocumentCreationRequest {
+    id: String,
+    entity: String,
+    payload_sha256: String,
+}
+
+fn document_creation_receipt_inconsistent() -> AppError {
+    AppError::Validation("La confirmation du document est incohérente. Vérifiez les documents enregistrés.".into())
+}
+
+fn document_creation_request(input: &SaveDocumentWithItemsInput, raw: &str) -> AppResult<DocumentCreationRequest> {
+    if !matches!(input.entity.as_str(), "quotes" | "invoices") {
+        return Err(AppError::Validation("Cette opération est réservée aux devis et factures.".into()));
+    }
+    if input.id.as_deref().is_some_and(|id| !id.trim().is_empty()) {
+        return Err(AppError::Validation("Cette tentative de création ne peut pas modifier un document existant.".into()));
+    }
+    let id = Uuid::parse_str(raw.trim()).map(|id| id.to_string())
+        .map_err(|_| AppError::Validation("La référence de cette tentative de création est invalide.".into()))?;
+    // Versioned decoded input, before normalization, readonly stripping, rounding
+    // or any mutation. An in-flight attempt must keep this exact typed payload.
+    let payload = json!({"receiptVersion":DOCUMENT_CREATION_RECEIPT_VERSION,
+        "operation":DOCUMENT_CREATION_OPERATION,"input":input});
+    let payload_sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(&payload)?));
+    Ok(DocumentCreationRequest { id, entity: input.entity.clone(), payload_sha256 })
+}
+
+fn read_document_creation_receipt(transaction: &Transaction<'_>, request: &DocumentCreationRequest) -> AppResult<Value> {
+    let receipts = {
+        let mut statement = transaction.prepare(
+            "SELECT payload_json FROM audit_log WHERE entity_type=? AND entity_id=? AND action='complete' ORDER BY rowid",
+        )?;
+        let rows = statement.query_map(params![DOCUMENT_CREATION_REQUEST_ENTITY, &request.id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    if receipts.len() > 1 {
+        return Err(document_creation_receipt_inconsistent());
+    }
+    let (item_table, parent_column) = if request.entity == "quotes" { ("quote_items", "quote_id") }
+        else { ("invoice_items", "invoice_id") };
+    if let Some(raw) = receipts.first() {
+        let receipt: Value = serde_json::from_str(raw).map_err(|_| document_creation_receipt_inconsistent())?;
+        if receipt.get("receipt_version").and_then(Value::as_u64) != Some(DOCUMENT_CREATION_RECEIPT_VERSION)
+            || receipt.get("operation").and_then(Value::as_str) != Some(DOCUMENT_CREATION_OPERATION)
+            || receipt.get("request_id").and_then(Value::as_str) != Some(request.id.as_str())
+            || receipt.get("entity").and_then(Value::as_str) != Some(request.entity.as_str())
+            || receipt.get("payload_sha256").and_then(Value::as_str) != Some(request.payload_sha256.as_str()) {
+            return Err(AppError::Validation("Cette tentative a déjà enregistré un autre contenu ou utilise une confirmation incompatible. Ouvrez le document enregistré avant de le modifier.".into()));
+        }
+        let response = receipt.get("response").cloned().ok_or_else(document_creation_receipt_inconsistent)?;
+        let original_document = response.get("document").filter(|value| value.is_object())
+            .ok_or_else(document_creation_receipt_inconsistent)?;
+        let original_items = response.get("items").and_then(Value::as_array)
+            .filter(|items| !items.is_empty()).ok_or_else(document_creation_receipt_inconsistent)?;
+        if original_document.get("id").and_then(Value::as_str) != Some(request.id.as_str())
+            || receipt.get("document_id").and_then(Value::as_str) != Some(request.id.as_str())
+            || response.get("creationRequestId").and_then(Value::as_str) != Some(request.id.as_str()) {
+            return Err(document_creation_receipt_inconsistent());
+        }
+        let mut ids = HashSet::new();
+        for (position, item) in original_items.iter().enumerate() {
+            let id = item.get("id").and_then(Value::as_str).ok_or_else(document_creation_receipt_inconsistent)?;
+            if Uuid::parse_str(id).is_err() || !ids.insert(id)
+                || item.get(parent_column).and_then(Value::as_str) != Some(request.id.as_str())
+                || item.get("position").and_then(Value::as_u64) != Some(position as u64) {
+                return Err(document_creation_receipt_inconsistent());
+            }
+        }
+        let current_document = query_all(transaction,
+            &format!("SELECT * FROM {} WHERE id=?", request.entity), [&request.id])?
+            .into_iter().next();
+        let current_items = query_all(transaction,
+            &format!("SELECT * FROM {item_table} WHERE {parent_column}=? ORDER BY position"), [&request.id])?;
+        let status = if current_document.is_some() { "confirmed" } else { "deleted" };
+        let matches = current_document.as_ref().map(|document| document == original_document && current_items.as_slice() == original_items.as_slice());
+        return Ok(json!({"receiptVersion":DOCUMENT_CREATION_RECEIPT_VERSION,
+            "creationRequestId":request.id,"entity":request.entity,"status":status,"documentId":request.id,
+            "originalResponse":response,"currentDocument":current_document,
+            "currentItems":current_items,"originalMatchesCurrent":matches}));
+    }
+    // A deterministic ID without the matching immutable receipt is not proof.
+    // Check both document tables: a type change cannot reuse the same attempt.
+    let exists: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM quotes WHERE id=?1) OR EXISTS(SELECT 1 FROM invoices WHERE id=?1)",
+        [&request.id], |row| row.get(0),
+    )?;
+    let used_elsewhere: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sales_operation_requests WHERE request_id=?1) OR EXISTS(SELECT 1 FROM audit_log WHERE entity_type='quote_revision_request' AND entity_id=?1 AND action='complete')",
+        [&request.id], |row| row.get(0),
+    )?;
+    if exists || used_elsewhere {
+        return Err(AppError::Validation("Un document ou une autre opération utilise déjà cette référence sans confirmation correspondante. Vérifiez les documents enregistrés avant de continuer.".into()));
+    }
+    Ok(json!({"receiptVersion":DOCUMENT_CREATION_RECEIPT_VERSION,
+        "creationRequestId":request.id,"entity":request.entity,"status":"missing","documentId":request.id,
+        "originalResponse":Value::Null,"currentDocument":Value::Null,"currentItems":[],
+        "originalMatchesCurrent":Value::Null}))
 }
 
 fn value_object(data: Value) -> AppResult<Map<String, Value>> {
@@ -11863,3 +12022,7 @@ mod timer_work_date_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "document_creation_receipt_tests.rs"]
+mod document_creation_receipt_tests;

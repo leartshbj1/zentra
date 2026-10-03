@@ -1,3 +1,5 @@
+import { copyDiagnosticIntent } from './diagnosticIntent';
+import { withKnownErrorIncident } from './diagnostics';
 import type { Workspace } from './types';
 import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { mutationOriginInvokeArgs, WorkspaceMemberOriginChangedError } from './workspaceMemberOrigin';
@@ -12,8 +14,8 @@ export function memberOriginNativeFailure(reason: unknown): WorkspaceOriginChang
   const raw = typeof reason === 'string' ? reason : reason instanceof Error ? reason.message : null;
   if (raw === null) return null;
   const message = raw.trim().replace(/^Champ invalide\s*:\s*/, '');
-  if (message === CHANGED_WORKSPACE) return new WorkspaceOriginChangedError();
-  return message === CHANGED_MEMBER || message === UNVERIFIED_MEMBER ? new WorkspaceMemberOriginChangedError(message) : null;
+  if (message === CHANGED_WORKSPACE) return withKnownErrorIncident(new WorkspaceOriginChangedError(), reason);
+  return message === CHANGED_MEMBER || message === UNVERIFIED_MEMBER ? withKnownErrorIncident(new WorkspaceMemberOriginChangedError(message), reason) : null;
 }
 
 /** Native context admission does not replace require_write or server authorization. */
@@ -25,7 +27,7 @@ export async function invokeInMemberOrigin<T>(
   expectedWorkspaceScope?: string,
 ): Promise<T> {
   const bound = mutationOriginInvokeArgs(origin, expectedWorkspaceScope);
-  try { return await invoke(command, { ...args, ...bound }); }
+  try { return await invoke(command, copyDiagnosticIntent(args, { ...args, ...bound }, command)); }
   catch (reason) { throw memberOriginNativeFailure(reason) ?? reason; }
 }
 

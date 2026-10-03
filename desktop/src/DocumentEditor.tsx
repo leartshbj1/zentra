@@ -1,5 +1,11 @@
+import {documentConsultationText,consultationIdentityMatches,validConsultationDraft,type DocumentCreationConsultation} from './documentCreationConsultation';
+import {useDocumentCreationOrigin} from './documentCreationOrigin';
+import './document-creation-recovery.css';
+import {documentNumberEntry} from './documentNumberEntry';
+import {documentCreationText,validDocumentCreationId,prepareDocumentCreationRequest,freezeDocumentCreationRequest,type DocumentCreationInput,type DocumentCreationRequest,type DocumentCreationReceipt} from './documentCreationRequest';
 import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
-import { getAppLocale, t, useAppLanguage } from './language';
+import { getAppLanguage, getAppLocale, t, useAppLanguage, type AppLanguage } from './language';
+import { createLocalValidationError } from './localValidation';
 import { DocumentNumberInput } from './DocumentNumberInput';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode, type SetStateAction } from 'react';
 import {
@@ -27,10 +33,10 @@ import {
 } from './utils';
 import { Button, ErrorPanel, Field, FormActions, Modal, submitForm } from './ui';
 import { projectTerminology } from './terminology';
-import { FormDraftNotice, draftText, useFormDraft, useFormDraftScope } from './useFormDraft';
+import { FormDraftNotice, draftText, useFormDraft, useFormDraftScope, useFormDraftIdentity } from './useFormDraft';
 import { formDraftFingerprint } from './formDrafts';
 import { initialDocumentFormDraft, validDocumentFormDraft, type DocumentFormDraft } from './documentFormDraft';
-import { ErrorGuidance } from './ErrorGuidance';
+import { ErrorDetails, ErrorGuidance } from './ErrorGuidance';
 import {WorkspaceCreationOutcomeUnknownError} from './workspaceCreation';
 import {documentQuickClientFields, emptyDocumentQuickClient, QuickClientCreationUnconfirmedError, quickClientCreationRecovery, validQuickClientCreationId} from './documentQuickClientDraft';
 import {
@@ -65,7 +71,8 @@ export function DocumentEditor({
   workspace,
   busy,
   readOnlyReason,
-  readOnly = false,
+  readOnly: suppliedReadOnly = false,
+  consultation,
   close,
   act,
   onReadWorkspace = async()=>{throw Error(t("Fermez et rouvrez ce document pour actualiser les règlements."));},
@@ -80,12 +87,17 @@ export function DocumentEditor({
   busy: boolean;
   readOnlyReason?: string;
   readOnly?: boolean;
+  consultation?: DocumentCreationConsultation;
   close: () => void;
   act: ActionRunner;
-  onReadWorkspace?:()=>Promise<Workspace>;
+  onReadWorkspace?:(origin?:WorkspaceMutationOrigin,validateRead?:()=>void)=>Promise<Workspace>;
   onOpenSettlementHelp?:(destination:'accounts'|'periods'|'bank')=>void;
 }) {
-  const quickRecovery = quickClientCreationRecovery[useAppLanguage()];
+  const language=useAppLanguage(),creationText=documentCreationText[language],consultationText=documentConsultationText[language];
+  const identity=useFormDraftIdentity(), readOnly=suppliedReadOnly||!!consultation;
+  const consultationCurrent=!consultation||consultationIdentityMatches(consultation,workspace.workNotesScope,identity);
+  const quickRecovery = quickClientCreationRecovery[language];
+  const captureCreationOrigin=useDocumentCreationOrigin(workspace);
   const settings = workspace.settings!;
   const unitsId = useId();
   const terminology = projectTerminology(settings.business.nogaSection);
@@ -95,17 +107,21 @@ export function DocumentEditor({
   const currentInvoice = entity === 'invoices' ? (item as Invoice | undefined) : undefined;
   const reservedTime = Boolean(currentInvoice && workspace.timeBillingBatches?.some(batch => batch.invoiceId === currentInvoice.id));
   const hasCustomerCredit = Boolean(currentInvoice && currentInvoice.status !== 'draft' && workspace.invoices.some((invoice)=>invoice.customerCredit && (invoice.id===currentInvoice.id || invoice.originalInvoiceId===currentInvoice.id || invoice.creditSettlements?.some((event)=>event.invoiceId===currentInvoice.id))));
-  const [emptyLineId] = useState(createId);
-  const [initialQuickClientId] = useState(createId);
-  const persisted = useFormDraft({ scope: useFormDraftScope(workspace, entity, suppliedItem?.id, !suppliedItem ? 'quote:' + (quoteSource?.id || '') + ';project:' + (initialProject?.id || '') : ''),
-    initial: initialDocumentFormDraft(entity, settings, emptyLineId, item, quoteSource, initialProject, initialStep, initialQuickClientId),
-    fingerprint: suppliedItem ? currentRecord ? formDraftFingerprint(currentRecord) : 'missing' : quoteSource ? formDraftFingerprint(quoteSource) : 'new', validate: validDocumentFormDraft });
+  const [emptyLineId] = useState(()=>consultation?'consultation-line':createId());
+  const [initialQuickClientId] = useState(()=>consultation?undefined:createId());
+  const [initialDocumentCreationId] = useState(()=>consultation?.creationRequestId||createId());
+  const ordinaryScope=useFormDraftScope(workspace, entity, suppliedItem?.id, !suppliedItem ? 'quote:' + (quoteSource?.id || '') + ';project:' + (initialProject?.id || '') : '');
+  const persisted = useFormDraft({ scope: consultation?.scope??ordinaryScope,
+    initial: initialDocumentFormDraft(entity, settings, emptyLineId, item, quoteSource, initialProject, initialStep, initialQuickClientId, suppliedItem ? undefined : initialDocumentCreationId),
+    fingerprint: consultation?.fingerprint??(suppliedItem ? currentRecord ? formDraftFingerprint(currentRecord) : 'missing' : quoteSource ? formDraftFingerprint(quoteSource) : 'new'), validate: consultation?(value):value is DocumentFormDraft=>validConsultationDraft(value,consultation):validDocumentFormDraft });
   // Do not overwrite an unreadable previous draft with a fresh client identity.
   const [initialDraftReadFailed] = useState(() => persisted.storageError && !persisted.dirty && !persisted.pending && !persisted.invalid);
   const { lines, selectedClientId, selectedProjectId, quickClientOpen, quickClient, issueDate, dueDate, invoiceType, depositPercentage,
     serviceDateFrom, serviceDateTo, originalInvoiceId, footerText, footerTemplateId, footerTemplateName, step, documentTitle, documentNotes } = persisted.value;
+  const creationFrozen=!suppliedItem && !!persisted.value.documentCreationRequest;
+  const creationLegacy=!suppliedItem && !validDocumentCreationId(persisted.value.documentCreationId);
   function changeDraft<K extends keyof DocumentFormDraft>(field: K, next: SetStateAction<DocumentFormDraft[K]>) {
-    if (initialDraftReadFailed) return;
+    if (consultation || initialDraftReadFailed || creationFrozen) return;
     persisted.setValue(previous => ({ ...previous, [field]: typeof next === 'function' ? (next as (value: DocumentFormDraft[K]) => DocumentFormDraft[K])(previous[field]) : next }));
   }
   const setLines = (next: SetStateAction<DocumentFormDraft['lines']>) => changeDraft('lines', next);
@@ -126,11 +142,16 @@ export function DocumentEditor({
   const setStep = (next: SetStateAction<DocumentFormDraft['step']>) => changeDraft('step', next);
   const setDocumentTitle = (next: SetStateAction<DocumentFormDraft['documentTitle']>) => changeDraft('documentTitle', next);
   const setDocumentNotes = (next: SetStateAction<DocumentFormDraft['documentNotes']>) => changeDraft('documentNotes', next);
-  const numberDraftProps = (id: string) => ({ rawValue: persisted.value.numberInputs[id], onRawChange: (value: string) => persisted.setValue(previous => ({ ...previous, numberInputs: { ...previous.numberInputs, [id]: value } })) });
-  const closeForm = () => persisted.close(close);
-  const draftBlocked = initialDraftReadFailed || !!persisted.pending || persisted.conflict || persisted.invalid || !!(suppliedItem && !currentRecord);
+  const numberDraftProps = (id: string) => ({ rawValue: persisted.value.numberInputs[id], onRawChange: (value: string) => {if(consultation||creationFrozen)return;persisted.setValue(previous => ({ ...previous, numberInputs: { ...previous.numberInputs, [id]: value } }));} });
+  const closeForm = () => consultation?close():persisted.close(close);
+  const draftBlocked = creationFrozen || creationLegacy || initialDraftReadFailed || !!persisted.pending || persisted.conflict || persisted.invalid || !!(suppliedItem && !currentRecord);
   const [saving, setSaving] = useState(false), submission = useRef(false);
   const [saveFailure, setSaveFailure] = useState<unknown>(null);
+  const [creationStorageFailure,setCreationStorageFailure]=useState(false);
+  const [creationReceipt,setCreationReceipt]=useState<DocumentCreationReceipt|null>(null);
+  const [creationKnownSaved,setCreationKnownSaved]=useState(false);
+  const [probeBusy,setProbeBusy]=useState(false);
+  const probeSubmission=useRef(false);
   const quickSubmission = useRef(false);
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickFailure, setQuickFailure] = useState<unknown>(null);
@@ -157,7 +178,12 @@ export function DocumentEditor({
     invoiceType !== currentInvoice.type || serviceDateFrom !== currentInvoice.serviceDateFrom ||
     serviceDateTo !== currentInvoice.serviceDateTo
   ));
-  const [localError, setLocalError] = useState('');
+  const [localValidation, setLocalValidation] = useState<{ message: string; language: AppLanguage } | null>(null);
+  const localError = localValidation?.message || '';
+  const setLocalError = useCallback((message: string, language: AppLanguage = getAppLanguage()) => setLocalValidation(message ? { message, language } : null), []);
+  // This text is authored by local field checks, never by an IPC rejection.
+  // Preserve its original language if the user changes language while it is visible.
+  const localValidationError = useMemo(() => localValidation ? createLocalValidationError(localValidation.message, localValidation.language) : null, [localValidation]);
   const [numberErrors, setNumberErrors] = useState<Record<string, string>>({});
   const numberValidity = useCallback((id: string, error: string) => {
     setNumberErrors(previous => { if ((previous[id] || '') === error) return previous; const next = { ...previous }; if (error) next[id] = error; else delete next[id]; return next; });
@@ -216,15 +242,19 @@ export function DocumentEditor({
     return () => cancelAnimationFrame(frame);
   }, [step, saveAttempt]);
 
-  function showStepError(index: number, message: string, field?: HTMLElement) {
+  function showStepError(index: number, message: string, field?: HTMLElement, language: AppLanguage = getAppLanguage()) {
     pendingFocus.current = field || null;
-    setLocalError(message);
+    setLocalError(message, language);
     setSaveAttempt((attempt) => attempt + 1);
     if (step !== index) setStep(index);
     return false;
   }
 
-  function validateStep(index: number) {
+  function validateStep(index: number, snapshot:DocumentFormDraft=persisted.value) {
+    const {lines,quickClientOpen,documentTitle,invoiceType,issueDate,dueDate,serviceDateFrom,serviceDateTo,depositPercentage,originalInvoiceId}=snapshot;
+    const creditOriginal=invoiceType==='credit_note'?workspace.invoices.find(invoice=>invoice.id===originalInvoiceId):undefined;
+    const documentVatRates=creditOriginal?[...new Set(creditOriginal.lines.map(line=>line.vatRateBp))].filter(rate=>rate>=0).sort((a,b)=>a-b):[...new Set([0,...settings.billing.vatRatesBp])];
+    const depositPercentageBp=Math.round(Number(depositPercentage.replace(',','.'))*100);
     const fields = formRef.current?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(`[data-document-step="${index}"] input, [data-document-step="${index}"] select, [data-document-step="${index}"] textarea`);
     const invalid = [...(fields || [])].find((field) => !field.checkValidity());
     if (invalid) {
@@ -239,7 +269,7 @@ export function DocumentEditor({
       const issue = documentLineIssue(lines);
       if (issue) return showStepError(1, issue.message, formRef.current?.querySelector<HTMLElement>(`[data-line-number="${issue.index + 1}"] [aria-label="${t(issue.field)}"]`) || undefined);
       const invalidVat = settings.organization.vatRegistered ? lines.findIndex(line => !documentVatRates.includes(line.vatRateBp)) : -1;
-      if (invalidVat >= 0) return showStepError(1, `Ligne ${invalidVat + 1} : choisissez un taux de TVA disponible pour ce document.`, formRef.current?.querySelector<HTMLElement>(`[data-line-number="${invalidVat + 1}"] [aria-label="Taux TVA"]`) || undefined);
+      if (invalidVat >= 0) return showStepError(1, `Ligne ${invalidVat + 1} : choisissez un taux de TVA disponible pour ce document.`, formRef.current?.querySelector<HTMLElement>(`[data-line-number="${invalidVat + 1}"] [aria-label="Taux TVA"]`) || undefined, 'fr');
     }
     if (index === 2) {
       const error = entity === 'quotes' || invoiceType !== 'credit_note' ? salesDocumentDateError(entity, issueDate, dueDate) : '';
@@ -289,10 +319,96 @@ export function DocumentEditor({
     setCatalogItemId('');
   }
 
+  // Last synchronous snapshot + core storage readback before constructing IPC.
+  // The request retains backend input verbatim; no nonce is stored with it.
+  function captureCreationDraft() {
+    if(consultation)return null;
+    let numberError='';
+    const captured=persisted.setValue(previous=>{
+      const next={...previous,numberInputs:{...previous.numberInputs},lines:previous.lines.map(line=>({...line}))};
+      for(const [name,field] of [['title','documentTitle'],['notes','documentNotes'],['terms','footerText'],['clientId','selectedClientId'],['projectId','selectedProjectId']] as const){
+        const node=formRef.current?.querySelector<HTMLInputElement|HTMLTextAreaElement|HTMLSelectElement>(`[name="${name}"]`);if(node)next[field]=node.value;
+      }
+      for(const field of ['issueDate','dueDate','invoiceType','originalInvoiceId','serviceDateFrom','serviceDateTo'] as const){const node=formRef.current?.querySelector<HTMLInputElement|HTMLSelectElement>(`[data-document-draft-field="${field}"]`);if(node)next[field]=node.value as never;}
+      next.lines=next.lines.map(line=>{
+        const row=Array.from(formRef.current?.querySelectorAll<HTMLElement>('[data-document-line-id]')??[]).find(node=>node.dataset.documentLineId===line.id);if(!row)return line;
+        const result={...line};
+        for(const field of ['description','unit'] as const){const node=row.querySelector<HTMLInputElement>(`[data-document-line-field="${field}"]`);if(node)result[field]=node.value;}
+        const vat=row.querySelector<HTMLSelectElement>('[data-document-line-field="vatRateBp"]');if(vat)result.vatRateBp=documentVatRateFromInput(vat.value);
+        for(const [suffix,kind,field] of [['quantity','quantity','quantity'],['price','price','unitPriceCents'],['discount','discount','discountBp']] as const){
+          const id=line.id+'-'+suffix,node=Array.from(row.querySelectorAll<HTMLInputElement>('[data-document-number-id]')).find(node=>node.dataset.documentNumberId===id);if(!node)continue;next.numberInputs[id]=node.value;
+          const parsed=documentNumberEntry(node.value,kind);node.setCustomValidity(parsed.error);if(parsed.value===null){numberError ||= parsed.error;}else result[field]=parsed.value;
+        }
+        return result;
+      });
+      const percentage=formRef.current?.querySelector<HTMLInputElement>('[data-document-number-id="deposit-percentage"]');
+      if(percentage){next.numberInputs['deposit-percentage']=percentage.value;const parsed=documentNumberEntry(percentage.value,'deposit');percentage.setCustomValidity(parsed.error);if(parsed.value===null)numberError ||= parsed.error;else next.depositPercentage=String(parsed.value/100);}
+      return next;
+    });
+    const failed=captured.storageError || !!captured.pending || captured.invalid || captured.conflict || captured.initialReadState!=='ready';
+    setCreationStorageFailure(failed);
+    if(numberError)setLocalError(numberError);
+    return failed || numberError ? null : captured.value;
+  }
+  function creationAvailable(){return consultationCurrent&&(!initialDraftReadFailed||!!consultation)&&!persisted.pending&&!persisted.conflict&&!persisted.invalid&&(!consultation||!persisted.completedResidual)&&persisted.initialReadState==='ready';}
+  function retryCreationStorage(){if(consultation||busy||saving||probeBusy||!creationAvailable())return;const captured=persisted.setValue(previous=>previous);setCreationStorageFailure(captured.storageError||!!captured.pending||captured.invalid||captured.conflict);}
+  function prepareLegacyDocument(){if(busy||saving||readOnly||!creationAvailable()||creationFrozen)return;const captured=persisted.setValue(previous=>({...previous,documentCreationId:createId()}));setCreationStorageFailure(captured.storageError);}
+  async function sendCreation(request:DocumentCreationRequest){
+    if(submission.current||busy||saving||probeBusy||readOnly||!creationAvailable()||persisted.storageError)return;
+    let captured:ReturnType<typeof captureCreationOrigin>;
+    try{captured=captureCreationOrigin(request);captured.assertCurrent();}catch(reason){setSaveFailure(reason);return;}
+    const frozen=freezeDocumentCreationRequest(request);
+    submission.current=true;setSaving(true);setSaveFailure(null);setCreationReceipt(null);
+    try{
+      const saved=await act(origin=>{
+        captured.assertCurrent();
+        if(origin.workspaceScope!==captured.origin.workspaceScope||origin.memberContextNonce!==captured.origin.memberContextNonce)throw new Error('Le compte connecté a changé. Rouvrez cette action avec le bon compte.');
+        return desktopApi.saveDocumentCreation(frozen,captured.origin.workspaceScope,captured.origin.memberContextNonce,captured.assertCurrent);
+      },entity==='quotes'?t('Le devis a été enregistré en brouillon.'):t('La facture a été enregistrée en brouillon.'),false,reason=>setSaveFailure(reason),()=>captured.assertCurrent());
+      captured.assertCurrent();
+      if(saved){setCreationKnownSaved(true);if(persisted.complete(true))close();}
+    }catch(reason){setSaveFailure(reason);}
+    finally{submission.current=false;setSaving(false);}
+  }
+  async function submitNewDocument(){
+    const snapshot=captureCreationDraft();if(!snapshot)return;
+    if(!validDocumentCreationId(snapshot.documentCreationId)||snapshot.documentCreationRequest)return;
+    for(let index=0;index<3;index++)if(!validateStep(index,snapshot))return;
+    const {lines,selectedClientId,selectedProjectId,issueDate,dueDate,invoiceType,depositPercentage,originalInvoiceId,serviceDateFrom,serviceDateTo,documentTitle,documentNotes,footerText}=snapshot;
+    const creditOriginal=invoiceType==='credit_note'?workspace.invoices.find(invoice=>invoice.id===originalInvoiceId):undefined;
+    const depositPercentageBp=Math.round(Number(depositPercentage.replace(',','.'))*100);
+    const depositLines=invoiceType==='deposit'&&validDepositPercentageBp(depositPercentageBp)?buildDepositLines(lines,depositPercentageBp):lines;
+    const totals=documentTotals(depositLines),currency=creditOriginal?.currency||quoteSource?.currency||settings.billing.currency||'CHF';
+    const lineError=documentLinesValidationError(lines);if(lineError){setLocalError(lineError);return;}
+    if(entity==='invoices'&&(!invoiceType||!serviceDateFrom||!serviceDateTo||serviceDateFrom>serviceDateTo)){setLocalError(t('Choisissez le type et une période de prestation valide avant l’enregistrement.'));return;}
+    if(invoiceType==='credit_note'&&!originalInvoiceId){setLocalError(t('Un avoir doit référencer explicitement la facture originale.'));return;}
+    if(entity==='invoices'&&invoiceType==='deposit'&&!validDepositPercentageBp(depositPercentageBp)){setLocalError(t('Saisissez un acompte compris entre 0,01 et 100 % avant l’enregistrement.'));return;}
+    const data:Record<string,unknown>={clientId:creditOriginal?.clientId||selectedClientId,projectId:creditOriginal?creditOriginal.projectId:selectedProjectId||null,title:documentTitle,status:'draft',issueDate,currency,subtotalCents:totals.subtotalCents,discountCents:totals.discountCents,vatCents:totals.vatCents,totalCents:totals.totalCents,notes:documentNotes,terms:footerText};
+    if(entity==='quotes')data.validUntil=dueDate;
+    else Object.assign(data,{dueDate:invoiceType==='credit_note'?'':dueDate,type:invoiceType,quoteId:quoteSource?.id??null,originalInvoiceId:invoiceType==='credit_note'?originalInvoiceId:null,serviceDateFrom,serviceDateTo,paidCents:0,depositPercentageBp:invoiceType==='deposit'?depositPercentageBp:null,depositBasisLines:invoiceType==='deposit'?lines:null});
+    try{
+      const origin=captureCreationOrigin();
+      const request=prepareDocumentCreationRequest(snapshot.documentCreationId,desktopApi.prepareDocumentSaveInput(entity,data,depositLines) as DocumentCreationInput,origin.origin.workspaceScope,origin.memberId);
+      const captured=persisted.setValue(previous=>({...previous,documentCreationRequest:request}));
+      if(captured.storageError||captured.pending||captured.invalid||captured.conflict||captured.initialReadState!=='ready'||JSON.stringify(captured.value.documentCreationRequest)!==JSON.stringify(request)){setCreationStorageFailure(true);return;}
+      origin.assertCurrent();setLocalError('');await sendCreation(request);
+    }catch(reason){setSaveFailure(reason);}
+  }
+  async function probeCreation(){
+    if(probeSubmission.current||busy||saving||probeBusy||persisted.storageError||!creationAvailable()||!persisted.value.documentCreationRequest)return;
+    probeSubmission.current=true;setProbeBusy(true);setSaveFailure(null);setCreationReceipt(null);
+    try{const request=freezeDocumentCreationRequest(persisted.value.documentCreationRequest),captured=captureCreationOrigin(request);captured.assertCurrent();
+      const receipt=await desktopApi.getDocumentCreationReceipt(request,captured.origin.workspaceScope,captured.origin.memberContextNonce);
+      captured.assertCurrent();setCreationReceipt(receipt);
+    }catch(reason){setSaveFailure(reason);}finally{probeSubmission.current=false;setProbeBusy(false);}
+  }
+  function finishCreation(){if(consultation||busy||saving||probeBusy||!creationReceipt||creationReceipt.status==='missing'||!persisted.value.documentCreationRequest)return;try{captureCreationOrigin(persisted.value.documentCreationRequest).assertCurrent();if(persisted.complete(true))close();}catch(reason){setSaveFailure(reason);}}
+  async function refreshCreation(){if(consultation||busy||saving||probeBusy||!creationReceipt||creationReceipt.status==='missing'||!persisted.value.documentCreationRequest)return;setProbeBusy(true);try{const captured=captureCreationOrigin(persisted.value.documentCreationRequest);captured.assertCurrent();await onReadWorkspace(captured.origin,captured.assertCurrent);captured.assertCurrent();}catch(reason){setSaveFailure(reason);}finally{setProbeBusy(false);}}
+
   // Preserve the whole document; capture the final quick-client DOM values
   // synchronously, including a keystroke React has not rendered yet.
   function captureQuickClient(creationId?: string) {
-    if (initialDraftReadFailed) return null;
+    if (consultation || initialDraftReadFailed) return null;
     const captured = persisted.setValue(previous => {
       const quick = {...previous.quickClient};
       for (const field of documentQuickClientFields) {
@@ -314,7 +430,7 @@ export function DocumentEditor({
   const discardDocumentDraft = () => {
     // Closing after verified deletion ensures a fresh quick-client identity on
     // the next mount. A failed deletion retains the exact UUID and open form.
-    if (persisted.discard()) close();
+    if (!consultation && persisted.discard()) close();
   };
   const prepareLegacyQuickClient = () => {
     if (busy || saving || quickSaving || readOnly || draftBlocked || validQuickClientCreationId(persisted.value.quickClientCreationId)) return;
@@ -331,7 +447,7 @@ export function DocumentEditor({
     const id = captured.quickClientCreationId;
     let client: ReturnType<typeof prepareDocumentQuickClient>;
     try { client = prepareDocumentQuickClient(captured.quickClient, id); }
-    catch (reason) { setLocalError(reason instanceof Error ? reason.message : t("Le nouveau client n’a pas pu être préparé.")); return; }
+    catch (reason) { setLocalError(reason instanceof Error ? reason.message : t("Le nouveau client n’a pas pu être préparé."), reason instanceof Error ? 'fr' : getAppLanguage()); return; }
     quickSubmission.current = true; setQuickSaving(true);
     try {
       const saved = await act(
@@ -375,6 +491,7 @@ export function DocumentEditor({
         reason instanceof Error
           ? reason.message
           : t("Le modèle de bas de page n’a pas pu être préparé."),
+        reason instanceof Error ? 'fr' : getAppLanguage(),
       );
       return;
     }
@@ -382,11 +499,11 @@ export function DocumentEditor({
       (template) => template.id === update.id,
     );
     const saved = await act(
-      () =>
+      (origin) =>
         desktopApi.saveSettings({
           ...settings,
           billing: { ...settings.billing, footerTemplates: update.templates },
-        }, workspace.workNotesScope),
+        }, origin.workspaceScope, origin.memberContextNonce),
       existing
         ? t('Le modèle « {name} » a été mis à jour.', {name: update.name})
         : t('Le modèle « {name} » a été enregistré.', {name: update.name}),
@@ -411,7 +528,7 @@ export function DocumentEditor({
     if (!template) return;
     setSaveFailure(null);
     const saved = await act(
-      () =>
+      (origin) =>
         desktopApi.saveSettings({
           ...settings,
           billing: {
@@ -420,7 +537,7 @@ export function DocumentEditor({
               (candidate) => candidate.id !== template.id,
             ),
           },
-        }, workspace.workNotesScope),
+        }, origin.workspaceScope, origin.memberContextNonce),
       t('Le modèle « {name} » a été supprimé.', {name: template.name}),
       false,
       reason => { setSaveFailure(reason); setSaveAttempt(attempt => attempt + 1); },
@@ -435,6 +552,7 @@ export function DocumentEditor({
     }
   }
 
+  if(consultation&&!consultationCurrent)return <Modal title={consultationText.title} onClose={close}><p>{consultationText.empty}</p><Button type="button" onClick={close}>{consultationText.close}</Button></Modal>;
   return (
     <Modal
       title={entity === 'quotes'
@@ -463,6 +581,7 @@ export function DocumentEditor({
         onChange={() => { if (localError) setLocalError(''); }}
         onSubmit={submitForm(async (form) => {
           if (busy || saving || submission.current || isLocked || readOnly || draftBlocked) return;
+          if(step===3 && !item){await submitNewDocument();return;}
           const originWorkspaceScope = workspace.workNotesScope;
           if (step < 3) { goToStep(step + 1); return; }
           if (reservedTimeDraftChanged) {
@@ -494,7 +613,7 @@ export function DocumentEditor({
               ? salesDocumentDateError(entity, issueDate, dueDate)
               : '';
           if (dateError) {
-            setLocalError(dateError);
+            setLocalError(dateError, 'fr');
             return;
           }
           if (invoiceType === 'credit_note' && !originalInvoiceId) {
@@ -568,7 +687,17 @@ export function DocumentEditor({
           finally { submission.current = false; setSaving(false); }
         })}
       >
-        {!isLocked && <FormDraftNotice draft={{...persisted, discard:discardDocumentDraft, retryStorage:quickStorageFailure ? retryQuickStorage : persisted.retryStorage}} disabled={busy || saving || quickSaving || readOnly} currentValues={item ? [{ label: t('Titre du document'), value: item.title }, { label: t('Client'), value: workspace.clients.find(row => row.id === item.clientId)?.company || workspace.clients.find(row => row.id === item.clientId)?.name || item.clientId }, { label: terminology.singular, value: workspace.projects.find(row => row.id === item.projectId)?.name || item.projectId || '' }, { label: t('Date d’émission'), value: item.issueDate }, { label: t('Conditions'), value: entity === 'quotes' ? (item as Quote).validUntil : (item as Invoice).dueDate }, { label: t('Prestations'), value: item.lines.map(line => `${line.description} · ${line.quantity} ${line.unit} · ${formatMoney(line.unitPriceCents, item.currency)} · ${line.vatRateBp / 100} %`).join('\n') }, { label: t('Notes'), value: item.notes }, { label: t('Texte personnalisé en bas de page'), value: item.terms }] : undefined} />}
+        {consultation ? <aside className="form-draft-notice" data-document-creation-consultation aria-label={consultationText.title}>
+          <div><strong>{consultationText.title}</strong><p>{consultationText.intro}</p>
+            {persisted.initialReadState==='unknown'&&<p>{draftText('Gardez ce formulaire ouvert. Une ancienne saisie peut être présente. Relisez le stockage local avant de continuer ; rien ne sera remplacé ni envoyé.')}</p>}
+            {(persisted.invalid||persisted.completedResidual||persisted.conflict||!persisted.pending&&persisted.initialReadState==='ready'&&!persisted.value.documentCreationRequest)&&<p>{consultationText.empty}</p>}
+          </div>
+          <div className="form-draft-notice__actions">
+            {persisted.pending&&!persisted.storageError&&!persisted.invalid&&!persisted.completedResidual&&<Button type="button" size="small" variant="secondary" disabled={busy||probeBusy} onClick={()=>{if(consultationCurrent)persisted.restore();}}>{draftText('Reprendre ma saisie')}</Button>}
+            {persisted.initialReadState==='unknown'&&<Button type="button" size="small" variant="secondary" disabled={busy||probeBusy} onClick={()=>{if(consultationCurrent)persisted.retryInitialRead();}}>{draftText('Relire les brouillons locaux')}</Button>}
+          </div>
+        </aside> : null}
+        {!consultation && !isLocked && <FormDraftNotice draft={{...persisted, discard:discardDocumentDraft, retryStorage:quickStorageFailure ? retryQuickStorage : persisted.retryStorage}} disabled={busy || saving || quickSaving || probeBusy || readOnly} currentValues={item ? [{ label: t('Titre du document'), value: item.title }, { label: t('Client'), value: workspace.clients.find(row => row.id === item.clientId)?.company || workspace.clients.find(row => row.id === item.clientId)?.name || item.clientId }, { label: terminology.singular, value: workspace.projects.find(row => row.id === item.projectId)?.name || item.projectId || '' }, { label: t('Date d’émission'), value: item.issueDate }, { label: t('Conditions'), value: entity === 'quotes' ? (item as Quote).validUntil : (item as Invoice).dueDate }, { label: t('Prestations'), value: item.lines.map(line => `${line.description} · ${line.quantity} ${line.unit} · ${formatMoney(line.unitPriceCents, item.currency)} · ${line.vatRateBp / 100} %`).join('\n') }, { label: t('Notes'), value: item.notes }, { label: t('Texte personnalisé en bas de page'), value: item.terms }] : undefined} />}
         {reservedTimeDraftChanged && currentInvoice && !isLocked ? <aside className="form-draft-notice" aria-label={t("Heures réservées")}>
           <div><strong>{t("Les heures facturées restent inchangées")}</strong><p>{t("Cette saisie contient des changements de lignes ou de rattachement. Reprenez les valeurs enregistrées pour ces champs ; votre titre, vos notes, vos dates de facture et votre texte de bas de page seront conservés.")}</p></div>
           <Button type="button" variant="secondary" size="small" disabled={busy || saving || readOnly || draftBlocked} onClick={() => {
@@ -581,17 +710,28 @@ export function DocumentEditor({
             setLocalError('');
           }}>{t("Reprendre les heures réservées")}</Button>
         </aside> : null}
-        {initialDraftReadFailed ? <aside className="contact-form-failure" role="alert" data-quick-client-read-recovery><p>{quickRecovery.read}</p><Button type="button" size="small" variant="secondary" onClick={closeForm}>{quickRecovery.reopen}</Button></aside> : null}
+        {!consultation && initialDraftReadFailed ? <aside className="contact-form-failure" role="alert" data-quick-client-read-recovery><p>{quickRecovery.read}</p><Button type="button" size="small" variant="secondary" onClick={closeForm}>{quickRecovery.reopen}</Button></aside> : null}
         {quickStorageFailure ? <aside className="contact-form-failure" role="alert" data-quick-client-storage-recovery><p>{quickRecovery.storage}</p><Button type="button" size="small" variant="secondary" disabled={busy || saving || quickSaving || readOnly || draftBlocked} onClick={retryQuickStorage}>{draftText('Réessayer la sauvegarde locale')}</Button></aside> : null}
-        {quickFailure instanceof QuickClientCreationUnconfirmedError ? <aside className="contact-form-failure" role="alert" data-quick-client-creation-recovery><strong>{quickRecovery.title}</strong><p>{quickRecovery.message}</p><p>{quickRecovery.instruction}</p></aside> : quickFailure ? <ErrorGuidance error={quickFailure} operation="mutation" compact /> : null}
-        {saveFailure ? <ErrorGuidance error={saveFailure} operation="mutation" compact /> : null}
+        {quickFailure instanceof QuickClientCreationUnconfirmedError ? <aside className="contact-form-failure" role="alert" data-quick-client-creation-recovery><strong>{quickRecovery.title}</strong><p>{quickRecovery.message}</p><p>{quickRecovery.instruction}</p><ErrorDetails error={quickFailure}/></aside> : quickFailure ? <ErrorGuidance error={quickFailure} operation="mutation" compact /> : null}
+        {!consultation && !item && creationLegacy && creationAvailable() ? <aside className="contact-form-failure" data-document-creation-legacy><p>{creationText.legacy}</p><Button type="button" variant="secondary" size="small" disabled={busy||saving||readOnly} onClick={prepareLegacyDocument}>{creationText.prepare}</Button></aside> : null}
+        {!consultation && !item && (creationStorageFailure || persisted.storageError && creationFrozen) && creationAvailable() ? <aside className="contact-form-failure" role="alert" data-document-creation-storage><p>{creationText.storage}</p><Button type="button" size="small" variant="secondary" disabled={busy||saving||probeBusy} onClick={retryCreationStorage}>{creationText.localRetry}</Button></aside> : null}
         {!isLocked && <nav className="document-stepper" aria-label={t("Étapes de création")}>
           <div className="document-stepper__intro"><span>{t("Votre document")}</span><strong>{documentTitle.trim() || (entity === 'quotes' ? t("Nouveau devis") : invoiceType === 'credit_note' ? t("Nouvel avoir") : t("Nouvelle facture"))}</strong></div>
           <ol>{steps.map((label, index) => <li key={label}><button type="button" aria-label={`${index + 1}. ${label}`} aria-current={step === index ? 'step' : undefined} disabled={busy || saving || draftBlocked} onClick={() => goToStep(index)}><span className="document-stepper__number" aria-hidden="true">{index < step ? <Check size={14} /> : index + 1}</span><span className="document-stepper__label"><strong>{label}</strong><small>{stepDescriptions[index]}</small></span></button></li>)}</ol>
           <div className="document-stepper__track"><span style={{ transform: `scaleX(${(step + 1) / 4})` }} /></div>
           <p className="document-stepper__note">{t("Vous pourrez modifier le brouillon avant de l’émettre.")}</p>
         </nav>}
-        {localError ? <ErrorPanel key={saveAttempt} title={t("Encore un détail")} message={localError} reveal /> : null}
+        {localError ? <ErrorPanel key={saveAttempt} title={t("Encore un détail")} message={localValidationError} reveal /> : null}
+        <div className="document-form document-recovery-content">
+        {!item && creationFrozen && creationAvailable() ? <aside className="contact-form-failure" role="status" data-document-creation-receipt>
+          <strong>{creationReceipt?.status==='confirmed'||creationKnownSaved?creationText.confirmed:creationText.uncertain}</strong>
+          <p>{creationReceipt?.status==='missing'?(consultation?consultationText.missing:creationText.missing):creationReceipt?.status==='deleted'?creationText.deleted:creationReceipt?.originalMatchesCurrent===false?creationText.changed:creationText.instruction}</p>
+          {creationReceipt?.status==='confirmed' && <dl><div><dt>{t('Titre du document')}</dt><dd>{String(creationReceipt.originalResponse?.document.title??'')}</dd></div><div><dt>{t('Document enregistré')}</dt><dd>{String(creationReceipt.currentDocument?.title??'')}</dd></div></dl>}
+          <Button type="button" size="small" variant="secondary" disabled={busy||saving||probeBusy||persisted.storageError} onClick={()=>void probeCreation()}>{creationText.probe}</Button>
+          {!consultation && creationReceipt?.status==='missing' ? <Button type="button" size="small" disabled={busy||saving||probeBusy||readOnly||persisted.storageError} onClick={()=>void sendCreation(persisted.value.documentCreationRequest!)}>{creationText.retry}</Button> : null}
+          {!consultation && creationReceipt && creationReceipt.status!=='missing' ? <><Button type="button" size="small" variant="secondary" disabled={busy||saving||probeBusy} onClick={()=>void refreshCreation()}>{creationText.refresh}</Button><Button type="button" size="small" disabled={busy||saving||probeBusy} onClick={finishCreation}>{creationText.finish}</Button></> : null}
+        </aside> : null}
+        {saveFailure ? <ErrorGuidance error={saveFailure} operation="mutation" compact /> : null}
         <fieldset disabled={busy || saving || quickSaving || isLocked || readOnly || draftBlocked} className="document-form">
           <section className="document-step" data-document-step="0" hidden={!isLocked && step !== 0}>
             {stepHeading(0)}
@@ -665,7 +805,7 @@ export function DocumentEditor({
             {entity === 'invoices' ? (
               <Field label={t("Type de document")} required>
                 <select
-                  value={invoiceType}
+                  data-document-draft-field="invoiceType" value={invoiceType}
                   disabled={reservedTime}
                   onChange={(event) => {
                     setInvoiceType(event.target.value as Invoice['type'] | '');
@@ -687,7 +827,7 @@ export function DocumentEditor({
             {invoiceType === 'credit_note' ? (
               <Field label={t("Facture originale")} required wide>
                 <select
-                  value={originalInvoiceId}
+                  data-document-draft-field="originalInvoiceId" value={originalInvoiceId}
                   onChange={(event) => {
                     setOriginalInvoiceId(event.target.value);
                     const original = workspace.invoices.find((invoice) => invoice.id === event.target.value);
@@ -863,10 +1003,10 @@ export function DocumentEditor({
               <span />
             </div>
             {lines.map((line, index) => (
-              <div className="line-editor__row" key={line.id} role="group" aria-label={t('Prestation {number}', {number: index + 1})} data-line-number={index + 1}>
+              <div className="line-editor__row" key={line.id} role="group" aria-label={t('Prestation {number}', {number: index + 1})} data-line-number={index + 1} data-document-line-id={line.id}>
                 <label className="document-line-field" data-label={t("Description")}>
                 <input
-                  value={line.description}
+                  data-document-line-field="description" value={line.description}
                   onChange={(event) =>
                     updateLine(line.id, { description: event.target.value })
                   }
@@ -879,7 +1019,7 @@ export function DocumentEditor({
                 </label>
                 <label className="document-line-field" data-label={t("Unité")}>
                 <input
-                  value={line.unit}
+                  data-document-line-field="unit" value={line.unit}
                   list={unitsId}
                   placeholder={t("h, pièce, forfait…")}
                   onChange={(event) =>
@@ -900,7 +1040,7 @@ export function DocumentEditor({
                 {settings.organization.vatRegistered ? (
                   <label className="document-line-field" data-label={t("TVA")}>
                   <select
-                    value={line.vatRateBp < 0 ? '' : line.vatRateBp}
+                    data-document-line-field="vatRateBp" value={line.vatRateBp < 0 ? '' : line.vatRateBp}
                     onChange={(event) =>
                       updateLine(line.id, {
                         vatRateBp: documentVatRateFromInput(event.target.value),
@@ -951,7 +1091,7 @@ export function DocumentEditor({
             <Field label={t("Date d’émission")} required>
               <input
                 type="date"
-                value={issueDate}
+                data-document-draft-field="issueDate" value={issueDate}
                 min={creditOriginal?.issueDate || undefined}
                 onChange={(event) => {
                   setIssueDate(event.target.value);
@@ -975,6 +1115,7 @@ export function DocumentEditor({
               >
                 <input
                   type="date"
+                  data-document-draft-field="dueDate"
                   min={issueDate}
                   value={dueDate}
                   onChange={(event) => setDueDate(event.target.value)}
@@ -987,7 +1128,7 @@ export function DocumentEditor({
                 <Field label={t("Début de la prestation")} required hint={t("Pour une journée, la même date est proposée en fin. Modifiez-la si la prestation dure plus longtemps.")}>
                   <input
                     type="date"
-                    value={serviceDateFrom}
+                    data-document-draft-field="serviceDateFrom" value={serviceDateFrom}
                     readOnly={reservedTime}
                     onChange={(event) => { const next = event.target.value; setServiceDateFrom(next); if (!serviceDateTo || serviceDateTo === serviceDateFrom) setServiceDateTo(next); }}
                     required
@@ -997,7 +1138,7 @@ export function DocumentEditor({
                   <input
                     type="date"
                     min={serviceDateFrom}
-                    value={serviceDateTo}
+                    data-document-draft-field="serviceDateTo" value={serviceDateTo}
                     readOnly={reservedTime}
                     onChange={(event) => setServiceDateTo(event.target.value)}
                     required
@@ -1150,6 +1291,7 @@ export function DocumentEditor({
             <p className="document-review__hint">{t("Enregistrez le brouillon pour ouvrir son aperçu et exporter un PDF. Le numéro définitif sera attribué à l’émission.")}</p>
           </section>}
         </fieldset>
+        </div>
         {isLocked ? (
           <div className="warning-card">
             <ShieldCheck size={19} />
@@ -1165,12 +1307,12 @@ export function DocumentEditor({
               </p>
             </div>
           </div>
-        ) : (
+        ) : consultation ? <div className="document-wizard-footer"><Button type="button" variant="secondary" disabled={probeBusy} onClick={close}>{consultationText.close}</Button></div> : (
           <div className="document-wizard-footer">
             <div className="document-wizard-footer__total"><span>{invoiceType === 'credit_note' ? t("Montant de l’avoir") : t("Total TTC")}</span><strong>{totalsReady ? formatMoney(totals.totalCents, currency) : t("À compléter")}</strong></div>
             <FormActions
-              onCancel={step ? () => goToStep(step - 1) : closeForm}
-              cancelLabel={step ? t("Retour") : t("Annuler")}
+              onCancel={creationFrozen ? closeForm : step ? () => goToStep(step - 1) : closeForm}
+              cancelLabel={creationFrozen ? t("Fermer") : step ? t("Retour") : t("Annuler")}
               busy={busy || saving}
               disabled={readOnly || draftBlocked}
               submitLabel={step === 3 ? t("Enregistrer le brouillon") : t("Continuer")}

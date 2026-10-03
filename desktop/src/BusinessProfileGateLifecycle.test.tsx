@@ -13,7 +13,7 @@ vi.mock('react', async original => ({
   useEffect: (action: any, deps: any) => runtime.host.effect(action, deps, 'passive'),
   useLayoutEffect: (action: any, deps: any) => runtime.host.effect(action, deps, 'layout'),
 }));
-vi.mock('./diagnostics', () => ({ diagnosticInvoke: runtime.invoke, recordDiagnostic: () => 'synthetic-incident', classifyDiagnosticError: () => 'SYNTHETIC' }));
+vi.mock('./diagnostics', async original => ({ ...await original<typeof import('./diagnostics')>(), diagnosticInvoke: runtime.invoke, recordDiagnostic: () => 'synthetic-incident', classifyDiagnosticError: () => 'SYNTHETIC' }));
 vi.mock('./language', () => ({ t: (value: string) => value, useAppLanguage: () => 'fr', getAppLocale: () => 'fr-CH' }));
 vi.mock('./ui', () => ({ Button: () => null, ErrorPanel: () => null, Modal: () => null, Field: () => null }));
 vi.mock('./useMobileLayout', () => ({ useMobileLayout() {} }));

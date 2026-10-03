@@ -1,5 +1,49 @@
 // Client intent only: these names never authorize or inspect an IPC payload.
 const operations = {
+  create_record: {
+    clients: 'record.client.create',
+    catalog_items: 'record.catalog_item.create',
+    suppliers: 'record.supplier.create',
+    projects: 'record.project.create',
+    quotes: 'record.quote.create',
+    invoices: 'record.invoice.create',
+    employees: 'record.employee.create',
+    time_entries: 'record.time_entry.create',
+    expenses: 'record.expense.create',
+    payslips: 'record.payslip.create',
+    payslip_items: 'record.payslip_item.create',
+  },
+  update_record: {
+    clients: 'record.client.update',
+    catalog_items: 'record.catalog_item.update',
+    suppliers: 'record.supplier.update',
+    projects: 'record.project.update',
+    quotes: 'record.quote.update',
+    invoices: 'record.invoice.update',
+    employees: 'record.employee.update',
+    time_entries: 'record.time_entry.update',
+    expenses: 'record.expense.update',
+    payslips: 'record.payslip.update',
+    payslip_items: 'record.payslip_item.update',
+  },
+  delete_record: {
+    clients: 'record.client.delete',
+    catalog_items: 'record.catalog_item.delete',
+    suppliers: 'record.supplier.delete',
+    projects: 'record.project.delete',
+    quotes: 'record.quote.delete',
+    invoices: 'record.invoice.delete',
+    employees: 'record.employee.delete',
+    time_entries: 'record.time_entry.delete',
+    expenses: 'record.expense.delete',
+    payslips: 'record.payslip.delete',
+    payslip_items: 'record.payslip_item.delete',
+  },
+  save_document_with_items: {
+    quotes: 'document.quote.save',
+    invoices: 'document.invoice.save',
+  },
+
   automation_request: {
     state: 'automation.state',
     decide: 'automation.decide',
@@ -55,7 +99,7 @@ export function withDiagnosticIntent<T>(value: T, command: DiagnosticIntentComma
 }
 
 /** Copies only trusted intent metadata; request(body) retains its business API. */
-export function copyDiagnosticIntent<T>(body: unknown, args: T, command: DiagnosticIntentCommand): T {
+export function copyDiagnosticIntent<T>(body: unknown, args: T, command: string): T {
   const intent = isReference(body) ? intents.get(body) : undefined;
   if (isReference(args)) {
     intents.delete(args);
@@ -68,4 +112,16 @@ export function copyDiagnosticIntent<T>(body: unknown, args: T, command: Diagnos
 export function diagnosticIntentOperation(command: string, args: unknown): string | undefined {
   const intent = isReference(args) ? intents.get(args) : undefined;
   return intent?.command === command ? intent.operation : undefined;
+}
+
+export type DiagnosticEntityCommand = 'create_record'|'update_record'|'delete_record'|'save_document_with_items';
+/** The bridge supplies a closed entity name explicitly; never infer it from args.
+ * Invalid/hostile annotations are removed without inspecting or coercing them.
+ * Intent metadata describes client activity only and grants no write permission. */
+export function withEntityDiagnosticIntent<T>(value:T,command:DiagnosticEntityCommand,entity:unknown):T {
+  if(typeof command!=='string'||!['create_record','update_record','delete_record','save_document_with_items'].includes(command)){
+    if(isReference(value))intents.delete(value);
+    return value;
+  }
+  return withDiagnosticIntent(value,command,entity as DiagnosticIntentAction);
 }

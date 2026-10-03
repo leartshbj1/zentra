@@ -828,8 +828,8 @@ pub fn reclassify_supplier_invoice_expense(
 }
 
 #[tauri::command]
-pub async fn update_settings(state: State<'_, LocalStore>, data: Value, expected_workspace_scope: Option<String>) -> Result<Value, String> {
-    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+pub async fn update_settings(state: State<'_, LocalStore>, data: Value, expected_workspace_scope: Option<String>, expected_member_context_nonce: Option<String>) -> Result<Value, String> {
+    run_member_scoped_local_operation(state.inner().clone(), expected_workspace_scope, expected_member_context_nonce, move |store| {
         require_write(store)?;
         store.update_settings(data).map_err(command_error)
     }).await
@@ -853,17 +853,41 @@ pub async fn save_document_with_items(
     input: SaveDocumentWithItemsInput,
     expected_workspace_scope: Option<String>,
     expected_member_context_nonce: Option<String>,
+    creation_request_id: Option<String>,
 ) -> Result<Value, String> {
+    let missing_creation_origin = creation_request_id.is_some()
+        && (expected_workspace_scope.is_none() || expected_member_context_nonce.is_none());
     run_member_scoped_local_operation(
         state.inner().clone(),
         expected_workspace_scope,
         expected_member_context_nonce,
         move |store| {
+            if missing_creation_origin {
+                return Err(command_error(crate::error::AppError::Validation(
+                    "Le contexte local du compte doit être vérifié. Rouvrez votre espace.".into(),
+                )));
+            }
             require_write(store)?;
-            store.save_document_with_items(input).map_err(command_error)
+            store.save_document_with_items_once(input, creation_request_id).map_err(command_error)
         },
     )
     .await
+}
+
+/// Read only the evidence for the captured attempt. No require_write, licence
+/// clock advance, audit append or business replay belongs in this handler.
+#[tauri::command]
+pub async fn get_document_creation_receipt(
+    state: State<'_, LocalStore>,
+    input: SaveDocumentWithItemsInput,
+    creation_request_id: String,
+    expected_workspace_scope: String,
+    expected_member_context_nonce: String,
+) -> Result<Value, String> {
+    run_member_scoped_local_operation(
+        state.inner().clone(), Some(expected_workspace_scope), Some(expected_member_context_nonce),
+        move |store| store.get_document_creation_receipt(input, creation_request_id).map_err(command_error),
+    ).await
 }
 
 #[tauri::command]
@@ -1868,10 +1892,18 @@ pub fn start_timer(state: State<'_, LocalStore>, input: TimerInput) -> Result<Va
 }
 
 #[tauri::command]
-pub fn stop_timer(state: State<'_, LocalStore>) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.stop_timer().map_err(command_error)
+pub async fn stop_timer(
+    state: State<'_, LocalStore>,
+    expected_workspace_scope: Option<String>,
+    expected_member_context_nonce: Option<String>,
+) -> Result<Value, String> {
+    run_member_scoped_local_operation(
+        state.inner().clone(), expected_workspace_scope, expected_member_context_nonce,
+        move |store| {
+            require_write(store)?;
+            store.stop_timer().map_err(command_error)
+        },
+    ).await
 }
 
 #[tauri::command]
@@ -2241,3 +2273,15 @@ mod payslip_member_origin_tests;
 #[cfg(test)]
 #[path = "commands_document_member_origin_tests.rs"]
 mod document_member_origin_tests;
+
+#[cfg(test)]
+#[path = "commands_stop_timer_member_origin_tests.rs"]
+mod stop_timer_member_origin_tests;
+
+#[cfg(test)]
+#[path = "commands_footer_settings_member_origin_tests.rs"]
+mod footer_settings_member_origin_tests;
+
+#[cfg(test)]
+#[path = "commands_document_creation_receipt_tests.rs"]
+mod document_creation_receipt_command_tests;

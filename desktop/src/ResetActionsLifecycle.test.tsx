@@ -10,7 +10,7 @@ vi.mock('react', async original => ({
   useEffect: (action: any, deps: any) => runtime.host.effect(action, deps, 'passive'),
   useLayoutEffect: (action: any, deps: any) => runtime.host.effect(action, deps, 'layout'),
 }));
-vi.mock('./diagnostics', () => ({ diagnosticInvoke: runtime.invoke, diagnosticOperation: runtime.operation }));
+vi.mock('./diagnostics', async original => ({ ...await original<typeof import('./diagnostics')>(), diagnosticInvoke: runtime.invoke, diagnosticOperation: runtime.operation }));
 vi.mock('./resetApp', () => ({ clearLocalAppPreferences: runtime.cleanup }));
 vi.mock('./payrollLocalAi', () => ({ payrollLocalAi: { cancel: runtime.cancel } }));
 vi.mock('./language', () => ({ t: (value: string) => value, getAppLocale: () => 'fr-CH' }));

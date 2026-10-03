@@ -1,6 +1,8 @@
+import {WorkspaceOriginChangedError} from './workspaceOrigin';
+import {freezeDocumentCreationRequest,readDocumentCreationAcknowledgement,readDocumentCreationReceipt,DocumentCreationUnconfirmedError,type DocumentCreationRequest,type DocumentCreationReceipt} from './documentCreationRequest';
 import { memberOriginNativeFailure } from './memberOriginBridge';
 import { mutationOriginInvokeArgs, WorkspaceMemberOriginChangedError } from './workspaceMemberOrigin';
-import { withDiagnosticIntent } from './diagnosticIntent';
+import { copyDiagnosticIntent, withDiagnosticIntent, withEntityDiagnosticIntent } from './diagnosticIntent';
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
 import type { WorkNote, WorkNoteDraft } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
@@ -3172,10 +3174,10 @@ async function invokeExpectedOrigin<T = unknown>(command: string, args: Record<s
     // Preserve the historic no-argument IPC shape for unguarded legacy reads.
     if (expectedWorkspaceScope === undefined && expectedMemberContextNonce === undefined && Object.keys(args).length === 0)
       return await invoke<T>(command);
-    return await invoke<T>(command, { ...args,
+    return await invoke<T>(command, copyDiagnosticIntent(args, { ...args,
     ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
     ...(expectedMemberContextNonce === undefined ? {} : { expectedMemberContextNonce }),
-  }); }
+  }, command)); }
   catch (reason) { throw memberOriginNativeFailure(reason) ?? reason; }
 }
 
@@ -3286,12 +3288,12 @@ export function archiveEntityMutation(
   ) {
     return {
       command: 'update_record' as const,
-      args: { entity: backendEntity, id, data: { archived_at: archivedAt } },
+      args: withEntityDiagnosticIntent({ entity: backendEntity, id, data: { archived_at: archivedAt } }, 'update_record', backendEntity),
     };
   }
   return {
     command: 'delete_record' as const,
-    args: { entity: backendEntity, id },
+    args: withEntityDiagnosticIntent({ entity: backendEntity, id }, 'delete_record', backendEntity),
   };
 }
 
@@ -3488,16 +3490,9 @@ export function convertQuoteMutation(
   };
 }
 const createRecord = (entity: string, data: RawRecord, expectedWorkspaceScope?: string, expectedMemberContextNonce?: string) =>
-  invokeExpectedOrigin<RawRecord>('create_record', { entity, data }, expectedWorkspaceScope, expectedMemberContextNonce);
+  invokeExpectedOrigin<RawRecord>('create_record', withEntityDiagnosticIntent({ entity, data }, 'create_record', entity), expectedWorkspaceScope, expectedMemberContextNonce);
 
-async function saveDocument(
-  entity: 'quotes' | 'invoices',
-  data: Record<string, unknown>,
-  lines: DocumentLine[],
-  existing?: Quote | Invoice,
-  expectedWorkspaceScope?: string,
-  expectedMemberContextNonce?: string,
-): Promise<Workspace> {
+export function prepareDocumentSaveInput(entity:'quotes'|'invoices',data:Record<string,unknown>,lines:DocumentLine[],existing?:Quote|Invoice) {
   const previousLines = existing?.lines ?? [];
   const backendData = toBackendData(data);
   const depositBasisLines = data.depositBasisLines;
@@ -3519,20 +3514,44 @@ async function saveDocument(
       };
     });
   }
-  await invokeExpectedOrigin('save_document_with_items', {
-    input: {
-      entity,
-      id: existing?.id ?? null,
-      data: backendData,
-      items: lines.map((line) =>
-        documentLineToBackend(
-          line,
-          previousLines.some((previous) => previous.id === line.id),
-        ),
-      ),
-    },
-  }, expectedWorkspaceScope, expectedMemberContextNonce);
+  return {entity,id:existing?.id ?? null,data:backendData,items:lines.map(line=>documentLineToBackend(line,previousLines.some(previous=>previous.id===line.id)))};
+}
+
+async function saveDocument(
+  entity: 'quotes' | 'invoices',
+  data: Record<string, unknown>,
+  lines: DocumentLine[],
+  existing?: Quote | Invoice,
+  expectedWorkspaceScope?: string,
+  expectedMemberContextNonce?: string,
+): Promise<Workspace> {
+  await invokeExpectedOrigin('save_document_with_items', withEntityDiagnosticIntent({input:prepareDocumentSaveInput(entity,data,lines,existing)}, 'save_document_with_items', entity), expectedWorkspaceScope, expectedMemberContextNonce);
   return refreshWorkspaceInOrigin(() => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
+}
+
+function guardedDocumentCreation(request:DocumentCreationRequest,expectedWorkspaceScope:string,expectedMemberContextNonce:string){
+ const frozen=freezeDocumentCreationRequest(request);
+ if(frozen.companyId!==expectedWorkspaceScope)throw new WorkspaceOriginChangedError();
+ mutationOriginInvokeArgs({workspaceScope:expectedWorkspaceScope,memberContextNonce:expectedMemberContextNonce});
+ return frozen;
+}
+async function saveDocumentCreation(request:DocumentCreationRequest,expectedWorkspaceScope:string,expectedMemberContextNonce:string,validateOrigin?:()=>void):Promise<Workspace>{
+ const frozen=guardedDocumentCreation(request,expectedWorkspaceScope,expectedMemberContextNonce);
+ try{
+  // Explicit submit only. An older handler may ignore a new argument; the new
+  // guarded read command must exist before any creation is sent.
+  const prior=await getDocumentCreationReceipt(frozen,expectedWorkspaceScope,expectedMemberContextNonce);
+  validateOrigin?.();
+  if(prior.status!=='missing')throw Error('Cette tentative possède déjà une confirmation. Vérifiez-la avant de continuer.');
+  const acknowledgement=await invokeExpectedOrigin<RawRecord>('save_document_with_items',{input:frozen.input,creationRequestId:frozen.creationRequestId},expectedWorkspaceScope,expectedMemberContextNonce);
+  readDocumentCreationAcknowledgement(acknowledgement,frozen);
+ }catch(reason){const originFailure=memberOriginNativeFailure(reason);if(originFailure)throw originFailure;throw new DocumentCreationUnconfirmedError(reason);}
+ return refreshWorkspaceInOrigin(()=>loadWorkspace(expectedWorkspaceScope,expectedMemberContextNonce),expectedWorkspaceScope);
+}
+async function getDocumentCreationReceipt(request:DocumentCreationRequest,expectedWorkspaceScope:string,expectedMemberContextNonce:string):Promise<DocumentCreationReceipt>{
+ const frozen=guardedDocumentCreation(request,expectedWorkspaceScope,expectedMemberContextNonce);
+ const response=await invokeExpectedOrigin('get_document_creation_receipt',{input:frozen.input,creationRequestId:frozen.creationRequestId},expectedWorkspaceScope,expectedMemberContextNonce);
+ return readDocumentCreationReceipt(response,frozen);
 }
 
 async function chooseFile(
@@ -4988,7 +5007,17 @@ export const desktopApi = {
     }
     return normalizeWorkspace(workspace as RawWorkspace, appState);
   },
-  async saveSettings(settings: AppSettings, expectedWorkspaceScope?: string) {
+  async saveSettings(settings: AppSettings, expectedWorkspaceScope?: string, expectedMemberContextNonce?: string) {
+    // Targeted callers bind both the mutation and its acknowledged read to the
+    // captured local actor. Omitted nonce callers keep the legacy IPC contract.
+    if (expectedMemberContextNonce !== undefined) {
+      await invokeExpectedOrigin('update_settings', { data: settingsToBackend(settings) }, expectedWorkspaceScope, expectedMemberContextNonce);
+      return refreshWorkspaceInOrigin(async () => {
+        const next = await loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce);
+        if (!next.onboardingCompleted || !next.settings) throw new Error('Les réglages enregistrés de votre entreprise doivent être accessibles pour continuer.');
+        return next;
+      }, expectedWorkspaceScope);
+    }
     await invoke('update_settings', { data: settingsToBackend(settings),
       ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
     return refreshWorkspaceAfterMutation(async () => {
@@ -5038,7 +5067,7 @@ export const desktopApi = {
   },
   async saveProject(data: Record<string, unknown>, id?: string, expectedWorkspaceScope?: string, expectedMemberContextNonce?: string): Promise<string> {
     if (id) {
-      await invokeExpectedOrigin('update_record', { entity: 'projects', id, data: toBackendData(data) }, expectedWorkspaceScope, expectedMemberContextNonce);
+      await invokeExpectedOrigin('update_record', withEntityDiagnosticIntent({ entity: 'projects', id, data: toBackendData(data) }, 'update_record', 'projects'), expectedWorkspaceScope, expectedMemberContextNonce);
       return id;
     }
     const record = await createRecord('projects', toBackendData(data), expectedWorkspaceScope, expectedMemberContextNonce);
@@ -5068,11 +5097,12 @@ export const desktopApi = {
     expectedWorkspaceScope?: string,
     expectedMemberContextNonce?: string,
   ) {
-    await invokeExpectedOrigin('update_record', {
-      entity: entityToBackend[entity],
+    const backendEntity = entityToBackend[entity];
+    await invokeExpectedOrigin('update_record', withEntityDiagnosticIntent({
+      entity: backendEntity,
       id,
       data: toBackendData(data),
-    }, expectedWorkspaceScope, expectedMemberContextNonce);
+    }, 'update_record', backendEntity), expectedWorkspaceScope, expectedMemberContextNonce);
     return refreshWorkspaceInOrigin(() => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
   },
   async saveCatalogItem(id: string, data: CatalogData, expectedUpdatedAt?: string, expectedWorkspaceScope?: string, expectedMemberContextNonce?: string) {
@@ -5240,7 +5270,7 @@ export const desktopApi = {
   },
   async archiveEntity(entity: EntityKind, id: string, expectedWorkspaceScope?: string, expectedMemberContextNonce?: string) {
     const mutation = archiveEntityMutation(entity, id);
-    await invokeExpectedOrigin(mutation.command, { ...mutation.args }, expectedWorkspaceScope, expectedMemberContextNonce);
+    await invokeExpectedOrigin(mutation.command, copyDiagnosticIntent(mutation.args, { ...mutation.args }, mutation.command), expectedWorkspaceScope, expectedMemberContextNonce);
     return refreshWorkspaceInOrigin(() => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
   },
   async importCatalogItems(
@@ -5640,6 +5670,9 @@ export const desktopApi = {
     return invoke<string>('open_attachment', { id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
   },
   saveDocument,
+  prepareDocumentSaveInput,
+  saveDocumentCreation,
+  getDocumentCreationReceipt,
   async createInvoiceCorrection(originalInvoiceId: string, reason: string) {
     const raw = await invoke<RawRecord>('create_invoice_correction', {
       input: {
@@ -5965,11 +5998,11 @@ export const desktopApi = {
   ) {
     let payslipId = existing?.id;
     if (payslipId)
-      await invokeExpectedOrigin('update_record', {
+      await invokeExpectedOrigin('update_record', withEntityDiagnosticIntent({
         entity: 'payslips',
         id: payslipId,
         data: toBackendData(data),
-      }, expectedWorkspaceScope, expectedMemberContextNonce);
+      }, 'update_record', 'payslips'), expectedWorkspaceScope, expectedMemberContextNonce);
     else
       payslipId = stringValue(
         (await createRecord('payslips', toBackendData(data), expectedWorkspaceScope, expectedMemberContextNonce)).id,
@@ -5984,7 +6017,7 @@ export const desktopApi = {
     );
     for (const old of previous)
       if (!retained.has(old.id))
-        await invokeExpectedOrigin('delete_record', { entity: 'payslip_items', id: old.id }, expectedWorkspaceScope, expectedMemberContextNonce);
+        await invokeExpectedOrigin('delete_record', withEntityDiagnosticIntent({ entity: 'payslip_items', id: old.id }, 'delete_record', 'payslip_items'), expectedWorkspaceScope, expectedMemberContextNonce);
     for (const [position, line] of lines.entries()) {
       const lineData = {
         payslip_id: payslipId,
@@ -5996,11 +6029,11 @@ export const desktopApi = {
         expense_account_id: line.expenseAccountId || null,
       };
       if (previous.some((old) => old.id === line.id))
-        await invokeExpectedOrigin('update_record', {
+        await invokeExpectedOrigin('update_record', withEntityDiagnosticIntent({
           entity: 'payslip_items',
           id: line.id,
           data: lineData,
-        }, expectedWorkspaceScope, expectedMemberContextNonce);
+        }, 'update_record', 'payslip_items'), expectedWorkspaceScope, expectedMemberContextNonce);
       else await createRecord('payslip_items', lineData, expectedWorkspaceScope, expectedMemberContextNonce);
     }
     return refreshWorkspaceInOrigin(() => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
@@ -6046,9 +6079,9 @@ export const desktopApi = {
     await invoke('start_timer', { input: toBackendData(data) });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
-  async stopTimer() {
-    await invoke('stop_timer');
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+  async stopTimer(expectedWorkspaceScope?: string, expectedMemberContextNonce?: string) {
+    await invokeExpectedOrigin('stop_timer', {}, expectedWorkspaceScope, expectedMemberContextNonce);
+    return refreshWorkspaceInOrigin(() => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
   },
   async createInvoiceFromTimeEntries(input: {
     requestId: string;

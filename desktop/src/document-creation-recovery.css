@@ -1,0 +1,33 @@
+/* The receipt is an enabled sibling of the locked fieldset, inside the main
+   scroll area. Keep the sidebar and sticky footer out of recovery content. */
+.document-recovery-content > .document-form {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+.document-recovery-content > [data-document-creation-receipt],
+.document-recovery-content > .error-guidance {
+  margin: 20px 28px 0;
+  min-width: 0;
+}
+.document-recovery-content > [data-document-creation-receipt] dl {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+.document-recovery-content > [data-document-creation-receipt] dd {
+  margin: 0;
+}
+.document-recovery-content > [data-document-creation-receipt] > button {
+  min-height: 44px;
+  max-width: 100%;
+  margin-block-start: 8px;
+  margin-inline-end: 8px;
+  white-space: normal;
+}
+@media screen and (max-width: 860px) {
+  .document-recovery-content > [data-document-creation-receipt],
+  .document-recovery-content > .error-guidance {
+    margin: 16px max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  }
+}

@@ -304,6 +304,7 @@ pub fn run() {
             document_pdf_preview,
             export_document_design_example,
             save_document_with_items,
+            get_document_creation_receipt,
             issue_quote,
             issue_invoice,
             create_invoice_from_time_entries,

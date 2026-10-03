@@ -1,3 +1,4 @@
+import { knownErrorIncident, withKnownErrorIncident } from './diagnostics';
 import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Clock3 } from 'lucide-react';
@@ -66,6 +67,7 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
   const closeForm = () => persisted.close(close);
   const [issue, setIssue] = useState<TimeEntryIssue>();
   const [saveError, setSaveError] = useState('');
+  const saveErrorReference = useRef<unknown>(undefined);
   const [saving, setSaving] = useState(false);
   const inFlight = useRef(false), formRef = useRef<HTMLFormElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
@@ -76,7 +78,7 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
     // This explicit choice follows the history notice. The token is attached once,
     // then remains unchanged for every retry, edit and restored creation draft.
     setDraft(previous => ({ ...previous, creationId }));
-    setSaveError(''); setIssue(undefined);
+    saveErrorReference.current = undefined; setSaveError(''); setIssue(undefined);
   };
   const fieldError = (field: keyof TimeEntryDraft) => issue?.field === field ? issue.message : undefined;
   const focusIssue = (field: keyof TimeEntryDraft) => {
@@ -97,11 +99,11 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
     if (locked || inFlight.current || persisted.pending || persisted.conflict || persisted.invalid || legacyCreation || (item && !current)) return;
     const originWorkspaceScope = workspace.workNotesScope;
     if (manualCreation && persisted.storageError) {
-      setSaveError('Cette nouvelle saisie ne peut pas être conservée sur cet appareil. Réessayez sa sauvegarde locale avant d’enregistrer les heures.');
+      saveErrorReference.current = undefined; setSaveError('Cette nouvelle saisie ne peut pas être conservée sur cet appareil. Réessayez sa sauvegarde locale avant d’enregistrer les heures.');
       return;
     }
     const problem = timeEntryIssue(draft, workspace, item, timer);
-    setIssue(problem); setSaveError('');
+    setIssue(problem); saveErrorReference.current = undefined; setSaveError('');
     if (problem) return;
     inFlight.current = true; setSaving(true);
     try {
@@ -113,16 +115,16 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
         if (reason instanceof WorkspaceCreationOutcomeUnknownError) {
           // WorkspaceApp can resolve this generic error by ID alone. A delayed
           // attempt may have different fields, so keep this manual draft intact.
-          throw new Error(TIME_CREATION_UNCONFIRMED, { cause: reason });
+          throw withKnownErrorIncident(new Error(TIME_CREATION_UNCONFIRMED, { cause: reason }), reason);
         }
         throw reason;
       }),
       timer ? 'Le pointage a démarré.' : item ? 'La saisie de temps a été mise à jour.' : 'Les heures ont été enregistrées.', true,
-      reason => setSaveError(errorMessage(reason, 'Les heures n’ont pas pu être enregistrées. Vos informations sont conservées.')));
+      reason => { saveErrorReference.current = reason; setSaveError(errorMessage(reason, 'Les heures n’ont pas pu être enregistrées. Vos informations sont conservées.')); });
       persisted.complete(saved);
       if (!saved) setSaveError(current => current || 'L’enregistrement n’est pas disponible pour le moment. Vos informations sont conservées ; réessayez après avoir terminé l’action en cours.');
     } catch (reason) {
-      setSaveError(errorMessage(reason, 'L’enregistrement a été interrompu. Vos informations sont conservées.'));
+      saveErrorReference.current = reason; setSaveError(errorMessage(reason, 'L’enregistrement a été interrompu. Vos informations sont conservées.'));
     } finally { inFlight.current = false; setSaving(false); }
   }
   return <Modal title={timer ? 'Démarrer un pointage' : item ? 'Modifier les heures' : 'Saisir des heures'} description={timer ? 'Le chronomètre mesure le temps. Vous pourrez vérifier les heures après l’arrêt.' : 'Choisissez qui a travaillé, indiquez la durée et vérifiez le montant.'} onClose={closeForm} dismissible={!locked} className="work-time-modal">
@@ -130,8 +132,8 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
       <FormDraftNotice draft={persisted} disabled={locked} currentValues={current ? [{ label: 'Projet', value: workspace.projects.find(row => row.id === current.projectId)?.name || current.projectId }, { label: 'Collaborateur', value: workspace.employees.find(row => row.id === current.employeeId)?.name || current.employeeId }, { label: 'Date', value: current.date }, { label: 'Durée', value: formatMinutes(current.minutes) }, { label: 'Pause', value: String(current.breakMinutes) }, { label: 'Travail effectué', value: current.note }, { label: 'Coût entreprise', value: formatMoney(current.hourlyCostCents) }, { label: 'Prix pour le client', value: formatMoney(current.billingRateCents ?? 0) }, { label: 'Statut', value: current.status }] : undefined} />
       {legacyCreation && !persisted.pending && <div className="work-time-error" role="status"><p>Ce brouillon ne permet pas de retrouver une ancienne création. Vérifiez l’historique des heures avant de préparer une nouvelle saisie.</p><Button type="button" disabled={locked || persisted.conflict || persisted.invalid || !creationId} onClick={prepareNewLegacyCreation}>Préparer une nouvelle saisie</Button></div>}
       {saveError && <div ref={errorRef} tabIndex={-1} className="work-time-error">{saveError === TIME_CREATION_UNCONFIRMED
-        ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-time-creation-recovery><strong>{recovery.title}</strong><p>{recovery.message}</p><p className="error-guidance__recovery">{recovery.instruction}</p></div><ErrorDetails error={saveError} /></div>
-        : <ErrorGuidance error={saveError} operation="mutation" compact />}</div>}
+        ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-time-creation-recovery><strong>{recovery.title}</strong><p>{recovery.message}</p><p className="error-guidance__recovery">{recovery.instruction}</p></div><ErrorDetails error={saveErrorReference.current ?? saveError} /></div>
+        : <ErrorGuidance error={saveError} incidentCode={knownErrorIncident(saveErrorReference.current)?.code} operation="mutation" compact />}</div>}
       {issue && <div className="work-time-error" role="alert"><strong>Un point à compléter</strong><p>{issue.message}</p><Button type="button" variant="secondary" size="small" onClick={() => focusIssue(issue.field)}>Corriger ce champ</Button></div>}
       <fieldset disabled={locked || !!persisted.pending || persisted.conflict || persisted.invalid || legacyCreation || !!(item && !current)} className="work-time-fields">
         <section className="work-time-section"><h3>Qui a travaillé ?</h3><div className="form-grid">

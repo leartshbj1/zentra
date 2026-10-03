@@ -11,7 +11,7 @@ vi.mock('react', async original => ({
   useEffect: (action: any, deps: any) => runtime.host.effect(action, deps, 'passive'),
   useLayoutEffect: (action: any, deps: any) => runtime.host.effect(action, deps, 'layout'),
 }));
-vi.mock('./diagnostics', () => ({ diagnosticInvoke: runtime.invoke }));
+vi.mock('./diagnostics', async original => ({ ...await original<typeof import('./diagnostics')>(), diagnosticInvoke: runtime.invoke }));
 vi.mock('./language', () => ({ t: (value: string) => value, useAppLanguage: () => {}, getAppLocale: () => 'fr-CH' }));
 vi.mock('./MobileDetails', () => ({ useCompactLayout: () => false, MobileDetails: () => null }));
 vi.mock('./FinanceFirstStep', () => ({ FinanceFirstStep: () => null }));

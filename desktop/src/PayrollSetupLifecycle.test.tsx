@@ -10,7 +10,7 @@ vi.mock('react', async original => ({
   useRef: (...args: any[]) => runtime.host.ref(...args),
   useEffect: (...args: any[]) => runtime.host.effect(...args),
 }));
-vi.mock('./diagnostics', () => ({ diagnosticInvoke: runtime.invoke }));
+vi.mock('./diagnostics', async original => ({ ...await original<typeof import('./diagnostics')>(), diagnosticInvoke: runtime.invoke }));
 vi.mock('./language', () => ({ t: (value: string) => value, useAppLanguage: () => {}, getAppLocale: () => 'fr-CH' }));
 vi.mock('./PayrollFieldGuide', () => ({ usePayrollFieldGuide: () => ({
   clear() {}, check: () => true, firstInvalid: () => null, reject() {}, guide: null,

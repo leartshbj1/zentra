@@ -1,3 +1,4 @@
+import { withKnownErrorIncident } from './diagnostics';
 import type { Workspace } from './types';
 import { errorMessage } from './utils';
 
@@ -6,6 +7,7 @@ export class WorkspaceRefreshAfterMutationError extends Error {
   constructor(readonly refreshCause: unknown) {
     super(`L’opération a été enregistrée, mais l’actualisation des données a échoué. ${errorMessage(refreshCause, 'Réessayez pour retrouver les données enregistrées.')}`);
     this.name = 'WorkspaceRefreshAfterMutationError';
+    withKnownErrorIncident(this, refreshCause);
   }
 }
 

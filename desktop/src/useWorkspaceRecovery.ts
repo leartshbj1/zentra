@@ -1,3 +1,4 @@
+import { knownErrorIncident } from './diagnostics';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Workspace } from './types';
 import { errorMessage } from './utils';
@@ -16,6 +17,7 @@ type PendingRefresh = {
 export function useWorkspaceRecovery(load: () => Promise<Workspace>) {
   const pending = useRef<PendingRefresh | null>(null);
   const [reason, setReason] = useState<string | null>(null);
+  const [incidentCode, setIncidentCode] = useState<string | undefined>(undefined);
   const [checkingCreation, setCheckingCreation] = useState(false);
   const waitForRefresh = useCallback((cause: unknown, checkCreation = false, validate?: (workspace: Workspace) => void, readOverride?: () => Promise<Workspace>) => {
     if (pending.current) return pending.current.promise;
@@ -26,6 +28,7 @@ export function useWorkspaceRecovery(load: () => Promise<Workspace>) {
     // after an account change; it must never replace this action's identity.
     pending.current = { promise, resolve, reject, retry: null, validate, read: readOverride ?? load };
     setCheckingCreation(checkCreation);
+    setIncidentCode(knownErrorIncident(cause)?.code);
     setReason(errorMessage(cause, 'Les données locales sont momentanément indisponibles.'));
     return promise;
   }, [load]);
@@ -40,6 +43,7 @@ export function useWorkspaceRecovery(load: () => Promise<Workspace>) {
         request.validate?.(workspace);
         pending.current = null;
         setReason(null);
+        setIncidentCode(undefined);
         setCheckingCreation(false);
         request.resolve(workspace);
       })
@@ -51,6 +55,7 @@ export function useWorkspaceRecovery(load: () => Promise<Workspace>) {
           // End its wait without publishing the read or replaying any mutation.
           pending.current = null;
           setReason(null);
+        setIncidentCode(undefined);
           setCheckingCreation(false);
           request.reject(originFailure);
           return;
@@ -66,5 +71,5 @@ export function useWorkspaceRecovery(load: () => Promise<Workspace>) {
     pending.current = null;
     request?.resolve(null);
   }, []);
-  return { reason, checkingCreation, waitForRefresh, retry, isPending };
+  return { reason, incidentCode, checkingCreation, waitForRefresh, retry, isPending };
 }

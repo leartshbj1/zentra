@@ -69,13 +69,13 @@ fn actual_document_handler_yields_and_preserves_current_and_legacy_create_update
             let expected_nonce = if legacy { None } else { Some(nonce(&store)) };
             let before_journals: i64 = store.connect().unwrap().query_row("SELECT COUNT(*) FROM journal_entries", [], |row| row.get(0)).unwrap();
             store.require_write_access().unwrap();
-            let saved = responsive(&store, save_document_with_items(app.state(), input(entity, None, &client_id, &line_id, 12_345), expected_scope.clone(), expected_nonce.clone())).unwrap();
+            let saved = responsive(&store, save_document_with_items(app.state(), input(entity, None, &client_id, &line_id, 12_345), expected_scope.clone(), expected_nonce.clone(), None)).unwrap();
             let id = saved["document"]["id"].as_str().unwrap().to_owned();
             assert_eq!(saved["document"]["client_id"], client_id); assert_eq!(saved["document"]["status"], "brouillon");
             assert_eq!(saved["document"]["subtotal_cents"], 24_690); assert_eq!(saved["document"]["total_cents"], 24_690);
             assert_eq!(saved["document"]["vat_cents"], 0); assert_eq!(saved["items"][0]["id"], line_id);
             assert_eq!(saved["document"]["notes"], "Synthetic first line\nSynthetic second line");
-            let updated = responsive(&store, save_document_with_items(app.state(), input(entity, Some(id.clone()), &client_id, &line_id, 13_456), expected_scope, expected_nonce)).unwrap();
+            let updated = responsive(&store, save_document_with_items(app.state(), input(entity, Some(id.clone()), &client_id, &line_id, 13_456), expected_scope, expected_nonce, None)).unwrap();
             assert_eq!(updated["document"]["id"], id); assert_eq!(updated["document"]["total_cents"], 26_912);
             assert_eq!(updated["items"].as_array().unwrap().len(), 1); assert_eq!(updated["items"][0]["id"], line_id);
             let connection = store.connect().unwrap();
@@ -99,7 +99,7 @@ fn actual_document_handler_rejects_captured_actor_a_to_b_and_aba_without_busines
                 let expected_scope = scope(&store); let expected_nonce = nonce(&store);
                 let app = tauri::test::mock_builder().manage(store.clone()).build(tauri::test::mock_context(tauri::test::noop_assets())).unwrap();
                 // This is a captured/not-yet-polled real handler, not an acquired-worker race witness.
-                let pending = save_document_with_items(app.state(), input(entity, existing, &client_id, &line_id, 90_000), Some(expected_scope.clone()), Some(expected_nonce.clone()));
+                let pending = save_document_with_items(app.state(), input(entity, existing, &client_id, &line_id, 90_000), Some(expected_scope.clone()), Some(expected_nonce.clone()), None);
                 identity(&store, &uuid::Uuid::new_v4().to_string(), "owner"); if return_to_a { identity(&store, &alice, "owner"); }
                 assert_eq!(scope(&store), expected_scope); assert_ne!(nonce(&store), expected_nonce); store.require_write_access().unwrap();
                 let before = snapshot(&store); assert!(responsive(&store, pending).unwrap_err().contains("Le compte connecté a changé"));
@@ -137,7 +137,7 @@ fn queued_actual_document_handler_rejects_same_uuid_physical_restore_for_create_
                 (released, snapshot(&replacing))
             });
             ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
-            let command = save_document_with_items(app.state(), input(entity, if editing { Some(id) } else { None }, &client_id, &line_id, 90_000), Some(old_scope.clone()), Some(old_nonce));
+            let command = save_document_with_items(app.state(), input(entity, if editing { Some(id) } else { None }, &client_id, &line_id, 90_000), Some(old_scope.clone()), Some(old_nonce), None);
             let (result, ()) = tauri::async_runtime::block_on(join(command, async move { let _ = replace_tx.send(()); }));
             let (released, destination) = holder.join().unwrap(); assert!(released, "actual document handler must yield while the real physical restore owns the mutex");
             assert_ne!(scope(&store), old_scope); assert!(result.unwrap_err().contains("L’entreprise ouverte a changé")); assert_eq!(snapshot(&store), destination);
@@ -155,7 +155,7 @@ fn actual_document_handler_rolls_back_header_lines_audit_and_clock_on_business_f
             let app = tauri::test::mock_builder().manage(store.clone()).build(tauri::test::mock_context(tauri::test::noop_assets())).unwrap();
             let mut bad = input(entity, existing, &client_id, &line_id, 20_000); bad.data["title"] = json!("MUST ROLL BACK THIS HEADER");
             bad.items.push(json!({"description":"Invalid second line after header/delete/first line","quantity":1,"unit":"heure","unit_price_cents":1000,"discount_bp":0,"vat_bp":10_001}));
-            let before = snapshot(&store); let error = responsive(&store, save_document_with_items(app.state(), bad, Some(scope(&store)), Some(nonce(&store)))).unwrap_err();
+            let before = snapshot(&store); let error = responsive(&store, save_document_with_items(app.state(), bad, Some(scope(&store)), Some(nonce(&store)), None)).unwrap_err();
             assert!(error.contains("discount_bp et vat_bp"), "the existing item validation must reject inside the transaction: {error}"); assert_eq!(snapshot(&store), before);
         }
     }
@@ -171,7 +171,7 @@ fn actual_document_handler_preserves_signed_read_only_authority_for_current_and_
             identity(&store, &uuid::Uuid::new_v4().to_string(), "read_only"); store.install_server_issued_license(&signed_fixture_token(&store, "read_only")).unwrap();
             let app = tauri::test::mock_builder().manage(store.clone()).build(tauri::test::mock_context(tauri::test::noop_assets())).unwrap(); let before = snapshot(&store);
             for legacy in [false, true] {
-                let error = responsive(&store, save_document_with_items(app.state(), input(entity, existing.clone(), &client_id, &line_id, 20_000), if legacy { None } else { Some(scope(&store)) }, if legacy { None } else { Some(nonce(&store)) })).unwrap_err();
+                let error = responsive(&store, save_document_with_items(app.state(), input(entity, existing.clone(), &client_id, &line_id, 20_000), if legacy { None } else { Some(scope(&store)) }, if legacy { None } else { Some(nonce(&store)) }, None)).unwrap_err();
                 assert!(error.contains("limité à la lecture"));
             }
             assert_eq!(snapshot(&store), before);
@@ -185,9 +185,9 @@ fn actual_document_handler_checks_stale_member_before_missing_licence_or_busines
     identity(&store, &uuid::Uuid::new_v4().to_string(), "owner");
     let app = tauri::test::mock_builder().manage(store.clone()).build(tauri::test::mock_context(tauri::test::noop_assets())).unwrap(); let before = snapshot(&store);
     let invalid = || SaveDocumentWithItemsInput { entity:"invalid-entity".into(), id:None, data:json!({}), items:Vec::new() };
-    let error = responsive(&store, save_document_with_items(app.state(), invalid(), Some(scope(&store)), Some(old_nonce))).unwrap_err(); assert!(error.contains("Le compte connecté a changé"));
+    let error = responsive(&store, save_document_with_items(app.state(), invalid(), Some(scope(&store)), Some(old_nonce), None)).unwrap_err(); assert!(error.contains("Le compte connecté a changé"));
     for legacy in [false, true] {
-        let error = responsive(&store, save_document_with_items(app.state(), invalid(), if legacy { None } else { Some(scope(&store)) }, if legacy { None } else { Some(nonce(&store)) })).unwrap_err(); assert!(error.contains("lecture seule"));
+        let error = responsive(&store, save_document_with_items(app.state(), invalid(), if legacy { None } else { Some(scope(&store)) }, if legacy { None } else { Some(nonce(&store)) }, None)).unwrap_err(); assert!(error.contains("lecture seule"));
     }
     assert_eq!(snapshot(&store), before);
 }

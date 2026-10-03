@@ -22,7 +22,7 @@ export function DocumentNumberInput({ id, kind, label, value, startEmpty = false
     onValidityChange(id, result.error);
     return () => onValidityChange(id, '');
   }, [id, result.error, onValidityChange]);
-  return <input ref={element} type="text" inputMode="decimal" aria-label={label} aria-invalid={touched && !!result.error} title={touched ? result.error : undefined}
+  return <input data-document-number-id={id} ref={element} type="text" inputMode="decimal" aria-label={label} aria-invalid={touched && !!result.error} title={touched ? result.error : undefined}
     value={raw} required={kind !== 'discount'} maxLength={64} autoComplete="off" onBlur={() => setTouched(true)} onChange={event => {
       const next = event.target.value; setRaw(next); onRawChange?.(next);
       const parsed = documentNumberEntry(next, kind);

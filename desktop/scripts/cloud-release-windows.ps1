@@ -245,6 +245,18 @@ try {
         # Unknown local draft reads must be resolved explicitly before a write.
         $diagnosticFrontendSuites += @('src/initialDraftRead.test.ts', 'src/InitialDraftReadRecovery.test.tsx', 'src/EmployeeInitialDraftReadRecovery.test.tsx')
         $diagnosticMobileSuites += @('src/initialDraftRead.test.ts', 'src/InitialDraftReadRecovery.test.tsx', 'src/EmployeeInitialDraftReadRecovery.test.tsx')
+        # Diagnostic wrapper source correlation and guarded timer stop.
+        $diagnosticNativeSuites += @('commands::stop_timer_member_origin_tests')
+        $diagnosticFrontendSuites += @('src/diagnosticWrapperCorrelation.test.ts', 'src/DiagnosticWrapperEmployee.test.tsx', 'src/DiagnosticWrapperQuick.test.tsx', 'src/DiagnosticWrapperContactsTime.test.tsx', 'src/diagnosticExactStringCorrelation.test.ts', 'src/stop-timer-member-origin.test.tsx')
+        $diagnosticMobileSuites += @('src/diagnosticWrapperCorrelation.test.ts', 'src/DiagnosticWrapperEmployee.test.tsx', 'src/DiagnosticWrapperQuick.test.tsx', 'src/DiagnosticWrapperContactsTime.test.tsx', 'src/diagnosticExactStringCorrelation.test.ts', 'src/stop-timer-member-origin.test.tsx')
+        # Prepared local-validation, closed CRUD diagnostics, and footer member-origin witnesses.
+        $diagnosticNativeSuites += @('commands::footer_settings_member_origin_tests::')
+        $diagnosticFrontendSuites += @('src/localValidation.test.ts', 'src/DocumentLocalValidation.test.tsx', 'src/diagnosticEntityIntent.test.ts', 'src/footer-settings-member-origin.test.tsx')
+        $diagnosticMobileSuites += @('src/localValidation.test.ts', 'src/DocumentLocalValidation.test.tsx', 'src/diagnosticEntityIntent.test.ts', 'src/footer-settings-member-origin.test.tsx')
+        # Immutable document creation receipts and explicit read-only recovery.
+        $diagnosticNativeSuites += @('database::document_creation_receipt_tests', 'commands::document_creation_receipt_command_tests')
+        $diagnosticFrontendSuites += @('src/documentCreationRequest.test.ts', 'src/documentCreationReceiptBridge.test.ts', 'src/documentCreationIncompleteAck.test.ts', 'src/DocumentCreationReceiptRecovery.test.tsx', 'src/documentCreationConsultation.test.ts', 'src/DocumentCreationConsultation.test.tsx')
+        $diagnosticMobileSuites += @('src/documentCreationRequest.test.ts', 'src/documentCreationReceiptBridge.test.ts', 'src/documentCreationIncompleteAck.test.ts', 'src/DocumentCreationReceiptRecovery.test.tsx', 'src/documentCreationConsultation.test.ts', 'src/DocumentCreationConsultation.test.tsx')
         if ($diagnosticPhase -cne 'frontend') {
             foreach ($suite in $diagnosticNativeSuites) {
                 Invoke-ZentraVerificationSuite $diagnosticHarness $suite

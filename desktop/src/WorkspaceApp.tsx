@@ -1,3 +1,4 @@
+import { knownErrorIncident, withKnownErrorIncident } from './diagnostics';
 import { useWorkspaceMutationOrigin } from './useWorkspaceMutationOrigin';
 import { bindWorkspaceMutationRead } from './memberOriginBridge';
 import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
@@ -28,7 +29,8 @@ import { PaymentOutcomeUnknownError, PaymentRefreshError } from './paymentWorkfl
 import { SupplierRefundOutcomeUnknownError, SupplierRefundRefreshError } from './supplierRefundWorkflow';
 import { CreditAllocationOutcomeUnknownError, CreditAllocationRefreshError } from './creditAllocationWorkflow';
 import { TimeForm, TimerForm } from './WorkTimeForms';
-import { FormDraftNotice, draftText } from './useFormDraft';
+import {documentConsultationText,listDocumentCreationConsultations,type DocumentCreationConsultation} from './documentCreationConsultation';
+import { FormDraftNotice, draftText, useFormDraftIdentity } from './useFormDraft';
 import { useNativeFormDraft } from './useNativeFormDraft';
 import { formDraftFingerprint } from './formDrafts';
 import { clientFolderDocuments } from './clientFolder';
@@ -400,6 +402,7 @@ const NotesScreen = lazy(() => import('./NotesScreen').then(module => ({ default
 
 type View = TourView | 'orders' | 'agenda' | 'automation' | 'notes';
 type ModalState = (
+  | {type:'documentCreationDrafts';selections:readonly DocumentCreationConsultation[]}
   | { type: 'client'; item?: Client }
   | { type: 'clientDetail'; client: Client }
   | { type: 'catalogItem'; item?: CatalogItem }
@@ -419,6 +422,7 @@ type ModalState = (
       quoteSource?: Quote;
       initialProject?: Project;
       initialStep?: 0 | 1 | 2 | 3;
+      consultation?:DocumentCreationConsultation;
     }
   | { type: 'quoteConversion'; quote: Quote }
   | { type: 'quoteInvoiceFolder'; quoteId: string }
@@ -549,6 +553,9 @@ function WorkspaceContent({
   useAppLanguage();
   useProjectSyncBackground(setWorkspace, cloudAccount?.organizationId ?? 'local');
   const [modal, setModal] = useState<ModalState>(null);
+  const consultationIdentity=useFormDraftIdentity();
+  const consultationLanguage=useAppLanguage();
+  const retainedDocumentCreations=useMemo(()=>readOnly&&(view==='quotes'||view==='invoices')?listDocumentCreationConsultations(workspace.workNotesScope,consultationIdentity,view):[],[readOnly,view,workspace.workNotesScope,consultationIdentity.companyId,consultationIdentity.organizationId,consultationIdentity.memberId,consultationIdentity.ready,modal]);
   useEffect(()=>{const openAction=(event:Event)=>{const action=(event as CustomEvent<unknown>).detail;if(typeof action!=='string'||document.querySelector('[role="dialog"]'))return;
     const routes:Record<string,View>={search_customer:'clients',search_supplier:'expenses',search_invoice:'invoices',get_bank_transactions:'bank',classify_transaction:'bank',analyze_expenses:'expenses',get_project:'projects',create_task:'agenda',search_document:'projects'};
     if(['create_invoice','create_quote'].includes(action)){if(readOnly)return;const entity=action==='create_invoice'?'invoices':'quotes';setView(entity);setModal({type:'document',entity});}
@@ -737,7 +744,7 @@ function WorkspaceContent({
   useLayoutEffect(() => { notesStore.setWritable(!readOnly); }, [notesStore, readOnly]);
   useLayoutEffect(() => { notesStore.start(); return () => notesStore.stop(); }, [notesStore]);
   useLayoutEffect(() => { notesStore.merge(workspace.workNotes ?? []); }, [notesStore, workspace.workNotes]);
-  const { reason: workspaceRecoveryReason, checkingCreation, waitForRefresh, retry: retryWorkspaceRefresh, isPending: isWorkspaceRecoveryPending } = useWorkspaceRecovery(desktopApi.loadWorkspace);
+  const { reason: workspaceRecoveryReason, incidentCode: workspaceRecoveryIncidentCode, checkingCreation, waitForRefresh, retry: retryWorkspaceRefresh, isPending: isWorkspaceRecoveryPending } = useWorkspaceRecovery(desktopApi.loadWorkspace);
   const quoteOrderRequestIds = useRef(new Map<string, string>());
   const quoteRevisionInFlight = useRef(new Set<string>());
   const guidedTour = useGuidedTour();
@@ -2016,7 +2023,7 @@ function WorkspaceContent({
               disabled={busy}
               onClick={() =>
                 void act(
-                  () => desktopApi.stopTimer(),
+                  (origin) => desktopApi.stopTimer(origin.workspaceScope, origin.memberContextNonce),
                   'Le pointage a été arrêté et enregistré.',
                   false,
                 )
@@ -2032,6 +2039,10 @@ function WorkspaceContent({
             <p>{view === 'dashboard' ? new Date().toLocaleDateString(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }) : t(title[1])}</p>
           </div>
           <div className="page-header__actions">
+            {readOnly&&retainedDocumentCreations.length>0&&<Button type="button" variant="secondary" data-document-creation-consultation-open disabled={busy} onClick={()=>{
+              if(retainedDocumentCreations.length===1){const selected=retainedDocumentCreations[0];setModal({type:'document',entity:selected.request.input.entity,consultation:selected});}
+              else setModal({type:'documentCreationDrafts',selections:retainedDocumentCreations});
+            }}>{documentConsultationText[consultationLanguage].open}</Button>}
             {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && <AutomationToolsLauncher screen={view} section={t(title[0])} open={automationToolsOpen} onToggle={()=>setAutomationToolsScreen(automationToolsOpen?null:view)} />}
             <ScreenHelp key={view} view={view} title={view==='quotes'?t("Devis"):view==='invoices'?t("Factures"):title[0]}/>
             {view === 'dashboard' ? (
@@ -2652,21 +2663,23 @@ function WorkspaceContent({
           replace={next => setModal(current => { const value = typeof next === 'function' ? next(current) : next; return value && current?.returnToClientId ? { ...value, returnToClientId: current.returnToClientId } : value; })}
           act={act}
           onOpenClientEntry={openClientEntry}
-          onReadWorkspace={() => diagnosticOperation('app', 'workspace.stock_refresh', async () => {
-            const originWorkspaceScope = workspace.workNotesScope;
+          onReadWorkspace={(expectedOrigin,validateRead) => diagnosticOperation('app', 'workspace.stock_refresh', async () => {
+            const originWorkspaceScope = expectedOrigin?.workspaceScope ?? workspace.workNotesScope;
             const isOriginWorkspace = () => actionLifetime.current && workspaceRef.current.workNotesScope === originWorkspaceScope;
             const requireOriginWorkspace = () => {
               if (!isOriginWorkspace()) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
             };
-            requireOriginWorkspace();
+            requireOriginWorkspace();validateRead?.();
             if (actionInFlight.current || isWorkspaceRecoveryPending()) throw new Error('Attendez la fin de l’opération en cours.');
             actionInFlight.current=true;setBusy(true);
             try {
-              const next = await desktopApi.loadWorkspace();
+              const next = await desktopApi.loadWorkspace(expectedOrigin?.workspaceScope,expectedOrigin?.memberContextNonce);
+              validateRead?.();
               requireOriginWorkspace();
               if (next.workNotesScope !== originWorkspaceScope) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
               requireStockWorkspace(next);
               requireOriginWorkspace();
+              validateRead?.();
               workspaceRef.current=next;setWorkspace(next);return next;
             } finally {
               actionInFlight.current=false;
@@ -2727,7 +2740,7 @@ function WorkspaceContent({
         onClose={guidedTour.close}
         onNavigate={navigateTour}
       />
-      {workspaceRecoveryReason !== null ? <WorkspaceRecoveryDialog reason={workspaceRecoveryReason} checkingCreation={checkingCreation} onReload={retryWorkspaceRefresh} /> : null}
+      {workspaceRecoveryReason !== null ? <WorkspaceRecoveryDialog reason={workspaceRecoveryReason} incidentCode={workspaceRecoveryIncidentCode} checkingCreation={checkingCreation} onReload={retryWorkspaceRefresh} /> : null}
     </div>
   );
 }
@@ -5313,7 +5326,7 @@ function SettingsScreen({
 
   return (
     <>
-    {settingsRecovery.reason && <WorkspaceRecoveryDialog reason={settingsRecovery.reason} onReload={settingsRecovery.retry} />}
+    {settingsRecovery.reason && <WorkspaceRecoveryDialog reason={settingsRecovery.reason} incidentCode={settingsRecovery.incidentCode} onReload={settingsRecovery.retry} />}
     <SettingsBrowser initialCategory={initialCategory} hasDraft={Boolean(vatDraft) || JSON.stringify(settings) !== JSON.stringify(workspace.settings)}>
       <SettingsCategory id="readiness" title="État de la configuration" description="Les réglages prêts et les prochaines étapes" icon={ListChecks}>
       <SetupReadinessCenter
@@ -6213,7 +6226,7 @@ function WorkspaceModal({
   onIssueInvoice: (invoice: Invoice, onError?: (reason: unknown) => void) => Promise<void>;
   onQrReady: (invoice: Invoice, qr: StoredSwissQrBill) => void;
   onOpenClientEntry: (kind: 'client' | 'project' | 'quotes' | 'invoices', clientId: string, id: string) => void;
-  onReadWorkspace: () => Promise<Workspace>;
+  onReadWorkspace: (origin?:WorkspaceMutationOrigin,validateRead?:()=>void) => Promise<Workspace>;
 }) {
   if (state.type === 'client')
     return <ClientForm key={JSON.stringify([workspace.workNotesScope, 'client', state.item?.id || 'new'])} item={state.item} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} />;
@@ -6279,6 +6292,7 @@ function WorkspaceModal({
     if (!quote) return null;
     return <QuoteInvoiceFolder quote={quote} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} onIssue={onIssueInvoice} onPayment={invoice => replace({ type: 'payment', invoice, returnToQuoteId: quote.id })} onOpen={(entity, item) => replace({ type: 'document', entity, item })}/>;
   }
+  if(state.type==='documentCreationDrafts')return <DocumentCreationConsultationChoice selections={state.selections} companyId={workspace.workNotesScope} close={close} onSelect={selection=>replace({type:'document',entity:selection.request.input.entity,consultation:selection})}/>;
   if (state.type === 'document' && state.entity === 'invoices' && (state.item as Invoice | undefined)?.billingPair && state.item?.status === 'draft') {
     const invoice = workspace.invoices.find((invoice) => invoice.id === state.item?.id) ?? state.item as Invoice;
     return <PairedInvoiceEditor invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} correctDates={state.initialStep === 2} close={close} act={act} onFolder={() => replace({ type: 'quoteInvoiceFolder', quoteId: invoice.quoteId! })}/>;
@@ -6286,10 +6300,11 @@ function WorkspaceModal({
   if (state.type === 'document')
     return (
       <DocumentEditor
-        key={JSON.stringify([workspace.workNotesScope, state.entity, state.item?.id || 'new', state.item ? '' : state.quoteSource?.id || '', state.item ? '' : state.initialProject?.id || ''])}
+        key={JSON.stringify([workspace.workNotesScope, state.entity, state.item?.id || 'new', state.item ? '' : state.quoteSource?.id || '', state.item ? '' : state.initialProject?.id || '',state.consultation?.creationRequestId||''])}
         onReadWorkspace={onReadWorkspace}
         onOpenSettlementHelp={destination=>destination==='bank'?onOpenBank():onOpenAccounting(destination)}
         entity={state.entity}
+        consultation={state.consultation}
         initialProject={state.initialProject}
         initialStep={state.initialStep}
         item={state.item}
@@ -6816,6 +6831,7 @@ function EmployeeForm({
   const [deferAnnual, setDeferAnnual] = useState(false);
   const [assessmentYear, setAssessmentYear] = useState(String(item?.smallSalaryAssessmentYear ?? ''));
   const [localError, setLocalError] = useState('');
+  const localErrorReference = useRef<unknown>(undefined);
   const formElement = useRef<HTMLFormElement>(null);
   const [prefill, setPrefill] = useState<EmployeeDocumentDraft | null>(null);
   const fieldGuide = usePayrollFieldGuide();
@@ -6846,7 +6862,7 @@ function EmployeeForm({
   const prepareNewEmployeeCreation = () => {
     if (!legacyCreation || !creationId || pending || savingRef.current || draftBlocked) return;
     const captured = persisted.capture({creationId});
-    setLocalError(captured.storageError ? EMPLOYEE_LOCAL_DRAFT_UNSAVED : '');
+    localErrorReference.current = undefined; setLocalError(captured.storageError ? EMPLOYEE_LOCAL_DRAFT_UNSAVED : '');
   };
   const retryLocalEmployeeDraft = () => {
     const captured = persisted.capture();
@@ -6883,7 +6899,7 @@ function EmployeeForm({
     if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return false;
     const owner = field.closest<HTMLElement>('[data-employee-step]');
     if (owner) setStep(Number(owner.dataset.employeeStep));
-    setLocalError('');
+    localErrorReference.current = undefined; setLocalError('');
     setAnnualIssue(null);
     fieldGuide.reject(field, issue.message, issue.presentation);
     return true;
@@ -6892,11 +6908,11 @@ function EmployeeForm({
     if (reason instanceof SmallSalaryFormError) {
       fieldGuide.clear();
       setAnnualIssue(reason);
-      setLocalError('');
+      localErrorReference.current = undefined; setLocalError('');
     } else {
       const message = errorMessage(reason, 'Le collaborateur n’a pas pu être enregistré.');
       const issue = employeeNativeFieldIssue(message);
-      if (!issue || !revealEmployeeIssue(issue)) setLocalError(message);
+      if (!issue || !revealEmployeeIssue(issue)) { localErrorReference.current = reason; setLocalError(message); }
     }
   }
 
@@ -6931,7 +6947,7 @@ function EmployeeForm({
         onChange={() => { if (!pending && !draftBlocked) persisted.capture(); }}
         onSubmit={submitForm(async (form) => {
           if (pending || savingRef.current || draftBlocked || legacyCreation) return;
-          setLocalError('');
+          localErrorReference.current = undefined; setLocalError('');
           setAnnualIssue(null);
           const scope = step < 2 ? formElement.current?.querySelector<HTMLElement>(`[data-employee-step="${step}"]`) : formElement.current;
           if (!scope) return;
@@ -7056,7 +7072,7 @@ function EmployeeForm({
             // Keep the final DOM values and original creation UUID before any native write.
             const captured = isCreation ? persisted.capture() : undefined;
             if (captured && (captured.storageError || captured.pending || captured.invalid || captured.conflict || !validEmployeeCreationId(captured.value.creationId))) {
-              setLocalError(EMPLOYEE_LOCAL_DRAFT_UNSAVED); return;
+              localErrorReference.current = undefined; setLocalError(EMPLOYEE_LOCAL_DRAFT_UNSAVED); return;
             }
             savingRef.current = true;
             setSaving(true);
@@ -7066,7 +7082,7 @@ function EmployeeForm({
                   ? desktopApi.updateEntity('employees', item.id, data, workspace.workNotesScope, mutationOrigin.memberContextNonce)
                   : desktopApi.createEntity('employees', {...data, id: captured!.value.creationId}, workspace.workNotesScope, mutationOrigin.memberContextNonce).catch(reason => {
                       if (reason instanceof WorkspaceCreationOutcomeUnknownError)
-                        throw new Error(EMPLOYEE_CREATION_UNCONFIRMED, {cause: reason});
+                        throw withKnownErrorIncident(new Error(EMPLOYEE_CREATION_UNCONFIRMED, {cause: reason}), reason);
                       throw reason;
                     }),
               item
@@ -7089,9 +7105,9 @@ function EmployeeForm({
           <h3>{t(['Qui rejoint votre équipe ?', 'Quel travail et quel salaire ?', 'Relisez avant d’enregistrer'][step])}</h3>
           <p>{t(['Commencez par le nom et la fonction. Les coordonnées sont facultatives.', 'Recopiez les informations du contrat. Brut signifie avant les retenues.', 'Les informations principales suffisent pour ajouter la personne. Les réglages de paie se préparent ensuite, avec les documents de vos caisses.'][step])}</p>
         </div>
-        {localError === EMPLOYEE_CREATION_UNCONFIRMED ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-employee-creation-recovery><strong>{creationRecovery.title}</strong><p>{creationRecovery.message}</p><p className="error-guidance__recovery">{creationRecovery.instruction}</p></div><ErrorDetails error={localError}/></div>
+        {localError === EMPLOYEE_CREATION_UNCONFIRMED ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-employee-creation-recovery><strong>{creationRecovery.title}</strong><p>{creationRecovery.message}</p><p className="error-guidance__recovery">{creationRecovery.instruction}</p></div><ErrorDetails error={localErrorReference.current ?? localError}/></div>
           : persisted.initialReadState === 'ready' && (localError === EMPLOYEE_LOCAL_DRAFT_UNSAVED || isCreation && persisted.storageError) ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-employee-storage-recovery><strong>{draftText('La saisie locale ne peut pas être conservée')}</strong><p>{creationRecovery.storage}</p></div><div className="error-guidance__actions"><Button type="button" variant="secondary" size="small" disabled={pending || draftBlocked} onClick={retryLocalEmployeeDraft}>{draftText('Réessayer la sauvegarde locale')}</Button><Button type="button" variant="ghost" size="small" disabled={pending} onClick={() => { if (window.confirm(draftText('Abandonner ce brouillon et retrouver les valeurs enregistrées ?'))) persisted.discard(); }}>{draftText('Abandonner le brouillon')}</Button></div></div>
-            : localError && (localError !== EMPLOYEE_LOCAL_DRAFT_UNSAVED || persisted.initialReadState === 'ready') ? <ErrorGuidance title={t("Vérifions ce point ensemble")} error={localError} fallback={employeeSaveMessage(localError)} compact /> : null}
+            : localError && (localError !== EMPLOYEE_LOCAL_DRAFT_UNSAVED || persisted.initialReadState === 'ready') ? <ErrorGuidance title={t("Vérifions ce point ensemble")} error={localError} incidentCode={knownErrorIncident(localErrorReference.current)?.code} fallback={employeeSaveMessage(localError)} compact /> : null}
         {fieldGuide.guide}
         <fieldset className="employee-step" data-employee-step="0" hidden={step !== 0} disabled={pending || draftBlocked || legacyCreation}>
           <details className="payroll-details"><summary>{t("Préremplir avec une fiche de salaire existante")}</summary>        <EmployeeDocumentImport onRead={applyDocument} disabled={pending || draftBlocked || legacyCreation} />
@@ -7582,7 +7598,7 @@ function EmployeeForm({
 </div></details>
         </fieldset>
         <div className="payroll-actions">
-          <Button type="button" variant="ghost" disabled={pending || draftBlocked} onClick={() => { if (savingRef.current) return; fieldGuide.clear(); setAnnualIssue(null); setLocalError(''); if (step > 0) { persisted.capture({ draftStep: String(step - 1) }); setStep(step - 1); } else closeForm(); }}>{step > 0 ? t("Retour") : t("Annuler")}</Button>
+          <Button type="button" variant="ghost" disabled={pending || draftBlocked} onClick={() => { if (savingRef.current) return; fieldGuide.clear(); setAnnualIssue(null); localErrorReference.current = undefined; setLocalError(''); if (step > 0) { persisted.capture({ draftStep: String(step - 1) }); setStep(step - 1); } else closeForm(); }}>{step > 0 ? t("Retour") : t("Annuler")}</Button>
           <Button type="submit" disabled={pending || draftBlocked || legacyCreation}>{pending ? t("Enregistrement…") : step < 2 ? t("Continuer") : item ? t("Enregistrer les modifications") : t("Ajouter le collaborateur")}</Button>
         </div>
       </form>
@@ -9522,3 +9538,10 @@ function SwissQrPaymentSection({
   );
 }
 import { useEdgeDrawer } from './useEdgeDrawer';
+
+/** Explicit selection, not a guessed first local draft. This screen never writes. */
+function DocumentCreationConsultationChoice({selections,companyId,close,onSelect}:{selections:readonly DocumentCreationConsultation[];companyId:string|undefined;close:()=>void;onSelect:(selection:DocumentCreationConsultation)=>void}){
+ const language=useAppLanguage(),text=documentConsultationText[language],identity=useFormDraftIdentity();
+ const eligible=selections.filter(selection=>companyId===selection.scope.companyId&&identity.ready===true&&identity.companyId===selection.scope.companyId&&identity.memberId===selection.scope.memberId&&(identity.organizationId||'')===(selection.scope.organizationId||''));
+ return <Modal title={text.choose} onClose={close}><p>{text.intro}</p>{eligible.map(selection=><Button type="button" key={JSON.stringify([selection.scope,selection.creationRequestId])} data-document-creation-choice onClick={()=>onSelect(selection)}>{selection.title||text.title}</Button>)}<Button type="button" variant="ghost" onClick={close}>{text.close}</Button></Modal>;
+}

@@ -4,6 +4,7 @@ import { resolveErrorIncident } from './diagnostics';
 import { t, useAppLanguage } from './language';
 import { getUserError, safeErrorDetails, userErrorCopy, type UserErrorOperation } from './userErrors';
 import './error-guidance.css';
+import { localValidationDetails } from './localValidation';
 
 export type ErrorGuidanceProps = {
   error: unknown;
@@ -51,7 +52,10 @@ export function ErrorDetails({ error, incidentCode }: { error: unknown; incident
 
 export function ErrorGuidance({ error, fallback, title, operation = 'mutation', onReload, onReconnect, onReview, incidentCode, compact = false, disabled = false, panelRef }: ErrorGuidanceProps) {
   const language = useAppLanguage();
+  const local = localValidationDetails(error);
   const guidance = getUserError(error, { fallback, operation, language });
+  // Keep a message-free diagnostic event, without a technical panel for a field correction.
+  if (local) resolveErrorIncident(error);
   const labels = userErrorCopy(language);
   // Only an explicitly provided read operation may refresh. Reconnect and
   // review callbacks open a corrective path; neither repeats the failed save.
@@ -64,6 +68,6 @@ export function ErrorGuidance({ error, fallback, title, operation = 'mutation', 
       <div><strong>{title ? t(title) : guidance.title}</strong><p>{guidance.message}</p><p className="error-guidance__recovery">{guidance.action}</p></div>
     </div>
     {action && <div className="error-guidance__actions"><button type="button" className="button button--secondary button--small" disabled={disabled} onClick={action.run}>{action.label}</button></div>}
-    <ErrorDetails error={error} incidentCode={incidentCode} />
+    {!local && <ErrorDetails error={error} incidentCode={incidentCode} />}
   </div>;
 }

@@ -1,3 +1,4 @@
+import { withKnownErrorIncident } from './diagnostics';
 import type {AppLanguage} from './language';
 import type {DocumentQuickClientDraft} from './documentUi';
 
@@ -12,6 +13,7 @@ export class QuickClientCreationUnconfirmedError extends Error {
   constructor(cause: unknown) {
     super('La création du client de ce document n’est pas confirmée.', {cause});
     this.name = 'QuickClientCreationUnconfirmedError';
+    withKnownErrorIncident(this, cause);
   }
 }
 export const quickClientCreationRecovery: Record<AppLanguage, {title:string;message:string;instruction:string;legacy:string;prepare:string;storage:string;read:string;reopen:string}> = {

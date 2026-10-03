@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Real serializers and normalisation, closed native transport. These tests do
 // not execute SQL, generate documents, send messages or contact a service.
 const invokeMock = vi.hoisted(() => vi.fn());
-vi.mock('./diagnostics', () => ({ diagnosticInvoke: invokeMock }));
+vi.mock('./diagnostics', async original => ({ ...await original<typeof import('./diagnostics')>(), diagnosticInvoke: invokeMock }));
 import { desktopApi } from './bridge';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 
