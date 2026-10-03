@@ -128,11 +128,11 @@ export class FormDraftSession<T> {
   }
   /** Called only after an explicit user choice to keep the displayed local values. */
   keepLocal() { this.originalFingerprint = this.options.fingerprint; this.loggedConflict = false; this.snapshot = { ...this.snapshot, conflict: false, dirty: true }; log('kept_local', 'info'); this.persist(); }
-  reset() {
-    if (!this.remove()) { log('discarded', 'failure', true); return; }
+  reset(): boolean {
+    if (!this.remove()) { log('discarded', 'failure', true); return false; }
     this.originalFingerprint = this.options.fingerprint;
     this.loggedConflict = false;
-    this.snapshot = { ...this.snapshot, value: copy(this.options.initial), pending: null, dirty: false, conflict: false, invalid: false, completedResidual: false, savedAt: null }; log('discarded', 'success');
+    this.snapshot = { ...this.snapshot, value: copy(this.options.initial), pending: null, dirty: false, conflict: false, invalid: false, completedResidual: false, storageError: false, savedAt: null }; log('discarded', 'success'); return true;
   }
   private remove() {
     if (!this.key) return true;

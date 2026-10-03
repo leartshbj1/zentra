@@ -36,12 +36,14 @@ export function useFormDraft<T>(options: FormDraftOptions<T>) {
   const setValue = (next: SetStateAction<T>) => {
     const value = typeof next === 'function' ? (next as (previous: T) => T)(session.getSnapshot().value) : next;
     session.capture(value); refresh();
+    // Submission must inspect this capture, not the previous React render.
+    return { ...session.getSnapshot(), conflict: session.hasConflict() };
   };
   const snapshot = session.getSnapshot();
   return { ...snapshot, conflict: session.hasConflict(), setValue,
     restore: () => { session.restore(); refresh(); },
     keepLocal: () => { session.keepLocal(); refresh(); },
-    discard: () => { session.reset(); refresh(); return !session.getSnapshot().dirty && !session.getSnapshot().pending; },
+    discard: () => { const discarded = session.reset(); refresh(); return discarded; },
     complete: (saved: boolean) => { session.complete(saved); refresh(); return saved === true && session.getSnapshot().completionProtected; },
     retryStorage: () => { session.retryStorage(); refresh(); },
     close: (close: () => void) => { if (!session.needsCloseConfirmation() || window.confirm(draftText('La dernière saisie ne peut pas être conservée sur cet appareil. Fermer et perdre les modifications ?'))) close(); },

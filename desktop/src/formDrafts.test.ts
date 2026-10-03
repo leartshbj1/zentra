@@ -139,6 +139,15 @@ describe('local form recovery', () => {
     storage.failRemove = false; session.reset();
     expect(session.getSnapshot().value).toEqual(initial); expect(storage.length).toBe(0);
   });
+  it('reports blocked invalid-draft removal as false even when no dirty or pending values exist', () => {
+    const storage = new MemoryStorage(); storage.setItem(formDraftKey(scope), 'invalid retained record');
+    const session = new FormDraftSession(options(storage));
+    expect(session.getSnapshot().invalid).toBe(true); expect(session.getSnapshot().dirty).toBe(false); expect(session.getSnapshot().pending).toBeNull();
+    storage.failRemove = true; expect(session.reset()).toBe(false);
+    expect(storage.getItem(formDraftKey(scope))).toBe('invalid retained record'); expect(session.getSnapshot().storageError).toBe(true);
+    storage.failRemove = false; expect(session.reset()).toBe(true); expect(storage.getItem(formDraftKey(scope))).toBeNull();
+    expect(session.getSnapshot().invalid).toBe(false); expect(session.getSnapshot().storageError).toBe(false);
+  });
   it('rejects credential keys even if a caller supplies an overly permissive validator', () => {
     const storage = new MemoryStorage(), session = new FormDraftSession({ ...options(storage), validate: (value: unknown): value is typeof initial => !!value });
     session.capture({ ...initial, password: 'must-not-be-stored' } as typeof initial);
