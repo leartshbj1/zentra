@@ -1,3 +1,4 @@
+import {installTimeDraftRecoveryFixture} from './time-draft-recovery-fixture';
 import {installCustomerSettlementGuidedFixture} from './customer-settlement-guided-fixture';
 import { publishCompanySync } from '../src/companySync';
 import { installAutomationCompanyFixture } from './automation-company-fixture';
@@ -248,6 +249,7 @@ if (new URLSearchParams(location.search).has('salesRecovery')) installSalesRecov
 if (new URLSearchParams(location.search).has('projectRecovery')) installProjectRecoveryFixture();
 if (new URLSearchParams(location.search).has('projectNavigation')) installProjectNavigationFixture(data);
 if (new URLSearchParams(location.search).has('timeFlow')) installTimeFlowFixture(data);
+if (previewQuery.has('timeDraftRecovery')) installTimeDraftRecoveryFixture(data);
 if (new URLSearchParams(location.search).has('planningGuided')) installPlanningGuidedFixture(data);
 if (new URLSearchParams(location.search).has('accountingSetup')) installAccountingSetupFixture(data);
 if (new URLSearchParams(location.search).has('workflowHelp')) {
@@ -301,6 +303,7 @@ function Harness() {
   if (new URLSearchParams(location.search).has('catalogForm')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaCatalogRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('financialStart')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaFinancialRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (previewQuery.has('collectionTest')) Object.assign(window, { __qaSetReadOnly: setReadOnly });
+  if (previewQuery.has('timeDraftRecovery')) Object.assign(window, { __qaSetReadOnly:setReadOnly, __qaTimeDraftRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;return next;} });
   if (new URLSearchParams(location.search).has('stockGuided')) Object.assign(window, {__qaSetReadOnly:setReadOnly,__qaStockRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if (new URLSearchParams(location.search).has('projectNavigation')) Object.assign(window, {
     __qaSetReadOnly: setReadOnly, __qaSetProjectAccount: setProjectAccount,
@@ -329,7 +332,7 @@ if(customerSettlementScope)data.workNotesScope='qa-customer-settlement-company';
 const paymentGuidedScope=previewQuery.has('paymentGuided');
 const paymentCompany=previewQuery.get('paymentCompany')||'qa-payment-company',paymentMember=previewQuery.get('paymentMember')||'qa-payment-member';
 if(paymentGuidedScope)data.workNotesScope=paymentCompany;
-const scopedApplication = paymentGuidedScope ? <FormDraftIdentityProvider companyId={paymentCompany} memberId={paymentMember} organizationId={previewQuery.get('paymentOrganization')||undefined} ready>{application}</FormDraftIdentityProvider> : customerSettlementScope ? <FormDraftIdentityProvider companyId="qa-customer-settlement-company" memberId="qa-customer-settlement-member" ready>{application}</FormDraftIdentityProvider> : previewQuery.has('formDrafts') ? <FormDraftIdentityProvider companyId="qa-native-form-company" memberId="qa-native-form-member" ready>{application}</FormDraftIdentityProvider> : application;
+const scopedApplication = previewQuery.has('timeDraftRecovery') ? <FormDraftIdentityProvider companyId={previewQuery.get('timeCompany')||'qa-time-draft-company'} memberId={previewQuery.get('timeMember')||'qa-time-draft-member'} ready>{application}</FormDraftIdentityProvider> : paymentGuidedScope ? <FormDraftIdentityProvider companyId={paymentCompany} memberId={paymentMember} organizationId={previewQuery.get('paymentOrganization')||undefined} ready>{application}</FormDraftIdentityProvider> : customerSettlementScope ? <FormDraftIdentityProvider companyId="qa-customer-settlement-company" memberId="qa-customer-settlement-member" ready>{application}</FormDraftIdentityProvider> : previewQuery.has('formDrafts') ? <FormDraftIdentityProvider companyId="qa-native-form-company" memberId="qa-native-form-member" ready>{application}</FormDraftIdentityProvider> : application;
 createRoot(document.getElementById('root')!).render(previewQuery.has('appDraftIdentity') ? <StrictMode>{scopedApplication}</StrictMode> : previewQuery.has('runtimePerformance') ? <Profiler id="workspace" onRender={(_,phase,duration,__,time)=>runtimeCommits.push({phase,duration,time})}>{scopedApplication}</Profiler> : scopedApplication);
 
 import '../src/appearance';

@@ -208,8 +208,8 @@ try {
         $diagnosticFrontendSuites += @('src/bankCustomerRefundCleanupDiagnostics.test.ts', 'src/PdfAttachmentPreviewDiagnostics.test.tsx')
         $diagnosticMobileSuites += @('src/bankCustomerRefundCleanupDiagnostics.test.ts', 'src/PdfAttachmentPreviewDiagnostics.test.tsx')
         $diagnosticNativeSuites += @('commands::payment_request_recovery_tests::')
-        $diagnosticFrontendSuites += @('src/paymentRequest.test.ts', 'src/paymentRequestBridge.test.ts')
-        $diagnosticMobileSuites += @('src/paymentRequest.test.ts', 'src/paymentRequestBridge.test.ts')
+        $diagnosticFrontendSuites += @('src/paymentRequest.test.ts', 'src/paymentRequestBridge.test.ts', 'src/WorkTimeDraftRecovery.test.tsx')
+        $diagnosticMobileSuites += @('src/paymentRequest.test.ts', 'src/paymentRequestBridge.test.ts', 'src/WorkTimeDraftRecovery.test.tsx')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

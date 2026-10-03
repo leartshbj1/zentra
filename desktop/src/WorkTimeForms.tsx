@@ -5,10 +5,12 @@ import { payrollDecimal } from './payrollSalaryEntry';
 import { initialTimeEntryDraft, timeEntryInput, timeEntryIssue, workedMinutes, type TimeEntryDraft, type TimeEntryIssue } from './timeEntryForm';
 import type { TimeEntry, Workspace } from './types';
 import { Button, Field, FormActions, Modal } from './ui';
-import { errorMessage, formatMinutes, formatMoney, todayIso } from './utils';
+import { createId, errorMessage, formatMinutes, formatMoney, todayIso } from './utils';
 import { FormDraftNotice, useFormDraft, useFormDraftScope } from './useFormDraft';
 import { draftStrings, formDraftFingerprint } from './formDrafts';
-import { ErrorGuidance } from './ErrorGuidance';
+import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
+import { ErrorDetails, ErrorGuidance } from './ErrorGuidance';
+import { useAppLanguage, type AppLanguage } from './language';
 import './work-time-forms.css';
 
 type Props = {
@@ -19,12 +21,47 @@ export function TimeForm(props: Props) { return <WorkTimeForm {...props} timer={
 export function TimerForm(props: Props) { return <WorkTimeForm {...props} timer />; }
 const timeDraftFields = ['projectId', 'taskId', 'employeeId', 'date', 'hours', 'minutes', 'breakMinutes', 'billable', 'billingRate', 'costRate', 'status', 'note'] as const;
 const validTimeDraft = (value: unknown): value is TimeEntryDraft => draftStrings(value, timeDraftFields, 5000) && Object.keys(value).length === timeDraftFields.length && ['', 'yes', 'no'].includes(value.billable);
+type CreationTimeDraft = TimeEntryDraft & { creationId?: string };
+const creationUuid = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
+const validCreationTimeDraft = (value: unknown): value is CreationTimeDraft => {
+  if (validTimeDraft(value)) return true; // Preserve legacy fields, but never silently assign a new identity.
+  return draftStrings(value, timeDraftFields, 5000) && Object.keys(value).length === timeDraftFields.length + 1 &&
+    ['', 'yes', 'no'].includes(value.billable) && typeof value.creationId === 'string' && creationUuid.test(value.creationId);
+};
+const TIME_CREATION_UNCONFIRMED = 'La création des heures n’est pas confirmée.';
+const timeCreationRecovery: Record<AppLanguage, { title: string; message: string; instruction: string }> = {
+  fr: {
+    title: 'Enregistrement des heures à vérifier',
+    message: 'La création de ces heures n’a pas été confirmée. Votre brouillon est conservé.',
+    instruction: 'Vérifiez l’historique des heures avant toute nouvelle saisie. Si ces heures sont déjà enregistrées, ouvrez leur fiche pour les contrôler ou les modifier.',
+  },
+  de: {
+    title: 'Zeiterfassung prüfen',
+    message: 'Die Erstellung dieses Zeiteintrags wurde nicht bestätigt. Ihr Entwurf bleibt gespeichert.',
+    instruction: 'Prüfen Sie die erfassten Zeiten vor einem neuen Eintrag. Wenn diese Stunden bereits gespeichert sind, öffnen Sie den Eintrag, um ihn zu prüfen oder zu bearbeiten.',
+  },
+  it: {
+    title: 'Verifica la registrazione delle ore',
+    message: 'La creazione di queste ore non è stata confermata. La bozza è conservata.',
+    instruction: 'Controlla lo storico delle ore prima di una nuova registrazione. Se queste ore sono già registrate, apri la loro scheda per verificarle o modificarle.',
+  },
+  en: {
+    title: 'Check the time entry',
+    message: 'The creation of this time entry has not been confirmed. Your draft is retained.',
+    instruction: 'Check the time entry history before creating another entry. If these hours are already recorded, open their entry to review or edit them.',
+  },
+};
 
 function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { timer: boolean }) {
+  const recovery = timeCreationRecovery[useAppLanguage()];
   const current = item ? workspace.timeEntries.find(row => row.id === item.id) : undefined;
-  const persisted = useFormDraft({ scope: useFormDraftScope(workspace, timer ? 'timer' : 'time', item?.id),
-    initial: { ...initialTimeEntryDraft(current), date: current?.date || todayIso() }, fingerprint: current ? formDraftFingerprint(current) : item ? 'missing' : 'new', validate: validTimeDraft });
+  const manualCreation = !timer && !item;
+  const [creationId] = useState(() => manualCreation ? createId() : undefined);
+  const initial: CreationTimeDraft = { ...initialTimeEntryDraft(current), date: current?.date || todayIso(), ...(manualCreation ? { creationId } : {}) };
+  const persisted = useFormDraft<CreationTimeDraft>({ scope: useFormDraftScope(workspace, timer ? 'timer' : 'time', item?.id),
+    initial, fingerprint: current ? formDraftFingerprint(current) : item ? 'missing' : 'new', validate: manualCreation ? validCreationTimeDraft : validTimeDraft });
   const draft = persisted.value, setDraft = persisted.setValue;
+  const legacyCreation = manualCreation && !draft.creationId;
   const closeForm = () => persisted.close(close);
   const [issue, setIssue] = useState<TimeEntryIssue>();
   const [saveError, setSaveError] = useState('');
@@ -33,6 +70,13 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
   const errorRef = useRef<HTMLDivElement>(null);
   const locked = busy || saving;
   const change = (field: keyof TimeEntryDraft, value: string) => setDraft(current => ({ ...current, [field]: value }));
+  const prepareNewLegacyCreation = () => {
+    if (!legacyCreation || !creationId || locked || persisted.pending || persisted.conflict || persisted.invalid) return;
+    // This explicit choice follows the history notice. The token is attached once,
+    // then remains unchanged for every retry, edit and restored creation draft.
+    setDraft(previous => ({ ...previous, creationId }));
+    setSaveError(''); setIssue(undefined);
+  };
   const fieldError = (field: keyof TimeEntryDraft) => issue?.field === field ? issue.message : undefined;
   const focusIssue = (field: keyof TimeEntryDraft) => {
     const input = formRef.current?.elements.namedItem(field);
@@ -49,7 +93,11 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
   const tasks = workspace.projectTasks.filter(task => task.projectId === draft.projectId && (!['done', 'cancelled'].includes(task.status) || task.id === item?.taskId));
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (locked || inFlight.current || persisted.pending || persisted.conflict || persisted.invalid || (item && !current)) return;
+    if (locked || inFlight.current || persisted.pending || persisted.conflict || persisted.invalid || legacyCreation || (item && !current)) return;
+    if (manualCreation && persisted.storageError) {
+      setSaveError('Cette nouvelle saisie ne peut pas être conservée sur cet appareil. Réessayez sa sauvegarde locale avant d’enregistrer les heures.');
+      return;
+    }
     const problem = timeEntryIssue(draft, workspace, item, timer);
     setIssue(problem); setSaveError('');
     if (problem) return;
@@ -59,7 +107,14 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
       const saved = await act(() => timer ? desktopApi.startTimer({
         projectId: data.projectId, taskId: data.taskId, employeeId: data.employeeId,
         billable: data.billable, billingRateCents: data.billingRateCents, costRateCents: data.costRateCents, note: data.note,
-      }) : item ? desktopApi.updateEntity('timeEntries', item.id, data) : desktopApi.createEntity('timeEntries', data),
+      }) : item ? desktopApi.updateEntity('timeEntries', item.id, data) : desktopApi.createEntity('timeEntries', { ...data, id: draft.creationId! }).catch(reason => {
+        if (reason instanceof WorkspaceCreationOutcomeUnknownError) {
+          // WorkspaceApp can resolve this generic error by ID alone. A delayed
+          // attempt may have different fields, so keep this manual draft intact.
+          throw new Error(TIME_CREATION_UNCONFIRMED, { cause: reason });
+        }
+        throw reason;
+      }),
       timer ? 'Le pointage a démarré.' : item ? 'La saisie de temps a été mise à jour.' : 'Les heures ont été enregistrées.', true,
       reason => setSaveError(errorMessage(reason, 'Les heures n’ont pas pu être enregistrées. Vos informations sont conservées.')));
       persisted.complete(saved);
@@ -71,9 +126,12 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
   return <Modal title={timer ? 'Démarrer un pointage' : item ? 'Modifier les heures' : 'Saisir des heures'} description={timer ? 'Le chronomètre mesure le temps. Vous pourrez vérifier les heures après l’arrêt.' : 'Choisissez qui a travaillé, indiquez la durée et vérifiez le montant.'} onClose={closeForm} dismissible={!locked} className="work-time-modal">
     <form ref={formRef} onSubmit={submit} noValidate>
       <FormDraftNotice draft={persisted} disabled={locked} currentValues={current ? [{ label: 'Projet', value: workspace.projects.find(row => row.id === current.projectId)?.name || current.projectId }, { label: 'Collaborateur', value: workspace.employees.find(row => row.id === current.employeeId)?.name || current.employeeId }, { label: 'Date', value: current.date }, { label: 'Durée', value: formatMinutes(current.minutes) }, { label: 'Pause', value: String(current.breakMinutes) }, { label: 'Travail effectué', value: current.note }, { label: 'Coût entreprise', value: formatMoney(current.hourlyCostCents) }, { label: 'Prix pour le client', value: formatMoney(current.billingRateCents ?? 0) }, { label: 'Statut', value: current.status }] : undefined} />
-      {saveError && <div ref={errorRef} tabIndex={-1} className="work-time-error"><ErrorGuidance error={saveError} operation="mutation" compact /></div>}
+      {legacyCreation && !persisted.pending && <div className="work-time-error" role="status"><p>Ce brouillon ne permet pas de retrouver une ancienne création. Vérifiez l’historique des heures avant de préparer une nouvelle saisie.</p><Button type="button" disabled={locked || persisted.conflict || persisted.invalid || !creationId} onClick={prepareNewLegacyCreation}>Préparer une nouvelle saisie</Button></div>}
+      {saveError && <div ref={errorRef} tabIndex={-1} className="work-time-error">{saveError === TIME_CREATION_UNCONFIRMED
+        ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-time-creation-recovery><strong>{recovery.title}</strong><p>{recovery.message}</p><p className="error-guidance__recovery">{recovery.instruction}</p></div><ErrorDetails error={saveError} /></div>
+        : <ErrorGuidance error={saveError} operation="mutation" compact />}</div>}
       {issue && <div className="work-time-error" role="alert"><strong>Un point à compléter</strong><p>{issue.message}</p><Button type="button" variant="secondary" size="small" onClick={() => focusIssue(issue.field)}>Corriger ce champ</Button></div>}
-      <fieldset disabled={locked || !!persisted.pending || persisted.conflict || persisted.invalid || !!(item && !current)} className="work-time-fields">
+      <fieldset disabled={locked || !!persisted.pending || persisted.conflict || persisted.invalid || legacyCreation || !!(item && !current)} className="work-time-fields">
         <section className="work-time-section"><h3>Qui a travaillé ?</h3><div className="form-grid">
           <Field label="Projet" required wide error={fieldError('projectId')}><select name="projectId" value={draft.projectId} onChange={event => setDraft(current => ({ ...current, projectId: event.target.value, taskId: '' }))} required autoFocus><option value="">Choisir un projet</option>{workspace.projects.filter(project => project.status !== 'closed' || project.id === item?.projectId).map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>
           <Field label="Collaborateur" required wide error={fieldError('employeeId')}><select name="employeeId" value={draft.employeeId} onChange={event => {
@@ -97,7 +155,7 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
         </div></section>
       </fieldset>
       {!timer && duration !== undefined && <section className="work-time-summary" aria-label="Résumé des heures" aria-live="polite"><div><Clock3 size={18} /><strong>{formatMinutes(duration)}</strong><span>à enregistrer</span></div>{cost !== undefined && Number.isSafeInteger(duration * cost + 30) && <div><span>Coût entreprise</span><strong>{formatMoney(Math.round(duration * cost / 60))}</strong></div>}{draft.billable === 'yes' && rate !== undefined && Number.isSafeInteger(duration * rate + 30) && <div><span>À facturer hors TVA</span><strong>{formatMoney(Math.round(duration * rate / 60))}</strong></div>}</section>}
-      <FormActions onCancel={closeForm} busy={locked} disabled={!!persisted.pending || persisted.conflict || persisted.invalid || !!(item && !current)} submitLabel={timer ? 'Démarrer le chronomètre' : 'Enregistrer les heures'} />
+      <FormActions onCancel={closeForm} busy={locked} disabled={!!persisted.pending || persisted.conflict || persisted.invalid || legacyCreation || manualCreation && persisted.storageError || !!(item && !current)} submitLabel={timer ? 'Démarrer le chronomètre' : 'Enregistrer les heures'} />
     </form>
   </Modal>;
 }
