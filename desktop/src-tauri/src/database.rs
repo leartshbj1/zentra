@@ -5067,7 +5067,7 @@ impl LocalStore {
                 timer.get("project_id").and_then(Value::as_str),
                 timer.get("task_id").and_then(Value::as_str),
                 timer.get("employee_id").and_then(Value::as_str),
-                &started_at[..10.min(started_at.len())],
+                timer_work_date(&started, &Local),
                 started_at,
                 now,
                 minutes,
@@ -8050,6 +8050,10 @@ fn add_days(value: &str, days: i64) -> AppResult<String> {
 
 pub(crate) fn now_iso() -> String {
     Utc::now().to_rfc3339()
+}
+
+fn timer_work_date<Tz: chrono::TimeZone>(started: &DateTime<chrono::FixedOffset>, timezone: &Tz) -> String {
+    started.with_timezone(timezone).date_naive().format("%Y-%m-%d").to_string()
 }
 
 fn today() -> String {
@@ -11832,5 +11836,27 @@ mod v40_invoice_deposit_migration_tests {
                 [],
             )
             .is_err());
+    }
+}
+
+#[cfg(test)]
+mod timer_work_date_tests {
+    use super::timer_work_date;
+    use chrono::{DateTime, FixedOffset, Utc};
+
+    #[test]
+    fn stopped_timer_uses_the_local_workday_instead_of_the_utc_prefix() {
+        let summer = FixedOffset::east_opt(2 * 3600).unwrap();
+        let winter = FixedOffset::east_opt(3600).unwrap();
+        for (source, timezone, expected) in [
+            ("2026-10-02T22:30:00+00:00", summer, "2026-10-03"),
+            ("2026-01-02T23:30:00+00:00", winter, "2026-01-03"),
+            ("2026-10-02T09:30:00+00:00", summer, "2026-10-02"),
+            ("2026-10-02T23:30:00+02:00", summer, "2026-10-02"),
+        ] {
+            let start = DateTime::parse_from_rfc3339(source).unwrap();
+            assert_eq!(timer_work_date(&start, &timezone), expected);
+            assert_eq!(timer_work_date(&start, &Utc), start.with_timezone(&Utc).date_naive().to_string());
+        }
     }
 }

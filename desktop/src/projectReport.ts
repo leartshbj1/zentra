@@ -1,4 +1,4 @@
-import type { Project, Workspace } from './types';
+import type { Invoice, Project, Workspace } from './types';
 import {
   documentTotals,
   formatMinutes,
@@ -148,6 +148,17 @@ export function buildProjectReport(
     );
   }
   if (included.includes('sales')) {
+    const invoiceByBatch = new Map((w.timeBillingBatches ?? []).map(batch => [batch.id, batch.invoiceId]));
+    const minutesByInvoice = new Map<string, Map<string, number>>();
+    for (const entry of w.timeBillingEntries ?? []) {
+      const invoiceId = invoiceByBatch.get(entry.batchId);
+      if (!invoiceId) continue;
+      let minutesByLine = minutesByInvoice.get(invoiceId);
+      if (!minutesByLine) { minutesByLine = new Map(); minutesByInvoice.set(invoiceId, minutesByLine); }
+      minutesByLine.set(entry.invoiceItemId, entry.minutes);
+    }
+    // Object identity distinguishes a quote from an invoice even when their IDs coincide.
+    const billedMinutes = new Map(invoices.map(invoice => [invoice, minutesByInvoice.get(invoice.id)]));
     add(
       'Devis',
       ['Document', 'Date / statut', 'Total TTC'],
@@ -170,11 +181,14 @@ export function buildProjectReport(
       add(
         t('Détail {document}',{document:doc.number || doc.title || t('Brouillon')}),
         ['Prestation', 'Quantité', 'Hors TVA'],
-        doc.lines.map((l) => [
-          l.description,
-          String(l.quantity),
-          formatMoney(documentTotals([l]).netCents, doc.currency),
-        ]),
+        doc.lines.map((l) => {
+          const minutes = billedMinutes.get(doc as Invoice)?.get(l.id);
+          return [
+            l.description,
+            minutes !== undefined && Number.isSafeInteger(minutes) && minutes > 0 ? formatMinutes(minutes) : String(l.quantity),
+            formatMoney(documentTotals([l]).netCents, doc.currency),
+          ];
+        }),
       );
     const ids = new Set(invoices.map((i) => i.id));
     add(

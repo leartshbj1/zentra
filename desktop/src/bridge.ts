@@ -6014,8 +6014,9 @@ export const desktopApi = {
     title?: string;
     vatBp?: number;
     notes?: string;
-  }) {
+  }, expectedWorkspaceScope?: string) {
     await invoke('create_invoice_from_time_entries', {
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
       input: {
         request_id: input.requestId,
         project_id: input.projectId,
@@ -6027,7 +6028,13 @@ export const desktopApi = {
         notes: input.notes?.trim() || null,
       },
     });
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    return refreshWorkspaceAfterMutation(async () => {
+      const next = await loadWorkspace();
+      if (expectedWorkspaceScope !== undefined && next.workNotesScope !== expectedWorkspaceScope) {
+        throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+      }
+      return next;
+    });
   },
   async createBackup(destination?: string) {
     const path = await invoke<string>('create_backup', { destination: isMobileRuntime() ? undefined : destination });

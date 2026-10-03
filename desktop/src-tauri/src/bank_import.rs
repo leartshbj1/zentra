@@ -4648,6 +4648,9 @@ impl LocalStore {
             let refund_suggestion = if movement_field(movement,"credit_debit")==Some("DBIT") { customer_refunds::suggestion(&connection,movement)? } else {
                 let mut result=refunds::suggestion(&connection,movement)?;
                 if let Some(candidates)=result["candidates"].as_array_mut() { candidates.extend(credit_refunds::suggestion(&connection,movement)?); }
+                let supplier_credit_creation_problem = credit_refunds::creation_problem(&connection, movement_id)?;
+                result["can_create_supplier_credit"] = json!(result["can_create"] == true && supplier_credit_creation_problem.is_none());
+                result["supplier_credit_creation_reason"] = json!(supplier_credit_creation_problem);
                 result
             };
             let expense_suggestion = expenses::suggestion(&connection, movement)?;

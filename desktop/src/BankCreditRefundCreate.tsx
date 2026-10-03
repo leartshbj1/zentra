@@ -50,6 +50,7 @@ export function BankCreditRefundCreate({
     reference.trim() &&
     reason.trim().length >= 5 &&
     movement.refundSuggestion?.canCreate &&
+    (movement.refundSuggestion.canCreateSupplierCredit ?? true) &&
     movement.amountCents > 0,
   );
   return (
@@ -109,6 +110,7 @@ export function BankCreditRefundCreate({
             ))}
           </select>
         </Field>
+        {movement.refundSuggestion?.supplierCreditCreationReason ? <p role="status">{movement.refundSuggestion.supplierCreditCreationReason}</p> : null}
         {!credits.length ? (
           <p role="status">
             Aucun avoir validé ne dispose du montant nécessaire dans cette

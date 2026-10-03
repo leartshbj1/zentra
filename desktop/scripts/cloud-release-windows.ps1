@@ -135,6 +135,9 @@ try {
         $diagnosticNativeSuites += @('commands::closure_worker_tests::', 'commands::annual_export_scope_tests::')
         $diagnosticFrontendSuites += @('src/closingScopeBridge.test.ts', 'src/closingExportBridge.test.ts', 'src/bexioContactRouting.test.ts', 'src/catalogImport.test.ts', 'src/bexioImport.test.ts')
         $diagnosticMobileSuites += @('src/closingScopeBridge.test.ts', 'src/closingExportBridge.test.ts', 'src/bexioContactRouting.test.ts', 'src/catalogImport.test.ts', 'src/bexioImport.test.ts')
+        $diagnosticNativeSuites += @('bank_import::tests::expense_tests::supplier_credit_refund_tests::', 'time_billing::tests::', 'tests::time_billing_', 'database::timer_work_date_tests::', 'commands::time_billing_scope_tests::', 'tests::time_invoice_customization_tests::')
+        $diagnosticFrontendSuites += @('src/bankSupplierRefundHistory.test.tsx', 'src/timeBillingPrecision.test.ts', 'src/monetaryRounding.test.ts', 'src/monetaryLegacyCompatibility.test.ts', 'src/projectReportTimeQuantity.test.ts', 'src/timeBilling.test.ts', 'src/timeEntryForm.test.ts')
+        $diagnosticMobileSuites += @('src/bankSupplierRefundHistory.test.tsx', 'src/timeBillingPrecision.test.ts', 'src/monetaryRounding.test.ts', 'src/monetaryLegacyCompatibility.test.ts', 'src/projectReportTimeQuantity.test.ts', 'src/timeBilling.test.ts', 'src/timeEntryForm.test.ts')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

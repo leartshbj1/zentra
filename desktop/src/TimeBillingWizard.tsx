@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -30,6 +30,7 @@ type ActionRunner = (
   message: string,
   close?: boolean,
   onError?: (reason: unknown) => void,
+  validateRead?: (workspace: Workspace) => void,
 ) => Promise<boolean>;
 
 export function TimeBillingWizard({
@@ -71,6 +72,17 @@ export function TimeBillingWizard({
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const inFlight = useRef(false);
+  const originWorkspaceScope = useRef(workspace.workNotesScope).current;
+  const currentScope = useRef(workspace.workNotesScope);
+  currentScope.current = workspace.workNotesScope;
+  const alive = useRef(false);
+  useLayoutEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const isCurrent = () => alive.current && currentScope.current === originWorkspaceScope;
+  const workspaceChanged = workspace.workNotesScope !== originWorkspaceScope;
+  const scopeError = 'L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.';
+  const validateRead = (next: Workspace) => {
+    if (!isCurrent() || (originWorkspaceScope !== undefined && next.workNotesScope !== originWorkspaceScope)) throw new Error(scopeError);
+  };
   const errorRef = useRef<HTMLDivElement>(null);
   const locked = busy || saving;
   useEffect(() => {
@@ -123,7 +135,7 @@ export function TimeBillingWizard({
       ) : (
         <form
           onSubmit={submitForm(async (form) => {
-            if (locked || inFlight.current || !selectedEntries.length || !project || !client || !vatRates.includes(vatBp))
+            if (!isCurrent() || locked || inFlight.current || !selectedEntries.length || !project || !client || !vatRates.includes(vatBp))
               return;
             inFlight.current = true; setSaving(true); setSaveError('');
             try {
@@ -136,19 +148,21 @@ export function TimeBillingWizard({
                   title: String(form.get('title')),
                   vatBp,
                   notes: String(form.get('notes')),
-                }),
+                }, originWorkspaceScope),
               'La facture brouillon a été créée. Les heures sélectionnées y sont réservées sans double facturation.',
-              true,
-              reason => setSaveError(errorMessage(reason, 'La facture n’a pas pu être créée. Votre sélection est conservée.')),
+              false,
+              reason => { if (isCurrent()) setSaveError(errorMessage(reason, 'La facture n’a pas pu être créée. Votre sélection est conservée.')); },
+              validateRead,
             );
+            if (!isCurrent()) return;
             if (created) onCreated();
             else setSaveError(current => current || 'La création n’est pas disponible pour le moment. Votre sélection est conservée.');
-            } catch (reason) { setSaveError(errorMessage(reason, 'La création a été interrompue. Votre sélection est conservée.')); }
-            finally { inFlight.current = false; setSaving(false); }
+            } catch (reason) { if (isCurrent()) setSaveError(errorMessage(reason, 'La création a été interrompue. Votre sélection est conservée.')); }
+            finally { inFlight.current = false; if (isCurrent()) setSaving(false); }
           })}
         >
-          {saveError && <div ref={errorRef} tabIndex={-1}><ErrorGuidance error={saveError} operation="mutation" compact /></div>}
-          <fieldset className="work-time-fields" disabled={locked}>
+          {(workspaceChanged || saveError) && <div ref={errorRef} tabIndex={-1}><ErrorGuidance error={workspaceChanged ? scopeError : saveError} operation="mutation" compact /></div>}
+          <fieldset className="work-time-fields" disabled={locked || workspaceChanged}>
           <div className="form-grid time-billing-config">
             <Field label="Projet à facturer" required wide>
               <select
@@ -333,7 +347,7 @@ export function TimeBillingWizard({
           <FormActions
             onCancel={close}
             busy={locked}
-            disabled={!selectedEntries.length || !project || !client || !vatRates.includes(vatBp)}
+            disabled={workspaceChanged || !selectedEntries.length || !project || !client || !vatRates.includes(vatBp)}
             submitLabel="Créer la facture brouillon"
           />
           <div className="time-billing-next" aria-hidden="true">

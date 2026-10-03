@@ -120,3 +120,8 @@ Les points 1/2 et le diagnostic restent dans le code préparé, sans publication
 Les exports du bilan et du dossier de clôture gardent maintenant leur entreprise d'origine, même après un sélecteur de fichier ou un acquittement tardif. Le reçu confirmé est conservé sans nouvelle création. Le journal trace ces opérations avec leur durée et résultat, sans contenu ni chemin de document. Les CSV et classeurs de contacts trouvent les bonnes colonnes et feuilles ; les très grandes pages PDF disposent d'un budget de mémoire borné, sans recadrage.
 
 Les 107 tests ciblés intégrés et le TypeScript complet passent. Les seize nouvelles fixtures Windows restent à compiler et exécuter ; le détail des matrices, variantes avant/après et limites figure dans `docs/RUNTIME-AUDIT-20261002.md`. Cette étape prépare le code et ne distribue pas encore une nouvelle version.
+
+
+## Reprises et actions financières du 3 octobre
+
+Le diagnostic et les points 1/2 restent intégrés au code préparé : saisies conservées par espace, erreurs lisibles et reprise explicite sans répétition automatique des écritures. Le complément traite la restauration après changement d'écran, la portée de la facturation des heures, l'édition des informations des factures de temps et les remboursements fournisseurs conservés après dissociation. Le journal existant suit l'admission, les durées et résultats de ces commandes, ainsi que les reprises de lecture, sans contenu financier, document, message ou secret. Les détails, échecs de préparation de la CI 236 et limites de validation sont conservés dans docs/RUNTIME-AUDIT-20261002.md et les registres d'audit. Cette étape ne distribue pas de nouvelle version.

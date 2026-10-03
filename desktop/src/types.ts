@@ -1384,7 +1384,7 @@ export type BankMovement = {
   expenseSuggestion?: { reason: string; canCreate?: boolean; candidates: BankExpenseCandidate[] };
   refundMatch?: BankRefundMatch | null;
   refundHistory?: (BankRefundMatch & { reason: string; unlinkedAt: string })[];
-  refundSuggestion?: { reason: string; candidates: BankRefundCandidate[]; canCreate?: boolean };
+  refundSuggestion?: { reason: string; candidates: BankRefundCandidate[]; canCreate?: boolean; canCreateSupplierCredit?: boolean; supplierCreditCreationReason?: string };
   suggestion: BankReconciliationSuggestion;
   supplierSuggestion: BankSupplierReconciliationSuggestion;
 };

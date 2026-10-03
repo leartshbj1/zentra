@@ -23,6 +23,7 @@ export function BankRefundPicker({ movement, disabled, onConfirm, onOpenExpense,
   const [completed, setCompleted] = useState(false);
   const submitting = useRef(false);
   const candidates = movement.refundSuggestion?.candidates ?? [];
+  const canCreateSupplierCredit = Boolean(movement.refundSuggestion?.canCreate && (movement.refundSuggestion.canCreateSupplierCredit ?? true));
   const filtered = candidates.filter((candidate) => searchText([candidate.reference, candidate.supplier, candidate.customerName, candidate.expenseReference, candidate.paymentDate], query));
   const selected = candidates.find((candidate) => candidate.refundId === choice);
   const note = notes[choice] || '';
@@ -57,7 +58,8 @@ export function BankRefundPicker({ movement, disabled, onConfirm, onOpenExpense,
       </> : <p>Aucun remboursement déjà saisi ne correspond à ce mouvement.</p>}
       {onCreate && movement.refundSuggestion?.canCreate ? <div className="bank-refund-create-action"><p>Le remboursement n’est pas encore saisi ? Retrouvez l’achat d’origine pour l’enregistrer et le rapprocher en une fois.</p><Button type="button" variant="secondary" disabled={disabled} onClick={onCreate}>Créer le remboursement reçu</Button></div> : null}
       {onCreateCustomer && movement.refundSuggestion?.canCreate ? <div className="bank-refund-create-action"><p>Ce remboursement n’est pas encore saisi ? Enregistrez le virement déjà versé au client à partir de son avoir.</p><Button type="button" variant="secondary" disabled={disabled} onClick={onCreateCustomer}>Enregistrer un remboursement client</Button></div> : null}
-      {onCreateCredit && movement.refundSuggestion?.canCreate ? <div className="bank-refund-create-action"><p>Vous avez déjà un avoir fournisseur validé ? Enregistrez son remboursement à partir de ce virement.</p><Button type="button" variant="secondary" disabled={disabled} onClick={onCreateCredit}>Rembourser un avoir fournisseur</Button></div>:null}
+      {onCreateCredit && !canCreateSupplierCredit && movement.refundSuggestion?.supplierCreditCreationReason ? <p role="status">{movement.refundSuggestion.supplierCreditCreationReason}</p> : null}
+      {onCreateCredit && canCreateSupplierCredit ? <div className="bank-refund-create-action"><p>Vous avez déjà un avoir fournisseur validé ? Enregistrez son remboursement à partir de ce virement.</p><Button type="button" variant="secondary" disabled={disabled} onClick={onCreateCredit}>Rembourser un avoir fournisseur</Button></div>:null}
     </>}
   </details>;
 }

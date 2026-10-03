@@ -858,15 +858,16 @@ pub fn issue_invoice(
 }
 
 #[tauri::command]
-pub fn create_invoice_from_time_entries(
+pub async fn create_invoice_from_time_entries(
     state: State<'_, LocalStore>,
     input: CreateInvoiceFromTimeEntriesInput,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state
-        .create_invoice_from_time_entries(input)
-        .map_err(command_error)
+    let store = state.inner().clone();
+    run_scoped_local_operation(store, expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.create_invoice_from_time_entries(input).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
@@ -1934,6 +1935,10 @@ mod pdf_worker_tests;
 #[cfg(test)]
 #[path = "commands_annual_export_scope_tests.rs"]
 mod annual_export_scope_tests;
+
+#[cfg(test)]
+#[path = "commands_time_billing_scope_tests.rs"]
+mod time_billing_scope_tests;
 
 #[cfg(test)]
 #[path = "commands_import_worker_tests.rs"]

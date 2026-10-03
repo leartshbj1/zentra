@@ -591,6 +591,12 @@ mod tests {
         (temporary, store)
     }
 
+    include!("time_billing_precision_integration_tests.rs");
+
+    mod time_invoice_customization_tests {
+        include!("time_invoice_customization_tests.rs");
+    }
+
     fn time_billing_fixture(store: &LocalStore) -> (String, String, String) {
         let client_id = value_id(
             &store

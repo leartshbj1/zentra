@@ -603,3 +603,135 @@ fn bank_credit_refund_migration_from_51_preserves_money_without_inventing_bank_m
         crate::schema::SCHEMA_VERSION
     );
 }
+
+// Prepared tests for the existing bank_import::tests::expense_tests::supplier_credit_refund_tests module.
+// These fixtures exercise the real LocalStore and existing synthetic helpers, without SMTP or bank APIs.
+// They have not been compiled or executed locally. Append only after a separate reviewed integration.
+
+fn history_refund_financial_snapshot(store: &LocalStore) -> Value {
+    let connection = store.connect().unwrap();
+    let mut snapshot = serde_json::Map::new();
+    for table in [
+        "supplier_credit_refunds", "bank_supplier_credit_refund_matches",
+        "bank_supplier_credit_refund_unlinks", "bank_supplier_credit_refund_requests",
+        "attachments", "journal_entries", "journal_lines", "audit_log",
+    ] {
+        let rows = crate::database::query_all(
+            &connection, &format!("SELECT * FROM {table} ORDER BY rowid"), [],
+        ).unwrap();
+        snapshot.insert(table.into(), json!(rows));
+    }
+    snapshot.insert("balances".into(), json!(crate::database::query_all(
+        &connection,
+        "SELECT * FROM supplier_credit_balances ORDER BY supplier_credit_note_id", [],
+    ).unwrap()));
+    Value::Object(snapshot)
+}
+
+fn history_refund_remaining(store: &LocalStore, credit_id: &str) -> i64 {
+    store.connect().unwrap().query_row(
+        "SELECT remaining_cents FROM supplier_credit_balances WHERE supplier_credit_note_id=?",
+        params![credit_id], |row| row.get(0),
+    ).unwrap()
+}
+
+#[test]
+fn unlinked_unreversed_partial_supplier_refund_blocks_a_new_request_for_the_same_bank_credit() {
+    let (dir, store) = ready();
+    let (credit_id, _) = credit(&store, false);
+    let movement = debit(&store, dir.path(), "HISTORY-PARTIAL", Some(refund_credit("27.02", "HISTORY-PARTIAL")));
+    let first = create(&credit_id, &movement);
+    let result = store.create_bank_supplier_credit_refund(first.clone()).unwrap();
+    let refund_id = value_id(&result["refund"]);
+    assert_eq!(result["refund"]["amount_cents"], 2702);
+    assert_eq!(history_refund_remaining(&store, &credit_id), 2703);
+    let confirmed = history_refund_financial_snapshot(&store);
+    assert_eq!(store.create_bank_supplier_credit_refund(first.clone()).unwrap()["already_recorded"], true);
+    assert_eq!(history_refund_financial_snapshot(&store), confirmed);
+    store.unmatch_bank_supplier_credit_refund(refund_unlink(&first.request_id)).unwrap();
+
+    let before = history_refund_financial_snapshot(&store);
+    let counts_before = state(&store, dir.path());
+    let vat_before = preview(&store).source_sha256;
+    assert!(store.create_bank_supplier_credit_refund(first).is_err());
+    assert_eq!(history_refund_financial_snapshot(&store), before);
+    let second = create(&credit_id, &movement);
+    assert_ne!(second.request_id, result["match"]["id"].as_str().unwrap());
+    let attempted = store.create_bank_supplier_credit_refund(second);
+    assert!(attempted.is_err(), "A new request must not account the bank credit twice: {attempted:?}");
+    assert_eq!(history_refund_financial_snapshot(&store), before);
+    assert_eq!(state(&store, dir.path()), counts_before);
+    assert_eq!(preview(&store).source_sha256, vat_before);
+
+    // Re-association of the already accounted refund remains permitted and creates no payment.
+    let rematched = store.match_bank_supplier_credit_refund(refund_match(&movement, &refund_id)).unwrap();
+    assert_eq!(rematched["match"]["refund_id"], refund_id);
+    assert_eq!(state(&store, dir.path()).0, counts_before.0);
+    assert_eq!(state(&store, dir.path()).3, counts_before.3);
+    assert_eq!(preview(&store).source_sha256, vat_before);
+    assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
+}
+
+#[test]
+fn an_explicit_reversal_allows_replacement_creation_after_unlink_without_duplicate_net_money() {
+    let (dir, store) = ready();
+    let (credit_id, _) = credit(&store, false);
+    let movement = debit(&store, dir.path(), "HISTORY-REVERSED", Some(refund_credit("27.02", "HISTORY-REVERSED")));
+    let first = create(&credit_id, &movement);
+    let old = store.create_bank_supplier_credit_refund(first.clone()).unwrap();
+    let refund_id = value_id(&old["refund"]);
+    store.unmatch_bank_supplier_credit_refund(refund_unlink(&first.request_id)).unwrap();
+    let mut reversal = reverse(&refund_id);
+    reversal.date = "2026-08-31".into();
+    let reversed = store.reverse_supplier_credit_refund(reversal).unwrap();
+    assert_eq!(reversed["balance"]["remaining_cents"], 5405);
+    let replacement = create(&credit_id, &movement);
+    let created = store.create_bank_supplier_credit_refund(replacement.clone()).unwrap();
+    assert_eq!(created["already_recorded"], false);
+    assert_eq!(created["refund"]["amount_cents"], 2702);
+    assert_eq!(history_refund_remaining(&store, &credit_id), 2703);
+    assert_ne!(value_id(&created["refund"]), refund_id);
+    let connection = store.connect().unwrap();
+    let net: i64 = connection.query_row(
+        "SELECT COALESCE(SUM(CASE event_type WHEN 'refund' THEN amount_cents ELSE -amount_cents END),0) FROM supplier_credit_refunds WHERE supplier_credit_note_id=?",
+        params![credit_id], |row| row.get(0),
+    ).unwrap();
+    assert_eq!(net, 2702);
+    drop(connection);
+    let before_replay = history_refund_financial_snapshot(&store);
+    assert_eq!(store.create_bank_supplier_credit_refund(replacement).unwrap()["already_recorded"], true);
+    assert_eq!(history_refund_financial_snapshot(&store), before_replay);
+    assert_eq!(store.verify_audit_log().unwrap()["valid"], true);
+}
+
+#[test]
+fn correcting_a_match_keeps_other_existing_refunds_matchable_and_foreign_currency_rejected() {
+    let (dir, store) = ready();
+    let (first_credit, _) = credit(&store, false);
+    let movement = debit(&store, dir.path(), "HISTORY-CHOICE", Some(refund_credit("27.02", "HISTORY-CHOICE")));
+    let first = create(&first_credit, &movement);
+    store.create_bank_supplier_credit_refund(first.clone()).unwrap();
+    store.unmatch_bank_supplier_credit_refund(refund_unlink(&first.request_id)).unwrap();
+    let (other_credit, _) = credit(&store, false);
+    let recorded = store.record_supplier_credit_refund(SupplierCreditRefundInput {
+        request_id: Uuid::new_v4().to_string(),
+        supplier_credit_note_id: other_credit.clone(),
+        date: "2026-08-31".into(), amount_cents: 2702,
+        reference: "Virement autre avoir existant".into(),
+        reason: "Correction de la pièce déjà comptabilisée".into(),
+    }).unwrap();
+    let other_refund = value_id(&recorded["refund"]);
+    let before_match = state(&store, dir.path());
+    let chosen = store.match_bank_supplier_credit_refund(refund_match(&movement, &other_refund)).unwrap();
+    assert_eq!(chosen["match"]["refund_id"], other_refund);
+    assert_eq!(state(&store, dir.path()).0, before_match.0);
+    assert_eq!(state(&store, dir.path()).3, before_match.3);
+
+    let foreign = debit(&store, dir.path(), "HISTORY-EUR", Some(refund_credit("27.02", "HISTORY-EUR").replace("CHF", "EUR")));
+    let before = history_refund_financial_snapshot(&store);
+    let counts_before = state(&store, dir.path());
+    let attempt = store.create_bank_supplier_credit_refund(create(&other_credit, &foreign));
+    assert!(attempt.is_err());
+    assert_eq!(history_refund_financial_snapshot(&store), before);
+    assert_eq!(state(&store, dir.path()), counts_before);
+}

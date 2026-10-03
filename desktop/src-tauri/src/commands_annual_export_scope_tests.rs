@@ -5,7 +5,7 @@ use super::*;
 use futures_util::future::join;
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use std::{future::Future, path::Path, sync::mpsc, thread, time::Duration};
+use std::{collections::HashMap, future::Future, path::Path, sync::mpsc, thread, time::Duration};
 use tauri::Manager;
 
 const SENTINEL: &[u8] = b"SYNTHETIC EXISTING ANNUAL PDF";
@@ -17,10 +17,15 @@ fn filter() -> PeriodFilter {
     }
 }
 
-fn fixture() -> (tempfile::TempDir, LocalStore) {
+fn fixture_with_accounts() -> (tempfile::TempDir, LocalStore, HashMap<&'static str, String>) {
     let (temporary, store) = unlicensed_fixture();
-    crate::tests::enable_accounting(&store);
+    let accounts = crate::tests::enable_accounting(&store);
     store.update_settings(json!({"company_name":"SYNTHETIC ORIGIN ANNUAL ISSUER"})).unwrap();
+    (temporary, store, accounts)
+}
+
+fn fixture() -> (tempfile::TempDir, LocalStore) {
+    let (temporary, store, _) = fixture_with_accounts();
     (temporary, store)
 }
 
@@ -127,7 +132,7 @@ fn actual_annual_handler_refuses_old_scope_after_real_restore_before_creating_or
         assert!(result.unwrap_err().contains("L’entreprise ouverte a changé"));
         assert_ne!(scope(&store), origin);
         assert_eq!(restored["clients"][0]["id"], client);
-        assert_eq!(restored["settings"][0]["company_name"], "SYNTHETIC REPLACEMENT ANNUAL ISSUER");
+        assert_eq!(restored["settings"]["company_name"], "SYNTHETIC REPLACEMENT ANNUAL ISSUER");
         if existing { assert_eq!(std::fs::read(&destination).unwrap(), SENTINEL); }
         else { assert!(!destination.exists()); }
         assert_eq!(store.get_workspace().unwrap(), restored);
@@ -183,8 +188,7 @@ fn annual_origin_guard_runs_before_destination_and_period_validation_without_wri
 
 #[test]
 fn annual_current_and_none_preserve_original_currency_error_and_existing_destination() {
-    let (temporary, store) = fixture();
-    let accounts = crate::tests::enable_accounting(&store);
+    let (temporary, store, accounts) = fixture_with_accounts();
     store.post_manual_journal_entry(crate::models::ManualJournalInput {
         entry_date: "2026-02-16".into(),
         description: "Synthetic foreign journal entry".into(),

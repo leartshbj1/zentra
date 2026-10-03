@@ -78,14 +78,31 @@ fn minute_amount(minutes: i64, hourly_rate_cents: i64) -> AppResult<i64> {
         )));
     }
     let exact = rounded_positive_ratio(minutes as i128 * hourly_rate_cents as i128, 60)?;
-    let document_invariant = ((minutes as f64 / 60.0) * hourly_rate_cents as f64).round() as i64;
-    if document_invariant != exact {
+    minute_quantity(minutes, hourly_rate_cents, exact)?;
+    Ok(exact)
+}
+
+fn minute_quantity(minutes: i64, hourly_rate_cents: i64, amount_cents: i64) -> AppResult<f64> {
+    let nominal = minutes as f64 / 60.0;
+    let rounded = (nominal * hourly_rate_cents as f64).round() as i64;
+    // Keep the minute-derived quantity, moving at most one representable value
+    // when its multiplication lands just below a half-cent boundary.
+    let quantity = if rounded < amount_cents {
+        nominal.next_up()
+    } else if rounded > amount_cents {
+        nominal.next_down()
+    } else {
+        nominal
+    };
+    if (quantity - nominal).abs() > 0.000000001
+        || (quantity * hourly_rate_cents as f64).round() as i64 != amount_cents
+    {
         return Err(AppError::Validation(
             "Ce temps dépasse la précision monétaire prise en charge par les factures locales."
                 .into(),
         ));
     }
-    Ok(exact)
+    Ok(quantity)
 }
 
 fn vat_amount(net_cents: i64, vat_bp: i64) -> AppResult<i64> {
@@ -453,7 +470,7 @@ impl LocalStore {
                     Option::<String>::None,
                     position as i64,
                     description,
-                    snapshot.minutes as f64 / 60.0,
+                    minute_quantity(snapshot.minutes, snapshot.rate_cents, snapshot.amount_cents)?,
                     "heure",
                     snapshot.rate_cents,
                     0_i64,
@@ -538,4 +555,61 @@ mod tests {
         assert_eq!(minute_amount(61, 10_001).unwrap(), 10_168);
         assert_eq!(minute_amount(1, 1).unwrap(), 0);
     }
+    #[test]
+    fn ordinary_half_cent_time_is_billable_without_changing_its_integer_amount() {
+        assert_eq!(minute_amount(11, 5_010).unwrap(), 919);
+        assert_eq!(minute_amount(73, 5_010).unwrap(), 6_096);
+        assert_eq!(minute_amount(61, 10_001).unwrap(), 10_168);
+        let quantity = super::minute_quantity(11, 5_010, 919).unwrap();
+        assert!((quantity - 11.0 / 60.0).abs() <= 0.000000001);
+        assert_eq!((quantity * 5_010.0).round() as i64, 919);
+        assert!(super::minute_quantity(11, 5_010, 920).is_err());
+    }
+
+    #[test]
+    fn formal_vat_integer_boundaries_and_five_hundred_lines_fit_i64() {
+        for (minutes, rate, expected_net, expected_vat) in [
+            (3_863_116_i64, 65_465_199_i64, 4_214_994_295_001_i64, 4_214_572_795_571_i64),
+            (4_647_808, 28_895_187, 2_238_321_355_002, 2_238_097_522_866),
+        ] {
+            assert_eq!(minute_amount(minutes, rate).unwrap(), expected_net);
+            // 99.99% is a formal input-contract boundary, not a Swiss VAT rate.
+            assert_eq!(super::vat_amount(expected_net, 9_999).unwrap(), expected_vat);
+        }
+        let max_net = minute_amount(5_256_000, 100_000_000).unwrap();
+        assert_eq!(max_net, 8_760_000_000_000);
+        let max_vat = super::vat_amount(max_net, 10_000).unwrap();
+        let max_line = max_net.checked_add(max_vat).unwrap();
+        let max_total = (0..500).try_fold(0_i64, |sum, _| sum.checked_add(max_line)).unwrap();
+        assert_eq!(max_total, 8_760_000_000_000_000);
+        assert!(max_total < 9_007_199_254_740_991);
+    }
+
+    #[test]
+    fn normalized_minute_quantities_match_sqlite_and_keep_the_existing_time_tolerance() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        for minutes in [1_i64, 11, 29, 30, 59, 60, 61, 449, 1_441, 5_255_999, 5_256_000] {
+            for rate in [1_i64, 30, 31, 5_010, 9_550, 10_001, 99_999_999, 100_000_000] {
+                let expected = ((minutes as i128 * rate as i128 + 30) / 60) as i64;
+                assert_eq!(minute_amount(minutes, rate).unwrap(), expected);
+                let quantity = super::minute_quantity(minutes, rate, expected).unwrap();
+                assert!((quantity - minutes as f64 / 60.0).abs() <= 0.000000001);
+                let (positive, negative): (i64, i64) = connection.query_row(
+                    "SELECT CAST(ROUND(?1 * ?2) AS INTEGER), CAST(ROUND(-?1 * ?2) AS INTEGER)",
+                    rusqlite::params![quantity, rate],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                ).unwrap();
+                assert_eq!((positive, negative), (expected, -expected), "{minutes} minutes at {rate} cents");
+                for vat_bp in [0_i64, 260, 380, 810, 10_000] {
+                    let tax = ((expected as i128 * vat_bp as i128 + 5_000) / 10_000) as i64;
+                    assert_eq!(super::vat_amount(expected, vat_bp).unwrap(), tax);
+                }
+            }
+        }
+        assert!(minute_amount(0, 5_010).is_err());
+        assert!(minute_amount(5_256_001, 5_010).is_err());
+        assert!(minute_amount(11, 0).is_err());
+        assert!(minute_amount(11, 100_000_001).is_err());
+    }
+
 }

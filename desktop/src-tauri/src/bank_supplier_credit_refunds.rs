@@ -43,6 +43,13 @@ pub(super) fn history(connection: &Connection, movement: &str) -> AppResult<Vec<
 fn linked(connection: &Connection, movement: &str) -> AppResult<bool> {
     Ok(connection.query_row("SELECT EXISTS(SELECT 1 FROM bank_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_supplier_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM bank_expense_reconciliations WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_expense_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_supplier_credit_refund_matches WHERE movement_id=?1) OR EXISTS(SELECT 1 FROM active_bank_customer_credit_refund_matches WHERE movement_id=?1)",params![movement],|r|r.get(0))?)
 }
+pub(super) fn creation_problem(connection: &Connection, movement: &str) -> AppResult<Option<String>> {
+    let retained: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM bank_supplier_credit_refund_matches m JOIN supplier_credit_refunds r ON r.id=m.refund_id WHERE m.movement_id=? AND r.event_type='refund' AND NOT EXISTS(SELECT 1 FROM supplier_credit_refunds x WHERE x.reverses_id=r.id))",
+        params![movement], |row| row.get(0),
+    )?;
+    Ok(retained.then(|| "Un remboursement conservé a déjà été relié à ce crédit. Rapprochez le remboursement existant ; la dissociation ne l’a pas annulé.".into()))
+}
 fn refund_state(
     connection: &Connection,
     refund: &Value,
@@ -241,6 +248,9 @@ impl LocalStore {
         }
         if linked(&tx, &movement)? {
             return Err(reject("Ce mouvement est déjà rapproché."));
+        }
+        if let Some(problem) = creation_problem(&tx, &movement)? {
+            return Err(reject(&problem));
         }
         let row = query_record_tx(&tx, "bank_movements", &movement)?;
         let date = super::refunds::movement_date(&tx, &row)?;

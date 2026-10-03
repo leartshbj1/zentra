@@ -90,6 +90,7 @@ export function DocumentEditor({
   const item = currentRecord ?? suppliedItem;
   const current = item ?? quoteSource;
   const currentInvoice = entity === 'invoices' ? (item as Invoice | undefined) : undefined;
+  const reservedTime = Boolean(currentInvoice && workspace.timeBillingBatches?.some(batch => batch.invoiceId === currentInvoice.id));
   const hasCustomerCredit = Boolean(currentInvoice && currentInvoice.status !== 'draft' && workspace.invoices.some((invoice)=>invoice.customerCredit && (invoice.id===currentInvoice.id || invoice.originalInvoiceId===currentInvoice.id || invoice.creditSettlements?.some((event)=>event.invoiceId===currentInvoice.id))));
   const [emptyLineId] = useState(createId);
   const persisted = useFormDraft({ scope: useFormDraftScope(workspace, entity, suppliedItem?.id, !suppliedItem ? 'quote:' + (quoteSource?.id || '') + ';project:' + (initialProject?.id || '') : ''),
@@ -139,6 +140,12 @@ export function DocumentEditor({
     ? [...new Set(creditOriginal.lines.map((line) => line.vatRateBp))].filter((rate) => rate >= 0).sort((a, b) => a - b)
     : [...new Set([0, ...settings.billing.vatRatesBp])];
   const currency = creditOriginal?.currency || current?.currency || settings.billing.currency || 'CHF';
+  const reservedTimeDraftChanged = Boolean(reservedTime && currentInvoice && (
+    JSON.stringify(lines.map(timeInvoiceLineIdentity)) !== JSON.stringify(currentInvoice.lines.map(timeInvoiceLineIdentity)) ||
+    selectedClientId !== currentInvoice.clientId || (selectedProjectId || null) !== currentInvoice.projectId ||
+    invoiceType !== currentInvoice.type || serviceDateFrom !== currentInvoice.serviceDateFrom ||
+    serviceDateTo !== currentInvoice.serviceDateTo
+  ));
   const [localError, setLocalError] = useState('');
   const [numberErrors, setNumberErrors] = useState<Record<string, string>>({});
   const numberValidity = useCallback((id: string, error: string) => {
@@ -217,7 +224,7 @@ export function DocumentEditor({
     }
     if (index === 0 && quickClientOpen) return showStepError(0, t("Ajoutez le nouveau contact ou fermez sa fiche pour continuer."));
     if (index === 0 && !documentTitle.trim()) return showStepError(0, t("Donnez un titre à votre document."), formRef.current?.querySelector<HTMLInputElement>('[name="title"]') || undefined);
-    if (index === 1) {
+    if (index === 1 && !reservedTime) {
       const issue = documentLineIssue(lines);
       if (issue) return showStepError(1, issue.message, formRef.current?.querySelector<HTMLElement>(`[data-line-number="${issue.index + 1}"] [aria-label="${t(issue.field)}"]`) || undefined);
       const invalidVat = settings.organization.vatRegistered ? lines.findIndex(line => !documentVatRates.includes(line.vatRateBp)) : -1;
@@ -420,7 +427,12 @@ export function DocumentEditor({
         onChange={() => { if (localError) setLocalError(''); }}
         onSubmit={submitForm(async (form) => {
           if (busy || saving || submission.current || isLocked || readOnly || draftBlocked) return;
+          const originWorkspaceScope = workspace.workNotesScope;
           if (step < 3) { goToStep(step + 1); return; }
+          if (reservedTimeDraftChanged) {
+            setLocalError(t("Les heures réservées ont été modifiées dans cette saisie. Votre texte est conservé. Utilisez « Reprendre les heures réservées » avant d’enregistrer."));
+            return;
+          }
           for (let index = 0; index < 3; index += 1) if (!validateStep(index)) return;
           setSaveAttempt((attempt) => attempt + 1);
           setLocalError(''); setSaveFailure(null);
@@ -503,7 +515,11 @@ export function DocumentEditor({
           submission.current = true; setSaving(true);
           try {
             const saved = await act(
-            () => desktopApi.saveDocument(entity, data, depositLines, item),
+            () => reservedTime && currentInvoice
+              ? desktopApi.updateEntity('invoices', currentInvoice.id, {
+                  title: data.title, notes: data.notes, terms: data.terms, issueDate, dueDate,
+                }, originWorkspaceScope)
+              : desktopApi.saveDocument(entity, data, depositLines, item),
             item
               ? t("Le brouillon a été mis à jour.")
               : entity === 'quotes' ? t('Le devis a été enregistré en brouillon.') : invoiceType === 'credit_note' ? t('L’avoir a été enregistré en brouillon.') : t('La facture a été enregistrée en brouillon.'),
@@ -517,6 +533,18 @@ export function DocumentEditor({
         })}
       >
         {!isLocked && <FormDraftNotice draft={persisted} disabled={busy || saving || readOnly} currentValues={item ? [{ label: t('Titre du document'), value: item.title }, { label: t('Client'), value: workspace.clients.find(row => row.id === item.clientId)?.company || workspace.clients.find(row => row.id === item.clientId)?.name || item.clientId }, { label: terminology.singular, value: workspace.projects.find(row => row.id === item.projectId)?.name || item.projectId || '' }, { label: t('Date d’émission'), value: item.issueDate }, { label: t('Conditions'), value: entity === 'quotes' ? (item as Quote).validUntil : (item as Invoice).dueDate }, { label: t('Prestations'), value: item.lines.map(line => `${line.description} · ${line.quantity} ${line.unit} · ${formatMoney(line.unitPriceCents, item.currency)} · ${line.vatRateBp / 100} %`).join('\n') }, { label: t('Notes'), value: item.notes }, { label: t('Texte personnalisé en bas de page'), value: item.terms }] : undefined} />}
+        {reservedTimeDraftChanged && currentInvoice && !isLocked ? <aside className="form-draft-notice" aria-label={t("Heures réservées")}>
+          <div><strong>{t("Les heures facturées restent inchangées")}</strong><p>{t("Cette saisie contient des changements de lignes ou de rattachement. Reprenez les valeurs enregistrées pour ces champs ; votre titre, vos notes, vos dates de facture et votre texte de bas de page seront conservés.")}</p></div>
+          <Button type="button" variant="secondary" size="small" disabled={busy || saving || readOnly || draftBlocked} onClick={() => {
+            persisted.setValue(previous => ({ ...previous,
+              lines: currentInvoice.lines.map(line => ({ ...line })), selectedClientId: currentInvoice.clientId,
+              selectedProjectId: currentInvoice.projectId || '', invoiceType: currentInvoice.type,
+              serviceDateFrom: currentInvoice.serviceDateFrom, serviceDateTo: currentInvoice.serviceDateTo,
+              originalInvoiceId: currentInvoice.originalInvoiceId || '', quickClientOpen: false, numberInputs: {},
+            }));
+            setLocalError('');
+          }}>{t("Reprendre les heures réservées")}</Button>
+        </aside> : null}
         {saveFailure ? <ErrorGuidance error={saveFailure} operation="mutation" compact /> : null}
         {!isLocked && <nav className="document-stepper" aria-label={t("Étapes de création")}>
           <div className="document-stepper__intro"><span>{t("Votre document")}</span><strong>{documentTitle.trim() || (entity === 'quotes' ? t("Nouveau devis") : invoiceType === 'credit_note' ? t("Nouvel avoir") : t("Nouvelle facture"))}</strong></div>
@@ -544,7 +572,7 @@ export function DocumentEditor({
                 <select
                   name="clientId"
                   value={selectedClientId}
-                  disabled={Boolean(creditOriginal)}
+                  disabled={Boolean(creditOriginal) || reservedTime}
                   onChange={(event) => {
                     setSelectedClientId(event.target.value);
                     setSelectedProjectId('');
@@ -571,7 +599,7 @@ export function DocumentEditor({
                   type="button"
                   variant="secondary"
                   size="small"
-                  disabled={Boolean(creditOriginal)}
+                  disabled={Boolean(creditOriginal) || reservedTime}
                   onClick={() => setQuickClientOpen((open) => !open)}
                   aria-expanded={quickClientOpen}
                 >
@@ -584,7 +612,7 @@ export function DocumentEditor({
               <select
                 name="projectId"
                 value={selectedProjectId}
-                disabled={Boolean(creditOriginal)}
+                disabled={Boolean(creditOriginal) || reservedTime}
                 onChange={(event) => setSelectedProjectId(event.target.value)}
               >
                 <option value="">{t('Aucun projet lié')}</option>
@@ -599,6 +627,7 @@ export function DocumentEditor({
               <Field label={t("Type de document")} required>
                 <select
                   value={invoiceType}
+                  disabled={reservedTime}
                   onChange={(event) => {
                     setInvoiceType(event.target.value as Invoice['type'] | '');
                     if (event.target.value !== 'credit_note')
@@ -698,7 +727,12 @@ export function DocumentEditor({
           </section>
           <section className="document-step" data-document-step="1" hidden={!isLocked && step !== 1}>
             {stepHeading(1)}
-          <section className="line-editor">
+          {reservedTime ? <section className="line-editor" aria-label={t("Heures réservées")}>
+            <p role="status">{t("Les heures, les tarifs et la TVA restent liés aux temps facturés. Vous pouvez personnaliser le titre, les notes et les conditions de paiement.")}</p>
+            <div className="document-review__lines">
+              {lines.map(line => <div key={line.id}><div><strong>{line.description}</strong><small>{line.quantity.toLocaleString(getAppLocale())} {line.unit} × {formatMoney(line.unitPriceCents, currency)} · {t('TVA')} {(line.vatRateBp / 100).toLocaleString(getAppLocale())} %</small></div><span>{formatMoney(documentTotals([line]).netCents, currency)}</span></div>)}
+            </div>
+          </section> : <section className="line-editor">
             <datalist id={unitsId}>{['h', 'jour', 'pièce', 'forfait', 'm', 'm²', 'm³', 'kg'].map(unit => <option key={unit} value={unit} />)}</datalist>
             <header>
               <details className="line-editor__guidance">
@@ -868,7 +902,7 @@ export function DocumentEditor({
                 </Button>
               </div>
             ))}
-          </section>
+          </section>}
           </section>
           <section className="document-step" data-document-step="2" hidden={!isLocked && step !== 2}>
             {stepHeading(2)}
@@ -913,6 +947,7 @@ export function DocumentEditor({
                   <input
                     type="date"
                     value={serviceDateFrom}
+                    readOnly={reservedTime}
                     onChange={(event) => { const next = event.target.value; setServiceDateFrom(next); if (!serviceDateTo || serviceDateTo === serviceDateFrom) setServiceDateTo(next); }}
                     required
                   />
@@ -922,6 +957,7 @@ export function DocumentEditor({
                     type="date"
                     min={serviceDateFrom}
                     value={serviceDateTo}
+                    readOnly={reservedTime}
                     onChange={(event) => setServiceDateTo(event.target.value)}
                     required
                   />
@@ -1108,4 +1144,8 @@ export function DocumentEditor({
 
 function CreditDocumentDetails({collapse,children}: {collapse:boolean;children:ReactNode}) {
   return collapse ? <details className="customer-credit-document-details"><summary>{t("Détails du document émis")}</summary>{children}</details> : children;
+}
+
+function timeInvoiceLineIdentity(line: DocumentLine) {
+  return [line.id, line.catalogItemId || null, line.description, line.quantity, line.unit, line.unitPriceCents, line.discountBp ?? 0, line.vatRateBp];
 }

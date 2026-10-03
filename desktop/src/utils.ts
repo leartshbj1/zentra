@@ -1,3 +1,4 @@
+import { roundedIntegerProductRatio } from './integerRounding';
 import type { DocumentLine, ExpenseRefund, Invoice, Payment, Payslip, Project, PurchaseCostEvidence, Quote, SupplierCreditNote, SupplierInvoice, TimeEntry } from './types';
 import { getAppLocale } from './language';
 
@@ -95,7 +96,7 @@ export function numberFromInput(value: FormDataEntryValue | null): number {
 export function roundBasisPoints(value: number, basisPoints: number): number {
   if (!value) return 0;
   const normalizedBasisPoints = Math.max(0, Math.min(10_000, Math.trunc(basisPoints)));
-  const rounded = Math.floor((Math.abs(value) * normalizedBasisPoints + 5_000) / 10_000);
+  const rounded = roundedIntegerProductRatio(Math.abs(value), normalizedBasisPoints, 10_000);
   return value < 0 ? -rounded : rounded;
 }
 

@@ -565,6 +565,7 @@ function WorkspaceContent({
   useEffect(() => setAutomationToolsScreen(null), [view, cloudAccount?.organizationId]);
   const [projectFolderId, setProjectFolderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [settingsRestoreRevision, setSettingsRestoreRevision] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(false);
   useEffect(() => {
@@ -1176,6 +1177,22 @@ function WorkspaceContent({
       actionInFlight.current = false;
       if (isOriginWorkspace()) setBusy(false);
     }
+  }
+
+  async function restoreWorkspace(action: () => Promise<Workspace>): Promise<void> {
+    const originScope = workspace.workNotesScope;
+    let failed = false;
+    let failure: unknown;
+    const restored = await act(action, t('La sauvegarde a été restaurée et contrôlée.'), false, reason => {
+      failed = true; failure = reason;
+      setNotice({ tone: 'error', text: errorMessage(reason, 'La sauvegarde n’a pas pu être restaurée.') });
+    });
+    if (!restored) {
+      if (failed) throw failure;
+      if (!actionLifetime.current || workspaceRef.current.workNotesScope !== originScope) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+      throw new Error(readOnly ? readOnlyMutationMessage : 'La restauration n’est pas disponible pour le moment. Attendez la fin de l’action en cours, puis réessayez.');
+    }
+    if (actionLifetime.current && workspaceRef.current.workNotesScope === originScope) setSettingsRestoreRevision(value => value + 1);
   }
 
   async function archiveInvoiceToCloud(item: Invoice, issuedNow = false) {
@@ -2549,7 +2566,7 @@ function WorkspaceContent({
           {view === 'settings' ? (
             <CompanySettingsSync busy={busy}>{(revision, category) =>
             <SettingsScreen
-              key={revision}
+              key={`${revision}:${settingsRestoreRevision}`}
               initialCategory={revision ? category : undefined}
               automationActive={companyAutomation.knownActive}
               workspace={workspace}
@@ -2558,6 +2575,8 @@ function WorkspaceContent({
               setBusy={setBusy}
               onWorkspace={setWorkspace}
               onNotice={setNotice}
+              onRestore={source => restoreWorkspace(() => desktopApi.restoreBackup(source))}
+              onCloudRestore={id => restoreWorkspace(() => desktopApi.restoreCloudBackup(id))}
               onCloudAccountChange={onCloudAccountChange}
               onOpenAccounting={() => {
                 setView('accounting');
@@ -4972,6 +4991,8 @@ function SettingsScreen({
   onNotice,
   onOpenAccounting,
   onCloudAccountChange,
+  onRestore,
+  onCloudRestore,
 }: {
   initialCategory?: string | null;
   workspace: Workspace;
@@ -4983,6 +5004,8 @@ function SettingsScreen({
   onNotice: (value: Notice | null) => void;
   onOpenAccounting: () => void;
   onCloudAccountChange?: (account: CloudAccountState) => void;
+  onRestore: (source: string) => Promise<void>;
+  onCloudRestore: (id: string) => Promise<void>;
 }) {
   const busy = operationBusy || readOnly;
   const [settings, setSettings] = useState<AppSettings>(workspace.settings!);
@@ -5115,7 +5138,7 @@ function SettingsScreen({
       if (!source || !pickerAvailable(request)) return;
       const file = source.split(/[\\/]/).pop() || source;
       if (!window.confirm(t('Restaurer « {file} » ? Les données de cet appareil seront remplacées. Une copie de sécurité sera conservée avant le remplacement.', { file }))) return;
-      await execute(() => desktopApi.restoreBackup(source), t('La sauvegarde a été restaurée et contrôlée.'), false, false, true);
+      await onRestore(source);
     } catch (reason) {
       if (pickerCurrent(request)) onNotice({ tone: 'error', text: errorMessage(reason, t('Le fichier n’a pas pu être ouvert. Choisissez à nouveau votre sauvegarde .zentra.')) });
     } finally {
@@ -5899,9 +5922,7 @@ function SettingsScreen({
       <DiagnosticsPanel/>
       <AppUpdater />
       <ResetAppPanel disabled={operationBusy} />
-      <CloudBackupPanel disabled={busy} onBusyChange={setBusy} onRestore={async (id) => {
-        await execute(() => desktopApi.restoreCloudBackup(id), t('La sauvegarde a été restaurée et contrôlée.'), true, false, true);
-      }} />
+      <CloudBackupPanel disabled={busy} onBusyChange={setBusy} onRestore={onCloudRestore} />
       <section
         id={SETTINGS_READINESS_TARGETS.backup}
         className="panel settings-card settings-scroll-target manual-backup"

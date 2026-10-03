@@ -1,3 +1,4 @@
+import { roundedIntegerProductRatio } from './integerRounding';
 import type { TimeEntry, Workspace } from './types';
 
 export type TimeBillingSummary = {
@@ -8,10 +9,6 @@ export type TimeBillingSummary = {
   dateFrom: string;
   dateTo: string;
 };
-
-function roundedRatio(numerator: number, denominator: number) {
-  return Math.floor((numerator + denominator / 2) / denominator);
-}
 
 export function isTimeEntryInvoiceEligible(entry: TimeEntry) {
   return (
@@ -39,7 +36,7 @@ export function readyTimeEntries(workspace: Workspace) {
 }
 
 export function timeEntryNetCents(entry: TimeEntry) {
-  return roundedRatio(entry.minutes * (entry.billingRateCents ?? 0), 60);
+  return roundedIntegerProductRatio(entry.minutes, entry.billingRateCents ?? 0, 60);
 }
 
 /** Reproduit l'arrondi transactionnel du moteur Rust, ligne par ligne. */
@@ -58,7 +55,7 @@ export function summarizeTimeBilling(
     const lineNet = timeEntryNetCents(entry);
     minutes += entry.minutes;
     netCents += lineNet;
-    vatCents += roundedRatio(lineNet * vatBp, 10_000);
+    vatCents += roundedIntegerProductRatio(lineNet, vatBp, 10_000);
   }
   return {
     minutes,
