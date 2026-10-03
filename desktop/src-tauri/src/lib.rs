@@ -58,6 +58,7 @@ mod mobile_secure_storage;
 mod models;
 mod noga;
 mod payroll;
+mod payment_request_recovery;
 mod payroll_import;
 mod payroll_pdf;
 mod salary_certificate_pdf;
@@ -324,6 +325,7 @@ pub fn run() {
             update_recurrence_schedule,
             generate_recurrence_occurrences,
             record_payment,
+            read_payment_request,
             list_accounts,
             upsert_account,
             prepare_fixed_asset_accounts,

@@ -8,6 +8,7 @@ import { runSupplierInvoiceValidation } from './supplierInvoiceValidation';
 import {runCustomerSettlementMutation,requireCustomerSettlementReverseContext,type CustomerSettlementInput} from './customerSettlementWorkflow';
 import type {PendingCustomerCreditRequest} from './customerCreditRequest';
 import { runPaymentMutation, type PaymentReview } from './paymentWorkflow';
+import { normalizePaymentRequestInput, type PaymentRequestInput, type PaymentRequestProof } from './paymentRequest';
 import { runSupplierRefundMutation, type SupplierRefundReview } from './supplierRefundWorkflow';
 import { runCreditAllocationMutation, type CreditBalances } from './creditAllocationWorkflow';
 import { requireAgendaWorkspace } from './agendaForm';
@@ -5919,6 +5920,23 @@ export const desktopApi = {
     const {expectedReview,...input}=data;
     const normalized={...input,method:input.method.trim(),reference:input.reference.trim(),notes:input.notes.trim()};
     return runPaymentMutation({...normalized,invoiceId},()=>invoke('record_payment',{input:{invoice_id:invoiceId,...toBackendData(normalized)},...(expectedReview?{expectedReview}:{})}),loadWorkspace);
+  },
+  // Durable payment recovery owns the write/inspection sequence. These calls
+  // never refresh or replay an unknown mutation themselves.
+  async writePaymentRequest(invoiceId:string,data:PaymentRequestInput,expectedWorkspaceScope:string):Promise<void> {
+    if(typeof expectedWorkspaceScope!=='string'||!expectedWorkspaceScope.trim()||expectedWorkspaceScope!==expectedWorkspaceScope.trim()||expectedWorkspaceScope.includes('\0'))throw Error('Rouvrez le paiement dans son entreprise d’origine.');
+    const {expectedReview,invoiceId:_invoiceId,...input}=normalizePaymentRequestInput(data,invoiceId);
+    await invoke('record_payment',{input:{invoice_id:invoiceId,...toBackendData({...input,method:input.method.trim(),reference:input.reference.trim(),notes:input.notes.trim()})},expectedReview,expectedWorkspaceScope});
+  },
+  async readPaymentRequest(inputs:readonly PaymentRequestInput[],expectedWorkspaceScope:string):Promise<PaymentRequestProof> {
+    if(typeof expectedWorkspaceScope!=='string'||!expectedWorkspaceScope.trim()||expectedWorkspaceScope!==expectedWorkspaceScope.trim()||expectedWorkspaceScope.includes('\0')||!Array.isArray(inputs)||!inputs.length||inputs.length>12||!inputs[0]||typeof inputs[0].invoiceId!=='string')throw Error('La demande conservée doit être vérifiée dans son entreprise d’origine.');
+    const normalized=inputs.map(input=>normalizePaymentRequestInput(input,inputs[0].invoiceId));
+    if(normalized.some(input=>input.requestId!==normalized[0].requestId))throw Error('Les variantes doivent conserver le même identifiant de paiement.');
+    const result=await invoke<PaymentRequestProof>('read_payment_request',{inputs:normalized.map(({expectedReview:_review,...input})=>toBackendData(input)),expectedWorkspaceScope});
+    const uuid=/^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
+    if(!result||!['recorded','absent','conflict'].includes(result.status)||result.originalRequestId!==normalized[0].requestId||result.workspaceScope!==expectedWorkspaceScope||
+      (result.status==='recorded'&&(!uuid.test(result.canonicalPaymentId)||typeof result.wasAliased!=='boolean'||result.wasAliased!==(result.canonicalPaymentId!==result.originalRequestId)||!Number.isInteger(result.variantIndex)||result.variantIndex<0||result.variantIndex>=normalized.length||typeof result.journalEntryId!=='string'||!result.journalEntryId.trim())))throw Error('La vérification du paiement n’a pas renvoyé une confirmation exploitable. La demande reste conservée.');
+    return result;
   },
   async savePayslip(
     data: Record<string, unknown>,

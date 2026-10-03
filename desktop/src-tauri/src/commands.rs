@@ -1811,10 +1811,27 @@ pub fn record_payment(
     state: State<'_, LocalStore>,
     input: RecordPaymentInput,
     expected_review: Option<crate::models::PaymentReview>,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
+    require_workspace_origin(&state, expected_workspace_scope.as_deref()).map_err(command_error)?;
     require_write(&state)?;
     state.record_payment_checked(input, expected_review.as_ref()).map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn read_payment_request(
+    state: State<'_, LocalStore>,
+    inputs: Vec<RecordPaymentInput>,
+    expected_workspace_scope: String,
+) -> Result<Value, String> {
+    let store = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        // Deliberately avoid command_error/require_write: this recovery query
+        // must neither persist diagnostics nor advance the licence clock.
+        crate::payment_request_recovery::read(&store, inputs, &expected_workspace_scope)
+            .map_err(|error| error.to_string())
+    }).await.map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -2141,6 +2158,10 @@ pub async fn export_document_design_example(state: State<'_, LocalStore>, kind: 
 #[cfg(test)]
 #[path = "commands_payment_forms_scope_tests.rs"]
 mod payment_forms_scope_tests;
+
+#[cfg(test)]
+#[path = "commands_payment_request_recovery_tests.rs"]
+mod payment_request_recovery_tests;
 
 #[cfg(test)]
 #[path = "commands_bank_file_scope_tests.rs"]

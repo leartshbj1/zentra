@@ -42,7 +42,7 @@ export function useFormDraft<T>(options: FormDraftOptions<T>) {
     restore: () => { session.restore(); refresh(); },
     keepLocal: () => { session.keepLocal(); refresh(); },
     discard: () => { session.reset(); refresh(); return !session.getSnapshot().dirty && !session.getSnapshot().pending; },
-    complete: (saved: boolean) => { session.complete(saved); refresh(); },
+    complete: (saved: boolean) => { session.complete(saved); refresh(); return saved === true && session.getSnapshot().completionProtected; },
     retryStorage: () => { session.retryStorage(); refresh(); },
     close: (close: () => void) => { if (!session.needsCloseConfirmation() || window.confirm(draftText('La dernière saisie ne peut pas être conservée sur cet appareil. Fermer et perdre les modifications ?'))) close(); },
   };

@@ -26,7 +26,7 @@ export function paymentNativeProblem(message:string):PaymentProblem {
   if (/changé depuis|solde restant|dépasse le solde/i.test(message)) return {field:'record',message:'Le solde ou le compte d’encaissement a changé. Actualisez les factures, puis reprenez la vérification.'};
   if (/période|exercice|clôtur|fermée/i.test(message)) return {field:'record',message:'Cette date appartient à un exercice fermé. Ouvrez la comptabilité pour vérifier l’exercice. Corrigez la date uniquement si elle a été mal recopiée.',accounting:true,section:'periods'};
   if (/compt|écriture|liaison/i.test(message)) return {field:'record',message:'La comptabilisation doit être vérifiée avant d’enregistrer ce paiement. Ouvrez les réglages comptables ; le message détaillé précise le point concerné.',accounting:true};
-  return {field:'record',message:'Le paiement n’a pas pu être confirmé. Vos informations restent présentes. Actualisez les factures avant de réessayer.'};
+  return {field:'record',message:'Le paiement n’a pas pu être confirmé. Vos informations sont conservées. Vérifiez son enregistrement avant de réessayer.'};
 }
 export type PaymentIntent = Omit<PaymentDraft,'amount'> & {requestId:string;invoiceId:string;amountCents:number};
 export function requirePaymentWorkspace(workspace:Workspace) {

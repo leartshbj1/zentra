@@ -326,7 +326,10 @@ if (previewQuery.has('runtimePerformance')) Object.assign(window, { __runtimeCom
 const application = <ZentraAssistantProvider>{previewQuery.has('startupPerformance') || previewQuery.has('appDraftIdentity') ? <App/> : <Harness />}</ZentraAssistantProvider>;
 const customerSettlementScope=previewQuery.has('customerSettlements')||previewQuery.has('customerSettlementGuided');
 if(customerSettlementScope)data.workNotesScope='qa-customer-settlement-company';
-const scopedApplication = customerSettlementScope ? <FormDraftIdentityProvider companyId="qa-customer-settlement-company" memberId="qa-customer-settlement-member" ready>{application}</FormDraftIdentityProvider> : previewQuery.has('formDrafts') ? <FormDraftIdentityProvider companyId="qa-native-form-company" memberId="qa-native-form-member" ready>{application}</FormDraftIdentityProvider> : application;
+const paymentGuidedScope=previewQuery.has('paymentGuided');
+const paymentCompany=previewQuery.get('paymentCompany')||'qa-payment-company',paymentMember=previewQuery.get('paymentMember')||'qa-payment-member';
+if(paymentGuidedScope)data.workNotesScope=paymentCompany;
+const scopedApplication = paymentGuidedScope ? <FormDraftIdentityProvider companyId={paymentCompany} memberId={paymentMember} organizationId={previewQuery.get('paymentOrganization')||undefined} ready>{application}</FormDraftIdentityProvider> : customerSettlementScope ? <FormDraftIdentityProvider companyId="qa-customer-settlement-company" memberId="qa-customer-settlement-member" ready>{application}</FormDraftIdentityProvider> : previewQuery.has('formDrafts') ? <FormDraftIdentityProvider companyId="qa-native-form-company" memberId="qa-native-form-member" ready>{application}</FormDraftIdentityProvider> : application;
 createRoot(document.getElementById('root')!).render(previewQuery.has('appDraftIdentity') ? <StrictMode>{scopedApplication}</StrictMode> : previewQuery.has('runtimePerformance') ? <Profiler id="workspace" onRender={(_,phase,duration,__,time)=>runtimeCommits.push({phase,duration,time})}>{scopedApplication}</Profiler> : scopedApplication);
 
 import '../src/appearance';
