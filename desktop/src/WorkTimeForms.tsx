@@ -94,6 +94,7 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (locked || inFlight.current || persisted.pending || persisted.conflict || persisted.invalid || legacyCreation || (item && !current)) return;
+    const originWorkspaceScope = workspace.workNotesScope;
     if (manualCreation && persisted.storageError) {
       setSaveError('Cette nouvelle saisie ne peut pas être conservée sur cet appareil. Réessayez sa sauvegarde locale avant d’enregistrer les heures.');
       return;
@@ -107,7 +108,7 @@ function WorkTimeForm({ item, workspace, busy, close, act, timer }: Props & { ti
       const saved = await act(() => timer ? desktopApi.startTimer({
         projectId: data.projectId, taskId: data.taskId, employeeId: data.employeeId,
         billable: data.billable, billingRateCents: data.billingRateCents, costRateCents: data.costRateCents, note: data.note,
-      }) : item ? desktopApi.updateEntity('timeEntries', item.id, data) : desktopApi.createEntity('timeEntries', { ...data, id: draft.creationId! }).catch(reason => {
+      }) : item ? desktopApi.updateEntity('timeEntries', item.id, data, originWorkspaceScope) : desktopApi.createEntity('timeEntries', { ...data, id: draft.creationId! }, originWorkspaceScope).catch(reason => {
         if (reason instanceof WorkspaceCreationOutcomeUnknownError) {
           // WorkspaceApp can resolve this generic error by ID alone. A delayed
           // attempt may have different fields, so keep this manual draft intact.

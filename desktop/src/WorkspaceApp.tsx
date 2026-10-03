@@ -147,6 +147,7 @@ import {
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { WorkspaceRefreshAfterMutationError, refreshWorkspaceAfterMutation } from './workspaceMutation';
+import { assertWorkspaceOrigin, workspaceOriginFailure } from './workspaceOrigin';
 import { requireStockWorkspace, WorkspaceStockOutcomeUnknownError, WorkspaceStockRefreshError } from './stockWorkflow';
 import { CatalogSaveRefreshError } from './catalogForm';
 import { ReceiptOutcomeUnknownError, ReceiptRefreshError, requireReceiptWorkspace } from './receiptWorkflow';
@@ -695,7 +696,7 @@ function WorkspaceContent({
                 if(existing.length===1)return existing[0].id;
                 const previous=new Set(workspaceRef.current.suppliers.map(s=>s.id));
                 let failure:unknown;
-                const saved=await act(()=>desktopApi.createEntity('suppliers',{name,email,currency:'CHF',paymentTermsDays:30}),t('Le fournisseur a été ajouté.'),false,reason=>{failure=reason;});
+                const saved=await act(()=>desktopApi.createEntity('suppliers',{name,email,currency:'CHF',paymentTermsDays:30},workspace.workNotesScope),t('Le fournisseur a été ajouté.'),false,reason=>{failure=reason;});
                 if(!saved)throw new Error(errorMessage(failure,t('Le fournisseur n’a pas pu être ajouté. Votre facture reste ouverte.')));
                 const created=workspaceRef.current.suppliers.filter(s=>!previous.has(s.id)&&s.name===name&&s.email.toLowerCase()===email.toLowerCase());
                 if(created.length!==1)throw new Error(t('Sélectionnez le fournisseur ajouté dans la liste.'));
@@ -905,8 +906,7 @@ function WorkspaceContent({
     // reserved for explicit callers, never for a delayed background operation.
     if (!originWorkspaceScope || !mayContinue()) return;
     const validateOriginWorkspace = (next: Workspace) => {
-      if (next.workNotesScope !== originWorkspaceScope)
-        throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+      assertWorkspaceOrigin(next, originWorkspaceScope);
     };
     const dueSchedules = recurrenceSchedulesDue(
       initialWorkspace.recurrenceSchedules,
@@ -946,6 +946,8 @@ function WorkspaceContent({
               return next;
             } catch (refreshCause) {
               if (!mayContinue()) throw reason;
+              const changedOrigin = workspaceOriginFailure(refreshCause);
+              if (changedOrigin) throw changedOrigin;
               const recovered = await waitForRefresh(refreshCause, false, validateOriginWorkspace);
               if (!mayContinue()) throw reason;
               if (recovered) {
@@ -1115,6 +1117,7 @@ function WorkspaceContent({
     close = true,
     onError?: (reason: unknown) => void,
     validateRead?: (workspace: Workspace) => void,
+    acceptWorkspaceChange = false,
   ) {
     const originWorkspaceScope = workspace.workNotesScope;
     const isOriginWorkspace = () => actionLifetime.current && workspaceRef.current.workNotesScope === originWorkspaceScope;
@@ -1133,6 +1136,8 @@ function WorkspaceContent({
     try {
       const nextWorkspace = await action();
       if (!isOriginWorkspace()) return false;
+      if (!acceptWorkspaceChange) assertWorkspaceOrigin(nextWorkspace, originWorkspaceScope);
+      validateRead?.(nextWorkspace);
       workspaceRef.current = nextWorkspace;
       setWorkspace(nextWorkspace);
       setNotice({ tone: 'success', text: message });
@@ -1140,8 +1145,14 @@ function WorkspaceContent({
       return true;
     } catch (reason) {
       if (!isOriginWorkspace()) return false;
+      const originFailure = workspaceOriginFailure(reason);
+      if (originFailure) {
+        onError?.(originFailure);
+        if (!onError) setNotice({ tone: 'error', text: originFailure.message });
+        return false;
+      }
       const uncertainCreation = reason instanceof WorkspaceCreationOutcomeUnknownError || reason instanceof WorkspaceStockOutcomeUnknownError || reason instanceof ReceiptOutcomeUnknownError || reason instanceof CreditAllocationOutcomeUnknownError || reason instanceof SupplierRefundOutcomeUnknownError || reason instanceof PaymentOutcomeUnknownError || reason instanceof SupplierPaymentOutcomeUnknownError || reason instanceof SupplierInvoiceValidationOutcomeUnknownError || reason instanceof CustomerSettlementOutcomeUnknownError ? reason : null;
-      const validateCreationRead = (value: Workspace) => { uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError || reason instanceof SupplierPaymentRefreshError || reason instanceof SupplierInvoiceValidationRefreshError || reason instanceof CustomerSettlementRefreshError) reason.validateRead(value); validateRead?.(value); };
+      const validateCreationRead = (value: Workspace) => { if (!acceptWorkspaceChange) assertWorkspaceOrigin(value, originWorkspaceScope); uncertainCreation?.wasRecorded(value); if (reason instanceof WorkspaceStockRefreshError || reason instanceof CatalogSaveRefreshError || reason instanceof ReceiptRefreshError || reason instanceof CreditAllocationRefreshError || reason instanceof SupplierRefundRefreshError || reason instanceof PaymentRefreshError || reason instanceof SupplierPaymentRefreshError || reason instanceof SupplierInvoiceValidationRefreshError || reason instanceof CustomerSettlementRefreshError) reason.validateRead(value); validateRead?.(value); };
       let refreshedWorkspace: Workspace | null = null;
       try {
         refreshedWorkspace = await desktopApi.loadWorkspace();
@@ -1149,11 +1160,25 @@ function WorkspaceContent({
         validateCreationRead(refreshedWorkspace);
       } catch (refreshCause) {
         if (!isOriginWorkspace()) return false;
+        const changedOrigin = workspaceOriginFailure(refreshCause);
+        if (changedOrigin) {
+          onError?.(changedOrigin);
+          if (!onError) setNotice({ tone: 'error', text: changedOrigin.message });
+          return false;
+        }
         refreshedWorkspace = null;
         // Hold the action until its outcome can be established. Recovery only
         // reads; it never resends the creation, even after a lost response.
         if (reason instanceof WorkspaceRefreshAfterMutationError || uncertainCreation) {
-          refreshedWorkspace = await waitForRefresh(refreshCause, !!uncertainCreation, validateCreationRead);
+          try { refreshedWorkspace = await waitForRefresh(refreshCause, !!uncertainCreation, validateCreationRead); }
+          catch (terminalFailure) {
+            const changedOrigin = workspaceOriginFailure(terminalFailure);
+            if (!changedOrigin) throw terminalFailure;
+            if (!isOriginWorkspace()) return false;
+            onError?.(changedOrigin);
+            if (!onError) setNotice({ tone: 'error', text: changedOrigin.message });
+            return false;
+          }
         }
       }
       if (!isOriginWorkspace()) return false;
@@ -1186,7 +1211,7 @@ function WorkspaceContent({
     const restored = await act(action, t('La sauvegarde a été restaurée et contrôlée.'), false, reason => {
       failed = true; failure = reason;
       setNotice({ tone: 'error', text: errorMessage(reason, 'La sauvegarde n’a pas pu être restaurée.') });
-    });
+    }, undefined, true);
     if (!restored) {
       if (failed) throw failure;
       if (!actionLifetime.current || workspaceRef.current.workNotesScope !== originScope) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
@@ -1467,7 +1492,7 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () => desktopApi.archiveEntity(entity, id),
+      () => desktopApi.archiveEntity(entity, id, workspace.workNotesScope),
       `${label} a été supprimé.`,
       false,
     );
@@ -1560,7 +1585,7 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () => desktopApi.archiveEntity('projects', item.id),
+      () => desktopApi.archiveEntity('projects', item.id, workspace.workNotesScope),
       `${item.name} a été supprimé.`,
       false,
     );
@@ -1574,7 +1599,7 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () => desktopApi.archiveEntity('catalogItems', item.id),
+      () => desktopApi.archiveEntity('catalogItems', item.id, workspace.workNotesScope),
       `${item.name} a été archivé.`,
       false,
     );
@@ -1583,7 +1608,7 @@ function WorkspaceContent({
   async function restoreCatalogItem(item: CatalogItem) {
     await act(
       () =>
-        desktopApi.updateEntity('catalogItems', item.id, { archivedAt: null }),
+        desktopApi.updateEntity('catalogItems', item.id, { archivedAt: null }, workspace.workNotesScope),
       `${item.name} est de nouveau disponible.`,
       false,
     );
@@ -1622,7 +1647,7 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () => desktopApi.archiveEntity('clients', item.id),
+      () => desktopApi.archiveEntity('clients', item.id, workspace.workNotesScope),
       `${item.company || item.name} a été archivé sans supprimer son historique.`,
       false,
     );
@@ -1630,7 +1655,7 @@ function WorkspaceContent({
 
   async function restoreClient(item: Client) {
     await act(
-      () => desktopApi.updateEntity('clients', item.id, { archivedAt: null }),
+      () => desktopApi.updateEntity('clients', item.id, { archivedAt: null }, workspace.workNotesScope),
       `${item.company || item.name} est de nouveau actif.`,
       false,
     );
@@ -1644,7 +1669,7 @@ function WorkspaceContent({
     )
       return;
     await act(
-      () => desktopApi.archiveEntity('suppliers', item.id),
+      () => desktopApi.archiveEntity('suppliers', item.id, workspace.workNotesScope),
       `${item.name} a été archivé.`,
       false,
     );
@@ -1652,7 +1677,7 @@ function WorkspaceContent({
 
   async function restoreSupplier(item: Supplier) {
     await act(
-      () => desktopApi.updateEntity('suppliers', item.id, { archivedAt: null }),
+      () => desktopApi.updateEntity('suppliers', item.id, { archivedAt: null }, workspace.workNotesScope),
       `${item.name} est de nouveau disponible.`,
       false,
     );
@@ -1671,7 +1696,7 @@ function WorkspaceContent({
         desktopApi.updateEntity('expenses', item.id, {
           paymentStatus: 'paid',
           paidAt,
-        }),
+        }, workspace.workNotesScope),
       'L’achat est marqué payé et son écriture comptable a été créée dans la même transaction.',
       false,
     );
@@ -5063,7 +5088,7 @@ function SettingsScreen({
     const generation = settingsActionLifetime.current.generation;
     const isCurrent = () => settingsActionLifetime.current.active && settingsActionLifetime.current.generation === generation && settingsActionContext.current.workspaceScope === originWorkspaceScope;
     const validateScope = (value: Workspace) => {
-      if (!allowWorkspaceChange && originWorkspaceScope !== undefined && value.workNotesScope !== originWorkspaceScope) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
+      if (!allowWorkspaceChange) assertWorkspaceOrigin(value, originWorkspaceScope);
     };
     if (!isCurrent() || settingsActionContext.current.busy || settingsActionInFlight.current || settingsRecovery.isPending()) return false;
     settingsActionInFlight.current = true;
@@ -5088,6 +5113,8 @@ function SettingsScreen({
           validate(next);
         } catch (cause) {
           if (!isCurrent()) return false;
+          const changedOrigin = workspaceOriginFailure(cause);
+          if (changedOrigin) throw changedOrigin;
           next = await settingsRecovery.waitForRefresh(cause, false, validate);
         }
         if (!next) return false;
@@ -6572,7 +6599,7 @@ function ProjectForm({
             requireProjectFormWorkspace();
             const fingerprint = JSON.stringify(data);
             if (lastSavedData.current !== fingerprint) {
-              savedProjectId.current = await desktopApi.saveProject(data, savedProjectId.current);
+              savedProjectId.current = await desktopApi.saveProject(data, savedProjectId.current, originWorkspaceScope);
               requireProjectFormWorkspace();
               lastSavedData.current = fingerprint;
               persisted.capture({ draftSavedRecordId: savedProjectId.current!, draftLastSavedData: fingerprint });
@@ -7001,8 +7028,8 @@ function EmployeeForm({
             const saved = await act(
               () =>
                 item
-                  ? desktopApi.updateEntity('employees', item.id, data)
-                  : desktopApi.createEntity('employees', data),
+                  ? desktopApi.updateEntity('employees', item.id, data, workspace.workNotesScope)
+                  : desktopApi.createEntity('employees', data, workspace.workNotesScope),
               item
                 ? 'Le collaborateur a été mis à jour.'
                 : 'Le collaborateur a été ajouté.',
@@ -7589,7 +7616,7 @@ function PayslipForm({
             notes: String(form.get('notes')),
           };
           await act(
-            () => desktopApi.savePayslip(data, lines, item),
+            () => desktopApi.savePayslip(data, lines, item, workspace.workNotesScope),
             item
               ? 'La fiche a été mise à jour.'
               : 'La fiche a été créée avec les lignes saisies.',

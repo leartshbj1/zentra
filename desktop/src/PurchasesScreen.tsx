@@ -247,6 +247,7 @@ export function ExpenseForm({ item, workspace, busy, close, act, onOpenAccountin
   return <Modal className="purchase-entry-modal" title={item ? 'Modifier l’achat' : 'Nouvel achat'} description="Recopiez les montants du justificatif et indiquez si cet achat est déjà payé." onClose={close} dismissible={!busy} wide>
     <form onSubmit={submitForm(async (form) => {
       if (busy) return;
+      const originWorkspaceScope = workspace.workNotesScope;
       setFormError('');
       const selectedSupplier = supplierChoices.find((supplier) => supplier.id === supplierChoice);
       const supplierSnapshot = supplierSnapshotForDraft(item, selectedSupplier, manualSupplier);
@@ -269,7 +270,7 @@ export function ExpenseForm({ item, workspace, busy, close, act, onOpenAccountin
         note: String(form.get('note')).trim(),
       };
       await act(
-        () => item ? desktopApi.updateEntity('expenses', item.id, data) : desktopApi.createEntity('expenses', data),
+        () => item ? desktopApi.updateEntity('expenses', item.id, data, originWorkspaceScope) : desktopApi.createEntity('expenses', data, originWorkspaceScope),
         item ? 'L’achat a été mis à jour.' : 'L’achat a été enregistré.',
         true,
         (reason) => setFormError(errorMessage(reason, 'L’achat n’a pas pu être enregistré. Votre saisie est conservée.')),

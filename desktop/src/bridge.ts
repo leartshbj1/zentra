@@ -34,6 +34,7 @@ import type { ProjectSyncStatus } from './projectSync';
 import type { CloudBackupState } from './cloudBackup';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import { createWorkspaceEntity } from './workspaceCreation';
+import { refreshWorkspaceInOrigin } from './workspaceOrigin';
 import { PayslipPostingRefreshError } from './payrollMutation';
 import { isMobileRuntime, materializeMobileFile, shareMobileExport } from './mobileRuntime';
 import type {
@@ -3468,8 +3469,8 @@ export function convertQuoteMutation(
     },
   };
 }
-const createRecord = (entity: string, data: RawRecord) =>
-  invoke<RawRecord>('create_record', { entity, data });
+const createRecord = (entity: string, data: RawRecord, expectedWorkspaceScope?: string) =>
+  invoke<RawRecord>('create_record', { entity, data, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
 
 async function saveDocument(
   entity: 'quotes' | 'invoices',
@@ -5010,15 +5011,16 @@ export const desktopApi = {
   async createEntity<T extends Record<string, unknown>>(
     entity: EntityKind,
     data: T,
+    expectedWorkspaceScope?: string,
   ) {
-    return createWorkspaceEntity(entity, data, input => createRecord(entityToBackend[entity], toBackendData(input)), loadWorkspace);
+    return createWorkspaceEntity(entity, data, input => createRecord(entityToBackend[entity], toBackendData(input), expectedWorkspaceScope), loadWorkspace, expectedWorkspaceScope);
   },
-  async saveProject(data: Record<string, unknown>, id?: string): Promise<string> {
+  async saveProject(data: Record<string, unknown>, id?: string, expectedWorkspaceScope?: string): Promise<string> {
     if (id) {
-      await invoke('update_record', { entity: 'projects', id, data: toBackendData(data) });
+      await invoke('update_record', { entity: 'projects', id, data: toBackendData(data), ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
       return id;
     }
-    const record = await createRecord('projects', toBackendData(data));
+    const record = await createRecord('projects', toBackendData(data), expectedWorkspaceScope);
     return stringValue(record.id);
   },
   async addProjectDocument(projectId: string, file: File, signal?: AbortSignal, expectedWorkspaceScope?: string) {
@@ -5050,17 +5052,12 @@ export const desktopApi = {
       data: toBackendData(data),
       ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
     });
-    return refreshWorkspaceAfterMutation(async () => {
-      const next = await loadWorkspace();
-      if (expectedWorkspaceScope !== undefined && next.workNotesScope !== expectedWorkspaceScope)
-        throw new Error('L’espace de travail a changé pendant l’actualisation de la fiche enregistrée.');
-      return next;
-    });
+    return refreshWorkspaceInOrigin(loadWorkspace, expectedWorkspaceScope);
   },
-  async saveCatalogItem(id: string, data: CatalogData, expectedUpdatedAt?: string) {
+  async saveCatalogItem(id: string, data: CatalogData, expectedUpdatedAt?: string, expectedWorkspaceScope?: string) {
     return runCatalogSave(id, data, () => expectedUpdatedAt !== undefined
-      ? invoke('update_catalog_item', { id, data: toBackendData(data), expectedUpdatedAt })
-      : createRecord('catalog_items', toBackendData({ ...data, id })), loadWorkspace, expectedUpdatedAt === undefined);
+      ? invoke('update_catalog_item', { id, data: toBackendData(data), expectedUpdatedAt, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) })
+      : createRecord('catalog_items', toBackendData({ ...data, id }), expectedWorkspaceScope), loadWorkspace, expectedUpdatedAt === undefined, expectedWorkspaceScope);
   },
   async saveProjectMilestone(input: {
     id?: string;
@@ -5220,10 +5217,10 @@ export const desktopApi = {
   }, expectedWorkspaceScope?: string) {
     return runStockMutation({...input,expectedWorkspaceScope,movementType:'correction',quantityDeltaMilli:input.countedQuantityMilli-input.expectedQuantityMilli},()=>invoke('record_stock_count',{...(expectedWorkspaceScope !== undefined ? {expectedWorkspaceScope} : {}),input:{request_id:input.requestId,catalog_item_id:input.catalogItemId,expected_quantity_milli:input.expectedQuantityMilli,counted_quantity_milli:input.countedQuantityMilli,reason:input.reason.trim(),reference:input.reference?.trim()||null,date:input.date||null}}),loadWorkspace);
   },
-  async archiveEntity(entity: EntityKind, id: string) {
+  async archiveEntity(entity: EntityKind, id: string, expectedWorkspaceScope?: string) {
     const mutation = archiveEntityMutation(entity, id);
-    await invoke(mutation.command, mutation.args);
-    return refreshWorkspaceAfterMutation(loadWorkspace);
+    await invoke(mutation.command, { ...mutation.args, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
+    return refreshWorkspaceInOrigin(loadWorkspace, expectedWorkspaceScope);
   },
   async importCatalogItems(
     rows: CatalogImportRow[],
@@ -5942,6 +5939,7 @@ export const desktopApi = {
     data: Record<string, unknown>,
     lines: PayslipLine[],
     existing?: Payslip,
+    expectedWorkspaceScope?: string,
   ) {
     let payslipId = existing?.id;
     if (payslipId)
@@ -5949,10 +5947,11 @@ export const desktopApi = {
         entity: 'payslips',
         id: payslipId,
         data: toBackendData(data),
+        ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
       });
     else
       payslipId = stringValue(
-        (await createRecord('payslips', toBackendData(data))).id,
+        (await createRecord('payslips', toBackendData(data), expectedWorkspaceScope)).id,
       );
     if (!payslipId)
       throw new Error('La fiche de salaire locale n’a pas pu être identifiée.');
@@ -5964,7 +5963,7 @@ export const desktopApi = {
     );
     for (const old of previous)
       if (!retained.has(old.id))
-        await invoke('delete_record', { entity: 'payslip_items', id: old.id });
+        await invoke('delete_record', { entity: 'payslip_items', id: old.id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
     for (const [position, line] of lines.entries()) {
       const lineData = {
         payslip_id: payslipId,
@@ -5980,10 +5979,11 @@ export const desktopApi = {
           entity: 'payslip_items',
           id: line.id,
           data: lineData,
+          ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
         });
-      else await createRecord('payslip_items', lineData);
+      else await createRecord('payslip_items', lineData, expectedWorkspaceScope);
     }
-    return loadWorkspace();
+    return refreshWorkspaceInOrigin(loadWorkspace, expectedWorkspaceScope);
   },
   async savePayslipWithContributions(
     data: Record<string, unknown>,

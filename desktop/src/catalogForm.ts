@@ -2,6 +2,7 @@ import type { AppSettings, CatalogItem, Workspace } from './types';
 import { MAX_STOCK_QUANTITY_MILLI, stockQuantityFromInput } from './catalog';
 import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
 import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
+import { assertWorkspaceOrigin } from './workspaceOrigin';
 import { errorMessage } from './utils';
 
 export type CatalogDraft = { kind: CatalogItem['kind']; name: string; sku: string; description: string; unit: string; salesPrice: string; purchaseCost: string; vatBp: string; trackStock: boolean; reorderLevel: string };
@@ -102,20 +103,21 @@ export function catalogWasSaved(workspace: Workspace, id: string, data: CatalogD
 }
 
 export class CatalogSaveUnknownError extends WorkspaceCreationOutcomeUnknownError {
-  constructor(id: string, readonly data: CatalogData, cause: unknown, readonly creating: boolean) { super('catalogItems', id, cause); }
-  override wasRecorded(workspace: Workspace) { requireCatalogWorkspace(workspace); return this.creating ? super.wasRecorded(workspace) : catalogWasSaved(workspace, this.recordId, this.data); }
+  constructor(id: string, readonly data: CatalogData, cause: unknown, readonly creating: boolean, expectedWorkspaceScope?: string) { super('catalogItems', id, cause, expectedWorkspaceScope); }
+  override wasRecorded(workspace: Workspace) { assertWorkspaceOrigin(workspace, this.expectedWorkspaceScope); return catalogWasSaved(workspace, this.recordId, this.data); }
 }
 export class CatalogSaveRefreshError extends WorkspaceRefreshAfterMutationError {
-  constructor(readonly id: string, readonly data: CatalogData, cause: unknown) { super(cause); }
+  constructor(readonly id: string, readonly data: CatalogData, cause: unknown, readonly expectedWorkspaceScope?: string) { super(cause); }
   validateRead(workspace: Workspace) {
+    assertWorkspaceOrigin(workspace, this.expectedWorkspaceScope);
     requireCatalogWorkspace(workspace);
     if (!workspace.catalogItems.some(row => row.id === this.id)) throw new Error('La référence enregistrée n’apparaît pas dans le catalogue relu. Actualisez à nouveau sans recréer la fiche.');
   }
 }
-export async function runCatalogSave(id: string, data: CatalogData, write: () => Promise<unknown>, load: () => Promise<Workspace>, creating: boolean) {
-  try { await write(); } catch (cause) { throw new CatalogSaveUnknownError(id, data, cause, creating); }
-  try { const result = await load(); new CatalogSaveRefreshError(id, data, null).validateRead(result); return result; }
-  catch (cause) { throw new CatalogSaveRefreshError(id, data, cause); }
+export async function runCatalogSave(id: string, data: CatalogData, write: () => Promise<unknown>, load: () => Promise<Workspace>, creating: boolean, expectedWorkspaceScope?: string) {
+  try { await write(); } catch (cause) { throw new CatalogSaveUnknownError(id, data, cause, creating, expectedWorkspaceScope); }
+  try { const result = await load(); new CatalogSaveRefreshError(id, data, null, expectedWorkspaceScope).validateRead(result); return result; }
+  catch (cause) { throw new CatalogSaveRefreshError(id, data, cause, expectedWorkspaceScope); }
 }
 
 export function catalogNativeIssue(reason: unknown): CatalogIssue | null {

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Workspace } from './types';
 import { errorMessage } from './utils';
+import { workspaceOriginFailure } from './workspaceOrigin';
 
 type PendingRefresh = {
   promise: Promise<Workspace | null>;
   resolve: (workspace: Workspace | null) => void;
+  reject: (reason: unknown) => void;
   retry: Promise<void> | null;
   validate?: (workspace: Workspace) => void;
 };
@@ -17,8 +19,9 @@ export function useWorkspaceRecovery(load: () => Promise<Workspace>) {
   const waitForRefresh = useCallback((cause: unknown, checkCreation = false, validate?: (workspace: Workspace) => void) => {
     if (pending.current) return pending.current.promise;
     let resolve!: PendingRefresh['resolve'];
-    const promise = new Promise<Workspace | null>((complete) => { resolve = complete; });
-    pending.current = { promise, resolve, retry: null, validate };
+    let reject!: PendingRefresh['reject'];
+    const promise = new Promise<Workspace | null>((complete, fail) => { resolve = complete; reject = fail; });
+    pending.current = { promise, resolve, reject, retry: null, validate };
     setCheckingCreation(checkCreation);
     setReason(errorMessage(cause, 'Les données locales sont momentanément indisponibles.'));
     return promise;
@@ -31,7 +34,18 @@ export function useWorkspaceRecovery(load: () => Promise<Workspace>) {
       .then(load)
       .then((workspace) => {
         if (pending.current !== request) return;
-        request.validate?.(workspace);
+        try { request.validate?.(workspace); }
+        catch (reason) {
+          const originFailure = workspaceOriginFailure(reason);
+          if (!originFailure) throw reason;
+          // The old workspace cannot be acknowledged with this foreign read.
+          // End its wait without publishing the read or replaying any mutation.
+          pending.current = null;
+          setReason(null);
+          setCheckingCreation(false);
+          request.reject(originFailure);
+          return;
+        }
         pending.current = null;
         setReason(null);
         request.resolve(workspace);

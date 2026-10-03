@@ -303,7 +303,7 @@ function Harness() {
   if (new URLSearchParams(location.search).has('catalogForm')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaCatalogRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('financialStart')) Object.assign(window, { __qaSetReadOnly: setReadOnly, __qaFinancialRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (previewQuery.has('collectionTest')) Object.assign(window, { __qaSetReadOnly: setReadOnly });
-  if (previewQuery.has('timeDraftRecovery')) Object.assign(window, { __qaSetReadOnly:setReadOnly, __qaTimeDraftRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;return next;} });
+  if (previewQuery.has('timeDraftRecovery')) Object.assign(window, { __qaSetReadOnly:setReadOnly, __qaTimeDraftUiScope:()=>workspace?.workNotesScope, __qaTimeDraftRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;return next;} });
   if (new URLSearchParams(location.search).has('stockGuided')) Object.assign(window, {__qaSetReadOnly:setReadOnly,__qaStockRefresh:async()=>{const next=await desktopApi.loadWorkspace();setWorkspace(next);data=next;}});
   if (new URLSearchParams(location.search).has('projectNavigation')) Object.assign(window, {
     __qaSetReadOnly: setReadOnly, __qaSetProjectAccount: setProjectAccount,
@@ -319,7 +319,7 @@ function Harness() {
   if (new URLSearchParams(location.search).has('agendaGuided')) Object.assign(window, { __qaAgendaRefresh: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('payslipPosting')) Object.assign(window, { __qaReloadPosting: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('updater')) return <main><h1>Accueil de recette</h1><button type="button">Action de fond</button><StandaloneUpdaterAccess /></main>;
-  return <><WorkspaceApp cloudAccount={projectAccount ? { status: 'connected', organizationId: projectAccount } : undefined} readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { setWorkspace(next); if (next && typeof next !== 'function') data = next; if (new URLSearchParams(location.search).has('projectNavigation')) window.projectNavigation.publications++; }} />
+  return <><WorkspaceApp cloudAccount={projectAccount ? { status: 'connected', organizationId: projectAccount } : undefined} readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { if (previewQuery.has('timeDraftRecovery') && next && typeof next !== 'function') (window as any).timeDraftRecoveryFixture.state.publications.push({scope:next.workNotesScope}); setWorkspace(next); if (next && typeof next !== 'function') data = next; if (new URLSearchParams(location.search).has('projectNavigation')) window.projectNavigation.publications++; }} />
     {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}
   </>;
 }

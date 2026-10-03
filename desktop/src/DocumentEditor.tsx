@@ -279,6 +279,7 @@ export function DocumentEditor({
   }
 
   async function createQuickClient() {
+    const originWorkspaceScope = workspace.workNotesScope;
     setLocalError('');
     const id = createId();
     let client: ReturnType<typeof prepareDocumentQuickClient>;
@@ -293,7 +294,7 @@ export function DocumentEditor({
       return;
     }
     const saved = await act(
-      () => desktopApi.createEntity('clients', client),
+      () => desktopApi.createEntity('clients', client, originWorkspaceScope),
       t('Le client {client} a été ajouté et sélectionné.', {client: client.company || client.contactPerson}),
       false,
     );

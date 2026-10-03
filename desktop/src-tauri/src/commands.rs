@@ -318,14 +318,16 @@ pub fn add_expense_refund_attachment(state: State<'_, LocalStore>, refund_id: St
 }
 
 #[tauri::command]
-pub fn create_record(
+pub async fn create_record(
     state: State<'_, LocalStore>,
     entity: String,
     data: Value,
+    expected_workspace_scope: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.create_record(&entity, data).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.create_record(&entity, data).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
@@ -343,21 +345,24 @@ pub async fn update_record(
 }
 
 #[tauri::command]
-pub fn update_catalog_item(state: State<'_, LocalStore>, id: String, data: Value, expected_updated_at: String) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.update_catalog_item(&id, data, &expected_updated_at).map_err(command_error)
+pub async fn update_catalog_item(state: State<'_, LocalStore>, id: String, data: Value, expected_updated_at: String, expected_workspace_scope: Option<String>) -> Result<Value, String> {
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.update_catalog_item(&id, data, &expected_updated_at).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
-pub fn delete_record(
+pub async fn delete_record(
     state: State<'_, LocalStore>,
     entity: String,
     id: String,
+    expected_workspace_scope: Option<String>,
 ) -> Result<DeleteResult, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.delete_record(&entity, &id).map_err(command_error)
+    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
+        require_write(store)?;
+        store.delete_record(&entity, &id).map_err(command_error)
+    }).await
 }
 
 #[tauri::command]
@@ -1977,6 +1982,10 @@ mod time_billing_scope_tests;
 #[cfg(test)]
 #[path = "commands_import_worker_tests.rs"]
 mod import_worker_tests;
+
+#[cfg(test)]
+#[path = "commands_generic_crud_scope_tests.rs"]
+mod generic_crud_scope_tests;
 
 #[cfg(test)]
 #[path = "commands_payroll_import_worker_tests.rs"]

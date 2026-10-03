@@ -101,11 +101,12 @@ function Preparation({ invoice, workspace, busy, readOnly = false, correctDates 
   }
   async function save() {
     if (locked || readOnly || inFlight.current || !validate()) return;
+    const originWorkspaceScope = workspace.workNotesScope;
     inFlight.current = true; setSaving(true); setServerError('');
     let reported = false;
     const report = (reason: unknown) => { reported = true; setServerError(errorMessage(reason, 'Les modifications n’ont pas pu être enregistrées. Votre saisie est conservée.')); };
     try {
-      const saved = await act(() => desktopApi.updateEntity('invoices', invoice.id, { ...fields }), 'Les dates et les notes de la facture ont été enregistrées.', false, report);
+      const saved = await act(() => desktopApi.updateEntity('invoices', invoice.id, { ...fields }, originWorkspaceScope), 'Les dates et les notes de la facture ont été enregistrées.', false, report);
       if (saved) onFolder();
       else if (!reported) setServerError('L’enregistrement n’a pas encore été confirmé. Si une fenêtre d’actualisation est ouverte, terminez cette vérification avant de réessayer.');
     } catch (reason) { report(reason); }

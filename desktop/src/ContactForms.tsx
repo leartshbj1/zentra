@@ -45,6 +45,7 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (locked || readOnly || inFlight.current || draftBlocked) return;
+    const originWorkspaceScope = workspace?.workNotesScope;
     const values = Object.fromEntries([...new FormData(event.currentTarget)].map(([key, value]) => [key, String(value).trim()])) as ContactValues;
     setFailure('');
     const invalid = contactFormIssue(kind, values);
@@ -65,7 +66,7 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
       const message = errorMessage(reason, 'L’enregistrement n’a pas abouti. Votre saisie est conservée.');
       setFailure(message); reveal(contactNativeIssue(kind, message));
     };
-    try { const saved = await act(() => item ? desktopApi.updateEntity(entity, item.id, data) : desktopApi.createEntity(entity, data), kind === 'client' ? item ? 'Le client a été mis à jour.' : 'Le client a été ajouté.' : item ? 'Le fournisseur a été mis à jour.' : 'Le fournisseur a été ajouté.', true, refused); persisted.complete(saved); }
+    try { const saved = await act(() => item ? desktopApi.updateEntity(entity, item.id, data, originWorkspaceScope) : desktopApi.createEntity(entity, data, originWorkspaceScope), kind === 'client' ? item ? 'Le client a été mis à jour.' : 'Le client a été ajouté.' : item ? 'Le fournisseur a été mis à jour.' : 'Le fournisseur a été ajouté.', true, refused); persisted.complete(saved); }
     catch (reason) { refused(reason); }
     finally { inFlight.current = false; setSaving(false); }
   }
