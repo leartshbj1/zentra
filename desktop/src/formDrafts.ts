@@ -11,7 +11,8 @@ export const FORM_DRAFT_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 export type DraftStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>;
 export type FormDraftScope = { companyId: string; organizationId?: string; memberId?: string; type: string; recordId?: string; context?: string };
 export type FormDraftRecord<T> = { version: number; scope: string; fingerprint: string; savedAt: number; value: T };
-export type FormDraftSnapshot<T> = { value: T; pending: FormDraftRecord<T> | null; dirty: boolean; conflict: boolean; storageError: boolean; invalid: boolean; completedResidual: boolean; completionProtected: boolean; savedAt: number | null };
+export type FormDraftInitialReadState = 'ready' | 'unknown' | 'decision';
+export type FormDraftSnapshot<T> = { initialReadState: FormDraftInitialReadState; value: T; pending: FormDraftRecord<T> | null; dirty: boolean; conflict: boolean; storageError: boolean; invalid: boolean; completedResidual: boolean; completionProtected: boolean; savedAt: number | null };
 export type FormDraftOptions<T> = { scope: FormDraftScope | null; initial: T; fingerprint: string; validate: (value: unknown) => value is T; storage?: () => DraftStorage; now?: () => number };
 
 export function formDraftKey(scope: FormDraftScope): string {
@@ -48,36 +49,44 @@ export class FormDraftSession<T> {
   private key: string | null;
   private originalFingerprint: string;
   private loggedConflict = false;
+  private initialReadFailureLogged = false;
   private snapshot: FormDraftSnapshot<T>;
   constructor(options: FormDraftOptions<T>) {
     this.options = options; this.key = options.scope ? formDraftKey(options.scope) : null;
     this.originalFingerprint = options.fingerprint;
-    this.snapshot = { value: copy(options.initial), pending: null, dirty: false, conflict: false, storageError: !this.key, invalid: false, completedResidual: false, completionProtected: true, savedAt: null };
+    this.snapshot = { initialReadState: this.key ? 'unknown' : 'ready', value: copy(options.initial), pending: null, dirty: false, conflict: false, storageError: !this.key, invalid: false, completedResidual: false, completionProtected: true, savedAt: null };
+    this.readInitial(false);
+  }
+  /** Before writing, both the old draft and its ACK must be known. A later
+   * successful read never gives permission to replace a newly discovered draft. */
+  private readInitial(recovering: boolean) {
     if (!this.key) return;
     try {
-      const raw = this.storage().getItem(this.key);
+      const storage = this.storage(), raw = storage.getItem(this.key), marker = storage.getItem(completedKey(this.key));
+      // The two keys are not a transaction; refuse an unstable observed pair.
+      if (storage.getItem(this.key) !== raw || storage.getItem(completedKey(this.key)) !== marker) throw Error('Initial draft read changed');
+      if (this.initialReadFailureLogged) { log('local_read', 'success'); this.initialReadFailureLogged = false; }
+      this.snapshot = { ...this.snapshot, initialReadState: 'ready', storageError: false };
       if (!raw) return;
       const hash = formDraftFingerprint(raw);
-      const marker = this.storage().getItem(completedKey(this.key));
       let acknowledged = completedRecords.get(this.key) === hash;
       if (marker) try { const data: unknown = JSON.parse(marker); acknowledged ||= draftObject(data) && data.version === FORM_DRAFT_VERSION && data.recordFingerprint === hash; } catch { /* Invalid marker is never treated as acknowledgement. */ }
-      if (acknowledged) { this.snapshot.completedResidual = true; log('completed_residual', 'info'); return; }
-      if (raw.length * 2 > FORM_DRAFT_MAX_ENTRY_BYTES) { this.snapshot.invalid = true; log('invalid_size', 'failure', true); return; }
+      const residual = () => { this.snapshot = { ...this.snapshot, completedResidual: true, ...(recovering ? { initialReadState: 'decision' as const, storageError: true } : {}) }; log('completed_residual', 'info'); };
+      const invalid = (operation: string, storageError = false) => { this.snapshot = { ...this.snapshot, initialReadState: 'decision', invalid: true }; log(operation, 'failure', storageError); };
+      if (acknowledged) { residual(); return; }
+      if (raw.length * 2 > FORM_DRAFT_MAX_ENTRY_BYTES) { invalid('invalid_size', true); return; }
       let record: unknown;
       try { record = JSON.parse(raw); }
-      catch { this.snapshot.invalid = true; log('invalid_format', 'failure'); return; }
-      if (draftObject(record) && record.version === FORM_DRAFT_VERSION && record.scope === this.key && record.acknowledged === true) {
-        this.snapshot.completedResidual = true; log('completed_residual', 'info'); return;
-      }
+      catch { invalid('invalid_format'); return; }
+      if (draftObject(record) && record.version === FORM_DRAFT_VERSION && record.scope === this.key && record.acknowledged === true) { residual(); return; }
       if (!draftObject(record) || record.version !== FORM_DRAFT_VERSION || record.scope !== this.key ||
         typeof record.fingerprint !== 'string' || record.fingerprint.length > 120 || typeof record.savedAt !== 'number' ||
         !Number.isFinite(record.savedAt) || record.savedAt > this.now() + 60_000 || this.now() - record.savedAt > FORM_DRAFT_MAX_AGE ||
-        !safeData(record.value) || !options.validate(record.value)) { this.snapshot.invalid = true; log('invalid_record', 'failure'); return; }
-      this.snapshot.pending = record as FormDraftRecord<T>;
-      this.snapshot.conflict = record.fingerprint !== options.fingerprint;
+        !safeData(record.value) || !this.options.validate(record.value)) { invalid('invalid_record'); return; }
+      this.snapshot = { ...this.snapshot, initialReadState: 'decision', pending: record as FormDraftRecord<T>, conflict: record.fingerprint !== this.options.fingerprint };
       log('available', 'info');
       if (this.snapshot.conflict) { this.loggedConflict = true; log('conflict', 'info'); }
-    } catch { this.snapshot.storageError = true; log('local_read', 'failure', true); }
+    } catch { this.snapshot = { ...this.snapshot, initialReadState: 'unknown', storageError: true }; if (!this.initialReadFailureLogged) { log('local_read', 'failure', true); this.initialReadFailureLogged = true; } }
   }
   private storage() { return this.options.storage ? this.options.storage() : localStorage; }
   private now() { return this.options.now?.() ?? Date.now(); }
@@ -89,10 +98,12 @@ export class FormDraftSession<T> {
   capture(value: T) {
     if (!this.snapshot.dirty) log('edited', 'info');
     this.snapshot = { ...this.snapshot, value, dirty: true };
-    if (this.snapshot.pending) return; // Require an explicit choice before replacing an older local draft.
+    if (this.snapshot.initialReadState === 'unknown') this.readInitial(true);
+    if (this.snapshot.initialReadState !== 'ready' || this.snapshot.pending || this.snapshot.invalid) return; // Never replace an unknown or newly discovered initial draft.
     this.persist();
   }
   private persist() {
+    if (this.snapshot.initialReadState !== 'ready' || this.snapshot.pending || this.snapshot.invalid) return;
     const wasFailed = this.snapshot.storageError, wasSaved = this.snapshot.savedAt !== null;
     if (!this.key || !safeData(this.snapshot.value) || !this.options.validate(this.snapshot.value)) {
       this.snapshot = { ...this.snapshot, storageError: true }; if (!wasFailed) log('local_save', 'failure', true); return;
@@ -123,16 +134,17 @@ export class FormDraftSession<T> {
   restore() {
     const record = this.snapshot.pending; if (!record) return;
     this.originalFingerprint = record.fingerprint;
-    this.snapshot = { ...this.snapshot, value: copy(record.value), pending: null, dirty: true, savedAt: record.savedAt, conflict: record.fingerprint !== this.options.fingerprint };
+    this.snapshot = { ...this.snapshot, initialReadState: 'ready', storageError: false, value: copy(record.value), pending: null, dirty: true, savedAt: record.savedAt, conflict: record.fingerprint !== this.options.fingerprint };
     log('resumed', 'info');
   }
   /** Called only after an explicit user choice to keep the displayed local values. */
-  keepLocal() { this.originalFingerprint = this.options.fingerprint; this.loggedConflict = false; this.snapshot = { ...this.snapshot, conflict: false, dirty: true }; log('kept_local', 'info'); this.persist(); }
+  keepLocal() { if (this.snapshot.initialReadState !== 'ready' || this.snapshot.pending || this.snapshot.invalid) return; this.originalFingerprint = this.options.fingerprint; this.loggedConflict = false; this.snapshot = { ...this.snapshot, conflict: false, dirty: true }; log('kept_local', 'info'); this.persist(); }
   reset(): boolean {
+    if (this.snapshot.initialReadState === 'unknown') { this.readInitial(true); if (this.getSnapshot().initialReadState !== 'ready') return false; }
     if (!this.remove()) { log('discarded', 'failure', true); return false; }
     this.originalFingerprint = this.options.fingerprint;
     this.loggedConflict = false;
-    this.snapshot = { ...this.snapshot, value: copy(this.options.initial), pending: null, dirty: false, conflict: false, invalid: false, completedResidual: false, storageError: false, savedAt: null }; log('discarded', 'success'); return true;
+    this.snapshot = { ...this.snapshot, initialReadState: 'ready', value: copy(this.options.initial), pending: null, dirty: false, conflict: false, invalid: false, completedResidual: false, storageError: false, savedAt: null }; log('discarded', 'success'); return true;
   }
   private remove() {
     if (!this.key) return true;
@@ -141,6 +153,7 @@ export class FormDraftSession<T> {
   }
   complete(saved: boolean) {
     if (saved !== true) { log('submitted', 'failure'); return; }
+    if (this.snapshot.initialReadState !== 'ready' || this.snapshot.pending || this.snapshot.invalid) { this.snapshot = { ...this.snapshot, storageError: true, completionProtected: false }; log('submitted', 'failure', true); return; }
     log('submitted', 'success');
     let protectedCompletion = false;
     if (this.key) try {
@@ -165,7 +178,9 @@ export class FormDraftSession<T> {
     this.snapshot = { ...this.snapshot, dirty: false, pending: null, conflict: false, completedResidual: !removed, completionProtected: removed || protectedCompletion, savedAt: null };
     log('completed', removed ? 'success' : 'failure', !removed);
   }
-  retryStorage() { if (this.snapshot.dirty) this.persist(); }
+  /** The opening recovery button only reads; it never turns a clean opening into a write. */
+  retryInitialRead() { if (this.snapshot.initialReadState === 'unknown') { this.readInitial(true); if (this.getSnapshot().initialReadState === 'ready' && this.snapshot.dirty) this.snapshot = { ...this.snapshot, storageError: true }; } }
+  retryStorage() { this.retryInitialRead(); if (this.snapshot.initialReadState === 'ready' && this.snapshot.dirty) this.persist(); }
   needsCloseConfirmation() { return this.snapshot.dirty && this.snapshot.storageError; }
   hasConflict() { return this.snapshot.conflict || this.originalFingerprint !== this.options.fingerprint; }
 }

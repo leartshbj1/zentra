@@ -848,13 +848,22 @@ pub fn stage_company_logo(
 }
 
 #[tauri::command]
-pub fn save_document_with_items(
+pub async fn save_document_with_items(
     state: State<'_, LocalStore>,
     input: SaveDocumentWithItemsInput,
+    expected_workspace_scope: Option<String>,
+    expected_member_context_nonce: Option<String>,
 ) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.save_document_with_items(input).map_err(command_error)
+    run_member_scoped_local_operation(
+        state.inner().clone(),
+        expected_workspace_scope,
+        expected_member_context_nonce,
+        move |store| {
+            require_write(store)?;
+            store.save_document_with_items(input).map_err(command_error)
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -2227,3 +2236,8 @@ mod bank_pending_scope_tests;
 #[cfg(test)]
 #[path = "commands_payslip_member_origin_tests.rs"]
 mod payslip_member_origin_tests;
+
+// Atomic document edits use the same worker/context guard as generic CRUD.
+#[cfg(test)]
+#[path = "commands_document_member_origin_tests.rs"]
+mod document_member_origin_tests;

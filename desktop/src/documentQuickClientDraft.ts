@@ -1,0 +1,22 @@
+import type {AppLanguage} from './language';
+import type {DocumentQuickClientDraft} from './documentUi';
+
+export const documentQuickClientFields = ['contactPerson', 'company', 'email', 'phone', 'street', 'buildingNumber', 'postalCode', 'city', 'canton', 'country'] as const;
+const uuid = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
+export const validQuickClientCreationId = (value: unknown): value is string => typeof value === 'string' && uuid.test(value);
+export const emptyDocumentQuickClient = (): DocumentQuickClientDraft => ({contactPerson:'', company:'', email:'', phone:'', street:'', buildingNumber:'', postalCode:'', city:'', canton:'', country:'CH'});
+
+/** Ordinary error on purpose: an old row with this UUID is not proof that the
+ * latest edited payload was recorded. WorkspaceApp must not infer ID-only success. */
+export class QuickClientCreationUnconfirmedError extends Error {
+  constructor(cause: unknown) {
+    super('La création du client de ce document n’est pas confirmée.', {cause});
+    this.name = 'QuickClientCreationUnconfirmedError';
+  }
+}
+export const quickClientCreationRecovery: Record<AppLanguage, {title:string;message:string;instruction:string;legacy:string;prepare:string;storage:string;read:string;reopen:string}> = {
+  fr:{read:'La saisie précédente ne peut pas être vérifiée sur cet appareil. Fermez puis rouvrez le document pour la retrouver avant de continuer.',reopen:'Fermer le document',title:'Création du client à vérifier',message:'La création de ce client n’a pas été confirmée. Votre document et votre saisie sont conservés.',instruction:'Vérifiez la liste des clients avant de réessayer. Si le client existe déjà, sélectionnez sa fiche dans ce document.',legacy:'Ce brouillon ancien ne permet pas de retrouver une précédente création de client. Vérifiez la liste des clients avant de préparer un nouveau contact.',prepare:'Préparer un nouveau contact',storage:'Cette saisie ne peut pas être conservée sur cet appareil. Réessayez sa sauvegarde locale avant de créer le client.'},
+  de:{read:'Der vorherige Entwurf kann auf diesem Gerät nicht geprüft werden. Schließen und öffnen Sie das Dokument erneut, um ihn vor dem Fortfahren wiederzufinden.',reopen:'Dokument schließen',title:'Kundenerstellung prüfen',message:'Die Erstellung dieses Kunden wurde nicht bestätigt. Ihr Dokument und Ihre Eingaben bleiben gespeichert.',instruction:'Prüfen Sie die Kundenliste, bevor Sie es erneut versuchen. Falls der Kunde bereits vorhanden ist, wählen Sie seinen Eintrag in diesem Dokument aus.',legacy:'Dieser ältere Entwurf kann einer früheren Kundenerstellung nicht zugeordnet werden. Prüfen Sie die Kundenliste, bevor Sie einen neuen Kontakt vorbereiten.',prepare:'Neuen Kontakt vorbereiten',storage:'Diese Eingaben können auf diesem Gerät nicht gespeichert werden. Versuchen Sie zuerst, den lokalen Entwurf erneut zu speichern, bevor Sie den Kunden erstellen.'},
+  it:{read:'La bozza precedente non può essere verificata su questo dispositivo. Chiudi e riapri il documento per ritrovarla prima di continuare.',reopen:'Chiudi il documento',title:'Verifica la creazione del cliente',message:'La creazione di questo cliente non è stata confermata. Il documento e i dati inseriti sono conservati.',instruction:'Controlla l’elenco dei clienti prima di riprovare. Se il cliente esiste già, seleziona la sua scheda in questo documento.',legacy:'Questa vecchia bozza non permette di identificare una creazione precedente del cliente. Controlla l’elenco dei clienti prima di preparare un nuovo contatto.',prepare:'Prepara un nuovo contatto',storage:'Questi dati non possono essere conservati sul dispositivo. Riprova a salvare la bozza locale prima di creare il cliente.'},
+  en:{read:'The previous draft cannot be checked on this device. Close and reopen the document to retrieve it before continuing.',reopen:'Close the document',title:'Check the client creation',message:'The creation of this client has not been confirmed. Your document and entries are retained.',instruction:'Check the client list before trying again. If the client already exists, select their record in this document.',legacy:'This older draft cannot identify a previous client creation. Check the client list before preparing a new contact.',prepare:'Prepare a new contact',storage:'These entries cannot be retained on this device. Retry saving the local draft before creating the client.'},
+};

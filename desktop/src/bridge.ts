@@ -3495,6 +3495,8 @@ async function saveDocument(
   data: Record<string, unknown>,
   lines: DocumentLine[],
   existing?: Quote | Invoice,
+  expectedWorkspaceScope?: string,
+  expectedMemberContextNonce?: string,
 ): Promise<Workspace> {
   const previousLines = existing?.lines ?? [];
   const backendData = toBackendData(data);
@@ -3517,7 +3519,7 @@ async function saveDocument(
       };
     });
   }
-  await invoke('save_document_with_items', {
+  await invokeExpectedOrigin('save_document_with_items', {
     input: {
       entity,
       id: existing?.id ?? null,
@@ -3529,8 +3531,8 @@ async function saveDocument(
         ),
       ),
     },
-  });
-  return refreshWorkspaceAfterMutation(loadWorkspace);
+  }, expectedWorkspaceScope, expectedMemberContextNonce);
+  return refreshWorkspaceInOrigin(() => loadWorkspace(expectedWorkspaceScope, expectedMemberContextNonce), expectedWorkspaceScope);
 }
 
 async function chooseFile(

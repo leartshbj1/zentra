@@ -115,7 +115,27 @@ mod tests {
         crate::company_collaboration::set_identity(&store, "synthetic-org", &uuid::Uuid::new_v4().to_string(), "Alice", "owner").unwrap();
         let original_nonce = crate::member_context::read(&store.connect().unwrap()).unwrap();
         let original_scope = crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap();
-        let original_company = store.get_workspace().unwrap();
+        // get_workspace requires onboarding, while this recovery command requires
+        // an empty unconfigured company. Read the real domain tables instead;
+        // private identity/nonce are intentionally allowed to change below.
+        crate::cloud_backup::require_empty_company(&store).unwrap();
+        assert!(!store.app_state(env!("CARGO_PKG_VERSION")).unwrap().onboarding_completed);
+        let company_snapshot = || {
+            let connection = store.connect().unwrap();
+            let mut rows = serde_json::Map::new();
+            for table in [
+                "settings", "clients", "projects", "quotes", "quote_items",
+                "invoices", "invoice_items", "employees", "expenses",
+                "journal_entries", "journal_lines", "attachments", "audit_log",
+                "document_creators", "work_notes", "company_local_clock",
+            ] {
+                rows.insert(table.into(), json!(crate::database::query_all(
+                    &connection, &format!("SELECT * FROM {table} ORDER BY rowid"), [],
+                ).unwrap()));
+            }
+            Value::Object(rows)
+        };
+        let original_company = company_snapshot();
         let recovery_name = "avant-reinitialisation-synthetic-invalid.zentra";
         std::fs::write(store.backups_dir.join(recovery_name), b"synthetic invalid archive").unwrap();
         std::fs::write(store.data_dir.join("app-reset-recovery.json"), serde_json::to_vec(&json!({"file":recovery_name,"createdAt":"2026-10-03T00:00:00Z"})).unwrap()).unwrap();
@@ -131,7 +151,8 @@ mod tests {
         assert!(crate::member_context::require_unchanged(&store.connect().unwrap(), Some(&original_nonce)).is_err());
         assert_eq!(store.connect().unwrap().query_row::<i64, _, _>("SELECT COUNT(*) FROM company_local_identity", [], |row| row.get(0)).unwrap(), 0);
         assert_eq!(crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap(), original_scope, "the failed restore does not replace the company");
-        assert_eq!(store.get_workspace().unwrap(), original_company);
+        assert_eq!(company_snapshot(), original_company, "failed archive recovery preserves the real unconfigured company rows");
+        crate::cloud_backup::require_empty_company(&store).unwrap();
         for name in ["cloud-account-session.protected", "cloud-account-link.protected", "cloud-account-exchange.protected"] {
             assert!(!store.data_dir.join(name).exists());
         }

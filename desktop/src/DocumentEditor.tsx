@@ -27,10 +27,12 @@ import {
 } from './utils';
 import { Button, ErrorPanel, Field, FormActions, Modal, submitForm } from './ui';
 import { projectTerminology } from './terminology';
-import { FormDraftNotice, useFormDraft, useFormDraftScope } from './useFormDraft';
+import { FormDraftNotice, draftText, useFormDraft, useFormDraftScope } from './useFormDraft';
 import { formDraftFingerprint } from './formDrafts';
 import { initialDocumentFormDraft, validDocumentFormDraft, type DocumentFormDraft } from './documentFormDraft';
 import { ErrorGuidance } from './ErrorGuidance';
+import {WorkspaceCreationOutcomeUnknownError} from './workspaceCreation';
+import {documentQuickClientFields, emptyDocumentQuickClient, QuickClientCreationUnconfirmedError, quickClientCreationRecovery, validQuickClientCreationId} from './documentQuickClientDraft';
 import {
   buildDepositLines,
   validDepositPercentageBp,
@@ -83,7 +85,7 @@ export function DocumentEditor({
   onReadWorkspace?:()=>Promise<Workspace>;
   onOpenSettlementHelp?:(destination:'accounts'|'periods'|'bank')=>void;
 }) {
-  useAppLanguage();
+  const quickRecovery = quickClientCreationRecovery[useAppLanguage()];
   const settings = workspace.settings!;
   const unitsId = useId();
   const terminology = projectTerminology(settings.business.nogaSection);
@@ -94,12 +96,16 @@ export function DocumentEditor({
   const reservedTime = Boolean(currentInvoice && workspace.timeBillingBatches?.some(batch => batch.invoiceId === currentInvoice.id));
   const hasCustomerCredit = Boolean(currentInvoice && currentInvoice.status !== 'draft' && workspace.invoices.some((invoice)=>invoice.customerCredit && (invoice.id===currentInvoice.id || invoice.originalInvoiceId===currentInvoice.id || invoice.creditSettlements?.some((event)=>event.invoiceId===currentInvoice.id))));
   const [emptyLineId] = useState(createId);
+  const [initialQuickClientId] = useState(createId);
   const persisted = useFormDraft({ scope: useFormDraftScope(workspace, entity, suppliedItem?.id, !suppliedItem ? 'quote:' + (quoteSource?.id || '') + ';project:' + (initialProject?.id || '') : ''),
-    initial: initialDocumentFormDraft(entity, settings, emptyLineId, item, quoteSource, initialProject, initialStep),
+    initial: initialDocumentFormDraft(entity, settings, emptyLineId, item, quoteSource, initialProject, initialStep, initialQuickClientId),
     fingerprint: suppliedItem ? currentRecord ? formDraftFingerprint(currentRecord) : 'missing' : quoteSource ? formDraftFingerprint(quoteSource) : 'new', validate: validDocumentFormDraft });
+  // Do not overwrite an unreadable previous draft with a fresh client identity.
+  const [initialDraftReadFailed] = useState(() => persisted.storageError && !persisted.dirty && !persisted.pending && !persisted.invalid);
   const { lines, selectedClientId, selectedProjectId, quickClientOpen, quickClient, issueDate, dueDate, invoiceType, depositPercentage,
     serviceDateFrom, serviceDateTo, originalInvoiceId, footerText, footerTemplateId, footerTemplateName, step, documentTitle, documentNotes } = persisted.value;
   function changeDraft<K extends keyof DocumentFormDraft>(field: K, next: SetStateAction<DocumentFormDraft[K]>) {
+    if (initialDraftReadFailed) return;
     persisted.setValue(previous => ({ ...previous, [field]: typeof next === 'function' ? (next as (value: DocumentFormDraft[K]) => DocumentFormDraft[K])(previous[field]) : next }));
   }
   const setLines = (next: SetStateAction<DocumentFormDraft['lines']>) => changeDraft('lines', next);
@@ -122,9 +128,13 @@ export function DocumentEditor({
   const setDocumentNotes = (next: SetStateAction<DocumentFormDraft['documentNotes']>) => changeDraft('documentNotes', next);
   const numberDraftProps = (id: string) => ({ rawValue: persisted.value.numberInputs[id], onRawChange: (value: string) => persisted.setValue(previous => ({ ...previous, numberInputs: { ...previous.numberInputs, [id]: value } })) });
   const closeForm = () => persisted.close(close);
-  const draftBlocked = !!persisted.pending || persisted.conflict || persisted.invalid || !!(suppliedItem && !currentRecord);
+  const draftBlocked = initialDraftReadFailed || !!persisted.pending || persisted.conflict || persisted.invalid || !!(suppliedItem && !currentRecord);
   const [saving, setSaving] = useState(false), submission = useRef(false);
   const [saveFailure, setSaveFailure] = useState<unknown>(null);
+  const quickSubmission = useRef(false);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickFailure, setQuickFailure] = useState<unknown>(null);
+  const [quickStorageFailure, setQuickStorageFailure] = useState(false);
   const [savedLineIds] = useState(() => new Set(current ? lines.map(line => line.id) : []));
   const catalogItems = useMemo(
     () => activeCatalogItems(workspace.catalogItems),
@@ -279,42 +289,66 @@ export function DocumentEditor({
     setCatalogItemId('');
   }
 
-  async function createQuickClient() {
-    const originWorkspaceScope = workspace.workNotesScope;
-    setLocalError('');
-    const id = createId();
-    let client: ReturnType<typeof prepareDocumentQuickClient>;
-    try {
-      client = prepareDocumentQuickClient(quickClient, id);
-    } catch (reason) {
-      setLocalError(
-        reason instanceof Error
-          ? reason.message
-          : t("Le nouveau client n’a pas pu être préparé."),
-      );
-      return;
-    }
-    const saved = await act(
-      (mutationOrigin) => desktopApi.createEntity('clients', client, originWorkspaceScope, mutationOrigin.memberContextNonce),
-      t('Le client {client} a été ajouté et sélectionné.', {client: client.company || client.contactPerson}),
-      false,
-    );
-    if (!saved) return;
-    setSelectedClientId(id);
-    setSelectedProjectId('');
-    setQuickClientOpen(false);
-    setQuickClient({
-      contactPerson: '',
-      company: '',
-      email: '',
-      phone: '',
-      street: '',
-      buildingNumber: '',
-      postalCode: '',
-      city: '',
-      canton: '',
-      country: 'CH',
+  // Preserve the whole document; capture the final quick-client DOM values
+  // synchronously, including a keystroke React has not rendered yet.
+  function captureQuickClient(creationId?: string) {
+    if (initialDraftReadFailed) return null;
+    const captured = persisted.setValue(previous => {
+      const quick = {...previous.quickClient};
+      for (const field of documentQuickClientFields) {
+        const input = formRef.current?.querySelector<HTMLInputElement>(`[data-quick-client-field="${field}"]`);
+        if (input) quick[field] = input.value;
+      }
+      const next = {...previous, quickClient: quick, ...(creationId === undefined ? {} : {quickClientCreationId:creationId})};
+      for (const [name, field] of [['title','documentTitle'],['notes','documentNotes'],['terms','footerText']] as const) {
+        const input = formRef.current?.querySelector<HTMLInputElement|HTMLTextAreaElement>(`[name="${name}"]`);
+        if (input) next[field] = input.value;
+      }
+      return next;
     });
+    const failed = captured.storageError || !!captured.pending || captured.invalid || captured.conflict;
+    setQuickStorageFailure(failed);
+    return failed ? null : captured.value;
+  }
+  const retryQuickStorage = () => { if (!busy && !saving && !quickSaving && !readOnly && !draftBlocked) captureQuickClient(); };
+  const discardDocumentDraft = () => {
+    // Closing after verified deletion ensures a fresh quick-client identity on
+    // the next mount. A failed deletion retains the exact UUID and open form.
+    if (persisted.discard()) close();
+  };
+  const prepareLegacyQuickClient = () => {
+    if (busy || saving || quickSaving || readOnly || draftBlocked || validQuickClientCreationId(persisted.value.quickClientCreationId)) return;
+    captureQuickClient(createId());
+    setQuickFailure(null);
+  };
+  async function createQuickClient() {
+    if (quickSubmission.current || quickStorageFailure || busy || saving || quickSaving || readOnly || isLocked || draftBlocked || creditOriginal || reservedTime) return;
+    if (!validQuickClientCreationId(persisted.value.quickClientCreationId)) return;
+    const originWorkspaceScope = workspace.workNotesScope;
+    setLocalError(''); setQuickFailure(null);
+    const captured = captureQuickClient();
+    if (!captured || !validQuickClientCreationId(captured.quickClientCreationId)) return;
+    const id = captured.quickClientCreationId;
+    let client: ReturnType<typeof prepareDocumentQuickClient>;
+    try { client = prepareDocumentQuickClient(captured.quickClient, id); }
+    catch (reason) { setLocalError(reason instanceof Error ? reason.message : t("Le nouveau client n’a pas pu être préparé.")); return; }
+    quickSubmission.current = true; setQuickSaving(true);
+    try {
+      const saved = await act(
+        mutationOrigin => desktopApi.createEntity('clients',client,originWorkspaceScope,mutationOrigin.memberContextNonce).catch(reason => {
+          if (reason instanceof WorkspaceCreationOutcomeUnknownError) throw new QuickClientCreationUnconfirmedError(reason);
+          throw reason;
+        }),
+        t('Le client {client} a été ajouté et sélectionné.', {client:client.company || client.contactPerson}), false,
+        reason => setQuickFailure(reason),
+      );
+      if (!saved) return;
+      // Do not complete/retire the enclosing document draft after adding a client.
+      // Keep the existing rule: a project from the previous client is cleared.
+      const reset = persisted.setValue(previous => ({...previous, selectedClientId:id, selectedProjectId:'', quickClientOpen:false, quickClient:emptyDocumentQuickClient(), quickClientCreationId:createId()}));
+      setQuickStorageFailure(reset.storageError || !!reset.pending || reset.invalid || reset.conflict);
+    } catch (reason) { setQuickFailure(reason); }
+    finally { quickSubmission.current = false; setQuickSaving(false); }
   }
 
   async function saveFooterTemplate() {
@@ -416,7 +450,7 @@ export function DocumentEditor({
           : t("Un document clair, en quatre étapes.")
       }
       onClose={closeForm}
-      dismissible={!busy && !saving}
+      dismissible={!busy && !saving && !quickSaving}
       className={!isLocked ? "document-editor-dialog" : undefined}
       wide
     >
@@ -521,7 +555,7 @@ export function DocumentEditor({
               ? desktopApi.updateEntity('invoices', currentInvoice.id, {
                   title: data.title, notes: data.notes, terms: data.terms, issueDate, dueDate,
                 }, originWorkspaceScope, mutationOrigin.memberContextNonce)
-              : desktopApi.saveDocument(entity, data, depositLines, item),
+              : desktopApi.saveDocument(entity, data, depositLines, item, originWorkspaceScope, mutationOrigin.memberContextNonce),
             item
               ? t("Le brouillon a été mis à jour.")
               : entity === 'quotes' ? t('Le devis a été enregistré en brouillon.') : invoiceType === 'credit_note' ? t('L’avoir a été enregistré en brouillon.') : t('La facture a été enregistrée en brouillon.'),
@@ -534,7 +568,7 @@ export function DocumentEditor({
           finally { submission.current = false; setSaving(false); }
         })}
       >
-        {!isLocked && <FormDraftNotice draft={persisted} disabled={busy || saving || readOnly} currentValues={item ? [{ label: t('Titre du document'), value: item.title }, { label: t('Client'), value: workspace.clients.find(row => row.id === item.clientId)?.company || workspace.clients.find(row => row.id === item.clientId)?.name || item.clientId }, { label: terminology.singular, value: workspace.projects.find(row => row.id === item.projectId)?.name || item.projectId || '' }, { label: t('Date d’émission'), value: item.issueDate }, { label: t('Conditions'), value: entity === 'quotes' ? (item as Quote).validUntil : (item as Invoice).dueDate }, { label: t('Prestations'), value: item.lines.map(line => `${line.description} · ${line.quantity} ${line.unit} · ${formatMoney(line.unitPriceCents, item.currency)} · ${line.vatRateBp / 100} %`).join('\n') }, { label: t('Notes'), value: item.notes }, { label: t('Texte personnalisé en bas de page'), value: item.terms }] : undefined} />}
+        {!isLocked && <FormDraftNotice draft={{...persisted, discard:discardDocumentDraft, retryStorage:quickStorageFailure ? retryQuickStorage : persisted.retryStorage}} disabled={busy || saving || quickSaving || readOnly} currentValues={item ? [{ label: t('Titre du document'), value: item.title }, { label: t('Client'), value: workspace.clients.find(row => row.id === item.clientId)?.company || workspace.clients.find(row => row.id === item.clientId)?.name || item.clientId }, { label: terminology.singular, value: workspace.projects.find(row => row.id === item.projectId)?.name || item.projectId || '' }, { label: t('Date d’émission'), value: item.issueDate }, { label: t('Conditions'), value: entity === 'quotes' ? (item as Quote).validUntil : (item as Invoice).dueDate }, { label: t('Prestations'), value: item.lines.map(line => `${line.description} · ${line.quantity} ${line.unit} · ${formatMoney(line.unitPriceCents, item.currency)} · ${line.vatRateBp / 100} %`).join('\n') }, { label: t('Notes'), value: item.notes }, { label: t('Texte personnalisé en bas de page'), value: item.terms }] : undefined} />}
         {reservedTimeDraftChanged && currentInvoice && !isLocked ? <aside className="form-draft-notice" aria-label={t("Heures réservées")}>
           <div><strong>{t("Les heures facturées restent inchangées")}</strong><p>{t("Cette saisie contient des changements de lignes ou de rattachement. Reprenez les valeurs enregistrées pour ces champs ; votre titre, vos notes, vos dates de facture et votre texte de bas de page seront conservés.")}</p></div>
           <Button type="button" variant="secondary" size="small" disabled={busy || saving || readOnly || draftBlocked} onClick={() => {
@@ -547,6 +581,9 @@ export function DocumentEditor({
             setLocalError('');
           }}>{t("Reprendre les heures réservées")}</Button>
         </aside> : null}
+        {initialDraftReadFailed ? <aside className="contact-form-failure" role="alert" data-quick-client-read-recovery><p>{quickRecovery.read}</p><Button type="button" size="small" variant="secondary" onClick={closeForm}>{quickRecovery.reopen}</Button></aside> : null}
+        {quickStorageFailure ? <aside className="contact-form-failure" role="alert" data-quick-client-storage-recovery><p>{quickRecovery.storage}</p><Button type="button" size="small" variant="secondary" disabled={busy || saving || quickSaving || readOnly || draftBlocked} onClick={retryQuickStorage}>{draftText('Réessayer la sauvegarde locale')}</Button></aside> : null}
+        {quickFailure instanceof QuickClientCreationUnconfirmedError ? <aside className="contact-form-failure" role="alert" data-quick-client-creation-recovery><strong>{quickRecovery.title}</strong><p>{quickRecovery.message}</p><p>{quickRecovery.instruction}</p></aside> : quickFailure ? <ErrorGuidance error={quickFailure} operation="mutation" compact /> : null}
         {saveFailure ? <ErrorGuidance error={saveFailure} operation="mutation" compact /> : null}
         {!isLocked && <nav className="document-stepper" aria-label={t("Étapes de création")}>
           <div className="document-stepper__intro"><span>{t("Votre document")}</span><strong>{documentTitle.trim() || (entity === 'quotes' ? t("Nouveau devis") : invoiceType === 'credit_note' ? t("Nouvel avoir") : t("Nouvelle facture"))}</strong></div>
@@ -555,7 +592,7 @@ export function DocumentEditor({
           <p className="document-stepper__note">{t("Vous pourrez modifier le brouillon avant de l’émettre.")}</p>
         </nav>}
         {localError ? <ErrorPanel key={saveAttempt} title={t("Encore un détail")} message={localError} reveal /> : null}
-        <fieldset disabled={busy || saving || isLocked || readOnly || draftBlocked} className="document-form">
+        <fieldset disabled={busy || saving || quickSaving || isLocked || readOnly || draftBlocked} className="document-form">
           <section className="document-step" data-document-step="0" hidden={!isLocked && step !== 0}>
             {stepHeading(0)}
           <div className="form-grid">
@@ -674,6 +711,7 @@ export function DocumentEditor({
           </div>
           {quickClientOpen ? (
             <section className="document-inline-card" aria-label={t("Ajouter un nouveau client")}>
+              {!validQuickClientCreationId(persisted.value.quickClientCreationId) ? <aside className="contact-form-failure" role="status" data-quick-client-legacy-creation><p>{quickRecovery.legacy}</p><Button type="button" variant="secondary" size="small" onClick={prepareLegacyQuickClient}>{quickRecovery.prepare}</Button></aside> : null}
               <header>
                 <div>
                   <strong>{t("Nouveau client")}</strong>
@@ -695,6 +733,7 @@ export function DocumentEditor({
                 ] as const).map(([key, label, required]) => (
                   <Field key={String(key)} label={String(label)} required={Boolean(required)}>
                     <input
+                      data-quick-client-field={key}
                       type={key === 'email' ? 'email' : 'text'}
                       value={quickClient[key as keyof typeof quickClient]}
                       maxLength={key === 'country' ? 2 : undefined}
@@ -713,7 +752,7 @@ export function DocumentEditor({
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={busy}
+                  disabled={busy || saving || quickSaving || quickStorageFailure || readOnly || draftBlocked || !validQuickClientCreationId(persisted.value.quickClientCreationId)}
                   onClick={() => void createQuickClient()}
                 >
                   <Check size={15} />{t("Ajouter et sélectionner")}</Button>

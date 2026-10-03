@@ -217,6 +217,13 @@ try {
         $diagnosticNativeSuites += @('member_context::tests', 'company_collaboration::member_context_private_tests', 'commands::member_context_tests', 'account_cloud::member_context_clear_tests', 'account_cloud::nonblocking_state_tests', 'commands::payslip_member_origin_tests')
         $diagnosticFrontendSuites += @('src/ContactDraftRecovery.test.tsx', 'src/workspaceMemberOrigin.test.ts', 'src/member-origin-reactdom.test.tsx', 'src/app-member-admission.test.tsx', 'src/payroll-member-origin.test.tsx')
         $diagnosticMobileSuites += @('src/ContactDraftRecovery.test.tsx', 'src/workspaceMemberOrigin.test.ts', 'src/member-origin-reactdom.test.tsx', 'src/app-member-admission.test.tsx', 'src/payroll-member-origin.test.tsx')
+        # Durable EmployeeForm and document quick-client recovery; guarded document save.
+        $diagnosticNativeSuites += @('commands::document_member_origin_tests')
+        $diagnosticFrontendSuites += @('src/EmployeeDraftRecovery.test.tsx', 'src/employeeCreationDraft.test.ts', 'src/document-member-origin.test.tsx', 'src/QuickClientDraftRecovery.test.tsx', 'src/documentQuickClientDraft.test.ts', 'src/documentUi.test.ts')
+        $diagnosticMobileSuites += @('src/EmployeeDraftRecovery.test.tsx', 'src/employeeCreationDraft.test.ts', 'src/document-member-origin.test.tsx', 'src/QuickClientDraftRecovery.test.tsx', 'src/documentQuickClientDraft.test.ts', 'src/documentUi.test.ts')
+        # Unknown local draft reads must be resolved explicitly before a write.
+        $diagnosticFrontendSuites += @('src/initialDraftRead.test.ts', 'src/InitialDraftReadRecovery.test.tsx', 'src/EmployeeInitialDraftReadRecovery.test.tsx')
+        $diagnosticMobileSuites += @('src/initialDraftRead.test.ts', 'src/InitialDraftReadRecovery.test.tsx', 'src/EmployeeInitialDraftReadRecovery.test.tsx')
         foreach ($suite in $diagnosticNativeSuites) {
             Invoke-ZentraVerificationSuite $diagnosticHarness $suite
         }

@@ -48,27 +48,32 @@ export function useFormDraft<T>(options: FormDraftOptions<T>) {
     keepLocal: () => { session.keepLocal(); refresh(); },
     discard: () => { const discarded = session.reset(); refresh(); return discarded; },
     complete: (saved: boolean) => { session.complete(saved); refresh(); return saved === true && session.getSnapshot().completionProtected; },
+    retryInitialRead: () => { session.retryInitialRead(); refresh(); },
     retryStorage: () => { session.retryStorage(); refresh(); },
     close: (close: () => void) => { if (!session.needsCloseConfirmation() || window.confirm(draftText('La dernière saisie ne peut pas être conservée sur cet appareil. Fermer et perdre les modifications ?'))) close(); },
   };
 }
-export type FormDraftControls = Pick<ReturnType<typeof useFormDraft<unknown>>, 'pending' | 'dirty' | 'conflict' | 'storageError' | 'invalid' | 'completedResidual' | 'completionProtected' | 'savedAt' | 'restore' | 'keepLocal' | 'retryStorage'> & { discard: () => void };
+export type FormDraftControls = Pick<ReturnType<typeof useFormDraft<unknown>>, 'pending' | 'dirty' | 'conflict' | 'storageError' | 'invalid' | 'completedResidual' | 'completionProtected' | 'savedAt' | 'restore' | 'keepLocal' | 'retryStorage'> & { discard: () => void; initialReadState?: 'ready' | 'unknown' | 'decision'; retryInitialRead?: () => void };
 export function FormDraftNotice({ draft, disabled = false, currentValues }: { draft: FormDraftControls; disabled?: boolean; currentValues?: readonly { label: string; value: string }[] }) {
   useAppLanguage();
+  const initialUnknown = draft.initialReadState === 'unknown';
+  const initialDecision = draft.initialReadState === 'decision';
   const abandon = () => { if (window.confirm(draftText('Abandonner ce brouillon et retrouver les valeurs enregistrées ?'))) draft.discard(); };
-  if (!draft.pending && !draft.dirty && !draft.invalid && !draft.conflict && !draft.completedResidual) return null;
+  if (!initialUnknown && !draft.pending && !draft.dirty && !draft.invalid && !draft.conflict && !draft.completedResidual) return null;
   return <aside className={`form-draft-notice${draft.storageError || draft.conflict ? ' form-draft-notice--warning' : ''}`} aria-label={draftText('Brouillon local')}>
     <div role={draft.storageError || draft.conflict ? 'alert' : 'status'}>
-      <strong>{draftText(draft.completedResidual ? 'L’enregistrement est confirmé' : draft.pending ? 'Une saisie vous attend sur cet appareil' : draft.conflict ? 'Les données enregistrées ont changé' : draft.storageError ? 'La saisie locale ne peut pas être conservée' : draft.invalid ? 'Ce brouillon ne peut plus être repris' : 'Saisie conservée sur cet appareil')}</strong>
+      <strong>{draftText(initialUnknown ? 'Les brouillons locaux doivent être relus' : draft.completedResidual ? 'L’enregistrement est confirmé' : draft.pending ? 'Une saisie vous attend sur cet appareil' : draft.conflict ? 'Les données enregistrées ont changé' : draft.storageError ? 'La saisie locale ne peut pas être conservée' : draft.invalid ? 'Ce brouillon ne peut plus être repris' : 'Saisie conservée sur cet appareil')}</strong>
+      {initialUnknown && <p>{draftText('Gardez ce formulaire ouvert. Une ancienne saisie peut être présente. Relisez le stockage local avant de continuer ; rien ne sera remplacé ni envoyé.')}</p>}
       {draft.completedResidual && <p>{draftText(draft.completionProtected ? 'Le brouillon local n’a pas pu être effacé. Il ne sera pas repris ni envoyé à nouveau. Vérifiez la fiche enregistrée.' : 'La confirmation locale ne peut pas être conservée. Vérifiez la fiche enregistrée avant de reprendre une saisie après redémarrage.')}</p>}
-      {!draft.completedResidual && (draft.pending || draft.conflict || draft.storageError || draft.invalid) && <p>{draftText(draft.pending && draft.conflict ? 'Les données ont changé depuis cette saisie. Reprenez-la pour comparer avant de choisir.' : draft.conflict ? 'Votre saisie est affichée. Comparez-la avec les valeurs actuelles avant de choisir ; rien n’est envoyé automatiquement.' : draft.pending ? 'Reprenez-la pour la vérifier, puis enregistrez quand vous êtes prêt.' : draft.storageError ? 'Gardez ce formulaire ouvert. Vérifiez l’espace disponible et réessayez de conserver la saisie.' : 'Il est trop ancien ou son format a changé. Retrouvez les valeurs enregistrées pour continuer.')}</p>}
+      {!initialUnknown && !draft.completedResidual && (draft.pending || draft.conflict || draft.storageError || draft.invalid) && <p>{draftText(draft.pending && draft.conflict ? 'Les données ont changé depuis cette saisie. Reprenez-la pour comparer avant de choisir.' : draft.conflict ? 'Votre saisie est affichée. Comparez-la avec les valeurs actuelles avant de choisir ; rien n’est envoyé automatiquement.' : draft.pending ? 'Reprenez-la pour la vérifier, puis enregistrez quand vous êtes prêt.' : draft.storageError ? 'Gardez ce formulaire ouvert. Vérifiez l’espace disponible et réessayez de conserver la saisie.' : 'Il est trop ancien ou son format a changé. Retrouvez les valeurs enregistrées pour continuer.')}</p>}
       {draft.conflict && currentValues?.length ? <details className="form-draft-notice__comparison"><summary>{draftText('Voir les valeurs actuelles')}</summary><dl>{currentValues.map((row, index) => <div key={index}><dt>{row.label}</dt><dd>{row.value || '—'}</dd></div>)}</dl></details> : null}
     </div>
     <div className="form-draft-notice__actions">
       {draft.pending && <Button type="button" size="small" variant="secondary" disabled={disabled} onClick={draft.restore}>{draftText('Reprendre ma saisie')}</Button>}
-      {!draft.pending && draft.conflict && <Button type="button" size="small" variant="secondary" disabled={disabled} onClick={draft.keepLocal}>{draftText('Conserver ma saisie')}</Button>}
-      {draft.storageError && draft.dirty && <Button type="button" size="small" variant="secondary" disabled={disabled} onClick={draft.retryStorage}>{draftText('Réessayer la sauvegarde locale')}</Button>}
-      <Button type="button" size="small" variant="ghost" disabled={disabled} onClick={abandon}>{draftText(draft.conflict ? 'Utiliser les valeurs actuelles' : 'Abandonner le brouillon')}</Button>
+      {!initialUnknown && !initialDecision && !draft.pending && draft.conflict && <Button type="button" size="small" variant="secondary" disabled={disabled} onClick={draft.keepLocal}>{draftText('Conserver ma saisie')}</Button>}
+      {initialUnknown && <Button type="button" size="small" variant="secondary" disabled={disabled || !draft.retryInitialRead} onClick={draft.retryInitialRead}>{draftText('Relire les brouillons locaux')}</Button>}
+      {!initialUnknown && !initialDecision && draft.storageError && draft.dirty && <Button type="button" size="small" variant="secondary" disabled={disabled} onClick={draft.retryStorage}>{draftText('Réessayer la sauvegarde locale')}</Button>}
+      <Button type="button" size="small" variant="ghost" disabled={disabled || initialUnknown} onClick={abandon}>{draftText(draft.conflict ? 'Utiliser les valeurs actuelles' : 'Abandonner le brouillon')}</Button>
     </div>
   </aside>;
 }

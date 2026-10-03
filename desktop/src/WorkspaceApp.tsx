@@ -88,7 +88,8 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import {DiagnosticsPanel} from './DiagnosticsPanel';
-import { ErrorGuidance } from './ErrorGuidance';
+import { ErrorDetails, ErrorGuidance } from './ErrorGuidance';
+import { employeeDraftFields, validEmployeeCreationId, validCreationEmployeeDraft, EMPLOYEE_CREATION_UNCONFIRMED, EMPLOYEE_LOCAL_DRAFT_UNSAVED, employeeCreationRecovery } from './employeeCreationDraft';
 import {recordDiagnostic, classifyDiagnosticError, diagnosticOperation} from './diagnostics';
 import {
   Archive,
@@ -6785,7 +6786,9 @@ function EmployeeForm({
   close: () => void;
   act: ActionRunner;
 }) {
-  useAppLanguage();
+  const creationRecovery = employeeCreationRecovery[useAppLanguage()];
+  const isCreation = !suppliedItem;
+  const [creationId] = useState(() => isCreation ? createId() : undefined);
   const current = suppliedItem ? workspace.employees.find(row => row.id === suppliedItem.id) : undefined;
   const item = current ?? suppliedItem;
   const [step, setStep] = useState(0);
@@ -6821,10 +6824,11 @@ function EmployeeForm({
   const pending = busy || saving;
   const [salaryDraft, setSalaryDraft] = useState(item ? String(item.grossSalaryCents / 100) : '');
   const persisted = useNativeFormDraft({ workspace, type: 'employee', recordId: suppliedItem?.id, fingerprint: current ? formDraftFingerprint(current) : suppliedItem ? 'missing' : 'new', form: formElement,
-    fields: ["name","employeeNumber","role","email","phone","addressLine1","addressLine2","postalCode","city","canton","country","employmentRate","contractualWeeklyHours","employmentStart","employmentEnd","employmentContractKind","salaryMode","grossSalary","hourlyCost","status","notes","birthDate","avsNumber","iban","lppAssessmentYear","lppAnnualSalary","lppExceptionCode","lppExceptionEvidenceReference","acOpeningYear","acOpeningBasis","laaOpeningYear","laaOpeningBasis","referenceAgeDate","avsAllowanceWaived","smallSalaryAssessmentYear","smallSalarySector","smallSalaryEmployeeRequestedContributions","smallSalaryDecisionDate","smallSalaryOpeningGross","smallSalaryOpeningContributedBasis","smallSalaryEvidenceReference","draftStep","draftDeferAnnual"],
+    fields: isCreation ? [...employeeDraftFields, 'creationId'] : employeeDraftFields, initial: creationId ? {creationId} : {}, validateValue: isCreation ? validCreationEmployeeDraft : undefined,
     controlled: ['salaryMode', 'grossSalary', 'employmentContractKind', 'lppExceptionCode', 'smallSalarySector', 'smallSalaryAssessmentYear'],
     extra: () => ({ draftStep: String(step), draftDeferAnnual: String(deferAnnual), grossSalary: salaryDraft }),
     onRestore: values => {
+      setLocalError(previous => previous === EMPLOYEE_LOCAL_DRAFT_UNSAVED ? '' : previous);
       setStep(Math.max(0, Math.min(2, Number(values?.draftStep) || 0))); setReview(values ?? {}); setPrefill(null);
       setSalaryMode((values?.salaryMode ?? item?.salaryMode ?? '') as Employee['salaryMode'] | '');
       setSalaryDraft(values?.grossSalary ?? (item ? String(item.grossSalaryCents / 100) : ''));
@@ -6833,9 +6837,21 @@ function EmployeeForm({
       setSmallSalarySector((values?.smallSalarySector ?? item?.smallSalarySector ?? '') as '' | NonNullable<Employee['smallSalarySector']>);
       setAssessmentYear(values?.smallSalaryAssessmentYear ?? String(item?.smallSalaryAssessmentYear ?? ''));
       setDeferAnnual(values?.draftDeferAnnual === 'true');
+      if (values === null && isCreation) close();
     } });
+  const legacyCreation = isCreation && !persisted.value.creationId;
+  const isolatedStorageGuide = persisted.initialReadState === 'ready' && isCreation && localError !== EMPLOYEE_CREATION_UNCONFIRMED && (localError === EMPLOYEE_LOCAL_DRAFT_UNSAVED || persisted.storageError) && !persisted.pending && !persisted.conflict && !persisted.invalid && !persisted.completedResidual;
   const closeForm = () => persisted.close(close);
   const draftBlocked = !!persisted.pending || persisted.conflict || persisted.invalid || !!(suppliedItem && !current);
+  const prepareNewEmployeeCreation = () => {
+    if (!legacyCreation || !creationId || pending || savingRef.current || draftBlocked) return;
+    const captured = persisted.capture({creationId});
+    setLocalError(captured.storageError ? EMPLOYEE_LOCAL_DRAFT_UNSAVED : '');
+  };
+  const retryLocalEmployeeDraft = () => {
+    const captured = persisted.capture();
+    if (!captured.storageError && !captured.pending && !captured.invalid && !captured.conflict && validEmployeeCreationId(captured.value.creationId)) setLocalError(previous => previous === EMPLOYEE_CREATION_UNCONFIRMED ? previous : '');
+  };
   useAssistantScreen({screen:'Ajouter ou modifier un collaborateur',scope:`collaborateur:${item?.id ?? 'nouveau'}`, facts:{'Étape':['Identité','Travail et salaire','Vérification'][step],'Nouveau collaborateur':!item,'Année du choix de cotisation':assessmentYear,'Réglage annuel reporté':deferAnnual,'Point à corriger':annualIssue?.message || fieldGuide.message || localError || 'Aucun message affiché'},actions:[]},20);
 
   useEffect(() => {
@@ -6914,7 +6930,7 @@ function EmployeeForm({
         ref={formElement}
         onChange={() => { if (!pending && !draftBlocked) persisted.capture(); }}
         onSubmit={submitForm(async (form) => {
-          if (pending || savingRef.current || draftBlocked) return;
+          if (pending || savingRef.current || draftBlocked || legacyCreation) return;
           setLocalError('');
           setAnnualIssue(null);
           const scope = step < 2 ? formElement.current?.querySelector<HTMLElement>(`[data-employee-step="${step}"]`) : formElement.current;
@@ -7037,13 +7053,22 @@ function EmployeeForm({
               status: String(form.get('status')),
               notes: String(form.get('notes')),
             };
+            // Keep the final DOM values and original creation UUID before any native write.
+            const captured = isCreation ? persisted.capture() : undefined;
+            if (captured && (captured.storageError || captured.pending || captured.invalid || captured.conflict || !validEmployeeCreationId(captured.value.creationId))) {
+              setLocalError(EMPLOYEE_LOCAL_DRAFT_UNSAVED); return;
+            }
             savingRef.current = true;
             setSaving(true);
             const saved = await act(
               (mutationOrigin) =>
                 item
                   ? desktopApi.updateEntity('employees', item.id, data, workspace.workNotesScope, mutationOrigin.memberContextNonce)
-                  : desktopApi.createEntity('employees', data, workspace.workNotesScope, mutationOrigin.memberContextNonce),
+                  : desktopApi.createEntity('employees', {...data, id: captured!.value.creationId}, workspace.workNotesScope, mutationOrigin.memberContextNonce).catch(reason => {
+                      if (reason instanceof WorkspaceCreationOutcomeUnknownError)
+                        throw new Error(EMPLOYEE_CREATION_UNCONFIRMED, {cause: reason});
+                      throw reason;
+                    }),
               item
                 ? 'Le collaborateur a été mis à jour.'
                 : 'Le collaborateur a été ajouté.',
@@ -7055,7 +7080,8 @@ function EmployeeForm({
           finally { savingRef.current = false; setSaving(false); }
         })}
       >
-        <FormDraftNotice draft={persisted} disabled={pending} currentValues={item ? [{ label: t("Nom complet"), value: item.name }, { label: t("Fonction"), value: item.role }, { label: t("Salaire"), value: String(item.grossSalaryCents / 100) }, { label: t("Notes internes"), value: item.notes }] : undefined} />
+        {!isolatedStorageGuide && <FormDraftNotice draft={isCreation ? {...persisted, retryStorage: retryLocalEmployeeDraft} : persisted} disabled={pending} currentValues={item ? [{ label: t("Nom complet"), value: item.name }, { label: t("Fonction"), value: item.role }, { label: t("Salaire"), value: String(item.grossSalaryCents / 100) }, { label: t("Notes internes"), value: item.notes }] : undefined} />}
+        {legacyCreation && !persisted.pending && <div className="contact-form-failure" role="status" data-employee-legacy-creation><p>{creationRecovery.legacy}</p><Button type="button" disabled={pending || draftBlocked || !creationId} onClick={prepareNewEmployeeCreation}>{creationRecovery.prepare}</Button></div>}
         <ol className="payroll-steps" aria-label={t("Étapes du collaborateur")}>
           {['La personne', 'Le travail', 'Vérifier'].map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined}><span>{index + 1}</span>{t(label)}</li>)}
         </ol>
@@ -7063,10 +7089,12 @@ function EmployeeForm({
           <h3>{t(['Qui rejoint votre équipe ?', 'Quel travail et quel salaire ?', 'Relisez avant d’enregistrer'][step])}</h3>
           <p>{t(['Commencez par le nom et la fonction. Les coordonnées sont facultatives.', 'Recopiez les informations du contrat. Brut signifie avant les retenues.', 'Les informations principales suffisent pour ajouter la personne. Les réglages de paie se préparent ensuite, avec les documents de vos caisses.'][step])}</p>
         </div>
-        {localError ? <ErrorGuidance title={t("Vérifions ce point ensemble")} error={localError} fallback={employeeSaveMessage(localError)} compact /> : null}
+        {localError === EMPLOYEE_CREATION_UNCONFIRMED ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-employee-creation-recovery><strong>{creationRecovery.title}</strong><p>{creationRecovery.message}</p><p className="error-guidance__recovery">{creationRecovery.instruction}</p></div><ErrorDetails error={localError}/></div>
+          : persisted.initialReadState === 'ready' && (localError === EMPLOYEE_LOCAL_DRAFT_UNSAVED || isCreation && persisted.storageError) ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-employee-storage-recovery><strong>{draftText('La saisie locale ne peut pas être conservée')}</strong><p>{creationRecovery.storage}</p></div><div className="error-guidance__actions"><Button type="button" variant="secondary" size="small" disabled={pending || draftBlocked} onClick={retryLocalEmployeeDraft}>{draftText('Réessayer la sauvegarde locale')}</Button><Button type="button" variant="ghost" size="small" disabled={pending} onClick={() => { if (window.confirm(draftText('Abandonner ce brouillon et retrouver les valeurs enregistrées ?'))) persisted.discard(); }}>{draftText('Abandonner le brouillon')}</Button></div></div>
+            : localError && (localError !== EMPLOYEE_LOCAL_DRAFT_UNSAVED || persisted.initialReadState === 'ready') ? <ErrorGuidance title={t("Vérifions ce point ensemble")} error={localError} fallback={employeeSaveMessage(localError)} compact /> : null}
         {fieldGuide.guide}
-        <fieldset className="employee-step" data-employee-step="0" hidden={step !== 0} disabled={pending || draftBlocked}>
-          <details className="payroll-details"><summary>{t("Préremplir avec une fiche de salaire existante")}</summary>        <EmployeeDocumentImport onRead={applyDocument} disabled={pending || draftBlocked} />
+        <fieldset className="employee-step" data-employee-step="0" hidden={step !== 0} disabled={pending || draftBlocked || legacyCreation}>
+          <details className="payroll-details"><summary>{t("Préremplir avec une fiche de salaire existante")}</summary>        <EmployeeDocumentImport onRead={applyDocument} disabled={pending || draftBlocked || legacyCreation} />
         {prefill?.warnings.length ? <div className="employee-prefill-notes" role="status">{prefill.warnings.map(warning => <p key={warning}>{t(warning)}</p>)}</div> : null}
 </details>
           <div className="form-grid">          <Field label={t("Nom complet")} required wide>
@@ -7110,7 +7138,7 @@ function EmployeeForm({
           </Field>
 </div></details>
         </fieldset>
-        <fieldset className="employee-step" data-employee-step="1" hidden={step !== 1} disabled={pending || draftBlocked}>
+        <fieldset className="employee-step" data-employee-step="1" hidden={step !== 1} disabled={pending || draftBlocked || legacyCreation}>
           <div className="form-grid">          <Field label={t("Taux d’activité (%)")} required>
             <input
               name="employmentRate"
@@ -7212,7 +7240,7 @@ function EmployeeForm({
           </Field>
 </div>
         </fieldset>
-        <fieldset className="employee-step" data-employee-step="2" hidden={step !== 2} disabled={pending || draftBlocked}>
+        <fieldset className="employee-step" data-employee-step="2" hidden={step !== 2} disabled={pending || draftBlocked || legacyCreation}>
           <dl className="employee-review">
             <div><dt>{t("Collaborateur")}</dt><dd>{review.name} · {review.role}</dd></div>
             <div><dt>{t("Activité")}</dt><dd>{review.employmentRate} %{review.contractualWeeklyHours ? t(" · {v0} h / semaine", { v0: review.contractualWeeklyHours }) : ''}</dd></div>
@@ -7555,7 +7583,7 @@ function EmployeeForm({
         </fieldset>
         <div className="payroll-actions">
           <Button type="button" variant="ghost" disabled={pending || draftBlocked} onClick={() => { if (savingRef.current) return; fieldGuide.clear(); setAnnualIssue(null); setLocalError(''); if (step > 0) { persisted.capture({ draftStep: String(step - 1) }); setStep(step - 1); } else closeForm(); }}>{step > 0 ? t("Retour") : t("Annuler")}</Button>
-          <Button type="submit" disabled={pending || draftBlocked}>{pending ? t("Enregistrement…") : step < 2 ? t("Continuer") : item ? t("Enregistrer les modifications") : t("Ajouter le collaborateur")}</Button>
+          <Button type="submit" disabled={pending || draftBlocked || legacyCreation}>{pending ? t("Enregistrement…") : step < 2 ? t("Continuer") : item ? t("Enregistrer les modifications") : t("Ajouter le collaborateur")}</Button>
         </div>
       </form>
     </Modal>

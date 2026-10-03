@@ -2,18 +2,18 @@ import type { AppSettings, DocumentLine, Invoice, Project, Quote } from './types
 import { addDaysIso, todayIso } from './utils';
 import { restoreDepositBaseLines } from './deposit';
 import { draftObject, draftStrings } from './formDrafts';
+import {documentQuickClientFields as quickFields, validQuickClientCreationId} from './documentQuickClientDraft';
 
-const quickFields = ['contactPerson', 'company', 'email', 'phone', 'street', 'buildingNumber', 'postalCode', 'city', 'canton', 'country'] as const;
 const strings = ['selectedClientId', 'selectedProjectId', 'issueDate', 'dueDate', 'invoiceType', 'depositPercentage', 'serviceDateFrom', 'serviceDateTo', 'originalInvoiceId', 'footerText', 'footerTemplateId', 'footerTemplateName', 'documentTitle', 'documentNotes'] as const;
 export type DocumentFormDraft = {
   lines: DocumentLine[]; selectedClientId: string; selectedProjectId: string;
-  quickClientOpen: boolean; quickClient: Record<typeof quickFields[number], string>;
+  quickClientCreationId?: string; quickClientOpen: boolean; quickClient: Record<typeof quickFields[number], string>;
   issueDate: string; dueDate: string; invoiceType: Invoice['type'] | ''; depositPercentage: string;
   serviceDateFrom: string; serviceDateTo: string; originalInvoiceId: string;
   footerText: string; footerTemplateId: string; footerTemplateName: string;
   step: number; documentTitle: string; documentNotes: string; numberInputs: Record<string, string>;
 };
-export function initialDocumentFormDraft(entity: 'quotes' | 'invoices', settings: AppSettings, emptyLineId: string, item?: Quote | Invoice, quoteSource?: Quote, initialProject?: Project, initialStep = 0): DocumentFormDraft {
+export function initialDocumentFormDraft(entity: 'quotes' | 'invoices', settings: AppSettings, emptyLineId: string, item?: Quote | Invoice, quoteSource?: Quote, initialProject?: Project, initialStep = 0, quickClientCreationId?: string): DocumentFormDraft {
   const current = item ?? quoteSource, invoice = entity === 'invoices' ? item as Invoice | undefined : undefined;
   const percentage = invoice?.depositPercentageBp, issueDate = item?.issueDate || todayIso();
   const lines = invoice?.type === 'deposit' && percentage
@@ -21,6 +21,7 @@ export function initialDocumentFormDraft(entity: 'quotes' | 'invoices', settings
     : current?.lines.map(line => ({ ...line })) ?? [{ id: emptyLineId, catalogItemId: null, description: '', quantity: 0, unit: '', unitPriceCents: 0, discountBp: 0, vatRateBp: settings.organization.vatRegistered ? -1 : 0 }];
   return {
     lines, selectedClientId: current?.clientId ?? initialProject?.clientId ?? '', selectedProjectId: current?.projectId ?? initialProject?.id ?? '',
+    ...(quickClientCreationId === undefined ? {} : {quickClientCreationId}),
     quickClientOpen: false, quickClient: { contactPerson: '', company: '', email: '', phone: '', street: '', buildingNumber: '', postalCode: '', city: '', canton: '', country: 'CH' },
     issueDate, dueDate: entity === 'quotes' ? (item as Quote | undefined)?.validUntil || addDaysIso(issueDate, settings.billing.quoteValidityDays) : invoice?.dueDate || addDaysIso(issueDate, settings.billing.paymentTermsDays),
     invoiceType: invoice?.type ?? '', depositPercentage: percentage ? String(percentage / 100) : invoice?.type === 'deposit' ? '100' : '30',
@@ -30,7 +31,8 @@ export function initialDocumentFormDraft(entity: 'quotes' | 'invoices', settings
   };
 }
 export function validDocumentFormDraft(value: unknown): value is DocumentFormDraft {
-  if (!draftStrings(value, strings, 50_000) || !draftObject(value) || Object.keys(value).length !== strings.length + 5 ||
+  if (!draftStrings(value, strings, 50_000) || !draftObject(value) || Object.keys(value).length !== strings.length + 5 + (Object.hasOwn(value, 'quickClientCreationId') ? 1 : 0) ||
+    (Object.hasOwn(value, 'quickClientCreationId') && !validQuickClientCreationId(value.quickClientCreationId)) ||
     typeof value.quickClientOpen !== 'boolean' || !draftStrings(value.quickClient, quickFields, 10_000) || Object.keys(value.quickClient).length !== quickFields.length ||
     typeof value.step !== 'number' || !Number.isInteger(value.step) || value.step < 0 || value.step > 3 ||
     !['', 'standard', 'deposit', 'progress', 'final', 'credit_note'].includes(String(value.invoiceType)) ||
