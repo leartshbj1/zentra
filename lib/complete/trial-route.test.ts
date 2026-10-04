@@ -19,7 +19,7 @@ it('starts the complete trial and stores its explicit terms with a real origin',
  expect(await response.json()).toEqual({created:true,organizationId:'org_trial',endsAt:1900000000});
  expect(response.headers.get('cache-control')).toContain('no-store');
  expect(mocks.trial).toHaveBeenCalledWith(user,'PME fictive',true);
- expect(mocks.bind).toHaveBeenCalledWith('complete_trial_trial-owner','trial-owner',COMPLETE_TERMS_VERSION,'complete_trial','team','https://zentraapp.ch',expect.any(String));
+ expect(mocks.bind).toHaveBeenCalledWith('complete_trial_trial-owner','trial-owner',COMPLETE_TERMS_VERSION,'complete_trial','team','complete_trial_trial_subscription','https://zentraapp.ch',expect.any(String));
  expect(mocks.write).toHaveBeenCalledOnce();
 });
 it('requires the complete pack conditions, not an older Gestion acceptance',async()=>{

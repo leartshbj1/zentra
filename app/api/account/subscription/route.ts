@@ -30,7 +30,8 @@ export async function POST(request:Request){try{
     return Response.json(quote,{headers:accountNoStoreHeaders()});
   }
   if(body.action!=='change'||body.acceptTerms!==true||body.legalVersion!==COMPLETE_TERMS_VERSION)throw new AccountPublicError('Relisez et confirmez la formule et les conditions avant de continuer.');
-  await database().prepare('INSERT INTO legal_acceptances(acceptance_id,user_id,document_version,context,plan_id,origin,accepted_at) VALUES(?,?,?,?,?,?,?)').bind(crypto.randomUUID(),user.userId,COMPLETE_TERMS_VERSION,'complete_change',String(body.plan),new URL(request.url).origin,new Date().toISOString()).run();
+  const acceptanceId=crypto.randomUUID();
+  await database().prepare('INSERT INTO legal_acceptances(acceptance_id,user_id,document_version,context,plan_id,checkout_session_id,origin,accepted_at) VALUES(?,?,?,?,?,?,?,?)').bind(acceptanceId,user.userId,COMPLETE_TERMS_VERSION,'complete_change',String(body.plan),`complete_change_${acceptanceId}`,new URL(request.url).origin,new Date().toISOString()).run();
   const result=await changePlan(user.userId,actor.organizationId,body.plan,body.fingerprint);
   return Response.json(result,{headers:accountNoStoreHeaders()});
 }catch(e){return failure(e)}}

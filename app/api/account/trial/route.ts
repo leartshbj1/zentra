@@ -7,7 +7,8 @@ import { database } from '@/lib/runtime';
 import { authJsonError, authNoStoreHeaders, AuthPublicError, requireAuthSameOrigin } from '@/lib/supabase-auth-http';
 export const dynamic='force-dynamic';
 export async function POST(request:Request){try{
-  const origin=requireAuthSameOrigin(request,{requireOrigin:true});
+  requireAuthSameOrigin(request,{requireOrigin:true});
+  const origin=new URL(request.url).origin;
   const user=await getZentraUser({refreshSession:true});
   if(!user||!user.emailConfirmed)throw new AuthPublicError('Confirmez votre adresse e-mail et connectez-vous pour commencer.',401);
   const body=await readJsonObjectWithinLimit(request,4096);

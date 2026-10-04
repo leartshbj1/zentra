@@ -15,7 +15,7 @@ export async function POST(request:Request){try{
   if(body.acceptTerms!==true||body.legalVersion!==COMPLETE_TERMS_VERSION)throw new AuthPublicError('Acceptez les conditions du pack pour commencer votre essai.');
   await enforceAccountRateLimit(request,'complete-trial',user.userId,5);
   const trial=await startAccountTrial(user,typeof body.companyName==='string'?body.companyName:'',true);
-  await database().prepare('INSERT INTO legal_acceptances(acceptance_id,user_id,document_version,context,plan_id,origin,accepted_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(acceptance_id) DO NOTHING')
-    .bind(`complete_trial_${user.userId}`,user.userId,COMPLETE_TERMS_VERSION,'complete_trial','team',origin,new Date().toISOString()).run();
+  await database().prepare('INSERT INTO legal_acceptances(acceptance_id,user_id,document_version,context,plan_id,checkout_session_id,origin,accepted_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(acceptance_id) DO NOTHING')
+    .bind(`complete_trial_${user.userId}`,user.userId,COMPLETE_TERMS_VERSION,'complete_trial','team',`complete_trial_${trial.subscription_id}`,origin,new Date().toISOString()).run();
   return Response.json({created:true,organizationId:trial.organization_id,endsAt:trial.ends_at},{headers:authNoStoreHeaders()});
 }catch(error){return authJsonError(error)}}
