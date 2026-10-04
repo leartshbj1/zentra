@@ -32,6 +32,38 @@ parameters:
     default: ""
 
 jobs:
+  windows-package-smoke-1913:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact 1.90.13 installer in a disposable Windows profile
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/bootstrap-apple-design-windows-smoke.ps1 -Job 259 -Source b7faf1fe2ccefa6925ece92900808866ccd0bb96
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
+  android-package-smoke-1913:
+    machine:
+      image: android:default
+    resource_class: large
+    environment:
+      ZENTRA_ANDROID_SMOKE_JOB: "258"
+      ZENTRA_ANDROID_SMOKE_SOURCE: "b7faf1fe2ccefa6925ece92900808866ccd0bb96"
+      ZENTRA_ANDROID_SMOKE_SHA256: "8ad971fe37ddf848b4ca8dab8afc32086c34da1511354ff77348ed1dd0e088fe"
+    steps:
+      - checkout
+      - run:
+          name: Verify the exact 1.90.13 Android payload on an emulator
+          command: |
+            [[ "$ZENTRA_ANDROID_SMOKE_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo 'Confirmed job 258 APK SHA-256 required before smoke execution.' >&2; exit 1; }
+            timeout 18m bash desktop/scripts/smoke-android-release-candidate.sh
+          no_output_timeout: 5m
+      - store_artifacts:
+          path: desktop/artifacts/android-release-smoke
+          destination: android-release-smoke
   windows-drafts-diagnostics-tests:
     parameters:
       diagnostics-phase:
@@ -489,6 +521,14 @@ jobs:
           destination: apple
 
 workflows:
+  packaged-release-1913:
+    when:
+      and:
+        - equal: [codex/release-1.90.13-package-smoke, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-package-smoke-1913
+      - android-package-smoke-1913
   drafts-diagnostics-release-1913:
     when:
       and:
