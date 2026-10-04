@@ -5,6 +5,8 @@ import { documentDesignTranslations } from './translationsDocumentDesign';
 import { richTextTranslations } from './translationsRichText';
 import { catalogTranslations } from './translationsCatalog';
 import { firstClientClarityTranslations } from './translationsFirstClientClarity';
+import { setupReadinessTranslations } from './translationsSetupReadiness';
+import { projectTranslations } from './translationsProjects';
 import { emptyScreenTranslations } from './translationsEmptyScreens';
 import { projectReportTranslations } from './translationsProjectReports';
 import { financialDetailTranslations } from './translationsFinancialDetail';
@@ -55,6 +57,8 @@ export const translations: Record<string, readonly [string, string, string]> = {
   ...richTextTranslations,
   ...emptyScreenTranslations,
   ...firstClientClarityTranslations,
+  ...setupReadinessTranslations,
+  ...projectTranslations,
   ...projectReportTranslations,
   ...financialDetailTranslations,
   ...financeOverviewTranslations,

@@ -12,8 +12,11 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { t } from './language';
 import { SectionTabs } from './SectionTabs';
 import { VatOverview } from './VatOverview';
+import { VatSalesSourceReview } from './VatSalesSourceReview';
+import type { FinancialSourceTarget } from './financialTraceability';
 import { vatSetupPresets } from './financeClarity';
 import { VatPurchaseReview } from './VatPurchaseReview';
 import { VatReceivedPayments } from './VatReceivedPayments';
@@ -29,6 +32,7 @@ import type {
   VatReturnExport,
   VatReturnPreview,
   VatSourceTreatment,
+  VatSourceClassification,
   VatSubmissionType,
   Workspace,
 } from './types';
@@ -55,12 +59,16 @@ export function VatCenter({
   workspace,
   onAccountingChanged,
   onOpenJournal,
+  onOpenSource,
+  initialSubmissionType = 'initial',
   readOnly=false,
 }: {
   filter: PeriodFilter;
   workspace: Workspace;
   onAccountingChanged?: () => Promise<void>;
   onOpenJournal?: (entryId:string) => void;
+  onOpenSource?: (target: FinancialSourceTarget, submissionType: VatSubmissionType) => void;
+  initialSubmissionType?: VatSubmissionType;
   readOnly?: boolean;
 }) {
   const [tab, setTab] = useState<VatTab>('return');
@@ -68,7 +76,8 @@ export function VatCenter({
   const [adjustments, setAdjustments] = useState<VatAdjustment[]>([]);
   const [exports, setExports] = useState<VatReturnExport[]>([]);
   const [preview, setPreview] = useState<VatReturnPreview | null>(null);
-  const [submissionType, setSubmissionType] = useState<VatSubmissionType>('initial');
+  const [salesClassifications, setSalesClassifications] = useState<VatSourceClassification[] | null>(null);
+  const [submissionType, setSubmissionType] = useState<VatSubmissionType>(initialSubmissionType);
   const [profileMethod, setProfileMethod] = useState<VatReportingMethod>('effective');
   const [profileBasis, setProfileBasis] = useState<VatReportingBasis>('agreed');
   const [profilePeriodicity, setProfilePeriodicity] = useState<VatReportingPeriodicity>('quarterly');
@@ -108,18 +117,22 @@ export function VatCenter({
     const current = ++request.current;
     let fullyLoaded = true;
     setBusy(true);
+    setPreview(null);
+    setSalesClassifications(null);
     setError('');
     if (!showNotice) setNotice('');
     try {
-      const [nextProfiles, nextAdjustments, nextExports] = await Promise.all([
+      const [nextProfiles, nextAdjustments, nextExports, nextClassifications] = await Promise.all([
         desktopApi.listVatProfiles(),
         hasPeriod ? desktopApi.listVatAdjustments(filter) : Promise.resolve([]),
         hasPeriod ? desktopApi.listVatReturnExports(filter) : Promise.resolve([]),
+        hasPeriod ? desktopApi.listVatSourceClassifications({ sourceType: 'invoice_item' }).catch(() => null) : Promise.resolve([]),
       ]);
       if (current !== request.current) return;
       setProfiles(nextProfiles);
       setAdjustments(nextAdjustments);
       setExports(nextExports);
+      setSalesClassifications(nextClassifications);
       if (hasPeriod && nextProfiles.length) {
         try {
           const nextPreview = await desktopApi.previewVatReturn({
@@ -157,7 +170,7 @@ export function VatCenter({
     setReversalTarget(null);
     setReversalRequestId('');
     void load();
-  }, [filter.dateFrom, filter.dateTo, submissionType]);
+  }, [filter.dateFrom, filter.dateTo, submissionType, workspace.invoices, workspace.payments, workspace.expenses, workspace.supplierInvoices, workspace.supplierInvoicePayments, workspace.supplierCreditNotes]);
 
   async function saveProfile(form: FormData) {
     if(readOnly||profileSaving.current)return;
@@ -207,6 +220,7 @@ export function VatCenter({
       setBusy(false);
     }
   }
+  function openSource(target: FinancialSourceTarget) { onOpenSource?.(target, submissionType); }
 
   async function saveAdjustment(form: FormData) {
     const amount = Number(form.get('amount'));
@@ -339,13 +353,14 @@ export function VatCenter({
         <div className={`vat-readiness ${preview.exportable ? 'is-ready' : 'is-blocked'}`}>{preview.exportable ? <CheckCircle2 size={21} /> : <AlertTriangle size={21} />}<div><strong>{preview.exportable ? 'Prêt pour export contrôlé' : `${preview.blockingIssues.length} point${preview.blockingIssues.length > 1 ? 's' : ''} à traiter`}</strong><p>{vatSubmissionLabel(submissionType)} · {preview.profile.reportingMethod === 'effective' ? 'méthode effective' : 'TDFN / TaF'} · {preview.profile.formOfReporting === 'agreed' ? 'convenues' : 'reçues'}</p></div></div>
         <div className="vat-summary"><article><span>Ch. 200</span><strong>{formatMoney(preview.turnoverComputation.totalConsiderationCents)}</strong><small>Total des contre-prestations</small></article><article><span>Ch. 299</span><strong>{formatMoney(preview.turnoverComputation.taxableTurnoverCents)}</strong><small>Chiffre d’affaires imposable</small></article><article><span>Ch. {preview.payableCode}</span><strong>{formatMoney(preview.payableTaxCents)}</strong><small>{preview.payableCode === '500' ? 'Montant dû' : 'Avoir estimé'}</small></article><article><span>Sources</span><strong>{preview.sourceCount}</strong><small>{preview.adjustmentCount} ajustement{preview.adjustmentCount > 1 ? 's' : ''}</small></article></div>
         <VatOverview preview={preview} />
+        <VatSalesSourceReview key={`sales:${periodKey}`} preview={preview} workspace={workspace} classifications={salesClassifications} busy={busy} onOpenSource={onOpenSource ? openSource : undefined} />
         <details className="vat-calculation-details">
           <summary>Détail du calcul TVA <span>Taux, achats et corrections</span></summary>
           <VatRateTable preview={preview} />
           <VatCalculationBreakdown preview={preview} />
         </details>
-        <VatReceivedPayments key={`payments:${periodKey}`} allocations={preview.receivedAllocations ?? []} />
-        <VatPurchaseReview sources={preview.classifiedSources ?? []} busy={busy} onClassify={classifySource} refundedExpenseIds={new Set(workspace.expenses.filter((expense) => expense.refunds?.length).map((expense) => expense.id))} />
+        <VatReceivedPayments key={`payments:${periodKey}`} allocations={preview.receivedAllocations ?? []} workspace={workspace} onOpenSource={onOpenSource ? openSource : undefined} busy={busy} />
+        <VatPurchaseReview sources={preview.classifiedSources ?? []} workspace={workspace} onOpenSource={onOpenSource ? openSource : undefined} busy={busy} onClassify={classifySource} refundedExpenseIds={new Set(workspace.expenses.filter((expense) => expense.refunds?.length).map((expense) => expense.id))} />
         <VatPreClosingReview key={`pre-close:${periodKey}`} sources={preview.preClosingSources ?? []} busy={busy} onClassify={classifySource} />
         {preview.unclassifiedSources.length ? <section className="vat-unclassified"><header><div><strong>Décisions nécessaires</strong><p>Ces lignes ne sont pas devinées. Choisissez leur traitement réel; l’export reste bloqué jusque-là.</p></div><span>{preview.unclassifiedSources.length}</span></header>{preview.unclassifiedSources.map((source) => <article key={`${source.sourceType}:${source.sourceId}`}><div><strong>{source.description}</strong><span>{formatDate(source.occurrenceDate)} · {formatMoney(source.amountCents)}{source.vatRateBp !== null ? ` · ${(source.vatRateBp / 100).toLocaleString('fr-CH')} %` : ''}</span><small>{vatSourceTypeLabels[source.sourceType]}</small></div><select defaultValue="" disabled={busy} aria-label={`Traitement TVA de ${source.description}`} onChange={(event) => { const treatment = event.currentTarget.value as VatSourceTreatment; event.currentTarget.value = ''; if (treatment) void classifySource(source.sourceId, source.sourceType, treatment); }}><option value="">Choisir le traitement</option>{treatmentsForVatSource(source.sourceType).map((treatment) => <option key={treatment} value={treatment}>{vatTreatmentLabels[treatment]}</option>)}</select></article>)}</section> : null}
         {preview.blockingIssues.length ? <div className="vat-issues" aria-label="Points à vérifier avant export">{preview.blockingIssues.map((issue, index) => <article key={`${issue.code}:${issue.sourceId || index}`}><AlertTriangle size={17} /><div><strong>{vatBlockingIssueTitle(issue.code)}</strong><p>{issue.message}</p>{issue.code==='expense_journal_inactive' && issue.sourceId && onOpenJournal ? <Button variant="secondary" size="small" disabled={busy} onClick={()=>onOpenJournal(issue.sourceId!)}>Contrôler l’écriture</Button> : null}</div></article>)}</div> : null}
@@ -353,7 +368,7 @@ export function VatCenter({
         <form key={`vat-export:${periodKey}:${submissionType}`} className="vat-export-form" onSubmit={submitForm(exportXml)}><div><FileCode2 size={21} /><div><strong>Créer le fichier XML</strong><p>Vous l’importez ensuite manuellement dans Décompte TVA pro, contrôlez les champs, ajoutez les annexes nécessaires et soumettez vous-même.</p></div></div><Field label="Référence métier" hint="Identifiant unique de ce dépôt, 50 caractères maximum." required><input name="businessReferenceId" defaultValue={suggestedVatBusinessReference(filter.dateFrom!, filter.dateTo!, submissionType)} maxLength={50} required /></Field><Button type="submit" disabled={busy || !preview.exportable}><Download size={16} /> Générer l’XML</Button></form>
         {lastExport ? <div className="vat-export-success"><Fingerprint size={19} /><div><strong>{lastExport.fileName}</strong><p>Empreinte XML {lastExport.xmlSha256.slice(0, 16)}… · non transmis</p><small>{lastExport.filePath}</small></div></div> : null}
         <div className="closing-limitation"><ShieldCheck size={18} /><p><strong>Périmètre honnête.</strong> {preview.transmissionWording}</p></div>
-      </> : <EmptyState title="Calcul indisponible" text="Actualisez l’assistant ou corrigez le profil indiqué dans le message d’erreur." />}
+      </> : busy ? <p role="status">{t('Actualisation…')}</p> : <EmptyState title="Calcul indisponible" text="Actualisez l’assistant ou corrigez le profil indiqué dans le message d’erreur." />}
     </section> : null}
 
     {tab === 'adjustments' ? <section id="vat-panel-adjustments" role="tabpanel" className="panel vat-adjustments-panel">

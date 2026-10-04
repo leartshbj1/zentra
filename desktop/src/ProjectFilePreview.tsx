@@ -8,12 +8,14 @@ import { Button, EmptyState, ErrorPanel, Modal } from './ui';
 import { errorMessage } from './utils';
 import './projectFilePreview.css';
 import { TouchImagePreview } from './TouchImagePreview';
+import { t, useAppLanguage } from './language';
 
 const PdfAttachmentPreview = lazy(() => import('./PdfAttachmentPreview'));
 
 export function ProjectFilePreview({ file, bytes, url, onClose, workspaceScope }: {
   file: Attachment; bytes: Uint8Array; url: string; onClose: () => void; workspaceScope?: string;
 }) {
+  useAppLanguage();
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
@@ -27,15 +29,15 @@ export function ProjectFilePreview({ file, bytes, url, onClose, workspaceScope }
   return <Modal title={file.originalName} description={fileSizeLabel(file.sizeBytes)} onClose={onClose} wide className="attachment-preview-dialog">
     <div className="attachment-preview">
       <div className="attachment-preview__content">
-        {file.mimeType === 'application/pdf' ? <Suspense fallback={<p className="attachment-preview__status" role="status">Préparation du lecteur…</p>}><PdfAttachmentPreview bytes={bytes} name={file.originalName} /></Suspense>
+        {file.mimeType === 'application/pdf' ? <Suspense fallback={<p className="attachment-preview__status" role="status">{t('Préparation du lecteur…')}</p>}><PdfAttachmentPreview bytes={bytes} name={file.originalName} /></Suspense>
           : file.mimeType.startsWith('image/') && !imageFailed ? <TouchImagePreview url={url} name={file.originalName} onError={() => setImageFailed(true)} />
-          : <EmptyState icon={<FileText size={28} />} title={imageFailed ? 'Aperçu indisponible' : 'Document prêt'} text={imageFailed ? 'Cette image ne peut pas être affichée ici. Ouvrez-la dans une application compatible ou enregistrez-la.' : 'Ouvrez ou enregistrez ce fichier avec une application compatible.'} />}
+          : <EmptyState icon={<FileText size={28} />} title={t(imageFailed ? 'Aperçu indisponible' : 'Document prêt')} text={t(imageFailed ? 'Cette image ne peut pas être affichée ici. Ouvrez-la dans une application compatible ou enregistrez-la.' : 'Ouvrez ou enregistrez ce fichier avec une application compatible.')} />}
       </div>
       <footer className="attachment-preview__footer">
         {error ? <ErrorPanel message={error} /> : null}
         <div className="attachment-preview__actions">
-          {!isMobileRuntime() ? <a className="button button--secondary button--normal" href={url} download={file.originalName}><Download size={17} /> Enregistrer</a> : null}
-          <Button onClick={() => void openExternal()} disabled={opening}><ExternalLink size={17} />{opening ? 'Ouverture…' : isMobileRuntime() ? 'Enregistrer ou partager' : 'Ouvrir avec une application'}</Button>
+          {!isMobileRuntime() ? <a className="button button--secondary button--normal" href={url} download={file.originalName}><Download size={17} /> {t('Enregistrer')}</a> : null}
+          <Button onClick={() => void openExternal()} disabled={opening}><ExternalLink size={17} />{t(opening ? 'Ouverture…' : isMobileRuntime() ? 'Enregistrer ou partager' : 'Ouvrir avec une application')}</Button>
         </div>
       </footer>
     </div>

@@ -1,5 +1,9 @@
+// @vitest-environment jsdom
+import './languageTestPacks';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   SetupReadinessCenter,
   buildSetupReadiness,
@@ -7,6 +11,9 @@ import {
 } from './SetupReadinessCenter';
 import { backupStatusFromRaw } from './bridge';
 import type { Account, AccountingSettings, AppSettings, Workspace } from './types';
+import { setAppLanguage } from './language';
+
+afterEach(async () => { await setAppLanguage('fr'); vi.unstubAllGlobals(); });
 
 const completeAccounting: AccountingSettings = {
   enabled: true,
@@ -137,6 +144,69 @@ function workspace(
 }
 
 describe('centre de préparation', () => {
+  it('switches the mounted readiness UI through all four languages without changing settings or navigation', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const settings = structuredClone(baseSettings);
+    settings.organization.legalName = '';
+    settings.organization.contactName = 'Vue d’ensemble {name}';
+    settings.billing.accountHolder = 'Modifier';
+    settings.setupDeferred = { billing: true, work: false, backup: false };
+    const data = workspace(settings);
+    data.backupStatus.lastSuccessAt = null;
+    const original = structuredClone(data);
+    const onNavigate = vi.fn();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<SetupReadinessCenter workspace={data} settings={settings} onNavigate={onNavigate} />));
+      for (const [language, heading, count, missingCompany, progressName, backupName] of [
+        ['fr', 'Finalisez votre configuration', '2 étapes prêtes sur 5', 'raison sociale', 'Progression de la préparation', 'Sauvegarde'],
+        ['de', 'Vervollständigen Sie Ihre Einrichtung', '2 von 5 Schritten bereit', 'Firmenname', 'Fortschritt der Vorbereitung', 'Datensicherung'],
+        ['it', 'Completa la configurazione', '2 passaggi pronti su 5', 'ragione sociale', 'Avanzamento della preparazione', 'Backup'],
+        ['en', 'Complete your setup', '2 steps ready out of 5', 'legal company name', 'Setup progress', 'Backup'],
+      ] as const) {
+        await act(async () => { await setAppLanguage(language); });
+        expect(host.querySelector('h2')?.textContent).toBe(heading);
+        expect(host.textContent).toContain(count);
+        expect(host.querySelector('.setup-readiness__step small')?.textContent).toContain(missingCompany);
+        expect(host.querySelector('[role="progressbar"]')?.getAttribute('aria-label')).toBe(progressName);
+        expect(host.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('40');
+        const backup = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.querySelector('strong')?.textContent === backupName);
+        expect(backup).toBeDefined();
+        await act(async () => backup!.click());
+        expect(onNavigate).toHaveBeenLastCalledWith('settings-backup');
+        expect(data).toEqual(original);
+      }
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
+  it('localizes missing payroll, account and backup requirements while keeping readiness decisions identical', async () => {
+    const settings = structuredClone(baseSettings);
+    settings.payroll.enabled = true;
+    settings.organization.vatRegistered = true;
+    settings.billing.iban = '';
+    settings.work.workWeekHours = 0;
+    settings.backup.recoveryConfirmed = false;
+    const data = workspace(settings, { ...completeAccounting, supplierPayableAccountId: '' });
+    data.backupStatus.lastSuccessAt = null;
+    const source = buildSetupReadiness(data, settings);
+    for (const language of ['de', 'it', 'en'] as const) {
+      await setAppLanguage(language);
+      const localized = buildSetupReadiness(data, settings);
+      expect(localized.steps.map(step => [step.id, step.targetId, step.ready, step.missing.length])).toEqual(source.steps.map(step => [step.id, step.targetId, step.ready, step.missing.length]));
+      expect(localized.percent).toBe(source.percent);
+      expect(localized.steps.find(step => step.id === 'accounting')?.missing.join(' ')).not.toContain('liaison comptable');
+      expect(localized.steps.find(step => step.id === 'payroll')?.summary).not.toContain('caisse de pension');
+      expect(localized.steps.find(step => step.id === 'backup')?.summary).not.toContain('première sauvegarde réussie');
+      expect(localized.steps.find(step => step.id === 'billing')?.summary).not.toContain('IBAN CH/LI valide');
+      expect(localized.steps.every(step => !/\{[a-zA-Z]+\}/.test(step.summary))).toBe(true);
+    }
+  });
+
   it('utilise la preuve de sauvegarde mobile sans demander un dossier système', () => {
     const settings = structuredClone(baseSettings);
     settings.backup.folder = '';

@@ -1,4 +1,11 @@
 export const projectReportTranslations: Record<string, readonly [string,string,string]> = {
+  'Encaissé net · remboursements déduits':['Netto vereinnahmt · Rückerstattungen abgezogen','Incassato netto · rimborsi dedotti','Net cash received · refunds deducted'],
+  'Encaissements et remboursements':['Zahlungseingänge und Rückerstattungen','Incassi e rimborsi','Receipts and refunds'],
+  'Mouvement':['Bewegung','Movimento','Movement'],
+  'Montant signé':['Betrag mit Vorzeichen','Importo con segno','Signed amount'],
+  'Paiement enregistré':['Erfasste Zahlung','Pagamento registrato','Recorded payment'],
+  'Remboursement client':['Kundenrückerstattung','Rimborso al cliente','Customer refund'],
+  'Annulation du remboursement client':['Stornierung der Kundenrückerstattung','Annullamento del rimborso al cliente','Customer refund reversal'],
   'Synthèse du projet':['Projektübersicht','Sintesi del progetto','Project summary'],
   'Projets récents':['Neueste Projekte','Progetti recenti','Recent projects'],
   'Marge sur coûts enregistrés':['Marge auf erfassten Kosten','Margine sui costi registrati','Margin on recorded costs'],

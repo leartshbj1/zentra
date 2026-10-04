@@ -1,6 +1,7 @@
 import type { Attachment, Workspace } from './types';
 import { newestDocumentsFirst } from './documentOrder';
 import { diagnosticOperation } from './diagnostics';
+import { t } from './language';
 
 export const PROJECT_FILE_MAX_BYTES = 25 * 1024 * 1024;
 export const PROJECT_FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.txt,.csv,.docx,.xlsx,.pptx,.odt,.ods,.odp';
@@ -28,7 +29,7 @@ export function projectFileError(file: Pick<File, 'name' | 'size'>): string | nu
 }
 
 export function fileSizeLabel(bytes: number) {
-  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} Ko` : `${(bytes / 1024 / 1024).toFixed(1)} Mo`;
+  return bytes < 1024 * 1024 ? t('{size} Ko', { size: Math.max(1, Math.round(bytes / 1024)) }) : t('{size} Mo', { size: (bytes / 1024 / 1024).toFixed(1) });
 }
 
 export function isProjectFile(file: Attachment) {

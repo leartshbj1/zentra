@@ -362,6 +362,8 @@ export type StockMovement = {
 };
 
 export type DocumentLine = {
+  /** Persisted amounts returned by the local store; absent on unsaved or legacy lines. */
+  recordedAmounts?: { netCents: number; vatCents: number; totalCents: number };
   id: Identifier;
   catalogItemId?: Identifier | null;
   description: string;
@@ -513,6 +515,8 @@ export type Invoice = {
   serviceDateTo: string;
   currency: string;
   status: InvoiceStatus;
+  /** Read-only native facts for source selection; never part of a document save payload. */
+  readonly nativeDocumentState?: Readonly<{ status: string; number: string | null }>;
   lines: DocumentLine[];
   notes: string;
   terms: string;

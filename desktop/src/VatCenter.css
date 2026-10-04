@@ -313,3 +313,22 @@
 }
 @media screen and (max-width: 800px) { .vat-summary { display: none; } }
 @media screen and (max-width: 800px) { .vat-purchase-review .vat-unclassified article { display: flex; flex-direction: column; align-items: stretch; } }
+/* Stored source facts adapt from a three-column record to a touch-readable stack. */
+.vat-sales-source-review { margin-block: 1.5rem; border-top: 1px solid var(--apple-line, #dcdce1); padding-top: .75rem; }
+.vat-sales-source-review > summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; min-height: 44px; cursor: pointer; font-weight: 600; }
+.vat-sales-source-review > summary:focus-visible { outline: 2px solid var(--apple-focus, #24664f); outline-offset: 2px; }
+.vat-sales-source-review > p { max-width: 75ch; line-height: 1.5; }
+.vat-sales-source-review__list > article { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 1rem; padding-block: 1rem; border-bottom: 1px solid var(--apple-line, #dcdce1); }
+.vat-sales-source-review__description { display: grid; gap: .375rem; min-width: 0; overflow-wrap: anywhere; }
+.vat-sales-source-review__description small { color: var(--apple-secondary, #6e6e73); font-size: 13px; line-height: 1.5; }
+.vat-sales-source-review__description .vat-sales-source-review__warning { color: var(--apple-warning, #785813); }
+.vat-sales-source-review__list dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 0; }
+.vat-sales-source-review__list dt { font-size: 13px; line-height: 1.5; }
+.vat-sales-source-review__list dd { margin: .25rem 0 0; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vat-sales-source-review__actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.vat-sales-source-review__actions .button { min-height: 44px; }
+@media (max-width: 860px) {
+  .vat-sales-source-review__list > article { grid-template-columns: minmax(0, 1fr); }
+  .vat-sales-source-review__list dl { gap: .5rem; }
+  .vat-sales-source-review__list dd { white-space: normal; overflow-wrap: anywhere; }
+}

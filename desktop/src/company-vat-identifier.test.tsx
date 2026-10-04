@@ -228,18 +228,18 @@ describe('company VAT identifier consistency', () => {
     expect(writes[0]).toMatchObject({ expectedWorkspaceScope: scope, expectedMemberContextNonce: nonce, data: { uid_number: uid, vat_number: '', vat_registered: true, default_vat_bp: 810 } });
   });
   it.each([
-    { language: 'fr' as const, identifier: 'identifiant IDE/UID ou TVA', help: 'Le numéro IDE/UID ou le numéro TVA et au moins un taux explicite sont alors obligatoires.' },
-    { language: 'de' as const, identifier: 'UID- oder MWST-Nummer', help: 'Bei MWST-Pflicht sind die UID- oder MWST-Nummer und mindestens ein ausdrücklich festgelegter MWST-Satz erforderlich.' },
-    { language: 'it' as const, identifier: 'numero IDI/UID o IVA', help: 'Se l’azienda è soggetta all’IVA, sono obbligatori il numero IDI/UID o il numero IVA e almeno un’aliquota IVA esplicita.' },
-    { language: 'en' as const, identifier: 'business identification or VAT number', help: 'If the company is VAT-registered, a business identification or VAT number and at least one explicit VAT rate are required.' },
-  ])('displays the two new tax strings in the actual $language context and retains UID-only tax submission', async ({ language, identifier, help }) => {
+    { language: 'fr' as const, missing: 'À renseigner : identifiant IDE/UID ou TVA.', help: 'Le numéro IDE/UID ou le numéro TVA et au moins un taux explicite sont alors obligatoires.' },
+    { language: 'de' as const, missing: 'Noch auszufüllen: UID- oder MWST-Nummer.', help: 'Bei MWST-Pflicht sind die UID- oder MWST-Nummer und mindestens ein ausdrücklich festgelegter MWST-Satz erforderlich.' },
+    { language: 'it' as const, missing: 'Da compilare: numero IDI/UID o IVA.', help: 'Se l’azienda è soggetta all’IVA, sono obbligatori il numero IDI/UID o il numero IVA e almeno un’aliquota IVA esplicita.' },
+    { language: 'en' as const, missing: 'To complete: business identification or VAT number.', help: 'If the company is VAT-registered, a business identification or VAT number and at least one explicit VAT rate are required.' },
+  ])('displays both fully translated tax messages in the actual $language context and retains UID-only tax submission', async ({ language, missing, help }) => {
     const value = validSettings(); value.organization.uidNumber = '';
     const form = await openCompany(value);
     await reactAct(async () => { await setAppLanguage(language); }); await settle();
     expect(document.documentElement.lang).toBe(`${language}-CH`);
     expect(form.querySelector('input[name="vatRegistered"]')?.closest('label')?.querySelector('small')?.textContent?.trim()).toBe(help);
-    expect(document.querySelector('.setup-readiness__steps li:nth-child(2) .setup-readiness__copy small')?.textContent).toBe(`À renseigner : ${identifier}.`);
-    // The preparation prefix and unrelated old strings intentionally keep their prior rendering.
+    expect(document.querySelector('.setup-readiness__steps li:nth-child(2) .setup-readiness__copy small')?.textContent).toBe(missing);
+    // The complete readiness sentence must use the selected language, including its prefix.
     expect(writes).toHaveLength(0); expect(publications).toHaveLength(0);
     await change(form, 'uidNumber', uid);
     expect(form.checkValidity()).toBe(true);

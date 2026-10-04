@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { isValidSwissIban } from './onboardingValidation';
 import { isMobileRuntime } from './mobileRuntime';
-import { t } from './language';
+import { t, useAppLanguage } from './language';
 import type { AccountingSettings, AppSettings, Workspace } from './types';
 
 export const SETTINGS_READINESS_TARGETS = {
@@ -100,7 +100,7 @@ function normalizedStoragePath(value: string | null | undefined) {
 
 function missingSummary(missing: string[]) {
   if (!missing.length) return '';
-  return `À renseigner : ${missing.join(', ')}.`;
+  return t('À renseigner : {fields}.', { fields: missing.join(', ') });
 }
 
 function step(
@@ -109,13 +109,14 @@ function step(
   missing: string[],
   readySummary: string,
 ): SetupReadinessStep {
+  const localizedMissing = missing.map((label) => t(label));
   return {
     id,
-    title,
+    title: t(title),
     targetId: SETTINGS_READINESS_TARGETS[id],
     ready: missing.length === 0,
-    summary: missing.length ? missingSummary(missing) : readySummary,
-    missing,
+    summary: missing.length ? missingSummary(localizedMissing) : t(readySummary),
+    missing: localizedMissing,
   };
 }
 
@@ -182,7 +183,7 @@ export function buildSetupReadiness(
     : 0;
   if (mappedAccounts < accountingMappingKeys.length)
     accountingMissing.push(
-      `${accountingMappingKeys.length - mappedAccounts} liaison${accountingMappingKeys.length - mappedAccounts > 1 ? 's' : ''} comptable${accountingMappingKeys.length - mappedAccounts > 1 ? 's' : ''}`,
+      t(accountingMappingKeys.length - mappedAccounts === 1 ? '{count} liaison comptable' : '{count} liaisons comptables', { count: accountingMappingKeys.length - mappedAccounts }),
     );
   const accountsById = new Map((workspace.accounts ?? []).map((account) => [account.id, account]));
   if (accounting) {
@@ -191,7 +192,7 @@ export function buildSetupReadiness(
       if (!accountId) continue;
       const linked = accountsById.get(accountId);
       if (!linked || !linked.active || linked.accountType !== accountingMappingTypes[key]) {
-        accountingMissing.push(`liaison ${key} absente, inactive ou de mauvais type`);
+        accountingMissing.push(t('liaison {account} absente, inactive ou de mauvais type', { account: key }));
       }
     }
     const distinctAssetRoles = [accounting.arAccountId, accounting.bankAccountId, accounting.vatReceivableAccountId]
@@ -232,7 +233,7 @@ export function buildSetupReadiness(
       'accounting',
       'Comptabilité',
       accountingMissing,
-      `${accountingMappingKeys.length} comptes de liaison sont renseignés et l’automatisation est active.`,
+      t('{count} comptes de liaison sont renseignés et l’automatisation est active.', { count: accountingMappingKeys.length }),
     ),
   ];
 
@@ -317,6 +318,7 @@ export function SetupReadinessCenter({
   settings: AppSettings;
   onNavigate: (targetId: string) => void;
 }) {
+  useAppLanguage();
   const readiness = buildSetupReadiness(workspace, settings);
   const allReady = readiness.readyCount === readiness.totalCount;
 
@@ -327,25 +329,24 @@ export function SetupReadinessCenter({
     >
       <header className="setup-readiness__header">
         <div>
-          <p className="eyebrow">Préparation de votre espace</p>
+          <p className="eyebrow">{t('Préparation de votre espace')}</p>
           <h2 id="setup-readiness-title">
-            {allReady ? 'Les réglages essentiels sont prêts' : 'Finalisez votre configuration'}
+            {t(allReady ? 'Les réglages essentiels sont prêts' : 'Finalisez votre configuration')}
           </h2>
           <p>
-            {readiness.readyCount} étape{readiness.readyCount > 1 ? 's' : ''} prête
-            {readiness.readyCount > 1 ? 's' : ''} sur {readiness.totalCount}
+            {t(readiness.readyCount === 1 ? '{ready} étape prête sur {total}' : '{ready} étapes prêtes sur {total}', { ready: readiness.readyCount, total: readiness.totalCount })}
           </p>
         </div>
-        <div className="setup-readiness__score" aria-label={`${readiness.percent} pour cent des étapes prêtes`}>
+        <div className="setup-readiness__score" aria-label={t('{percent} pour cent des étapes prêtes', { percent: readiness.percent })}>
           <strong>{readiness.percent}%</strong>
-          <span>préparé</span>
+          <span>{t('préparé')}</span>
         </div>
       </header>
 
       <div
         className="setup-readiness__progress"
         role="progressbar"
-        aria-label="Progression de la préparation"
+        aria-label={t('Progression de la préparation')}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={readiness.percent}
@@ -360,7 +361,7 @@ export function SetupReadinessCenter({
               type="button"
               className={`setup-readiness__step ${item.ready ? 'is-ready' : 'is-incomplete'}`}
               onClick={() => onNavigate(item.targetId)}
-              aria-label={`${item.title} — ${item.ready ? 'prêt' : 'à compléter'}. Ouvrir la section.`}
+              aria-label={t('{title} — {state}. Ouvrir la section.', { title: item.title, state: t(item.ready ? 'prêt' : 'à compléter') })}
             >
               <span className="setup-readiness__icon">
                 <StepIcon id={item.id} />
@@ -370,13 +371,10 @@ export function SetupReadinessCenter({
                   <strong>{item.title}</strong>
                   <em>
                     {item.ready ? <CheckCircle2 size={13} aria-hidden="true" /> : null}
-                    {item.ready ? 'Prêt' : 'À compléter'}
+                    {t(item.ready ? 'Prêt' : 'À compléter')}
                   </em>
                 </span>
-                <small>{item.missing.length
-                  ? missingSummary(item.missing.map((label) =>
-                    label === 'identifiant IDE/UID ou TVA' ? t('identifiant IDE/UID ou TVA') : label))
-                  : item.summary}</small>
+                <small>{item.summary}</small>
               </span>
               <ArrowRight size={17} aria-hidden="true" />
             </button>
@@ -385,8 +383,7 @@ export function SetupReadinessCenter({
       </ol>
 
       <p className="setup-readiness__disclaimer">
-        Ce centre vérifie uniquement les réglages enregistrés sur cet ordinateur. Il ne remplace
-        ni un contrôle légal, ni la validation d’une fiduciaire ou d’un assureur.
+        {t('Ce centre vérifie uniquement les réglages enregistrés sur cet ordinateur. Il ne remplace ni un contrôle légal, ni la validation d’une fiduciaire ou d’un assureur.')}
       </p>
     </section>
   );

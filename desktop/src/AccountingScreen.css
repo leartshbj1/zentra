@@ -1,4 +1,12 @@
 @media screen {
+  .accounting-source-link { display: grid; align-content: center; gap: .25rem; min-height: 44px; padding: .5rem .625rem; border: 0; border-radius: var(--apple-radius-control, 10px); background: transparent; color: var(--apple-accent, #24664f); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .accounting-source-link:hover { background: var(--apple-selection, #e2ece6); }
+  .accounting-source-link:active { opacity: .75; }
+  .accounting-source-link:focus-visible { outline: 2px solid var(--apple-focus, #24664f); outline-offset: 2px; }
+  .accounting-source-link:disabled { color: var(--muted); cursor: default; background: transparent; }
+  .accounting-screen .journal-entry-list header > .journal-entry-description { grid-column: 2; grid-row: 1; display: grid; gap: .75rem; }
+  .journal-entry-description > p { margin: 0; font-size: 14px; line-height: 1.6; }
+  .journal-entry-description > .button { justify-self: start; min-height: 44px; }
   .accounting-screen { min-width: 0; }
   .accounting-screen .journal-entry-list { gap: 18px; margin-top: 24px; }
   .accounting-screen .journal-entry-list > article { min-width: 0; border-color: #e7e7ec; border-radius: 16px; }
@@ -61,6 +69,7 @@
   .accounting-screen .accounting-toolbar--global .accounting-period-bar { border: 0; padding: 0; }
 }
 @media screen and (max-width: 860px) {
+  .accounting-screen .journal-entry-list header > .journal-entry-description { grid-column: 1; grid-row: auto; }
   .accounting-screen .accounting-toolbar { padding: 20px; }
   .accounting-screen .journal-entry-list > article > header { grid-template-columns: minmax(0, 1fr); padding: 16px; }
   .accounting-screen .journal-entry-list header > :is(div, p, small, .button, .locked-label) { grid-column: 1; grid-row: auto; }

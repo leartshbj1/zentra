@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import type { VatReturnPreview } from './types';
+import type { VatReturnPreview, Workspace } from './types';
+import { vatSourceTarget, type FinancialSourceTarget } from './financialTraceability';
+import { t } from './language';
 import { Button } from './ui';
 import { formatDate, formatMoney, searchText } from './utils';
 
@@ -13,8 +15,11 @@ function settlementLabel(kind?: string) {
   }
 }
 
-export function VatReceivedPayments({ allocations }: {
+export function VatReceivedPayments({ allocations, workspace, onOpenSource, busy = false }: {
   allocations: NonNullable<VatReturnPreview['receivedAllocations']>;
+  workspace?: Workspace;
+  onOpenSource?: (target: FinancialSourceTarget) => void;
+  busy?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState('all');
@@ -36,6 +41,7 @@ export function VatReceivedPayments({ allocations }: {
     <div className="vat-received-payments__list">{filtered.slice(0, limit).map((row) => <article key={`${row.sourceType}:${row.paymentId}:${row.sourceId}`}>
       <div><small>{row.settlement ? `${settlementLabel(row.settlement.kind)} · ${row.sourceType === 'supplier_credit_note_item' ? 'Avoir' : 'Facture'}` : row.sourceType === 'invoice_item' ? 'Encaissement client' : 'Paiement fournisseur'} · {formatDate(row.date)}</small><strong>{row.description}</strong>{row.settlement ? <small>Pièce liée : {row.settlement.counterpartReference}</small> : null}</div>
       <dl><div><dt>Part TTC</dt><dd>{formatMoney(row.grossCents, row.currency)}</dd></div><div><dt>Part HT</dt><dd>{formatMoney(row.netCents, row.currency)}</dd></div><div><dt>TVA ventilée</dt><dd>{formatMoney(row.vatCents, row.currency)}</dd></div></dl>
+      {workspace && onOpenSource ? vatSourceTarget(row, workspace) ? <Button variant="secondary" size="small" disabled={busy} onClick={() => onOpenSource(vatSourceTarget(row, workspace)!)}>{t('Ouvrir la pièce')}</Button> : <small>{t('Pièce métier indisponible sur cet appareil')}</small> : null}
     </article>)}</div>
     {!filtered.length ? <p>Aucun règlement ne correspond à cette recherche.</p> : null}
     {filtered.length > limit ? <Button variant="ghost" onClick={() => setLimit(limit + 25)}>Afficher les règlements suivants</Button> : null}

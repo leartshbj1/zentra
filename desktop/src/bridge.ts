@@ -1,4 +1,5 @@
 import {WorkspaceOriginChangedError} from './workspaceOrigin';
+import { recordedDocumentAmounts } from './financialTraceability';
 import {freezeDocumentCreationRequest,readDocumentCreationAcknowledgement,readDocumentCreationReceipt,DocumentCreationUnconfirmedError,type DocumentCreationRequest,type DocumentCreationReceipt} from './documentCreationRequest';
 import { memberOriginNativeFailure } from './memberOriginBridge';
 import { mutationOriginInvokeArgs, WorkspaceMemberOriginChangedError } from './workspaceMemberOrigin';
@@ -1752,7 +1753,9 @@ const planningPriorityFromRaw = (value: unknown): ProjectTask['priority'] => {
 };
 
 function lineFromRaw(row: RawRecord): DocumentLine {
+  const recordedAmounts = recordedDocumentAmounts(row);
   return {
+    ...(recordedAmounts ? { recordedAmounts } : {}),
     id: stringValue(row.id),
     catalogItemId: stringValue(row.catalog_item_id) || null,
     description: stringValue(row.description),
@@ -2577,6 +2580,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       serviceDateTo: stringValue(row.service_date_to),
       currency: stringValue(row.currency) || 'CHF',
       status: invoiceStatusFromRaw(row.status),
+      nativeDocumentState: { status: stringValue(row.status), number: row.number == null ? null : stringValue(row.number) },
       lines: (invoiceLinesByDocument.get(stringValue(row.id)) ?? []).slice()
         .sort((a, b) => numberValue(a.position) - numberValue(b.position))
         .map(lineFromRaw),
@@ -3495,6 +3499,7 @@ const createRecord = (entity: string, data: RawRecord, expectedWorkspaceScope?: 
 export function prepareDocumentSaveInput(entity:'quotes'|'invoices',data:Record<string,unknown>,lines:DocumentLine[],existing?:Quote|Invoice) {
   const previousLines = existing?.lines ?? [];
   const backendData = toBackendData(data);
+  delete backendData.native_document_state;
   const depositBasisLines = data.depositBasisLines;
   delete backendData.deposit_basis_lines;
   if (depositBasisLines === null) {

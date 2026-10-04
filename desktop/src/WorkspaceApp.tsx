@@ -1,4 +1,5 @@
 import { knownErrorIncident, withKnownErrorIncident } from './diagnostics';
+import type { AccountingNavigationContext } from './AccountingScreen';
 import { useWorkspaceMutationOrigin } from './useWorkspaceMutationOrigin';
 import { bindWorkspaceMutationRead } from './memberOriginBridge';
 import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
@@ -19,6 +20,7 @@ import { ResetAppPanel } from './ResetAppPanel';
 import { SupplierPaymentOutcomeUnknownError, SupplierPaymentRefreshError, type SupplierPaymentResume } from './supplierPaymentWorkflow';
 import { SupplierInvoiceValidationOutcomeUnknownError, SupplierInvoiceValidationRefreshError } from './supplierInvoiceValidation';
 import { t, useAppLanguage, getAppLocale, getAppLanguage } from './language';
+import { projectFileMessageText } from './projectLanguage';
 import { createLocalValidationError } from './localValidation';
 import './manual-backup.css';
 import { Languages } from 'lucide-react';
@@ -351,8 +353,8 @@ const SupplierPaymentForm = deferView(() => import('./PurchasesScreen').then(mod
 const SalesOrdersScreen = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.SalesOrdersScreen })), { diagnosticName: 'SalesOrdersScreen', label: 'Ouverture des commandes…' });
 const DeliveryNotePrintPreview = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.DeliveryNotePrintPreview })), { diagnosticName: 'DeliveryNotePrintPreview', label: 'Ouverture des commandes…', close: props => props.onClose });
 const SalesOrderPrintPreview = deferView(() => import('./SalesOrdersScreen').then(module => ({ default: module.SalesOrderPrintPreview })), { diagnosticName: 'SalesOrderPrintPreview', label: 'Ouverture des commandes…', close: props => props.onClose });
-const ProjectPlanningPanel = deferView(() => import('./ProjectPlanningPanel').then(module => ({ default: module.ProjectPlanningPanel })), { diagnosticName: 'ProjectPlanningPanel', label: 'Ouverture du planning…' });
-const ProjectFolder = deferView(() => import('./ProjectFolder').then(module => ({ default: module.ProjectFolder })), { diagnosticName: 'ProjectFolder', label: 'Ouverture du projet…' });
+const ProjectPlanningPanel = deferView(() => import('./ProjectPlanningPanel').then(module => ({ default: module.ProjectPlanningPanel })), { diagnosticName: 'ProjectPlanningPanel', label: { fr: 'Ouverture du planning…', de: 'Planung wird geöffnet…', it: 'Apertura della pianificazione…', en: 'Opening planning…' } });
+const ProjectFolder = deferView(() => import('./ProjectFolder').then(module => ({ default: module.ProjectFolder })), { diagnosticName: 'ProjectFolder', label: { fr: 'Ouverture du projet…', de: 'Projekt wird geöffnet…', it: 'Apertura del progetto…', en: 'Opening project…' } });
 const ReportsScreen = deferView(() => import('./ProjectReports').then(module => ({ default: module.ReportsScreen })), { diagnosticName: 'ReportsScreen', label: 'Ouverture des rapports…' });
 const SalaryCertificates = deferView(() => import('./SalaryCertificates').then(module => ({ default: module.SalaryCertificates })), { diagnosticName: 'SalaryCertificates', label: 'Ouverture des certificats de salaire…' });
 const DocumentDesignStudio = deferView(() => import('./DocumentDesignStudio').then(module => ({ default: module.DocumentDesignStudio })), { diagnosticName: 'DocumentDesignStudio', label: 'Ouverture de la présentation des documents…' });
@@ -627,6 +629,7 @@ function WorkspaceContent({
   const [clientFolderReturnId, setClientFolderReturnId] = useState<string | null>(null);
   const [bankAutoReconcile, setBankAutoReconcile] = useState(true);
   const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods'>();
+  const [accountingSourceReturnContext, setAccountingSourceReturnContext] = useState<AccountingNavigationContext | null>(null);
   const clearAccountingStartTab = useCallback(() => setAccountingStartTab(undefined), []);
   const [accountingEntryFocus, setAccountingEntryFocus] =
     useState<AccountingEntryFocus | null>(null);
@@ -2607,6 +2610,23 @@ function WorkspaceContent({
               fallback={<ViewLoading label={t("Ouverture de la comptabilité…")} />}
             >
               <AccountingScreen
+                sourceReturnContext={accountingSourceReturnContext}
+                onOpenSource={(source, context) => {
+                  setAccountingSourceReturnContext(context);
+                  if (source.kind === 'invoice') {
+                    const item = workspace.invoices.find(row => row.id === source.id);
+                    if (item) setModal({ type: 'document', entity: 'invoices', item });
+                  } else if (source.kind === 'expense') openExpenseSource(source.id);
+                  else if (source.kind === 'supplierInvoice') {
+                    const invoice = workspace.supplierInvoices.find(row => row.id === source.id);
+                    if (invoice) setModal({ type: 'supplierInvoiceDetail', invoice });
+                  } else if (source.kind === 'supplierCredit') {
+                    if (workspace.supplierCreditNotes.some(row => row.id === source.id)) { setSupplierCreditToOpenId(source.id); setSearch(''); setView('expenses'); }
+                  } else {
+                    const item = workspace.payslips.find(row => row.id === source.id);
+                    if (item) setModal({ type: 'payslip', item });
+                  }
+                }}
                 initialTab={accountingStartTab}
                 onInitialTabHandled={clearAccountingStartTab}
                 workspace={workspace}
@@ -3045,7 +3065,7 @@ function Dashboard({
   );
 }
 
-function ProjectsScreen({
+export function ProjectsScreen({
   workspace,
   folderId,
   fileSessions,
@@ -3101,6 +3121,7 @@ function ProjectsScreen({
   onAgendaPlanningTargetHandled: () => void;
 }) {
   const [mode, setMode] = useState<'overview' | 'planning'>('overview');
+  useAppLanguage();
   const [statusFilter, setStatusFilter] = useState('all');
   const [planningTarget, setPlanningTarget] = useState<string | null>(
     agendaPlanningTarget,
@@ -6553,7 +6574,7 @@ type ActionRunner = (
   validateRead?: (workspace: Workspace) => void,
 ) => Promise<boolean>;
 
-function ProjectForm({
+export function ProjectForm({
   item: suppliedItem,
   workspace,
   busy,
@@ -6566,11 +6587,12 @@ function ProjectForm({
   close: () => void;
   act: ActionRunner;
 }) {
+  useAppLanguage();
   const current = suppliedItem ? workspace.projects.find(row => row.id === suppliedItem.id) : undefined;
   const item = current ?? suppliedItem;
   const formRef = useRef<HTMLFormElement>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [fileError, setFileError] = useState('');
+  const [fileFailures, setFileFailures] = useState<Array<{ name: string; message: string }>>([]);
   const [formError, setFormError] = useState('');
   const [projectReadPending, setProjectReadPending] = useState(false);
   const lastSavedData = useRef<string | null>(null);
@@ -6593,12 +6615,8 @@ function ProjectForm({
   const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   return (
     <Modal
-      title={
-        item
-          ? `Modifier le ${terminology.singular}`
-          : `Nouveau ${terminology.singular}`
-      }
-      description="Regroupez les informations et les documents de votre projet."
+      title={t(item ? 'Modifier le projet' : 'Nouveau projet')}
+      description={t('Regroupez les informations et les documents de votre projet.')}
       onClose={() => { if (!busy) closeForm(); }}
       wide dismissible={!busy}
     >
@@ -6637,7 +6655,7 @@ function ProjectForm({
             description: '',
             notes: String(form.get('notes')),
           };
-          setFileError('');
+          setFileFailures([]);
           let remaining: File[] = [];
           let finalReadFailedAfterCommit = false;
           let confirmedFallbackRead = false;
@@ -6650,15 +6668,15 @@ function ProjectForm({
               lastSavedData.current = fingerprint;
               persisted.capture({ draftSavedRecordId: savedProjectId.current!, draftLastSavedData: fingerprint });
             }
-            const failures: string[] = [];
+            const failures: Array<{ name: string; message: string }> = [];
             for (const [index, file] of files.entries()) {
               requireProjectFormWorkspace();
               setUploadProgress(`Document ${index + 1}/${files.length} : ${file.name}`);
               try { await desktopApi.addProjectDocument(savedProjectId.current!, file, undefined, originWorkspaceScope); }
-              catch (reason) { remaining.push(file); failures.push(`${file.name} : ${errorMessage(reason, 'ajout impossible')}`); }
+              catch (reason) { remaining.push(file); failures.push({ name: file.name, message: errorMessage(reason, 'ajout impossible') }); }
             }
             setFiles(remaining);
-            setFileError(failures.length ? `Le projet est enregistré. Ces fichiers restent à ajouter : ${failures.join(' ')}` : '');
+            setFileFailures(failures);
             requireProjectFormWorkspace();
             try {
               const next = await desktopApi.loadWorkspace(mutationOrigin.workspaceScope, mutationOrigin.memberContextNonce);
@@ -6695,15 +6713,15 @@ function ProjectForm({
           it: 'Il progetto è salvato. Riprendi per aggiornare l’elenco, senza aggiungere di nuovo i file confermati.',
           en: 'The project is saved. Continue to refresh the list without adding confirmed files again.',
         }[getAppLanguage()]}</p>}
-        <FormDraftNotice draft={persisted} disabled={busy} currentValues={item ? [{ label: "Nom", value: item.name }, { label: "Notes", value: item.notes }, { label: "Adresse", value: item.address }] : undefined} />
+        <FormDraftNotice draft={persisted} disabled={busy} currentValues={item ? [{ label: t('Nom'), value: item.name }, { label: t('Notes'), value: item.notes }, { label: t('Adresse'), value: item.address }] : undefined} />
         {(files.length > 0 || !!persisted.value.draftFiles) && <p className="info-strip">{draftText("Les champs sont conservés. Les fichiers choisis devront être sélectionnés à nouveau après fermeture.")}</p>}
         <fieldset disabled={busy || draftBlocked}><div className="form-grid">
-          <Field label={`Nom du ${terminology.singular}`} required wide>
+          <Field label={t('Nom du projet')} required wide>
             <input name="name" defaultValue={item?.name} required autoFocus />
           </Field>
-          <Field label="Client" required>
+          <Field label={t('Client')} required>
             <select name="clientId" defaultValue={item?.clientId} required>
-              <option value="">Choisir un client</option>
+              <option value="">{t('Choisir un client')}</option>
               {workspace.clients
                 .filter(
                   (client) =>
@@ -6712,62 +6730,62 @@ function ProjectForm({
                 .map((client) => (
                   <option value={client.id} key={client.id}>
                     {client.company || client.name}
-                    {client.archivedAt ? ' · archivé' : ''}
+                    {client.archivedAt ? ` · ${t('archivé')}` : ''}
                   </option>
                 ))}
             </select>
           </Field>
-          <Field label="Statut" required>
+          <Field label={t('Statut')} required>
             <select name="status" defaultValue={item?.status ?? 'planned'}>
-              <option value="planned">Planifié</option>
-              <option value="in_progress">En cours</option>
-              <option value="paused">En pause</option>
-              <option value="completed">Terminé</option>
-              <option value="closed">Clôturé</option>
+              <option value="planned">{t('Planifié')}</option>
+              <option value="in_progress">{t('En cours')}</option>
+              <option value="paused">{t('En pause')}</option>
+              <option value="completed">{t('Terminé')}</option>
+              <option value="closed">{t('Clôturé')}</option>
             </select>
           </Field>
         </div>
         <section className="project-create-files">
-          <h3>Documents et photos</h3>
+          <h3>{t('Documents et photos')}</h3>
           <ProjectFilesPicker files={files} onChange={next => { setFiles(next); persisted.capture({ draftFiles: next.length ? "selected" : "" }); }} disabled={busy || draftBlocked} />
-          {fileError ? <ErrorPanel message={fileError} /> : null}
-          {uploadProgress ? <p role="status">{uploadProgress}</p> : null}
+          {fileFailures.length ? <ErrorPanel message={t('Le projet est enregistré. Ces fichiers restent à ajouter : {files}', { files: fileFailures.map(({ name, message }) => t('{name} : {message}', { name, message: projectFileMessageText(message) })).join(' ') })} /> : null}
+          {uploadProgress ? <p role="status">{projectFileMessageText(uploadProgress)}</p> : null}
         </section>
         <details className="project-optional-details" open={!!item}>
-          <summary>Adresse, dates, budget et notes</summary>
+          <summary>{t('Adresse, dates, budget et notes')}</summary>
           <div className="form-grid">
-          <Field label={`Adresse du ${terminology.singular}`} wide>
+          <Field label={t('Adresse du projet')} wide>
             <textarea name="address" rows={2} defaultValue={item?.address} />
           </Field>
-          <Field label="Début prévu">
+          <Field label={t('Début prévu')}>
             <input
               name="plannedStart"
               type="date"
               defaultValue={item?.plannedStart}
             />
           </Field>
-          <Field label="Fin prévue">
+          <Field label={t('Fin prévue')}>
             <input
               name="plannedEnd"
               type="date"
               defaultValue={item?.plannedEnd}
             />
           </Field>
-          <Field label="Début réel">
+          <Field label={t('Début réel')}>
             <input
               name="actualStart"
               type="date"
               defaultValue={item?.actualStart}
             />
           </Field>
-          <Field label="Fin réelle">
+          <Field label={t('Fin réelle')}>
             <input
               name="actualEnd"
               type="date"
               defaultValue={item?.actualEnd}
             />
           </Field>
-          <Field label="Budget accepté (CHF)">
+          <Field label={t('Budget accepté (CHF)')}>
             <input
               name="budget"
               type="number"
@@ -6776,7 +6794,7 @@ function ProjectForm({
               defaultValue={item?.budgetCents ? item.budgetCents / 100 : ''}
             />
           </Field>
-          <Field label="Temps prévu (heures)">
+          <Field label={t('Temps prévu (heures)')}>
             <input
               name="plannedHours"
               type="number"
@@ -6787,7 +6805,7 @@ function ProjectForm({
               }
             />
           </Field>
-          <Field label="Notes" wide>
+          <Field label={t('Notes')} wide>
             <textarea name="notes" rows={3} defaultValue={item?.notes} />
           </Field>
         </div>
@@ -6796,7 +6814,7 @@ function ProjectForm({
         {formError ? <ErrorPanel title={projectReadPending ? {
           fr: 'Actualiser la liste des projets', de: 'Projektliste aktualisieren',
           it: 'Aggiorna l’elenco dei progetti', en: 'Refresh the project list',
-        }[getAppLanguage()] : 'Vérifions le projet'} operation={projectReadPending ? 'read' : 'mutation'} message={formError} reveal /> : null}
+        }[getAppLanguage()] : t('Vérifions le projet')} operation={projectReadPending ? 'read' : 'mutation'} message={projectFileMessageText(formError)} reveal /> : null}
         <FormActions onCancel={closeForm} busy={busy} disabled={draftBlocked} />
       </form>
     </Modal>

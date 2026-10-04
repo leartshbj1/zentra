@@ -122,7 +122,7 @@ export function buildProjectReport(
         [t('Facturé hors TVA · avoirs déduits'), s.invoicedNetLabel],
         [t('Facturé TTC'), s.invoicedTotalLabel],
         [
-          t('Paiements reçus'),
+          t('Encaissé net · remboursements déduits'),
           formatSalesTotals(
             salesTotalsByCurrency(invoices, w.payments),
             'paidCents',
@@ -194,20 +194,34 @@ export function buildProjectReport(
           ];
         }),
       );
-    const ids = new Set(invoices.map((i) => i.id));
+    const cashInvoices = invoices.filter(invoice => !['draft', 'cancelled'].includes(invoice.status));
+    const cashRows: string[][] = [];
+    for (const payment of w.payments) {
+      const invoice = cashInvoices.find(invoice => invoice.id === payment.invoiceId);
+      if (!invoice || invoice.type === 'credit_note') continue;
+      cashRows.push([invoice.number, t('Paiement enregistré'), payment.date, formatMoney(payment.amountCents, invoice.currency)]);
+    }
+    // Mirror salesContributions: only the canonical credit-note representation
+    // contributes cash, once per event ID. Applications never move cash.
+    const countedRefunds = new Set<string>();
+    for (const invoice of cashInvoices) {
+      if (invoice.type !== 'credit_note') continue;
+      for (const settlement of invoice.creditSettlements ?? []) {
+        if (settlement.creditNoteId !== invoice.id || countedRefunds.has(settlement.id)) continue;
+        if (settlement.eventType !== 'refund' && settlement.eventType !== 'reverse_refund') continue;
+        countedRefunds.add(settlement.id);
+        cashRows.push([
+          invoice.number,
+          t(settlement.eventType === 'refund' ? 'Remboursement client' : 'Annulation du remboursement client'),
+          settlement.date,
+          formatMoney(settlement.eventType === 'refund' ? -settlement.amountCents : settlement.amountCents, invoice.currency),
+        ]);
+      }
+    }
     add(
-      'Encaissements',
-      ['Facture', 'Date', 'Montant'],
-      w.payments
-        .filter((p) => ids.has(p.invoiceId))
-        .map((p) => [
-          invoices.find((i) => i.id === p.invoiceId)?.number || '',
-          p.date,
-          formatMoney(
-            p.amountCents,
-            invoices.find((i) => i.id === p.invoiceId)?.currency,
-          ),
-        ]),
+      'Encaissements et remboursements',
+      ['Document', 'Mouvement', 'Date', 'Montant signé'],
+      cashRows,
     );
   }
   if (included.includes('purchases')) {

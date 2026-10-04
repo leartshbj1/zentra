@@ -11,7 +11,8 @@ import { fileSizeLabel, isProjectFile, projectDocuments } from './projectDocumen
 import type { Attachment, Invoice, Project, Quote, Workspace } from './types';
 import { Button, ErrorPanel, Modal, StatusBadge } from './ui';
 import { NotebookPen } from 'lucide-react';
-import { t } from './language';
+import { t, useAppLanguage } from './language';
+import { projectFileMessageText } from './projectLanguage';
 import { documentTotals, errorMessage, formatDate, formatMoney } from './utils';
 import { createProjectFileSessions, type ProjectFileSession } from './projectFileSessions';
 
@@ -24,6 +25,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
   fileSession?: ProjectFileSession;
   onOpenNotes?: (projectId: string) => void;
 }) {
+  useAppLanguage();
   const [tab, setTab] = useState<'all' | 'files' | 'quotes' | 'invoices'>('all');
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
@@ -46,7 +48,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
   const [opening, setOpening] = useState(false);
   const [openingProgress, setOpeningProgress] = useState('');
   const saving = transfer.saving || opening;
-  const progress = opening ? openingProgress : transfer.progress;
+  const progress = projectFileMessageText(opening ? openingProgress : transfer.progress);
   const setFiles = session.setFiles;
   const [removeError, setRemoveError] = useState('');
   const inFlight = useRef(false);
@@ -119,30 +121,30 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
     else setRemoveError(session.getSnapshot().error);
   }
   const client = workspace.clients.find((item) => item.id === project.clientId);
-  return <section ref={folderElement} className="project-folder stack-layout" aria-label={`Dossier du projet ${project.name}`}>
+  return <section ref={folderElement} className="project-folder stack-layout" aria-label={t('Dossier du projet {name}', { name: project.name })}>
     <header className="project-folder__header">
-      <Button variant="ghost" onClick={onBack} disabled={opening}><ArrowLeft size={18} /> Projets</Button>
+      <Button variant="ghost" onClick={onBack} disabled={opening}><ArrowLeft size={18} /> {t('Projets')}</Button>
       <div><h2>{project.name}</h2><p>{client?.company || client?.name}</p></div>
       <StatusBadge status={project.status} />
       {onOpenNotes && <Button variant="secondary" onClick={() => onOpenNotes(project.id)}><NotebookPen size={18} aria-hidden="true" />{t('Notes')}{(workspace.workNotes ?? []).filter(note => note.projectId === project.id).length > 0 && <span>{(workspace.workNotes ?? []).filter(note => note.projectId === project.id).length}</span>}</Button>}
     </header>
-    <nav className="project-folder__tabs" aria-label="Contenu du projet">{([
+    <nav className="project-folder__tabs" aria-label={t('Contenu du projet')}>{([
       ['all', 'Tout', contents.files.length + contents.quotes.length + contents.invoices.length],
       ['files', 'Documents', contents.files.length], ['quotes', 'Devis', contents.quotes.length], ['invoices', 'Factures', contents.invoices.length],
-    ] as const).map(([id, label, count]) => <button key={id} type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{label} <span>{count}</span></button>)}</nav>
-    {notice ? <p className="project-file-notice" role="status">{notice}</p> : null}
+    ] as const).map(([id, label, count]) => <button key={id} type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{t(label)} <span>{count}</span></button>)}</nav>
+    {notice ? <p className="project-file-notice" role="status">{projectFileMessageText(notice)}</p> : null}
     {saving && progress ? <p role="status">{progress}</p> : null}
     {refreshPending ? <div ref={recoveryPanel} tabIndex={-1} className="project-file-recovery" role="alert">
-      <strong>Retrouver les documents du projet</strong>
-      <p>Les fichiers déjà enregistrés sont conservés. Actualisez la liste pour voir le résultat ; aucun fichier ne sera ajouté ou supprimé une deuxième fois.</p>
-      <p>{error}</p>
-      <Button variant="secondary" disabled={saving || busy} onClick={() => void retryRefresh()}>{saving ? 'Actualisation…' : 'Actualiser la liste'}</Button>
-    </div> : error && !removing ? <ErrorPanel message={error} reveal /> : null}
+      <strong>{t('Retrouver les documents du projet')}</strong>
+      <p>{t('Les fichiers déjà enregistrés sont conservés. Actualisez la liste pour voir le résultat ; aucun fichier ne sera ajouté ou supprimé une deuxième fois.')}</p>
+      <p>{projectFileMessageText(error)}</p>
+      <Button variant="secondary" disabled={saving || busy} onClick={() => void retryRefresh()}>{t(saving ? 'Actualisation…' : 'Actualiser la liste')}</Button>
+    </div> : error && !removing ? <ErrorPanel message={projectFileMessageText(error)} reveal /> : null}
     {(tab === 'all' || tab === 'files') ? <section className="panel project-folder__section">
-      <h3>Documents et photos</h3>
+      <h3>{t('Documents et photos')}</h3>
       <div className="project-sync" role="status" aria-live="polite">
         <div><strong>{syncPresentation.title}</strong><p>{syncPresentation.description}</p></div>
-        {syncPresentation.canSynchronize ? <Button size="small" variant="secondary" disabled={sync.syncing} onClick={requestProjectSync}>Synchroniser</Button> : <CloudAccountAccess />}
+        {syncPresentation.canSynchronize ? <Button size="small" variant="secondary" disabled={sync.syncing} onClick={requestProjectSync}>{t('Synchroniser')}</Button> : <CloudAccountAccess />}
       </div>
       <ProjectSyncIssues sync={sync} projectId={project.id} files={contents.files} readOnly={readOnly} busy={saving || busy || refreshPending} onRepair={() => {
         const trigger = folderElement.current?.querySelector<HTMLButtonElement>('.project-file-picker__actions button');
@@ -150,9 +152,9 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
         trigger?.focus({ preventScroll: true }); trigger?.click();
       }} />
       {!readOnly ? <><ProjectFilesPicker files={files} onChange={setFiles} disabled={saving || busy || refreshPending} />
-      {fileSession && files.length > 0 && <p className="project-file-picker__hint">Votre sélection reste dans ce projet pendant la navigation. Enregistrez les fichiers avant de fermer Zentra.</p>}
-      {uploadFailures.some(item => files.includes(item.file)) ? <div className="project-file-failures" role="alert"><strong>Fichiers à reprendre</strong><ul>{uploadFailures.filter(item => files.includes(item.file)).map(({file,message}, index) => <li key={index}><strong>{file.name}</strong><p>{message}</p></li>)}</ul></div> : null}
-      {files.length ? <Button data-project-file-save onClick={() => void upload()} disabled={saving || busy || refreshPending}>{saving ? progress || 'Actualisation…' : `Enregistrer ${files.length} fichier${files.length > 1 ? 's' : ''}`}</Button> : null}</> : null}
+      {fileSession && files.length > 0 && <p className="project-file-picker__hint">{t('Votre sélection reste dans ce projet pendant la navigation. Enregistrez les fichiers avant de fermer Zentra.')}</p>}
+      {uploadFailures.some(item => files.includes(item.file)) ? <div className="project-file-failures" role="alert"><strong>{t('Fichiers à reprendre')}</strong><ul>{uploadFailures.filter(item => files.includes(item.file)).map(({file,message}, index) => <li key={index}><strong>{file.name}</strong><p>{projectFileMessageText(message)}</p></li>)}</ul></div> : null}
+      {files.length ? <Button data-project-file-save onClick={() => void upload()} disabled={saving || busy || refreshPending}>{saving ? progress || t('Actualisation…') : t(files.length === 1 ? 'Enregistrer {count} fichier' : 'Enregistrer {count} fichiers', { count: files.length })}</Button> : null}</> : null}
       <ul className="project-document-list">{contents.files.map((file) => {
         const syncFile = sync.documents.find(item => item.document_id === file.id);
         const expenseId = file.entityType === 'expense' ? file.entityId : file.entityType === 'expense_refund' ? workspace.expenses.find((expense) => expense.refunds?.some((refund) => refund.id === file.entityId))?.id : undefined;
@@ -160,29 +162,29 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
         return <li key={file.id} className={(expenseId && onOpenExpense) || customerCredit ? 'project-document-list__with-source' : undefined}>
         <button type="button" className="project-document-list__open" onClick={(event) => void open(file, event.currentTarget)} disabled={saving || refreshPending}>
           {file.mimeType.startsWith('image/') ? <Image size={22} /> : <FileText size={22} />}
-          <span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)} · {formatDate(file.createdAt)}{file.entityType === 'supplier_invoice' ? ' · Justificatif fournisseur' : file.entityType === 'customer_credit_settlement' ? ' · Règlement d’un avoir client' : file.entityType === 'expense_refund' ? ' · Avoir / remboursement de dépense' : file.entityType === 'expense' ? ' · Justificatif de dépense' : ''}</small>{isProjectFile(file) ? <small>{syncFile?.state==='synced'?'Synchronisé · Disponible hors ligne':syncFile?.last_error ? projectFileSyncIssue(syncFile.last_error).title : sync.organizationId || sync.connected ? 'Sur cet appareil · Envoi en attente' : 'Disponible sur cet appareil'}</small> : null}</span>
+          <span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)} · {formatDate(file.createdAt)}{file.entityType === 'supplier_invoice' ? ` · ${t('Justificatif fournisseur')}` : file.entityType === 'customer_credit_settlement' ? ` · ${t('Règlement d’un avoir client')}` : file.entityType === 'expense_refund' ? ` · ${t('Avoir / remboursement de dépense')}` : file.entityType === 'expense' ? ` · ${t('Justificatif de dépense')}` : ''}</small>{isProjectFile(file) ? <small>{syncFile?.state==='synced'?t('Synchronisé · Disponible hors ligne'):syncFile?.last_error ? projectFileSyncIssue(syncFile.last_error).title : t(sync.organizationId || sync.connected ? 'Sur cet appareil · Envoi en attente' : 'Disponible sur cet appareil')}</small> : null}</span>
         </button>
-        {expenseId && onOpenExpense ? <Button variant="ghost" onClick={() => onOpenExpense(expenseId)} aria-label={`Voir la dépense liée à ${file.originalName}`}>Voir la dépense</Button> : null}
-        {customerCredit ? <Button variant="ghost" onClick={() => onOpenDocument('invoices', customerCredit)} aria-label={`Voir l’avoir lié à ${file.originalName}`}>Voir l’avoir</Button> : null}
-        {!readOnly && isProjectFile(file) ? <Button size="icon" variant="ghost" disabled={saving || busy || refreshPending} aria-label={`Supprimer ${file.originalName}`} onClick={() => { setRemoveError(''); setRemoving(file); }}><Trash2 size={17} /></Button> : null}
+        {expenseId && onOpenExpense ? <Button variant="ghost" onClick={() => onOpenExpense(expenseId)} aria-label={t('Voir la dépense liée à {name}', { name: file.originalName })}>{t('Voir la dépense')}</Button> : null}
+        {customerCredit ? <Button variant="ghost" onClick={() => onOpenDocument('invoices', customerCredit)} aria-label={t('Voir l’avoir lié à {name}', { name: file.originalName })}>{t('Voir l’avoir')}</Button> : null}
+        {!readOnly && isProjectFile(file) ? <Button size="icon" variant="ghost" disabled={saving || busy || refreshPending} aria-label={t('Supprimer {name}', { name: file.originalName })} onClick={() => { setRemoveError(''); setRemoving(file); }}><Trash2 size={17} /></Button> : null}
       </li>; })}</ul>
-      {!contents.files.length && !files.length ? <p className="project-folder__empty">Aucun fichier ajouté à ce projet.</p> : null}
+      {!contents.files.length && !files.length ? <p className="project-folder__empty">{t('Aucun fichier ajouté à ce projet.')}</p> : null}
     </section> : null}
-    {billingQuotes.length > 0 && (tab === 'all' || tab === 'invoices') ? <section className="panel project-folder__section"><header><h3>Dossiers de facturation</h3></header><ul className="project-document-list">{billingQuotes.map((quote) => <li key={quote.id}><button className="project-document-list__open" onClick={() => onOpenDocument('quotes', quote)}><FileText size={22}/><span><strong>{quote.number || quote.title}</strong><small>{contents.invoices.filter((invoice) => invoice.quoteId === quote.id).length} factures liées · {quote.title}</small></span></button></li>)}</ul></section> : null}
+    {billingQuotes.length > 0 && (tab === 'all' || tab === 'invoices') ? <section className="panel project-folder__section"><header><h3>{t('Dossiers de facturation')}</h3></header><ul className="project-document-list">{billingQuotes.map((quote) => { const count = contents.invoices.filter((invoice) => invoice.quoteId === quote.id).length; return <li key={quote.id}><button className="project-document-list__open" onClick={() => onOpenDocument('quotes', quote)}><FileText size={22}/><span><strong>{quote.number || quote.title}</strong><small>{t(count === 1 ? '{count} facture liée' : '{count} factures liées', { count })} · {quote.title}</small></span></button></li>; })}</ul></section> : null}
     {(['quotes', 'invoices'] as const).filter((kind) => tab === 'all' || tab === kind).map((kind) => <section className="panel project-folder__section" key={kind}>
-      <header><h3>{kind === 'quotes' ? 'Devis' : 'Factures'}</h3><Button size="small" variant="secondary" disabled={readOnly || saving || busy} onClick={() => onCreateDocument(kind, project)}><Plus size={16} /> {kind === 'quotes' ? 'Nouveau devis' : 'Nouvelle facture'}</Button></header>
+      <header><h3>{t(kind === 'quotes' ? 'Devis' : 'Factures')}</h3><Button size="small" variant="secondary" disabled={readOnly || saving || busy} onClick={() => onCreateDocument(kind, project)}><Plus size={16} /> {t(kind === 'quotes' ? 'Nouveau devis' : 'Nouvelle facture')}</Button></header>
       <ul className="project-document-list">{contents[kind].map((document) => <li key={document.id}>
         <button type="button" className="project-document-list__open" onClick={() => onOpenDocument(kind, document)}>
-          <FileText size={22} /><span><strong>{document.number || 'Brouillon'} · {document.title}</strong><small>{formatDate(document.issueDate)} · {formatMoney(documentTotals(document.lines).totalCents, document.currency)}</small></span><StatusBadge status={document.status} />
+          <FileText size={22} /><span><strong>{document.number || t('Brouillon')} · {document.title}</strong><small>{formatDate(document.issueDate)} · {formatMoney(documentTotals(document.lines).totalCents, document.currency)}</small></span><StatusBadge status={document.status} />
         </button>
       </li>)}</ul>
-      {!contents[kind].length ? <p className="project-folder__empty">{kind === 'quotes' ? 'Les devis liés à ce projet apparaîtront ici.' : 'Les factures liées à ce projet apparaîtront ici.'}</p> : null}
+      {!contents[kind].length ? <p className="project-folder__empty">{t(kind === 'quotes' ? 'Les devis liés à ce projet apparaîtront ici.' : 'Les factures liées à ce projet apparaîtront ici.')}</p> : null}
     </section>)}
     {preview ? <ProjectFilePreview {...preview} onClose={closePreview} /> : null}
-    {removing ? <Modal title="Supprimer le document ?" dismissible={!saving} onClose={() => { if (!saving) setRemoving(null); }}>
-      <p>« {removing.originalName} » sera retiré de ce projet. Si ce dossier est partagé, la suppression sera transmise aux autres appareils dès le retour du réseau.</p>
-      {removeError ? <ErrorPanel message={removeError} reveal /> : null}
-      <div className="form-actions"><Button variant="secondary" disabled={saving} onClick={() => setRemoving(null)}>Annuler</Button><Button variant="danger" disabled={saving} onClick={() => void remove()}>{saving ? 'Suppression…' : 'Supprimer'}</Button></div>
+    {removing ? <Modal title={t('Supprimer le document ?')} dismissible={!saving} onClose={() => { if (!saving) setRemoving(null); }}>
+      <p>{t('« {name} » sera retiré de ce projet. Si ce dossier est partagé, la suppression sera transmise aux autres appareils dès le retour du réseau.', { name: removing.originalName })}</p>
+      {removeError ? <ErrorPanel message={projectFileMessageText(removeError)} reveal /> : null}
+      <div className="form-actions"><Button variant="secondary" disabled={saving} onClick={() => setRemoving(null)}>{t('Annuler')}</Button><Button variant="danger" disabled={saving} onClick={() => void remove()}>{t(saving ? 'Suppression…' : 'Supprimer')}</Button></div>
     </Modal> : null}
   </section>;
 }
