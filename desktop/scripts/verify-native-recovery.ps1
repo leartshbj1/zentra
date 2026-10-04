@@ -2,6 +2,8 @@
 param(
   [Parameter(Mandatory = $true)][string]$Repository,
   [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$ExpectedSource,
+  [Parameter(Mandatory = $true)][string]$SourceSnapshotPath,
+  [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSnapshotSha256,
   [switch]$IncludeCrashCandidate
 )
 Set-StrictMode -Version Latest
@@ -15,8 +17,9 @@ if (-not [string]::IsNullOrEmpty($env:CARGO_TARGET_DIR)) { throw 'The existing h
 $repo = (Resolve-Path -LiteralPath $Repository).Path
 $head = @(& git -C $repo rev-parse HEAD)
 if ($LASTEXITCODE -ne 0 -or $head.Count -ne 1 -or $head[0] -cne $ExpectedSource) { throw 'Repository HEAD must equal the reviewed CircleCI revision.' }
-$nativeChanges = @(& git -C $repo status --porcelain -- desktop/src-tauri desktop/scripts/windows-verification-harness.ps1)
-if ($LASTEXITCODE -ne 0 -or $nativeChanges.Count -ne 0) { throw 'Native sources and reviewed harness must be committed and clean.' }
+. (Join-Path $repo 'desktop/scripts/recovery-source-integrity.ps1')
+$integrityArtifacts = Split-Path -Parent $SourceSnapshotPath
+Assert-ZentraRecoverySourceSnapshot $repo $ExpectedSource $SourceSnapshotPath $ExpectedSnapshotSha256 $integrityArtifacts 'before-recovery-harness'
 $version = (Get-Content -LiteralPath (Join-Path $repo 'desktop/package.json') -Raw | ConvertFrom-Json).version
 if ($version -cne '1.90.13') { throw 'This candidate is scoped to version 1.90.13.' }
 $artifacts = Join-Path $repo 'desktop/artifacts/recovery-route-witness'
@@ -38,6 +41,7 @@ $proof = [ordered]@{
   networkRequired=$false; liveHttpsExecuted=$false; physicalPowerLossVerified=$false;
   publishesInstaller=$false; publishesRelease=$false; installsApplication=$false;
   includeCrashCandidate=[bool]$IncludeCrashCandidate; startedAt=[DateTimeOffset]::UtcNow.ToString('o')
+  sourceSnapshotSha256=$ExpectedSnapshotSha256; sourceIntegrityEvidence=$integrityArtifacts
 }
 try {
   $env:TEMP=$scratch
@@ -80,7 +84,15 @@ try {
   $proof.error=[string]$_
   throw
 } finally {
-  $proof.completedAt=[DateTimeOffset]::UtcNow.ToString('o')
-  [IO.File]::WriteAllText((Join-Path $artifacts 'native-recovery-witness.json'), ($proof | ConvertTo-Json -Depth 10), [Text.UTF8Encoding]::new($false))
-  foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
+  try {
+    Assert-ZentraRecoverySourceSnapshot $repo $ExpectedSource $SourceSnapshotPath $ExpectedSnapshotSha256 $integrityArtifacts 'after-recovery-harness'
+  } catch {
+    $proof.status='failed-or-blocked'
+    $proof.error=[string]$_
+    throw
+  } finally {
+    $proof.completedAt=[DateTimeOffset]::UtcNow.ToString('o')
+    [IO.File]::WriteAllText((Join-Path $artifacts 'native-recovery-witness.json'), ($proof | ConvertTo-Json -Depth 10), [Text.UTF8Encoding]::new($false))
+    foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
+  }
 }

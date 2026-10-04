@@ -503,9 +503,17 @@ $expectedRecoveryJob = @'
           command: |
             $ErrorActionPreference = 'Stop'
             $taskRepo = (Get-Location).Path
-            & ./desktop/scripts/cloud-release-windows.ps1
-            Set-Location -LiteralPath $taskRepo
-            & ./desktop/scripts/verify-native-recovery.ps1 -Repository $taskRepo -ExpectedSource $env:CIRCLE_SHA1 -IncludeCrashCandidate
+            . ./desktop/scripts/recovery-source-integrity.ps1
+            Assert-ZentraRecoverySourceCi $env:CIRCLE_SHA1
+            $integrityArtifacts = Join-Path $taskRepo 'desktop/artifacts/recovery-source-integrity'
+            $sourceSnapshot = New-ZentraRecoverySourceSnapshot $taskRepo $env:CIRCLE_SHA1 $integrityArtifacts
+            try {
+              & ./desktop/scripts/cloud-release-windows.ps1
+            } finally {
+              Set-Location -LiteralPath $taskRepo
+              Assert-ZentraRecoverySourceSnapshot $taskRepo $env:CIRCLE_SHA1 $sourceSnapshot.path $sourceSnapshot.sha256 $integrityArtifacts 'after-cloud-build'
+            }
+            & ./desktop/scripts/verify-native-recovery.ps1 -Repository $taskRepo -ExpectedSource $env:CIRCLE_SHA1 -SourceSnapshotPath $sourceSnapshot.path -ExpectedSnapshotSha256 $sourceSnapshot.sha256 -IncludeCrashCandidate
           no_output_timeout: 25m
       - store_artifacts:
           path: desktop/artifacts/windows
@@ -513,6 +521,9 @@ $expectedRecoveryJob = @'
       - store_artifacts:
           path: desktop/artifacts/recovery-route-witness
           destination: recovery-crash-validation
+      - store_artifacts:
+          path: desktop/artifacts/recovery-source-integrity
+          destination: recovery-source-integrity
 '@
 Assert-Contract ($recoveryJob.Success -and (Normalize-ContractText $recoveryJob.Value) -ceq (Normalize-ContractText $expectedRecoveryJob)) 'recovery job has only the fixed archive recipe then exact-source reviewed witness, unchanged machine, guards, artifacts and timeout'
 $expectedRecoveryWorkflow = @'
