@@ -57,7 +57,7 @@ Assert-Contract ($statements[3] -eq $selection) 'selection precedes repository/t
 # execution of extracted PowerShell or a second implementation of the guard.
 $unknownGuard = $statements[4]
 $expectedUnknownGuard = @'
-if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll', 'benchmark-payment', 'benchmark-public-payment')) {
+if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll', 'benchmark-payment', 'benchmark-public-payment', 'native-archive-continuity')) {
     throw 'Unknown diagnostics native verification set.'
 }
 '@
@@ -213,7 +213,7 @@ $parameter = [regex]::Match($circleText, '(?m)^  diagnostics-native-set:\r?\n   
 Assert-Contract ($parameter.Success -and [regex]::Matches($circleText, '(?m)^  diagnostics-native-set:').Count -eq 1) 'pipeline enum admits full or three explicit allowlisted opt-ins and defaults full'
 $job = [regex]::Match($circleText, '(?ms)^  windows-drafts-diagnostics-tests:\r?\n.*?(?=^  [^ ].*:\r?\n|^workflows:\r?\n|\z)')
 Assert-Contract ($job.Success -and $job.Value.Contains('ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"') -and $job.Value.Contains('ZENTRA_VERIFY_ONLY: "true"')) 'only diagnostic job supplies both hardcoded guards'
-Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq 1 -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 3) 'selector is not transmitted to release or installer jobs'
+Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq 2 -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 3) 'only historical diagnostic job forwards the selector; a second fixed verification job cannot forward arbitrary filters to release or installer jobs'
 $expectedFunctionalWorkflow = @'
   drafts-errors-diagnostics-verification:
     when:
@@ -373,8 +373,103 @@ $phaseProofWrite = @'
 '@
 Assert-Contract ($releaseText.Contains($phaseProofWrite.Trim()) -and $phaseProofFile.Extent.StartOffset -gt $functionalProofAssignment.Extent.EndOffset) 'terminal phase proof is written only after all selected stages and completion flags'
 Assert-Contract ($job.Value.Contains("enum: [all, native, frontend]") -and $job.Value.Contains('default: all') -and $job.Value.Contains('ZENTRA_DIAGNOSTICS_PHASE: << parameters.diagnostics-phase >>')) 'job uses a closed phase enum with all default'
-Assert-Contract ([regex]::Matches($circleText,'ZENTRA_DIAGNOSTICS_PHASE:').Count -eq 1 -and [regex]::Matches($circleText,'parameters\.diagnostics-phase').Count -eq 1) 'phase is not forwarded to packaging or release jobs'
+Assert-Contract ([regex]::Matches($circleText,'ZENTRA_DIAGNOSTICS_PHASE:').Count -eq 2 -and [regex]::Matches($circleText,'parameters\.diagnostics-phase').Count -eq 1) 'only historical diagnostic job forwards phase; second fixed job remains all without phase input to packaging or release jobs'
 Assert-Contract ($job.Value.Contains('resource_class: windows.medium') -and $job.Value.Contains('image: windows-server-2022-gui:2026.05.1') -and $job.Value.Contains('no_output_timeout: 20m')) 'same resource class, image and output timeout budgets'
 Assert-Contract (-not $expectedFunctionalWorkflow.Contains('requires:') -and -not $expectedTargetedWorkflow.Contains('diagnostics-phase:')) 'functional instances run independently; targeted job uses unchanged default all'
+
+# The bounded continuity recipe is a separate opt-in, never a shortened full run.
+$archiveBranches = @($releaseAst.FindAll({
+    param($node)
+    $node -is [System.Management.Automation.Language.IfStatementAst] -and
+    (Normalize-ContractText $node.Clauses[0].Item1.Extent.Text) -ceq "`$diagnosticSelection -ceq 'native-archive-continuity'"
+}, $true))
+Assert-Contract ($archiveBranches.Count -eq 1) 'one case-sensitive archive continuity branch'
+$archiveBranch = $archiveBranches[0]
+$archiveBody = $archiveBranch.Clauses[0].Item2
+$archiveStatements = @($archiveBody.Statements)
+Assert-Contract ($archiveBranch.Clauses.Count -eq 1 -and $null -eq $archiveBranch.ElseClause) 'archive continuity cannot fall back to another selection'
+Assert-Contract ($archiveStatements.Count -eq 5) 'archive branch contains exactly fixed filters, verified loop, proof, proof write and return'
+$archiveFilters = Find-Assignment $archiveBody 'archiveContinuityFilters'
+$expectedArchiveFilters = @'
+$archiveContinuityFilters = @(
+    'company_collaboration::reference_worker_tests',
+    'company_collaboration::content_version_compat_tests',
+    'company_collaboration::merge_version_compat_tests',
+    'cloud_backup::tests'
+)
+'@
+Assert-Contract ((Normalize-ContractText $archiveFilters.Extent.Text) -ceq (Normalize-ContractText $expectedArchiveFilters)) 'four fixed archive filters in exact order; no pipeline-supplied filter or flags'
+$expectedArchiveLoop = @'
+foreach ($suite in $archiveContinuityFilters) {
+    Invoke-ZentraVerificationSuite $diagnosticHarness $suite
+}
+'@
+Assert-Contract ((Normalize-ContractText $archiveStatements[1].Extent.Text) -ceq (Normalize-ContractText $expectedArchiveLoop)) 'archive recipe uses original verified dispatch and default serial test arguments'
+Assert-Contract ($harnessInit.Extent.EndOffset -lt $archiveBranch.Extent.StartOffset -and $archiveBranch.Extent.EndOffset -lt $fullSuites.Extent.StartOffset) 'archive recipe receives exact-source prepared harness and returns before full selection'
+$archiveCommands = @($archiveBody.FindAll({param($node) $node -is [System.Management.Automation.Language.CommandAst]}, $true))
+Assert-Contract (@($archiveCommands | Where-Object {$_.GetCommandName() -cnotin @('Invoke-ZentraVerificationSuite','Join-Path','ConvertTo-Json')}).Count -eq 0) 'archive branch cannot invoke Cargo again, frontend, benchmark, packaging or arbitrary commands'
+$archiveProofAssignment = Find-Assignment $archiveBody 'archiveContinuityProof'
+$archiveProofTables = @($archiveProofAssignment.FindAll({param($node) $node -is [System.Management.Automation.Language.HashtableAst]}, $true))
+Assert-Contract ($archiveProofTables.Count -eq 1) 'archive recipe has one honest terminal proof'
+$archiveProof = $archiveProofTables[0]
+foreach ($entry in @(
+    @{Name='source'; Value='$diagnosticSource'},
+    @{Name='circleSource'; Value='$env:CIRCLE_SHA1'},
+    @{Name='selection'; Value='$diagnosticSelection'},
+    @{Name='verificationOnly'; Value='$true'},
+    @{Name='nativeFilters'; Value='$archiveContinuityFilters'},
+    @{Name='suiteExecutions'; Value='$diagnosticHarness.Proof.suiteExecutions'},
+    @{Name='nativeHarnessProof'; Value="'windows-test-harness-proof.json'"},
+    @{Name='nativeProfile'; Value="'release'"},
+    @{Name='nativeExecution'; Value="'compiled-library-harness'"},
+    @{Name='selectedNativeSuitesPassed'; Value='$true'}
+)) { Assert-Contract ((Read-StaticHashEntry $archiveProof $entry.Name) -ceq $entry.Value) "archive proof retains $($entry.Name)" }
+foreach ($name in @('fullFunctionalExecuted','frontendExecuted','mobileExecuted','frontendBuildExecuted','benchmarksExecuted','publishesInstaller','publishesRelease','installsApplication')) {
+    Assert-Contract ((Read-StaticHashEntry $archiveProof $name) -ceq '$false') "archive proof cannot claim $name"
+}
+Assert-Contract (@($archiveProof.KeyValuePairs | Where-Object {$_.Item1.Value -cin @('allCheckedSuitesPassed','frontendBuildPassed','paymentBenchmarkPassed','publicPaymentBenchmarkPassed')}).Count -eq 0) 'archive proof cannot masquerade as full or benchmark validation'
+$expectedArchiveProofWrite = @'
+[IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-native-archive-continuity-proof.json'), ($archiveContinuityProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+'@
+Assert-Contract ((Normalize-ContractText $archiveStatements[3].Extent.Text) -ceq (Normalize-ContractText $expectedArchiveProofWrite)) 'distinct archive proof written only after four suites successfully return'
+Assert-Contract ($archiveStatements[4] -is [System.Management.Automation.Language.ReturnStatementAst] -and $null -eq $archiveStatements[4].Pipeline) 'archive recipe unconditionally returns before the full path or installation'
+$archiveJob = [regex]::Match($circleText, '(?ms)^  windows-archive-continuity-tests:\r?\n.*?(?=^  [^ ].*:\r?\n|^workflows:\r?\n|\z)')
+$expectedArchiveJob = @'
+  windows-archive-continuity-tests:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"
+      ZENTRA_VERIFY_ONLY: "true"
+      ZENTRA_DIAGNOSTICS_NATIVE_SET: native-archive-continuity
+      ZENTRA_DIAGNOSTICS_PHASE: all
+    steps:
+      - checkout
+      - run:
+          name: Verify only reference workers, archive compatibility and backup locally
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/cloud-release-windows.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: archive-continuity-validation
+'@
+Assert-Contract ($archiveJob.Success -and [regex]::Matches($circleText,'(?m)^  windows-archive-continuity-tests:').Count -eq 1) 'one dedicated archive verification-only job'
+Assert-Contract ((Normalize-ContractText $archiveJob.Value) -ceq (Normalize-ContractText $expectedArchiveJob)) 'dedicated job hardcodes same resource, toolchain, image, phase, guards and output timeout; no parameterized execution or release step'
+$expectedArchiveWorkflow = @'
+  quality-continuity-targeted-verification:
+    when:
+      and:
+        - equal: [codex/quality-continuity-targeted-20261004, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-archive-continuity-tests
+'@
+Assert-Contract ((Normalize-ContractText $circleText).Contains((Normalize-ContractText $expectedArchiveWorkflow))) 'archive workflow requires the exact opt-in branch and non-release mode'
+Assert-Contract ([regex]::Matches($circleText,'(?m)^  quality-continuity-targeted-verification:').Count -eq 1 -and [regex]::Matches($circleText,'(?m)^      - windows-archive-continuity-tests\r?$').Count -eq 1) 'dedicated job appears only once in its opt-in workflow'
+Assert-Contract (-not $archiveJob.Value.Contains('pipeline.parameters.diagnostics-native-set') -and -not $archiveJob.Value.Contains('parameters.diagnostics-phase')) 'archive job cannot receive pipeline filter, flags or phase overrides'
 
 Write-Output "Diagnostics native selection: $script:contractsPassed static contracts passed; no release script, native executable or child process executed."

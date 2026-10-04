@@ -58,6 +58,27 @@ jobs:
       - store_artifacts:
           path: desktop/artifacts/windows
           destination: diagnostics-validation
+  windows-archive-continuity-tests:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"
+      ZENTRA_VERIFY_ONLY: "true"
+      ZENTRA_DIAGNOSTICS_NATIVE_SET: native-archive-continuity
+      ZENTRA_DIAGNOSTICS_PHASE: all
+    steps:
+      - checkout
+      - run:
+          name: Verify only reference workers, archive compatibility and backup locally
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/cloud-release-windows.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: archive-continuity-validation
   windows-package-volume-1909:
     resource_class: windows.medium
     machine:
@@ -489,6 +510,13 @@ jobs:
           destination: apple
 
 workflows:
+  quality-continuity-targeted-verification:
+    when:
+      and:
+        - equal: [codex/quality-continuity-targeted-20261004, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-archive-continuity-tests
   quality-continuity-verification:
     when:
       and:

@@ -8,7 +8,7 @@ $diagnosticSelection = if ([string]::IsNullOrEmpty($env:ZENTRA_DIAGNOSTICS_NATIV
 } else {
     $env:ZENTRA_DIAGNOSTICS_NATIVE_SET
 }
-if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll', 'benchmark-payment', 'benchmark-public-payment')) {
+if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll', 'benchmark-payment', 'benchmark-public-payment', 'native-archive-continuity')) {
     throw 'Unknown diagnostics native verification set.'
 }
 if ($diagnosticSelection -cne 'full' -and
@@ -110,6 +110,36 @@ try {
             . (Join-Path $PSScriptRoot 'windows-verification-harness.ps1')
             & (Join-Path $PSScriptRoot 'windows-verification-harness.contract-tests.ps1') -NativeNodePath (Join-Path $nodeRoot 'node.exe')
             $diagnosticHarness = Initialize-ZentraVerificationHarness $repo $artifacts $diagnosticSource
+        }
+        if ($diagnosticSelection -ceq 'native-archive-continuity') {
+            $archiveContinuityFilters = @(
+                'company_collaboration::reference_worker_tests',
+                'company_collaboration::content_version_compat_tests',
+                'company_collaboration::merge_version_compat_tests',
+                'cloud_backup::tests'
+            )
+            foreach ($suite in $archiveContinuityFilters) {
+                Invoke-ZentraVerificationSuite $diagnosticHarness $suite
+            }
+            $archiveContinuityProof = [ordered]@{
+                source = $diagnosticSource; circleSource = $env:CIRCLE_SHA1
+                selection = $diagnosticSelection; verificationOnly = $true
+                target = 'x86_64-pc-windows-msvc'; nativeProfile = 'release'
+                data = 'synthetic'; nativeExecution = 'compiled-library-harness'
+                nativeFilters = $archiveContinuityFilters
+                suiteExecutions = $diagnosticHarness.Proof.suiteExecutions
+                nativeHarnessProof = 'windows-test-harness-proof.json'
+                testOnlyManifestTransformation = $diagnosticHarness.Proof.testOnlyManifestTransformation
+                loaderHypothesisConfirmed = $diagnosticHarness.Proof.loaderHypothesisConfirmed
+                harnessManifestRepairValidated = $diagnosticHarness.Proof.harnessManifestRepairValidated
+                selectedNativeSuitesPassed = $true; fullFunctionalExecuted = $false
+                frontendExecuted = $false; mobileExecuted = $false
+                frontendBuildExecuted = $false; benchmarksExecuted = $false
+                publishesInstaller = $false; publishesRelease = $false; installsApplication = $false
+                startedAt = $diagnosticStartedAt; completedAt = [DateTimeOffset]::UtcNow.ToString('o')
+            }
+            [IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-native-archive-continuity-proof.json'), ($archiveContinuityProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+            return
         }
         if ($diagnosticSelection -ceq 'native-mail-payroll') {
             $targetedFilters = @(
