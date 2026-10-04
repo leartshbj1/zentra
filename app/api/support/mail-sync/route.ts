@@ -2,7 +2,7 @@ import { requireMailScheduler } from '@/lib/support/mail-sync';
 import { runMailSyncBatch } from '@/lib/support/mail-sync-batch';
 import { supportError, supportJson } from '@/lib/support/service';
 import { runDueWorkflows } from '@/lib/automation/workflows';
-import { reportSchedulerCycle } from '@/lib/service-diagnostics';
+import { reportSchedulerCycle, createSchedulerProgress } from '@/lib/service-diagnostics';
 import {startSchedulerHeartbeat,finishSchedulerHeartbeat,readSchedulerHealth} from '@/lib/scheduler-health';
 export const dynamic = 'force-dynamic';
 // A read-only endpoint for an independent uptime monitor. Never wakes the worker.
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     authorized=true;
     heartbeat=await startSchedulerHeartbeat(startedAt);
     const result=await runMailSyncBatch(request);
-    const workflows=await runDueWorkflows();
+    const workflows=await createSchedulerProgress()('workflows', () => runDueWorkflows());
     const failed=Boolean(result.failed || workflows.failed || workflows.interrupted);
     const idle=result.idle && workflows.checked===0 && !workflows.more && !failed;
     const outcome=failed?'failed':result.incomplete||result.paused||result.syncing||result.more||workflows.more?'partial':idle?'idle':'completed';

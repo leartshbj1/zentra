@@ -67,6 +67,7 @@ beforeEach(async () => {
   vi.resetAllMocks(); time = TIME * 1000;
   vi.spyOn(Date, 'now').mockImplementation(() => time);
   vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'info').mockImplementation(() => {});
   sql = new DatabaseSync(':memory:'); sql.exec('PRAGMA foreign_keys=ON');
   for (const file of readdirSync(new URL('../../drizzle/', import.meta.url)).filter(name => name.endsWith('.sql')).sort())
     sql.exec(readFileSync(new URL('../../drizzle/' + file, import.meta.url), 'utf8'));
@@ -107,6 +108,35 @@ beforeEach(async () => {
   vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('No external calls are allowed'); }));
 });
 afterEach(() => { sql.close(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it.each(['prepare','capture','classify'] as const)('keeps a visible %s begin boundary while its admitted work remains blocked',async phase=>{
+  attachment=true;newest=historical={messages:refs('3'),count:1};
+  if(phase==='capture')mocks.needed.mockResolvedValue(true);
+  const operation=phase==='classify'?mocks.process:mocks[phase],original=operation.getMockImplementation()!;
+  let release!:()=>void;let reached=false;
+  operation.mockImplementationOnce(async(...args:unknown[])=>{reached=true;await new Promise<void>(resolve=>{release=resolve;});advance(27);return original(...args);});
+  const run=runMailSync(request(),admitted());
+  await vi.waitFor(()=>expect(reached).toBe(true));
+  const logger=vi.mocked(console.info),progress=()=>logger.mock.calls.filter(([name,entry])=>name==='zentra_scheduler_progress'&&entry.phase==='mail.'+phase);
+  const before=progress().slice(),closedBefore=mocks.close.mock.calls.length;
+  release();const result=await run;expect(result).toMatchObject({imported:1,processed:1});expect(result.failed).toBeUndefined();
+  expect(before).toHaveLength(1);expect(before[0][1]).toMatchObject({boundary:'begin',mailTransport:'imap'});expect(closedBefore).toBe(0);
+  expect(progress()).toHaveLength(2);expect(progress()[1][1]).toMatchObject({boundary:'end',wallDurationMs:27});
+  expect(progress()[1][1].reference).toBe(progress()[0][1].reference);
+  expect(mailbox()).toMatchObject({scan_offset:0,lease:null,lease_until:0});expect(mocks.close).toHaveBeenCalledOnce();
+  expect(JSON.stringify(logger.mock.calls)).not.toMatch(/supplier@example|fixture@example|closed-fixture|admission-workspace|admission-mailbox|ticket-3|fixture.pdf/);
+});
+
+it('reports capture failure without changing its recoverable receipt path or losing ingestion and classification',async()=>{
+  attachment=true;newest=historical={messages:refs('3'),count:1};mocks.needed.mockResolvedValue(true);
+  const error=new SupportError('private-token private@example.test',503);mocks.capture.mockRejectedValue(error);
+  expect(await runMailSync(request(),admitted())).toMatchObject({imported:1,processed:1,incomplete:true});
+  expect(sql.prepare('SELECT state FROM support_tickets').get()).toMatchObject({state:'review'});
+  expect(mailbox()).toMatchObject({lease:null,lease_until:0,last_error:error.message});
+  const progress=vi.mocked(console.info).mock.calls.filter(([name,entry])=>name==='zentra_scheduler_progress'&&entry.phase==='mail.capture');
+  expect(progress.map(([,entry])=>entry.boundary)).toEqual(['begin','failed']);
+  expect(JSON.stringify(progress)).not.toMatch(/private|token|admission|fixture/);
+});
 
 it.each(['read', 'prepare', 'capture'] as const)('finishes one slow %s unit and admits no second mail after the budget', async stage => {
   if (stage === 'read') readCost = 25_000;

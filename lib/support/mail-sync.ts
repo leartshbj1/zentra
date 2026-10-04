@@ -1,6 +1,6 @@
 import { supportAutomationState } from '@/lib/automation/execution';
 import { database, runtimeValue } from '@/lib/runtime';
-import { reportServiceFailure, markMailSyncFailure, mailSyncFailureStage, mailSyncFailureTransport, type MailSyncFailureStage, type MailSyncTransport } from '@/lib/service-diagnostics';
+import { reportServiceFailure, createSchedulerProgress, markMailSyncFailure, mailSyncFailureStage, mailSyncFailureTransport, type MailSyncFailureStage, type MailSyncTransport } from '@/lib/service-diagnostics';
 import { encryptSecret, decryptSecret, digest, equalHash } from './crypto';
 import {
   verifyMailbox,
@@ -197,6 +197,7 @@ async function syncClaimedMailbox(
   control: MailSyncControl = {},
 ) {
   const db = database(), lease = mailbox.lease!;
+  const trackPhase = createSchedulerProgress();
   let stage: MailSyncFailureStage = 'subscription';
   let transport: MailSyncTransport | undefined;
   const admissionExpired = () => control.deadline !== undefined && Date.now() >= control.deadline;
@@ -289,7 +290,7 @@ async function syncClaimedMailbox(
         .first<{ active: number }>();
       if (!active?.active)
         throw new SupportError('La boîte a été déconnectée.');
-      let source;
+      let source: SourceTicket;
       stage = 'read';
       try { source = imap ? await imap.read(ref) : await readMail(
         token,
@@ -307,13 +308,13 @@ async function syncClaimedMailbox(
       }
       const readAttachment = imap?.attachment ?? ((id: string) => readMailAttachment(token, mailbox.mailbox_id, mailbox.folder_id, ref.uid, id));
       stage = 'prepare';
-      const prepared = !duplicate ? await prepareMailDocuments(source, readAttachment) : null;
+      const prepared = !duplicate ? await trackPhase('mail.prepare', () => prepareMailDocuments(source, readAttachment), transport) : null;
       if (prepared) source = prepared.source;
       await checkpoint();
       if(capture && captured<3) {
         if(source.mail?.attachments.length)captured++;
         stage = 'capture';
-        try {await captureMailboxInvoices({workspace,connectionId:connection.id,source,token,mailboxId:mailbox.mailbox_id,folderId:mailbox.folder_id,uid:ref.uid,readAttachment,documents:prepared?.documents});}
+        try {await trackPhase('mail.capture', () => captureMailboxInvoices({workspace,connectionId:connection.id,source,token,mailboxId:mailbox.mailbox_id,folderId:mailbox.folder_id,uid:ref.uid,readAttachment,documents:prepared?.documents}), transport);}
         catch(error){reportServiceFailure(markMailSyncFailure(error,'capture',transport),{operation:'support.mailbox.capture',mailTransport:transport});captureError=error instanceof SupportError?error.message:'Certains justificatifs n’ont pas pu être importés dans Gestion. La réception réessaiera ; les tickets Support continuent d’être traités. Pour un document de plus de 6 Mo ou un mail de plus de 12 pièces, utilisez l’import manuel de Gestion.';}
       }
       await checkpoint();
@@ -346,24 +347,27 @@ async function syncClaimedMailbox(
     if (!progress.meta.changes) throw new MailSyncDeferred('lease');
     await checkpoint();
     stage = 'classify';
-    const canAnalyze = (await supportAutomationState(workspace.id)).enabled;
-    const pending = canAnalyze ? await db
-      .prepare(
-        "SELECT id FROM support_tickets WHERE connection_id=? AND (state='pending' OR (state='processing' AND lease_until<=?) OR (state='error' AND attempts<3 AND updated_at<?)) ORDER BY created_at,id LIMIT 5",
-      )
-      .bind(connection.id, now(), now() - 300)
-      .all<Pick<Ticket, 'id'>>() : {results:[]};
-    for (const ticket of pending.results) {
-      await checkpoint();
-      if (processed > 0 && admissionExpired()) { budgetDeferred = true; more = true; break; }
-      await processTicket(
-        ticket.id,
-        workspace,
-        connection,
-        'Synchronisation mail',
-      );
-      processed++;
-    }
+    const pending = await trackPhase('mail.classify', async () => {
+      const canAnalyze = (await supportAutomationState(workspace.id)).enabled;
+      const pending = canAnalyze ? await db
+        .prepare(
+          "SELECT id FROM support_tickets WHERE connection_id=? AND (state='pending' OR (state='processing' AND lease_until<=?) OR (state='error' AND attempts<3 AND updated_at<?)) ORDER BY created_at,id LIMIT 5",
+        )
+        .bind(connection.id, now(), now() - 300)
+        .all<Pick<Ticket, 'id'>>() : {results:[]};
+      for (const ticket of pending.results) {
+        await checkpoint();
+        if (processed > 0 && admissionExpired()) { budgetDeferred = true; more = true; break; }
+        await processTicket(
+          ticket.id,
+          workspace,
+          connection,
+          'Synchronisation mail',
+        );
+        processed++;
+      }
+      return pending;
+    }, transport);
     await checkpoint();
     stage = 'finalize';
     const completed = await db

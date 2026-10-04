@@ -42,6 +42,52 @@ export type ServiceDiagnosticContext = {
   mailTransport?: MailSyncTransport;
 };
 
+export const SCHEDULER_PROGRESS_PHASES = ['mail.prepare', 'mail.capture', 'mail.classify', 'workflows'] as const;
+export type SchedulerProgressPhase = typeof SCHEDULER_PROGRESS_PHASES[number];
+
+/** Per-operation trace generated here, never from a tenant, mailbox or ticket.
+ * Wall duration includes I/O; CPU, memory and provider cost are not inferred.
+ * Begin is emitted before awaited work so a hard runtime stop can leave a
+ * useful boundary. Telemetry failure must never change the operation itself. */
+export function createSchedulerProgress() {
+  let reference: string | undefined;
+  try {
+    const generated = crypto.randomUUID();
+    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(generated)) reference = generated;
+  } catch { /* Diagnostic setup cannot prevent useful work. */ }
+  let sequence = 0;
+  const time = () => {
+    try {
+      const value = Date.now();
+      return Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+    } catch { return undefined; }
+  };
+  const report = (phase: SchedulerProgressPhase, boundary: 'begin' | 'end' | 'failed', unit: number, startedAt: number | undefined, transport?: MailSyncTransport) => {
+    if (!reference || !SCHEDULER_PROGRESS_PHASES.includes(phase)) return;
+    const elapsed = boundary === 'begin' || startedAt === undefined ? undefined : (time() ?? NaN) - startedAt;
+    try {
+      console.info('zentra_scheduler_progress', {
+        job: 'support.mail', reference, phase, boundary, sequence: unit,
+        ...(transport === 'api' || transport === 'imap' ? {mailTransport: transport} : {}),
+        ...(startedAt === undefined ? {} : {startedAtMs: startedAt}),
+        ...(Number.isSafeInteger(elapsed) && elapsed! >= 0 ? {wallDurationMs: elapsed} : {}),
+      });
+    } catch { /* Do not mask an operation's result or exception. */ }
+  };
+  return async <T>(phase: SchedulerProgressPhase, work: () => Promise<T>, transport?: MailSyncTransport): Promise<T> => {
+    const startedAt = time(), unit = ++sequence;
+    report(phase, 'begin', unit, startedAt, transport);
+    try {
+      const result = await work();
+      report(phase, 'end', unit, startedAt, transport);
+      return result;
+    } catch (error) {
+      report(phase, 'failed', unit, startedAt, transport);
+      throw error;
+    }
+  };
+}
+
 /** Only structural identifiers belong in logs. Never serialize an exception,
  * request headers, URL query, database values or upstream response body. */
 export function reportServiceFailure(error: unknown, context: ServiceDiagnosticContext): string | undefined {

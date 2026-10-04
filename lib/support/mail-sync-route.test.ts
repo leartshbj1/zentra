@@ -1,4 +1,4 @@
-import {beforeEach,expect,it,vi} from 'vitest';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {SupportError} from './types';
 const mocks=vi.hoisted(()=>({mail:vi.fn(),authorize:vi.fn(),workflows:vi.fn(),cycle:vi.fn(),start:vi.fn(),finish:vi.fn(),health:vi.fn()}));
 vi.mock('@/lib/runtime',()=>({database:()=>{throw new Error('No database expected in route test');},runtimeValue:()=>''}));
@@ -7,10 +7,21 @@ vi.mock('./mail-sync',()=>({requireMailScheduler:mocks.authorize}));
 vi.mock('./mail-sync-batch',()=>({runMailSyncBatch:mocks.mail}));
 vi.mock('@/lib/scheduler-health',()=>({startSchedulerHeartbeat:mocks.start,finishSchedulerHeartbeat:mocks.finish,readSchedulerHealth:mocks.health}));
 vi.mock('@/lib/automation/workflows',()=>({runDueWorkflows:mocks.workflows}));
-vi.mock('@/lib/service-diagnostics',()=>({reportSchedulerCycle:mocks.cycle,reportServiceFailure:()=>undefined}));
+vi.mock('@/lib/service-diagnostics',async original=>({...await original<typeof import('@/lib/service-diagnostics')>(),reportSchedulerCycle:mocks.cycle,reportServiceFailure:()=>undefined}));
 import {POST,GET} from '@/app/api/support/mail-sync/route';
 const request=()=>new Request('https://zentraapp.ch/api/support/mail-sync',{method:'POST'});
-beforeEach(()=>{vi.resetAllMocks();mocks.authorize.mockResolvedValue(undefined);mocks.start.mockResolvedValue('run-fixture');mocks.workflows.mockResolvedValue({checked:0,failed:0,interrupted:0,more:false});});
+beforeEach(()=>{vi.resetAllMocks();vi.spyOn(console,'info').mockImplementation(()=>{});mocks.authorize.mockResolvedValue(undefined);mocks.start.mockResolvedValue('run-fixture');mocks.workflows.mockResolvedValue({checked:0,failed:0,interrupted:0,more:false});});
+afterEach(()=>vi.restoreAllMocks());
+it('leaves a workflow begin boundary before blocked work, without finishing its heartbeat prematurely',async()=>{
+  mocks.mail.mockResolvedValue({idle:true});let release!:()=>void;
+  mocks.workflows.mockImplementationOnce(async()=>{await new Promise<void>(resolve=>{release=resolve;});return {checked:1,failed:0,interrupted:0,more:false};});
+  const run=POST(request());await vi.waitFor(()=>expect(mocks.workflows).toHaveBeenCalledOnce());
+  const before=vi.mocked(console.info).mock.calls.slice(),finishedBefore=mocks.finish.mock.calls.length;release();
+  expect(await (await run).json()).toMatchObject({idle:false,failed:false,workflows:{checked:1}});
+  expect(before).toHaveLength(1);expect(before[0][1]).toMatchObject({phase:'workflows',boundary:'begin'});expect(finishedBefore).toBe(0);
+  expect(vi.mocked(console.info).mock.calls.map(([,entry])=>entry.boundary)).toEqual(['begin','end']);
+  expect(mocks.finish).toHaveBeenCalledWith('run-fixture','completed',undefined);
+});
 it('never processes or reports a successful heartbeat after refused scheduler authentication',async()=>{
   mocks.authorize.mockRejectedValue(new SupportError('Accès refusé.',401));
   const response=await POST(request());
