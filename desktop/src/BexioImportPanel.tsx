@@ -7,7 +7,10 @@ import {
   catalogMappingSource,
   type CatalogMappingSource,
 } from './catalogImport';
-import { CatalogImportWizard } from './CatalogImportWizard';
+import { deferView } from './DeferredView';
+const CatalogImportWizard = deferView(() => import('./CatalogImportWizard').then(module => ({ default: module.CatalogImportWizard })), {
+  label: { fr: 'Ouverture du catalogue…', de: 'Katalog wird geöffnet…', it: 'Apertura del catalogo…', en: 'Opening the catalogue…' }, diagnosticName: 'CatalogImportWizard', close: props => props.close,
+});
 import {
   contactFields,
   contactHeaderIndex,

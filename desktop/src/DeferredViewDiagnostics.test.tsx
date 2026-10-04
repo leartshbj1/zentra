@@ -62,7 +62,7 @@ describe('deferred screen read diagnostics', () => {
     expect(first).toBeDefined(); expect(first!.props.operation).toBe('read'); expect(first!.props.error).toBeUndefined(); expect(first!.props.incidentCode).toMatch(/^ZT-/);
     expect(elements(render(View, target)).find(element => element.type === ErrorGuidance)!.props.incidentCode).toBe(first!.props.incidentCode);
   });
-  it.each(['ClientForm', 'StyledDocumentPreview'] as const)('identifies the fixed %s import without labels or props', async diagnosticName => {
+  it.each(['ClientForm', 'StyledDocumentPreview', 'CloudBackupPanel', 'CatalogImportWizard'] as const)('identifies the fixed %s import without labels or props', async diagnosticName => {
     const { deferView } = await import('./DeferredView'), target = instance();
     const View = deferView(vi.fn().mockRejectedValue(new Error('synthetic import failure')), { label: 'private-document alice@example.ch', diagnosticName });
     render(View, target, { password: 'private-secret' }); await settle();
@@ -75,5 +75,29 @@ describe('deferred screen read diagnostics', () => {
     const View = deferView(vi.fn().mockRejectedValue(new Error('synthetic import failure')), { label: 'optional', diagnosticName: 'private-secret' as never });
     render(View, target); await settle();
     expect((await import('./diagnostics')).recentDiagnosticEvents().map(event => event.operation)).toEqual(['view.import.optional', 'view.import.optional']);
+  });
+  it('changes a modal loading label with the current language without reimporting or losing its close handler', async () => {
+    const { deferView } = await import('./DeferredView'), target = instance(), held = pending<{ default: () => ReactElement }>();
+    const importer = vi.fn(() => held.promise), close = vi.fn();
+    const labels = {fr:'Ouverture du catalogue…',de:'Katalog wird geöffnet…',it:'Apertura del catalogo…',en:'Opening the catalogue…'};
+    const View = deferView(importer,{label:labels,diagnosticName:'CatalogImportWizard',close:()=>close});
+    for (const language of ['fr','de','it','en'] as const) {
+      host.language=language;
+      const tree=render(View,target) as ReactElement<any>;
+      expect(tree.props.title).toBe(labels[language]);expect(tree.props.onClose).toBe(close);
+      expect(elements(tree).find(element=>element.type==='section')!.props['aria-label']).toBe(labels[language]);
+      expect(renderToStaticMarkup(tree)).toContain(labels[language]);await settle();
+    }
+    expect(importer).toHaveBeenCalledOnce();held.reject(new Error('synthetic import failure'));await settle();
+    host.language='de';const failed=render(View,target) as ReactElement<any>;
+    expect(failed.props.title).toBe(labels.de);expect(failed.props.onClose).toBe(close);expect(close).not.toHaveBeenCalled();
+    expect((await import('./diagnostics')).recentDiagnosticEvents().map(event=>event.operation)).toEqual(['view.import.CatalogImportWizard','view.import.CatalogImportWizard']);
+    const resumed=pending<{default:()=>ReactElement}>();importer.mockImplementationOnce(()=>resumed.promise);
+    elements(failed).find(element=>element.type==='button')!.props.onClick();host.language='it';
+    const retrying=render(View,target) as ReactElement<any>;expect(retrying.props.title).toBe(labels.it);expect(retrying.props.onClose).toBe(close);
+    await settle();expect(importer).toHaveBeenCalledTimes(2);
+    const Screen=()=> <p>Catalogue prêt</p>;resumed.resolve({default:Screen});await settle();
+    expect((render(View,target) as ReactElement<any>).type).toBe(Screen);expect(close).not.toHaveBeenCalled();
+    expect((await import('./diagnostics')).recentDiagnosticEvents().map(event=>event.phase)).toEqual(['start','failure','start','success']);
   });
 });

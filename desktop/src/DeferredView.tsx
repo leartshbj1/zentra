@@ -14,7 +14,7 @@ const diagnosticNames = [
   'ClientForm', 'SupplierInvoiceDetail', 'SupplierInvoiceForm', 'SupplierPaymentForm', 'SalesOrdersScreen',
   'DeliveryNotePrintPreview', 'SalesOrderPrintPreview', 'ProjectPlanningPanel', 'ProjectFolder', 'ReportsScreen',
   'SalaryCertificates', 'DocumentDesignStudio', 'EmployeeDocumentImport', 'PayrollContributionsPanel',
-  'SwissPayrollRulesPanel', 'TimeBillingWizard',
+  'SwissPayrollRulesPanel', 'TimeBillingWizard', 'CloudBackupPanel', 'CatalogImportWizard',
 ] as const;
 export type DeferredViewDiagnosticName = typeof diagnosticNames[number];
 const copy: Record<AppLanguage, { title: string; retained: string; persistent: string; retry: string }> = {
@@ -27,14 +27,16 @@ const copy: Record<AppLanguage, { title: string; retained: string; persistent: s
 /** Defer optional screens without hiding the workspace or remounting a surrounding form. */
 export function deferView<C extends ComponentType<any>>(
   importView: () => Promise<{ default: C }>,
-  options: { label: string; diagnosticName?: DeferredViewDiagnosticName; close?: (props: NoInfer<ComponentProps<C>>) => () => void },
+  options: { label: string | Record<AppLanguage, string>; diagnosticName?: DeferredViewDiagnosticName; close?: (props: NoInfer<ComponentProps<C>>) => () => void },
 ): ComponentType<ComponentProps<C>> {
   type P = ComponentProps<C>;
   // A closed name identifies the screen without logging its label, URL or props.
   const name = diagnosticNames.includes(options.diagnosticName!) ? options.diagnosticName : 'optional';
   const loader = createModuleLoader(() => diagnosticOperation('navigation', `view.import.${name}`, importView));
   return function DeferredView(props: P) {
-    const labels = copy[useAppLanguage()];
+    const language = useAppLanguage();
+    const labels = copy[language];
+    const label = typeof options.label === 'string' ? options.label : options.label[language];
     const [module, setModule] = useState(() => loader.peek());
     const [failure, setFailure] = useState<{ reason: unknown; incidentCode: string } | null>(null);
     const [attempt, setAttempt] = useState(0);
@@ -52,13 +54,13 @@ export function deferView<C extends ComponentType<any>>(
       const Screen: ComponentType<P> = module.default;
       return <Screen {...props} />;
     }
-    const content = <section ref={statusRef} tabIndex={-1} className="deferred-view" role={failure ? undefined : 'status'} aria-label={options.label}>
+    const content = <section ref={statusRef} tabIndex={-1} className="deferred-view" role={failure ? undefined : 'status'} aria-label={label}>
       {!failure && <LoaderCircle className="spin" size={22} aria-hidden="true" />}
       <div>
         {failure ? <>
           <ErrorGuidance error={failure.reason} incidentCode={failure.incidentCode} title={labels.title} operation="read" compact />
           <p>{labels.retained}</p><p>{labels.persistent}</p>
-        </> : <strong>{options.label}</strong>}
+        </> : <strong>{label}</strong>}
       </div>
       {failure && <Button type="button" variant="secondary" onClick={() => {
         // The retry button disappears during loading; retain keyboard focus inside the dialog.
@@ -69,6 +71,6 @@ export function deferView<C extends ComponentType<any>>(
         <RefreshCw size={16} /> {labels.retry}
       </Button>}
     </section>;
-    return options.close ? <Modal title={options.label} onClose={options.close(props)}>{content}</Modal> : content;
+    return options.close ? <Modal title={label} onClose={options.close(props)}>{content}</Modal> : content;
   };
 }

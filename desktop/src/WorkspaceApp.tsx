@@ -70,7 +70,9 @@ import { quoteInterlocutor } from './quoteInterlocutor';
 import { useProjectSyncBackground } from './projectSync';
 import { CompanyReceivingGuard, CompanySyncIndicator, CompanyAccountShortcut, companyReceiveAllowed } from './companySync';
 import { useCloudBackupBackground } from './cloudBackup';
-import { CloudBackupPanel } from './CloudBackupPanel';
+const CloudBackupPanel = deferView(() => import('./CloudBackupPanel').then(module => ({ default: module.CloudBackupPanel })), {
+  label: { fr: 'Ouverture des sauvegardes…', de: 'Sicherungen werden geöffnet…', it: 'Apertura dei backup…', en: 'Opening backups…' }, diagnosticName: 'CloudBackupPanel',
+});
 
 import type { EmployeeDocumentDraft } from './employeeDocumentDraft';
 import { documentAppearance, documentStyleVariables } from './documentAppearance';
