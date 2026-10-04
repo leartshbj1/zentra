@@ -11,13 +11,23 @@ export async function transitionAccess(organizationId:string) {
   if(!row)return null;
   const source=JSON.parse(row.source_json) as ChangeSnapshot;
   if(source.live!==stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')))return null;
+  let automation=source.automation;
   for(const s of source.sources){
     const table=s.kind==='gestion'?'subscriptions':s.kind==='support'?'support_subscriptions':'automation_subscriptions';
     const until=s.kind==='gestion'?'entitlement_valid_until':'paid_until';
     const current=await database().prepare(`SELECT last_paid_invoice_id,status,${until} AS until FROM ${table} WHERE subscription_id=? AND customer_id=? AND livemode=?`).bind(s.id,s.customer,Number(source.live)).first<{last_paid_invoice_id:string;status:string;until:number}>();
     if(!current||current.last_paid_invoice_id!==s.invoice||current.until<=0||(s.id===source.primary&&current.status==='canceled'))return null;
+    if(s.kind==='automation' && await database().prepare('SELECT 1 FROM automation_refunds WHERE invoice_id=? AND customer_id=? AND livemode=?').bind(s.invoice,s.customer,Number(source.live)).first()) {
+      // The bridge may preserve other paid products, but a refunded add-on
+      // cannot fund Automation. A separately paid Complete period still can.
+      const bundled=source.sources.find(candidate=>candidate.kind==='gestion');
+      automation=source.automation && !!(bundled && await database().prepare(`SELECT 1 FROM complete_subscriptions c
+        WHERE c.subscription_id=? AND c.last_paid_invoice_id=? AND NOT EXISTS(
+          SELECT 1 FROM complete_refunds r WHERE r.invoice_id=c.last_paid_invoice_id AND r.customer_id=? AND r.livemode=?)`)
+        .bind(bundled.id,bundled.invoice,bundled.customer,Number(source.live)).first());
+    }
   }
-  return {...source,until:row.effective_at};
+  return {...source,automation,until:row.effective_at};
 }
 export async function transitionLicense(subscriptionId:string,userId:string|null|undefined){
   if(!userId)return null;

@@ -893,3 +893,52 @@ it('keeps the company and device activation when the paid source was Support',as
  expect(org()).toBe(company);expect(db.prepare('SELECT subscription_id FROM license_activations WHERE license_id=?').get('lic_existing')?.subscription_id).toBe(sub.id);
  expect((await pendingPlanChange(company))?.state).toBe('completed');expect((await teamSeats(company)).limit).toBe(10);expect((await billingState(workspace())).limit).toBe(15000);
 });
+
+it.each(['admin','accountant','member'])('shares the real Complete trial with an invited %s in its own company',async(role)=>{
+  const trial=await startAccountTrial(user,'PME essai',true);
+  const colleague='trial-colleague',email='trial-colleague@example.test';
+  db.prepare(`INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at)
+    VALUES('trial-colleague-membership',?,?,?,?,?)`).run(trial.organization_id,colleague,email,role,now());
+  const supportRows=db.prepare(SUPPORT_WORKSPACES_SQL).all(colleague,email,colleague,colleague);
+  expect(supportRows).toHaveLength(1);
+  expect(supportRows[0].id).toBe(workspace().id);
+  expect(supportRows[0].role).toBe(role==='admin'?'admin':'member');
+  const actor={organizationId:trial.organization_id,userId:colleague,role,founder:false};
+  expect(await automationEntitlement(actor)).toBe(true);
+  expect(await trialLicenseEntitlement(trial.subscription_id,colleague)).toMatchObject({seat_limit:3});
+  expect((await billingState(workspace())).active).toBe(true);
+  // The same account has no delegated access to another company's Support.
+  await startAccountTrial({...user,userId:'other-trial-owner',email:'other-trial@example.test'},'Autre PME',true);
+  expect(db.prepare(SUPPORT_WORKSPACES_SQL).all(colleague,email,colleague,colleague)).toEqual(supportRows);
+});
+
+it.each(['read_only','revoked','outsider'])('does not grant trial Support to a %s account',async(kind)=>{
+  const trial=await startAccountTrial(user,'PME essai',true),colleague='trial-colleague',email='trial-colleague@example.test';
+  if(kind!=='outsider')db.prepare(`INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at,revoked_at)
+    VALUES('trial-colleague-membership',?,?,?,?,?,?)`).run(trial.organization_id,colleague,email,kind==='read_only'?'read_only':'member',now(),kind==='revoked'?now():null);
+  expect(db.prepare(SUPPORT_WORKSPACES_SQL).all(colleague,email,colleague,colleague)).toEqual([]);
+  await expect(requireAutomationEntitlement({organizationId:trial.organization_id,userId:colleague,role:'owner',founder:false})).rejects.toMatchObject({status:403});
+});
+
+it('ends delegated Support, Automation and Gestion access when the Complete trial expires',async()=>{
+  const trial=await startAccountTrial(user,'PME essai',true),colleague='trial-colleague',email='trial-colleague@example.test';
+  db.prepare(`INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at)
+    VALUES('trial-colleague-membership',?,?,?,'member',?)`).run(trial.organization_id,colleague,email,now());
+  expect(db.prepare(SUPPORT_WORKSPACES_SQL).all(colleague,email,colleague,colleague)).toHaveLength(1);
+  db.prepare('UPDATE account_trials SET started_at=?,ends_at=? WHERE user_id=?').run(now()-14*86400-1,now()-1,user.userId);
+  db.prepare('UPDATE subscriptions SET current_period_end=?,entitlement_valid_until=? WHERE subscription_id=?').run(now()-1,now()-1,trial.subscription_id);
+  expect(db.prepare(SUPPORT_WORKSPACES_SQL).all(colleague,email,colleague,colleague)).toEqual([]);
+  expect((await billingState(workspace())).active).toBe(false);
+  expect(await automationEntitlement({organizationId:trial.organization_id,userId:colleague,role:'member',founder:false})).toBe(false);
+  expect(await trialLicenseEntitlement(trial.subscription_id,colleague)).toBeNull();
+});
+
+it('keeps the trial team at three people with the owner included',async()=>{
+  const trial=await startAccountTrial(user,'PME essai',true);
+  for(const colleague of ['trial-first','trial-second'])db.prepare(`INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at)
+    VALUES(?,?,?,?,'member',?)`).run(colleague,trial.organization_id,colleague,`${colleague}@example.test`,now());
+  expect((await teamSeats(trial.organization_id))).toMatchObject({used:3,limit:3,available:0});
+  expect(()=>db.prepare(`INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at)
+    VALUES('trial-overflow',?,'trial-overflow','trial-overflow@example.test','member',?)`).run(trial.organization_id,now())).toThrow('zentra seat limit reached');
+  for(const colleague of ['trial-first','trial-second'])expect(db.prepare(SUPPORT_WORKSPACES_SQL).all(colleague,`${colleague}@example.test`,colleague,colleague)).toHaveLength(1);
+});

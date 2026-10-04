@@ -15,5 +15,8 @@ export const SUPPORT_WORKSPACES_SQL = `WITH actor AS (
         LEFT JOIN support_gestion_links l ON l.workspace_id=w.id
         LEFT JOIN organizations o ON o.organization_id=l.organization_id
         LEFT JOIN complete_subscriptions c ON c.subscription_id=o.subscription_id
+        LEFT JOIN complete_trials ct ON ct.organization_id=o.organization_id
+        LEFT JOIN account_trials t ON t.user_id=ct.user_id AND t.organization_id=o.organization_id
+          AND t.subscription_id=o.subscription_id AND t.converted_subscription_id IS NULL AND t.ends_at>unixepoch()
         LEFT JOIN company_seats om ON om.organization_id=o.organization_id AND om.user_id=actor.member_id AND (om.seat_limit IS NULL OR om.seat<=om.seat_limit) AND om.role IN ('owner','admin','accountant','member')
-        WHERE w.owner_id=actor.access_owner_id OR m.id IS NOT NULL OR (c.subscription_id IS NOT NULL AND om.user_id IS NOT NULL) ORDER BY w.created_at,w.id`;
+        WHERE w.owner_id=actor.access_owner_id OR m.id IS NOT NULL OR ((c.subscription_id IS NOT NULL OR t.user_id IS NOT NULL) AND om.user_id IS NOT NULL) ORDER BY w.created_at,w.id`;

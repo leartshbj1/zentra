@@ -26,7 +26,10 @@ vi.mock('@/lib/supplier-inbox/capture', () => ({
   mailboxCaptureNeeded: mocks.captureNeeded,
   captureMailboxInvoices: mocks.capture,
 }));
-vi.mock('@/lib/service-diagnostics', () => ({ reportServiceFailure: mocks.report }));
+vi.mock('@/lib/service-diagnostics', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/service-diagnostics')>(),
+  reportServiceFailure: mocks.report,
+}));
 vi.mock('./infomaniak-imap', () => ({
   decodeImapCredentials: () => null,
   encodeImapCredentials: vi.fn(),

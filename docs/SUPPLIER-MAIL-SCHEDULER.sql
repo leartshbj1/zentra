@@ -1,8 +1,8 @@
 -- PREPARATION ONLY. Does not create/enable a cron job or invoke an endpoint.
--- Apply only after the Supabase project is operational (planned Pro recovery),
+-- Apply only after the Supabase project is confirmed operational,
 -- then provision zentra_support_mail_sync in Vault from the administrator vault.
 -- It must match Sites SUPPORT_MAIL_SYNC_TOKEN. Never put its value in SQL/logs.
-create extension if not exists pg_cron;
+create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
 -- Do not replace the body used by a job that is already running. An operator
 -- must explicitly pause that known job before applying this preparation.
@@ -26,6 +26,7 @@ create table if not exists zentra_internal.mail_scheduler_requests (
   more boolean
 );
 revoke all on zentra_internal.mail_scheduler_requests from public, anon, authenticated;
+alter table zentra_internal.mail_scheduler_requests enable row level security;
 create unique index if not exists mail_scheduler_active_slot
   on zentra_internal.mail_scheduler_requests(slot) where state in ('pending','uncertain');
 
@@ -84,6 +85,10 @@ begin
     where state in ('pending','uncertain') and started_at<clock_timestamp()-interval '10 minutes';
   delete from zentra_internal.mail_scheduler_requests
     where state not in ('pending','uncertain') and started_at<clock_timestamp()-interval '7 days';
+  -- Only this job's finished transport history; do not remove other cron logs.
+  delete from cron.job_run_details
+    where jobid in (select jobid from cron.job where jobname='zentra-support-mail')
+      and end_time<clock_timestamp()-interval '7 days';
 
   select decrypted_secret into token from vault.decrypted_secrets
     where name='zentra_support_mail_sync';

@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {reportServiceFailure,reportSchedulerCycle} from './service-diagnostics';
+import {reportServiceFailure,reportSchedulerCycle,markMailSyncFailure,mailSyncFailureStage,type MailSyncFailureStage} from './service-diagnostics';
 import {SupabaseServerError,createSupabaseServerClient} from './supabase-server';
 import {AccountPublicError} from './account-security';
 import {SupportError} from './support/types';
@@ -50,5 +50,46 @@ describe('private actionable service diagnostics',()=>{
     const client=createSupabaseServerClient({url:'https://example.supabase.co',secretKey:'sb_secret_'+ 'a'.repeat(32)},fetcher);
     await expect(client.select('zentra_workspaces',{organization_id:'eq.private-company'})).rejects.toMatchObject({status:404,code:'PGRST205',resource:'/rest/v1/zentra_workspaces'});
     expect(fetcher.mock.calls[0][1]).toMatchObject({redirect:'manual'});
+  });
+  it('keeps the first closed mailbox stage on frozen errors without copying their contents',()=>{
+    const log=vi.spyOn(console,'error').mockImplementation(()=>{});
+    const error=Object.freeze(new Error('private-password mailbox@example.test'));
+    expect(markMailSyncFailure(error,'read')).toBe(error);
+    markMailSyncFailure(error,'finalize');
+    expect(mailSyncFailureStage(error)).toBe('read');
+    reportServiceFailure(error,{operation:'support.mailbox.sync',mailStage:'lookup'});
+    expect(log.mock.calls[0][1]).toMatchObject({mailStage:'read',kind:'internal'});
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/private-password|mailbox@example/);
+  });
+  it('logs only a valid numeric status from a real SupportError at a known worker stage',()=>{
+    const log=vi.spyOn(console,'error').mockImplementation(()=>{});
+    reportServiceFailure(markMailSyncFailure(new SupportError('private-password',503),'open'),{operation:'support.mailbox.sync'});
+    expect(log.mock.calls[0][1]).toMatchObject({mailStage:'open',supportStatus:503});
+    reportServiceFailure({status:503,message:'private-password',mailStage:'read'},{operation:'support.mailbox.sync',mailStage:'list'});
+    expect(log.mock.calls[1][1]).toMatchObject({mailStage:'list'});
+    expect(log.mock.calls[1][1].supportStatus).toBeUndefined();
+    reportServiceFailure(markMailSyncFailure(new SupportError('private-password',700),'decrypt'),{operation:'support.mailbox.sync'});
+    expect(log.mock.calls[2][1].supportStatus).toBeUndefined();
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/private-password/);
+  });
+  it('rejects arbitrary stages and primitive annotations while retaining upstream diagnostics',()=>{
+    const log=vi.spyOn(console,'error').mockImplementation(()=>{});
+    const error=new SupabaseServerError(503,'network_error','/rest/v1/support_mailboxes');
+    markMailSyncFailure(error,'https://private.invalid/mailbox@example.test' as MailSyncFailureStage);
+    expect(mailSyncFailureStage(error)).toBeUndefined();
+    expect(markMailSyncFailure('private-password','open')).toBe('private-password');
+    expect(mailSyncFailureStage('private-password')).toBeUndefined();
+    reportServiceFailure(error,{operation:'support.mailbox.sync',mailStage:'private-password' as MailSyncFailureStage});
+    expect(log.mock.calls[0][1]).toMatchObject({upstreamStatus:503,upstreamCode:'network_error',resource:'/rest/v1/support_mailboxes'});
+    expect(log.mock.calls[0][1].mailStage).toBeUndefined();
+    expect(log.mock.calls[0][1].supportStatus).toBeUndefined();
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/private-password|private.invalid|mailbox@example/);
+  });
+  it('still suppresses expected refusals and disconnected requests after a stage is recorded',()=>{
+    const log=vi.spyOn(console,'error').mockImplementation(()=>{});
+    expect(reportServiceFailure(markMailSyncFailure(new SupportError('private subscription',403),'subscription'),{operation:'support.mailbox.sync'})).toBeUndefined();
+    const controller=new AbortController();controller.abort();
+    expect(reportServiceFailure(markMailSyncFailure(new SupportError('private connection',503),'open'),{operation:'support.mailbox.sync',request:new Request('https://zentraapp.ch',{signal:controller.signal})})).toBeUndefined();
+    expect(log).not.toHaveBeenCalled();
   });
 });

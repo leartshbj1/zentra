@@ -3,10 +3,32 @@ import { RequestBodyError } from './request-body';
 import { SupabaseServerError } from './supabase-server';
 import { SupportError } from './support/types';
 
+export const MAIL_SYNC_FAILURE_STAGES = [
+  'lookup', 'subscription', 'lease', 'decrypt', 'open', 'list', 'read',
+  'prepare', 'capture', 'ingest', 'progress', 'classify', 'finalize',
+] as const;
+export type MailSyncFailureStage = typeof MAIL_SYNC_FAILURE_STAGES[number];
+const mailFailures = new WeakMap<object, MailSyncFailureStage>();
+
+/** Preserve only the first failing boundary, without changing or retaining an
+ * exception's content. Wrapping an error must not erase its worker stage. */
+export function markMailSyncFailure<T>(error: T, stage: MailSyncFailureStage): T {
+  if (error !== null && (typeof error === 'object' || typeof error === 'function') &&
+      MAIL_SYNC_FAILURE_STAGES.includes(stage) && !mailFailures.has(error)) {
+    mailFailures.set(error, stage);
+  }
+  return error;
+}
+export function mailSyncFailureStage(error: unknown): MailSyncFailureStage | undefined {
+  return error !== null && (typeof error === 'object' || typeof error === 'function')
+    ? mailFailures.get(error) : undefined;
+}
+
 export type ServiceDiagnosticContext = {
   operation: string;
   request?: Request;
   startedAt?: number;
+  mailStage?: MailSyncFailureStage;
 };
 
 /** Only structural identifiers belong in logs. Never serialize an exception,
@@ -21,6 +43,9 @@ export function reportServiceFailure(error: unknown, context: ServiceDiagnosticC
   const version = context.request?.headers.get('User-Agent')?.match(/^Zentra(?:-Account)?\/(\d{1,3}\.\d{1,3}\.\d{1,3})(?:\s|$)/)?.[1];
   const operation = /^[a-z][a-z0-9._-]{0,79}$/.test(context.operation) ? context.operation : 'unknown';
   const resource = upstream?.resource && /^\/rest\/v1\/(?:rpc\/)?[a-z][a-z0-9_]{0,62}$/.test(upstream.resource) ? upstream.resource : undefined;
+  const stage = mailSyncFailureStage(error) ?? context.mailStage;
+  const mailStage = stage && MAIL_SYNC_FAILURE_STAGES.includes(stage) ? stage : undefined;
+  const supportStatus = error instanceof SupportError && Number.isInteger(error.status) && error.status >= 100 && error.status <= 599 ? error.status : undefined;
   const elapsed = context.startedAt === undefined ? undefined : Date.now() - context.startedAt;
   console.error('zentra_service_failure', {
     reference, operation, kind: upstream ? 'upstream' : 'internal',
@@ -28,6 +53,8 @@ export function reportServiceFailure(error: unknown, context: ServiceDiagnosticC
     ...(upstream ? { upstream: 'supabase', upstreamStatus: upstream.status } : {}),
     ...(safeCode ? { upstreamCode: safeCode } : {}),
     ...(resource ? { resource } : {}),
+    ...(mailStage ? { mailStage } : {}),
+    ...(mailStage && supportStatus !== undefined ? { supportStatus } : {}),
     ...(elapsed !== undefined && Number.isFinite(elapsed) && elapsed >= 0 ? { durationMs: Math.round(elapsed) } : {}),
   });
   return reference;
