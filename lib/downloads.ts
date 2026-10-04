@@ -1,16 +1,16 @@
 export const ZENTRA_VERSION = '1.46.1';
 // Current verified files; historical Supabase manifests remain unchanged.
-export const ZENTRA_WINDOWS_PREVIEW_VERSION = '1.90.12';
+export const ZENTRA_WINDOWS_PREVIEW_VERSION = '1.90.13';
 export const ZENTRA_WINDOWS_PREVIEW_NAME = `Zentra_${ZENTRA_WINDOWS_PREVIEW_VERSION}_x64-setup.exe`;
 export const ZENTRA_WINDOWS_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_WINDOWS_PREVIEW_VERSION}/${ZENTRA_WINDOWS_PREVIEW_NAME}`;
-export const ZENTRA_WINDOWS_PREVIEW_SHA256 = '56DCC33D861582CB3909B935844E85043ED33ED1AAA72C8E580C0B979D29CE2A';
+export const ZENTRA_WINDOWS_PREVIEW_SHA256 = '514423491959AB684763763C6EC963362D7C30C290E8407B0C8F626ACCD0F755';
 export const ZENTRA_WINDOWS_VERSION = ZENTRA_WINDOWS_PREVIEW_VERSION;
-export const ZENTRA_MAC_VERSION = '1.90.12';
-export const ZENTRA_RELEASE_VERSION = '1.90.12';
+export const ZENTRA_MAC_VERSION = '1.90.13';
+export const ZENTRA_RELEASE_VERSION = '1.90.13';
 export const ZENTRA_GITHUB_RELEASE_PATH = `https://github.com/leartshbj1/zentra/releases/tag/v${ZENTRA_RELEASE_VERSION}`;
-export const ZENTRA_ANDROID_VERSION = '1.90.12';
+export const ZENTRA_ANDROID_VERSION = '1.90.13';
 export const ZENTRA_ANDROID_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_ANDROID_VERSION}/Zentra-${ZENTRA_ANDROID_VERSION}-Android-arm64-test.apk`;
-export const ZENTRA_IPHONE_VERSION = '1.90.12';
+export const ZENTRA_IPHONE_VERSION = '1.90.13';
 export const ZENTRA_IPHONE_IPA_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_IPHONE_VERSION}/Zentra-${ZENTRA_IPHONE_VERSION}-iPhone-unsigned.ipa`;
 export const ZENTRA_IOS_PREVIEW_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_VERSION}/Zentra-${ZENTRA_VERSION}-iOS-simulateur.zip`;
 export const ZENTRA_INSTALLER_NAME = `Zentra_${ZENTRA_WINDOWS_VERSION}_x64-setup.exe`;
@@ -20,13 +20,13 @@ export const ZENTRA_RELEASES_ORIGIN =
   'https://xvfohjdlhlirksrvkiqu.supabase.co/storage/v1/object/public/zentra-releases';
 export const ZENTRA_INSTALLER_PATH = ZENTRA_WINDOWS_PREVIEW_PATH;
 export const ZENTRA_INSTALLER_CHECKSUM_PATH = `${ZENTRA_INSTALLER_PATH}.sha256.txt`;
-export const ZENTRA_INSTALLER_SIZE_MIB = '23,44';
+export const ZENTRA_INSTALLER_SIZE_MIB = '23,62';
 export const ZENTRA_INSTALLER_SHA256 =
   ZENTRA_WINDOWS_PREVIEW_SHA256;
 
 export const ZENTRA_MAC_DMG_NAME = `Zentra_${ZENTRA_MAC_VERSION}_macos-universal.dmg`;
 export const ZENTRA_MAC_DMG_PATH = `https://github.com/leartshbj1/zentra/releases/download/v${ZENTRA_MAC_VERSION}/${ZENTRA_MAC_DMG_NAME}`;
 export const ZENTRA_MAC_DMG_CHECKSUM_PATH = `${ZENTRA_MAC_DMG_PATH}.sha256.txt`;
-export const ZENTRA_MAC_DMG_SIZE_MIB = '52,34';
+export const ZENTRA_MAC_DMG_SIZE_MIB = '52,88';
 export const ZENTRA_MAC_DMG_SHA256 =
-  'E0B119888EFE7A9997BFC18E851D0986BBAF016D3FD60F41958DD1E4345DE3CC';
+  '8887570539318DB706B4133A4C77458CE76B8B0FDF0552015B19DA431906A258';

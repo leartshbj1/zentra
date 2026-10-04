@@ -1,15 +1,15 @@
 {
-  "version": "1.90.12",
-  "notes": "# Zentra 1.90.12 — Plus simple à voir, plus agréable à utiliser\n\n- Les menus, formulaires et réglages adoptent une présentation plus épurée, avec des titres, actions et espacements harmonisés dans toute l’application.\n- Sur téléphone, la navigation, les notes et les écrans de travail laissent davantage de place au contenu. Les boutons restent accessibles avec le texte agrandi et les marges de l’écran.\n- Les couleurs des thèmes clair et sombre sont harmonisées. La sélection des menus, les transitions et le glissement du menu mobile sont plus discrets et respectent la réduction des animations.\n- Automation, comptabilité, projets, documents et paie suivent la même hiérarchie visuelle pour retrouver plus facilement les informations et les actions utiles.\n\nFormats de distribution : installateur Windows sans Authenticode, Mac universel non notarié, IPA iPhone à signer avec Sideloadly ou AltStore, APK Android avec l’identité persistante de préversion. Les signatures updater ne constituent pas une certification de ces plateformes. Windows : éditeur non certifié. macOS : version non notariée par Apple.",
-  "pub_date": "2026-10-01T11:17:24Z",
+  "version": "1.90.13",
+  "notes": "# Zentra 1.90.13 — Vos actions, plus sûres et plus claires\n\n- Reprise des brouillons et vérification du résultat d’une création non confirmée, sans renvoi automatique de l’action.\n- Messages d’erreur plus compréhensibles, avec des indications en français, allemand, italien et anglais.\n- Vérifications du compte, de l’espace d’entreprise et des permissions renforcées lors des sauvegardes.\n- Diagnostics utiles pour retrouver l’origine d’un incident, sans contenu de document, d’e-mail ou identifiant de connexion dans les événements.\n\nPour retrouver son entreprise sur un autre appareil, connectez-vous au même compte Zentra et choisissez le même espace.\n\nInstallation : Windows sans certificat Authenticode ; Mac universel non notarié ; IPA iPhone à signer avec Sideloadly ou AltStore ; APK Android signé avec l’identité existante de préversion. Windows : éditeur non certifié. macOS : version non notariée par Apple.",
+  "pub_date": "2026-10-04T05:02:13Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.12/Zentra_1.90.12_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlFkK1hiSUg0V1NQd0oyR1hmY3RrNXhBVE1Ob2xDcmJSZFFGR3c3OTdUUHZ4emZhWnhISDJ1Zlhnb3JwSTU0MmVZYis5UnpzVkJvckZPb0daaCtQQ3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwODUyNTM0CWZpbGU6WmVudHJhXzEuOTAuMTJfeDY0LXNldHVwLmV4ZQpLYTVJcmFxa1BsYk9aZEx0OElhNjk2OXZYaEFDa2dobUpUekRGeHdsZTlmVkl6ZFBWQU9yMG5PMHdjM1lYSktDSmNpaHVSY3FmRnIzd0M1WU5iYVpEQT09Cg=="
+      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.13/Zentra_1.90.13_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlNXUjhPaExsMVNOVjdGdk93bll3WlhmaVc1a2FGMkVxcEIyQjZmbG9wa3UzbWZ6T0YveFM4bW9PMHM3Zm9QWis3LzlEM3BjTkJmMUgvLzd0bFRoYVF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDg3NTYwCWZpbGU6WmVudHJhXzEuOTAuMTNfeDY0LXNldHVwLmV4ZQo5N2hxOGRHOUlLVlNyakgxUTZRTTBIK0pPUkExV0IrNVBNOU9CN0pMeHpmMit1VWhCWjE5U292S0U4endQUkkvYS9MOUwzVHdRamQwa0ltL1craEdCQT09Cg=="
     },
     "macos-universal": {
-      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.12/Zentra_1.90.12_macos-universal.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlhMSjVJUitXYWIyK1hCY04waG40RENtLytJVFcvOGVVOWthcUFLSHR3UnROSm9VeU5ZNXkzcC83Y2x3cDBrdU53OE5rREswU29qdURCQmlpcXdyUHdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwODUzMzcyCWZpbGU6WmVudHJhXzEuOTAuMTJfbWFjb3MtdW5pdmVyc2FsLmFwcC50YXIuZ3oKS1JIdWpIWnloUlE2OVg1MWNCQ1pGZ1hQWG5UZ3UwWFhTdElMSzRKWU0vVTBEZUE3Nzcwc2ZxMkw4RVNUYVdSSGp0cTEvcEloQjFBODhFSURVMFhnQkE9PQo="
+      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.13/Zentra_1.90.13_macos-universal.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmNaQitpaWJ3ekplU2VjZmV6WDYyY0l3bUVYRFlaNGp3SGtPb2gwOThVU1dKdnhYZFFwWCtZMmpJeVpBYytwUGN2cy9aTWw3ZHpRU2hZaFlSUm5wand3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDg5NzIzCWZpbGU6WmVudHJhXzEuOTAuMTNfbWFjb3MtdW5pdmVyc2FsLmFwcC50YXIuZ3oKTTBnbFFBSHlIaTYyMGxBdXZsRjY5UWNyV21haytLT2xKK1VqUTlaSnlSQ1ZYdHVDUHJDRHNyYUpkUjY5dEoxcFI2L1hNSlBjM3ZHNmJLYUI0WGRFRHc9PQo="
     }
   }
 }
