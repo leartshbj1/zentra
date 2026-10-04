@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { VatReturnPreview, VatSourceClassification, Workspace } from './types';
 import { agreedVatSalesSources, financialSourceTarget, type FinancialSourceTarget, type VatSalesSource } from './financialTraceability';
-import { getAppLocale, t } from './language';
+import { getAppLocale, t, useAppLanguage } from './language';
 import { vatTreatmentLabels } from './vatCenterLogic';
 import { formatDate, formatMoney, searchText } from './utils';
 import { Button } from './ui';
@@ -22,11 +22,12 @@ export function VatSalesSourceReview({ preview, workspace, classifications, busy
   busy: boolean;
   onOpenSource?: (target: FinancialSourceTarget) => void;
 }) {
+  useAppLanguage();
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(25);
   if (preview.profile.formOfReporting !== 'agreed') return null;
   const sources = agreedVatSalesSources(workspace.invoices, preview, classifications);
-  const filtered = sources.filter(({ invoice, line, treatment }) => searchText([invoice.number, invoice.title, line.description, invoice.currency, treatment ? vatTreatmentLabels[treatment] : '', invoice.type === 'credit_note' ? t('Avoir client') : t('Facture client')], query));
+  const filtered = sources.filter(({ invoice, line, treatment }) => searchText([invoice.number, invoice.title, line.description, invoice.currency, treatment ? t(vatTreatmentLabels[treatment]) : '', invoice.type === 'credit_note' ? t('Avoir client') : t('Facture client')], query));
   const basis = preview.profile.reportingMethod === 'simple_tax_rate' || preview.profile.grossOrNet === 'gross' ? 'TTC' : 'HT';
   return <details className="vat-sales-source-review">
     <summary>{t('Pièces de vente de la période')} <span>{sources.length} {t('lignes')}</span></summary>
