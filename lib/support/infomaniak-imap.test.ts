@@ -6,18 +6,21 @@ import { mailExternalId } from './infomaniak';
 
 const mock = vi.hoisted(() => ({
   options: {} as any,
-  connect: vi.fn(), mailboxOpen: vi.fn(), fetchAll: vi.fn(), fetchOne: vi.fn(), close: vi.fn(), on: vi.fn(),
+  mailbox: {} as any,
+  connect: vi.fn(), getMailboxLock: vi.fn(), release: vi.fn(), fetchAll: vi.fn(), fetchOne: vi.fn(), close: vi.fn(), on: vi.fn(),
 }));
 vi.mock('imapflow', () => ({ ImapFlow: class {
   constructor(options: unknown) { mock.options = options; }
-  connect = mock.connect; mailboxOpen = mock.mailboxOpen; fetchAll = mock.fetchAll;
+  connect = mock.connect; getMailboxLock = mock.getMailboxLock; fetchAll = mock.fetchAll;
+  get mailbox() { return mock.mailbox; }
   fetchOne = mock.fetchOne; close = mock.close; on = mock.on;
 } }));
 
 beforeEach(() => {
   vi.resetAllMocks();
   mock.connect.mockResolvedValue(undefined);
-  mock.mailboxOpen.mockResolvedValue({ uidNext: 105, uidValidity: BigInt(900) });
+  mock.getMailboxLock.mockResolvedValue({ release: mock.release });
+  mock.mailbox = { uidNext: 105, uidValidity: BigInt(900) };
   mock.fetchAll.mockResolvedValue([]);
 });
 
@@ -25,9 +28,11 @@ describe('Connexion Infomaniak IMAP', () => {
   it('impose TLS, le serveur officiel, une lecture seule et aucune journalisation', async () => {
     const mail = await openImapMailbox('inbox@example.test', ' space preserved ');
     expect(mock.options).toMatchObject({ host: 'mail.infomaniak.com', port: 993, secure: true, auth: { user: 'inbox@example.test', pass: ' space preserved ' }, logger: false, emitLogs: false, logRaw: false, tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' } });
-    expect(mock.mailboxOpen).toHaveBeenCalledWith('INBOX', { readOnly: true });
+    expect(mock.getMailboxLock).toHaveBeenCalledWith('INBOX', { readOnly: true });
     expect(mail).toMatchObject({ mailboxId: 'imap:inbox@example.test', folderId: 'imap:INBOX:900', nextUid: 105 });
-    mail.close(); expect(mock.close).toHaveBeenCalledOnce();
+    mail.close(); mail.close();
+    expect(mock.release).toHaveBeenCalledOnce(); expect(mock.close).toHaveBeenCalledOnce();
+    expect(mock.release.mock.invocationCallOrder[0]).toBeLessThan(mock.close.mock.invocationCallOrder[0]);
   });
   it.each([['bad email', 'password'], ['a@example.test', ''], ['a@example.test', 'pass\r\nLOGIN']])('refuse des identifiants invalides sans ouvrir de socket', async (address, password) => {
     await expect(openImapMailbox(address, password)).rejects.toMatchObject({ status: 422 });
@@ -37,15 +42,35 @@ describe('Connexion Infomaniak IMAP', () => {
     mock.connect.mockRejectedValue(Object.assign(new Error('secret-password raw server response'), { authenticationFailed: true }));
     await expect(openImapMailbox('a@example.test', 'secret-password')).rejects.toThrow('Infomaniak refuse ce mot de passe');
     expect(mock.close).toHaveBeenCalledOnce();
+    expect(mock.release).not.toHaveBeenCalled();
   });
   it('ne révèle pas les données d’une erreur réseau', async () => {
     mock.connect.mockRejectedValue(new Error('secret-server-error'));
     await expect(openImapMailbox('a@example.test', 'password')).rejects.toThrow('connexion sécurisée');
     expect(mock.close).toHaveBeenCalledOnce();
+    expect(mock.release).not.toHaveBeenCalled();
   });
   it('refuse une identité IMAP changée avant de lire des messages', async () => {
     await expect(openImapMailbox('a@example.test', 'password', 'imap:INBOX:800')).rejects.toMatchObject({ status: 409 });
     expect(mock.fetchAll).not.toHaveBeenCalled(); expect(mock.close).toHaveBeenCalledOnce();
+    expect(mock.release).toHaveBeenCalledOnce();
+  });
+  it('ferme une acquisition échouée sans inventer de verrou à libérer', async () => {
+    mock.getMailboxLock.mockRejectedValue(new Error('private server response'));
+    await expect(openImapMailbox('a@example.test', 'password')).rejects.toMatchObject({ status: 503 });
+    expect(mock.release).not.toHaveBeenCalled(); expect(mock.close).toHaveBeenCalledOnce();
+  });
+  it.each([['absente', false], ['UID invalide', { uidNext: 0, uidValidity: BigInt(900) }]])('libère le verrou si la boîte sélectionnée est invalide (%s)', async (_label, mailbox) => {
+    mock.mailbox = mailbox;
+    await expect(openImapMailbox('a@example.test', 'password')).rejects.toMatchObject({ status: 503 });
+    expect(mock.release).toHaveBeenCalledOnce(); expect(mock.close).toHaveBeenCalledOnce();
+  });
+  it('ferme le socket même si la libération échoue, sans répéter la fermeture', async () => {
+    const mailbox = await openImapMailbox('a@example.test', 'password');
+    mock.release.mockImplementation(() => { throw new Error('synthetic release failure'); });
+    expect(() => mailbox.close()).toThrow('synthetic release failure');
+    mailbox.close();
+    expect(mock.release).toHaveBeenCalledOnce(); expect(mock.close).toHaveBeenCalledOnce();
   });
   it('pagine les UID par blocs bornés, traverse les trous et exclut les anciens mails', async () => {
     const mail = await openImapMailbox('a@example.test', 'password');

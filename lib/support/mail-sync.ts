@@ -1,6 +1,6 @@
 import { supportAutomationState } from '@/lib/automation/execution';
 import { database, runtimeValue } from '@/lib/runtime';
-import { reportServiceFailure, markMailSyncFailure, mailSyncFailureStage, type MailSyncFailureStage } from '@/lib/service-diagnostics';
+import { reportServiceFailure, markMailSyncFailure, mailSyncFailureStage, mailSyncFailureTransport, type MailSyncFailureStage, type MailSyncTransport } from '@/lib/service-diagnostics';
 import { encryptSecret, decryptSecret, digest, equalHash } from './crypto';
 import {
   verifyMailbox,
@@ -194,13 +194,16 @@ export async function syncMailbox(
 async function syncClaimedMailbox(
   workspace: Workspace, connection: Connection, mailbox: Mailbox,
   subscriptionVerified = false,
+  control: MailSyncControl = {},
 ) {
   const db = database(), lease = mailbox.lease!;
   let stage: MailSyncFailureStage = 'subscription';
-  // A claimed mailbox is one admitted, bounded unit: finish and persist it even
-  // when setup or a document helper crosses the admission deadline. Otherwise
-  // every retry could prepare the same slow document without ever ingesting it.
-  // Lease ownership remains checked between effects and on every final write.
+  let transport: MailSyncTransport | undefined;
+  const admissionExpired = () => control.deadline !== undefined && Date.now() >= control.deadline;
+  // Drain each admitted message/classification, then check the admission budget
+  // before starting another. A first useful unit in each queue prevents slow
+  // setup or a busy mail queue from starving durable progress in the other.
+  // Lease ownership still fences every effect; this is never a hard timeout.
   const checkpoint = async () => {
     try {
       const time = now();
@@ -211,12 +214,13 @@ async function syncClaimedMailbox(
           AND c.active=1 AND c.provider='infomaniak' AND w.mode<>'paused') RETURNING connection_id`)
       .bind(time + MAIL_LEASE_SECONDS, connection.id, workspace.id, lease, time).first();
       if (!owned) throw new MailSyncDeferred('lease');
-    } catch (error) { throw markMailSyncFailure(error, 'lease'); }
+    } catch (error) { throw markMailSyncFailure(error, 'lease', transport); }
   };
   let imported = 0,
     processed = 0;
   let captured=0,captureDeferred=false;
   let preparedMessages = 0;
+  let completedMessageUnits = 0, budgetDeferred = false;
   let captureError:string|null=null;
   let imap: ImapMailbox | undefined;
   try {
@@ -229,6 +233,7 @@ async function syncClaimedMailbox(
       `connection:${workspace.id}:${connection.id}`,
     );
     const credentials = decodeImapCredentials(token);
+    transport = credentials ? 'imap' : 'api';
     if (credentials) {
       stage = 'open';
       imap = await openImapMailbox(mailbox.email, credentials.password, mailbox.folder_id);
@@ -257,9 +262,10 @@ async function syncClaimedMailbox(
     const messages = new Map(
       [...newest.messages, ...page.messages].map((ref) => [ref.uid, ref]),
     );
+    const handledMessages = new Set<string>();
     for (const ref of messages.values()) {
       await checkpoint();
-      if (ref.date !== null && ref.date < mailbox.since_at) continue;
+      if (ref.date !== null && ref.date < mailbox.since_at) { handledMessages.add(ref.uid); continue; }
       stage = 'lookup';
       const external = await mailExternalId(
         mailbox.mailbox_id,
@@ -275,7 +281,8 @@ async function syncClaimedMailbox(
       const capture=await mailboxCaptureNeeded(workspace.id,connection.id,external);
       if(capture && captured>=3) captureDeferred=true;
       if(duplicate && capture && captured>=3) continue;
-      if (duplicate && !capture) continue;
+      if (duplicate && !capture) { handledMessages.add(ref.uid); continue; }
+      if (completedMessageUnits > 0 && admissionExpired()) { budgetDeferred = true; break; }
       const active = await db
         .prepare('SELECT active FROM support_connections WHERE id=?')
         .bind(connection.id)
@@ -290,7 +297,7 @@ async function syncClaimedMailbox(
         mailbox.folder_id,
         ref,
       ); } catch (error) {
-        if (imap && error instanceof SupportError && error.status === 422) { captureError = error.message; continue; }
+        if (imap && error instanceof SupportError && error.status === 422) { captureError = error.message; handledMessages.add(ref.uid); continue; }
         throw error;
       }
       await checkpoint();
@@ -307,14 +314,21 @@ async function syncClaimedMailbox(
         if(source.mail?.attachments.length)captured++;
         stage = 'capture';
         try {await captureMailboxInvoices({workspace,connectionId:connection.id,source,token,mailboxId:mailbox.mailbox_id,folderId:mailbox.folder_id,uid:ref.uid,readAttachment,documents:prepared?.documents});}
-        catch(error){reportServiceFailure(markMailSyncFailure(error,'capture'),{operation:'support.mailbox.capture'});captureError=error instanceof SupportError?error.message:'Certains justificatifs n’ont pas pu être importés dans Gestion. La réception réessaiera ; les tickets Support continuent d’être traités. Pour un document de plus de 6 Mo ou un mail de plus de 12 pièces, utilisez l’import manuel de Gestion.';}
+        catch(error){reportServiceFailure(markMailSyncFailure(error,'capture',transport),{operation:'support.mailbox.capture',mailTransport:transport});captureError=error instanceof SupportError?error.message:'Certains justificatifs n’ont pas pu être importés dans Gestion. La réception réessaiera ; les tickets Support continuent d’être traités. Pour un document de plus de 6 Mo ou un mail de plus de 12 pièces, utilisez l’import manuel de Gestion.';}
       }
       await checkpoint();
       if(!duplicate){stage = 'ingest';await ingest(connection, source);imported++;}
+      handledMessages.add(ref.uid);
+      completedMessageUnits++;
     }
     // Repeat complete scans from the connection date. There is no newest-N cap;
     // restarting each scan also recovers changes to offset pagination during delivery.
-    const more = page.count >= MAIL_PAGE_SIZE;
+    // Provider offsets count threads or UID windows, not returned messages.
+    // Keep the entire page until all its messages have been handled; duplicates
+    // skip durable completed work on the next cycle without skipping unread mail.
+    const pageHandled = page.messages.every(ref => handledMessages.has(ref.uid));
+    const pageHasMore = page.count >= MAIL_PAGE_SIZE;
+    let more = budgetDeferred || !pageHandled || pageHasMore;
     await checkpoint();
     stage = 'progress';
     const progress = await db
@@ -322,7 +336,7 @@ async function syncClaimedMailbox(
         'UPDATE support_mailboxes SET scan_offset=?,last_sync_at=? WHERE connection_id=? AND lease=? AND lease_until>?',
       )
       .bind(
-        more ? mailbox.scan_offset + page.count : 0,
+        pageHandled ? (pageHasMore ? mailbox.scan_offset + page.count : 0) : mailbox.scan_offset,
         now(),
         connection.id,
         lease,
@@ -341,6 +355,7 @@ async function syncClaimedMailbox(
       .all<Pick<Ticket, 'id'>>() : {results:[]};
     for (const ticket of pending.results) {
       await checkpoint();
+      if (processed > 0 && admissionExpired()) { budgetDeferred = true; more = true; break; }
       await processTicket(
         ticket.id,
         workspace,
@@ -364,9 +379,9 @@ async function syncClaimedMailbox(
       )
       .run();
     if (!completed.meta.changes) throw new MailSyncDeferred('lease');
-    return { imported, processed, more, incomplete: Boolean(captureError || captureDeferred) };
+    return { imported, processed, more, incomplete: Boolean(captureError || captureDeferred || budgetDeferred), ...(budgetDeferred ? { budgetExhausted: true } : {}) };
   } catch (error) {
-    markMailSyncFailure(error, stage);
+    markMailSyncFailure(error, stage, transport);
     // An upstream failure can arrive after another worker acquired this box.
     // Report deferred ownership and never overwrite the successor's outcome.
     if (!(error instanceof MailSyncDeferred)) {
@@ -389,7 +404,7 @@ async function syncClaimedMailbox(
       )
       .bind(message, now() + 300, connection.id, lease, now())
       .run();
-    throw markMailSyncFailure(new SupportError(message, 503, { cause: error }), mailSyncFailureStage(error) ?? stage);
+    throw markMailSyncFailure(new SupportError(message, 503, { cause: error }), mailSyncFailureStage(error) ?? stage, mailSyncFailureTransport(error) ?? transport);
   } finally { imap?.close(); }
 }
 export type MailSyncResult = {
@@ -439,10 +454,10 @@ export async function runMailSync(request: Request, control: MailSyncControl = {
     const workspace = await db.prepare('SELECT * FROM support_workspaces WHERE id=?')
       .bind(mailbox.workspace_id).first<Workspace>();
     if (!connection || !workspace) throw new SupportError('Espace indisponible.',503);
-    return { idle: false, ...(await syncClaimedMailbox(workspace, connection, mailbox)) };
+    return { idle: false, ...(await syncClaimedMailbox(workspace, connection, mailbox, false, control)) };
   } catch (error) {
     const cause = error instanceof SupportError && error.cause ? error.cause : error;
-    const reference = reportServiceFailure(cause, {operation:'support.mailbox.sync',request,startedAt,mailStage:mailSyncFailureStage(error) ?? 'lookup'});
+    const reference = reportServiceFailure(cause, {operation:'support.mailbox.sync',request,startedAt,mailStage:mailSyncFailureStage(error) ?? 'lookup',mailTransport:mailSyncFailureTransport(error)});
     // Subscription/setup failures must back off too, but only their own lease.
     // A late error can never postpone or release the next worker's claim.
     await db.prepare('UPDATE support_mailboxes SET next_sync_at=?,lease=NULL,lease_until=0 WHERE connection_id=? AND lease=? AND lease_until>?')

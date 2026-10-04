@@ -9,13 +9,19 @@ export const MAIL_SYNC_FAILURE_STAGES = [
 ] as const;
 export type MailSyncFailureStage = typeof MAIL_SYNC_FAILURE_STAGES[number];
 const mailFailures = new WeakMap<object, MailSyncFailureStage>();
+export type MailSyncTransport = 'api' | 'imap';
+const mailTransports = new WeakMap<object, MailSyncTransport>();
 
 /** Preserve only the first failing boundary, without changing or retaining an
  * exception's content. Wrapping an error must not erase its worker stage. */
-export function markMailSyncFailure<T>(error: T, stage: MailSyncFailureStage): T {
+export function markMailSyncFailure<T>(error: T, stage: MailSyncFailureStage, transport?: MailSyncTransport): T {
   if (error !== null && (typeof error === 'object' || typeof error === 'function') &&
       MAIL_SYNC_FAILURE_STAGES.includes(stage) && !mailFailures.has(error)) {
     mailFailures.set(error, stage);
+  }
+  if (error !== null && (typeof error === 'object' || typeof error === 'function') &&
+      (transport === 'api' || transport === 'imap') && !mailTransports.has(error)) {
+    mailTransports.set(error, transport);
   }
   return error;
 }
@@ -23,12 +29,17 @@ export function mailSyncFailureStage(error: unknown): MailSyncFailureStage | und
   return error !== null && (typeof error === 'object' || typeof error === 'function')
     ? mailFailures.get(error) : undefined;
 }
+export function mailSyncFailureTransport(error: unknown): MailSyncTransport | undefined {
+  return error !== null && (typeof error === 'object' || typeof error === 'function')
+    ? mailTransports.get(error) : undefined;
+}
 
 export type ServiceDiagnosticContext = {
   operation: string;
   request?: Request;
   startedAt?: number;
   mailStage?: MailSyncFailureStage;
+  mailTransport?: MailSyncTransport;
 };
 
 /** Only structural identifiers belong in logs. Never serialize an exception,
@@ -45,6 +56,8 @@ export function reportServiceFailure(error: unknown, context: ServiceDiagnosticC
   const resource = upstream?.resource && /^\/rest\/v1\/(?:rpc\/)?[a-z][a-z0-9_]{0,62}$/.test(upstream.resource) ? upstream.resource : undefined;
   const stage = mailSyncFailureStage(error) ?? context.mailStage;
   const mailStage = stage && MAIL_SYNC_FAILURE_STAGES.includes(stage) ? stage : undefined;
+  const transport = mailSyncFailureTransport(error) ?? context.mailTransport;
+  const mailTransport = transport === 'api' || transport === 'imap' ? transport : undefined;
   const supportStatus = error instanceof SupportError && Number.isInteger(error.status) && error.status >= 100 && error.status <= 599 ? error.status : undefined;
   const elapsed = context.startedAt === undefined ? undefined : Date.now() - context.startedAt;
   console.error('zentra_service_failure', {
@@ -54,6 +67,7 @@ export function reportServiceFailure(error: unknown, context: ServiceDiagnosticC
     ...(safeCode ? { upstreamCode: safeCode } : {}),
     ...(resource ? { resource } : {}),
     ...(mailStage ? { mailStage } : {}),
+    ...(mailStage && mailTransport ? { mailTransport } : {}),
     ...(mailStage && supportStatus !== undefined ? { supportStatus } : {}),
     ...(elapsed !== undefined && Number.isFinite(elapsed) && elapsed >= 0 ? { durationMs: Math.round(elapsed) } : {}),
   });

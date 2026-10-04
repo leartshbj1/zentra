@@ -42,9 +42,22 @@ export async function openImapMailbox(email: string, password: string, expectedF
     connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
   });
   client.on('error', () => { /* Errors are converted to safe messages by the awaited operation. */ });
+  let mailboxLock: Awaited<ReturnType<ImapFlow['getMailboxLock']>> | undefined;
+  let closed = false;
+  const closeConnection = () => {
+    if (closed) return;
+    closed = true;
+    try { mailboxLock?.release(); }
+    finally { mailboxLock = undefined; client.close(); }
+  };
   try {
     await client.connect();
-    const box = await client.mailboxOpen('INBOX', { readOnly: true });
+    // Document preparation/capture can be quiet longer than the socket timeout.
+    // Holding a read-only lock lets ImapFlow keep that expected quiet period alive
+    // with NOOP; an actual unanswered command still expires normally.
+    mailboxLock = await client.getMailboxLock('INBOX', { readOnly: true });
+    const box = client.mailbox;
+    if (!box) throw new SupportError('Infomaniak n’a pas confirmé la boîte de réception. Réessayez.', 503);
     const folderId = `imap:INBOX:${box.uidValidity}`;
     if (expectedFolder && expectedFolder !== folderId)
       throw new SupportError('Infomaniak a recréé cette boîte de réception. Contactez Zentra pour reprendre sa réception sans doublons.', 409);
@@ -55,7 +68,7 @@ export async function openImapMailbox(email: string, password: string, expectedF
     let attachmentCache = new Map<string, Uint8Array>();
     return {
       mailboxId, folderId, nextUid,
-      close() { attachmentCache.clear(); client.close(); },
+      close() { attachmentCache.clear(); closeConnection(); },
       async list(offset: number, firstUid: number) {
         // Bounded UID windows avoid searching or loading an entire company mailbox.
         // A complete scan repeats to recover delivery during pagination and UID gaps.
@@ -110,7 +123,7 @@ export async function openImapMailbox(email: string, password: string, expectedF
         return bytes;
       },
     };
-  } catch (error) { client.close(); throw connectionError(error); }
+  } catch (error) { closeConnection(); throw connectionError(error); }
 }
 
 export type ImapMailbox = Awaited<ReturnType<typeof openImapMailbox>>;

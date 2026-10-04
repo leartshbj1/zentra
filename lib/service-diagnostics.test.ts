@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {reportServiceFailure,reportSchedulerCycle,markMailSyncFailure,mailSyncFailureStage,type MailSyncFailureStage} from './service-diagnostics';
+import {reportServiceFailure,reportSchedulerCycle,markMailSyncFailure,mailSyncFailureStage,mailSyncFailureTransport,type MailSyncFailureStage,type MailSyncTransport} from './service-diagnostics';
 import {SupabaseServerError,createSupabaseServerClient} from './supabase-server';
 import {AccountPublicError} from './account-security';
 import {SupportError} from './support/types';
@@ -91,5 +91,31 @@ describe('private actionable service diagnostics',()=>{
     const controller=new AbortController();controller.abort();
     expect(reportServiceFailure(markMailSyncFailure(new SupportError('private connection',503),'open'),{operation:'support.mailbox.sync',request:new Request('https://zentraapp.ch',{signal:controller.signal})})).toBeUndefined();
     expect(log).not.toHaveBeenCalled();
+  });
+  it('distinguishes the failed transport without retaining its host or credentials',()=>{
+    const log=vi.spyOn(console,'error').mockImplementation(()=>{});
+    const error=Object.freeze(new SupportError('password=private-secret at mailbox@example.test',503));
+    markMailSyncFailure(error,'read','imap');
+    markMailSyncFailure(error,'finalize','api');
+    expect(mailSyncFailureTransport(error)).toBe('imap');
+    reportServiceFailure(error,{operation:'support.mailbox.sync',mailTransport:'api'});
+    expect(log.mock.calls[0][1]).toMatchObject({mailStage:'read',mailTransport:'imap',supportStatus:503});
+    const wrapped=markMailSyncFailure(new SupportError('private wrapped error',503),'read',mailSyncFailureTransport(error));
+    reportServiceFailure(wrapped,{operation:'support.mailbox.sync'});
+    expect(log.mock.calls[1][1]).toMatchObject({mailStage:'read',mailTransport:'imap'});
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/password|private-secret|mailbox@example|wrapped error/);
+  });
+  it('never treats an arbitrary transport or error property as diagnostic input',()=>{
+    const log=vi.spyOn(console,'error').mockImplementation(()=>{});
+    const error=new Error('private transport secret');
+    Object.assign(error,{mailTransport:'imap',host:'private.invalid'});
+    markMailSyncFailure(error,'read','https://private.invalid' as MailSyncTransport);
+    expect(mailSyncFailureTransport(error)).toBeUndefined();
+    reportServiceFailure(error,{operation:'support.mailbox.sync',mailTransport:'private transport secret' as MailSyncTransport});
+    expect(log.mock.calls[0][1].mailTransport).toBeUndefined();
+    expect(mailSyncFailureTransport('private transport secret')).toBeUndefined();
+    reportServiceFailure(new Error('ignored transport'),{operation:'support.mailbox.sync',mailTransport:'api'});
+    expect(log.mock.calls[1][1].mailTransport).toBeUndefined();
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|invalid|ignored transport/);
   });
 });
