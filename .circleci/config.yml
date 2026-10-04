@@ -464,12 +464,30 @@ jobs:
           command: |
             set -euo pipefail
             export PATH="/opt/homebrew/bin:$PATH"
+            export CI=true
+            report_homebrew_failure() {
+              failure_status=$?
+              # This handler only reports the failed command, then preserves its status.
+              set +e
+              printf 'Homebrew preparation failed with status %s.\n' "$failure_status"
+              for formula in ca-certificates openssl@3 ruby readline openssl@4 wget; do
+                for brew_log in "$HOME/Library/Logs/Homebrew/$formula"/*.log; do
+                  if [ -f "$brew_log" ]; then
+                    printf 'Homebrew log: %s\n' "$brew_log"
+                    tail -n 100 "$brew_log"
+                  fi
+                done
+              done
+              exit "$failure_status"
+            }
+            trap report_homebrew_failure ERR
+            brew --version
             install_status=0
             brew install --verbose ca-certificates openssl@3 xcodegen libimobiledevice cocoapods || install_status=$?
             if [ "$install_status" -ne 0 ]; then
               printf 'Initial Homebrew installation exited %s; repair and a successful second installation are required.\n' "$install_status"
             fi
-            brew postinstall --verbose ca-certificates
+            HOMEBREW_DISABLE_DEBREW=1 brew postinstall --debug --verbose ca-certificates </dev/null
             brew postinstall --verbose openssl@3
             brew install --verbose ca-certificates openssl@3 xcodegen libimobiledevice cocoapods
             test -s "$(brew --prefix)/etc/ca-certificates/cert.pem"
