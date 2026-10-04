@@ -4,7 +4,7 @@
 use super::*;
 use tauri::Manager;
 
-const ORGANIZATION: &str = "merge-version-compat-company";
+const ORGANIZATION: &str = "org_72e89653-ea0f-4b1c-8d4c-71f5030e3202";
 
 fn older_manifest(manifest: crate::cloud_backup::Manifest) -> crate::cloud_backup::Manifest {
     let mut value = serde_json::to_value(manifest).unwrap();

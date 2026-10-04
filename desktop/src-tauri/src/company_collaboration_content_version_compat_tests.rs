@@ -5,7 +5,7 @@ use super::*;
 use std::{cell::RefCell, collections::HashMap};
 use tauri::Manager;
 
-const ORGANIZATION: &str = "content-version-compat-company";
+const ORGANIZATION: &str = "org_3b8dca02-5d5b-4a62-9f25-45c6a90d6201";
 
 fn older_manifest(mut manifest: crate::cloud_backup::Manifest) -> crate::cloud_backup::Manifest {
     let mut value = serde_json::to_value(&manifest).unwrap();
