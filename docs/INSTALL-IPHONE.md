@@ -39,8 +39,9 @@ contrôle le contenu ZIP, le manifeste et le binaire ARM64 pour iPhoneOS.
 L'installation et l'exécution sur ton iPhone restent à vérifier, notamment la
 connexion, les fichiers, les exports et la sauvegarde/restauration.
 
-Les données de ton PC ne sont pas automatiquement synchronisées vers l'iPhone.
-Utiliser les fonctions de sauvegarde/restauration de Zentra si nécessaire.
+Pour retrouver l’entreprise de ton PC, connecte-toi au même compte Zentra
+et sélectionne le même espace d’entreprise sur l’iPhone. Le partage des données
+entre les appareils nécessite une connexion à Internet.
 
 Cet IPA ne contient ni certificat de distribution Apple ni profil de
 provisionnement. Il n'est pas une version App Store ou TestFlight. Le contrôle du paquet

@@ -9,9 +9,10 @@ function Assert-Contract { param([bool]$Condition, [string]$Name); if (-not $Con
 function Assert-Throws { param([ScriptBlock]$Action, [string]$Name); $threw=$false; try { & $Action | Out-Null } catch { $threw=$true }; Assert-Contract $threw $Name }
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('zentra-harness-contract-' + [Guid]::NewGuid().ToString('D'))
 $savedEnvironment = @{}
-foreach ($name in @('ZENTRA_VERIFY_DIAGNOSTICS_ONLY','ZENTRA_VERIFY_ONLY','CIRCLE_SHA1','PATH','RUSTUP_TOOLCHAIN')) { $savedEnvironment[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
+foreach ($name in @('ZENTRA_VERIFY_DIAGNOSTICS_ONLY','ZENTRA_VERIFY_ONLY','CIRCLE_SHA1','PATH','RUSTUP_TOOLCHAIN','ZENTRA_RELEASE_TEST_HARNESS')) { $savedEnvironment[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
 try {
     $source='1111111111111111111111111111111111111111'
+    $env:ZENTRA_RELEASE_TEST_HARNESS=$null
     $env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY='false'; $env:ZENTRA_VERIFY_ONLY='true'; $env:CIRCLE_SHA1=$source
     Assert-Throws { Assert-ZentraVerificationMode $source } 'no access outside diagnostics mode'
     $env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY='true'; $env:ZENTRA_VERIFY_ONLY='false'
@@ -119,7 +120,7 @@ mt.exe : general error c101008c: Failed to read the manifest from the resource o
     $script:mockExit=0
     $script:lastToolArguments=@()
     function Invoke-ZentraHarnessTool {
-        param([string]$Program,[string[]]$Arguments,[string]$Repository,[string]$Stdout,[string]$Stderr,[string]$HeartbeatMessage,[int]$TimeoutSeconds)
+        param([string]$Program,[string[]]$Arguments,[string]$Repository,[string]$Stdout,[string]$Stderr,[string]$HeartbeatMessage,[int]$TimeoutSeconds,[string]$Mode)
         $script:toolCalls++
         $script:lastToolArguments=$Arguments
         [IO.File]::WriteAllText($Stdout,$script:mockSummary)

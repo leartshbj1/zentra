@@ -411,6 +411,25 @@ jobs:
       - store_artifacts:
           path: desktop/artifacts/windows
           destination: windows
+  windows-release-1913:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_ONLY: "false"
+      ZENTRA_RELEASE_TEST_HARNESS: "true"
+    steps:
+      - checkout
+      - run:
+          name: Verify native release tests and build the exact Windows installer
+          command: ./desktop/scripts/cloud-release-windows.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: windows
   apple:
     macos:
       xcode: "26.4.1"
@@ -451,11 +470,27 @@ jobs:
       - run:
           name: Launch the packaged Mac app in an isolated profile
           command: python3 desktop/scripts/local-apple-package-smoke.py
+      - run:
+          name: Record the exact Apple pipeline revision
+          command: |
+            set -euo pipefail
+            test -n "$CIRCLE_SHA1"
+            printf '%s\n' "$CIRCLE_SHA1" > desktop/artifacts/VERIFIER-SOURCE.txt
       - store_artifacts:
           path: desktop/artifacts
           destination: apple
 
 workflows:
+  drafts-diagnostics-release-1913:
+    when:
+      and:
+        - equal: [codex/release-1.90.13-20261004, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-release-1913
+      - apple
+      - android:
+          build-mode: release
   drafts-errors-diagnostics-verification:
     when:
       and:

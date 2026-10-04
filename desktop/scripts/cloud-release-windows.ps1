@@ -34,6 +34,19 @@ if ($diagnosticPhase -cne 'all' -and $diagnosticSelection -cne 'full') {
 }
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 Set-Location -LiteralPath $repo
+# An explicit release-only opt-in; all diagnostic branches and callers retain
+# their existing guards and their default verification mode.
+if (-not [string]::IsNullOrEmpty($env:ZENTRA_RELEASE_TEST_HARNESS) -and $env:ZENTRA_RELEASE_TEST_HARNESS -cnotin @('true','false')) {
+    throw 'Unknown release test-harness opt-in.'
+}
+$script:releasePreflightEnabled = $env:ZENTRA_RELEASE_TEST_HARNESS -ceq 'true'
+$script:releasePreflightHarness = $null
+if ($script:releasePreflightEnabled) {
+    . (Join-Path $PSScriptRoot 'windows-verification-harness.ps1')
+    $script:releasePreflightSource = (& git rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the exact release-preflight source.' }
+    Assert-ZentraVerificationMode $script:releasePreflightSource 'release-preflight' $repo
+}
 $artifacts = Join-Path $repo 'desktop/artifacts/windows'
 [IO.Directory]::CreateDirectory($artifacts) | Out-Null
 $toolsRoot = Join-Path $env:TEMP 'zentra-release-tools'
@@ -41,6 +54,16 @@ $toolsRoot = Join-Path $env:TEMP 'zentra-release-tools'
 
 function Invoke-Checked {
     param([string]$Program, [string[]]$Arguments)
+    if ($script:releasePreflightEnabled -and [IO.Path]::GetFileName($Program) -imatch '^cargo(?:\.(?:exe|cmd|bat))?$') {
+        $spec = ConvertTo-ZentraReleaseTestInvocation $Program $Arguments
+        if ($null -eq $script:releasePreflightHarness) {
+            & (Join-Path $PSScriptRoot 'windows-verification-harness.contract-tests.ps1') -NativeNodePath (Join-Path $nodeRoot 'node.exe')
+            & (Join-Path $PSScriptRoot 'windows-release-preflight.contract-tests.ps1')
+            $script:releasePreflightHarness = Initialize-ZentraVerificationHarness $repo $artifacts $script:releasePreflightSource -Mode 'release-preflight'
+        }
+        Invoke-ZentraVerificationSuite $script:releasePreflightHarness $spec.Filter $spec.TestArguments -Mode 'release-preflight' -PreserveOriginalTestArguments
+        return
+    }
     & $Program @Arguments
     if ($LASTEXITCODE -ne 0) { throw "$Program failed ($LASTEXITCODE)" }
 }
