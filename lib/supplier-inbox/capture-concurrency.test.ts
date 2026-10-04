@@ -40,6 +40,13 @@ vi.mock('@/lib/runtime', () => ({
     siteUrl: 'https://company.invalid',
   }),
 }));
+// Capture workers use their stored, tenant-checked delegation. Browser auth is
+// outside this closed concurrency witness and must never be invoked by it.
+vi.mock('@/app/zentra-auth', () => ({
+  getZentraUser: vi.fn(() => {
+    throw Error('Browser authentication is not permitted in this capture witness');
+  }),
+}));
 import { captureMailboxInvoices } from './capture';
 import { JEV_ENDPOINT } from '@/lib/automation/transport';
 import {

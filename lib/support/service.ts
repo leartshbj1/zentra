@@ -350,12 +350,6 @@ export async function getWorkspaceState(request: Request) {
     workspaces: list.map((w) => ({ id: w.id, name: w.name, role: w.role })),
   };
   if (!workspace) return supportJson({ ...basic, workspace: null });
-  const connections = await database()
-    .prepare(
-      'SELECT * FROM support_connections WHERE workspace_id=? AND active=1 ORDER BY created_at',
-    )
-    .bind(workspace.id)
-    .all<Connection>();
   const search = text(params.get('search'), 160),
     state = text(params.get('state'), 25),
     category = text(params.get('category'), 40);
@@ -367,7 +361,15 @@ export async function getWorkspaceState(request: Request) {
   if (!Number.isSafeInteger(before) || before < 0)
     throw new SupportError('La pagination a expiré. Rechargez les tickets.');
   const query = `SELECT t.*, (SELECT json_object('intent',r.intent,'state',CASE WHEN r.state='submitting' AND r.updated_at<unixepoch()-180 THEN 'uncertain' WHEN r.state='preparing' AND r.updated_at<unixepoch()-180 THEN 'rejected' ELSE r.state END) FROM support_solicitation_replies r WHERE r.workspace_id=t.workspace_id AND r.ticket_id=t.id AND r.fingerprint=t.fingerprint) AS solicitation_json FROM support_tickets t WHERE workspace_id=? AND (?='' OR subject LIKE ? ESCAPE '\\' OR external_id LIKE ? ESCAPE '\\') AND (?='' OR state=?) AND (?='' OR json_extract(decision_json,'$.category')=?) AND (?=0 OR updated_at<? OR (updated_at=? AND id<?)) ORDER BY updated_at DESC,id DESC LIMIT 61`;
-  const tickets = await database()
+  const manage = ['owner', 'admin'].includes(workspace.role);
+  // The workspace has already passed the current user's access check. These
+  // independent, scoped reads can overlap after that boundary.
+  const [connections, tickets, counts, memberRows, billing, events] = await Promise.all([
+    database()
+      .prepare('SELECT * FROM support_connections WHERE workspace_id=? AND active=1 ORDER BY created_at')
+      .bind(workspace.id)
+      .all<Connection>(),
+    database()
     .prepare(query)
     .bind(
       workspace.id,
@@ -383,34 +385,52 @@ export async function getWorkspaceState(request: Request) {
       before,
       beforeId,
     )
-    .all<Ticket>();
-  const counts = await database()
+    .all<Ticket>(),
+    database()
     .prepare(
       `SELECT COUNT(*) AS total,SUM(state='review') AS review,SUM(state='error') AS errors,SUM(state='ready') AS ready,SUM(state='routed') AS routed,SUM(state='routed' AND automatic=1 AND corrected=0) AS automatic,SUM(corrected=1) AS corrections FROM support_tickets WHERE workspace_id=? AND created_at>=?`,
     )
     .bind(workspace.id, now() - 30 * 86400)
-    .first<Record<string, number>>();
-  const manage = ['owner', 'admin'].includes(workspace.role);
-  const members = manage
-    ? (
-        await database()
+    .first<Record<string, number>>(),
+    manage
+    ? database()
           .prepare(
             'SELECT id,email,role FROM support_members WHERE workspace_id=? ORDER BY created_at',
           )
           .bind(workspace.id)
           .all()
-      ).results
-    : [];
-  const billing = await billingState(workspace);
+    : Promise.resolve({ results: [] }),
+    billingState(workspace),
+    database()
+      .prepare('SELECT id,ticket_id AS ticketId,kind,detail,actor,created_at AS createdAt FROM support_events WHERE workspace_id=? ORDER BY created_at DESC,id DESC LIMIT 80')
+      .bind(workspace.id)
+      .all(),
+  ]);
+  const members = memberRows.results;
   const focusedId=text(params.get('ticket'),50);
   const focused=focusedId && billing.active ? await database().prepare(`SELECT t.*, (SELECT json_object('intent',r.intent,'state',CASE WHEN r.state='submitting' AND r.updated_at<unixepoch()-180 THEN 'uncertain' WHEN r.state='preparing' AND r.updated_at<unixepoch()-180 THEN 'rejected' ELSE r.state END) FROM support_solicitation_replies r WHERE r.workspace_id=t.workspace_id AND r.ticket_id=t.id AND r.fingerprint=t.fingerprint) AS solicitation_json FROM support_tickets t WHERE t.workspace_id=? AND t.id=?`).bind(workspace.id,focusedId).first<Ticket>() : null;
   if(focusedId && billing.active && !focused) throw new SupportError('Ce message n’est plus accessible dans cet espace.',404);
-  const events = await database()
-    .prepare(
-      'SELECT id,ticket_id AS ticketId,kind,detail,actor,created_at AS createdAt FROM support_events WHERE workspace_id=? ORDER BY created_at DESC,id DESC LIMIT 80',
-    )
-    .bind(workspace.id)
-    .all();
+  // Keep paid-content gates and focused-ticket checks ahead of supplemental
+  // reads. Every promise is request-local; no tenant or credential is cached.
+  // A failed key or Gestion read must not start a deferred offer attachment.
+  const [key, mailboxes, gestion] = await Promise.all([
+    aiKey(),
+    mailboxStates(workspace.id),
+    gestionLinkState(workspace.id,user.userId,manage),
+  ]);
+  // Automation may attach a valid unbound offer. Preserve its historical order
+  // and completion before later reads, including the second entitlement check.
+  const automation = await supportAutomationState(workspace.id);
+  const [mailSync, zendesk, solicitationFeed] = await Promise.all([
+    readSchedulerHealth(),
+    zendeskAvailability(),
+    billing.active && workspace.solicitation_notifications
+      ? database().prepare("SELECT id FROM support_tickets WHERE workspace_id=? AND state='quiet' AND json_extract(decision_json,'$.category')='solicitation' ORDER BY created_at DESC,id DESC LIMIT 20").bind(workspace.id).all<{id:string}>().then(rows => rows.results)
+      : Promise.resolve([]),
+  ]);
+  const productivity = billing.active
+    ? await productivityState(workspace.id,user.userId,manage,{email:user.email,role:workspace.role})
+    : null;
   return supportJson({
     ...basic,
     workspace: {
@@ -425,20 +445,19 @@ export async function getWorkspaceState(request: Request) {
       repliesEnabled: !!workspace.replies_enabled,
       role: workspace.role,
       canManage: manage,
-      aiReady: !!(await aiKey()),
+      aiReady: !!key,
     },
     connections: connections.results.map(publicConnection),
-    mailboxes: await mailboxStates(workspace.id),
-    gestion: await gestionLinkState(workspace.id,user.userId,manage),
-    automation: (({active,enabled})=>({active,enabled}))(await supportAutomationState(workspace.id)),
-    mailSync: await readSchedulerHealth(),
-    zendesk: await zendeskAvailability(),
+    mailboxes,
+    gestion,
+    automation: {active:automation.active,enabled:automation.enabled},
+    mailSync,
+    zendesk,
     tickets: billing.active
       ? tickets.results.slice(0, 60).map(publicTicket)
       : [],
     focusedTicket: focused ? publicTicket(focused) : null,
-    solicitationFeed: billing.active && workspace.solicitation_notifications
-      ? (await database().prepare("SELECT id FROM support_tickets WHERE workspace_id=? AND state='quiet' AND json_extract(decision_json,'$.category')='solicitation' ORDER BY created_at DESC,id DESC LIMIT 20").bind(workspace.id).all<{id:string}>()).results : [],
+    solicitationFeed,
     hasMore: billing.active && tickets.results.length > 60,
     counts: billing.active
       ? counts
@@ -454,7 +473,7 @@ export async function getWorkspaceState(request: Request) {
     members,
     billing,
     events: billing.active ? events.results : [],
-    productivity: billing.active ? await productivityState(workspace.id,user.userId,manage,{email:user.email,role:workspace.role}) : null,
+    productivity,
   });
 }
 

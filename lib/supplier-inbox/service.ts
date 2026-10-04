@@ -72,14 +72,15 @@ export async function gestionLinkState(
   manage: boolean,
 ) {
   const link = await workspaceLink(workspace);
+  const memberships = manage || link ? await membershipsForUser(user) : [];
   const choices = manage
-    ? (await membershipsForUser(user))
+    ? memberships
         .filter((m) => ['owner', 'admin'].includes(m.role))
         .map((m) => ({ id: m.organizationId, name: m.organizationName }))
     : [];
   // Names and document contents from Gestion are only exposed to its own members.
   const membership = link
-    ? (await membershipsForUser(user)).find(
+    ? memberships.find(
         (m) => m.organizationId === link.organization_id,
       )
     : null;
