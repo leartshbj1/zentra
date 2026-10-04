@@ -18,6 +18,11 @@ mod files;
 #[cfg(test)]
 #[path = "backup/recovery_tests.rs"]
 mod recovery_tests;
+#[path = "backup/recovery_journal.rs"]
+mod recovery_journal;
+#[cfg(test)]
+#[path = "backup/recovery_crash_tests.rs"]
+pub(crate) mod recovery_crash_tests;
 
 use crate::{
     database::{now_iso, query_all, LocalStore},
@@ -324,79 +329,23 @@ struct PreservedLicense {
     clock_anchor_version: i64,
 }
 
-struct RestoredDataSwap {
-    database_path: PathBuf,
-    attachments_dir: PathBuf,
-    staged_database: PathBuf,
-    staged_attachments: PathBuf,
-    old_database: PathBuf,
-    old_attachments: PathBuf,
-    old_database_staged: bool,
-    old_attachments_staged: bool,
-    new_database_installed: bool,
-    new_attachments_installed: bool,
+type RestoredDataSwap = recovery_journal::RecoveryJournal;
+
+pub(crate) fn recover_interrupted_restore(data_dir: &Path) -> AppResult<()> {
+    recovery_journal::recover(data_dir)
 }
 
-impl RestoredDataSwap {
-    fn rollback(self) -> AppResult<()> {
-        let mut failures = Vec::new();
+pub(crate) fn require_usable_profile(data_dir: &Path) -> AppResult<()> {
+    recovery_journal::require_business_access(data_dir)
+}
 
-        if self.new_database_installed {
-            if let Err(error) = remove_sqlite_sidecars(&self.database_path) {
-                failures.push(format!("fichiers temporaires SQLite : {error}"));
-            }
-            if self.database_path.exists() {
-                if let Err(error) = fs::remove_file(&self.database_path) {
-                    failures.push(format!("base restaurée : {error}"));
-                }
-            }
-        }
-        if self.new_attachments_installed && self.attachments_dir.exists() {
-            if let Err(error) = fs::remove_dir_all(&self.attachments_dir) {
-                failures.push(format!("pièces jointes restaurées : {error}"));
-            }
-        }
-        if self.old_database_staged && self.old_database.exists() {
-            if let Err(error) = fs::rename(&self.old_database, &self.database_path) {
-                failures.push(format!("ancienne base : {error}"));
-            }
-        }
-        if self.old_attachments_staged && self.old_attachments.exists() {
-            if let Err(error) = fs::rename(&self.old_attachments, &self.attachments_dir) {
-                failures.push(format!("anciennes pièces jointes : {error}"));
-            }
-        }
-        if self.staged_database.exists() {
-            let _ = fs::remove_file(&self.staged_database);
-        }
-        if self.staged_attachments.exists() {
-            let _ = fs::remove_dir_all(&self.staged_attachments);
-        }
+pub(crate) fn require_restore_statement_access(data_dir: &Path) -> AppResult<()> {
+    recovery_journal::require_statement_access(data_dir)
+}
 
-        if failures.is_empty() {
-            Ok(())
-        } else {
-            Err(AppError::Validation(format!(
-                "Le retour aux données précédentes est incomplet ({})",
-                failures.join("; ")
-            )))
-        }
-    }
-
-    fn commit(self) {
-        if self.old_database.exists() {
-            let _ = fs::remove_file(self.old_database);
-        }
-        if self.old_attachments.exists() {
-            let _ = fs::remove_dir_all(self.old_attachments);
-        }
-        if self.staged_database.exists() {
-            let _ = fs::remove_file(self.staged_database);
-        }
-        if self.staged_attachments.exists() {
-            let _ = fs::remove_dir_all(self.staged_attachments);
-        }
-    }
+#[cfg(test)]
+pub(crate) fn restore_connection_test_checkpoint(data_dir: &Path) {
+    recovery_journal::checkpoint(data_dir, "connection_opened");
 }
 
 impl LocalStore {
@@ -530,6 +479,15 @@ impl LocalStore {
         self.restore_backup_with_limits(source, app_version, ARCHIVE_EXTRACTION_LIMITS)
     }
 
+    pub(crate) fn restore_backup_and_then<F: FnOnce() -> AppResult<()>>(
+        &self, source: &str, app_version: &str, finalize: F,
+    ) -> AppResult<()> {
+        self.restore_backup_finalized(source, app_version, ARCHIVE_EXTRACTION_LIMITS, true, || {
+            crate::company_collaboration::after_manual_restore(self)?;
+            finalize()
+        })
+    }
+
     fn restore_backup_with_limits(
         &self,
         source: &str,
@@ -597,6 +555,7 @@ impl LocalStore {
             &extracted_database,
             &extracted_attachments,
             safety_path.as_deref(),
+            create_safety,
             || {
                 self.migrate()?;
                 self.restore_local_license(preserved_license.as_ref())?;
@@ -616,6 +575,7 @@ impl LocalStore {
     }
 
     fn write_backup_at(&self, destination: &Path, app_version: &str, verify_files: bool) -> AppResult<()> {
+        self.require_usable_profile()?;
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -682,6 +642,7 @@ impl LocalStore {
     }
 
     fn snapshot_database(&self, destination: &Path) -> AppResult<()> {
+        self.require_usable_profile()?;
         let source = self.connect()?;
         source.execute_batch("PRAGMA wal_checkpoint(FULL);")?;
         let mut target = Connection::open(destination)?;
@@ -747,6 +708,7 @@ impl LocalStore {
     }
 
     pub(crate) fn extract_company_copy(&self, source: &Path, directory: &Path) -> AppResult<()> {
+        self.require_usable_profile()?;
         fs::create_dir_all(directory.join("attachments"))?;
         let database = directory.join(DATABASE_ENTRY);
         self.extract_and_validate_archive_with_limits(source, &database, &directory.join("attachments"), ARCHIVE_EXTRACTION_LIMITS)?;
@@ -837,25 +799,31 @@ impl LocalStore {
         restored_database: &Path,
         restored_attachments: &Path,
         safety_path: Option<&Path>,
+        complete_archive: bool,
         finalize: F,
     ) -> AppResult<()>
     where
         F: FnOnce() -> AppResult<()>,
     {
-        let swap = self.install_restored_data(restored_database, restored_attachments)?;
-        match finalize() {
-            Ok(()) => {
-                swap.commit();
-                Ok(())
-            }
+        let swap = self.install_restored_data(restored_database, restored_attachments, complete_archive)?;
+        let result = finalize().and_then(|()| {
+            recovery_journal::checkpoint(&self.data_dir, "finalized");
+            self.connect()?.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
+            swap.commit()
+        });
+        match result {
+            Ok(()) => Ok(()),
+            Err(_) if swap.is_committed() => Err(AppError::Restore(
+                "La restauration est terminée et les données sont enregistrées. Le nettoyage des anciennes copies n’a pas pu se terminer. Fermez puis rouvrez Zentra pour le reprendre. Si ce message revient, contactez le support.".into()
+            )),
             Err(error) => match swap.rollback() {
-                Ok(()) => Err(AppError::Validation(format!(
+                Ok(()) => Err(AppError::Restore(format!(
                     "La restauration a été annulée et les données précédentes ont été rétablies. Cause : {error}{}",
                     safety_path
                         .map(|path| format!(" Une sauvegarde de sécurité reste disponible dans {}.", path.display()))
                         .unwrap_or_default()
                 ))),
-                Err(rollback_error) => Err(AppError::Validation(format!(
+                Err(rollback_error) => Err(AppError::Restore(format!(
                     "La restauration a échoué ({error}) et le retour automatique est incomplet ({rollback_error}).{}",
                     safety_path
                         .map(|path| format!(" Récupérez la sauvegarde de sécurité : {}.", path.display()))
@@ -869,58 +837,46 @@ impl LocalStore {
         &self,
         restored_database: &Path,
         restored_attachments: &Path,
+        complete_archive: bool,
     ) -> AppResult<RestoredDataSwap> {
-        let token = Uuid::new_v4();
-        let staged_database = self.data_dir.join(format!(".restore-{token}.sqlite3"));
-        let old_database = self
-            .data_dir
-            .join(format!(".before-restore-{token}.sqlite3"));
-        let staged_attachments = self.data_dir.join(format!(".restore-attachments-{token}"));
-        let old_attachments = self
-            .data_dir
-            .join(format!(".before-restore-attachments-{token}"));
-
-        let mut swap = RestoredDataSwap {
-            database_path: self.database_path.clone(),
-            attachments_dir: self.attachments_dir.clone(),
-            staged_database,
-            staged_attachments,
-            old_database,
-            old_attachments,
-            old_database_staged: false,
-            old_attachments_staged: false,
-            new_database_installed: false,
-            new_attachments_installed: false,
-        };
+        self.connect()?.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
+        let swap = RestoredDataSwap::begin(&self.data_dir, complete_archive)?;
         let staging_result = (|| -> AppResult<()> {
             fs::copy(restored_database, &swap.staged_database)?;
+            recovery_journal::checkpoint(&self.data_dir, "database_staged");
             copy_directory(restored_attachments, &swap.staged_attachments)?;
+            swap.synchronize_staged()?;
+            recovery_journal::checkpoint(&self.data_dir, "attachments_staged");
             Ok(())
         })();
         if let Err(error) = staging_result {
-            let _ = swap.rollback();
-            return Err(error);
+            return match swap.rollback() {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(AppError::Restore(format!(
+                    "La préparation de la restauration a échoué ({error}) et le retour automatique est incomplet ({rollback_error}). Les fichiers disponibles sont conservés ; fermez puis rouvrez Zentra avant de reprendre."
+                ))),
+            };
         }
         let install_result = (|| -> AppResult<()> {
             remove_sqlite_sidecars(&self.database_path)?;
             if self.database_path.exists() {
                 fs::rename(&self.database_path, &swap.old_database)?;
-                swap.old_database_staged = true;
+                recovery_journal::checkpoint(&self.data_dir, "old_database_renamed");
             }
             if self.attachments_dir.exists() {
                 fs::rename(&self.attachments_dir, &swap.old_attachments)?;
-                swap.old_attachments_staged = true;
+                recovery_journal::checkpoint(&self.data_dir, "old_attachments_renamed");
             }
             fs::rename(&swap.staged_database, &self.database_path)?;
-            swap.new_database_installed = true;
+            recovery_journal::checkpoint(&self.data_dir, "new_database_renamed");
             fs::rename(&swap.staged_attachments, &self.attachments_dir)?;
-            swap.new_attachments_installed = true;
+            recovery_journal::checkpoint(&self.data_dir, "new_attachments_renamed");
             Ok(())
         })();
         if let Err(error) = install_result {
             return match swap.rollback() {
                 Ok(()) => Err(error),
-                Err(rollback_error) => Err(AppError::Validation(format!(
+                Err(rollback_error) => Err(AppError::Restore(format!(
                     "L’installation de la sauvegarde a échoué ({error}) et les données précédentes n’ont pas pu être entièrement rétablies ({rollback_error})."
                 ))),
             };
@@ -1293,8 +1249,8 @@ fn copy_directory(source: &Path, destination: &Path) -> AppResult<()> {
     for entry in WalkDir::new(source)
         .follow_links(false)
         .into_iter()
-        .filter_map(Result::ok)
     {
+        let entry = entry.map_err(|_| AppError::Restore("Les pièces jointes à restaurer sont inaccessibles. Les fichiers disponibles sont conservés.".into()))?;
         let relative = entry
             .path()
             .strip_prefix(source)
@@ -1317,7 +1273,7 @@ fn copy_directory(source: &Path, destination: &Path) -> AppResult<()> {
 }
 
 fn remove_sqlite_sidecars(database_path: &Path) -> AppResult<()> {
-    for suffix in ["-wal", "-shm"] {
+    for suffix in ["-wal", "-shm", "-journal"] {
         let path = PathBuf::from(format!("{}{}", database_path.display(), suffix));
         if path.exists() {
             fs::remove_file(path)?;
@@ -1746,6 +1702,7 @@ mod tests {
                 &restored_database,
                 &source.attachments_dir,
                 None,
+                false,
                 || {
                     Err(AppError::Validation(
                         "échec final simulé après installation".into(),

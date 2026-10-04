@@ -188,6 +188,17 @@ fn open_saved_company(
     revision: u64,
     expected: i64,
 ) -> AppResult<()> {
+    open_saved_company_finalized(store, path, org, revision, expected, || Ok(()))
+}
+
+fn open_saved_company_finalized<F: FnOnce() -> AppResult<()>>(
+    store: &LocalStore,
+    path: &Path,
+    org: &str,
+    revision: u64,
+    expected: i64,
+    after_finalize: F,
+) -> AppResult<()> {
     let _local = store.lock()?;
     let _gate = WriteGate::take(store)?;
     if clock(store)? != expected {
@@ -204,21 +215,16 @@ fn open_saved_company(
         &recovery.join("entreprise.zentra"),
         env!("CARGO_PKG_VERSION"),
     )?;
-    let previous: Vec<_> = LINK_FILES
-        .iter()
-        .map(|name| {
-            let path = store.data_dir.join(name);
-            let bytes = if path.exists() {
-                Some(fs::read(path)?)
-            } else {
-                None
-            };
-            if let Some(bytes) = &bytes {
-                fs::write(recovery.join(name), bytes)?;
-            }
-            Ok((*name, bytes))
-        })
-        .collect::<AppResult<_>>()?;
+    // Keep this independent safety directory for support/manual recovery.
+    // Active rollback belongs exclusively to the common durable journal.
+    for name in LINK_FILES {
+        let path = store.data_dir.join(name);
+        if path.exists() {
+            let mut copy = File::create(recovery.join(name))?;
+            std::io::copy(&mut File::open(path)?, &mut copy)?;
+            copy.sync_all()?;
+        }
+    }
     // The current device identity belongs to the selected account. Number
     // reservations, timers and project sync bindings belong to the old company.
     let private: Vec<_> = private_rows(store)?
@@ -234,7 +240,7 @@ fn open_saved_company(
             (table, rows)
         })
         .collect();
-    let result = store.restore_company_snapshot(&path.to_string_lossy(), || {
+    store.restore_company_snapshot(&path.to_string_lossy(), || {
         restore_private(store, &private)?;
         for name in LINK_FILES {
             let file = store.data_dir.join(name);
@@ -252,24 +258,58 @@ fn open_saved_company(
                 last_synced_at: Some(now_iso()),
                 ..Default::default()
             },
-        )
-    });
-    if result.is_err() {
-        for (name, bytes) in previous {
-            let file = store.data_dir.join(name);
-            if let Some(bytes) = bytes {
-                fs::write(file, bytes)?;
-            } else if file.exists() {
-                fs::remove_file(file)?;
-            }
-        }
-    }
-    result
+        )?;
+        after_finalize()
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn failed_real_company_open_uses_only_journal_rollback_and_keeps_safety_copies() {
+        use crate::backup::recovery_crash_tests::{fixture, auxiliary_fixture, assert_profile, assert_auxiliary};
+        let root = tempfile::tempdir().unwrap();
+        let (source, candidate) = fixture(root.path(), "source", 220);
+        let archive = source.create_backup(Some(root.path().join("portable.zentra").to_string_lossy().into()), env!("CARGO_PKG_VERSION")).unwrap();
+        fs::rename(&source.data_dir, root.path().join("source-inaccessible")).unwrap();
+        let (current, mut original) = fixture(root.path(), "current", 30);
+        set_identity(&current, "selected-company", "synthetic-member", "Nom privé synthétique", "admin").unwrap();
+        original.scope = crate::work_notes::workspace_scope(&current.connect().unwrap()).unwrap();
+        let original_private = private_rows(&current).unwrap();
+        let auxiliary = auxiliary_fixture(&current);
+        let expected_clock = clock(&current).unwrap();
+        let failure = open_saved_company_finalized(&current, Path::new(&archive), "selected-company", 7, expected_clock, || {
+            // These are the actual caller's identity/reference/binding edits,
+            // followed by a failure inside the common transaction boundary.
+            assert_profile(&current, &candidate, &original, false);
+            assert_eq!(load(&current)?.organization_id.as_deref(), Some("selected-company"));
+            assert_eq!(load(&current)?.revision, 7);
+            assert_eq!(fs::read(current.data_dir.join("company-sync-reference.zentra"))?, fs::read(&archive)?);
+            assert!(!current.data_dir.join("cloud-backup-state.json").exists());
+            Err(invalid("synthetic-after-real-company-finalizer"))
+        }).unwrap_err();
+        assert!(failure.to_string().contains("données précédentes ont été rétablies"));
+        assert_profile(&current, &original, &candidate, true);
+        assert_auxiliary(&current, &auxiliary);
+        assert_eq!(private_rows(&current).unwrap(), original_private);
+        assert!(!current.data_dir.join(".zentra-restore-journal.json").exists());
+        let recovery = fs::read_dir(&current.backups_dir).unwrap().map(|entry| entry.unwrap().path())
+            .find(|path| path.file_name().unwrap().to_string_lossy().starts_with("avant-changement-entreprise-")).unwrap();
+        assert!(recovery.join("entreprise.zentra").is_file());
+        for (name, bytes) in LINK_FILES.iter().zip(&auxiliary) {
+            assert_eq!(fs::read(recovery.join(name)).ok(), *bytes, "safety copy {name}");
+        }
+        for _ in 0..2 {
+            let reopened = LocalStore::initialize(current.data_dir.clone()).unwrap();
+            assert_profile(&reopened, &original, &candidate, true);
+            assert_auxiliary(&reopened, &auxiliary);
+            assert_eq!(private_rows(&reopened).unwrap(), original_private);
+        }
+        let separate = LocalStore::initialize(root.path().join("safety-recovery")).unwrap();
+        separate.restore_backup(&recovery.join("entreprise.zentra").to_string_lossy(), env!("CARGO_PKG_VERSION")).unwrap();
+        assert_profile(&separate, &original, &candidate, false);
+    }
     #[test]
     fn a_new_company_keeps_its_account_binding_after_an_offline_restart() {
         let temp = tempfile::tempdir().unwrap();

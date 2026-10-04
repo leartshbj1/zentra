@@ -37,6 +37,7 @@ const ERROR_CODES: &[&str] = &[
     "LOG_WRITE_FAILED",
     "storage.database",
     "storage.io",
+    "storage.restore",
     "input.json",
     "document.pdf",
     "import.archive",
@@ -584,6 +585,7 @@ fn native_error_code(error: &AppError) -> &'static str {
         AppError::Pdf(_) => "document.pdf",
         AppError::Archive(_) => "import.archive",
         AppError::Validation(_) => "input.validation",
+        AppError::Restore(_) => "storage.restore",
         AppError::Remote(_) => "service.remote",
         AppError::NotFound(_) => "record.not_found",
         AppError::OnboardingRequired => "setup.required",
@@ -983,6 +985,7 @@ mod tests {
         let errors = [
             AppError::Remote("Bearer private-secret-token mail@example.ch".into()),
             AppError::Validation("Invoice body and private password".into()),
+            AppError::Restore("private restore journal /private/company-document.pdf token=private-secret-token".into()),
             AppError::UnsafePath(PathBuf::from("/private/company-document.pdf")),
         ];
         for error in &errors {
@@ -1000,11 +1003,24 @@ mod tests {
             assert!(!text.contains(secret));
         }
         let summary = log.summary().unwrap();
-        assert_eq!(summary.event_count, 3);
+        assert_eq!(summary.event_count, 4);
         assert_eq!(
             summary.last_incident.unwrap().error_code.as_deref(),
             Some("storage.unsafe_path")
         );
+    }
+
+    #[test]
+    fn restore_state_errors_keep_their_message_and_log_only_a_static_storage_category() {
+        let (_temporary, log) = fixture(MAX_FILE_BYTES);
+        let message = "Une restauration doit être reprise. synthetic-private-token /private/profile";
+        let error = AppError::Restore(message.into());
+        assert_eq!(error.to_string(), message);
+        log.append_native_error(&error);
+        let text = fs::read_to_string(log.export().unwrap()).unwrap();
+        assert!(!text.contains("synthetic-private-token"));
+        assert!(!text.contains("/private/profile"));
+        assert_eq!(log.summary().unwrap().last_incident.unwrap().error_code.as_deref(), Some("storage.restore"));
     }
 
     #[test]

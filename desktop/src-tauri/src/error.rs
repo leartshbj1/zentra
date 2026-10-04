@@ -15,6 +15,8 @@ pub enum AppError {
     #[error("Champ invalide : {0}")]
     Validation(String),
     #[error("{0}")]
+    Restore(String),
+    #[error("{0}")]
     Remote(String),
     #[error("Enregistrement introuvable : {0}")]
     NotFound(String),
