@@ -489,6 +489,15 @@ jobs:
           destination: apple
 
 workflows:
+  quality-continuity-verification:
+    when:
+      and:
+        - equal: [codex/quality-continuity-20261004, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-drafts-diagnostics-tests:
+          name: windows-quality-continuity-native-tests
+          diagnostics-phase: native
   drafts-diagnostics-release-1913:
     when:
       and:

@@ -325,18 +325,117 @@ fn remember_reference(
         .map_err(|e| AppError::Io(e.error))?;
     save_baseline(store, organization, revision, digest)
 }
+
+/// A local connection generation, not evidence of server identity or rights.
+/// The callers hold the account operation lock before any of these workers
+/// acquire LocalStore.lock; a worker never takes the account lock in reverse.
+#[derive(Clone)]
+struct LocalTransferOrigin {
+    workspace_scope: String,
+    member_context: String,
+    organization: String,
+}
+impl LocalTransferOrigin {
+    fn capture(store: &LocalStore, organization: &str) -> AppResult<Self> {
+        let connection = store.connect()?;
+        Ok(Self {
+            workspace_scope: crate::work_notes::workspace_scope(&connection)?,
+            member_context: crate::member_context::read(&connection)?,
+            organization: organization.into(),
+        })
+    }
+    fn require_unchanged(&self, store: &LocalStore) -> AppResult<()> {
+        let connection = store.connect()?;
+        if crate::work_notes::workspace_scope(&connection)? != self.workspace_scope {
+            return Err(invalid("L’entreprise ouverte a changé. Ce brouillon appartient à l’espace précédent et y reste conservé."));
+        }
+        crate::member_context::require_unchanged(&connection, Some(&self.member_context))?;
+        if load(store)?.organization_id.as_deref() != Some(self.organization.as_str()) {
+            return Err(invalid("La connexion ou l’entreprise ouverte a changé. Relancez la synchronisation."));
+        }
+        Ok(())
+    }
+}
+
+fn require_archive_content(
+    path: &Path,
+    expected: &crate::cloud_backup::Manifest,
+    message: &str,
+) -> AppResult<()> {
+    expected.validate()?;
+    let actual = crate::cloud_backup::file_manifest(path)?;
+    // file_manifest stamps the current binary version, not the archive's
+    // original producer version. An upgrade must still confirm the identical
+    // durable pending bytes and accept the exact older reference revision.
+    if !same_archive_content(&actual, expected) {
+        return Err(invalid(message));
+    }
+    Ok(())
+}
+fn same_archive_content(actual: &crate::cloud_backup::Manifest, expected: &crate::cloud_backup::Manifest) -> bool {
+    actual.sha256 == expected.sha256
+        && actual.size_bytes == expected.size_bytes
+        && actual.chunks == expected.chunks
+}
+
+/// Hashing/extracting an archive and copying/fsyncing its reference can be
+/// substantial. Keep this complete operation off the asynchronous executor.
+async fn read_reference_worker(
+    store: &LocalStore,
+    organization: &str,
+    expected_revision: u64,
+) -> AppResult<(LocalTransferOrigin, Option<PathBuf>)> {
+    let owned = store.clone();
+    let organization = organization.to_owned();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _local = owned.lock()?;
+        let origin = LocalTransferOrigin::capture(&owned, &organization)?;
+        origin.require_unchanged(&owned)?;
+        let prefs = load(&owned)?;
+        if prefs.revision != expected_revision {
+            return Err(invalid("La version de référence a changé. Relancez la synchronisation."));
+        }
+        let path = owned.data_dir.join("company-sync-reference.zentra");
+        let existing = baseline(&owned, &prefs).filter(|digest| {
+            path.is_file()
+                && crate::company_sync_digest::archive(&path).ok().as_ref() == Some(digest)
+        }).map(|_| path);
+        Ok((origin, existing))
+    })
+    .await
+    .map_err(|_| invalid("La vérification de la référence a été interrompue. Elle reprendra automatiquement."))?
+}
+
+async fn install_reference_worker(
+    store: &LocalStore,
+    origin: LocalTransferOrigin,
+    expected_revision: u64,
+    downloaded: PathBuf,
+    expected_manifest: crate::cloud_backup::Manifest,
+) -> AppResult<PathBuf> {
+    let owned = store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _local = owned.lock()?;
+        origin.require_unchanged(&owned)?;
+        if load(&owned)?.revision != expected_revision {
+            return Err(invalid("La version de référence a changé. Relancez la synchronisation."));
+        }
+        require_archive_content(&downloaded, &expected_manifest,
+            "La copie de référence a changé. Relancez la synchronisation.")?;
+        remember_reference(&owned, &downloaded, &origin.organization, expected_revision)?;
+        Ok(owned.data_dir.join("company-sync-reference.zentra"))
+    })
+    .await
+    .map_err(|_| invalid("La préparation de la référence a été interrompue. Elle reprendra automatiquement."))?
+}
 async fn reference_copy(
     store: &LocalStore,
     session: &ProjectSyncSession,
     prefs: &Preferences,
 ) -> AppResult<PathBuf> {
-    let path = store.data_dir.join("company-sync-reference.zentra");
-    if let Some(digest) = baseline(store, prefs) {
-        if path.is_file()
-            && crate::company_sync_digest::archive(&path).ok().as_deref() == Some(&digest)
-        {
-            return Ok(path);
-        }
+    let (origin, existing) = read_reference_worker(store, &session.organization_id, prefs.revision).await?;
+    if let Some(path) = existing {
+        return Ok(path);
     }
     let head = request(
         session,
@@ -348,11 +447,11 @@ async fn reference_copy(
     if checked_head(session, &head)? != prefs.revision {
         return Err(invalid("La copie de référence de cette entreprise est indisponible. Vos changements sont conservés."));
     }
+    let manifest: crate::cloud_backup::Manifest = serde_json::from_value(head["manifest"].clone())?;
     let downloaded = download(store, session, &head).await?;
     // Older versions stored only a digest; recover their EXACT accepted revision.
     // A v1.70 digest may include the now-ignored logo verification timestamp.
-    remember_reference(store, &downloaded, &session.organization_id, prefs.revision)?;
-    Ok(path)
+    install_reference_worker(store, origin, prefs.revision, downloaded, manifest).await
 }
 fn reconcile_unchanged_local(store: &LocalStore, expected: &str) -> AppResult<bool> {
     let _lock = store.lock()?;
@@ -514,7 +613,7 @@ struct MergeReception {
     reference_id: String,
     reference_manifest: crate::cloud_backup::Manifest,
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 struct Pending {
     id: String,
@@ -725,8 +824,12 @@ impl Drop for WriteGate {
     }
 }
 
+#[cfg(test)]
 fn prepare(store: &LocalStore, organization: &str, activate: bool) -> AppResult<Pending> {
     let _lock = store.lock()?;
+    prepare_locked(store, organization, activate)
+}
+fn prepare_locked(store: &LocalStore, organization: &str, activate: bool) -> AppResult<Pending> {
     let mut prefs = load(store)?;
     if prefs
         .organization_id
@@ -779,6 +882,47 @@ fn prepare(store: &LocalStore, organization: &str, activate: bool) -> AppResult<
     save(store, &prefs)?;
     Ok(pending)
 }
+
+async fn prepare_for_send_worker(
+    store: &LocalStore,
+    organization: &str,
+    activate: bool,
+) -> AppResult<(Pending, LocalTransferOrigin)> {
+    let owned = store.clone();
+    let organization = organization.to_owned();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _local = owned.lock()?;
+        let origin = LocalTransferOrigin::capture(&owned, &organization)?;
+        let pending = prepare_locked(&owned, &organization, activate)?;
+        Ok((pending, origin))
+    })
+    .await
+    .map_err(|_| invalid("L’envoi a été interrompu. Il reprendra automatiquement."))?
+}
+
+async fn confirm_sent_worker(
+    store: &LocalStore,
+    origin: LocalTransferOrigin,
+    expected: Pending,
+    revision: u64,
+) -> AppResult<()> {
+    let owned = store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _local = owned.lock()?;
+        origin.require_unchanged(&owned)?;
+        if load(&owned)?.pending.as_ref() != Some(&expected) {
+            return Err(invalid("L’envoi local a changé. Relancez la synchronisation."));
+        }
+        if revision <= expected.base_revision {
+            return Err(invalid("La confirmation du serveur est incohérente."));
+        }
+        require_archive_content(&file_path(&owned, &expected.id)?, &expected.manifest,
+            "L’envoi local a été modifié. Vos données originales sont conservées.")?;
+        confirm_sent(&owned, &expected.id, revision)
+    })
+    .await
+    .map_err(|_| invalid("La confirmation de l’envoi a été interrompue. Elle reprendra automatiquement."))?
+}
 fn confirm_sent(store: &LocalStore, id: &str, revision: u64) -> AppResult<()> {
     let mut prefs = load(store)?;
     let p = prefs
@@ -814,11 +958,7 @@ async fn send(
     activate: bool,
     supports_content: bool,
 ) -> AppResult<bool> {
-    let owned = store.clone();
-    let org = session.organization_id.clone();
-    let mut p = tauri::async_runtime::spawn_blocking(move || prepare(&owned, &org, activate))
-        .await
-        .map_err(|_| invalid("L’envoi a été interrompu. Il reprendra automatiquement."))??;
+    let (mut p, origin) = prepare_for_send_worker(store, &session.organization_id, activate).await?;
     let numbers = crate::shared_numbering::active_series(
         store,
         chrono::Datelike::year(&chrono::Local::now()) as i64,
@@ -858,7 +998,7 @@ async fn send(
         return Ok(false);
     }
     if let Some(revision) = response["revision"].as_u64() {
-        confirm_sent(store, &p.id, revision)?;
+        confirm_sent_worker(store, origin, p, revision).await?;
         return Ok(true);
     }
     if let Some(parts) = &entries {
@@ -932,13 +1072,14 @@ async fn send(
     )
     .await?;
     if result["committed"] == true && result["snapshotId"].as_str() == Some(&p.id) {
-        confirm_sent(
+        confirm_sent_worker(
             store,
-            &p.id,
+            origin,
+            p,
             result["revision"]
                 .as_u64()
                 .ok_or_else(|| invalid("La confirmation de version est invalide."))?,
-        )?;
+        ).await?;
         let _ = crate::company_content::trim(&cache);
         return Ok(true);
     }
@@ -951,6 +1092,32 @@ async fn send(
     Err(invalid(
         "L’envoi n’a pas encore été confirmé. Il reprendra automatiquement.",
     ))
+}
+
+#[cfg(test)]
+#[path = "company_collaboration_reference_worker_tests.rs"]
+mod reference_worker_tests;
+
+#[cfg(test)]
+#[path = "company_collaboration_content_version_compat_tests.rs"]
+mod content_version_compat_tests;
+
+#[cfg(test)]
+#[path = "company_collaboration_merge_version_compat_tests.rs"]
+mod merge_version_compat_tests;
+
+fn cached_download(
+    store: &LocalStore,
+    id: &str,
+    manifest: &crate::cloud_backup::Manifest,
+) -> AppResult<Option<PathBuf>> {
+    crate::cloud_backup::validate_id(id)?;
+    manifest.validate()?;
+    let path = file_path(store, id)?;
+    if path.is_file() && same_archive_content(&crate::cloud_backup::file_manifest(&path)?, manifest) {
+        return Ok(Some(path));
+    }
+    Ok(None)
 }
 async fn download(
     store: &LocalStore,
@@ -965,8 +1132,8 @@ async fn download(
     let manifest: crate::cloud_backup::Manifest = serde_json::from_value(head["manifest"].clone())?;
     manifest.validate()?;
     let path = file_path(store, id)?;
-    if path.is_file() && crate::cloud_backup::file_manifest(&path)? == manifest {
-        return Ok(path);
+    if let Some(cached) = cached_download(store, id, &manifest)? {
+        return Ok(cached);
     }
     if head["contentVersion"] == 1 {
         return download_content(store, session, id, &path, &manifest).await;
@@ -1024,8 +1191,32 @@ async fn download_content(
 ) -> AppResult<PathBuf> {
     let value = request(session, Method::GET, &[("id", id), ("content", "1")], None).await?;
     let parts: Vec<crate::cloud_backup::Chunk> = serde_json::from_value(value["entries"].clone())?;
+    download_content_with(store, &session.organization_id, path, manifest, parts,
+        |part: crate::cloud_backup::Chunk| async move {
+            let (_, bytes) = session.request(Method::GET, PATH,
+                &[("id", id), ("blob", &part.sha256)], &[], None, true).await?;
+            Ok(bytes)
+        }).await
+}
+
+/// The production reconstruction is shared with closed transport witnesses.
+/// Only fetching a missing fragment is injected; every byte still passes the
+/// real cache verification, write, fsync and complete manifest check.
+async fn download_content_with<F, Fut>(
+    store: &LocalStore,
+    organization: &str,
+    path: &Path,
+    manifest: &crate::cloud_backup::Manifest,
+    parts: Vec<crate::cloud_backup::Chunk>,
+    mut fetch: F,
+) -> AppResult<PathBuf>
+where
+    F: FnMut(crate::cloud_backup::Chunk) -> Fut,
+    Fut: std::future::Future<Output = AppResult<Vec<u8>>>,
+{
+    manifest.validate()?;
     crate::company_content::validate(&parts, manifest)?;
-    let cache = crate::company_content::directory(&store.data_dir, &session.organization_id)?;
+    let cache = crate::company_content::directory(&store.data_dir, organization)?;
     // Upgrade an old installation without re-downloading unchanged attachments.
     if fs::read_dir(&cache)?.next().is_none() {
         let reference = store.data_dir.join("company-sync-reference.zentra");
@@ -1045,16 +1236,7 @@ async fn download_content(
         let bytes = match crate::company_content::cached(&cache, part)? {
             Some(bytes) => bytes,
             None => {
-                let (_, bytes) = session
-                    .request(
-                        Method::GET,
-                        PATH,
-                        &[("id", id), ("blob", &part.sha256)],
-                        &[],
-                        None,
-                        true,
-                    )
-                    .await?;
+                let bytes = fetch(part.clone()).await?;
                 crate::company_content::put(&cache, part, &bytes)?;
                 bytes
             }
@@ -1062,11 +1244,8 @@ async fn download_content(
         file.write_all(&bytes)?;
     }
     file.as_file().sync_all()?;
-    if crate::cloud_backup::file_manifest(file.path())? != *manifest {
-        return Err(invalid(
-            "La copie de l’entreprise est incomplète. Aucune donnée n’a été modifiée.",
-        ));
-    }
+    require_archive_content(file.path(), manifest,
+        "La copie de l’entreprise est incomplète. Aucune donnée n’a été modifiée.")?;
     file.persist(path).map_err(|e| AppError::Io(e.error))?;
     let _ = crate::company_content::trim(&cache);
     Ok(path.to_owned())
@@ -1536,11 +1715,8 @@ fn apply_merged(store: &LocalStore, received: &Received, path: &Path) -> AppResu
         ));
     }
     let reference = file_path(store, &m.reference_id)?;
-    if crate::cloud_backup::file_manifest(&reference)? != m.reference_manifest {
-        return Err(invalid(
-            "La copie de référence reçue a changé. Vos données sont conservées.",
-        ));
-    }
+    require_archive_content(&reference, &m.reference_manifest,
+        "La copie de référence reçue a changé. Vos données sont conservées.")?;
     let mut prefs = load(store)?;
     let private = private_rows(store)?;
     // Recovery copy retains the entire original branch, including its audit chain.
@@ -1595,11 +1771,8 @@ pub async fn apply_company_update(state: State<'_, LocalStore>) -> Result<Value,
     let owned = store.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let path = file_path(&owned, &received.id)?;
-        if crate::cloud_backup::file_manifest(&path)? != received.manifest {
-            return Err(invalid(
-                "Les documents reçus ont changé. Relancez la synchronisation.",
-            ));
-        }
+        require_archive_content(&path, &received.manifest,
+            "Les documents reçus ont changé. Relancez la synchronisation.")?;
         if received.merge.is_some() {
             return apply_merged(&owned, &received, &path);
         }

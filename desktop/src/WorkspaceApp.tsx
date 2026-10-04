@@ -19,6 +19,7 @@ import { ResetAppPanel } from './ResetAppPanel';
 import { SupplierPaymentOutcomeUnknownError, SupplierPaymentRefreshError, type SupplierPaymentResume } from './supplierPaymentWorkflow';
 import { SupplierInvoiceValidationOutcomeUnknownError, SupplierInvoiceValidationRefreshError } from './supplierInvoiceValidation';
 import { t, useAppLanguage, getAppLocale, getAppLanguage } from './language';
+import { createLocalValidationError } from './localValidation';
 import './manual-backup.css';
 import { Languages } from 'lucide-react';
 import { LanguageSetting } from './LanguageSetting';
@@ -450,7 +451,7 @@ type PrintTarget =
   | { entity: 'delivery_notes'; value: DeliveryNote; order: SalesOrder }
   | { entity: 'payslips'; value: Payslip }
   | null;
-type Notice = { tone: 'success' | 'warning' | 'error'; text: string };
+type Notice = { tone: 'success' | 'warning' | 'error'; text: string; localValidation?: Error; onReview?: () => void };
 
 const navigation: Array<{
   id: View;
@@ -2092,7 +2093,7 @@ function WorkspaceContent({
             role={notice.tone === 'error' ? 'alert' : 'status'}
             aria-live={notice.tone === 'error' ? 'assertive' : 'polite'}
           >
-            {notice.tone === 'error' ? <ErrorGuidance error={notice.text} compact /> : <span>
+            {notice.tone === 'error' ? <ErrorGuidance error={notice.localValidation ?? notice.text} onReview={notice.onReview} compact /> : <span>
               {notice.tone === 'success' ? (
                 <CheckCircle2 size={18} />
               ) : notice.tone === 'warning' ? (
@@ -5368,13 +5369,16 @@ function SettingsScreen({
               onNotice({
                 tone: 'error',
                 text: 'Ajoutez au moins un taux TVA explicite avant d’enregistrer.',
+                localValidation: createLocalValidationError(t('Ajoutez au moins un taux TVA explicite avant d’enregistrer.'), getAppLanguage()),
               });
               return;
             }
-            if (vatRegistered && !String(form.get('vatNumber')).trim()) {
+            if (vatRegistered && ![form.get('uidNumber'), form.get('vatNumber')].some((value) => String(value ?? '').trim())) {
               onNotice({
                 tone: 'error',
-                text: 'Renseignez le numéro TVA avant d’enregistrer une entreprise assujettie.',
+                text: 'Renseignez le numéro IDE/UID ou le numéro TVA de l’entreprise.',
+                localValidation: createLocalValidationError(t('Renseignez le numéro IDE/UID ou le numéro TVA de l’entreprise.'), getAppLanguage()),
+                onReview: () => document.querySelector<HTMLInputElement>('form[data-company-receive-safe="true"] input[name="uidNumber"]')?.focus(),
               });
               return;
             }
@@ -5537,11 +5541,10 @@ function SettingsScreen({
             <Field label="IDE / UID">
               <input name="uidNumber" defaultValue={org.uidNumber} />
             </Field>
-            <Field label="Numéro TVA" required={org.vatRegistered}>
+            <Field label="Numéro TVA">
               <input
                 name="vatNumber"
                 defaultValue={org.vatNumber}
-                required={org.vatRegistered}
               />
             </Field>
             <label className="check-card">
@@ -5553,8 +5556,7 @@ function SettingsScreen({
               <span>
                 <strong>Assujettie à la TVA</strong>
                 <small>
-                  Le numéro TVA et au moins un taux explicite sont alors
-                  obligatoires.
+                  {t("Le numéro IDE/UID ou le numéro TVA et au moins un taux explicite sont alors obligatoires.")}
                 </small>
               </span>
             </label>

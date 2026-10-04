@@ -283,6 +283,11 @@ try {
         # Residual settings origin and closed workflow diagnostic witnesses.
         $diagnosticFrontendSuites += @('src/settings-residual-member-origin.test.tsx', 'src/settings-gate-member-admission.test.tsx', 'src/CloudAccountPanelDiagnostics.test.tsx', 'src/outgoingMail.test.ts')
         $diagnosticMobileSuites += @('src/settings-residual-member-origin.test.tsx', 'src/settings-gate-member-admission.test.tsx', 'src/CloudAccountPanelDiagnostics.test.tsx', 'src/outgoingMail.test.ts')
+        # Real reference workers and archive validation. These local witnesses
+        # do not certify HTTP delivery, physical devices or production capacity.
+        $diagnosticNativeSuites += @('company_collaboration::reference_worker_tests', 'company_collaboration::content_version_compat_tests', 'company_collaboration::merge_version_compat_tests', 'cloud_backup::tests')
+        $diagnosticFrontendSuites += @('src/company-vat-identifier.test.tsx')
+        $diagnosticMobileSuites += @('src/company-vat-identifier.test.tsx')
         if ($diagnosticPhase -cne 'frontend') {
             foreach ($suite in $diagnosticNativeSuites) {
                 Invoke-ZentraVerificationSuite $diagnosticHarness $suite

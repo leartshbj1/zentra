@@ -310,16 +310,20 @@ Assert-Contract ($frontendGateText.Contains("`$env:TAURI_ENV_PLATFORM = 'desktop
 Assert-Contract ($frontendGateText.Contains("Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + `$diagnosticFrontendSuites)") -and $frontendGateText.Contains("Invoke-Checked pnpm.cmd (@('--dir', 'desktop', 'exec', 'vitest', 'run', '--maxWorkers=2') + `$diagnosticMobileSuites)")) 'desktop/mobile suite dispatch and maxWorkers budget retained exactly'
 Assert-Contract ($frontendGateText.Contains("Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')") -and $frontendGateText.Contains('finally') -and $frontendGateText.Contains('Remove-Item Env:TAURI_ENV_PLATFORM -ErrorAction SilentlyContinue') -and $frontendGateText.Contains('$env:TAURI_ENV_PLATFORM = $diagnosticPreviousPlatform')) 'frontend build and platform environment restoration preserved'
 foreach ($spec in @(
-    @{ Name = 'diagnosticNativeSuites'; Count = 62; OrderedSha256 = '69439461eedcd795551e6705906fa4bb9dc21ca4847a01857ac49a5f3fb040f2' },
-    @{ Name = 'diagnosticFrontendSuites'; Count = 132; OrderedSha256 = 'f7ee2f55132a1c444897615023436dbd300dabded8159a5f2e8222c14329efa1' },
-    @{ Name = 'diagnosticMobileSuites'; Count = 104; OrderedSha256 = '07aaf124cdba5c7ba326dc5175d37ed73efa79af4bc93908d77650ba497e4923' }
+    @{ Name = 'diagnosticNativeSuites'; Count = 62; OrderedSha256 = '69439461eedcd795551e6705906fa4bb9dc21ca4847a01857ac49a5f3fb040f2'; Appendix = @('company_collaboration::reference_worker_tests', 'company_collaboration::content_version_compat_tests', 'company_collaboration::merge_version_compat_tests', 'cloud_backup::tests') },
+    @{ Name = 'diagnosticFrontendSuites'; Count = 132; OrderedSha256 = 'f7ee2f55132a1c444897615023436dbd300dabded8159a5f2e8222c14329efa1'; Appendix = @('src/company-vat-identifier.test.tsx') },
+    @{ Name = 'diagnosticMobileSuites'; Count = 104; OrderedSha256 = '07aaf124cdba5c7ba326dc5175d37ed73efa79af4bc93908d77650ba497e4923'; Appendix = @('src/company-vat-identifier.test.tsx') }
 )) {
     $assignments = @($releaseAst.FindAll({param($node) $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.Left.VariablePath.UserPath -ceq $spec.Name}, $true))
     $suiteNames = @($assignments | ForEach-Object { $_.Right.FindAll({param($node) $node -is [System.Management.Automation.Language.StringConstantExpressionAst]}, $true) | ForEach-Object {$_.Value} })
-    Assert-Contract ($suiteNames.Count -eq $spec.Count -and @($suiteNames | Select-Object -Unique).Count -eq $spec.Count) "functional $($spec.Name) retains exact count without duplicates"
+    $expectedCount = $spec.Count + $spec.Appendix.Count
+    Assert-Contract ($suiteNames.Count -eq $expectedCount -and @($suiteNames | Select-Object -Unique).Count -eq $expectedCount) "functional $($spec.Name) retains every original suite and its fixed appendix without duplicates"
+    $baselineSuiteNames = @($suiteNames | Select-Object -First $spec.Count)
+    $appendixSuiteNames = @($suiteNames | Select-Object -Skip $spec.Count)
+    Assert-Contract ([string]::Join("`n", $appendixSuiteNames) -ceq [string]::Join("`n", $spec.Appendix)) "functional $($spec.Name) has only its exact ordered quality appendix"
     $suiteHashAlgorithm = [Security.Cryptography.SHA256]::Create()
     try {
-        $orderedSuiteHash = [BitConverter]::ToString($suiteHashAlgorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes([string]::Join("`n", $suiteNames)))).Replace('-', '').ToLowerInvariant()
+        $orderedSuiteHash = [BitConverter]::ToString($suiteHashAlgorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes([string]::Join("`n", $baselineSuiteNames)))).Replace('-', '').ToLowerInvariant()
     } finally { $suiteHashAlgorithm.Dispose() }
     Assert-Contract ($orderedSuiteHash -ceq $spec.OrderedSha256) "functional $($spec.Name) retains every ordered suite name exactly"
 }

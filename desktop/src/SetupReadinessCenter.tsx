@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { isValidSwissIban } from './onboardingValidation';
 import { isMobileRuntime } from './mobileRuntime';
+import { t } from './language';
 import type { AccountingSettings, AppSettings, Workspace } from './types';
 
 export const SETTINGS_READINESS_TARGETS = {
@@ -148,7 +149,7 @@ export function buildSetupReadiness(
   if (!Number.isInteger(billing.quoteValidityDays) || billing.quoteValidityDays < 1)
     billingMissing.push('validité des devis');
   if (organization.vatRegistered) {
-    if (!hasText(organization.vatNumber)) billingMissing.push('numéro TVA');
+    if (!hasText(organization.uidNumber) && !hasText(organization.vatNumber)) billingMissing.push('identifiant IDE/UID ou TVA');
     if (!billing.vatRatesBp.some((rate) => Number.isInteger(rate) && rate > 0))
       billingMissing.push('taux TVA');
   }
@@ -372,7 +373,10 @@ export function SetupReadinessCenter({
                     {item.ready ? 'Prêt' : 'À compléter'}
                   </em>
                 </span>
-                <small>{item.summary}</small>
+                <small>{item.missing.length
+                  ? missingSummary(item.missing.map((label) =>
+                    label === 'identifiant IDE/UID ou TVA' ? t('identifiant IDE/UID ou TVA') : label))
+                  : item.summary}</small>
               </span>
               <ArrowRight size={17} aria-hidden="true" />
             </button>
