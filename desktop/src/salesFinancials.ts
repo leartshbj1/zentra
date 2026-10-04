@@ -20,6 +20,7 @@ export function salesContributions(invoices: Invoice[], payments: Payment[]): Sa
     }
   });
   const rows: SalesContribution[] = [];
+  const countedRefunds = new Set<string>();
   for (const [index, invoice] of invoices.entries()) {
     if (['draft', 'cancelled'].includes(invoice.status)) continue;
     const currency = invoice.currency || 'CHF';
@@ -29,6 +30,15 @@ export function salesContributions(invoices: Invoice[], payments: Payment[]): Sa
       const credited = firstInvoiceById.get(invoice.id)?.creditedCents ?? legacyCredits.get(invoice.id) ?? 0;
       total.paidCents += paid;
       total.openCents += Math.max(0, amounts[index] - paid - credited);
+    } else {
+      // Dated credit refunds live outside payments. Keep their cash contribution
+      // on the credit note; applications only affect the invoice's creditedCents.
+      for (const settlement of invoice.creditSettlements ?? []) {
+        if (settlement.creditNoteId !== invoice.id || countedRefunds.has(settlement.id)) continue;
+        if (settlement.eventType !== 'refund' && settlement.eventType !== 'reverse_refund') continue;
+        countedRefunds.add(settlement.id);
+        total.paidCents += settlement.eventType === 'refund' ? -settlement.amountCents : settlement.amountCents;
+      }
     }
     rows.push(total);
   }
