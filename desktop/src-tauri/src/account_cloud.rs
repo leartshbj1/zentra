@@ -1690,6 +1690,20 @@ fn write_server_verified_secret<T: Serialize>(
     }
 }
 
+// Fixtures must use the same controlled cache update as an authenticated
+// account replacement. A macOS Keychain update retains its opaque marker.
+#[cfg(test)]
+pub(super) fn write_automation_session_for_test(
+    store: &LocalStore,
+    value: &serde_json::Value,
+) -> AppResult<()> {
+    write_server_verified_secret(
+        &session_path(store),
+        value,
+        &store.account_protected_cache.session,
+    )
+}
+
 fn read_pending_secret(store: &LocalStore) -> AppResult<Option<PendingAuthorization>> {
     let pending: Option<PendingAuthorization> = read_secret(
         &pending_path(store),

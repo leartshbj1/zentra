@@ -47,11 +47,7 @@ fn session(store: &LocalStore, role: &str) -> Value {
 }
 
 fn write_session(store: &LocalStore, value: &Value) {
-    crate::installation::write_protected_atomically(
-        &store.data_dir.join(SESSION_FILE),
-        &serde_json::to_vec(value).unwrap(),
-    )
-    .unwrap();
+    crate::account_cloud::write_automation_session_for_test(store, value).unwrap();
 }
 
 #[derive(Debug, PartialEq)]
@@ -355,7 +351,22 @@ fn changed_session_or_company_during_transport_refuses_historical_response_witho
                         value["organization_id"] =
                             json!("org_008fc730-e9c6-48f2-b915-96b5ab2baf0a");
                     }
+                    #[cfg(target_os = "macos")]
+                    let protected_reference = crate::installation::read_protected_reference(
+                        &store.data_dir.join(SESSION_FILE),
+                    )
+                    .unwrap();
                     write_session(&store, &value);
+                    // The marker stays stable while the controlled writer
+                    // must replace the already warm session cache.
+                    #[cfg(target_os = "macos")]
+                    assert_eq!(
+                        crate::installation::read_protected_reference(
+                            &store.data_dir.join(SESSION_FILE),
+                        )
+                        .unwrap(),
+                        protected_reference,
+                    );
                 }
                 drop(guard);
                 Ok((

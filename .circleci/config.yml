@@ -456,6 +456,14 @@ jobs:
           name: Prepare Apple build tools
           command: bash desktop/scripts/cloud-release-apple.sh prepare
       - run:
+          name: Verify the exact session-change refusal with the warm macOS protected cache
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.zentra-ci-tools/bin:$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
+            mkdir -p desktop/artifacts/validation
+            cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib diagnostics::account_automation_diagnostics_tests::changed_session_or_company_during_transport_refuses_historical_response_without_logging_direct_strings -- --exact --test-threads=1 2>&1 | tee desktop/artifacts/validation/automation-session-change-macos.log
+          no_output_timeout: 20m
+      - run:
           name: Verify native synchronization and mobile gestures
           command: bash desktop/scripts/cloud-release-apple.sh test
           no_output_timeout: 20m
