@@ -35,6 +35,21 @@ describe('guide commun des erreurs', () => {
     expect(html).toContain('vérifiez si l’action apparaît déjà');
   });
 
+  it.each(appLanguages)('rend le transfert occupé en %s sans rejouer une action ni ouvrir les détails', language => {
+    locale.language = language;
+    const labels = userErrorCopy(language), reload = vi.fn(), review = vi.fn();
+    const raw = 'Champ invalide : Une opération de sauvegarde est déjà en cours.';
+    for (const operation of ['read', 'mutation'] as const) {
+      const html = renderToStaticMarkup(<ErrorGuidance error={raw} operation={operation} onReload={reload} onReview={review} />);
+      const text = html.replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, '&').replace(/<[^>]+>/g, ' ');
+      for (const expected of Object.values(labels.busy)) expect(text).toContain(expected);
+      expect(text).not.toContain(labels.uncertain);
+      expect(html).toContain('role="alert"'); expect(html).toContain('<details'); expect(html).not.toContain('<details open');
+      expect(html).not.toContain('error-guidance__actions');
+    }
+    expect(reload).not.toHaveBeenCalled(); expect(review).not.toHaveBeenCalled();
+  });
+
   it.each(appLanguages)('rend le guide de lecture et préserve la vérification avant mutation en %s', language => {
     locale.language = language;
     const labels = userErrorCopy(language);

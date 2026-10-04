@@ -4,7 +4,7 @@ import { localValidationDetails } from './localValidation';
 import { isDocumentCreationUnconfirmedError } from './documentCreationRequest';
 import { interfaceKeys } from 'virtual:zentra-language-keys';
 
-export type UserErrorKind = 'network' | 'session' | 'permission' | 'member' | 'workspace' | 'conflict' | 'validation' | 'file' | 'unknown';
+export type UserErrorKind = 'network' | 'session' | 'permission' | 'member' | 'workspace' | 'conflict' | 'validation' | 'file' | 'busy' | 'unknown';
 export type UserErrorOperation = 'read' | 'mutation';
 type Copy = { title: string; message: string; action: string };
 type ErrorCopy = Record<UserErrorKind, Copy> & { unknownRead: Copy; workspaceRead: Copy; documentCreationUnknown: Copy; uncertain: string; reload: string; reconnect: string; review: string; details: string; incident: string; copy: string; copied: string; copyFailed: string };
@@ -23,6 +23,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     conflict: { title: 'Enregistrement à vérifier', message: 'Les données ont changé ou sont utilisées ailleurs.', action: 'Consultez la version enregistrée avant de choisir les modifications à conserver.' },
     validation: { title: 'Informations à corriger', message: 'Certaines informations ne sont pas acceptées.', action: 'Vérifiez les champs indiqués, les dates et les montants.' },
     file: { title: 'Fichier à vérifier', message: 'Le fichier n’a pas pu être lu ou créé.', action: 'Vérifiez son format et l’accès au dossier, puis choisissez le fichier ou le dossier à nouveau.' },
+    busy: { title: 'Transfert en cours', message: 'Un transfert utilise encore cet espace.', action: 'Attendez la fin du transfert, puis reprenez cette action.' },
     unknown: { title: 'Action à vérifier', message: 'Le résultat de cette action n’a pas pu être confirmé.', action: 'Vérifiez le résultat. Si le problème persiste, communiquez le code d’incident au support.' },
     unknownRead: { title: 'Lecture indisponible', message: 'Les informations n’ont pas pu être chargées.', action: 'Réessayez le chargement. Si le problème persiste, communiquez le code d’incident au support.' },
     uncertain: 'Avant un nouvel enregistrement, vérifiez si l’action apparaît déjà dans Zentra.',
@@ -39,6 +40,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     conflict: { title: 'Speicherung prüfen', message: 'Die Daten wurden geändert oder werden anderweitig verwendet.', action: 'Prüfen Sie die gespeicherte Version und wählen Sie die Änderungen, die Sie behalten möchten.' },
     validation: { title: 'Angaben korrigieren', message: 'Einige Angaben werden nicht akzeptiert.', action: 'Prüfen Sie die markierten Felder, Daten und Beträge.' },
     file: { title: 'Datei prüfen', message: 'Die Datei konnte nicht gelesen oder erstellt werden.', action: 'Prüfen Sie das Format und den Ordnerzugriff. Wählen Sie die Datei oder den Ordner erneut.' },
+    busy: { title: 'Übertragung läuft', message: 'Eine Übertragung verwendet diesen Arbeitsbereich noch.', action: 'Warten Sie, bis die Übertragung beendet ist. Führen Sie die Aktion danach erneut aus.' },
     unknown: { title: 'Aktion prüfen', message: 'Das Ergebnis dieser Aktion konnte nicht bestätigt werden.', action: 'Prüfen Sie das Ergebnis. Falls das Problem bleibt, geben Sie dem Support den Vorfallcode.' },
     unknownRead: { title: 'Informationen nicht verfügbar', message: 'Die Informationen konnten nicht geladen werden.', action: 'Laden Sie die Informationen erneut. Falls das Problem bleibt, geben Sie dem Support den Vorfallcode.' },
     uncertain: 'Prüfen Sie vor einer erneuten Speicherung, ob die Aktion bereits in Zentra erscheint.',
@@ -55,6 +57,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     conflict: { title: 'Verifica il salvataggio', message: 'I dati sono cambiati o sono utilizzati altrove.', action: 'Controlla la versione salvata prima di scegliere le modifiche da mantenere.' },
     validation: { title: 'Correggi le informazioni', message: 'Alcune informazioni non sono accettate.', action: 'Controlla i campi indicati, le date e gli importi.' },
     file: { title: 'Verifica il file', message: 'Il file non ha potuto essere letto o creato.', action: 'Controlla il formato e l’accesso alla cartella, poi scegli nuovamente il file o la cartella.' },
+    busy: { title: 'Trasferimento in corso', message: 'Un trasferimento sta ancora utilizzando questo spazio.', action: 'Attendi la fine del trasferimento, poi riprendi questa azione.' },
     unknown: { title: 'Verifica l’azione', message: 'Il risultato di questa azione non ha potuto essere confermato.', action: 'Controlla il risultato. Se il problema persiste, comunica il codice incidente all’assistenza.' },
     unknownRead: { title: 'Informazioni non disponibili', message: 'Le informazioni non sono state caricate.', action: 'Riprova a caricare le informazioni. Se il problema persiste, comunica il codice incidente all’assistenza.' },
     uncertain: 'Prima di salvare di nuovo, verifica se l’azione appare già in Zentra.',
@@ -71,6 +74,7 @@ const copy: Record<AppLanguage, ErrorCopy> = {
     conflict: { title: 'Check the saved record', message: 'The data changed or is being used elsewhere.', action: 'Review the saved version before choosing which changes to keep.' },
     validation: { title: 'Correct the information', message: 'Some information was not accepted.', action: 'Check the indicated fields, dates and amounts.' },
     file: { title: 'Check the file', message: 'The file could not be read or created.', action: 'Check its format and folder access, then select the file or folder again.' },
+    busy: { title: 'Transfer in progress', message: 'A transfer is still using this workspace.', action: 'Wait for the transfer to finish, then resume this action.' },
     unknown: { title: 'Check the action', message: 'The result of this action could not be confirmed.', action: 'Check the result. If the problem continues, give the incident code to support.' },
     unknownRead: { title: 'Information unavailable', message: 'The information could not be loaded.', action: 'Try loading the information again. If the problem continues, give the incident code to support.' },
     uncertain: 'Before saving again, check whether the action already appears in Zentra.',
@@ -113,6 +117,13 @@ export function classifyUserError(reason: unknown): UserErrorKind {
   // Only authored native context rejections override the validation prefix.
   if (/(?:la connexion ou l[’']entreprise ouverte a changé\. rouvrez la réception\.|l[’']entreprise ouverte a changé\. rouvrez cette action dans le bon espace\.|l[’']espace de travail a changé pendant l[’']actualisation des réglages enregistrés\.)/.test(message)) return 'workspace';
   if (status === 409 || /\b409\b|\b23505\b/.test(statusText) || /unique constraint|duplicate key|already exists|conflict|conflit|sqlite_busy|database is locked|updated_at|version.*(changed|modifi)|modifi.*autre|déjà (utilisé|enregistré|existe)/.test(text)) return 'conflict';
+  // These authored preflight refusals happen before reset/restore work starts.
+  // Do not infer busy from arbitrary text, status metadata or a failed write.
+  if (status === undefined && code === '' && [
+    'une opération de sauvegarde est déjà en cours.',
+    'les documents se synchronisent. attendez la fin du transfert, puis réessayez.',
+    'un transfert est encore en cours. réessayez dans un instant.',
+  ].includes(nativeContextMessage)) return 'busy';
   if (status === 400 || status === 422 || /\b(400|422|23502|23503|23514)\b/.test(statusText) || /validation|invalid (input|value|date|amount)|not.null.constraint|check.constraint|obligatoire|doit être|doivent être|date.*(invalide|antérieur)|montant.*(invalide|positif)|champ.*(requis|invalide)/.test(text)) return 'validation';
   if (/\benoent\b|\beacces\b|\benospc\b|no space left|disk full|file not found|no such file|fichier.*(introuvable|invalide|illisible|format)|invalid.*(pdf|file)|unsupported.*(file|format)|cannot.*(file|directory)|unable.*(file|directory)|format.*non.*pris/.test(text)) return 'file';
   if (status === 408 || status === 429 || (status !== undefined && status >= 500) || /\b(408|429|5\d\d)\b/.test(statusText) || /failed to fetch|network.*(error|request|unavailable)|load failed|fetch failed|offline|timed? ?out|timeout|econn|enotfound|dns|connexion.*(internet|réseau)|service.*indisponible|connection.*(refused|reset|closed)|too many requests|rate.?limit/.test(text)) return 'network';
@@ -160,7 +171,7 @@ export function getUserError(reason: unknown, options: { fallback?: string; lang
   const retryWording = /réessay|retry|try again|erneut|riprova/i;
   const fallback = options.fallback && !retryWording.test(options.fallback) ? t(options.fallback, undefined, language) : '';
   const raw = displayErrorMessage(reason);
-  const authored = interfaceKeys.has(raw) && !retryWording.test(raw) && safeErrorDetails(raw) === raw ? t(raw, undefined, language) : '';
+  const authored = kind !== 'busy' && interfaceKeys.has(raw) && !retryWording.test(raw) && safeErrorDetails(raw) === raw ? t(raw, undefined, language) : '';
   return { kind, title: selected.title, message: authored || (kind === 'unknown' && fallback ? fallback : selected.message), action: uncertain ? `${selected.action} ${labels.uncertain}` : selected.action, technicalDetails: safeErrorDetails(reason) };
 }
 

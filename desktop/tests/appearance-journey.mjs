@@ -9,7 +9,9 @@ const out=`.qa/appearance165-${engine}`;await mkdir(out,{recursive:true});const 
 const properties=['fill','stroke','color','backgroundColor','backgroundImage','borderTopColor','borderRightColor','borderBottomColor','borderLeftColor','outlineColor','boxShadow','filter','colorScheme','webkitTextFillColor'];
 async function settle(){await page.evaluate(async()=>{document.activeElement?.blur?.();await new Promise(requestAnimationFrame);await Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));await new Promise(requestAnimationFrame);});}
 async function theme(value){await page.evaluate(async value=>(await import('/src/appearance.ts')).setAppearance(value),value);await page.waitForTimeout(220);await settle();}
-async function snapshot(){return page.evaluate(properties=>[...document.querySelectorAll('html,body,body *')].flatMap((el,i)=>[null,'::before','::after'].map(pseudo=>{const s=getComputedStyle(el,pseudo);return {element:`${i}:${el.tagName}.${el.className}:${pseudo}`,style:properties.map(p=>s[p])}})),properties);}
+// Fixture-only navigation is outside the shipped app; all app/html/body nodes,
+// properties and pseudo-elements remain under inspection.
+async function snapshot(){return page.evaluate(properties=>[...document.querySelectorAll('html,body,body *')].flatMap((el,i)=>el.closest('[data-qa-fixture-toolbar]')?[]:[null,'::before','::after'].map(pseudo=>{const s=getComputedStyle(el,pseudo);return {element:`${i}:${el.tagName}.${el.className}:${pseudo}`,style:properties.map(p=>s[p])}})),properties);}
 async function contrast(){return page.evaluate(()=>{
  const rgba=s=>{const v=s.match(/[\d.]+/g)?.map(Number);return v&&v.length>=3?[v[0],v[1],v[2],v[3]??1]:[0,0,0,0]};
  const blend=(a,b)=>a.slice(0,3).map((v,i)=>v*a[3]+b[i]*(1-a[3]));

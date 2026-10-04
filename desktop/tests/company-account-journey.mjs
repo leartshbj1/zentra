@@ -18,7 +18,16 @@ try {
         await page.getByRole('button',{name:'Ouvrir l’espace du compte',exact:true}).click();
       }
       if (scenario === 'local') await page.getByRole('button',{name:'Relier cette entreprise à mon compte',exact:true}).click();
-      if (scenario === 'failure') await page.getByRole('button',{name:'Réessayer',exact:true}).click();
+      if (scenario === 'failure') {
+        const guide=page.locator('.error-guidance');
+        await guide.getByRole('alert').getByText('Lecture indisponible',{exact:true}).waitFor();
+        await guide.getByRole('alert').getByText('Les informations n’ont pas pu être chargées.',{exact:true}).waitFor();
+        await guide.getByRole('alert').getByText('Réessayez le chargement. Si le problème persiste, communiquez le code d’incident au support.',{exact:true}).waitFor();
+        assert.equal(await guide.locator('details').evaluate(node=>node.open),false);
+        assert.equal(await guide.locator('pre').textContent(),'Connexion interrompue. Réessayez.');
+        assert.equal(await guide.locator('pre').isVisible(),false);
+        await guide.getByRole('button',{name:'Actualiser l’affichage',exact:true}).click();
+      }
       if (scenario === 'waiting') await page.getByRole('heading',{name:'Votre entreprise attend son premier envoi',exact:true}).waitFor();
       else if (scenario === 'create') await page.getByRole('heading',{name:'Créer votre entreprise',exact:true}).waitFor();
       else {

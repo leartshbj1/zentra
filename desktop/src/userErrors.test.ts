@@ -20,7 +20,7 @@ describe('messages humains et données brutes des erreurs', () => {
 
   it.each(appLanguages)('donne une explication et une correction pour toutes les familles en %s', language => {
     const labels = userErrorCopy(language);
-    for (const kind of ['network', 'session', 'permission', 'workspace', 'conflict', 'validation', 'file', 'unknown'] as const) {
+    for (const kind of ['network', 'session', 'permission', 'workspace', 'conflict', 'validation', 'file', 'busy', 'unknown'] as const) {
       expect(labels[kind].title.length).toBeGreaterThan(8);
       expect(labels[kind].message.length).toBeGreaterThan(20);
       expect(labels[kind].action.length).toBeGreaterThan(20);
@@ -149,6 +149,58 @@ describe('détails techniques sans secrets', () => {
 import {DocumentCreationUnconfirmedError,isDocumentCreationUnconfirmedError} from './documentCreationRequest';
 import {diagnosticOperation,knownErrorIncident,recentDiagnosticEvents,resolveErrorIncident} from './diagnostics';
 import {createLocalValidationError} from './localValidation';
+describe('closed transfer preflight guidance', () => {
+ const refusals = [
+   'Une opération de sauvegarde est déjà en cours.',
+   'Les documents se synchronisent. Attendez la fin du transfert, puis réessayez.',
+   'Un transfert est encore en cours. Réessayez dans un instant.',
+ ];
+ it.each(refusals)('recognizes only the authored refusal and native prefix: %s', message => {
+   for (const raw of [message, `Champ invalide : ${message}`]) {
+     const reason = new Error(raw);
+     expect(classifyUserError(raw)).toBe('busy'); expect(classifyUserError(reason)).toBe('busy');
+     expect(classifyUserError({ message: raw })).toBe('busy');
+     expect(reason.message).toBe(raw); expect(errorMessage(reason, '')).toBe(raw);
+     for (const language of appLanguages) {
+       const labels = userErrorCopy(language);
+       for (const operation of ['read', 'mutation'] as const) {
+         const guide = getUserError(reason, { language, operation, fallback: 'Réessayez cet enregistrement.' });
+         expect(guide).toMatchObject({ kind: 'busy', ...labels.busy, technicalDetails: raw });
+         expect(guide.action).not.toContain(labels.uncertain);
+         expect(guide.message).not.toBe(raw);
+       }
+     }
+   }
+ });
+ it.each([
+   ['Un transfert est en cours.', 'unknown'],
+   ['Le cache est occupé. Réessayez.', 'unknown'],
+   ['La facture est en cours de modification.', 'unknown'],
+   ['Champ invalide : Le montant doit être positif.', 'validation'],
+   ['Champ invalide : Une opération de sauvegarde est déjà en cours. Vérifiez le montant.', 'validation'],
+   ['Champ invalide : Les documents se synchronisent. Attendez la fin du transfert, puis réessayez. token=private', 'validation'],
+   ['database is locked', 'conflict'],
+   [{ status: 409, message: refusals[0] }, 'conflict'],
+   [{ code: '23505', message: refusals[0] }, 'conflict'],
+   [{ status: 422, message: refusals[0] }, 'validation'],
+   [{ status: 401, message: refusals[0] }, 'session'],
+   [{ status: 403, message: refusals[0] }, 'permission'],
+   [{ code: '400', message: refusals[0] }, 'validation'],
+   [{ code: '422', message: refusals[0] }, 'validation'],
+   [{ code: '503', message: refusals[0] }, 'network'],
+   ['Le résultat de cette action n’a pas pu être confirmé.', 'unknown'],
+ ] as const)('keeps noncanonical or more specific failures outside busy: %s', (reason, kind) => {
+   expect(classifyUserError(reason)).toBe(kind);
+ });
+ it('preserves genuine uncertain creation and explicit local validation identities', () => {
+   const uncertain = new DocumentCreationUnconfirmedError(new Error(refusals[0]));
+   expect(classifyUserError(uncertain)).toBe('unknown');
+   expect(getUserError(uncertain, { language: 'fr' }).message).toBe(userErrorCopy('fr').documentCreationUnknown.message);
+   const local = createLocalValidationError(refusals[0], 'fr');
+   expect(classifyUserError(local)).toBe('validation');
+   expect(getUserError(local, { language: 'fr' }).message).toBe(refusals[0]);
+ });
+});
 describe('uncertain document creation guidance',()=>{
  it.each(appLanguages)('shows explicit creation guidance in %s without fields or blind retry',language=>{
    const reason=new DocumentCreationUnconfirmedError(new Error('Champ invalide : Réponse perdue.'));

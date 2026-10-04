@@ -11,6 +11,18 @@ const profile=await mkdtemp(join(tmpdir(),'zentra-company-access-'));
 const browser=await engine.launchPersistentContext(profile,{headless:true,...(process.platform==='win32'&&engine===chromium?{channel:'msedge'}:{})});
 const results=[];
 let currentPage;
+async function failureGuide(page, raw, kind='unknown') {
+  const guide=page.locator('.error-guidance');
+  const alert=guide.getByRole('alert');
+  const expected=kind==='busy'
+    ? ['Transfert en cours','Un transfert utilise encore cet espace.','Attendez la fin du transfert, puis reprenez cette action.']
+    : ['Action à vérifier','Le résultat de cette action n’a pas pu être confirmé.','Vérifiez le résultat. Si le problème persiste, communiquez le code d’incident au support. Avant un nouvel enregistrement, vérifiez si l’action apparaît déjà dans Zentra.'];
+  for(const text of expected)await alert.getByText(text,{exact:true}).waitFor();
+  const details=guide.locator('.error-guidance__details');
+  assert.equal(await details.evaluate(node=>node.open),false,'technical details remain closed');
+  assert.equal(await details.locator('pre').textContent(),raw,'the original refusal remains available in technical details');
+  assert.equal(await details.locator('pre').isVisible(),false,'raw retry text is not the main user instruction');
+}
 await mkdir('.qa/company-access',{recursive:true});
 try {
   for(const theme of ['light','dark'])for(const width of [320,390,1280]){
@@ -33,13 +45,15 @@ try {
     await page.getByRole('button',{name:'Réinitialiser cette application',exact:true}).click();
     await page.getByRole('dialog').getByRole('textbox').fill('REINITIALISER');
     await page.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true}).click();
-    await page.getByText('Un transfert est encore en cours. Réessayez dans un instant.',{exact:true}).waitFor();
+    await failureGuide(page,'Un transfert est encore en cours. Réessayez dans un instant.','busy');
+    assert.equal(await page.evaluate(()=>window.companyFixture.resets),1,'the refused explicit reset was invoked once');
+    assert.equal(await page.getByRole('heading',{name:'Créer, importer ou rejoindre une entreprise',exact:true}).count(),0,'a busy refusal does not publish reset success');
     assert.equal(await page.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true}).isEnabled(),true);
     await page.goto(url+'&join=1&missing=1');
     await page.getByText('Demandez au titulaire d’activer le partage dans Compte et équipe.',{exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>window.companyFixture.joined),0);
     await page.goto(url+'&join=1&failure=1');
-    await page.getByText('Connexion interrompue. Réessayez pour récupérer l’entreprise.',{exact:true}).waitFor();
+    await failureGuide(page,'Connexion interrompue. Réessayez pour récupérer l’entreprise.');
     await page.getByRole('button',{name:'Recevoir et ouvrir l’entreprise',exact:true}).click();
     await page.getByRole('heading',{name:'Entreprise ouverte',exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>window.companyFixture.joined),2);
@@ -58,7 +72,7 @@ try {
     await page.getByRole('button',{name:'Réinitialiser cette application',exact:true}).click();
     await page.getByRole('dialog').getByRole('textbox').fill('REINITIALISER');
     await page.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true}).click();
-    await page.getByText('Le cache est occupé. Réessayez.',{exact:true}).waitFor();
+    await failureGuide(page,'Le cache est occupé. Réessayez.');
     assert.equal(await page.evaluate(()=>window.companyFixture.resets),1);
     await page.getByRole('button',{name:'Effacer cet espace et recommencer',exact:true}).click();
     await page.getByRole('heading',{name:'Créer, importer ou rejoindre une entreprise',exact:true}).waitFor();
@@ -80,7 +94,7 @@ try {
     await page.getByRole('button',{name:'Inviter une personne',exact:true}).click();
     await page.getByRole('textbox',{name:'Adresse e-mail',exact:true}).fill('personne@example.test');
     await page.getByRole('button',{name:'Créer le lien d’invitation',exact:true}).click();
-    await page.getByText('Connexion interrompue. Réessayez le partage.',{exact:true}).waitFor();
+    await failureGuide(page,'Connexion interrompue. Réessayez le partage.');
     assert.equal(await page.evaluate(()=>window.companyFixture.invited),0);
     await page.getByRole('button',{name:'Créer le lien d’invitation',exact:true}).click();
     await page.getByText('Invitation créée. Transmettez le lien à cette personne.',{exact:true}).waitFor();
