@@ -43,7 +43,8 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
     if(!isCurrent())return;
     flight.current=true;setBusy(true);setError('');setReceipt(null);
     try {
-      const result=await desktopApi.exportProjectReportPdf(report,origin.scope,isCurrent);
+      const exportedReport=buildProjectReport(workspace,project,sections,{preset,author,createdAt:new Date()});
+      const result=await desktopApi.exportProjectReportPdf(exportedReport,origin.scope,isCurrent);
       if(result && isCurrent())setReceipt({projectId,result});
     } catch(reason) {
       if(isCurrent())setError(errorMessage(reason,'Export du rapport impossible.'));
@@ -76,6 +77,13 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
           <header className="project-reports__title"><div><h2>{project.name}</h2><StatusBadge status={project.status}/></div>
             <Button disabled={busy || !sections.length} onClick={()=>void exportPdf()}><Download size={17} aria-hidden="true"/>{t(busy?'Création du PDF…':'Exporter le PDF')}</Button>
           </header>
+          <dl className="project-reports__figures" aria-label={t('Synthèse du projet')}>
+            <div><dt>{t('Facturé hors TVA')}</dt><dd>{figures.invoicedNetLabel}</dd></div>
+            {!forClient && <><div><dt>{t('Coûts enregistrés')}</dt><dd>{formatMoney(figures.laborCost+figures.expenseNet)}</dd></div>
+              <div><dt>{t('Marge sur coûts enregistrés')}</dt><dd>{figures.marginUnavailableReason ? t(figures.marginUnavailableReason) : figures.hasActivity ? formatMoney(figures.margin) : '—'}</dd></div></>}
+          </dl>
+          {!forClient && <p className="project-reports__scope">{t('La marge tient compte des coûts enregistrés, pas des coûts encore inconnus.')}<br/>{t('Marge estimée')} : {t('Non calculée : coûts prévisionnels complets non disponibles.')}</p>}
+          {!forClient && figures.purchaseCostReviewCount>0 && <Button variant="secondary" onClick={onOpenAccounting}>{t('Contrôler les achats')}</Button>}
           <div className="project-reports__configuration"><div className="project-reports__composition">
             <label>{t('Type de rapport')}
               <span className="project-reports__preset-control">
@@ -93,13 +101,6 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
             </fieldset>
             <label className="project-reports__author">{t('Préparé par (facultatif)')}<input value={author} maxLength={120} disabled={busy} onChange={e=>{setAuthor(e.target.value);setReceipt(null);}} autoComplete="name"/></label>
           </details></div>
-          <dl className="project-reports__figures">
-            <div><dt>{t('Facturé hors TVA')}</dt><dd>{figures.invoicedNetLabel}</dd></div>
-            {!forClient && <><div><dt>{t('Coûts enregistrés')}</dt><dd>{formatMoney(figures.laborCost+figures.expenseNet)}</dd></div>
-              <div><dt>{t('Marge de gestion')}</dt><dd>{figures.marginUnavailableReason ? t(figures.marginUnavailableReason) : figures.hasActivity ? formatMoney(figures.margin) : '—'}</dd></div></>}
-          </dl>
-          {!forClient && <p className="project-reports__scope">{t('La marge tient compte des coûts enregistrés, pas des coûts encore inconnus.')}</p>}
-          {!forClient && figures.purchaseCostReviewCount>0 && <Button variant="secondary" onClick={onOpenAccounting}>{t('Contrôler les achats')}</Button>}
           {!sections.length && <p role="status">{t('Choisissez au moins une rubrique pour exporter le rapport.')}</p>}
           {error && <p role="alert">{t(error)}</p>}
           {receipt?.projectId===project.id && <PdfExportReceipt result={receipt.result} disabled={busy} onBusyChange={setBusy}/>}
@@ -113,7 +114,9 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
               </table></div>
             </details>)}
           </div>
-        </> : <div className="project-reports__empty"><BarChart3 size={36} aria-hidden="true"/><h2>{t('Quel projet souhaitez-vous examiner ?')}</h2><p>{t('Choisissez un projet pour voir immédiatement sa synthèse.')}</p></div>}
+        </> : <div className="project-reports__empty"><BarChart3 size={36} aria-hidden="true"/><h2>{t('Quel projet souhaitez-vous examiner ?')}</h2><p>{t('Choisissez un projet pour voir immédiatement sa synthèse.')}</p>
+          <div className="project-reports__recent" aria-label={t('Projets récents')}><h3>{t('Projets récents')}</h3>{projects.slice(0,3).map(p=><Button key={p.id} variant="secondary" onClick={()=>choose(p.id)}>{p.name}<ChevronRight size={17} aria-hidden="true"/></Button>)}</div>
+        </div>}
       </section>
     </div>
   </div>;

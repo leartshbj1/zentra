@@ -34,9 +34,11 @@ for(const engine of ['chromium','webkit']) {
     await page.waitForFunction(()=>window.__projectReportsQa.reports.length>0);
     const report=await page.evaluate(()=>window.__projectReportsQa.reports.at(-1));
     const serialized=JSON.stringify(report);
-    if(preset==='client'){assert.ok(!serialized.includes('SECRET-DRAFT'));assert.ok(!serialized.includes('NOTE INTERNE CONFIDENTIELLE'));assert.ok(!serialized.includes(await tr('Marge de gestion')));}
+    if(preset==='client'){assert.ok(!serialized.includes('SECRET-DRAFT'));assert.ok(!serialized.includes('NOTE INTERNE CONFIDENTIELLE'));assert.ok(!serialized.includes(await tr('Marge sur coûts enregistrés')));assert.ok(!serialized.includes(await tr('Marge estimée')));}
     if(preset==='internal'){assert.ok(serialized.includes('NOTE INTERNE CONFIDENTIELLE'));assert.ok(serialized.includes('SECRET-DRAFT'));}
-    if(preset==='summary')assert.equal(report.sections.length,2);
+    if(preset==='summary')assert.equal(report.sections.length,3);
+    const contextTitle=await tr('Repères du rapport');
+    assert.ok(report.sections.some(section=>section.title===contextTitle));
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
     if(preset!=='internal')await page.screenshot({path:`${out}/${engine}-${language}-${width}-${preset}.png`,fullPage:true});
     results.push({engine,language,width,theme,scenario:preset,passed:true});

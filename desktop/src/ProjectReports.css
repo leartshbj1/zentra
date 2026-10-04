@@ -197,6 +197,10 @@
   text-align: center;
   color: var(--muted);
 }
+.project-reports__recent { display:grid; gap:12px; margin:24px auto 0; max-width:28rem; text-align:left; }
+.project-reports__recent h3 { margin:0 0 4px; color:var(--ink); font-size:16px; }
+.project-reports__recent .button { display:flex; justify-content:space-between; gap:12px; min-height:48px; height:auto; white-space:normal; overflow-wrap:anywhere; text-align:left; }
+.project-reports__recent svg { flex-shrink:0; }
 @media (max-width: 760px) {
   .project-reports__layout {
     grid-template-columns: minmax(0, 1fr);

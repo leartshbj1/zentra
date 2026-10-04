@@ -20,8 +20,14 @@ for name in ['summary','client','internal','long']:
     text='\n'.join(page.extract_text() or '' for page in reader.pages)
     assert 'Rénovation Bellevue' in text, name
     assert 'Toute la durée du projet' in text, name
+    assert 'aucun filtre de date' in text and 'Repères du rapport' in text, name
+    assert 'Rubriques incluses' in text and 'Informations manquantes' in text, name
+    assert 'Préparé par' in text, name
     if name=='client':
-        assert 'SECRET-DRAFT' not in text and 'NOTE INTERNE CONFIDENTIELLE' not in text and 'Marge de gestion' not in text
+        assert 'SECRET-DRAFT' not in text and 'NOTE INTERNE CONFIDENTIELLE' not in text and 'Marge sur coûts enregistrés' not in text and 'Marge estimée' not in text
+    else:
+        assert 'Marge sur coûts enregistrés' in text and 'Marge estimée' in text
+        assert 'coûts prévisionnels complets non disponibles' in text
     # A section label/header must not be stranded before its first body row.
     for page in reader.pages:
         page_text=page.extract_text() or ''

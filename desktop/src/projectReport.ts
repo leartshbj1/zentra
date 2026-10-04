@@ -91,8 +91,11 @@ export function buildProjectReport(
     w.supplierCreditNotes,
   );
   const sections: ProjectReport['sections'] = [];
-  const add = (title: string, headers: string[], rows: string[][]) =>
+  const emptySections: string[] = [];
+  const add = (title: string, headers: string[], rows: string[][]) => {
+    if (!rows.length) emptySections.push(t(title));
     sections.push({ title: t(title), headers: headers.map(h => t(h)), rows: rows.length ? rows : [headers.map((_,i) => i === 0 ? t('Aucune donnée enregistrée') : '')] });
+  };
   if (included.includes('overview')) {
     add(
       'Le projet',
@@ -136,9 +139,10 @@ export function buildProjectReport(
         [t('Coût des achats après avoirs'), formatMoney(s.expenseNet)],
         [t('Dont TVA non déductible'), formatMoney(s.nonDeductibleVatCost)],
         [
-          t('Marge de gestion'),
+          t('Marge sur coûts enregistrés'),
           s.marginUnavailableReason ? t(s.marginUnavailableReason) : s.hasActivity ? formatMoney(s.margin) : '—',
         ],
+        [t('Marge estimée'), t('Non calculée : coûts prévisionnels complets non disponibles.')],
         [
           t('Méthode'),
           t('Marge sur les coûts enregistrés, sans estimation des coûts manquants. Factures émises et avoirs, achats validés et dépenses enregistrées. Devis et brouillons exclus. Devises séparées, sans conversion implicite.'),
@@ -291,10 +295,38 @@ export function buildProjectReport(
     );
     add('Notes du projet', ['Notes'], [[p.notes || t('Aucune note')]]);
   }
+  const author = options.author?.trim() || t('Non renseigné');
+  const period = t('Toute la durée du projet (aucun filtre de date)');
+  const missing = [
+    ...(!options.author?.trim() ? [t('Auteur')] : []),
+    ...(!p.actualStart?.trim() ? [t('Début réel')] : []),
+    ...(!p.actualEnd?.trim() ? [t('Fin réelle')] : []),
+    ...(included.includes('overview') ? [
+      ...(!client ? [t('Client')] : []),
+      ...(!p.address?.trim() ? [t('Adresse')] : []),
+    ] : []),
+    ...emptySections,
+  ];
+  const notIncluded = Object.entries(reportSections)
+    .filter(([key]) => !included.includes(key as ReportSectionKey))
+    .map(([, label]) => t(label));
+  add('Repères du rapport', ['Information', 'Détail'], [
+    [t('Période exportée'), period],
+    [t('Début réel'), p.actualStart || t('Non renseigné')],
+    [t('Fin réelle'), p.actualEnd || t('Non renseignée')],
+    [t('Auteur'), author],
+    [t('Source'), t('Données enregistrées dans l’entreprise ouverte pour ce projet.')],
+    [t('Rubriques incluses'), included.map(key => t(reportSections[key])).join(' · ') || t('Aucune')],
+    [t('Rubriques non incluses'), notIncluded.join(' · ') || t('Aucune')],
+    [t('Informations manquantes ou rubriques vides'), missing.join(' · ') || t('Aucune parmi les informations vérifiées')],
+    ...(included.includes('documents') ? [[t('Pièces jointes'), t('Inventaire des fichiers uniquement, contenu non incorporé.')]] : []),
+    ...(forClient ? [[t('Confidentialité'), t('Coûts internes, heures, notes, pièces jointes, tâches internes, rendez-vous, brouillons et documents annulés exclus.')]]
+      : [[t('Limite des montants'), t('Les coûts non enregistrés sont inconnus. La marge sur coûts enregistrés ne constitue pas une marge finale ni une prévision.')]]),
+  ]);
   return {
     language: getAppLanguage(),
     title: p.name,
-    subtitle: `${t(reportPresets[options.preset ?? 'internal'].label)} · ${t('Toute la durée du projet')}\n${t('Situation enregistrée au {date}', {date:(options.createdAt ?? new Date()).toLocaleDateString(getAppLocale())})}${options.author?.trim() ? '\n' + t('Préparé par {name}', {name:options.author.trim()}) : ''}`,
+    subtitle: `${t(reportPresets[options.preset ?? 'internal'].label)} · ${period}\n${t('Situation enregistrée au {date}', {date:(options.createdAt ?? new Date()).toLocaleDateString(getAppLocale())})}\n${t('Préparé par {name}', {name:author})}`,
     sections,
   };
 }
