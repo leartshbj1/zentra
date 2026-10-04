@@ -205,24 +205,12 @@ export async function requireSupportSubscription(
       402,
     );
 }
-export async function reserveAnalysis(
-  workspace: Workspace,
-  ticketId: string,
-  lease: string,
-) {
-  if (await isSupportOwner(workspace)) return null;
-  await requireSupportSubscription(workspace);
+// Shared by reservation creation and the read-only check at delayed effects.
+// This retains the existing paid/pack/trial/offered period resolution.
+async function analysisQuotaContext(workspace: Workspace) {
   const paidRow=await subscriptionRow(workspace.id);
   const trial=!paidAccess(paidRow,stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'))) && !(await supportGrant(workspace)) ? await supportCompleteTrial(workspace.id) : null;
-  if(trial?.active) {
-    const time=now();
-    const result=await database().prepare(`INSERT INTO support_analysis_usage(id,workspace_id,period_start,ticket_id,state,expires_at,created_at)
-      SELECT ?,?,?,?,'reserved',?,? WHERE EXISTS(SELECT 1 FROM account_trials t JOIN complete_trials c ON c.user_id=t.user_id JOIN organizations o ON o.organization_id=c.organization_id AND o.subscription_id=t.subscription_id WHERE c.organization_id=? AND t.ends_at>? AND t.converted_subscription_id IS NULL)
-      AND (SELECT COUNT(*) FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?)))<?`)
-      .bind(lease,workspace.id,trial.started_at,ticketId,time+180,time,trial.organization_id,time,workspace.id,trial.started_at,time,trial.analyses).run();
-    if(!result.meta.changes)throw new SupportError('Les 250 analyses de votre essai sont utilisées ou votre essai est terminé. Choisissez un pack pour continuer. Aucun montant ne sera prélevé automatiquement.',402);
-    return lease;
-  }
+  if (trial?.active) return { kind: 'trial' as const, trial };
   const row = await subscriptionRow(workspace.id),
     offered = !paidAccess(
       row,
@@ -231,7 +219,67 @@ export async function reserveAnalysis(
       ? await supportGrant(workspace)
       : null,
     plan = offered?.plan ?? supportPlan(row?.paid_plan_id);
-  if (offered) {
+  if (offered) return { kind: 'offered' as const, offered };
+  if (
+    !row ||
+    !plan ||
+    !paidAccess(row, stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')))
+  )
+    throw new SupportError('L’abonnement doit être actualisé.', 402);
+  return { kind: 'paid' as const, row, plan };
+}
+
+export async function analysisReservationAdmission(
+  workspace: Workspace,
+  ticketId: string,
+  reservation: string,
+) {
+  const founder = reservation.startsWith('founder:');
+  const table = founder ? 'founder_support_usage' : 'support_analysis_usage';
+  const row = await database().prepare(`SELECT workspace_id,ticket_id,period_start,state,expires_at FROM ${table} WHERE id=?`)
+    .bind(founder ? reservation.slice(8) : reservation)
+    .first<{ workspace_id: string; ticket_id: string; period_start: number; state: string; expires_at: number }>();
+  if (!row || row.workspace_id !== workspace.id || row.ticket_id !== ticketId
+    || !['reserved','released','charged'].includes(row.state))
+    throw new SupportError('La réservation de cette analyse doit être vérifiée avant de reprendre.', 409);
+  await requireSupportSubscription(workspace);
+  if (row.state === 'charged') return { state: 'charged' as const, admitted: true, periodStart: row.period_start };
+  if (row.state === 'released') return { state: 'released' as const, admitted: false, periodStart: row.period_start };
+  if (await isSupportOwner(workspace)) return { state: 'reserved' as const, admitted: false, periodStart: row.period_start };
+  const context = await analysisQuotaContext(workspace);
+  const currentFounder = context.kind === 'offered';
+  const period = context.kind === 'trial' ? context.trial.started_at
+    : context.kind === 'offered' ? context.offered.start : context.row.paid_from;
+  const limit = context.kind === 'trial' ? context.trial.analyses
+    : context.kind === 'offered' ? context.offered.plan.analyses : context.plan.analyses;
+  const time = now();
+  if (founder !== currentFounder || row.period_start !== period || row.expires_at <= time)
+    return { state: 'reserved' as const, admitted: false, periodStart: row.period_start };
+  const usage = await database().prepare(`SELECT COUNT(*) AS used FROM ${table} WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?))`)
+    .bind(workspace.id, period, time).first<{ used: number }>();
+  return { state: 'reserved' as const, admitted: !!usage && usage.used <= limit, periodStart: row.period_start };
+}
+
+export async function reserveAnalysis(
+  workspace: Workspace,
+  ticketId: string,
+  lease: string,
+) {
+  if (await isSupportOwner(workspace)) return null;
+  await requireSupportSubscription(workspace);
+  const context = await analysisQuotaContext(workspace);
+  if(context.kind === 'trial') {
+    const { trial } = context;
+    const time=now();
+    const result=await database().prepare(`INSERT INTO support_analysis_usage(id,workspace_id,period_start,ticket_id,state,expires_at,created_at)
+      SELECT ?,?,?,?,'reserved',?,? WHERE EXISTS(SELECT 1 FROM account_trials t JOIN complete_trials c ON c.user_id=t.user_id JOIN organizations o ON o.organization_id=c.organization_id AND o.subscription_id=t.subscription_id WHERE c.organization_id=? AND t.ends_at>? AND t.converted_subscription_id IS NULL)
+      AND (SELECT COUNT(*) FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?)))<?`)
+      .bind(lease,workspace.id,trial.started_at,ticketId,time+180,time,trial.organization_id,time,workspace.id,trial.started_at,time,trial.analyses).run();
+    if(!result.meta.changes)throw new SupportError('Les 250 analyses de votre essai sont utilisées ou votre essai est terminé. Choisissez un pack pour continuer. Aucun montant ne sera prélevé automatiquement.',402);
+    return lease;
+  }
+  if (context.kind === 'offered') {
+    const { offered } = context;
     const time = now();
     const result = await database()
       .prepare(`INSERT INTO founder_support_usage(id,workspace_id,period_start,ticket_id,state,expires_at,created_at)
@@ -261,12 +309,7 @@ export async function reserveAnalysis(
       );
     return 'founder:' + lease;
   }
-  if (
-    !row ||
-    !plan ||
-    !paidAccess(row, stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')))
-  )
-    throw new SupportError('L’abonnement doit être actualisé.', 402);
+  const { row, plan } = context;
   const time = now();
   const result = await database()
     .prepare(
@@ -306,6 +349,40 @@ export async function finishAnalysis(
         reservation.startsWith('founder:') ? reservation.slice(8) : reservation,
       )
       .run();
+}
+
+export type CaptureAnalysisSettlement = {
+  workspaceId: string;
+  sourceSha256: string;
+  ownerToken: string;
+  state: 'preparing' | 'analyzed';
+  periodStart: number | null;
+};
+/** The same reservation transition, fenced by the current capture owner in
+ * the UPDATE itself. The historical finishAnalysis API remains unchanged. */
+export async function finishCapturedAnalysis(
+  reservation: string | null,
+  success: boolean,
+  capture: CaptureAnalysisSettlement,
+) {
+  if (!reservation) return true;
+  if (capture.periodStart === null) return false;
+  const table = reservation.startsWith('founder:') ? 'founder_support_usage' : 'support_analysis_usage';
+  const id = reservation.startsWith('founder:') ? reservation.slice(8) : reservation;
+  const fence = `workspace_id=? AND ticket_id=? AND period_start=?
+    AND EXISTS(SELECT 1 FROM supplier_capture_analyses a
+      WHERE a.workspace_id=? AND a.source_sha256=? AND a.owner_token=?
+      AND a.state=? AND a.reservation=? AND a.owner_until>unixepoch())`;
+  const params = [capture.workspaceId, `invoice:${capture.sourceSha256}`, capture.periodStart,
+    capture.workspaceId, capture.sourceSha256, capture.ownerToken, capture.state, reservation];
+  const next = success ? 'charged' : 'released';
+  const updated = await database().prepare(`UPDATE ${table} SET state=? WHERE id=? AND state='reserved'
+    AND ${fence}${success ? ' AND expires_at>unixepoch()' : ''}`)
+    .bind(next,id,...params).run();
+  if (updated.meta.changes) return true;
+  // A known previous settlement is acknowledged only under the same fence.
+  return !!(await database().prepare(`SELECT 1 FROM ${table} WHERE id=? AND state=? AND ${fence}`)
+    .bind(id,next,...params).first());
 }
 
 function validPrice(price: Stripe.Price, planId: SupportPlanId, live: boolean) {

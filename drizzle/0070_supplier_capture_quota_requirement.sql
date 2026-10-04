@@ -1,0 +1,1 @@
+ALTER TABLE `supplier_capture_analyses` ADD `analysis_required` integer DEFAULT 0 NOT NULL;

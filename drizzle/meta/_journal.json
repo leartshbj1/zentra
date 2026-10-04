@@ -484,6 +484,20 @@
       "when": 1790604047279,
       "tag": "0068_burly_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "6",
+      "when": 1791127438270,
+      "tag": "0069_supplier_capture_analysis",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "6",
+      "when": 1791127784987,
+      "tag": "0070_supplier_capture_quota_requirement",
+      "breakpoints": true
     }
   ]
 }

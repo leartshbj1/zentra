@@ -252,12 +252,17 @@ export function extractionIssues(value: InvoiceExtraction): string[] {
     issues.push('Certains champs demandent votre confirmation.');
   return issues;
 }
+// The existing extraction boundary also gates quota and transport admission.
+export function invoiceTextCanBeAnalyzed(source: string): boolean {
+  return source.trim().length >= 40;
+}
+
 export async function extractInvoice(
   source: string,
   companyName: string,
   provider: DecisionProvider,
 ): Promise<InvoiceExtraction> {
-  if (source.trim().length < 40)
+  if (!invoiceTextCanBeAnalyzed(source))
     return emptyExtraction(
       'Le document doit être lu ou complété manuellement.',
     );

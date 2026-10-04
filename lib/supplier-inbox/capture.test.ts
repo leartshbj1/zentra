@@ -25,12 +25,14 @@ vi.mock('@/lib/automation/config', () => ({
 vi.mock('@/lib/automation/provider', () => ({ JevDecisionProvider: class {} }));
 vi.mock('@/lib/support/billing', () => ({
   reserveAnalysis: m.reserve,
-  finishAnalysis: m.finish,
+  finishCapturedAnalysis: async (reservation: string | null, success: boolean) => { await m.finish(reservation, success); return true; },
+  requireSupportSubscription: async () => undefined,
+  analysisReservationAdmission: async () => ({ state: 'reserved', admitted: true, periodStart: 1 }),
 }));
 vi.mock('@/lib/support/infomaniak', () => ({ readMailAttachment: m.read }));
 vi.mock('./documents', () => ({
   invoiceMedia: () => 'application/pdf',
-  invoiceText: async () => 'Synthetic invoice text to analyze',
+  invoiceText: async () => 'Synthetic invoice text long enough to analyze safely',
 }));
 vi.mock('./extraction', async (original) => ({
   ...(await original<object>()),

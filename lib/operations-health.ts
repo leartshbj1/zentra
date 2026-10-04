@@ -122,6 +122,34 @@ export async function readQueueHealth(now = Math.floor(Date.now()/1000)): Promis
   }
 }
 
+export type CaptureAnalysisHealth = {
+  state: 'current' | 'attention' | 'unavailable';
+  awaitingResume?: number;
+  awaitingAdmission?: number;
+  reconciliationRequired?: number;
+};
+
+/** Inventory only: an expired lease does not authorize a retry or prove quota,
+ * consent or subscription eligibility. Unknown AI outcomes require review,
+ * including after a workspace is paused. Completed imports and ignored
+ * non-invoices are excluded. No source, tenant, document or credential is read. */
+export async function readCaptureAnalysisHealth(now = Math.floor(Date.now()/1000)): Promise<CaptureAnalysisHealth> {
+  try {
+    const row = await database().prepare(`SELECT
+      COALESCE(SUM(state IN ('preparing','analyzed') AND owner_until<=?),0) AS awaitingResume,
+      COALESCE(SUM(state='retryable'),0) AS awaitingAdmission,
+      COALESCE(SUM(state IN ('analyzing','uncertain') AND owner_until<=?),0) AS reconciliationRequired,
+      COALESCE(SUM(state NOT IN ('preparing','analyzing','uncertain','analyzed','retryable','completed')),0) AS invalidStates
+      FROM supplier_capture_analyses WHERE state<>'completed'`)
+      .bind(now,now).first<{awaitingResume:number;awaitingAdmission:number;reconciliationRequired:number;invalidStates:number}>();
+    if (!row || !Object.values(row).every(value=>Number.isSafeInteger(value)&&value>=0) || row.invalidStates!==0) throw new Error('Invalid capture health');
+    return {state:row.reconciliationRequired?'attention':'current',awaitingResume:row.awaitingResume,awaitingAdmission:row.awaitingAdmission,reconciliationRequired:row.reconciliationRequired};
+  } catch(error) {
+    reportServiceFailure(error,{operation:'operations.captures.read'});
+    return {state:'unavailable'};
+  }
+}
+
 async function boundedCheck<T>(check: Promise<T>, fallback: () => T): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try { return await Promise.race([check,new Promise<T>(resolve=>{timer=setTimeout(()=>resolve(fallback()),OPERATIONS_CHECK_TIMEOUT_MS);})]); }
@@ -129,11 +157,12 @@ async function boundedCheck<T>(check: Promise<T>, fallback: () => T): Promise<T>
 }
 
 export async function operationsHealth() {
-  const [authentication,scheduler,queues] = await Promise.all([
+  const [authentication,scheduler,queues,captures] = await Promise.all([
     boundedCheck(readAuthenticationHealth(),()=>({state:'timeout',durationMs:OPERATIONS_CHECK_TIMEOUT_MS})),
     boundedCheck(readSchedulerHealth(),()=>({...schedulerHealth(null,runtimeValue('SUPPORT_MAIL_BACKGROUND_ENABLED')==='1'),state:'unavailable'})),
     boundedCheck(readQueueHealth(),()=>({state:'unavailable'})),
+    boundedCheck(readCaptureAnalysisHealth(),()=>({state:'unavailable'})),
   ]);
-  const state = authentication.state==='available' && scheduler.background && queues.state==='current' ? 'healthy' : 'degraded';
-  return {state,checkedAt:new Date().toISOString(),authentication,scheduler,queues};
+  const state = authentication.state==='available' && scheduler.background && queues.state==='current' && captures.state==='current' ? 'healthy' : 'degraded';
+  return {state,checkedAt:new Date().toISOString(),authentication,scheduler,queues,captures};
 }

@@ -52,7 +52,7 @@ describe('queues against actual SQLite schemas',()=>{
   beforeEach(()=>{
     vi.spyOn(Date,'now').mockReturnValue(now*1000);
     db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=OFF');
-    for(const file of ['0041_mysterious_brother_voodoo','0052_support_mailboxes','0059_careless_proteus','0066_operations_queue_index'])db.exec(readFileSync(new URL(`../drizzle/${file}.sql`,import.meta.url),'utf8'));
+    for(const file of ['0041_mysterious_brother_voodoo','0052_support_mailboxes','0059_careless_proteus','0066_operations_queue_index','0069_supplier_capture_analysis'])db.exec(readFileSync(new URL(`../drizzle/${file}.sql`,import.meta.url),'utf8'));
     mocks.db.mockReturnValue({prepare:(sql:string)=>({bind:(...args:(string|number)[])=>({first:async()=>db.prepare(sql).get(...args)})})});
     db.prepare('INSERT INTO support_workspaces(id,owner_id,name,created_at,updated_at) VALUES(?,?,?,?,?)').run('ws','owner','PRIVATE COMPANY',now-100,now);
     db.prepare('INSERT INTO support_connections(id,workspace_id,provider,label,domain,login,secret,hook_hash,directory_json,routes_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('conn','ws','infomaniak','private@company.invalid','host','login','secret','hash','{}','{}',now-100);
@@ -107,7 +107,7 @@ describe('queues against actual SQLite schemas',()=>{
     const response=await GET(request('Bearer '+mocks.token));expect(response.status).toBe(503);expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toMatchObject({state:'degraded',authentication:{state:'restricted',upstreamStatus:402}});
   });
-  it('returns healthy only when all three checks pass',async()=>{
+  it('returns healthy only when all dependency checks pass',async()=>{
     vi.stubGlobal('fetch',vi.fn().mockImplementation(async()=>settings()));
     const response=await GET(request('Bearer '+mocks.token));expect(response.status).toBe(200);expect(await response.json()).toMatchObject({state:'healthy'});
     mocks.scheduler.mockResolvedValue({state:'inactive',background:false});expect((await GET(request('Bearer '+mocks.token))).status).toBe(503);
@@ -117,5 +117,31 @@ describe('queues against actual SQLite schemas',()=>{
     mocks.db.mockReturnValue({prepare:()=>({bind:()=>({first:()=>new Promise(()=>{})})})});
     const pending=operationsHealth();await vi.advanceTimersByTimeAsync(OPERATIONS_CHECK_TIMEOUT_MS);
     expect(await pending).toMatchObject({state:'degraded',queues:{state:'unavailable'}});
+  });
+  const capture=(id:string,state:string,lease=now-1)=>db.prepare('INSERT INTO supplier_capture_analyses(workspace_id,source_sha256,organization_id,inbox_id,owner_token,owner_until,state,reservation,extraction,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('ws',id,'PRIVATE ORGANIZATION','PRIVATE INBOX','PRIVATE TOKEN',lease,state,'PRIVATE RESERVATION','PRIVATE EXTRACTION',now-2000,now-1000);
+  it.each(['analyzing','uncertain'])('reports an expired %s capture as reconciliation, even in a paused workspace',async state=>{
+    capture('PRIVATE SOURCE SHA',state);db.exec("UPDATE support_workspaces SET mode='paused'");
+    vi.stubGlobal('fetch',vi.fn().mockImplementation(async()=>settings()));
+    const response=await GET(request('Bearer '+mocks.token));expect(response.status).toBe(503);
+    const result=await response.json();expect(result).toMatchObject({state:'degraded',captures:{state:'attention',reconciliationRequired:1,awaitingResume:0,awaitingAdmission:0}});
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE|private@|SOURCE SHA|RESERVATION|EXTRACTION/);
+  });
+  it('counts resumable and retryable work without claiming it is a failure or eligible for processing',async()=>{
+    capture('preparing','preparing');capture('analyzed','analyzed');capture('retryable','retryable');
+    capture('active-analysis','analyzing',now+60);capture('active-uncertainty','uncertain',now+60);
+    capture('imported','completed');capture('ignored-non-invoice','completed');
+    vi.stubGlobal('fetch',vi.fn().mockImplementation(async()=>settings()));
+    const response=await GET(request('Bearer '+mocks.token));expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({captures:{state:'current',reconciliationRequired:0,awaitingResume:2,awaitingAdmission:1}});
+  });
+  it('does not silently report zero when the capture migration is absent',async()=>{
+    db.exec('DROP TABLE supplier_capture_analyses');vi.stubGlobal('fetch',vi.fn().mockImplementation(async()=>settings()));
+    const response=await GET(request('Bearer '+mocks.token));expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({captures:{state:'unavailable'}});
+  });
+  it('does not report healthy when an unknown capture state was persisted',async()=>{
+    capture('unexpected','unrecognized-state');vi.stubGlobal('fetch',vi.fn().mockImplementation(async()=>settings()));
+    const response=await GET(request('Bearer '+mocks.token));expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({captures:{state:'unavailable'}});
   });
 });

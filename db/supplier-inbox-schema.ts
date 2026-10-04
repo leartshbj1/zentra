@@ -67,3 +67,34 @@ export const supplierMailReceipts = sqliteTable('supplier_mail_receipts', {
   workspaceId: text('workspace_id').notNull(),
   createdAt: integer('created_at').notNull(),
 });
+
+// A mailbox lease protects one connection. This separate owner protects the
+// same attachment delivered through two connections of one Support workspace.
+// Once an external analysis has started, elapsed time never authorizes replay.
+export const supplierCaptureAnalyses = sqliteTable(
+  'supplier_capture_analyses',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => supportWorkspaces.id, { onDelete: 'cascade' }),
+    sourceSha256: text('source_sha256').notNull(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.organizationId, { onDelete: 'cascade' }),
+    inboxId: text('inbox_id').notNull(),
+    ownerToken: text('owner_token').notNull(),
+    ownerUntil: integer('owner_until').notNull(),
+    state: text('state').notNull(),
+    reservation: text('reservation'),
+    analysisRequired: integer('analysis_required').notNull().default(0),
+    extraction: text('extraction'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('supplier_capture_identity').on(
+      table.workspaceId,
+      table.sourceSha256,
+    ),
+  ],
+);
