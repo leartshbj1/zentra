@@ -212,8 +212,16 @@ foreach ($appendix in @(
 $parameter = [regex]::Match($circleText, '(?m)^  diagnostics-native-set:\r?\n    type: enum\r?\n    enum: \[full, native-mail-payroll, benchmark-payment, benchmark-public-payment\]\r?\n    default: full\r?$')
 Assert-Contract ($parameter.Success -and [regex]::Matches($circleText, '(?m)^  diagnostics-native-set:').Count -eq 1) 'pipeline enum admits full or three explicit allowlisted opt-ins and defaults full'
 $job = [regex]::Match($circleText, '(?ms)^  windows-drafts-diagnostics-tests:\r?\n.*?(?=^  [^ ].*:\r?\n|^workflows:\r?\n|\z)')
-Assert-Contract ($job.Success -and $job.Value.Contains('ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"') -and $job.Value.Contains('ZENTRA_VERIFY_ONLY: "true"')) 'only diagnostic job supplies both hardcoded guards'
-Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq 2 -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 3) 'only historical diagnostic job forwards the selector; a second fixed verification job cannot forward arbitrary filters to release or installer jobs'
+Assert-Contract ($job.Success -and $job.Value.Contains('ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"') -and $job.Value.Contains('ZENTRA_VERIFY_ONLY: "true"')) 'historical diagnostic job supplies both hardcoded guards'
+$fixedVerificationJobs = @('windows-archive-continuity-tests', 'windows-recovery-crash-tests')
+foreach ($fixedJobName in $fixedVerificationJobs) {
+    $fixedJob = [regex]::Match($circleText, '(?ms)^  ' + [regex]::Escape($fixedJobName) + ':\r?\n.*?(?=^  [^ ].*:\r?\n|^workflows:\r?\n|\z)')
+    Assert-Contract ($fixedJob.Success -and [regex]::Matches($circleText, '(?m)^  ' + [regex]::Escape($fixedJobName) + ':').Count -eq 1) "one allowlisted fixed verification job $fixedJobName"
+    Assert-Contract ($fixedJob.Value.Contains('ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"') -and $fixedJob.Value.Contains('ZENTRA_VERIFY_ONLY: "true"') -and $fixedJob.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: native-archive-continuity') -and $fixedJob.Value.Contains('ZENTRA_DIAGNOSTICS_PHASE: all')) "fixed job $fixedJobName retains literal selector, all phase and both guards"
+    Assert-Contract (-not $fixedJob.Value.Contains('parameters:') -and -not $fixedJob.Value.Contains('<<')) "fixed job $fixedJobName cannot receive pipeline filters, arguments or phase overrides"
+}
+Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq (1 + $fixedVerificationJobs.Count) -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 3) 'only historical diagnostic job forwards the selector; only two allowlisted fixed verification jobs add literal selectors, never release or installer jobs'
+Assert-Contract ([regex]::Matches($circleText, 'ZENTRA_VERIFY_DIAGNOSTICS_ONLY:').Count -eq (1 + $fixedVerificationJobs.Count)) 'diagnostic guards remain confined to the historical and two allowlisted verification jobs'
 $expectedFunctionalWorkflow = @'
   drafts-errors-diagnostics-verification:
     when:
@@ -373,7 +381,7 @@ $phaseProofWrite = @'
 '@
 Assert-Contract ($releaseText.Contains($phaseProofWrite.Trim()) -and $phaseProofFile.Extent.StartOffset -gt $functionalProofAssignment.Extent.EndOffset) 'terminal phase proof is written only after all selected stages and completion flags'
 Assert-Contract ($job.Value.Contains("enum: [all, native, frontend]") -and $job.Value.Contains('default: all') -and $job.Value.Contains('ZENTRA_DIAGNOSTICS_PHASE: << parameters.diagnostics-phase >>')) 'job uses a closed phase enum with all default'
-Assert-Contract ([regex]::Matches($circleText,'ZENTRA_DIAGNOSTICS_PHASE:').Count -eq 2 -and [regex]::Matches($circleText,'parameters\.diagnostics-phase').Count -eq 1) 'only historical diagnostic job forwards phase; second fixed job remains all without phase input to packaging or release jobs'
+Assert-Contract ([regex]::Matches($circleText,'ZENTRA_DIAGNOSTICS_PHASE:').Count -eq (1 + $fixedVerificationJobs.Count) -and [regex]::Matches($circleText,'parameters\.diagnostics-phase').Count -eq 1) 'only historical diagnostic job forwards phase; both allowlisted fixed jobs remain all without phase input to packaging or release jobs'
 Assert-Contract ($job.Value.Contains('resource_class: windows.medium') -and $job.Value.Contains('image: windows-server-2022-gui:2026.05.1') -and $job.Value.Contains('no_output_timeout: 20m')) 'same resource class, image and output timeout budgets'
 Assert-Contract (-not $expectedFunctionalWorkflow.Contains('requires:') -and -not $expectedTargetedWorkflow.Contains('diagnostics-phase:')) 'functional instances run independently; targeted job uses unchanged default all'
 
@@ -471,5 +479,52 @@ $expectedArchiveWorkflow = @'
 Assert-Contract ((Normalize-ContractText $circleText).Contains((Normalize-ContractText $expectedArchiveWorkflow))) 'archive workflow requires the exact opt-in branch and non-release mode'
 Assert-Contract ([regex]::Matches($circleText,'(?m)^  quality-continuity-targeted-verification:').Count -eq 1 -and [regex]::Matches($circleText,'(?m)^      - windows-archive-continuity-tests\r?$').Count -eq 1) 'dedicated job appears only once in its opt-in workflow'
 Assert-Contract (-not $archiveJob.Value.Contains('pipeline.parameters.diagnostics-native-set') -and -not $archiveJob.Value.Contains('parameters.diagnostics-phase')) 'archive job cannot receive pipeline filter, flags or phase overrides'
+
+# A second fixed verification job adds the reviewed owned-process recovery
+# witness after the same bounded archive recipe. No selector or phase is input.
+$recoveryJob = [regex]::Match($circleText, '(?ms)^  windows-recovery-crash-tests:\r?\n.*?(?=^  [^ ].*:\r?\n|^workflows:\r?\n|\z)')
+$expectedRecoveryJob = @'
+  windows-recovery-crash-tests:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"
+      ZENTRA_VERIFY_ONLY: "true"
+      ZENTRA_DIAGNOSTICS_NATIVE_SET: native-archive-continuity
+      ZENTRA_DIAGNOSTICS_PHASE: all
+    steps:
+      - checkout
+      - run:
+          name: Verify archive continuity, restoration rollback and real process termination boundaries
+          command: |
+            $ErrorActionPreference = 'Stop'
+            $taskRepo = (Get-Location).Path
+            & ./desktop/scripts/cloud-release-windows.ps1
+            Set-Location -LiteralPath $taskRepo
+            & ./desktop/scripts/verify-native-recovery.ps1 -Repository $taskRepo -ExpectedSource $env:CIRCLE_SHA1 -IncludeCrashCandidate
+          no_output_timeout: 25m
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: recovery-harness-validation
+      - store_artifacts:
+          path: desktop/artifacts/recovery-route-witness
+          destination: recovery-crash-validation
+'@
+Assert-Contract ($recoveryJob.Success -and (Normalize-ContractText $recoveryJob.Value) -ceq (Normalize-ContractText $expectedRecoveryJob)) 'recovery job has only the fixed archive recipe then exact-source reviewed witness, unchanged machine, guards, artifacts and timeout'
+$expectedRecoveryWorkflow = @'
+  quality-recovery-crash-verification:
+    when:
+      and:
+        - equal: [codex/quality-restore-ci-20261004, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-recovery-crash-tests
+'@
+Assert-Contract ((Normalize-ContractText $circleText).Contains((Normalize-ContractText $expectedRecoveryWorkflow))) 'recovery workflow requires its exact opt-in branch and non-release mode'
+Assert-Contract ([regex]::Matches($circleText,'(?m)^  quality-recovery-crash-verification:').Count -eq 1 -and [regex]::Matches($circleText,'(?m)^      - windows-recovery-crash-tests\r?$').Count -eq 1) 'recovery job appears only once in its fixed opt-in workflow'
 
 Write-Output "Diagnostics native selection: $script:contractsPassed static contracts passed; no release script, native executable or child process executed."
