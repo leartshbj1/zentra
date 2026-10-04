@@ -447,6 +447,9 @@ jobs:
             if [ "$CIRCLE_BRANCH" = 'codex/release-1.86.0-apple' ]; then
               source='bd22076fa970f76458a701c6cbfbbfceee94a8fb'
             fi
+            if [ "$CIRCLE_BRANCH" = 'codex/release-1.90.13-apple-tools' ]; then
+              source='b7faf1fe2ccefa6925ece92900808866ccd0bb96'
+            fi
             git init .
             git remote add origin https://github.com/leartshbj1/zentra.git
             git fetch --depth 1 origin "$source"
@@ -455,6 +458,30 @@ jobs:
       - run:
           name: Prepare Apple build tools
           command: bash desktop/scripts/cloud-release-apple.sh prepare
+      - run:
+          name: Install and verify the real iPhone tools before Tauri initialization
+          no_output_timeout: 20m
+          command: |
+            set -euo pipefail
+            export PATH="/opt/homebrew/bin:$PATH"
+            install_status=0
+            brew install --verbose ca-certificates openssl@3 xcodegen libimobiledevice cocoapods || install_status=$?
+            if [ "$install_status" -ne 0 ]; then
+              printf 'Initial Homebrew installation exited %s; repair and a successful second installation are required.\n' "$install_status"
+            fi
+            brew postinstall --verbose ca-certificates
+            brew postinstall --verbose openssl@3
+            brew install --verbose ca-certificates openssl@3 xcodegen libimobiledevice cocoapods
+            test -s "$(brew --prefix)/etc/ca-certificates/cert.pem"
+            test -s "$(brew --prefix)/etc/openssl@3/cert.pem"
+            command -v xcodegen
+            command -v idevicesyslog
+            command -v pod
+            xcodegen --version
+            idevicesyslog --version
+            pod --version
+            "$(brew --prefix openssl@3)/bin/openssl" version
+            curl --proto '=https' --tlsv1.2 --cacert "$(brew --prefix)/etc/openssl@3/cert.pem" --fail --silent --show-error --head --connect-timeout 15 --max-time 30 --output /dev/null https://github.com/leartshbj1/zentra
       - run:
           name: Verify the exact session-change refusal with the warm macOS protected cache
           command: |
@@ -489,6 +516,13 @@ jobs:
           destination: apple
 
 workflows:
+  apple-tools-retry-1913:
+    when:
+      and:
+        - equal: [codex/release-1.90.13-apple-tools, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - apple
   drafts-diagnostics-release-1913:
     when:
       and:
