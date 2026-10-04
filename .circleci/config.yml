@@ -482,6 +482,8 @@ jobs:
             }
             trap report_homebrew_failure ERR
             brew --version
+            brew update --verbose
+            brew --version
             install_status=0
             brew install --verbose ca-certificates openssl@3 xcodegen libimobiledevice cocoapods || install_status=$?
             if [ "$install_status" -ne 0 ]; then
