@@ -16,6 +16,8 @@ vi.mock('./language', () => ({ t: (value: string) => value, useAppLanguage: () =
 vi.mock('./MobileDetails', () => ({ useCompactLayout: () => false, MobileDetails: () => null }));
 vi.mock('./FinanceFirstStep', () => ({ FinanceFirstStep: () => null }));
 vi.mock('./ui', () => ({ Button: () => null, ErrorPanel: () => null, Modal: () => null }));
+// Preserve the existing closed Host; provide its explicit admitted member.
+vi.mock('./useFormDraft', () => ({ useFormDraftIdentity: () => ({companyId:runtime.host.props.workspace.workNotesScope,memberId:'synthetic-member',memberContextNonce:'0123456789abcdef0123456789abcdef',ready:true}) }));
 import { FinanceOverview } from './FinanceOverview';
 import { desktopApi } from './bridge';
 import { Button, ErrorPanel } from './ui';

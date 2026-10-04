@@ -446,7 +446,7 @@ export function PayrollSetup({
             )
               payroll.fiduciaryValidated = false;
             requireCurrent();
-            const refreshed = await desktopApi.saveSettings({ ...fresh.settings, payroll }, origin.scope);
+            const refreshed = await desktopApi.saveSettings({ ...fresh.settings, payroll }, origin.scope, mutationOrigin.memberContextNonce);
             requireCurrent();
             return refreshed;
           }

@@ -62,3 +62,48 @@ describe('company email templates', () => {
     expect(draft.connected).toBe(connected);
   });
 });
+
+
+import { recentDiagnosticEvents } from './diagnostics';
+import type { MailResult, MailStatus } from './outgoingMail';
+const mailLogIds = () => new Set(recentDiagnosticEvents().map(event => event.id));
+const newMailEvents = (before: Set<string>) => recentDiagnosticEvents().filter(event => !before.has(event.id));
+const privateMailInput={requestId:'PRIVATE_REQUEST_ID',scope:'PRIVATE_COMPANY_SCOPE',target:{entity:'invoices' as const,id:'PRIVATE_DOCUMENT_ID'},sourceRevision:'PRIVATE_REVISION',recipient:'private-synthetic@example.invalid',subject:'PRIVATE_SUBJECT',body:'PRIVATE_BODY token=PRIVATE_TOKEN amount=108.10'};
+function sharedWorkflow(kind:'send'|'recover') { return kind==='send' ? outgoingMail.sendShared(privateMailInput,'PRIVATE_CONNECTION_ID') : outgoingMail.recoverShared(privateMailInput.scope,privateMailInput.requestId); }
+describe('shared mail business diagnostics without replay or private content',()=>{
+  for(const kind of ['send','recover'] as const) for(const status of ['pending','accepted','rejected','uncertain'] as const) it(`${kind} returns the exact ${status} result and distinguishes its state from IPC success`,async()=>{
+    const result:MailResult=Object.freeze({status,replayed:kind==='recover',historyWarning:true,message:'PRIVATE_SERVER_MESSAGE'}), before=mailLogIds(), calls=invoke.mock.calls.length;
+    invoke.mockResolvedValueOnce(result); expect(await sharedWorkflow(kind)).toBe(result);
+    expect(invoke.mock.calls.slice(calls)).toEqual(kind==='send' ? [['send_shared_mail',{input:privateMailInput,connectionId:'PRIVATE_CONNECTION_ID'}]] : [['recover_shared_mail',{scope:privateMailInput.scope,requestId:privateMailInput.requestId}]]);
+    const events=newMailEvents(before), command=kind==='send'?'send_shared_mail':'recover_shared_mail';
+    expect(events.map(event=>[event.operation,event.phase])).toEqual([[command,'start'],[command,'success'],[`mail.shared.${status}`,'info']]);
+    expect(JSON.stringify(events)).not.toMatch(/PRIVATE_|private-synthetic|108\.10/);
+  });
+  it.each(['send','recover'] as const)('preserves the original %s failure with no result trace, retry or fallback',async kind=>{
+    const original=Error('PRIVATE native refusal recipient=private-synthetic@example.invalid'),before=mailLogIds(),calls=invoke.mock.calls.length;
+    invoke.mockRejectedValueOnce(original); await expect(sharedWorkflow(kind)).rejects.toBe(original);
+    expect(invoke.mock.calls.slice(calls)).toHaveLength(1); const command=kind==='send'?'send_shared_mail':'recover_shared_mail';
+    expect(newMailEvents(before).map(event=>[event.operation,event.phase])).toEqual([[command,'start'],[command,'failure']]);
+    expect(JSON.stringify(newMailEvents(before))).not.toMatch(/PRIVATE|private-synthetic/);
+  });
+  it('ignores an inherited status instead of reading its prototype',async()=>{
+    const result=Object.create({status:'accepted'}) as MailResult,before=mailLogIds(); invoke.mockResolvedValueOnce(result);
+    expect(await sharedWorkflow('send')).toBe(result); expect(newMailEvents(before).map(event=>event.operation)).toEqual(['send_shared_mail','send_shared_mail']);
+  });
+  it('never executes a status getter or changes its authentic result',async()=>{
+    const result={replayed:false} as MailResult, getter=vi.fn(()=>{throw Error('PRIVATE getter');}),before=mailLogIds();Object.defineProperty(result,'status',{get:getter});invoke.mockResolvedValueOnce(result);
+    expect(await sharedWorkflow('send')).toBe(result);expect(getter).not.toHaveBeenCalled();expect(newMailEvents(before).map(event=>event.operation)).toEqual(['send_shared_mail','send_shared_mail']);
+  });
+  it('keeps a proxy result when own-descriptor inspection throws and never reads its prototype',async()=>{
+    const descriptor=vi.fn(()=>{throw Error('PRIVATE descriptor trap');}),prototype=vi.fn(()=>{throw Error('PRIVATE prototype trap');}),result=new Proxy({status:'accepted' as const,replayed:false},{getOwnPropertyDescriptor:descriptor,getPrototypeOf:prototype}),before=mailLogIds();invoke.mockResolvedValueOnce(result);
+    expect(await sharedWorkflow('send')).toBe(result);expect(descriptor).toHaveBeenCalledTimes(1);expect(prototype).not.toHaveBeenCalled();expect(newMailEvents(before).map(event=>event.operation)).toEqual(['send_shared_mail','send_shared_mail']);
+  });
+  it('refuses arbitrary status text as an operation name',async()=>{
+    const result={status:'PRIVATE_TOKEN.private-synthetic@example.invalid',replayed:false} as unknown as MailResult,before=mailLogIds();invoke.mockResolvedValueOnce(result);
+    expect(await sharedWorkflow('recover')).toBe(result);expect(newMailEvents(before).map(event=>event.operation)).toEqual(['recover_shared_mail','recover_shared_mail']);expect(JSON.stringify(newMailEvents(before))).not.toContain('PRIVATE_TOKEN');
+  });
+  it('leaves the legacy direct sender unchanged and does not add a shared-mail state',async()=>{
+    const result:MailResult={status:'accepted',replayed:false},before=mailLogIds(),calls=invoke.mock.calls.length;invoke.mockResolvedValueOnce(result);
+    expect(await outgoingMail.send(privateMailInput)).toBe(result);expect(invoke.mock.calls.slice(calls)).toEqual([['send_outgoing_mail',{input:privateMailInput}]]);expect(newMailEvents(before).map(event=>event.operation)).toEqual(['send_outgoing_mail','send_outgoing_mail']);
+  });
+});

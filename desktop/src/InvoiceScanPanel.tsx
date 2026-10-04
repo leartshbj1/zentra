@@ -1,6 +1,6 @@
 import { withDiagnosticIntent } from './diagnosticIntent';
 import { lazy, Suspense, useLayoutEffect, useRef, useState } from 'react';
-import { diagnosticInvoke as invoke } from './diagnostics';
+import { diagnosticInvoke as invoke, diagnosticOperation } from './diagnostics';
 import { ScanLine, Check, X } from 'lucide-react';
 import { Button, ErrorPanel } from './ui';
 import { useCompanyAutomation } from './AutomationCompany';
@@ -39,7 +39,7 @@ export function InvoiceScanPanel({disabled,onApply,onBusy}:{disabled:boolean;onA
     setBusy(true);setError('');setResult(null);setProgress('Ouverture du document…');current.current.onBusy(true);
     try{
       if(!mayRead(ticket,organizationId))return;
-      const text=await readInvoiceText(file,value=>{if(mayRead(ticket,organizationId))setProgress(value);});
+      const text=await diagnosticOperation('app', 'invoice.scan_preprocess', () => readInvoiceText(file,value=>{if(mayRead(ticket,organizationId))setProgress(value);}));
       if(!mayRead(ticket,organizationId))return;
       setProgress('Préparation de la facture…');
       const response=await invoke<{status:string;message?:string;extraction?:InvoiceScan}>('automation_request',withDiagnosticIntent({data:{action:'invoice_scan',requestId:crypto.randomUUID(),text}}, 'automation_request', 'invoice_scan'));

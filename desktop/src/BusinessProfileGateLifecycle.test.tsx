@@ -25,7 +25,8 @@ vi.mock('./DevelopmentNotice', () => ({ DevelopmentNotice: () => null }));
 vi.mock('./CloudAccountAccess', () => ({ CloudAccountAccess: () => null }));
 vi.mock('./ErrorGuidance', () => ({ ErrorGuidance: () => null }));
 vi.mock('./BrandMark', () => ({ BrandMark: () => null }));
-vi.mock('./useFormDraft', () => ({ FormDraftIdentityProvider: () => null }));
+// Existing closed Host now supplies the same admitted identity that real App provides.
+vi.mock('./useFormDraft', () => ({ FormDraftIdentityProvider: () => null, useFormDraftIdentity: () => ({companyId:runtime.host.props.workspace?.workNotesScope ?? 'synthetic-profile-scope-a',memberId:'synthetic-member',memberContextNonce:'0123456789abcdef0123456789abcdef',ready:true}) }));
 import { App } from './App';
 import { BusinessProfileGate, BusinessProfileFields } from './BusinessProfileEditor';
 import { CompanyAccountGate } from './CompanyAccountGate';
@@ -37,6 +38,7 @@ type Element = { type: unknown; key?: string; props: Record<string, any> };
 class Host {
   slots: any[] = []; index = 0; dirty = false; mounted = true; tree: unknown;
   effects: Array<() => void> = []; writes: unknown[] = []; unmountedWrites = 0;
+  admittedMarker = '';
   constructor(public component: (props: any) => unknown, public props: any) { this.render(); }
   state(initial: any) {
     const slot = this.slots[this.index++] ??= { value: typeof initial === 'function' ? initial() : initial };
@@ -61,7 +63,12 @@ class Host {
   }
   render(props = this.props) {
     this.props = props; this.index = 0; this.dirty = false; this.effects = []; runtime.host = this;
-    this.tree = this.component(props); for (const action of this.effects) action(); this.flush();
+    this.tree = this.component(props); for (const action of this.effects) action();
+    // This Host does not mount child components. Deliver the existing real
+    // marker contract; separate ReactDOM tests prove its actual lifecycle.
+    const marker = nodes(this.tree).find(node => typeof node.type === 'function' && (node.type as Function).name === 'DraftCompanyAdmissionMarker');
+    if (marker) { const admission = JSON.stringify([marker.props.identityKey, marker.props.epoch]); if (this.admittedMarker !== admission) { this.admittedMarker = admission; marker.props.onAdmission({key:marker.props.identityKey,epoch:marker.props.epoch}); } }
+    this.flush();
   }
   flush() { if (this.mounted && this.dirty) this.render(); }
   unmount() { for (const slot of this.slots) slot.cleanup?.(); this.mounted = false; }
@@ -93,12 +100,13 @@ function rawWorkspace(origin = scope) {
     extra_settings_json: JSON.stringify({ payroll: { accidentInsurer: 'Synthetic unchanged insurer' } }) } };
 }
 async function setup() {
-  vi.stubGlobal('window', { setInterval: vi.fn(() => 1), clearInterval: vi.fn() });
+  vi.stubGlobal('window', { setInterval: vi.fn(() => 1), clearInterval: vi.fn(), setTimeout: globalThis.setTimeout });
   let initialRead = true;
   const reads: ReturnType<typeof deferred<ReturnType<typeof rawWorkspace>>>[] = [];
   const mutations: Array<ReturnType<typeof deferred<void>> & { args: any }> = [];
   const license = { status: 'valid', access_role: 'owner', read_only: false, enforcement_configured: false, can_refresh: false };
   runtime.invoke.mockImplementation((command: string, args: any) => {
+    if (command === 'get_form_draft_identity') return Promise.resolve({memberId:'synthetic-member',memberContextNonce:'0123456789abcdef0123456789abcdef'});
     if (command === 'get_app_state') return Promise.resolve({ onboarding_completed: 1, activity_profile_required: 1 });
     if (command === 'get_workspace') {
       if (initialRead) { initialRead = false; return Promise.resolve(rawWorkspace()); }
@@ -268,7 +276,7 @@ describe('actual App business profile admission JSX', () => {
     const { app, gate, parent, workspace } = await openApp(); const original = gate().key;
     expect(original).toBe(scope); parent().props.onWorkspace({ ...workspace }); app.flush(); expect(gate().key).toBe(original);
     const received = { ...workspace, workNotesScope: otherScope, settings: { ...workspace.settings!, business: { ...workspace.settings!.business, activityDescription: 'Synthetic received activity B' } } };
-    parent().props.onWorkspace(received); app.flush(); expect(gate().key).toBe(otherScope); expect(gate().key).not.toBe(original);
+    parent().props.onWorkspace(received); app.flush(); await settle(app); expect(gate().key).toBe(otherScope); expect(gate().key).not.toBe(original);
     const renewed = new Host(gate().type as (props: any) => unknown, gate().props);
     expect(fields(renewed).props.profile).toEqual(received.settings.business);
   });

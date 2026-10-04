@@ -311,8 +311,8 @@ Assert-Contract ($frontendGateText.Contains("Invoke-Checked pnpm.cmd (@('--dir',
 Assert-Contract ($frontendGateText.Contains("Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')") -and $frontendGateText.Contains('finally') -and $frontendGateText.Contains('Remove-Item Env:TAURI_ENV_PLATFORM -ErrorAction SilentlyContinue') -and $frontendGateText.Contains('$env:TAURI_ENV_PLATFORM = $diagnosticPreviousPlatform')) 'frontend build and platform environment restoration preserved'
 foreach ($spec in @(
     @{ Name = 'diagnosticNativeSuites'; Count = 62; OrderedSha256 = '69439461eedcd795551e6705906fa4bb9dc21ca4847a01857ac49a5f3fb040f2' },
-    @{ Name = 'diagnosticFrontendSuites'; Count = 128; OrderedSha256 = '202554bc228b92c8998cd727792383fd2192e865086574b4fe7a1a94a1645ea2' },
-    @{ Name = 'diagnosticMobileSuites'; Count = 100; OrderedSha256 = '6948aae419930024f452576d9a3e4d6a94b1d6eb0e992dd706720e0b2708a94e' }
+    @{ Name = 'diagnosticFrontendSuites'; Count = 132; OrderedSha256 = 'f7ee2f55132a1c444897615023436dbd300dabded8159a5f2e8222c14329efa1' },
+    @{ Name = 'diagnosticMobileSuites'; Count = 104; OrderedSha256 = '07aaf124cdba5c7ba326dc5175d37ed73efa79af4bc93908d77650ba497e4923' }
 )) {
     $assignments = @($releaseAst.FindAll({param($node) $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.Left.VariablePath.UserPath -ceq $spec.Name}, $true))
     $suiteNames = @($assignments | ForEach-Object { $_.Right.FindAll({param($node) $node -is [System.Management.Automation.Language.StringConstantExpressionAst]}, $true) | ForEach-Object {$_.Value} })

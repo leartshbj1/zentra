@@ -1,4 +1,4 @@
-import { diagnosticInvoke as invoke } from './diagnostics';
+import { diagnosticInvoke as invoke, recordDiagnostic } from './diagnostics';
 import { t } from './language';
 
 /** Native error envelopes are interface copy; customer document text is never passed here. */
@@ -133,6 +133,25 @@ export function mailTemplateError(template: MailTemplate): string {
     return 'Fermez chaque variable avec }, par exemple {entreprise}.';
   return '';
 }
+// A resolved command confirms an IPC result, not delivery. Only a known own
+// data-property status contributes a fixed, payload-free business event.
+function recordSharedMailOutcome(result: MailResult): MailResult {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(result, 'status');
+    if (!descriptor || !Object.hasOwn(descriptor, 'value')) return result;
+    switch (descriptor.value) {
+      case 'pending': recordDiagnostic({ area: 'command', operation: 'mail.shared.pending', phase: 'info' }); break;
+      case 'accepted': recordDiagnostic({ area: 'command', operation: 'mail.shared.accepted', phase: 'info' }); break;
+      case 'rejected': recordDiagnostic({ area: 'command', operation: 'mail.shared.rejected', phase: 'info' }); break;
+      case 'uncertain': recordDiagnostic({ area: 'command', operation: 'mail.shared.uncertain', phase: 'info' }); break;
+    }
+  } catch {
+    // Best effort only: a hostile descriptor/proxy or journal failure must not
+    // change an authentic result or cause another mail submission.
+  }
+  return result;
+}
+
 export const outgoingMail = {
   state: () => invoke<MailState>('outgoing_mail_state'),
   connect: (scope: string, connection: MailConnection) =>
@@ -176,8 +195,8 @@ export const outgoingMail = {
   disconnectShared: (scope: string) =>
     invoke<void>('disconnect_shared_mail', { scope }),
   sendShared: (input: MailSubmission, connectionId: string) =>
-    invoke<MailResult>('send_shared_mail', { input, connectionId }),
+    invoke<MailResult>('send_shared_mail', { input, connectionId }).then(recordSharedMailOutcome),
   recoverShared: (scope: string, requestId: string) =>
-    invoke<MailResult>('recover_shared_mail', { scope, requestId }),
+    invoke<MailResult>('recover_shared_mail', { scope, requestId }).then(recordSharedMailOutcome),
 };
 

@@ -23,6 +23,7 @@ import {
   type BillingPresetId,
 } from './financeClarity';
 import { desktopApi } from './bridge';
+import { useWorkspaceMutationOrigin } from './useWorkspaceMutationOrigin';
 import { formatMoney, errorMessage } from './utils';
 import { Button, ErrorPanel, Modal } from './ui';
 import { MobileDetails, useCompactLayout } from './MobileDetails';
@@ -275,6 +276,7 @@ function FinanceConfiguration({
   const inFlight = useRef(false);
   const mounted = useRef(true);
   const originScope = useRef(workspace.workNotesScope);
+  const captureMutationOrigin = useWorkspaceMutationOrigin(workspace);
   const current = useRef({ scope: workspace.workNotesScope, readOnly, saved, onWorkspaceChange, onInstallStarter });
   current.current = { scope: workspace.workNotesScope, readOnly, saved, onWorkspaceChange, onInstallStarter };
   useLayoutEffect(() => {
@@ -292,9 +294,10 @@ function FinanceConfiguration({
     setBusy(true);
     setError('');
     try {
+      const mutationOrigin = captureMutationOrigin();
       // Re-read first so a setting changed elsewhere while the review was open
       // is preserved. Only these two commercial defaults are replaced.
-      const latest = await desktopApi.loadWorkspace();
+      const latest = await desktopApi.loadWorkspace(mutationOrigin.workspaceScope, mutationOrigin.memberContextNonce);
       if (!isOriginCurrent()) return;
       if (latest.workNotesScope !== originScope.current)
         throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace. Vos choix sont conservés.');
@@ -304,7 +307,8 @@ function FinanceConfiguration({
         throw new Error('La configuration de l’entreprise est indisponible.');
       const next = await desktopApi.saveSettings(
         applyBillingPreset(latest.settings, preset),
-        originScope.current,
+        mutationOrigin.workspaceScope,
+        mutationOrigin.memberContextNonce,
       );
       if (!isOriginCurrent()) return;
       setSaved(true);

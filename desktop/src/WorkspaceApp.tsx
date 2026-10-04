@@ -5067,6 +5067,7 @@ function SettingsScreen({
   const [payrollRulesRevision, setPayrollRulesRevision] = useState(0);
   const [payrollDefinitionsRevision, setPayrollDefinitionsRevision] = useState(0);
   const settingsRecovery = useWorkspaceRecovery(() => desktopApi.loadWorkspace());
+  const captureSettingsOrigin = useWorkspaceMutationOrigin(workspace);
   const settingsActionInFlight = useRef(false);
   const settingsActionContext = useRef({ workspaceScope: workspace.workNotesScope, busy, readOnly, setBusy, onWorkspace, onNotice });
   settingsActionContext.current = { workspaceScope: workspace.workNotesScope, busy, readOnly, setBusy, onWorkspace, onNotice };
@@ -5111,8 +5112,16 @@ function SettingsScreen({
     target.focus({ preventScroll: true });
   }
 
-  async function execute(action: (workspaceScope: string | undefined) => Promise<Workspace>, success: string, rethrow = false, quietFailure = false, allowWorkspaceChange = false) {
-    const originWorkspaceScope = workspace.workNotesScope;
+  async function execute(action: (workspaceScope: string | undefined, memberContextNonce: string) => Promise<Workspace>, success: string, rethrow = false, quietFailure = false, allowWorkspaceChange = false, capturedOrigin?: WorkspaceMutationOrigin) {
+    let mutationOrigin: WorkspaceMutationOrigin;
+    try { mutationOrigin = capturedOrigin ?? captureSettingsOrigin(); }
+    catch (reason) {
+      if (!quietFailure) settingsActionContext.current.onNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') });
+      if (rethrow) throw reason;
+      return false;
+    }
+    const originWorkspaceScope = mutationOrigin.workspaceScope;
+    const readOriginalWorkspace = () => desktopApi.loadWorkspace(mutationOrigin.workspaceScope, mutationOrigin.memberContextNonce);
     const generation = settingsActionLifetime.current.generation;
     const isCurrent = () => settingsActionLifetime.current.active && settingsActionLifetime.current.generation === generation && settingsActionContext.current.workspaceScope === originWorkspaceScope;
     const validateScope = (value: Workspace) => {
@@ -5127,7 +5136,7 @@ function SettingsScreen({
     settingsActionContext.current.onNotice(null);
     try {
       let next: Workspace | null;
-      try { next = await action(originWorkspaceScope); }
+      try { next = await action(originWorkspaceScope, mutationOrigin.memberContextNonce); }
       catch (reason) {
         if (!isCurrent()) return false;
         if (!(reason instanceof WorkspaceRefreshAfterMutationError)) throw reason;
@@ -5136,14 +5145,14 @@ function SettingsScreen({
           validateScope(value);
         };
         try {
-          next = await desktopApi.loadWorkspace();
+          next = await readOriginalWorkspace();
           if (!isCurrent()) return false;
           validate(next);
         } catch (cause) {
           if (!isCurrent()) return false;
           const changedOrigin = workspaceOriginFailure(cause);
           if (changedOrigin) throw changedOrigin;
-          next = await settingsRecovery.waitForRefresh(cause, false, validate);
+          next = await settingsRecovery.waitForRefresh(cause, false, validate, readOriginalWorkspace);
         }
         if (!next) return false;
       }
@@ -5229,14 +5238,15 @@ function SettingsScreen({
     if (busy || settingsActionInFlight.current || settingsRecovery.isPending()) return;
     const request = ++pickerLifecycle.current.request;
     try {
+      const mutationOrigin = captureSettingsOrigin();
       const folder = await desktopApi.chooseBackupFolder();
       if (!folder || !pickerAvailable(request)) return;
       const current = pickerContext.current.settings;
       const next = { ...current, backup: { ...current.backup, folder } };
       setSettings(next);
       await execute(
-        scope => desktopApi.saveSettings(next, scope),
-        'Le dossier de sauvegarde manuelle a été enregistré.',
+        (scope, nonce) => desktopApi.saveSettings(next, scope, nonce),
+        'Le dossier de sauvegarde manuelle a été enregistré.', false, false, false, mutationOrigin,
       );
     } catch (reason) {
       if (pickerCurrent(request)) onNotice({ tone: 'error', text: errorMessage(reason, 'L’action locale a échoué.') });
@@ -5247,7 +5257,9 @@ function SettingsScreen({
     if (busy || settingsActionInFlight.current || settingsRecovery.isPending()) return;
     const request = ++pickerLifecycle.current.request;
     let sourcePath: string | null;
+    let mutationOrigin: WorkspaceMutationOrigin;
     try {
+      mutationOrigin = captureSettingsOrigin();
       sourcePath = await desktopApi.chooseLogo();
     } catch (reason) {
       if (pickerCurrent(request)) onNotice({
@@ -5257,7 +5269,7 @@ function SettingsScreen({
       return;
     }
     if (!sourcePath || !pickerAvailable(request)) return;
-    await execute(async scope => {
+    await execute(async (scope, nonce) => {
       const logoPath = await desktopApi.stageCompanyLogo(sourcePath);
       if (!pickerCurrent(request) || !settingsActionLifetime.current.active || settingsActionContext.current.workspaceScope !== scope || pickerContext.current.readOnly) throw pickerCancelled.current;
       const current = pickerContext.current.settings;
@@ -5265,8 +5277,8 @@ function SettingsScreen({
         ...current,
         organization: { ...current.organization, logoPath },
       };
-      return desktopApi.saveSettings(next, scope);
-    }, 'Le logo a été vérifié, copié dans les données locales et enregistré pour les documents.');
+      return desktopApi.saveSettings(next, scope, nonce);
+    }, 'Le logo a été vérifié, copié dans les données locales et enregistré pour les documents.', false, false, false, mutationOrigin);
   }
 
   async function removeLogo() {
@@ -5275,7 +5287,7 @@ function SettingsScreen({
       organization: { ...settings.organization, logoPath: undefined },
     };
     await execute(
-      scope => desktopApi.saveSettings(next, scope),
+      (scope, nonce) => desktopApi.saveSettings(next, scope, nonce),
       'Le logo a été retiré des prochains documents. Les documents déjà émis restent figés.',
     );
   }
@@ -5341,7 +5353,7 @@ function SettingsScreen({
       </SettingsCategory>
       <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings showHubLink embedded /></SettingsCategory>
       <SettingsCategory id="mail" lazy title="E-mails" description="Messagerie, devis, factures et textes personnalisés" icon={Mail}>
-        <MailSettings embedded companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { await execute(() => refreshWorkspaceAfterMutation(() => desktopApi.loadWorkspace()), 'Modèles enregistrés pour l’entreprise.'); }} />
+        <MailSettings embedded companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { await execute((scope, nonce) => refreshWorkspaceAfterMutation(() => desktopApi.loadWorkspace(scope, nonce)), 'Modèles enregistrés pour l’entreprise.'); }} />
       </SettingsCategory>
       <SettingsCategory id="company" title="Entreprise et facturation" description="Identité, coordonnées, TVA et documents" icon={Building2}>
       <section
@@ -5404,7 +5416,7 @@ function SettingsScreen({
               },
             }, 'billing');
             await execute(
-              scope => desktopApi.saveSettings(next, scope),
+              (scope, nonce) => desktopApi.saveSettings(next, scope, nonce),
               'Les paramètres ont été enregistrés localement.',
             );
           })}
@@ -5631,7 +5643,7 @@ function SettingsScreen({
             };
             setSettings(next);
             await execute(
-              scope => desktopApi.saveSettings(next, scope),
+              (scope, nonce) => desktopApi.saveSettings(next, scope, nonce),
               'Le numéro de bâtiment a été enregistré pour les QR-factures.',
             );
           })}
@@ -5718,7 +5730,7 @@ function SettingsScreen({
           disabled={busy}
           onClick={() =>
             void execute(
-              scope => desktopApi.saveSettings(settings, scope),
+              (scope, nonce) => desktopApi.saveSettings(settings, scope, nonce),
               'Les taux TVA ont été enregistrés.',
             )
           }
@@ -5749,7 +5761,7 @@ function SettingsScreen({
             }
             onClick={() =>
               void execute(
-                scope => desktopApi.saveSettings(settings, scope),
+                (scope, nonce) => desktopApi.saveSettings(settings, scope, nonce),
                 'Le profil d’activité et la terminologie ont été enregistrés.',
               )
             }
@@ -5764,7 +5776,7 @@ function SettingsScreen({
       <SettingsCategory id="language" title={t('Langue et région')} description={t('Français, allemand, italien ou anglais')} icon={Languages}><LanguageSetting embedded /></SettingsCategory>
       <SettingsCategory id="assistant" lazy title="Assistant local" description="Installer Qwen et obtenir de l’aide dans Zentra" icon={MessageCircle}><LocalAssistantSetup /></SettingsCategory>
       <SettingsCategory id="documents" lazy title="Présentation des documents" description="Couleurs, logo et exemples de factures, devis, bilan et fiches de salaire" icon={FileText}>
-        <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={next => execute(scope => desktopApi.saveSettings(next, scope), 'Les présentations des documents ont été enregistrées.', true)} onRequestCompany={field => {
+        <DocumentDesignStudio settings={settings} busy={busy} onChange={setSettings} onSave={next => execute((scope, nonce) => desktopApi.saveSettings(next, scope, nonce), 'Les présentations des documents ont été enregistrées.', true)} onRequestCompany={field => {
           const category = document.querySelector<HTMLElement>('[data-settings-id="company"]');
           revealSettingsTarget(category?.querySelector('section') ?? null);
           const target = category?.querySelector<HTMLElement>(field === 'logo' ? '.company-logo-setting button' : 'input[name="legalName"]');
@@ -5842,7 +5854,7 @@ function SettingsScreen({
               },
             }, 'work');
             await execute(
-              scope => desktopApi.saveSettings(next, scope),
+              (scope, nonce) => desktopApi.saveSettings(next, scope, nonce),
               'Les règles de temps et de coûts ont été enregistrées.',
             );
           })}
@@ -5951,16 +5963,16 @@ function SettingsScreen({
         </div>
       </section>
 
-      <PayrollSettingsForm key={payrollSettingsRevision} payroll={settings.payroll} busy={busy} onSave={async payroll => execute(async originScope => {
+      <PayrollSettingsForm key={payrollSettingsRevision} payroll={settings.payroll} busy={busy} onSave={async payroll => execute(async (originScope, nonce) => {
         const generation = settingsActionLifetime.current.generation;
-        const fresh = await desktopApi.loadWorkspace();
+        const fresh = await desktopApi.loadWorkspace(originScope, nonce);
         if (!settingsActionLifetime.current.active || settingsActionLifetime.current.generation !== generation || settingsActionContext.current.workspaceScope !== originScope) throw pickerCancelled.current;
         if (settingsActionContext.current.readOnly) throw new Error('Accès « Lecture seule » : consultation et exports autorisés, modifications bloquées sur ce poste.');
         if (originScope !== undefined && fresh.workNotesScope !== originScope) throw new Error('L’entreprise ouverte a changé. Rouvrez cette action dans le bon espace.');
         if (!fresh.settings || JSON.stringify(fresh.settings.payroll) !== JSON.stringify(settings.payroll)) throw new Error('Les réglages de paie ont changé. Rechargez les paramètres avant d’enregistrer pour retrouver les dernières informations.');
-        return desktopApi.saveSettings({ ...fresh.settings, payroll }, originScope);
+        return desktopApi.saveSettings({ ...fresh.settings, payroll }, originScope, nonce);
       }, 'La configuration de paie a été enregistrée.', true, true)} onReload={async () => {
-        const loaded = await execute(() => desktopApi.loadWorkspace(), 'Les derniers réglages de paie ont été chargés.');
+        const loaded = await execute((scope, nonce) => desktopApi.loadWorkspace(scope, nonce), 'Les derniers réglages de paie ont été chargés.');
         if (loaded) setPayrollSettingsRevision(value => value + 1);
         return loaded;
       }} />
@@ -6036,7 +6048,7 @@ function SettingsScreen({
             onClick={() => {
               const next = confirmDeferredSetup(settings, 'backup');
               void execute(
-                scope => desktopApi.saveSettings(next, scope),
+                (scope, nonce) => desktopApi.saveSettings(next, scope, nonce),
                 t('Les options de sauvegarde sont enregistrées.'),
               );
             }}

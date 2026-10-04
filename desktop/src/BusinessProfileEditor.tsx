@@ -3,6 +3,7 @@ import { nogaLabel } from './nogaLanguage';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { BriefcaseBusiness, ExternalLink, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { desktopApi } from './bridge';
+import { useWorkspaceMutationOrigin } from './useWorkspaceMutationOrigin';
 import type { AppSettings, BusinessProfile, NogaCatalog, NogaSectionCode, Workspace } from './types';
 import { Button, ErrorPanel, Field } from './ui';
 import { errorMessage } from './utils';
@@ -53,6 +54,7 @@ export function BusinessProfileGate({ workspace, onSaved, readOnly = false }: { 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const originScope = useRef(workspace.workNotesScope).current;
+  const captureMutationOrigin = useWorkspaceMutationOrigin(workspace);
   const mounted = useRef(false);
   const inFlight = useRef(false);
   const current = useRef({ workspace, profile, readOnly, onSaved });
@@ -69,7 +71,8 @@ export function BusinessProfileGate({ workspace, onSaved, readOnly = false }: { 
     inFlight.current = true;
     setBusy(true); setError('');
     try {
-      const next = await desktopApi.saveSettings({ ...current.current.workspace.settings, business: { ...choice, activityDescription: choice.activityDescription.trim() } }, originScope);
+      const mutationOrigin = captureMutationOrigin();
+      const next = await desktopApi.saveSettings({ ...current.current.workspace.settings, business: { ...choice, activityDescription: choice.activityDescription.trim() } }, mutationOrigin.workspaceScope, mutationOrigin.memberContextNonce);
       if (isOriginCurrent()) current.current.onSaved(next);
     }
     catch (reason) { if (isOriginCurrent()) setError(errorMessage(reason, 'Le profil d’activité n’a pas pu être enregistré localement.')); }

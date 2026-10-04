@@ -19,7 +19,12 @@ import { companyAccountRoleLabels as ROLE_LABEL } from './companyAccount';
 import { errorMessage } from './utils';
 import { Button, SectionHeading } from './ui';
 import './workflow-clarity.css';
-import { ErrorGuidance } from './ErrorGuidance';
+import { ErrorDetails, ErrorGuidance } from './ErrorGuidance';
+import { diagnosticOperation, withKnownErrorIncident } from './diagnostics';
+import { userErrorCopy } from './userErrors';
+
+// Only this explicit clipboard boundary can select the authored copy guide.
+const authorizationCopyFailures = new WeakSet<Error>();
 
 export function CloudAccountPanel({
   onAccountChange,
@@ -32,12 +37,12 @@ export function CloudAccountPanel({
   joining?: boolean;
   setup?: boolean;
 }) {
-  useAppLanguage();
+  const language = useAppLanguage();
   const [account, setAccount] = useState<CloudAccountState | null>(null);
   const [busy, setBusy] = useState(false);
   const [subscriptionOpen,setSubscriptionOpen]=useState(false);
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | Error>('');
   const [now, setNow] = useState(Date.now());
   const pollInFlight = useRef(false);
   const operation = useRef(0);
@@ -162,13 +167,13 @@ export function CloudAccountPanel({
   async function copyCode() {
     if (!account?.userCode) return;
     try {
-      await navigator.clipboard.writeText(account.userCode);
+      await diagnosticOperation('app', 'account.copy_authorization_code', () => navigator.clipboard.writeText(account.userCode!));
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2_000);
-    } catch {
-      setError(
-        'Le code n’a pas pu être copié. Vous pouvez le saisir manuellement.',
-      );
+    } catch (reason) {
+      const failure = withKnownErrorIncident(new Error('Le code n’a pas pu être copié. Vous pouvez le saisir manuellement.'), reason);
+      authorizationCopyFailures.add(failure);
+      setError(failure);
     }
   }
 
@@ -298,7 +303,10 @@ export function CloudAccountPanel({
       ) : null}
       <div className="settings-cloud-privacy"><LockKeyhole size={15}/><p>{t("Connexion protégée sur cet appareil.")}</p></div>
       {error ? (
-        <ErrorGuidance error={error} onReconnect={() => void begin()} disabled={busy} compact />
+        typeof error !== 'string' && authorizationCopyFailures.has(error) ? <div className="error-panel error-guidance error-guidance--compact">
+          <div className="error-guidance__message" role="alert"><Copy size={22} aria-hidden="true"/><div><strong>{t('Copier le code')}</strong><p>{userErrorCopy(language).copyFailed}</p></div></div>
+          <ErrorDetails error={error}/>
+        </div> : <ErrorGuidance error={error} onReconnect={() => void begin()} disabled={busy} compact />
       ) : null}
     </section>
   );

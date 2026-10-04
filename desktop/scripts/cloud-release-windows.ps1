@@ -257,6 +257,9 @@ try {
         $diagnosticNativeSuites += @('database::document_creation_receipt_tests', 'commands::document_creation_receipt_command_tests')
         $diagnosticFrontendSuites += @('src/documentCreationRequest.test.ts', 'src/documentCreationReceiptBridge.test.ts', 'src/documentCreationIncompleteAck.test.ts', 'src/DocumentCreationReceiptRecovery.test.tsx', 'src/documentCreationConsultation.test.ts', 'src/DocumentCreationConsultation.test.tsx')
         $diagnosticMobileSuites += @('src/documentCreationRequest.test.ts', 'src/documentCreationReceiptBridge.test.ts', 'src/documentCreationIncompleteAck.test.ts', 'src/DocumentCreationReceiptRecovery.test.tsx', 'src/documentCreationConsultation.test.ts', 'src/DocumentCreationConsultation.test.tsx')
+        # Residual settings origin and closed workflow diagnostic witnesses.
+        $diagnosticFrontendSuites += @('src/settings-residual-member-origin.test.tsx', 'src/settings-gate-member-admission.test.tsx', 'src/CloudAccountPanelDiagnostics.test.tsx', 'src/outgoingMail.test.ts')
+        $diagnosticMobileSuites += @('src/settings-residual-member-origin.test.tsx', 'src/settings-gate-member-admission.test.tsx', 'src/CloudAccountPanelDiagnostics.test.tsx', 'src/outgoingMail.test.ts')
         if ($diagnosticPhase -cne 'frontend') {
             foreach ($suite in $diagnosticNativeSuites) {
                 Invoke-ZentraVerificationSuite $diagnosticHarness $suite

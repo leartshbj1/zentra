@@ -309,8 +309,6 @@ export function App() {
         }
         onCloudRestore={async (id: string) => setWorkspace(await desktopApi.restoreCloudBackup(id))}
       /></Suspense>
-    ) : workspace.activityProfileRequired || activityProfileMissing ? (
-      <BusinessProfileGate key={workspace.workNotesScope} workspace={workspace} readOnly={Boolean(license?.readOnly || cloudRoleReadOnly)} onSaved={setWorkspace} />
     ) : !draftIdentityReady ? (
       <main className="splash-screen draft-identity-splash" data-draft-identity-failure={draftIdentityFailure?.key === draftIdentityKey ? draftIdentityFailure.reason : undefined} aria-busy={draftIdentityFailure?.key !== draftIdentityKey}>
         <BrandMark size={58} />
@@ -322,6 +320,8 @@ export function App() {
           </>}
         </> : <><p role="status">{draftIdentityMessages[language].loading}</p><LoaderCircle className="spin" size={22} aria-hidden="true" /></>}
       </main>
+    ) : workspace.activityProfileRequired || activityProfileMissing ? (
+      <FormDraftIdentityProvider key={`${draftIdentityKey}:${draftIdentity.memberId}:${draftIdentity.memberContextNonce}`} companyId={workspace.workNotesScope} organizationId={draftOrganizationId || undefined} memberId={draftIdentity.memberId} memberContextNonce={draftIdentity.memberContextNonce} ready><BusinessProfileGate key={workspace.workNotesScope} workspace={workspace} readOnly={Boolean(license?.readOnly || cloudRoleReadOnly)} onSaved={setWorkspace} /></FormDraftIdentityProvider>
     ) : (
       <Suspense fallback={<main className="splash-screen"><LoaderCircle className="spin" size={24} /><p>{t("Ouverture de votre espace…")}</p></main>}><FormDraftIdentityProvider key={`${draftIdentityKey}:${draftIdentity.memberId}:${draftIdentity.memberContextNonce}`} companyId={workspace.workNotesScope} organizationId={draftOrganizationId || undefined} memberId={draftIdentity.memberId} memberContextNonce={draftIdentity.memberContextNonce} ready><WorkspaceApp
         workspace={workspace}

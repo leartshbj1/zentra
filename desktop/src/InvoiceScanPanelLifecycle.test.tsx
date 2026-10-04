@@ -179,3 +179,35 @@ describe('InvoiceScanPanel lifecycle', () => {
     buffer.resolve(new ArrayBuffer(8)); await settle(); expect(create).toHaveBeenCalledTimes(1); expect(revoke).toHaveBeenCalledExactlyOnceWith('blob:synthetic-original'); expect(child.writes).toHaveLength(writes); expect(child.unmountedWrites).toBe(0);
   });
 });
+
+
+import { recentDiagnosticEvents, knownErrorIncident } from './diagnostics';
+const scanLogIds = () => new Set(recentDiagnosticEvents().map(event => event.id));
+const newScanEvents = (before: Set<string>) => recentDiagnosticEvents().filter(event => !before.has(event.id));
+describe('invoice scan preparation diagnostic boundary', () => {
+  it('traces a local reader failure before analysis, retains its incident and sends no SDK request', async () => {
+    const f=setup(), before=scanLogIds(), original=Error('PRIVATE_SYNTHETIC OCR supplier@example.invalid amount=108.10 token=NOT-A-SECRET');
+    f.choose(); f.reader.reject(original); await settle(f.host);
+    const events=newScanEvents(before);
+    expect(events.map(event=>[event.operation,event.phase])).toEqual([['invoice.scan_preprocess','start'],['invoice.scan_preprocess','failure']]);
+    expect(events[1].durationMs).toBeGreaterThanOrEqual(0);
+    expect(knownErrorIncident(original)?.code).toBe(`ZT-${events[1].id}`);
+    expect(message(f.host)).toBe(original.message); expect(runtime.invoke).not.toHaveBeenCalled();
+    expect(runtime.read).toHaveBeenCalledTimes(1); expect(f.onBusy.mock.calls.at(-1)).toEqual([false]);
+    expect(JSON.stringify(events)).not.toMatch(/PRIVATE_SYNTHETIC|supplier@example|108\.10|NOT-A-SECRET|synthetic\.png/);
+  });
+  it('measures successful local preparation while preserving the single native payload and suggestion', async () => {
+    const f=setup(), before=scanLogIds(); await ready(f);
+    const events=newScanEvents(before), local=events.filter(event=>event.operation==='invoice.scan_preprocess');
+    expect(local.map(event=>event.phase)).toEqual(['start','success']); expect(local[1].durationMs).toBeGreaterThanOrEqual(0);
+    expect(events.filter(event=>event.operation==='automation.invoice_scan').map(event=>event.phase)).toEqual(['start','success']);
+    expect(runtime.invoke).toHaveBeenCalledExactlyOnceWith('automation_request', expect.objectContaining({data:{action:'invoice_scan',requestId:expect.any(String),text:scannedText}}));
+    button(f.host,'Utiliser ces informations').props.onClick(); expect(f.onApply).toHaveBeenCalledExactlyOnceWith(scan,file,scannedText);
+    expect(JSON.stringify(events)).not.toMatch(/SYNTHETIC SUPPLIER|SYNTHETIC-SCAN|synthetic-org|synthetic\.png/);
+  });
+  it('does not start even the diagnostic read after the busy callback unmounts the panel', () => {
+    const f=setup(), before=scanLogIds(); f.host.render({...f.host.props,onBusy:(busy:boolean)=>{if(busy)f.host.unmount(true);}}); f.choose();
+    expect(runtime.read).not.toHaveBeenCalled(); expect(runtime.invoke).not.toHaveBeenCalled();
+    expect(newScanEvents(before)).toEqual([]); expect(f.host.unmountedWrites).toBe(0);
+  });
+});
