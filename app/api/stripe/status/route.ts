@@ -24,7 +24,10 @@ export async function GET(request: Request) {
       seats: plan.seats,
       interval: 'month',
       provider: 'stripe',
-      testMode: configuration.testMode === 'owner_only',
+      testMode: configuration.testMode === 'owner_only' || (
+        configuration.secretKey.trim().startsWith('sk_test_') &&
+        configuration.testMode === 'accounts_only'
+      ),
       authenticated: Boolean(identity),
       accessRestricted: !accessAllowed,
       portalLoginUrl: readiness?.portalLoginUrl,

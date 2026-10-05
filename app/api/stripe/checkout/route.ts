@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     }
     if (!stripeTestAccessAllowed(configuration, identity)) {
       throw new PublicError(
-        'Le paiement Stripe est actuellement en test privé, réservé au propriétaire Zentra.',
+        'Le paiement Stripe est actuellement en test privé, réservé aux comptes autorisés.',
         403,
       );
     }

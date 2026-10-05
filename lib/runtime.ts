@@ -17,6 +17,7 @@ type RuntimeBindings = {
   PUBLIC_SITE_URL?: string;
   SITE_ORIGIN_ALIASES?: string;
   STRIPE_TEST_MODE?: string;
+  STRIPE_TEST_ACCOUNT_USER_IDS?: string;
   OWNER_ACCOUNT_USER_ID?: string;
   ZENTRA_OWNER_EMAIL?: string;
   SUPPORT_ENCRYPTION_KEY?: string;
@@ -77,6 +78,7 @@ export function stripeConfiguration() {
     siteUrl,
     siteOriginAliases: runtimeValue('SITE_ORIGIN_ALIASES'),
     testMode,
+    testAccountUserIds: runtimeValue('STRIPE_TEST_ACCOUNT_USER_IDS'),
     ownerAccountUserId,
     ownerEmail,
   };
