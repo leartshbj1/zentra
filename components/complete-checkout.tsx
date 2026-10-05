@@ -1,4 +1,5 @@
 'use client';
+import { siteCount } from 'zentra:site-language';
 import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import {
@@ -79,7 +80,7 @@ export function CompleteCheckout({
         <div>
           <strong>Zentra Complet {plan.name}</strong>
           <p>
-            {plan.seats} personne{plan.seats > 1 ? 's' : ''} ·{' '}
+            {siteCount('people',plan.seats)} ·{' '}
             {plan.analyses.toLocaleString('fr-CH')} analyses Support / mois
             <br />
             Gestion, Support et Automation inclus.

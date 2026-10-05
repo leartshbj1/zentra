@@ -187,6 +187,7 @@ export const appTourScreens = [
 ] as const;
 export type TourScreen = (typeof appTourScreens)[number];
 export type TourDevice = 'desktop' | 'mobile';
-export function tourImage(id: string, device: TourDevice) {
+export function tourImage(id: string, device: TourDevice, language:string = 'fr') {
+  if(['de','it','en'].includes(language))return `/tour/gestion/${language}/${id}-${device}.png`;
   return `/tour/gestion/${id}-${device}.webp`;
 }

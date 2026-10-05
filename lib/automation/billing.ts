@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { currentSiteLanguage } from '@/lib/site-language-server';
 import { completeSubscription } from '@/lib/complete/access';
 import { completePlan } from '@/lib/complete/plans';
 import { completePortal } from '@/lib/complete/stripe';
@@ -365,7 +366,7 @@ export async function createAutomationCheckout(
     ? JSON.parse(previous!.request_json!)
     : {
         mode: 'subscription',
-        locale: 'fr',
+        locale: currentSiteLanguage(),
         customer: base.customer_id,
         line_items: [{ price: config.priceId, quantity: 1 }],
         automatic_tax: {

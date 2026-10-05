@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { buildZentraCheckoutParams } from './stripe-checkout';
 
 describe('Zentra hosted Checkout contract', () => {
+  it.each(['fr','de','it','en'] as const)('carries selected %s into hosted Checkout without changing price or account',locale=>{
+    const value=buildZentraCheckoutParams({origin:'https://zentraapp.ch',claimHash:'claim',priceId:'price_fixed',plan:'solo',accountUserId:'user',accountEmail:'test@example.test',locale});
+    expect(value.locale).toBe(locale);expect(value.line_items).toEqual([{price:'price_fixed',quantity:1}]);expect(value.customer_email).toBe('test@example.test');
+  });
   const params = buildZentraCheckoutParams({
     origin: 'https://elyko.example',
     claimHash: 'claim_hash',

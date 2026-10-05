@@ -54,7 +54,7 @@ export function GestionLink({
             >
               <option value="">Choisir mon entreprise</option>
               {link?.choices.map((c) => (
-                <option key={c.id} value={c.id}>
+                <option key={c.id} value={c.id} data-site-raw>
                   {c.name}
                 </option>
               ))}

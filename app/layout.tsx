@@ -5,6 +5,9 @@ import { AuthSessionGuard } from '@/components/auth-session-guard';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ScrollExperience } from '@/components/scroll-experience';
 import { publicSiteUrl } from '@/lib/site-url';
+import { getSiteLanguage } from '@/lib/site-language-server';
+import { SITE_LANGUAGE_TAGS } from '@/lib/site-language';
+import { serializeSiteDictionary } from '@/lib/site-copy';
 import './globals.css';
 import './refined.css';
 import './product-navigation.css';
@@ -18,6 +21,8 @@ import './apple-design.css';
 import './apple-pages.css';
 import './apple-account.css';
 import './support/apple-support.css';
+import './site-language.css';
+import { SiteLanguagePicker } from '@/components/site-language-picker';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -83,18 +88,21 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const language = await getSiteLanguage();
   return (
-    <html lang="fr-CH" suppressHydrationWarning>
+    <html lang={SITE_LANGUAGE_TAGS[language]} suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <script type="application/json" id="zentra-site-copy" data-site-language={language} dangerouslySetInnerHTML={{ __html: serializeSiteDictionary(language) }} />
         <StructuredData data={identityData()} />
         <ScrollExperience />
         <AuthSessionGuard />
         {children}
+        <div className="site-language-fallback"><SiteLanguagePicker /></div>
       </body>
     </html>
   );

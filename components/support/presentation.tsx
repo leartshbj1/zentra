@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { siteText } from 'zentra:site-language';
 import {
   ArrowDown,
   ArrowUpRight,
@@ -81,7 +82,7 @@ export function RoutingExample() {
             <Mail size={18} />
           </div>
           <h3>{ticket.title}</h3>
-          <p>{ticket.body}</p>
+          <p>{siteText(ticket.body)}</p>
         </div>
         <div className="sp-connector">
           <ArrowDown size={17} />

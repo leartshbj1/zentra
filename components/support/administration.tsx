@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
 import { BrandWordmark } from '@/components/brand-mark';
+import { SiteLanguagePicker } from '@/components/site-language-picker';
 import { Button } from '@/components/ui/button';
 import { ZendeskAdmin } from './zendesk-admin';
 import { Field } from './controls';
@@ -86,6 +87,7 @@ export function SupportAdministration() {
           <BrandWordmark className="support-wordmark" />
         </a>
         <span className="support-product">Administration Support</span>
+        <SiteLanguagePicker />
       </header>
       <main className={`support-welcome support-admin-main ${status ? 'support-admin-ready' : ''}`}>
         <ShieldCheck size={32} />

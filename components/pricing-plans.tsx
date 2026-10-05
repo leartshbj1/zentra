@@ -1,5 +1,6 @@
 import { Check, UserRound, Users } from 'lucide-react';
 import { PurchaseButton } from '@/components/purchase-button';
+import { siteCount } from 'zentra:site-language';
 import {
   PLAN_FEATURE_PROMISE,
   PLAN_SEAT_EXPLANATION,
@@ -34,7 +35,7 @@ export function PricingPlans() {
             </p>
             <p className="mt-6 border-t border-[#e5e5df] pt-5 text-lg font-semibold">
               {plan.seats === 1
-                ? '1 personne'
+                ? siteCount('people',1)
                 : `Jusqu’à ${plan.seats} personnes`}
             </p>
             <p className="mt-1 text-sm text-[#657068]">Titulaire compris</p>

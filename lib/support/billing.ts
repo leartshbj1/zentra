@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { currentSiteLanguage } from '@/lib/site-language-server';
 import { completeSupportSubscription } from '@/lib/complete/access';
 import { completePlan } from '@/lib/complete/plans';
 import { supportCompleteTrial } from '@/lib/complete/trial';
@@ -550,7 +551,7 @@ export async function verifySupportBilling() {
   for (const plan of SUPPORT_PLANS) {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      locale: 'fr',
+      locale: currentSiteLanguage(),
       billing_address_collection: 'required',
       payment_method_types: ['card'],
       automatic_tax: { enabled: false },
@@ -870,7 +871,7 @@ export async function createSupportCheckout(
   const session = await stripe.checkout.sessions.create(
     {
       mode: 'subscription',
-      locale: 'fr',
+      locale: currentSiteLanguage(),
       client_reference_id: workspace.id,
       customer_email: user.email,
       billing_address_collection: 'required',

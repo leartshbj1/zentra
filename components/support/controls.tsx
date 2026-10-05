@@ -1,4 +1,5 @@
 'use client';
+import { siteText } from 'zentra:site-language';
 import {
   Select,
   SelectContent,
@@ -16,7 +17,7 @@ export function Choice({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; rawLabel?: boolean }[];
   disabled?: boolean;
 }) {
   return (
@@ -30,7 +31,7 @@ export function Choice({
         disabled={disabled}
         items={options.map((o) => ({
           value: o.value || '__none',
-          label: o.label,
+          label: o.rawLabel ? o.label : siteText(o.label),
         }))}
       >
         <SelectTrigger aria-label={label} className="support-select">
@@ -38,8 +39,8 @@ export function Choice({
         </SelectTrigger>
         <SelectContent className="support-choice-popup">
           {options.map((o) => (
-            <SelectItem key={o.value || '__none'} value={o.value || '__none'}>
-              {o.label}
+            <SelectItem data-site-raw key={o.value || '__none'} value={o.value || '__none'}>
+              {o.rawLabel ? o.label : siteText(o.label)}
             </SelectItem>
           ))}
         </SelectContent>

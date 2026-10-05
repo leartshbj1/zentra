@@ -24,10 +24,11 @@ export function AccountLink({ className = '' }: { className?: string }) {
   return (
     <a
       href={authenticated ? '/compte' : '/connexion'}
+      aria-label={authenticated ? 'Mon compte' : 'Se connecter'}
       className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap text-sm font-semibold text-[#173d2c] ${className}`}
     >
       <UserRound className="size-4 shrink-0" aria-hidden="true" />
-      {authenticated ? 'Mon compte' : 'Se connecter'}
+      <span className="account-link-label">{authenticated ? 'Mon compte' : 'Se connecter'}</span>
     </a>
   );
 }

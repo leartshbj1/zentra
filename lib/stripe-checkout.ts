@@ -1,4 +1,5 @@
 import type Stripe from 'stripe';
+import type { SiteLanguage } from './site-language';
 
 export function buildZentraCheckoutParams(input: {
   origin: string;
@@ -8,11 +9,12 @@ export function buildZentraCheckoutParams(input: {
   accountUserId: string;
   accountEmail: string;
   automaticTax?: boolean;
+  locale?: SiteLanguage;
   referral?: { claimId:string;couponId:string };
 }): Stripe.Checkout.SessionCreateParams {
   return {
     mode: 'subscription',
-    locale: 'fr',
+    locale: input.locale ?? 'auto',
     billing_address_collection: 'required',
     automatic_tax: { enabled: input.automaticTax !== false },
     tax_id_collection: { enabled: true },

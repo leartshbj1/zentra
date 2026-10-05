@@ -32,6 +32,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { BrandWordmark } from '@/components/brand-mark';
+import { SiteLanguagePicker } from '@/components/site-language-picker';
+import { siteText } from 'zentra:site-language';
 import {
   CATEGORIES,
   PRIORITIES,
@@ -74,10 +76,20 @@ const sections = [
   { id: 'billing', label: 'Abonnement', icon: CreditCard },
   { id: 'settings', label: 'Paramètres', icon: Settings2 },
 ];
+// Only synthetic demo messages are translated. Live customer mail, names and IDs
+// always retain their original content and are never sent to a translation API.
+function localizeSupportDemo(state: SupportState): SupportState {
+  return {
+    ...state,
+    connections: state.connections.map(connection => ({...connection, label:siteText(connection.label), directory:{...connection.directory, teams:connection.directory.teams.map(team=>({...team,name:siteText(team.name)}))}})),
+    tickets: state.tickets.map(ticket=>({...ticket,subject:siteText(ticket.subject),body:siteText(ticket.body),decision:ticket.decision?{...ticket.decision,reason:siteText(ticket.decision.reason)}:null})),
+    events: state.events.map(event=>({...event,detail:siteText(event.detail)})),
+  };
+}
 export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
   const [ruleDraft,setRuleDraft]=useState<{sender:string;subject:string;category:string}|undefined>();
   const [data, setData] = useState<SupportState>(() =>
-      demo ? demoState() : emptyState,
+      demo ? localizeSupportDemo(demoState()) : emptyState,
     ),
     [loading, setLoading] = useState(!demo),
     [signedOut, setSignedOut] = useState(false);
@@ -531,6 +543,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
         </a>
         <span className="support-product">Support</span>
         <span className="support-top-spacer" />
+        <SiteLanguagePicker />
         <span className="support-mode">
           {demo ? 'Démonstration' : data.user.name}
         </span>
@@ -633,7 +646,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               <Choice
                 label="Votre espace"
                 value={data.workspace.id}
-                options={data.workspaces.map((w) => ({
+                options={data.workspaces.map((w) => ({ rawLabel: true,
                   value: w.id,
                   label: w.name,
                 }))}

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { absoluteSiteUrl } from '@/lib/site-url';
+import { siteText } from '@/lib/site-language-server';
 
 export const supportNavigation = [
   ['/support/fonctionnalites', 'Fonctionnalités'],
@@ -14,7 +15,7 @@ export function supportMetadata(
   description: string,
   path: string,
 ): Metadata {
-  const fullTitle = `${title} — Zentra Support`;
+  const fullTitle = `${siteText(title)} — Zentra Support`;
   return {
     title: { absolute: fullTitle },
     description,

@@ -13,6 +13,7 @@ import {
   stripePortalConfigurationIsReady,
 } from '@/lib/stripe-account';
 import { buildZentraCheckoutParams } from '@/lib/stripe-checkout';
+import { currentSiteLanguage } from '@/lib/site-language-server';
 import {
   CLAIM_STRIPE_EVENT_SQL,
   COMPLETE_STRIPE_EVENT_SQL,
@@ -153,6 +154,7 @@ export async function createCheckoutSession(
         plan: plan.licensePlan,
         accountUserId: account.userId,
         accountEmail: account.email,
+        locale: currentSiteLanguage(),
         automaticTax: stripeAutomaticTaxRequired(configuration),
         referral,
       }),

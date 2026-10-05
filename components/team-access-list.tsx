@@ -11,6 +11,7 @@ import {
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ConfirmAccountAction } from './confirm-account-action';
+import { siteLocale } from 'zentra:site-language';
 
 type Member = {
   id: string;
@@ -45,12 +46,12 @@ const ROLE_LABEL: Record<string, string> = {
   read_only: 'Lecture seule',
 };
 
-const ACCOUNT_DATE = new Intl.DateTimeFormat('fr-CH', {
+const ACCOUNT_DATE = { format(value: Date|number) { return new Intl.DateTimeFormat(siteLocale(), {
   timeZone: 'Europe/Zurich',
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
-});
+}).format(value); } };
 
 export function TeamAccessList({
   organizationId,

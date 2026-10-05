@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { siteText } from 'zentra:site-language';
 import { AppFirstPreview } from './app-first-preview';
 import {
   ArrowRight,
@@ -245,7 +246,7 @@ export function HomeExperience() {
                 {step === 0 ? (
                   <>
                     <p className="experience-sender">{example.sender}</p>
-                    <h2>{example.subject}</h2>
+                    <h2>{siteText(example.subject)}</h2>
                     <p className="experience-message">{example.message}</p>
                     <div className="experience-attachment">
                       <Icon size={19} aria-hidden="true" />

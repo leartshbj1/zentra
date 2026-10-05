@@ -4,6 +4,8 @@ import { Check, Copy, LoaderCircle, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import type { TeamSeats } from '@/lib/team-seats';
+import { currentSiteLanguage, siteText, siteCount } from 'zentra:site-language';
+import { siteInvitationMail } from '@/lib/site-service-copy';
 
 const ROLE_OPTIONS = [
   {
@@ -89,9 +91,10 @@ export function TeamInvite({
   }
 
   const selectedRole = ROLE_OPTIONS.find((option) => option.value === role)!;
+  const invitationMail = siteInvitationMail(currentSiteLanguage(),siteText(selectedRole.label),invitationUrl);
   const invitationMailto =
     invitationUrl && email.trim()
-      ? `mailto:${encodeURIComponent(email.trim())}?subject=${encodeURIComponent('Invitation à rejoindre Zentra')}&body=${encodeURIComponent(`Bonjour,\n\nVous êtes invité(e) à rejoindre notre entreprise sur Zentra avec le rôle « ${selectedRole.label} ».\n\nOuvrez ce lien sécurisé avant son expiration :\n${invitationUrl}\n\nÀ bientôt.`)}`
+      ? `mailto:${encodeURIComponent(email.trim())}?subject=${encodeURIComponent(invitationMail.subject)}&body=${encodeURIComponent(invitationMail.body)}`
       : '';
 
   return (
@@ -120,7 +123,7 @@ export function TeamInvite({
         <p className="mt-4 text-sm text-[var(--ac-muted,#657068)]">
           {seats.available === null
             ? 'Ancienne formule sans limite de personnes.'
-            : `${seats.available} place${seats.available === 1 ? '' : 's'} disponible${seats.available === 1 ? '' : 's'}, titulaire compris.`}
+            : siteCount('placesAvailable',seats.available)}
         </p>
       )}
       <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_180px]">

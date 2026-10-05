@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { currentSiteLanguage, siteText } from 'zentra:site-language';
 import {
   ArrowLeft,
   ArrowRight,
@@ -72,7 +73,7 @@ export function AppTour() {
     });
   }
   const imagePath = (mode: TourDevice) =>
-    tourImage(screen.id, mode) + (retry ? `?retry=${retry}` : '');
+    tourImage(screen.id, mode, currentSiteLanguage()) + (retry ? `?retry=${retry}` : '');
   function picture(inDialog = false) {
     return (
       <picture>
@@ -84,7 +85,7 @@ export function AppTour() {
           src={imagePath(device === 'auto' ? 'desktop' : device)}
           width={device === 'mobile' ? 390 : 1440}
           height={device === 'mobile' ? 844 : 960}
-          alt={`Zentra Gestion — ${screen.label}, entreprise fictive Atelier du Léman`}
+          alt={`Zentra Gestion — ${siteText(screen.label)}, entreprise fictive Atelier du Léman`}
           onError={() => setFailedFor(imageKey)}
           draggable={false}
           decoding="async"

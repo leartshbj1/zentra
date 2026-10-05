@@ -122,7 +122,7 @@ export function ReviewForm({
           }}
           options={[
             { value: '', label: 'Choisir une équipe' },
-            ...(connection?.directory.teams || []).map((t) => ({
+            ...(connection?.directory.teams || []).map((t) => ({ rawLabel: true,
               value: t.id,
               label: t.name,
             })),
@@ -135,7 +135,7 @@ export function ReviewForm({
           onChange={setAgent}
           options={[
             { value: '', label: 'Laisser l’équipe répartir' },
-            ...(connection?.directory.agents || []).map((a) => ({
+            ...(connection?.directory.agents || []).map((a) => ({ rawLabel: true,
               value: a.id,
               label: a.name,
             })),
@@ -660,7 +660,7 @@ function ConnectionRules({
                 { value: '', label: 'Validation humaine' },
                 ...teams
                   .filter((t) => t.id && t.name)
-                  .map((t) => ({ value: t.id, label: t.name })),
+                  .map((t) => ({ rawLabel: true, value: t.id, label: t.name })),
               ]}
             />
             <Choice
@@ -678,7 +678,7 @@ function ConnectionRules({
               disabled={readOnly || !rules[key as Category]?.teamId}
               options={[
                 { value: '', label: 'Répartition par l’équipe' },
-                ...c.directory.agents.map((a) => ({
+                ...c.directory.agents.map((a) => ({ rawLabel: true,
                   value: a.id,
                   label: a.name,
                 })),

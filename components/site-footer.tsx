@@ -1,4 +1,5 @@
 import { BrandWordmark } from './brand-mark';
+import { SiteLanguagePicker } from './site-language-picker';
 
 const legalLinks = [
   ['/security', 'Sécurité et données'],
@@ -33,6 +34,7 @@ export function SiteFooter() {
         </div>
         <div className="quiet-footer-bottom">
           <span>© 2026 Zentra</span>
+          <SiteLanguagePicker />
           <details>
             <summary>Informations légales</summary>
             <div className="quiet-legal-links">

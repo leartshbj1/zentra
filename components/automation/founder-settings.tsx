@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { FEATURES, type Feature } from '@/lib/automation/types';
+import { siteText } from 'zentra:site-language';
 export const FEATURE_LABELS: Record<Feature, string> = {
   transaction_classification: 'Opérations bancaires',
   document_routing: 'Documents',
@@ -78,7 +79,7 @@ export function AutomationFounderSettings() {
       if (action === 'billing_check' || action === 'complete_catalog') {
         setMessage(
           response.checks
-            ?.map((check) => `${check.plan} : ${check.message}`)
+            ?.map((check) => `${siteText(check.plan)} : ${siteText(check.message)}`)
             .join(' · ') || 'Le contrôle n’a pas abouti.',
         );
         return;

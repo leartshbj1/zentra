@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
+import { siteText } from 'zentra:site-language';
 import {
   ArrowRight,
   CalendarDays,
@@ -225,7 +226,7 @@ export function ProductStory({ compact = false }: { compact?: boolean }) {
                     aria-hidden="true"
                   />
                   <span className="story-small">Message reçu</span>
-                  <h3>{story.subject}</h3>
+                  <h3>{siteText(story.subject)}</h3>
                   <p className="story-sender">{story.sender}</p>
                   <p className="story-message">{story.message}</p>
                   <div className="story-attachment">

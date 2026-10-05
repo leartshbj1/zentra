@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { absoluteSiteUrl } from '@/lib/site-url';
+import { SITE_LANGUAGES, SITE_LANGUAGE_TAGS, localizedSiteUrl } from '@/lib/site-language';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const pages = [
@@ -34,9 +35,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ['/cookies', 0.3, 'monthly'],
   ] as const;
 
-  return pages.map(([path, priority, changeFrequency]) => ({
-    url: absoluteSiteUrl(path),
+  return pages.flatMap(([path, priority, changeFrequency]) => SITE_LANGUAGES.map(language=>({
+    url: absoluteSiteUrl(localizedSiteUrl(path,language)),
     changeFrequency,
     priority,
-  }));
+    alternates: {languages:Object.fromEntries(SITE_LANGUAGES.map(lang=>[SITE_LANGUAGE_TAGS[lang],absoluteSiteUrl(localizedSiteUrl(path,lang))]))},
+  })));
 }

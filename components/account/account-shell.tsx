@@ -4,6 +4,7 @@ import { Building2, ChevronLeft, ChevronRight, CreditCard, Download, Fingerprint
 import type { ReactNode } from 'react';
 import type { OrganizationMembership } from '@/lib/account';
 import { ZentraSignOut } from '@/components/zentra-sign-out';
+import { SiteLanguagePicker } from '@/components/site-language-picker';
 export const ACCOUNT_SECTIONS = [
   { id: 'profil', label: 'Profil', detail: 'Votre nom et votre adresse e-mail', icon: UserRound },
   { id: 'entreprise', label: 'Entreprise', detail: 'Votre espace de travail', icon: Building2 },
@@ -27,7 +28,7 @@ export function AccountShell({ children, displayName, email, organizations, them
   const isIndex = pathname === '/compte' || pathname === '/compte/';
   return <div className={`account-experience ${isIndex ? 'account-index' : 'account-detail'} ${!organizations.length ? 'account-onboarding' : ''}`} data-theme={theme}>
     <a className="account-skip" href="#account-content">Aller aux réglages</a>
-    <header className="account-topbar"><a href="/" className="account-brand">Zentra<span>Mon espace</span></a><a className="account-download" href="/download"><Download size={17} />L’application</a></header>
+    <header className="account-topbar"><a href="/" className="account-brand">Zentra<span>Mon espace</span></a><a className="account-download" href="/download"><Download size={17} />L’application</a><SiteLanguagePicker /></header>
     <div className="account-workspace">
       <aside className="account-sidebar" aria-label="Paramètres du compte">
         <div className="account-identity"><span className="account-avatar" aria-hidden="true">{displayName.slice(0,1).toUpperCase()}</span><div><strong>{displayName}</strong><p>{email}</p></div></div>

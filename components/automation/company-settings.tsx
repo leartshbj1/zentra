@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { currentSiteLanguage } from 'zentra:site-language';
 import {
   DEFAULT_THRESHOLDS,
   type Feature,
@@ -266,7 +267,7 @@ export function AutomationCompanySettings({
       </select>
       {!state && !message && <p role="status">Chargement de votre entreprise…</p>}
       {state?.active && <nav className="automation-workspace__nav" aria-label="Espace Automation">{(['today','followup','settings'] as const).map(id=><button type="button" key={id} aria-current={(id==='today'?['today','appointments','tools'].includes(view):id==='settings'?['settings','rules'].includes(view):view===id)?'page':undefined} onClick={()=>setView(id)}>{id==='today'?'Aujourd’hui':id==='followup'?'Suivi':'Réglages'}</button>)}</nav>}
-      {state?.active && view==='today' && <AutomationBrief activity={state.activity} paused={!state.settings.enabled||!state.settings.consent} observation={state.settings.mode==='shadow'} onOpen={open}/>}
+      {state?.active && view==='today' && <AutomationBrief activity={state.activity} paused={!state.settings.enabled||!state.settings.consent} observation={state.settings.mode==='shadow'} language={currentSiteLanguage()} onOpen={open}/>}
       {state?.active && view==='followup' && <AutomationControlCentre key={org} organizationId={org} initialTab={followup} embedded hideRules request={body=>api('/api/automation',org,body)}/>}
       {state?.active && view==='appointments' && <AppointmentReceipts key={org} organizationId={org}/>}
       {state?.active && view==='tools' && <div className="automation-workspace__local"><h2>Vos classements dans Gestion</h2><p>Retrouvez les suggestions auprès des opérations bancaires, documents et achats concernés dans l’application Gestion.</p><button type="button" onClick={()=>setView('today')}>Revenir à aujourd’hui</button></div>}

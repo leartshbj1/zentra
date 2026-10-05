@@ -1,5 +1,6 @@
 'use client';
 import { useState, type ReactNode } from 'react';
+import { siteCount } from 'zentra:site-language';
 import { Button } from '@/components/ui/button';
 import { Check, ShieldCheck, CalendarClock, ArrowUpRight } from 'lucide-react';
 import { CATEGORIES } from '@/lib/support/types';
@@ -40,21 +41,19 @@ export function DailyBrief({
           Voici votre journée.
         </h2>
         <p>
-          {p.daily.sorted} message{p.daily.sorted > 1 ? 's' : ''} classé
-          {p.daily.sorted > 1 ? 's' : ''} automatiquement aujourd’hui
+          {siteCount('sortedToday',p.daily.sorted)}
           {p.daily.quiet > 0
-            ? `, dont ${p.daily.quiet} démarchage${p.daily.quiet > 1 ? 's' : ''}`
+            ? <>, dont {siteCount('solicitations',p.daily.quiet)}</>
             : ''}
           .
           {p.daily.gestion && (
             <>
               {' '}
-              {p.daily.gestion.invoices} facture
-              {p.daily.gestion.invoices > 1 ? 's' : ''} et{' '}
+              {siteCount('invoices',p.daily.gestion.invoices)} et{' '}
               {p.daily.gestion.appointments} rendez-vous importés dans Gestion.
             </>
           )}{' '}
-          {p.daily.pending} message{p.daily.pending > 1 ? 's' : ''} à vérifier
+          {siteCount('pendingMessages',p.daily.pending)}
           {p.daily.gestion?.pending
             ? ` · ${p.daily.gestion.pending} élément(s) à vérifier dans Gestion`
             : ''}
@@ -65,7 +64,7 @@ export function DailyBrief({
         <summary>
           Suivis et réception
           {due.length
-            ? ` · ${due.length} rappel${due.length > 1 ? 's' : ''}`
+            ? <> · {siteCount('followups',due.length)}</>
             : ''}
           {errors.length ? ' · connexion à vérifier' : ''}
         </summary>

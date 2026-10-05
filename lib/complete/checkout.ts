@@ -4,6 +4,7 @@ import { database } from '@/lib/runtime';
 import { PublicError, randomBase64Url, sha256 } from '@/lib/stripe';
 import { automationStripe } from '@/lib/automation/billing';
 import { buildZentraCheckoutParams } from '@/lib/stripe-checkout';
+import { currentSiteLanguage } from '@/lib/site-language-server';
 import {
   COMPLETE_PRODUCT,
   COMPLETE_TERMS_VERSION,
@@ -151,6 +152,7 @@ export async function completeCheckout(
       plan: plan.licensePlan,
       accountUserId: user.userId,
       accountEmail: user.email,
+      locale: currentSiteLanguage(),
       automaticTax,
     });
     params.metadata = {

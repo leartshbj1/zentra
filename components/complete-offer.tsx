@@ -1,4 +1,5 @@
 import { COMPLETE_PLANS, completePlan } from '@/lib/complete/plans';
+import { siteCount } from 'zentra:site-language';
 
 export function CompleteOffer() {
   return (
@@ -10,7 +11,7 @@ export function CompleteOffer() {
           return <article className="complete-compact-plan" key={plan.id}>
             <h2>{plan.name}</h2>
             <p className="complete-compact-price"><strong>{plan.priceChfCents / 100}</strong> CHF / mois</p>
-            <p className="complete-compact-seats">{plan.seats === 1 ? '1 personne' : `Jusqu’à ${plan.seats} personnes`}<span>Titulaire compris</span></p>
+            <p className="complete-compact-seats">{plan.seats === 1 ? siteCount('people',1) : `Jusqu’à ${plan.seats} personnes`}<span>Titulaire compris</span></p>
             <p>{plan.analyses.toLocaleString('fr-CH')} analyses Support / mois</p>
             <a className="zentra-primary" href={`/complet/abonnement?formule=${plan.id}`}>Choisir {plan.name}</a>
             <details><summary>Comparer au prix séparé</summary><p>{plan.saving / 100} CHF économisés par mois : Gestion {plan.gestionName}, Support {plan.supportName} et Automation coûtent {plan.separatePrice / 100} CHF séparément.</p></details>

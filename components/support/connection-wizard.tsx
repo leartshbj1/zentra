@@ -13,6 +13,7 @@ import {
 import { ConnectorLogo } from './connector-logo';
 import { Field } from './controls';
 import { PROVIDERS, type SupportState, type Mutate } from './model';
+import { siteText } from 'zentra:site-language';
 
 export function ConnectionWizard({
   open,
@@ -59,7 +60,7 @@ export function ConnectionWizard({
           <DialogTitle>
             {step === 1
               ? 'Que souhaitez-vous connecter ?'
-              : `Connecter ${PROVIDERS[provider as keyof typeof PROVIDERS]}`}
+              : `Connecter ${siteText(PROVIDERS[provider as keyof typeof PROVIDERS])}`}
           </DialogTitle>
           <DialogDescription>
             {step === 1
@@ -95,7 +96,7 @@ export function ConnectionWizard({
                   <span className="support-provider-icon">
                     <ConnectorLogo provider={id} />
                   </span>
-                  <strong>{name}</strong>
+                  <strong>{siteText(name)}</strong>
                   <small>
                     {id === 'infomaniak'
                       ? 'Votre boîte mail, directement'

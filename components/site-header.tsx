@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { BrandWordmark } from './brand-mark';
 import { AccountLink } from './account-link';
+import { SiteLanguagePicker } from './site-language-picker';
 import { useAppleMenuMotion } from './apple-menu-motion';
 
 const products = [
@@ -209,6 +210,7 @@ export function SiteHeader() {
           </nav>
         )}
         <AccountLink className="catalog-account" />
+        <SiteLanguagePicker />
         <button
           className="catalog-explore-toggle"
           type="button"

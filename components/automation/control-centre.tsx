@@ -1,4 +1,5 @@
 'use client';
+import { siteCount } from 'zentra:site-language';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Check,
@@ -311,7 +312,7 @@ export function AutomationControlCentre({
                     {actions[item.kind as keyof typeof actions] || 'Action'} ·{' '}
                     {date(item.created_at)}
                   </span>
-                  <h3>{item.title}</h3>
+                  <h3 data-site-raw>{item.title}</h3>
                   {item.support_ticket_id && item.support_workspace_id && <a href={`/support/espace?workspace=${encodeURIComponent(item.support_workspace_id)}&ticket=${encodeURIComponent(item.support_ticket_id)}`}>Ouvrir la proposition dans Support</a>}
                   {!!item.due_at && <p className="ac-meta">{item.state==='open' && item.due_at<Date.now()/1000?'Rappel à traiter':'Rappel'} : {date(item.due_at)}</p>}
                   {item.assigned_to && (
@@ -439,11 +440,10 @@ export function AutomationControlCentre({
             {data.rules.map((rule) => (
               <article className="ac-rule" key={rule.id}>
                 <div>
-                  <h4>{rule.name}</h4>
+                  <h4 data-site-raw>{rule.name}</h4>
                   <p>
                     {rule.enabled ? modes[rule.definition.mode] : 'En pause'} ·{' '}
-                    {rule.definition.actions.length} action
-                    {rule.definition.actions.length > 1 ? 's' : ''}
+                    {siteCount('actions',rule.definition.actions.length)}
                   </p>
                 </div>
                 {data.canManage && (
@@ -617,7 +617,7 @@ function RunRow({
     <details className="ac-run">
       <summary>
         <span>
-          <strong>{run.title}</strong>
+          <strong data-site-raw>{run.title}</strong>
           <small>{date(run.createdAt)}</small>
         </span>
         <span className="ac-status" data-state={run.state}>
@@ -634,7 +634,7 @@ function RunRow({
               De {run.result.summary.sender || 'l’expéditeur du ticket'}
             </p>
             {run.result.summary.excerpts.map((e, i) => (
-              <blockquote key={i}>{e.text}</blockquote>
+              <blockquote key={i} data-site-raw>{e.text}</blockquote>
             ))}
             {run.result.summary.attachments.length > 0 && (
               <p>
@@ -651,7 +651,7 @@ function RunRow({
         {typeof run.result.confidence === 'number' && (
           <p className="ac-meta">
             Confiance : {Math.round(run.result.confidence * 100)} % ·{' '}
-            {run.attempts} essai{run.attempts > 1 ? 's' : ''}. Ce score ne
+            {siteCount('attempts',run.attempts)}. Ce score ne
             garantit pas l’exactitude.
           </p>
         )}

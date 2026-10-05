@@ -4,6 +4,7 @@ import vinext from 'vinext';
 import { defineConfig } from 'vite';
 import hostingConfig from './.openai/hosting.json';
 import { selectDeploymentProfile } from './scripts/deployment-profile.mjs';
+import { siteI18nPlugin } from './scripts/site-i18n-plugin.mjs';
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   '00000000-0000-4000-8000-000000000000';
@@ -53,6 +54,7 @@ export default defineConfig(async () => {
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
     plugins: [
+      siteI18nPlugin(),
       vinext(),
       sites(),
       cloudflare({

@@ -1,6 +1,7 @@
 import { StructuredData } from '@/components/structured-data';
 import { productData, breadcrumbData } from '@/lib/seo';
 import { SiteHeader } from '@/components/site-header';
+import { siteText } from 'zentra:site-language';
 import { SiteFooter } from '@/components/site-footer';
 import { ProductHero, ProductDetails } from '@/components/quiet-product';
 import '@/components/zentra-presentation.css';
@@ -90,7 +91,7 @@ export default function AutomationPage() {
         <ProductDetails title="Ce qu’Automation fait pour vous." id="fonctions">
           <span id="parcours" className="quiet-anchor" /><span id="quotidien" className="quiet-anchor" />
           {functions.map(f => <details key={f.title}><summary>{f.title}</summary>
-            <p>{f.body}</p><p>{f.detail}</p><a className="quiet-link" href={f.link}>{f.label}</a>
+            <p>{siteText(f.body)}</p><p>{f.detail}</p><a className="quiet-link" href={f.link}>{f.label}</a>
           </details>)}
         </ProductDetails>
         <section className="quiet-offer quiet-width" id="tarif">
