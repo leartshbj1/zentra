@@ -113,6 +113,30 @@ fn profile_bytes(root: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
         .map(|entry| (entry.path().strip_prefix(root).unwrap().to_path_buf(), fs::read(entry.path()).unwrap())).collect()
 }
 
+fn byte_fingerprint(bytes: &[u8]) -> (usize, String) {
+    (bytes.len(), format!("{:x}", Sha256::digest(bytes)))
+}
+
+fn assert_file_bytes(path: &Path, expected: &[u8], context: &str) {
+    let actual = fs::read(path).unwrap();
+    assert!(actual.as_slice() == expected,
+        "{context}: {} actual(size,sha256)={:?} expected(size,sha256)={:?}",
+        path.display(), byte_fingerprint(&actual), byte_fingerprint(expected));
+}
+
+fn assert_profile_bytes(root: &Path, expected: &std::collections::BTreeMap<PathBuf, Vec<u8>>, context: &str) {
+    let actual = profile_bytes(root);
+    let paths: std::collections::BTreeSet<PathBuf> = actual.keys().chain(expected.keys()).cloned().collect();
+    let differences: Vec<PathBuf> = paths.into_iter().filter(|path| actual.get(path) != expected.get(path)).collect();
+    let summary: Vec<_> = differences.iter().take(12).map(|path| (
+        path, actual.get(path).map(|bytes| byte_fingerprint(bytes)),
+        expected.get(path).map(|bytes| byte_fingerprint(bytes)),
+    )).collect();
+    assert!(differences.is_empty(),
+        "{context}: {} file differences; first 12 (path,actual(size,sha256),expected(size,sha256))={summary:?}",
+        differences.len());
+}
+
 fn assert_quarantined<T>(result: AppResult<T>) {
     let error = result.err().expect("normal operation must be refused");
     assert!(matches!(&error, AppError::Restore(_)));
@@ -156,7 +180,7 @@ fn pending_published_after_connection_open_is_refused_before_register_or_pragmas
         drop(recovery_journal::RecoveryJournal::begin(directory, false).unwrap());
     });
     assert_quarantined(current.connect());
-    assert_eq!(fs::read(&current.database_path).unwrap(), before);
+    assert_file_bytes(&current.database_path, &before, "Pending admission must not change SQLite");
     let inspected = Connection::open_with_flags(&current.database_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
     assert_eq!(inspected.pragma_query_value(None, "journal_mode", |row| row.get::<_, String>(0)).unwrap(), "delete");
     drop(inspected);
@@ -172,10 +196,24 @@ fn failed_rollback_quarantines_scoped_writes_reads_exports_and_publication_until
         let archive = source.create_backup(None, env!("CARGO_PKG_VERSION")).unwrap();
         let (current, original) = fixture(root.path(), "current", 30);
         let auxiliary = auxiliary_fixture(&current);
+        let existing_entries: std::collections::BTreeSet<_> = fs::read_dir(&current.data_dir).unwrap()
+            .map(|entry| entry.unwrap().path()).collect();
+        let mut extraction_path = None;
         let mut saved_path = None;
         let mut saved_bytes = Vec::new();
         let mut installed_bytes = None;
         let error = current.restore_company_snapshot(&archive, || {
+            // Identify this invocation's unique newly created extraction by its
+            // database/attachment layout. Do not exclude directories by prefix.
+            let mut extractions: Vec<_> = fs::read_dir(&current.data_dir)?
+                .map(|entry| entry.map(|entry| entry.path())).collect::<Result<_, _>>()?;
+            extractions.retain(|path| !existing_entries.contains(path)
+                && path.is_dir() && path.join(DATABASE_ENTRY).is_file()
+                && path.join("attachments").is_dir());
+            assert_eq!(extractions.len(), 1, "this restore must own exactly one new extraction TempDir");
+            let extraction = extractions.pop().unwrap();
+            assert!(extraction.file_name().unwrap().to_string_lossy().starts_with("restore-"));
+            extraction_path = Some(extraction);
             change_auxiliary(&current)?;
             let intent: Value = serde_json::from_slice(&fs::read(current.data_dir.join(".zentra-restore-journal.json"))?)?;
             let path = current.data_dir.join(format!(".restore-state-{}", intent["token"].as_str().unwrap())).join("cloud-backup-state.json");
@@ -191,8 +229,17 @@ fn failed_rollback_quarantines_scoped_writes_reads_exports_and_publication_until
             Err(AppError::Validation("synthetic-finalizer-and-saved-state-failure".into()))
         }).unwrap_err();
         assert!(error.to_string().contains("retour automatique est incomplet"));
-        let preserved = installed_bytes.unwrap();
-        assert_eq!(profile_bytes(&current.data_dir), preserved, "neither profile may be deleted after {damage}");
+        let mut preserved = installed_bytes.unwrap();
+        let extraction = extraction_path.unwrap();
+        let relative_extraction = extraction.strip_prefix(&current.data_dir).unwrap();
+        assert_eq!(relative_extraction.components().count(), 1);
+        assert!(preserved.contains_key(&relative_extraction.join(DATABASE_ENTRY)));
+        assert!(fs::symlink_metadata(&extraction).is_err_and(|error| error.kind() == io::ErrorKind::NotFound),
+            "the identified extraction TempDir must be removed on return: {}", extraction.display());
+        // Only this exact invocation-owned TempDir expires on return. All old,
+        // active, journal, auxiliary, sidecar and unrelated files remain covered.
+        preserved.retain(|path, _| !path.starts_with(relative_extraction));
+        assert_profile_bytes(&current.data_dir, &preserved, &format!("neither profile may be deleted after {damage}"));
         assert_quarantined(current.connect());
         assert_quarantined(current.get_workspace());
         assert_quarantined(current.create_record("projects", json!({"name":"must never be acknowledged"})));
@@ -219,7 +266,7 @@ fn failed_rollback_quarantines_scoped_writes_reads_exports_and_publication_until
         assert!(!called.load(std::sync::atomic::Ordering::SeqCst));
         assert_quarantined(tauri::async_runtime::block_on(crate::company_collaboration::prepare_recovery_test_publication(&current, "company")));
         assert_quarantined(current.prepare_recovery_test_cloud_backup("company"));
-        assert_eq!(profile_bytes(&current.data_dir), preserved, "refused operations must not mutate old or candidate files");
+        assert_profile_bytes(&current.data_dir, &preserved, "refused operations must not mutate old or candidate files");
         fs::write(saved_path.unwrap(), saved_bytes).unwrap();
         recover_interrupted_restore(&current.data_dir).unwrap();
         let reopened = LocalStore::initialize(current.data_dir.clone()).unwrap();
@@ -309,9 +356,9 @@ fn every_recovery_database_rejects_linked_sqlite_sidecars_before_opening_or_dele
                 }
             }
             assert!(LocalStore::initialize(current.data_dir.clone()).is_err());
-            assert_eq!(fs::read(&swap.database_path).unwrap(), active);
-            assert_eq!(fs::read(&swap.old_database).unwrap(), old);
-            assert_eq!(fs::read(current.data_dir.join(".zentra-restore-journal.json")).unwrap(), journal);
+            assert_file_bytes(&swap.database_path, &active, "linked sidecar must preserve active SQLite");
+            assert_file_bytes(&swap.old_database, &old, "linked sidecar must preserve previous SQLite");
+            assert_file_bytes(&current.data_dir.join(".zentra-restore-journal.json"), &journal, "linked sidecar must preserve journal");
             assert_eq!(fs::read(&sentinel).unwrap(), b"synthetic-outside-preserved");
             #[cfg(unix)] fs::remove_file(&sidecar).unwrap();
             #[cfg(windows)] {
@@ -349,7 +396,7 @@ fn staging_error_reports_failed_rollback_and_quarantines_the_unchanged_profile()
     assert_quarantined(current.connect());
     assert_quarantined(current.create_record("projects", json!({"name":"staging failure"})));
     assert_quarantined(tauri::async_runtime::block_on(crate::company_collaboration::prepare_recovery_test_publication(&current, "company")));
-    assert_eq!(profile_bytes(&current.data_dir), preserved);
+    assert_profile_bytes(&current.data_dir, &preserved, "staging refusal must preserve every profile file");
     let (path, bytes) = saved.borrow_mut().take().unwrap();
     fs::write(path, bytes).unwrap();
     recover_interrupted_restore(&current.data_dir).unwrap();
@@ -438,7 +485,7 @@ fn malformed_or_outside_journal_tokens_never_touch_a_profile_or_an_external_file
             "phase":"pending", "complete_archive":true, "auxiliary":auxiliary,
         })).unwrap()).unwrap();
         assert!(LocalStore::initialize(current.data_dir.clone()).is_err());
-        assert_eq!(fs::read(&current.database_path).unwrap(), before);
+        assert_file_bytes(&current.database_path, &before, "untrusted token must preserve SQLite");
         assert_eq!(fs::read(outside).unwrap(), b"synthetic-preserve");
     }
 }
@@ -465,7 +512,7 @@ fn a_linked_restore_directory_cannot_delete_files_outside_the_local_profile() {
             .stdout(Stdio::null()).stderr(Stdio::null()).status().unwrap().success());
     }
     assert!(LocalStore::initialize(current.data_dir.clone()).is_err());
-    assert_eq!(fs::read(&current.database_path).unwrap(), before);
+    assert_file_bytes(&current.database_path, &before, "linked directory must preserve SQLite");
     assert_eq!(fs::read(outside.join("sentinel")).unwrap(), b"synthetic-preserve");
     #[cfg(unix)] fs::remove_file(&swap.old_attachments).unwrap();
     #[cfg(windows)] fs::remove_dir(&swap.old_attachments).unwrap();
@@ -494,7 +541,7 @@ fn untrusted_journal_schema_and_auxiliary_lists_cannot_expand_the_restore_scope(
         let bytes = if attack == "oversized" { vec![b'x'; 20 * 1024] } else { serde_json::to_vec(&intent).unwrap() };
         fs::write(&path, bytes).unwrap();
         assert!(LocalStore::initialize(current.data_dir.clone()).is_err(), "{attack}");
-        assert_eq!(fs::read(&current.database_path).unwrap(), before);
+        assert_file_bytes(&current.database_path, &before, "untrusted intent must preserve SQLite");
         fs::write(&path, valid).unwrap();
         swap.rollback().unwrap();
     }
@@ -514,8 +561,8 @@ fn a_missing_auxiliary_snapshot_blocks_recovery_without_deleting_either_database
     let intent: Value = serde_json::from_slice(&fs::read(current.data_dir.join(".zentra-restore-journal.json")).unwrap()).unwrap();
     fs::remove_file(current.data_dir.join(format!(".restore-state-{}", intent["token"].as_str().unwrap())).join("cloud-backup-state.json")).unwrap();
     assert!(LocalStore::initialize(current.data_dir.clone()).is_err());
-    assert_eq!(fs::read(&swap.database_path).unwrap(), current_bytes);
-    assert_eq!(fs::read(&swap.old_database).unwrap(), old_bytes);
+    assert_file_bytes(&swap.database_path, &current_bytes, "missing saved state must preserve active SQLite");
+    assert_file_bytes(&swap.old_database, &old_bytes, "missing saved state must preserve previous SQLite");
     assert!(current.data_dir.join(".zentra-restore-journal.json").is_file());
 }
 
@@ -529,7 +576,7 @@ fn an_unjournaled_legacy_swap_never_creates_an_empty_company_over_the_hidden_dat
     let bytes = fs::read(&hidden).unwrap();
     assert!(LocalStore::initialize(current.data_dir.clone()).is_err());
     assert!(!current.database_path.exists());
-    assert_eq!(fs::read(hidden).unwrap(), bytes);
+    assert_file_bytes(&hidden, &bytes, "legacy swap must preserve hidden SQLite");
 }
 
 #[derive(Serialize, Deserialize)]
