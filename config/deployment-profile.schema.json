@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zentra:deployment-profile:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "profileId", "siteOrigin", "supabaseOrigin", "license", "identifiers", "productName", "binaryName", "updater"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "enum": ["production", "sandbox"] },
+    "profileId": { "type": "string", "maxLength": 48, "pattern": "^(production|sandbox-[a-z0-9]+(?:-[a-z0-9]+)*)$" },
+    "siteOrigin": { "type": "string", "maxLength": 253, "format": "uri" },
+    "supabaseOrigin": { "type": ["string", "null"], "maxLength": 253 },
+    "license": {
+      "type": "object", "additionalProperties": false,
+      "required": ["publicKeyB64url", "kid"],
+      "properties": {
+        "publicKeyB64url": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
+        "kid": { "type": "string", "maxLength": 64, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+      }
+    },
+    "identifiers": {
+      "type": "object", "additionalProperties": false,
+      "required": ["windows", "macos", "mobile"],
+      "properties": {
+        "windows": { "type": "string", "maxLength": 128 },
+        "macos": { "type": "string", "maxLength": 128 },
+        "mobile": { "type": "string", "maxLength": 128 }
+      }
+    },
+    "productName": { "type": "string", "maxLength": 64 },
+    "binaryName": { "type": "string", "maxLength": 64 },
+    "updater": { "enum": ["production", "disabled"] }
+  },
+  "allOf": [{ "if": { "properties": { "kind": { "const": "sandbox" } } }, "then": {
+    "properties": {
+      "profileId": { "pattern": "^sandbox-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+      "supabaseOrigin": { "type": "string" },
+      "productName": { "const": "Zentra Sandbox" },
+      "binaryName": { "const": "ZentraSandbox" },
+      "updater": { "const": "disabled" },
+      "identifiers": { "properties": {
+        "windows": { "const": "ch.zentra.sandbox.windows" },
+        "macos": { "const": "ch.zentra.sandbox.macos" },
+        "mobile": { "const": "ch.zentra.sandbox.mobile" }
+      } }
+    }
+  } }],
+  "$comment": "The bounded executable validator additionally enforces canonical HTTPS origins, production host exclusions, canonical 32-byte public key, duplicate-key refusal, and the exact immutable production record. No credentials are accepted."
+}

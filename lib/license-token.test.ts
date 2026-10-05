@@ -255,6 +255,71 @@ afterEach(() => {
 });
 
 describe('license-token direct runtime contract', () => {
+  async function sandboxModule(publicKeyB64url?: string) {
+    const { deploymentProfile } = await import('./deployment-contract');
+    const exported = await crypto.subtle.exportKey('raw', signingKeys.publicKey);
+    vi.stubGlobal('__ZENTRA_DEPLOYMENT_PROFILE__', {
+      ...deploymentProfile, kind: 'sandbox', profileId: 'sandbox-fixture', siteOrigin: 'https://sandbox.example',
+      supabaseOrigin: 'https://aaaaaaaaaaaaaaaaaaaa.supabase.co', sha256: 'a'.repeat(64),
+      license: { kid: 'sandbox-fixture-v1', publicKeyB64url: publicKeyB64url ?? Buffer.from(exported).toString('base64url') },
+      identifiers: { windows: 'ch.zentra.sandbox.windows', macos: 'ch.zentra.sandbox.macos', mobile: 'ch.zentra.sandbox.mobile' },
+      productName: 'Zentra Sandbox', binaryName: 'ZentraSandbox', updater: 'disabled',
+    });
+    vi.resetModules(); return import('./license-token');
+  }
+  it('preflights a matching ephemeral fixture signer before sandbox activation, retaining all payload fields', async () => {
+    try {
+      const module = await sandboxModule(); const result = await module.issueLicense(accountLicenseInput());
+      expect(result.payload.kid).toBe('sandbox-fixture-v1'); expect(Object.keys(result.payload).sort()).toEqual([
+        'token_version', 'license_id', 'installation_id', 'jti', 'kid', 'customer_name', 'access_role', 'account_user_id',
+        'account_session_id', 'plan', 'price_chf_cents', 'issued_at', 'valid_from', 'valid_until',
+      ].sort());
+      expect(result.payload).toMatchObject({ access_role: 'accountant', account_user_id: ACCOUNT_USER_ID, token_version: 2, plan: 'zentra-monthly-50-chf' });
+      expect(db.activation(SUBSCRIPTION_ID, INSTALLATION_ID)).toBeDefined();
+    } finally { vi.unstubAllGlobals(); vi.resetModules(); }
+  });
+  it.each(['account', 'checkout', 'refresh'] as const)('refuses a wrong sandbox signer before D1 or entitlement work for %s', async channel => {
+    try {
+      const module = await sandboxModule('A'.repeat(43));
+      await expect(module.issueLicense({ ...accountLicenseInput(), channel })).rejects.toMatchObject({ status: 503 });
+      expect(runtimeStubs.database).not.toHaveBeenCalled(); expect(db.preparedSql).toEqual([]); expectNoStripeCall();
+    } finally { vi.unstubAllGlobals(); vi.resetModules(); }
+  });
+  it('refuses a missing sandbox signer before any activation access', async () => {
+    const key = runtimeStubs.signingKey;
+    try {
+      const module = await sandboxModule(); runtimeStubs.signingKey = '';
+      await expect(module.issueLicense(accountLicenseInput())).rejects.toMatchObject({ status: 503 });
+      expect(runtimeStubs.database).not.toHaveBeenCalled(); expect(db.preparedSql).toEqual([]); expectNoStripeCall();
+    } finally { runtimeStubs.signingKey = key; vi.unstubAllGlobals(); vi.resetModules(); }
+  });
+  it('refuses a renewal token authenticated by a mismatched sandbox signer before D1 or Stripe effects', async () => {
+    const issued = await issueLicense(accountLicenseInput());
+    try {
+      const module = await sandboxModule('A'.repeat(43));
+      const { LICENSE_KEY_ID } = await import('./license-constants');
+      const encoded = Buffer.from(JSON.stringify({ ...issued.payload, kid: LICENSE_KEY_ID })).toString('base64url');
+      const signature = await crypto.subtle.sign('Ed25519', signingKeys.privateKey, new TextEncoder().encode(encoded));
+      const token = `${encoded}.${Buffer.from(signature).toString('base64url')}`;
+      stripeStubs.retrieveSubscription.mockResolvedValue({ id: SUBSCRIPTION_ID, latest_invoice: 'in_fixture' });
+      stripeStubs.retrieveInvoice.mockResolvedValue({ id: 'in_fixture', status_transitions: { paid_at: NOW_SECONDS } });
+      stripeStubs.validatePaidZentraInvoice.mockReturnValue(NOW_SECONDS + 30 * 86_400);
+      runtimeStubs.database.mockClear(); db.preparedSql.length = 0; stripeStubs.paidEntitlementForSubscription.mockClear();
+      await expect(module.refreshLicense(token)).rejects.toMatchObject({ status: 503 });
+      expect(runtimeStubs.database).not.toHaveBeenCalled(); expect(db.preparedSql).toEqual([]); expectNoStripeCall();
+    } finally { vi.unstubAllGlobals(); vi.resetModules(); }
+  });
+  it('refuses each other profile kid before D1 even under the same adversarial fixture signer', async () => {
+    const productionToken = await issueLicense(accountLicenseInput());
+    try {
+      const module = await sandboxModule(); runtimeStubs.database.mockClear();
+      await expect(module.refreshLicense(productionToken.token)).rejects.toMatchObject({ status: 400 });
+      expect(runtimeStubs.database).not.toHaveBeenCalled();
+      const sandboxToken = await module.issueLicense(accountLicenseInput()); runtimeStubs.database.mockClear();
+      await expect(refreshLicense(sandboxToken.token)).rejects.toMatchObject({ status: 400 });
+      expect(runtimeStubs.database).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); vi.resetModules(); }
+  });
   it.each(ZENTRA_PLANS)(
     'signs the verified paid $name plan at its exact price',
     async (plan) => {

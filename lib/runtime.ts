@@ -1,6 +1,10 @@
 import { env } from 'cloudflare:workers';
+import { assertDeploymentRuntime, deploymentBindingReader } from './deployment-contract';
 
 type RuntimeBindings = {
+  ZENTRA_DEPLOYMENT_KIND?: string;
+  ZENTRA_DEPLOYMENT_PROFILE_ID?: string;
+  ZENTRA_DEPLOYMENT_PROFILE_SHA256?: string;
   DB?: D1Database;
   FILES?: R2Bucket;
   STRIPE_SECRET_KEY?: string;
@@ -42,18 +46,21 @@ export function runtimeValue(
 }
 
 export function fileArchive(): R2Bucket {
+  assertDeploymentRuntime(deploymentBindingReader(bindings));
   if (!bindings.FILES)
     throw new Error('Le coffre de documents R2 n’est pas configuré.');
   return bindings.FILES;
 }
 
 export function database(): D1Database {
+  assertDeploymentRuntime(deploymentBindingReader(bindings));
   if (!bindings.DB)
     throw new Error('La base de licences D1 n’est pas configurée.');
   return bindings.DB;
 }
 
 export function stripeConfiguration() {
+  assertDeploymentRuntime(deploymentBindingReader(bindings));
   const secretKey = runtimeValue('STRIPE_SECRET_KEY');
   const webhookSecret = runtimeValue('STRIPE_WEBHOOK_SECRET');
   const webhookEndpointId = runtimeValue('STRIPE_WEBHOOK_ENDPOINT_ID');

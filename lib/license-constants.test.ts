@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   LEGACY_LICENSE_PLANS,
   LICENSE_KEY_ID,
@@ -11,6 +11,23 @@ import {
 } from './license-constants';
 
 describe('Zentra license key contract', () => {
+  it('selects only the compiled sandbox public key and kid without changing token/plan fields', async () => {
+    const { deploymentProfile } = await import('./deployment-contract');
+    vi.stubGlobal('__ZENTRA_DEPLOYMENT_PROFILE__', {
+      ...deploymentProfile, kind: 'sandbox', profileId: 'sandbox-fixture', siteOrigin: 'https://sandbox.example',
+      supabaseOrigin: 'https://aaaaaaaaaaaaaaaaaaaa.supabase.co', sha256: 'a'.repeat(64),
+      license: { kid: 'sandbox-fixture-v1', publicKeyB64url: 'A'.repeat(43) },
+      identifiers: { windows: 'ch.zentra.sandbox.windows', macos: 'ch.zentra.sandbox.macos', mobile: 'ch.zentra.sandbox.mobile' },
+      productName: 'Zentra Sandbox', binaryName: 'ZentraSandbox', updater: 'disabled',
+    });
+    vi.resetModules();
+    try {
+      const selected = await import('./license-constants');
+      expect(selected.LICENSE_KEY_ID).toBe('sandbox-fixture-v1'); expect(selected.LICENSE_PUBLIC_KEY_B64URL).toBe('A'.repeat(43));
+      expect(selected.LICENSE_PLAN).toBe(LICENSE_PLAN); expect(selected.LICENSE_TOKEN_VERSION).toBe(LICENSE_TOKEN_VERSION);
+      expect(selected.LICENSE_PRICE_CHF_CENTS).toBe(LICENSE_PRICE_CHF_CENTS); expect(selected.LEGACY_LICENSE_PLANS).toEqual(LEGACY_LICENSE_PLANS);
+    } finally { vi.unstubAllGlobals(); vi.resetModules(); }
+  });
   it('keeps the server verifier aligned with the Windows application', () => {
     const desktopKey = readFileSync(
       new URL(

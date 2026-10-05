@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { assertDeploymentRuntime, deploymentBindingReader } from './deployment-contract';
 import { trustedSiteRequestOrigin } from './site-origins';
 import {
   createSupabaseAuthClient,
@@ -15,6 +16,7 @@ type SupabaseAuthBindings = {
 const bindings = env as unknown as SupabaseAuthBindings;
 
 export function supabaseAuthConfiguration() {
+  assertDeploymentRuntime(deploymentBindingReader(bindings));
   return validateSupabaseAuthConfiguration({
     url: readRuntimeValue('SUPABASE_URL'),
     publishableKey: readRuntimeValue('SUPABASE_PUBLISHABLE_KEY'),
@@ -34,6 +36,7 @@ export function supabaseAuthClient() {
 }
 
 export function supabaseAuthSiteOrigin(request: Request) {
+  assertDeploymentRuntime(deploymentBindingReader(bindings), request);
   return trustedSiteRequestOrigin(
     request,
     readRuntimeValue('PUBLIC_SITE_URL'),

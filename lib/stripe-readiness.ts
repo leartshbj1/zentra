@@ -1,4 +1,5 @@
 import { assertLicenseSignerReady } from '@/lib/license-token';
+import { deploymentReadinessDiscriminator, isSandboxDeployment } from '@/lib/deployment-contract';
 import type { PlanId } from '@/lib/plans';
 import { database, stripeConfiguration } from '@/lib/runtime';
 import {
@@ -132,7 +133,9 @@ async function runReadinessChecks(planId: PlanId) {
 }
 
 export async function assertStripeCheckoutReady(planId: PlanId = 'solo') {
+  if (isSandboxDeployment) await assertLicenseSignerReady();
   const configuration = stripeConfiguration();
+  const profileDiscriminator = deploymentReadinessDiscriminator();
   const fingerprint = await sha256(
     [
       configuration.secretKey,
@@ -144,7 +147,7 @@ export async function assertStripeCheckoutReady(planId: PlanId = 'solo') {
       configuration.siteUrl,
       configuration.webhookUrl,
       configuration.testMode,
-    ].join('\u0000'),
+    ].join('\u0000') + (profileDiscriminator ? `\u0000${profileDiscriminator}` : ''),
   );
   const now = Math.floor(Date.now() / 1000);
   if (
@@ -181,6 +184,7 @@ export async function stripeCheckoutReadiness(planId: PlanId = 'solo') {
 
 export async function stripePortalLoginUrl() {
   try {
+    if (isSandboxDeployment) await assertLicenseSignerReady();
     return await assertConfiguredStripePortalLoginUrl();
   } catch (error) {
     console.error('Stripe portal readiness check failed', {

@@ -1,4 +1,5 @@
 import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
+import { isSandboxDeployment } from '@/lib/deployment-contract';
 import { isAccountRole, type AccountRole } from '@/lib/account-security';
 import { planByLicense, validLicensePrice } from '@/lib/plans';
 import { requireMemberSeat } from '@/lib/team-seats';
@@ -121,6 +122,7 @@ export async function issueLicense(input: {
     throw new PublicError(
       'Identifiant d’installation invalide. Recopiez celui affiché dans l’application.',
     );
+  if (isSandboxDeployment) await assertLicenseSignerReady();
   const db = database();
   const now = Math.floor(Date.now() / 1000);
   const accountUserId = input.accountUserId?.trim() || null;
@@ -313,6 +315,7 @@ export async function refreshLicense(token: string) {
   const normalizedToken = token.trim();
   const { licenseId, installationId, payload } =
     await refreshIdentityFromToken(normalizedToken);
+  if (isSandboxDeployment) await assertLicenseSignerReady();
   const ownerBindingHash = runtimeValue('OWNER_LICENSE_BINDING_SHA256');
   if (ownerBindingHash) {
     const providedHash = await sha256Hex(`${licenseId}:${installationId}`);

@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { assertDeploymentRuntime, deploymentBindingReader } from './deployment-contract';
 import { createSupabaseServerClient } from './supabase-server';
 
 type SupabaseServerBindings = {
@@ -23,6 +24,7 @@ let cachedIdentity = '';
  * Ohio service-role value can remain available temporarily for rollback.
  */
 export function supabaseServerClient() {
+  assertDeploymentRuntime(deploymentBindingReader(bindings));
   const url = runtimeValue('SUPABASE_URL');
   const secretKey =
     runtimeValue('SUPABASE_SECRET_KEY') ||
@@ -39,5 +41,6 @@ export function supabaseServerClient() {
 
 /** For the server-side realtime gateway only; never serialize to a client. */
 export function supabaseRealtimeConfiguration() {
+  assertDeploymentRuntime(deploymentBindingReader(bindings));
   return { url: runtimeValue('SUPABASE_URL'), secretKey: runtimeValue('SUPABASE_SECRET_KEY') || runtimeValue('SUPABASE_SERVICE_ROLE_KEY') };
 }

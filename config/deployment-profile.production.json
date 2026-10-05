@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "kind": "production",
+  "profileId": "production",
+  "siteOrigin": "https://zentraapp.ch",
+  "supabaseOrigin": null,
+  "license": {
+    "publicKeyB64url": "FySkIPXpEIfZ9UCBlXuhFAgFx3LpchgBFWTh65Aa040",
+    "kid": "hc-prod-v1"
+  },
+  "identifiers": {
+    "windows": "ch.helvichantier.desktop",
+    "macos": "ch.zentra.desktop",
+    "mobile": "ch.zentra.mobile"
+  },
+  "productName": "Zentra",
+  "binaryName": "Zentra",
+  "updater": "production"
+}

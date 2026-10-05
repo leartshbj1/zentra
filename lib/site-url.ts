@@ -1,6 +1,9 @@
+import { DeploymentProfileError, deploymentProfile, isSandboxDeployment, sandboxPublicSiteUrl } from './deployment-contract';
+
 const FALLBACK_SITE_URL = 'https://zentraapp.ch';
 
 export function publicSiteUrl() {
+  if (isSandboxDeployment) return sandboxPublicSiteUrl();
   const configured =
     process.env.PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
   if (!configured) return FALLBACK_SITE_URL;
@@ -20,5 +23,7 @@ export function publicSiteUrl() {
 }
 
 export function absoluteSiteUrl(path = '/') {
-  return new URL(path, `${publicSiteUrl()}/`).toString();
+  const url = new URL(path, `${publicSiteUrl()}/`);
+  if (isSandboxDeployment && url.origin !== deploymentProfile.siteOrigin) throw new DeploymentProfileError();
+  return url.toString();
 }
