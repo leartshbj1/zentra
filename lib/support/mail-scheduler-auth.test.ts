@@ -52,3 +52,13 @@ it('fails closed when no scheduler credential is configured', async () => {
     ),
   ).rejects.toMatchObject({ status: 401 });
 });
+it('a rotation refuses an old in-flight credential and accepts only the current header', async () => {
+  const request = (token: string) => new Request('https://zentraapp.ch/api/support/mail-sync/dispatch', {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  await expect(requireMailScheduler(request('fixture-scheduler-secret'))).resolves.toBeUndefined();
+  runtime.token = 'fixture-rotated-scheduler-secret';
+  await expect(requireMailScheduler(request('fixture-scheduler-secret'))).rejects.toMatchObject({ status: 401 });
+  await expect(requireMailScheduler(request('fixture-rotated-scheduler-secret'))).resolves.toBeUndefined();
+  expect(runtime.db).not.toHaveBeenCalled();
+});

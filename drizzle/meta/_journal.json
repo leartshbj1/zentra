@@ -498,6 +498,13 @@
       "when": 1791127784987,
       "tag": "0070_supplier_capture_quota_requirement",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "6",
+      "when": 1791152823076,
+      "tag": "0071_mail_scan_resume",
+      "breakpoints": true
     }
   ]
 }

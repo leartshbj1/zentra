@@ -14,6 +14,13 @@ export type ChangeSnapshot={sources:Source[];primary:string;oldSubscription:stri
 export type PlanChange={organization_id:string;operation_id:string;user_id:string;subscription_id:string;target_plan:string;effective_at:number;state:string;source_json:string;schedule_id:string|null;created_at:number;updated_at:number};
 export async function pendingPlanChange(organizationId:string){return database().prepare('SELECT * FROM complete_plan_changes WHERE organization_id=?').bind(organizationId).first<PlanChange>();}
 
+// The quote and its durable replay accept the same economic shape. A provider
+// edit after quoting must not be silently replaced by phases using quantity 1.
+function hasSimpleMonthlyTerms(subscription:Stripe.Subscription){
+  const item=subscription.items.data[0];
+  return !subscription.items.has_more&&subscription.items.data.length===1&&item?.quantity===1&&item.price.currency==='chf'&&item.price.recurring?.interval==='month'&&item.price.recurring.interval_count===1&&!subscription.discounts?.length&&!item.discounts?.length&&!subscription.pause_collection;
+}
+
 async function owned(userId:string,organizationId:string){
   const row=await database().prepare(`SELECT s.*,o.organization_id FROM organizations o JOIN subscriptions s ON s.subscription_id=o.subscription_id
     JOIN organization_members m ON m.organization_id=o.organization_id AND m.user_id=? AND m.role='owner' AND m.revoked_at IS NULL
@@ -48,7 +55,7 @@ export async function quotePlanChange(userId:string,organizationId:string,target
     if(typeof row.last_paid_invoice_id!=='string'||!row.last_paid_invoice_id || until<=time || row.livemode!==Number(live))throw new AccountPublicError('Régularisez le paiement actuel avant de changer de formule.',409);
     const remote=await stripe.subscriptions.retrieve(String(row.subscription_id));
     const item=remote.items.data[0];
-    if(remote.livemode!==live||ref(remote.customer)!==row.customer_id||remote.status!=='active'||remote.schedule||remote.pending_update||remote.items.has_more||remote.items.data.length!==1||item?.quantity!==1||item.price.currency!=='chf'||item.price.recurring?.interval!=='month'||item.price.recurring.interval_count!==1||item.current_period_end!==until||remote.discounts?.length||item.discounts?.length||remote.pause_collection)
+    if(remote.livemode!==live||ref(remote.customer)!==row.customer_id||remote.status!=='active'||remote.schedule||remote.pending_update||!hasSimpleMonthlyTerms(remote)||item.current_period_end!==until)
       throw new AccountPublicError('Cet abonnement contient un changement ou un paiement en cours. Terminez-le dans la facturation avant de continuer.',409);
     sources.push({id:remote.id,customer:ref(remote.customer),kind,until,invoice:row.last_paid_invoice_id,price:item.price.id,start:item.current_period_start,metadata:remote.metadata,automaticTax:remote.automatic_tax.enabled,supportPlan:kind==='support'?String(row.paid_plan_id):undefined,paidFrom:kind==='support'?Number(row.paid_from):undefined});
   }
@@ -81,35 +88,84 @@ export async function changePlan(userId:string,organizationId:string,target:unkn
   return resumePlanChange(row);
 }
 export async function resumePlanChange(row:PlanChange){
-  if(row.state==='scheduled'||row.state==='completed')return {effectiveAt:row.effective_at,state:row.state};
+  if(row.state==='scheduled'){
+    // The marker can commit before product linking returns. Repair only that
+    // idempotent local relationship; scheduling is never replayed in this state.
+    await linkCompleteProducts(row.organization_id,row.user_id);
+    return {effectiveAt:row.effective_at,state:row.state};
+  }
+  if(row.state==='completed')return {effectiveAt:row.effective_at,state:row.state};
   const snapshot=JSON.parse(row.source_json) as ChangeSnapshot,plan=completePlan(row.target_plan)!;
   if(snapshot.live!==stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')))throw new AccountPublicError('La configuration des paiements a changé.',409);
   if(row.effective_at<=now()+300)throw new AccountPublicError('Le changement n’a pas pu être terminé avant l’échéance. Contactez info@zentraapp.ch pour vérifier les renouvellements.',409);
   const stripe=automationStripe();
   const price=await ensureCompletePrice(plan);
   if(price.id!==snapshot.priceId)throw new AccountPublicError('Le tarif a changé. Contactez Zentra avant de reprendre ce changement.',409);
-  // Recheck provider identity on every retry, never trust an arbitrary id from the browser.
-  for(const s of snapshot.sources.filter(s=>s.id!==snapshot.primary)){
+  const primary=snapshot.sources.find(s=>s.id===snapshot.primary)!;
+  let scheduleId=row.schedule_id;
+  const scheduleConflict=()=>new AccountPublicError('Un autre changement est programmé dans Stripe. Aucun second abonnement ne sera créé.',409);
+  const requireOwnedSchedule=async(id:string)=>{
+    const schedule=await stripe.subscriptionSchedules.retrieve(id);
+    if(ref(schedule.subscription)!==primary.id||(schedule.metadata?.zentra_change && schedule.metadata?.zentra_change!==row.operation_id)||schedule.created<row.created_at-5||!['active','not_started'].includes(schedule.status))throw scheduleConflict();
+  };
+  const validatePrimary=async()=>{
+    const current=await stripe.subscriptions.retrieve(primary.id);
+    if(ref(current.customer)!==primary.customer||current.livemode!==snapshot.live||current.pending_update||!hasSimpleMonthlyTerms(current))throw new AccountPublicError('L’abonnement a changé.',409);
+    if(current.schedule){
+      const attached=ref(current.schedule);
+      if(scheduleId&&scheduleId!==attached)throw scheduleConflict();
+      // Only the same operation's idempotent replay can recover a lost create
+      // response. An attached schedule alone is never proof of ownership.
+      if(!scheduleId){
+        try{
+          const replay=await stripe.subscriptionSchedules.create({from_subscription:primary.id},{idempotencyKey:`complete-schedule-${row.operation_id}`});
+          scheduleId=replay.id;
+        }catch(error){
+          if(error && typeof error==='object' && 'type' in error && error.type==='StripeInvalidRequestError')throw scheduleConflict();
+          throw error;
+        }
+      }
+      if(scheduleId!==attached)throw scheduleConflict();
+    }
+    if(scheduleId)await requireOwnedSchedule(scheduleId);
+    // Only this operation's proven gift phase can make the primary trialing.
+    // An external trial, pause or payment failure is not an eligible paid source.
+    if(current.status!=='active'&&!(current.schedule&&scheduleId&&current.status==='trialing'&&row.effective_at>primary.until))throw new AccountPublicError('La formule ou son échéance a changé dans Stripe. Rechargez l’abonnement avant de continuer.',409);
+    if(!current.schedule && (current.status!=='active'||current.items.data.length!==1||current.items.data[0].price.id!==primary.price||current.items.data[0].current_period_end!==primary.until))throw new AccountPublicError('La formule ou son échéance a changé dans Stripe. Rechargez l’abonnement avant de continuer.',409);
+  };
+  const addons=snapshot.sources.filter(s=>s.id!==snapshot.primary);
+  const validateAddon=async(s:Source)=>{
     const current=await stripe.subscriptions.retrieve(s.id);
-    if(ref(current.customer)!==s.customer||current.livemode!==snapshot.live||current.items.data.length!==1||current.items.data[0].price.id!==s.price)throw new AccountPublicError('Un abonnement a changé pendant la préparation.',409);
+    if(ref(current.customer)!==s.customer||current.livemode!==snapshot.live||!hasSimpleMonthlyTerms(current)||current.items.data[0].price.id!==s.price||current.items.data[0].current_period_end!==s.until||current.schedule||current.pending_update||!['active','canceled'].includes(current.status))throw new AccountPublicError('Un abonnement a changé pendant la préparation.',409);
+    return current;
+  };
+  // Refuse drift already present in any captured source before stopping the
+  // first renewal. This remains a saga, not a transaction across Stripe reads.
+  await validatePrimary();
+  for(const s of addons)await validateAddon(s);
+  for(const s of addons){
+    // Recheck the primary first, then this add-on immediately before its effect:
+    // a provider update can arrive while either initial preflight is awaited.
+    await validatePrimary();
+    const current=await validateAddon(s);
     if(current.status==='canceled')continue;
-    if(!current.cancel_at_period_end)await stripe.subscriptions.update(s.id,{cancel_at_period_end:true,proration_behavior:'none'},{idempotencyKey:`complete-change-${row.operation_id}-${s.id}`});
-    const verified=await stripe.subscriptions.retrieve(s.id);
+    if(!current.cancel_at_period_end){
+      // Keep the original last primary barrier as well: its state may change
+      // while the fresh add-on read is awaiting the provider.
+      await validatePrimary();
+      await stripe.subscriptions.update(s.id,{cancel_at_period_end:true,proration_behavior:'none'},{idempotencyKey:`complete-change-${row.operation_id}-${s.id}`});
+    }
+    const verified=await validateAddon(s);
     if(!verified.cancel_at_period_end&&verified.status!=='canceled')throw new AccountPublicError('La fin de l’ancien abonnement doit encore être confirmée. Réessayez.',503);
   }
-  const primary=snapshot.sources.find(s=>s.id===snapshot.primary)!;
-  const current=await stripe.subscriptions.retrieve(primary.id);
-  if(ref(current.customer)!==primary.customer||current.livemode!==snapshot.live)throw new AccountPublicError('L’abonnement a changé.',409);
-  if(!current.schedule && (current.status!=='active'||current.items.data.length!==1||current.items.data[0].price.id!==primary.price||current.items.data[0].current_period_end!==primary.until))throw new AccountPublicError('La formule ou son échéance a changé dans Stripe. Rechargez l’abonnement avant de continuer.',409);
+  await validatePrimary();
   // Replay our own idempotent creation after a lost response; never adopt an
   // unrelated schedule merely because it appeared on the same subscription.
-  let scheduleId=row.schedule_id;
   if(!scheduleId){
     const schedule=await stripe.subscriptionSchedules.create({from_subscription:primary.id},{idempotencyKey:`complete-schedule-${row.operation_id}`});
     scheduleId=schedule.id;
   }
-  const schedule=await stripe.subscriptionSchedules.retrieve(scheduleId);
-  if(ref(schedule.subscription)!==primary.id||(schedule.metadata?.zentra_change && schedule.metadata?.zentra_change!==row.operation_id)||schedule.created<row.created_at-5||!['active','not_started'].includes(schedule.status))throw new AccountPublicError('Un autre changement est programmé dans Stripe. Aucun second abonnement ne sera créé.',409);
+  await requireOwnedSchedule(scheduleId);
   await database().prepare('UPDATE complete_plan_changes SET schedule_id=?,updated_at=? WHERE organization_id=? AND operation_id=?').bind(scheduleId,now(),row.organization_id,row.operation_id).run();
   const phases:Stripe.SubscriptionScheduleUpdateParams.Phase[]=[{
     start_date:primary.start,end_date:row.effective_at,items:[{price:primary.price,quantity:1}],metadata:primary.metadata,

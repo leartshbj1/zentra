@@ -108,7 +108,7 @@ import type { ZentraUser } from '@/app/zentra-auth';
 import type { Workspace } from '@/lib/support/types';
 import { startAccountTrial,trialLicenseEntitlement } from '@/lib/account-trial';
 import { completeTrial } from './trial';
-import { quotePlanChange,changePlan,pendingPlanChange } from './change';
+import { quotePlanChange,changePlan,pendingPlanChange,resumePlanChange } from './change';
 import { transitionAccess,transitionLicense } from './bridge';
 import { subscriptionJourney,quotaAlert,skipJourneyStep } from './journey';
 let db: DatabaseSync,
@@ -803,6 +803,113 @@ async function changingFixture(){
   return {target,targetPrice};
 }
 describe('self-service changes preserve company and paid periods',()=>{
+  async function interruptedWithAddon() {
+    await changingFixture();
+    const company=org()!,until=sub.items.data[0].current_period_end+86400;
+    db.prepare('DELETE FROM complete_subscriptions WHERE subscription_id=?').run(sub.id);
+    db.prepare(`INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,last_paid_invoice_id,cancel_at_period_end,livemode,updated_at) VALUES(?,?,?,'active',?,?,?,0,1,?)`).run(company,'sub_review_addon','cus_review_addon',now()-5,until,'in_review_addon',now());
+    const addon={...sub,id:'sub_review_addon',customer:'cus_review_addon',metadata:{service:'zentra-automation'},items:{data:[{...sub.items.data[0],price:{...price,id:'price_review_addon'},current_period_end:until}]}} as unknown as Stripe.Subscription;
+    state.subscription.mockImplementation(async(id)=>id===addon.id?addon:sub);
+    state.updateSubscription.mockImplementation(async(_id,params)=>{Object.assign(addon,params);return addon});
+    const quote=await quotePlanChange(user.userId,company,'pro');
+    db.prepare(`INSERT INTO complete_plan_changes(organization_id,operation_id,user_id,subscription_id,target_plan,effective_at,state,source_json,created_at,updated_at) VALUES(?,'review-provider-drift',?,?,'pro',?,'preparing',?,?,?)`).run(company,user.userId,sub.id,quote.effectiveAt,JSON.stringify(quote.snapshot),now(),now());
+    return {row:(await pendingPlanChange(company))!,addon};
+  }
+  it('rejects a changed primary price before canceling a separately paid add-on renewal',async()=>{
+    const {row,addon}=await interruptedWithAddon();
+    sub.items.data[0].price={...sub.items.data[0].price,id:'price_changed_after_quote'} as Stripe.Price;
+    await expect(resumePlanChange(row)).rejects.toMatchObject({status:409});
+    expect(state.updateSubscription).not.toHaveBeenCalled();
+    expect(addon.cancel_at_period_end).toBe(false);
+    expect(state.scheduleCreate).not.toHaveBeenCalled();
+  });
+  it('rejects a changed primary customer before canceling a separately paid add-on renewal',async()=>{
+    const {row,addon}=await interruptedWithAddon();
+    sub.customer='cus_changed_after_quote';
+    await expect(resumePlanChange(row)).rejects.toMatchObject({status:409});
+    expect(state.updateSubscription).not.toHaveBeenCalled();
+    expect(addon.cancel_at_period_end).toBe(false);
+    expect(state.scheduleCreate).not.toHaveBeenCalled();
+  });
+  it('rechecks a primary period changed through webhook processing before canceling an add-on renewal',async()=>{
+    const {row,addon}=await interruptedWithAddon();
+    const retrieve=state.subscription.getMockImplementation()!;
+    const changed=event('customer.subscription.updated'),paidEnd=sub.items.data[0].current_period_end;
+    let delivered=false;
+    state.subscription.mockImplementation(async(id)=>{
+      if(id===addon.id&&!delivered){
+        delivered=true;
+        sub.items.data[0].current_period_end+=86400;
+        await persistStripeEvent(changed);
+      }
+      return retrieve(id);
+    });
+    await expect(resumePlanChange(row)).rejects.toMatchObject({status:409});
+    expect(state.updateSubscription).not.toHaveBeenCalled();
+    expect(addon.cancel_at_period_end).toBe(false);
+    expect(state.scheduleCreate).not.toHaveBeenCalled();
+    expect(db.prepare('SELECT processed_at FROM stripe_events WHERE event_id=?').get(changed.id)?.processed_at).toBeGreaterThan(0);
+    expect(db.prepare('SELECT entitlement_valid_until FROM subscriptions WHERE subscription_id=?').get(sub.id)).toMatchObject({entitlement_valid_until:paidEnd});
+  });
+  it('refuses an external schedule appearing after the quote before canceling an add-on renewal',async()=>{
+    const {row,addon}=await interruptedWithAddon();
+    sub.schedule='sub_sched_external_after_quote';
+    state.scheduleCreate.mockRejectedValue(Object.assign(new Error('Subscription already has a schedule'),{type:'StripeInvalidRequestError'}));
+    const refused=await resumePlanChange(row).catch(error=>error);
+    expect(state.updateSubscription).not.toHaveBeenCalled();
+    expect(addon.cancel_at_period_end).toBe(false);
+    expect(state.scheduleUpdate).not.toHaveBeenCalled();
+    expect(refused).toMatchObject({status:409});
+  });
+  it('refuses a durable schedule now owned by another operation before canceling an add-on renewal',async()=>{
+    const {row,addon}=await interruptedWithAddon();
+    sub.schedule='sub_sched_changed_owner';
+    row.schedule_id='sub_sched_changed_owner';
+    state.scheduleRetrieve.mockResolvedValue({id:row.schedule_id,subscription:sub.id,metadata:{zentra_change:'another-operation'},created:now(),status:'active',phases:[]});
+    await expect(resumePlanChange(row)).rejects.toMatchObject({status:409});
+    expect(state.updateSubscription).not.toHaveBeenCalled();
+    expect(addon.cancel_at_period_end).toBe(false);
+    expect(state.scheduleCreate).not.toHaveBeenCalled();
+    expect(state.scheduleUpdate).not.toHaveBeenCalled();
+  });
+  it('replays its own lost schedule creation without canceling an add-on twice',async()=>{
+    const {row,addon}=await interruptedWithAddon();
+    const create=state.scheduleCreate.getMockImplementation()!;
+    let created:Awaited<ReturnType<typeof create>>|null=null;
+    state.scheduleCreate.mockImplementation(async(...args:unknown[])=>{
+      if(created)return created;
+      created=await create(...args);
+      throw new Error('create response lost');
+    });
+    await expect(resumePlanChange(row)).rejects.toThrow('create response lost');
+    expect((await pendingPlanChange(row.organization_id))?.schedule_id).toBeNull();
+    await resumePlanChange((await pendingPlanChange(row.organization_id))!);
+    expect(state.updateSubscription).toHaveBeenCalledTimes(1);
+    expect(addon.cancel_at_period_end).toBe(true);
+    expect(state.scheduleCreate).toHaveBeenCalledTimes(2);
+    expect(state.scheduleCreate.mock.calls[0][1]).toEqual(state.scheduleCreate.mock.calls[1][1]);
+    expect(state.scheduleUpdate).toHaveBeenCalledTimes(1);
+    expect((await pendingPlanChange(row.organization_id))?.state).toBe('scheduled');
+  });
+  it('resumes a refused ordinary change after valid preflight without canceling twice or extending paid rights',async()=>{
+    const {row,addon}=await interruptedWithAddon(),company=row.organization_id;
+    const paidEnd=sub.items.data[0].current_period_end,addonEnd=addon.items.data[0].current_period_end;
+    const customer=sub.customer;
+    sub.customer='cus_drifted_then_restored';
+    await expect(resumePlanChange(row)).rejects.toMatchObject({status:409});
+    expect(state.updateSubscription).not.toHaveBeenCalled();
+    sub.customer=customer;
+    await resumePlanChange(row);
+    await resumePlanChange((await pendingPlanChange(company))!);
+    expect(state.updateSubscription).toHaveBeenCalledTimes(1);
+    expect(state.scheduleCreate).toHaveBeenCalledTimes(1);
+    expect(state.scheduleUpdate).toHaveBeenCalledTimes(1);
+    expect(addon.cancel_at_period_end).toBe(true);
+    expect(addon.items.data[0].current_period_end).toBe(addonEnd);
+    expect(sub.items.data[0].current_period_end).toBe(paidEnd);
+    expect((await teamSeats(company)).limit).toBe(3);
+    expect(db.prepare('SELECT entitlement_valid_until FROM subscriptions WHERE subscription_id=?').get(sub.id)).toMatchObject({entitlement_valid_until:paidEnd});
+  });
   it('quotes without mutation, schedules one existing subscription and keeps old rights until settlement',async()=>{
     const {target,targetPrice}=await changingFixture();const company=org()!;
     const quote=await quotePlanChange(user.userId,company,'pro');expect(quote.effectiveAt).toBe(sub.items.data[0].current_period_end);
@@ -941,4 +1048,323 @@ it('keeps the trial team at three people with the owner included',async()=>{
   expect(()=>db.prepare(`INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at)
     VALUES('trial-overflow',?,'trial-overflow','trial-overflow@example.test','member',?)`).run(trial.organization_id,now())).toThrow('zentra seat limit reached');
   for(const colleague of ['trial-first','trial-second'])expect(db.prepare(SUPPORT_WORKSPACES_SQL).all(colleague,`${colleague}@example.test`,colleague,colleague)).toHaveLength(1);
+});
+
+describe('v3 captured billing sources and scheduled link delivery', () => {
+  async function threePaidSources() {
+    await changingFixture();
+    const company = org()!, w = workspace(), paidEnd = sub.items.data[0].current_period_end;
+    db.prepare('DELETE FROM complete_subscriptions WHERE subscription_id=?').run(sub.id);
+    const addon = (kind: 'support' | 'automation', offset: number) => ({
+      ...sub, id: `sub_v3_${kind}`, customer: `cus_v3_${kind}`,
+      metadata: { service: `zentra-${kind}` },
+      items: { data: [{ ...sub.items.data[0], price: { ...price, id: `price_v3_${kind}` }, current_period_end: paidEnd + offset * 86400 }] },
+    } as unknown as Stripe.Subscription);
+    const support = addon('support', 1), automation = addon('automation', 2);
+    db.prepare(`INSERT INTO support_subscriptions(workspace_id,subscription_id,customer_id,plan_id,paid_plan_id,status,paid_from,paid_until,last_paid_invoice_id,cancel_at_period_end,livemode,updated_at) VALUES(?,?,?,'team','team','active',?,?,?,0,1,?)`)
+      .run(w.id, support.id, support.customer as string, now()-5, support.items.data[0].current_period_end, 'in_v3_support', now());
+    db.prepare(`INSERT INTO automation_subscriptions(organization_id,subscription_id,customer_id,status,paid_from,paid_until,last_paid_invoice_id,cancel_at_period_end,livemode,updated_at) VALUES(?,?,?,'active',?,?,?,0,1,?)`)
+      .run(company, automation.id, automation.customer as string, now()-5, automation.items.data[0].current_period_end, 'in_v3_automation', now());
+    const sources = { gestion: sub, support, automation };
+    state.subscription.mockImplementation(async (id) => {
+      const found = Object.values(sources).find((source) => source.id === id);
+      if (!found) throw new Error('Fixture refused unknown subscription');
+      return found;
+    });
+    state.updateSubscription.mockImplementation(async (id, params) => {
+      const found = Object.values(sources).find((source) => source.id === id);
+      if (!found) throw new Error('Fixture refused unknown subscription update');
+      Object.assign(found, params); return found;
+    });
+    const quote = await quotePlanChange(user.userId, company, 'pro');
+    expect(quote.snapshot.sources.map((source) => source.kind)).toEqual(['gestion','support','automation']);
+    db.prepare(`INSERT INTO complete_plan_changes(organization_id,operation_id,user_id,subscription_id,target_plan,effective_at,state,source_json,created_at,updated_at) VALUES(?,'v3-three-sources',?,?,'pro',?,'preparing',?,?,?)`)
+      .run(company, user.userId, sub.id, quote.effectiveAt, JSON.stringify(quote.snapshot), now(), now());
+    return { sources, row: (await pendingPlanChange(company))! };
+  }
+  function paidRows() {
+    return {
+      gestion: db.prepare('SELECT * FROM subscriptions ORDER BY subscription_id').all(),
+      complete: db.prepare('SELECT * FROM complete_subscriptions ORDER BY subscription_id').all(),
+      support: db.prepare('SELECT * FROM support_subscriptions ORDER BY workspace_id').all(),
+      automation: db.prepare('SELECT * FROM automation_subscriptions ORDER BY organization_id').all(),
+      usage: db.prepare('SELECT * FROM support_analysis_usage ORDER BY workspace_id,id').all(),
+    };
+  }
+  const drifts = ['customer', 'price', 'period', 'schedule', 'pending_update'] as const;
+  const kinds = ['gestion', 'support', 'automation'] as const;
+  for (const kind of kinds) for (const drift of drifts) {
+    it(`refuses preexisting ${kind} ${drift} drift before any add-on cancellation`, async () => {
+      const { sources, row } = await threePaidSources(), source = sources[kind], paid = paidRows();
+      if (drift === 'customer') source.customer = 'cus_v3_changed';
+      if (drift === 'price') source.items.data[0].price = { ...source.items.data[0].price, id: 'price_v3_changed' };
+      if (drift === 'period') source.items.data[0].current_period_end += 86400;
+      if (drift === 'pending_update') source.pending_update = {} as Stripe.Subscription.PendingUpdate;
+      if (drift === 'schedule') {
+        source.schedule = 'sub_sched_v3_external';
+        state.scheduleCreate.mockRejectedValue(Object.assign(new Error('External schedule belongs to another operation'), { type: 'StripeInvalidRequestError' }));
+      }
+      const outcome = await resumePlanChange(row).catch((error) => error);
+      expect(state.updateSubscription).not.toHaveBeenCalled();
+      expect(sources.support.cancel_at_period_end).toBe(false);
+      expect(sources.automation.cancel_at_period_end).toBe(false);
+      expect(state.scheduleUpdate).not.toHaveBeenCalled();
+      expect(outcome).toMatchObject({ status: 409 });
+      expect((await pendingPlanChange(row.organization_id))?.state).toBe('preparing');
+      expect(paidRows()).toEqual(paid);
+    });
+  }
+  it('rechecks each add-on after the last primary read before its cancellation', async () => {
+    const { sources, row } = await threePaidSources(), read = state.subscription.getMockImplementation()!;
+    let primaryReads = 0;
+    state.subscription.mockImplementation(async (id) => {
+      // The initial all-source preflight is valid. Drift arrives during the fresh
+      // primary check immediately before the first effect, after old add-on reads.
+      if (id === sources.gestion.id && ++primaryReads === 2) sources.support.customer = 'cus_v3_raced';
+      return read(id);
+    });
+    await expect(resumePlanChange(row)).rejects.toMatchObject({ status: 409 });
+    expect(primaryReads).toBe(2);
+    expect(state.updateSubscription).not.toHaveBeenCalled();
+    expect(state.scheduleCreate).not.toHaveBeenCalled();
+  });
+  it('schedules three valid sources once with unchanged paid periods, gifts, phase keys and rights', async () => {
+    const { sources, row } = await threePaidSources(), paid = paidRows();
+    const periods = Object.values(sources).map((source) => source.items.data[0].current_period_end);
+    await resumePlanChange(row);
+    await resumePlanChange((await pendingPlanChange(row.organization_id))!);
+    expect(state.updateSubscription.mock.calls).toEqual([
+      [sources.support.id, { cancel_at_period_end: true, proration_behavior: 'none' }, { idempotencyKey: `complete-change-${row.operation_id}-${sources.support.id}` }],
+      [sources.automation.id, { cancel_at_period_end: true, proration_behavior: 'none' }, { idempotencyKey: `complete-change-${row.operation_id}-${sources.automation.id}` }],
+    ]);
+    expect(state.scheduleCreate).toHaveBeenCalledTimes(1);
+    expect(state.scheduleCreate.mock.calls[0]).toEqual([{ from_subscription: sources.gestion.id }, { idempotencyKey: `complete-schedule-${row.operation_id}` }]);
+    expect(state.scheduleUpdate).toHaveBeenCalledTimes(1);
+    const [, update, options] = state.scheduleUpdate.mock.calls[0];
+    expect(options).toEqual({ idempotencyKey: `complete-phases-${row.operation_id}` });
+    expect(update).toMatchObject({ proration_behavior: 'none', end_behavior: 'release', phases: [
+      { start_date: sources.gestion.items.data[0].current_period_start, end_date: row.effective_at, trial_end: row.effective_at, items: [{ price: sources.gestion.items.data[0].price.id, quantity: 1 }], proration_behavior: 'none' },
+      { start_date: row.effective_at, duration: { interval: 'month', interval_count: 1 }, items: [{ price: 'price_pro_bundle', quantity: 1 }], billing_cycle_anchor: 'phase_start', proration_behavior: 'none' },
+    ] });
+    expect(Object.values(sources).map((source) => source.items.data[0].current_period_end)).toEqual(periods);
+    expect(paidRows()).toEqual(paid);
+    expect((await teamSeats(row.organization_id)).limit).toBe(3);
+    expect(state.create).not.toHaveBeenCalled();
+  });
+  it('keeps the final primary barrier if its period drifts during the fresh add-on read', async () => {
+    const { sources, row } = await threePaidSources(), read = state.subscription.getMockImplementation()!;
+    let supportReads = 0;
+    state.subscription.mockImplementation(async (id) => {
+      if (id === sources.support.id && ++supportReads === 2) sources.gestion.items.data[0].current_period_end += 86400;
+      return read(id);
+    });
+    await expect(resumePlanChange(row)).rejects.toMatchObject({ status: 409 });
+    expect(supportReads).toBe(2);
+    expect(state.updateSubscription).not.toHaveBeenCalled();
+    expect(sources.support.cancel_at_period_end).toBe(false);
+    expect(state.scheduleCreate).not.toHaveBeenCalled();
+  });
+  for (const table of ['support_workspaces', 'support_gestion_links'] as const) for (const position of ['before', 'after'] as const) {
+    it(`repairs scheduled SQLite linking after a response lost ${position} ${table} commit`, async () => {
+      await changingFixture();
+      const company = org()!, oldWorkspace = workspace(), quote = await quotePlanChange(user.userId, company, 'pro');
+      db.prepare(`INSERT INTO complete_plan_changes(organization_id,operation_id,user_id,subscription_id,target_plan,effective_at,state,source_json,created_at,updated_at) VALUES(?,'v3-link-loss',?,?,'pro',?,'preparing',?,?,?)`)
+        .run(company, user.userId, sub.id, quote.effectiveAt, JSON.stringify(quote.snapshot), now(), now());
+      const row = (await pendingPlanChange(company))!;
+      db.prepare('DELETE FROM support_gestion_links WHERE organization_id=?').run(company);
+      db.prepare('DELETE FROM support_workspaces WHERE id=?').run(oldWorkspace.id);
+      expect(workspace()).toBeUndefined();
+      const paid = paidRows(), real = state.db as { prepare: (query: string) => { run: () => Promise<unknown> } };
+      let fault = true, committed = false;
+      state.db = {
+        ...real,
+        prepare(query: string) {
+          const statement = real.prepare(query);
+          if (query.trimStart().startsWith(`INSERT INTO ${table}(`)) {
+            const run = statement.run.bind(statement);
+            statement.run = async () => {
+              if (fault) {
+                fault = false;
+                if (position === 'after') { await run(); committed = true; }
+                throw new Error('Synthetic link response lost');
+              }
+              return run();
+            };
+          }
+          return statement;
+        },
+      };
+      await expect(resumePlanChange(row)).rejects.toThrow('Synthetic link response lost');
+      expect(committed).toBe(position === 'after');
+      const pending = (await pendingPlanChange(row.organization_id))!;
+      expect(pending.state).toBe('scheduled');
+      expect(db.prepare('SELECT COUNT(*) AS n FROM support_workspaces WHERE owner_id=?').get(user.userId)?.n)
+        .toBe(table === 'support_workspaces' && position === 'before' ? 0 : 1);
+      expect(db.prepare('SELECT COUNT(*) AS n FROM support_gestion_links WHERE organization_id=?').get(row.organization_id)?.n)
+        .toBe(table === 'support_gestion_links' && position === 'after' ? 1 : 0);
+      state.db = real;
+      const calls = [state.updateSubscription.mock.calls.length, state.scheduleCreate.mock.calls.length, state.scheduleUpdate.mock.calls.length, state.subscription.mock.calls.length, state.prices.mock.calls.length];
+      await resumePlanChange(pending);
+      await resumePlanChange((await pendingPlanChange(row.organization_id))!);
+      expect(db.prepare('SELECT COUNT(*) AS n FROM support_gestion_links WHERE organization_id=?').get(row.organization_id)?.n).toBe(1);
+      expect([state.updateSubscription.mock.calls.length, state.scheduleCreate.mock.calls.length, state.scheduleUpdate.mock.calls.length, state.subscription.mock.calls.length, state.prices.mock.calls.length]).toEqual(calls);
+      expect(paidRows()).toEqual(paid);
+      expect((await teamSeats(row.organization_id)).limit).toBe(3);
+    });
+  }
+  it('refuses scheduled linking to an already foreign company without moving the workspace or changing rights', async () => {
+    const { row } = await threePaidSources(), w = workspace();
+    await resumePlanChange(row);
+    const foreign = await startAccountTrial({ ...user, userId: 'v3-other-owner', email: 'v3-other@example.test' }, 'Other fixture company', true);
+    db.prepare('DELETE FROM support_gestion_links WHERE organization_id IN (?,?)').run(row.organization_id, foreign.organization_id);
+    db.prepare(`INSERT INTO support_gestion_links(workspace_id,organization_id,enabled,auto_post,connected_by,created_at) VALUES(?,?,1,0,?,?)`).run(w.id, foreign.organization_id, user.userId, now());
+    const paid = paidRows(), links = db.prepare('SELECT * FROM support_gestion_links ORDER BY workspace_id').all();
+    state.updateSubscription.mockClear(); state.scheduleCreate.mockClear(); state.scheduleUpdate.mockClear();
+    await expect(resumePlanChange((await pendingPlanChange(row.organization_id))!)).rejects.toMatchObject({ status: 409 });
+    expect(db.prepare('SELECT * FROM support_gestion_links ORDER BY workspace_id').all()).toEqual(links);
+    expect(paidRows()).toEqual(paid);
+    expect(state.updateSubscription).not.toHaveBeenCalled();
+    expect(state.scheduleCreate).not.toHaveBeenCalled();
+    expect(state.scheduleUpdate).not.toHaveBeenCalled();
+  });
+  describe('v4 captured source eligibility', () => {
+    const economicDrifts = ['quantity', 'subscription_discount', 'item_discount', 'pause_collection', 'has_more', 'currency', 'interval', 'interval_count', 'status'] as const;
+    function changeEconomicTerms(source: Stripe.Subscription, drift: typeof economicDrifts[number]) {
+      const item = source.items.data[0];
+      if (drift === 'quantity') item.quantity = 2;
+      if (drift === 'subscription_discount') source.discounts = ['di_v4_subscription'];
+      if (drift === 'item_discount') item.discounts = ['di_v4_item'];
+      if (drift === 'pause_collection') source.pause_collection = { behavior: 'void', resumes_at: null };
+      if (drift === 'has_more') source.items.has_more = true;
+      if (drift === 'currency') item.price = { ...item.price, currency: 'eur' };
+      if (drift === 'interval') item.price = { ...item.price, recurring: { ...item.price.recurring!, interval: 'year' } };
+      if (drift === 'interval_count') item.price = { ...item.price, recurring: { ...item.price.recurring!, interval_count: 2 } };
+      if (drift === 'status') source.status = 'past_due';
+    }
+    for (const kind of kinds) for (const drift of economicDrifts) {
+      it(`refuses ${kind} ${drift} unsupported by the same real quote before any cancellation`, async () => {
+        const { sources, row } = await threePaidSources(), paid = paidRows();
+        changeEconomicTerms(sources[kind], drift);
+        await expect(quotePlanChange(user.userId, row.organization_id, 'pro')).rejects.toMatchObject({ status: 409 });
+        const outcome = await resumePlanChange(row).catch((error) => error);
+        expect(state.updateSubscription).not.toHaveBeenCalled();
+        expect(state.scheduleCreate).not.toHaveBeenCalled();
+        expect(state.scheduleUpdate).not.toHaveBeenCalled();
+        expect(sources.support.cancel_at_period_end).toBe(false);
+        expect(sources.automation.cancel_at_period_end).toBe(false);
+        expect(outcome).toMatchObject({ status: 409 });
+        expect((await pendingPlanChange(row.organization_id))?.state).toBe('preparing');
+        expect(paidRows()).toEqual(paid);
+      });
+    }
+    for (const kind of ['support', 'automation'] as const) {
+      it(`preserves the already canceled ${kind} source and its captured paid period`, async () => {
+        const { sources, row } = await threePaidSources(), source = sources[kind], paid = paidRows();
+        source.status = 'canceled';
+        const until = source.items.data[0].current_period_end;
+        await resumePlanChange(row);
+        await resumePlanChange((await pendingPlanChange(row.organization_id))!);
+        expect(state.updateSubscription).toHaveBeenCalledTimes(1);
+        expect(state.updateSubscription.mock.calls[0][0]).toBe(kind === 'support' ? sources.automation.id : sources.support.id);
+        expect(source.cancel_at_period_end).toBe(false);
+        expect(source.items.data[0].current_period_end).toBe(until);
+        expect(paidRows()).toEqual(paid);
+        expect(state.scheduleCreate).toHaveBeenCalledTimes(1);
+        expect(state.scheduleUpdate).toHaveBeenCalledTimes(1);
+      });
+      it(`does not let canceled ${kind} status bypass the economic source guard`, async () => {
+        const { sources, row } = await threePaidSources();
+        sources[kind].status = 'canceled';
+        sources[kind].items.data[0].quantity = 2;
+        const outcome = await resumePlanChange(row).catch((error) => error);
+        expect(state.updateSubscription).not.toHaveBeenCalled();
+        expect(state.scheduleCreate).not.toHaveBeenCalled();
+        expect(state.scheduleUpdate).not.toHaveBeenCalled();
+        expect(outcome).toMatchObject({ status: 409 });
+      });
+    }
+    it('revalidates late Automation quantity and resumes the same partial operation once restored', async () => {
+      const { sources, row } = await threePaidSources(), read = state.subscription.getMockImplementation()!, paid = paidRows();
+      let reads = 0;
+      state.subscription.mockImplementation(async (id) => {
+        if (id === sources.automation.id && ++reads === 2) sources.automation.items.data[0].quantity = 2;
+        return read(id);
+      });
+      await expect(resumePlanChange(row)).rejects.toMatchObject({ status: 409 });
+      // A drift arriving after preflight can still leave the earlier valid source
+      // canceled. The changed source is refused; this is explicitly not atomic.
+      expect(state.updateSubscription.mock.calls.map((call) => call[0])).toEqual([sources.support.id]);
+      expect(sources.automation.cancel_at_period_end).toBe(false);
+      expect(state.scheduleCreate).not.toHaveBeenCalled();
+      sources.automation.items.data[0].quantity = 1;
+      await resumePlanChange((await pendingPlanChange(row.organization_id))!);
+      await resumePlanChange((await pendingPlanChange(row.organization_id))!);
+      expect(state.updateSubscription.mock.calls.map((call) => call[0])).toEqual([sources.support.id, sources.automation.id]);
+      expect(state.updateSubscription.mock.calls.map((call) => call[2])).toEqual([
+        { idempotencyKey: `complete-change-${row.operation_id}-${sources.support.id}` },
+        { idempotencyKey: `complete-change-${row.operation_id}-${sources.automation.id}` },
+      ]);
+      expect(state.scheduleCreate).toHaveBeenCalledTimes(1);
+      expect(state.scheduleUpdate).toHaveBeenCalledTimes(1);
+      expect(paidRows()).toEqual(paid);
+    });
+    async function lostGiftPhaseResponse() {
+      const fixture = await threePaidSources(), update = state.scheduleUpdate.getMockImplementation()!;
+      state.scheduleUpdate.mockImplementationOnce(async (...args: unknown[]) => {
+        await update(...args);
+        throw new Error('Synthetic gift-phase response lost');
+      });
+      await expect(resumePlanChange(fixture.row)).rejects.toThrow('Synthetic gift-phase response lost');
+      expect(sub.status).toBe('trialing');
+      const pending = (await pendingPlanChange(fixture.row.organization_id))!;
+      expect(pending.state).toBe('preparing');
+      expect(pending.schedule_id).toBe('sub_sched_change');
+      expect(state.scheduleUpdate.mock.calls[0][1].phases[0].trial_end).toBe(pending.effective_at);
+      return { ...fixture, row: pending };
+    }
+    it('admits only the legitimate trialing primary gift on its proven same-operation schedule', async () => {
+      const { row } = await lostGiftPhaseResponse(), paid = paidRows();
+      await resumePlanChange(row);
+      await resumePlanChange((await pendingPlanChange(row.organization_id))!);
+      expect(state.updateSubscription).toHaveBeenCalledTimes(2);
+      expect(state.scheduleCreate).toHaveBeenCalledTimes(1);
+      expect(state.scheduleUpdate).toHaveBeenCalledTimes(2);
+      expect(state.scheduleUpdate.mock.calls[0][2]).toEqual(state.scheduleUpdate.mock.calls[1][2]);
+      expect(paidRows()).toEqual(paid);
+    });
+    it('does not let a proven owned primary schedule bypass the quantity guard', async () => {
+      const { row } = await lostGiftPhaseResponse();
+      sub.items.data[0].quantity = 2;
+      const outcome = await resumePlanChange(row).catch((error) => error);
+      expect(state.updateSubscription).toHaveBeenCalledTimes(2);
+      expect(state.scheduleCreate).toHaveBeenCalledTimes(1);
+      expect(state.scheduleUpdate).toHaveBeenCalledTimes(1);
+      expect(outcome).toMatchObject({ status: 409 });
+      expect((await pendingPlanChange(row.organization_id))?.state).toBe('preparing');
+    });
+    it('refuses a paused primary even when its schedule belongs to this operation', async () => {
+      const { row } = await lostGiftPhaseResponse();
+      sub.status = 'paused';
+      const outcome = await resumePlanChange(row).catch((error) => error);
+      expect(state.scheduleUpdate).toHaveBeenCalledTimes(1);
+      expect(outcome).toMatchObject({ status: 409 });
+    });
+    it('refuses a trialing primary on its owned schedule when this operation planned no gift gap', async () => {
+      await changingFixture();
+      const company = org()!, quote = await quotePlanChange(user.userId, company, 'pro'), update = state.scheduleUpdate.getMockImplementation()!;
+      state.scheduleUpdate.mockImplementationOnce(async (...args: unknown[]) => {
+        await update(...args);
+        throw new Error('Synthetic no-gap phase response lost');
+      });
+      await expect(changePlan(user.userId, company, 'pro', quote.fingerprint)).rejects.toThrow('Synthetic no-gap phase response lost');
+      const row = (await pendingPlanChange(company))!;
+      expect(row.effective_at).toBe(sub.items.data[0].current_period_end);
+      expect(state.scheduleUpdate.mock.calls[0][1].phases[0].trial_end).toBeUndefined();
+      sub.status = 'trialing';
+      const outcome = await resumePlanChange(row).catch((error) => error);
+      expect(state.scheduleCreate).toHaveBeenCalledTimes(1);
+      expect(state.scheduleUpdate).toHaveBeenCalledTimes(1);
+      expect(outcome).toMatchObject({ status: 409 });
+    });
+  });
 });

@@ -1,16 +1,17 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {SupportError} from './types';
-const mocks=vi.hoisted(()=>({mail:vi.fn(),authorize:vi.fn(),workflows:vi.fn(),cycle:vi.fn(),start:vi.fn(),finish:vi.fn(),health:vi.fn()}));
+const mocks=vi.hoisted(()=>({mail:vi.fn(),authorize:vi.fn(),workflows:vi.fn(),cycle:vi.fn(),start:vi.fn(),finish:vi.fn(),health:vi.fn(),demand:vi.fn(),workflowDemand:vi.fn()}));
 vi.mock('@/lib/runtime',()=>({database:()=>{throw new Error('No database expected in route test');},runtimeValue:()=>''}));
 vi.mock('@/app/zentra-auth',()=>({getZentraUser:async()=>null}));
 vi.mock('./mail-sync',()=>({requireMailScheduler:mocks.authorize}));
-vi.mock('./mail-sync-batch',()=>({runMailSyncBatch:mocks.mail}));
+vi.mock('./mail-sync-batch',()=>({runMailSyncBatch:mocks.mail,readMailBacklog:mocks.demand}));
+vi.mock('./scheduler-dispatch',()=>({readWorkflowBacklog:mocks.workflowDemand}));
 vi.mock('@/lib/scheduler-health',()=>({startSchedulerHeartbeat:mocks.start,finishSchedulerHeartbeat:mocks.finish,readSchedulerHealth:mocks.health}));
 vi.mock('@/lib/automation/workflows',()=>({runDueWorkflows:mocks.workflows}));
 vi.mock('@/lib/service-diagnostics',async original=>({...await original<typeof import('@/lib/service-diagnostics')>(),reportSchedulerCycle:mocks.cycle,reportServiceFailure:()=>undefined}));
 import {POST,GET} from '@/app/api/support/mail-sync/route';
 const request=()=>new Request('https://zentraapp.ch/api/support/mail-sync',{method:'POST'});
-beforeEach(()=>{vi.resetAllMocks();vi.spyOn(console,'info').mockImplementation(()=>{});mocks.authorize.mockResolvedValue(undefined);mocks.start.mockResolvedValue('run-fixture');mocks.workflows.mockResolvedValue({checked:0,failed:0,interrupted:0,more:false});});
+beforeEach(()=>{vi.resetAllMocks();vi.spyOn(console,'info').mockImplementation(()=>{});mocks.authorize.mockResolvedValue(undefined);mocks.start.mockResolvedValue('run-fixture');mocks.workflows.mockResolvedValue({checked:0,failed:0,interrupted:0,more:false});mocks.demand.mockResolvedValue({due:1,overdue:0,active:0,oldestDueAt:null});mocks.workflowDemand.mockResolvedValue({due:1,expired:0,active:0});});
 afterEach(()=>vi.restoreAllMocks());
 it('leaves a workflow begin boundary before blocked work, without finishing its heartbeat prematurely',async()=>{
   mocks.mail.mockResolvedValue({idle:true});let release!:()=>void;
@@ -31,6 +32,37 @@ it('never processes or reports a successful heartbeat after refused scheduler au
   expect(mocks.start).not.toHaveBeenCalled();
   expect(mocks.finish).not.toHaveBeenCalled();
   expect(mocks.mail).not.toHaveBeenCalled();
+  expect(mocks.demand).not.toHaveBeenCalled();
+});
+
+it('rechecks an obsolete dispatch and performs no mailbox claim or empty workflow cycle',async()=>{
+  mocks.demand.mockResolvedValue({due:0,overdue:0,active:1,oldestDueAt:null});
+  mocks.workflowDemand.mockResolvedValue({due:0,expired:0,active:0});
+  const result=await (await POST(request())).json();
+  expect(result).toMatchObject({imported:0,processed:0,syncing:true,mailboxes:{checked:0},workflows:{checked:0}});
+  expect(mocks.mail).not.toHaveBeenCalled();expect(mocks.workflows).not.toHaveBeenCalled();
+  expect(mocks.cycle).toHaveBeenCalledWith(expect.objectContaining({outcome:'partial'}));
+});
+it('reads the workflow aggregate only once, after mail can have queued new Automation work',async()=>{
+  mocks.demand.mockResolvedValue({due:1,overdue:0,active:0,oldestDueAt:null});
+  mocks.mail.mockResolvedValue({idle:false,imported:1});mocks.workflowDemand.mockResolvedValue({due:1,expired:0,active:0});
+  mocks.workflows.mockResolvedValue({checked:1,failed:0,interrupted:0,more:false});
+  expect(await (await POST(request())).json()).toMatchObject({workflows:{checked:1}});
+  expect(mocks.workflows).toHaveBeenCalledOnce();
+  expect(mocks.workflowDemand).toHaveBeenCalledOnce();
+  expect(mocks.workflowDemand.mock.invocationCallOrder[0]).toBeGreaterThan(mocks.mail.mock.invocationCallOrder[0]);
+});
+it('advances due workflows without a due mailbox and still reports a busy peer as partial',async()=>{
+  mocks.demand.mockResolvedValue({due:0,overdue:0,active:0,oldestDueAt:null});
+  mocks.workflowDemand.mockResolvedValue({due:1,expired:0,active:1});mocks.workflows.mockResolvedValue({checked:1,failed:0,interrupted:0,more:false});
+  expect(await (await POST(request())).json()).toMatchObject({idle:false,workflows:{checked:1}});
+  expect(mocks.mail).not.toHaveBeenCalled();expect(mocks.workflows).toHaveBeenCalledOnce();
+  expect(mocks.cycle).toHaveBeenCalledWith(expect.objectContaining({outcome:'partial'}));
+});
+it('fails closed if aggregate admission cannot be read',async()=>{
+  mocks.demand.mockRejectedValue(new Error('private SQL failure'));
+  expect((await POST(request())).status).toBe(500);
+  expect(mocks.mail).not.toHaveBeenCalled();expect(mocks.workflows).not.toHaveBeenCalled();expect(mocks.start).not.toHaveBeenCalled();
 });
 it('records idle only when both mailbox and Automation have no ready work',async()=>{
   mocks.mail.mockResolvedValue({idle:true});

@@ -12,6 +12,7 @@ import {
   MAIL_DIRECTORY,
   MAIL_RULES,
   MAIL_PAGE_SIZE,
+  type MailReference,
 } from './infomaniak';
 import {
   SupportError,
@@ -25,6 +26,8 @@ import { requireSupportSubscription } from './billing';
 import { ingest, processTicket } from './service';
 import { mailboxCaptureNeeded, captureMailboxInvoices } from '@/lib/supplier-inbox/capture';
 import { prepareMailDocuments } from './mail-documents';
+import { decodeMailScanResume, encodeMailScanResume, mailScanHints, mailScanLink,
+  scanLinkIdentity, scanProviderIdentity, MAIL_SCAN_LOOKUP_SIZE, type MailScanHint } from './mail-scan-state';
 
 export type Mailbox = {
   connection_id: string;
@@ -34,6 +37,7 @@ export type Mailbox = {
   folder_id: string;
   since_at: number;
   scan_offset: number;
+  scan_resume_json: string | null;
   next_sync_at: number;
   last_sync_at: number | null;
   last_error: string | null;
@@ -104,7 +108,7 @@ export async function connectMailbox(
         .bind(secret, id, workspace.id),
       db
         .prepare(
-          'UPDATE support_mailboxes SET mailbox_id=?,folder_id=?,since_at=?,scan_offset=?,last_error=NULL,next_sync_at=0 WHERE connection_id=?',
+          'UPDATE support_mailboxes SET mailbox_id=?,folder_id=?,since_at=?,scan_offset=?,scan_resume_json=NULL,last_error=NULL,next_sync_at=0 WHERE connection_id=?',
         )
         .bind(verified.mailboxId, verified.folderId, switching ? now() : existing.since_at, switching ? 0 : existing.scan_offset, id),
     ]);
@@ -222,6 +226,7 @@ async function syncClaimedMailbox(
   let captured=0,captureDeferred=false;
   let preparedMessages = 0;
   let completedMessageUnits = 0, budgetDeferred = false;
+  let completedScanChecks = 0;
   let captureError:string|null=null;
   let imap: ImapMailbox | undefined;
   try {
@@ -250,39 +255,74 @@ async function syncClaimedMailbox(
     );
     // Check new arrivals on every run, even during a long historical scan.
     await checkpoint();
-    const page =
-      mailbox.scan_offset > 0
-        ? imap ? await imap.list(mailbox.scan_offset, credentials!.firstUid) : await listMail(
+    stage = 'lookup';
+    const initialLink = await mailScanLink(workspace.id);
+    const linkIdentity = await scanLinkIdentity(initialLink);
+    const providerIdentity = await scanProviderIdentity(mailbox,{transport,firstUid:credentials?.firstUid??null});
+    const savedResume = decodeMailScanResume(mailbox.scan_resume_json);
+    // A changed provider/filter/link never reuses an old list of consumed UIDs.
+    let resume = savedResume && savedResume.identity === providerIdentity &&
+      savedResume.link === linkIdentity && savedResume.offset === mailbox.scan_offset ? savedResume : null;
+    // UIDVALIDITY is already checked by the IMAP connector's exact folder ID.
+    // A provider whose recent UID range shrinks must not hide replacement UIDs
+    // behind a previous resume's high-water mark, even under the same folder ID.
+    if(resume && newest.messages.length){
+      const highest=newest.messages.reduce((uid,ref)=>BigInt(ref.uid)>BigInt(uid)?ref.uid:uid,'0');
+      if(BigInt(highest)<BigInt(resume.latestUid))resume=null;
+    }
+    const scanOffset = mailbox.scan_resume_json && !resume ? 0 : mailbox.scan_offset;
+    stage = 'list';
+    const page = resume ?? (
+      scanOffset > 0
+        ? imap ? await imap.list(scanOffset, credentials!.firstUid) : await listMail(
             token,
             mailbox.mailbox_id,
             mailbox.folder_id,
-            mailbox.scan_offset,
+            scanOffset,
             mailbox.since_at,
           )
-        : newest;
+        : newest);
+    // Revisited recent pages must not reintroduce the already consumed prefix
+    // of a durable resume. UID order belongs to this exact folder identity.
+    const freshMessages = resume ? newest.messages.filter(ref => BigInt(ref.uid) > BigInt(resume.latestUid)) : newest.messages;
     const messages = new Map(
-      [...newest.messages, ...page.messages].map((ref) => [ref.uid, ref]),
+      [...freshMessages, ...page.messages].map((ref) => [ref.uid, ref]),
     );
     const handledMessages = new Set<string>();
-    for (const ref of messages.values()) {
-      await checkpoint();
+    const refs = [...messages.values()];
+    let hints = new Map<string, MailScanHint>();
+    let hintEnd = 0;
+    for (let index = 0; index < refs.length; index++) {
+      const ref = refs[index];
       if (ref.date !== null && ref.date < mailbox.since_at) { handledMessages.add(ref.uid); continue; }
       stage = 'lookup';
+      if (index >= hintEnd) {
+        if (completedScanChecks > 0 && admissionExpired()) { budgetDeferred = true; break; }
+        await checkpoint();
+        const chunk = refs.slice(index, index + MAIL_SCAN_LOOKUP_SIZE);
+        const externals = await Promise.all(chunk.map(item => mailExternalId(mailbox.mailbox_id, mailbox.folder_id, item.uid)));
+        hints = await mailScanHints(workspace.id, connection.id, externals, initialLink);
+        hintEnd = index + chunk.length;
+      }
       const external = await mailExternalId(
         mailbox.mailbox_id,
         mailbox.folder_id,
         ref.uid,
       );
-      const duplicate = await db
-        .prepare(
-          'SELECT id FROM support_tickets WHERE connection_id=? AND external_id=?',
-        )
-        .bind(connection.id, external)
-        .first();
+      const hint = hints.get(external)!;
+      const duplicate = hint.duplicate;
+      if (duplicate && hint.captured) { handledMessages.add(ref.uid); completedScanChecks++; continue; }
+      if (duplicate && captured >= 3) { captureDeferred = true; continue; }
+      if (completedMessageUnits > 0 && admissionExpired()) { budgetDeferred = true; break; }
+      await checkpoint();
       const capture=await mailboxCaptureNeeded(workspace.id,connection.id,external);
       if(capture && captured>=3) captureDeferred=true;
       if(duplicate && capture && captured>=3) continue;
-      if (duplicate && !capture) { handledMessages.add(ref.uid); continue; }
+      if (duplicate && !capture) {
+        handledMessages.add(ref.uid); completedScanChecks++;
+        if (admissionExpired()) { budgetDeferred = true; break; }
+        continue;
+      }
       if (completedMessageUnits > 0 && admissionExpired()) { budgetDeferred = true; break; }
       const active = await db
         .prepare('SELECT active FROM support_connections WHERE id=?')
@@ -321,27 +361,53 @@ async function syncClaimedMailbox(
       if(!duplicate){stage = 'ingest';await ingest(connection, source);imported++;}
       handledMessages.add(ref.uid);
       completedMessageUnits++;
+      completedScanChecks++;
     }
     // Repeat complete scans from the connection date. There is no newest-N cap;
     // restarting each scan also recovers changes to offset pagination during delivery.
     // Provider offsets count threads or UID windows, not returned messages.
     // Keep the entire page until all its messages have been handled; duplicates
     // skip durable completed work on the next cycle without skipping unread mail.
-    const pageHandled = page.messages.every(ref => handledMessages.has(ref.uid));
+    stage = 'lookup';
+    const unchangedLink = await scanLinkIdentity(await mailScanLink(workspace.id)) === linkIdentity;
+    const pageHandled = unchangedLink && refs.every(ref => handledMessages.has(ref.uid));
+    // The provider offset counts threads/UID windows. Persist remaining UIDs
+    // instead of interpreting a consumed message prefix as a provider offset.
+    // A changed link retains the full page so its receipts are re-evaluated.
+    const remaining: MailReference[] = refs.filter(ref => !unchangedLink || !handledMessages.has(ref.uid));
+    const latestUid = newest.messages.reduce((highest, ref) => BigInt(ref.uid) > BigInt(highest) ? ref.uid : highest, resume?.latestUid ?? '0');
+    const resumeJson = pageHandled ? null : encodeMailScanResume({version:1,identity:providerIdentity,
+      link:linkIdentity,offset:scanOffset,count:page.count,createdAt:resume?.createdAt ?? now(),latestUid,
+      messages:remaining});
     const pageHasMore = page.count >= MAIL_PAGE_SIZE;
     let more = budgetDeferred || !pageHandled || pageHasMore;
     await checkpoint();
     stage = 'progress';
     const progress = await db
       .prepare(
-        'UPDATE support_mailboxes SET scan_offset=?,last_sync_at=? WHERE connection_id=? AND lease=? AND lease_until>?',
+        `UPDATE support_mailboxes SET scan_offset=?,last_sync_at=?,scan_resume_json=? WHERE connection_id=? AND workspace_id=? AND lease=? AND lease_until>? AND mailbox_id=? AND folder_id=? AND since_at=? AND scan_offset=?
+        AND ((? IS NULL AND NOT EXISTS(SELECT 1 FROM support_gestion_links WHERE workspace_id=?))
+          OR EXISTS(SELECT 1 FROM support_gestion_links WHERE workspace_id=? AND organization_id=? AND connected_by=? AND enabled=? AND created_at=?))`,
       )
       .bind(
-        pageHandled ? (pageHasMore ? mailbox.scan_offset + page.count : 0) : mailbox.scan_offset,
+        pageHandled ? (pageHasMore ? scanOffset + page.count : 0) : scanOffset,
         now(),
+        resumeJson,
         connection.id,
+        workspace.id,
         lease,
         now(),
+        mailbox.mailbox_id,
+        mailbox.folder_id,
+        mailbox.since_at,
+        mailbox.scan_offset,
+        initialLink?.organization_id ?? null,
+        workspace.id,
+        workspace.id,
+        initialLink?.organization_id ?? null,
+        initialLink?.connected_by ?? null,
+        initialLink?.enabled ?? null,
+        initialLink?.created_at ?? null,
       )
       .run();
     if (!progress.meta.changes) throw new MailSyncDeferred('lease');

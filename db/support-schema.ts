@@ -119,6 +119,7 @@ export const supportMailboxes = sqliteTable(
     folderId: text('folder_id').notNull(),
     sinceAt: integer('since_at').notNull(),
     scanOffset: integer('scan_offset').notNull().default(0),
+    scanResumeJson: text('scan_resume_json'),
     nextSyncAt: integer('next_sync_at').notNull().default(0),
     lastSyncAt: integer('last_sync_at'),
     lastError: text('last_error'),

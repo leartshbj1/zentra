@@ -1,9 +1,10 @@
 import { requireMailScheduler } from '@/lib/support/mail-sync';
-import { runMailSyncBatch } from '@/lib/support/mail-sync-batch';
+import { readMailBacklog, runMailSyncBatch } from '@/lib/support/mail-sync-batch';
 import { supportError, supportJson } from '@/lib/support/service';
 import { runDueWorkflows } from '@/lib/automation/workflows';
 import { reportSchedulerCycle, createSchedulerProgress } from '@/lib/service-diagnostics';
 import {startSchedulerHeartbeat,finishSchedulerHeartbeat,readSchedulerHealth} from '@/lib/scheduler-health';
+import {readWorkflowBacklog} from '@/lib/support/scheduler-dispatch';
 export const dynamic = 'force-dynamic';
 // A read-only endpoint for an independent uptime monitor. Never wakes the worker.
 export async function GET(request: Request) {
@@ -20,12 +21,24 @@ export async function POST(request: Request) {
   try {
     await requireMailScheduler(request);
     authorized=true;
+    // A plan is an advisory snapshot. Recheck on arrival: peer claims, a pause
+    // or elapsed readiness can make an async dispatch obsolete.
+    const mailDemand=await readMailBacklog();
     heartbeat=await startSchedulerHeartbeat(startedAt);
-    const result=await runMailSyncBatch(request);
-    const workflows=await createSchedulerProgress()('workflows', () => runDueWorkflows());
+    const result=mailDemand.due>0?await runMailSyncBatch(request):{
+      idle:mailDemand.due===0,failed:false,imported:0,processed:0,more:false,
+      incomplete:false,syncing:mailDemand.active>0,paused:false,
+      mailboxes:{checked:0,failed:0,...mailDemand,budgetExhausted:false},
+    };
+    // Mail intake may queue new Automation work after the initial observation.
+    // Conversely, another worker may have claimed the previously due jobs.
+    const workflowDemand=await readWorkflowBacklog();
+    const workflows=workflowDemand.due>0||workflowDemand.expired>0
+      ?await createSchedulerProgress()('workflows', () => runDueWorkflows())
+      :{checked:0,failed:0,interrupted:0,more:false};
     const failed=Boolean(result.failed || workflows.failed || workflows.interrupted);
-    const idle=result.idle && workflows.checked===0 && !workflows.more && !failed;
-    const outcome=failed?'failed':result.incomplete||result.paused||result.syncing||result.more||workflows.more?'partial':idle?'idle':'completed';
+    const idle=result.idle && workflows.checked===0 && !workflows.more && workflowDemand.active===0 && !failed;
+    const outcome=failed?'failed':result.incomplete||result.paused||result.syncing||result.more||workflows.more||workflowDemand.active>0?'partial':idle?'idle':'completed';
     if(heartbeat)await finishSchedulerHeartbeat(heartbeat,outcome,result.reference);
     reportSchedulerCycle({
       startedAt,
