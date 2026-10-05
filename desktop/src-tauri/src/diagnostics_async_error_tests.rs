@@ -78,6 +78,7 @@ fn async_command_result_keeps_successes_and_original_failure_strings() {
     for error in [
         AppError::Validation("Original synthetic input refusal".into()),
         AppError::Remote("Original synthetic remote refusal".into()),
+        AppError::Restore("La restauration est terminée. Fermez puis rouvrez Zentra.".into()),
         AppError::NotFound("synthetic-record".into()),
         AppError::Io(std::io::Error::other("Original synthetic storage refusal")),
         AppError::OnboardingRequired,

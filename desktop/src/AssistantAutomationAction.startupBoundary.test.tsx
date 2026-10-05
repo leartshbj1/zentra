@@ -1,0 +1,25 @@
+// @vitest-environment jsdom
+import React, { StrictMode, act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+const state=vi.hoisted(()=>({probe:vi.fn(),request:vi.fn(),feedback:vi.fn(),close:vi.fn(),frames:[] as FrameRequestCallback[]}));
+vi.mock('./diagnostics',async original=>({...await original<typeof import('./diagnostics')>(),diagnosticInvoke:state.probe}));
+vi.mock('./AutomationCompany',()=>({useCompanyAutomation:()=>({state:null})}));
+vi.mock('./automation',async original=>({...await original<typeof import('./automation')>(),automationRequest:state.request,automationFeedback:state.feedback}));
+import './languageTestPacks';
+import { AssistantAutomationAction } from './AssistantAutomationAction';
+import { beginAppOpeningAttempt, STARTUP_RECOVERY_REFUSAL } from './appOpening';
+let host:HTMLDivElement,root:Root;
+const decision={status:'suggestion',choices:{action:'create_invoice'}};
+async function admit(){const attempt=beginAppOpeningAttempt();await attempt.waitForNativeStartup();await act(async()=>attempt.complete());return attempt;}
+async function mount(){await act(async()=>root.render(<StrictMode><AssistantAutomationAction text="Créer une facture" close={state.close}/></StrictMode>));}
+async function tick(){await act(async()=>{await vi.advanceTimersByTimeAsync(700);});}
+function callback(){const node=host.querySelector('button')!;expect(node).not.toBeNull();const key=Object.keys(node).find(x=>x.startsWith('__reactProps$'))!;return (node as any)[key].onClick as ()=>void;}
+beforeEach(()=>{vi.clearAllMocks();vi.useFakeTimers();state.frames=[];state.probe.mockResolvedValue(true);state.request.mockResolvedValue(decision);Object.assign(window,{__TAURI_INTERNALS__:{},__ZENTRA_NATIVE_READY__:false});vi.stubGlobal('requestAnimationFrame',(fn:FrameRequestCallback)=>{state.frames.push(fn);return state.frames.length;});(globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT=true;host=document.createElement('div');document.body.append(host);root=createRoot(host);});
+afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.useRealTimers();vi.unstubAllGlobals();delete(window as any).__TAURI_INTERNALS__;delete(window as any).__ZENTRA_NATIVE_READY__;});
+it('real useAutomation starts no routing request while opening',async()=>{await mount();await tick();expect(state.request).not.toHaveBeenCalled();expect(host.querySelector('button')).toBeNull();});
+it('real useAutomation starts no routing or feedback after recovery refusal',async()=>{state.probe.mockRejectedValue(STARTUP_RECOVERY_REFUSAL);const attempt=beginAppOpeningAttempt();await attempt.waitForNativeStartup().catch(reason=>attempt.fail(reason));await mount();await tick();expect(state.request).not.toHaveBeenCalled();expect(state.feedback).not.toHaveBeenCalled();});
+it('queued routing timer is removed when an opening replaces ready',async()=>{await admit();await mount();await act(async()=>{beginAppOpeningAttempt();});await tick();expect(state.request).not.toHaveBeenCalled();});
+it('captured suggestion handler refuses feedback and event under a later ready generation',async()=>{await admit();await mount();await tick();const old=callback();await act(async()=>{beginAppOpeningAttempt();});await admit();await tick();await act(async()=>old());expect(state.feedback).not.toHaveBeenCalled();expect(state.close).not.toHaveBeenCalled();expect(state.frames).toHaveLength(0);});
+it.each(['opening','later-ready','recovery'] as const)('scheduled event stays closed after %s replaces its permit',async(next)=>{await admit();await mount();await tick();await act(async()=>callback()());expect(state.feedback).toHaveBeenCalledWith(decision,{action:'create_invoice'});const event=vi.fn();window.addEventListener('zentra-automation-action',event);try{await act(async()=>{const attempt=beginAppOpeningAttempt();if(next==='later-ready'){await attempt.waitForNativeStartup();attempt.complete();}if(next==='recovery'){(window as any).__ZENTRA_NATIVE_READY__=false;state.probe.mockRejectedValue(STARTUP_RECOVERY_REFUSAL);await attempt.waitForNativeStartup().catch(reason=>attempt.fail(reason));}state.frames[0](0);});expect(event).not.toHaveBeenCalled();}finally{window.removeEventListener('zentra-automation-action',event);}});
+it('normal feedback and delayed event survive the normal close unmount',async()=>{await admit();state.close.mockImplementation(()=>root.render(null));await mount();await tick();const event=vi.fn();window.addEventListener('zentra-automation-action',event);try{await act(async()=>callback()());expect(state.request).toHaveBeenCalledWith('agent_routing',{text:'Créer une facture'},undefined);expect(state.feedback).toHaveBeenCalledWith(decision,{action:'create_invoice'});expect(state.close).toHaveBeenCalledTimes(1);await act(async()=>state.frames[0](0));expect(event).toHaveBeenCalledTimes(1);expect((event.mock.calls[0][0] as CustomEvent).detail).toBe('create_invoice');}finally{window.removeEventListener('zentra-automation-action',event);}});

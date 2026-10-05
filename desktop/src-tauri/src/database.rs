@@ -82,6 +82,22 @@ pub struct LocalStore {
     operation_lock: Arc<Mutex<()>>,
 }
 
+/// Only the call to interrupted-restore recovery may produce Recovery.
+/// Historical callers recover the original AppError through into_inner().
+#[derive(Debug)]
+pub(crate) enum StoreInitializationError {
+    Recovery(AppError),
+    Other(AppError),
+}
+
+impl StoreInitializationError {
+    pub(crate) fn into_inner(self) -> AppError {
+        match self {
+            Self::Recovery(error) | Self::Other(error) => error,
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "workspace_volume_tests.rs"]
 mod workspace_volume_tests;
@@ -1477,7 +1493,21 @@ fn prepare_onboarding(
 
 impl LocalStore {
     pub fn initialize(data_dir: PathBuf) -> AppResult<Self> {
-        fs::create_dir_all(&data_dir)?;
+        Self::initialize_for_startup(data_dir).map_err(StoreInitializationError::into_inner)
+    }
+
+    pub(crate) fn initialize_for_startup(
+        data_dir: PathBuf,
+    ) -> Result<Self, StoreInitializationError> {
+        fs::create_dir_all(&data_dir)
+            .map_err(AppError::from)
+            .map_err(StoreInitializationError::Other)?;
+        crate::backup::recover_interrupted_restore(&data_dir)
+            .map_err(StoreInitializationError::Recovery)?;
+        Self::initialize_after_recovery(data_dir).map_err(StoreInitializationError::Other)
+    }
+
+    fn initialize_after_recovery(data_dir: PathBuf) -> AppResult<Self> {
         let attachments_dir = data_dir.join("attachments");
         let backups_dir = data_dir.join("backups");
         let exports_dir = data_dir.join("exports");
@@ -1502,13 +1532,34 @@ impl LocalStore {
     }
 
     pub fn lock(&self) -> AppResult<MutexGuard<'_, ()>> {
-        self.operation_lock.lock().map_err(|_| {
+        self.require_usable_profile()?;
+        let guard = self.operation_lock.lock().map_err(|_| {
             AppError::Validation("Le verrou de la base locale est indisponible.".into())
-        })
+        })?;
+        // A restore may have started while this operation waited for the lock.
+        self.require_usable_profile()?;
+        Ok(guard)
+    }
+
+    pub(crate) fn require_usable_profile(&self) -> AppResult<()> {
+        crate::backup::require_usable_profile(&self.data_dir)
     }
 
     pub fn connect(&self) -> AppResult<Connection> {
+        self.require_usable_profile()?;
         let connection = Connection::open(&self.database_path)?;
+        #[cfg(test)] crate::backup::restore_connection_test_checkpoint(&self.data_dir);
+        let directory = self.data_dir.clone();
+        connection.authorizer(Some(move |_: rusqlite::hooks::AuthContext<'_>| {
+            if crate::backup::require_restore_statement_access(&directory).is_ok() {
+                rusqlite::hooks::Authorization::Allow
+            } else {
+                rusqlite::hooks::Authorization::Deny
+            }
+        }));
+        // Recheck after opening, before registering functions/hooks or setting
+        // any PRAGMA. Another worker may have published Pending in the gap.
+        self.require_usable_profile()?;
         crate::company_collaboration::register(self, &connection)?;
         let installation = self.installation_id.clone();
         connection.create_scalar_function("zentra_installation_id", 0,

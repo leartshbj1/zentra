@@ -17,7 +17,11 @@ vi.mock('./diagnostics', async original => ({ ...await original<typeof import('.
 vi.mock('./language', () => ({ t: (value: string) => value, useAppLanguage: () => 'fr', getAppLocale: () => 'fr-CH' }));
 vi.mock('./ui', () => ({ Button: () => null, ErrorPanel: () => null, Modal: () => null, Field: () => null }));
 vi.mock('./useMobileLayout', () => ({ useMobileLayout() {} }));
-vi.mock('./appOpening', () => ({ waitForNativeStartup: async () => {}, withinAppOpeningDeadline: (request: Promise<unknown>) => request }));
+vi.mock('./appOpening', async original => ({
+  ...await original<typeof import('./appOpening')>(),
+  waitForNativeStartup: async () => {},
+  withinAppOpeningDeadline: (request: Promise<unknown>) => request,
+}));
 vi.mock('./WorkspaceApp', () => ({ WorkspaceApp: () => null }));
 vi.mock('./Onboarding', () => ({ Onboarding: () => null }));
 vi.mock('./AppUpdater', () => ({ AppUpdater: () => null }));

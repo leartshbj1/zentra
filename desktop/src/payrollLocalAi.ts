@@ -4,6 +4,15 @@ import type { EmployeeDocumentDraft } from './employeeDocumentDraft';
 import { classifyDiagnosticError, recordDiagnostic } from './diagnostics';
 
 type WorkerPayload = Record<string, unknown>;
+type AssistantRequest = {
+  resolve: (value: WorkerPayload) => void;
+  reject: (reason: Error) => void;
+  onChunk?: (text: string) => void;
+  timeout: ReturnType<typeof setTimeout>;
+  cleanup: () => void;
+  cancelled: boolean;
+  worker: Worker | null;
+};
 export const PAYROLL_ANALYSIS_STALL_TIMEOUT_MS = 15 * 60 * 1_000;
 export const PAYROLL_MODEL_LOAD_TIMEOUT_MS = 15 * 60 * 1_000;
 export const PAYROLL_ENGINE_CHECK_TIMEOUT_MS = 15 * 1_000;
@@ -31,29 +40,82 @@ export type PayrollAiMode = 'webgpu' | 'wasm' | 'unavailable';
 class PayrollLocalAi {
   private worker: Worker | null = null;
   private cancelledErrors = new WeakSet<Error>();
-  private assistantRequests = new Map<string, {
-    resolve: (value: WorkerPayload) => void; reject: (reason: Error) => void;
-    onChunk?: (text: string) => void; timeout: ReturnType<typeof setTimeout>;
-  }>();
+  private assistantRequests = new Map<string, AssistantRequest>();
   isBusy() { return this.loadWaiters.length > 0 || this.analyses.size > 0 || this.assistantRequests.size > 0; }
   releaseIfIdle() { if (!this.isBusy()) { this.worker?.terminate(); this.worker = null; } }
-  private assistantRequest(type: string, input: WorkerPayload = {}, onChunk?: (text: string) => void): Promise<WorkerPayload> {
+  private assistantCancelledError() {
+    const error = new Error('Analyse locale annulée. Aucun brouillon IA incomplet n’a été enregistré.');
+    this.cancelledErrors.add(error);
+    return error;
+  }
+  private retireCancelledAssistantWorkerIfUnused() {
+    if (this.checkWaiters.length || this.loadWaiters.length || this.analyses.size ||
+        [...this.assistantRequests.values()].some(pending => !pending.cancelled)) return;
+    for (const [requestId, pending] of this.assistantRequests) {
+      // Rejecting the caller does not stop physical generation. Keep its ID
+      // busy until its terminal message, or until no foreign waiter needs
+      // the same worker and that exact worker can safely be terminated.
+      if (pending.worker !== null && this.worker === pending.worker) {
+        this.worker = null;
+        pending.worker.terminate();
+      }
+      clearTimeout(pending.timeout);
+      pending.cleanup();
+      this.assistantRequests.delete(requestId);
+    }
+  }
+  private assistantRequest(type: string, input: WorkerPayload = {}, onChunk?: (text: string) => void, signal?: AbortSignal): Promise<WorkerPayload> {
+    if (signal?.aborted) return Promise.reject(this.assistantCancelledError());
     if (this.isBusy()) return Promise.reject(new Error('Qwen est déjà utilisé pour une lecture ou un téléchargement. Attendez la fin de cette opération.'));
     return new Promise((resolve,reject) => {
       const requestId = crypto.randomUUID();
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        signal?.removeEventListener('abort', abort);
+      };
+      const abort = () => {
+        const pending = this.assistantRequests.get(requestId);
+        if (!pending || pending !== owned || pending.cancelled) return;
+        pending.cancelled = true;
+        pending.cleanup();
+        pending.reject(this.assistantCancelledError());
+        this.retireCancelledAssistantWorkerIfUnused();
+      };
       const timeout = setTimeout(() => {
-        if (!this.assistantRequests.has(requestId)) return;
+        const pending = this.assistantRequests.get(requestId);
+        if (!pending) return;
+        if (pending.cancelled) {
+          this.retireCancelledAssistantWorkerIfUnused();
+          return;
+        }
         this.worker?.terminate(); this.worker = null;
         this.rejectAll(new Error('La réponse prend trop de temps sur cet appareil. Réessayez avec une question plus courte.'));
       }, type === 'assistant_chat' ? 180_000 : 30_000);
-      this.assistantRequests.set(requestId, {resolve,reject,timeout,onChunk});
-      try { this.ensureWorker().postMessage({type,requestId,...input}); }
-      catch (error) { clearTimeout(timeout); this.assistantRequests.delete(requestId); reject(error); }
+      const owned: AssistantRequest = {resolve,reject,timeout,onChunk,cleanup,cancelled:false,worker:null};
+      this.assistantRequests.set(requestId, owned);
+      signal?.addEventListener('abort', abort, {once:true});
+      if (signal?.aborted) { abort(); return; }
+      try {
+        const requestWorker = this.ensureWorker();
+        owned.worker = requestWorker;
+        if (this.assistantRequests.get(requestId) !== owned) {
+          if (this.worker === requestWorker && !this.isBusy() && this.checkWaiters.length === 0) {
+            this.worker = null;
+            requestWorker.terminate();
+          }
+          return;
+        }
+        if (owned.cancelled) { this.retireCancelledAssistantWorkerIfUnused(); return; }
+        requestWorker.postMessage({type,requestId,...input});
+      }
+      catch (error) { clearTimeout(timeout);cleanup();this.assistantRequests.delete(requestId);reject(error); }
     });
   }
   async inspectModel() { return (await this.assistantRequest('assistant_cache')).cached === true; }
   async removeModel() { await this.assistantRequest('assistant_remove'); this.releaseIfIdle(); }
-  async chat(input: { question: string; screen: string; facts: AssistantFacts; history: AssistantMessage[] }, onChunk: (text: string) => void) {
+  async chat(input: { question: string; screen: string; facts: AssistantFacts; history: AssistantMessage[] }, onChunk: (text: string) => void, signal?: AbortSignal) {
     let started: number | undefined, id: string | undefined;
     try { started = performance.now(); id = recordDiagnostic({area:'app',operation:'assistant.local_chat',phase:'start'}); }
     catch { /* A journal failure must never block the local assistant. */ }
@@ -62,7 +124,7 @@ class PayrollLocalAi {
       catch { /* Do not replace a worker result, rejection or cancellation. */ }
     };
     try {
-      const result = await this.assistantRequest('assistant_chat', input, onChunk);
+      const result = await this.assistantRequest('assistant_chat', input, onChunk, signal);
       const response = {output: String(result.output ?? ''), truncated: result.truncated === true, source: result.source === 'guide' ? 'guide' as const : 'qwen' as const};
       finish('success');
       return response;
@@ -123,10 +185,12 @@ class PayrollLocalAi {
       const requestId = String(message.requestId ?? '');
       const pending = this.assistantRequests.get(requestId);
       if (!pending) return;
-      if (type === 'assistant_chunk') { pending.onChunk?.(String(message.output ?? '')); return; }
-      clearTimeout(pending.timeout); this.assistantRequests.delete(requestId);
-      if (type === 'assistant_error') pending.reject(new Error(String(message.error || 'L’assistant local n’a pas pu répondre.')));
-      else pending.resolve(message);
+      if (type === 'assistant_chunk') { if (!pending.cancelled) pending.onChunk?.(String(message.output ?? '')); return; }
+      clearTimeout(pending.timeout);pending.cleanup();this.assistantRequests.delete(requestId);
+      if (!pending.cancelled) {
+        if (type === 'assistant_error') pending.reject(new Error(String(message.error || 'L’assistant local n’a pas pu répondre.')));
+        else pending.resolve(message);
+      }
       return;
     }
     if (type === 'check') {
@@ -135,6 +199,7 @@ class PayrollLocalAi {
         clearTimeout(timeout);
         resolve(mode);
       });
+      this.retireCancelledAssistantWorkerIfUnused();
       return;
     }
     if (type === 'progress') {
@@ -164,6 +229,7 @@ class PayrollLocalAi {
         clearTimeout(timeout);
         resolve(mode);
       });
+      this.retireCancelledAssistantWorkerIfUnused();
       return;
     }
     if (type === 'load_error') {
@@ -172,6 +238,7 @@ class PayrollLocalAi {
         clearTimeout(timeout);
         reject(error);
       });
+      this.retireCancelledAssistantWorkerIfUnused();
       return;
     }
     if (type === 'analysis' || type === 'analysis_error') {
@@ -201,11 +268,12 @@ class PayrollLocalAi {
           extractedText: typeof message.extractedText === 'string' ? message.extractedText : undefined,
         });
       }
+      this.retireCancelledAssistantWorkerIfUnused();
     }
   }
 
   private rejectAll(error: Error) {
-    for (const pending of this.assistantRequests.values()) { clearTimeout(pending.timeout); pending.reject(error); }
+    for (const pending of this.assistantRequests.values()) { clearTimeout(pending.timeout);pending.cleanup();pending.reject(error); }
     this.assistantRequests.clear();
     this.loadWaiters.splice(0).forEach(({ reject, timeout }) => {
       clearTimeout(timeout);

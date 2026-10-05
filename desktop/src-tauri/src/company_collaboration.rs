@@ -89,6 +89,12 @@ pub(crate) fn register(store: &LocalStore, connection: &Connection) -> AppResult
     }));
     let directory = store.data_dir.clone();
     connection.commit_hook(Some(move || {
+        // A previously prepared statement must not acknowledge a write once a
+        // failed restore leaves an ambiguous profile behind.
+        if crate::backup::require_restore_statement_access(&directory).is_err() {
+            dirty.store(false, Ordering::Release);
+            return true;
+        }
         if dirty.swap(false, Ordering::AcqRel) && !APPLYING.get() {
             let callback = LISTENERS
                 .get_or_init(Default::default)
@@ -105,11 +111,13 @@ pub(crate) fn register(store: &LocalStore, connection: &Connection) -> AppResult
         false
     }));
     let gate = gate(store);
+    let directory = store.data_dir.clone();
     connection.create_scalar_function(
         "zentra_company_write_allowed",
         0,
         FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_INNOCUOUS,
-        move |_| Ok(!gate.load(Ordering::Acquire) || APPLYING.get()),
+        move |_| Ok((!gate.load(Ordering::Acquire) || APPLYING.get())
+            && crate::backup::require_restore_statement_access(&directory).is_ok()),
     )?;
     Ok(())
 }
@@ -285,6 +293,7 @@ fn save_baseline(
     revision: u64,
     digest: String,
 ) -> AppResult<()> {
+    store.require_usable_profile()?;
     let mut file = tempfile::NamedTempFile::new_in(&store.data_dir)?;
     serde_json::to_writer(
         file.as_file_mut(),
@@ -317,6 +326,7 @@ fn remember_reference(
     organization: &str,
     revision: u64,
 ) -> AppResult<()> {
+    store.require_usable_profile()?;
     let digest = crate::company_sync_digest::archive(path)?;
     let mut copy = tempfile::NamedTempFile::new_in(&store.data_dir)?;
     std::io::copy(&mut File::open(path)?, copy.as_file_mut())?;
@@ -626,11 +636,13 @@ struct Pending {
     content_version: u8,
 }
 fn folder(store: &LocalStore) -> AppResult<PathBuf> {
+    store.require_usable_profile()?;
     let p = store.data_dir.join("company-sync");
     fs::create_dir_all(&p)?;
     Ok(p)
 }
 fn load(store: &LocalStore) -> AppResult<Preferences> {
+    store.require_usable_profile()?;
     let path = store.data_dir.join(STATE);
     if !path.exists() {
         return Ok(Preferences::default());
@@ -654,6 +666,7 @@ fn load(store: &LocalStore) -> AppResult<Preferences> {
     Ok(value)
 }
 fn save(store: &LocalStore, value: &Preferences) -> AppResult<()> {
+    store.require_usable_profile()?;
     let mut f = tempfile::Builder::new()
         .prefix(".company-sync-")
         .tempfile_in(&store.data_dir)?;
@@ -830,6 +843,7 @@ fn prepare(store: &LocalStore, organization: &str, activate: bool) -> AppResult<
     prepare_locked(store, organization, activate)
 }
 fn prepare_locked(store: &LocalStore, organization: &str, activate: bool) -> AppResult<Pending> {
+    store.require_usable_profile()?;
     let mut prefs = load(store)?;
     if prefs
         .organization_id
@@ -900,6 +914,11 @@ async fn prepare_for_send_worker(
     .map_err(|_| invalid("L’envoi a été interrompu. Il reprendra automatiquement."))?
 }
 
+#[cfg(test)]
+pub(crate) async fn prepare_recovery_test_publication(store: &LocalStore, organization: &str) -> AppResult<String> {
+    prepare_for_send_worker(store, organization, true).await.map(|(pending, _)| pending.id)
+}
+
 async fn confirm_sent_worker(
     store: &LocalStore,
     origin: LocalTransferOrigin,
@@ -958,6 +977,7 @@ async fn send(
     activate: bool,
     supports_content: bool,
 ) -> AppResult<bool> {
+    store.require_usable_profile()?;
     let (mut p, origin) = prepare_for_send_worker(store, &session.organization_id, activate).await?;
     let numbers = crate::shared_numbering::active_series(
         store,

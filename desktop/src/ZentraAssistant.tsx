@@ -9,6 +9,7 @@ import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { Modal } from './ui';
 import { t, useAppLanguage } from './language';
 import { AssistantAutomationAction } from './AssistantAutomationAction';
+import { getAppOpeningPermit, isAppOpeningPermitCurrent, subscribeAppOpening } from './appOpening';
 
 type Turn = AssistantMessage & { id: string; incomplete?: boolean; source?: 'guide' | 'qwen' };
 export function ZentraAssistantProvider({ children }: { children: ReactNode }) {
@@ -24,65 +25,97 @@ export function ZentraAssistantProvider({ children }: { children: ReactNode }) {
   const [progress,setProgress]=useState('');
   const [copied,setCopied]=useState('');
   const model=useSyncExternalStore(localModelInstallation.subscribe,localModelInstallation.getSnapshot);
+  const openingPermit=useSyncExternalStore(subscribeAppOpening,getAppOpeningPermit,()=>null);
+  const mounted=useRef(true);
   const pending=useRef(false);
   const request=useRef(0);
+  const ownedChat=useRef<AbortController | null>(null);
+  const progressSubscription=useRef<(() => void) | null>(null);
   const scope=useRef('');
   const scrollRef=useRef<HTMLDivElement>(null);
   const followOutput=useRef(true);
+  const allowed=useCallback(()=>mounted.current&&isAppOpeningPermitCurrent(openingPermit),[openingPermit]);
   const currentScreen=useCallback(()=>{
     const values=[...registry.current.values()].sort((a,b)=>a.priority-b.priority).map(item=>item.value);
     return values.reduce<AssistantScreen>((result,value)=>({...result,...value,facts:{...result.facts,...value.facts}}),{screen:'Accueil Zentra'});
   },[]);
   const open=useCallback(()=>{
+    if (!allowed()) return;
     void localModelInstallation.inspect();
     const next=currentScreen();
     if (scope.current !== (next.scope ?? next.screen)) { setMessages([]); setQuestion(''); scope.current=next.scope ?? next.screen; }
     setScreen(next); setError(''); setOpened(true);
-  },[currentScreen]);
-  const context=useMemo(()=>({open,setLauncherHost,register:(id:string,priority:number,value:AssistantScreen)=>{registry.current.set(id,{priority,value});},remove:(id:string)=>{registry.current.delete(id);}}),[open]);
+  },[currentScreen,allowed]);
+  const context=useMemo(()=>({open,setLauncherHost:(host:HTMLElement|null)=>{if(host===null||allowed())setLauncherHost(host);},register:(id:string,priority:number,value:AssistantScreen)=>{if(allowed())registry.current.set(id,{priority,value});},remove:(id:string)=>{registry.current.delete(id);}}),[open,allowed]);
+  const abandonRequest=useCallback(()=>{
+    request.current++;
+    progressSubscription.current?.();progressSubscription.current=null;
+    pending.current=false;
+    const controller=ownedChat.current;ownedChat.current=null;controller?.abort();
+  },[]);
   useEffect(()=>{
-    if (opened || busy || model.phase === 'installing') return;
-    const timer=window.setTimeout(()=>payrollLocalAi.releaseIfIdle(),60_000);
+    mounted.current=true;
+    return ()=>{ mounted.current=false; abandonRequest(); };
+  },[abandonRequest]);
+  useEffect(()=>{
+    if (openingPermit) return;
+    abandonRequest();registry.current.clear();scope.current='';
+    setOpened(false);setBusy(false);setProgress('');setMessages([]);setQuestion('');setError('');setCopied('');setLauncherHost(null);
+  },[openingPermit,abandonRequest]);
+  useEffect(()=>{
+    if (!openingPermit || opened || busy || model.phase === 'installing') return;
+    const timer=window.setTimeout(()=>{if(allowed())payrollLocalAi.releaseIfIdle();},60_000);
     return ()=>window.clearTimeout(timer);
-  },[opened,busy,model.phase]);
+  },[openingPermit,allowed,opened,busy,model.phase]);
   useEffect(()=>{
     if (followOutput.current && scrollRef.current) scrollRef.current.scrollTop=scrollRef.current.scrollHeight;
   },[messages,progress]);
-  function stop() { if (!pending.current) return; request.current++; pending.current=false; payrollLocalAi.cancel(); setBusy(false); setProgress(''); setMessages(current=>current.map((message,index)=>index===current.length-1 && message.role==='assistant' ? {...message,incomplete:true} : message)); }
-  function close() { stop(); setOpened(false); }
+  // A queued handler owns this render's permit and chat, never a successor
+  // that has since replaced the shared refs under the same Provider.
+  const renderedRequest=request.current;
+  const renderedChat=ownedChat.current;
+  const ownsRenderedRequest=()=>allowed()&&request.current===renderedRequest&&ownedChat.current===renderedChat;
+  function stop() { if (!ownsRenderedRequest() || !pending.current) return; abandonRequest(); setBusy(false); setProgress(''); setMessages(current=>current.map((message,index)=>index===current.length-1 && message.role==='assistant' ? {...message,incomplete:true} : message)); }
+  function close() { if (!ownsRenderedRequest()) return; stop(); setOpened(false); }
   async function ask(value=question) {
-    const text=value.trim(); if (!text || pending.current || model.phase !== 'installed') return;
+    const text=value.trim(); if (!allowed() || !text || pending.current || model.phase !== 'installed') return;
+    // The worker also reads documents. Do not claim/cancel another operation
+    // when its existing busy guard would refuse this assistant request.
+    if (payrollLocalAi.isBusy()) { setError('Qwen est déjà utilisé pour une lecture ou un téléchargement. Attendez la fin de cette opération.'); return; }
     const next=currentScreen(); const requestId=++request.current;
     const history=scope.current === (next.scope ?? next.screen) ? messages.filter(message=>!message.incomplete) : [];
     scope.current=next.scope ?? next.screen; setScreen(next);
     const id=crypto.randomUUID();
     pending.current=true; setBusy(true); setError(''); setQuestion(''); setProgress('Qwen prépare votre réponse…'); followOutput.current=true;
     setMessages([...history.slice(-10),{id:crypto.randomUUID(),role:'user',content:text},{id,role:'assistant',content:''}]);
-    const unsubscribe=payrollLocalAi.onProgress(value=>setProgress(value.label));
+    const current=()=>allowed()&&requestId===request.current;
+    const unsubscribe=payrollLocalAi.onProgress(value=>{if(current())setProgress(value.label);});
+    progressSubscription.current=unsubscribe;
+    const controller=new AbortController();ownedChat.current=controller;
     try {
       const result=await payrollLocalAi.chat({question:text,screen:next.screen,facts:next.facts??{},history}, output=>{
-        if (requestId===request.current) { setProgress(''); setMessages(current=>current.map(message=>message.id===id ? {...message,content:output} : message)); }
-      });
-      if (requestId===request.current) setMessages(current=>current.map(message=>message.id===id ? {...message,content:result.output,incomplete:result.truncated,source:result.source} : message));
+        if (current()) { setProgress(''); setMessages(messages=>messages.map(message=>message.id===id ? {...message,content:output} : message)); }
+      },controller.signal);
+      if (current()) setMessages(messages=>messages.map(message=>message.id===id ? {...message,content:result.output,incomplete:result.truncated,source:result.source} : message));
     } catch(reason) {
-      if (requestId===request.current) { setError(reason instanceof Error ? reason.message : 'La réponse n’a pas pu être préparée. Réessayez.'); setQuestion(text); setMessages(current=>current.filter(message=>message.id!==id)); }
-    } finally { unsubscribe(); if (requestId===request.current) { pending.current=false; setBusy(false); setProgress(''); } }
+      if (current()) { setError(reason instanceof Error ? reason.message : 'La réponse n’a pas pu être préparée. Réessayez.'); setQuestion(text); setMessages(messages=>messages.filter(message=>message.id!==id)); }
+    } finally { unsubscribe(); if(progressSubscription.current===unsubscribe)progressSubscription.current=null; if(ownedChat.current===controller)ownedChat.current=null; if (current()) { pending.current=false; setBusy(false); setProgress(''); } }
   }
   const guides=selectAssistantGuides(messages.filter(m=>m.role==='user').at(-1)?.content ?? screen.screen, screen.screen);
-  return <AssistantContext.Provider value={context}>{children}
-    {!opened && createPortal(<button type="button" className={`assistant-launcher${launcherHost ? ' assistant-launcher--docked' : ''}`} onClick={open} title={t('Demander à l’assistant Zentra')} aria-label={t('Demander à l’assistant Zentra')}><MessageCircle size={21} aria-hidden="true"/><span>{t('Assistant')}</span></button>,launcherHost ?? document.body)}
-    {opened && <Modal title="Assistant Zentra" description="Votre aide locale, au fil de votre travail." onClose={close} className="zentra-assistant-dialog" assistantHelp={false}>
+  return <AssistantContext.Provider value={openingPermit?context:null}>{children}
+    {openingPermit && !opened && createPortal(<button type="button" className={`assistant-launcher${launcherHost ? ' assistant-launcher--docked' : ''}`} onClick={open} title={t('Demander à l’assistant Zentra')} aria-label={t('Demander à l’assistant Zentra')}><MessageCircle size={21} aria-hidden="true"/><span>{t('Assistant')}</span></button>,launcherHost ?? document.body)}
+    {openingPermit && opened && <Modal title="Assistant Zentra" description="Votre aide locale, au fil de votre travail." onClose={close} className="zentra-assistant-dialog" assistantHelp={false}>
       <div className="assistant-context"><span><span className="assistant-status-dot"/>{screen.screen}</span><details><summary>Contexte utilisé</summary><p>Ces informations restent sur cet appareil. Aucun dossier complet n’est transmis.</p><dl>{Object.entries(assistantPrompt('',screen.screen,screen.facts??{},[]).facts).map(([key,value])=><div key={key}><dt>{key}</dt><dd>{value == null ? 'Non renseigné' : typeof value === 'boolean' ? value ? 'Oui' : 'Non' : String(value)}</dd></div>)}</dl></details></div>
       {model.phase !== 'installed' && <LocalAssistantSetup/>}
       {model.phase === 'installed' && <p className="assistant-local-note">Qwen fonctionne sur cet appareil. Il explique les étapes ; vous gardez la décision et la validation.</p>}
       <div ref={scrollRef} className="assistant-conversation" role="log" aria-label="Conversation avec l’assistant" aria-live="off" onScroll={event=>{const node=event.currentTarget;followOutput.current=node.scrollHeight-node.scrollTop-node.clientHeight<60;}}>
         {!messages.length && <div className="assistant-welcome"><MessageCircle size={30}/><h3>Comment puis-je vous aider ?</h3><p>Décrivez ce que vous voulez faire ou le point qui vous bloque.</p><div className="assistant-suggestions">{['Explique-moi cette étape simplement.','Comment créer une fiche de salaire ?','Comment configurer la caisse de pension ?'].map(value=><button type="button" key={value} disabled={busy} onClick={()=>setQuestion(value)}>{value}</button>)}</div></div>}
-        {messages.map(message=><div className={`assistant-message assistant-message--${message.role}`} key={message.id}><span>{message.role==='user' ? 'Vous' : message.source==='guide' ? 'Guide vérifié Zentra' : 'Réponse de Qwen'}</span><p>{message.content || (busy ? progress || 'Préparation…' : 'Réponse interrompue.')}</p>{message.incomplete && <small>Réponse interrompue ou abrégée. Demandez une précision avant de vous appuyer dessus.</small>}{message.role==='assistant' && message.content && !busy && <button type="button" className="assistant-copy" onClick={()=>{void navigator.clipboard.writeText(message.content).then(()=>setCopied(message.id)).catch(()=>setError('La copie n’est pas disponible. Sélectionnez le texte de la réponse.'));}} aria-label="Copier la réponse">{copied===message.id ? <Check size={14}/> : <Copy size={14}/>}</button>}</div>)}
+        {messages.map(message=><div className={`assistant-message assistant-message--${message.role}`} key={message.id}><span>{message.role==='user' ? 'Vous' : message.source==='guide' ? 'Guide vérifié Zentra' : 'Réponse de Qwen'}</span><p>{message.content || (busy ? progress || 'Préparation…' : 'Réponse interrompue.')}</p>{message.incomplete && <small>Réponse interrompue ou abrégée. Demandez une précision avant de vous appuyer dessus.</small>}{message.role==='assistant' && message.content && !busy && <button type="button" className="assistant-copy" onClick={()=>{if(!allowed())return;void navigator.clipboard.writeText(message.content).then(()=>{if(allowed())setCopied(message.id);}).catch(()=>{if(allowed())setError('La copie n’est pas disponible. Sélectionnez le texte de la réponse.');});}} aria-label="Copier la réponse">{copied===message.id ? <Check size={14}/> : <Copy size={14}/>}</button>}</div>)}
       </div>
       <span className="sr-only" role="status">{busy ? 'L’assistant prépare une réponse.' : messages.at(-1)?.role==='assistant' ? 'La réponse de l’assistant est disponible.' : ''}</span>
       {error && <p className="assistant-error" role="alert">{error}</p>}
       {!busy&&messages.at(-1)?.role==='assistant'&&!messages.at(-1)?.incomplete&&<AssistantAutomationAction text={messages.filter(message=>message.role==='user').at(-1)?.content??''} close={close}/>}
-      <details className="assistant-guide"><summary><BookOpen size={16}/> Guide Zentra et raccourcis</summary>{guides.map(guide=><section key={guide.id}><h4>{guide.title}</h4><p>{guide.text}</p></section>)}{screen.actions?.map(action=><button type="button" key={action.label} className="button button--secondary" disabled={busy} onClick={()=>{close(); action.run();}}>{action.label}</button>)}</details>
+      <details className="assistant-guide"><summary><BookOpen size={16}/> Guide Zentra et raccourcis</summary>{guides.map(guide=><section key={guide.id}><h4>{guide.title}</h4><p>{guide.text}</p></section>)}{screen.actions?.map(action=><button type="button" key={action.label} className="button button--secondary" disabled={busy} onClick={()=>{if(!allowed())return;close();if(allowed())action.run();}}>{action.label}</button>)}</details>
       <form className="assistant-composer" onSubmit={event=>{event.preventDefault();void ask();}}><label className="sr-only" htmlFor="zentra-assistant-question">Votre question</label><textarea id="zentra-assistant-question" value={question} onChange={event=>setQuestion(event.target.value)} placeholder="Posez votre question…" maxLength={900} rows={2} disabled={busy} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();void ask();}}}/>{busy ? <button type="button" onClick={stop} aria-label="Arrêter la réponse"><Square size={19}/></button> : <button type="submit" disabled={!question.trim()||model.phase!=='installed'} aria-label="Envoyer la question"><ArrowUp size={21}/></button>}</form>
       <div className="assistant-footer"><small>Pour les chiffres et les cotisations, vérifiez les calculs Zentra et vos documents.</small><button type="button" disabled={busy||!messages.length} onClick={()=>{setMessages([]);setError('');}} aria-label="Effacer la conversation"><Trash2 size={16}/></button></div>
     </Modal>}

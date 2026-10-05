@@ -2,6 +2,8 @@ import { useAutomation } from './AutomationControls';
 import { actionLabels, automationFeedback } from './automation';
 import { Button } from './ui';
 import { t, useAppLanguage } from './language';
+import { useSyncExternalStore } from 'react';
+import { getAppOpeningPermit, isAppOpeningPermitCurrent, subscribeAppOpening } from './appOpening';
 export function AssistantAutomationAction({
   text,
   close,
@@ -10,15 +12,16 @@ export function AssistantAutomationAction({
   close: () => void;
 }) {
   useAppLanguage();
+  const openingPermit = useSyncExternalStore(subscribeAppOpening, getAppOpeningPermit, () => null);
   // Local Qwen has already answered. Routing only needs the short user intent,
   // not the conversation history, payroll fields, balances, or customer list.
   const decision = useAutomation(
     'agent_routing',
-    text ? { text: text.slice(0, 900) } : null,
+    openingPermit && text ? { text: text.slice(0, 900) } : null,
   );
   const action = decision?.choices?.action;
   if (
-    decision?.status !== 'suggestion' ||
+    !openingPermit || decision?.status !== 'suggestion' ||
     !action ||
     action === 'other' ||
     !actionLabels[action]
@@ -31,13 +34,15 @@ export function AssistantAutomationAction({
         type="button"
         variant="secondary"
         onClick={() => {
+          if (!isAppOpeningPermitCurrent(openingPermit)) return;
           void automationFeedback(decision, { action });
           close();
-          requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            if (!isAppOpeningPermitCurrent(openingPermit)) return;
             window.dispatchEvent(
               new CustomEvent('zentra-automation-action', { detail: action }),
-            ),
-          );
+            );
+          });
         }}
       >
         {t(actionLabels[action])}

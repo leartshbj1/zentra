@@ -133,6 +133,7 @@ impl Manifest {
 }
 impl LocalStore {
     fn cloud_backup_folder(&self) -> AppResult<PathBuf> {
+        self.require_usable_profile()?;
         let folder = self.data_dir.join("cloud-backups");
         fs::create_dir_all(&folder)?;
         Ok(folder)
@@ -142,6 +143,7 @@ impl LocalStore {
         Ok(self.cloud_backup_folder()?.join(format!("{id}.zentra")))
     }
     fn cloud_backup_preferences(&self) -> AppResult<Preferences> {
+        self.require_usable_profile()?;
         let path = self.data_dir.join(CONFIG_FILE);
         if !path.exists() {
             return Ok(Preferences::default());
@@ -157,6 +159,7 @@ impl LocalStore {
         Ok(prefs)
     }
     fn save_cloud_backup_preferences(&self, prefs: &Preferences) -> AppResult<()> {
+        self.require_usable_profile()?;
         let mut file = tempfile::Builder::new()
             .prefix(".cloud-backup-")
             .tempfile_in(&self.data_dir)?;
@@ -211,6 +214,10 @@ impl LocalStore {
         prefs.last_error = None;
         self.save_cloud_backup_preferences(&prefs)?;
         Ok(pending)
+    }
+    #[cfg(test)]
+    pub(crate) fn prepare_recovery_test_cloud_backup(&self, org: &str) -> AppResult<()> {
+        self.prepare_cloud_backup(org).map(|_| ())
     }
     fn finish_cloud_backup(&self, id: &str) -> AppResult<()> {
         let _lock = self.lock()?;
@@ -301,6 +308,7 @@ async fn request(
     serde_json::from_slice(&bytes).map_err(Into::into)
 }
 async fn send_backup(store: &LocalStore, session: &ProjectSyncSession) -> AppResult<()> {
+    store.require_usable_profile()?;
     let owned = store.clone();
     let org = session.organization_id.clone();
     let pending = tauri::async_runtime::spawn_blocking(move || owned.prepare_cloud_backup(&org))
@@ -654,11 +662,11 @@ async fn receive_copy(store: &LocalStore, id: &str, joining: bool) -> AppResult<
         let prefs = owned.cloud_backup_preferences()?;
         if prefs.pending.is_some() { return Err(validation("Terminez ou abandonnez l’envoi en attente avant de restaurer une sauvegarde.")); }
         let next = Preferences { enabled: prefs.enabled, organization_id: Some(organization), ..Preferences::default() };
-        owned.save_cloud_backup_preferences(&next)?;
-        if let Err(error) = owned.restore_backup(&file.path().to_string_lossy(), env!("CARGO_PKG_VERSION")) {
-            owned.save_cloud_backup_preferences(&prefs)?;
-            return Err(error);
-        }
+        // Persist the changed binding inside the shared restore transaction.
+        // Its previous bytes are now recoverable after a process interruption.
+        owned.restore_backup_and_then(&file.path().to_string_lossy(), env!("CARGO_PKG_VERSION"), || {
+            owned.save_cloud_backup_preferences(&next)
+        })?;
         Ok(())
     }).await.map_err(|_| validation("La restauration a été interrompue."))?
 }

@@ -19,7 +19,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { AppUpdater } from './AppUpdater';
-import { waitForNativeStartup, withinAppOpeningDeadline } from './appOpening';
+import { beginAppOpeningAttempt, isStartupRecoveryFailure, withinAppOpeningDeadline } from './appOpening';
+import { StartupRecoveryPanel } from './StartupRecoveryPanel';
 import { BrandMark } from './BrandMark';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { BusinessProfileGate } from './BusinessProfileEditor';
@@ -78,6 +79,7 @@ export function App() {
     null,
   );
   const [error, setError] = useState('');
+  const [startupRecoveryFailure, setStartupRecoveryFailure] = useState<Error | null>(null);
   const [openingErrorIncident, setOpeningErrorIncident] = useState<{attempt:number;code:string} | null>(null);
   const [loading, setLoading] = useState(true);
   const [createdFor, setCreatedFor] = useState<string | null>(null);
@@ -91,6 +93,7 @@ export function App() {
   const draftIdentityKey = JSON.stringify([workspace?.workNotesScope || '', draftOrganizationId, cloudDraftIdentity ? 'cloud' : 'local']);
   const draftIdentityReady = Boolean(workspace?.workNotesScope) && draftIdentity.key === draftIdentityKey && Boolean(draftIdentity.memberId) && /^[0-9a-f]{32}$/.test(draftIdentity.memberContextNonce ?? '');
   const openingAttempt = useRef(0);
+  const assistantOpeningAttempt = useRef<ReturnType<typeof beginAppOpeningAttempt> | null>(null);
   const automaticRefreshStarted = useRef(false);
   const accountEpoch = useRef(0);
   const cloudAccessRevalidator = useRef<
@@ -117,13 +120,17 @@ export function App() {
 
   const load = useCallback(async () => {
     const attempt = ++openingAttempt.current;
+    assistantOpeningAttempt.current?.cancel();
+    const assistantAdmission = beginAppOpeningAttempt();
+    assistantOpeningAttempt.current = assistantAdmission;
     const started = performance.now();
     const incident = recordDiagnostic({area:'app',operation:'workspace.open',phase:'start'});
     setLoading(true);
     setError('');
+    setStartupRecoveryFailure(null);
     setOpeningErrorIncident(null);
     try {
-      await waitForNativeStartup();
+      await assistantAdmission.waitForNativeStartup();
       if (attempt !== openingAttempt.current) return;
       // Load the work window while local data is read, instead of afterwards.
       void loadWorkspaceModule().catch(() => {});
@@ -136,15 +143,19 @@ export function App() {
       setLicense(nextAccess.license);
       setCloudAccount(nextAccess.account);
       recordDiagnostic({id:incident,area:'app',operation:'workspace.open',phase:'success',durationMs:performance.now()-started});
+      assistantAdmission.complete();
       // Recheck revocation, role and subscription immediately, off the opening path.
       void revalidateCloudAccess();
     } catch (reason) {
       if (attempt !== openingAttempt.current) return;
+      assistantAdmission.fail(reason);
       setError(errorMessage(reason, 'L’espace local n’a pas pu être ouvert.'));
+      if (isStartupRecoveryFailure(reason)) setStartupRecoveryFailure(reason);
       setOpeningErrorIncident({attempt,code:`ZT-${incident}`});
       recordDiagnostic({id:incident,area:'app',operation:'workspace.open',phase:'failure',durationMs:performance.now()-started,errorCode:classifyDiagnosticError(reason)});
     } finally {
       if (attempt === openingAttempt.current) setLoading(false);
+      else assistantAdmission.cancel();
     }
   }, [revalidateCloudAccess]);
 
@@ -190,7 +201,7 @@ export function App() {
 
   useEffect(() => {
     void load();
-    return () => { openingAttempt.current += 1; };
+    return () => { openingAttempt.current += 1; assistantOpeningAttempt.current?.cancel(); };
   }, [load]);
 
   useEffect(() => {
@@ -253,6 +264,17 @@ export function App() {
         <LoaderCircle className="spin" size={22} aria-hidden="true" />
       </main>
     );
+  }
+
+  if (startupRecoveryFailure) {
+    return <main className="fatal-screen">
+      <div className="splash-logo"><BrandMark size={58} /></div>
+      <StartupRecoveryPanel
+        error={startupRecoveryFailure}
+        incidentCode={openingErrorIncident?.attempt === openingAttempt.current ? openingErrorIncident.code : undefined}
+      />
+      <StandaloneUpdaterAccess />
+    </main>;
   }
 
   if (error || !workspace) {

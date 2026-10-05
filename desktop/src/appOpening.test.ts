@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { APP_OPEN_TIMEOUT_MS, NATIVE_READY_EVENT, waitForNativeStartup, withinAppOpeningDeadline } from './appOpening';
+import * as opening from './appOpening';
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -138,5 +139,79 @@ describe('ouverture de l’espace local', () => {
     finish('ancien espace');
     await expect(result).rejects.toThrow('Réessayez');
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('refus fermé de récupération au démarrage', () => {
+  const refusal = 'ZT-STARTUP-RECOVERY-REQUIRED';
+  it('propage immédiatement uniquement le refus exact de la sonde et libère tous les abonnements', async () => {
+    vi.useFakeTimers();
+    const target = Object.assign(new EventTarget(), {__TAURI_INTERNALS__:{},__ZENTRA_NATIVE_READY__:false});
+    const remove = vi.spyOn(target, 'removeEventListener');
+    const probe = vi.fn().mockRejectedValue(refusal);
+    let failure: unknown;
+    await waitForNativeStartup(target, probe).catch(reason => { failure = reason; });
+    expect(failure).toBeInstanceOf(Error);
+    expect(opening.isStartupRecoveryFailure(failure)).toBe(true);
+    expect((failure as Error).message).toBe(refusal);
+    expect(target.__ZENTRA_NATIVE_READY__).toBe(false);
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(APP_OPEN_TIMEOUT_MS * 2);
+    expect(probe).toHaveBeenCalledTimes(1);
+  });
+
+  const neighbors = [
+    {name:'Error portant le texte',value:new Error(refusal)},
+    {name:'objet message',value:{message:refusal}},
+    {name:'cause interne',value:{cause:refusal}},
+    {name:'texte utilisateur préfixé',value:'User says '+refusal},
+    {name:'texte suffixé',value:refusal+' '},
+    {name:'autre casse',value:refusal.toLowerCase()},
+    {name:'enveloppe validation',value:'Champ invalide : '+refusal},
+    {name:'code FA dans cause',value:{code:'FA401',cause:refusal}},
+    {name:'null',value:null},
+  ];
+  it.each(neighbors)('laisse temporaire le refus voisin : $name', async ({value}) => {
+    vi.useFakeTimers();
+    const target = Object.assign(new EventTarget(), {__TAURI_INTERNALS__:{},__ZENTRA_NATIVE_READY__:false});
+    const probe = vi.fn().mockRejectedValueOnce(value).mockResolvedValue(true);
+    const finished = vi.fn();
+    const pending = waitForNativeStartup(target, probe).then(finished);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(finished).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(probe).toHaveBeenCalledTimes(2);
+    expect(target.__ZENTRA_NATIVE_READY__).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(opening.isStartupRecoveryFailure(value)).toBe(false);
+  });
+
+  it('ignore une ancienne sonde positive et un signal tardif après le refus fermé', async () => {
+    vi.useFakeTimers();
+    const target = Object.assign(new EventTarget(), {__TAURI_INTERNALS__:{},__ZENTRA_NATIVE_READY__:false});
+    let late!: (value:boolean) => void;
+    const probe = vi.fn().mockImplementationOnce(() => new Promise<boolean>(resolve => {late=resolve;})).mockRejectedValue(refusal);
+    const finished = vi.fn(), failed = vi.fn();
+    const pending = waitForNativeStartup(target,probe).then(finished,failed);
+    await vi.advanceTimersByTimeAsync(4000);
+    await pending;
+    expect(failed).toHaveBeenCalledTimes(1);
+    expect(opening.isStartupRecoveryFailure(failed.mock.calls[0][0])).toBe(true);
+    late(true);
+    target.dispatchEvent(new Event(NATIVE_READY_EVENT));
+    await vi.advanceTimersByTimeAsync(APP_OPEN_TIMEOUT_MS);
+    expect(finished).not.toHaveBeenCalled();
+    expect(probe).toHaveBeenCalledTimes(2);
+    expect(target.__ZENTRA_NATIVE_READY__).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('la marque privée ne consulte aucun getter de cause ou de message', () => {
+    const hostile = Object.defineProperty({},'message',{get(){throw Error('must not inspect');}});
+    expect(opening.isStartupRecoveryFailure(hostile)).toBe(false);
+    expect(opening.isStartupRecoveryFailure(new Error(refusal))).toBe(false);
+    expect(opening.isStartupRecoveryFailure(refusal)).toBe(false);
   });
 });
