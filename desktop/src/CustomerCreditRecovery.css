@@ -1,4 +1,4 @@
-.credit-recovery { --accent:var(--green-700); --surface:var(--surface-raised); --surface-soft:var(--surface-subtle); --text:var(--ink); min-width:0; border:1px solid var(--line); border-radius:16px; background:var(--surface,#fff); overflow-wrap:anywhere; }
+.credit-recovery { --accent:var(--apple-accent,var(--green-700)); --surface:var(--surface-raised); --surface-soft:var(--surface-subtle); --text:var(--ink); min-width:0; border:1px solid var(--line); border-radius:16px; background:var(--surface,#fff); overflow-wrap:anywhere; }
 .credit-recovery__intro { display:flex; gap:.85rem; align-items:center; padding:1.25rem; }
 .credit-recovery__intro > svg { flex-shrink:0; color:var(--accent); }
 .credit-recovery__intro > div { flex:1; min-width:0; }
@@ -49,3 +49,7 @@
   .credit-recovery__document { padding:.8rem; }
 }
 @media(prefers-reduced-motion:reduce) { .credit-recovery__body {animation:none;} }
+
+@media screen {
+  html[data-app-theme='dark'] .credit-recovery .credit-recovery__steps [aria-current] span { color:var(--apple-on-accent,#14362a); }
+}

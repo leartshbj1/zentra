@@ -9,10 +9,11 @@ import { WorkspaceRefreshAfterMutationError } from './workspaceMutation';
 
 type ActionRunner = (action: () => Promise<Workspace>, message: string, close?: boolean, onError?: (error: unknown) => void, validateRead?: (workspace:Workspace)=>void) => Promise<boolean>;
 
-export function RefundReceiptPicker({ receipt, onChange, disabled, onError, supplierCredit = false, label = 'Justificatif de l’avoir', hint }: {
+export function RefundReceiptPicker({ receipt, onChange, disabled, onError, supplierCredit = false, label = 'Justificatif de l’avoir', hint, removeLabel = 'Retirer le justificatif sélectionné' }: {
   receipt: File | null; onChange: (file: File | null) => void; disabled: boolean; onError: (message: string) => void;
   supplierCredit?: boolean;
   label?: string; hint?: string;
+  removeLabel?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
   return <div className="refund-receipt-picker"><Field label={label} wide hint={hint ?? (supplierCredit ? 'PDF, JPG, PNG ou WebP · 25 Mo maximum. La pièce rejoint le projet lorsque toutes les lignes de l’avoir lui sont rattachées.' : 'PDF, JPG, PNG ou WebP · 25 Mo maximum. La pièce sera aussi classée dans le projet de la dépense.')}>
@@ -25,25 +26,25 @@ export function RefundReceiptPicker({ receipt, onChange, disabled, onError, supp
       onChange(file); onError('');
     }} />
     </Field>
-    {receipt ? <span className="refund-receipt-selection"><span><strong>{receipt.name}</strong> · {fileSizeLabel(receipt.size)}</span><Button type="button" variant="ghost" size="small" disabled={disabled} onClick={() => { onChange(null); if (input.current) input.current.value = ''; }} aria-label="Retirer le justificatif sélectionné"><X size={16} /></Button></span> : null}
+    {receipt ? <span className="refund-receipt-selection"><span><strong>{receipt.name}</strong> · {fileSizeLabel(receipt.size)}</span><Button type="button" variant="ghost" size="small" disabled={disabled} onClick={() => { onChange(null); if (input.current) input.current.value = ''; }} aria-label={removeLabel}><X size={16} /></Button></span> : null}
   </div>;
 }
 
-export function RefundAttachmentList({ attachments, label = 'Justificatifs du remboursement', workspaceScope }: { attachments: Attachment[]; label?: string; workspaceScope?: string }) {
+export function RefundAttachmentList({ attachments, label = 'Justificatifs du remboursement', workspaceScope, openLabel = 'Ouvrir', openingLabel = 'Ouverture…', openAriaLabel, errorTitle = 'Justificatif indisponible' }: { attachments: Attachment[]; label?: string; workspaceScope?: string; openLabel?: string; openingLabel?: string; openAriaLabel?: (name:string)=>string; errorTitle?: string }) {
   const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState('');
   if (!attachments.length) return null;
   return <div className="refund-attachments" aria-label={label}>
     {attachments.map((file) => <div className="refund-attachments__file" key={file.id}>
       <Paperclip size={16} /><span><strong>{file.originalName}</strong><small>{fileSizeLabel(file.sizeBytes)}</small></span>
-      <Button type="button" variant="secondary" size="small" disabled={opening !== null} aria-label={`Ouvrir ${file.originalName}`} onClick={async () => {
+      <Button type="button" variant="secondary" size="small" disabled={opening !== null} aria-label={openAriaLabel ? openAriaLabel(file.originalName) : `Ouvrir ${file.originalName}`} onClick={async () => {
         setOpening(file.id); setError('');
         try { await desktopApi.openAttachment(file.id, workspaceScope); }
         catch (failure) { setError(errorMessage(failure, 'Le justificatif ne peut pas être ouvert.')); }
         finally { setOpening(null); }
-      }}><FolderOpen size={14} /> {opening === file.id ? 'Ouverture…' : 'Ouvrir'}</Button>
+      }}><FolderOpen size={14} /> {opening === file.id ? openingLabel : openLabel}</Button>
     </div>)}
-    {error ? <ErrorPanel title="Justificatif indisponible" message={error} reveal /> : null}
+    {error ? <ErrorPanel title={errorTitle} message={error} reveal /> : null}
   </div>;
 }
 
