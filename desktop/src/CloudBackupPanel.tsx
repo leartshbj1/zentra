@@ -10,6 +10,9 @@ import { desktopApi } from './bridge';
 import { CLOUD_BACKUP_CHANGED, type CloudBackupState } from './cloudBackup';
 import { Button, Modal, SectionHeading } from './ui';
 import { errorMessage, formatDateTime } from './utils';
+import { ErrorGuidance } from './ErrorGuidance';
+import { restoreErrorPresentation } from './restoreErrorPresentation';
+import { useAppLanguage } from './language';
 import './CloudBackupPanel.css';
 
 export function CloudBackupPanel({
@@ -23,6 +26,7 @@ export function CloudBackupPanel({
   onBusyChange?: (busy: boolean) => void;
   recoveryOnly?: boolean;
 }) {
+  const language = useAppLanguage();
   const [state, setState] = useState<CloudBackupState | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -77,6 +81,8 @@ export function CloudBackupPanel({
     }
   }
   const backups = state?.backups ?? [];
+  const displayedError = error || state?.error || state?.last_error;
+  const restoreFailure = restoreErrorPresentation(displayedError, language);
   return (
     <section
       className="panel settings-card cloud-backup-panel"
@@ -176,9 +182,9 @@ export function CloudBackupPanel({
           {notice}
         </p>
       ) : null}
-      {error || state?.error || state?.last_error ? (
+      {displayedError ? restoreFailure ? <ErrorGuidance error={displayedError} compact /> : (
         <p role="alert" className="cloud-backup-error">
-          {error || state?.error || state?.last_error}
+          {displayedError}
         </p>
       ) : null}
       {state?.pending_id && !recoveryOnly ? (

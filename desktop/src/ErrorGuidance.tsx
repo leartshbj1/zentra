@@ -5,6 +5,7 @@ import { t, useAppLanguage } from './language';
 import { getUserError, safeErrorDetails, userErrorCopy, type UserErrorOperation } from './userErrors';
 import './error-guidance.css';
 import { localValidationDetails } from './localValidation';
+import { restoreErrorPresentation } from './restoreErrorPresentation';
 
 export type ErrorGuidanceProps = {
   error: unknown;
@@ -53,19 +54,20 @@ export function ErrorDetails({ error, incidentCode }: { error: unknown; incident
 export function ErrorGuidance({ error, fallback, title, operation = 'mutation', onReload, onReconnect, onReview, incidentCode, compact = false, disabled = false, panelRef }: ErrorGuidanceProps) {
   const language = useAppLanguage();
   const local = localValidationDetails(error);
+  const restore = restoreErrorPresentation(error, language);
   const guidance = getUserError(error, { fallback, operation, language });
   // Keep a message-free diagnostic event, without a technical panel for a field correction.
   if (local) resolveErrorIncident(error);
   const labels = userErrorCopy(language);
   // Only an explicitly provided read operation may refresh. Reconnect and
   // review callbacks open a corrective path; neither repeats the failed save.
-  const action = ['session', 'member'].includes(guidance.kind) && onReconnect ? { label: labels.reconnect, run: onReconnect }
+  const action = restore ? null : ['session', 'member'].includes(guidance.kind) && onReconnect ? { label: labels.reconnect, run: onReconnect }
     : ['validation', 'conflict'].includes(guidance.kind) && onReview ? { label: labels.review, run: onReview }
     : operation === 'read' && onReload && ['network', 'file', 'conflict', 'unknown', 'workspace'].includes(guidance.kind) ? { label: labels.reload, run: onReload } : null;
   return <div ref={panelRef} className={`error-panel error-guidance${compact ? ' error-guidance--compact' : ''}`}>
     <div className="error-guidance__message" role="alert">
       <AlertTriangle size={22} aria-hidden="true" />
-      <div><strong>{title ? t(title) : guidance.title}</strong><p>{guidance.message}</p><p className="error-guidance__recovery">{guidance.action}</p></div>
+      <div><strong>{restore?.title ?? (title ? t(title) : guidance.title)}</strong><p>{restore?.message ?? guidance.message}</p><p className="error-guidance__recovery">{restore?.action ?? guidance.action}</p></div>
     </div>
     {action && <div className="error-guidance__actions"><button type="button" className="button button--secondary button--small" disabled={disabled} onClick={action.run}>{action.label}</button></div>}
     {!local && <ErrorDetails error={error} incidentCode={incidentCode} />}

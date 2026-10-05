@@ -9,6 +9,7 @@ vi.mock('./diagnostics', () => ({ resolveErrorIncident: () => ({ code: 'ZEN-TEST
 import { ErrorGuidance } from './ErrorGuidance';
 import { appLanguages } from './language';
 import { userErrorCopy } from './userErrors';
+import { createLocalValidationError } from './localValidation';
 
 afterEach(() => { locale.language = 'fr'; });
 
@@ -118,5 +119,49 @@ describe('guide commun des erreurs', () => {
     expect(disabled).toContain('Actualiser l’affichage');
     const defaultMutation = renderToStaticMarkup(<ErrorGuidance error={error} onReload={vi.fn()} />);
     expect(defaultMutation).not.toContain('error-guidance__actions');
+  });
+
+  it.each(appLanguages)('présente les états natifs de restauration en %s sans correction de champs ni rejeu', language => {
+    locale.language = language;
+    const titles = {
+      fr: ['Restauration à reprendre', 'Restauration terminée', 'Restauration annulée'],
+      de: ['Wiederherstellung fortsetzen', 'Wiederherstellung abgeschlossen', 'Wiederherstellung abgebrochen'],
+      it: ['Ripristino da riprendere', 'Ripristino completato', 'Ripristino annullato'],
+      en: ['Restore needs to resume', 'Restore completed', 'Restore cancelled'],
+    };
+    const messages = [
+      'Une restauration doit être reprise avant de rouvrir l’entreprise. Les fichiers disponibles sont conservés. Fermez puis rouvrez Zentra. Si le problème persiste, contactez le support sans supprimer le dossier local.',
+      'La restauration est terminée et les données sont enregistrées. Le nettoyage des anciennes copies n’a pas pu se terminer. Fermez puis rouvrez Zentra pour le reprendre. Si ce message revient, contactez le support.',
+      'Champ invalide : La restauration a été annulée et les données précédentes ont été rétablies. Cause : FA-401 token=private-restore-secret alice@example.ch C:\\Users\\Alice\\safety.zentra',
+    ];
+    const reload = vi.fn(), reconnect = vi.fn(), review = vi.fn();
+    const labels = userErrorCopy(language);
+    messages.forEach((raw, index) => {
+      for (const operation of ['read', 'mutation'] as const) {
+        const html = renderToStaticMarkup(<ErrorGuidance error={raw} title="Ancien titre" operation={operation} incidentCode="ZT-restore-fixed-incident" onReload={reload} onReconnect={reconnect} onReview={review} />);
+        const text = html.replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, '&').replace(/<[^>]+>/g, ' ');
+        expect(text).toContain(titles[language][index]);
+        expect(text).not.toContain('Ancien titre');
+        expect(text).not.toContain(labels.validation.action);
+        expect(text).not.toContain(labels.uncertain);
+        expect(html).not.toContain('error-guidance__actions');
+        expect(html).toContain('ZT-restore-fixed-incident');
+        expect(html).toContain('<details'); expect(html).not.toContain('<details open');
+        expect(html).not.toMatch(/private-restore-secret|alice@example.ch|Alice/);
+        expect(html).toContain(index === 2 ? 'FA-401' : raw);
+      }
+    });
+    expect(reload).not.toHaveBeenCalled(); expect(reconnect).not.toHaveBeenCalled(); expect(review).not.toHaveBeenCalled();
+  });
+  it('préserve une validation locale et une session explicite contenant du texte de restauration', () => {
+    const raw = 'Une restauration doit être reprise avant de rouvrir l’entreprise. Les fichiers disponibles sont conservés. Fermez puis rouvrez Zentra. Si le problème persiste, contactez le support sans supprimer le dossier local.';
+    const local = renderToStaticMarkup(<ErrorGuidance error={createLocalValidationError(raw, 'fr')} onReview={vi.fn()} />);
+    expect(local).toContain('Informations à corriger');
+    expect(local).toContain('Vérifier les informations');
+    expect(local).not.toContain('Restauration à reprendre');
+    const session = renderToStaticMarkup(<ErrorGuidance error={{ status: 401, message: raw }} onReconnect={vi.fn()} />);
+    expect(session).toContain('Connexion au compte à renouveler');
+    expect(session).toContain('Ouvrir la connexion');
+    expect(session).not.toContain('Restauration à reprendre');
   });
 });
