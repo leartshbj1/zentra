@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 $script:progressConsole=[Collections.Generic.List[string]]::new()
 function Write-Host { param([Parameter(ValueFromRemainingArguments=$true)][object[]]$Message); $line=$Message -join ' '; if ($line.StartsWith('Recovery progress:')) { $script:progressConsole.Add($line) } }
 $script:contractsPassed = 0
+$script:outcomeMutationWitnesses=[Collections.Generic.List[object]]::new()
 function Assert-Contract { param([bool]$Condition, [string]$Name); if (-not $Condition) { throw "Harness contract failed: $Name" }; $script:contractsPassed++ }
 function Assert-Throws { param([ScriptBlock]$Action, [string]$Name); $threw=$false; try { & $Action | Out-Null } catch { $threw=$true }; Assert-Contract $threw $Name }
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('zentra-harness-contract-' + [Guid]::NewGuid().ToString('D'))
@@ -243,6 +244,111 @@ mt.exe : general error c101008c: Failed to read the manifest from the resource o
         param($Context)
         return ((@(for ($index=0; $index -lt 1130; $index++) { Contract-Line $Context $index }) -join "`n")+"`n")
     }
+    function Get-ContractOutcomeBytesHash {
+        param([string]$Raw)
+        $hasher=[Security.Cryptography.SHA256]::Create()
+        try { return ([BitConverter]::ToString($hasher.ComputeHash([Text.UTF8Encoding]::new($false).GetBytes($Raw)))).Replace('-','').ToLowerInvariant() }
+        finally { $hasher.Dispose() }
+    }
+    function New-ContractOutcomeMutation {
+        param([string]$Raw,[string]$Source,[string]$Name)
+        # Admit only the closed, ordinary eighty-case fixture before selecting
+        # lexical targets. Never depend on ConvertTo-Json indentation or spaces.
+        Assert-ZentraCrashOutcomeKeys $Raw
+        $pattern=$null; $expected=0
+        switch ($Name) {
+            'duplicate-root' { $pattern='"synthetic"\s*:\s*true\b'; $expected=1 }
+            'duplicate-case' { $pattern='"phase"\s*:\s*"intent_published"'; $expected=2 }
+            'unicode-duplicate-root' { $pattern='"source"\s*:\s*"'+[regex]::Escape($Source)+'"'; $expected=1 }
+            'unicode-duplicate-case' { $pattern='"phase"\s*:\s*"intent_published"'; $expected=2 }
+            'unicode-key-root' { $pattern='"source"\s*:'; $expected=1 }
+            'unicode-key-case' { $pattern='"phase"\s*:'; $expected=80 }
+            'unknown-root' { $pattern='"source"\s*:'; $expected=1 }
+            'unknown-case' { $pattern='"phase"\s*:'; $expected=80 }
+            'case-alias' { $pattern='"source"\s*:'; $expected=1 }
+            'wrong-order' { $pattern='"artifactDirectory"\s*:\s*"c00"'; $expected=1 }
+            'false-assertion' { $pattern='"secondCleanReopen"\s*:\s*true\b'; $expected=80 }
+            'wrong-source' { $pattern='"source"\s*:\s*"'+[regex]::Escape($Source)+'"'; $expected=1 }
+            'wrong-type' { $pattern='"synthetic"\s*:\s*true\b'; $expected=1 }
+            'missing-case' { $pattern='(?<prefix>"cases"\s*:\s*)\[[\s\S]*\](?=\s*\}\s*$)'; $expected=1 }
+            default { throw 'Unknown controlled outcomes mutation.' }
+        }
+        $targets=[regex]::Matches($Raw,$pattern,[Text.RegularExpressions.RegexOptions]::CultureInvariant)
+        Assert-Contract ($targets.Count -eq $expected) ('outcome mutation exact target count '+$Name)
+        $builder=[Text.StringBuilder]::new(); $offset=0
+        foreach ($target in $targets) {
+            [void]$builder.Append($Raw.Substring($offset,$target.Index-$offset))
+            $replacement=switch ($Name) {
+                'duplicate-root' { $target.Value+', '+$target.Value }
+                'duplicate-case' { $target.Value+', '+$target.Value }
+                'unicode-duplicate-root' { $target.Value+', '+$target.Value.Replace('"source"','"s\u006furce"') }
+                'unicode-duplicate-case' { $target.Value+', '+$target.Value.Replace('"phase"','"p\u0068ase"') }
+                'unicode-key-root' { $target.Value.Replace('"source"','"s\u006furce"') }
+                'unicode-key-case' { $target.Value.Replace('"phase"','"p\u0068ase"') }
+                'unknown-root' { '"unknown": false, '+$target.Value }
+                'unknown-case' { '"unknown": false, '+$target.Value }
+                'case-alias' { $target.Value.Replace('"source"','"Source"') }
+                'wrong-order' { $target.Value.Replace('"c00"','"c01"') }
+                'false-assertion' { $target.Value.Substring(0,$target.Value.Length-4)+'false' }
+                'wrong-source' { $target.Value.Replace('"'+$Source+'"','"'+('2'*40)+'"') }
+                'wrong-type' { $target.Value.Substring(0,$target.Value.Length-4)+'"true"' }
+                'missing-case' { $target.Groups['prefix'].Value+'[]' }
+            }
+            [void]$builder.Append($replacement)
+            $offset=$target.Index+$target.Length
+        }
+        [void]$builder.Append($Raw.Substring($offset))
+        $bad=$builder.ToString(); $beforeHash=Get-ContractOutcomeBytesHash $Raw; $afterHash=Get-ContractOutcomeBytesHash $bad
+        Assert-Contract (-not [string]::Equals($Raw,$bad,[StringComparison]::Ordinal) -and $beforeHash -cne $afterHash) ('outcome mutation changes UTF8 bytes '+$Name)
+        return [pscustomobject]@{raw=$bad;targetCount=$targets.Count;expectedTargetCount=$expected;beforeSha256=$beforeHash;afterSha256=$afterHash}
+    }
+    function Convert-ContractOutcomeLayout {
+        param([string]$Raw,[string]$Name)
+        Assert-ZentraCrashOutcomeKeys $Raw
+        $lf=$Raw.Replace("`r`n","`n").Replace("`r","`n")
+        $keys='("[A-Za-z_][A-Za-z0-9_]*")\s*:\s*'
+        switch ($Name) {
+            'one-space-lf' { return [regex]::Replace($lf,$keys,'$1: ') }
+            'two-space-lf' { return [regex]::Replace($lf,$keys,'$1:  ') }
+            'one-space-crlf' { return ([regex]::Replace($lf,$keys,'$1: ')).Replace("`n","`r`n") }
+            'two-space-crlf' { return ([regex]::Replace($lf,$keys,'$1:  ')).Replace("`n","`r`n") }
+            'tab-lf' { return [regex]::Replace($lf,$keys,('$1:'+"`t")) }
+            'four-space-crlf' { return ([regex]::Replace($lf,$keys,'$1:    ')).Replace("`n","`r`n") }
+            'compact' { return (($Raw | ConvertFrom-Json) | ConvertTo-Json -Depth 5 -Compress) }
+            default { throw 'Unknown controlled outcomes layout.' }
+        }
+    }
+
+    function New-ContractOutcomeGrammarMutation {
+        param([string]$Raw,[string]$Name)
+        Assert-ZentraCrashOutcomeKeys $Raw
+        $pattern=switch ($Name) {
+            'terminal-object' { '\}\s*$' }
+            'missing-terminal' { '\}\s*$' }
+            'null-primitive' { '"synthetic"\s*:\s*true\b' }
+            'number-primitive' { '"synthetic"\s*:\s*true\b' }
+            'invalid-primitive' { '"synthetic"\s*:\s*true\b' }
+            'nested-case' { '"cases"\s*:\s*\[' }
+            'invalid-escape' { '"source"\s*:\s*"' }
+            default { throw 'Unknown controlled outcomes grammar mutation.' }
+        }
+        $targets=[regex]::Matches($Raw,$pattern,[Text.RegularExpressions.RegexOptions]::CultureInvariant)
+        Assert-Contract ($targets.Count -eq 1) ('grammar mutation exact target count '+$Name)
+        $target=$targets[0]
+        $replacement=switch ($Name) {
+            'terminal-object' { $target.Value+'{}' }
+            'missing-terminal' { '' }
+            'null-primitive' { $target.Value.Substring(0,$target.Value.Length-4)+'null' }
+            'number-primitive' { $target.Value.Substring(0,$target.Value.Length-4)+'1' }
+            'invalid-primitive' { $target.Value+'x' }
+            'nested-case' { $target.Value+'{"nested": {},' }
+            'invalid-escape' { $target.Value+'\z' }
+        }
+        $bad=$Raw.Substring(0,$target.Index)+$replacement+$Raw.Substring($target.Index+$target.Length)
+        Assert-Contract (-not [string]::Equals($Raw,$bad,[StringComparison]::Ordinal) -and (Get-ContractOutcomeBytesHash $Raw) -cne (Get-ContractOutcomeBytesHash $bad)) ('grammar mutation changes UTF8 bytes '+$Name)
+        return $bad
+    }
+
     function Write-ContractOutcomes {
         param($Context,[string]$Source)
         $cases=@(foreach ($case in (Get-ZentraCrashCatalogue)) {
@@ -404,23 +510,10 @@ mt.exe : general error c101008c: Failed to read the manifest from the resource o
         Assert-Contract $true 'complete synthetic stream and exact outcomes satisfy additive evidence gate only'
         $outcomesPath=Join-Path $context.Root 'outcomes.json'
         $originalOutcomes=[IO.File]::ReadAllText($outcomesPath)
-        foreach ($mutation in @('duplicate-root','duplicate-case','unicode-duplicate-root','unicode-duplicate-case','unicode-key-root','unicode-key-case','unknown-root','unknown-case','case-alias','wrong-order','false-assertion','wrong-source','wrong-type','missing-case')) {
-            $bad=switch ($mutation) {
-                'duplicate-root' {$originalOutcomes.Replace('"synthetic": true','"synthetic": true, "synthetic": true')}
-                'duplicate-case' {$originalOutcomes.Replace('"phase": "intent_published"','"phase": "intent_published", "phase": "intent_published"')}
-                'unicode-duplicate-root' {$originalOutcomes.Replace('"source": "'+$source+'"','"source": "'+$source+'", "s\u006furce": "'+$source+'"')}
-                'unicode-duplicate-case' {$originalOutcomes.Replace('"phase": "intent_published"','"phase": "intent_published", "p\u0068ase": "intent_published"')}
-                'unicode-key-root' {$originalOutcomes.Replace('"source":','"s\u006furce":')}
-                'unicode-key-case' {$originalOutcomes.Replace('"phase":','"p\u0068ase":')}
-                'unknown-root' {$originalOutcomes.Replace('"source":','"unknown": false, "source":')}
-                'unknown-case' {$originalOutcomes.Replace('"phase":','"unknown": false, "phase":')}
-                'case-alias' {$originalOutcomes.Replace('"source":','"Source":')}
-                'wrong-order' {$originalOutcomes.Replace('"artifactDirectory": "c00"','"artifactDirectory": "c01"')}
-                'false-assertion' {$originalOutcomes.Replace('"secondCleanReopen": true','"secondCleanReopen": false')}
-                'wrong-source' {$originalOutcomes.Replace($source,('2'*40))}
-                'wrong-type' {$originalOutcomes.Replace('"synthetic": true','"synthetic": "true"')}
-                'missing-case' {'{"source":"'+$source+'","synthetic":true,"nativeExecution":"compiled-library-harness-with-owned-child-kills","packageExecuted":false,"actualTauriIpcExecuted":false,"physicalPowerLossVerified":false,"cases":[]}'}
-            }
+        $outcomeMutationNames=@('duplicate-root','duplicate-case','unicode-duplicate-root','unicode-duplicate-case','unicode-key-root','unicode-key-case','unknown-root','unknown-case','case-alias','wrong-order','false-assertion','wrong-source','wrong-type','missing-case')
+        foreach ($mutation in $outcomeMutationNames) {
+            $mutationResult=New-ContractOutcomeMutation $originalOutcomes $source $mutation
+            $bad=$mutationResult.raw
             [IO.File]::WriteAllText($outcomesPath,$bad,[Text.UTF8Encoding]::new($false))
             Assert-Throws { Assert-ZentraCrashOutcomes $context $source } ('closed full outcomes refuse '+$mutation)
             if ($mutation -cin @('unicode-duplicate-root','unicode-duplicate-case','duplicate-root','duplicate-case','unknown-root','unknown-case')) {
@@ -428,7 +521,40 @@ mt.exe : general error c101008c: Failed to read the manifest from the resource o
                 Assert-Throws { Assert-ZentraCrashObservationAdmission $context $source } ('final complete synthetic admission refuses '+$mutation)
                 Assert-Contract ($context.Error -eq 8) ('final rejection retains closed outcome error '+$mutation)
             }
+            $script:outcomeMutationWitnesses.Add([pscustomobject]@{layout='native-serializer';mutation=$mutation;targetCount=$mutationResult.targetCount;expectedTargetCount=$mutationResult.expectedTargetCount;beforeSha256=$mutationResult.beforeSha256;afterSha256=$mutationResult.afterSha256;changed=$true;rejected=$true})
         }
+        # Re-run the same fourteen refusals on controlled carriers of the real
+        # serializer spacing. The ordinary writer and its success stream stay
+        # untouched; compact is only one additional adversarial carrier.
+        foreach ($layout in @('one-space-lf','two-space-lf','one-space-crlf','two-space-crlf','tab-lf','four-space-crlf','compact')) {
+            $layoutRaw=Convert-ContractOutcomeLayout $originalOutcomes $layout
+            [IO.File]::WriteAllText($outcomesPath,$layoutRaw,[Text.UTF8Encoding]::new($false))
+            Assert-ZentraCrashOutcomes $context $source
+            Assert-Contract $true ('ordinary outcome layout remains accepted '+$layout)
+            foreach ($mutation in $outcomeMutationNames) {
+                $mutationResult=New-ContractOutcomeMutation $layoutRaw $source $mutation
+                [IO.File]::WriteAllText($outcomesPath,$mutationResult.raw,[Text.UTF8Encoding]::new($false))
+                Assert-Throws { Assert-ZentraCrashOutcomes $context $source } ('layout '+$layout+' outcomes refuse '+$mutation)
+                if ($mutation -cin @('unicode-duplicate-root','unicode-duplicate-case','duplicate-root','duplicate-case','unknown-root','unknown-case')) {
+                    $context.Error=0
+                    Assert-Throws { Assert-ZentraCrashObservationAdmission $context $source } ('layout '+$layout+' complete admission refuses '+$mutation)
+                    Assert-Contract ($context.Error -eq 8) ('layout '+$layout+' rejection retains closed outcome error '+$mutation)
+                }
+                $script:outcomeMutationWitnesses.Add([pscustomobject]@{layout=$layout;mutation=$mutation;targetCount=$mutationResult.targetCount;expectedTargetCount=$mutationResult.expectedTargetCount;beforeSha256=$mutationResult.beforeSha256;afterSha256=$mutationResult.afterSha256;changed=$true;rejected=$true})
+            }
+        }
+        # Perturbed inputs must fail fixture admission instead of allowing an
+        # ineffective or ambiguous mutation to masquerade as a validator test.
+        $oneSpace=Convert-ContractOutcomeLayout $originalOutcomes 'one-space-lf'
+        $missingTarget=$oneSpace.Replace('"artifactDirectory": "c00"','"artifactDirectory": "c01"')
+        Assert-Throws { New-ContractOutcomeMutation $missingTarget $source 'wrong-order' } 'mutation fixture refuses a missing lexical target'
+        $ambiguousTarget=$oneSpace.Replace('"artifactDirectory": "c01"','"artifactDirectory": "c00"')
+        Assert-Throws { New-ContractOutcomeMutation $ambiguousTarget $source 'wrong-order' } 'mutation fixture refuses an ambiguous lexical target'
+        Assert-Throws { New-ContractOutcomeMutation $originalOutcomes ('3'*40) 'wrong-source' } 'mutation fixture refuses wrong source instead of a no-op'
+        Assert-Throws { New-ContractOutcomeMutation $originalOutcomes $source 'not-a-mutation' } 'mutation fixture refuses unknown mutation names'
+        Assert-Throws { Convert-ContractOutcomeLayout $originalOutcomes 'not-a-layout' } 'mutation fixture refuses unknown layout names'
+        Assert-Contract ($script:outcomeMutationWitnesses.Count -eq 112 -and @($script:outcomeMutationWitnesses | Where-Object {-not $_.changed -or -not $_.rejected -or $_.targetCount -ne $_.expectedTargetCount -or $_.beforeSha256 -ceq $_.afterSha256}).Count -eq 0) 'all fourteen mutations have exact changed targets and actual refusals across eight layouts'
+
         [IO.File]::WriteAllText($outcomesPath,$originalOutcomes,[Text.UTF8Encoding]::new($false))
         $context.Error=0
         $quotedDocument=$originalOutcomes | ConvertFrom-Json
@@ -439,7 +565,8 @@ mt.exe : general error c101008c: Failed to read the manifest from the resource o
         Assert-Contract $true 'scanner does not treat quoted or escaped value text as object keys'
         [IO.File]::WriteAllText($outcomesPath,$quotedRaw,[Text.UTF8Encoding]::new($false))
         Assert-Throws { Assert-ZentraCrashOutcomes $context $source } 'quoted values pass spelling scan but still fail original semantic result validation'
-        foreach ($badGrammar in @(($originalOutcomes+'{}'),($originalOutcomes.TrimEnd().Substring(0,$originalOutcomes.TrimEnd().Length-1)),($originalOutcomes.Replace('"synthetic": true','"synthetic": null')),($originalOutcomes.Replace('"synthetic": true','"synthetic": 1')),($originalOutcomes.Replace('"synthetic": true','"synthetic": truex')),($originalOutcomes.Replace('"cases": [','"cases": [{"nested": {},')),($originalOutcomes.Replace('"source": "','"source": "\z')))) {
+        foreach ($grammarMutation in @('terminal-object','missing-terminal','null-primitive','number-primitive','invalid-primitive','nested-case','invalid-escape')) {
+            $badGrammar=New-ContractOutcomeGrammarMutation $originalOutcomes $grammarMutation
             Assert-Throws { Assert-ZentraCrashOutcomeKeys $badGrammar } 'closed scanner refuses invalid shape, nesting, primitive coercion, escape or terminal tail'
         }
         [IO.File]::WriteAllText($outcomesPath,$originalOutcomes,[Text.UTF8Encoding]::new($false))
@@ -487,6 +614,7 @@ mt.exe : general error c101008c: Failed to read the manifest from the resource o
     } finally {
         foreach ($context in $script:contractContexts) { if ($null -ne $context.Stream) { $context.Stream.Dispose(); $context.Stream=$null } }
     }
+    Write-Output (([ordered]@{kind='outcomes-layout-witnesses';runtime=$PSVersionTable.PSVersion.ToString();layouts=8;mutations=112;nativeExecuted=$false;witnesses=$script:outcomeMutationWitnesses.ToArray()} | ConvertTo-Json -Depth 6 -Compress))
     Write-Output "Windows verification harness contracts: $script:contractsPassed passed; no application executable invoked. Optional child process is inert Node only."
 } finally {
     foreach ($name in $savedEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name,$savedEnvironment[$name],'Process') }
