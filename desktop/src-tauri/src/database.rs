@@ -82,6 +82,22 @@ pub struct LocalStore {
     operation_lock: Arc<Mutex<()>>,
 }
 
+/// Only the call to interrupted-restore recovery may produce Recovery.
+/// Historical callers recover the original AppError through into_inner().
+#[derive(Debug)]
+pub(crate) enum StoreInitializationError {
+    Recovery(AppError),
+    Other(AppError),
+}
+
+impl StoreInitializationError {
+    pub(crate) fn into_inner(self) -> AppError {
+        match self {
+            Self::Recovery(error) | Self::Other(error) => error,
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "workspace_volume_tests.rs"]
 mod workspace_volume_tests;
@@ -1477,8 +1493,21 @@ fn prepare_onboarding(
 
 impl LocalStore {
     pub fn initialize(data_dir: PathBuf) -> AppResult<Self> {
-        fs::create_dir_all(&data_dir)?;
-        crate::backup::recover_interrupted_restore(&data_dir)?;
+        Self::initialize_for_startup(data_dir).map_err(StoreInitializationError::into_inner)
+    }
+
+    pub(crate) fn initialize_for_startup(
+        data_dir: PathBuf,
+    ) -> Result<Self, StoreInitializationError> {
+        fs::create_dir_all(&data_dir)
+            .map_err(AppError::from)
+            .map_err(StoreInitializationError::Other)?;
+        crate::backup::recover_interrupted_restore(&data_dir)
+            .map_err(StoreInitializationError::Recovery)?;
+        Self::initialize_after_recovery(data_dir).map_err(StoreInitializationError::Other)
+    }
+
+    fn initialize_after_recovery(data_dir: PathBuf) -> AppResult<Self> {
         let attachments_dir = data_dir.join("attachments");
         let backups_dir = data_dir.join("backups");
         let exports_dir = data_dir.join("exports");

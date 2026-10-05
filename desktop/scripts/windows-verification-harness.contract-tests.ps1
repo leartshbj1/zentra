@@ -3,13 +3,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 # These tests never execute cargo, mt, dumpbin or the fixture executable.
 . ([ScriptBlock]::Create([IO.File]::ReadAllText($HelperPath)))
-function Write-Host { param([Parameter(ValueFromRemainingArguments=$true)][object[]]$Message) }
+$script:progressConsole=[Collections.Generic.List[string]]::new()
+function Write-Host { param([Parameter(ValueFromRemainingArguments=$true)][object[]]$Message); $line=$Message -join ' '; if ($line.StartsWith('Recovery progress:')) { $script:progressConsole.Add($line) } }
 $script:contractsPassed = 0
 function Assert-Contract { param([bool]$Condition, [string]$Name); if (-not $Condition) { throw "Harness contract failed: $Name" }; $script:contractsPassed++ }
 function Assert-Throws { param([ScriptBlock]$Action, [string]$Name); $threw=$false; try { & $Action | Out-Null } catch { $threw=$true }; Assert-Contract $threw $Name }
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('zentra-harness-contract-' + [Guid]::NewGuid().ToString('D'))
 $savedEnvironment = @{}
-foreach ($name in @('ZENTRA_VERIFY_DIAGNOSTICS_ONLY','ZENTRA_VERIFY_ONLY','CIRCLE_SHA1','PATH','RUSTUP_TOOLCHAIN','ZENTRA_RELEASE_TEST_HARNESS')) { $savedEnvironment[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
+foreach ($name in @('ZENTRA_VERIFY_DIAGNOSTICS_ONLY','ZENTRA_VERIFY_ONLY','CIRCLE_SHA1','PATH','RUSTUP_TOOLCHAIN','ZENTRA_RELEASE_TEST_HARNESS','ZENTRA_RECOVERY_CRASH_PROOF')) { $savedEnvironment[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
 try {
     $source='1111111111111111111111111111111111111111'
     $env:ZENTRA_RELEASE_TEST_HARNESS=$null
@@ -119,10 +120,24 @@ mt.exe : general error c101008c: Failed to read the manifest from the resource o
     $script:mockSummary='test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s'
     $script:mockExit=0
     $script:lastToolArguments=@()
+    $script:observedCrashContexts=0
+    $script:crashMock='none'
     function Invoke-ZentraHarnessTool {
-        param([string]$Program,[string[]]$Arguments,[string]$Repository,[string]$Stdout,[string]$Stderr,[string]$HeartbeatMessage,[int]$TimeoutSeconds,[string]$Mode)
+        param([string]$Program,[string[]]$Arguments,[string]$Repository,[string]$Stdout,[string]$Stderr,[string]$HeartbeatMessage,[int]$TimeoutSeconds,[string]$Mode,$CrashObservation=$null)
         $script:toolCalls++
         $script:lastToolArguments=$Arguments
+        if ($null -ne $CrashObservation) {
+            $script:observedCrashContexts++
+            Assert-ZentraCrashObservationDispatch $Program $Arguments $Repository $Mode $CrashObservation
+            [IO.Directory]::CreateDirectory($CrashObservation.Root) | Out-Null
+            $stream=New-ContractProgressStream $CrashObservation
+            if ($script:crashMock -ceq 'incomplete') { $stream=$stream.Substring(0,$stream.IndexOf("`n")+1) }
+            [IO.File]::WriteAllText((Join-Path $CrashObservation.Root 'progress.jsonl'),$stream,[Text.UTF8Encoding]::new($false))
+            Write-ContractOutcomes $CrashObservation $env:CIRCLE_SHA1
+            if ($script:crashMock -ceq 'bad-outcomes') { [IO.File]::WriteAllText((Join-Path $CrashObservation.Root 'outcomes.json'),'{}') }
+            Update-ZentraCrashObservation $CrashObservation -Terminal
+            if ($null -ne $CrashObservation.Stream) { $CrashObservation.Stream.Dispose(); $CrashObservation.Stream=$null }
+        }
         [IO.File]::WriteAllText($Stdout,$script:mockSummary)
         [IO.File]::WriteAllText($Stderr,'')
         return $script:mockExit
@@ -202,6 +217,276 @@ mt.exe : general error c101008c: Failed to read the manifest from the resource o
     $script:mockSummary='test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s'
     Invoke-ZentraVerificationSuite $prepared 'bench::exact' @('--ignored','--exact','--nocapture')
     Assert-Contract ($prepared.Proof.suiteExecutions[-1].selectedNames -eq 1 -and $prepared.Proof.suiteExecutions[-1].extraArguments -contains '--ignored') 'explicit benchmark exact/ignored flags retained'
+    Assert-Contract ($script:observedCrashContexts -eq 0) 'ordinary filters and ignored benchmarks never observe crash evidence'
+
+    # Closed synthetic streams exercise the real parser/state/I/O observer.
+    # They are not native, SQLite, process-kill or production admission proof.
+    $script:contractContexts=[Collections.Generic.List[object]]::new()
+    $script:crashCaseNumber=0
+    function New-ContractObservation {
+        $script:crashCaseNumber++
+        $repository=Join-Path $testRoot ('observer{0:D3}' -f $script:crashCaseNumber)
+        [IO.Directory]::CreateDirectory((Join-Path $repository 'desktop/artifacts/recovery-route-witness')) | Out-Null
+        $env:ZENTRA_RECOVERY_CRASH_PROOF=Join-Path $repository 'desktop/artifacts/recovery-route-witness/crash'
+        $context=New-ZentraCrashObservation $repository
+        $script:contractContexts.Add($context)
+        return $context
+    }
+    function Contract-Line {
+        param($Context,[int]$Index)
+        $expected=$Context.Expected[$Index]
+        $event=[ordered]@{v=1;sequence=$Index+1;caseIndex=$expected.caseIndex;mode=$expected.mode;group=$expected.group;boundary=$expected.boundary;stage=$expected.stage;ordinal=$expected.ordinal;checkpoint=$expected.checkpoint;elapsedMs=$Index+1;proofWriteElapsedMicrosBefore=$Index*100;plannedCases=80;plannedKills=122;completedCases=$expected.completedCases;confirmedKills=$expected.confirmedKills;status=$expected.status;failureCategory=$expected.failureCategory}
+        return ($event | ConvertTo-Json -Compress)
+    }
+    function Add-ContractLine { param($Context,[string]$Line); Add-ZentraCrashProgressLine $Context ([Text.Encoding]::UTF8.GetBytes($Line)) }
+    function New-ContractProgressStream {
+        param($Context)
+        return ((@(for ($index=0; $index -lt 1130; $index++) { Contract-Line $Context $index }) -join "`n")+"`n")
+    }
+    function Write-ContractOutcomes {
+        param($Context,[string]$Source)
+        $cases=@(foreach ($case in (Get-ZentraCrashCatalogue)) {
+            $committed=$case.group -eq 1 -and ($case.phase -ceq 'commit_published' -or $case.phase.StartsWith('cleanup_'))
+            [ordered]@{phase=$case.phase;recoveryInterrupted=($case.group -eq 2);completeArchive=($case.mode -eq 1);result=if ($committed) {'committed-new-profile'} else {'original-profile'};nativeSqliteValidated=$true;nativeWorkspaceRead=$true;documentBase64Exact=$true;managedLogoBase64Exact=$true;auxiliaryExact=$true;secondCleanReopen=$true;archiveSha256=('0'*64);databaseSha256=('1'*64);artifactDirectory=('c{0:D2}' -f $case.caseIndex)}
+        })
+        $document=[ordered]@{source=$Source;synthetic=$true;nativeExecution='compiled-library-harness-with-owned-child-kills';packageExecuted=$false;actualTauriIpcExecuted=$false;physicalPowerLossVerified=$false;cases=$cases}
+        [IO.File]::WriteAllText((Join-Path $Context.Root 'outcomes.json'),($document | ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
+    }
+    try {
+        $catalogue=Get-ZentraCrashCatalogue
+        Assert-Contract ($catalogue.Count -eq 80 -and @($catalogue | Where-Object {$_.group -eq 1}).Count -eq 38 -and @($catalogue | Where-Object {$_.group -eq 2}).Count -eq 42) 'exact two modes, nineteen restore and twenty-one rollback cases'
+        $context=New-ContractObservation
+        Assert-Contract ($context.Expected.Count -eq 1130 -and $context.Expected[-1].completedCases -eq 80 -and $context.Expected[-1].confirmedKills -eq 122) 'complete expected matrix remains 80 cases and 122 confirmed owned kills'
+        Update-ZentraCrashObservation $context
+        Assert-Contract ($context.Error -eq 0 -and $context.EventCount -eq 0) 'missing initial file remains pending'
+        Update-ZentraCrashObservation $context -Terminal
+        Assert-Contract ($context.Error -eq 7 -and $context.FinalPolled) 'missing terminal evidence refuses'
+        Assert-Throws { Assert-ZentraCrashObservationAdmission $context $source } 'no admission from a missing file'
+
+        foreach ($mutation in @('unknown','duplicate','escaped','alias','nested','negative','float','exponent','string-number','null','NaN')) {
+            $context=New-ContractObservation; $line=Contract-Line $context 0
+            $line=switch ($mutation) {
+                'unknown' { $line.Replace('"v":1','"unknown":1') }
+                'duplicate' { $line.Replace('"v":1','"v":1,"v":1') }
+                'escaped' { $line.Replace('"v":1','"\u0076":1') }
+                'alias' { $line.Replace('"v":1','"V":1') }
+                'nested' { $line.Replace('"v":1','"v":{"x":1}') }
+                'negative' { $line.Replace('"v":1','"v":-1') }
+                'float' { $line.Replace('"v":1','"v":1.0') }
+                'exponent' { $line.Replace('"v":1','"v":1e0') }
+                'string-number' { $line.Replace('"v":1','"v":"1"') }
+                'null' { $line.Replace('"v":1','"v":null') }
+                'NaN' { $line.Replace('"v":1','"v":NaN') }
+            }
+            Add-ContractLine $context $line
+            Assert-Contract ($context.Error -eq 3 -and $context.EventCount -eq 0) ('closed canonical syntax refuses '+$mutation)
+        }
+        foreach ($mutation in @('gap','zero-sequence','early-counter','early-kill','wrong-stage','wrong-case','wrong-mode','wrong-group','wrong-boundary','wrong-ordinal','wrong-checkpoint','passed-too-early','failure-category','over-elapsed','over-cost')) {
+            $context=New-ContractObservation; $line=Contract-Line $context 0
+            $line=switch ($mutation) {
+                'gap' {$line.Replace('"sequence":1','"sequence":2')}
+                'zero-sequence' {$line.Replace('"sequence":1','"sequence":0')}
+                'early-counter' {$line.Replace('"completedCases":0','"completedCases":1')}
+                'early-kill' {$line.Replace('"confirmedKills":0','"confirmedKills":1')}
+                'wrong-stage' {$line.Replace('"stage":0','"stage":1')}
+                'wrong-case' {$line.Replace('"caseIndex":80','"caseIndex":0')}
+                'wrong-mode' {$line.Replace('"mode":0','"mode":3')}
+                'wrong-group' {$line.Replace('"group":0','"group":3')}
+                'wrong-boundary' {$line.Replace('"boundary":0','"boundary":21')}
+                'wrong-ordinal' {$line.Replace('"ordinal":0','"ordinal":2')}
+                'wrong-checkpoint' {$line.Replace('"checkpoint":0','"checkpoint":31')}
+                'passed-too-early' {$line.Replace('"status":0','"status":1')}
+                'failure-category' {$line.Replace('"failureCategory":0','"failureCategory":1')}
+                'over-elapsed' {$line.Replace('"elapsedMs":1','"elapsedMs":5400001')}
+                'over-cost' {$line.Replace('"proofWriteElapsedMicrosBefore":0','"proofWriteElapsedMicrosBefore":2000')}
+            }
+            Add-ContractLine $context $line
+            Assert-Contract ($context.Error -eq 4 -and $context.EventCount -eq 0) ('closed state refuses '+$mutation)
+        }
+        $context=New-ContractObservation; Add-ContractLine $context (Contract-Line $context 0); Add-ContractLine $context (Contract-Line $context 0)
+        Assert-Contract ($context.Error -eq 4 -and $context.EventCount -eq 1) 'duplicate sequence cannot count twice'
+        $context=New-ContractObservation; Add-ContractLine $context (Contract-Line $context 0); Add-ContractLine $context (Contract-Line $context 2)
+        Assert-Contract ($context.Error -eq 4) 'skipped case or stage refuses'
+        $context=New-ContractObservation; Add-ContractLine $context ((Contract-Line $context 0).Replace('"elapsedMs":1','"elapsedMs":100')); Add-ContractLine $context (Contract-Line $context 1)
+        Assert-Contract ($context.Error -eq 4) 'decreasing monotonic elapsed time refuses'
+        $context=New-ContractObservation; Add-ContractLine $context ((Contract-Line $context 0).Replace('"proofWriteElapsedMicrosBefore":0','"proofWriteElapsedMicrosBefore":500')); Add-ContractLine $context (Contract-Line $context 1)
+        Assert-Contract ($context.Error -eq 4) 'decreasing prior completed writer cost refuses'
+        $context=New-ContractObservation; Add-ContractLine $context ('x'*1025)
+        Assert-Contract ($context.Error -eq 5) 'per-line bound refuses before parsing'
+        $context=New-ContractObservation; $context.EventCount=1280; Add-ContractLine $context (Contract-Line $context 0)
+        Assert-Contract ($context.Error -eq 5) 'event count bound refuses before parsing'
+
+        $context=New-ContractObservation
+        [IO.Directory]::CreateDirectory($context.Root) | Out-Null
+        $path=Join-Path $context.Root 'progress.jsonl'
+        $line=Contract-Line $context 0
+        [IO.File]::WriteAllText($path,$line.Substring(0,15),[Text.UTF8Encoding]::new($false))
+        Update-ZentraCrashObservation $context
+        Assert-Contract ($context.EventCount -eq 0 -and $context.Error -eq 0 -and $context.Tail.Count -eq 15) 'split bytes without newline remain pending and undecoded'
+        [IO.File]::AppendAllText($path,$line.Substring(15)+"`n",[Text.UTF8Encoding]::new($false))
+        Update-ZentraCrashObservation $context
+        Assert-Contract ($context.EventCount -eq 1 -and $context.Error -eq 0 -and $context.Tail.Count -eq 0) 'complete split line is consumed exactly once'
+        Assert-Throws { New-ZentraCrashObservation $context.Repository } 'pre-existing root is never resumed or overwritten'
+        [IO.File]::AppendAllText($path,'{"v":',[Text.UTF8Encoding]::new($false))
+        Update-ZentraCrashObservation $context -Terminal
+        Assert-Contract ($context.Error -eq 7) 'terminal truncated tail refuses'
+
+        $context=New-ContractObservation; [IO.Directory]::CreateDirectory($context.Root) | Out-Null; $path=Join-Path $context.Root 'progress.jsonl'
+        [IO.File]::WriteAllBytes($path,[byte[]]@(123,34,195))
+        Update-ZentraCrashObservation $context
+        Assert-Contract ($context.Error -eq 0 -and $context.Tail.Count -eq 3) 'incomplete UTF-8 bytes are retained without decoding'
+        $writer=[IO.File]::Open($path,[IO.FileMode]::Append,[IO.FileAccess]::Write,[IO.FileShare]::ReadWrite)
+        try { $writer.Write([byte[]]@(169,34,125,10),0,4) } finally { $writer.Dispose() }
+        Update-ZentraCrashObservation $context
+        Assert-Contract ($context.Error -eq 3) 'complete non-ASCII line refuses without exposing content'
+
+        $context=New-ContractObservation; [IO.Directory]::CreateDirectory($context.Root) | Out-Null; $path=Join-Path $context.Root 'progress.jsonl'
+        [IO.File]::WriteAllText($path,(Contract-Line $context 0)+"`n",[Text.UTF8Encoding]::new($false)); Update-ZentraCrashObservation $context
+        $writer=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Write,[IO.FileShare]::ReadWrite)
+        try { $writer.SetLength(0) } finally { $writer.Dispose() }
+        Update-ZentraCrashObservation $context
+        Assert-Contract ($context.Error -eq 6) 'observed file shrinkage poisons the context'
+
+        $context=New-ContractObservation; [IO.Directory]::CreateDirectory($context.Root) | Out-Null; $path=Join-Path $context.Root 'progress.jsonl'
+        [IO.File]::WriteAllText($path,(Contract-Line $context 0)+"`n",[Text.UTF8Encoding]::new($false)); Update-ZentraCrashObservation $context
+        $context.CreationTicks--
+        Update-ZentraCrashObservation $context
+        Assert-Contract ($context.Error -eq 6) 'observed replacement identity contradiction refuses'
+
+        $context=New-ContractObservation; [IO.Directory]::CreateDirectory($context.Root) | Out-Null
+        [IO.File]::WriteAllBytes((Join-Path $context.Root 'progress.jsonl'),[byte[]]::new(2097153)); Update-ZentraCrashObservation $context
+        Assert-Contract ($context.Error -eq 5 -and $context.Offset -eq 0) 'oversized file refuses before reading payload'
+        $context=New-ContractObservation; [IO.Directory]::CreateDirectory($context.Root) | Out-Null
+        [IO.File]::WriteAllText((Join-Path $context.Root 'progress.jsonl'),('x'*1025),[Text.UTF8Encoding]::new($false)); Update-ZentraCrashObservation $context
+        Assert-Contract ($context.Error -eq 5) 'bounded partial tail refuses without newline'
+
+        $context=New-ContractObservation
+        $env:ZENTRA_RECOVERY_CRASH_PROOF=Join-Path $testRoot 'contradiction'
+        Update-ZentraCrashObservation $context
+        Assert-Contract ($context.Error -eq 2) 'observer path/I/O fault is retained without throwing to the process wait loop'
+        Update-ZentraCrashObservation $context -Terminal
+        Assert-Contract ($context.FinalPolled -and $context.Error -eq 2) 'faulted observation still receives terminal polling without clearing failure'
+
+        $context=New-ContractObservation
+        Add-ContractLine $context (Contract-Line $context 0)
+        $failed=(Contract-Line $context 1).Replace('"stage":1','"stage":14').Replace('"status":0','"status":2').Replace('"failureCategory":0','"failureCategory":1')
+        Add-ContractLine $context $failed
+        Assert-Contract ($context.TerminalState -eq 2 -and $context.Error -eq 0) 'closed original-unwind failure is terminal and never passed'
+        Add-ContractLine $context (Contract-Line $context 2)
+        Assert-Contract ($context.Error -eq 4) 'events after terminal failure cannot repair admission'
+        $context=New-ContractObservation; Add-ContractLine $context (Contract-Line $context 0)
+        $wrongFailure=(Contract-Line $context 1).Replace('"stage":1','"stage":14').Replace('"status":0','"status":2').Replace('"failureCategory":0','"failureCategory":1').Replace('"checkpoint":0','"checkpoint":30')
+        Add-ContractLine $context $wrongFailure
+        Assert-Contract ($context.Error -eq 4) 'failed events still require the exact ordinal/checkpoint tuple'
+
+        $context=New-ContractObservation; $correctRoot=$env:ZENTRA_RECOVERY_CRASH_PROOF
+        $env:ZENTRA_RECOVERY_CRASH_PROOF='relative/crash'
+        Assert-Throws { New-ZentraCrashObservation $context.Repository } 'relative evidence root is refused before observation'
+        $env:ZENTRA_RECOVERY_CRASH_PROOF=$correctRoot
+        $script:mockReparsePath=$context.Root
+        Assert-Throws { New-ZentraCrashObservation $context.Repository } 'reparse evidence root is refused even before ordinary file existence'
+        $script:mockReparsePath=Join-Path $context.Repository 'desktop'
+        Assert-Throws { New-ZentraCrashObservation $context.Repository } 'reparse ancestor is refused'
+        $script:mockReparsePath=$null
+
+        $context=New-ContractObservation; $secondContext=New-ZentraCrashObservation $context.Repository; $script:contractContexts.Add($secondContext)
+        [IO.Directory]::CreateDirectory($context.Root) | Out-Null; $path=Join-Path $context.Root 'progress.jsonl'
+        [IO.File]::WriteAllText($path,(Contract-Line $context 0)+"`n",[Text.UTF8Encoding]::new($false)); Update-ZentraCrashObservation $context
+        Assert-Contract ($context.EventCount -eq 1 -and $secondContext.EventCount -eq 0 -and $secondContext.Offset -eq 0 -and $secondContext.Tail.Count -eq 0) 'two contexts do not share mutable offsets, tails or state'
+        [IO.File]::AppendAllText($path,(Contract-Line $context 1)+"`n",[Text.UTF8Encoding]::new($false)); Update-ZentraCrashObservation $secondContext
+        Assert-Contract ($secondContext.EventCount -eq 2 -and $context.EventCount -eq 1) 'independent reader catches its own complete prefix'
+
+        $context=New-ContractObservation; [IO.Directory]::CreateDirectory($context.Root) | Out-Null
+        [IO.File]::WriteAllText((Join-Path $context.Root 'progress.jsonl'),(New-ContractProgressStream $context),[Text.UTF8Encoding]::new($false)); Write-ContractOutcomes $context $source
+        Update-ZentraCrashObservation $context -Terminal
+        Assert-Contract ($context.Error -eq 0 -and $context.FinalPolled -and $context.TerminalState -eq 1 -and $context.EventCount -eq 1130 -and $context.Last.completedCases -eq 80 -and $context.Last.confirmedKills -eq 122) 'final poll consumes a fast complete matrix with exact coverage'
+        Assert-ZentraCrashObservationAdmission $context $source
+        Assert-Contract $true 'complete synthetic stream and exact outcomes satisfy additive evidence gate only'
+        $outcomesPath=Join-Path $context.Root 'outcomes.json'
+        $originalOutcomes=[IO.File]::ReadAllText($outcomesPath)
+        foreach ($mutation in @('duplicate-root','duplicate-case','unicode-duplicate-root','unicode-duplicate-case','unicode-key-root','unicode-key-case','unknown-root','unknown-case','case-alias','wrong-order','false-assertion','wrong-source','wrong-type','missing-case')) {
+            $bad=switch ($mutation) {
+                'duplicate-root' {$originalOutcomes.Replace('"synthetic": true','"synthetic": true, "synthetic": true')}
+                'duplicate-case' {$originalOutcomes.Replace('"phase": "intent_published"','"phase": "intent_published", "phase": "intent_published"')}
+                'unicode-duplicate-root' {$originalOutcomes.Replace('"source": "'+$source+'"','"source": "'+$source+'", "s\u006furce": "'+$source+'"')}
+                'unicode-duplicate-case' {$originalOutcomes.Replace('"phase": "intent_published"','"phase": "intent_published", "p\u0068ase": "intent_published"')}
+                'unicode-key-root' {$originalOutcomes.Replace('"source":','"s\u006furce":')}
+                'unicode-key-case' {$originalOutcomes.Replace('"phase":','"p\u0068ase":')}
+                'unknown-root' {$originalOutcomes.Replace('"source":','"unknown": false, "source":')}
+                'unknown-case' {$originalOutcomes.Replace('"phase":','"unknown": false, "phase":')}
+                'case-alias' {$originalOutcomes.Replace('"source":','"Source":')}
+                'wrong-order' {$originalOutcomes.Replace('"artifactDirectory": "c00"','"artifactDirectory": "c01"')}
+                'false-assertion' {$originalOutcomes.Replace('"secondCleanReopen": true','"secondCleanReopen": false')}
+                'wrong-source' {$originalOutcomes.Replace($source,('2'*40))}
+                'wrong-type' {$originalOutcomes.Replace('"synthetic": true','"synthetic": "true"')}
+                'missing-case' {'{"source":"'+$source+'","synthetic":true,"nativeExecution":"compiled-library-harness-with-owned-child-kills","packageExecuted":false,"actualTauriIpcExecuted":false,"physicalPowerLossVerified":false,"cases":[]}'}
+            }
+            [IO.File]::WriteAllText($outcomesPath,$bad,[Text.UTF8Encoding]::new($false))
+            Assert-Throws { Assert-ZentraCrashOutcomes $context $source } ('closed full outcomes refuse '+$mutation)
+            if ($mutation -cin @('unicode-duplicate-root','unicode-duplicate-case','duplicate-root','duplicate-case','unknown-root','unknown-case')) {
+                $context.Error=0
+                Assert-Throws { Assert-ZentraCrashObservationAdmission $context $source } ('final complete synthetic admission refuses '+$mutation)
+                Assert-Contract ($context.Error -eq 8) ('final rejection retains closed outcome error '+$mutation)
+            }
+        }
+        [IO.File]::WriteAllText($outcomesPath,$originalOutcomes,[Text.UTF8Encoding]::new($false))
+        $context.Error=0
+        $quotedDocument=$originalOutcomes | ConvertFrom-Json
+        $quotedDocument.nativeExecution='literal "source": "fake" with \\ and } [ , :'
+        $quotedDocument.cases[0].phase='literal "p\u0068ase": "fake" with backslash \\ and newline'+"`n"
+        $quotedRaw=$quotedDocument | ConvertTo-Json -Depth 5
+        Assert-ZentraCrashOutcomeKeys $quotedRaw
+        Assert-Contract $true 'scanner does not treat quoted or escaped value text as object keys'
+        [IO.File]::WriteAllText($outcomesPath,$quotedRaw,[Text.UTF8Encoding]::new($false))
+        Assert-Throws { Assert-ZentraCrashOutcomes $context $source } 'quoted values pass spelling scan but still fail original semantic result validation'
+        foreach ($badGrammar in @(($originalOutcomes+'{}'),($originalOutcomes.TrimEnd().Substring(0,$originalOutcomes.TrimEnd().Length-1)),($originalOutcomes.Replace('"synthetic": true','"synthetic": null')),($originalOutcomes.Replace('"synthetic": true','"synthetic": 1')),($originalOutcomes.Replace('"synthetic": true','"synthetic": truex')),($originalOutcomes.Replace('"cases": [','"cases": [{"nested": {},')),($originalOutcomes.Replace('"source": "','"source": "\z')))) {
+            Assert-Throws { Assert-ZentraCrashOutcomeKeys $badGrammar } 'closed scanner refuses invalid shape, nesting, primitive coercion, escape or terminal tail'
+        }
+        [IO.File]::WriteAllText($outcomesPath,$originalOutcomes,[Text.UTF8Encoding]::new($false))
+        $last=Contract-Line $context 1129; Add-ContractLine $context $last
+        Assert-Contract ($context.Error -eq 4) 'data after passed matrix poisons the stream'
+
+        $suite='backup::recovery_crash_tests::native_crash_boundaries_restore_one_complete_profile_before_migration'
+        Assert-Contract (Test-ZentraCrashObservationSelection $suite @('--ignored','--exact') 'diagnostics-verification') 'exact opted-in crash suite is selected'
+        foreach ($selection in @(@($suite,@('--exact'),'diagnostics-verification'),@($suite,@('--ignored','--exact'),'release-preflight'),@('backup::',@('--ignored','--exact'),'diagnostics-verification'),@($suite,@('--ignored','--exact','--nocapture'),'diagnostics-verification'))) {
+            Assert-Contract (-not (Test-ZentraCrashObservationSelection $selection[0] $selection[1] $selection[2])) 'non-exact shape, mode or filter never reads progress'
+        }
+        $context=New-ContractObservation
+        Assert-Throws { Assert-ZentraCrashObservationDispatch $exe @('bench::exact','--test-threads=1','--exact','--ignored') $context.Repository 'diagnostics-verification' $context } 'generic tool cannot dispatch arbitrary observation filter'
+        Assert-Throws { Assert-ZentraCrashObservationDispatch 'C:\arbitrary.exe' @($suite,'--test-threads=1','--exact','--ignored') $context.Repository 'diagnostics-verification' $context } 'generic tool cannot observe an arbitrary executable'
+
+        # The existing native-result gate remains conjunctive. Fake evidence
+        # cannot override a failing exit; success needs every additive gate.
+        $prepared.TestNames=@($suite); $script:mockSummary='test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s'
+        foreach ($scenario in @('native-failure','incomplete','bad-outcomes','passed')) {
+            $caseContext=New-ContractObservation
+            $env:ZENTRA_RECOVERY_CRASH_PROOF=Join-Path $testRoot 'desktop/artifacts/recovery-route-witness/crash'
+            $ownedRoot=$env:ZENTRA_RECOVERY_CRASH_PROOF
+            if (Test-Path -LiteralPath $ownedRoot) { throw 'Synthetic suite proof must be fresh.' }
+            $script:mockExit=if ($scenario -ceq 'native-failure') {23} else {0}
+            $script:crashMock=if ($scenario -ceq 'incomplete') {'incomplete'} elseif ($scenario -ceq 'bad-outcomes') {'bad-outcomes'} else {'complete'}
+            if ($scenario -ceq 'passed') { Invoke-ZentraVerificationSuite $prepared $suite @('--exact','--ignored'); Assert-Contract ($prepared.Proof.suiteExecutions[-1].crashProgress.completedCases -eq 80 -and $prepared.Proof.suiteExecutions[-1].crashProgress.confirmedKills -eq 122) 'all existing and additive gates retain the complete synthetic result' }
+            else { Assert-Throws { Invoke-ZentraVerificationSuite $prepared $suite @('--exact','--ignored') } ('conjunctive admission refuses '+$scenario) }
+            $resolvedRoot=[IO.Path]::GetFullPath($ownedRoot)
+            $expectedRoot=[IO.Path]::GetFullPath((Join-Path $testRoot 'desktop/artifacts/recovery-route-witness/crash'))
+            if (-not [string]::Equals($resolvedRoot,$expectedRoot,[StringComparison]::OrdinalIgnoreCase)) { throw 'Refusing synthetic cleanup outside exact proof root.' }
+            Remove-Item -LiteralPath $resolvedRoot -Recurse -Force
+        }
+        Assert-Contract ($script:observedCrashContexts -eq 4) 'only four exact synthetic suite invocations attach an observer'
+        Assert-Contract ($script:progressConsole.Count -gt 0 -and @($script:progressConsole | Where-Object {$_ -cnotmatch '^Recovery progress: case=[0-9]+/80 kills=[0-9]+/122 stage=[0-9]+ elapsedMs=[0-9]+ priorProofWriteMicros=[0-9]+$'}).Count -eq 0) 'observer console projection contains only accepted fixed numeric fields'
+        $tokens=$null; $errors=$null
+        $ast=[Management.Automation.Language.Parser]::ParseFile($HelperPath,[ref]$tokens,[ref]$errors)
+        Assert-Contract ($errors.Count -eq 0) 'helper parses through the PowerShell AST'
+        $toolBody=$ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Invoke-ZentraHarnessTool'},$true)[0].Body.Extent.Text
+        $waitPosition=$toolBody.IndexOf('while (-not $process.WaitForExit(25000))')
+        $timeoutPosition=$toolBody.IndexOf('if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds)')
+        $observerPosition=$toolBody.IndexOf('Update-ZentraCrashObservation $CrashObservation }')
+        $finalPosition=$toolBody.IndexOf('Update-ZentraCrashObservation $CrashObservation -Terminal')
+        $exitPosition=$toolBody.IndexOf('$exitCode = $process.ExitCode')
+        Assert-Contract ($waitPosition -ge 0 -and $timeoutPosition -gt $waitPosition -and $observerPosition -gt $timeoutPosition -and $finalPosition -gt $observerPosition -and $exitPosition -gt $finalPosition -and $toolBody.Contains('Stop-Process -Id $process.Id -Force') -and $toolBody.Contains('return [int]$exitCode')) 'observer preserves owned process wait, unchanged timeout, final poll and actual native exit handling'
+    } finally {
+        foreach ($context in $script:contractContexts) { if ($null -ne $context.Stream) { $context.Stream.Dispose(); $context.Stream=$null } }
+    }
     Write-Output "Windows verification harness contracts: $script:contractsPassed passed; no application executable invoked. Optional child process is inert Node only."
 } finally {
     foreach ($name in $savedEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name,$savedEnvironment[$name],'Process') }

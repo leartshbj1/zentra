@@ -582,10 +582,272 @@ fn an_unjournaled_legacy_swap_never_creates_an_empty_company_over_the_hidden_dat
 #[derive(Serialize, Deserialize)]
 struct CrashPlan { original: Expected, restored: Expected, auxiliary: Vec<Option<Vec<u8>>>, complete: bool }
 
+// Closed numeric protocol, written by the parent aggregate only. These events
+// observe the existing assertions; they never authorize a recovery operation.
+#[derive(Clone, Copy)]
+#[repr(u8)]
+enum ProgressStage {
+    MatrixStarted = 0, CaseStarted = 1, SourceFixtureReady = 2, ArchiveReady = 3,
+    FixturesReady = 4, ChildStarted = 5, CheckpointObserved = 6,
+    ChildKillRequested = 7, ChildReaped = 8, FirstReopenValidated = 9,
+    SecondReopenValidated = 10, ArtifactsPreserved = 11, CaseCompleted = 12,
+    MatrixCompleted = 13, Failed = 14,
+}
+
+#[derive(Clone, Copy)]
+struct ProgressCase { index: u8, mode: u8, group: u8, boundary: u8 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProgressEvent {
+    v: u8, sequence: u16, case_index: u8, mode: u8, group: u8, boundary: u8,
+    stage: u8, ordinal: u8, checkpoint: u8, elapsed_ms: u64,
+    proof_write_elapsed_micros_before: u64, planned_cases: u8, planned_kills: u8,
+    completed_cases: u8, confirmed_kills: u8, status: u8, failure_category: u8,
+}
+
+fn checkpoint_code(phase: &str) -> u8 {
+    if let Some(index) = RESTORE_BOUNDARIES.iter().position(|candidate| *candidate == phase) {
+        return u8::try_from(index + 1).unwrap();
+    }
+    // The first eleven rollback names are distinct; cleanup names reuse the
+    // restore codes. The catalogue cannot admit a free checkpoint label.
+    let index = ROLLBACK_BOUNDARIES[..11].iter().position(|candidate| *candidate == phase)
+        .expect("fixed crash checkpoint catalogue");
+    u8::try_from(index + 20).unwrap()
+}
+
+fn assert_progress_path_ordinary(path: &Path) {
+    for ancestor in path.ancestors() {
+        let metadata = match fs::symlink_metadata(ancestor) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => panic!("closed progress path metadata refusal"),
+        };
+        assert!(!metadata.file_type().is_symlink(), "progress path must be ordinary");
+        #[cfg(windows)] {
+            use std::os::windows::fs::MetadataExt;
+            assert_eq!(metadata.file_attributes() & 0x400, 0, "progress path must not be a reparse point");
+        }
+    }
+}
+
+fn owned_progress_root(proof: &Path) -> PathBuf {
+    assert!(proof.is_absolute(), "progress root must be absolute");
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
+    let expected = repository.join("desktop").join("artifacts").join("recovery-route-witness").join("crash");
+    assert_eq!(proof, expected, "progress root must be the fixed owned artifact path");
+    assert_progress_path_ordinary(repository);
+    assert_progress_path_ordinary(proof);
+    assert_eq!(proof.parent().unwrap().canonicalize().unwrap(), expected.parent().unwrap().canonicalize().unwrap());
+    expected
+}
+
+struct CrashProgress {
+    file: File, started: std::time::Instant, sequence: u16,
+    completed_cases: u8, confirmed_kills: u8, current: Option<ProgressCase>,
+    ordinal: u8, checkpoint: u8, proof_write_elapsed_micros: u64,
+    finished: bool, writer_failed: bool,
+}
+
+impl CrashProgress {
+    fn create(proof: &Path) -> Self {
+        let started = std::time::Instant::now();
+        let path = proof.join("progress.jsonl");
+        assert_progress_path_ordinary(proof);
+        assert!(!path.exists(), "old progress must never be truncated or resumed");
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(windows)] {
+            use std::os::windows::fs::OpenOptionsExt;
+            options.share_mode(1); // FILE_SHARE_READ only: no second writer/delete.
+        }
+        Self { file: options.open(path).unwrap(), started, sequence: 0,
+            completed_cases: 0, confirmed_kills: 0, current: None, ordinal: 0,
+            checkpoint: 0, proof_write_elapsed_micros: 0, finished: false, writer_failed: false }
+    }
+
+    fn append(&mut self, stage: ProgressStage, ordinal: u8, checkpoint: u8, failure: u8) -> std::io::Result<()> {
+        // Before refers ONLY to previous completed write/flush/sync operations.
+        // It excludes creation, serialization, reads and this append's future
+        // I/O, including the matrix_completed append itself.
+        let case = self.current.unwrap_or(ProgressCase { index: 80, mode: 0, group: 0, boundary: 0 });
+        let event = ProgressEvent { v: 1, sequence: self.sequence + 1,
+            case_index: case.index, mode: case.mode, group: case.group, boundary: case.boundary,
+            stage: stage as u8, ordinal, checkpoint, elapsed_ms: self.started.elapsed().as_millis() as u64,
+            proof_write_elapsed_micros_before: self.proof_write_elapsed_micros,
+            planned_cases: 80, planned_kills: 122, completed_cases: self.completed_cases,
+            confirmed_kills: self.confirmed_kills,
+            status: if matches!(stage, ProgressStage::MatrixCompleted) { 1 } else if matches!(stage, ProgressStage::Failed) { 2 } else { 0 },
+            failure_category: failure };
+        let mut line = serde_json::to_vec(&event).map_err(std::io::Error::other)?;
+        if line.len() > 1024 || self.sequence >= 1280 { return Err(std::io::Error::other("closed progress bound")); }
+        line.push(b'\n');
+        let io_started = std::time::Instant::now();
+        use std::io::Write;
+        self.file.write_all(&line)?;
+        self.file.flush()?;
+        self.file.sync_all()?;
+        self.proof_write_elapsed_micros += io_started.elapsed().as_micros() as u64;
+        self.sequence += 1;
+        self.ordinal = ordinal;
+        self.checkpoint = checkpoint;
+        Ok(())
+    }
+
+    fn record(&mut self, stage: ProgressStage, ordinal: u8, checkpoint: u8) {
+        if self.append(stage, ordinal, checkpoint, 0).is_err() {
+            self.writer_failed = true;
+            panic!("closed progress append failed");
+        }
+    }
+
+    fn begin_case(&mut self, complete: bool, recovery: bool, boundary: usize) {
+        self.current = Some(ProgressCase { index: self.completed_cases,
+            mode: if complete { 1 } else { 2 }, group: if recovery { 2 } else { 1 }, boundary: u8::try_from(boundary).unwrap() });
+        self.ordinal = 0; self.checkpoint = 0;
+        self.record(ProgressStage::CaseStarted, 0, 0);
+    }
+
+    fn reaped(&mut self, ordinal: u8, checkpoint: u8) {
+        // Called ONLY after kill succeeded, wait returned, and its original
+        // non-success assertion passed. A requested kill does not count.
+        self.confirmed_kills += 1;
+        assert!(self.confirmed_kills <= 122);
+        self.record(ProgressStage::ChildReaped, ordinal, checkpoint);
+    }
+
+    fn completed(&mut self) {
+        // All original asserts, retained copies and outcome hashes are already
+        // complete and the original outcome has been pushed by this point.
+        self.completed_cases += 1;
+        assert!(self.completed_cases <= 80);
+        self.record(ProgressStage::CaseCompleted, 0, 0);
+    }
+
+    fn finish(&mut self) {
+        assert_eq!(self.completed_cases, 80);
+        assert_eq!(self.confirmed_kills, 122);
+        assert_eq!(self.sequence, 1129);
+        self.current = None;
+        self.record(ProgressStage::MatrixCompleted, 0, 0);
+        self.finished = true;
+    }
+}
+
+impl Drop for CrashProgress {
+    fn drop(&mut self) {
+        // Preserve the original unwind. Even a failed proof handle must never
+        // panic a second time or turn incomplete evidence into success.
+        if !self.finished && std::thread::panicking() {
+            let category = if self.writer_failed { 2 } else { 1 };
+            let _ = self.append(ProgressStage::Failed, self.ordinal, self.checkpoint, category);
+        }
+    }
+}
+
+// Additive protocol contracts. Prepared here; execution still requires the
+// independently admitted native harness. They do not simulate SQLite success.
+#[test]
+fn progress_contract_fresh_file_never_truncates_old_evidence() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(root.path().join("progress.jsonl"), b"retained").unwrap();
+    assert!(std::panic::catch_unwind(|| CrashProgress::create(root.path())).is_err());
+    assert_eq!(fs::read(root.path().join("progress.jsonl")).unwrap(), b"retained");
+}
+
+#[test]
+fn progress_contract_closed_fields_and_prior_io_cost_are_exact() {
+    let root = tempfile::tempdir().unwrap();
+    let mut progress = CrashProgress::create(root.path());
+    progress.record(ProgressStage::MatrixStarted, 0, 0);
+    let previous_cost = progress.proof_write_elapsed_micros;
+    progress.begin_case(true, false, 0);
+    let raw = fs::read_to_string(root.path().join("progress.jsonl")).unwrap();
+    let events: Vec<serde_json::Value> = raw.lines().map(|line| {
+        assert!(line.is_ascii() && line.len() <= 1024);
+        serde_json::from_str(line).unwrap()
+    }).collect();
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[0]["proofWriteElapsedMicrosBefore"], 0);
+    assert_eq!(events[1]["proofWriteElapsedMicrosBefore"].as_u64().unwrap(), previous_cost);
+    let fields = ["v","sequence","caseIndex","mode","group","boundary","stage","ordinal","checkpoint","elapsedMs","proofWriteElapsedMicrosBefore","plannedCases","plannedKills","completedCases","confirmedKills","status","failureCategory"];
+    for event in events {
+        let object = event.as_object().unwrap();
+        assert_eq!(object.len(), fields.len());
+        assert!(fields.iter().all(|field| object.get(*field).unwrap().as_u64().is_some()));
+        assert!(event["proofWriteElapsedMicrosBefore"].as_u64().unwrap() <= event["elapsedMs"].as_u64().unwrap() * 1000 + 999);
+    }
+}
+
+#[test]
+fn progress_contract_failed_assertion_before_reaping_never_counts_a_kill() {
+    let root = tempfile::tempdir().unwrap();
+    let mut progress = CrashProgress::create(root.path());
+    progress.record(ProgressStage::MatrixStarted, 0, 0);
+    progress.begin_case(true, false, 0);
+    progress.record(ProgressStage::ChildKillRequested, 1, checkpoint_code("intent_published"));
+    let failed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        // Same placement as the real kill/wait assertions: a failure prevents
+        // entry into reaped. This pure contract does not own a native child.
+        assert!(false, "synthetic wait/early-exit/checkpoint failure");
+        progress.reaped(1, checkpoint_code("intent_published"));
+    }));
+    assert!(failed.is_err());
+    assert_eq!(progress.confirmed_kills, 0);
+}
+
+#[test]
+fn progress_contract_failed_assertion_or_copy_never_completes_a_case() {
+    let root = tempfile::tempdir().unwrap();
+    let mut progress = CrashProgress::create(root.path());
+    progress.record(ProgressStage::MatrixStarted, 0, 0);
+    progress.begin_case(true, false, 0);
+    let failed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        assert!(false, "synthetic reopen/assertion/copy/hash failure");
+        progress.completed();
+    }));
+    assert!(failed.is_err());
+    assert_eq!(progress.completed_cases, 0);
+}
+
+#[test]
+fn progress_contract_unwind_records_only_closed_failure_and_keeps_original_panic() {
+    let root = tempfile::tempdir().unwrap();
+    let result = std::panic::catch_unwind(|| {
+        let mut progress = CrashProgress::create(root.path());
+        progress.record(ProgressStage::MatrixStarted, 0, 0);
+        panic!("synthetic-original-assertion");
+    });
+    assert_eq!(result.unwrap_err().downcast_ref::<&str>(), Some(&"synthetic-original-assertion"));
+    let lines = fs::read_to_string(root.path().join("progress.jsonl")).unwrap();
+    assert!(!lines.contains("synthetic-original-assertion"));
+    let final_event: serde_json::Value = serde_json::from_str(lines.lines().last().unwrap()).unwrap();
+    assert_eq!(final_event["stage"], 14);
+    assert_eq!(final_event["failureCategory"], 1);
+    assert_eq!(final_event["status"], 2);
+    assert_eq!(final_event["completedCases"], 0);
+    assert_eq!(final_event["confirmedKills"], 0);
+}
+
+#[test]
+fn progress_contract_proof_io_failure_during_unwind_does_not_double_panic() {
+    let root = tempfile::tempdir().unwrap();
+    let result = std::panic::catch_unwind(|| {
+        let mut progress = CrashProgress::create(root.path());
+        progress.record(ProgressStage::MatrixStarted, 0, 0);
+        // Replace only this synthetic contract's proof handle with read-only
+        // access. Drop must ignore its write failure and preserve the unwind.
+        progress.file = File::open(root.path().join("progress.jsonl")).unwrap();
+        panic!("synthetic-original-after-readonly-handle");
+    });
+    assert_eq!(result.unwrap_err().downcast_ref::<&str>(), Some(&"synthetic-original-after-readonly-handle"));
+}
+
 struct OwnedChild(Child);
 impl Drop for OwnedChild { fn drop(&mut self) { let _ = self.0.kill(); let _ = self.0.wait(); } }
 
-fn kill_at(root: &Path, action: &str, phase: &str) {
+fn kill_at(root: &Path, action: &str, phase: &str, progress: &mut CrashProgress, ordinal: u8) {
     let marker = root.join("checkpoint");
     if marker.exists() { fs::remove_file(&marker).unwrap(); }
     let mut child = OwnedChild(Command::new(std::env::current_exe().unwrap())
@@ -597,14 +859,19 @@ fn kill_at(root: &Path, action: &str, phase: &str) {
         .stderr(File::create(root.join(format!("child-{action}-{phase}-errors.log"))).unwrap())
         .spawn().unwrap());
     let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    let checkpoint = checkpoint_code(phase);
+    progress.record(ProgressStage::ChildStarted, ordinal, checkpoint);
     loop {
         if fs::read_to_string(&marker).ok().as_deref() == Some(phase) { break; }
         if let Some(status) = child.0.try_wait().unwrap() { panic!("child exited before {phase}: {status}"); }
         assert!(std::time::Instant::now() < deadline, "child did not reach {phase}");
         std::thread::sleep(Duration::from_millis(20));
     }
+    progress.record(ProgressStage::CheckpointObserved, ordinal, checkpoint);
+    progress.record(ProgressStage::ChildKillRequested, ordinal, checkpoint);
     child.0.kill().unwrap();
     assert!(!child.0.wait().unwrap().success());
+    progress.reaped(ordinal, checkpoint);
 }
 
 #[test]
@@ -631,12 +898,16 @@ fn native_crash_boundaries_restore_one_complete_profile_before_migration() {
     assert_eq!(std::env::var("CIRCLECI").ok().as_deref(), Some("true"));
     assert!(cfg!(windows));
     let proof = PathBuf::from(std::env::var_os("ZENTRA_RECOVERY_CRASH_PROOF").expect("fresh native evidence directory"));
+    let proof = owned_progress_root(&proof);
     assert!(!proof.exists());
     fs::create_dir_all(&proof).unwrap();
+    let mut progress = CrashProgress::create(&proof);
+    progress.record(ProgressStage::MatrixStarted, 0, 0);
     let mut outcomes = Vec::new();
     for complete in [true, false] {
         for (recovery, boundaries) in [(false, RESTORE_BOUNDARIES), (true, ROLLBACK_BOUNDARIES)] {
-            for phase in boundaries {
+            for (boundary, phase) in boundaries.iter().enumerate() {
+                progress.begin_case(complete, recovery, boundary);
                 // Short, retained fixture paths avoid Windows MAX_PATH surprises
                 // and preserve the real files/logs even if an assertion fails.
                 let case = proof.join(format!("c{:02}", outcomes.len()));
@@ -645,7 +916,9 @@ fn native_crash_boundaries_restore_one_complete_profile_before_migration() {
                 fs::create_dir(&root).unwrap();
                 fs::write(root.join("synthetic-only.marker"), b"zentra-native-recovery-fixture-v1").unwrap();
                 let (source, restored) = fixture(&root, "source", 220);
+                progress.record(ProgressStage::SourceFixtureReady, 0, 0);
                 let archive = source.create_backup(Some(root.join("portable.zentra").to_string_lossy().into()), env!("CARGO_PKG_VERSION")).unwrap();
+                progress.record(ProgressStage::ArchiveReady, 0, 0);
                 let (current, original) = fixture(&root, "current", 30);
                 let auxiliary = auxiliary_fixture(&current);
                 let installation = current.installation_id.clone();
@@ -653,8 +926,9 @@ fn native_crash_boundaries_restore_one_complete_profile_before_migration() {
                 // Restore cannot consult the producer's profile or absolute paths.
                 fs::rename(&source.data_dir, root.join("source-inaccessible")).unwrap();
                 assert!(!source.data_dir.exists());
-                if recovery { kill_at(&root, "restore", "finalized"); kill_at(&root, "reopen", phase); }
-                else { kill_at(&root, "restore", phase); }
+                progress.record(ProgressStage::FixturesReady, 0, 0);
+                if recovery { kill_at(&root, "restore", "finalized", &mut progress, 1); kill_at(&root, "reopen", phase, &mut progress, 2); }
+                else { kill_at(&root, "restore", phase, &mut progress, 1); }
                 let reopened = LocalStore::initialize(current.data_dir.clone()).unwrap();
                 let committed = !recovery && (*phase == "commit_published" || phase.starts_with("cleanup_"));
                 let (expected, excluded) = if committed { (&restored, &original) } else { (&original, &restored) };
@@ -662,6 +936,7 @@ fn native_crash_boundaries_restore_one_complete_profile_before_migration() {
                 assert_eq!(reopened.installation_id, installation);
                 if committed { for name in AUXILIARY { assert_eq!(fs::read(reopened.data_dir.join(name)).unwrap(), format!("synthetic-new-{name}").as_bytes()); } }
                 else { assert_auxiliary(&reopened, &auxiliary); }
+                progress.record(ProgressStage::FirstReopenValidated, 0, 0);
                 let second = LocalStore::initialize(current.data_dir.clone()).unwrap();
                 assert_profile(&second, expected, excluded, !committed);
                 assert_eq!(second.installation_id, installation);
@@ -669,22 +944,26 @@ fn native_crash_boundaries_restore_one_complete_profile_before_migration() {
                 else { assert_auxiliary(&second, &auxiliary); }
                 assert!(!reopened.data_dir.join(".zentra-restore-journal.json").exists());
                 if complete { assert_eq!(fs::read_dir(&reopened.backups_dir).unwrap().count(), 1); }
+                progress.record(ProgressStage::SecondReopenValidated, 0, 0);
                 fs::copy(&archive, case.join("portable.zentra")).unwrap();
                 reopened.connect().unwrap().execute_batch("PRAGMA wal_checkpoint(TRUNCATE);").unwrap();
                 fs::copy(&reopened.database_path, case.join("restored.sqlite3")).unwrap();
                 copy_directory(&reopened.attachments_dir, &case.join("attachments")).unwrap();
                 if complete { copy_directory(&reopened.backups_dir, &case.join("safety-backups")).unwrap(); }
                 for name in AUXILIARY { if reopened.data_dir.join(name).is_file() { fs::copy(reopened.data_dir.join(name), case.join(name)).unwrap(); } }
+                progress.record(ProgressStage::ArtifactsPreserved, 0, 0);
                 let sha256 = |path: &Path| format!("{:x}", Sha256::digest(fs::read(path).unwrap()));
                 outcomes.push(json!({"phase":phase, "recoveryInterrupted":recovery, "completeArchive":complete,
                     "result": if committed {"committed-new-profile"} else {"original-profile"}, "nativeSqliteValidated":true,
                     "nativeWorkspaceRead":true, "documentBase64Exact":true, "managedLogoBase64Exact":true, "auxiliaryExact":true, "secondCleanReopen":true,
                     "archiveSha256":sha256(&case.join("portable.zentra")), "databaseSha256":sha256(&case.join("restored.sqlite3")),
                     "artifactDirectory":case.file_name().unwrap().to_string_lossy()}));
+                progress.completed();
             }
         }
     }
     fs::write(proof.join("outcomes.json"), serde_json::to_vec_pretty(&json!({"source":std::env::var("CIRCLE_SHA1").unwrap(),
         "synthetic":true, "nativeExecution":"compiled-library-harness-with-owned-child-kills", "packageExecuted":false,
         "actualTauriIpcExecuted":false, "physicalPowerLossVerified":false, "cases":outcomes})).unwrap()).unwrap();
+    progress.finish();
 }

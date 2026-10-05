@@ -89,6 +89,7 @@ mod vat_reporting;
 
 use commands::*;
 use database::LocalStore;
+mod startup_recovery;
 
 /// Explicit, opt-in maintenance tool. Never compiled into normal releases.
 #[cfg(feature = "maintenance")]
@@ -101,17 +102,25 @@ pub async fn repair_empty_company_link(profile: std::path::PathBuf, email: &str,
 }
 
 #[tauri::command]
-fn is_native_ready(app: tauri::AppHandle) -> bool {
-    use tauri::Manager;
-    app.try_state::<LocalStore>().is_some()
+fn is_native_ready(app: tauri::AppHandle) -> Result<bool, String> {
+    startup_recovery::readiness(&app)
 }
 
 fn announce_native_ready(webview: tauri::Webview) {
+    use tauri::Manager;
+    if startup_recovery::readiness(webview.app_handle()) != Ok(true) {
+        return;
+    }
     // On Android the document may execute while the automatic window is still
     // being attached. Never send business commands until both attachment and
     // LocalStore initialization have completed. These notifications are a fast
     // path; the frontend also probes readiness if Android misses a notification.
     tauri::async_runtime::spawn(async move {
+        // Recovery refusal wins even over an artificially managed store.
+        // Check again at the deferred publication boundary.
+        if startup_recovery::readiness(webview.app_handle()) != Ok(true) {
+            return;
+        }
         let _ = webview.eval(
             r#"(() => {
                 const ready = () => {
@@ -195,7 +204,11 @@ pub fn run() {
                 startup_log.record_startup_failure(diagnostics::StartupOperation::Updater);
                 error
             })?;
-            let store = initialize_local_store_with_diagnostics(data_dir, &startup_log)?;
+            let Some(store) = startup_recovery::initialize_store(app.handle(), data_dir, &startup_log)? else {
+                // The shell, diagnostic log and updater stay available. No
+                // business store, logo scope or ready signal is admitted.
+                return Ok(());
+            };
             company_collaboration::install_change_events(&store, app.handle().clone());
             // `HELVICHANTIER_DATA_DIR` peut déplacer le profil hors de
             // `$APPLOCALDATA`. On n'ouvre jamais ce profil entier au protocole

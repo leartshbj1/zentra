@@ -72,6 +72,72 @@ try {
   Invoke-ZentraVerificationSuite $harness 'diagnostics::tests::restore_state_errors_keep_their_message_and_log_only_a_static_storage_category' @('--exact')
   Invoke-ZentraVerificationSuite $harness 'diagnostics::tests::native_errors_never_log_exception_text_or_paths' @('--exact')
   Invoke-ZentraVerificationSuite $harness 'diagnostics::async_error_tests::async_command_result_keeps_successes_and_original_failure_strings' @('--exact')
+  # BEGIN ZENTRA STARTUP SELECTION
+  $proof.startupSelectionContracts = & (Join-Path $repo 'desktop/scripts/native-startup-selection.contract-tests.ps1') -WrapperPath (Join-Path $repo 'desktop/scripts/verify-native-recovery.ps1') -HarnessPath (Join-Path $repo 'desktop/scripts/windows-verification-harness.ps1') -EvidenceDirectory (Join-Path $artifacts 'startup-selection-contracts')
+  if ($proof.startupSelectionContracts.passed -ne $true -or $proof.startupSelectionContracts.nativeExecuted -ne $false -or $proof.startupSelectionContracts.powershellVersion -notmatch '^5\.1\.') { throw 'Startup selection contracts require the normal Windows PowerShell 5.1 CI runtime.' }
+  $startupFilter = 'startup_recovery::tests::'
+  $startupExpectedNames = @(
+    'startup_recovery::tests::exact_origin_captures_every_variant_and_preserves_other_errors',
+    'startup_recovery::tests::no_journal_happy_bool_and_refusal_priority_with_artificial_store',
+    'startup_recovery::tests::invalid_journal_refuses_before_business_directories_identity_or_migration',
+    'startup_recovery::tests::historical_hidden_profile_without_journal_never_creates_an_empty_company',
+    'startup_recovery::tests::directory_and_post_recovery_database_failures_keep_historical_errors',
+    'startup_recovery::tests::explicit_native_diagnostic_export_succeeds_or_refuses_without_business_store',
+    'startup_recovery::tests::pending_blocked_preserves_active_previous_candidates_documents_and_logo',
+    'startup_recovery::tests::real_recovery_database_and_validation_failures_are_tagged',
+    'startup_recovery::tests::pending_valid_rolls_back_and_durable_phases_reopen_real_profiles',
+    'startup_recovery::tests::durable_cleanup_io_refuses_boot_then_reopen_keeps_selected_profile'
+  )
+  $startupSelectedNames = @($harness.TestNames | Where-Object { $_.Contains($startupFilter) })
+  $proof.startupRecovery = [ordered]@{
+    filter=$startupFilter; expectedNames=$startupExpectedNames; selectedNames=$startupSelectedNames;
+    verified=$false
+  }
+  if ($startupSelectedNames.Count -ne 10) { throw 'Startup recovery must select exactly ten Windows tests.' }
+  foreach ($startupName in $startupExpectedNames) {
+    if (@($startupSelectedNames | Where-Object { $_ -ceq $startupName }).Count -ne 1) {
+      throw 'Startup recovery catalog differs from the reviewed ten exact names.'
+    }
+  }
+  $startupSuiteIndex = $harness.Proof.suiteExecutions.Count
+  Invoke-ZentraVerificationSuite $harness $startupFilter
+  if ($harness.Proof.suiteExecutions.Count -ne ($startupSuiteIndex + 1)) {
+    throw 'Startup recovery must produce one new verified harness execution.'
+  }
+  $startupResult = $harness.Proof.suiteExecutions[$startupSuiteIndex]
+  if ($startupResult.filter -cne $startupFilter -or $startupResult.contextMode -cne 'diagnostics-verification' -or
+      $startupResult.selectedNames -ne 10 -or $startupResult.exit -ne 0 -or
+      $startupResult.passed -ne 10 -or $startupResult.failed -ne 0 -or $startupResult.ignored -ne 0 -or
+      @($startupResult.extraArguments).Count -ne 0 -or
+      @($startupResult.nativeArguments).Count -ne 2 -or
+      $startupResult.nativeArguments[0] -cne $startupFilter -or
+      $startupResult.nativeArguments[1] -cne '--test-threads=1') {
+    throw 'Startup recovery requires ten passed, zero failed, zero ignored and the fixed libtest invocation.'
+  }
+  $startupStdout = Join-Path $harness.Artifacts $startupResult.stdout
+  $startupOutput = [IO.File]::ReadAllText($startupStdout)
+  $startupNamedResults = [regex]::Matches($startupOutput, '(?m)^test (?<name>[A-Za-z_][A-Za-z0-9_:]*) \.\.\. (?<result>ok|FAILED|ignored)(?:, [^\r\n]*)?\r?$')
+  if ($startupNamedResults.Count -ne 10) { throw 'Startup recovery must report all ten named results.' }
+  foreach ($startupName in $startupExpectedNames) {
+    $startupNamed = @($startupNamedResults | Where-Object { $_.Groups['name'].Value -ceq $startupName })
+    if ($startupNamed.Count -ne 1 -or $startupNamed[0].Groups['result'].Value -cne 'ok') {
+      throw 'Startup recovery has a missing, duplicated or unsuccessful named result.'
+    }
+  }
+  $startupSummaries = [regex]::Matches($startupOutput, '(?m)^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored;[^\r\n]*\r?$')
+  if ($startupSummaries.Count -ne 1 -or $startupSummaries[0].Groups[1].Value -cne 'ok' -or
+      [int]$startupSummaries[0].Groups[2].Value -ne 10 -or
+      [int]$startupSummaries[0].Groups[3].Value -ne 0 -or
+      [int]$startupSummaries[0].Groups[4].Value -ne 0) {
+    throw 'Startup recovery stdout requires one unambiguous ten/zero/zero success summary.'
+  }
+  $proof.startupRecovery.execution=$startupResult
+  $proof.startupRecovery.namedResults=@($startupNamedResults | ForEach-Object {
+    [ordered]@{name=$_.Groups['name'].Value;result=$_.Groups['result'].Value}
+  })
+  $proof.startupRecovery.stdoutSha256=(Get-FileHash -LiteralPath $startupStdout -Algorithm SHA256).Hash.ToLowerInvariant()
+  $proof.startupRecovery.verified=$true
+  # END ZENTRA STARTUP SELECTION
   if ($IncludeCrashCandidate) {
     # Explicit opt-in; this exact test must first be reviewed, merged and compiled.
     Invoke-ZentraVerificationSuite $harness 'backup::recovery_crash_tests::native_crash_boundaries_restore_one_complete_profile_before_migration' @('--exact','--ignored')

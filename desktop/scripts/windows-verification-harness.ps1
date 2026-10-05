@@ -145,8 +145,11 @@ function Resolve-ZentraToolchainCargo {
 function Invoke-ZentraHarnessTool {
     param([string]$Program, [string[]]$Arguments, [string]$Repository,
         [string]$Stdout, [string]$Stderr, [string]$HeartbeatMessage = 'Inspecting the verification-only harness.', [int]$TimeoutSeconds = 300,
-        [ValidateSet('diagnostics-verification','release-preflight')][string]$Mode = 'diagnostics-verification')
+        [ValidateSet('diagnostics-verification','release-preflight')][string]$Mode = 'diagnostics-verification', $CrashObservation = $null)
     Assert-ZentraVerificationMode $env:CIRCLE_SHA1 $Mode $Repository
+    if ($null -ne $CrashObservation) {
+        Assert-ZentraCrashObservationDispatch $Program $Arguments $Repository $Mode $CrashObservation
+    }
     # Inherit the standard noninteractive error mode in disposable CI child
     # processes. Loader errors still return their real Windows status; this
     # prevents an error dialog from blocking the runner indefinitely.
@@ -174,18 +177,368 @@ namespace ZentraVerification {
         [void][ZentraVerification.NativeErrors]::SetErrorMode($previousMode)
     }
     $watch = [Diagnostics.Stopwatch]::StartNew()
-    while (-not $process.WaitForExit(25000)) {
-        if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
-            Stop-Process -Id $process.Id -Force
-            throw 'A disposable verification child process exceeded its bounded timeout.'
+    try {
+        while (-not $process.WaitForExit(25000)) {
+            if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
+                Stop-Process -Id $process.Id -Force
+                throw 'A disposable verification child process exceeded its bounded timeout.'
+            }
+            if ($null -ne $CrashObservation) { Update-ZentraCrashObservation $CrashObservation }
+            Write-Host $HeartbeatMessage
         }
-        Write-Host $HeartbeatMessage
+        $watch.Stop()
+        $process.WaitForExit()
+        # Poll once more even when the child exited before the first heartbeat.
+        if ($null -ne $CrashObservation) { Update-ZentraCrashObservation $CrashObservation -Terminal }
+        $exitCode = $process.ExitCode
+        if ($null -eq $exitCode) { throw 'The verification child exit code is unavailable; do not infer success.' }
+        return [int]$exitCode
+    } finally {
+        if ($null -ne $CrashObservation -and $null -ne $CrashObservation.Stream) {
+            try { $CrashObservation.Stream.Dispose() } catch { Set-ZentraCrashObservationFailure $CrashObservation 2 }
+            $CrashObservation.Stream = $null
+        }
     }
-    $watch.Stop()
-    $process.WaitForExit()
-    $exitCode = $process.ExitCode
-    if ($null -eq $exitCode) { throw 'The verification child exit code is unavailable; do not infer success.' }
-    return [int]$exitCode
+}
+
+# Numeric closed protocol mirrors the parent aggregate's fixed catalogue. The
+# observer never prints event text, native stdout, paths or exception messages.
+function Get-ZentraCrashCatalogue {
+    $restore = @('intent_published','database_staged','attachments_staged','old_database_renamed','old_attachments_renamed','new_database_renamed','new_attachments_renamed','finalized','commit_published','cleanup_database_removed','cleanup_attachments_removed','cleanup_auxiliary_file_company-collaboration.json','cleanup_auxiliary_file_company-sync-baseline.json','cleanup_auxiliary_file_company-sync-reference.zentra','cleanup_auxiliary_file_cloud-backup-state.json','cleanup_auxiliary_file_backup-status.json','cleanup_auxiliary_file_joined-company-copy.json','cleanup_auxiliary_removed','cleanup_journal_removed')
+    $rollback = @('rollback_new_database_removed','rollback_database_restored','rollback_new_attachments_removed','rollback_attachments_restored','rollback_auxiliary_company-collaboration.json','rollback_auxiliary_company-sync-baseline.json','rollback_auxiliary_company-sync-reference.zentra','rollback_auxiliary_cloud-backup-state.json','rollback_auxiliary_backup-status.json','rollback_auxiliary_joined-company-copy.json','rollback_published') + @($restore[9..18])
+    $catalogue = [Collections.Generic.List[object]]::new()
+    foreach ($mode in @(1,2)) {
+        foreach ($group in @(1,2)) {
+            $boundaries = if ($group -eq 1) { $restore } else { $rollback }
+            for ($boundary = 0; $boundary -lt $boundaries.Count; $boundary++) {
+                $phase = $boundaries[$boundary]
+                $restoreIndex = [Array]::IndexOf($restore,$phase)
+                $checkpoint = if ($restoreIndex -ge 0) { $restoreIndex + 1 } else { $boundary + 20 }
+                $catalogue.Add([pscustomobject]@{caseIndex=$catalogue.Count;mode=$mode;group=$group;boundary=$boundary;phase=$phase;checkpoint=$checkpoint})
+            }
+        }
+    }
+    return ,$catalogue.ToArray()
+}
+
+function Get-ZentraCrashExpectedEvents {
+    $events = [Collections.Generic.List[object]]::new()
+    $completed=0; $kills=0
+    $events.Add([pscustomobject]@{caseIndex=80;mode=0;group=0;boundary=0;stage=0;ordinal=0;checkpoint=0;completedCases=0;confirmedKills=0;status=0;failureCategory=0})
+    foreach ($case in (Get-ZentraCrashCatalogue)) {
+        foreach ($stage in @(1,2,3,4)) {
+            $events.Add([pscustomobject]@{caseIndex=$case.caseIndex;mode=$case.mode;group=$case.group;boundary=$case.boundary;stage=$stage;ordinal=0;checkpoint=0;completedCases=$completed;confirmedKills=$kills;status=0;failureCategory=0})
+        }
+        $ordinals=if ($case.group -eq 1) { @(1) } else { @(1,2) }
+        foreach ($ordinal in $ordinals) {
+            $checkpoint=if ($case.group -eq 2 -and $ordinal -eq 1) { 8 } else { $case.checkpoint }
+            foreach ($stage in @(5,6,7,8)) {
+                if ($stage -eq 8) { $kills++ }
+                $events.Add([pscustomobject]@{caseIndex=$case.caseIndex;mode=$case.mode;group=$case.group;boundary=$case.boundary;stage=$stage;ordinal=$ordinal;checkpoint=$checkpoint;completedCases=$completed;confirmedKills=$kills;status=0;failureCategory=0})
+            }
+        }
+        foreach ($stage in @(9,10,11,12)) {
+            if ($stage -eq 12) { $completed++ }
+            $events.Add([pscustomobject]@{caseIndex=$case.caseIndex;mode=$case.mode;group=$case.group;boundary=$case.boundary;stage=$stage;ordinal=0;checkpoint=0;completedCases=$completed;confirmedKills=$kills;status=0;failureCategory=0})
+        }
+    }
+    $events.Add([pscustomobject]@{caseIndex=80;mode=0;group=0;boundary=0;stage=13;ordinal=0;checkpoint=0;completedCases=80;confirmedKills=122;status=1;failureCategory=0})
+    return ,$events.ToArray()
+}
+
+function Assert-ZentraCrashOrdinaryPath {
+    param([string]$Path)
+    $cursor=[IO.Path]::GetFullPath($Path)
+    $depth=0
+    while (-not [string]::IsNullOrEmpty($cursor)) {
+        $depth++
+        if ($depth -gt 64) { throw 'Closed crash path bound.' }
+        $item=$null
+        try { $item=Get-Item -LiteralPath $cursor -ErrorAction Stop }
+        catch { if ($_.CategoryInfo.Category -ne 'ObjectNotFound') { throw 'Closed crash metadata refusal.' } }
+        if ($null -ne $item) {
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Closed crash path refusal.' }
+        }
+        $next=[IO.Path]::GetDirectoryName($cursor)
+        if ($next -ceq $cursor) { break }
+        $cursor=$next
+    }
+}
+
+function Get-ZentraCrashOwnedRoot {
+    param([string]$Repository)
+    if (-not [IO.Path]::IsPathRooted($Repository) -or -not (Test-Path -LiteralPath $Repository -PathType Container)) { throw 'Closed crash repository refusal.' }
+    $repo=[IO.Path]::GetFullPath($Repository).TrimEnd('\','/')
+    $expected=[IO.Path]::GetFullPath((Join-Path $repo 'desktop/artifacts/recovery-route-witness/crash'))
+    if ([string]::IsNullOrEmpty($env:ZENTRA_RECOVERY_CRASH_PROOF) -or -not [IO.Path]::IsPathRooted($env:ZENTRA_RECOVERY_CRASH_PROOF) -or -not [string]::Equals([IO.Path]::GetFullPath($env:ZENTRA_RECOVERY_CRASH_PROOF),$expected,[StringComparison]::OrdinalIgnoreCase)) { throw 'Closed crash owned root refusal.' }
+    Assert-ZentraCrashOrdinaryPath $expected
+    return $expected
+}
+
+function New-ZentraCrashObservation {
+    param([string]$Repository)
+    $root=Get-ZentraCrashOwnedRoot $Repository
+    # This pre-spawn guard refuses evidence from an earlier native execution.
+    if (Test-Path -LiteralPath $root) { throw 'Crash evidence already exists; do not resume it.' }
+    return [pscustomobject]@{Repository=[IO.Path]::GetFullPath($Repository);Root=$root;Stream=$null;CreationTicks=0L;Offset=0L;
+        Tail=[Collections.Generic.List[byte]]::new();Expected=(Get-ZentraCrashExpectedEvents);EventCount=0;
+        LastElapsed=0L;LastWriterMicros=0L;Last=$null;TerminalState=0;Error=0;FinalPolled=$false;LastPrintedSequence=0}
+}
+
+function Test-ZentraCrashObservationSelection {
+    param([string]$Suite,[string[]]$ExtraArguments,[string]$Mode)
+    return ($Mode -ceq 'diagnostics-verification' -and $Suite -ceq 'backup::recovery_crash_tests::native_crash_boundaries_restore_one_complete_profile_before_migration' -and $ExtraArguments.Count -eq 2 -and $ExtraArguments -ccontains '--exact' -and $ExtraArguments -ccontains '--ignored')
+}
+
+function Assert-ZentraCrashObservationDispatch {
+    param([string]$Program,[string[]]$Arguments,[string]$Repository,[string]$Mode,$Observation)
+    if ($Arguments.Count -ne 4 -or $Arguments[1] -cne '--test-threads=1' -or -not (Test-ZentraCrashObservationSelection $Arguments[0] @($Arguments[2],$Arguments[3]) $Mode)) { throw 'Closed crash observer dispatch refusal.' }
+    $deps=[IO.Path]::GetFullPath((Join-Path $Repository 'desktop/src-tauri/target/release/deps'))
+    if (-not [string]::Equals([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Program)),$deps,[StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFileName($Program) -cnotmatch '^helvichantier_lib-[0-9a-f]{16}\.exe$') { throw 'Closed crash executable refusal.' }
+    $expected=Get-ZentraCrashOwnedRoot $Repository
+    if (-not [string]::Equals($Observation.Repository,[IO.Path]::GetFullPath($Repository),[StringComparison]::OrdinalIgnoreCase) -or -not [string]::Equals($Observation.Root,$expected,[StringComparison]::OrdinalIgnoreCase) -or $Observation.Offset -ne 0 -or $Observation.EventCount -ne 0 -or $Observation.Error -ne 0 -or $null -ne $Observation.Stream) { throw 'Closed crash context refusal.' }
+}
+
+function Set-ZentraCrashObservationFailure {
+    param($Observation,[int]$Category)
+    if ($Observation.Error -eq 0) { $Observation.Error=$Category }
+}
+
+function Add-ZentraCrashProgressLine {
+    param($Observation,[byte[]]$Bytes)
+    if ($Observation.Error -ne 0) { return }
+    if ($Bytes.Length -gt 1024 -or $Bytes.Length -eq 0 -or $Observation.EventCount -ge 1280) { Set-ZentraCrashObservationFailure $Observation 5; return }
+    foreach ($byte in $Bytes) { if ($byte -gt 127) { Set-ZentraCrashObservationFailure $Observation 3; return } }
+    # Exact ordering and spellings reject unknown, duplicate, aliased, escaped
+    # and nested fields, plus every numeric coercion/float/negative form.
+    $number='(0|[1-9][0-9]{0,9})'
+    $fields=@('v','sequence','caseIndex','mode','group','boundary','stage','ordinal','checkpoint','elapsedMs','proofWriteElapsedMicrosBefore','plannedCases','plannedKills','completedCases','confirmedKills','status','failureCategory')
+    $parts=@($fields | ForEach-Object { '"'+$_+'":(?<'+$_+'>'+ $number +')' })
+    $pattern='\A\{'+($parts -join ',')+'\}\z'
+    $match=[regex]::Match([Text.Encoding]::ASCII.GetString($Bytes),$pattern)
+    if (-not $match.Success) { Set-ZentraCrashObservationFailure $Observation 3; return }
+    $event=@{}
+    foreach ($field in $fields) { $event[$field]=[UInt64]::Parse($match.Groups[$field].Value,[Globalization.CultureInfo]::InvariantCulture) }
+    if ($event.v -ne 1 -or $event.plannedCases -ne 80 -or $event.plannedKills -ne 122 -or $event.sequence -ne ($Observation.EventCount+1) -or $event.elapsedMs -gt 5400000 -or $event.proofWriteElapsedMicrosBefore -gt ($event.elapsedMs*1000+999) -or $event.elapsedMs -lt $Observation.LastElapsed -or $event.proofWriteElapsedMicrosBefore -lt $Observation.LastWriterMicros -or $event.completedCases -gt 80 -or $event.confirmedKills -gt 122 -or $Observation.TerminalState -ne 0) { Set-ZentraCrashObservationFailure $Observation 4; return }
+    if ($event.stage -eq 14) {
+        if ($event.status -ne 2 -or $event.failureCategory -notin @(1,2) -or $Observation.EventCount -eq 0) { Set-ZentraCrashObservationFailure $Observation 4; return }
+        $next=$Observation.Expected[[Math]::Min($Observation.EventCount,1129)]
+        $previous=$Observation.Last
+        $tupleFields=@('caseIndex','mode','group','boundary','ordinal','checkpoint')
+        $matchesPrevious=$true; $matchesNext=$true
+        foreach ($field in $tupleFields) {
+            if ($event[$field] -ne $previous[$field]) { $matchesPrevious=$false }
+            if ($event[$field] -ne $next.$field) { $matchesNext=$false }
+        }
+        if ((-not $matchesPrevious -and -not $matchesNext) -or $event.completedCases -lt $previous.completedCases -or $event.completedCases -gt $next.completedCases -or $event.confirmedKills -lt $previous.confirmedKills -or $event.confirmedKills -gt $next.confirmedKills -or $event.ordinal -gt 2 -or $event.checkpoint -gt 30) { Set-ZentraCrashObservationFailure $Observation 4; return }
+        $Observation.TerminalState=2
+    } else {
+        if ($Observation.EventCount -ge 1130) { Set-ZentraCrashObservationFailure $Observation 4; return }
+        $expected=$Observation.Expected[$Observation.EventCount]
+        foreach ($field in @('caseIndex','mode','group','boundary','stage','ordinal','checkpoint','completedCases','confirmedKills','status','failureCategory')) {
+            if ($event[$field] -ne $expected.$field) { Set-ZentraCrashObservationFailure $Observation 4; return }
+        }
+        if ($event.stage -eq 13) { $Observation.TerminalState=1 }
+    }
+    $Observation.EventCount++
+    $Observation.LastElapsed=[long]$event.elapsedMs
+    $Observation.LastWriterMicros=[long]$event.proofWriteElapsedMicrosBefore
+    $Observation.Last=$event
+}
+
+function Update-ZentraCrashObservation {
+    param($Observation,[switch]$Terminal)
+    # Observation errors are deliberately retained, never thrown into the
+    # process wait loop. The native process remains monitored to its real exit
+    # or its unchanged timeout, after which final admission is refused.
+    if ($Terminal) { $Observation.FinalPolled=$true }
+    if ($Observation.Error -ne 0) { return }
+    try {
+        $root=Get-ZentraCrashOwnedRoot $Observation.Repository
+        if (-not [string]::Equals($root,$Observation.Root,[StringComparison]::OrdinalIgnoreCase)) { throw 'Closed root mismatch.' }
+        $path=Join-Path $root 'progress.jsonl'
+        Assert-ZentraCrashOrdinaryPath $path
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            if ($Terminal -or $null -ne $Observation.Stream) { Set-ZentraCrashObservationFailure $Observation 7 }
+            return
+        }
+        $item=Get-Item -LiteralPath $path
+        if ($item.PSIsContainer -or $item.Length -gt 2097152) { Set-ZentraCrashObservationFailure $Observation 5; return }
+        if ($null -eq $Observation.Stream) {
+            $Observation.Stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+            $Observation.CreationTicks=$item.CreationTimeUtc.Ticks
+        }
+        # A retained handle denies deletion. Metadata checks additionally catch
+        # observed replacements/shrinkage; no hostile-concurrency claim follows.
+        if (-not [string]::Equals($Observation.Stream.Name,[IO.Path]::GetFullPath($path),[StringComparison]::OrdinalIgnoreCase) -or $item.CreationTimeUtc.Ticks -ne $Observation.CreationTicks -or $item.Length -lt $Observation.Offset -or $Observation.Stream.Length -lt $Observation.Offset) { Set-ZentraCrashObservationFailure $Observation 6; return }
+        $buffer=[byte[]]::new(65536)
+        while ($Observation.Stream.Position -lt $Observation.Stream.Length -and $Observation.Error -eq 0) {
+            $read=$Observation.Stream.Read($buffer,0,[Math]::Min($buffer.Length,2097153-$Observation.Offset))
+            if ($read -eq 0) { break }
+            $Observation.Offset+=$read
+            if ($Observation.Offset -gt 2097152) { Set-ZentraCrashObservationFailure $Observation 5; break }
+            for ($index=0; $index -lt $read -and $Observation.Error -eq 0; $index++) {
+                if ($buffer[$index] -eq 10) {
+                    Add-ZentraCrashProgressLine $Observation $Observation.Tail.ToArray()
+                    $Observation.Tail.Clear()
+                } else {
+                    $Observation.Tail.Add($buffer[$index])
+                    if ($Observation.Tail.Count -gt 1024) { Set-ZentraCrashObservationFailure $Observation 5 }
+                }
+            }
+        }
+        if ($Terminal -and ($Observation.Tail.Count -ne 0 -or $Observation.TerminalState -ne 1 -or $Observation.EventCount -ne 1130)) { Set-ZentraCrashObservationFailure $Observation 7 }
+        if ($Observation.Last -ne $null -and $Observation.Last.sequence -ne $Observation.LastPrintedSequence) {
+            $Observation.LastPrintedSequence=$Observation.Last.sequence
+            Write-Host ('Recovery progress: case={0}/80 kills={1}/122 stage={2} elapsedMs={3} priorProofWriteMicros={4}' -f $Observation.Last.completedCases,$Observation.Last.confirmedKills,$Observation.Last.stage,$Observation.Last.elapsedMs,$Observation.Last.proofWriteElapsedMicrosBefore)
+        }
+    } catch {
+        Set-ZentraCrashObservationFailure $Observation 2
+    }
+}
+
+function Read-ZentraCrashOutcomeToken {
+    param([string]$Raw,[ref]$Offset)
+    while ($Offset.Value -lt $Raw.Length -and $Raw[$Offset.Value] -cin @([char]32,[char]9,[char]10,[char]13)) { $Offset.Value++ }
+    if ($Offset.Value -eq $Raw.Length) { return $null }
+    $character=$Raw[$Offset.Value]
+    $Offset.Value++
+    $punctuation=@{'{'=1;'}'=2;'['=3;']'=4;':'=5;','=6}
+    if ($punctuation.ContainsKey([string]$character)) { return [pscustomobject]@{Kind=$punctuation[[string]$character];Text='';Escaped=$false} }
+    if ($character -ceq '"') {
+        $start=$Offset.Value; $escaped=$false
+        while ($Offset.Value -lt $Raw.Length) {
+            $character=$Raw[$Offset.Value]
+            $Offset.Value++
+            if ($character -ceq '"') { return [pscustomobject]@{Kind=7;Text=$Raw.Substring($start,$Offset.Value-$start-1);Escaped=$escaped} }
+            if ([int]$character -lt 32) { throw 'Closed outcomes string control refusal.' }
+            if ($character -ceq '\') {
+                $escaped=$true
+                if ($Offset.Value -ge $Raw.Length) { throw 'Closed outcomes string tail refusal.' }
+                $escape=$Raw[$Offset.Value]; $Offset.Value++
+                if ($escape -ceq 'u') {
+                    if ($Offset.Value+4 -gt $Raw.Length -or $Raw.Substring($Offset.Value,4) -cnotmatch '^[0-9a-fA-F]{4}$') { throw 'Closed outcomes string escape refusal.' }
+                    $Offset.Value+=4
+                } elseif ($escape -cnotin @('"','\','/','b','f','n','r','t')) { throw 'Closed outcomes string escape refusal.' }
+            }
+        }
+        throw 'Closed outcomes unclosed string refusal.'
+    }
+    if ($character -ceq 't' -and $Offset.Value+3 -le $Raw.Length -and $Raw.Substring($Offset.Value,3) -ceq 'rue') { $Offset.Value+=3; return [pscustomobject]@{Kind=8;Text='';Escaped=$false} }
+    if ($character -ceq 'f' -and $Offset.Value+4 -le $Raw.Length -and $Raw.Substring($Offset.Value,4) -ceq 'alse') { $Offset.Value+=4; return [pscustomobject]@{Kind=9;Text='';Escaped=$false} }
+    throw 'Closed outcomes token refusal.'
+}
+
+function Assert-ZentraCrashOutcomeKeys {
+    param([string]$Raw)
+    if ($Raw.Length -eq 0 -or $Raw.Length -gt 2097152) { throw 'Closed outcomes scanner bound.' }
+    $rootTypes=@{source=7;synthetic=8;nativeExecution=7;packageExecuted=8;actualTauriIpcExecuted=8;physicalPowerLossVerified=8;cases=3}
+    $caseTypes=@{phase=7;recoveryInterrupted=8;completeArchive=8;result=7;nativeSqliteValidated=8;nativeWorkspaceRead=8;documentBase64Exact=8;managedLogoBase64Exact=8;auxiliaryExact=8;secondCleanReopen=8;archiveSha256=7;databaseSha256=7;artifactDirectory=7}
+    $stack=[Collections.Generic.List[object]]::new()
+    $offset=0; $opened=$false; $closed=$false; $caseCount=0
+    while ($true) {
+        $token=Read-ZentraCrashOutcomeToken $Raw ([ref]$offset)
+        if ($null -eq $token) { break }
+        if ($closed) { throw 'Closed outcomes extra root refusal.' }
+        if (-not $opened) {
+            if ($token.Kind -ne 1) { throw 'Closed outcomes root grammar refusal.' }
+            $opened=$true
+            $stack.Add([pscustomobject]@{Kind=1;Scope=1;State=0;Key='';Keys=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)})
+            continue
+        }
+        if ($stack.Count -eq 0 -or $stack.Count -gt 3) { throw 'Closed outcomes nesting refusal.' }
+        $frame=$stack[$stack.Count-1]
+        if ($frame.Kind -eq 1) {
+            $types=if ($frame.Scope -eq 1) {$rootTypes} else {$caseTypes}
+            if (($frame.State -eq 0 -or $frame.State -eq 3) -and $token.Kind -eq 2) {
+                if ($frame.Keys.Count -ne $types.Count) { throw 'Closed outcomes missing keys refusal.' }
+                $stack.RemoveAt($stack.Count-1)
+                if ($frame.Scope -eq 1) { $closed=$true }
+                else { $caseCount++; if ($caseCount -gt 80) { throw 'Closed outcomes case count refusal.' } }
+            } elseif ($frame.State -eq 0 -or $frame.State -eq 4) {
+                # Key validation precedes JSON conversion, with ordinal identity
+                # per object. Never decode aliases or count quoted value text.
+                if ($token.Kind -ne 7 -or $token.Escaped -or -not $types.ContainsKey($token.Text) -or -not ($types.Keys -ccontains $token.Text) -or -not $frame.Keys.Add($token.Text)) { throw 'Closed outcomes key spelling or duplicate refusal.' }
+                $frame.Key=$token.Text; $frame.State=1
+            } elseif ($frame.State -eq 1) {
+                if ($token.Kind -ne 5) { throw 'Closed outcomes colon refusal.' }
+                $frame.State=2
+            } elseif ($frame.State -eq 2) {
+                $expectedKind=$types[$frame.Key]
+                if ($expectedKind -eq 3) {
+                    if ($token.Kind -ne 3 -or $frame.Scope -ne 1 -or $frame.Key -cne 'cases') { throw 'Closed outcomes array refusal.' }
+                    $frame.State=3
+                    $stack.Add([pscustomobject]@{Kind=2;Scope=0;State=0;Key='';Keys=$null})
+                } else {
+                    if (($expectedKind -eq 7 -and $token.Kind -ne 7) -or ($expectedKind -eq 8 -and $token.Kind -notin @(8,9))) { throw 'Closed outcomes primitive type refusal.' }
+                    $frame.State=3
+                }
+            } elseif ($frame.State -eq 3) {
+                if ($token.Kind -ne 6) { throw 'Closed outcomes object separator refusal.' }
+                $frame.State=4
+            } else { throw 'Closed outcomes object grammar refusal.' }
+        } else {
+            if (($frame.State -eq 0 -or $frame.State -eq 1) -and $token.Kind -eq 4) {
+                if ($caseCount -ne 80) { throw 'Closed outcomes complete coverage refusal.' }
+                $stack.RemoveAt($stack.Count-1)
+            } elseif ($frame.State -eq 0 -or $frame.State -eq 2) {
+                if ($token.Kind -ne 1) { throw 'Closed outcomes case object refusal.' }
+                $frame.State=1
+                $stack.Add([pscustomobject]@{Kind=1;Scope=2;State=0;Key='';Keys=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)})
+            } elseif ($frame.State -eq 1) {
+                if ($token.Kind -ne 6) { throw 'Closed outcomes array separator refusal.' }
+                $frame.State=2
+            } else { throw 'Closed outcomes array grammar refusal.' }
+        }
+    }
+    if (-not $opened -or -not $closed -or $stack.Count -ne 0 -or $caseCount -ne 80) { throw 'Closed outcomes incomplete grammar refusal.' }
+}
+
+function Assert-ZentraCrashOutcomes {
+    param($Observation,[string]$Source)
+    $root=Get-ZentraCrashOwnedRoot $Observation.Repository
+    $path=Join-Path $root 'outcomes.json'
+    Assert-ZentraCrashOrdinaryPath $path
+    $item=Get-Item -LiteralPath $path
+    if ($item.PSIsContainer -or $item.Length -gt 2097152 -or $item.Length -eq 0) { throw 'Closed outcomes size refusal.' }
+    $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+    try {
+        $bytes=[byte[]]::new(2097153); $length=0
+        while ($length -lt $bytes.Length) {
+            $read=$stream.Read($bytes,$length,$bytes.Length-$length)
+            if ($read -eq 0) { break }
+            $length+=$read
+        }
+        if ($length -gt 2097152 -or $length -eq 0) { throw 'Closed outcomes read bound.' }
+        $raw=[Text.UTF8Encoding]::new($false,$true).GetString($bytes,0,$length)
+    } finally { $stream.Dispose() }
+    Assert-ZentraCrashOutcomeKeys $raw
+    $document=$raw | ConvertFrom-Json
+    $rootFields=@('source','synthetic','nativeExecution','packageExecuted','actualTauriIpcExecuted','physicalPowerLossVerified','cases')
+    $caseFields=@('phase','recoveryInterrupted','completeArchive','result','nativeSqliteValidated','nativeWorkspaceRead','documentBase64Exact','managedLogoBase64Exact','auxiliaryExact','secondCleanReopen','archiveSha256','databaseSha256','artifactDirectory')
+    if (@($document.PSObject.Properties).Count -ne $rootFields.Count -or $document.source -isnot [string] -or $document.source -cne $Source -or $document.synthetic -isnot [bool] -or -not $document.synthetic -or $document.nativeExecution -cne 'compiled-library-harness-with-owned-child-kills') { throw 'Closed outcomes identity refusal.' }
+    foreach ($field in @('packageExecuted','actualTauriIpcExecuted','physicalPowerLossVerified')) { if ($document.$field -isnot [bool] -or $document.$field) { throw 'Closed outcomes limitations refusal.' } }
+    if ($document.cases -isnot [array] -or $document.cases.Count -ne 80) { throw 'Closed outcomes coverage refusal.' }
+    $catalogue=Get-ZentraCrashCatalogue
+    for ($index=0; $index -lt 80; $index++) {
+        $case=$document.cases[$index]; $expected=$catalogue[$index]
+        if (@($case.PSObject.Properties).Count -ne $caseFields.Count -or $case.phase -cne $expected.phase -or $case.recoveryInterrupted -isnot [bool] -or $case.recoveryInterrupted -ne ($expected.group -eq 2) -or $case.completeArchive -isnot [bool] -or $case.completeArchive -ne ($expected.mode -eq 1) -or $case.artifactDirectory -cne ('c{0:D2}' -f $index)) { throw 'Closed outcomes case identity refusal.' }
+        $committed=$expected.group -eq 1 -and ($expected.phase -ceq 'commit_published' -or $expected.phase.StartsWith('cleanup_'))
+        $result=if ($committed) { 'committed-new-profile' } else { 'original-profile' }
+        if ($case.result -cne $result -or $case.archiveSha256 -isnot [string] -or $case.archiveSha256 -cnotmatch '^[0-9a-f]{64}$' -or $case.databaseSha256 -isnot [string] -or $case.databaseSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Closed outcomes result refusal.' }
+        foreach ($field in @('nativeSqliteValidated','nativeWorkspaceRead','documentBase64Exact','managedLogoBase64Exact','auxiliaryExact','secondCleanReopen')) { if ($case.$field -isnot [bool] -or -not $case.$field) { throw 'Closed outcomes assertion refusal.' } }
+    }
+}
+
+function Get-ZentraCrashObservationReceipt {
+    param($Observation)
+    return [ordered]@{protocol=1;events=$Observation.EventCount;observedBytes=$Observation.Offset;completedCases=if ($null -eq $Observation.Last) {0} else {[int]$Observation.Last.completedCases};confirmedKills=if ($null -eq $Observation.Last) {0} else {[int]$Observation.Last.confirmedKills};terminalState=$Observation.TerminalState;observerFailureCategory=$Observation.Error;finalPolled=[bool]$Observation.FinalPolled;elapsedMs=$Observation.LastElapsed;proofWriteElapsedMicrosBefore=$Observation.LastWriterMicros;measurementLimit='Prior successful write/flush/sync only; excludes final append, creation, serialization and reader overhead. Instrumented runtime does not establish the prior timeout cause.'}
+}
+
+function Assert-ZentraCrashObservationAdmission {
+    param($Observation,[string]$Source)
+    if ($Observation.Error -ne 0 -or -not $Observation.FinalPolled -or $Observation.Tail.Count -ne 0 -or $Observation.TerminalState -ne 1 -or $Observation.EventCount -ne 1130 -or $null -eq $Observation.Last -or $Observation.Last.completedCases -ne 80 -or $Observation.Last.confirmedKills -ne 122) { throw 'Native crash progress is incomplete or refused; partial evidence is not admission.' }
+    try { Assert-ZentraCrashOutcomes $Observation $Source } catch { Set-ZentraCrashObservationFailure $Observation 8; throw 'Native crash outcomes are incomplete or refused.' }
 }
 
 function Select-ZentraLibraryHarness {
@@ -445,7 +798,13 @@ function Invoke-ZentraVerificationSuite {
     $stdout = Join-Path $Harness.Artifacts ("windows-test-suite-{0:D2}.log" -f $index)
     $stderr = Join-Path $Harness.Artifacts ("windows-test-suite-{0:D2}-errors.log" -f $index)
     $nativeArguments = if ($PreserveOriginalTestArguments) { @($Suite) + $ExtraArguments } else { @($Suite, '--test-threads=1') + $ExtraArguments }
-    $exitCode = Invoke-ZentraHarnessTool $Harness.Executable $nativeArguments $Harness.Repository $stdout $stderr -HeartbeatMessage "Native library filter is running: $Suite" -TimeoutSeconds 3600 -Mode $Mode
+    $crashObservation=$null
+    if (Test-ZentraCrashObservationSelection $Suite $ExtraArguments $Mode) { $crashObservation=New-ZentraCrashObservation $Harness.Repository }
+    if ($null -eq $crashObservation) {
+        $exitCode = Invoke-ZentraHarnessTool $Harness.Executable $nativeArguments $Harness.Repository $stdout $stderr -HeartbeatMessage "Native library filter is running: $Suite" -TimeoutSeconds 3600 -Mode $Mode
+    } else {
+        $exitCode = Invoke-ZentraHarnessTool $Harness.Executable $nativeArguments $Harness.Repository $stdout $stderr -HeartbeatMessage "Native library filter is running: $Suite" -TimeoutSeconds 3600 -Mode $Mode -CrashObservation $crashObservation
+    }
     Get-Content -LiteralPath $stdout | ForEach-Object { Write-Host $_ }
     Get-Content -LiteralPath $stderr | ForEach-Object { Write-Host $_ }
     $watch.Stop()
@@ -454,6 +813,11 @@ function Invoke-ZentraVerificationSuite {
     $failed = if ($result.Success) { [int]$result.Groups[3].Value } else { 0 }
     $ignored = if ($result.Success) { [int]$result.Groups[4].Value } else { 0 }
     $Harness.Proof.suiteExecutions += [ordered]@{filter=$Suite;selectedNames=$names.Count;extraArguments=$ExtraArguments;nativeArguments=$nativeArguments;contextMode=$Mode;exit=$exitCode;durationMs=$watch.ElapsedMilliseconds;passed=$passed;failed=$failed;ignored=$ignored;stdout=[IO.Path]::GetFileName($stdout);stderr=[IO.Path]::GetFileName($stderr)}
+    if ($null -ne $crashObservation) { $Harness.Proof.suiteExecutions[-1].crashProgress=Get-ZentraCrashObservationReceipt $crashObservation }
     Save-ZentraHarnessProof $Harness.Proof $Harness.ProofPath
     if ($exitCode -ne 0 -or -not $result.Success -or $passed -eq 0 -or $failed -ne 0 -or $result.Groups[1].Value -cne 'ok') { throw "The native verification harness failed or selected no executable tests for $Suite ($exitCode)." }
+    if ($null -ne $crashObservation) {
+        try { Assert-ZentraCrashObservationAdmission $crashObservation $Harness.Source }
+        finally { $Harness.Proof.suiteExecutions[-1].crashProgress=Get-ZentraCrashObservationReceipt $crashObservation; Save-ZentraHarnessProof $Harness.Proof $Harness.ProofPath }
+    }
 }
