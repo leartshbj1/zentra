@@ -32,6 +32,30 @@ parameters:
     default: ""
 
 jobs:
+  windows-package-smoke-1914:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      ZENTRA_SMOKE_JOB: "279"
+      ZENTRA_SMOKE_SOURCE: "c067f2e6bd0c6cbe2dae76162feb88e92f44156b"
+      ZENTRA_SMOKE_PIPELINE_SOURCE: "b9c23cb67027f360642e7d8da725229f7846e5cc"
+      ZENTRA_SMOKE_VERSION: "1.90.14"
+    steps:
+      - checkout
+      - run:
+          name: Verify the newly pinned successful Windows build and exact Zentra 1.90.14 NSIS package
+          no_output_timeout: 5m
+          command: |
+            $ErrorActionPreference = 'Stop'
+            python .circleci/verify-1914-windows-input.py
+            if ($LASTEXITCODE -ne 0) { throw 'Exact Windows 1.90.14 build inputs rejected' }
+            python .circleci/smoke-windows-1914.py windows $env:ZENTRA_SMOKE_JOB $env:ZENTRA_SMOKE_SOURCE --pipeline-source $env:ZENTRA_SMOKE_PIPELINE_SOURCE
+            if ($LASTEXITCODE -ne 0) { throw 'Windows 1.90.14 packaged smoke failed' }
+      - store_artifacts:
+          path: desktop/artifacts/smoke
+          destination: smoke
   windows-drafts-diagnostics-tests:
     parameters:
       diagnostics-phase:
@@ -489,6 +513,13 @@ jobs:
           destination: apple
 
 workflows:
+  user-clarity-package-smoke-1914-windows:
+    when:
+      and:
+        - equal: [codex/release-1.90.14-smoke-windows-20261006, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-package-smoke-1914
   user-clarity-release-1914:
     when:
       and:
