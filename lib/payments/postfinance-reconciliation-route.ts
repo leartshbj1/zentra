@@ -35,7 +35,7 @@ export async function runPostFinanceReconciliation(
   request: Request,
   dependencies: {
     read?: (name: Binding) => string;
-    database?: () => Pick<D1Database, 'prepare'>;
+    database?: () => Pick<D1Database, 'prepare' | 'batch'>;
     fetch?: typeof fetch;
     now?: () => number;
   } = {},

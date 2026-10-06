@@ -28,6 +28,11 @@ function dependencies(patch: Record<string, string | undefined> = {}) {
   const database = vi.fn(
     () =>
       ({
+        batch: async () => {
+          throw Error(
+            'Guard-only fixture must never execute a provisioning batch.',
+          );
+        },
         prepare: () => {
           const statement = {
             bind: () => statement,
@@ -36,7 +41,7 @@ function dependencies(patch: Record<string, string | undefined> = {}) {
           };
           return statement;
         },
-      }) as unknown as Pick<D1Database, 'prepare'>,
+      }) as unknown as Pick<D1Database, 'prepare' | 'batch'>,
   );
   return { read: (key: string) => env[key] ?? '', fetch, database };
 }

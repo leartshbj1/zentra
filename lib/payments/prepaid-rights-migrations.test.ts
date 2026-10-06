@@ -121,7 +121,7 @@ afterEach(() => db.close());
 describe('0074 actual SQLite migration: immutable prepaid rights at admission boundaries', () => {
   it('loads every real migration including the additive 0074 and freezes the six approved company snapshots', () => {
     expect(migrations).toContain('0074_prepaid_rights_guards.sql');
-    expect(migrations.at(-1)).toBe('0077_gestion_purchase_target.sql');
+    expect(migrations).toContain('0078_prepaid_subscription_lifecycle.sql');
     const stored = db.prepare('SELECT product_key,catalog_json FROM prepaid_gestion_catalog_v1').all();
     expect(stored).toHaveLength(6);
     for (const entry of stored)

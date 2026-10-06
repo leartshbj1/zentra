@@ -12,6 +12,7 @@ import { authorizePrepaidPurchase } from './prepaid-purchase-access';
 import { D1PurchaseIntents } from './purchase-intents';
 import { D1PrepaidPeriods, type PrepaidContractInput } from './prepaid-periods';
 import { D1PrepaidReconciliationStore } from './prepaid-reconciliation-store';
+import { D1PrepaidProvisioning } from './prepaid-provisioning';
 
 export type PrepaidPurchaseConfiguration = Readonly<{
   enabled: boolean;
@@ -145,6 +146,21 @@ export async function prepareInitialPrepaidPurchase(
   )
     throw new PrepaidPreparationError('configuration');
   const environment = connection.prepaidEnvironment!;
+  // Server-owned compare-and-swap target. A delayed settlement must never
+  // replace whichever subscription happens to be current when it arrives.
+  const previous =
+    authority.organizationId === null
+      ? null
+      : await db
+          .prepare(`SELECT o.subscription_id FROM organizations o JOIN organization_members m
+      ON m.organization_id=o.organization_id AND m.user_id=o.created_by_user_id
+      AND m.role='owner' AND m.revoked_at IS NULL
+      WHERE o.organization_id=? AND o.created_by_user_id=?`)
+          .bind(authority.organizationId, authority.ownerId)
+          .first<{ subscription_id: string }>();
+  if (authority.organizationId !== null && !previous)
+    throw new PrepaidPreparationError('state');
+  const previousSubscriptionId = previous?.subscription_id ?? null;
   const intent = await new D1PurchaseIntents(db, now).reserve({
     ownerId: authority.ownerId,
     environment,
@@ -165,6 +181,7 @@ export async function prepareInitialPrepaidPurchase(
       method: input.method,
       methodConfigurationId,
       connectorConfigurationId,
+      previousSubscriptionId,
     },
     terms: {
       version,
@@ -205,12 +222,21 @@ export async function prepareInitialPrepaidPurchase(
     period.periodId,
     expectation,
   );
+  const target = await new D1PrepaidProvisioning(db, now).freezeTarget({
+    intentId: intent.intentId,
+    contractId: contract.contractId,
+    ownerId: authority.ownerId,
+    organizationId: authority.organizationId,
+    workspaceId: authority.workspaceId,
+    previousSubscriptionId,
+  });
   return {
     state: 'prepared' as const,
     intent,
     contract,
     period,
     expectation,
+    target,
     createInput: {
       productKey: product.productKey,
       periodId: period.periodId,

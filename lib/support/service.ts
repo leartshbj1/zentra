@@ -619,7 +619,7 @@ export async function mutateWorkspace(request: Request) {
   ) {
     await enforceAccountRateLimit(request, 'support-billing', user.userId, 30);
     if (action === 'checkout')
-      return supportJson(await createSupportCheckout(workspace, user, body));
+      return supportJson(await createSupportCheckout(workspace, user, body, new URL(request.url).origin));
     if (action === 'cancelCheckout')
       return supportJson(await cancelSupportCheckout(workspace, user));
     if (action === 'billingPortal')

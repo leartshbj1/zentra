@@ -303,6 +303,12 @@ export class PostFinanceCheckoutClient {
     };
   }
 
+  /** Secret-free immutable provenance for internal read-only verifiers. */
+  readScope(): Readonly<{ apiOrigin: string; spaceId: number }> {
+    const scope = this.connection();
+    return Object.freeze({ apiOrigin: scope.origin, spaceId: scope.spaceId });
+  }
+
   private requireRecurring(method: SwissMethod): void {
     this.connection();
     const c = this.config;

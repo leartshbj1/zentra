@@ -15,9 +15,9 @@ const state = vi.hoisted(() => ({
   matchPreviewPrices: false,
   dynamicMock: false,
   expirationMode: 'success',
-  dynamicMethods: ['card','twint'] as string[],
-  sessionsById: new Map<string,unknown>(),
-  sessionsByKey: new Map<string,unknown>(),
+  dynamicMethods: ['card', 'twint'] as string[],
+  sessionsById: new Map<string, unknown>(),
+  sessionsByKey: new Map<string, unknown>(),
   expiredIds: [] as string[],
   calls: [] as { body: { line_items?: unknown }; options: unknown }[],
 }));
@@ -38,36 +38,114 @@ vi.mock('stripe', () => ({
     }
     subscriptions = { retrieve: async () => state.subscription };
     invoices = { retrieve: async () => state.invoice };
+    // All money and routing below are fictitious. The real common D1 ledger,
+    // atomic batches and production invoice validator remain unmocked.
+    invoicePayments = {
+      list: async () => ({
+        has_more: false,
+        data: [
+          {
+            id: 'inpay_fixture',
+            invoice: (state.invoice as Stripe.Invoice).id,
+            status: 'paid',
+            livemode: (state.invoice as Stripe.Invoice).livemode,
+            currency: 'chf',
+            amount_paid: (state.invoice as Stripe.Invoice).amount_paid,
+            payment: { type: 'payment_intent', payment_intent: 'pi_fixture' },
+          },
+        ],
+      }),
+    };
+    paymentIntents = {
+      retrieve: async () => ({
+        id: 'pi_fixture',
+        latest_charge: 'ch_fixture',
+        status: 'succeeded',
+        livemode: (state.invoice as Stripe.Invoice).livemode,
+        currency: 'chf',
+        customer: (state.invoice as Stripe.Invoice).customer,
+        amount_received: (state.invoice as Stripe.Invoice).amount_paid,
+      }),
+    };
+    charges = {
+      retrieve: async () => ({
+        id: 'ch_fixture',
+        payment_intent: 'pi_fixture',
+        status: 'succeeded',
+        paid: true,
+        captured: true,
+        refunded: false,
+        amount_refunded: 0,
+        livemode: (state.invoice as Stripe.Invoice).livemode,
+        currency: 'chf',
+        customer: (state.invoice as Stripe.Invoice).customer,
+        amount_captured: (state.invoice as Stripe.Invoice).amount_paid,
+      }),
+    };
     prices = { retrieve: async () => state.price };
     checkout = {
       sessions: {
-        retrieve: async (id: string) => state.sessionsById.get(id) ?? state.session,
+        retrieve: async (id: string) =>
+          state.sessionsById.get(id) ?? state.session,
         create: async (body: unknown, options: unknown) => {
           state.calls.push({ body: body as { line_items?: unknown }, options });
-          if(state.dynamicMock){
-            const key=(options as {idempotencyKey:string}).idempotencyKey;
-            const previous=state.sessionsByKey.get(key);if(previous)return previous;
-            const input=body as Stripe.Checkout.SessionCreateParams;
-            const fresh={...(state.session as object),id:`cs_live_dynamic${state.sessionsByKey.size+1}`,
-              status:'open',payment_status:'unpaid',url:`https://checkout.stripe.com/c/pay/${key}`,
-              metadata:input.metadata,client_reference_id:input.client_reference_id,payment_method_types:state.dynamicMethods};
-            state.sessionsByKey.set(key,fresh);state.sessionsById.set(fresh.id,fresh);return fresh;
+          const input = body as Stripe.Checkout.SessionCreateParams;
+          if (state.dynamicMock || input.metadata?.support_request_id) {
+            const key = (options as { idempotencyKey: string }).idempotencyKey;
+            const previous = state.sessionsByKey.get(key);
+            if (previous) return previous;
+            const fresh = {
+              ...(state.session as object),
+              id:
+                !state.dynamicMock && state.sessionsByKey.size === 0
+                  ? 'cs_live_fixture'
+                  : `cs_live_dynamic${state.sessionsByKey.size + 1}`,
+              status: 'open',
+              payment_status: 'unpaid',
+              url: `https://checkout.stripe.com/c/pay/${key}`,
+              mode: 'subscription',
+              expires_at: input.expires_at,
+              metadata: input.metadata,
+              client_reference_id: input.client_reference_id,
+              payment_method_types: state.dynamicMethods,
+            };
+            state.sessionsByKey.set(key, fresh);
+            state.sessionsById.set(fresh.id, fresh);
+            state.session = fresh;
+            return fresh;
           }
           if (state.matchPreviewPrices) {
-            const price = (body as Stripe.Checkout.SessionCreateParams).line_items?.[0].price as string;
-            const amounts: Record<string, number> = { price_starter: 2900, price_team: 4900, price_business: 9900 };
-            return { ...(state.session as object), amount_total: amounts[price], currency: 'chf', mode: 'subscription' };
+            const price = (body as Stripe.Checkout.SessionCreateParams)
+              .line_items?.[0].price as string;
+            const amounts: Record<string, number> = {
+              price_starter: 2900,
+              price_team: 4900,
+              price_business: 9900,
+            };
+            return {
+              ...(state.session as object),
+              amount_total: amounts[price],
+              currency: 'chf',
+              mode: 'subscription',
+            };
           }
           return state.session;
         },
         expire: async (id: string) => {
           state.expiredIds.push(id);
-          if(state.expirationMode==='open-error')throw new Error('expire unavailable');
-          state.session = { ...((state.sessionsById.get(id)??state.session) as object),
-            status:state.expirationMode==='paid-race'?'complete':'expired',
-            ...(state.expirationMode==='paid-race'?{payment_status:'paid'}:{}) };
-          state.sessionsById.set(id,state.session);
-          if(['paid-race','expired-error'].includes(state.expirationMode))throw new Error('expire response unavailable');
+          if (state.expirationMode === 'open-error')
+            throw new Error('expire unavailable');
+          state.session = {
+            ...((state.sessionsById.get(id) ?? state.session) as object),
+            status:
+              state.expirationMode === 'paid-race' ? 'complete' : 'expired',
+            ...(state.expirationMode === 'paid-race'
+              ? { payment_status: 'paid' }
+              : {}),
+          };
+          state.sessionsById.set(id, state.session);
+          if (['paid-race', 'expired-error'].includes(state.expirationMode))
+            throw new Error('expire response unavailable');
           return state.session;
         },
       },
@@ -181,10 +259,34 @@ function seedPaid(overrides: Partial<SubscriptionRow> = {}) {
     )
     .run(...Object.values(value));
 }
+it('an unresolved historical active subscription with no paid period still blocks another checkout', async () => {
+  seedPaid({
+    paid_from: 0,
+    paid_until: 0,
+    paid_plan_id: null,
+    last_paid_invoice_id: null,
+    status: 'active',
+  });
+  await expect(
+    createSupportCheckout(workspace, user, {
+      plan: 'starter',
+      acceptTerms: true,
+      legalVersion: SUPPORT_LEGAL_VERSION,
+    }),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(state.calls).toHaveLength(0);
+  expect(
+    sql.prepare('SELECT COUNT(*) n FROM stripe_support_purchase_requests').get()
+      ?.n,
+  ).toBe(0);
+});
 beforeEach(async () => {
   sql = new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys=ON');
-  for (const file of readdirSync(new URL('../../drizzle/', import.meta.url)).filter(f=>f.endsWith('.sql')).sort().map(f=>f.slice(0,-4)))
+  for (const file of readdirSync(new URL('../../drizzle/', import.meta.url))
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .map((f) => f.slice(0, -4)))
     sql.exec(
       readFileSync(
         new URL('../../drizzle/' + file + '.sql', import.meta.url),
@@ -195,6 +297,10 @@ beforeEach(async () => {
     prepare(query: string) {
       let values: SQLInputValue[] = [];
       const api = {
+        query,
+        get values() {
+          return values;
+        },
         bind(...v: SQLInputValue[]) {
           values = v;
           return api;
@@ -211,6 +317,20 @@ beforeEach(async () => {
       };
       return api;
     },
+    async batch(queries: Array<{ query: string; values: SQLInputValue[] }>) {
+      sql.exec('BEGIN IMMEDIATE');
+      try {
+        const results = queries.map((q) => ({
+          success: true,
+          meta: sql.prepare(q.query).run(...q.values),
+        }));
+        sql.exec('COMMIT');
+        return results;
+      } catch (error) {
+        sql.exec('ROLLBACK');
+        throw error;
+      }
+    },
   };
   state.env = {
     STRIPE_SECRET_KEY: 'sk_live_fixture',
@@ -218,8 +338,12 @@ beforeEach(async () => {
   };
   state.calls = [];
   state.matchPreviewPrices = false;
-  state.dynamicMock = false;state.expirationMode='success';state.dynamicMethods=['card','twint'];
-  state.sessionsById.clear();state.sessionsByKey.clear();state.expiredIds=[];
+  state.dynamicMock = false;
+  state.expirationMode = 'success';
+  state.dynamicMethods = ['card', 'twint'];
+  state.sessionsById.clear();
+  state.sessionsByKey.clear();
+  state.expiredIds = [];
   config.keyBinding = await digest(state.env.STRIPE_SECRET_KEY);
   sql
     .prepare(
@@ -259,6 +383,7 @@ beforeEach(async () => {
   state.invoice = invoice();
   state.session = {
     id: 'cs_live_fixture',
+    mode: 'subscription',
     status: 'open',
     payment_status: 'unpaid',
     url: 'https://checkout.stripe.com/c/pay/cs_live_fixture',
@@ -268,6 +393,7 @@ beforeEach(async () => {
       service: 'zentra-support',
       workspace_id: 'w1',
       owner_id: 'owner',
+      plan: 'starter',
     },
     subscription: 'sub_support',
   };
@@ -451,9 +577,9 @@ it('conserve un seul checkout et une preuve durable de consentement', async () =
     createSupportCheckout(workspace, user, { ...body, plan: 'team' }),
   ).rejects.toThrow();
   await cancelSupportCheckout(workspace, user);
-  expect(
-    sql.prepare('SELECT expires_at FROM support_checkouts').get()?.expires_at,
-  ).toBe(0);
+  expect(sql.prepare('SELECT state FROM purchase_intents').get()?.state).toBe(
+    'expired',
+  );
 });
 it('refuse la configuration d’un autre mode Stripe', async () => {
   state.env.STRIPE_SECRET_KEY = 'sk_test_fixture';
@@ -505,9 +631,13 @@ it('répare la preuve manquante d’un lien déjà préparé avec les conditions
     acceptTerms: true,
     legalVersion: SUPPORT_LEGAL_VERSION,
   };
-  await createSupportCheckout(workspace, user, body);
+  const clock = vi.spyOn(Date, 'now').mockReturnValue((time - 300) * 1000);
+  try {
+    await createSupportCheckout(workspace, user, body);
+  } finally {
+    clock.mockRestore();
+  }
   sql.exec('DELETE FROM support_checkout_acceptances');
-  sql.prepare('UPDATE support_checkouts SET accepted_at=?').run(time - 300);
   await createSupportCheckout(workspace, user, body);
   expect(
     sql.prepare('SELECT accepted_at FROM support_checkout_acceptances').get()
@@ -525,74 +655,177 @@ it.each([
   { methods: ['card', 'twint'], eligible: true },
   { methods: ['card'], eligible: false },
   { methods: undefined, eligible: false },
-])('rapporte TWINT uniquement quand Checkout le confirme : $eligible', async ({ methods, eligible }) => {
-  state.matchPreviewPrices = true;
-  Object.assign(state.session as object, { payment_method_types: methods });
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 200 })));
-  try {
-    const result = await verifySupportBilling();
-    expect(result.twintEligible).toBe(eligible);
-    expect(result.paymentTaken).toBe(false);
-    expect(result.checkouts).toHaveLength(3);
-    expect(result.checkouts.every(row => row.expired)).toBe(true);
-    expect(result.checkouts.every(row => row.twintEligible === eligible)).toBe(true);
-    expect(result.checkouts[0].paymentMethodTypes).toEqual(methods ?? []);
-    expect((await billingState(workspace)).active).toBe(false);
-  } finally { vi.unstubAllGlobals(); }
-});
-vi.mock('@/lib/site-language-server', () => ({ currentSiteLanguage: () => 'fr' }));
+])(
+  'rapporte TWINT uniquement quand Checkout le confirme : $eligible',
+  async ({ methods, eligible }) => {
+    state.matchPreviewPrices = true;
+    Object.assign(state.session as object, { payment_method_types: methods });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('', { status: 200 })),
+    );
+    try {
+      const result = await verifySupportBilling();
+      expect(result.twintEligible).toBe(eligible);
+      expect(result.paymentTaken).toBe(false);
+      expect(result.checkouts).toHaveLength(3);
+      expect(result.checkouts.every((row) => row.expired)).toBe(true);
+      expect(
+        result.checkouts.every((row) => row.twintEligible === eligible),
+      ).toBe(true);
+      expect(result.checkouts[0].paymentMethodTypes).toEqual(methods ?? []);
+      expect((await billingState(workspace)).active).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  },
+);
+vi.mock('@/lib/site-language-server', () => ({
+  currentSiteLanguage: () => 'fr',
+}));
 
-const checkoutBody={plan:'starter',acceptTerms:true,legalVersion:SUPPORT_LEGAL_VERSION};
+const checkoutBody = {
+  plan: 'starter',
+  acceptTerms: true,
+  legalVersion: SUPPORT_LEGAL_VERSION,
+};
 async function seedLegacyCardCheckout() {
-  await createSupportCheckout(workspace,user,checkoutBody);
-  state.calls=[];state.dynamicMock=true;
-  Object.assign(state.session as object,{payment_method_types:['card']});
-  sql.prepare('UPDATE support_checkouts SET accepted_at=?').run(time-600);
+  sql
+    .prepare(
+      'INSERT INTO support_checkouts(workspace_id,nonce,plan_id,session_id,expires_at,owner_id,accepted_version,accepted_at) VALUES(?,?,?,?,?,?,?,?)',
+    )
+    .run(
+      'w1',
+      'legacy-nonce',
+      'starter',
+      'cs_live_fixture',
+      time + 3600,
+      'owner',
+      SUPPORT_LEGAL_VERSION,
+      time - 600,
+    );
+  sql
+    .prepare('INSERT INTO support_checkout_acceptances VALUES(?,?,?,?,?,?)')
+    .run(
+      'cs_live_fixture',
+      'w1',
+      'owner',
+      'starter',
+      SUPPORT_LEGAL_VERSION,
+      time - 600,
+    );
+  state.calls = [];
+  state.dynamicMock = true;
+  Object.assign(state.session as object, { payment_method_types: ['card'] });
+  state.sessionsById.set('cs_live_fixture', state.session);
 }
-it.each(['success','expired-error'])('remplace l’ancien lien carte seulement après sa fermeture confirmée : %s',async mode=>{
-  await seedLegacyCardCheckout();state.expirationMode=mode;
-  const previous=sql.prepare('SELECT nonce,session_id FROM support_checkouts').get();
-  const result=await createSupportCheckout(workspace,user,checkoutBody);
-  expect(result.url).not.toBe('https://checkout.stripe.com/c/pay/cs_live_fixture');
-  expect(state.expiredIds).toEqual(['cs_live_fixture']);
-  expect(state.calls).toHaveLength(1);
-  expect(state.calls[0].body).not.toHaveProperty('payment_method_types');
-  expect(state.calls[0].body).toHaveProperty('metadata.payment_methods','dynamic-v1');
-  const current=sql.prepare('SELECT nonce,session_id FROM support_checkouts').get();
-  expect(current?.nonce).not.toBe(previous?.nonce);expect(current?.session_id).toBe('cs_live_dynamic1');
-  expect(sql.prepare('SELECT count(*) AS n FROM support_checkout_acceptances').get()?.n).toBe(2);
-  expect((await billingState(workspace)).active).toBe(false);
-});
-it('ne crée aucun nouveau lien si la fermeture de l’ancien est incertaine',async()=>{
-  await seedLegacyCardCheckout();state.expirationMode='open-error';
-  const before=sql.prepare('SELECT * FROM support_checkouts').get();
-  await expect(createSupportCheckout(workspace,user,checkoutBody)).rejects.toMatchObject({status:503});
-  expect(state.calls).toHaveLength(0);expect(sql.prepare('SELECT * FROM support_checkouts').get()).toEqual(before);
-});
-it('conserve un paiement terminé pendant la fermeture et réconcilie ses droits sans nouveau lien',async()=>{
-  await seedLegacyCardCheckout();state.expirationMode='paid-race';
-  const result=await createSupportCheckout(workspace,user,checkoutBody);
-  expect(result.url).toContain('section=billing');expect(state.calls).toHaveLength(0);
-  expect((await billingState(workspace)).active).toBe(true);
-  expect(sql.prepare('SELECT session_id FROM support_checkouts').get()?.session_id).toBe('cs_live_fixture');
-});
-it('ne remplace pas en boucle une page dynamique offrant légitimement seulement la carte',async()=>{
-  await seedLegacyCardCheckout();state.dynamicMethods=['card'];
-  const first=await createSupportCheckout(workspace,user,checkoutBody);
-  const second=await createSupportCheckout(workspace,user,checkoutBody);
-  expect(first).toEqual(second);expect(state.calls).toHaveLength(1);expect(state.expiredIds).toHaveLength(1);
-});
-it('deux requêtes concurrentes utilisent la même nouvelle clé et une seule page payable',async()=>{
+it.each(['success', 'expired-error'])(
+  'remplace l’ancien lien carte seulement après sa fermeture confirmée : %s',
+  async (mode) => {
+    await seedLegacyCardCheckout();
+    state.expirationMode = mode;
+    const previous = sql
+      .prepare('SELECT nonce,session_id FROM support_checkouts')
+      .get();
+    const result = await createSupportCheckout(workspace, user, checkoutBody);
+    expect(result.url).not.toBe(
+      'https://checkout.stripe.com/c/pay/cs_live_fixture',
+    );
+    expect(state.expiredIds).toEqual(['cs_live_fixture']);
+    expect(state.calls).toHaveLength(1);
+    expect(state.calls[0].body).not.toHaveProperty('payment_method_types');
+    expect(state.calls[0].body).toHaveProperty(
+      'metadata.payment_methods',
+      'dynamic-v1',
+    );
+    const current = sql
+      .prepare('SELECT nonce,session_id,expires_at FROM support_checkouts')
+      .get();
+    expect(current?.nonce).toBe(previous?.nonce);
+    expect(current?.session_id).toBe(previous?.session_id);
+    expect(current?.expires_at).toBe(0);
+    expect(
+      sql
+        .prepare('SELECT session_id FROM stripe_support_purchase_requests')
+        .get()?.session_id,
+    ).toBe('cs_live_dynamic1');
+    expect(
+      sql
+        .prepare('SELECT count(*) AS n FROM support_checkout_acceptances')
+        .get()?.n,
+    ).toBe(2);
+    expect((await billingState(workspace)).active).toBe(false);
+  },
+);
+it('ne crée aucun nouveau lien si la fermeture de l’ancien est incertaine', async () => {
   await seedLegacyCardCheckout();
-  const results=await Promise.all([createSupportCheckout(workspace,user,checkoutBody),createSupportCheckout(workspace,user,checkoutBody)]);
-  expect(results[0]).toEqual(results[1]);expect(state.sessionsByKey.size).toBe(1);
-  expect(new Set(state.calls.map(call=>(call.options as {idempotencyKey:string}).idempotencyKey)).size).toBe(1);
-  expect(sql.prepare('SELECT count(*) AS n FROM support_checkout_acceptances').get()?.n).toBe(2);
+  state.expirationMode = 'open-error';
+  const before = sql.prepare('SELECT * FROM support_checkouts').get();
+  await expect(
+    createSupportCheckout(workspace, user, checkoutBody),
+  ).rejects.toMatchObject({ status: 503 });
+  expect(state.calls).toHaveLength(0);
+  expect(sql.prepare('SELECT * FROM support_checkouts').get()).toEqual(before);
+});
+it('conserve un paiement terminé pendant la fermeture et réconcilie ses droits sans nouveau lien', async () => {
+  await seedLegacyCardCheckout();
+  state.expirationMode = 'paid-race';
+  const result = await createSupportCheckout(workspace, user, checkoutBody);
+  expect(result.url).toContain('section=billing');
+  expect(state.calls).toHaveLength(0);
+  expect((await billingState(workspace)).active).toBe(true);
+  expect(
+    sql.prepare('SELECT session_id FROM support_checkouts').get()?.session_id,
+  ).toBe('cs_live_fixture');
+});
+it('ne remplace pas en boucle une page dynamique offrant légitimement seulement la carte', async () => {
+  await seedLegacyCardCheckout();
+  state.dynamicMethods = ['card'];
+  const first = await createSupportCheckout(workspace, user, checkoutBody);
+  const second = await createSupportCheckout(workspace, user, checkoutBody);
+  expect(first).toEqual(second);
+  expect(state.calls).toHaveLength(1);
+  expect(state.expiredIds).toHaveLength(1);
+});
+it('deux requêtes concurrentes utilisent la même nouvelle clé et une seule page payable', async () => {
+  await seedLegacyCardCheckout();
+  const results = await Promise.all([
+    createSupportCheckout(workspace, user, checkoutBody),
+    createSupportCheckout(workspace, user, checkoutBody),
+  ]);
+  expect(results[0]).toEqual(results[1]);
+  expect(state.sessionsByKey.size).toBe(1);
+  expect(
+    new Set(
+      state.calls.map(
+        (call) => (call.options as { idempotencyKey: string }).idempotencyKey,
+      ),
+    ).size,
+  ).toBe(1);
+  expect(
+    sql.prepare('SELECT count(*) AS n FROM support_checkout_acceptances').get()
+      ?.n,
+  ).toBe(2);
 });
 it.each([
-  {livemode:false},{client_reference_id:'other'},{metadata:{service:'zentra-support',workspace_id:'other',owner_id:'owner'}},
-])('refuse de fermer une page non liée au titulaire et au mode attendu',async override=>{
-  await seedLegacyCardCheckout();Object.assign(state.session as object,override);
-  await expect(createSupportCheckout(workspace,user,checkoutBody)).rejects.toMatchObject({status:409});
-  expect(state.calls).toHaveLength(0);expect(state.expiredIds).toHaveLength(0);
-});
+  { livemode: false },
+  { client_reference_id: 'other' },
+  {
+    metadata: {
+      service: 'zentra-support',
+      workspace_id: 'other',
+      owner_id: 'owner',
+    },
+  },
+])(
+  'refuse de fermer une page non liée au titulaire et au mode attendu',
+  async (override) => {
+    await seedLegacyCardCheckout();
+    Object.assign(state.session as object, override);
+    await expect(
+      createSupportCheckout(workspace, user, checkoutBody),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(state.calls).toHaveLength(0);
+    expect(state.expiredIds).toHaveLength(0);
+  },
+);

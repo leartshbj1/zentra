@@ -56,6 +56,8 @@ type RuntimeBindings = {
   POSTFINANCE_PAY_TOKEN_ENABLED?: string;
   POSTFINANCE_TWINT_USER_ON_FILE_ENABLED?: string;
   POSTFINANCE_TEST_ACCOUNT_USER_IDS?: string;
+  POSTFINANCE_BILLING_WORKER_ENABLED?: string;
+  POSTFINANCE_BILLING_WORKER_TOKEN?: string;
 };
 
 const bindings = env as unknown as RuntimeBindings;

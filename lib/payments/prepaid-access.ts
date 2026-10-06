@@ -48,6 +48,7 @@ type AccessRow = {
   invoice_id: number;
   evidence_fingerprint: string;
   reconciled_at: number;
+  initial_handoff_complete: number;
   actual_organization_id: string | null;
   actual_org_owner_id: string | null;
   actual_owner_membership_id: string | null;
@@ -167,6 +168,16 @@ const SELECT_PAID = `SELECT c.contract_id,c.owner_id,c.organization_id,c.workspa
   CASE WHEN json_valid(p.catalog_json) AND length(CAST(p.catalog_json AS BLOB))<=8192
     THEN NOT EXISTS(SELECT 1 FROM json_tree(p.catalog_json) GROUP BY parent,key HAVING COUNT(*)>1) ELSE 0 END AS period_json_unique,
   t.transaction_id,s.invoice_id,s.evidence_fingerprint,s.reconciled_at,
+  (NOT EXISTS(SELECT 1 FROM prepaid_purchase_targets target WHERE target.contract_id=c.contract_id)
+    OR EXISTS(SELECT 1 FROM prepaid_purchase_targets target JOIN prepaid_purchase_projections projection
+      ON projection.intent_id=target.intent_id AND projection.contract_id=target.contract_id
+      JOIN purchase_intents intent ON intent.intent_id=target.intent_id
+      WHERE target.contract_id=c.contract_id AND target.owner_id=c.owner_id
+      AND target.organization_id IS c.organization_id AND target.workspace_id IS c.workspace_id
+      AND projection.owner_id=c.owner_id AND projection.organization_id IS c.organization_id
+      AND projection.workspace_id IS c.workspace_id AND projection.closed_at IS NOT NULL
+      AND intent.state='settled' AND intent.owner_id=c.owner_id
+      AND NOT EXISTS(SELECT 1 FROM purchase_intent_footprints f WHERE f.intent_id=intent.intent_id AND f.released_at IS NULL))) AS initial_handoff_complete,
   o.organization_id AS actual_organization_id,o.created_by_user_id AS actual_org_owner_id,own.membership_id AS actual_owner_membership_id,o.subscription_id AS actual_subscription_id,o.name AS actual_org_name,
   w.id AS actual_workspace_id,w.owner_id AS actual_workspace_owner_id,w.name AS actual_workspace_name,
   lw.id AS linked_workspace_id,lw.owner_id AS linked_workspace_owner_id,lw.name AS linked_workspace_name
@@ -196,6 +207,7 @@ async function candidates(
 function access(row: AccessRow, linkedWorkspace = false): PrepaidAccess | null {
   const now = Math.floor(Date.now() / 1000);
   if (
+    row.initial_handoff_complete !== 1 ||
     !validContractId(row.contract_id) ||
     !validIdentity(row.owner_id) ||
     !positiveInteger(row.anchor_start) ||

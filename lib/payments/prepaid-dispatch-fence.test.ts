@@ -271,15 +271,13 @@ describe('atomic prepaid financial dispatch fence on actual migration SQL', () =
     );
     expect(count()).toBe(0);
   });
-  it('admits a current renewal with the actual adjacent paid period, then refuses a revoked current period', async () => {
+  it('refuses a current renewal without a verified token and frozen request even with an adjacent paid period', async () => {
     const previous = period;
     await recordPaid(previous);
     clock = previous.endsAt;
     period = await periods().reservePeriod(identity.contractId, 1);
     await freeze();
-    expect(await ledger().claim(scope(), fingerprint)).toEqual({
-      kind: 'claimed',
-    });
+    await expect(ledger().claim(scope(), fingerprint)).rejects.toThrow('dispatch is unavailable');
     await periods().bindTransaction(period.periodId, 72);
     sql
       .prepare('INSERT INTO prepaid_provider_reversals VALUES(?,?,?)')
@@ -288,7 +286,7 @@ describe('atomic prepaid financial dispatch fence on actual migration SQL', () =
     await expect(
       ledger(value).claim(scope(value), fingerprint),
     ).rejects.toThrow('dispatch is unavailable');
-    expect(count()).toBe(1);
+    expect(count()).toBe(0);
   });
   it.each(['claim-first', 'cancel-first'] as const)(
     'serializes %s ordering at the atomic ledger INSERT',

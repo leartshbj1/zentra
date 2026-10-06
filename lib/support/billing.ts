@@ -5,7 +5,7 @@ import { completePlan } from '@/lib/complete/plans';
 import { supportCompleteTrial } from '@/lib/complete/trial';
 import { transitionAccess } from '@/lib/complete/bridge';
 import { completePortal } from '@/lib/complete/stripe';
-import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
+import { database, runtimeValue } from '@/lib/runtime';
 import {
   STRIPE_API_VERSION,
   REQUIRED_STRIPE_WEBHOOK_EVENTS,
@@ -15,15 +15,17 @@ import {
   stripeReferenceId,
   subscriptionIdFromStripeEvent,
 } from '@/lib/stripe-event';
-import { stripeTestAccessAllowed } from '@/lib/stripe-test-access';
 import type { ZentraUser } from '@/app/zentra-auth';
 import { digest } from './crypto';
 import { SupportError, type Workspace } from './types';
 import { supportGrant } from './founder-access';
-import { isPrepaidContractId, prepaidSupportAccess, type PrepaidAccess } from '@/lib/payments/prepaid-access';
+import {
+  isPrepaidContractId,
+  prepaidSupportAccess,
+  type PrepaidAccess,
+} from '@/lib/payments/prepaid-access';
 import {
   SUPPORT_PRODUCT,
-  SUPPORT_LEGAL_VERSION,
   SUPPORT_PLANS,
   supportPlan,
   type SupportPlanId,
@@ -118,34 +120,110 @@ export async function isSupportOwner(workspace: Pick<Workspace, 'owner_id'>) {
   return row?.configuration === (await digest(email));
 }
 async function subscriptionRow(workspaceId: string) {
-  const prepaid = await prepaidSupportAccess(workspaceId);
+  // Tenant authorization precedes this function. These independent read-only
+  // sources share one request barrier; they never share a cross-request cache.
+  const [prepaid, link, projected] = await Promise.all([
+    prepaidSupportAccess(workspaceId),
+    database()
+      .prepare(
+        'SELECT l.organization_id,o.subscription_id FROM support_gestion_links l JOIN organizations o ON o.organization_id=l.organization_id WHERE l.workspace_id=?',
+      )
+      .bind(workspaceId)
+      .first<{ organization_id: string; subscription_id: string }>(),
+    database()
+      .prepare(`SELECT s.workspace_id,s.subscription_id,s.customer_id,s.plan_id,s.status,s.paid_from,
+      CASE WHEN f.invoice_id IS NOT NULL THEN 0 ELSE s.paid_until END AS paid_until,
+      s.paid_plan_id,s.last_paid_invoice_id,s.cancel_at_period_end,s.livemode,s.updated_at
+      FROM support_subscriptions s LEFT JOIN support_refunds f ON f.invoice_id=s.last_paid_invoice_id AND f.customer_id=s.customer_id AND f.livemode=s.livemode
+      WHERE s.workspace_id=?`)
+      .bind(workspaceId)
+      .first<SubscriptionRow>(),
+  ]);
   if (prepaid?.catalog.support) return prepaidSupportRow(workspaceId, prepaid);
-  const link=await database().prepare('SELECT l.organization_id,o.subscription_id FROM support_gestion_links l JOIN organizations o ON o.organization_id=l.organization_id WHERE l.workspace_id=?').bind(workspaceId).first<{organization_id:string;subscription_id:string}>();
-  const projected = await database().prepare('SELECT * FROM support_subscriptions WHERE workspace_id=?')
-    .bind(workspaceId).first<SubscriptionRow>();
-  if ((projected && isPrepaidContractId(projected.subscription_id)) || (link && isPrepaidContractId(link.subscription_id))) {
+  if (
+    (projected && isPrepaidContractId(projected.subscription_id)) ||
+    (link && isPrepaidContractId(link.subscription_id))
+  ) {
     // Keep the provider identity visible, but never resurrect its mutable cache,
     // transition, trial or offered-access fallback after the proof stops applying.
-    return { workspace_id: workspaceId, subscription_id: projected?.subscription_id ?? link!.subscription_id,
-      customer_id: '', plan_id: '', paid_plan_id: null, status: 'expired', paid_from: 0,
-      paid_until: 0, last_paid_invoice_id: null, cancel_at_period_end: 0, livemode: 1,
-      updated_at: 0, provider: 'postfinance' } satisfies SubscriptionRow;
+    return {
+      workspace_id: workspaceId,
+      subscription_id: projected?.subscription_id ?? link!.subscription_id,
+      customer_id: '',
+      plan_id: '',
+      paid_plan_id: null,
+      status: 'expired',
+      paid_from: 0,
+      paid_until: 0,
+      last_paid_invoice_id: null,
+      cancel_at_period_end: 0,
+      livemode: 1,
+      updated_at: 0,
+      provider: 'postfinance',
+    } satisfies SubscriptionRow;
   }
-  const transition=link?await transitionAccess(link.organization_id):null;
-  if(transition?.supportPlan) return {workspace_id:workspaceId,subscription_id:transition.primary,customer_id:transition.sources[0].customer,plan_id:transition.supportPlan,paid_plan_id:transition.supportPlan,status:'active',paid_from:transition.supportFrom,paid_until:transition.until,last_paid_invoice_id:null,cancel_at_period_end:0,livemode:Number(transition.live),updated_at:0};
+  const transition = link ? await transitionAccess(link.organization_id) : null;
+  if (transition?.supportPlan)
+    return {
+      workspace_id: workspaceId,
+      subscription_id: transition.primary,
+      customer_id: transition.sources[0].customer,
+      plan_id: transition.supportPlan,
+      paid_plan_id: transition.supportPlan,
+      status: 'active',
+      paid_from: transition.supportFrom,
+      paid_until: transition.until,
+      last_paid_invoice_id: null,
+      cancel_at_period_end: 0,
+      livemode: Number(transition.live),
+      updated_at: 0,
+    };
   const bundle = await completeSupportSubscription(workspaceId);
-  if (bundle) return { workspace_id: workspaceId, subscription_id: bundle.subscription_id, customer_id: bundle.customer_id, plan_id: completePlan(bundle.plan_id)!.support, paid_plan_id: completePlan(bundle.paid_plan_id)?.support ?? null, status: bundle.status, paid_from: bundle.paid_from, paid_until: bundle.refunded ? 0 : Math.min(bundle.paid_until, bundle.entitlement_valid_until), last_paid_invoice_id: bundle.last_paid_invoice_id, cancel_at_period_end: bundle.cancel_at_period_end, livemode: bundle.livemode, updated_at: 0, bundlePlan: completePlan(bundle.paid_plan_id ?? bundle.plan_id)?.name };
+  if (bundle)
+    return {
+      workspace_id: workspaceId,
+      subscription_id: bundle.subscription_id,
+      customer_id: bundle.customer_id,
+      plan_id: completePlan(bundle.plan_id)!.support,
+      paid_plan_id: completePlan(bundle.paid_plan_id)?.support ?? null,
+      status: bundle.status,
+      paid_from: bundle.paid_from,
+      paid_until: bundle.refunded
+        ? 0
+        : Math.min(bundle.paid_until, bundle.entitlement_valid_until),
+      last_paid_invoice_id: bundle.last_paid_invoice_id,
+      cancel_at_period_end: bundle.cancel_at_period_end,
+      livemode: bundle.livemode,
+      updated_at: 0,
+      bundlePlan: completePlan(bundle.paid_plan_id ?? bundle.plan_id)?.name,
+    };
   return projected;
 }
 
-function prepaidSupportRow(workspaceId: string, access: PrepaidAccess): SubscriptionRow {
+function prepaidSupportRow(
+  workspaceId: string,
+  access: PrepaidAccess,
+): SubscriptionRow {
   const plan = access.catalog.support!.planId;
-  const row: SubscriptionRow = { provider: 'postfinance', prepaidPeriodId: access.periodId,
-    workspace_id: workspaceId, subscription_id: access.contractId, customer_id: access.contractId,
-    plan_id: plan, paid_plan_id: plan, status: 'active', paid_from: access.paidFrom,
-    paid_until: access.paidUntil, last_paid_invoice_id: access.periodId,
-    cancel_at_period_end: Number(access.cancelAtPeriodEnd), livemode: 1, updated_at: 0,
-    ...(access.productKind === 'complete' ? { bundlePlan: completePlan(access.catalog.planId)?.name } : {}) };
+  const row: SubscriptionRow = {
+    provider: 'postfinance',
+    prepaidPeriodId: access.periodId,
+    workspace_id: workspaceId,
+    subscription_id: access.contractId,
+    customer_id: access.contractId,
+    plan_id: plan,
+    paid_plan_id: plan,
+    status: 'active',
+    paid_from: access.paidFrom,
+    paid_until: access.paidUntil,
+    last_paid_invoice_id: access.periodId,
+    cancel_at_period_end: Number(access.cancelAtPeriodEnd),
+    livemode: 1,
+    updated_at: 0,
+    ...(access.productKind === 'complete'
+      ? { bundlePlan: completePlan(access.catalog.planId)?.name }
+      : {}),
+  };
   verifiedPrepaidRows.add(row);
   return row;
 }
@@ -168,14 +246,19 @@ export function paidAccess(
 export async function billingState(
   workspace: Pick<Workspace, 'id' | 'owner_id'>,
 ): Promise<SupportBillingState> {
-  const config = await configuration(),
-    row = await subscriptionRow(workspace.id),
-    ownerAccess = await isSupportOwner(workspace),
-    paid = paidAccess(
+  const [config, row, ownerAccess] = await Promise.all([
+    configuration(),
+    subscriptionRow(workspace.id),
+    isSupportOwner(workspace),
+  ]);
+  const paid = paidAccess(
       row,
       stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
     ),
-    offered = row?.provider !== 'postfinance' && !ownerAccess && !paid ? await supportGrant(workspace) : null,
+    offered =
+      row?.provider !== 'postfinance' && !ownerAccess && !paid
+        ? await supportGrant(workspace)
+        : null,
     plan = offered?.plan ?? supportPlan(row?.paid_plan_id);
   const usage = offered
     ? await database()
@@ -192,10 +275,31 @@ export async function billingState(
           .bind(workspace.id, row.paid_from)
           .first<{ used: number }>()
       : null;
-  const trial = row?.provider !== 'postfinance' && !ownerAccess && !paid && !offered ? await supportCompleteTrial(workspace.id) : null;
-  if(trial) {
-    const used=await database().prepare("SELECT COUNT(*) AS used FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND state='charged'").bind(workspace.id,trial.started_at).first<{used:number}>();
-    return {active:!!trial.active,bundlePlan:'Essai Complet',ownerAccess:false,ready:!!config,testMode:config?.livemode===false,plan:'team',status:trial.active?'trialing':'trial_expired',used:used?.used??0,limit:trial.analyses,periodEnd:trial.ends_at,cancelAtPeriodEnd:false,hasSubscription:false};
+  const trial =
+    row?.provider !== 'postfinance' && !ownerAccess && !paid && !offered
+      ? await supportCompleteTrial(workspace.id)
+      : null;
+  if (trial) {
+    const used = await database()
+      .prepare(
+        "SELECT COUNT(*) AS used FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND state='charged'",
+      )
+      .bind(workspace.id, trial.started_at)
+      .first<{ used: number }>();
+    return {
+      active: !!trial.active,
+      bundlePlan: 'Essai Complet',
+      ownerAccess: false,
+      ready: !!config,
+      testMode: config?.livemode === false,
+      plan: 'team',
+      status: trial.active ? 'trialing' : 'trial_expired',
+      used: used?.used ?? 0,
+      limit: trial.analyses,
+      periodEnd: trial.ends_at,
+      cancelAtPeriodEnd: false,
+      hasSubscription: false,
+    };
   }
   return {
     active: ownerAccess || paid || !!offered,
@@ -204,7 +308,8 @@ export async function billingState(
     offeredAccess: !!offered,
     offeredUntil: offered?.expiresAt ?? null,
     ready: row?.provider === 'postfinance' ? paid : !!config,
-    testMode: row?.provider === 'postfinance' ? false : config?.livemode === false,
+    testMode:
+      row?.provider === 'postfinance' ? false : config?.livemode === false,
     plan: plan?.id ?? null,
     status: offered ? 'offered' : (row?.status ?? 'none'),
     used: usage?.used ?? 0,
@@ -225,8 +330,9 @@ export async function requireSupportSubscription(
       row,
       stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
     ) &&
-    (row?.provider === 'postfinance' || (!(await supportGrant(workspace)) &&
-    !(await supportCompleteTrial(workspace.id))?.active))
+    (row?.provider === 'postfinance' ||
+      (!(await supportGrant(workspace)) &&
+        !(await supportCompleteTrial(workspace.id))?.active))
   )
     throw new SupportError(
       'Activez un abonnement dans Abonnement pour utiliser le tri et le routage. Vos tickets restent dans votre logiciel de support.',
@@ -236,16 +342,26 @@ export async function requireSupportSubscription(
 // Shared by reservation creation and the read-only check at delayed effects.
 // This retains the existing paid/pack/trial/offered period resolution.
 async function analysisQuotaContext(workspace: Workspace) {
-  const paidRow=await subscriptionRow(workspace.id);
-  const trial=paidRow?.provider !== 'postfinance' && !paidAccess(paidRow,stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'))) && !(await supportGrant(workspace)) ? await supportCompleteTrial(workspace.id) : null;
+  const paidRow = await subscriptionRow(workspace.id);
+  const trial =
+    paidRow?.provider !== 'postfinance' &&
+    !paidAccess(
+      paidRow,
+      stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
+    ) &&
+    !(await supportGrant(workspace))
+      ? await supportCompleteTrial(workspace.id)
+      : null;
   if (trial?.active) return { kind: 'trial' as const, trial };
   const row = await subscriptionRow(workspace.id),
-    offered = row?.provider !== 'postfinance' && !paidAccess(
-      row,
-      stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
-    )
-      ? await supportGrant(workspace)
-      : null,
+    offered =
+      row?.provider !== 'postfinance' &&
+      !paidAccess(
+        row,
+        stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
+      )
+        ? await supportGrant(workspace)
+        : null,
     plan = offered?.plan ?? supportPlan(row?.paid_plan_id);
   if (offered) return { kind: 'offered' as const, offered };
   if (
@@ -264,28 +380,83 @@ export async function analysisReservationAdmission(
 ) {
   const founder = reservation.startsWith('founder:');
   const table = founder ? 'founder_support_usage' : 'support_analysis_usage';
-  const row = await database().prepare(`SELECT workspace_id,ticket_id,period_start,state,expires_at FROM ${table} WHERE id=?`)
+  const row = await database()
+    .prepare(
+      `SELECT workspace_id,ticket_id,period_start,state,expires_at FROM ${table} WHERE id=?`,
+    )
     .bind(founder ? reservation.slice(8) : reservation)
-    .first<{ workspace_id: string; ticket_id: string; period_start: number; state: string; expires_at: number }>();
-  if (!row || row.workspace_id !== workspace.id || row.ticket_id !== ticketId
-    || !['reserved','released','charged'].includes(row.state))
-    throw new SupportError('La réservation de cette analyse doit être vérifiée avant de reprendre.', 409);
+    .first<{
+      workspace_id: string;
+      ticket_id: string;
+      period_start: number;
+      state: string;
+      expires_at: number;
+    }>();
+  if (
+    !row ||
+    row.workspace_id !== workspace.id ||
+    row.ticket_id !== ticketId ||
+    !['reserved', 'released', 'charged'].includes(row.state)
+  )
+    throw new SupportError(
+      'La réservation de cette analyse doit être vérifiée avant de reprendre.',
+      409,
+    );
   await requireSupportSubscription(workspace);
-  if (row.state === 'charged') return { state: 'charged' as const, admitted: true, periodStart: row.period_start };
-  if (row.state === 'released') return { state: 'released' as const, admitted: false, periodStart: row.period_start };
-  if (await isSupportOwner(workspace)) return { state: 'reserved' as const, admitted: false, periodStart: row.period_start };
+  if (row.state === 'charged')
+    return {
+      state: 'charged' as const,
+      admitted: true,
+      periodStart: row.period_start,
+    };
+  if (row.state === 'released')
+    return {
+      state: 'released' as const,
+      admitted: false,
+      periodStart: row.period_start,
+    };
+  if (await isSupportOwner(workspace))
+    return {
+      state: 'reserved' as const,
+      admitted: false,
+      periodStart: row.period_start,
+    };
   const context = await analysisQuotaContext(workspace);
   const currentFounder = context.kind === 'offered';
-  const period = context.kind === 'trial' ? context.trial.started_at
-    : context.kind === 'offered' ? context.offered.start : context.row.paid_from;
-  const limit = context.kind === 'trial' ? context.trial.analyses
-    : context.kind === 'offered' ? context.offered.plan.analyses : context.plan.analyses;
+  const period =
+    context.kind === 'trial'
+      ? context.trial.started_at
+      : context.kind === 'offered'
+        ? context.offered.start
+        : context.row.paid_from;
+  const limit =
+    context.kind === 'trial'
+      ? context.trial.analyses
+      : context.kind === 'offered'
+        ? context.offered.plan.analyses
+        : context.plan.analyses;
   const time = now();
-  if (founder !== currentFounder || row.period_start !== period || row.expires_at <= time)
-    return { state: 'reserved' as const, admitted: false, periodStart: row.period_start };
-  const usage = await database().prepare(`SELECT COUNT(*) AS used FROM ${table} WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?))`)
-    .bind(workspace.id, period, time).first<{ used: number }>();
-  return { state: 'reserved' as const, admitted: !!usage && usage.used <= limit, periodStart: row.period_start };
+  if (
+    founder !== currentFounder ||
+    row.period_start !== period ||
+    row.expires_at <= time
+  )
+    return {
+      state: 'reserved' as const,
+      admitted: false,
+      periodStart: row.period_start,
+    };
+  const usage = await database()
+    .prepare(
+      `SELECT COUNT(*) AS used FROM ${table} WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?))`,
+    )
+    .bind(workspace.id, period, time)
+    .first<{ used: number }>();
+  return {
+    state: 'reserved' as const,
+    admitted: !!usage && usage.used <= limit,
+    periodStart: row.period_start,
+  };
 }
 
 export async function reserveAnalysis(
@@ -296,14 +467,33 @@ export async function reserveAnalysis(
   if (await isSupportOwner(workspace)) return null;
   await requireSupportSubscription(workspace);
   const context = await analysisQuotaContext(workspace);
-  if(context.kind === 'trial') {
+  if (context.kind === 'trial') {
     const { trial } = context;
-    const time=now();
-    const result=await database().prepare(`INSERT INTO support_analysis_usage(id,workspace_id,period_start,ticket_id,state,expires_at,created_at)
+    const time = now();
+    const result = await database()
+      .prepare(`INSERT INTO support_analysis_usage(id,workspace_id,period_start,ticket_id,state,expires_at,created_at)
       SELECT ?,?,?,?,'reserved',?,? WHERE EXISTS(SELECT 1 FROM account_trials t JOIN complete_trials c ON c.user_id=t.user_id JOIN organizations o ON o.organization_id=c.organization_id AND o.subscription_id=t.subscription_id WHERE c.organization_id=? AND t.ends_at>? AND t.converted_subscription_id IS NULL)
       AND (SELECT COUNT(*) FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?)))<?`)
-      .bind(lease,workspace.id,trial.started_at,ticketId,time+180,time,trial.organization_id,time,workspace.id,trial.started_at,time,trial.analyses).run();
-    if(!result.meta.changes)throw new SupportError('Les 250 analyses de votre essai sont utilisées ou votre essai est terminé. Choisissez un pack pour continuer. Aucun montant ne sera prélevé automatiquement.',402);
+      .bind(
+        lease,
+        workspace.id,
+        trial.started_at,
+        ticketId,
+        time + 180,
+        time,
+        trial.organization_id,
+        time,
+        workspace.id,
+        trial.started_at,
+        time,
+        trial.analyses,
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new SupportError(
+        'Les 250 analyses de votre essai sont utilisées ou votre essai est terminé. Choisissez un pack pour continuer. Aucun montant ne sera prélevé automatiquement.',
+        402,
+      );
     return lease;
   }
   if (context.kind === 'offered') {
@@ -339,7 +529,9 @@ export async function reserveAnalysis(
   }
   const { row, plan } = context;
   const time = now();
-  const prepaidFence = row.provider === 'postfinance' ? ` AND EXISTS(
+  const prepaidFence =
+    row.provider === 'postfinance'
+      ? ` AND EXISTS(
     SELECT 1 FROM prepaid_periods p JOIN prepaid_contracts c ON c.contract_id=p.contract_id
     JOIN prepaid_settlement_proofs proof ON proof.period_id=p.period_id
     JOIN support_workspaces w ON w.id=? AND w.owner_id=c.owner_id
@@ -351,7 +543,10 @@ export async function reserveAnalysis(
         SELECT 1 FROM prepaid_current_company_rights rights JOIN support_gestion_links l ON l.organization_id=rights.organization_id
         WHERE rights.period_id=p.period_id AND rights.owner_id=w.owner_id AND l.workspace_id=w.id
         AND (rights.workspace_id IS NULL OR rights.workspace_id=w.id))))
-  )` : '';
+  )`
+      : row.last_paid_invoice_id
+        ? ` AND NOT EXISTS(SELECT 1 FROM support_refunds WHERE invoice_id=? AND customer_id=? AND livemode=?)`
+        : '';
   const result = await database()
     .prepare(
       `INSERT INTO support_analysis_usage(id,workspace_id,period_start,ticket_id,state,expires_at,created_at) SELECT ?,?,?,?,'reserved',?,? WHERE (SELECT COUNT(*) FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?)))<?${prepaidFence}`,
@@ -367,7 +562,11 @@ export async function reserveAnalysis(
       row.paid_from,
       time,
       plan.analyses,
-      ...(row.provider === 'postfinance' ? [workspace.id, row.prepaidPeriodId!, row.subscription_id] : []),
+      ...(row.provider === 'postfinance'
+        ? [workspace.id, row.prepaidPeriodId!, row.subscription_id]
+        : row.last_paid_invoice_id
+          ? [row.last_paid_invoice_id, row.customer_id, row.livemode]
+          : []),
     )
     .run();
   if (!result.meta.changes)
@@ -409,22 +608,38 @@ export async function finishCapturedAnalysis(
 ) {
   if (!reservation) return true;
   if (capture.periodStart === null) return false;
-  const table = reservation.startsWith('founder:') ? 'founder_support_usage' : 'support_analysis_usage';
-  const id = reservation.startsWith('founder:') ? reservation.slice(8) : reservation;
+  const table = reservation.startsWith('founder:')
+    ? 'founder_support_usage'
+    : 'support_analysis_usage';
+  const id = reservation.startsWith('founder:')
+    ? reservation.slice(8)
+    : reservation;
   const fence = `workspace_id=? AND ticket_id=? AND period_start=?
     AND EXISTS(SELECT 1 FROM supplier_capture_analyses a
       WHERE a.workspace_id=? AND a.source_sha256=? AND a.owner_token=?
       AND a.state=? AND a.reservation=? AND a.owner_until>unixepoch())`;
-  const params = [capture.workspaceId, `invoice:${capture.sourceSha256}`, capture.periodStart,
-    capture.workspaceId, capture.sourceSha256, capture.ownerToken, capture.state, reservation];
+  const params = [
+    capture.workspaceId,
+    `invoice:${capture.sourceSha256}`,
+    capture.periodStart,
+    capture.workspaceId,
+    capture.sourceSha256,
+    capture.ownerToken,
+    capture.state,
+    reservation,
+  ];
   const next = success ? 'charged' : 'released';
-  const updated = await database().prepare(`UPDATE ${table} SET state=? WHERE id=? AND state='reserved'
+  const updated = await database()
+    .prepare(`UPDATE ${table} SET state=? WHERE id=? AND state='reserved'
     AND ${fence}${success ? ' AND expires_at>unixepoch()' : ''}`)
-    .bind(next,id,...params).run();
+    .bind(next, id, ...params)
+    .run();
   if (updated.meta.changes) return true;
   // A known previous settlement is acknowledged only under the same fence.
-  return !!(await database().prepare(`SELECT 1 FROM ${table} WHERE id=? AND state=? AND ${fence}`)
-    .bind(id,next,...params).first());
+  return !!(await database()
+    .prepare(`SELECT 1 FROM ${table} WHERE id=? AND state=? AND ${fence}`)
+    .bind(id, next, ...params)
+    .first());
 }
 
 function validPrice(price: Stripe.Price, planId: SupportPlanId, live: boolean) {
@@ -588,7 +803,13 @@ export async function verifySupportBilling() {
   if (!config)
     throw new SupportError('Configurez d’abord les formules Stripe.', 503);
   const stripe = client(),
-    results: { plan: string; amount: number; expired: boolean; paymentMethodTypes: string[]; twintEligible: boolean }[] = [];
+    results: {
+      plan: string;
+      amount: number;
+      expired: boolean;
+      paymentMethodTypes: string[];
+      twintEligible: boolean;
+    }[] = [];
   for (const plan of SUPPORT_PLANS) {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -639,14 +860,19 @@ export async function verifySupportBilling() {
       );
     if (validationError) throw validationError;
     const paymentMethodTypes = [...(session.payment_method_types ?? [])];
-    results.push({ plan: plan.id, amount: plan.priceChfCents, expired: true,
-      paymentMethodTypes, twintEligible: paymentMethodTypes.includes('twint') });
+    results.push({
+      plan: plan.id,
+      amount: plan.priceChfCents,
+      expired: true,
+      paymentMethodTypes,
+      twintEligible: paymentMethodTypes.includes('twint'),
+    });
   }
   return {
     verified: true,
     livemode: config.livemode,
     checkouts: results,
-    twintEligible: results.every(result => result.twintEligible),
+    twintEligible: results.every((result) => result.twintEligible),
     paymentTaken: false,
   };
 }
@@ -712,10 +938,25 @@ async function reconcileSubscription(
     .first<Workspace>();
   if (!workspace || subscription.metadata.owner_id !== workspace.owner_id)
     throw new SupportError('Le paiement ne correspond pas à cet espace.', 409);
-  const plan = supportPlan(subscription.metadata.plan),
-    item = subscription.items.data[0];
+  const { provisionStripeSupportPurchase, verifyStripeSupportCash } =
+    await import('@/lib/payments/stripe-support-provisioning');
+  if (
+    await provisionStripeSupportPurchase(
+      subscription,
+      invoice,
+      config,
+      client(),
+      runtimeValue('STRIPE_SECRET_KEY'),
+    )
+  )
+    return true;
+  const item = subscription.items.data[0],
+    plan = SUPPORT_PLANS.find(
+      (candidate) => config.prices[candidate.id] === item?.price.id,
+    );
   if (
     !plan ||
+    !supportPlan(subscription.metadata.plan) ||
     subscription.items.data.length !== 1 ||
     item.quantity !== 1 ||
     item.price.id !== config.prices[plan.id] ||
@@ -738,6 +979,36 @@ async function reconcileSubscription(
       'Le paiement ne correspond pas à la formule attendue.',
       503,
     );
+  if (invoice && paid) {
+    const stripe = client();
+    const cash = await verifyStripeSupportCash(invoice, subscription, {
+      payments: (invoiceId) =>
+        stripe.invoicePayments.list({
+          invoice: invoiceId,
+          status: 'paid',
+          limit: 5,
+        }),
+      paymentIntent: (id) => stripe.paymentIntents.retrieve(id),
+      charge: (id) => stripe.charges.retrieve(id),
+    });
+    if (cash.refunded)
+      await database()
+        .prepare(
+          'INSERT INTO support_refunds(invoice_id,customer_id,livemode,verified_at) VALUES(?,?,?,?) ON CONFLICT(invoice_id) DO NOTHING',
+        )
+        .bind(invoice.id!, cash.customerId, Number(cash.livemode), now())
+        .run();
+    if (
+      cash.refunded ||
+      (await database()
+        .prepare(
+          'SELECT 1 FROM support_refunds WHERE invoice_id=? AND customer_id=? AND livemode=?',
+        )
+        .bind(invoice.id!, cash.customerId, Number(cash.livemode))
+        .first())
+    )
+      return true;
+  }
   // Never move a paid period backwards when Stripe retries an older event.
   await database()
     .prepare(
@@ -760,7 +1031,67 @@ async function reconcileSubscription(
     .run();
   return true;
 }
+async function reconcileSupportRefund(event: Stripe.Event) {
+  const config = await configuration();
+  if (!config || event.livemode !== config.livemode) return false;
+  const stripe = client(),
+    charge = await stripe.charges.retrieve(
+      (event.data.object as Stripe.Charge).id,
+    );
+  if (
+    charge.livemode !== config.livemode ||
+    (!charge.refunded && charge.amount_refunded <= 0)
+  )
+    return false;
+  const paymentIntent = ref(charge.payment_intent);
+  if (!paymentIntent) return false; // Subscription Checkouts use PaymentIntents.
+  const payments = await stripe.invoicePayments.list({
+    payment: { type: 'payment_intent', payment_intent: paymentIntent },
+    status: 'paid',
+    limit: 5,
+  });
+  if (payments.has_more || payments.data.length > 5)
+    throw new SupportError('Le remboursement Support doit être vérifié.', 503);
+  const { verifyStripeSupportCash } =
+    await import('@/lib/payments/stripe-support-provisioning');
+  let handled = false;
+  for (const invoiceId of new Set(
+    payments.data.map((payment) => ref(payment.invoice)),
+  )) {
+    const invoice = await stripe.invoices.retrieve(invoiceId),
+      subscriptionId = ref(invoice.parent?.subscription_details?.subscription);
+    if (
+      !subscriptionId ||
+      invoice.livemode !== config.livemode ||
+      ref(invoice.customer) !== ref(charge.customer)
+    )
+      continue;
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    if (
+      subscription.metadata.service !== SUPPORT_PRODUCT ||
+      subscription.livemode !== config.livemode ||
+      ref(subscription.customer) !== ref(charge.customer)
+    )
+      continue;
+    const cash = await verifyStripeSupportCash(invoice, subscription, {
+      payments: (id) =>
+        stripe.invoicePayments.list({ invoice: id, status: 'paid', limit: 5 }),
+      paymentIntent: (id) => stripe.paymentIntents.retrieve(id),
+      charge: (id) => stripe.charges.retrieve(id),
+    });
+    if (!cash.refunded) continue;
+    await database()
+      .prepare(
+        'INSERT INTO support_refunds(invoice_id,customer_id,livemode,verified_at) VALUES(?,?,?,?) ON CONFLICT(invoice_id) DO NOTHING',
+      )
+      .bind(invoiceId, cash.customerId, Number(cash.livemode), now())
+      .run();
+    handled = true;
+  }
+  return handled;
+}
 export async function persistSupportStripeEvent(event: Stripe.Event) {
+  if (event.type === 'charge.refunded') return reconcileSupportRefund(event);
   const id = subscriptionIdFromStripeEvent(event);
   if (!id) return false;
   const object = event.data.object as unknown as {
@@ -790,235 +1121,39 @@ export async function createSupportCheckout(
   workspace: Workspace,
   user: ZentraUser,
   body: Record<string, unknown>,
+  origin = runtimeValue('PUBLIC_SITE_URL'),
 ) {
-  return prepareSupportCheckout(workspace,user,body,true);
-}
-async function prepareSupportCheckout(
-  workspace: Workspace,
-  user: ZentraUser,
-  body: Record<string, unknown>,
-  replaceLegacySession: boolean,
-) {
-  if (workspace.owner_id !== user.userId)
-    throw new SupportError('Le titulaire de l’espace gère l’abonnement.', 403);
-  const existing = await subscriptionRow(workspace.id);
-  if (existing?.provider === 'postfinance')
-    throw new SupportError('Gérez cette offre depuis Compte → Abonnement. Aucun second abonnement ne sera ouvert.', 409);
-  if (!stripeTestAccessAllowed(stripeConfiguration(), user))
-    throw new SupportError(
-      'Le paiement n’est pas encore ouvert aux clients.',
-      503,
-    );
-  const plan = supportPlan(body.plan),
-    config = await configuration();
-  if (!plan || !config)
-    throw new SupportError('Choisissez une formule disponible.', 503);
-  if (body.acceptTerms !== true || body.legalVersion !== SUPPORT_LEGAL_VERSION)
-    throw new SupportError(
-      'Acceptez les conditions de Zentra Support avant de continuer.',
-    );
-  const state = await billingState(workspace);
-  if (await database().prepare("SELECT 1 FROM complete_checkouts WHERE user_id=? UNION ALL SELECT 1 FROM complete_plan_changes WHERE user_id=? AND state IN ('preparing','scheduled')").bind(user.userId,user.userId).first()) throw new SupportError('Un pack Zentra Complet est déjà choisi. Retrouvez ce changement dans Compte → Abonnement.', 409);
-  if (state.hasSubscription || (!state.ownerAccess && state.active))
-    throw new SupportError(
-      'Un abonnement existe déjà. Ouvrez Gérer mon abonnement.',
-      409,
-    );
-  const stripe = client(),
-    price = await stripe.prices.retrieve(config.prices[plan.id], {
-      expand: ['product'],
-    });
-  if (
-    !validPrice(price, plan.id, config.livemode) ||
-    ref(price.product) !== config.productId ||
-    typeof price.product === 'string' ||
-    price.product.deleted ||
-    !price.product.active
-  )
-    throw new SupportError('Ce tarif n’est pas disponible.', 503);
-  const time = now(),
-    nonce = crypto.randomUUID(),
-    db = database();
-  await db
-    .prepare(
-      `INSERT INTO support_checkouts(workspace_id,nonce,plan_id,expires_at,owner_id,accepted_version,accepted_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(workspace_id) DO UPDATE SET nonce=excluded.nonce,plan_id=excluded.plan_id,session_id=NULL,session_url=NULL,expires_at=excluded.expires_at,owner_id=excluded.owner_id,accepted_version=excluded.accepted_version,accepted_at=excluded.accepted_at WHERE support_checkouts.expires_at<=?`,
+  const { stripeSupportPurchase } =
+    await import('@/lib/payments/stripe-support-purchase');
+  try {
+    return await stripeSupportPurchase(workspace.id, user, body, origin);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'status' in error &&
+      typeof error.status === 'number'
     )
-    .bind(
-      workspace.id,
-      nonce,
-      plan.id,
-      time + 86400,
-      user.userId,
-      SUPPORT_LEGAL_VERSION,
-      time,
-      time,
-    )
-    .run();
-  const attempt = await db
-    .prepare('SELECT * FROM support_checkouts WHERE workspace_id=?')
-    .bind(workspace.id)
-    .first<{
-      nonce: string;
-      plan_id: SupportPlanId;
-      session_id: string | null;
-      session_url: string | null;
-      expires_at: number;
-      accepted_at: number;
-      accepted_version: string;
-      owner_id: string;
-    }>();
-  if (!attempt)
-    throw new SupportError('Impossible de préparer le paiement.', 503);
-  if (attempt.plan_id !== plan.id)
-    throw new SupportError(
-      'Un paiement est déjà ouvert pour une autre formule. Terminez-le ou annulez ce paiement pour choisir une autre formule.',
-      409,
-    );
-  const recordAcceptance = async (sessionId: string) => {
-    // Persist the original consent before exposing a payable URL. Repeating
-    // this also repairs links prepared before an interrupted storage write.
-    await db
-      .prepare(
-        'INSERT INTO support_checkout_acceptances(session_id,workspace_id,owner_id,plan_id,legal_version,accepted_at) VALUES(?,?,?,?,?,?) ON CONFLICT(session_id) DO NOTHING',
-      )
-      .bind(
-        sessionId,
-        workspace.id,
-        attempt.owner_id,
-        attempt.plan_id,
-        attempt.accepted_version,
-        attempt.accepted_at,
-      )
-      .run();
-  };
-  if (attempt.session_id) {
-    const session = await stripe.checkout.sessions.retrieve(attempt.session_id);
-    if (session.metadata?.service !== SUPPORT_PRODUCT || session.metadata.workspace_id !== workspace.id
-      || session.metadata.owner_id !== user.userId || session.client_reference_id !== workspace.id
-      || session.livemode !== config.livemode) {
-      throw new SupportError('Ce paiement ne correspond pas à votre espace. Aucun nouveau paiement n’a été créé.',409);
-    }
-    // Sessions created by the former Support flow explicitly forced card.
-    // Expire that payable page BEFORE rotating its durable idempotency key.
-    // New dynamic sessions can legitimately offer only card; never loop on them.
-    if (replaceLegacySession && session.status === 'open'
-      && session.metadata.payment_methods !== 'dynamic-v1'
-      && session.payment_method_types?.length === 1 && session.payment_method_types[0] === 'card') {
-      let closed: Stripe.Checkout.Session;
-      try { closed=await stripe.checkout.sessions.expire(session.id); }
-      catch {
-        // Payment may have completed while Stripe was expiring the page.
-        const current=await stripe.checkout.sessions.retrieve(session.id);
-        if (current.status==='complete') {
-          await recordAcceptance(current.id);
-          await refreshSupportPayment(workspace,user,current.id);
-          return {url:`/support/espace?workspace=${workspace.id}&section=billing`};
-        }
-        if (current.status!=='expired') throw new SupportError('Le lien de paiement se met à jour. Réessayez dans quelques instants.',503);
-        closed=current;
-      }
-      if (closed.status !== 'expired') throw new SupportError('Le lien de paiement se met à jour. Réessayez dans quelques instants.',503);
-      await db.prepare('UPDATE support_checkouts SET expires_at=0 WHERE workspace_id=? AND nonce=? AND session_id=?')
-        .bind(workspace.id,attempt.nonce,session.id).run();
-      return prepareSupportCheckout(workspace,user,body,false);
-    }
-    if (session.status === 'open' && session.url) {
-      await recordAcceptance(session.id);
-      return { url: session.url };
-    }
-    if (session.status === 'complete') {
-      await recordAcceptance(session.id);
-      await refreshSupportPayment(workspace, user, session.id);
-      return {
-        url: `/support/espace?workspace=${workspace.id}&section=billing`,
-      };
-    }
-    await db
-      .prepare(
-        'UPDATE support_checkouts SET expires_at=0 WHERE workspace_id=? AND nonce=?',
-      )
-      .bind(workspace.id, attempt.nonce)
-      .run();
-    throw new SupportError(
-      'Le lien précédent a expiré. Choisissez à nouveau votre formule.',
-      409,
-    );
+      throw new SupportError(error.message, error.status);
+    throw error;
   }
-  const origin = runtimeValue('PUBLIC_SITE_URL'),
-    meta = {
-      service: SUPPORT_PRODUCT,
-      workspace_id: workspace.id,
-      owner_id: user.userId,
-      plan: plan.id,
-      payment_methods: 'dynamic-v1',
-    };
-  const session = await stripe.checkout.sessions.create(
-    {
-      mode: 'subscription',
-      locale: currentSiteLanguage(),
-      client_reference_id: workspace.id,
-      customer_email: user.email,
-      billing_address_collection: 'required',
-      automatic_tax: { enabled: false },
-      allow_promotion_codes: false,
-      line_items: [{ price: config.prices[plan.id], quantity: 1 }],
-      metadata: meta,
-      subscription_data: {
-        metadata: meta,
-        description: `Zentra Support ${plan.name} · ${plan.analyses} analyses/mois`,
-        billing_mode: { type: 'flexible' },
-      },
-      expires_at: attempt.expires_at - 30,
-      success_url: `${origin}/support/espace?workspace=${workspace.id}&section=billing&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/support/espace?workspace=${workspace.id}&section=billing&paiement=annule`,
-    },
-    { idempotencyKey: `support-checkout-${attempt.nonce}` },
-  );
-  if (!session.url || session.livemode !== config.livemode)
-    throw new SupportError('Le lien de paiement n’a pas pu être préparé.', 503);
-  await recordAcceptance(session.id);
-  await db
-    .prepare(
-      'UPDATE support_checkouts SET session_id=?,session_url=? WHERE workspace_id=? AND nonce=?',
-    )
-    .bind(session.id, session.url, workspace.id, attempt.nonce)
-    .run();
-  return { url: session.url };
 }
 export async function cancelSupportCheckout(
   workspace: Workspace,
   user: ZentraUser,
 ) {
-  if (workspace.owner_id !== user.userId)
-    throw new SupportError('Seul le titulaire peut modifier le paiement.', 403);
-  const attempt = await database()
-    .prepare(
-      'SELECT nonce,session_id FROM support_checkouts WHERE workspace_id=?',
+  const { cancelStripeSupportPurchase } =
+    await import('@/lib/payments/stripe-support-purchase');
+  try {
+    return await cancelStripeSupportPurchase(workspace.id, user);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'status' in error &&
+      typeof error.status === 'number'
     )
-    .bind(workspace.id)
-    .first<{ nonce: string; session_id: string | null }>();
-  if (!attempt) return { canceled: true };
-  if (!attempt.session_id)
-    throw new SupportError(
-      'Le lien se prépare encore. Réessayez dans quelques secondes.',
-      409,
-    );
-  const stripe = client(),
-    session = await stripe.checkout.sessions.retrieve(attempt.session_id);
-  if (session.status === 'complete')
-    throw new SupportError(
-      'Ce paiement est terminé. Actualisez le paiement.',
-      409,
-    );
-  if (session.status === 'open')
-    await stripe.checkout.sessions.expire(session.id);
-  await database()
-    .prepare(
-      'UPDATE support_checkouts SET expires_at=0 WHERE workspace_id=? AND nonce=?',
-    )
-    .bind(workspace.id, attempt.nonce)
-    .run();
-  return { canceled: true };
+      throw new SupportError(error.message, error.status);
+    throw error;
+  }
 }
 export async function refreshSupportPayment(
   workspace: Workspace,
@@ -1030,7 +1165,8 @@ export async function refreshSupportPayment(
       'Seul le titulaire peut actualiser le paiement.',
       403,
     );
-  if (await completeSupportSubscription(workspace.id)) return { updated: false };
+  if (await completeSupportSubscription(workspace.id))
+    return { updated: false };
   const row = await subscriptionRow(workspace.id);
   if (row?.provider === 'postfinance') return { updated: false };
   const stripe = client(),
@@ -1082,8 +1218,15 @@ export async function createSupportPortal(
   const row = await subscriptionRow(workspace.id),
     config = await configuration();
   if (row?.provider === 'postfinance')
-    throw new SupportError('Cette offre ne se gère pas dans le portail Stripe.', 409);
-  if (row && 'bundlePlan' in row) return completePortal(row.customer_id, `${runtimeValue('PUBLIC_SITE_URL')}/support/espace?section=billing`);
+    throw new SupportError(
+      'Cette offre ne se gère pas dans le portail Stripe.',
+      409,
+    );
+  if (row && 'bundlePlan' in row)
+    return completePortal(
+      row.customer_id,
+      `${runtimeValue('PUBLIC_SITE_URL')}/support/espace?section=billing`,
+    );
   if (!row || !config || row.livemode !== (config.livemode ? 1 : 0))
     throw new SupportError('Aucun abonnement à gérer pour cet espace.', 404);
   const session = await client().billingPortal.sessions.create({

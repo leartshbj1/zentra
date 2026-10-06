@@ -922,3 +922,8 @@ export const automationWorkItems = sqliteTable('automation_work_items', {
 export * from './prepaid-schema';
 export * from './purchase-intent-schema';
 export * from './stripe-gestion-purchase-schema';
+export * from './prepaid-provisioning-schema';
+export * from './prepaid-token-schema';
+export * from './prepaid-lifecycle-schema';
+export * from './stripe-support-purchase-schema';
+export * from './stripe-support-provisioning-schema';

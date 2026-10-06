@@ -23,7 +23,7 @@ export type PrepaidMutationFence = Readonly<{
   apiOrigin: string;
   spaceId: number;
   environment: 'TEST' | 'PRODUCTION';
-  operation: 'create' | 'confirm' | 'chargeflow';
+  operation: 'create' | 'confirm' | 'chargeflow' | 'cancel';
   transactionId?: number;
 }>;
 type WebhookRow = {
@@ -154,7 +154,7 @@ export class D1PostFinanceMutationLedger implements MutationLedger {
       (f.organizationId === null && f.workspaceId === null) ||
       !origins.has(f.apiOrigin) ||
       !['TEST', 'PRODUCTION'].includes(f.environment) ||
-      !['create', 'confirm', 'chargeflow'].includes(f.operation)
+      !['create', 'confirm', 'chargeflow', 'cancel'].includes(f.operation)
     )
       throw new Error('Invalid prepaid payment dispatch context.');
     positiveId(f.spaceId);
@@ -165,7 +165,7 @@ export class D1PostFinanceMutationLedger implements MutationLedger {
     const path =
       f.operation === 'create'
         ? '/payment/transactions'
-        : `/payment/transactions/${f.transactionId}/${f.operation === 'confirm' ? 'confirm' : 'charge-flow/apply'}`;
+        : `/payment/transactions/${f.transactionId}/${f.operation === 'confirm' ? 'confirm' : f.operation === 'cancel' ? 'charge-flow/cancel' : 'charge-flow/apply'}`;
     if (
       scope !==
       `${f.apiOrigin}|${f.spaceId}|POST|${path}|${f.periodId}_${f.operation}`
@@ -206,7 +206,13 @@ export class D1PostFinanceMutationLedger implements MutationLedger {
       f.environment,
       ...(f.operation === 'create' ? [] : [f.transactionId!]),
     ];
-    return { sql, values, creation: f.operation === 'create' };
+    return {
+      sql,
+      values,
+      creation: f.operation === 'create',
+      cancellation: f.operation === 'cancel',
+      confirmation: f.operation === 'confirm',
+    };
   }
 
   async claim(scope: string, fingerprint: string): Promise<Claim> {
@@ -221,16 +227,59 @@ export class D1PostFinanceMutationLedger implements MutationLedger {
           .prepare(`INSERT INTO postfinance_mutations
       (scope_hash,fingerprint,state,claim_token,created_at,updated_at)
       SELECT ?,?,'claimed',?,?,? ${binding.sql}
-      AND c.cancelled_at IS NULL AND p.starts_at<=? AND p.ends_at>?
+      ${binding.cancellation ? 'AND c.cancelled_at IS NOT NULL AND p.ordinal>0' : 'AND c.cancelled_at IS NULL AND p.starts_at<=? AND p.ends_at>?'}
       AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=p.period_id)
       AND NOT EXISTS(SELECT 1 FROM prepaid_settlement_proofs s WHERE s.period_id=p.period_id)
+      ${
+        binding.cancellation
+          ? ''
+          : `AND NOT EXISTS(SELECT 1 FROM account_session_policy account WHERE account.user_id=c.owner_id AND account.deleted_at IS NOT NULL)
+        AND (p.ordinal=0 OR (
+          (c.product_key NOT LIKE 'gestion:%' AND c.product_key NOT LIKE 'complet:%'
+            OR EXISTS(SELECT 1 FROM organizations company WHERE company.organization_id=c.organization_id AND company.subscription_id=c.contract_id))
+          AND (c.product_key NOT LIKE 'support:%' OR c.organization_id IS
+            (SELECT organization_id FROM support_gestion_links WHERE workspace_id=c.workspace_id))
+          AND (c.product_key NOT LIKE 'complet:%' OR EXISTS(SELECT 1 FROM support_gestion_links link
+            WHERE link.organization_id=c.organization_id AND link.workspace_id=c.workspace_id))))`
+      }
       ${binding.creation ? 'AND NOT EXISTS(SELECT 1 FROM prepaid_transactions t WHERE t.period_id=p.period_id)' : ''}
-      AND (p.ordinal=0 OR EXISTS(SELECT 1 FROM prepaid_periods previous
+      ${
+        binding.cancellation
+          ? ''
+          : `AND (p.ordinal<>0 OR NOT EXISTS(SELECT 1 FROM prepaid_purchase_targets r WHERE r.contract_id=c.contract_id)
+        OR EXISTS(SELECT 1 FROM prepaid_purchase_targets r JOIN purchase_intents i ON i.intent_id=r.intent_id
+          JOIN purchase_valid_targets valid ON valid.intent_id=i.intent_id
+          WHERE r.contract_id=c.contract_id AND r.owner_id=c.owner_id
+          AND r.organization_id IS c.organization_id AND r.workspace_id IS c.workspace_id
+          AND i.state IN ('reserved','dispatched','uncertain') AND i.provider='postfinance'
+          AND i.environment=c.environment AND i.provider_scope=(c.api_origin||'|'||c.space_id)
+          AND (r.organization_id IS NULL OR EXISTS(SELECT 1 FROM organizations o WHERE o.organization_id=r.organization_id
+            AND o.subscription_id=r.previous_subscription_id AND o.created_by_user_id=r.owner_id))))`
+      }
+      ${
+        binding.cancellation
+          ? ''
+          : `AND (p.ordinal=0 OR (${binding.confirmation ? '0' : '1'} AND EXISTS(
+        SELECT 1 FROM prepaid_renewal_requests renewal JOIN prepaid_tokens token ON token.contract_id=renewal.contract_id
+        JOIN prepaid_purchase_projections projection ON projection.contract_id=renewal.contract_id AND projection.closed_at IS NOT NULL
+        WHERE renewal.period_id=p.period_id AND renewal.contract_id=c.contract_id
+        AND renewal.token_id=token.token_id AND renewal.token_version_id=token.token_version_id
+        AND token.owner_id=c.owner_id AND token.organization_id IS c.organization_id AND token.workspace_id IS c.workspace_id
+        AND token.api_origin=c.api_origin AND token.space_id=c.space_id AND token.environment=c.environment
+        AND token.customer_reference=e.customer_reference AND token.payment_method_configuration_id=e.payment_method_configuration_id
+        AND token.connector_configuration_id=e.connector_configuration_id
+        AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=token.initial_period_id))))`
+      }
+      ${
+        binding.cancellation
+          ? ''
+          : `AND (p.ordinal=0 OR EXISTS(SELECT 1 FROM prepaid_periods previous
         JOIN prepaid_transactions pt ON pt.period_id=previous.period_id
         JOIN prepaid_settlement_proofs ps ON ps.period_id=previous.period_id
         WHERE previous.contract_id=c.contract_id AND previous.ordinal=p.ordinal-1
         AND previous.ends_at=p.starts_at AND pt.api_origin=c.api_origin AND pt.space_id=c.space_id
-        AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=previous.period_id)))
+        AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=previous.period_id)))`
+      }
       ON CONFLICT(scope_hash) DO NOTHING`)
           .bind(
             hash,
@@ -239,8 +288,7 @@ export class D1PostFinanceMutationLedger implements MutationLedger {
             timestamp,
             timestamp,
             ...binding.values,
-            timestamp,
-            timestamp,
+            ...(binding.cancellation ? [] : [timestamp, timestamp]),
           )
           .run()
       : await this.db

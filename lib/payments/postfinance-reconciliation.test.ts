@@ -16,7 +16,20 @@ import { D1PrepaidReconciliationStore } from './prepaid-reconciliation-store';
 import { prepaidCompanyAccess } from './prepaid-access';
 
 const runtime = vi.hoisted(() => ({ database: null as unknown }));
-vi.mock('@/lib/runtime', () => ({ database: () => runtime.database }));
+vi.mock('@/lib/runtime', () => ({
+  database: () => runtime.database,
+  runtimeValue: () => '',
+  stripeConfiguration: () => ({
+    secretKey: '',
+    testMode: '',
+    priceIds: {},
+    signingKey: '',
+  }),
+}));
+import { prepareInitialPrepaidPurchase } from './prepaid-purchase-preparation';
+import { prepaidProduct } from './prepaid-catalog';
+import { D1PurchaseIntents } from './purchase-intents';
+import { LEGAL_VERSION } from '@/lib/legal';
 
 type Json = Record<string, unknown>;
 type RequestRecord = { url: URL; init: RequestInit };
@@ -99,13 +112,27 @@ function d1() {
         async all() {
           return { results: sql.prepare(query).all(...values) };
         },
-        async run() {
+        execute() {
           return { success: true, meta: sql.prepare(query).run(...values) };
+        },
+        async run() {
+          return statement.execute();
         },
       };
       return statement;
     },
-  } as unknown as Pick<D1Database, 'prepare'>;
+    async batch(statements: { execute(): unknown }[]) {
+      sql.exec('BEGIN');
+      try {
+        const results = statements.map((statement) => statement.execute());
+        sql.exec('COMMIT');
+        return results;
+      } catch (error) {
+        sql.exec('ROLLBACK');
+        throw error;
+      }
+    },
+  } as unknown as Pick<D1Database, 'prepare' | 'batch'>;
 }
 const periods = () => new D1PrepaidPeriods(d1(), () => time);
 const records = () => new D1PrepaidReconciliationStore(d1(), () => time);
@@ -179,6 +206,16 @@ async function createBoundContract(
       'owner@example.test',
       time,
     );
+  providerRecords(current, transactionId, invoiceId, payer, input.environment);
+  return current;
+}
+function providerRecords(
+  current: PrepaidPeriod,
+  transactionId: number,
+  invoiceId: number,
+  payer: string,
+  environment: 'TEST' | 'PRODUCTION',
+) {
   const line = {
     type: 'PRODUCT',
     quantity: 1,
@@ -192,7 +229,7 @@ async function createBoundContract(
     version: 7,
     state: 'FULFILL',
     environment: 'LIVE',
-    authorizationEnvironment: input.environment,
+    authorizationEnvironment: environment,
     currency: 'CHF',
     customerId: payer,
     merchantReference: current.periodId,
@@ -223,7 +260,6 @@ async function createBoundContract(
     outstandingAmount: 0,
     lineItems: [structuredClone(line)],
   });
-  return current;
 }
 function refund(id = 51, transactionId = 71): Json {
   return {
@@ -325,6 +361,126 @@ const run = (config = configuration(), maximumJobs = 1) =>
     { database: d1, fetch: transport, now: () => time * 1000 },
     maximumJobs,
   );
+async function prepareNewFlow() {
+  const company = 'original-company-worker',
+    previous = 'trial_original_worker';
+  sql
+    .prepare(`INSERT INTO subscriptions(subscription_id,customer_id,price_id,status,current_period_end,updated_at)
+    VALUES(?,?,'local-trial','canceled',0,?)`)
+    .run(previous, previous, time);
+  sql
+    .prepare('INSERT INTO organizations VALUES(?,?,?,?,?,?)')
+    .run(company, 'Original company', previous, identity.ownerId, time, time);
+  sql
+    .prepare(`INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at)
+    VALUES('new-worker-owner',?,?,?,'owner',?)`)
+    .run(company, identity.ownerId, 'owner@example.test', time);
+  const product = prepaidProduct('gestion:start')!;
+  const result = await prepareInitialPrepaidPurchase(
+    {
+      enabled: true,
+      settlementEvidenceVerified: true,
+      connectorConfigurations: { postfinance_pay: 92 },
+      connection: {
+        ...configuration().connection,
+        merchantApproved: true,
+        prepaidFeatureEnabled: true,
+        chargeFlowEnabled: true,
+        postfinancePayTokenEnabled: true,
+        prepaidEnvironment: 'PRODUCTION',
+        returnOrigin: 'https://zentra.example.test',
+        prepaidProducts: {
+          'gestion:start': {
+            currency: 'CHF',
+            billingPeriod: 'P1M',
+            priceChfMinor: 5900,
+            reference: product.catalogVersion,
+            name: product.name,
+            methodConfigurations: { postfinance_pay: 91 },
+          },
+        },
+      },
+    },
+    {
+      user: {
+        userId: identity.ownerId,
+        email: 'owner@example.test',
+        emailConfirmed: true,
+      },
+      requestId: '22222222-2222-4222-8222-222222222222',
+      productKey: product.productKey,
+      organizationId: company,
+      method: 'postfinance_pay',
+      acceptTerms: true,
+      legalVersion: LEGAL_VERSION,
+    },
+    { database: d1, now: () => time },
+  );
+  if (result.state !== 'prepared')
+    throw Error('Expected actual prepared purchase.');
+  await new D1PurchaseIntents(d1(), () => time).markDispatched(result.intent);
+  await periods().bindTransaction(result.period.periodId, 171);
+  await new D1PurchaseIntents(d1(), () => time).bindProviderReference(
+    result.intent,
+    '171',
+  );
+  providerRecords(
+    result.period,
+    171,
+    181,
+    result.expectation.customerReference,
+    'PRODUCTION',
+  );
+  const connector = {
+    id: 92,
+    linkedSpaceId: 405,
+    state: 'ACTIVE',
+    paymentMethodConfiguration: {
+      id: 91,
+      linkedSpaceId: 405,
+      state: 'ACTIVE',
+      paymentMethod: { id: 93 },
+    },
+  };
+  Object.assign(transactions.get(171)!, {
+    tokenizationMode: 'FORCE_CREATION',
+    customersPresence: 'VIRTUAL_PRESENT',
+    token: { id: 101 },
+    paymentConnectorConfiguration: connector,
+  });
+  const token = {
+    id: 101,
+    linkedSpaceId: 405,
+    version: 0,
+    state: 'ACTIVE',
+    customerId: result.expectation.customerReference,
+  };
+  const activeVersion = {
+    id: 102,
+    linkedSpaceId: 405,
+    version: 0,
+    state: 'ACTIVE',
+    environment: 'PRODUCTION',
+    token: { id: 101 },
+    paymentConnectorConfiguration: connector,
+    paymentMethod: { id: 93 },
+  };
+  await enqueue('transaction', 19, 171);
+  return { result, company, previous, token, activeVersion };
+}
+function tokenReads(token: Json, activeVersion: Json, available = true) {
+  return (url: URL) => {
+    if (url.pathname === '/api/v2.0/payment/tokens/101/active-version')
+      return available
+        ? Response.json(activeVersion)
+        : new Response('unavailable', { status: 503 });
+    if (url.pathname === '/api/v2.0/payment/tokens/101')
+      return available
+        ? Response.json(token)
+        : new Response('unavailable', { status: 503 });
+    return undefined;
+  };
+}
 async function noRights() {
   expect(await periods().paidCoverage(identity)).toBeNull();
   expect(await prepaidCompanyAccess(identity.organizationId!)).toBeNull();
@@ -385,6 +541,83 @@ afterEach(() => {
 });
 
 describe('PostFinance reconciliation worker with real migrated SQLite stores and provider-read client', () => {
+  it('projects an actual prepared initial purchase atomically and binds its recurring token using GET only', async () => {
+    const fixture = await prepareNewFlow();
+    override = tokenReads(fixture.token, fixture.activeVersion);
+    expect(await run()).toMatchObject({ claimed: 1, completed: 1, waiting: 0 });
+    expect(
+      sql
+        .prepare(
+          'SELECT subscription_id FROM organizations WHERE organization_id=?',
+        )
+        .get(fixture.company)?.subscription_id,
+    ).toBe(fixture.result.contract.contractId);
+    expect(
+      sql
+        .prepare('SELECT state FROM purchase_intents WHERE intent_id=?')
+        .get(fixture.result.intent.intentId)?.state,
+    ).toBe('settled');
+    expect(
+      sql
+        .prepare(
+          'SELECT closed_at FROM prepaid_purchase_projections WHERE contract_id=?',
+        )
+        .get(fixture.result.contract.contractId)?.closed_at,
+    ).toBe(time);
+    expect(
+      sql
+        .prepare(
+          'SELECT token_id,token_version_id FROM prepaid_tokens WHERE contract_id=?',
+        )
+        .get(fixture.result.contract.contractId),
+    ).toMatchObject({ token_id: 101, token_version_id: 102 });
+    expect((await prepaidCompanyAccess(fixture.company))?.contractId).toBe(
+      fixture.result.contract.contractId,
+    );
+  });
+  it('keeps a paid company when token reads fail, then retries only the token and acknowledgement', async () => {
+    const fixture = await prepareNewFlow();
+    override = tokenReads(fixture.token, fixture.activeVersion, false);
+    expect(await run()).toMatchObject({ claimed: 1, completed: 0, waiting: 1 });
+    expect((await prepaidCompanyAccess(fixture.company))?.contractId).toBe(
+      fixture.result.contract.contractId,
+    );
+    expect(count('prepaid_tokens')).toBe(0);
+    expect(count('prepaid_purchase_projections')).toBe(1);
+    const original = sql
+      .prepare('SELECT * FROM prepaid_purchase_projections')
+      .get();
+    override = tokenReads(fixture.token, fixture.activeVersion);
+    nextRetry();
+    const start = prepared.length;
+    expect(await run()).toMatchObject({ claimed: 1, completed: 1, waiting: 0 });
+    expect(
+      sql.prepare('SELECT * FROM prepaid_purchase_projections').get(),
+    ).toEqual(original);
+    expect(
+      prepared
+        .slice(start)
+        .some(
+          (query) =>
+            query.includes('INSERT INTO subscriptions') ||
+            query.includes('UPDATE organizations'),
+        ),
+    ).toBe(false);
+    expect(count('prepaid_tokens')).toBe(1);
+  });
+  it('a refund before a token retry revokes the paid company and never binds a recurring token', async () => {
+    const fixture = await prepareNewFlow();
+    override = tokenReads(fixture.token, fixture.activeVersion, false);
+    expect(await run()).toMatchObject({ waiting: 1 });
+    refunds.set(151, refund(151, 171));
+    override = tokenReads(fixture.token, fixture.activeVersion);
+    nextRetry();
+    expect(await run()).toMatchObject({ claimed: 1, completed: 1 });
+    expect(await prepaidCompanyAccess(fixture.company)).toBeNull();
+    expect(count('prepaid_tokens')).toBe(0);
+    expect(count('prepaid_provider_reversals')).toBe(1);
+    expect(count('prepaid_purchase_projections')).toBe(1);
+  });
   it('disabled configuration performs zero database or HTTP work even with an invalid active configuration', async () => {
     const database = vi.fn(() => {
       throw Error('Database must not be acquired.');
@@ -705,6 +938,7 @@ describe('PostFinance reconciliation worker with real migrated SQLite stores and
     const unreliable = () => {
       const actual = d1();
       return {
+        ...actual,
         prepare(query: string) {
           const statement = actual.prepare(query);
           if (query.includes("SET state='completed'")) {

@@ -16,6 +16,11 @@ import {
   type PrepaidSettlementReason,
 } from './prepaid-settlement';
 import { PrepaidPeriodError } from './prepaid-periods';
+import {
+  D1PrepaidProvisioning,
+  PrepaidProvisioningError,
+} from './prepaid-provisioning';
+import { D1PrepaidTokens, PrepaidTokenError } from './prepaid-token';
 
 export type ReconciliationListener = WebhookListener &
   Readonly<{ kind: 'transaction' | 'invoice' | 'refund' }>;
@@ -29,7 +34,7 @@ export type PostFinanceReconciliationConfiguration = Readonly<{
   settlementEvidenceVerified: boolean;
 }>;
 type Dependencies = {
-  database: () => Pick<D1Database, 'prepare'>;
+  database: () => Pick<D1Database, 'prepare' | 'batch'>;
   fetch?: typeof fetch;
   now?: () => number;
 };
@@ -263,9 +268,46 @@ export async function reconcilePostFinanceJobs(
         result.lost++;
         continue;
       }
-      if (decision.state === 'paid')
-        await records.recordPaid(decision.proof, current);
-      else if (decision.state === 'revoked')
+      if (decision.state === 'paid') {
+        const initial =
+          target.period.ordinal === 0
+            ? await db
+                .prepare(
+                  `SELECT intent_id FROM prepaid_purchase_targets WHERE contract_id=?`,
+                )
+                .bind(target.period.contractId)
+                .first<{ intent_id: string }>()
+            : null;
+        if (initial) {
+          // Proof and entitlement handoff share one D1 batch. Never store the
+          // paid proof separately first: standalone addons could see it early.
+          await new D1PrepaidProvisioning(db, () =>
+            Math.floor(now() / 1000),
+          ).provision(decision.proof, current);
+          const method = await db
+            .prepare(`SELECT json_extract(parameters,'$.method') AS method
+            FROM purchase_intents WHERE intent_id=? AND owner_id=? AND provider='postfinance'`)
+            .bind(initial.intent_id, target.ownerId)
+            .first<{ method: unknown }>();
+          if (
+            !method ||
+            !['postfinance_pay', 'twint'].includes(String(method.method))
+          )
+            throw new InvalidPaymentRead();
+          const tokens = new D1PrepaidTokens(db, () =>
+            Math.floor(now() / 1000),
+          );
+          const expectedToken = await tokens.initialContext(
+            target.period.contractId,
+            method.method as 'postfinance_pay' | 'twint',
+          );
+          if (!expectedToken) throw new PrepaidTokenError('binding');
+          // The paid company persists even if the independently verified
+          // recurring token is unavailable. Retrying only re-reads the token.
+          if (!(await tokens.load(target.period.contractId)))
+            await tokens.bindInitial(client, expectedToken, current);
+        } else await records.recordPaid(decision.proof, current);
+      } else if (decision.state === 'revoked')
         await records.recordReversal(
           target,
           decision.proof.evidenceFingerprint,
@@ -289,9 +331,14 @@ export async function reconcilePostFinanceJobs(
           ? 'provider_unavailable'
           : error instanceof InvalidPaymentRead
             ? 'ownership_mismatch'
-            : error instanceof PrepaidPeriodError
+            : error instanceof PrepaidPeriodError ||
+                error instanceof PrepaidProvisioningError
               ? 'storage_unavailable'
-              : 'provider_unavailable';
+              : error instanceof PrepaidTokenError
+                ? error.code === 'unavailable'
+                  ? 'provider_unavailable'
+                  : 'invalid_provider_state'
+                : 'provider_unavailable';
       if (await inbox.failWork(current, code)) result.waiting++;
       else result.lost++;
     }
