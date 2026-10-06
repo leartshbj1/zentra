@@ -717,9 +717,9 @@ describe('stable GET observation with the real signed client and a fictitious tr
     ).toEqual(
       Array(2)
         .fill([
-          '/api/v2.0/payment/transactions/71?expand=paymentConnectorConfiguration.paymentMethodConfiguration',
+          '/api/v2.0/payment/transactions/71?expand=token%2CpaymentConnectorConfiguration.paymentMethodConfiguration.paymentMethod',
           '/api/v2.0/payment/tokens/101',
-          '/api/v2.0/payment/tokens/101/active-version',
+          '/api/v2.0/payment/tokens/101/active-version?expand=token%2CpaymentMethod%2CpaymentConnectorConfiguration.paymentMethodConfiguration.paymentMethod',
         ])
         .flat(),
     );
@@ -731,6 +731,29 @@ describe('stable GET observation with the real signed client and a fictitious tr
       );
     }
   });
+  it.each([
+    ['transaction.token', 101],
+    [
+      'transaction.paymentConnectorConfiguration.paymentMethodConfiguration.paymentMethod',
+      11,
+    ],
+    ['activeVersion.token', 101],
+    ['activeVersion.paymentMethod', 11],
+  ])(
+    'does not grant a mandate when the provider still returns an unexpanded %s',
+    async (path, value) => {
+      const c = client(changed(path as string, value));
+      await expect(
+        verifyFreshTokenBinding(c.adapter, expected, now),
+      ).rejects.toThrow('binding');
+      expect(c.requests.every((request) => request.method === 'GET')).toBe(
+        true,
+      );
+      expect(
+        sql.prepare('SELECT COUNT(*) n FROM prepaid_tokens').get()?.n,
+      ).toBe(0);
+    },
+  );
   it.each([
     ['transaction.version', 3],
     ['token.version', 1],

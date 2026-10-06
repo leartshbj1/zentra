@@ -685,7 +685,8 @@ export class PostFinanceCheckoutClient {
     const result = await this.request(
       'GET',
       queryPath(`/payment/transactions/${transactionId}`, {
-        expand: 'paymentConnectorConfiguration.paymentMethodConfiguration',
+        expand:
+          'token,paymentConnectorConfiguration.paymentMethodConfiguration.paymentMethod',
       }),
     );
     this.scopedEntity(result, transactionId);
@@ -893,7 +894,10 @@ export class PostFinanceCheckoutClient {
     id(tokenId, 'token ID');
     const result = await this.request(
       'GET',
-      `/payment/tokens/${tokenId}/active-version`,
+      queryPath(`/payment/tokens/${tokenId}/active-version`, {
+        expand:
+          'token,paymentMethod,paymentConnectorConfiguration.paymentMethodConfiguration.paymentMethod',
+      }),
     );
     object(result);
     return result;

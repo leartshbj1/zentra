@@ -1,4 +1,5 @@
 import { database, runtimeValue } from '@/lib/runtime';
+import { isPrivateWorkerRequest } from './private-worker-request';
 import {
   postFinanceWebhookConfiguration,
   type PostFinanceWebhookBinding,
@@ -55,6 +56,11 @@ export async function runPostFinanceReconciliation(
     !(await equalToken(token, authorization.slice(7)))
   )
     return Response.json({ error: 'Accès refusé.' }, { status: 401, headers });
+  if (!(await isPrivateWorkerRequest(request)))
+    return Response.json(
+      { error: 'Requête invalide.' },
+      { status: 400, headers },
+    );
   try {
     const config = postFinanceWebhookConfiguration(read);
     if (!config) throw new Error('Disabled receipt.');

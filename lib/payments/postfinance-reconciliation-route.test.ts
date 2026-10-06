@@ -45,16 +45,20 @@ function dependencies(patch: Record<string, string | undefined> = {}) {
   );
   return { read: (key: string) => env[key] ?? '', fetch, database };
 }
-function request(authorization = `Bearer ${token}`) {
+function request(
+  authorization = `Bearer ${token}`,
+  options: { body?: string; suffix?: string; method?: string } = {},
+) {
   return new Request(
-    'https://zentra.example.test/api/payments/postfinance/reconcile?enabled=true',
+    'https://zentra.example.test/api/payments/postfinance/reconcile' +
+      (options.suffix ?? ''),
     {
-      method: 'POST',
+      method: options.method ?? 'POST',
       headers: {
         Authorization: authorization,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ enabled: true, maximumJobs: 4 }),
+      ...(options.body === undefined ? {} : { body: options.body }),
     },
   );
 }
@@ -112,19 +116,44 @@ describe('private, independently disabled PostFinance worker route', () => {
     expect(deps.fetch).not.toHaveBeenCalled();
     expect(await response.text()).not.toContain(token);
   });
-  it('returns honest idle counters, without merchant calls or request-controlled work limits', async () => {
-    const deps = dependencies();
-    const response = await runPostFinanceReconciliation(request(), deps);
-    expect(response.status).toBe(200);
-    expect(response.headers.get('Cache-Control')).toContain('no-store');
-    expect(await response.json()).toEqual({
-      state: 'processed',
-      claimed: 0,
-      completed: 0,
-      waiting: 0,
-      lost: 0,
-    });
-    expect(deps.database).toHaveBeenCalledOnce();
-    expect(deps.fetch).not.toHaveBeenCalled();
-  });
+  it.each([undefined, '{}'])(
+    'returns honest idle counters with scheduler envelope %s and no merchant calls',
+    async (body) => {
+      const deps = dependencies();
+      const response = await runPostFinanceReconciliation(
+        request(undefined, { body }),
+        deps,
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Cache-Control')).toContain('no-store');
+      expect(await response.json()).toEqual({
+        state: 'processed',
+        claimed: 0,
+        completed: 0,
+        waiting: 0,
+        lost: 0,
+      });
+      expect(deps.database).toHaveBeenCalledOnce();
+      expect(deps.fetch).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    { body: '{"enabled":true,"maximumJobs":4}' },
+    { suffix: '?enabled=true' },
+    { body: '[]' },
+    { body: ' '.repeat(65) + '{}' },
+    { method: 'GET' },
+  ])(
+    'rejects caller-controlled work before database and provider %j',
+    async (options) => {
+      const deps = dependencies();
+      const response = await runPostFinanceReconciliation(
+        request(undefined, options),
+        deps,
+      );
+      expect(response.status).toBe(400);
+      expect(deps.database).not.toHaveBeenCalled();
+      expect(deps.fetch).not.toHaveBeenCalled();
+    },
+  );
 });

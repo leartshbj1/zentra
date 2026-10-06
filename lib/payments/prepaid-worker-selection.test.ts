@@ -352,11 +352,15 @@ function read(name: string) {
   };
   return values[name] ?? '';
 }
-const worker = () =>
+const worker = (body?: string) =>
   runPostFinanceBillingWorker(
     new Request(`${site}/api/payments/postfinance/billing-worker`, {
       method: 'POST',
-      headers: { Authorization: 'Bearer ' + 'A'.repeat(43) },
+      headers: {
+        Authorization: 'Bearer ' + 'A'.repeat(43),
+        'Content-Type': 'application/json',
+      },
+      ...(body === undefined ? {} : { body }),
     }),
     {
       read,
@@ -527,6 +531,20 @@ describe('bounded cancellation selection never mistakes a terminal observation f
 });
 
 describe('private worker selects only an exact anchored, not yet dispatched current renewal', () => {
+  it('accepts the actual empty JSON pg_net envelope and dispatches each period once', async () => {
+    setTime(current.prepared.period.endsAt);
+    calls = [];
+    const response = await worker('{}');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ renewal: 'submitted' });
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(2);
+    const after = calls.length;
+    expect(await (await worker('{}')).json()).toMatchObject({
+      renewal: 'idle',
+    });
+    expect(calls).toHaveLength(after);
+    expect(count('prepaid_settlement_proofs')).toBe(1);
+  });
   it.each([
     ['2025-12-31T09:17:23Z', '2026-02-28T09:17:23Z'],
     ['2026-01-29T09:17:23Z', '2026-03-30T09:17:23Z'],

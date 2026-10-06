@@ -64,6 +64,7 @@ import {
 } from './model';
 
 import { AutomationCompanySettings } from '@/components/automation/company-settings';
+import { supportLoginReturn } from '@/lib/support/login-return';
 import '@/components/automation/automation.css';
 
 const sections = [
@@ -87,6 +88,7 @@ function localizeSupportDemo(state: SupportState): SupportState {
   };
 }
 export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
+  const [entrySearch, setEntrySearch] = useState('');
   const [ruleDraft,setRuleDraft]=useState<{sender:string;subject:string;category:string}|undefined>();
   const [data, setData] = useState<SupportState>(() =>
       demo ? localizeSupportDemo(demoState()) : emptyState,
@@ -140,6 +142,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
     if (demo && window.matchMedia('(max-width: 1100px)').matches)
       setSelected(null);
     if (!demo) {
+      setEntrySearch(window.location.search);
       const target=new URLSearchParams(window.location.search).get('ticket');
       if(target){setSelected(target);selectedRef.current=target;}
       setWorkspace(
@@ -577,7 +580,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               nativeButton={false}
               render={
                 <a
-                  href={`/connexion?retour=${encodeURIComponent('/support/espace?' + new URLSearchParams({ section: tab, ...(workspaceId ? { workspace: workspaceId } : {}) }).toString())}`}
+                  href={`/connexion?retour=${encodeURIComponent(supportLoginReturn(entrySearch, tab, workspaceId, selected))}`}
                 />
               }
             >

@@ -6,6 +6,7 @@ import {
 import { runPrepaidRenewal } from './prepaid-renewal';
 import { stopCancelledPrepaidFlows } from './prepaid-cancellation';
 import { prepaidMonthlyPeriod } from './prepaid-calendar';
+import { isPrivateWorkerRequest } from './private-worker-request';
 
 type Binding =
   | PostFinancePurchaseBinding
@@ -62,11 +63,7 @@ export async function runPostFinanceBillingWorker(
     !(await equal(token, authorization.slice(7)))
   )
     return Response.json({ error: 'Accès refusé.' }, { status: 401, headers });
-  if (
-    request.method !== 'POST' ||
-    new URL(request.url).search ||
-    request.body !== null
-  )
+  if (!(await isPrivateWorkerRequest(request)))
     return Response.json(
       { error: 'Requête invalide.' },
       { status: 400, headers },
