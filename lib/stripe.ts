@@ -1,8 +1,14 @@
 import Stripe from 'stripe';
-import { subscriptionCompletePlan, completePortal } from '@/lib/complete/stripe';
+import {
+  subscriptionCompletePlan,
+  completePortal,
+} from '@/lib/complete/stripe';
 import { UPSERT_COMPLETE_SQL } from '@/lib/complete/access';
 import { finishPlanChange } from '@/lib/complete/change';
-import { automationStripe, fullyRefundedAutomationInvoice } from '@/lib/automation/billing';
+import {
+  automationStripe,
+  fullyRefundedAutomationInvoice,
+} from '@/lib/automation/billing';
 import { linkPaidCheckoutAccount } from './subscription-account';
 import { trustedSiteRequestOrigin } from '@/lib/site-origins';
 import { planById, planByLicense, type PlanId } from '@/lib/plans';
@@ -137,33 +143,69 @@ export async function createCheckoutSession(
   claimHash: string,
   account: { userId: string; email: string },
   planId: PlanId,
-  referral?: {claimId:string;couponId:string},
+  referral?: { claimId: string; couponId: string },
+  frozen?: { parameters: Stripe.Checkout.SessionCreateParams },
 ) {
   const configuration = stripeConfiguration();
   const plan = planById(planId);
   if (!plan) throw new PublicError('Choisissez une formule Zentra valide.');
-  const priceId = configuration.priceIds[plan.id];
-  if (!/^price_[A-Za-z0-9_]+$/.test(priceId))
+  const priceId =
+    frozen?.parameters.line_items?.[0]?.price ??
+    configuration.priceIds[plan.id];
+  if (typeof priceId !== 'string' || !/^price_[A-Za-z0-9_]+$/.test(priceId))
     throw new PublicError('Le prix Stripe Zentra n’est pas configuré.', 503);
+  const parameters =
+    frozen?.parameters ??
+    buildZentraCheckoutParams({
+      origin,
+      claimHash,
+      priceId,
+      plan: plan.licensePlan,
+      accountUserId: account.userId,
+      accountEmail: account.email,
+      locale: currentSiteLanguage(),
+      automaticTax: stripeAutomaticTaxRequired(configuration),
+      referral,
+    });
+  if (
+    parameters.mode !== 'subscription' ||
+    parameters.client_reference_id !== claimHash ||
+    parameters.metadata?.account_user_id !== account.userId ||
+    parameters.metadata?.activation_claim_hash !== claimHash ||
+    parameters.metadata?.plan !== plan.licensePlan
+  )
+    throw new PublicError('La demande de paiement doit être vérifiée.', 409);
   const session = await stripeOperation('checkout.sessions.create', () =>
-    stripe().checkout.sessions.create(
-      buildZentraCheckoutParams({
-        origin,
-        claimHash,
-        priceId,
-        plan: plan.licensePlan,
-        accountUserId: account.userId,
-        accountEmail: account.email,
-        locale: currentSiteLanguage(),
-        automaticTax: stripeAutomaticTaxRequired(configuration),
-        referral,
-      }),
-      { idempotencyKey: `hc_checkout_${claimHash}` },
-    ),
+    stripe().checkout.sessions.create(parameters, {
+      idempotencyKey: `hc_checkout_${claimHash}`,
+    }),
   );
-  if (!session.id || !session.url)
+  if (
+    !session.id ||
+    (!session.url && !(frozen && session.status === 'complete'))
+  )
     throw new PublicError('Stripe n’a pas créé de page de paiement.', 502);
   return session;
+}
+
+// Bounded read-only recovery; callers must verify the frozen request metadata.
+export async function listGestionCheckoutSessions(
+  createdFrom: number,
+  createdUntil: number,
+) {
+  return stripeOperation('checkout.sessions.list', () =>
+    stripe().checkout.sessions.list({
+      created: { gte: createdFrom, lte: createdUntil },
+      limit: 100,
+    }),
+  );
+}
+export async function expireGestionCheckoutSession(sessionId: string) {
+  if (!/^cs_(test_|live_)?[A-Za-z0-9_]+$/.test(sessionId))
+    throw new PublicError('Référence de paiement invalide.');
+  return stripeOperation('checkout.sessions.expire', () =>
+    stripe().checkout.sessions.expire(sessionId),
+  );
 }
 
 export async function retrieveCheckoutSession(sessionId: string) {
@@ -294,7 +336,15 @@ export async function createPortalSession(
 ) {
   if (!/^cus_[A-Za-z0-9_]+$/.test(customerId))
     throw new PublicError('Référence client invalide.');
-  if (await database().prepare('SELECT 1 FROM subscriptions s JOIN complete_subscriptions c ON c.subscription_id=s.subscription_id WHERE s.customer_id=? LIMIT 1').bind(customerId).first()) return (await completePortal(customerId, returnUrl)).url;
+  if (
+    await database()
+      .prepare(
+        'SELECT 1 FROM subscriptions s JOIN complete_subscriptions c ON c.subscription_id=s.subscription_id WHERE s.customer_id=? LIMIT 1',
+      )
+      .bind(customerId)
+      .first()
+  )
+    return (await completePortal(customerId, returnUrl)).url;
   const portal = await stripeOperation('billingPortal.sessions.create', () =>
     stripe().billingPortal.sessions.create({
       customer: customerId,
@@ -405,7 +455,9 @@ export async function validatePaidZentraInvoice(
     unitAmount: item.price.unit_amount!,
     livemode: subscription.livemode,
     automaticTaxRequired: stripeAutomaticTaxRequired(stripeConfiguration()),
-    authorizedDiscountCents: subscriptionCompletePlan(subscription) ? 0 : await authorizedReferralDiscount(invoice,subscription),
+    authorizedDiscountCents: subscriptionCompletePlan(subscription)
+      ? 0
+      : await authorizedReferralDiscount(invoice, subscription),
   });
   if (!paidThrough) {
     throw new PublicError(
@@ -413,15 +465,28 @@ export async function validatePaidZentraInvoice(
       402,
     );
   }
-  if (subscriptionCompletePlan(subscription) && await fullyRefundedAutomationInvoice(automationStripe(), invoice.id!)) {
+  if (
+    subscriptionCompletePlan(subscription) &&
+    (await fullyRefundedAutomationInvoice(automationStripe(), invoice.id!))
+  ) {
     throw new PublicError('Cette période du pack a été remboursée.', 402);
   }
   return paidThrough;
 }
 
-function paidPeriodStart(invoice: Stripe.Invoice | null | undefined, subscription: Stripe.Subscription, paidThrough: number | undefined) {
+function paidPeriodStart(
+  invoice: Stripe.Invoice | null | undefined,
+  subscription: Stripe.Subscription,
+  paidThrough: number | undefined,
+) {
   const priceId = subscription.items.data[0]?.price.id;
-  return invoice?.lines.data.find(line => referenceId(line.pricing?.price_details?.price ?? null) === priceId && line.period.end === paidThrough)?.period.start ?? 0;
+  return (
+    invoice?.lines.data.find(
+      (line) =>
+        referenceId(line.pricing?.price_details?.price ?? null) === priceId &&
+        line.period.end === paidThrough,
+    )?.period.start ?? 0
+  );
 }
 
 export function requestOrigin(request: Request) {
@@ -696,30 +761,33 @@ export async function upsertSubscription(
     settlement.paidInvoiceId && settlement.paidThrough && settlement.paidAt,
   );
   const db = database();
-  const statements = [db.prepare(UPSERT_SUBSCRIPTION_SQL)
-    .bind(
-      subscription.id,
-      referenceId(subscription.customer),
-      session?.id ?? null,
-      session?.customer_details?.email ?? null,
-      session?.customer_details?.business_name ??
-        session?.customer_details?.name ??
-        null,
-      item.price.id,
-      subscription.status,
-      item.current_period_end,
-      subscription.cancel_at_period_end ? 1 : 0,
-      subscription.livemode ? 1 : 0,
-      settlement.paidThrough ?? 0,
-      settlement.paidInvoiceId ?? null,
-      settlement.paidAt ?? null,
-      settlement.failedInvoiceId ?? null,
-      settlement.failedAt ?? null,
-      Math.floor(Date.now() / 1000),
-      plan.licensePlan,
-      paid ? plan.licensePlan : '',
-      paid ? plan.seats : 0,
-    )];
+  const statements = [
+    db
+      .prepare(UPSERT_SUBSCRIPTION_SQL)
+      .bind(
+        subscription.id,
+        referenceId(subscription.customer),
+        session?.id ?? null,
+        session?.customer_details?.email ?? null,
+        session?.customer_details?.business_name ??
+          session?.customer_details?.name ??
+          null,
+        item.price.id,
+        subscription.status,
+        item.current_period_end,
+        subscription.cancel_at_period_end ? 1 : 0,
+        subscription.livemode ? 1 : 0,
+        settlement.paidThrough ?? 0,
+        settlement.paidInvoiceId ?? null,
+        settlement.paidAt ?? null,
+        settlement.failedInvoiceId ?? null,
+        settlement.failedAt ?? null,
+        Math.floor(Date.now() / 1000),
+        plan.licensePlan,
+        paid ? plan.licensePlan : '',
+        paid ? plan.seats : 0,
+      ),
+  ];
   const bundle = subscriptionCompletePlan(subscription);
   if (bundle) {
     let paidFrom = settlement.paidFrom ?? 0;
@@ -728,13 +796,34 @@ export async function upsertSubscription(
       await validatePaidZentraInvoice(invoice, subscription);
       paidFrom = paidPeriodStart(invoice, subscription, settlement.paidThrough);
     }
-    if (paid && (!paidFrom || paidFrom >= settlement.paidThrough!)) throw new PublicError('La période payée du pack doit être vérifiée.', 402);
-    statements.push(db.prepare(UPSERT_COMPLETE_SQL).bind(subscription.id, bundle.id, paid ? bundle.id : null, paid ? paidFrom : 0, paid ? settlement.paidThrough! : 0, paid ? settlement.paidInvoiceId! : null));
+    if (paid && (!paidFrom || paidFrom >= settlement.paidThrough!))
+      throw new PublicError(
+        'La période payée du pack doit être vérifiée.',
+        402,
+      );
+    statements.push(
+      db
+        .prepare(UPSERT_COMPLETE_SQL)
+        .bind(
+          subscription.id,
+          bundle.id,
+          paid ? bundle.id : null,
+          paid ? paidFrom : 0,
+          paid ? settlement.paidThrough! : 0,
+          paid ? settlement.paidInvoiceId! : null,
+        ),
+    );
     // Refund evidence survives status updates and delayed/replayed paid events.
-    statements.push(db.prepare(`UPDATE subscriptions SET entitlement_valid_until=0 WHERE subscription_id=? AND EXISTS(SELECT 1 FROM complete_refunds r WHERE r.invoice_id=subscriptions.last_paid_invoice_id AND r.customer_id=subscriptions.customer_id AND r.livemode=subscriptions.livemode)`).bind(subscription.id));
+    statements.push(
+      db
+        .prepare(
+          `UPDATE subscriptions SET entitlement_valid_until=0 WHERE subscription_id=? AND EXISTS(SELECT 1 FROM complete_refunds r WHERE r.invoice_id=subscriptions.last_paid_invoice_id AND r.customer_id=subscriptions.customer_id AND r.livemode=subscriptions.livemode)`,
+        )
+        .bind(subscription.id),
+    );
   }
   await db.batch(statements);
-  if(paid)await finishPlanChange(subscription.id);
+  if (paid) await finishPlanChange(subscription.id);
   await linkPaidCheckoutAccount(subscription.id);
 }
 
@@ -821,7 +910,9 @@ export async function persistStripeEvent(event: StripeEvent) {
       await upsertSubscription(subscription, session, {
         paidInvoiceId,
         paidThrough,
-        paidFrom: paidInvoiceId ? paidPeriodStart(invoice, subscription, paidThrough) : undefined,
+        paidFrom: paidInvoiceId
+          ? paidPeriodStart(invoice, subscription, paidThrough)
+          : undefined,
         paidAt: paidInvoiceId
           ? (invoice?.status_transitions?.paid_at ?? now)
           : undefined,

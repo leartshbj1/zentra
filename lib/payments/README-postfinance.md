@@ -1,6 +1,16 @@
 # Adaptateur PostFinance Checkout / Wallee
 
-Module serveur préparé, sans SDK et sans dépendance runtime. La réception signée `/api/payments/postfinance/webhook` est raccordée à l'inbox D1 ; aucune route d'achat ne l'utilise encore. Aucun compte marchand n'existe encore : conserver `enabled: false` pour les achats et laisser `POSTFINANCE_WEBHOOKS_ENABLED` absent ou différent de `true`. Les tests utilisent exclusivement un `fetch` simulé et des clés publiques de test. Ce résultat n'est pas une validation en production.
+Module serveur préparé, sans SDK et sans dépendance runtime. La réception signée `/api/payments/postfinance/webhook` est raccordée à l'inbox D1. Une entrée d'achat privée `/api/payments/postfinance/checkout` est maintenant raccordée au parcours initial décrit ci-dessous ; elle reste désactivée et refuse explicitement PRODUCTION. Aucun compte marchand n'existe encore : conserver les bindings d'activation absents/faux. Les tests utilisent exclusivement un `fetch` simulé et des clés publiques de test. Ce résultat n'est pas une validation en production.
+
+## Achat Gestion sur Stripe
+
+Le parcours public `/api/stripe/checkout` emploie maintenant `stripe-gestion-purchase.ts` et la réservation commune. Les migrations additives 0076–0077 figent le compte, l'entreprise choisie, le plan, les conditions, le périmètre de clé Stripe et les paramètres de session. Un compte possédant plusieurs entreprises doit en choisir une ; une reprise conserve sa cible. Un premier achat crée une entreprise provisoire stable, sans droits payants. Le claim est chiffré côté serveur et transmis uniquement par cookie HttpOnly après persistance réussie.
+
+Les clics concurrents réutilisent les paramètres et la même clé d'idempotence Stripe. Une réponse perdue peut être récupérée dans une fenêtre bornée ; une tentative inconnue n'est pas remplacée après expiration. L'annulation libère une tentative non dispatchée par CAS, ou exige l'état `expired` vérifié chez Stripe avant de libérer ses slots. La reprise après annulation permet d'ajouter un premier code de parrainage ou de le retirer, uniquement pour le draft original impayé et sans autre entreprise admissible ; la règle d'un parrain choisi par compte reste applicable.
+
+L'activation relit le watermark de facture payée validé côté serveur et exige propriétaire, session, prix, plan, environnement, période et capacité exacts. Son batch rattache l'abonnement à l'entreprise prévue, conserve les données et activations d'essai, puis ferme la réservation. Un retour de Checkout ou une session `complete` ne suffit pas. Les collisions avec Complet sont vérifiées dans les deux ordres ; son ancien parcours sans cible explicite reste conservateur à l'échelle du compte. Support, Automation et Complet ne sont pas encore tous migrés vers ce nouveau contrôleur.
+
+`pnpm test:gestion-purchase` vérifie ce parcours avec des identités, clés de test et réponses fournisseur fictives. Le fournisseur TWINT est activé selon la confirmation du titulaire ; ces tests ne prouvent aucun premier paiement TWINT ni renouvellement réel.
 
 ## Protocole vérifié le 6 octobre 2026
 
@@ -34,7 +44,7 @@ L'argument `method` du client applique une garde locale ; il ne sélectionne pas
 
 ## Journaux durables D1
 
-`postfinance-store.ts` implémente les deux interfaces avec les tables de la migration additive `0072_melodic_tinkerer.sql`. L'inbox est reliée à la réception signée et au worker privé de lecture décrit ci-dessous. Le journal de mutations n'est pas encore raccordé aux achats. La réception d'un webhook n'active donc pas les achats PostFinance et ne crée aucun droit d'accès.
+`postfinance-store.ts` implémente les deux interfaces avec les tables de la migration additive `0072_melodic_tinkerer.sql`. L'inbox est reliée à la réception signée et au worker privé de lecture décrit ci-dessous. Le journal de mutations est raccordé au parcours initial privé. La réception d'un webhook n'active pas les achats PostFinance et n'est jamais une preuve de règlement à elle seule.
 
 - `D1PostFinanceMutationLedger` réserve par insertion atomique, conserve le fingerprint et le résultat, et autorise uniquement le propriétaire de la réservation à terminer l'opération. Après un arrêt ou un résultat ambigu, la réservation ne peut jamais expirer ni être volée pour répéter le POST. Le résultat d'une opération terminée est rejoué sans appel fournisseur ; un autre corps est refusé.
 - `D1PostFinanceWebhookInbox` persiste la réception et le travail dans une seule ligne. Son périmètre inclut l'origine API, le Space et les listeners configurés avec leur type d'entité. Un même événement reçu à nouveau ne crée aucun travail ; un contenu différent sous le même ID est refusé. Les champs non reconnus ne sont pas stockés.
@@ -64,7 +74,7 @@ Depuis la racine du Site : `pnpm test:postfinance`. Les tests de journal exécut
 
 Tests : fixture officielle indépendante, falsification du corps, DER/P1363, mauvais algorithme, replay, scope Space/listener, HMAC indépendant, chemins/corps API exacts, résultat idempotent, conflit de corps, concurrence, timeout ambigu, refus sans configuration, CHF mensuel et URLs autorisées. Aucun appel réseau réel ni mutation marchande pendant les tests.
 
-Restent avant production : contrôleur d'achat authentifié avec réservation commune aux prestataires, dispatch financier protégé contre les annulations, provisionnement des liens compte/entreprise/espace, renouvellement, ordonnanceur et suivi opérationnel, permissions et configurations du compte, puis simulation marchande du cycle complet. Les lecteurs de droits Zentra sont raccordés aux preuves locales ; cela ne remplace pas la vérification marchande préalable. La signature d'un webhook n'autorise pas un achat ni un abonnement.
+Le contrôleur initial authentifié, la réservation commune et les gardes de dispatch existent désormais dans le parcours privé TEST. Restent avant production : provisionnement après règlement réellement rapproché, renouvellement, ordonnanceur et suivi opérationnel, résiliation/résolution des opérations incertaines, permissions et configurations du compte, puis simulation marchande du cycle complet. Les lecteurs de droits Zentra sont raccordés aux preuves locales ; cela ne remplace pas la vérification marchande préalable. La signature d'un webhook n'autorise pas un achat ni un abonnement.
 
 ## Encaissement avant ouverture des droits
 
@@ -84,7 +94,23 @@ Les opérations API exactes sont implémentées, mais pas encore les routes d'ac
 
 Toutes les mutations passent par le journal durable, y compris les POST sans corps. Un résultat perdu bloque un second POST ; les lectures n'ouvrent aucun droit à elles seules. [TransactionCreate](https://github.com/pfpayments/typescript-sdk/blob/bb1e4c34ffa44bc1da8f54c86f984961aa886c30/src/models/TransactionCreate.ts), [TransactionsService](https://github.com/pfpayments/typescript-sdk/blob/bb1e4c34ffa44bc1da8f54c86f984961aa886c30/src/services/TransactionsService.ts), [TokensService](https://github.com/pfpayments/typescript-sdk/blob/bb1e4c34ffa44bc1da8f54c86f984961aa886c30/src/services/TokensService.ts).
 
-Les contrats et périodes locaux, leur lecteur commun, le worker de rapprochement et les droits des licences/places/Support/Automation sont implémentés. Les nouveaux checkouts Stripe refusent un contrat prépayé concurrent ; le futur achat PostFinance devra disposer de sa propre réservation atomique et figer les attentes avant le dispatch. La simulation marchande reste nécessaire pour confirmer la facture PAID, son montant CHF et son solde, le FULFILL de la transaction, le token et le règlement réel du connecteur. Aucun de ces résultats de production n'est inféré des tests.
+Les contrats et périodes locaux, leur lecteur commun, le worker de rapprochement et les droits des licences/places/Support/Automation sont implémentés. La réservation commune et les attentes figées sont maintenant utilisées dans le parcours initial privé. La simulation marchande reste nécessaire pour confirmer la facture PAID, son montant CHF et son solde, le FULFILL de la transaction, le token et le règlement réel du connecteur. Aucun de ces résultats de production n'est inféré des tests.
+
+## Préparation et premier achat privé
+
+La migration additive `0076_purchase_intent_reservations.sql` conserve l'intention d'achat, les conditions acceptées, les paramètres canoniques, le compte propriétaire, l'environnement, le prestataire et les cibles réelles. Les footprints se limitent aux produits inclus et aux entreprises/espaces concernés : Gestion et Automation d'entreprises différentes ne partagent pas un verrou global. Complet réserve les trois produits de son entreprise et Support de son espace dans le même batch atomique. Les tentatives incertaines/dispatchées ne sont jamais libérées par une expiration locale ; une commande réglée garde son slot jusqu'au handoff de sa projection vérifiée.
+
+`authorizePrepaidPurchase` relit le créateur, le propriétaire actif et le lien Support/Gestion. Un siège déjà payé n'est pas exigé pour ouvrir la facturation, mais un administrateur/collaborateur ne peut pas acheter au nom du propriétaire. `prepareInitialPrepaidPurchase` vérifie le catalogue, le moyen configuré, les conditions et la cible avant de réserver le contrat, la période initiale et ses attentes. Aucun ID fourni par le navigateur ne constitue une autorisation et aucune preuve ou licence n'est créée ici.
+
+`runInitialPrepaidCheckout` relit les bindings durables, crée une transaction PENDING, lie son ID, la relit et contrôle les champs officiels. Il conserve sa version dans un snapshot LOCAL immuable avant confirmation, puis obtient une URL HTTPS approuvée. Les POST create/confirm passent par une garde SQL atomique vérifiant encore le contrat, les cibles, l'annulation et la période. Un résultat terminé se rejoue ; une réponse financière perdue interdit le second POST. Le premier achat ne lance jamais ChargeFlow et n'accorde pas de droit depuis sa page de retour.
+
+L'entrée HTTP lit seulement les bindings serveur `POSTFINANCE_PURCHASES_ENABLED`, `POSTFINANCE_MERCHANT_APPROVED`, `POSTFINANCE_CHARGE_FLOW_ENABLED`, `POSTFINANCE_PAY_TOKEN_ENABLED`, `POSTFINANCE_TWINT_USER_ON_FILE_ENABLED`, `POSTFINANCE_PREPAID_ENVIRONMENT`, `POSTFINANCE_RETURN_ORIGIN`, les origines/identifiants/clés déjà utilisés et `POSTFINANCE_PREPAID_CATALOG_JSON` / `POSTFINANCE_PREPAID_CONNECTORS_JSON`. Le catalogue doit correspondre exactement aux prix, noms, CHF et mensualités approuvés de Zentra. Aucun réglage ne vient du corps HTTP.
+
+Cette route est volontairement **TEST uniquement**, avec `POSTFINANCE_TEST_ACCOUNT_USER_IDS` contenant au maximum 20 UUID distincts de comptes vérifiés. Elle exige la même origine, la connexion fraîche, des conditions courantes, une taille JSON bornée et les limites de requêtes existantes. Même des flags de déploiement PRODUCTION ne peuvent ouvrir un achat LIVE. Elle retourne 503 avant réseau/base lorsque désactivée ; aucune option PostFinance publique n'est annoncée.
+
+Avant l'ouverture LIVE restent à raccorder/tester : projection des cibles et droits après règlement réellement rapproché, token actif/env/moyen/payer vérifiés, ordonnanceur de renouvellement, résiliation et résolution des opérations incertaines. Le contrôleur de préparation refuse encore une reprise publique après expiration de l'intention, alors que l'orchestrateur peut restituer son résultat terminé : cette différence est sûre, mais ne constitue pas encore un parcours de récupération complet.
+
+Les collaborateurs Complet PostFinance découvrent désormais Support via la preuve courante `prepaid_current_company_rights`, le propriétaire réel et les places du catalogue. Les anciens caches de sièges/abonnement ne restaurent pas cet accès après expiration ou remboursement.
 
 ## Contrats et mensualités locales
 

@@ -30,8 +30,12 @@ describe('Stripe SDK and webhook version contract', () => {
     expect(licenseSource).toContain(
       "access_role: prepaid ? prepaid.role : input.accessRole ?? 'owner'",
     );
-    expect(licenseSource).toContain('if (!member || !isAccountRole(member.role))');
-    expect(licenseSource).toContain('return { access, gestion, role: member.role };');
+    expect(licenseSource).toContain(
+      'if (!member || !isAccountRole(member.role))',
+    );
+    expect(licenseSource).toContain(
+      'return { access, gestion, role: member.role };',
+    );
     expect(licenseSource).toContain('account_user_id: accountUserId');
     expect(licenseSource).toContain('account_session_id: accountSessionId');
     expect(licenseSource).toContain('AND member.revoked_at IS NULL');
@@ -84,7 +88,13 @@ describe('Stripe SDK and webhook version contract', () => {
       new URL('../app/api/stripe/portal/route.ts', import.meta.url),
       'utf8',
     );
-    expect(checkoutSource).toMatch(/createCheckoutSession\(\s*origin,\s*claimHash,\s*identity,\s*plan\.id,\s*referral\s*\?\?\s*undefined,?\s*\)/);
+    expect(checkoutSource).toContain('getZentraUser({ refreshSession: true })');
+    expect(checkoutSource).toMatch(
+      /stripeGestionPurchase\(\s*\{\s*user: identity,/,
+    );
+    expect(checkoutSource).toContain(
+      'activationCookieName(result.sessionId), result.claim',
+    );
     expect(claimSource).toContain('assertCheckoutAccount(session, user)');
     expect(licenseSource).toContain('getZentraUser({ refreshSession: true })');
     expect(licenseSource).toContain('assertCheckoutAccount(session, user)');

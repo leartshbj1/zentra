@@ -12,6 +12,20 @@ type MutationRow = {
   claim_token: string | null;
   response_json: string | null;
 };
+/** Server-owned period binding for a financial dispatch. Browser input and a
+ * successful reservation alone are never permission to charge a customer. */
+export type PrepaidMutationFence = Readonly<{
+  periodId: string;
+  contractId: string;
+  ownerId: string;
+  organizationId: string | null;
+  workspaceId: string | null;
+  apiOrigin: string;
+  spaceId: number;
+  environment: 'TEST' | 'PRODUCTION';
+  operation: 'create' | 'confirm' | 'chargeflow';
+  transactionId?: number;
+}>;
 type WebhookRow = {
   scope_hash: string;
   event_json: string;
@@ -108,10 +122,92 @@ function json(value: string, maximum: number) {
  * reconciliation can resolve it; retrying the POST is deliberately forbidden. */
 export class D1PostFinanceMutationLedger implements MutationLedger {
   private owned = new Map<string, string>();
+  private readonly prepaidFence: PrepaidMutationFence | undefined;
   constructor(
     private db: PaymentDatabase,
     private now = () => Math.floor(Date.now() / 1000),
-  ) {}
+    prepaidFence?: PrepaidMutationFence,
+  ) {
+    this.prepaidFence =
+      prepaidFence && Object.freeze(structuredClone(prepaidFence));
+  }
+
+  private prepaidBinding(scope: string) {
+    const f = this.prepaidFence;
+    if (!f) return null;
+    const identity = (value: unknown) =>
+      typeof value === 'string' &&
+      value.length > 0 &&
+      value.length <= 180 &&
+      !Array.from(value).some(
+        (character) =>
+          character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+      );
+    if (
+      !/^pfperiod_[0-9a-f]{64}$/.test(f.periodId) ||
+      !/^pfp_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+        f.contractId,
+      ) ||
+      !identity(f.ownerId) ||
+      (f.organizationId !== null && !identity(f.organizationId)) ||
+      (f.workspaceId !== null && !identity(f.workspaceId)) ||
+      (f.organizationId === null && f.workspaceId === null) ||
+      !origins.has(f.apiOrigin) ||
+      !['TEST', 'PRODUCTION'].includes(f.environment) ||
+      !['create', 'confirm', 'chargeflow'].includes(f.operation)
+    )
+      throw new Error('Invalid prepaid payment dispatch context.');
+    positiveId(f.spaceId);
+    if (f.operation === 'create') {
+      if (f.transactionId !== undefined)
+        throw new Error('Invalid prepaid payment dispatch context.');
+    } else positiveId(f.transactionId as number);
+    const path =
+      f.operation === 'create'
+        ? '/payment/transactions'
+        : `/payment/transactions/${f.transactionId}/${f.operation === 'confirm' ? 'confirm' : 'charge-flow/apply'}`;
+    if (
+      scope !==
+      `${f.apiOrigin}|${f.spaceId}|POST|${path}|${f.periodId}_${f.operation}`
+    )
+      throw new Error('Prepaid payment dispatch scope mismatch.');
+    const transaction =
+      f.operation === 'create'
+        ? ''
+        : `AND EXISTS(
+      SELECT 1 FROM prepaid_transactions t WHERE t.period_id=p.period_id
+      AND t.api_origin=c.api_origin AND t.space_id=c.space_id AND t.transaction_id=?)`;
+    // This immutable portion is also required for replay. It deliberately does
+    // not require a current/uncancelled period when returning a completed result.
+    const sql = `FROM prepaid_periods p JOIN prepaid_contracts c ON c.contract_id=p.contract_id
+      JOIN prepaid_payment_expectations e ON e.period_id=p.period_id
+      WHERE p.period_id=? AND c.contract_id=? AND c.owner_id=?
+      AND c.organization_id IS ? AND c.workspace_id IS ?
+      AND c.api_origin=? AND c.space_id=? AND c.environment=?
+      AND p.currency='CHF' AND p.price_chf_minor>0 AND p.catalog_version=c.catalog_version
+      AND p.catalog_json=c.catalog_json AND e.plan_reference=p.catalog_version
+      AND length(e.customer_reference) BETWEEN 1 AND 120
+      AND e.payment_method_configuration_id>0 AND e.connector_configuration_id>0
+      AND length(e.fingerprint)=64 AND e.fingerprint NOT GLOB '*[^0-9a-f]*'
+      AND (c.organization_id IS NULL OR EXISTS(SELECT 1 FROM organizations o
+        JOIN organization_members m ON m.organization_id=o.organization_id
+        WHERE o.organization_id=c.organization_id AND o.created_by_user_id=c.owner_id
+        AND m.user_id=c.owner_id AND m.role='owner' AND m.revoked_at IS NULL))
+      AND (c.workspace_id IS NULL OR EXISTS(SELECT 1 FROM support_workspaces w
+        WHERE w.id=c.workspace_id AND w.owner_id=c.owner_id)) ${transaction}`;
+    const values = [
+      f.periodId,
+      f.contractId,
+      f.ownerId,
+      f.organizationId,
+      f.workspaceId,
+      f.apiOrigin,
+      f.spaceId,
+      f.environment,
+      ...(f.operation === 'create' ? [] : [f.transactionId!]),
+    ];
+    return { sql, values, creation: f.operation === 'create' };
+  }
 
   async claim(scope: string, fingerprint: string): Promise<Claim> {
     if (!/^[A-Za-z0-9_-]{43}$/.test(fingerprint))
@@ -119,21 +215,57 @@ export class D1PostFinanceMutationLedger implements MutationLedger {
     const hash = await scopeHash(scope),
       token = crypto.randomUUID(),
       timestamp = time(this.now());
-    const result = await this.db
-      .prepare(`INSERT INTO postfinance_mutations
+    const binding = this.prepaidBinding(scope);
+    const result = binding
+      ? await this.db
+          .prepare(`INSERT INTO postfinance_mutations
+      (scope_hash,fingerprint,state,claim_token,created_at,updated_at)
+      SELECT ?,?,'claimed',?,?,? ${binding.sql}
+      AND c.cancelled_at IS NULL AND p.starts_at<=? AND p.ends_at>?
+      AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=p.period_id)
+      AND NOT EXISTS(SELECT 1 FROM prepaid_settlement_proofs s WHERE s.period_id=p.period_id)
+      ${binding.creation ? 'AND NOT EXISTS(SELECT 1 FROM prepaid_transactions t WHERE t.period_id=p.period_id)' : ''}
+      AND (p.ordinal=0 OR EXISTS(SELECT 1 FROM prepaid_periods previous
+        JOIN prepaid_transactions pt ON pt.period_id=previous.period_id
+        JOIN prepaid_settlement_proofs ps ON ps.period_id=previous.period_id
+        WHERE previous.contract_id=c.contract_id AND previous.ordinal=p.ordinal-1
+        AND previous.ends_at=p.starts_at AND pt.api_origin=c.api_origin AND pt.space_id=c.space_id
+        AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=previous.period_id)))
+      ON CONFLICT(scope_hash) DO NOTHING`)
+          .bind(
+            hash,
+            fingerprint,
+            token,
+            timestamp,
+            timestamp,
+            ...binding.values,
+            timestamp,
+            timestamp,
+          )
+          .run()
+      : await this.db
+          .prepare(`INSERT INTO postfinance_mutations
       (scope_hash,fingerprint,state,claim_token,created_at,updated_at)
       VALUES(?,?,'claimed',?,?,?) ON CONFLICT(scope_hash) DO NOTHING`)
-      .bind(hash, fingerprint, token, timestamp, timestamp)
-      .run();
+          .bind(hash, fingerprint, token, timestamp, timestamp)
+          .run();
     if (result.meta.changes === 1) {
       this.owned.set(hash, token);
       return { kind: 'claimed' };
     }
-    const row = await this.db
-      .prepare(`SELECT fingerprint,state,claim_token,response_json
-      FROM postfinance_mutations WHERE scope_hash=?`)
-      .bind(hash)
-      .first<MutationRow>();
+    const row = binding
+      ? await this.db
+          .prepare(`SELECT fingerprint,state,claim_token,response_json
+      FROM postfinance_mutations WHERE scope_hash=? AND EXISTS(SELECT 1 ${binding.sql})`)
+          .bind(hash, ...binding.values)
+          .first<MutationRow>()
+      : await this.db
+          .prepare(`SELECT fingerprint,state,claim_token,response_json
+        FROM postfinance_mutations WHERE scope_hash=?`)
+          .bind(hash)
+          .first<MutationRow>();
+    if (!row && binding)
+      throw new Error('Prepaid payment dispatch is unavailable.');
     if (!row) throw new Error('Payment journal reservation was not persisted.');
     if (row.fingerprint !== fingerprint) return { kind: 'conflict' };
     if (row.state === 'completed' && row.response_json !== null) {

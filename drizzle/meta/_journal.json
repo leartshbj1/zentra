@@ -533,6 +533,20 @@
       "when": 1791262068027,
       "tag": "0075_prepaid_reconciliation_fences",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "6",
+      "when": 1791264149381,
+      "tag": "0076_purchase_intent_reservations",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "6",
+      "when": 1791265142374,
+      "tag": "0077_gestion_purchase_target",
+      "breakpoints": true
     }
   ]
 }

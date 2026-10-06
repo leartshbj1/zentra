@@ -56,6 +56,8 @@ export async function referralState(organizationId: string, userId: string) {
 export async function prepareReferral(
   code: unknown,
   user: ZentraUser,
+  // Internal controller context only. HTTP callers cannot supply this bypass.
+  canceledGestionDraft?: { organizationId: string; requestId: string },
 ): Promise<{
   claimId: string;
   couponId: string;
@@ -81,11 +83,45 @@ export async function prepareReferral(
       }>();
   if (!source || source.entitlement_valid_until <= now())
     throw new AccountPublicError('Ce code de parrainage n’est pas actif.');
+  let eligibleDraft: string | null = null;
+  if (canceledGestionDraft) {
+    const safe = await db
+      .prepare(`SELECT d.organization_id FROM gestion_purchase_drafts d
+      JOIN organizations o ON o.organization_id=d.organization_id AND o.created_by_user_id=d.owner_id AND o.subscription_id=d.original_subscription_id
+      JOIN subscriptions s ON s.subscription_id=d.original_subscription_id
+      JOIN gestion_purchase_requests r ON r.request_id=? AND r.organization_id=d.organization_id AND r.owner_id=d.owner_id AND r.environment=d.environment
+      JOIN purchase_intents i ON i.intent_id=r.intent_id AND i.owner_id=r.owner_id AND i.organization_id=r.organization_id AND i.environment=r.environment
+      WHERE d.organization_id=? AND d.owner_id=? AND r.previous_subscription_id=d.original_subscription_id
+      AND s.status='incomplete' AND s.entitlement_valid_until=0 AND s.current_period_end=0 AND s.last_paid_invoice_id IS NULL
+      AND r.closed_at IS NOT NULL AND i.state IN ('released','expired','canceled') AND i.provider='stripe' AND i.provider_scope=r.provider_scope
+      AND NOT EXISTS(SELECT 1 FROM purchase_intent_footprints f WHERE f.intent_id=i.intent_id AND f.released_at IS NULL)
+      AND NOT EXISTS(SELECT 1 FROM gestion_purchase_requests newer WHERE newer.organization_id=r.organization_id AND newer.environment=r.environment
+        AND newer.closed_at IS NULL)
+      AND NOT EXISTS(SELECT 1 FROM purchase_intents active JOIN purchase_intent_footprints f ON f.intent_id=active.intent_id
+        WHERE active.owner_id=d.owner_id AND f.released_at IS NULL)
+      AND NOT EXISTS(SELECT 1 FROM complete_checkouts c WHERE c.user_id=d.owner_id)
+      AND NOT EXISTS(SELECT 1 FROM automation_checkouts c WHERE c.organization_id=d.organization_id)
+      AND NOT EXISTS(SELECT 1 FROM support_checkouts c JOIN support_workspaces w ON w.id=c.workspace_id WHERE w.owner_id=d.owner_id)
+      AND NOT EXISTS(SELECT 1 FROM organization_members extra WHERE extra.organization_id=d.organization_id AND extra.revoked_at IS NULL AND extra.user_id<>d.owner_id)
+      AND EXISTS(SELECT 1 FROM organization_members owner WHERE owner.organization_id=d.organization_id AND owner.user_id=d.owner_id AND owner.role='owner' AND owner.revoked_at IS NULL)`)
+      .bind(
+        canceledGestionDraft.requestId,
+        canceledGestionDraft.organizationId,
+        user.userId,
+      )
+      .first<{ organization_id: string }>();
+    if (!safe)
+      throw new AccountPublicError(
+        'Le paiement précédent doit être définitivement annulé avant de modifier le parrainage.',
+        409,
+      );
+    eligibleDraft = safe.organization_id;
+  }
   const existingMembership = await db
     .prepare(
-      'SELECT membership_id FROM organization_members WHERE user_id=? AND revoked_at IS NULL LIMIT 1',
+      'SELECT membership_id FROM organization_members WHERE user_id=? AND revoked_at IS NULL AND (? IS NULL OR organization_id<>?) LIMIT 1',
     )
-    .bind(user.userId)
+    .bind(user.userId, eligibleDraft, eligibleDraft)
     .first();
   const previousPaid = await db
     .prepare(

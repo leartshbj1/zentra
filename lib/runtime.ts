@@ -1,5 +1,8 @@
 import { env } from 'cloudflare:workers';
-import { assertDeploymentRuntime, deploymentBindingReader } from './deployment-contract';
+import {
+  assertDeploymentRuntime,
+  deploymentBindingReader,
+} from './deployment-contract';
 
 type RuntimeBindings = {
   ZENTRA_DEPLOYMENT_KIND?: string;
@@ -43,6 +46,16 @@ type RuntimeBindings = {
   POSTFINANCE_RECONCILIATION_TOKEN?: string;
   POSTFINANCE_RECONCILIATION_KINDS_JSON?: string;
   POSTFINANCE_SETTLEMENT_EVIDENCE_VERIFIED?: string;
+  POSTFINANCE_PURCHASES_ENABLED?: string;
+  POSTFINANCE_MERCHANT_APPROVED?: string;
+  POSTFINANCE_RETURN_ORIGIN?: string;
+  POSTFINANCE_PREPAID_ENVIRONMENT?: string;
+  POSTFINANCE_PREPAID_CATALOG_JSON?: string;
+  POSTFINANCE_PREPAID_CONNECTORS_JSON?: string;
+  POSTFINANCE_CHARGE_FLOW_ENABLED?: string;
+  POSTFINANCE_PAY_TOKEN_ENABLED?: string;
+  POSTFINANCE_TWINT_USER_ON_FILE_ENABLED?: string;
+  POSTFINANCE_TEST_ACCOUNT_USER_IDS?: string;
 };
 
 const bindings = env as unknown as RuntimeBindings;

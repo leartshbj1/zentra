@@ -920,3 +920,5 @@ export const automationWorkItems = sqliteTable('automation_work_items', {
 },t=>[index('automation_work_items_company').on(t.organizationId,t.state,t.createdAt)]);
 
 export * from './prepaid-schema';
+export * from './purchase-intent-schema';
+export * from './stripe-gestion-purchase-schema';
